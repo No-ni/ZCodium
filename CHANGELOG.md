@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.15.0 (2026-09-24)
+## 3.14.3-1 (2026-09-25)
 
 ### Features
 
@@ -358,6 +358,8 @@
 
 * **ci:** allow isolated CUA namespaces on Ubuntu runners ([6a50797](https://github.com/axiom-desu/ZCodium/commit/6a5079798d373d4c6db4a513c82639d44a02607c))
 
+* **ci:** arm64 交叉打包只校验资产，跳过原生加载探针 ([b58ba2a](https://github.com/axiom-desu/ZCodium/commit/b58ba2a51c3270f0c065ecd578335cab648ac4a7))
+
 * **ci:** build Agent packages from the root workspace ([4819295](https://github.com/axiom-desu/ZCodium/commit/48192950270892454a79926ed398ae064aafe3b8))
 
 * **ci:** collect Linux installers using native architecture names ([4c34a02](https://github.com/axiom-desu/ZCodium/commit/4c34a0230d8a2d46b7dd7264723eec656f119143))
@@ -367,6 +369,8 @@
 * **ci:** mark prerelease tags in draft releases ([2ad1451](https://github.com/axiom-desu/ZCodium/commit/2ad145136ee87c02d5ba39b5f43d9717ef436b73))
 
 * **ci:** parse pinned toolchain before setting up Node ([a5dd19e](https://github.com/axiom-desu/ZCodium/commit/a5dd19e7ab74c6d56c266a724b29448d4c0b96e9))
+
+* **ci:** 修 Windows arm64 交叉打包的两个断点 ([6e386d6](https://github.com/axiom-desu/ZCodium/commit/6e386d6013df08f4dfffec6932b9c249bbbf9f34))
 
 * **cli:** drop the proprietary license files from the rebuilt plugins ([43f91ed](https://github.com/axiom-desu/ZCodium/commit/43f91edc17d2e447140fe4a7571c138306501d0d))
 
@@ -476,6 +480,8 @@
 
 ### Chores
 
+* **cua:** 删除 Computer Use Helper build-id 死机器 ([8643606](https://github.com/axiom-desu/ZCodium/commit/86436068ba3a21250bf51a550016f46564251639))
+
 * **deps:** stage1 sync pnpm-lock.yaml with the current workspace ([b68f388](https://github.com/axiom-desu/ZCodium/commit/b68f388edd496eaf8d8dc6d5ade8c990f427410a))
   * apps/zcode-cli/packages/android-emulator-plugin
   * apps/zcode-cli/packages/ios-simulator-plugin
@@ -486,6 +492,14 @@
   * `pnpm typecheck` exit 0
 
 * **diagnostics:** finalize dependency cleanup and change report ([78ab75e](https://github.com/axiom-desu/ZCodium/commit/78ab75e8935174b4aac815abcc3fc5e149cc4d8b))
+
+* release v3.14.3-1 ([db54813](https://github.com/axiom-desu/ZCodium/commit/db54813c31dce1a04a766e2810afd10ae6f5f1f9))
+
+* release v3.14.3-1 ([591fc55](https://github.com/axiom-desu/ZCodium/commit/591fc55d99285da353b0411eb364b927967429a3))
+
+* release v3.14.3-1 ([fd33e87](https://github.com/axiom-desu/ZCodium/commit/fd33e87367e44edb61fe34a7bd0fa035653164e6))
+
+* release v3.15.0 ([a179b34](https://github.com/axiom-desu/ZCodium/commit/a179b3401c9c062db60e3b7fcf44550889fd244f))
 
 * 归档官方上游构建到 official-builds/ 并忽略 ([5ed8f9b](https://github.com/axiom-desu/ZCodium/commit/5ed8f9bfb5e9b3977cfd4b9c7a8c44ae16c081a7))
 
@@ -593,6 +607,14 @@
 * **cli:** split the 1356-line docx document.py into six modules ([838592a](https://github.com/axiom-desu/ZCodium/commit/838592af84768f53b0df3933afde3f08538a17cb))
 
 * **composer:** remove official quota services from context display ([92d4888](https://github.com/axiom-desu/ZCodium/commit/92d4888aab4a8a33b6dc99d43ed664ad6c1e5319))
+
+* **cua:** 拆除闭源 Computer Use Helper 整条链 ([9976f24](https://github.com/axiom-desu/ZCodium/commit/9976f24c58df7b1f1def68af36b579c793255d69))
+  * packages/zcode-cua 的 broker*/pip-session* 共 16 个文件与 8 条 exports；
+  * services 的 cuaHelperInstaller / cuaPipSession / cuaPipSessionService；
+  * desktop 的 cuaAccessibilitySettings / desktopCuaHelperInstaller / cuaPipFocusRouter /
+  * node.ts 里 createDefaultCuaProductHelper 的 darwin 分支、resolveBundledCuaHelperAppPath、
+  * shared 的 CuaPipSession、CuaPipFocusChanged 通道、hostCuaPipFocusChangedMessageSchema
+  * markCuaProductHelperAgentEnvUnavailable 一族（原是 no-op stub，has... 恒 false，
 
 * **debug:** remove live capture and retain offline inspection ([a6d5022](https://github.com/axiom-desu/ZCodium/commit/a6d5022fa76cd122cf767165af8efb494eeac782))
 
