@@ -1,6 +1,6 @@
 name: macOS Desktop Build
 
-# 只做一件事：在 GitHub 托管的 macOS runner 上打出 arm64 的 .dmg / .zip 并上传为 artifact。
+# 只做一件事：在 GitHub 托管的 macOS runner 上打出 arm64 的 .dmg 并上传为 artifact。
 # 不触碰 scripts/ci/desktop-release.mjs（它的产物白名单只认 linux/win），
 # 因此和上游同步不会冲突，也不会创建 Release。
 #
@@ -90,7 +90,6 @@ jobs:
           name: zcodium-macos-arm64
           path: |
             packages/desktop/dist/*.dmg
-            packages/desktop/dist/*.zip
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

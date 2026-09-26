@@ -713,7 +713,7 @@ export default {
     },
   ],
   mac: {
-    target: ["dmg", "zip"],
+    target: ["dmg"],
     category: "public.app-category.developer-tools",
     artifactName: buildDesktopArtifactName("mac"),
     extendInfo: {

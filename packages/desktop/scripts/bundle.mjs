@@ -76,7 +76,7 @@ const archBuilderFlagMap = {
 };
 
 const artifactExtensionsByOs = {
-  mac: [".dmg", ".zip"],
+  mac: [".dmg"],
   win: [".exe"],
   linux: [".AppImage", ".deb", ".rpm", ".pkg.tar.zst"],
 };
