@@ -19,11 +19,18 @@ const RELEASE_MESSAGE_HEADING =
   "Age may advance, yet ambition shall not wane;\n" +
   "Hardship may deepen, yet aspiration shall remain.";
 const RELEASE_MESSAGE_BODY =
-  "Linux x64 and Windows x64/arm64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.";
+  "macOS arm64/x64, Linux x64 and Windows x64/arm64. Unsigned builds; review and test each platform before publishing. Verify downloads with SHA256SUMS.";
 // electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
-// Windows 同时发 x64 与 arm64：electron-builder 可在 x64 runner 上交叉构建 arm64，
-// 原生库 @trycua/cua-driver-win32-arm64-msvc 已随 SDK 的 optionalDependencies 分发。
+// macOS 同时发 arm64 与 x64（Intel），两者各自在原生 runner 上构建（macos-15 /
+// macos-15-intel）：交叉架构打包会混入错误架构的原生预编译产物
+// （node-pty prebuild、bundled 工具链）。dmg 面向人工安装，zip 面向自动化分发。
 const extensions = {
+  mac: [
+    { extension: "dmg", arch: "arm64" },
+    { extension: "zip", arch: "arm64" },
+    { extension: "dmg", arch: "x64" },
+    { extension: "zip", arch: "x64" },
+  ],
   linux: [
     { extension: "AppImage", arch: "x86_64" },
     { extension: "deb", arch: "amd64" },
@@ -31,6 +38,8 @@ const extensions = {
     { extension: "pkg.tar.zst", arch: "x64" },
   ],
   win: [
+    // Windows 同时发 x64 与 arm64：electron-builder 可在 x64 runner 上交叉构建 arm64，
+    // 原生库 @trycua/cua-driver-win32-arm64-msvc 已随 SDK 的 optionalDependencies 分发。
     { extension: "exe", arch: "x64" },
     { extension: "exe", arch: "arm64" },
   ],
