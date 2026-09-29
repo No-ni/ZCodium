@@ -1,9 +1,5 @@
 import { Bot, Webhook } from "lucide-react";
-import type {
-  BotConfig,
-  BotServiceStatus,
-  BotWorkspaceRef,
-} from "@zcode/shared";
+import type { BotConfig, BotServiceStatus } from "@zcode/shared";
 import { ALL_BOT_WORKSPACES, BOT_BIND_CODE_TTL_MS } from "@zcode/shared";
 import {
   AstrBotChannelIcon,
@@ -53,19 +49,11 @@ export type WeixinRegistrationState = {
 export const BIND_CODE_TTL_MS = BOT_BIND_CODE_TTL_MS;
 export const TELEGRAM_BOTFATHER_URL = "https://t.me/BotFather";
 
-export function isAllWorkspacesAllowed(
-  allowedWorkspaces: readonly string[],
-): boolean {
-  return (
-    allowedWorkspaces.length === 0 ||
-    allowedWorkspaces.includes(ALL_BOT_WORKSPACES)
-  );
+export function isAllWorkspacesAllowed(allowedWorkspaces: readonly string[]): boolean {
+  return allowedWorkspaces.length === 0 || allowedWorkspaces.includes(ALL_BOT_WORKSPACES);
 }
 
-export function formatBotDisplayName(
-  name: string,
-  fallbackName: string,
-): string {
+export function formatBotDisplayName(name: string, fallbackName: string): string {
   return name.trim() || fallbackName;
 }
 
@@ -118,9 +106,7 @@ export function runtimeText(
   if (runtime?.messageId && formatRuntimeMessage) {
     return formatRuntimeMessage(runtime.messageId);
   }
-  return (
-    runtime?.message ?? runtime?.status ?? (enabled ? "enabled" : "disabled")
-  );
+  return runtime?.message ?? runtime?.status ?? (enabled ? "enabled" : "disabled");
 }
 
 export function runtimeDot(
@@ -128,14 +114,43 @@ export function runtimeDot(
   enabled: boolean,
 ): string {
   if (runtime?.status === "error") return "bg-destructive";
-  if (runtime?.status === "polling" || runtime?.status === "connected")
-    return "bg-success";
+  if (runtime?.status === "polling" || runtime?.status === "connected") return "bg-success";
   if (enabled) return "bg-foreground-subtle";
   return "bg-border";
 }
 
 export function formatBindCountdown(ms: number): string {
   return `${Math.max(0, Math.ceil(ms / 1000))}s`;
+}
+
+/**
+ * 轮询结果深比较：字段顺序无关，Date 以毫秒值比较。
+ * BotsDialog 的状态/配置轮询每 2 秒回新对象，内容不变时跳过 setState
+ * 可以避免整棵设置树无谓重渲染。
+ */
+export function isDeepEqualPollingValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
+    return false;
+  }
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, index) => isDeepEqualPollingValue(item, b[index]));
+  }
+  const aKeys = Object.keys(a as Record<string, unknown>);
+  const bKeys = Object.keys(b as Record<string, unknown>);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every(
+    (key) =>
+      Object.prototype.hasOwnProperty.call(b, key) &&
+      isDeepEqualPollingValue(
+        (a as Record<string, unknown>)[key],
+        (b as Record<string, unknown>)[key],
+      ),
+  );
 }
 
 export function createDefaultCommands(): BotConfig["allowedCommands"] {
