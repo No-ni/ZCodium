@@ -32,6 +32,7 @@ export function saveSessionEntry(db: DatabaseSync, input: SessionEntryInfo): voi
         data = case
           when ? and session_entry.type = excluded.type
             and session_entry.session_id = excluded.session_id
+            and json_valid(session_entry.data)
             and json_type(session_entry.data) = 'object'
           then json_set(session_entry.data, '$.modelSelection', json_extract(excluded.data, '$.modelSelection'))
           else excluded.data
