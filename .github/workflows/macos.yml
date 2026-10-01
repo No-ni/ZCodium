@@ -1,8 +1,7 @@
 name: macOS Desktop Build
 
-# 只做一件事：在 GitHub 托管的 macOS runner 上打出 arm64 的 .dmg 并上传为 artifact。
-# 不触碰 scripts/ci/desktop-release.mjs（它的产物白名单只认 linux/win），
-# 因此和上游同步不会冲突，也不会创建 Release。
+# 在 GitHub 托管的 macOS runner 上手动构建 arm64 的 .dmg 并上传为 artifact。
+# desktop.yml 另负责全平台发布；这里作为本机安装入口，不创建 Release。
 #
 # 上游打包链路在 electron-builder.config.js 的 beforePack/afterPack 里无条件校验
 # packages/desktop/bundled-remote-assets/（verifyBundledRemoteAssets），

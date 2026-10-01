@@ -18,8 +18,14 @@ const allNames = [
   "ZCodium-3.14.0-linux-amd64.deb",
   "ZCodium-3.14.0-linux-x86_64.rpm",
   "ZCodium-3.14.0-linux-x64.pkg.tar.zst",
+  "ZCodium-3.14.0-linux-arm64.AppImage",
+  "ZCodium-3.14.0-linux-arm64.deb",
+  "ZCodium-3.14.0-linux-aarch64.rpm",
+  "ZCodium-3.14.0-linux-aarch64.pkg.tar.zst",
   "ZCodium-3.14.0-win-x64.exe",
   "ZCodium-3.14.0-win-arm64.exe",
+  "ZCodium-3.14.0-mac-arm64.dmg",
+  "ZCodium-3.14.0-mac-x64.dmg",
 ];
 
 async function fixture(t, names = allNames) {
@@ -38,7 +44,7 @@ test("release tag must exactly match a valid package version", () => {
   for (const invalid of ["../3.14.0", "03.14.0", "3.14", "3.14.0-01", "3.14.0+build"]) {
     assert.throws(() => validateTag(`v${invalid}`, invalid));
   }
-  assert.throws(() => artifactNames("mac", version));
+  assert.throws(() => artifactNames("sunos", version));
 });
 
 test("collect only installers, excluding unpacked app and builder metadata", async (t) => {
@@ -48,7 +54,7 @@ test("collect only installers, excluding unpacked app and builder metadata", asy
   await collectArtifacts(source, output, "linux", version, "x64");
   assert.equal(await readFile(join(output, allNames[0]), "utf8"), `artifact: ${allNames[0]}`);
   await assert.rejects(readFile(join(output, "latest-linux.yml")), { code: "ENOENT" });
-  await assert.rejects(readFile(join(output, allNames[4])), { code: "ENOENT" });
+  await assert.rejects(readFile(join(output, "ZCodium-3.14.0-win-x64.exe")), { code: "ENOENT" });
 });
 
 test("Windows x64 and arm64 artifacts are collected independently", async (t) => {
@@ -74,6 +80,54 @@ test("Windows x64 and arm64 artifacts are collected independently", async (t) =>
   await assert.rejects(collectArtifacts(source, await fixture(t, []), "win", version, "riscv64"));
 });
 
+test("macOS arm64 and x64 DMG installers are collected per architecture", async (t) => {
+  // 本 fork 只发布 dmg：旧 zip 不应被收集，也不能成为打包 job 的必需产物。
+  const source = await fixture(t);
+  await writeFile(join(source, "ZCodium-3.14.0-mac-arm64.zip"), "unused");
+  const arm64 = await fixture(t, []);
+  await collectArtifacts(source, arm64, "mac", version, "arm64");
+  assert.deepEqual((await readdir(arm64)).sort(), ["ZCodium-3.14.0-mac-arm64.dmg"]);
+
+  const x64 = await fixture(t, []);
+  await collectArtifacts(source, x64, "mac", version, "x64");
+  assert.deepEqual((await readdir(x64)).sort(), ["ZCodium-3.14.0-mac-x64.dmg"]);
+
+  const both = await fixture(t, []);
+  await collectArtifacts(source, both, "mac", version);
+  assert.equal((await readdir(both)).length, 2);
+
+  await assert.rejects(collectArtifacts(source, await fixture(t, []), "mac", version, "riscv64"));
+});
+
+test("Linux x64 and arm64 artifacts are collected independently", async (t) => {
+  // 修复依据：Linux arm64 与 x64 的产物名差异来自 builder-util 的 getArtifactArchName
+  // （AppImage/deb 用 arm64，rpm/pacman 用 aarch64），此前映射表只有 x64 一族，
+  // arm64 job 会因找不到预期文件名直接失败。
+  const source = await fixture(t);
+
+  const x64 = await fixture(t, []);
+  await collectArtifacts(source, x64, "linux", version, "x64");
+  assert.deepEqual((await readdir(x64)).sort(), [
+    "ZCodium-3.14.0-linux-amd64.deb",
+    "ZCodium-3.14.0-linux-x64.pkg.tar.zst",
+    "ZCodium-3.14.0-linux-x86_64.AppImage",
+    "ZCodium-3.14.0-linux-x86_64.rpm",
+  ]);
+
+  const arm64 = await fixture(t, []);
+  await collectArtifacts(source, arm64, "linux", version, "arm64");
+  assert.deepEqual((await readdir(arm64)).sort(), [
+    "ZCodium-3.14.0-linux-aarch64.pkg.tar.zst",
+    "ZCodium-3.14.0-linux-aarch64.rpm",
+    "ZCodium-3.14.0-linux-arm64.AppImage",
+    "ZCodium-3.14.0-linux-arm64.deb",
+  ]);
+
+  const both = await fixture(t, []);
+  await collectArtifacts(source, both, "linux", version);
+  assert.equal((await readdir(both)).length, 8);
+});
+
 test("missing, empty, wrong-version and extra assets block release", async (t) => {
   const missing = await fixture(t, allNames.slice(0, -1));
   await assert.rejects(verifyReleaseAssets(missing, version));
@@ -83,6 +137,9 @@ test("missing, empty, wrong-version and extra assets block release", async (t) =
   const extra = await fixture(t);
   await writeFile(join(extra, "ZCodium-3.13.0-win-x64.exe"), "old");
   await assert.rejects(verifyReleaseAssets(extra, version), /Unexpected/);
+  const zip = await fixture(t);
+  await writeFile(join(zip, "ZCodium-3.14.0-mac-arm64.zip"), "unused");
+  await assert.rejects(verifyReleaseAssets(zip, version), /Unexpected/);
   const wrongVersion = await fixture(
     t,
     allNames.map((name) => name.replace(version, "3.13.0")),
@@ -90,7 +147,7 @@ test("missing, empty, wrong-version and extra assets block release", async (t) =
   await assert.rejects(verifyReleaseAssets(wrongVersion, version));
 });
 
-test("checksums cover exactly the six validated installers and can be regenerated", async (t) => {
+test("checksums cover exactly the twelve validated installers and can be regenerated", async (t) => {
   const directory = await fixture(t);
   const paths = await verifyReleaseAssets(directory, version);
   const expected = allNames
@@ -101,7 +158,7 @@ test("checksums cover exactly the six validated installers and can be regenerate
     })
     .join("");
   assert.equal(await readFile(join(directory, "SHA256SUMS"), "utf8"), expected);
-  assert.equal(paths.length, 7);
+  assert.equal(paths.length, 13);
   await verifyReleaseAssets(directory, version);
 });
 

@@ -19,18 +19,35 @@ const RELEASE_MESSAGE_HEADING =
   "Age may advance, yet ambition shall not wane;\n" +
   "Hardship may deepen, yet aspiration shall remain.";
 const RELEASE_MESSAGE_BODY =
-  "Linux x64 and Windows x64/arm64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.";
+  "macOS arm64/x64, Linux x64/arm64 and Windows x64/arm64. Unsigned builds; review and test each platform before publishing. Verify downloads with SHA256SUMS.";
 // electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
-// Windows 同时发 x64 与 arm64：electron-builder 可在 x64 runner 上交叉构建 arm64，
-// 原生库 @trycua/cua-driver-win32-arm64-msvc 已随 SDK 的 optionalDependencies 分发。
+// macOS 同时发 arm64 与 x64（Intel），两者各自在原生 runner 上构建（macos-15 /
+// macos-15-intel）：交叉架构打包会混入错误架构的原生预编译产物
+// （node-pty prebuild、bundled 工具链）。本 fork 只产 dmg，白名单与打包目标保持一致，
+// 避免收集阶段因缺少 zip 而失败。
+// Linux arm64 与 x64 的产物名差异来自 builder-util 的 getArtifactArchName：
+// AppImage/deb 用 arm64，rpm 与 pacman 用 aarch64；已由本地 linux arm64 打包实测确认。
 const extensions = {
+  mac: [
+    { extension: "dmg", arch: "arm64" },
+    { extension: "dmg", arch: "x64" },
+  ],
   linux: [
     { extension: "AppImage", arch: "x86_64" },
     { extension: "deb", arch: "amd64" },
     { extension: "rpm", arch: "x86_64" },
     { extension: "pkg.tar.zst", arch: "x64" },
+    { extension: "AppImage", arch: "arm64" },
+    { extension: "deb", arch: "arm64" },
+    { extension: "rpm", arch: "aarch64" },
+    // pacman 的 arm64 名是 aarch64 而不是 arm64：builder-util 的 getArtifactArchName
+    // 按 target 名（pacman）而非文件扩展名判定，x64 不在其特例表里所以保持 x64，
+    // arm64 命中 pacman/rpm/flatpak 一律 aarch64。已由 linux arm64 构建实测确认。
+    { extension: "pkg.tar.zst", arch: "aarch64" },
   ],
   win: [
+    // Windows 同时发 x64 与 arm64：electron-builder 可在 x64 runner 上交叉构建 arm64，
+    // 原生库 @trycua/cua-driver-win32-arm64-msvc 已随 SDK 的 optionalDependencies 分发。
     { extension: "exe", arch: "x64" },
     { extension: "exe", arch: "arm64" },
   ],

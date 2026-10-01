@@ -152,11 +152,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       "Desktop smoke supports Linux and Windows",
     );
     const identity = resolveDesktopProductIdentity();
+    // 修复依据：electron-builder 的解包目录是 `<builderPlatformName><archSuffix>-unpacked`。
+    // 平台名用打包器口径（win / linux / mac），不是 Node 的 process.platform（win32/darwin）；
+    // archSuffix 来自 builder-util 的 getArchSuffix：默认架构（linux/win 的 x64）为空，
+    // 其余为 `-<arch>`。原代码写死 `linux-unpacked` / `win-unpacked`，既漏了架构后缀，
+    // 也难以覆盖新平台。
+    const builderPlatformName =
+      platform === "win32" ? "win" : platform === "darwin" ? "mac" : "linux";
+    const unpackedDir = `${builderPlatformName}${target.arch === "x64" ? "" : `-${target.arch}`}-unpacked`;
     const appRoot = resolve(
       import.meta.dirname,
       "../../packages/desktop",
       process.env.ZCODE_DESKTOP_DIST_DIR || "dist",
-      platform === "win32" ? "win-unpacked" : "linux-unpacked",
+      unpackedDir,
     );
     pluginRoot = join(appRoot, "resources/glm/packages/node-repl-host");
     nodeExecutable = join(
