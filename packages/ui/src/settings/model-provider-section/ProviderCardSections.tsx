@@ -63,6 +63,7 @@ import { ProviderLogo } from "@/settings/model-provider-section/ProviderLogo.js"
 import type { ProviderConfigObject } from "@zcode/provider";
 import { ProviderModelCatalogDialog } from "@/settings/model-provider-section/ProviderModelCatalogDialog.js";
 import {
+  markCatalogItemsAdded,
   resolveModelCatalogItems,
   summarizeCatalogAddResults,
   type ProviderModelCatalogItem,
@@ -467,12 +468,14 @@ export function ProviderModelsSection({
       setCatalogSaving(true);
       setCatalogError(null);
       const results: boolean[] = [];
+      const addedModelIds: string[] = [];
       // 逐条串行走既有 addPersonalModel：每条都是一次独立的 Provider 操作，
       // 并发会把同一 Provider 的保存队列竞争暴露给用户。
       for (const modelId of modelIds) {
         try {
           await onAddModel({ ...createEmptyModel(), modelId });
           results.push(true);
+          addedModelIds.push(modelId);
         } catch (error) {
           logger.warn("[ModelProviderSection] 添加目录模型失败", { providerId, modelId, error });
           results.push(false);
@@ -480,6 +483,9 @@ export function ProviderModelsSection({
       }
       const { added, failed } = summarizeCatalogAddResults(results);
       setCatalogSaving(false);
+      if (addedModelIds.length > 0) {
+        setCatalogItems((current) => markCatalogItemsAdded(current, addedModelIds));
+      }
       if (failed > 0) {
         setCatalogError(
           intl.formatMessage(

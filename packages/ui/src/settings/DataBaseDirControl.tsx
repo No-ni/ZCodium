@@ -1,5 +1,5 @@
 import { FolderOpen, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   isDataBaseDirForbiddenWindowsInstallDirError,
   TID_SETTINGS_DATA_BASE_DIR_BROWSE,
@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { shouldSyncDataBaseDirDraft } from "@/settings/dataBaseDirControlState.js";
 
 export function DataBaseDirControl({
   dataBaseDir,
@@ -28,9 +29,14 @@ export function DataBaseDirControl({
   const [isPickingDataBaseDir, setIsPickingDataBaseDir] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMessageId, setErrorMessageId] = useState("settings.dataBaseDirCopyFailed");
+  const previousEffectiveDirRef = useRef(effectiveDir);
 
   useEffect(() => {
-    if (saveState !== "saved") {
+    const previousEffectiveDir = previousEffectiveDirRef.current;
+    previousEffectiveDirRef.current = effectiveDir;
+    // saveState 从 saved/error 切回 idle 只是草稿生命周期变化，不能覆盖用户刚选的目录；
+    // 只有服务端事实变化，或保存成功后重新同步，才更新输入框。
+    if (shouldSyncDataBaseDirDraft(previousEffectiveDir, effectiveDir, saveState)) {
       setLocalDataBaseDir(effectiveDir);
     }
   }, [effectiveDir, saveState]);

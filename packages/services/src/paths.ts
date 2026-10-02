@@ -225,7 +225,8 @@ export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string):
   const newDir = join(newBaseDir, ZCODE_USER_DATA_DIR_NAME, ZCODE_APP_CONFIG_SUBDIR_NAME);
   await cp(oldDir, newDir, {
     recursive: true,
-    force: false,
+    // 目标目录可能来自之前失败的迁移；覆盖同名文件才能保证迁移后的根目录是完整快照。
+    force: true,
     filter: (source) => {
       const sourceName = basename(source);
       if (sourceName === "setting.json" || sourceName.startsWith("setting.json.")) {

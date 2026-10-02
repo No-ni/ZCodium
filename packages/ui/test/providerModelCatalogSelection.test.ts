@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  markCatalogItemsAdded,
   resolveDefaultCatalogSelection,
   resolveModelCatalogItems,
   summarizeCatalogAddResults,
@@ -30,4 +31,13 @@ test("default selection only pre-checks models that are not added yet", () => {
 test("add result summary counts successes and failures", () => {
   assert.deepEqual(summarizeCatalogAddResults([true, true, false]), { added: 2, failed: 1 });
   assert.deepEqual(summarizeCatalogAddResults([]), { added: 0, failed: 0 });
+});
+
+test("partial catalog adds leave only failed models selectable", () => {
+  const items = resolveModelCatalogItems(["a", "b", "c"], []);
+  assert.deepEqual(markCatalogItemsAdded(items, ["a", "c"]), [
+    { modelId: "a", alreadyAdded: true },
+    { modelId: "b", alreadyAdded: false },
+    { modelId: "c", alreadyAdded: true },
+  ]);
 });

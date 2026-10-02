@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- workspace request guards keep branch mutation ownership in one hook. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   GitBranchMutationResult,
@@ -33,6 +34,18 @@ interface UseGitBranchSwitcherOptions {
   onRefreshGit: () => void;
 }
 
+function isCurrentWorkspaceRequest(
+  workspacePathRef: { current: string },
+  workspaceGenerationRef: { current: number },
+  requestWorkspacePath: string,
+  requestGeneration: number,
+): boolean {
+  return (
+    workspacePathRef.current === requestWorkspacePath &&
+    workspaceGenerationRef.current === requestGeneration
+  );
+}
+
 export function useGitBranchSwitcher({
   workspacePath,
   currentBranchName,
@@ -56,6 +69,21 @@ export function useGitBranchSwitcher({
   const [branchesResult, setBranchesResult] = useState<GitLocalBranchListResult | null>(null);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [mutationPending, setMutationPending] = useState(false);
+  const workspacePathRef = useRef(workspacePath);
+  const workspaceGenerationRef = useRef(0);
+  const branchRequestRef = useRef(0);
+  const assistRequestRef = useRef(0);
+  if (workspacePathRef.current !== workspacePath) {
+    workspacePathRef.current = workspacePath;
+    workspaceGenerationRef.current += 1;
+  }
+  const isRequestCurrent = (requestWorkspacePath: string, requestGeneration: number): boolean =>
+    isCurrentWorkspaceRequest(
+      workspacePathRef,
+      workspaceGenerationRef,
+      requestWorkspacePath,
+      requestGeneration,
+    );
 
   const resetSwitchAssistState = useCallback(() => {
     setSwitchAssistStep(null);
@@ -65,30 +93,54 @@ export function useGitBranchSwitcher({
   }, []);
 
   const loadBranches = useCallback(async () => {
+    const requestId = ++branchRequestRef.current;
+    const requestGeneration = workspaceGenerationRef.current;
+    const requestWorkspacePath = workspacePath;
     setLoadingBranches(true);
 
     try {
-      const nextResult = await gitService.getLocalBranches({ workspacePath });
+      const nextResult = await gitService.getLocalBranches({ workspacePath: requestWorkspacePath });
+      if (
+        requestId !== branchRequestRef.current ||
+        !isRequestCurrent(requestWorkspacePath, requestGeneration)
+      ) {
+        return;
+      }
       setBranchesResult(nextResult);
     } catch (error: unknown) {
+      if (
+        requestId !== branchRequestRef.current ||
+        !isRequestCurrent(requestWorkspacePath, requestGeneration)
+      ) {
+        return;
+      }
       const message = getErrorMessage(error);
       logger.warn("[GitBranchSwitcher] 读取本地分支失败", {
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         error: message,
       });
       toast(
         intl.formatMessage({ id: "git.branchSwitcher.error.requestFailed" }, { error: message }),
       );
     } finally {
-      setLoadingBranches(false);
+      if (
+        requestId === branchRequestRef.current &&
+        isRequestCurrent(requestWorkspacePath, requestGeneration)
+      ) {
+        setLoadingBranches(false);
+      }
     }
   }, [gitService, intl, workspacePath]);
 
   useEffect(() => {
+    branchRequestRef.current += 1;
+    assistRequestRef.current += 1;
     setOpen(false);
     setCreateDialogOpen(false);
     setCreateBranchName("");
     setBranchesResult(null);
+    setLoadingBranches(false);
+    setMutationPending(false);
     resetSwitchAssistState();
   }, [resetSwitchAssistState, workspacePath]);
 
@@ -157,12 +209,23 @@ export function useGitBranchSwitcher({
   );
 
   const prepareSwitchAssistState = useCallback(
-    async (result: GitBranchMutationResult): Promise<boolean> => {
+    async (
+      result: GitBranchMutationResult,
+      requestGeneration: number,
+      requestWorkspacePath: string,
+    ): Promise<boolean> => {
+      const requestId = ++assistRequestRef.current;
       const nextSwitchAssistState = await buildGitBranchSwitchAssistState({
         gitService,
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         result,
       });
+      if (
+        requestId !== assistRequestRef.current ||
+        !isRequestCurrent(requestWorkspacePath, requestGeneration)
+      ) {
+        return false;
+      }
       if (!nextSwitchAssistState) {
         return false;
       }
@@ -177,19 +240,30 @@ export function useGitBranchSwitcher({
       setSwitchAssistStep("blocked");
       return true;
     },
-    [gitService, workspacePath],
+    [gitService],
   );
 
   const handleMutationResult = useCallback(
-    async (result: GitBranchMutationResult, actionLabel: string) => {
+    async (
+      result: GitBranchMutationResult,
+      actionLabel: string,
+      requestGeneration: number,
+      requestWorkspacePath: string,
+    ) => {
+      if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        return;
+      }
       if (!result.ok) {
         logger.warn("[GitBranchSwitcher] 分支变更被阻塞", {
-          workspacePath,
+          workspacePath: requestWorkspacePath,
           action: result.action,
           branchName: result.branchName,
           issues: result.issues.map((issue) => issue.code),
         });
-        if (await prepareSwitchAssistState(result)) {
+        if (await prepareSwitchAssistState(result, requestGeneration, requestWorkspacePath)) {
+          return;
+        }
+        if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
           return;
         }
         notifyMutationFailure(result);
@@ -202,7 +276,7 @@ export function useGitBranchSwitcher({
       }
 
       logger.info(`[GitBranchSwitcher] ${actionLabel}成功`, {
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         branchName: result.branchName,
         action: result.action,
         didChange: result.didChange,
@@ -233,31 +307,29 @@ export function useGitBranchSwitcher({
         onRefreshGit();
       }
     },
-    [
-      intl,
-      notifyMutationFailure,
-      onRefreshGit,
-      prepareSwitchAssistState,
-      resetSwitchAssistState,
-      workspacePath,
-    ],
+    [intl, notifyMutationFailure, onRefreshGit, prepareSwitchAssistState, resetSwitchAssistState],
   );
 
   const switchBranch = useCallback(
     async (targetBranchName: string) => {
+      const requestGeneration = workspaceGenerationRef.current;
+      const requestWorkspacePath = workspacePath;
       setOpen(false);
       setMutationPending(true);
 
       try {
         const result = await gitService.switchBranch({
-          workspacePath,
+          workspacePath: requestWorkspacePath,
           targetBranchName,
         });
-        await handleMutationResult(result, "切换分支");
+        await handleMutationResult(result, "切换分支", requestGeneration, requestWorkspacePath);
       } catch (error: unknown) {
+        if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+          return;
+        }
         const message = getErrorMessage(error);
         logger.warn("[GitBranchSwitcher] 切换分支请求失败", {
-          workspacePath,
+          workspacePath: requestWorkspacePath,
           targetBranchName,
           error: message,
         });
@@ -265,7 +337,9 @@ export function useGitBranchSwitcher({
           intl.formatMessage({ id: "git.branchSwitcher.error.requestFailed" }, { error: message }),
         );
       } finally {
-        setMutationPending(false);
+        if (isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+          setMutationPending(false);
+        }
       }
     },
     [gitService, handleMutationResult, intl, workspacePath],
@@ -278,18 +352,23 @@ export function useGitBranchSwitcher({
       return;
     }
 
+    const requestGeneration = workspaceGenerationRef.current;
+    const requestWorkspacePath = workspacePath;
     setMutationPending(true);
 
     try {
       const result = await gitService.createBranchAndSwitch({
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         branchName,
       });
-      await handleMutationResult(result, "创建并切换分支");
+      await handleMutationResult(result, "创建并切换分支", requestGeneration, requestWorkspacePath);
     } catch (error: unknown) {
+      if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        return;
+      }
       const message = getErrorMessage(error);
       logger.warn("[GitBranchSwitcher] 创建并切换分支请求失败", {
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         branchName,
         error: message,
       });
@@ -297,7 +376,9 @@ export function useGitBranchSwitcher({
         intl.formatMessage({ id: "git.branchSwitcher.error.requestFailed" }, { error: message }),
       );
     } finally {
-      setMutationPending(false);
+      if (isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        setMutationPending(false);
+      }
     }
   }, [createBranchName, gitService, handleMutationResult, intl, workspacePath]);
 
@@ -329,35 +410,46 @@ export function useGitBranchSwitcher({
 
     setCommitError(null);
     setMutationPending(true);
+    const requestGeneration = workspaceGenerationRef.current;
+    const requestWorkspacePath = workspacePath;
 
     try {
       logger.info("[GitBranchSwitcher] 开始提交并重试切换分支", {
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         targetBranchName: switchAssistState.targetBranchName,
         stagedPathCount: switchAssistState.stagePaths.length,
       });
 
       if (switchAssistState.stagePaths.length > 0) {
         await gitService.stagePaths({
-          workspacePath,
+          workspacePath: requestWorkspacePath,
           paths: switchAssistState.stagePaths,
         });
       }
+      if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        return;
+      }
       await gitService.commit({
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         message: nextCommitMessage,
       });
+      if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        return;
+      }
       onRefreshGit();
 
       const result = await gitService.switchBranch({
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         targetBranchName: switchAssistState.targetBranchName,
       });
-      await handleMutationResult(result, "提交后切换分支");
+      await handleMutationResult(result, "提交后切换分支", requestGeneration, requestWorkspacePath);
     } catch (error: unknown) {
+      if (!isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        return;
+      }
       const message = getErrorMessage(error);
       logger.warn("[GitBranchSwitcher] 提交并切换分支失败", {
-        workspacePath,
+        workspacePath: requestWorkspacePath,
         targetBranchName: switchAssistState.targetBranchName,
         error: message,
       });
@@ -368,7 +460,9 @@ export function useGitBranchSwitcher({
         ),
       );
     } finally {
-      setMutationPending(false);
+      if (isRequestCurrent(requestWorkspacePath, requestGeneration)) {
+        setMutationPending(false);
+      }
     }
   }, [
     commitMessage,

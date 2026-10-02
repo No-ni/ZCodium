@@ -47,5 +47,5 @@ sequenceDiagram
 2. 首选失败后 fallback 成功返回 `source:"fallback"`；两次都失败返回首选错误，且错误文案不含 apiKey。
 3. 非 api-key 访问类型、缺 baseUrl、缺 apiKey（且无自定义 headers）在 Service 层被拒绝，不发起请求。
 4. 未创建/未保存的 Provider 不能触发获取；获取失败后手动添加模型流程不变。
-5. 弹窗勾选添加走既有 `addPersonalModel`，已存在模型不可重复添加；部分失败时有明确提示。
+5. 弹窗勾选添加走既有 `addPersonalModel`，已存在模型不可重复添加；部分失败时有明确提示，成功项从当前选择中移除，重试只提交失败项。
 6. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过；新增 services / ui 单测实际执行通过。

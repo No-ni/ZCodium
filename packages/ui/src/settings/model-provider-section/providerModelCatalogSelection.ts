@@ -41,3 +41,12 @@ export function summarizeCatalogAddResults(results: readonly boolean[]): {
     failed: results.filter((result) => !result).length,
   };
 }
+
+/** 把本轮已成功落库的模型标成只读，保留失败项供用户重试。 */
+export function markCatalogItemsAdded(
+  items: readonly ProviderModelCatalogItem[],
+  addedModelIds: readonly string[],
+): ProviderModelCatalogItem[] {
+  const added = new Set(addedModelIds);
+  return items.map((item) => (added.has(item.modelId) ? { ...item, alreadyAdded: true } : item));
+}

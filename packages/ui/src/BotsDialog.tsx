@@ -130,6 +130,15 @@ export function BotsDialog({
   const autoQrStartedBotIdsRef = useRef(new Set<string>());
   const autoBindCreatingBotIdsRef = useRef(new Set<string>());
   const handledEntryProviderRef = useRef<BotProvider | null>(null);
+  const selectedBotIdRef = useRef(selectedBotId);
+  const selectedBotGenerationRef = useRef(0);
+  const bindCodeRequestRef = useRef(0);
+  const feishuRegistrationRequestRef = useRef(0);
+  const weixinRegistrationRequestRef = useRef(0);
+  if (selectedBotIdRef.current !== selectedBotId) {
+    selectedBotIdRef.current = selectedBotId;
+    selectedBotGenerationRef.current += 1;
+  }
 
   const currentWorkspaceId = useMemo(
     () => buildCurrentWorkspaceId(workspacePath, workspaceIdentity),
@@ -221,9 +230,15 @@ export function BotsDialog({
   }, [bindCode, selectedBot?.id, selectedBot?.providerUserId]);
 
   useEffect(() => {
+    bindCodeRequestRef.current += 1;
+    feishuRegistrationRequestRef.current += 1;
+    weixinRegistrationRequestRef.current += 1;
     setCredentialValue("");
     setSecretSaving(false);
     setWorkspaceAccessSaving(false);
+    setFeishuRegistrationLoading(false);
+    setWeixinRegistrationLoading(false);
+    setBindCode(null);
     setFeishuRegistration(null);
     setWeixinRegistration(null);
   }, [selectedBotId, selectedBot?.provider]);
@@ -343,6 +358,8 @@ export function BotsDialog({
 
   const saveBot = useCallback(
     async (bot: BotConfig, secrets?: { credentialValue?: string }) => {
+      const requestSelection = selectedBotIdRef.current;
+      const requestGeneration = selectedBotGenerationRef.current;
       const saved = await botsService.saveBot({
         bot,
         credentialValue: secrets?.credentialValue,
@@ -351,9 +368,16 @@ export function BotsDialog({
         ...previous,
         bots: [...previous.bots.filter((item) => item.id !== saved.id), saved],
       }));
-      setSelectedBotId(saved.id);
-      setCreatingBot(false);
-      setCredentialValue("");
+      // 保存可能跨越 Bot 切换；旧响应只能更新配置事实，不能抢走当前 Bot 的选择和草稿。
+      if (
+        requestGeneration === selectedBotGenerationRef.current &&
+        selectedBotIdRef.current === requestSelection &&
+        (requestSelection === null || requestSelection === bot.id)
+      ) {
+        setSelectedBotId(saved.id);
+        setCreatingBot(false);
+        setCredentialValue("");
+      }
       void refresh();
       return saved;
     },
@@ -362,12 +386,22 @@ export function BotsDialog({
 
   const createBindCodeForBot = useCallback(
     async (bot: BotConfig) => {
+      const requestId = ++bindCodeRequestRef.current;
+      const requestGeneration = selectedBotGenerationRef.current;
+      if (selectedBotIdRef.current !== bot.id) return;
       const createdAt = Date.now();
       const result = await botsService.createBindCode({
         botId: bot.id,
         ttlMs: BIND_CODE_TTL_MS,
         allowedWorkspaces: bot.allowedWorkspaces,
       });
+      if (
+        requestId !== bindCodeRequestRef.current ||
+        requestGeneration !== selectedBotGenerationRef.current ||
+        selectedBotIdRef.current !== bot.id
+      ) {
+        return;
+      }
       setNowMs(createdAt);
       setBindCode({
         botId: bot.id,
@@ -785,6 +819,9 @@ export function BotsDialog({
 
   const handleStartFeishuRegistration = useCallback(async () => {
     if (!selectedBot || !isFeishuBotProvider(selectedBot.provider)) return;
+    const requestId = ++feishuRegistrationRequestRef.current;
+    const requestGeneration = selectedBotGenerationRef.current;
+    const requestBotId = selectedBot.id;
     setFeishuRegistrationLoading(true);
     try {
       const result = await botsService.beginFeishuRegistration({
@@ -802,8 +839,15 @@ export function BotsDialog({
           error instanceof Error ? error.message : String(error),
         );
       }
+      if (
+        requestId !== feishuRegistrationRequestRef.current ||
+        requestGeneration !== selectedBotGenerationRef.current ||
+        selectedBotIdRef.current !== requestBotId
+      ) {
+        return;
+      }
       setFeishuRegistration({
-        botId: selectedBot.id,
+        botId: requestBotId,
         deviceCode: result.deviceCode,
         qrUrl: result.qrUrl,
         qrDataUrl,
@@ -816,16 +860,28 @@ export function BotsDialog({
       });
       toast(intl.formatMessage({ id: "bots.feishuRegistrationStarted" }));
     } catch (error) {
+      if (
+        requestId !== feishuRegistrationRequestRef.current ||
+        requestGeneration !== selectedBotGenerationRef.current ||
+        selectedBotIdRef.current !== requestBotId
+      ) {
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       logger.error("[BotsDialog] 启动飞书扫码注册失败", message);
       toast(intl.formatMessage({ id: "bots.feishuRegistrationFailed" }, { error: message }));
     } finally {
-      setFeishuRegistrationLoading(false);
+      if (requestId === feishuRegistrationRequestRef.current) {
+        setFeishuRegistrationLoading(false);
+      }
     }
   }, [botsService, intl, selectedBot]);
 
   const handleStartWeixinRegistration = useCallback(async () => {
     if (!selectedBot || selectedBot.provider !== "weixin") return;
+    const requestId = ++weixinRegistrationRequestRef.current;
+    const requestGeneration = selectedBotGenerationRef.current;
+    const requestBotId = selectedBot.id;
     setWeixinRegistrationLoading(true);
     try {
       const result = await botsService.beginWeixinRegistration();
@@ -841,8 +897,15 @@ export function BotsDialog({
           error instanceof Error ? error.message : String(error),
         );
       }
+      if (
+        requestId !== weixinRegistrationRequestRef.current ||
+        requestGeneration !== selectedBotGenerationRef.current ||
+        selectedBotIdRef.current !== requestBotId
+      ) {
+        return;
+      }
       setWeixinRegistration({
-        botId: selectedBot.id,
+        botId: requestBotId,
         qrCode: result.qrCode,
         qrUrl: result.qrUrl,
         qrDataUrl,
@@ -852,11 +915,20 @@ export function BotsDialog({
       });
       toast(intl.formatMessage({ id: "bots.weixinRegistrationStarted" }));
     } catch (error) {
+      if (
+        requestId !== weixinRegistrationRequestRef.current ||
+        requestGeneration !== selectedBotGenerationRef.current ||
+        selectedBotIdRef.current !== requestBotId
+      ) {
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       logger.error("[BotsDialog] 启动微信扫码登录失败", message);
       toast(intl.formatMessage({ id: "bots.weixinRegistrationFailed" }, { error: message }));
     } finally {
-      setWeixinRegistrationLoading(false);
+      if (requestId === weixinRegistrationRequestRef.current) {
+        setWeixinRegistrationLoading(false);
+      }
     }
   }, [botsService, intl, selectedBot]);
 

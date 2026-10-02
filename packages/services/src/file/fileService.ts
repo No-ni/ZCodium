@@ -290,54 +290,75 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
     const scanning = (async () => {
       const entries: WorkspaceFileEntry[] = [];
       const pendingDirectories: string[] = [rootPath];
-      // 单线程串行 DFS 一次只 await 一个 readdir，
-      // 37 万文件的 Windows workspace 实测 21.8s；改为共享目录队列的受限并发遍历，
-      // 结果仍按既有规则排序，遍历顺序不影响语义。
-      const traverseWorker = async (): Promise<void> => {
-        for (;;) {
-          const currentPath = pendingDirectories.pop();
-          if (!currentPath) {
+      // 共享目录队列按需补充 worker；不能在根目录第一次 await 前启动固定 worker，
+      // 否则其它 worker 会看到空队列立即退出，整棵树仍由一个 worker 串行扫描。
+      const scanDirectory = async (currentPath: string): Promise<void> => {
+        let children: Dirent[];
+        try {
+          children = await readdir(currentPath, { withFileTypes: true });
+        } catch (error) {
+          if (isSkippableWorkspaceFileListError(error)) {
             return;
           }
-          let children: Dirent[];
-          try {
-            children = await readdir(currentPath, { withFileTypes: true });
-          } catch (error) {
-            if (isSkippableWorkspaceFileListError(error)) {
-              continue;
-            }
-            throw error;
+          throw error;
+        }
+        for (const entry of children) {
+          const entryPath = join(currentPath, entry.name);
+          const relativePath = normalizeRelativePath(rootPath, entryPath);
+          if (relativePath === WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME) {
+            continue;
           }
-          for (const entry of children) {
-            const entryPath = join(currentPath, entry.name);
-            const relativePath = normalizeRelativePath(rootPath, entryPath);
-            if (relativePath === WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME) {
-              continue;
-            }
-            const type = await resolveReaddirEntryType(
-              entryPath,
-              entry.isDirectory(),
-              entry.isSymbolicLink(),
-            );
-            if (isWorkspaceFileSearchPathIgnored(ignoreRules, relativePath, type)) {
-              continue;
-            }
-            const decision = workspaceFileSearchFilter.evaluate(
-              { name: entry.name, path: entryPath, relativePath, type },
-              { ignoreRulesActive: true },
-            );
-            if (decision.include) {
-              entries.push({ name: entry.name, path: entryPath, relativePath, type });
-            }
-            if (type === "directory" && !entry.isSymbolicLink() && decision.traverse) {
-              pendingDirectories.push(entryPath);
-            }
+          const type = await resolveReaddirEntryType(
+            entryPath,
+            entry.isDirectory(),
+            entry.isSymbolicLink(),
+          );
+          if (isWorkspaceFileSearchPathIgnored(ignoreRules, relativePath, type)) {
+            continue;
+          }
+          const decision = workspaceFileSearchFilter.evaluate(
+            { name: entry.name, path: entryPath, relativePath, type },
+            { ignoreRulesActive: true },
+          );
+          if (decision.include) {
+            entries.push({ name: entry.name, path: entryPath, relativePath, type });
+          }
+          if (type === "directory" && !entry.isSymbolicLink() && decision.traverse) {
+            pendingDirectories.push(entryPath);
           }
         }
       };
-      await Promise.all(
-        Array.from({ length: WORKSPACE_FILE_LIST_SCAN_CONCURRENCY }, () => traverseWorker()),
-      );
+
+      await new Promise<void>((resolve, reject) => {
+        let active = 0;
+        let failed = false;
+
+        const pump = (): void => {
+          if (failed) return;
+          if (pendingDirectories.length === 0 && active === 0) {
+            resolve();
+            return;
+          }
+          while (active < WORKSPACE_FILE_LIST_SCAN_CONCURRENCY && pendingDirectories.length > 0) {
+            const currentPath = pendingDirectories.pop();
+            if (!currentPath) break;
+            active += 1;
+            void scanDirectory(currentPath).then(
+              () => {
+                active -= 1;
+                pump();
+              },
+              (error: unknown) => {
+                active -= 1;
+                failed = true;
+                reject(error);
+              },
+            );
+          }
+        };
+
+        pump();
+      });
       const sorted = entries.sort((left, right) => {
         if (left.type !== right.type) {
           return left.type === "directory" ? -1 : 1;

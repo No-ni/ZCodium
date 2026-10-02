@@ -169,7 +169,11 @@ export function computeScheduleRuleNextRunAt(
   if (rule.unit === "weekly") {
     const anchorWeek = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
     anchorWeek.setDate(anchorWeek.getDate() - ((anchorWeek.getDay() + 6) % 7));
-    const weekdays = [...(rule.weekdays?.length ? rule.weekdays : [1])].sort();
+    // scheduleRule 的 weekday 值沿用 cron（周日为 0），但 anchorWeek 从周一开始。
+    // 按原始数值排序会把周日放在当前周一之前，导致 [0, 1] 跳过最近的周一。
+    const weekdays = [...(rule.weekdays?.length ? rule.weekdays : [1])].sort(
+      (left, right) => ((left + 6) % 7) - ((right + 6) % 7),
+    );
     for (let week = 0; week < 5_220; week += interval) {
       for (const weekday of weekdays) {
         const dayOffset = (weekday + 6) % 7;
