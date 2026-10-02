@@ -19,6 +19,9 @@ export function resolveDesktopProductionCleanPaths(cwd) {
     resolve(cwd, "out/renderer"),
     // scheduler 也使用非清空输出；遗漏它会把已删除模块重新打进安装包。
     resolve(cwd, "out/scheduler"),
+    // plugin-sandbox（tsup.config.ts 的 outDir）同理：UI 插件沙箱的 preload bundle
+    // 走非清空输出，不进清理列表会让旧 guest 脚本残留在安装包里。
+    resolve(cwd, "out/plugin-sandbox"),
     resolve(cwd, "out/.main-build-ready"),
     resolve(cwd, "out/.host-build-ready"),
     resolve(cwd, "out/.preload-build-ready"),
