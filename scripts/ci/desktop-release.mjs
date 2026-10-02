@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFile, lstat, mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { resolveDesktopProductIdentity } from "../../packages/desktop/scripts/desktop-product-identity.mjs";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -77,7 +78,7 @@ const ARCH_ALIASES = {
   arm64: ["arm64", "aarch64"],
 };
 
-export function artifactNames(platform, version, arch) {
+export function artifactNames(platform, version, arch, identity = resolveDesktopProductIdentity()) {
   validateVersion(version);
   if (!Object.hasOwn(extensions, platform)) throw new Error(`Unsupported platform: ${platform}`);
   const aliases = arch ? ARCH_ALIASES[arch] : undefined;
@@ -86,8 +87,14 @@ export function artifactNames(platform, version, arch) {
   if (aliases && entries.length === 0) {
     throw new Error(`Unsupported ${platform} architecture: ${arch}`);
   }
+  // Bugfix：产物名曾硬编码 `ZCodium-`，产品身份改为 `ZCodium Exp` 后 electron-builder
+  // 产出 `ZCodium Exp-...`，这里按旧名 lstat 直接 ENOENT，CI 的 Build job 全挂。
+  // 改为与 electron-builder.config.js 的 buildDesktopArtifactName 同源派生——
+  // 模板是 `${productName}-${version}-${platform}-${arch}`，productName 取构建期身份，
+  // 避免出现「打包用一个名、收集用另一个名」的第二处真相。
   return entries.map(
-    ({ extension, arch: entryArch }) => `ZCodium-${version}-${platform}-${entryArch}.${extension}`,
+    ({ extension, arch: entryArch }) =>
+      `${identity.productName}-${version}-${platform}-${entryArch}.${extension}`,
   );
 }
 
@@ -96,8 +103,15 @@ async function assertInstaller(file) {
   if (!info.isFile() || info.size === 0) throw new Error(`Invalid or empty installer: ${file}`);
 }
 
-export async function collectArtifacts(source, destination, platform, version, arch) {
-  const names = artifactNames(platform, version, arch);
+export async function collectArtifacts(
+  source,
+  destination,
+  platform,
+  version,
+  arch,
+  identity = resolveDesktopProductIdentity(),
+) {
+  const names = artifactNames(platform, version, arch, identity);
   for (const name of names) await assertInstaller(join(source, name));
   await mkdir(destination, { recursive: true });
   if ((await readdir(destination)).length)
@@ -105,9 +119,13 @@ export async function collectArtifacts(source, destination, platform, version, a
   for (const name of names) await copyFile(join(source, name), join(destination, name));
 }
 
-export async function verifyReleaseAssets(directory, version) {
+export async function verifyReleaseAssets(
+  directory,
+  version,
+  identity = resolveDesktopProductIdentity(),
+) {
   const names = Object.keys(extensions)
-    .flatMap((platform) => artifactNames(platform, version))
+    .flatMap((platform) => artifactNames(platform, version, undefined, identity))
     .sort();
   const allowed = new Set([...names, "SHA256SUMS"]);
   for (const name of await readdir(directory)) {
@@ -148,7 +166,7 @@ export async function publishDraft({ tag, repo, files, run = execFileAsync }) {
       "--draft",
       ...(tag.includes("-") ? ["--prerelease"] : []),
       "--title",
-      `ZCodium ${tag}`,
+      `${resolveDesktopProductIdentity().productName} ${tag}`,
       "--generate-notes",
       "--notes",
       `${RELEASE_MESSAGE_HEADING}\n\n${RELEASE_MESSAGE_BODY}`,
@@ -173,6 +191,7 @@ async function main() {
       platform,
       version,
       process.env.ZCODE_TARGET_ARCH,
+      resolveDesktopProductIdentity(),
     );
   } else if (command === "publish") {
     if (process.env.GITHUB_EVENT_NAME !== "push" || process.env.GITHUB_REF_TYPE !== "tag") {
