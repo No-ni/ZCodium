@@ -9,3 +9,8 @@ third-party/upstream/** -text -whitespace
 third-party/native-search/licenses/** -text -whitespace
 third-party/runtime/*.txt -text -whitespace
 third-party/inventory.json linguist-generated=true
+
+# Gen UI 的 vendor 运行时按字节校验 sha256（packages/desktop/scripts/gen-ui-runtime-assets.mjs），
+# 一旦换行被转换，Windows 检出成 CRLF 后 hash 即不匹配，构建直接失败。
+# 这些文件本身已是 LF，且不需要 diff 语义，整类按字节保存。
+apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text
