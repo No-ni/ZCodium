@@ -351,6 +351,8 @@ ZCodium Exp. 新增的内容：
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | 仓库快照上传的 localhost 复现，仅用于审计对照         |
 | `docs/`                                      | GitHub Pages 落地页                                   |
 
+用户级数据根从 `~/.zcodium` 到 `~/.zcodium-exp` 的一次性迁移设计、时序约束与实测结论见 [.agents/specs/user-data-root-migration.md](.agents/specs/user-data-root-migration.md)。
+
 远端连接另有两项已核实但未实现的缺陷，见 [.agents/specs/ssh-remote-hardening.md](.agents/specs/ssh-remote-hardening.md)：SSH 不校验主机密钥（`buildSSHConnectConfig` 未设 `hostVerifier`，可被中间人冒充），以及桌面 SSH 的 `caller-serialized` 部署锁只在单窗口内单飞、跨窗口可并发上传同一 install-root。
 
 编码约定、开工前基线检查与各领域规范见 [AGENTS.md](AGENTS.md)；插件商店领域词汇见 [CONTEXT.md](CONTEXT.md)，UI 设计规范见 [DESIGN.md](DESIGN.md)。

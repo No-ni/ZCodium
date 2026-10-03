@@ -1,5 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -129,5 +140,74 @@ describe("migrateLegacyUserDataRoot", () => {
 
     assert.equal(result.status, "failed");
     assert.ok("error" in result && result.error !== undefined);
+  });
+  // 以下两条来自 2026-10-03 的真实数据实测补充，覆盖此前单测未触及的形态。
+  describe("复杂树与端到端可读", () => {
+    beforeEach(() => {
+      baseDir = mkdtempSync(join(tmpdir(), "zcodium-data-root-"));
+      legacyRoot = join(baseDir, LEGACY_ZCODE_USER_DATA_DIR_NAME);
+      nextRoot = join(baseDir, ZCODE_USER_DATA_DIR_NAME);
+    });
+
+    afterEach(() => {
+      rmSync(baseDir, { recursive: true, force: true });
+    });
+
+    it("软链、只读、0 字节、空目录、中文与空格路径逐项保留", () => {
+      // 真实 ~/.zcodium 的形态：深层嵌套 + 大小文件混排 + 软链 + 中文/空格文件名。
+      // 原用例只比对 config.json 等两个叶子，以上形态没有覆盖。
+      // 日志内容刻意用 ASCII：避免多字节字符让长度断言依赖编码细节。
+      mkdirSync(join(legacyRoot, "v2", "logs"), { recursive: true });
+      mkdirSync(join(legacyRoot, "cli", "skills", "文档 技能"), { recursive: true });
+      mkdirSync(join(legacyRoot, "workspace", "default", "src", "deep", "deeper"), {
+        recursive: true,
+      });
+      mkdirSync(join(legacyRoot, "v2", "empty-dir"), { recursive: true });
+      writeFileSync(join(legacyRoot, "v2", "state.db"), Buffer.alloc(1024 * 512, 7));
+      writeFileSync(join(legacyRoot, "v2", "logs", "app.log"), Buffer.alloc(25000, 0x61));
+      writeFileSync(join(legacyRoot, "cli", "skills", "文档 技能", "SKILL.md"), "# old skill");
+      writeFileSync(
+        join(legacyRoot, "workspace", "default", "src", "deep", "deeper", "main.ts"),
+        "export {};",
+      );
+      writeFileSync(join(legacyRoot, "v2", "zero.bin"), Buffer.alloc(0));
+      symlinkSync(join(legacyRoot, "v2", "state.db"), join(legacyRoot, "v2", "db-link"));
+      writeFileSync(join(legacyRoot, "v2", "readonly.txt"), "read only");
+      chmodSync(join(legacyRoot, "v2", "readonly.txt"), 0o444);
+
+      assert.equal(migrateLegacyUserDataRoot({ baseDir }).status, "migrated");
+
+      assert.equal(lstatSync(join(nextRoot, "v2", "empty-dir")).isDirectory(), true);
+      assert.equal(readFileSync(join(nextRoot, "v2", "zero.bin")).length, 0);
+      assert.equal(lstatSync(join(nextRoot, "v2", "db-link")).isSymbolicLink(), true);
+      assert.equal(readFileSync(join(nextRoot, "v2", "readonly.txt"), "utf8"), "read only");
+      assert.equal(
+        readFileSync(join(nextRoot, "cli", "skills", "文档 技能", "SKILL.md"), "utf8"),
+        "# old skill",
+      );
+      assert.equal(readFileSync(join(nextRoot, "v2", "state.db")).length, 1024 * 512);
+      assert.equal(readFileSync(join(nextRoot, "v2", "logs", "app.log")).length, 25000);
+      // 旧根除标记文件外不被改写。
+      assert.equal(
+        readdirSync(legacyRoot).filter((n) => n === ZCODE_USER_DATA_MIGRATION_MARKER_FILE_NAME)
+          .length,
+        1,
+      );
+    });
+
+    it("迁移后新根落在数据路径函数的查找位置上（端到端）", () => {
+      // 锁住「迁移完还得真能用」：此前只有契约层断言，没有从 getZCodeDataRootDir()
+      // 的视角确认搬过去的树落在正确位置。
+      mkdirSync(join(legacyRoot, "v2"), { recursive: true });
+      writeFileSync(join(legacyRoot, "v2", "setting.json"), '{"dataBaseDir":"/tmp/custom"}');
+
+      assert.equal(migrateLegacyUserDataRoot({ baseDir }).status, "migrated");
+
+      assert.equal(nextRoot, join(baseDir, ZCODE_USER_DATA_DIR_NAME));
+      assert.equal(
+        readFileSync(join(nextRoot, "v2", "setting.json"), "utf8"),
+        '{"dataBaseDir":"/tmp/custom"}',
+      );
+    });
   });
 });
