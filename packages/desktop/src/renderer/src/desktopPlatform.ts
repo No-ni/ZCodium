@@ -55,6 +55,7 @@ export function createDesktopPlatform(options: {
     canOpenCommunity: (locale) => window.zcode.canOpenCommunity(locale),
     openInFileManager: (path) => window.zcode.openInFileManager(path),
     openExternalFile: (path) => window.zcode.openExternalFile(path),
+    getBuiltinProviderConfigFile: () => window.zcode.getBuiltinProviderConfigFile(),
     openCuaPermissionOnboarding: window.zcode.openCuaPermissionOnboarding
       ? (permissionOptions) =>
           window.zcode.openCuaPermissionOnboarding?.(permissionOptions) ??

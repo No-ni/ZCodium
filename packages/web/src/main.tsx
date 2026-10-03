@@ -152,6 +152,8 @@ function createWebPlatform(): IPlatformService {
     openInFileManager: () =>
       Promise.resolve({ success: false, error: "Not supported in web mode" }),
     openExternalFile: () => Promise.resolve({ success: false, error: "Not supported in web mode" }),
+    // Web 平台没有本机配置文件概念；返回 path=null 让调用方禁用入口。
+    getBuiltinProviderConfigFile: () => Promise.resolve({ path: null, exists: false }),
     notifyRendererReady: () => {},
     showTaskNotification: (payload) => {
       if (document.hasFocus()) {

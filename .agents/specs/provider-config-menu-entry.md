@@ -1,5 +1,11 @@
 # 任务菜单「前往配置」：打开工作区 Provider 配置文件
 
+> **状态：已实现**（2026-10-03）。实现时对契约为两处收敛：
+> 本节原写「复用 `materializeZCodeBuiltinProviderConfig` 已有的落点约定，由 owner 导出一个
+> `resolveZCodeBuiltinProviderConfigFilePath()`」——已按此实现，并加了测试锁住两处一致；
+> 「环境级物化副本」取代了 spec 中「按工作区解析」的措辞（本仓库的 config 本就是环境级的，
+> 见下「实现偏差」）。
+
 ## 背景与范围
 
 上游语言表在 `appHeader` 域少了 8 个键，本 spec 只覆盖其中**被代码接线的那 1 个**。
@@ -133,7 +139,9 @@ interface ZCodeBuiltinProviderConfigFileInfo {
 
 ### 4. i18n
 
-`zh-CN.ts` / `en-US.ts` 各增 1 键，位置与 `appHeader.copyLogPath` 相邻：
+已实现。除 `appHeader.goToProviderConfig` 外，另加 3 个禁用原因/失败提示键
+（spec 初稿只列了 1 个，实现时菜单需要区分「加载中 / 未生成 / 平台不支持」三种禁用原因，
+以及打开失败的 toast）：
 
 | 键                             | zh-CN    | en-US        |
 | ------------------------------ | -------- | ------------ |
@@ -167,6 +175,18 @@ interface ZCodeBuiltinProviderConfigFileInfo {
   「当前工作区生效的那份配置」，拿到的是全局基线。需在 `title` 或文档中说明差异，
   或在实现时确认全局基线就是当前唯一生效配置。
 - 该菜单项在远端工作区下应禁用而非打开本机路径——打开本机文件会让用户误以为改的是远端配置。
+
+## 实现偏差
+
+spec 初稿按上游措辞写成「按工作区解析 Provider 配置文件路径」。实现时确认本仓库的 config
+本就是**环境级**的：
+
+- 运行时读取方 `NodeZCodeBuiltinProviderConfigSource` 只接受一个 `bundledFilePath`，
+  没有工作区维度；
+- 物化位置由 `environmentConfigRoot`（= `getAppConfigDir()`）决定，与工作区无关。
+
+因此实现落在环境级物化副本上，而非引入按工作区解析。若将来要做按工作区配置，
+属于配置模型变更，需另起 spec。
 
 ## 未验证部分
 
