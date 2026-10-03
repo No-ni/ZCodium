@@ -94,8 +94,6 @@ The root `package.json` version carries a `-modified` suffix after the upstream 
 
 Release tags must match the version exactly, i.e. `v3.14.3` (the root `package.json` version; no extra suffix). CI artifact names are derived from the build-time product identity, using the template `<productName>-<version>-<platform>-<arch><suffix>.<ext>` — `productName` is currently `ZCodium Exp`, so production packages look like `ZCodium Exp-3.14.3-linux-x64.AppImage`, plus a `_TEST` suffix for the test backend. The CLI distribution defaults to the same version, so `dist/zcode/releases/3.14.3/` is the default output directory.
 
-Note: if `ZCODE_REMOTE_ASSET_CDN_BASE_URL` is pinned to a versioned directory, it must match the running version, or `assertRemoteCdnBaseVersionMatches` fails at startup. Upstream has no `3.14.3-modified` directory, so host the remote assets yourself or use a version-less release root.
-
 ## Setup
 
 Install Git, Node.js **24.14.0**, and pnpm **10.33.2**. [mise.toml](mise.toml) is the source of truth for tool versions. Run all development and packaging commands below from the repository root.

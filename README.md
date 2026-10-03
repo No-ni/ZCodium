@@ -118,8 +118,6 @@ ZCodium Exp. 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作�
 
 发布标签必须与版本严格一致，即 `v3.14.3`。CI 产物名由构建期产品身份派生，模板为 `<productName>-<version>-<platform>-<arch><suffix>.<ext>`——当前 `productName` 是 `ZCodium Exp`，所以正式包形如 `ZCodium Exp-3.14.3-linux-x64.AppImage`，测试后端再带 `_TEST` 后缀。命令行发行包默认版本取同一值，因此 `dist/zcode/releases/3.14.3/` 是默认输出目录。
 
-注意：`ZCODE_REMOTE_ASSET_CDN_BASE_URL` 若固定到某个版本目录，必须与运行版本一致，否则 `assertRemoteCdnBaseVersionMatches` 会在启动时直接报错。上游没有 `3.14.3-modified` 对应目录，需要自行托管远程资源，或改成不带版本的发布根目录。
-
 ## 初始化
 
 准备 Git、Node.js **24.14.0** 和 pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。以下开发和打包命令均在仓库根目录执行。
@@ -352,6 +350,10 @@ ZCodium Exp. 新增的内容：
 | `apps/zcode-cli/packages/*-plugin`           | 内置插件与技能源码                                    |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | 仓库快照上传的 localhost 复现，仅用于审计对照         |
 | `docs/`                                      | GitHub Pages 落地页                                   |
+
+用户级数据根从 `~/.zcodium` 到 `~/.zcodium-exp` 的一次性迁移设计、时序约束与实测结论见 [.agents/specs/user-data-root-migration.md](.agents/specs/user-data-root-migration.md)。
+
+远端连接另有两项已核实但未实现的缺陷，见 [.agents/specs/ssh-remote-hardening.md](.agents/specs/ssh-remote-hardening.md)：SSH 不校验主机密钥（`buildSSHConnectConfig` 未设 `hostVerifier`，可被中间人冒充），以及桌面 SSH 的 `caller-serialized` 部署锁只在单窗口内单飞、跨窗口可并发上传同一 install-root。
 
 编码约定、开工前基线检查与各领域规范见 [AGENTS.md](AGENTS.md)；插件商店领域词汇见 [CONTEXT.md](CONTEXT.md)，UI 设计规范见 [DESIGN.md](DESIGN.md)。
 

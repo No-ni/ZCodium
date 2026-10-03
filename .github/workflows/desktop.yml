@@ -140,6 +140,10 @@ jobs:
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
     needs: [checks, remote-assets]
+    # checks / remote-assets 失败时仍然打包。Coverage 型检查与打包是两类独立缺陷：
+    # 若用默认的「needs 全部成功才运行」，checks 一红，打包就被整体跳过，
+    # 于是「源码检查通过但产物根本构不出来」这类问题会一直潜伏到发版才爆。
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
