@@ -33,27 +33,19 @@ ZCodium Exp. 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作�
 - 内置插件与技能：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide、zcode-cua。安装包只分发源码资源完整且明确注册的插件；范围见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)、[.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md) 与 [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md)。
 - Computer Use 的模型可见面：`apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
-**尚未补全**（共 742 键，全部明细见 [.agents/specs/upstream-i18n-parity.md](.agents/specs/upstream-i18n-parity.md)）：
+**尚未补全**（键级明细与每条判定依据见 [.agents/specs/upstream-i18n-parity.md](.agents/specs/upstream-i18n-parity.md)）：
 
-| 分类                 | 键数 | 说明                                                          |
-| -------------------- | ---- | ------------------------------------------------------------- |
-| **纯客户端，可补全** | 159  | 见下表                                                        |
-| **有意不补全**       | 581  | 依赖官方账号/服务端，或上游产品策略差异，见下文               |
-| 已删功能的遗留       | 2    | 上游删除了远端 CDN 拉取但语言表残留，与仓库状态一致，无需处理 |
+| 分类           | 键数 | 说明                                                              |
+| -------------- | ---- | ----------------------------------------------------------------- |
+| **有意不补全** | 686  | 依赖官方账号/服务端，或上游产品策略差异；实现前提在本 fork 不存在 |
+| **功能工作项** | 55   | 缺的是功能而不是文案；按功能拆 10 项，见 spec                     |
+| 已删功能的遗留 | 2    | 上游删除远端 CDN 拉取后语言表残留，无需处理                       |
 
-A 组按域拆分（键名与官方译文见 spec）：
+后两类**不是文案补丁**：逐键核对后发现几乎每一条背后都是一个待开发功能，或一个需要推翻的现有结构。例如上游的「Anthropic/OpenAI/Gemini 三个端点」在本仓库对应的是**已废弃**的三端点模型（`ModelProviderEndpoints` 三个字段均标 `@deprecated`，现行为单一 `baseURL` + `paths`），补键等于回退；agent 切换、新建任务选 agent、Codex 探测均受 `ZCODE_PROVIDERS = ["glm"]` 制约——当前只有一个 agent，无对象可切。
 
-| 领域                                                             | 缺口 | 说明                                                                                                                                         |
-| ---------------------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settings`                                                       | 91   | 设置界面在位（已有 574 个 `modelProvider.*` 键），缺的是上游后增项：模型 I/O 保留策略、Anthropic/OpenAI/Gemini 端点模板、Claude 模型槽位映射 |
-| `chat`                                                           | 23   | agent 切换的提示与结果文案                                                                                                                   |
-| `sidebar`                                                        | 19   | 侧栏用量/套餐与未登录态文案                                                                                                                  |
-| `appHeader`                                                      | 8    | 顶栏「前往配置」跳转、复制 JSONL 路径                                                                                                        |
-| `taskList`                                                       | 7    | Codex 网络连通性探测提示、`feedbackOpened`                                                                                                   |
-| `onboarding`                                                     | 4    | 步骤全选 aria 与计数                                                                                                                         |
-| `quickPick` / `titleBar` / `usage` / `workspaceHeader` / `zcode` | 7    | 单点文案；`zcode` 仅含 `CLAUDE_UNKNOWN_COMMAND*` 两条本地错误码                                                                              |
+可执行项中键与功能匹配、且无产品决策依赖的只有一项：顶栏「前往供应商配置」入口（7 键）。其余或需 spec（模型槽位映射、模型 I/O 保留、子代理权限模式扩展），或判定不做。
 
-**有意不补全**（581 键）。这些不是"落后"，而是实现前提在本 fork 不存在：
+**有意不补全**（686 键）。这些不是"落后"，而是实现前提在本 fork 不存在：
 
 - 官方工单系统 `feedback`（288 键）：`submit`/`timeline`/`tickets`/`supplement`，含「已交由研发跟进」「添加附件」。仓库内 UI 与服务层引用均为 0；工单需要人工处理端与服务端存储。
 - 闲时任务 `offPeak`（84 键）：`create.codingPlanOnly`「仅限 coding plan 用户使用」，需订阅账号加服务端算力调度。
@@ -61,7 +53,7 @@ A 组按域拆分（键名与官方译文见 spec）：
 - 分享功能登录态部分 `conversationShare`（47 键）：本仓库已实现本地打包版分享（`ConversationShareMenu.tsx`，140+ 键，无登录门槛）；缺的是上游后加的敏感信息自查确认、`authenticationRequired`/`loginRequired` 登录态门槛、链接协作者、产物上传回执，要求账号与远端发布。
 - 会话权限模式 `mode`（38 键）：上游是 per-agent × mode 笛卡积（claude/codex/gemini/glm/opencode 各一套）。本仓库规范模式集合见 `packages/services/src/session/sessionModeOptions.ts` 的 `CANONICAL_SESSION_MODES`（`yolo/plan/edit/auto/autoEdit/build`，与 provider 无关），现有 i18n 以 `mode.label.glm.*` 覆盖。补全需推翻该设计或新增永远选不中的死键。
 - 连接已运行 server `server`（14 键，含 `remote.kind.server`）：`remoteTarget.ts` 的远端目标类型仅 `ssh | wsl | docker`，无 `server`。属新增远端通路而非补全，本仓库已有三条远端通路。
-- 模型服务商业务错误码 `providerBusiness.*`（11 键）：错误码到文案的映射，接入的 provider 是否会产生这些码不确定；其中「请升级账户」指向本仓库不存在的账户体系。
+- 模型服务商业务错误码 `providerBusiness.*`（11 键）、登录态/验证码相关 `chat.*`、登录/断开口令 `quickPick`：错误码到文案的映射，接入的 provider 是否会产生这些码不确定；其中「请升级账户」指向本仓库不存在的账户体系。
 
 `bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 的 89 键已由本仓库补齐（2026-09-29，spec 见 `.agents/specs/web-remote-control.md`）：默认同网扫码直连，桥接桌面已有 Host；用户自托管 relay（跨网）为可选后续。反向多出的 110 键主要来自 AstrBot 桥接、UI 插件 / Gen UI 移植与 `.zcodium-exp` 命名空间，属预期差异。
 
@@ -114,7 +106,7 @@ A 组按域拆分（键名与官方译文见 spec）：
 - 2026-09-29：补齐手机远控（`webRemoteControl`）本体：桌面 LAN 直连配对/QR + 桥接已有 Host + `packages/web` mobile entry，89 键全量落地；跨网提供用户自托管 relay 包（`packages/relay`，Docker 一键），本项目不运营任何中转（[spec](.agents/specs/web-remote-control.md)）。
 - 2026-09-24：AstrBot 桥接整合为官方 `BotsService` 的传输 provider，并在官方 Bots GUI 与手机远控入口接入（#11–#14）。
 - 2026-09-24：按官方 3.14.3 安装包重新核对 i18n 键缺口，`bots` 259 键已归零，剩余 258 键；核对方法记入「与官方包的能力差异」。
-- 2026-10-03：重新核对 i18n 缺口，修正为 742 键，并拆出「纯客户端可补全 159 / 有意不补全 581 / 已删功能遗留 2」三类；键级明细与复现方法见 [spec](.agents/specs/upstream-i18n-parity.md)。原「258 键」为表格行未随 `webRemoteControl` 补齐同步更新所致，且漏列了 `feedback`/`offPeak`/`conversationShare` 等域。
+- 2026-10-03：重新核对 i18n 缺口，修正为 741 键，并拆出「有意不补全 686 / 功能工作项 55 / 已删功能遗留 2」三类；逐键判定了功能存在性后追加 10 项功能工作清单，见 [spec](.agents/specs/upstream-i18n-parity.md)。原「258 键」为表格行未随 `webRemoteControl` 补齐同步更新所致，且漏列了 `feedback`/`offPeak`/`conversationShare` 等域。
 - 2026-09-24：Computer Use 运行时改为复用 `@trycua/cua-driver` 作为唯一原生引擎，移除自研 desk-pilot；client 由上层注入，缺失时保持 fail-closed，老 GNOME / Wayland 另走物理输入兼容层。
 - 2026-09-24：合并上游 3.14.3（`328c1a0`），纳入官方 bots 与手机远控等新开源内容；继续保留 `.zcodium` 数据命名空间。
 - 2026-09-24：根目录 `package.json` 版本改为 `3.14.3-modified`，用于标识本仓库产物，详见下方「版本标识」。

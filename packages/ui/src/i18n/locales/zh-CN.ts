@@ -1418,7 +1418,9 @@ const zhCN: Record<string, string> = {
   "titleBar.menu.help.exportLogs": "导出日志",
   "titleBar.menu.help.toggleDevTools": "切换开发者工具",
   "titleBar.menu.help.resourceManager": "资源管理器",
-  "titleBar.menu.help.toggleZCodiumStdioTap": "抓取 Agent stdio 通信",
+  // 菜单文案不在这里：`packages/shared/src/desktopMenu.ts` 用
+  // `titleBar.menu.help.toggleZCodeStdioTap` 作为唯一来源（zh/en 均在其中）。这里曾并存一个
+  // `toggleZCodiumStdioTap` 旧键，自桌面菜单改用新键后已零引用，删除以免残留死键。
   "titleBar.menu.help.clearAllData": "清除所有数据",
 
   // 目录浏览

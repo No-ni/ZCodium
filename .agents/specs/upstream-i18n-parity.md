@@ -42,20 +42,26 @@ node_modules/.bin/asar extract-file "$asar" out/renderer/assets/IntlProvider-DW5
 
 ## 缺口总览
 
-| 组    | 键数 | 含义                                                    |
-| ----- | ---- | ------------------------------------------------------- |
-| **A** | 159  | 纯客户端能力，可以且应当补全                            |
-| **B** | 581  | 依赖官方账号/服务端，或上游产品策略差异；**有意不补全** |
-| **C** | 2    | 已删除功能在上游语言表里的遗留痕迹，无需处理            |
-| 合计  | 742  |                                                         |
+| 组               | 键数 | 含义                                                                          |
+| ---------------- | ---- | ----------------------------------------------------------------------------- |
+| **有意不补全**   | 686  | 依赖官方账号/服务端，或上游产品策略差异；见 B 组                              |
+| **功能工作项**   | 55   | 缺的是功能，不是文案；见文末《功能补全工作项清单》                            |
+| **已删功能遗留** | 2    | 上游语言表残留，无需处理                                                      |
+| 合计             | 743  | 差集 741 + locale 里 1 个已死键（`titleBar.menu.help.toggleZCodiumStdioTap`） |
+
+> 修正记录：本文件初版按「键名/域」把 159 键归为「纯客户端可补全」，逐键核对功能存在性后推翻。
+> 其中 `settings` 91 键里真正属本地配置的只有 24 键，其余是计费（`codingPlan.*` 21、`startPlan.*` 8、
+> `planCard.*` 2）或依赖不复用结构（端点 9 键对应已废弃的三端点模型）。**域级分类不足以判定，
+> 必须逐个键到代码里确认功能是否存在。**
 
 反向多出的 110 键（我们有、官方没有）主要来自本仓库自研内容：`genUi` 21、`conversationShare` 19、`pluginUi` 14、`settings` 13、`webRemoteControl` 13、`bots` 12——与 AstrBot 桥接、UI 插件 / Gen UI 移植、`.zcodium-exp` 命名空间相符，属预期差异。
 
 ---
 
-# A 组：可补全（159 键）
+# 功能工作项（55 键）——原「A 组可补全」
 
-功能已在、或本地能力明确的缺口。按域列出全部键与判定理由。
+初版曾把这一组标为「纯客户端，可以且应当补全」。逐键核对后发现**几乎没有一条是纯 i18n 补丁**：
+每一条背后都是一个待开发功能，或一个需要推翻的现有结构。本节保留误判证据，可执行清单见文末。
 
 #### `settings` — 91 键
 
@@ -969,6 +975,36 @@ onboarding 步骤的全选 aria 与计数文案，本地。
 `ssh.assetInstallMode`、`ssh.assetInstallModeDescription`——「资源下载方式：远端服务器下载可减少上传等待，但服务器需要能访问 ZCode CDN」。
 
 上游已删除远端 CDN 拉取、改为一律上传，但语言表与 README 都留下旧痕迹。本仓库全仓 `assetInstallMode` 命中 0 处；README 中遗留的 `ZCODE_REMOTE_ASSET_CDN_BASE_URL` 说明同属此事，应随该配置项的移除一并清理。**本组无需补全。**
+
+# 功能补全工作项清单
+
+> 上游 i18n 缺口 741 键中，除「有意不补全」的 686 键外，剩余 55 键背后是 10 项功能工作。
+> 本清单按**能否落地**排序；标注「不建议做/做不了」的条目不得作为补全目标。
+
+| #   | 功能                     | 涉及键                                                                                                                                          | 仓库现状（证据）                                                                                                                                                                                                                                                                 | 判定与工作量                                                                                                                       |
+| --- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| W1  | per-protocol 端点字段    | `settings.modelProvider.anthropicEndpoint`、`...Placeholder`、`openaiEndpoint`、`geminiEndpoint`、`endpointNoMatch`、`presetEmpty`              | `legacyModelProviderSerialized.ts` 的 `ModelProviderEndpoints` 里 anthropic/openai/gemini 三个字段**已标 @deprecated**，注释写明「仅用于读取旧 provider 配置；新 store 使用 baseURL + paths」。新数据模型是单一 `baseURL` + `paths: Partial<Record<ModelProviderKind,string>>`。 | **不建议做**：补这 9 个键等于把已废弃的三端点模型搬回 UI。要做就等于推翻 v2 catalog 设计。                                         |
+| W2  | Claude 模型槽位映射      | `settings.modelProvider.claudeMapping`, `claudeMappingDescription`, `slot.haiku`, `slot.opus`, `slot.sonnet`, `slot.reasoning`, `mappingNotSet` | UI 无槽位映射界面。仓库里 haiku/opus/sonnet 只作底层标识出现（`subagent-markdown-selection.ts` 的 `INHERIT_NAMES`、协议层模型名），`SubagentsSection.tsx` 的模型选择是 `inherit` + 模型列表，不是四槽位。                                                                        | 要新增「Claude 模型 → 四槽位」的映射配置面板与持久化。中等工作量，需 spec。                                                        |
+| W3  | 模型 I/O 完整保留开关    | `settings.modelIoFullRetention`、`modelIoFullRetentionDescription`                                                                              | 仓库 41 处 `modelIo                                                                                                                                                                                                                                                              | retention` 命中全是无关项（`zcodeFileCitation.ts`的`.opus` 音频后缀、`logRetention.ts` 的日志轮转），**无模型 I/O 保留设置**。     | 要新增诊断数据保留策略开关。工作量取决于日志/DB 裁剪逻辑现在在哪，需先定位 owner。                              |
+| W4  | Agent 切换               | `chat.agentSwitch.failed`, `success`, `switchTo`                                                                                                | `ZCODE_PROVIDERS = ["glm"]`（`packages/shared/src/providers.ts`），只有一个 agent。切换器无对象可切。                                                                                                                                                                            | **做不了**，且不应做：多 agent 是产品形态决策，不是补全。                                                                          |
+| W5  | 新建任务的 agent 名称    | `taskList.newTask.claude`, `codex`, `gemini`, `opencode + taskList.selectProvider`                                                              | 同上，`ZCodeProvider = "glm"`。`NewTaskButtonGroup.tsx` 无 agent 选项。                                                                                                                                                                                                          | **做不了**，同 W4。                                                                                                                |
+| W6  | 顶栏前往供应商配置       | `appHeader.goToProviderConfig*`, `openProviderConfig*`, `copyClaudeJsonlPath`                                                                   | `settings/model-provider-section/` 供应商配置是完整的（21 个文件），但顶栏没有跳转入口；`copyClaudeJsonlPath`（复制 JSONL 路径）仓库 0 处。                                                                                                                                      | 可做：顶栏加一个「前往配置」入口 + 打开配置文件/编辑器。**8 键中 7 个可落地**；`copyClaudeJsonlPath` 需先有展示 JSONL 路径的地方。 |
+| W7  | 子代理权限模式扩展       | `settings.subagents.permissionMode.acceptEdits`, `bypassPermissions`, `default`, `dontAsk`                                                      | `AgentPermissionMode = "auto"                                                                                                                                                                                                                                                    | "plan"`（`subagents-types.ts:29`），只有两值。                                                                                     | 要扩类型 + 解析器（`VALID_PERMISSION_MODES`）+ UI 选项。属行为变更，需 spec，且要确认子代理是否真支持这些模式。 |
+| W8  | Codex 网络连通性探测     | `taskList.codexConnectivityUnavailable`                                                                                                         | `NewTaskButtonGroup.tsx`/`TaskList.tsx` 无连通性预热探测。                                                                                                                                                                                                                       | 要新增探测逻辑与提示。与 Codex 相关，而 Codex 不在 `ZCODE_PROVIDERS` 中——**先确认 Codex 是否在我们产品内**。                       |
+| W9  | Claude 未知命令错误映射  | `zcode.error.CLAUDE_UNKNOWN_COMMAND`, `_WITH_ARGS`                                                                                              | 全仓 `CLAUDE_UNKNOWN_COMMAND` 0 处；错误码走 `DiagnosticRecord` 的 `errorCode`，没有这张码→文案表。                                                                                                                                                                              | 需先确认 Claude agent 会吐这个码（我们只有 glm）。**大概率死键**。                                                                 |
+| W10 | 模型服务商业务错误码文案 | `zcode.error.providerBusiness.1005`, `1006`, `2007`, `3001`, `3002`, `3006`, `3007`, `3008`, `3009`, `3010`, `429`                              | 同上，无码表。且文案含「升级账户」「重新登录」「验证码」。                                                                                                                                                                                                                       | **不建议做**：指向本仓库不存在的账户/验证码体系。                                                                                  |
+
+合计 55 键：W1 9 + W2 7 + W3 2 + W4 3 + W5 5 + W6 8 + W7 4 + W8 1 + W9 2 + W10 11。
+
+## 建议执行顺序
+
+1. **W6**（顶栏前往配置，7 键）唯一键与功能匹配、无产品决策依赖、最接近纯补全。
+2. **W2 / W3**（模型槽位映射 / I/O 保留）有实际价值但需 spec 与 owner 定位。
+3. **W7** 需先确认子代理能力边界。
+4. **W4 / W5 / W8 / W9** 依赖 `ZCODE_PROVIDERS = ["glm"]` 这一产品形态，做之前需先决定是否引入多 agent。
+5. **W1 / W10 不做**：前者推翻 v2 catalog 端点设计，后者指向不存在的账户体系。
+
+---
 
 ## 相关待办
 
