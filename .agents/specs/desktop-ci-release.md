@@ -58,6 +58,7 @@ flowchart TD
 10. macOS arm64/x64 各自只需一个非空 dmg 即可收集，其他架构及 zip 不进入输出；发布目录中的 zip 作为额外资产阻断发布。
 11. 删除历史 `bundled-remote-assets` 后，Windows/macOS 的准备和打包入口不要求 Linux manifest，仍校验本机 Agent、插件与原生库；手机远控的 `web-remote` 继续随包分发。
 12. 准备入口回归使用明确的目标平台 fixture，不从运行检查的 Ubuntu/macOS 宿主推断桌面目标；macOS 和 Windows 分别验证子命令，不执行真实资源构建。
+13. Gen UI 的 runtime/vendor 清单校验原始文件 SHA256。Git 检出必须按字节保存这些资源及 tweak 运行时，Windows `core.autocrlf=true` 也不能修改换行；不得通过重算清单、归一化待校验字节或跳过校验来放行变更。
 
 ## 检查阶段的源码测试
 

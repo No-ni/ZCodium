@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -8,6 +9,37 @@ import { build } from "esbuild";
 import { parse } from "yaml";
 
 const root = resolve(import.meta.dirname, "../..");
+
+test("Windows checkout preserves the pinned Gen UI asset hashes", async () => {
+  // 实测 Windows 检出把 vendor 和许可文件转换为 CRLF，构建的原始字节校验因此失败。
+  const assets = "apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets";
+  const runtime = JSON.parse(
+    await readFile(resolve(root, assets, "runtime-manifest.json"), "utf8"),
+  );
+  const vendor = JSON.parse(await readFile(resolve(root, assets, "vendor/manifest.json"), "utf8"));
+  const files = new Map(
+    Object.entries(runtime.files).map(([file, entry]) => [
+      file === "tweak.js"
+        ? "packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js"
+        : `${assets}/${file}`,
+      entry.sha256,
+    ]),
+  );
+  for (const resource of vendor.resources) {
+    files.set(`${assets}/vendor/${resource.file}`, resource.sha256);
+    files.set(`${assets}/vendor/${resource.licenseFile}`, resource.licenseSha256);
+  }
+  for (const [file, expected] of files) {
+    const result = spawnSync(
+      "git",
+      ["-c", "core.autocrlf=true", "cat-file", "--filters", `HEAD:${file}`],
+      { cwd: root, timeout: 20_000 },
+    );
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr.toString());
+    assert.equal(createHash("sha256").update(result.stdout).digest("hex"), expected, file);
+  }
+});
 
 test("desktop packaging accepts Windows/macOS and rejects Linux before building", () => {
   for (const os of ["mac", "win", "linux"]) {
