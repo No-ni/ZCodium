@@ -1,3 +1,14 @@
+## 本 fork 的长期规则
+
+- 桌面仅构建 Windows/macOS：Windows 产 exe，macOS 只产 dmg；不构建、下载或嵌入 Linux 安装包及远端运行资源，同步上游时不得恢复这条依赖。
+- 默认在 GitHub 构建，只有用户明确要求才在本机打包；构建前确认目标分支已推送，不借构建绕过用户的「不推送」要求。
+- 改动只推送到自己的 fork（`origin = No-ni/ZCodium`）；同步上游用 merge，默认不提 PR、不开 issue；提交文案用中文，提交前先展示给用户。
+- 给本机装新版时只下载 macOS arm64 artifact（`zcodium-macos-arm64` 或 `desktop-mac-arm64`）；直接覆盖 ZCodium，不做备份，旧 `ZCodium.app.bak-*` 可直接删除。
+- 同步上游保留 ZCodium 身份、`.zcodium` 业务数据目录和自有更新源边界；未配置自有更新源时不回退到官方更新源。
+- 本机 pnpm 使用 `corepack pnpm`；正式版构建从准备阶段起设置 `ZCODE_ENV=production`，避免生成 Preview 混合身份包。
+
+这里只记长期规则；提交号、构建状态和产物编号等现查，不写入本文件。
+
 ## 核心原则
 
 - 新增或修改行为前，先更新对应 spec；目录不存在时按需创建。先明确产品规则、状态所有者、接口和验收场景，再实现代码。
@@ -50,7 +61,7 @@
 
 - 遵守 `DESIGN.md`，复用已有组件，兼顾桌面与手机 Web 的布局、交互、主题和国际化。
 - 组件通过 `packages/ui/src/hooks/` 访问服务；平台操作通过 `IPlatformService`（`packages/shared/src/platform.ts`），不直接调用 `window.zcode`。
-- 通过依赖注入处理 Desktop、Web、本地和远程环境的差异，并兼顾 Windows、macOS 和 Linux。
+- 通过依赖注入处理 Desktop、Web、本地和远程环境的差异；桌面平台范围遵守上述 fork 规则，通用 Server/CLI 平台实现按现有契约维护。
 - Zustand 状态位于 `packages/ui/src/store/`。广播同步的主题、语言等字段需要防止回环；UI 局部状态不应被误当作服务端事实。
 - hooks 中含 JSX 的文件使用 `.tsx`。
 
