@@ -1,14 +1,61 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
 import { parse } from "yaml";
+import {
+  removeSourceMapFilesInDirectory,
+  stripSourceMappingUrlCommentsInDirectory,
+} from "../../packages/desktop/scripts/packaged-sourcemap-cleanup.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
+
+test("packaged Gen UI snapshots retain their hashes after sourcemap cleanup", async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), "zcodium-gen-ui-snapshot-"));
+  const source = resolve(
+    root,
+    "apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/vendor",
+  );
+  const manifest = JSON.parse(await readFile(resolve(source, "manifest.json"), "utf8"));
+  const files = new Map();
+  for (const resource of manifest.resources) {
+    files.set(resource.file, resource.sha256);
+    files.set(resource.licenseFile, resource.licenseSha256);
+  }
+  try {
+    const copies = [
+      "out/plugin-sandbox/vendor",
+      "glm/packages/visualize-plugin/skills/visualize/assets/vendor",
+    ];
+    for (const copy of copies) {
+      await mkdir(resolve(directory, copy), { recursive: true });
+      for (const file of files.keys()) {
+        await writeFile(resolve(directory, copy, file), await readFile(resolve(source, file)));
+      }
+    }
+    const ordinaryJs = resolve(directory, "out/main/index.js");
+    await mkdir(resolve(directory, "out/main"), { recursive: true });
+    await writeFile(ordinaryJs, 'console.log("fixture");\n//# sourceMappingURL=index.js.map\n');
+    await writeFile(`${ordinaryJs}.map`, "{}");
+    stripSourceMappingUrlCommentsInDirectory(directory);
+    removeSourceMapFilesInDirectory(directory);
+    for (const copy of copies) {
+      for (const [file, expected] of files) {
+        const bytes = await readFile(resolve(directory, copy, file));
+        assert.equal(createHash("sha256").update(bytes).digest("hex"), expected, `${copy}/${file}`);
+      }
+    }
+    assert.doesNotMatch(await readFile(ordinaryJs, "utf8"), /sourceMappingURL/);
+    await assert.rejects(access(`${ordinaryJs}.map`), { code: "ENOENT" });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("Windows checkout preserves the pinned Gen UI asset hashes", async () => {
   // 实测 Windows 检出把 vendor 和许可文件转换为 CRLF，构建的原始字节校验因此失败。
