@@ -27,46 +27,57 @@ test("desktop packaging accepts Windows/macOS and rejects Linux before building"
 
 test("desktop preparation stages only local runtime scripts", async () => {
   // 执行准备入口并拦截子命令；不用真的构建或下载资源，仍能发现偷偷恢复的 Linux producer。
-  const result = await build({
-    stdin: {
-      contents:
-        'import "./packages/desktop/scripts/prepare-runtime-assets.mjs"; export { calls } from "./scripts/spawn-command.mjs";',
-      resolveDir: root,
-    },
-    bundle: true,
-    write: false,
-    platform: "node",
-    format: "esm",
-    define: {
-      "import.meta.url": JSON.stringify(
-        pathToFileURL(resolve(root, "packages/desktop/scripts/prepare-runtime-assets.mjs")).href,
-      ),
-      "process.env.ZCODE_TARGET_OS": '"mac"',
-      "process.env.ZCODE_TARGET_ARCH": '"arm64"',
-    },
-    plugins: [
-      {
-        name: "runtime-command-fixture",
-        setup(builder) {
-          builder.onResolve({ filter: /spawn-command\.mjs$/ }, () => ({
-            path: "commands",
-            namespace: "fixture",
-          }));
-          builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
-            contents:
-              "export const calls = []; export function runCommand(command, args) { calls.push(args[0]); }",
-            loader: "js",
-          }));
-        },
+  for (const targetOs of ["darwin", "win32"]) {
+    const result = await build({
+      stdin: {
+        contents:
+          'import "./packages/desktop/scripts/prepare-runtime-assets.mjs"; export { calls } from "./scripts/spawn-command.mjs";',
+        resolveDir: root,
       },
-    ],
-  });
-  const code = new TextDecoder().decode(result.outputFiles[0].contents);
-  const prepared = await import(
-    `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
-  );
-  assert.ok(prepared.calls.includes("prepare:agent-bundle"));
-  assert.ok(prepared.calls.every((command) => !command.includes("remote")));
+      bundle: true,
+      write: false,
+      platform: "node",
+      format: "esm",
+      define: {
+        "import.meta.url": JSON.stringify(
+          pathToFileURL(resolve(root, "packages/desktop/scripts/prepare-runtime-assets.mjs")).href,
+        ),
+      },
+      plugins: [
+        {
+          name: "runtime-command-fixture",
+          setup(builder) {
+            builder.onResolve({ filter: /spawn-command\.mjs$/ }, () => ({
+              path: "commands",
+              namespace: "fixture",
+            }));
+            builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+              contents:
+                "export const calls = []; export function runCommand(command, args) { calls.push(args[0]); }",
+              loader: "js",
+            }));
+            // 源码显式 import process，esbuild define 无法替换其环境读取；CI 检查机是 Ubuntu。
+            // 直接提供目标平台 fixture，避免把宿主平台误当成被测桌面目标。
+            builder.onResolve({ filter: /target-platform\.mjs$/ }, () => ({
+              path: "target",
+              namespace: "target-fixture",
+            }));
+            builder.onLoad({ filter: /.*/, namespace: "target-fixture" }, () => ({
+              contents: `export function getTargetPlatform() { return { os: ${JSON.stringify(targetOs)}, arch: "arm64", key: ${JSON.stringify(`${targetOs}-arm64`)} }; }`,
+              loader: "js",
+            }));
+          },
+        },
+      ],
+    });
+    const code = new TextDecoder().decode(result.outputFiles[0].contents);
+    const prepared = await import(
+      `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
+    );
+    assert.ok(prepared.calls.includes("prepare:agent-bundle"));
+    assert.ok(prepared.calls.every((command) => !command.includes("remote")));
+    assert.equal(prepared.calls.includes("prepare:macos-window-bounds"), targetOs === "darwin");
+  }
 });
 
 test("desktop configuration keeps mobile assets without bundling a Linux runtime", () => {
