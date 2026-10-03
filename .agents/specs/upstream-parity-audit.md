@@ -96,4 +96,7 @@ let msg = messages[id] ?? id;
 
 - ~~决定 `settings.memory.viewer.disabled` 补中文还是删除~~ 已补中文（2026-10-03）。
 - 上游升级到 3.14.4+ 时需重跑本文各维度：tag `v3.14.4` 已在本地，注意本仓库当前仍基于 3.14.3。
+- W6「任务菜单前往配置」已出 spec：[provider-config-menu-entry.md](provider-config-menu-entry.md)。
+  核对方法：全量解包官方 `app.asar`（27057 文件）后查键引用，`appHeader` 域 8 个键中仅
+  `goToProviderConfig` 被代码引用，其余 7 个是上游死键。
 - 文件级清单为「有无」比对，未做逐文件内容 diff；若需要内容级一致性，可在 `git diff upstream-3143 main -- packages` 基础上排除本 fork 自研目录后复查。
