@@ -33,7 +33,7 @@ ZCodium Exp. 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作�
 - 内置插件与技能：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide、zcode-cua。安装包只分发源码资源完整且明确注册的插件；范围见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)、[.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md) 与 [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md)。
 - Computer Use 的模型可见面：`apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
-**尚未补全**（键级明细与每条判定依据见 [.agents/specs/upstream-i18n-parity.md](.agents/specs/upstream-i18n-parity.md)）：
+**尚未补全**（键级明细与每条判定依据见 [.agents/specs/upstream-i18n-parity.md](.agents/specs/upstream-i18n-parity.md)；跨维度对账见 [.agents/specs/upstream-parity-audit.md](.agents/specs/upstream-parity-audit.md)）：
 
 | 分类           | 键数 | 说明                                                              |
 | -------------- | ---- | ----------------------------------------------------------------- |
