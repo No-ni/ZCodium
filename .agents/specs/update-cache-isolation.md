@@ -1,4 +1,4 @@
-# ZCodium 更新缓存隔离
+# ZCodium Exp. 更新缓存隔离
 
 ## 背景与问题
 
@@ -19,11 +19,11 @@ updaterCacheDirName: "@zcodedesktop-updater"
 `electron-updater` 的 `DownloadedUpdateHelper` 会在 `pending/` 下按 `update-info.json` 记录
 fileName 与 sha512，并用它们校验已缓存的安装包；缓存命中判定只看这两项，不看是哪个应用写入的。
 实测该目录中存在官方 `ZCode-3.14.3-mac-arm64.zip`（244 MB，2026-09-22 下载）与对应的
-`update-info.json`。一旦 manifest 指向同一版本，ZCodium 会把这份官方包当作自己的已下载更新。
+`update-info.json`。一旦 manifest 指向同一版本，ZCodium Exp. 会把这份官方包当作自己的已下载更新。
 
 ## 产品规则
 
-- ZCodium 的更新缓存目录必须与上游及其他 ZCode 衍生构建互不可见。
+- ZCodium Exp. 的更新缓存目录必须与上游及其他 ZCode 衍生构建互不可见。
 - 目录名由应用身份派生，不写死与身份无关的字面量。
 - 渲染进程与主进程共用同一更新流程，缓存归属只由打包配置决定。
 

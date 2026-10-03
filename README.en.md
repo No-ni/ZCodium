@@ -1,7 +1,7 @@
-# ZCodium
+# ZCodium Exp.
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCodium" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="ZCodium Exp." width="128" height="128" />
 </div>
 <p align="center">
   <a href="README.md">简体中文</a> | English
@@ -12,15 +12,15 @@
   <em>— Liang Wenfeng, CEO of DeepSeek</em>
 </p>
 
-ZCodium is a community fork of ZCode. Upstream ZCode is an AI coding workspace with desktop, browser, and terminal interfaces; this repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+ZCodium Exp. is a community fork of ZCode. Upstream ZCode is an AI coding workspace with desktop, browser, and terminal interfaces; this repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
 ## What this repository is
 
-Upstream was forced to open-source ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
+Upstream was forced to open-source ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium Exp. tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
 
 Backfilling methods include supplying the missing built-in plugins and skills, locating feature gaps by diffing i18n keys, and aligning interaction flows with the protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
 
-[Another ZCodium](https://github.com/ZCodium-project/ZCodium)
+[ZCodium-project/ZCodium](https://github.com/ZCodium-project/ZCodium) —— a separate, independent ZCodium branch
 
 [Shh... don't let the user know what we are doing](apps/zcode-cli/tools/repo-snapshot-parody/README.md)
 
@@ -55,7 +55,7 @@ Verified against the **official 3.14.3 installer** (`ZCode-3.14.3-win-x64.exe`, 
 **Deliberately not backfilled**:
 
 - Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
-- Official telemetry collection and reporting. ZCodium retains privacy-filtered local diagnostics, with external export disabled by default. Users can explicitly configure their own OTLP collector. See [diagnostics](DIAGNOSTICS.md).
+- Official telemetry collection and reporting. ZCodium Exp. retains privacy-filtered local diagnostics, with external export disabled by default. Users can explicitly configure their own OTLP collector. See [diagnostics](DIAGNOSTICS.md).
 
 ### Backfill routes
 
@@ -92,7 +92,7 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 
 The root `package.json` version carries a `-modified` suffix after the upstream version (currently `3.14.3-modified`) so this repository's artifacts are distinguishable from official packages. The suffix is a valid semver prerelease identifier and is accepted by `node scripts/ci/desktop-release.mjs check-version`.
 
-Release tags must match the version exactly, i.e. `v3.14.3-modified`; CI artifact names become `ZCodium-3.14.3-modified-<platform>-<arch>.<ext>`. The CLI distribution defaults to the same version, so `dist/zcode/releases/3.14.3-modified/` is the default output directory.
+Release tags must match the version exactly, i.e. `v3.14.3` (the root `package.json` version; no extra suffix). CI artifact names are derived from the build-time product identity, using the template `<productName>-<version>-<platform>-<arch><suffix>.<ext>` — `productName` is currently `ZCodium Exp`, so production packages look like `ZCodium Exp-3.14.3-linux-x64.AppImage`, plus a `_TEST` suffix for the test backend. The CLI distribution defaults to the same version, so `dist/zcode/releases/3.14.3/` is the default output directory.
 
 Note: if `ZCODE_REMOTE_ASSET_CDN_BASE_URL` is pinned to a versioned directory, it must match the running version, or `assertRemoteCdnBaseVersionMatches` fails at startup. Upstream has no `3.14.3-modified` directory, so host the remote assets yourself or use a version-less release root.
 
@@ -303,7 +303,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 | `scripts`, `config`, `third-party`                   | Build and maintenance scripts, built-in configuration, and third-party notice materials |
 | `harness/remote`                                     | SSH Docker image for remote-workspace integration work                                  |
 
-Added by ZCodium:
+Added by ZCodium Exp.:
 
 | Path                                         | Responsibility                                                          |
 | -------------------------------------------- | ----------------------------------------------------------------------- |

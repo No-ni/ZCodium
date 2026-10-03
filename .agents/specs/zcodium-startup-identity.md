@@ -1,12 +1,12 @@
-# ZCodium 启动标识一致性
+# ZCodium Exp. 启动标识一致性
 
 ## 产品规则
 
-启动期间只允许出现**一个**静态品牌标记，且标记必须是 ZCodium 珊瑚，不得再出现 Z 字标，
+启动期间只允许出现**一个**静态品牌标记，且标记必须是 ZCodium Exp. 珊瑚，不得再出现 Z 字标，
 也不得有任何启动动画，更不得出现"透明窗口上浮着一个 logo 方块"的画面。
 
 1. **首帧静态标记**：`packages/desktop/src/renderer/index.html` 在 React bundle 执行前
-   先渲染一枚静态 ZCodium 标记（`public/logo/icons/512x512.png` 同款图标、96px、居中、
+   先渲染一枚静态 ZCodium Exp. 标记（`public/logo/icons/512x512.png` 同款图标、96px、居中、
    无动画），避免"窗口已出现、屏幕上却没有任何品牌内容"的纯色空档。标记放在 `#root` 内，
    React 首次 commit（`GlobalDatabaseStartupLoading`）会替换 `#root` 内容并接管画面。
    `packages/web/index.html` 仍不渲染启动标记，只保留既有 bootstrap 主题背景。
@@ -70,10 +70,10 @@ sequenceDiagram
 
 ## 验收
 
-1. 冷启动从窗口出现到 React 接管之间，屏幕上立即出现 ZCodium 珊瑚，不出现 Z 字标，
+1. 冷启动从窗口出现到 React 接管之间，屏幕上立即出现 ZCodium Exp. 珊瑚，不出现 Z 字标，
    也没有任何动画，更不出现"透明窗口上浮着 logo 方块"。
 2. 桌面首帧标记、数据库未就绪整段（含静默态与迁移进度态）与 Root 启动门禁都渲染
-   ZCodium 珊瑚；相邻画面直接衔接，不出现只在某一步才亮一下的闪帧。
+   ZCodium Exp. 珊瑚；相邻画面直接衔接，不出现只在某一步才亮一下的闪帧。
 3. `packages/web/index.html` 不渲染启动标记；`windowKind=update-status` 窗口不显示首帧标记。
 4. 仓库内不存在 `startup-logo-pop` / `zcode-boot-logo-breathe` / `zcode-boot-loading` /
    `startup-logo-shell` 等启动壳关键帧与样式，也不存在 `disableStartupAnimation` 设置项与其 i18n key。

@@ -1,8 +1,8 @@
-# ZCodium 独立数据目录
+# ZCodium Exp. 独立数据目录
 
 ## 产品规则
 
-ZCodium 与 ZCode 是两个独立软件，不共用任何落盘命名空间。所有磁盘目录与文件名从 `.zcodium*` 改为 `.zcodium*`：
+ZCodium Exp. 与 ZCode 是两个独立软件，不共用任何落盘命名空间。所有磁盘目录与文件名从 `.zcodium*` 改为 `.zcodium*`：
 
 - 用户级数据根：`~/.zcodium` → `~/.zcodium`（其下 `v2` 配置/会话/DB/日志、`cli`、`skills`、`commands`、`workspace`、`tmp`、`server`、`runtime` 一并跟随）。
 - 工作区级配置目录：`<workspace>/.zcodium` → `<workspace>/.zcodium`（`config.json`、`agents`、`commands`、`skills`、`workflows`）。

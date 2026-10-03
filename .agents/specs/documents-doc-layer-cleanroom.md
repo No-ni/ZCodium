@@ -24,10 +24,10 @@ clean-room 的严格定义是**双组隔离**：看过原作的一组只产出�
 
 `scripts/` 下的代码有两种来源，都自带明确的法律地位：
 
-| 文件                                                                 | 来源                | 法律地位                     |
-| -------------------------------------------------------------------- | ------------------- | ---------------------------- |
-| `document.py` / `utilities.py` / `templates/`                        | appautomator（MIT） | MIT 允许派生，保留声明即可   |
-| `postcheck*.py` / `fix_footer_fields.py` / `add_toc_placeholders.py` | 本仓库原创          | 著作权归 ZCodium，可自由许可 |
+| 文件                                                                 | 来源                | 法律地位                          |
+| -------------------------------------------------------------------- | ------------------- | --------------------------------- |
+| `document.py` / `utilities.py` / `templates/`                        | appautomator（MIT） | MIT 允许派生，保留声明即可        |
+| `postcheck*.py` / `fix_footer_fields.py` / `add_toc_placeholders.py` | 本仓库原创          | 著作权归 ZCodium Exp.，可自由许可 |
 
 以这些代码为事实源写文档，**引用链完全不经过原版文档**，与做法 1 是不同性质的操作。
 附带收益是文档与实现必然一致——我们已知实现与原版存在实质差异（`updateFields` 插入位置、

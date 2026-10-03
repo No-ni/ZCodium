@@ -7,7 +7,7 @@
 ### 市场与来源
 
 **Builtin Marketplace（内置市场）**:
-随 ZCodium 分发的本地目录，沿用稳定市场 id `zcode-plugins-official`。源码中的 Official Marketplace / isOfficial 指这个保留身份，不代表依赖官方服务。内容由当前安装包的 seed 决定，其中可以收录社区作者的插件。
+随 ZCodium Exp. 分发的本地目录，沿用稳定市场 id `zcode-plugins-official`。源码中的 Official Marketplace / isOfficial 指这个保留身份，不代表依赖官方服务。内容由当前安装包的 seed 决定，其中可以收录社区作者的插件。
 _Avoid_: "官方"泛指一切受信市场
 
 **Builtin Plugin（内置插件）**:

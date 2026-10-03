@@ -1,7 +1,7 @@
-# ZCodium
+# ZCodium Exp.
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCodium" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="ZCodium Exp." width="128" height="128" />
 </div>
 <p align="center">
   简体中文 | <a href="README.en.md">English</a>
@@ -12,15 +12,15 @@
   <em>—— 梁文锋，深度求索 CEO</em>
 </p>
 
-ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent；本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+ZCodium Exp. 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent；本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
 ## 这个仓库是什么
 
-上游在 2026-09 被迫将 ZCode 客户端开源，但开源出来的源码与他们实际发布的安装包并不等价：发布包里带有一批开源代码中没有的功能。ZCodium 的做法是**跟进上游官方仓库，同时把这些"只在发布包里存在"的功能以各种方式补全**，让自建的源码能够构建出与官方包能力对等的产物。
+上游在 2026-09 被迫将 ZCode 客户端开源，但开源出来的源码与他们实际发布的安装包并不等价：发布包里带有一批开源代码中没有的功能。ZCodium Exp. 的做法是**跟进上游官方仓库，同时把这些"只在发布包里存在"的功能以各种方式补全**，让自建的源码能够构建出与官方包能力对等的产物。
 
 补全手段包括：补齐缺失的内置插件与技能、比对 i18n 键定位功能缺口、按协议与设置 schema 对齐交互链路。所有补全都记录在 [.agents/specs/](.agents/specs/) 下的 spec 中，包含范围、状态所有者、接口契约与验收场景。
 
-[另外一个ZCodium](https://github.com/ZCodium-project/ZCodium)
+[ZCodium-project/ZCodium](https://github.com/ZCodium-project/ZCodium) —— 另一个独立的 ZCodium 分支
 
 [嘘... 别让用户发现我们在干什么](apps/zcode-cli/tools/repo-snapshot-parody/README.md)
 
@@ -55,7 +55,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 **有意不补全**：
 
 - 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
-- 官方遥测采集与上报。ZCodium 保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。详见[诊断说明](DIAGNOSTICS.md)。
+- 官方遥测采集与上报。ZCodium Exp. 保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。详见[诊断说明](DIAGNOSTICS.md)。
 
 ### 补全路线
 
@@ -107,9 +107,9 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 ## 版本标识
 
-根目录 `package.json` 的版本号在上游版本后带 `-modified` 后缀（当前 `3.14.3-modified`），用于把本仓库产物与官方包区分开。该后缀是合法的 semver 预发布标识，`node scripts/ci/desktop-release.mjs check-version` 会接受它。
+版本号直接跟随上游（当前 `3.14.3`，见根目录 `package.json`），不带额外后缀；`node scripts/ci/desktop-release.mjs check-version` 会校验它。
 
-发布标签必须与版本严格一致，即 `v3.14.3-modified`；CI 产物名随之变为 `ZCodium-3.14.3-modified-<platform>-<arch>.<ext>`。命令行发行包的默认版本同样取该值，因此 `dist/zcode/releases/3.14.3-modified/` 是默认输出目录。
+发布标签必须与版本严格一致，即 `v3.14.3`。CI 产物名由构建期产品身份派生，模板为 `<productName>-<version>-<platform>-<arch><suffix>.<ext>`——当前 `productName` 是 `ZCodium Exp`，所以正式包形如 `ZCodium Exp-3.14.3-linux-x64.AppImage`，测试后端再带 `_TEST` 后缀。命令行发行包默认版本取同一值，因此 `dist/zcode/releases/3.14.3/` 是默认输出目录。
 
 注意：`ZCODE_REMOTE_ASSET_CDN_BASE_URL` 若固定到某个版本目录，必须与运行版本一致，否则 `assertRemoteCdnBaseVersionMatches` 会在启动时直接报错。上游没有 `3.14.3-modified` 对应目录，需要自行托管远程资源，或改成不带版本的发布根目录。
 
@@ -336,7 +336,7 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 | `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料     |
 | `harness/remote`                                     | 远程工作区联调用的 SSH Docker 镜像         |
 
-ZCodium 新增的内容：
+ZCodium Exp. 新增的内容：
 
 | 路径                                         | 职责                                                  |
 | -------------------------------------------- | ----------------------------------------------------- |

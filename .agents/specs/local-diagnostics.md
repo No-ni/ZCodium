@@ -2,7 +2,7 @@
 
 ## 产品规则
 
-ZCodium 删除官方及专有上报 SDK、内置端点、产品使用行为采集、设备/账号归因、上传队列及凭据注入。保留本地排障、性能分析和开发诊断，不按 telemetry、trace、metrics 等名字删除功能。
+ZCodium Exp. 删除官方及专有上报 SDK、内置端点、产品使用行为采集、设备/账号归因、上传队列及凭据注入。保留本地排障、性能分析和开发诊断，不按 telemetry、trace、metrics 等名字删除功能。
 
 本地诊断和对外导出分别控制。默认不初始化 exporter、不设置默认接收地址、不创建网络请求或导出定时器。只有用户明确开启 `ZCODE_DIAGNOSTICS_EXPORT_ENABLED=1` 且配置自己的接收地址（`OTEL_EXPORTER_OTLP_ENDPOINT` 或 `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`）时，允许标准 OTLP/HTTP JSON Logs 导出；旧遥测变量或仅设置 OTEL 变量不能开启。不开启自动资源探测，不读取 OTEL_RESOURCE_ATTRIBUTES 来附加身份。模型等业务网络请求保持自己的规则。
 

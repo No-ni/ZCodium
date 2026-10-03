@@ -1,8 +1,8 @@
-# ZCodium 更新源归属
+# ZCodium Exp. 更新源归属
 
 ## 背景与问题
 
-ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/autoUpdater.ts` 在运行时通过
+ZCodium Exp. 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/autoUpdater.ts` 在运行时通过
 服务端 manifest provider 检查更新，默认 origin 为 `DEFAULT_ZCODE_ENDPOINT_ORIGIN`
 （`packages/shared/src/zcodeEndpoint.ts`，值 `https://zcode.z.ai`）。
 
@@ -11,17 +11,17 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/auto
 1. **更新源指向上游服务器。** 应用启动后请求
    `https://zcode.z.ai/api/v1/releases/electron/manifest?platform=darwin-aarch64&channel=1`，
    拿到的是**官方 ZCode** 安装包（实测 3.14.3，Bundle ID `dev.zcode.app`）。
-2. **更新产物覆盖 ZCodium。** 本仓库构建的 appId 是 `dev.zcodium.app`，但
+2. **更新产物覆盖 ZCodium Exp.。** 本仓库构建的 appId 是 `dev.zcodium.app`，但
    `updaterCacheDirName` 仍是上游的 `@zcodedesktop-updater`，两个应用共用同一个更新缓存目录。
-   已下载的官方包会以相同路径参与缓存校验，用户点更新会把官方包覆盖到 ZCodium 上。
+   已下载的官方包会以相同路径参与缓存校验，用户点更新会把官方包覆盖到 ZCodium Exp. 上。
 3. **强制升级门禁由上游决定。** `packages/desktop/src/main/forceUpdateGuard.ts` 读取上游
-   `/api/v1/client/configs` 下发的 `minimalVersion`。上游可据此阻止 ZCodium 启动。
+   `/api/v1/client/configs` 下发的 `minimalVersion`。上游可据此阻止 ZCodium Exp. 启动。
 
-结论：ZCodium 的升级路径必须由本仓库拥有，不能由上游服务端决定。
+结论：ZCodium Exp. 的升级路径必须由本仓库拥有，不能由上游服务端决定。
 
 ## 产品规则
 
-- ZCodium 只从本仓库自己的分发位置获取更新；不向上游 manifest 或 client configs 发起请求。
+- ZCodium Exp. 只从本仓库自己的分发位置获取更新；不向上游 manifest 或 client configs 发起请求。
 - 未配置自有更新源时，**不检查更新**，而不是回退到上游。
 - 自动更新检查、下载、强制升级门禁三者对「更新源归属」的判定必须同源，不能一处自有一处上游。
 
