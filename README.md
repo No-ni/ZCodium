@@ -106,7 +106,7 @@ ZCodium Exp. 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作�
 - 2026-09-29：补齐手机远控（`webRemoteControl`）本体：桌面 LAN 直连配对/QR + 桥接已有 Host + `packages/web` mobile entry，89 键全量落地；跨网提供用户自托管 relay 包（`packages/relay`，Docker 一键），本项目不运营任何中转（[spec](.agents/specs/web-remote-control.md)）。
 - 2026-09-24：AstrBot 桥接整合为官方 `BotsService` 的传输 provider，并在官方 Bots GUI 与手机远控入口接入（#11–#14）。
 - 2026-09-24：按官方 3.14.3 安装包重新核对 i18n 键缺口，`bots` 259 键已归零，剩余 258 键；核对方法记入「与官方包的能力差异」。
-- 2026-10-03：重新核对 i18n 缺口，修正为 741 键，并拆出「有意不补全 686 / 功能工作项 55 / 已删功能遗留 2」三类；逐键判定了功能存在性后追加 10 项功能工作清单，见 [spec](.agents/specs/upstream-i18n-parity.md)。原「258 键」为表格行未随 `webRemoteControl` 补齐同步更新所致，且漏列了 `feedback`/`offPeak`/`conversationShare` 等域。
+- 2026-10-03：重新核对 i18n 缺口，修正为 741 键；补齐全仓唯一单语键 `settings.memory.viewer.disabled` 的中文，两张语言表自此齐平（各 5475 键），并拆出「有意不补全 686 / 功能工作项 55 / 已删功能遗留 2」三类；逐键判定了功能存在性后追加 10 项功能工作清单，见 [spec](.agents/specs/upstream-i18n-parity.md)。原「258 键」为表格行未随 `webRemoteControl` 补齐同步更新所致，且漏列了 `feedback`/`offPeak`/`conversationShare` 等域。
 - 2026-09-24：Computer Use 运行时改为复用 `@trycua/cua-driver` 作为唯一原生引擎，移除自研 desk-pilot；client 由上层注入，缺失时保持 fail-closed，老 GNOME / Wayland 另走物理输入兼容层。
 - 2026-09-24：合并上游 3.14.3（`328c1a0`），纳入官方 bots 与手机远控等新开源内容；继续保留 `.zcodium` 数据命名空间。
 - 2026-09-24：根目录 `package.json` 版本改为 `3.14.3-modified`，用于标识本仓库产物，详见下方「版本标识」。
