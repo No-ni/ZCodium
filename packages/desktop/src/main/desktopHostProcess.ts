@@ -40,6 +40,8 @@ import { BroadcastHub } from "./broadcastHub.js";
 import { bindDatabaseStartupRelay } from "./databaseStartupRelay.js";
 import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
 import { ingestHostNetworkObservations } from "./desktopNetworkTelemetry.js";
+// 上游接入实时总线时遗漏了类型导入；根 typecheck 不覆盖 Electron main。
+import type { TaskRealtimeBus } from "./taskRealtimeBus.js";
 import {
   buildHostProcessEnv,
   hostModulePath,

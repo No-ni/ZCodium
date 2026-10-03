@@ -53,7 +53,6 @@ const osAliasMap = new Map([
   ["win", "win"],
   ["windows", "win"],
   ["win32", "win"],
-  ["linux", "linux"],
 ]);
 
 const archAliasMap = new Map([
@@ -67,7 +66,6 @@ const archAliasMap = new Map([
 const osBuilderFlagMap = {
   mac: "--mac",
   win: "--win",
-  linux: "--linux",
 };
 
 const archBuilderFlagMap = {
@@ -78,7 +76,6 @@ const archBuilderFlagMap = {
 const artifactExtensionsByOs = {
   mac: [".dmg"],
   win: [".exe"],
-  linux: [".AppImage", ".deb", ".rpm", ".pkg.tar.zst"],
 };
 const artifactArchHintsByArch = {
   x64: ["x64", "x86_64", "amd64"],
@@ -238,10 +235,10 @@ function printHelp() {
 用法:
   pnpm bundle:desktop
   pnpm bundle:desktop -- --os mac --arch x64
-  pnpm bundle:desktop -- linux arm64
+  pnpm bundle:desktop -- win arm64
 
 参数:
-  --os, -o <mac|win|linux>     目标操作系统，默认 mac
+  --os, -o <mac|win>           目标操作系统，默认 mac
   --arch, -a <x64|arm64>       目标 CPU 架构，默认 arm64
   --skip-prepare               跳过 prepare:runtime-assets
   --skip-build                 跳过 pnpm build
@@ -609,16 +606,6 @@ function resolveAppAsarPath(os, arch) {
       desktopRoot,
       desktopDistDir,
       arch === "arm64" ? "win-arm64-unpacked" : "win-unpacked",
-      "resources",
-      "app.asar",
-    );
-  }
-
-  if (os === "linux") {
-    return resolve(
-      desktopRoot,
-      desktopDistDir,
-      arch === "arm64" ? "linux-arm64-unpacked" : "linux-unpacked",
       "resources",
       "app.asar",
     );

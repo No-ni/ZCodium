@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { z } from "zod";
+import { ZCODE_APP_CONFIG_SUBDIR_NAME, ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 import { GEN_UI_OUTPUT_ROOT_ENV, getGenUiOutputDirectory } from "@zcode/shared/node";
 import { getDataBaseDir, setDataBaseDir } from "../paths.js";
 import { ZCodeAgentProcessManager } from "./zcodeAgentProcessManager.js";
@@ -28,7 +29,10 @@ it("passes the executor data directory to the spawned Agent over environment ove
   try {
     const client = await manager.getClient({ workspacePath: root });
     const outputRoot = await client.request("session/list", {}, z.string());
-    expect(outputRoot).toBe(join(root, ".zcode", "v2", "visualizations"));
+    // 输出路径跟随产品数据目录常量，不能写死官方 .zcode 命名空间。
+    expect(outputRoot).toBe(
+      join(root, ZCODE_USER_DATA_DIR_NAME, ZCODE_APP_CONFIG_SUBDIR_NAME, "visualizations"),
+    );
     const scope = { workspacePath: join(root, "project"), sessionId: "s" };
     expect(getGenUiOutputDirectory(outputRoot, scope)).toContain(outputRoot);
   } finally {

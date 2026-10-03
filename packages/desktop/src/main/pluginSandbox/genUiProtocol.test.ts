@@ -9,13 +9,13 @@ function fixture(kind: "gen-ui" | "mcp-app", html = fragment, missing = false) {
   const instance = { runtimeId: "a", generation: 1, token: "one", appIdentity: "a".repeat(64) };
   const handle = registry.register({
     instance,
-    contentKind: kind,
     ownerWebContentsId: 1,
     workspacePath: "/repo",
     sessionId: "s",
     scopeId: "view",
     html,
-    ...(kind === "mcp-app" ? { pluginId: "p", serverName: "m" } : {}),
+    // MCP App 省略 contentKind 即为默认类型，测试使用同一生产契约。
+    ...(kind === "gen-ui" ? { contentKind: kind } : { pluginId: "p", serverName: "m" }),
   });
   const resources: Record<string, string> = {
     "visualize.css": "/* preset styles */",

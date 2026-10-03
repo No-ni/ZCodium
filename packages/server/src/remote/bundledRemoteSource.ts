@@ -46,7 +46,7 @@ export class BundledRemoteSource {
       throw new Error(`Unsupported bundled remote platform: ${options.platformArch}`);
     }
     if (!options.directory)
-      throw new Error("Bundled remote assets are missing; rebuild or reinstall ZCodium");
+      throw new Error("This build does not include remote workspace runtime assets");
   }
 
   private assertActive(): void {

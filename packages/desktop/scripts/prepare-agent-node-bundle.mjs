@@ -13,7 +13,7 @@ import {
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @zcode/tui，所以这里天然不打包 TUI。
 //
-// 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
+// 此入口只准备本机 Agent；本 fork 不随桌面包构建 Linux 远端运行资源。
 
 import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { access, cp, mkdir } from "node:fs/promises";

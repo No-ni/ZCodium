@@ -91,6 +91,7 @@ async function harness(t) {
     logs = [],
     timers = [];
   const app = new EventEmitter();
+  app.show = () => {};
   let windows = [],
     response = 0;
   const electron = {

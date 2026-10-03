@@ -17,7 +17,6 @@ concurrency:
 env:
   HUSKY: "0"
   ZCODE_ENV: production
-  ZCODE_SKIP_REMOTE_ASSETS: "1"
   CSC_IDENTITY_AUTO_DISCOVERY: "false"
   ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
   ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
@@ -115,44 +114,13 @@ jobs:
           node scripts/ci/conversation-export-smoke.mjs
           node scripts/ci/conversation-import-smoke.mjs
 
-  remote-assets:
-    name: Bundled Linux remote runtime
-    needs: checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-workspace
-      - name: Build remote components from source
-        run: pnpm prepare:remote-assets
-      - name: Verify native remote runtime
-        run: node scripts/ci/remote-assets-smoke.mjs
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: bundled-remote-linux-x64
-          path: packages/desktop/bundled-remote-assets/
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
-    needs: [checks, remote-assets]
+    needs: checks
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: linux
-            runner: ubuntu-24.04
-            arch: x64
-          # Linux arm64：使用 GitHub 公共仓库免费提供的原生 arm64 runner，
-          # 这样 CUA 原生库与打包后的 Electron 运行时都能真正执行探针，
-          # 而不是像交叉打包那样只能校验文件。
-          - platform: linux
-            runner: ubuntu-24.04-arm
-            arch: arm64
           - platform: win
             runner: windows-2025
             arch: x64
@@ -175,22 +143,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Install Linux packaging tools
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends rpm libarchive-tools zstd
       - uses: ./.github/actions/setup-workspace
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: bundled-remote-linux-x64
-          path: packages/desktop/bundled-remote-assets
-      - name: Verify bundled remote components
-        run: node scripts/bundle-remote-assets.mjs verify
       - name: Prepare desktop runtime
         run: pnpm prepare:desktop-runtime
       # 交叉架构（Windows arm64 在 x64 runner 上打包）加载不了目标原生库，
-      # 只能校验随包资产文件；执行探针留给同架构的原生 runner（含 Linux arm64）。
+      # 只能校验随包资产文件；执行探针留给同架构的原生 runner。
       - name: Verify native CUA and shared plugin host
         if: matrix.crossArch != true
         run: node scripts/ci/cua-driver-smoke.mjs
@@ -218,9 +175,9 @@ jobs:
   build-macos:
     name: Build (mac ${{ matrix.arch }})
     # macOS runner 按 10 倍费率计分钟，只在发版 tag 与手动触发时打包；
-    # 日常 push/PR 的打包回归由 linux/win 矩阵与 checks 覆盖。
+    # 日常 push/PR 的打包回归由 Windows 矩阵与 checks 覆盖。
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag')
-    needs: [checks, remote-assets]
+    needs: checks
     strategy:
       fail-fast: false
       matrix:
@@ -244,14 +201,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
-      # 与 linux/win 同样下载 ubuntu 上产出的 Linux x64 远端运行时：
-      # 打包链路在 beforePack/afterPack 里无条件校验 bundled-remote-assets。
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: bundled-remote-linux-x64
-          path: packages/desktop/bundled-remote-assets
-      - name: Verify bundled remote components
-        run: node scripts/bundle-remote-assets.mjs verify
       - name: Prepare desktop runtime
         run: pnpm prepare:desktop-runtime
       - name: Build workspace and desktop
@@ -283,14 +232,6 @@ jobs:
       - uses: ./.github/actions/setup-workspace
         with:
           install-dependencies: "false"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-linux-x64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-linux-arm64
-          path: dist/release-assets
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: desktop-win-x64

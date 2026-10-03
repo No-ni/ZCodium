@@ -110,15 +110,13 @@ The Agent CLI and runtime source code lives in [apps/zcode-cli/](apps/zcode-cli/
 
 Additional setup and build commands:
 
-| Command                        | Purpose                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                 | Install dependencies                                                                                                                |
-| `pnpm prepare:desktop-runtime` | Prepare desktop runtime assets, including remote assets by default                                                                  |
-| `pnpm prepare:remote-assets`   | Prepare remote runtime assets separately                                                                                            |
-| `pnpm bootstrap:with-remote`   | Set up dependencies and local and remote assets, then build the relevant packages sequentially; skip the desktop application bundle |
-| `pnpm build`                   | Recursively run each workspace package's build script, including its asset preparation steps                                        |
+| Command                        | Purpose                                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `pnpm install`                 | Install dependencies                                                                         |
+| `pnpm prepare:desktop-runtime` | Prepare local runtime assets for the target Windows/macOS platform                           |
+| `pnpm build`                   | Recursively run each workspace package's build script, including its asset preparation steps |
 
-The default `bootstrap` skips remote asset preparation and is suitable for local desktop development. Run the corresponding preparation command when working with remote workspaces or validating remote distribution assets.
+This fork builds Windows/macOS desktop packages only and does not prepare or embed Linux remote runtime assets. SSH, WSL, and Linux container workspace deployment is unavailable in these desktop builds. Mobile remote control connects to the local desktop Host and remains available.
 
 ## Development and Usage
 
@@ -217,7 +215,7 @@ Runtime variables can be set explicitly in the environment of the startup comman
 
 ### Automated builds and releases
 
-[Desktop CI](.github/workflows/desktop.yml) checks pull requests, pushes to main, and manual runs, then builds Linux x64 and Windows x64 on native runners. Linux artifacts include AppImage, deb, rpm, and pkg.tar.zst; Windows produces an exe. Download them from Actions within 14 days.
+[Desktop CI](.github/workflows/desktop.yml) checks pull requests, pushes to main, manual runs, and version tags, then builds Windows x64/arm64. macOS arm64/x64 builds run only for manual runs and version tags. Windows produces exe installers and macOS produces DMG installers. No Linux installer or remote runtime is built. Download artifacts from Actions within 14 days.
 
 Pushing `v<package.json.version>` creates a **draft Release** with both platforms and `SHA256SUMS` after all checks and builds pass. Prerelease versions such as `-rc.1` are accepted; build metadata is not. Maintainers test and publish the draft manually. Reruns can replace draft assets but cannot overwrite a published release. Manual workflow runs only produce artifacts.
 
@@ -236,7 +234,7 @@ pnpm bundle:desktop -- --os win --arch x64
 pnpm bundle:desktop -- --help
 ```
 
-The default target is macOS arm64, and the default output directory is `packages/desktop/dist/`. `--os` accepts `mac`, `win`, or `linux`; `--arch` accepts `x64` or `arm64`. Packaging and signing require the tools and configuration for the target platform.
+The default target is macOS arm64, and the default output directory is `packages/desktop/dist/`. `--os` accepts only `mac` or `win`; `--arch` accepts `x64` or `arm64`. Packaging and signing require the tools and configuration for the target platform.
 
 ### ZCode CLI distribution
 

@@ -290,12 +290,8 @@ function resolveHostProcessNodeEnv(): ZCodeRuntimeEnv {
 }
 
 export function resolveRemoteAssetDirs(): RemoteAssetDirs {
-  // 开发与发行都读取同一种随包清单；缺失时由部署入口报错，不回退网络或旧 cache。
-  return {
-    bundledRemoteAssetsDir: isElectronAppPackaged()
-      ? join(process.resourcesPath, "remote-assets")
-      : join(import.meta.dirname, "../../bundled-remote-assets"),
-  };
+  // 本 fork 不分发 Linux 远端资源，开发态也不复用历史制品；手机远控使用本机 Host。
+  return {};
 }
 
 function resolveBundledZCodeAgentBinaryPath(): string | undefined {

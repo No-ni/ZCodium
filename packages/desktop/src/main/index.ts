@@ -1739,8 +1739,7 @@ app.whenReady().then(async () => {
       ? { registryMaxEntries: Number(process.env.ZCODE_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) }
       : {}),
   });
-  // Electron 的 net.request 只能在 app ready 后使用；灰度请求仍是旁路预热，不阻塞首个 Host。
-  void desktopContextPromptRollout?.refresh();
+  // 灰度模块已移除，不能再调用其 refresh；遗留引用会在首个 Host 启动前抛 ReferenceError。
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );

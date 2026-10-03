@@ -25,6 +25,7 @@ export class BrowserWindow extends EventEmitter {
   constructor(options) { super(); this.options = options; }
   isDestroyed() { return false; }
   maximize() {}
+  setWindowButtonPosition() {}
 }
 // pluginSandbox 的 host/session 会被 desktopWindowChrome 的依赖图带进这个 bundle。
 // 它们从 electron 取的符号此前不在 mock 里，esbuild 直接 "No matching export"
@@ -93,6 +94,9 @@ test("all browser guests keep isolation and the ordinary dialog preload, with no
       tabId: "tab",
     }),
   });
+  // macOS window-control synchronization emits its initial overlay metrics during creation;
+  // the assertions below only inspect messages caused by popup handling.
+  window.webContents.sent.length = 0;
   for (const src of [
     "https://zcode.z.ai/coding-plan?embedded=app",
     "https://example.invalid/",
