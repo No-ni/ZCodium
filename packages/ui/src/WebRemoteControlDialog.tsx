@@ -1,8 +1,14 @@
 import { memo, useState } from "react";
-import type { BotProvider } from "@zcode/shared";
-import { Bot as BotIcon, MonitorSmartphone, XIcon } from "lucide-react";
-import { BotsDialog } from "@/BotsDialog.js";
-import { ProviderIcon } from "@/BotsDialog/shared.js";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.js";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -13,7 +19,18 @@ import {
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
+import { Bot as BotIcon, MonitorSmartphone, XIcon } from "lucide-react";
+import { BotsDialog } from "@/BotsDialog.js";
+import { ProviderIcon } from "@/BotsDialog/shared.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
+import { WebRemoteControlEndpointSection } from "@/WebRemoteControlEndpointSection.js";
+import { useWebRemoteControl } from "@/hooks/useWebRemoteControl.js";
+import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
+import type {
+  BotProvider,
+  WebRemoteControlFailureReason,
+  WebRemoteControlTaskSync,
+} from "@zcode/shared";
 
 type RemoteControlBotProvider = Extract<
   BotProvider,
@@ -31,6 +48,22 @@ const REMOTE_CONTROL_BOT_ENTRIES: Array<{
   { provider: "telegram" },
 ];
 
+/** failure.reason → i18n 文案键；与 shared/status.ts 的枚举一一对应。 */
+const FAILURE_MESSAGE_IDS: Record<WebRemoteControlFailureReason, string> = {
+  sessionNotFound: "webRemoteControl.failure.sessionNotFound",
+  sessionExpired: "webRemoteControl.failure.sessionExpired",
+  sessionConflict: "webRemoteControl.failure.sessionConflict",
+  kicked: "webRemoteControl.failure.kicked",
+  workspaceClosed: "webRemoteControl.failure.workspaceClosed",
+  desktopDisconnected: "webRemoteControl.failure.desktopDisconnected",
+  invalidMobileConnection: "webRemoteControl.failure.invalidMobileConnection",
+  desktopBootstrapTimeout: "webRemoteControl.failure.desktopBootstrapTimeout",
+  connectionRecoveryTimeout: "webRemoteControl.failure.connectionRecoveryTimeout",
+  relayUnavailable: "webRemoteControl.failure.relayUnavailable",
+  unsupportedAction: "webRemoteControl.failure.unsupportedAction",
+  unexpectedError: "webRemoteControl.failure.unexpectedError",
+};
+
 export const WebRemoteControlDialog = memo(function WebRemoteControlDialogComponent({
   open,
   onOpenChange,
@@ -45,6 +78,45 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const { intl } = useZCodeIntl();
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
+  const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
+  const taskService = useZCodeTaskService(workspacePath, null, workspaceIdentity);
+  const remote = useWebRemoteControl({
+    open,
+    workspacePath,
+    workspaceIdentity,
+    loadSyncPayload: async () => {
+      const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+      let tasks: WebRemoteControlTaskSync["tasks"] = [];
+      try {
+        const taskMetas = await taskService.listTasks({ workspacePath, workspaceIdentity });
+        tasks = taskMetas.map((task) => ({
+          workspaceKey,
+          taskId: task.taskId,
+          title: task.title,
+          displayStatus: task.status ?? "idle",
+          createdAt: task.createdAt,
+          updatedAt: task.updatedAt,
+          ...(typeof task.unreadAt === "number" ? { unreadAt: task.unreadAt } : {}),
+        }));
+      } catch (error) {
+        logger.warn("[WebRemoteControlDialog] 读取任务清单失败", {
+          workspacePath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return {
+        workspaces: [
+          {
+            workspaceKey,
+            workspacePath,
+            ...(workspaceIdentity ? { workspaceIdentity } : {}),
+            kind: "local" as const,
+          },
+        ],
+        tasks,
+      };
+    },
+  });
 
   const handleOpenBotEntry = (provider: RemoteControlBotProvider) => {
     setBotEntryProvider(provider);
@@ -68,6 +140,12 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       workspaceIdentity: workspaceIdentity ?? "none",
     });
   };
+
+  const failure = remote.snapshot?.failure;
+  // statusDetail 只覆盖官方六态；cancelled 回落 idle 文案。
+  const statusDetailId = `webRemoteControl.statusDetail.${
+    remote.status === "cancelled" ? "idle" : remote.status
+  }`;
 
   return (
     <>
@@ -106,6 +184,97 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
             </DialogHeader>
 
             <div className="mt-5 grid gap-4">
+              <WebRemoteControlEndpointSection />
+
+              <section className="flex flex-col rounded-xl border border-border bg-card p-4">
+                <div className="mb-4 flex items-start gap-2">
+                  <MonitorSmartphone className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
+                  <div className="min-w-0 space-y-1">
+                    <div className="text-ui-base font-medium text-foreground">
+                      {intl.formatMessage({ id: "webRemoteControl.mobileQr.title" })}
+                    </div>
+                    <p className="text-ui-base/relaxed text-foreground-subtle">
+                      {intl.formatMessage({ id: "webRemoteControl.mobileQr.description" })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-background-alt p-4">
+                  {remote.qrDataUrl ? (
+                    <img
+                      src={remote.qrDataUrl}
+                      alt={intl.formatMessage({ id: "webRemoteControl.qrAlt" })}
+                      className="size-64 max-w-full rounded-lg bg-white p-3"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-center text-ui-base text-foreground-subtle">
+                      <MonitorSmartphone className="size-5 animate-pulse" />
+                      <span>{intl.formatMessage({ id: "webRemoteControl.generating" })}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-1">
+                  <div className="flex items-center gap-2 text-ui-base font-medium text-foreground">
+                    <span>{intl.formatMessage({ id: "webRemoteControl.statusLabel" })}</span>
+                    {remote.status === "active" ? (
+                      <span className="inline-flex h-5 items-center rounded-full border border-border px-2 text-ui-xs font-medium leading-none text-foreground-subtle">
+                        {intl.formatMessage({ id: "webRemoteControl.statusTag.phone" })}
+                      </span>
+                    ) : null}
+                    {remote.status === "running" ? (
+                      <span className="inline-flex h-5 items-center rounded-full border border-border px-2 text-ui-xs font-medium leading-none text-foreground-subtle">
+                        {intl.formatMessage({ id: "webRemoteControl.statusTag.ready" })}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-ui-base/relaxed text-foreground-subtle">
+                    {failure
+                      ? intl.formatMessage({ id: FAILURE_MESSAGE_IDS[failure.reason] })
+                      : intl.formatMessage({ id: statusDetailId })}
+                  </p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="justify-center gap-2 enabled:cursor-pointer"
+                    disabled={!remote.qrUrl || remote.busy}
+                    onClick={() => void remote.copyLink()}
+                  >
+                    {intl.formatMessage({ id: "webRemoteControl.copyLink" })}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="justify-center gap-2 enabled:cursor-pointer"
+                    disabled={remote.busy}
+                    onClick={() => setRefreshConfirmOpen(true)}
+                  >
+                    {intl.formatMessage({ id: "webRemoteControl.refreshQr" })}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="justify-center gap-2 enabled:cursor-pointer"
+                    disabled={remote.busy || remote.status === "idle"}
+                    onClick={() => void remote.stop()}
+                  >
+                    {intl.formatMessage({ id: "webRemoteControl.stop" })}
+                  </Button>
+                </div>
+                <p className="mt-2 text-ui-xs/relaxed text-foreground-subtle">
+                  {intl.formatMessage({ id: "webRemoteControl.copyLink.description" })}
+                </p>
+                <p className="mt-1 text-ui-xs/relaxed text-foreground-subtle">
+                  {intl.formatMessage({ id: "webRemoteControl.singlePageNote" })}
+                </p>
+              </section>
+
               <section className="flex min-h-[360px] flex-col rounded-xl border border-border bg-card p-4">
                 <div className="mb-4 flex items-start gap-2">
                   <BotIcon className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
@@ -183,6 +352,31 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={refreshConfirmOpen} onOpenChange={setRefreshConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {intl.formatMessage({ id: "webRemoteControl.refreshQr.confirmTitle" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {intl.formatMessage({
+                id: "webRemoteControl.refreshQr.confirmDescription",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{intl.formatMessage({ id: "common.cancel" })}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setRefreshConfirmOpen(false);
+                void remote.refreshPairing();
+              }}
+            >
+              {intl.formatMessage({ id: "webRemoteControl.refreshQr" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <BotsDialog
         open={botsDialogOpen}
         onOpenChange={setBotsDialogOpen}

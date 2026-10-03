@@ -35,22 +35,22 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 **尚未补全**（共 258 键）：
 
-| 领域               | 缺口  | 说明                                                     |
-| ------------------ | ----- | -------------------------------------------------------- |
-| `webRemoteControl` | 89 键 | 手机远控桌面；仓库只有 botChannel 渠道选择外壳           |
-| `manualClaimPlan`  | 53 键 | 权益领取与验证码流程                                     |
-| `mode`             | 38 键 | 会话模式扩展                                             |
-| `settings`         | 26 键 | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 端点模板 |
-| `server`           | 12 键 | Server 入口                                              |
-| `appHeader`        | 8 键  | Provider 配置入口                                        |
-| `marketingTouch`   | 7 键  | 权益触达                                                 |
-| `taskList`         | 6 键  | Codex / Claude 新建任务                                  |
-| `chat`             | 5 键  | agent 切换                                               |
-| `rewards`          | 5 键  | 权益菜单                                                 |
-| `onboarding`       | 4 键  | agent 设置步骤                                           |
-| 其他               | 5 键  | `remote`、`zcode`、`titleBar`                            |
+| 领域                   | 缺口  | 说明                                                     |
+| ---------------------- | ----- | -------------------------------------------------------- |
+| ~~`webRemoteControl`~~ | 0 键  | 手机远控桌面已补齐（LAN 直连 + 用户自托管 relay）        |
+| `manualClaimPlan`      | 53 键 | 权益领取与验证码流程                                     |
+| `mode`                 | 38 键 | 会话模式扩展                                             |
+| `settings`             | 26 键 | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 端点模板 |
+| `server`               | 12 键 | Server 入口                                              |
+| `appHeader`            | 8 键  | Provider 配置入口                                        |
+| `marketingTouch`       | 7 键  | 权益触达                                                 |
+| `taskList`             | 6 键  | Codex / Claude 新建任务                                  |
+| `chat`                 | 5 键  | agent 切换                                               |
+| `rewards`              | 5 键  | 权益菜单                                                 |
+| `onboarding`           | 4 键  | agent 设置步骤                                           |
+| 其他                   | 5 键  | `remote`、`zcode`、`titleBar`                            |
 
-`bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 只进来了渠道选择一层（15 键，另含自研 AstrBot 2 键），远控本体仍未实现，因此是当前最大缺口。反向还有 33 个键是本仓库特有、官方包没有的，主要来自 AstrBot 桥接与 `.zcodium` 命名空间。
+`bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 的 89 键已由本仓库补齐（2026-09-29，spec 见 `.agents/specs/web-remote-control.md`）：默认同网扫码直连，桥接桌面已有 Host；用户自托管 relay（跨网）为可选后续。当前最大缺口为 `manualClaimPlan`。反向还有 33 个键是本仓库特有、官方包没有的，主要来自 AstrBot 桥接与 `.zcodium` 命名空间。
 
 **有意不补全**：
 
@@ -98,6 +98,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 ## 更新
 
+- 2026-09-29：补齐手机远控（`webRemoteControl`）本体：桌面 LAN 直连配对/QR + 桥接已有 Host + `packages/web` mobile entry，89 键全量落地；跨网提供用户自托管 relay 包（`packages/relay`，Docker 一键），本项目不运营任何中转（[spec](.agents/specs/web-remote-control.md)）。
 - 2026-09-24：AstrBot 桥接整合为官方 `BotsService` 的传输 provider，并在官方 Bots GUI 与手机远控入口接入（#11–#14）。
 - 2026-09-24：按官方 3.14.3 安装包重新核对 i18n 键缺口，`bots` 259 键已归零，剩余 258 键；核对方法记入「与官方包的能力差异」。
 - 2026-09-24：Computer Use 运行时改为复用 `@trycua/cua-driver` 作为唯一原生引擎，移除自研 desk-pilot；client 由上层注入，缺失时保持 fail-closed，老 GNOME / Wayland 另走物理输入兼容层。
@@ -126,15 +127,13 @@ Agent CLI 与运行时源码位于 [apps/zcode-cli/](apps/zcode-cli/)，作为�
 
 根据需要选择其他初始化或构建入口：
 
-| 命令                           | 用途                                                              |
-| ------------------------------ | ----------------------------------------------------------------- |
-| `pnpm install`                 | 安装依赖                                                          |
-| `pnpm prepare:desktop-runtime` | 准备桌面运行资源，默认包含远程资源准备                            |
-| `pnpm prepare:remote-assets`   | 单独准备远程运行资源                                              |
-| `pnpm bootstrap:with-remote`   | 初始化依赖、本地与远程资源，并串行构建相关包；跳过桌面应用 bundle |
-| `pnpm build`                   | 递归执行各 workspace 包的构建脚本，包括包内的资源准备步骤         |
+| 命令                           | 用途                                                      |
+| ------------------------------ | --------------------------------------------------------- |
+| `pnpm install`                 | 安装依赖                                                  |
+| `pnpm prepare:desktop-runtime` | 准备目标 Windows/macOS 的本机运行资源                     |
+| `pnpm build`                   | 递归执行各 workspace 包的构建脚本，包括包内的资源准备步骤 |
 
-默认 `bootstrap` 跳过远程资源准备，适合本地桌面开发。使用远程工作区或验证远程发行资源时，再运行对应准备命令。
+本 fork 的桌面构建仅支持 Windows/macOS，不准备或嵌入 Linux 远端运行资源。
 
 ## 开发与运行
 
@@ -159,11 +158,9 @@ ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
 
 ### 远程功能（SSH/WSL）
 
-Linux x64 与 Windows x64 桌面安装包内置 Linux x64 远端运行资源。连接 SSH、WSL 或 Linux 容器时，应用校验随包组件并上传安装；远端无需访问组件 CDN。已有匹配组件会复用，缺少必需文件时自动修复。目前远端目标仅支持 Linux x64。
+本 fork 的桌面包不提供 Linux 远端运行资源，因此不支持部署 SSH、WSL 或 Linux 容器远程工作区。连接时会明确报缺少运行资源，不联网补下载或复用历史制品。
 
-开发时先执行 `pnpm bootstrap:with-remote`，再 `pnpm dev:desktop`。修改 Server、Agent 或内置插件后，运行 `pnpm prepare:remote-assets` 重建 `packages/desktop/bundled-remote-assets`。构建阶段需要获取固定依赖；运行时缺少或损坏的资源会明确报错，不联网补下载。
-
-Web 开发使用同一份本地资源。独立部署 HTTP 服务时，通过 `ZCODE_BUNDLED_REMOTE_ASSETS_DIR` 指定该服务所在机器上的资源目录；它必须与服务版本匹配，浏览器不能覆盖这个路径。
+手机远控连接本机桌面的已有 Host，不需要 Linux 远端资源，继续随 Windows/macOS 桌面包提供。
 
 ### Web 开发
 
@@ -220,6 +217,12 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 这个入口直接运行 Agent CLI，不经过发行包的 `--web` 分流。开发 Web 用 `pnpm dev:web`；验证统一的 `zcode` 命令，用下方解压后的 `bin/zcode.mjs`。
 
+### UI Plugin 开发
+
+参见 [UI Plugin：能力、API 与调试](UI_PLUGIN.md)，从 Excalidraw 的画布协作示例开始，了解插件安装更新、页面 API 和宿主联调入口。
+
+**向 `zcode-plugins` 提交插件 PR 时，必须在 PR 模板中声明是否为 UI Plugin，并填写插件名称。** 判断标准见[提交 PR 时声明插件类型](UI_PLUGIN.md#提交-pr-时声明插件类型)。
+
 ## 配置
 
 根目录 [.env.example](.env.example) 提供服务地址与构建配置示例，可按需复制到 `.env`，本地覆盖放入 `.env.local`。Desktop 的开发环境通过 `dev:desktop:test` / `dev:desktop:prod` 选择。
@@ -237,7 +240,7 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 ### 自动构建与发布
 
-[Desktop CI](.github/workflows/desktop.yml) 在 PR、main 推送、手动运行和版本标签推送时检查代码并构建 Linux x64/arm64 与 Windows x64/arm64；macOS arm64/x64 只在手动运行和标签推送时构建。Linux 产物为 AppImage、deb、rpm、pkg.tar.zst，Windows 为 exe，本 fork 的 macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。
+[Desktop CI](.github/workflows/desktop.yml) 在 PR、main 推送、手动运行和版本标签推送时检查代码并构建 Windows x64/arm64；macOS arm64/x64 只在手动运行和标签推送时构建。Windows 产物为 exe，macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。
 
 本 fork 保留 [macOS Desktop Build](.github/workflows/macos.yml) 作为只构建 arm64 DMG 的手动安装入口，产物名为 `zcodium-macos-arm64`。
 
@@ -258,7 +261,7 @@ pnpm bundle:desktop -- --os win --arch x64
 pnpm bundle:desktop -- --help
 ```
 
-默认目标为 macOS arm64，默认输出目录为 `packages/desktop/dist/`。`--os` 支持 `mac`、`win`、`linux`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具和配置。
+默认目标为 macOS arm64，默认输出目录为 `packages/desktop/dist/`。`--os` 仅支持 `mac`、`win`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具和配置。
 
 安装：双击打开产物 DMG，将 ZCode 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
 

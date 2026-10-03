@@ -1,0 +1,14 @@
+{
+  "name": "visualize",
+  "version": "0.1.0",
+  "description": "Create interactive explanations, charts and design previews in ZCode conversations.",
+  "description_i18n": {
+    "en": "Create interactive explanations, charts and design previews in ZCode conversations.",
+    "zh-CN": "在 ZCode 会话中创建交互式讲解、图表与设计预览。"
+  },
+  "author": {
+    "name": "ZCodium"
+  },
+  "license": "SEE LICENSE IN skills/visualize/LICENSE.md",
+  "skills": "skills"
+}

@@ -35,6 +35,7 @@ import {
   resolveDesktopWindowSize,
   type DesktopWindowSize,
 } from "./desktopWindowSize.js";
+import { getPluginSandboxHost, isPluginSandboxSrc } from "./pluginSandbox/index.js";
 // CDP-on-guest pivot：内置浏览器改回 `<webview>` 渲染，宿主 BrowserWindow 需重新开 webviewTag，
 // 并在 will/did-attach-webview 里做 guest 硬化 + URL 白名单 + popup 路由回内部 tab。
 const ALLOWED_EMBEDDED_BROWSER_PROTOCOLS = new Set([
@@ -431,6 +432,10 @@ export function createBrowserWindow(options: {
   win.on("maximize", () => syncDesktopWindowChromeState(win));
   win.on("unmaximize", () => syncDesktopWindowChromeState(win));
   attachWindowsWindowRepaint(win);
+  // will-attach 与 did-attach 按顺序配对；队列元素记录 guest 种类，did-attach 据此分派策略。
+  const pendingWebviewGuestKinds: Array<
+    { kind: "browser" } | { kind: "pluginSandbox"; sandboxId: string }
+  > = [];
 
   win.webContents.once("did-finish-load", () => {
     // 生产包使用 loadFile(file://...) 导航时，Chromium 可能在页面加载完成后重放
@@ -460,6 +465,31 @@ export function createBrowserWindow(options: {
     // Chromium NSAlert。固定 preload 在每个 frame 调用原生 API 前拦截，且隔离世界只
     // 暴露 alert/confirm 同步桥；网页主世界仍没有 Node 或任意 IPC 能力。
     const targetUrl = params.src ?? "about:blank";
+    // 插件 UI 沙箱 guest：独立分支，不走内置浏览器的 preload / allowpopups / 协议白名单。
+    if (isPluginSandboxSrc(targetUrl)) {
+      const host = getPluginSandboxHost();
+      const decision = host?.configureGuest({
+        webPreferences,
+        params,
+        ownerWebContentsId: win.webContents.id,
+      });
+      if (!decision?.ok) {
+        options.logger.warn(
+          `[plugin-sandbox] blocked webview attach: ${decision ? decision.reason : "host-not-installed"}`,
+        );
+        event.preventDefault();
+        return;
+      }
+      pendingWebviewGuestKinds.push({ kind: "pluginSandbox", sandboxId: decision.sandboxId });
+      return;
+    }
+    // Bugfix：引入 UI 插件沙箱的那次上游移植（cherry-pick 662c30bea）夹带了一段
+    // Coding Plan 官网页 guest 分支，但它依赖的 isCodingPlanEmbeddedWebviewSrc、
+    // codingPlanWebviewPreloadPath 与 preload/codingPlanWebview.ts 都没有一起移植，
+    // 为此本 fork 也没有 Coding Plan 购买页。引用未定义标识符会让 did-attach-webview
+    // 在运行时抛 ReferenceError，任何 webview 附加都会触发。这里移除该分支，
+    // 保持移植前的 preload 行为；上游那套管道（attachEmbeddedBrowserWindowOpenHandler
+    // 的 isCodingPlanGuest）同样未随本次移植进入，不保留无效调用。
     webPreferences.preload = embeddedBrowserJavaScriptDialogPreloadPath;
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
@@ -486,9 +516,22 @@ export function createBrowserWindow(options: {
       event.preventDefault();
       return;
     }
+
+    pendingWebviewGuestKinds.push({ kind: "browser" });
   });
 
   win.webContents.on("did-attach-webview", (_event, guestWebContents) => {
+    const guestKind = pendingWebviewGuestKinds.shift() ?? {
+      kind: "browser" as const,
+    };
+    if (guestKind.kind === "pluginSandbox") {
+      getPluginSandboxHost()?.attachGuest({
+        guest: guestWebContents,
+        hostWebContents: win.webContents,
+        sandboxId: guestKind.sandboxId,
+      });
+      return;
+    }
     attachEmbeddedBrowserWindowOpenHandler({
       guestWebContents,
       hostWebContents: win.webContents,

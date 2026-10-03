@@ -61,12 +61,17 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import {
   createSettingService,
+  createCredentialService,
   buildRuntimeProcessEnvPatch,
   captureLoginShellEnvSnapshot,
   getConversationWorkspaceDir,
   normalizeRuntimeProcessEnv,
   setDataBaseDir,
 } from "@zcode/services/node";
+import {
+  createWebRemoteControl,
+  type WebRemoteControlRuntimeHandle,
+} from "./webRemoteControl/index.js";
 import {
   desktopMenuMessageIds,
   type Locale,
@@ -193,8 +198,13 @@ import {
   WINDOWS_UPDATE_LOCK_RELEASE_GRACE_MS,
 } from "./windowsInstallResourceLocks.js";
 import { mainMemoryDiagnosticsRegistry } from "./mainMemoryDiagnostics.js";
+import {
+  PLUGIN_SANDBOX_PRIVILEGED_SCHEME,
+  getPluginSandboxHost,
+  installPluginSandboxHost,
+} from "./pluginSandbox/index.js";
 
-registerLocalMediaPreviewScheme(protocol);
+registerLocalMediaPreviewScheme(protocol, [PLUGIN_SANDBOX_PRIVILEGED_SCHEME]);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
 
 // e2e 由 Chromedriver 管理远程调试端口；如果这里继续固定到 9229，
@@ -625,6 +635,8 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
   resolveRemoteAssetDirs,
   resolveWslTarget: resolveCanonicalWslTarget,
 });
+// 手机远控运行时：main 持有配对/传输/bridge；IPC 在 webRemoteControl/ipc.ts 注册。
+let webRemoteControlHandle: WebRemoteControlRuntimeHandle | null = null;
 
 ipcMain.on(PlatformChannels.ReportDiagnostic, (_event, input: unknown) => {
   const parsed = DiagnosticRecordSchema.safeParse(input);
@@ -1510,6 +1522,12 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           onCronRunResult: forwardCronRunResult,
           onCronSchedulerWakeRequested: wakeCronScheduler,
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
+          registerPluginSandbox: (input) => {
+            const host = getPluginSandboxHost();
+            if (!host) throw new Error("Plugin UI sandbox host is not installed.");
+            const { requestId: _requestId, ...registerInput } = input;
+            return host.registerFromHost(registerInput);
+          },
           // Bugfix: bot service 运行在本地窗口 host 内，/reconnect 必须能从本地 host 请求 main 创建远端 session。
           handleBotRemoteWorkspaceReconnectRequest: async ({
             win,
@@ -1704,6 +1722,24 @@ app.whenReady().then(async () => {
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
   });
+  // 插件 UI 沙箱：注册表 + renderer 可调 IPC；scheme 的 privileged 注册已随 zcode-media 在 ready 前完成。
+  installPluginSandboxHost({
+    preloadPath: join(import.meta.dirname, "../preload/pluginSandbox.cjs"),
+    rendererDir: join(import.meta.dirname, "../renderer"),
+    aliasDir: join(import.meta.dirname, "../plugin-sandbox"),
+    // 开发模式 out/renderer 没有 shell 产物，从 renderer dev server 代理（同 cua-permission-panel 的做法）。
+    ...(!app.isPackaged && process.env["ELECTRON_RENDERER_URL"]
+      ? { devServerUrl: process.env["ELECTRON_RENDERER_URL"] }
+      : {}),
+    logger: console,
+    // e2e L05（配额）：只在 e2e run 里允许缩小注册表容量。
+    ...(process.env.ZCODE_E2E_RUN_ID?.trim() &&
+    Number.isInteger(Number(process.env.ZCODE_E2E_PLUGIN_SANDBOX_MAX_ENTRIES)) &&
+    Number(process.env.ZCODE_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) > 0
+      ? { registryMaxEntries: Number(process.env.ZCODE_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) }
+      : {}),
+  });
+  // 灰度模块已移除，不能再调用其 refresh；遗留引用会在首个 Host 启动前抛 ReferenceError。
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );
@@ -1826,6 +1862,17 @@ app.whenReady().then(async () => {
       app.quit();
     },
     logger,
+  });
+
+  // 手机远控：设置/凭据/窗口 host 就绪后组装运行时；失败不影响桌面启动。
+  webRemoteControlHandle = await createWebRemoteControl({
+    logger,
+    settingService: mainSettingService,
+    credentialService: createCredentialService(),
+    resolveHostProcess: (webContentsId) => windowHostProcessMap.get(webContentsId),
+  }).catch((error) => {
+    logger.error("[web-remote-control] failed to initialize:", error);
+    return null;
   });
 
   registerPlatformIpcHandlers({
@@ -2009,6 +2056,7 @@ app.on("browser-window-created", (_, win) => {
     // Electron 进入 closed 回调时，win.webContents 可能已经被销毁。
     // 之前这里现取 win.webContents.id，会在关窗收尾阶段抛出 "Object has been destroyed"。
     // 改为在窗口创建时缓存 webContents id，确保清理工作区深链接状态时不再访问已销毁对象。
+    void webRemoteControlHandle?.manager.disposeWindow(win.id);
     clearWorkspaceDeepLinkStateForWindow(windowWebContentsId);
     // 录制中关窗/崩溃时 renderer 不会发复位 IPC，这里按发起 webContents 复位录制态，
     // 防止菜单 accelerator 被永久摘除。

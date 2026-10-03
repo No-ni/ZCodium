@@ -2,17 +2,12 @@
 
 ## 范围与产品规则
 
-- 构建矩阵覆盖 Linux x64/arm64、Windows x64/arm64、macOS arm64/x64；除 Windows arm64 在 x64 runner 上交叉打包外，均使用 GitHub 托管的**原生** runner（Linux arm64 用 `ubuntu-24.04-arm`）。
-- PR、main 推送、手动运行和 `v*` 标签推送均执行检查与 Linux/Windows 打包；macOS arm64/x64 只在手动运行和标签推送时构建。
+- 桌面构建矩阵仅覆盖 Windows x64/arm64、macOS arm64/x64；Windows arm64 在 x64 runner 上交叉打包，其他目标使用 GitHub 托管的原生 runner。
+- PR、main 推送、手动运行和 `v*` 标签推送均执行检查与 Windows 打包；macOS arm64/x64 只在手动运行和标签推送时构建。Ubuntu 只用于检查与草稿资产上传，不构建 Linux 安装包或远端运行资源。
 - 本 fork 保留独立 `macos.yml`，只手动构建 macOS arm64 并上传 `zcodium-macos-arm64`，作为本机安装入口，不创建 Release。
-- Linux 沿用现有 AppImage、deb、rpm、pkg.tar.zst，Windows 沿用 NSIS exe；本 fork 的 macOS 只发 dmg，打包目标、产物收集与发布校验必须一致，不要求或上传 zip。
-- 产物文件名遵循现有打包器的架构命名（`builder-util` 的 `getArtifactArchName`，按 target 名判定）：
-  - deb：x64 → `amd64`，arm64 → `arm64`；
-  - AppImage：x64 → `x86_64`，arm64 → `arm64`；
-  - rpm：x64 → `x86_64`，arm64 → `aarch64`；
-  - pacman（`pkg.tar.zst`）：x64 → `x64`，arm64 → `aarch64`。
-- pacman 与 rpm 的 arm64 名是 `aarch64` 而 AppImage/deb 是 `arm64`：`getArtifactArchName` 只在 `pacman`/`rpm`/`flatpak` 三个 target 上把 arm64 改写为 `aarch64`，x64 不在其特例表里所以保持 `x64`。已由 linux arm64 构建实测确认四种格式的产物名。
-- 同一架构族在不同格式里的写法不同，按 arch 筛选时必须归一（`ARCH_ALIASES`），否则 `x64` 匹配不到 deb/AppImage。
+- Windows 沿用 NSIS exe；macOS 只发 dmg，打包目标、产物收集与发布校验必须一致，不要求或上传 zip。四个目标的架构名均为 x64 或 arm64。
+- Linux 目标在桌面打包入口和资产收集入口明确拒绝；发布校验只要求四个 Windows/macOS 安装包，Linux 文件作为额外资产阻断发布。
+- 不再构建、下载、校验或嵌入 `bundled-remote-assets`，桌面开发态也不读取历史 Linux 资源。SSH/WSL/Linux 容器远程工作区部署明确报缺少运行资源；通用 Server/CLI 的平台实现保留，手机远控继续复用本机 Host，与 Linux 远程工作区独立。
 - 只有版本标签推送允许创建 GitHub **草稿** Release，公开发布由维护者审核后操作。
 - 带预发布标识的版本同时标记为 prerelease，审核发布时不会被误当作稳定版本。
 - 标签必须为 `v<package.json.version>`，版本需满足 SemVer（可带预发布标识，不接受 build metadata）。无效标签在构建前失败。
@@ -29,15 +24,11 @@ GitHub Actions 工作流拥有调度和权限；现有 `bundle:desktop` 拥有�
 flowchart TD
   A[PR / main / 手动 / 标签] --> B[版本与依赖检查]
   B --> C[类型检查 / Lint / 架构检查 / 发布脚本测试]
-  C --> D[Linux x64 原生构建]
-  C --> E[Linux arm64 原生构建]
   C --> F[Windows x64 原生构建]
   C --> G[Windows arm64 交叉构建]
   C --> M{手动 / 标签}
   M -->|是| H[macOS arm64 / x64 原生构建]
-  D --> I[当前 run 的已验证产物]
-  E --> I
-  F --> I
+  F --> I[当前 run 的已验证产物]
   G --> I
   H --> I
   I --> J{标签推送且全平台齐全}
@@ -55,16 +46,20 @@ flowchart TD
 
 ## 验收场景
 
-1. fork PR 无仓库写权限也能运行检查与 Linux/Windows 构建；不触发 macOS 构建或发布。
+1. fork PR 无仓库写权限也能运行检查与 Windows 构建；不触发 macOS 构建或发布。
 2. 各平台独立产生所有预期安装包，并通过已有 app.asar 运行时依赖校验。
 3. 手动运行可下载各平台产物，标签上下文的手动运行仍不创建 Release。
 4. 合法标签、全平台构建与检查全部成功后，只生成草稿及 SHA256SUMS；维护者仍须手动发布。
 5. 版本不匹配、单平台失败、缺包、错版本和空包阻断发布；重跑不能覆盖公开 Release。
 6. 发布辅助脚本用临时目录和模拟 GitHub 调用测试，覆盖以上失败语义，不访问真实 Release。
-7. Linux arm64 与 Linux x64 的产物按 arch 分别收集，互不覆盖；`deb`/`AppImage`/`rpm`/`pacman` 的 arm 架构名与 `builder-util` 的实际命名一致。
-8. Linux/Windows 原生 runner 上执行 CUA 原生库与打包后 Electron 运行时探针；交叉打包的架构只校验随包资产文件（`--files-only`）。
+7. Windows/macOS 的 x64 与 arm64 产物分别收集；Linux 打包和资产收集请求在启动构建或写文件之前失败。
+8. Windows x64 runner 执行 CUA 原生库与打包后 Electron 运行时探针；Windows arm64 交叉打包只校验随包资产文件（`--files-only`）。
 9. 执行 typecheck、lint、架构检查以及工作流语法验证；已有失败或环境限制如实记录，不降级门禁。
 10. macOS arm64/x64 各自只需一个非空 dmg 即可收集，其他架构及 zip 不进入输出；发布目录中的 zip 作为额外资产阻断发布。
+11. 删除历史 `bundled-remote-assets` 后，Windows/macOS 的准备和打包入口不要求 Linux manifest，仍校验本机 Agent、插件与原生库；手机远控的 `web-remote` 继续随包分发。
+12. 准备入口回归使用明确的目标平台 fixture，不从运行检查的 Ubuntu/macOS 宿主推断桌面目标；macOS 和 Windows 分别验证子命令，不执行真实资源构建。
+13. Gen UI 的 runtime/vendor 清单校验原始文件 SHA256。Git 检出必须按字节保存这些资源及 tweak 运行时，Windows `core.autocrlf=true` 也不能修改换行；不得通过重算清单、归一化待校验字节或跳过校验来放行变更。
+14. 打包后 source map 清理由既有脚本负责；普通构建代码继续清理引用和 `.map`，但不得改写 renderer `out/plugin-sandbox/vendor` 或 Agent `glm/packages/visualize-plugin/skills/visualize/assets/vendor` 的固定快照。最终安装包中的 vendor 和许可文件必须仍匹配原始清单 SHA256。
 
 ## 检查阶段的源码测试
 
@@ -76,7 +71,15 @@ Checks 中的诊断回归直接读取受检源码，不依赖 CLI package 的 `d
 
 - 桌面、远端和首启 seed 清单保持一致，只分发源码资源完整且满足 seed 契约的插件，不降低资源校验要求。
 - CUA 原生运行时按目标 platform/arch 落盘（`@trycua/cua-driver-<platform>-<arch>`），交叉打包不得把构建机架构的原生库带进安装包。
-- Linux/Windows GUI 启动和安装体验需在真实目标环境验证；静态检查与脚本测试不能替代安装验收。
+- Windows/macOS GUI 启动和安装体验需在真实目标环境验证；静态检查与脚本测试不能替代安装验收。
+
+## 本地集成构建
+
+- 桌面与本机 Agent 从当前工作树生成；不使用上游 Linux 远端制品替代 fork 的数据目录、迁移与业务修复。准备入口只生成目标 Windows/macOS 的本机运行资源。
+- 本地打包需用户明确要求；仅执行代码修复或配置检查时，不生成安装包、不覆盖已安装应用。未获推送授权时不通过推送启动 GitHub 构建。
+- 已移除的桌面灰度模块不能保留启动回调。正式包启动检查显式隔离业务数据、Electron userData/session 和默认工作区目录。
+- Gen UI 进程测试从数据目录常量构造预期路径；MCP App 使用现有沙箱输入的默认类型，只有 Gen UI 输入声明 `contentKind: "gen-ui"`，不扩大生产接口来迁就测试。
+- 常规根类型检查未覆盖 Electron main；本地集成额外检查 main，并区分原有基线错误与本次新增错误。回归、功能测试和启动检查分别报告实际结果。
 
 ## 参考
 

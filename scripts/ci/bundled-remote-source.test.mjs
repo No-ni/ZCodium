@@ -51,6 +51,11 @@ test("local-only source pins identity, materializes once per transaction and cle
 test("unsupported targets and missing bundles fail before remote use without fallback", async () => {
   assert.throws(
     () =>
+      new BundledRemoteSource({ directory: "", appVersion: version, platformArch: "linux-x64" }),
+    /does not include remote workspace runtime assets/,
+  );
+  assert.throws(
+    () =>
       new BundledRemoteSource({
         directory: "/unused",
         appVersion: version,

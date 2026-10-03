@@ -6,6 +6,7 @@ import type {
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
+import type { PluginSandboxPlatformPort } from "./mcp-apps/contract.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
   LoadCliMcpFromUserDirectoryResult,
@@ -21,6 +22,13 @@ import type {
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
+import type {
+  WebRemoteControlResetPairingRequest,
+  WebRemoteControlStartRequest,
+  WebRemoteControlStatusSnapshot,
+  WebRemoteControlTaskSync,
+  WebRemoteControlWorkspaceSync,
+} from "./webRemoteControl/index.js";
 import type {
   PostUpdateReleaseNotesPayload,
   UpdateCheckResultPayload,
@@ -534,6 +542,12 @@ export interface IPlatformService {
   /** 当前平台的文件选择框是否能返回 agent 可访问的本地绝对路径 */
   canSelectFilePath?: boolean;
 
+  /**
+   * 插件 UI 沙箱平台端口。只有桌面端实现；
+   * web / 手机远控为 undefined，plugin-ui 据此回退到普通 MCP 工具卡片。
+   */
+  pluginSandbox?: PluginSandboxPlatformPort;
+
   /** 打开系统目录选择框，返回选中路径或 null */
   selectDirectory(): Promise<string | null>;
 
@@ -583,6 +597,20 @@ export interface IPlatformService {
     handler: (event: BotRemoteWorkspaceReconnectedEvent) => void,
   ): () => void;
 
+  /** 订阅手机远控状态变化（idle/starting/connecting/running/active/error），返回 disposer */
+  onWebRemoteControlStatusChanged(
+    handler: (snapshot: WebRemoteControlStatusSnapshot) => void,
+  ): () => void;
+
+  /** 订阅桌面端请求：请 renderer 重连指定 workspace 的远端会话 */
+  onWebRemoteControlReconnectWorkspace(
+    handler: (request: { requestId: string; workspaceKey: string }) => Promise<{
+      requestId: string;
+      success: boolean;
+      error?: string;
+    }>,
+  ): () => void;
+
   /** 检查目录是否已在其他窗口打开；如果是则激活该窗口并切到对应 tab */
   activateOrSetWorkspace(path: string): Promise<{ activated: boolean }>;
 
@@ -607,6 +635,28 @@ export interface IPlatformService {
 
   /** 释放当前窗口里已创建的远程 session */
   disposeRemoteSession(sessionId: string): Promise<void>;
+
+  /** 开启当前窗口的手机远控（默认仅同网可达；跨网由用户自备端点） */
+  startWebRemoteControl(
+    request: WebRemoteControlStartRequest,
+  ): Promise<WebRemoteControlStatusSnapshot>;
+
+  /** 停止当前窗口的手机远控并作废配对 */
+  stopWebRemoteControl(): Promise<void>;
+
+  /** 查询当前窗口的手机远控状态 */
+  getWebRemoteControlStatus(): Promise<WebRemoteControlStatusSnapshot>;
+
+  /** 刷新配对：作废旧二维码/链接并重新注册 */
+  refreshWebRemoteControlPairing(
+    request: WebRemoteControlResetPairingRequest,
+  ): Promise<WebRemoteControlStatusSnapshot>;
+
+  /** 同步窗口内已打开的工作区清单给远控运行时 */
+  syncWebRemoteControlWorkspaces(payload: WebRemoteControlWorkspaceSync): Promise<void>;
+
+  /** 同步窗口内任务清单给远控运行时 */
+  syncWebRemoteControlTasks(payload: WebRemoteControlTaskSync): Promise<void>;
 
   /** 检查本机 Docker daemon 是否可用 */
   isDockerAvailable(): Promise<boolean>;

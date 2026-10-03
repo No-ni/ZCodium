@@ -48,6 +48,39 @@ export const BUILTIN_PLUGIN_SEED_PATHS = {
     "skills/web-gui-tester/SKILL.md",
   ],
   "node-repl-host": ["dist/mcp/server.js"],
+  // Bugfix：上游 662c30bea（UI plugins / Gen UI）把 visualize-plugin 加进了 staged 官方
+  // 插件清单，但那次 cherry-pick（6bb868c）只搬了插件源码，没有搬这份注册表——
+  // 本仓库的清单是派生自这里的（BUILTIN_PLUGIN_ASSETS 由本表的键生成），上游则是内联
+  // 写在 prepare-agent-node-bundle.mjs 里。缺这一条的后果：桌面打包与远端部署都不会
+  // stage visualize-plugin，Gen UI 技能在安装包里整体缺失（/visualize 展开时找不到
+  // 技能文件），且因为没有 requiredSeedPaths 校验，构建期不会报错。
+  // 路径清单照搬上游 prepare-agent-node-bundle.mjs 的 requiredSeedPaths。
+  "visualize-plugin": [
+    "skills/visualize/SKILL.md",
+    "skills/visualize/references/api.md",
+    "skills/visualize/references/styles.md",
+    "skills/visualize/tweak.md",
+    "skills/visualize/LICENSE.md",
+    "skills/visualize/scripts/render.py",
+    "skills/visualize/assets/visualize.css",
+    "skills/visualize/assets/visualize.html",
+    "skills/visualize/assets/calendar.js",
+    "skills/visualize/assets/runtime-manifest.json",
+    "skills/visualize/scripts/vendor.py",
+    "skills/visualize/assets/vendor/manifest.json",
+    "skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js",
+    "skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE",
+    "skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js",
+    "skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE",
+    "skills/visualize/assets/vendor/lucide-1.17.0.js",
+    "skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE",
+    "skills/visualize/assets/vendor/d3-7.9.0.min.js",
+    "skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE",
+    "skills/visualize/widgets/calendar.md",
+    "skills/visualize/examples/calendar.html",
+    "skills/visualize/assets/standalone-host-bridge.js",
+    "skills/visualize/assets/standalone-shell.js",
+  ],
   "presentations-plugin": ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
   "documents-plugin": [
     "agents/visual-judge.md",
