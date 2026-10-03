@@ -581,6 +581,9 @@ contextBridge.exposeInMainWorld("zcode", {
   openInFileManager: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenInFileManager, path),
   /** 使用系统默认应用打开本地文件 */
   openExternalFile: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenExternalFile, path),
+  /** 查询当前生效的 Provider 配置物化副本 */
+  getBuiltinProviderConfigFile: () =>
+    ipcRenderer.invoke(PlatformChannels.GetBuiltinProviderConfigFile, undefined),
   /** 打开 ZCode Computer Use 完整权限引导 */
   openCuaPermissionOnboarding: (options?: OpenCuaPermissionOnboardingOptions) =>
     ipcRenderer.invoke(PlatformChannels.OpenCuaPermissionOnboarding, options),
