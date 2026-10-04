@@ -1485,6 +1485,12 @@ const enUS: Record<string, string> = {
   "chat.webElements.many": "{count} web elements",
   "chat.webElements.remove": "Remove web element context",
   "appHeader.openInFinder": "Open in Finder",
+  "appHeader.builtinProviderConfigOpenFailed": "Could not open the provider config file",
+  "appHeader.builtinProviderConfigMissing":
+    "The provider config file has not been generated yet. Start a session first.",
+  "appHeader.builtinProviderConfigUnsupported":
+    "Opening the provider config file is not supported on this platform.",
+  "appHeader.goToProviderConfig": "Go to config",
   "appHeader.openInFileExplorer": "Open in File Explorer",
   "appHeader.openInFileManager": "Open in File Manager",
   "appHeader.openInFileManagerFailed": "Could not open in the system file manager",
@@ -1525,7 +1531,10 @@ const enUS: Record<string, string> = {
   "titleBar.menu.help.exportLogs": "Export logs",
   "titleBar.menu.help.toggleDevTools": "Toggle developer tools",
   "titleBar.menu.help.resourceManager": "Resource manager",
-  "titleBar.menu.help.toggleZCodiumStdioTap": "Capture agent stdio traffic",
+  // Menu labels do not live here: `packages/shared/src/desktopMenu.ts` is the single source
+  // for `titleBar.menu.help.toggleZCodeStdioTap` (zh + en). A stale `toggleZCodiumStdioTap`
+  // key used to be duplicated here; it became unreferenced once the desktop menu switched
+  // to the new key, so it is removed rather than left as a dead entry.
   "titleBar.menu.help.clearAllData": "Clear all data",
 
   // Directory browser

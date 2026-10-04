@@ -27,8 +27,12 @@ import {
 import { backupDb, ensurePopulatedDb, writeRestore } from "./legacy-store.mjs";
 import { openWritable } from "./legacy-sqlite.mjs";
 
-const DEFAULT_TASK_INDEX_PATH = join(homedir(), ".zcodium", "v2", "tasks-index.sqlite");
-const DEFAULT_CLI_DB_PATH = join(homedir(), ".zcodium", "cli", "db", "db.sqlite");
+// 与 scan-legacy-sessions.mjs 同因：agent 直接执行的独立脚本，无法 import 常量，
+// 只能写字面量；用户级数据根为 `.zcodium`，默认值保持一致。
+// 改这里时同步 packages/shared/src/appDirNames.ts 的 ZCODE_USER_DATA_DIR_NAME。
+const DATA_ROOT = process.env.ZCODE_DATA_BASE_DIR?.trim() || homedir();
+const DEFAULT_TASK_INDEX_PATH = join(DATA_ROOT, ".zcodium", "v2", "tasks-index.sqlite");
+const DEFAULT_CLI_DB_PATH = join(DATA_ROOT, ".zcodium", "cli", "db", "db.sqlite");
 
 function parseArgs(argv) {
   const args = {

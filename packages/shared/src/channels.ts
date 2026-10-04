@@ -52,6 +52,7 @@ import type {
   DesktopWindowChromeState,
   WindowControlsOverlayMetrics,
   WindowControlsOverlayReadyPayload,
+  BuiltinProviderConfigFileInfo,
 } from "./platform.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
 import type {
@@ -295,6 +296,8 @@ export const PlatformChannels = {
   OpenInFileManager: "zcode:open-in-file-manager",
   /** Renderer → Main：使用系统默认应用打开本地文件 */
   OpenExternalFile: "zcode:open-external-file",
+  /** Renderer → Main：查询当前生效的 Provider 配置文件路径 */
+  GetBuiltinProviderConfigFile: "zcode:get-builtin-provider-config-file",
   /** Renderer → Main：打开 ZCode Computer Use 权限引导 */
   OpenCuaPermissionOnboarding: "zcode:open-cua-permission-onboarding",
   /** Renderer → Main：取消当前 renderer 发起的一次权限引导 participant */
@@ -899,6 +902,10 @@ export interface PlatformChannelMap {
   [PlatformChannels.OpenExternalFile]: {
     request: string;
     response: { success: boolean; error?: string };
+  };
+  [PlatformChannels.GetBuiltinProviderConfigFile]: {
+    request: void;
+    response: BuiltinProviderConfigFileInfo;
   };
   [PlatformChannels.OpenCuaPermissionOnboarding]: {
     request: OpenCuaPermissionOnboardingOptions | undefined;

@@ -1378,6 +1378,10 @@ const zhCN: Record<string, string> = {
   "chat.webElements.many": "{count} 个网页元素",
   "chat.webElements.remove": "移除网页元素上下文",
   "appHeader.openInFinder": "在 Finder 中打开",
+  "appHeader.builtinProviderConfigOpenFailed": "无法打开 Provider 配置文件",
+  "appHeader.builtinProviderConfigMissing": "Provider 配置文件尚未生成，请先启动一次会话",
+  "appHeader.builtinProviderConfigUnsupported": "当前平台不支持打开 Provider 配置文件",
+  "appHeader.goToProviderConfig": "前往配置",
   "appHeader.openInFileExplorer": "在资源管理器中打开",
   "appHeader.openInFileManager": "在文件管理器中打开",
   "appHeader.openInFileManagerFailed": "无法在系统文件管理器中打开",
@@ -1418,7 +1422,9 @@ const zhCN: Record<string, string> = {
   "titleBar.menu.help.exportLogs": "导出日志",
   "titleBar.menu.help.toggleDevTools": "切换开发者工具",
   "titleBar.menu.help.resourceManager": "资源管理器",
-  "titleBar.menu.help.toggleZCodiumStdioTap": "抓取 Agent stdio 通信",
+  // 菜单文案不在这里：`packages/shared/src/desktopMenu.ts` 用
+  // `titleBar.menu.help.toggleZCodeStdioTap` 作为唯一来源（zh/en 均在其中）。这里曾并存一个
+  // `toggleZCodiumStdioTap` 旧键，自桌面菜单改用新键后已零引用，删除以免残留死键。
   "titleBar.menu.help.clearAllData": "清除所有数据",
 
   // 目录浏览
@@ -2121,6 +2127,7 @@ const zhCN: Record<string, string> = {
   "settings.memory.workspaceMemory": "工作区记忆",
   "settings.memoryDescription":
     "在工作区中保存并复用长期上下文，新会话生效。开启后可能增加模型调用和 Token 成本。",
+  "settings.memory.viewer.disabled": "启用工作区记忆后即可查看已保存的记忆。",
   "settings.memory.viewer.localOnly":
     "记忆详情仅支持在本地桌面端查看，请前往本地桌面端的“记忆”设置。",
   "settings.memory.viewer.title": "已保存的工作区记忆",

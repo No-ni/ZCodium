@@ -250,6 +250,9 @@ test("real IPC registration retains renderer-ready and close handling without lo
     "./desktopOAuthDeepLink.js": h.router,
     "./desktopNotifications.js": {},
     "./desktopMainIpcHelpers.js": {},
+    "./desktopProviderConfig.js": {
+      getBuiltinProviderConfigFileInfo: () => ({ path: null, exists: false }),
+    },
   });
   registerRemoteIpcHandlers({ logger: h.logger });
   assert.equal(listeners.has("zcode:oauth-register-state"), false);

@@ -306,7 +306,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                             这里直接复用 BotsDialog 的渠道 logo，不再额外包裹容器，保证品牌图标本身作为视觉识别。 */}
                         <ProviderIcon provider={entry.provider} className="size-12 shrink-0" />
                         <span className="min-w-0 flex-1 space-y-1">
-                          <span className="flex min-w-0 items-center gap-1.5 text-ui-base font-medium text-foreground">
+                          <span className="flex min-h-0 items-center gap-1.5 text-ui-base font-medium text-foreground">
                             <span className="min-w-0 truncate">
                               {intl.formatMessage({
                                 id: `webRemoteControl.botChannel.${entry.provider}.title`,

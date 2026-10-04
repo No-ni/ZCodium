@@ -117,6 +117,10 @@ jobs:
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
     needs: checks
+    # checks 失败时仍然打包。Coverage 型检查与打包是两类独立缺陷：
+    # 若用默认的「needs 全部成功才运行」，checks 一红，打包就被整体跳过，
+    # 于是「源码检查通过但产物根本构不出来」这类问题会一直潜伏到发版才爆。
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -176,7 +180,8 @@ jobs:
     name: Build (mac ${{ matrix.arch }})
     # macOS runner 按 10 倍费率计分钟，只在发版 tag 与手动触发时打包；
     # 日常 push/PR 的打包回归由 Windows 矩阵与 checks 覆盖。
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag')
+    # checks 失败时仍然打包（理由同 build job）。
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag')) }}
     needs: checks
     strategy:
       fail-fast: false

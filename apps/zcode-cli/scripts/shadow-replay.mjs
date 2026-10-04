@@ -43,7 +43,11 @@ const {
 const { ProductProjection } = projectionModule;
 const { SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION } = contracts;
 
-const sourceDbPath = args.db ?? join(homedir(), ".zcodium", "cli", "db", "db.sqlite");
+// 用户级数据根为 `.zcodium`；本脚本是独立 node 工具，
+// 无法 import @zcode/shared 常量，只能写字面量。改这里时同步
+// packages/shared/src/appDirNames.ts 的 ZCODE_USER_DATA_DIR_NAME。
+const sourceDbPath =
+  args.db ?? join(process.env.ZCODE_DATA_BASE_DIR?.trim() || homedir(), ".zcodium", "cli", "db", "db.sqlite");
 const limit = args.limit ? Number(args.limit) : Infinity;
 
 let dbPath = sourceDbPath;

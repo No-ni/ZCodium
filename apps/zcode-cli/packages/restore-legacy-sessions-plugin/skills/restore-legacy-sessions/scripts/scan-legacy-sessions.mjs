@@ -25,9 +25,16 @@ import { join } from "node:path";
 
 import { runScan } from "./legacy-scan.mjs";
 
-const DEFAULT_LEGACY_DIR = join(homedir(), ".zcodium", "v2", "sessions");
-const DEFAULT_TASK_INDEX_PATH = join(homedir(), ".zcodium", "v2", "tasks-index.sqlite");
-const DEFAULT_CLI_DB_PATH = join(homedir(), ".zcodium", "cli", "db", "db.sqlite");
+// 技能脚本由 agent 直接以 node 执行，没有打包/依赖注入，无法 import @zcode/shared 的
+// 常量，只能在这里写字面量。Bugfix：用户级数据根从 `.zcodium` 让位给 `.zcodium`
+// （ZCodium-project/ZCodium 的 #13/#17 要占 `~/.zcodium`），默认值必须跟着走，
+// 否则扫到的是迁移后的空树。改这里的字符串时同步
+// packages/shared/src/appDirNames.ts 的 ZCODE_USER_DATA_DIR_NAME。
+// 基目录沿用 ZCODE_DATA_BASE_DIR，与 packages/services/src/paths.ts 的优先级一致。
+const DATA_ROOT = process.env.ZCODE_DATA_BASE_DIR?.trim() || homedir();
+const DEFAULT_LEGACY_DIR = join(DATA_ROOT, ".zcodium", "v2", "sessions");
+const DEFAULT_TASK_INDEX_PATH = join(DATA_ROOT, ".zcodium", "v2", "tasks-index.sqlite");
+const DEFAULT_CLI_DB_PATH = join(DATA_ROOT, ".zcodium", "cli", "db", "db.sqlite");
 
 const USAGE = `Usage:
   scan-legacy-sessions.mjs summary [--json]

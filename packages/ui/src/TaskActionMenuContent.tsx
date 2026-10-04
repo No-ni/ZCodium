@@ -1,4 +1,7 @@
 import { TID_V4_TASK_OPEN_IN_SPLIT } from "@zcode/shared";
+import { useBuiltinProviderConfigFile } from "@/hooks/useBuiltinProviderConfigFile.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
+import { toast } from "@/components/ui/toast.js";
 
 interface TaskActionMenuItemProps {
   children: React.ReactNode;
@@ -76,6 +79,18 @@ export function TaskActionMenuContent({
   onViewModelTrajectory?: () => void;
 }) {
   const taskTargetActionsDisabled = disableTaskActions || disableTaskTargetActions;
+  const platform = usePlatform();
+  // 自取而非由调用方传入： Provider 配置是环境级状态，与具体 task 无关，
+  // 两个调用点（任务列表项菜单 / 工作区头部菜单）都不必额外接线。
+  // 平台未提供该方法（Web、手机远控经 desktop host 除外）时 path 为 null，入口禁用。
+  const builtinProviderConfigFile = useBuiltinProviderConfigFile();
+  const builtinProviderConfigDisabledReason = builtinProviderConfigFile.loading
+    ? intl.formatMessage({ id: "taskList.loading" })
+    : !builtinProviderConfigFile.path
+      ? intl.formatMessage({ id: "appHeader.builtinProviderConfigUnsupported" })
+      : !builtinProviderConfigFile.exists
+        ? intl.formatMessage({ id: "appHeader.builtinProviderConfigMissing" })
+        : null;
 
   return (
     <>
@@ -182,6 +197,29 @@ export function TaskActionMenuContent({
           {intl.formatMessage({ id: "appHeader.copySessionId" })}
         </Item>
       ) : null}
+      {/* 「前往配置」打开运行时真正生效的 Provider 配置物化副本——随包源配置在 macOS
+          打包态位于只读 bundle 内，副本才是可写且被 NodeZCodeBuiltinProviderConfigSource
+          监听的那份。加载中 / 不存在 / 平台不支持时禁用，并把原因写进 title，
+          避免用户以为按钮坏了。 */}
+      <Item
+        disabled={taskTargetActionsDisabled || builtinProviderConfigDisabledReason !== null}
+        title={
+          taskTargetActionsDisabled
+            ? disabledReason
+            : (builtinProviderConfigDisabledReason ?? undefined)
+        }
+        onSelect={() => {
+          const path = builtinProviderConfigFile.path;
+          if (taskTargetActionsDisabled || !path) return;
+          void platform.openExternalFile?.(path).then((result) => {
+            if (result && !result.success) {
+              toast(intl.formatMessage({ id: "appHeader.builtinProviderConfigOpenFailed" }));
+            }
+          });
+        }}
+      >
+        {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
+      </Item>
       {onViewModelTrajectory ? (
         <>
           <Separator />
