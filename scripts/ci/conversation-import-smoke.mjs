@@ -109,6 +109,10 @@ try {
           .evaluate((element) => element.dispatchEvent(new Event("cancel")));
         await page.waitForFunction(() => !document.querySelector('input[type="file"]'));
         assert.equal((await page.evaluate(() => window.importCalls)).begins, 0);
+        await page.waitForFunction(
+          (name) => !document.querySelector(`button[aria-label="${CSS.escape(name)}"]`)?.disabled,
+          menuName,
+        );
         assert.equal(await menu.isEnabled(), true);
         const selectFile = async () => {
           await menu.click();
@@ -191,6 +195,10 @@ try {
   assert.equal((await page.evaluate(() => window.importCalls)).opens.length, 0);
   await page.evaluate(() => window.pendingImportResolvers[1]());
   await page.waitForFunction(() => window.importCalls.opens.length === 1);
+  await page.waitForFunction(
+    (name) => !document.querySelector(`button[aria-label="${CSS.escape(name)}"]`)?.disabled,
+    "Conversation options",
+  );
   assert.equal(await switchMenu.isEnabled(), true);
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
