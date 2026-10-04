@@ -145,6 +145,8 @@ interface SessionStartupPreferences {
   modelContextBudgetStrategy: ZCodeModelContextBudgetStrategy;
   nativeSearchEnhancementsEnabled: boolean;
   resolveInitialBashShellSelection: () => Promise<ExecutionShellSelection | undefined>;
+  /** 每次总结任务触发时现拉「总结模型」；不缓存，改设置后已开会话下次总结即生效。 */
+  resolveSummaryModelSelection: () => Promise<ModelSelection | undefined>;
 }
 
 type SessionStartupPreferencesSource =
@@ -3202,6 +3204,7 @@ async function resolveSessionStartupPreferences(
       modelContextBudgetStrategy: DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
       nativeSearchEnhancementsEnabled: source.parent.nativeSearchEnhancementsEnabled,
       resolveInitialBashShellSelection: async () => inheritedShellSelection,
+      resolveSummaryModelSelection: source.parent.resolveSummaryModelSelection,
     };
   }
 
@@ -3230,6 +3233,21 @@ async function resolveSessionStartupPreferences(
         context,
         executionPreferences.integratedTerminalShell,
       );
+    },
+    resolveSummaryModelSelection: async () => {
+      // 每次总结任务触发时现拉最新偏好；Host 请求失败或旧 Host 不回该字段时
+      // 返回 undefined，由 core 回退会话当前模型，不阻塞总结任务。
+      try {
+        const preferences = await requestSessionRuntimePreferences(
+          context,
+          sessionId,
+          "runtime-materialization",
+          trace,
+        );
+        return preferences.summaryModelSelection ?? undefined;
+      } catch {
+        return undefined;
+      }
     },
   };
 }
@@ -3334,6 +3352,7 @@ async function createRecord(
     permissionBroker: createProtocolInteractionBroker(context),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
     resolveInitialBashShellSelection: startupPreferences.resolveInitialBashShellSelection,
+    resolveSummaryModelSelection: startupPreferences.resolveSummaryModelSelection,
     // browser-use：agent.browsers.* 经此把命令转成 interaction/browserExecute 反向请求。
     browserControlPort: createProtocolBrowserControlBroker(context),
     // Protocol server 是受信任的 Desktop/Web/Mobile Host；灰度开关由这里显式注入，
@@ -3362,6 +3381,7 @@ async function createRecord(
     memoryEnabled: startupPreferences.memoryEnabled,
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
+    resolveSummaryModelSelection: startupPreferences.resolveSummaryModelSelection,
     ...(parentSessionId ? { parentSessionId } : {}),
     persistence: "persistence" in params ? (params.persistence ?? "immediate") : "immediate",
     protocolEventSequences: new Map(),

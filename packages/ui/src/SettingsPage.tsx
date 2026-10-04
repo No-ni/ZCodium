@@ -16,6 +16,7 @@ import type {
   Locale,
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 import {
   TID_SETTINGS_BACK_BUTTON,
   TID_SETTINGS_PAGE,
@@ -451,6 +452,13 @@ export function SettingsPage({
             logger.warn("[settings] 回写引导记录失败", cause);
           });
       })();
+    },
+    [updateSharedSettings],
+  );
+  const handleSummaryModelChange = useCallback(
+    async (selection: ModelSelection | null) => {
+      // RPC 会丢弃 undefined；清空选择必须传 null，由 schema 的 nullish 归一成缺省。
+      await updateSharedSettings({ summaryModelSelection: selection });
     },
     [updateSharedSettings],
   );
@@ -1045,7 +1053,9 @@ export function SettingsPage({
                               memoryEnabled={memoryEnabled}
                               memoryService={localHostServices.memoryService}
                               onMemoryEnabledChange={handleMemoryEnabledChange}
+                              onSummaryModelChange={handleSummaryModelChange}
                               projectMemoryViewerAvailable={Boolean(isDesktop)}
+                              summaryModelSelection={sharedSettings?.summaryModelSelection ?? null}
                               workspaceDisplayNames={memoryWorkspaceDisplayNames}
                             />
                           </ServiceProvider>

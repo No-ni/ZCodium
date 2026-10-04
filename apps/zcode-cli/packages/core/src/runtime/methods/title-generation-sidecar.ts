@@ -17,6 +17,8 @@ import { recordModelUsageFact } from "./usage-observability.js";
 import { createRuntimeModel } from "./runtime-model.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { auxiliaryModelOptions } from "../../model/auxiliary-model-options.js";
+import { collectModelStreamResult } from "../../model/collect-model-stream-result.js";
+import { resolveSummaryModelSelection } from "../helpers/summary-model.js";
 
 export const SESSION_TITLE_QUERY_SOURCE = "session_title";
 export const GOAL_SUMMARY_TITLE_QUERY_SOURCE = "goal_summary_title";
@@ -75,8 +77,19 @@ async function generateTitleCandidateImpl(
     traceContext: TraceContext;
   },
 ): Promise<{ modelSelection: ModelSelection; title: string; traceContext: TraceContext } | null> {
+  // 模型优先链：宿主「总结模型」偏好 → titleGeneration.modelSelection（TUI 等宿主配置）
+  // → 会话当前模型。偏好每次现拉，改设置后已开会话的下一次标题生成即生效。
+  const summaryPreference = await resolveSummaryModelSelection(this, {
+    operation:
+      options.querySource === GOAL_SUMMARY_TITLE_QUERY_SOURCE
+        ? "goal_title_generation"
+        : "session_title_generation",
+    traceContext: options.traceContext,
+  });
   const requestedModelSelection =
-    this.config.titleGeneration?.modelSelection ?? this.getSessionModelSelection();
+    summaryPreference ??
+    this.config.titleGeneration?.modelSelection ??
+    this.getSessionModelSelection();
   if (!requestedModelSelection) return null;
   const baseModel = createRuntimeModel(this, {
     selection: requestedModelSelection,
@@ -125,10 +138,14 @@ async function generateTitleCandidateImpl(
   };
 
   const resultPromise = runWithModelInvocationContext(invocationContext, () =>
-    model.generateText({
-      abortSignal: titleAbortSignal,
-      messages,
-      tools: [],
+    collectModelStreamResult({
+      // 标题单次请求也走流式：非流式长等待容易被网关/代理掐断；这里不向 UI
+      // 推增量，只在流结束后消费聚合文本。
+      events: model.streamText({
+        abortSignal: titleAbortSignal,
+        messages,
+        tools: [],
+      }),
     }),
   );
   const result = await resultPromise.catch(async (error: unknown) => {

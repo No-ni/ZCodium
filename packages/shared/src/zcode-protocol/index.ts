@@ -1915,6 +1915,10 @@ export const zcodeSessionRuntimePreferencesResultSchema = z
     modelContextBudgetStrategy: zcodeModelContextBudgetStrategySchema.default(
       DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
     ),
+    // 用户在设置里指定的「总结模型」；缺省 = 跟随会话当前模型。Memory Extraction
+    // 与会话标题生成共用。Agent 侧按需拉取（每次任务触发时现拉），改设置后已创建的会话
+    // 在下一次总结时也会拿到新值。
+    summaryModelSelection: modelSelectionSchema.nullish(),
   })
   .strict();
 export type ZCodeSessionRuntimePreferencesResult = z.infer<

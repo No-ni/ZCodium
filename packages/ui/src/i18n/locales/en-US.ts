@@ -2254,6 +2254,11 @@ const enUS: Record<string, string> = {
   "settings.memory.workspaceMemory": "Workspace Memory",
   "settings.memoryDescription":
     "Save and reuse long-term context in workspaces. Applies to new sessions and may increase model requests and token costs.",
+  "settings.memory.summaryModel": "Summary model",
+  "settings.memory.summaryModelDescription":
+    "Model used for memory extraction and session title generation; defaults to the session's current model. Changes apply to the next summary in every session.",
+  "settings.memory.summaryModel.default": "Default (follow session model)",
+  "settings.memory.summaryModel.select": "Select a model",
   "settings.memory.viewer.disabled": "Enable Workspace Memory to view saved memories.",
   "settings.memory.viewer.localOnly":
     "Memory details are available only in the local desktop app. Open Memory settings there to view them.",

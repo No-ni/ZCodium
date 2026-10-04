@@ -2127,6 +2127,11 @@ const zhCN: Record<string, string> = {
   "settings.memory.workspaceMemory": "工作区记忆",
   "settings.memoryDescription":
     "在工作区中保存并复用长期上下文，新会话生效。开启后可能增加模型调用和 Token 成本。",
+  "settings.memory.summaryModel": "总结模型",
+  "settings.memory.summaryModelDescription":
+    "记忆总结和会话标题生成使用的模型；默认跟随会话当前模型。修改后对所有会话的下一次总结生效。",
+  "settings.memory.summaryModel.default": "默认（跟随会话模型）",
+  "settings.memory.summaryModel.select": "选择模型",
   "settings.memory.viewer.disabled": "启用工作区记忆后即可查看已保存的记忆。",
   "settings.memory.viewer.localOnly":
     "记忆详情仅支持在本地桌面端查看，请前往本地桌面端的“记忆”设置。",

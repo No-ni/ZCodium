@@ -8,6 +8,7 @@ import {
 import { runMemoryAgentLoop } from "../../memory/memory-agent-loop.js";
 import { scanMemoryManifest } from "../../memory/recall/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { resolveSummaryModel } from "./summary-model.js";
 import {
   buildProjectMemoryAgentProviderMessages,
   captureProjectMemoryAgentContext,
@@ -52,8 +53,15 @@ export function scheduleProjectMemoryExtraction(
   if (!snapshotBoundaryMessageId) return;
   const durableMessages = runtime.sessionStore.messages({ sessionID: runtime.sessionId });
   const session = runtime.sessionStore.getSession(runtime.sessionId);
-  const snapshot = Promise.all([durableMessages, session]).then(
-    ([messages, scheduledSession]): ProjectMemoryExtractionSnapshot => {
+  // 「总结模型」在调度边界现拉：改设置后已创建的会话下一次 Extraction 即生效。
+  // 解析或建模型失败都不能拖垮后台任务，回退当轮 Turn Model（undefined 时沿用快照内的 model）。
+  const summaryModel = resolveSummaryModel(runtime, {
+    fallback: input.model,
+    operation: "project_memory_extract",
+    traceContext: input.traceContext,
+  });
+  const snapshot = Promise.all([durableMessages, session, summaryModel]).then(
+    ([messages, scheduledSession, resolvedModel]): ProjectMemoryExtractionSnapshot => {
       const activeMessages = selectActiveConversationBranch(messages, {
         branchCutAfterMessageId: scheduledSession?.revert?.branchCutAfterMessageID,
         rewindCreatedMessageId: scheduledSession?.revert?.createdMessageID,
@@ -68,6 +76,14 @@ export function scheduleProjectMemoryExtraction(
       }
       return {
         ...snapshotBase,
+        ...(resolvedModel
+          ? {
+              // 换用「总结模型」时工具契约的媒体能力投影也要跟着换，
+              // 否则 provider 看到的工具目录仍按当轮 Turn Model 的能力声明。
+              model: resolvedModel,
+              tools: runtime.getTools(resolvedModel).map((tool) => ({ ...tool })),
+            }
+          : {}),
         boundaryMessageId: snapshotBoundaryMessageId,
         durableMessages: activeMessages.slice(0, boundaryIndex + 1),
       };

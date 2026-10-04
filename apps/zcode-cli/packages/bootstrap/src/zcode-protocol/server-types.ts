@@ -111,6 +111,8 @@ export interface ZCodeProtocolSessionRecord {
   restoreWarning?: { message: string; type: string };
   /** 冷恢复候选只供初始投影；新的选模事件立即清除，不能替代 Runtime 执行绑定。 */
   restoredModelSelection?: ModelSelection;
+  /** 「总结模型」宿主解析回调；子会话（inherit）复用父会话的同一现拉通道。 */
+  resolveSummaryModelSelection?: () => Promise<ModelSelection | undefined>;
 }
 
 export interface ZCodeProtocolClientRequestOptions {

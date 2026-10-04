@@ -741,6 +741,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       eventSink: options.eventSink,
       modelFactory,
       resolveEffectiveModelSelection: options.resolveEffectiveModelSelection,
+      resolveSummaryModelSelection: options.resolveSummaryModelSelection,
       isRemoteWorkspace: () =>
         isRemoteWorkspaceIdentity(runtimeConfig.memory?.workspaceIdentity ?? ""),
       permissionBroker: options.permissionBroker,

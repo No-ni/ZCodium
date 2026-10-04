@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@zcode/services";
-import { TID_SETTINGS_MEMORY_SWITCH } from "@zcode/shared";
+import { TID_SETTINGS_MEMORY_SWITCH, ZCODE_AGENT_PROVIDER } from "@zcode/shared";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 
-import { Switch } from "@/components/ui/switch.js";
+import { ModelConfigSelect, type ModelSelectFooterAction } from "@/ModelConfigSelect.js";
+import {
+  buildRegistryModelSelectGroups,
+  resolveModelDisplayName,
+} from "@/lib/modelSelectionGroups.js";
+import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
+import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { Switch } from "@/components/ui/switch.js";
 import {
   MemorySettingsViewer,
   type MemoryViewerLoadingState,
@@ -11,6 +21,11 @@ import {
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 
 type MemoryCatalogService = Pick<IMemoryService, "listProjectMemories">;
+
+/** 「总结模型」未指定时的哨兵值：跟随会话当前模型。 */
+const SUMMARY_MODEL_DEFAULT_VALUE = "__summary_model_default__";
+
+const MODEL_ITEM_NEVER_LOCKED = (): boolean => false;
 
 function normalizeWorkspaceDisplayName(value: string): string {
   const slug = value
@@ -47,16 +62,40 @@ export function MemorySettingsSection({
   memoryEnabled,
   memoryService,
   onMemoryEnabledChange,
+  onSummaryModelChange,
   projectMemoryViewerAvailable,
+  summaryModelSelection,
   workspaceDisplayNames = [],
 }: {
   memoryEnabled: boolean;
   memoryService: MemoryCatalogService;
   onMemoryEnabledChange: (enabled: boolean) => Promise<void>;
+  onSummaryModelChange: (selection: ModelSelection | null) => Promise<void>;
   projectMemoryViewerAvailable: boolean;
+  summaryModelSelection?: ModelSelection | null;
   workspaceDisplayNames?: readonly string[];
 }) {
   const { intl } = useZCodeIntl();
+  const localHostServices = useBaseWorkspaceServices();
+  const modelSelectionRead = useModelSelectionServiceView(localHostServices.modelSelectionService);
+  const modelSelectionView =
+    modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
+  const modelSelectGroups = useMemo(() => {
+    if (!modelSelectionView) return [];
+    return buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, modelSelectionView);
+  }, [modelSelectionView]);
+  const summaryModelValue = summaryModelSelection
+    ? encodeCustomModelValue(summaryModelSelection.providerId, summaryModelSelection.modelId)
+    : SUMMARY_MODEL_DEFAULT_VALUE;
+  const summaryModelDefaultLabel = intl.formatMessage({
+    id: "settings.memory.summaryModel.default",
+  });
+  // Registry 候选里找不到时仍展示保存的模型身份（provider 已删/换号），提示用户修复。
+  const summaryModelTriggerLabel =
+    summaryModelValue === SUMMARY_MODEL_DEFAULT_VALUE
+      ? summaryModelDefaultLabel
+      : (resolveModelDisplayName(modelSelectGroups, summaryModelValue) ??
+        intl.formatMessage({ id: "settings.memory.summaryModel.select" }));
   const catalogRequestIdRef = useRef(0);
   const [catalogState, setCatalogState] = useState<MemoryViewerLoadingState>("idle");
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -146,6 +185,34 @@ export function MemorySettingsSection({
     await refreshCatalog();
   }, [refreshCatalog]);
 
+  const handleSummaryModelValueChange = useCallback(
+    (nextValue: string) => {
+      if (nextValue === summaryModelValue) return;
+      if (nextValue === SUMMARY_MODEL_DEFAULT_VALUE) {
+        void onSummaryModelChange(null);
+        return;
+      }
+      const selection = parseModelPickerValue(nextValue);
+      void onSummaryModelChange({
+        providerId: selection.providerId,
+        modelId: selection.modelId,
+      });
+    },
+    [onSummaryModelChange, summaryModelValue],
+  );
+
+  const summaryModelFooterActions = useMemo<ModelSelectFooterAction[]>(
+    () => [
+      {
+        key: "summary-model:default",
+        label: summaryModelDefaultLabel,
+        onSelect: () => handleSummaryModelValueChange(SUMMARY_MODEL_DEFAULT_VALUE),
+        selected: summaryModelValue === SUMMARY_MODEL_DEFAULT_VALUE,
+      },
+    ],
+    [handleSummaryModelValueChange, summaryModelDefaultLabel, summaryModelValue],
+  );
+
   return (
     <div className="space-y-6">
       <SettingsGroupCard>
@@ -166,6 +233,32 @@ export function MemorySettingsSection({
               onCheckedChange={(checked) => {
                 void onMemoryEnabledChange(checked);
               }}
+            />
+          }
+        />
+        <SettingsRow
+          controlLayout="wide"
+          label={intl.formatMessage({ id: "settings.memory.summaryModel" })}
+          description={intl.formatMessage({ id: "settings.memory.summaryModelDescription" })}
+          control={
+            <ModelConfigSelect
+              modelGroups={modelSelectGroups}
+              normalizedValue={summaryModelValue}
+              triggerLabel={summaryModelTriggerLabel}
+              showManageModelsAction={false}
+              lockReasonMessage=""
+              isItemLocked={MODEL_ITEM_NEVER_LOCKED}
+              onValueChange={handleSummaryModelValueChange}
+              footerActions={summaryModelFooterActions}
+              manageModelsLabel={intl.formatMessage({
+                id: "chat.toolbar.model.manageModels",
+              })}
+              contentSide="bottom"
+              contentAlign="end"
+              focusSelectorOnClose={null}
+              labelVisibilityClassName="inline-flex"
+              triggerClassName="h-8 w-fit max-w-52 min-w-0 justify-between rounded-lg border border-input-border bg-input px-3 py-1.5 text-foreground hover:border-input-border-hover hover:bg-input focus-visible:border-input-border-focused focus-visible:bg-input-focused"
+              triggerLabelClassName="inline-flex min-w-0 truncate text-left"
             />
           }
         />

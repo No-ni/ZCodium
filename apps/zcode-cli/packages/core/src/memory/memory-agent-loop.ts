@@ -12,6 +12,7 @@ import type {
 
 import { modelContentForToolResult, isErrorForToolResult } from "../runtime/helpers/tool-result.js";
 import { projectMessagesForModelMediaPolicy } from "../runtime/helpers/media-budget.js";
+import { collectModelStreamResult } from "../model/collect-model-stream-result.js";
 import {
   analyzeBashCommand,
   isBashCommandPermissionSafe,
@@ -70,7 +71,12 @@ export async function runMemoryAgentLoop(input: {
       // Memory agent 的 provider request 必须保留 Main 的真实工具目录；执行权限只在 tool-use 边界收窄。
       tools: input.tools as ModelToolContract[],
     };
-    const response = await input.model.generateText(request);
+    // 流式收集而非 generateText：总结消息很长时非流式请求容易在网关/代理层因
+    // 长时间无响应被掐断；流式每个数据块都在保活。Memory agent 不向 UI 推增量，
+    // 只消费聚合后的完整结果。
+    const response = await collectModelStreamResult({
+      events: input.model.streamText(request),
+    });
     input.abortSignal?.throwIfAborted();
 
     const toolCalls = response.toolCalls ?? [];

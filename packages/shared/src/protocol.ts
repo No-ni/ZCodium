@@ -4,6 +4,7 @@ import type { ProviderFamilyConnectionSelectionSettings } from "./provider-famil
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
+import type { ModelSelection } from "./model-selection.js";
 
 // ── Domain types ──
 
@@ -318,6 +319,8 @@ export interface AppSettings {
   nativeSearchEnhancementsEnabled?: boolean;
   /** 新建或冷恢复 Session 是否启用 Memory；默认关闭。 */
   memoryEnabled?: boolean;
+  /** 「总结模型」：Memory Extraction 与会话标题生成共用；缺省 = 跟随会话当前模型。 */
+  summaryModelSelection?: ModelSelection | null;
   onboardingOccupation?:
     | "office"
     | "developer"

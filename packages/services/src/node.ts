@@ -1497,6 +1497,10 @@ export function createLocalServices(options: {
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
               memoryEnabled: settings.memoryEnabled === true,
               modelContextBudgetStrategy,
+              // 「总结模型」每次任务触发时现拉；用户改设置后已创建的会话下次总结即生效。
+              ...(settings.summaryModelSelection
+                ? { summaryModelSelection: settings.summaryModelSelection }
+                : {}),
               // user-execution 只消费 Shell；共享默认策略是统一 result schema 的兼容占位，
               // 不会覆盖 runtime-materialization 阶段已经固定的 strategy。
               ...(scope === "user-execution" && settings.integratedTerminalShell

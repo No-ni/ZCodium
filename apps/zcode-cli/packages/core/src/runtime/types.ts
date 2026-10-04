@@ -310,6 +310,11 @@ export interface AgentRuntimeDeps {
   modelFactory: RuntimeModelFactory;
   /** 可选宿主能力：解析未来执行的显式意图；不用于修改已冻结 Model。 */
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
+  /**
+   * 宿主侧「总结模型」解析回调；每次 Memory Extraction / 标题生成触发时现拉，
+   * 缺省或失败由调用方回退会话当前模型。不缓存：改设置后已开会话下次总结即生效。
+   */
+  resolveSummaryModelSelection?: () => Promise<ModelSelection | undefined>;
   permissionService?: PermissionService;
   permissionBroker?: PermissionBrokerPort;
   toolScheduler?: ToolScheduler;

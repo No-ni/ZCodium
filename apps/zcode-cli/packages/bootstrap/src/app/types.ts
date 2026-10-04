@@ -176,6 +176,12 @@ export interface ZCodeAppOptions {
   automationPort?: AutomationPort;
   /** 首次真实用户执行或 cold-resume fallback 时解析一次，之后由 app 生命周期缓存。 */
   resolveInitialBashShellSelection?: () => Promise<ExecutionShellSelection | undefined>;
+  /**
+   * 「总结模型」的宿主解析回调；每次 Memory Extraction / 标题生成触发时现拉，
+   * 缺省或失败时由调用方回退会话当前模型。不缓存是刻意的：改设置后已创建的
+   * 会话在下一次总结时也要拿到新值。
+   */
+  resolveSummaryModelSelection?: () => Promise<ModelSelection | undefined>;
   /** Trusted embedder policy; workspace/project files cannot populate this field. */
   workspaceHookPolicy?: WorkspaceHookPolicy;
   /** Protocol Host-owned provider shared by session Runtime and no-session Settings pretrust. */
