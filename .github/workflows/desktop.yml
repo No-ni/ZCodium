@@ -178,22 +178,16 @@ jobs:
 
   build-macos:
     name: Build (mac ${{ matrix.arch }})
-    # macOS runner 按 10 倍费率计分钟，只在发版 tag 与手动触发时打包；
-    # 日常 push/PR 的打包回归由 Windows 矩阵与 checks 覆盖。
+    # 日常 push/PR 自动产出本机安装用的 arm64 DMG；x64 仅在发版或手动运行时构建。
     # checks 失败时仍然打包（理由同 build job）。
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag')) }}
+    if: ${{ !cancelled() }}
     needs: checks
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # arm64 与 x64 各自用原生 runner：Apple Silicon 上交叉打 x64 会带上
-          # 错误架构的原生预编译产物（node-pty prebuild、bundled 工具链）。
-          - arch: arm64
-            runner: macos-15
-          - arch: x64
-            runner: macos-15-intel
-    runs-on: ${{ matrix.runner }}
+        arch: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["arm64", "x64"]' || '["arm64"]') }}
+    # arm64 与 x64 各自用原生 runner，避免交叉打包混入错误架构的原生库。
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 120
     env:
       ZCODE_TARGET_OS: mac

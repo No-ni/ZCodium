@@ -5,6 +5,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { build } from "esbuild";
 import { parse } from "yaml";
@@ -200,10 +201,36 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
       ["win", "arm64"],
     ],
   );
-  assert.deepEqual(
-    desktop.jobs["build-macos"].strategy.matrix.include.map(({ arch }) => arch),
-    ["arm64", "x64"],
-  );
+  const macBuild = desktop.jobs["build-macos"];
+  const evaluate = (expression, context) => {
+    assert.match(expression, /^\$\{\{[\s\S]*\}\}$/);
+    // 工作流中的比较、逻辑运算与 JSON 解析均兼容 JS；GitHub 语法另由 actionlint 校验。
+    return runInNewContext(expression.slice(3, -2), context, { timeout: 1000 });
+  };
+  for (const [event, refType, expected] of [
+    ["pull_request", "branch", ["arm64"]],
+    ["push", "branch", ["arm64"]],
+    ["push", "tag", ["arm64", "x64"]],
+    ["workflow_dispatch", "branch", ["arm64", "x64"]],
+    ["workflow_dispatch", "tag", ["arm64", "x64"]],
+  ]) {
+    const context = {
+      github: { event_name: event, ref_type: refType },
+      fromJSON: JSON.parse,
+      cancelled: () => false,
+    };
+    assert.equal(evaluate(macBuild.if, context), true, `${event}/${refType}`);
+    assert.equal(evaluate(macBuild.if, { ...context, cancelled: () => true }), false);
+    const architectures = [...evaluate(macBuild.strategy.matrix.arch, context)];
+    assert.deepEqual(architectures, expected, `${event}/${refType}`);
+    for (const arch of architectures) {
+      const matrixContext = { ...context, matrix: { arch } };
+      assert.equal(
+        evaluate(macBuild["runs-on"], matrixContext),
+        arch === "arm64" ? "macos-15" : "macos-15-intel",
+      );
+    }
+  }
   assert.deepEqual(Object.keys(mac.jobs), ["build"]);
   for (const workflow of [desktop, mac]) {
     assert.equal(workflow.jobs["remote-assets"], undefined);
