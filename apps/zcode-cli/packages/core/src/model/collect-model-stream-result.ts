@@ -15,7 +15,7 @@ export async function collectModelStreamResult(input: {
   events: AsyncIterable<ModelStreamEvent>;
 }): Promise<ModelTextResult> {
   let text = "";
-  let finishReason = "unknown";
+  let finishReason: string | undefined;
   let providerMetadata: Record<string, unknown> | undefined;
   let usage: ModelUsage = {};
   const toolCalls: ModelToolCall[] = [];
@@ -79,6 +79,11 @@ export async function collectModelStreamResult(input: {
     }
   }
 
+  // 自然截断可能没有 error 事件；未完成的流不能触发记忆写入或持久化半截标题。
+  if (finishReason === undefined || finishReason === "error") {
+    throw new Error("Model stream ended without a successful finish");
+  }
+
   return {
     finishReason,
     ...(providerMetadata ? { providerMetadata } : {}),
@@ -116,7 +121,5 @@ function getOrCreateReasoningBlock(
 }
 
 function normalizeCollectedStreamError(error: unknown): Error {
-  return error instanceof Error
-    ? error
-    : new Error(`Model stream failed: ${String(error)}`);
+  return error instanceof Error ? error : new Error("Model stream failed", { cause: error });
 }

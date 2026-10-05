@@ -18,7 +18,7 @@ import { createRuntimeModel } from "./runtime-model.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { auxiliaryModelOptions } from "../../model/auxiliary-model-options.js";
 import { collectModelStreamResult } from "../../model/collect-model-stream-result.js";
-import { resolveSummaryModelSelection } from "../helpers/summary-model.js";
+import { resolveSummaryModel } from "../helpers/summary-model.js";
 
 export const SESSION_TITLE_QUERY_SOURCE = "session_title";
 export const GOAL_SUMMARY_TITLE_QUERY_SOURCE = "goal_summary_title";
@@ -79,23 +79,34 @@ async function generateTitleCandidateImpl(
 ): Promise<{ modelSelection: ModelSelection; title: string; traceContext: TraceContext } | null> {
   // 模型优先链：宿主「总结模型」偏好 → titleGeneration.modelSelection（TUI 等宿主配置）
   // → 会话当前模型。偏好每次现拉，改设置后已开会话的下一次标题生成即生效。
-  const summaryPreference = await resolveSummaryModelSelection(this, {
+  const preferredModel = await resolveSummaryModel(this, {
     operation:
       options.querySource === GOAL_SUMMARY_TITLE_QUERY_SOURCE
         ? "goal_title_generation"
         : "session_title_generation",
     traceContext: options.traceContext,
   });
-  const requestedModelSelection =
-    summaryPreference ??
-    this.config.titleGeneration?.modelSelection ??
-    this.getSessionModelSelection();
-  if (!requestedModelSelection) return null;
-  const baseModel = createRuntimeModel(this, {
-    selection: requestedModelSelection,
-  });
+  const fallbackModelSelection =
+    this.config.titleGeneration?.modelSelection ?? this.getSessionModelSelection();
+  // 偏好模型被删除时共享 Memory 的创建失败回退；默认模型只在需要时创建。
+  const baseModel =
+    preferredModel ??
+    (fallbackModelSelection
+      ? createRuntimeModel(this, { selection: fallbackModelSelection })
+      : undefined);
+  if (!baseModel) return null;
   const model = baseModel.bind(auxiliaryModelOptions(baseModel));
-  const modelSelection = cloneModelSelection(requestedModelSelection);
+  const modelSelection = cloneModelSelection(
+    preferredModel
+      ? {
+          providerId: preferredModel.providerId,
+          modelId: preferredModel.modelId,
+          ...(preferredModel.options.reasoningLevel
+            ? { options: { reasoningLevel: preferredModel.options.reasoningLevel } }
+            : {}),
+        }
+      : fallbackModelSelection!,
+  );
   const modelTraceContext = createChildTraceContext(options.traceContext, {
     attributes: {
       model: `${model.providerId}/${model.modelId}`,

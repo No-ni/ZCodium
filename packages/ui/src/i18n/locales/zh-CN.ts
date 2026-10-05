@@ -2132,6 +2132,7 @@ const zhCN: Record<string, string> = {
     "记忆总结和会话标题生成使用的模型；默认跟随会话当前模型。修改后对所有会话的下一次总结生效。",
   "settings.memory.summaryModel.default": "默认（跟随会话模型）",
   "settings.memory.summaryModel.select": "选择模型",
+  "settings.memory.summaryModel.saveFailed": "总结模型保存失败，请重试。",
   "settings.memory.viewer.disabled": "启用工作区记忆后即可查看已保存的记忆。",
   "settings.memory.viewer.localOnly":
     "记忆详情仅支持在本地桌面端查看，请前往本地桌面端的“记忆”设置。",

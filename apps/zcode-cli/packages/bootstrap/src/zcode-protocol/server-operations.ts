@@ -145,8 +145,8 @@ interface SessionStartupPreferences {
   modelContextBudgetStrategy: ZCodeModelContextBudgetStrategy;
   nativeSearchEnhancementsEnabled: boolean;
   resolveInitialBashShellSelection: () => Promise<ExecutionShellSelection | undefined>;
-  /** 每次总结任务触发时现拉「总结模型」；不缓存，改设置后已开会话下次总结即生效。 */
-  resolveSummaryModelSelection: () => Promise<ModelSelection | undefined>;
+  /** 旧记录或非协议宿主可缺省；继承路径不能把可选能力声明为必填。 */
+  resolveSummaryModelSelection?: () => Promise<ModelSelection | undefined>;
 }
 
 type SessionStartupPreferencesSource =

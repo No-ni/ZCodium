@@ -14,6 +14,7 @@ import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Switch } from "@/components/ui/switch.js";
+import { toast } from "@/components/ui/toast.js";
 import {
   MemorySettingsViewer,
   type MemoryViewerLoadingState,
@@ -76,6 +77,7 @@ export function MemorySettingsSection({
   workspaceDisplayNames?: readonly string[];
 }) {
   const { intl } = useZCodeIntl();
+  const [summaryModelSaving, setSummaryModelSaving] = useState(false);
   const localHostServices = useBaseWorkspaceServices();
   const modelSelectionRead = useModelSelectionServiceView(localHostServices.modelSelectionService);
   const modelSelectionView =
@@ -186,19 +188,23 @@ export function MemorySettingsSection({
   }, [refreshCatalog]);
 
   const handleSummaryModelValueChange = useCallback(
-    (nextValue: string) => {
-      if (nextValue === summaryModelValue) return;
-      if (nextValue === SUMMARY_MODEL_DEFAULT_VALUE) {
-        void onSummaryModelChange(null);
-        return;
+    async (nextValue: string) => {
+      if (nextValue === summaryModelValue || summaryModelSaving) return;
+      const parsed =
+        nextValue === SUMMARY_MODEL_DEFAULT_VALUE ? null : parseModelPickerValue(nextValue);
+      setSummaryModelSaving(true);
+      try {
+        await onSummaryModelChange(
+          parsed ? { providerId: parsed.providerId, modelId: parsed.modelId } : null,
+        );
+      } catch {
+        // void 回调中的拒绝不会被 React 捕获；保存失败保留旧设置并明确提示。
+        toast(intl.formatMessage({ id: "settings.memory.summaryModel.saveFailed" }));
+      } finally {
+        setSummaryModelSaving(false);
       }
-      const selection = parseModelPickerValue(nextValue);
-      void onSummaryModelChange({
-        providerId: selection.providerId,
-        modelId: selection.modelId,
-      });
     },
-    [onSummaryModelChange, summaryModelValue],
+    [intl, onSummaryModelChange, summaryModelSaving, summaryModelValue],
   );
 
   const summaryModelFooterActions = useMemo<ModelSelectFooterAction[]>(
@@ -242,6 +248,7 @@ export function MemorySettingsSection({
           description={intl.formatMessage({ id: "settings.memory.summaryModelDescription" })}
           control={
             <ModelConfigSelect
+              disabled={summaryModelSaving}
               modelGroups={modelSelectGroups}
               normalizedValue={summaryModelValue}
               triggerLabel={summaryModelTriggerLabel}

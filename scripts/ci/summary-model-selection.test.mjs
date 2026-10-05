@@ -105,6 +105,36 @@ test("collectModelStreamResult surfaces stream errors", async () => {
   );
 });
 
+test("collectModelStreamResult rejects incomplete or error finishes instead of returning partial tools", async () => {
+  for (const end of [[], [{ type: "finish", finishReason: "error", usage: {} }]]) {
+    await assert.rejects(
+      collectModelStreamResult({
+        events: streamOf([
+          { type: "text_delta", text: "partial" },
+          { type: "tool_call", toolCall: { id: "call-1", name: "Write", input: {} } },
+          ...end,
+        ]),
+      }),
+      /Model stream.*finish/,
+    );
+  }
+});
+
+test("collectModelStreamResult preserves signed reasoning for the next memory tool round", async () => {
+  const providerMetadata = { anthropic: { signature: "fixture-signature" } };
+  const result = await collectModelStreamResult({
+    events: streamOf([
+      { type: "reasoning_start", id: "r1" },
+      { type: "reasoning_delta", id: "r1", text: "thinking" },
+      { type: "reasoning_end", id: "r1", providerMetadata },
+      { type: "finish", finishReason: "stop", usage: {} },
+    ]),
+  });
+  assert.deepEqual(result.reasoning, [
+    { type: "reasoning", text: "thinking", providerOptions: providerMetadata },
+  ]);
+});
+
 test("resolveSummaryModelSelection returns host preference when present", async () => {
   const runtime = fakeRuntime({
     resolveSummaryModelSelection: async () => ({

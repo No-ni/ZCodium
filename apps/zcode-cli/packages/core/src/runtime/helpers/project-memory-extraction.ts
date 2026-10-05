@@ -1,4 +1,8 @@
-import { selectActiveConversationBranch, type TraceContext } from "../deps.js";
+import {
+  selectActiveConversationBranch,
+  traceContextToLogContext,
+  type TraceContext,
+} from "../deps.js";
 import {
   buildMemoryExtractionPrompt,
   createMemoryExtractionScheduler,
@@ -9,6 +13,7 @@ import { runMemoryAgentLoop } from "../../memory/memory-agent-loop.js";
 import { scanMemoryManifest } from "../../memory/recall/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { resolveSummaryModel } from "./summary-model.js";
+import { withModelInvocationContext } from "../methods/runtime-model.js";
 import {
   buildProjectMemoryAgentProviderMessages,
   captureProjectMemoryAgentContext,
@@ -54,9 +59,9 @@ export function scheduleProjectMemoryExtraction(
   const durableMessages = runtime.sessionStore.messages({ sessionID: runtime.sessionId });
   const session = runtime.sessionStore.getSession(runtime.sessionId);
   // 「总结模型」在调度边界现拉：改设置后已创建的会话下一次 Extraction 即生效。
-  // 解析或建模型失败都不能拖垮后台任务，回退当轮 Turn Model（undefined 时沿用快照内的 model）。
+  // 回退必须保留快照的 extraction 上下文，不能拿原始 Turn Model 覆盖它。
   const summaryModel = resolveSummaryModel(runtime, {
-    fallback: input.model,
+    fallback: snapshotBase.model,
     operation: "project_memory_extract",
     traceContext: input.traceContext,
   });
@@ -76,11 +81,19 @@ export function scheduleProjectMemoryExtraction(
       }
       return {
         ...snapshotBase,
-        ...(resolvedModel
+        ...(resolvedModel && resolvedModel !== snapshotBase.model
           ? {
               // 换用「总结模型」时工具契约的媒体能力投影也要跟着换，
               // 否则 provider 看到的工具目录仍按当轮 Turn Model 的能力声明。
-              model: resolvedModel,
+              model: withModelInvocationContext(resolvedModel, () => ({
+                metadata: {
+                  ...traceContextToLogContext(input.traceContext),
+                  querySource: "project_memory_extract",
+                },
+                modelRequestSessionType: "other",
+                modelCall: { operation: "project_memory_extract" },
+                traceContext: input.traceContext,
+              })),
               tools: runtime.getTools(resolvedModel).map((tool) => ({ ...tool })),
             }
           : {}),

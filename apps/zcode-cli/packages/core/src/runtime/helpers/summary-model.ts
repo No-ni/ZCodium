@@ -2,7 +2,7 @@ import type { Model, ModelSelection, TraceContext } from "../deps.js";
 import type { ModelApiOperation } from "@zcode/contracts";
 import { traceContextToLogContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
-import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
+import { createRuntimeModel } from "../methods/runtime-model.js";
 
 /**
  * 解析「总结模型」：宿主偏好优先，缺省/失败回退当轮 Turn Model。
@@ -22,25 +22,10 @@ export async function resolveSummaryModel(
   if (!selection) return input.fallback;
 
   try {
-    const baseModel = createRuntimeModel(runtime, { selection });
-    // 与 captureProjectMemoryAgentContext 相同的调用上下文包装：querySource 与
-    // modelCall 记账跟随「为什么调」，而不是借用主链路的 turn 语义。
-    return withModelInvocationContext(baseModel, () => ({
-      metadata: {
-        ...traceContextToLogContext(input.traceContext),
-        querySource: input.operation,
-      },
-      modelRequestSessionType: "other",
-      modelCall: { operation: input.operation },
-      traceContext: input.traceContext,
-    }));
-  } catch (error) {
-    logSummaryModelFallback(runtime, input, {
-      errorMessage: error instanceof Error ? error.message : String(error),
-      reason: "model_creation_failed",
-      providerId: selection.providerId,
-      modelId: selection.modelId,
-    });
+    // 这里只选择模型；调用上下文由任务边界设置，避免覆盖标题 sidecar 的子 trace。
+    return createRuntimeModel(runtime, { selection });
+  } catch {
+    logSummaryModelFallback(runtime, input, "model_creation_failed");
     return input.fallback;
   }
 }
@@ -56,12 +41,9 @@ export async function resolveSummaryModelSelection(
     const selection = await resolveFromHost();
     if (!selection) return undefined;
     return selection;
-  } catch (error) {
+  } catch {
     // Host 拉取失败（旧 Host、请求超时）按缺省处理，不打断总结任务。
-    logSummaryModelFallback(runtime, input, {
-      errorMessage: error instanceof Error ? error.message : String(error),
-      reason: "host_resolution_failed",
-    });
+    logSummaryModelFallback(runtime, input, "host_resolution_failed");
     return undefined;
   }
 }
@@ -69,18 +51,18 @@ export async function resolveSummaryModelSelection(
 function logSummaryModelFallback(
   runtime: AgentRuntimeInternal,
   input: { operation: string; traceContext: TraceContext },
-  detail: {
-    errorMessage: string;
-    reason: string;
-    providerId?: string;
-    modelId?: string;
-  },
+  reason: "model_creation_failed" | "host_resolution_failed",
 ): void {
-  runtime.logger?.warn("Summary model selection fell back to session model", {
-    ...traceContextToLogContext(input.traceContext),
-    event: "summary_model.fallback",
-    module: "core.runtime",
-    operation: input.operation,
-    ...detail,
-  });
+  try {
+    // 原始异常可能携带凭据或 provider 配置；回退只记录固定原因。
+    runtime.logger?.warn("Summary model selection fell back to session model", {
+      ...traceContextToLogContext(input.traceContext),
+      event: "summary_model.fallback",
+      module: "core.runtime",
+      operation: input.operation,
+      reason,
+    });
+  } catch {
+    // 诊断失败也不能阻止模型回退。
+  }
 }

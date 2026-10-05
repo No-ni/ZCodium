@@ -2259,6 +2259,7 @@ const enUS: Record<string, string> = {
     "Model used for memory extraction and session title generation; defaults to the session's current model. Changes apply to the next summary in every session.",
   "settings.memory.summaryModel.default": "Default (follow session model)",
   "settings.memory.summaryModel.select": "Select a model",
+  "settings.memory.summaryModel.saveFailed": "Could not save the summary model. Please retry.",
   "settings.memory.viewer.disabled": "Enable Workspace Memory to view saved memories.",
   "settings.memory.viewer.localOnly":
     "Memory details are available only in the local desktop app. Open Memory settings there to view them.",
