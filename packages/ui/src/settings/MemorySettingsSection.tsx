@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@zcode/services";
+import { completeNewModelSelection } from "@zcode/provider";
 import { TID_SETTINGS_MEMORY_SWITCH, ZCODE_AGENT_PROVIDER } from "@zcode/shared";
 import type { ModelSelection } from "@zcode/shared/model-selection";
 
@@ -10,6 +11,7 @@ import {
 } from "@/lib/modelSelectionGroups.js";
 import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -20,6 +22,10 @@ import {
   type MemoryViewerLoadingState,
 } from "@/settings/MemorySettingsViewer.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
+import {
+  SubagentReasoningField,
+  type SubagentReasoningFieldState,
+} from "@/settings/SubagentReasoningField.js";
 
 type MemoryCatalogService = Pick<IMemoryService, "listProjectMemories">;
 
@@ -98,6 +104,23 @@ export function MemorySettingsSection({
       ? summaryModelDefaultLabel
       : (resolveModelDisplayName(modelSelectGroups, summaryModelValue) ??
         intl.formatMessage({ id: "settings.memory.summaryModel.select" }));
+  const thoughtOption =
+    summaryModelSelection && modelSelectionView
+      ? resolveModelThoughtOption({
+          modelSelectionView,
+          ...summaryModelSelection,
+          currentValue: summaryModelSelection.options?.reasoningLevel,
+        })
+      : null;
+  const thoughtLevelState: SubagentReasoningFieldState = !summaryModelSelection
+    ? { kind: "not-applicable" }
+    : thoughtOption
+      ? { kind: "supported", option: thoughtOption }
+      : modelSelectionRead.state.status === "loading"
+        ? { kind: "unknown", status: "loading" }
+        : modelSelectionRead.state.status !== "ready"
+          ? { kind: "unknown", status: "unavailable" }
+          : { kind: "unsupported" };
   const catalogRequestIdRef = useRef(0);
   const [catalogState, setCatalogState] = useState<MemoryViewerLoadingState>("idle");
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -187,16 +210,12 @@ export function MemorySettingsSection({
     await refreshCatalog();
   }, [refreshCatalog]);
 
-  const handleSummaryModelValueChange = useCallback(
-    async (nextValue: string) => {
-      if (nextValue === summaryModelValue || summaryModelSaving) return;
-      const parsed =
-        nextValue === SUMMARY_MODEL_DEFAULT_VALUE ? null : parseModelPickerValue(nextValue);
+  const persistSummaryModelSelection = useCallback(
+    async (selection: ModelSelection | null) => {
+      if (summaryModelSaving) return;
       setSummaryModelSaving(true);
       try {
-        await onSummaryModelChange(
-          parsed ? { providerId: parsed.providerId, modelId: parsed.modelId } : null,
-        );
+        await onSummaryModelChange(selection);
       } catch {
         // void 回调中的拒绝不会被 React 捕获；保存失败保留旧设置并明确提示。
         toast(intl.formatMessage({ id: "settings.memory.summaryModel.saveFailed" }));
@@ -204,7 +223,22 @@ export function MemorySettingsSection({
         setSummaryModelSaving(false);
       }
     },
-    [intl, onSummaryModelChange, summaryModelSaving, summaryModelValue],
+    [intl, onSummaryModelChange, summaryModelSaving],
+  );
+  const handleSummaryModelValueChange = useCallback(
+    async (nextValue: string) => {
+      if (nextValue === summaryModelValue) return;
+      if (nextValue === SUMMARY_MODEL_DEFAULT_VALUE) {
+        await persistSummaryModelSelection(null);
+      } else if (modelSelectionView) {
+        const selection = completeNewModelSelection(
+          modelSelectionView,
+          parseModelPickerValue(nextValue),
+        );
+        if (selection) await persistSummaryModelSelection(selection);
+      }
+    },
+    [modelSelectionView, persistSummaryModelSelection, summaryModelValue],
   );
 
   const summaryModelFooterActions = useMemo<ModelSelectFooterAction[]>(
@@ -247,26 +281,49 @@ export function MemorySettingsSection({
           label={intl.formatMessage({ id: "settings.memory.summaryModel" })}
           description={intl.formatMessage({ id: "settings.memory.summaryModelDescription" })}
           control={
-            <ModelConfigSelect
-              disabled={summaryModelSaving}
-              modelGroups={modelSelectGroups}
-              normalizedValue={summaryModelValue}
-              triggerLabel={summaryModelTriggerLabel}
-              showManageModelsAction={false}
-              lockReasonMessage=""
-              isItemLocked={MODEL_ITEM_NEVER_LOCKED}
-              onValueChange={handleSummaryModelValueChange}
-              footerActions={summaryModelFooterActions}
-              manageModelsLabel={intl.formatMessage({
-                id: "chat.toolbar.model.manageModels",
-              })}
-              contentSide="bottom"
-              contentAlign="end"
-              focusSelectorOnClose={null}
-              labelVisibilityClassName="inline-flex"
-              triggerClassName="h-8 w-fit max-w-52 min-w-0 justify-between rounded-lg border border-input-border bg-input px-3 py-1.5 text-foreground hover:border-input-border-hover hover:bg-input focus-visible:border-input-border-focused focus-visible:bg-input-focused"
-              triggerLabelClassName="inline-flex min-w-0 truncate text-left"
-            />
+            <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
+              <ModelConfigSelect
+                disabled={summaryModelSaving}
+                modelGroups={modelSelectGroups}
+                normalizedValue={summaryModelValue}
+                triggerLabel={summaryModelTriggerLabel}
+                showManageModelsAction={false}
+                lockReasonMessage=""
+                isItemLocked={MODEL_ITEM_NEVER_LOCKED}
+                onValueChange={handleSummaryModelValueChange}
+                footerActions={summaryModelFooterActions}
+                manageModelsLabel={intl.formatMessage({
+                  id: "chat.toolbar.model.manageModels",
+                })}
+                contentSide="bottom"
+                contentAlign="end"
+                focusSelectorOnClose={null}
+                labelVisibilityClassName="inline-flex"
+                triggerClassName="h-8 w-fit max-w-52 min-w-0 justify-between rounded-lg border border-input-border bg-input px-3 py-1.5 text-foreground hover:border-input-border-hover hover:bg-input focus-visible:border-input-border-focused focus-visible:bg-input-focused"
+                triggerLabelClassName="inline-flex min-w-0 truncate text-left"
+              />
+              <SubagentReasoningField
+                intl={intl}
+                state={thoughtLevelState}
+                disabled={summaryModelSaving}
+                labelVisibilityClassName="inline-flex"
+                onValueCommit={(reasoningLevel) => {
+                  if (
+                    !summaryModelSelection ||
+                    thoughtLevelState.kind !== "supported" ||
+                    !thoughtLevelState.option.options?.some(
+                      (entry) => entry.value === reasoningLevel,
+                    ) ||
+                    summaryModelSelection.options?.reasoningLevel === reasoningLevel
+                  )
+                    return;
+                  void persistSummaryModelSelection({
+                    ...summaryModelSelection,
+                    options: { ...summaryModelSelection.options, reasoningLevel },
+                  });
+                }}
+              />
+            </div>
           }
         />
       </SettingsGroupCard>

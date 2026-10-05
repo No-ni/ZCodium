@@ -95,7 +95,10 @@ async function generateTitleCandidateImpl(
       ? createRuntimeModel(this, { selection: fallbackModelSelection })
       : undefined);
   if (!baseModel) return null;
-  const model = baseModel.bind(auxiliaryModelOptions(baseModel));
+  // 总结偏好已经过 ModelFactory 校验，不能再被辅助调用的最低档覆盖。
+  const model = baseModel.bind(
+    auxiliaryModelOptions(baseModel, preferredModel?.options.reasoningLevel),
+  );
   const modelSelection = cloneModelSelection(
     preferredModel
       ? {

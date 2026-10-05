@@ -26,7 +26,9 @@ const EXTRACTION_MAX_TURNS = 5;
 const EXTRACTION_DRAIN_TIMEOUT_MS = 60_000;
 
 interface ProjectMemoryExtractionSnapshot
-  extends MemoryExtractionSnapshot, ProjectMemoryAgentContext {}
+  extends MemoryExtractionSnapshot, ProjectMemoryAgentContext {
+  reasoningLevel?: string;
+}
 
 export type ProjectMemoryExtractionScheduler =
   MemoryExtractionScheduler<ProjectMemoryExtractionSnapshot>;
@@ -83,6 +85,8 @@ export function scheduleProjectMemoryExtraction(
         ...snapshotBase,
         ...(resolvedModel && resolvedModel !== snapshotBase.model
           ? {
+              // 偏好等级随调度快照冻结，Memory 每轮请求不再降为最低档。
+              reasoningLevel: resolvedModel.options.reasoningLevel,
               // 换用「总结模型」时工具契约的媒体能力投影也要跟着换，
               // 否则 provider 看到的工具目录仍按当轮 Turn Model 的能力声明。
               model: withModelInvocationContext(resolvedModel, () => ({
@@ -176,6 +180,7 @@ async function executeProjectMemoryExtraction(
       maxTurns: EXTRACTION_MAX_TURNS,
       messages: providerMessages,
       model: input.snapshot.model,
+      reasoningLevel: input.snapshot.reasoningLevel,
       rootDir: input.snapshot.memoryRoot,
       tools: input.snapshot.tools,
       workingDirectory: input.snapshot.workingDirectory,

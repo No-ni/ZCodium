@@ -17,11 +17,19 @@ async function* streamOf(events) {
   yield* events;
 }
 
-function fakeModel(selection, requests, nextEvents, options = { reasoningLevel: "disabled" }) {
+function fakeModel(
+  selection,
+  requests,
+  nextEvents,
+  options = { reasoningLevel: "high", ...selection.options },
+) {
   return {
     ...selection,
     properties: modelConfig.properties,
-    optionSpecs: modelConfig.optionSpecs,
+    optionSpecs: {
+      ...modelConfig.optionSpecs,
+      reasoningLevel: { values: ["disabled", "low", "high"], map: "{}" },
+    },
     options,
     bind(patch) {
       return fakeModel(selection, requests, nextEvents, { ...options, ...patch });
@@ -30,7 +38,12 @@ function fakeModel(selection, requests, nextEvents, options = { reasoningLevel: 
       throw new Error("Auxiliary requests must stream");
     },
     streamText(request) {
-      requests.push({ selection, request, invocation: getCurrentModelInvocationContext() });
+      requests.push({
+        selection,
+        request,
+        options: { ...options, ...request.options },
+        invocation: getCurrentModelInvocationContext(),
+      });
       return streamOf(nextEvents());
     },
   };
@@ -45,7 +58,12 @@ function titleRuntime(resolvePreference) {
     getSessionModelSelection: () => sessionSelection,
     modelFactory({ selection }) {
       selections.push(selection);
-      if (selection.providerId === "removed") throw new Error("fixture-private-provider-error");
+      if (
+        selection.providerId === "removed" ||
+        (selection.options?.reasoningLevel &&
+          !["disabled", "low", "high"].includes(selection.options.reasoningLevel))
+      )
+        throw new Error("fixture-private-provider-error");
       return fakeModel(selection, requests, () => [
         { type: "text_delta", text: '{"title":"修复' },
         { type: "text_delta", text: '模型选择"}' },
@@ -63,6 +81,7 @@ function titleRuntime(resolvePreference) {
 test("title generation falls back after a deleted summary provider and after Host failure", async () => {
   for (const resolvePreference of [
     async () => ({ providerId: "removed", modelId: "deleted" }),
+    async () => ({ providerId: "summary", modelId: "fixed", options: { reasoningLevel: "stale" } }),
     async () => {
       throw new Error("Host unavailable");
     },
@@ -76,6 +95,30 @@ test("title generation falls back after a deleted summary provider and after Hos
     assert.deepEqual(result.modelSelection, sessionSelection);
     assert.equal(requests[0].selection.providerId, "session");
     assert.equal(requests[0].invocation.modelCall.operation, "session_title_generation");
+    assert.equal(requests[0].options.reasoningLevel, "disabled");
+  }
+});
+
+test("title requests honor changed summary reasoning while default titles stay at the lowest level", async () => {
+  let preference;
+  const { runtime, requests } = titleRuntime(async () => preference);
+  for (const querySource of ["session_title", "goal_summary_title"]) {
+    for (const reasoningLevel of ["high", "low", "disabled", undefined]) {
+      preference = reasoningLevel
+        ? { providerId: "summary", modelId: "fixed", options: { reasoningLevel } }
+        : null;
+      await generateTitleCandidate.call(runtime, "Repair summary model selection", {
+        querySource,
+        traceContext,
+      });
+      const request = requests.at(-1);
+      assert.equal(request.options.reasoningLevel, reasoningLevel ?? "disabled");
+      assert.equal(
+        request.invocation.modelCall.reasoning.requestedLevel,
+        reasoningLevel ?? "disabled",
+      );
+      assert.equal(request.options.maxOutputTokens, modelConfig.optionSpecs.maxOutputTokens.max);
+    }
   }
 });
 
@@ -99,7 +142,8 @@ test("default and invalid summary preferences preserve the memory snapshot invoc
   for (const preference of [
     undefined,
     { providerId: "removed", modelId: "deleted" },
-    { providerId: "summary", modelId: "fixed" },
+    { providerId: "summary", modelId: "fixed", options: { reasoningLevel: "stale" } },
+    { providerId: "summary", modelId: "fixed", options: { reasoningLevel: "high" } },
   ]) {
     const { runtime, requests } = titleRuntime(async () => preference);
     const model = fakeModel(sessionSelection, requests, () => [
@@ -137,8 +181,38 @@ test("default and invalid summary preferences preserve the memory snapshot invoc
     assert.equal(requests.at(-1).invocation.modelRequestSessionType, "other");
     assert.equal(
       requests.at(-1).selection.providerId,
-      preference?.providerId === "summary" ? "summary" : "session",
+      preference?.options?.reasoningLevel === "high" ? "summary" : "session",
     );
+    runtime.resolveSummaryModelSelection = async () => ({
+      providerId: "summary",
+      modelId: "fixed",
+      options: { reasoningLevel: "low" },
+    });
+    scheduleProjectMemoryExtraction(runtime, { model, traceContext });
+    assert.equal((await acquisition).reasoningLevel, "low");
+    runtime.resolveSummaryModelSelection = async () => null;
+    scheduleProjectMemoryExtraction(runtime, { model, traceContext });
+    assert.equal((await acquisition).reasoningLevel, undefined);
+    // 后续偏好改变与清除不能改写已调度的高档或缺省快照。
+    requests.length = 0;
+    await runMemoryAgentLoop({
+      messages: [],
+      model: snapshot.model,
+      reasoningLevel: snapshot.reasoningLevel,
+      tools: [],
+      maxTurns: 1,
+      rootDir: snapshot.memoryRoot,
+      workingDirectory: snapshot.workingDirectory,
+      workspaceRoot: snapshot.workspaceRoot,
+      executeTool: async () => {
+        throw new Error("No tools expected");
+      },
+    });
+    assert.equal(
+      requests[0].options.reasoningLevel,
+      preference?.options?.reasoningLevel === "high" ? "high" : "disabled",
+    );
+    assert.equal(requests[0].options.maxOutputTokens, modelConfig.optionSpecs.maxOutputTokens.max);
   }
 });
 
@@ -165,6 +239,7 @@ test("memory streaming completes a tool round and replays signed reasoning", asy
   const result = await runMemoryAgentLoop({
     messages: [],
     model,
+    reasoningLevel: "high",
     tools: [{ name: "Read" }],
     maxTurns: 5,
     rootDir: resolve("fixture-memory"),
@@ -176,6 +251,10 @@ test("memory streaming completes a tool round and replays signed reasoning", asy
     },
   });
   assert.equal(result.turns, 2);
+  assert.deepEqual(
+    requests.map((request) => request.options.reasoningLevel),
+    ["high", "high"],
+  );
   assert.deepEqual(executed, [toolCall]);
   assert.deepEqual(requests[1].request.messages[0].content[0], {
     type: "reasoning",

@@ -8,6 +8,13 @@ import { TooltipProvider } from "../../../packages/ui/src/components/ui/tooltip.
 import { modelConfig } from "./local-model-config.mjs";
 
 const params = new URLSearchParams(location.search);
+const summaryModelConfig = {
+  ...modelConfig,
+  optionSpecs: {
+    ...modelConfig.optionSpecs,
+    reasoningLevel: { values: ["disabled", "low", "medium", "high"], map: "{}" },
+  },
+};
 document.documentElement.className = params.get("theme") === "dark" ? "dark zai-dark" : "zai-light";
 window.summaryFixture = { saves: [], failSave: false, holdSave: false, errors: [] };
 window.addEventListener("unhandledrejection", (event) =>
@@ -16,23 +23,36 @@ window.addEventListener("unhandledrejection", (event) =>
 const services = {
   modelSelectionService: {
     onDidChange: () => ({ dispose() {} }),
-    getView: async () => ({
-      revision: 1,
-      providers: [
-        {
-          providerId: "fixture",
-          providerName: "Fixture Provider",
-          config: { api: { type: "openai-chat-completions" }, access: { type: "api-key" } },
-          models: [{ modelId: "fixture-model", config: modelConfig }],
-        },
-      ],
-    }),
+    getView: async () => {
+      if (params.get("catalog") === "loading") return new Promise(() => {});
+      if (params.get("catalog") === "error") throw new Error("Fixture catalog failed");
+      return {
+        revision: 1,
+        providers: [
+          {
+            providerId: "fixture",
+            providerName: "Fixture Provider",
+            config: { api: { type: "openai-chat-completions" }, access: { type: "api-key" } },
+            models: [
+              { modelId: "fixture-model", config: summaryModelConfig },
+              { modelId: "fixed-model", config: modelConfig },
+            ],
+          },
+        ],
+      };
+    },
   },
 };
 
 function Fixture() {
   const [selection, setSelection] = useState(
-    params.get("mode") === "deleted" ? { providerId: "removed", modelId: "removed-model" } : null,
+    params.get("mode") === "deleted"
+      ? { providerId: "removed", modelId: "removed-model" }
+      : params.get("mode") === "legacy"
+        ? { providerId: "fixture", modelId: "fixture-model" }
+        : params.get("mode") === "selected"
+          ? { providerId: "fixture", modelId: "fixture-model", options: { reasoningLevel: "high" } }
+          : null,
   );
   return (
     <MemorySettingsSection

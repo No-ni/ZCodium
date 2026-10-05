@@ -48,6 +48,7 @@ export async function runMemoryAgentLoop(input: {
   maxTurns: number;
   messages: readonly ModelInputMessage[];
   model: Model;
+  reasoningLevel?: string;
   rootDir: string;
   tools: readonly ModelToolContract[];
   workingDirectory: string;
@@ -67,7 +68,7 @@ export async function runMemoryAgentLoop(input: {
     const request: ModelRequest = {
       abortSignal: input.abortSignal,
       messages: mediaProjection.messages,
-      options: auxiliaryModelOptions(input.model),
+      options: auxiliaryModelOptions(input.model, input.reasoningLevel),
       // Memory agent 的 provider request 必须保留 Main 的真实工具目录；执行权限只在 tool-use 边界收窄。
       tools: input.tools as ModelToolContract[],
     };
