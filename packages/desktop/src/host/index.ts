@@ -1,4 +1,6 @@
 import { safeLogArgs } from "@zcode/shared";
+import { createTaskAutoArchiveRemoteTargetResolver } from "./taskAutoArchiveRouting.js";
+import { requestTaskAutoArchiveScan } from "@zcode/services/node";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
 /* eslint-disable max-lines -- host process 入口集中维护 local/remote 初始化和资源回收，realtime bridge 接入后先保持同文件收口。 */
 /**
@@ -2306,6 +2308,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           descriptor,
         });
         logWindowHostTopology("remote-connected");
+        if (activeServices) void requestTaskAutoArchiveScan(activeServices);
       })
       .catch((error) => {
         parentPort.postMessage({
@@ -2346,12 +2349,16 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         current.generation,
       );
     }
-    void workspaceReady.catch((error) => {
-      logger.warn(
-        `failed to prepare bound remote workspace, remoteSessionId=${msg.remoteSessionId}`,
-        error,
-      );
-    });
+    void workspaceReady
+      .then(async () => {
+        if (activeServices) await requestTaskAutoArchiveScan(activeServices);
+      })
+      .catch((error) => {
+        logger.warn(
+          `failed to prepare bound remote workspace, remoteSessionId=${msg.remoteSessionId}`,
+          error,
+        );
+      });
     if (previous?.workspacePath && previous.workspaceIdentity) {
       windowHostControllerRuntime.removeSource({
         kind: "remote",
@@ -2515,6 +2522,17 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
             const initializedServices = createLocalServices({
               parentPort,
               settingService,
+              taskAutoArchive: {
+                resolveRemoteTarget: createTaskAutoArchiveRemoteTargetResolver(
+                  windowRemoteConnectionRegistry,
+                ),
+                onExternalArchive: (scope) => {
+                  if (scope.workspaceIdentity)
+                    void windowHostControllerRuntime.refreshWorkspace(scope).catch(() => {
+                      logger.warn("auto archive remote list refresh failed");
+                    });
+                },
+              },
               hostApiNetworkTransport,
               authorizeLocalMediaPreviewPath,
               registerPluginSandbox: pluginSandboxRegistrationBridge.register,

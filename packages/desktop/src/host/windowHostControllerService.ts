@@ -676,6 +676,19 @@ export function createWindowHostControllerRuntime(options: {
     service,
     createAttachmentService,
     replaceDisconnectedSource,
+    async refreshWorkspace(scope: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+    }): Promise<void> {
+      const resolved = options.resolveSource(scope);
+      if (!resolved || !registeredScopes.has(sourceKey(resolved.scope))) return;
+      const key = sourceKey(resolved.scope);
+      // 跨窗口归档先于当前读取完成时，等待该读取后再拉一次，避免失效信号被单飞吞掉。
+      await sourceRefreshFlights.get(key)?.promise.catch(() => {});
+      if (!registeredScopes.has(key)) return;
+      const current = resolveCurrentSource(resolved.scope);
+      if (current && sourceKey(current.scope) === key) await refreshSource(current, true);
+    },
     async resolveTaskAddress(params: {
       taskId: string;
       workspacePath: string;

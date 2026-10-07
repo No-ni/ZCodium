@@ -435,7 +435,7 @@ export interface IZCodeTaskService {
 
   /**
    * 查询 Grouped 视图原始结构（group/member/顶层排序，不 join tasks 表）。
-   * 客户端以 task 行分区为左表 join 本结构，sessions-index 只补充实时 detail。
+   * 客户端以 task 行分区为左表 join 本结构，sessions-index 只补充实时 detail。纯读取，不触发归档。
    */
   listGroupedTaskViewStructure(params: {
     workspaceScopes: ZCodeTaskListWorkspaceScope[];
@@ -450,10 +450,11 @@ export interface IZCodeTaskService {
     workspaceIdentity?: string;
   }): Promise<ZCodeTaskMeta[]>;
 
-  /** 批量归档超期旧任务；仅归档已完成、无未读、非 pinned 且当前未打开的 task */
+  /** 原子归档未删除、未归档、已完成、无未读、非 pinned 且超过保留期的任务，返回本次实际变更。 */
   archiveStaleTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
+    remoteSessionId?: string;
     olderThanDays: number;
   }): Promise<ZCodeTaskMeta[]>;
 

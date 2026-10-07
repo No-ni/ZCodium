@@ -123,7 +123,6 @@ import type {
 } from "../session/zcodeTaskService.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { AUTOMATION_MUTATION_TOOL_NAMES } from "#src/zcode-agent/automationToolPolicy.js";
-import type { ISettingService } from "#src/setting/setting.js";
 import type {
   SessionMessageDeliveryResult,
   SessionMessageSendRequested,
@@ -180,7 +179,6 @@ interface CreateZCodeTaskServiceAdapterOptions {
   // syncer 现在持有 workspace emitter 和 broadcast 入口，adapter 必须共用同一实例，
   // 否则 desktop-continuous 路径和 task adapter 路径的事件订阅会分裂成两份，UI 收不全。
   taskIndexSyncer: ZCodeTaskIndexSyncer;
-  settingService?: Pick<ISettingService, "get">;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
 }
 
@@ -1064,67 +1062,6 @@ export function createZCodeTaskServiceAdapter(
       workspaceIdentity: params.workspaceIdentity,
       configOptions: settingsToConfigOptions(settings),
     });
-  }
-
-  async function readTaskAutoArchiveConfig(): Promise<{
-    olderThanDays: number;
-  } | null> {
-    if (!options.settingService) {
-      return null;
-    }
-    try {
-      const settings = await options.settingService.get();
-      if (!settings.taskAutoArchiveEnabled) {
-        return null;
-      }
-      return {
-        olderThanDays: settings.taskAutoArchiveOlderThanDays ?? 7,
-      };
-    } catch (error) {
-      logger.warn(undefined, "读取 task 自动归档设置失败，跳过本轮自动归档", error);
-      return null;
-    }
-  }
-
-  async function runWorkspaceTaskAutoArchive(
-    scopes: Array<{ workspacePath: string; workspaceIdentity?: string }>,
-  ): Promise<void> {
-    if (scopes.length === 0) {
-      return;
-    }
-    const config = await readTaskAutoArchiveConfig();
-    if (!config) {
-      return;
-    }
-    const seenWorkspaceKeys = new Set<string>();
-    let archivedCount = 0;
-    for (const scope of scopes) {
-      const key = resolveWorkspaceKey(scope);
-      if (seenWorkspaceKeys.has(key)) {
-        continue;
-      }
-      seenWorkspaceKeys.add(key);
-      // 自动归档按工作区、过期时间和完成状态处理所有存量任务，包括列表隐藏的历史记录。
-      const archivedTasks = await taskIndexRepo.archiveStaleTasks({
-        workspacePath: scope.workspacePath,
-        workspaceIdentity: scope.workspaceIdentity,
-        olderThanDays: config.olderThanDays,
-      });
-      archivedCount += archivedTasks.length;
-      for (const task of archivedTasks) {
-        setOverlay(task, { archived: true });
-        rememberIndexedTaskMeta(task);
-        // 归属变更（自动归档）：沿用 task_meta_changed 走 membership 重拉收敛；
-        // 先保持现状行为。
-        emitWorkspaceTaskListChanged(task, task, "task_meta_changed");
-      }
-    }
-    if (archivedCount > 0) {
-      logger.info(
-        undefined,
-        `按设置自动归档旧 task 数量=${archivedCount} olderThanDays=${config.olderThanDays}`,
-      );
-    }
   }
 
   async function resumeSnapshot(
@@ -2401,8 +2338,7 @@ export function createZCodeTaskServiceAdapter(
 
     async listGroupedTaskViewStructure(params) {
       // grouped 原始结构（不 join tasks 表）；任务内容由 sessions-index 提供，客户端 join。
-      // 与 listGroupedTaskView 同口径保留 auto-archive 触发（进入 grouped 视图时清理超期任务）。
-      await runWorkspaceTaskAutoArchive(params.workspaceScopes);
+      // 自动归档由 Host 维护服务触发，读取分组结构不能决定保留策略是否执行。
       return taskIndexRepo.queryGroupedTaskViewStructure(params);
     },
 
@@ -2446,7 +2382,7 @@ export function createZCodeTaskServiceAdapter(
       for (const task of archivedTasks) {
         setOverlay(task, { archived: true });
         rememberIndexedTaskMeta(task);
-        // 同 runWorkspaceTaskAutoArchive：沿用 task_meta_changed 走 membership 重拉收敛。
+        // 数据库提交后才通知所有列表，沿用 task_meta_changed 触发 membership 重拉。
         emitWorkspaceTaskListChanged(task, task, "task_meta_changed");
       }
       return archivedTasks;

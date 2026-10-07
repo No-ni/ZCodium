@@ -891,56 +891,21 @@ export class TaskIndexRepo {
     if (params.provider) {
       appendZCodeAgentIndexedProviderFilter(where, args, params.provider);
     }
+    // 修复依据：多个 Window Host 共用数据库；先 SELECT 再按 ID 更新会覆盖期间的
+    // pin/unread/status 变化。单条条件 UPDATE 原子认领，并只返回实际改变的任务。
     const rows = this.getDatabase()
       .prepare(
-        `SELECT
-          workspace_key,
-          workspace_path,
-          workspace_identity,
-          task_id,
-          title,
-          task_status,
-          provider,
-          mode,
-          model,
-          migration_source,
-          forked_from_task_id,
-          cron_automation_id,
-          off_peak_task_id,
-          created_at,
-          updated_at,
-          unread_at,
-          last_unread_at,
-          pinned,
-          archived,
-          deleted,
-          title_overridden,
-          searchable_text,
-          meta_json
-        FROM tasks
-        WHERE ${where.join(" AND ")}
-        ORDER BY updated_at DESC, created_at DESC, task_id DESC`,
+        `UPDATE tasks SET archived = 1
+         WHERE ${where.join(" AND ")}
+         RETURNING *`,
       )
       .all(...args) as unknown as TaskIndexRow[];
-    if (rows.length === 0) {
-      return [];
-    }
-
-    const archiveTask = this.getDatabase().prepare(
-      `UPDATE tasks
-      SET archived = 1
-      WHERE workspace_key = ? AND task_id = ?`,
+    rows.sort(
+      (left, right) =>
+        right.updated_at - left.updated_at ||
+        right.created_at - left.created_at ||
+        right.task_id.localeCompare(left.task_id),
     );
-    this.getDatabase().exec("BEGIN IMMEDIATE");
-    try {
-      for (const row of rows) {
-        archiveTask.run(row.workspace_key, row.task_id);
-      }
-      this.getDatabase().exec("COMMIT");
-    } catch (error) {
-      this.getDatabase().exec("ROLLBACK");
-      throw error;
-    }
     return rows.map(rowToMeta);
   }
 

@@ -2241,7 +2241,7 @@ const zhCN: Record<string, string> = {
   "settings.performanceModeDescription": "精简渲染输出，提高性能。",
   "settings.taskAutoArchive": "自动归档旧任务",
   "settings.taskAutoArchiveDescription":
-    "定时扫描最近打开过的工作区，将已完成、无未读、未置顶且超过保留期的任务自动归档。",
+    "应用运行期间每 30 分钟扫描最近项目、保存的本地工作区和普通对话；远程工作区仅在已连接时扫描。已完成、无未读、未置顶且超过保留期的任务会自动归档。开启或修改保留期后立即扫描。",
   "settings.taskAutoArchiveDays": "归档保留时长",
   "settings.taskAutoArchiveDaysDescription": "任务最后更新时间早于该时长后，才会进入自动归档候选。",
   "settings.taskAutoArchiveDays.option.3": "3 天后归档",

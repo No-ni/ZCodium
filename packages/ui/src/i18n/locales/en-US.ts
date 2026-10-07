@@ -2374,7 +2374,7 @@ const enUS: Record<string, string> = {
   "settings.performanceModeDescription": "Simplify rendered output to improve performance.",
   "settings.taskAutoArchive": "Auto-archive old tasks",
   "settings.taskAutoArchiveDescription":
-    "Periodically scan recently opened workspaces and automatically archive completed, unread-free, unpinned tasks after the retention window.",
+    "While the app is running, scan recent projects, saved local workspaces, and conversations every 30 minutes; remote workspaces are scanned only while connected. Completed, unread-free, unpinned tasks past the retention window are archived. Enabling this option or changing the retention window also starts a scan.",
   "settings.taskAutoArchiveDays": "Archive retention",
   "settings.taskAutoArchiveDaysDescription":
     "A task becomes eligible for auto-archive only after its last update is older than this window.",

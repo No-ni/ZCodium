@@ -2,7 +2,7 @@ import { IGenUiService } from "./gen-ui/contract.js";
 import { createGenUiService } from "./gen-ui/node.js";
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +11,20 @@ import {
   NodeModelSelectionConfigRepository,
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@zcode/provider-node";
-import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
+import {
+  getAppConfigDir as resolveAppConfigDir,
+  getConversationWorkspaceDir,
+  getTasksIndexDatabasePath,
+} from "./paths.js";
+import { createTaskAutoArchiveMaintenance } from "./session/taskAutoArchiveMaintenance.js";
+import type {
+  TaskAutoArchiveMaintenance,
+  TaskAutoArchiveMaintenanceOptions,
+} from "./session/contract.js";
+export type {
+  ResolveTaskAutoArchiveRemoteTarget,
+  TaskAutoArchiveScope,
+} from "./session/contract.js";
 import {
   ZCODE_USER_DATA_DIR_NAME,
   buildLocalMediaPreviewUrl,
@@ -511,6 +524,12 @@ const providerProvisioningTriggerDisposers = new WeakMap<
 // （stdioDesktopPresentationSurface 单测稳定复现），Linux 的 unlink-while-open 语义掩盖了泄漏。
 // 与其它侧表一样按 ServiceCollection 登记并在 dispose 时统一 close。
 const sharedSqliteRepos = new WeakMap<ServiceCollection, ReadonlyArray<{ close(): void }>>();
+const taskAutoArchiveMaintenance = new WeakMap<ServiceCollection, TaskAutoArchiveMaintenance>();
+
+/** 连接就绪时补扫；只请求现有维护器，不创建新的 Host 或定时器。 */
+export async function requestTaskAutoArchiveScan(services: ServiceCollection): Promise<void> {
+  await taskAutoArchiveMaintenance.get(services)?.requestScan();
+}
 /** Local Host 进程内的 Provisioning Source；不会把凭据通过通用 RPC 暴露给 Renderer。 */
 export function getProviderProvisioningSource(
   services: ServiceCollection,
@@ -993,6 +1012,10 @@ function cuaHelperStartErrorDetail(error: unknown): string {
  *        用于 BroadcastService 跨窗口中转。传 null 则广播为空操作。
  */
 export function createLocalServices(options: {
+  taskAutoArchive?: Pick<
+    TaskAutoArchiveMaintenanceOptions,
+    "resolveRemoteTarget" | "onExternalArchive"
+  >;
   parentPort?: Parameters<typeof createBroadcastService>[0];
   /** Host 装配层注入的设置权威；与网络 transport 必须来自同一 Window Host 生命周期。 */
   settingService?: ISettingService;
@@ -1200,7 +1223,9 @@ export function createLocalServices(options: {
   const pluginUiAccounts = createPluginUiAccountBindings({
     async readAccount() {
       const provider = await credentialService.load("oauth:active_provider");
-      const rawProfile = provider ? await credentialService.load(`oauth:${provider}:user_info`) : null;
+      const rawProfile = provider
+        ? await credentialService.load(`oauth:${provider}:user_info`)
+        : null;
       const profile = rawProfile ? (JSON.parse(rawProfile) as { id?: string }) : null;
       return [provider, profile?.id ?? null];
     },
@@ -1573,7 +1598,6 @@ export function createLocalServices(options: {
     zcodeAgentService,
     taskIndexRepo,
     taskIndexSyncer: zcodeTaskIndexSyncer,
-    settingService,
     cuaProductMcpServerResolver,
   });
   const botRemoteWorkspaceService = createBotRemoteWorkspaceService({
@@ -1711,10 +1735,45 @@ export function createLocalServices(options: {
 
   // 见 sharedSqliteRepos 声明处注释：登记全部 tasks-index sqlite 句柄，dispose 链统一关闭
   sharedSqliteRepos.set(services, [taskIndexRepo]);
+  // 远端 attachment 只执行所属数据源的归档 API，调度和设置由桌面 Local Host 持有。
+  if (!isDesktopAttachedRemote) {
+    const maintenance = createTaskAutoArchiveMaintenance({
+      settingService,
+      taskService: zcodeTaskService,
+      conversationWorkspacePath: getConversationWorkspaceDir,
+      dataSourceKey: createHash("sha256").update(getTasksIndexDatabasePath()).digest("hex"),
+      broadcastService,
+      resolveRemoteTarget: options.taskAutoArchive?.resolveRemoteTarget,
+      onExternalArchive: (scope) => {
+        if (!scope.workspaceIdentity)
+          zcodeTaskIndexSyncer.emitWorkspaceTaskListChanged(scope, undefined, "task_meta_changed");
+        options.taskAutoArchive?.onExternalArchive(scope);
+      },
+    });
+    taskAutoArchiveMaintenance.set(services, maintenance);
+    // 所有 disposer 登记完才启动；同一调用栈内的 dispose 会让 start 保持终止态。
+    queueMicrotask(() => {
+      void maintenance.start();
+    });
+  }
   return services;
 }
 
 export function disposeServiceResources(services: ServiceCollection): void {
+  const maintenance = taskAutoArchiveMaintenance.get(services);
+  if (maintenance) {
+    // 同步入口不能提前关闭在途扫描的数据库；先同步封住新提交，再排队完成资源释放。
+    maintenance.dispose();
+    void maintenance.disposeAndWait().then(() => {
+      taskAutoArchiveMaintenance.delete(services);
+      disposeServiceResourcesNow(services);
+    });
+    return;
+  }
+  disposeServiceResourcesNow(services);
+}
+
+function disposeServiceResourcesNow(services: ServiceCollection): void {
   (
     services.getOptional(IGenUiService) as (IGenUiService & { dispose?(): void }) | undefined
   )?.dispose?.();
@@ -1752,6 +1811,9 @@ export function disposeServiceResources(services: ServiceCollection): void {
 }
 
 export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  const maintenance = taskAutoArchiveMaintenance.get(services);
+  await maintenance?.disposeAndWait();
+  taskAutoArchiveMaintenance.delete(services);
   (
     services.getOptional(IGenUiService) as (IGenUiService & { dispose?(): void }) | undefined
   )?.dispose?.();

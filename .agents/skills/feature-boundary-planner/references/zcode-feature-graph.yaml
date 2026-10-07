@@ -25,6 +25,28 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.task-auto-archive
+    kind: capability
+    label: Host task auto archive
+    aliases: [自动归档, 保留期, auto archive, task retention]
+    codeSeeds:
+      - file: packages/services/src/session/taskAutoArchiveMaintenance.ts
+        symbol: createTaskAutoArchiveMaintenance
+    invariants:
+      - Retention runs independently of sidebar views and grouped query caches.
+      - Offline remote scopes never fall back to the local task index.
+  - id: service.task-auto-archive-routing
+    kind: service
+    label: Connected remote archive routing
+    codeSeeds:
+      - file: packages/desktop/src/host/taskAutoArchiveRouting.ts
+        symbol: createTaskAutoArchiveRemoteTargetResolver
+  - id: state.task-archive-index
+    kind: state-owner
+    label: Task index archive membership
+    codeSeeds:
+      - file: packages/services/src/session/taskIndexRepo.ts
+        symbol: TaskIndexRepo
   - id: capability.model-selection
     kind: capability
     label: Model selection
@@ -356,6 +378,16 @@ nodes:
       - file: apps/zcode-cli/packages/core/src/runtime/methods/turn-model.ts
         symbol: applySubmissionExecutionState
 edges:
+  - from: capability.task-auto-archive
+    to: state.task-archive-index
+    type: commits-archive-membership
+    rank: must-inspect
+    condition: Conditional atomic updates return only tasks changed by this invocation.
+  - from: capability.task-auto-archive
+    to: service.task-auto-archive-routing
+    type: resolves-remote-authority
+    rank: conditional
+    condition: Saved remote workspaces require a current matching identity and remote session.
   - from: capability.model-selection
     to: surface.conversation-model-control
     type: renders-in
