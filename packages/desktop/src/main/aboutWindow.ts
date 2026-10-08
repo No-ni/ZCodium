@@ -1,9 +1,9 @@
 interface CustomAboutDialogHtmlInput {
   applicationName: string;
-  appVersion: string;
+  buildLabel: string;
+  buildValue: string;
   copyright: string;
   optimizationLine: string;
-  versionLabel: string;
   okButtonLabel: string;
 }
 
@@ -182,7 +182,7 @@ export function createCustomAboutDialogHtml(input: CustomAboutDialogHtmlInput): 
           </div>
           <h1 id="about-title" class="title">
             ${escapeHtml(input.applicationName)}<br />
-            ${escapeHtml(input.versionLabel)} ${escapeHtml(input.appVersion)}
+            ${escapeHtml(input.buildLabel)} ${escapeHtml(input.buildValue)}
           </h1>
           <div class="meta">
             ${input.optimizationLine ? `<div>${escapeHtml(input.optimizationLine)}</div>` : ""}
