@@ -47,11 +47,19 @@ try {
     page.waitForFunction((id) => window.storageScanFixture.cancellations.includes(id), id, {
       timeout: 3000,
     });
+  // bridge 记录取消早于 React 提交，CI 曾读到旧的 true；按可见状态同步，不用固定延时。
+  const scanningStopped = () =>
+    page.waitForFunction(
+      () => document.querySelector('[data-testid="scanning"]')?.textContent === "false",
+      undefined,
+      { timeout: 3000 },
+    );
 
   await open();
   await page.getByRole("button", { name: "Other tab" }).click();
   await page.evaluate(() => window.storageScanFixture.resolve(0));
   await cancelArrived("scan-0");
+  await scanningStopped();
   assert.equal(await page.getByTestId("scanning").textContent(), "false");
 
   for (const oldResult of ["resolve", "reject"]) {
@@ -70,6 +78,7 @@ try {
     await page.waitForFunction(
       () => document.querySelector('[data-testid="snapshot"]').textContent === "scan-1",
     );
+    await scanningStopped();
     assert.equal(await page.getByTestId("scanning").textContent(), "false");
   }
 
@@ -83,6 +92,7 @@ try {
   await page.getByRole("button", { name: "Clean", exact: true }).click();
   await page.getByRole("button", { name: "Other tab" }).click();
   await page.evaluate(() => window.storageScanFixture.finishClean());
+  await scanningStopped();
   assert.equal(await page.evaluate(() => window.storageScanFixture.starts.length), 1);
   assert.equal(await page.getByTestId("scanning").textContent(), "false");
 
@@ -97,9 +107,7 @@ try {
   await page.waitForFunction(() => window.storageScanFixture.starts.length === 2);
   await page.evaluate(() => window.storageScanFixture.resolve(1));
   await page.evaluate(() => window.storageScanFixture.publish(1));
-  await page.waitForFunction(
-    () => document.querySelector('[data-testid="scanning"]').textContent === "false",
-  );
+  await scanningStopped();
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
   await page.clock.runFor(60_000);
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
