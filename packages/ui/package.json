@@ -11,6 +11,8 @@
     "./e2e-store-bridge": "./src/lib/e2eStoreBridgeBootstrap.ts",
     "./remote-workspace-session-store": "./src/store/remoteWorkspaceSessionStore.ts",
     "./styles.css": "./src/styles.css",
+    "./startup-presentation": "./src/root/startupPresentation.ts",
+    "./startup-presentation.css": "./src/root/startupPresentation.css",
     "./replay": "./src/replay.ts"
   },
   "scripts": {

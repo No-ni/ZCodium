@@ -7,6 +7,7 @@ import zhCN from "@/i18n/locales/zh-CN.js";
 import enUS from "@/i18n/locales/en-US.js";
 import { logger } from "@/logger.js";
 import { recordUiDiagnostic } from "@/lib/diagnostics/recorder.js";
+import { StartupPresentationReady } from "@/root/StartupPresentationReady.js";
 
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -119,6 +120,7 @@ function ErrorFallback({
       isMacDesktop={isMacDesktop}
       isWindowsDesktop={isWindowsDesktop}
     >
+      <StartupPresentationReady immediate />
       <div className="flex h-full min-h-0 justify-center overflow-y-auto p-6">
         <div
           role="alert"

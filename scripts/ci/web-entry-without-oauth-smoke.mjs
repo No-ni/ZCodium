@@ -79,7 +79,8 @@ try {
     headless: true,
     executablePath: process.env.ZCODE_TEST_CHROMIUM_EXECUTABLE || undefined,
   });
-  const context = await browser.newContext();
+  // 用例按英文按钮断言；Windows 会继承系统中文，必须显式固定浏览器 locale。
+  const context = await browser.newContext({ locale: "en-US" });
   const page = await context.newPage();
   const errors = [],
     outside = [];

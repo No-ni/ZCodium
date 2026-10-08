@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ZCodium · 启动动效预览</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #101112;
+        color: #eee;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1440px;
+        margin: auto;
+        padding: 24px 28px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+      header img {
+        width: 36px;
+        height: 36px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 600;
+      }
+      p {
+        margin: 5px 0 0;
+        color: #92989e;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #b8bec4;
+      }
+      button,
+      select {
+        font: inherit;
+        border: 1px solid #3b3f43;
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #eee;
+        background: #222528;
+      }
+      button {
+        cursor: pointer;
+        background: #eee;
+        color: #171819;
+        font-weight: 600;
+      }
+      button:hover {
+        background: #fff;
+      }
+      iframe {
+        display: block;
+        width: 100%;
+        height: min(72vh, 820px);
+        min-height: 420px;
+        border: 1px solid #363a3d;
+        border-radius: 12px;
+        background: #161616;
+      }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-top: 14px;
+        color: #92989e;
+        font-size: 12px;
+      }
+      #status {
+        color: #bfc6cc;
+        white-space: nowrap;
+      }
+      @media (max-width: 600px) {
+        main {
+          padding: 18px 12px;
+        }
+        iframe {
+          min-height: 520px;
+        }
+        footer {
+          flex-direction: column;
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/logo/icons/512x512.png" alt="" />
+        <div>
+          <h1>ZCodium 启动动效</h1>
+          <p>一次轻微回弹，平静等待，自然进入工作区。</p>
+        </div>
+      </header>
+      <div class="controls">
+        <label
+          >场景<select id="scenario">
+            <option value="normal">普通启动</option>
+            <option value="fast">快速启动</option>
+            <option value="slow">慢速启动 · 查看呼吸</option>
+            <option value="migration">数据升级</option>
+            <option value="failed">启动失败</option>
+          </select></label
+        >
+        <label
+          >主题<select id="theme">
+            <option value="dark">深色</option>
+            <option value="light">浅色</option>
+          </select></label
+        >
+        <label><input id="reduced" type="checkbox" />减少动态效果</label>
+        <button id="replay">重新播放</button>
+      </div>
+      <iframe id="scene" title="启动效果" src="/scene"></iframe>
+      <footer>
+        <span>复用实际启动代码；工作区内容和加载耗时为演示，不读取你的项目或会话。</span
+        ><span id="status" aria-live="polite">启动中</span>
+      </footer>
+    </main>
+    <script>
+      const scene = document.getElementById("scene");
+      const controls = ["scenario", "theme", "reduced"].map((id) => document.getElementById(id));
+      function replay() {
+        const params = new URLSearchParams({
+          scenario: controls[0].value,
+          theme: controls[1].value,
+          reduced: controls[2].checked ? "1" : "0",
+        });
+        document.getElementById("status").textContent = "启动中";
+        scene.src = "/scene?" + params;
+      }
+      controls.forEach((control) => control.addEventListener("change", replay));
+      document.getElementById("replay").addEventListener("click", replay);
+      window.addEventListener("message", (event) => {
+        if (
+          event.origin !== location.origin ||
+          event.source !== scene.contentWindow ||
+          event.data?.type !== "startup-preview-phase"
+        )
+          return;
+        const names = {
+          database: "正在准备数据",
+          workspace: "正在恢复工作区",
+          ready: "已就绪",
+          migration: "正在升级数据",
+          failed: "等待处理",
+        };
+        document.getElementById("status").textContent = names[event.data.phase] || "启动中";
+      });
+    </script>
+  </body>
+</html>

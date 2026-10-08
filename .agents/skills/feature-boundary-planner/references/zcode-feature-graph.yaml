@@ -25,6 +25,19 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.desktop-startup-motion
+    kind: capability
+    label: Continuous desktop startup presentation
+    aliases: [启动动画, 启动动效, startup animation, startup overlay]
+    codeSeeds:
+      - file: packages/ui/src/root/startupPresentation.ts
+        symbol: finishStartupPresentation
+      - file: packages/ui/src/root/StartupPresentationReady.tsx
+        symbol: StartupPresentationReady
+    invariants:
+      - HTML owns one visual overlay across database preparation and Root restoration.
+      - Actual content commit ends the overlay; progress and errors dismiss it immediately.
+      - Animation never owns runtime readiness and never changes mobile replay semantics.
   - id: capability.task-auto-archive
     kind: capability
     label: Host task auto archive

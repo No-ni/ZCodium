@@ -110,6 +110,7 @@ jobs:
         run: |
           pnpm --filter @zcode/web build
           node scripts/ci/root-startup-smoke.mjs
+          node scripts/ci/startup-animation-smoke.mjs
           node scripts/ci/web-entry-without-oauth-smoke.mjs
       - name: Conversation file browser checks
         run: |

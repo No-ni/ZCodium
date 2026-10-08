@@ -1,4 +1,5 @@
 import { OnboardingHeader } from "@/onboarding/OnboardingHeader.js";
+import { StartupPresentationReady } from "@/root/StartupPresentationReady.js";
 import { OccupationOnboardingVisual } from "@/onboarding/OccupationOnboardingVisual.js";
 import { occupations, type OccupationValue } from "@/onboarding/occupationOptions.js";
 import { OnboardingModeSelector } from "@/onboarding/OnboardingModeSelector.js";
@@ -237,6 +238,7 @@ export function OccupationOnboarding({
       data-testid="onboarding-page"
       className="relative flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground"
     >
+      <StartupPresentationReady />
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-12 [app-region:drag]" />
       {/* 与 Settings 相同，计入 Workspace 的 4px 外层留白、1px 边框和 8px 内边距。 */}
       {showWindowControls ? (

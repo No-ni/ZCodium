@@ -10,7 +10,8 @@ const zcodiumIconUrl = new URL("../../../../public/logo/icons/512x512.png", impo
  *
  * 图标自带 22.36% 圆角（macOS 应用图标规范），因此不再套一层 rounded 容器——
  * 双层圆角会让图标四角透出容器底色。
- * 这里只做静态标记：启动阶段的动画已经全部移除，引导页自带的扫光由调用方负责。
+ * 这里只做静态标记：启动动效由持久的 HTML 视觉层负责，避免 React 接管后重播。
+ * 引导页自带的扫光由调用方负责。
  */
 export function ZCodeStartupLogoBadge({ className }: { className?: string }) {
   return (

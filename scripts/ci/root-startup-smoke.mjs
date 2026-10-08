@@ -49,8 +49,21 @@ let css = "";
 }
 // esbuild 不重写 new URL 静态资源路径；提供产品使用的同一份本地图标。
 const startupLogo = await readFile(resolve(root, "public/logo/icons/512x512.png"));
+const startupCss = await readFile(
+  resolve(root, "packages/ui/src/root/startupPresentation.css"),
+  "utf8",
+);
+const desktopHtml = (
+  await readFile(resolve(root, "packages/desktop/src/renderer/index.html"), "utf8")
+)
+  .replace('href="@zcode/ui/startup-presentation.css"', 'href="/startup.css"')
+  .replace('src="./src/main.tsx"', 'src="/fixture.js"')
+  .replace("</head>", '<link rel="stylesheet" href="/styles.css"></head>');
 const server = createServer((request, response) => {
-  if (request.url === "/public/logo/icons/512x512.png") {
+  if (
+    request.url === "/public/logo/icons/512x512.png" ||
+    request.url === "/logo/icons/512x512.png"
+  ) {
     response.setHeader("Content-Type", "image/png");
     response.end(startupLogo);
     return;
@@ -65,6 +78,11 @@ const server = createServer((request, response) => {
     response.end(css);
     return;
   }
+  if (request.url === "/startup.css") {
+    response.setHeader("Content-Type", "text/css");
+    response.end(startupCss);
+    return;
+  }
   if (request.url?.startsWith("/assets/")) {
     response.writeHead(404);
     response.end();
@@ -72,7 +90,9 @@ const server = createServer((request, response) => {
   }
   response.setHeader("Content-Type", "text/html");
   response.end(
-    '<!doctype html><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/styles.css"><div id="root"></div><script type="module" src="/fixture.js"></script>',
+    request.url?.includes("platform=web")
+      ? '<!doctype html><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/styles.css"><div id="root"></div><script type="module" src="/fixture.js"></script>'
+      : desktopHtml,
   );
 });
 server.listen(0, "127.0.0.1");
@@ -100,6 +120,7 @@ try {
   const visit = async (query) => {
     await page.goto(`http://127.0.0.1:${server.address().port}/?${query}`);
     await page.getByRole("region", { name: "Workspace ready" }).waitFor();
+    await page.locator("#zcodium-startup-overlay").waitFor({ state: "detached" });
   };
   for (const mode of ["restored", "initial", "empty"]) {
     await visit(`mode=${mode}&models=pending`);
@@ -140,6 +161,7 @@ try {
     );
     const alert = page.getByRole("alert");
     await alert.waitFor();
+    await page.locator("#zcodium-startup-overlay").waitFor({ state: "detached" });
     await page.waitForFunction(() => {
       const logo = document.querySelector('[data-testid="root-startup-loading"] img');
       return logo?.complete && logo.naturalWidth > 0;

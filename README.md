@@ -164,6 +164,10 @@ ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
 
 ### Web 开发
 
+只检查桌面启动动效时，可运行 `node scripts/ci/startup-animation-preview.mjs`，打开终端输出的
+本地地址。页面支持重复播放、深浅色、慢启动与失败场景，复用实际启动代码，不连接真实项目。
+实现边界和验证命令见 [启动动画说明](docs/startup-animation.md)。
+
 修改 Web 或后端源码时，使用开发模式：
 
 ```bash

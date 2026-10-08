@@ -72,6 +72,7 @@ import {
 } from "@/lib/codeCommentContext.js";
 import { useCodeCommentPreviewStore } from "@/store/codeCommentPreviewStore.js";
 import { RootStartupLoading } from "@/root/RootStartupLoading.js";
+import { StartupPresentationReady } from "@/root/StartupPresentationReady.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT } from "@/lib/closeActiveContext.js";
 import { AssistantCodeCommentFeatureProvider } from "@/AssistantCodeCommentFeatureProvider.js";
@@ -736,7 +737,7 @@ function RootInner({
 
   if (isStartupRenderBlocked) {
     const loadingLabel = intl.formatMessage({ id: "common.loading" });
-    // HTML 启动壳已删除，门禁阻塞期由这一处静态 ZCodium 标记承接主题背景与品牌画面。
+    // 门禁只依据真实恢复状态；HTML 视觉层独立连续播放，本页不重启动画。
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
@@ -807,6 +808,8 @@ function RootInner({
           isMacDesktop={isMacDesktop}
           isWindowsDesktop={isWindowsDesktop}
         >
+          {/* 引导设置尚未就绪时 children 不 commit，不能提前退场露出空白主界面。 */}
+          {workspaceShellPath || isSettingsTabActive ? <StartupPresentationReady /> : null}
           {/* 新引导属于应用级偏好；无项目时也要挂载，才能响应设置页的手动打开请求。 */}
           {!workspaceShellPath ? (
             isSettingsTabActive ? (

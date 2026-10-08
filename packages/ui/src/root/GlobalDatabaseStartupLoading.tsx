@@ -3,6 +3,7 @@ import { canRetryDatabaseStartup, type DatabaseStartupState } from "@zcode/share
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { ZCodeStartupLogoBadge } from "@/root/ZCodeStartupLogoBadge.js";
+import { StartupPresentationReady } from "./StartupPresentationReady.js";
 
 /**
  * 数据库启动态容器。
@@ -88,6 +89,8 @@ export function GlobalDatabaseStartupLoading({
     );
   return (
     <DatabaseStartupSurface label={label} busy={!failed}>
+      {/* 迁移和失败是真实可操作状态，不能被启动视觉层遮住，也不等待退场动画。 */}
+      <StartupPresentationReady immediate />
       <div
         className="flex w-full max-w-md flex-col items-center gap-3 px-6 text-center"
         data-testid="database-startup-status"

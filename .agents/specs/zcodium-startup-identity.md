@@ -2,26 +2,26 @@
 
 ## 产品规则
 
-启动期间只允许出现**一个**静态品牌标记，且标记必须是 ZCodium 珊瑚，不得再出现 Z 字标，
-也不得有任何启动动画，更不得出现"透明窗口上浮着一个 logo 方块"的画面。
+启动期间只允许出现**一段连续的品牌动效**，标记保持 ZCodium 珊瑚。桌面首帧有完整主题背景，
+Logo 轻微回弹入场，等待较久时呼吸，实际内容就绪后淡出；不得重复播放入场或露出透明桌面。
 
-1. **首帧静态标记**：`packages/desktop/src/renderer/index.html` 在 React bundle 执行前
-   先渲染一枚静态 ZCodium 标记（`public/logo/icons/512x512.png` 同款图标、96px、居中、
-   无动画），避免"窗口已出现、屏幕上却没有任何品牌内容"的纯色空档。标记放在 `#root` 内，
-   React 首次 commit（`GlobalDatabaseStartupLoading`）会替换 `#root` 内容并接管画面。
+1. **首帧启动画面**：`packages/desktop/src/renderer/index.html` 在 React bundle 执行前
+   渲染同款 96px 居中图标与完整主题背景。画面放在 `#root` 外，数据库准备和工作区恢复
+   不会替换该 DOM，因此 720ms 入场只播放一次；3 秒后以 1.8 秒周期轻微呼吸。
    `packages/web/index.html` 仍不渲染启动标记，只保留既有 bootstrap 主题背景。
-2. **React 侧是启动画面主体**：启动门禁阻塞期由 `RootStartupLoading`
+2. **React 侧保留实际状态界面**：启动门禁阻塞期由 `RootStartupLoading`
    （`packages/ui/src/root/RootStartupLoading.tsx`）承接主题背景并渲染静态
    `ZCodeStartupLogoBadge`；数据库启动态由 `GlobalDatabaseStartupLoading` 的
    `DatabaseStartupSurface` 承接，**并渲染同一枚品牌标记**，失败态必须始终可操作。
-3. **启动标记连续不闪**：HTML 首帧标记、数据库启动（大库可持续 6~8s）与 Root 门禁三处
-   都渲染 `ZCodeStartupLogoBadge`（同一枚图标、同一 96px、同一居中布局），相邻画面直接
-   衔接，不允许出现"先只有纯色底、到某一步才亮一下 logo"的闪帧。
-4. **不放动画**：桌面壳弹动、Web 壳呼吸、`prefers-reduced-motion` 启动分支，以及
-   `disableStartupAnimation` 设置项（协议字段、schema、设置页开关、i18n、localStorage 镜像）
-   全部不存在，不留空开关。
-5. **不再有启动壳握手**：`zcode-react-startup-ready` 事件与 `#root` 透明度门禁已删除；
-   `StartupReadyNotifier` 只记录 T5（React 首次 commit）耗时。
+3. **启动标记连续不闪**：持久的 HTML 画面覆盖静默数据库准备与 Root 门禁；底层状态页
+   使用同款静态 Logo，不重新播放动效。主内容（工作区/设置/引导）实际 commit 后，用
+   160ms 淡出让出主界面。没有强制最短停留时间，不等待 Logo 入场播放完。
+4. **无障碍和异常优先**：系统 `prefers-reduced-motion: reduce` 禁止入场、呼吸和退场动效。
+   数据库迁移进度、数据库失败、默认目录失败或 React 错误边界立即移除遮罩，确保重试、
+   复制与退出操作可用；异常页面的 Logo 静止。独立更新窗口完全跳过启动画面。
+5. **视觉层不控制启动**：不恢复 `zcode-react-startup-ready` 事件、超时假就绪或 `#root`
+   透明度门禁。`StartupReadyNotifier` 仍只记录 T5；视觉结束幂等，不改变 Host、服务、
+   CommandInbox、工作区恢复和远控协议。动画取消也会清理遮罩。
 6. **品牌图标单一来源**：`ZCodeStartupLogoBadge` 与 `ZCodeAboutLogo` 共用同一枚
    `public/logo/icons/512x512.png`；desktop HTML 也通过 Vite 资源导入引用这同一枚文件，
    启动期不存在"两个珊瑚尺寸/来源不一致"。
@@ -32,8 +32,8 @@
 
 ## 所有者与接口
 
-- 桌面首帧标记：`packages/desktop/src/renderer/index.html` 拥有 `#root` 内的
-  `.zcode-startup-placeholder`；`<img>` 用**解析期即存在的静态 `src`** `/logo/icons/512x512.png`，
+- 桌面首帧标记：`packages/desktop/src/renderer/index.html` 拥有 `#root` 外的
+  `#zcodium-startup-overlay`；`<img>` 用**解析期即存在的静态 `src`** `/logo/icons/512x512.png`，
   指向 renderer publicDir 下的 `public/logo/icons/512x512.png`（仓库 `public/logo/icons/512x512.png`
   的副本），dev 由 Vite 直接 serve、生产由 Vite 拷贝进产物并按 base 重写。
   必须在解析期就有 `src`，脚本执行后再设 src 无法覆盖 bundle 下载/解析这段空档。
@@ -41,6 +41,12 @@
 - 启动画面：`packages/ui/src/root/RootStartupLoading.tsx`（门禁期）+
   `packages/desktop/src/renderer/src/main.tsx` 的 `GlobalDatabaseStartupLoading`（数据库期）。
   两者都自带 `bg-background`，都渲染 `ZCodeStartupLogoBadge`，启动期不再依赖 HTML 壳提供背景。
+- 视觉退出唯一所有者：`packages/ui/src/root/startupPresentation.ts`，通过 UI 公开子入口
+  `@zcode/ui/startup-presentation` 暴露幂等的 `finishStartupPresentation`。它只拥有 DOM 动画，
+  不拥有业务就绪事实；没有持久化、服务请求或跨窗口事件。组件通过
+  `StartupPresentationReady` 在内容 commit 时通知；数据库进度/失败和错误边界请求立即退出。
+- 样式唯一来源：`@zcode/ui/startup-presentation.css`；桌面 HTML 与本地 Web 验收页复用。
+  普通 Web 和手机远控保持现有入口语义，不新增桌面遮罩、Host 或动画恢复协议。
 - 品牌图标：`packages/ui/src/root/ZCodeStartupLogoBadge.tsx` 与
   `packages/ui/src/components/ui/ZCodeAboutLogo.tsx` 引用同一枚
   `public/logo/icons/512x512.png`；空态水印用同一枚珊瑚的轮廓矢量
@@ -62,24 +68,34 @@ sequenceDiagram
     participant DB as GlobalDatabaseStartupLoading
     participant React as Root
 
-    HTML->>HTML: 首帧渲染纯色底 + 静态珊瑚（无动画）
-    DB->>DB: React 接管 #root，数据库就绪前渲染 DatabaseStartupSurface + 同一枚珊瑚
-    React->>React: 启动门禁阻塞期渲染 RootStartupLoading（同一枚静态珊瑚）
-    React->>React: 门禁通过后进入主界面
+    participant Motion as UI 视觉退出 owner
+    HTML->>HTML: 完整主题底 + Logo 入场一次，长等待时呼吸
+    DB->>DB: React 接管 root，Host 仍拥有数据库就绪事实
+    DB-->>Motion: 迁移进度或失败：立即让出画面
+    React->>React: 恢复完成，工作区/设置/引导内容 commit
+    React->>Motion: 请求结束启动画面（幂等）
+    Motion->>HTML: 正常 160ms 淡出；减少动态效果/异常立即移除
 ```
 
 ## 验收
 
-1. 冷启动从窗口出现到 React 接管之间，屏幕上立即出现 ZCodium 珊瑚，不出现 Z 字标，
-   也没有任何动画，更不出现"透明窗口上浮着 logo 方块"。
-2. 桌面首帧标记、数据库未就绪整段（含静默态与迁移进度态）与 Root 启动门禁都渲染
-   ZCodium 珊瑚；相邻画面直接衔接，不出现只在某一步才亮一下的闪帧。
+1. 冷启动先显示主题底与 ZCodium Logo；HTML → 静默数据库准备 → Root 恢复始终是
+   同一启动 DOM，入场仅一次，3 秒后呼吸；深浅色、系统主题和窄屏没有白闪或横向溢出。
+2. 快启动不为动画等待；实际内容 commit 后即开始淡出。动画被取消、重复通知和后续
+   工作区切换不会残留或重建遮罩；不改变真实启动耗时打点。
 3. `packages/web/index.html` 不渲染启动标记；`windowKind=update-status` 窗口不显示首帧标记。
-4. 仓库内不存在 `startup-logo-pop` / `zcode-boot-logo-breathe` / `zcode-boot-loading` /
-   `startup-logo-shell` 等启动壳关键帧与样式，也不存在 `disableStartupAnimation` 设置项与其 i18n key。
-5. 启动门禁阻塞期渲染 `RootStartupLoading`（静态、带 `bg-background`）；数据库失败时仍能看到
-   状态、耗时与重试/退出按钮。
+4. 减少动态效果开启时没有入场/呼吸/退场动画。不增加 `disableStartupAnimation` 设置项。
+5. 迁移进度、数据库失败、默认目录失败与 React 异常立即露出；操作按钮可点击，重试不重播。
 6. deb/rpm 安装后 `~/.local/share/applications` 不出现 `zcode.desktop`；已有遗留条目
    （带 `Comment=ZCode Desktop App` 归属标记）在下次启动被删除，用户手写条目不受影响。
 7. `pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check --changed` 通过；
    `apps/zcode-cli` typecheck 通过。
+
+## 本地效果验收
+
+- `node scripts/ci/startup-animation-preview.mjs`：仅监听 `127.0.0.1`，输出预览地址，
+  复用桌面 HTML、共享 CSS、真实数据库/Root 加载组件与退出接口；不连接真实用户数据库。
+  可重播普通/快速/慢速启动、迁移、失败，以及切换深浅色和减少动态效果。
+- `node scripts/ci/startup-animation-smoke.mjs`：自动覆盖上述浏览器场景、动画取消与重复通知；
+  Chromium 路径可通过 `ZCODE_TEST_CHROMIUM_EXECUTABLE` 指定。
+- 预览的加载时长是验收夹具模拟值；桌面生产流程继续完全由实际 Host 和 Root 状态驱动。
