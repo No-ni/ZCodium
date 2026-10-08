@@ -946,6 +946,8 @@ export class AutomationRepo {
     // scheduled_run_count；run_count 还包含 manual run，只能用于 Card 累计展示。
     const reachedMax = row.recurring === 0 && scheduledRunCount >= (row.max_runs ?? 1);
     const reachedEnd = row.end_at !== null && (options.nextRunAt ?? Infinity) > row.end_at;
+    // 派发期间用户可能已暂停；成功回执只结算本次，不能恢复用户关闭的后续调度。
+    // 在 UPDATE 中保留当前状态，避免另一连接在读行之后暂停仍被旧值覆盖。
     this.getDatabase()
       .prepare(
         `UPDATE automations
@@ -958,9 +960,11 @@ export class AutomationRepo {
             last_error = NULL,
             running = 0,
             claimed_at = NULL,
-            lifecycle_status = @lifecycle_status,
-            enabled = @enabled,
-            next_run_at = @next_run_at,
+            lifecycle_status = CASE WHEN @completed THEN 'completed' ELSE lifecycle_status END,
+            enabled = CASE WHEN @completed THEN 0 ELSE enabled END,
+            next_run_at = CASE
+              WHEN @completed OR lifecycle_status IN ('completed', 'failed') THEN NULL
+              ELSE @next_run_at END,
             updated_at = @now
         WHERE automation_id = @id`,
       )
@@ -969,8 +973,7 @@ export class AutomationRepo {
         run_count: runCount,
         scheduled_run_count: scheduledRunCount,
         dispatched_at: options.dispatchedAt,
-        lifecycle_status: reachedMax || reachedEnd ? "completed" : "active",
-        enabled: reachedMax || reachedEnd ? 0 : 1,
+        completed: reachedMax || reachedEnd ? 1 : 0,
         next_run_at: reachedMax || reachedEnd ? null : options.nextRunAt,
         now: options.dispatchedAt,
       });

@@ -61,6 +61,8 @@ jobs:
           node scripts/ci/tui-model-setup-smoke.mjs
       - name: Install browser for remote form checks
         run: pnpm exec playwright-core install --with-deps chromium
+      - name: Storage scan lifecycle browser checks
+        run: node scripts/ci/storage-scan-lifecycle-smoke.mjs
       - name: Install isolated Computer Use test desktop
         run: |
           sudo apt-get update

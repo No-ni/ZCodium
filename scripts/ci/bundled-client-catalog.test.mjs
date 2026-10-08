@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { tsImport } from "tsx/esm/api";
 import { Cron } from "croner";
 import { build } from "esbuild";
@@ -53,7 +53,10 @@ test("feature recommendation icons are bundled and retain localized prompts and 
     `data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString("base64")}`
   );
   const require = createRequire(new URL("../../packages/ui/package.json", import.meta.url));
-  const { dynamicIconImports } = await import(require.resolve("lucide-react/dynamic.mjs"));
+  // Windows 绝对路径不是 ESM URL，必须转为 file:，否则被当作不支持的 c: 协议。
+  const { dynamicIconImports } = await import(
+    pathToFileURL(require.resolve("lucide-react/dynamic.mjs")).href
+  );
   for (const mode of ["office", "coding"]) {
     const items = getRecommendedPromptPool(mode === "office");
     assert.ok(items.length > 5);

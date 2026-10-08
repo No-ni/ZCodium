@@ -32,20 +32,35 @@ export function useStorageUsage({
   const [snapshot, setSnapshot] = useState<StorageUsageSnapshot | null>(null);
   const [scanning, setScanning] = useState(false);
   const jobIdRef = useRef<string | null>(null);
+  const generationRef = useRef(0);
+  const activeRef = useRef(false);
+  const pendingStartRef = useRef(false);
 
   const start = useCallback(async () => {
-    if (!bridge) return;
+    if (!bridge || !activeRef.current) return;
+    const generation = ++generationRef.current;
+    jobIdRef.current = null;
+    pendingStartRef.current = true;
+    setScanning(true);
     try {
       const { jobId } = await bridge.startScan();
+      // 切走页面时可能还没有 jobId；迟到回应必须取消，不能复活扫描或覆盖新页面的任务。
+      if (generation !== generationRef.current || !activeRef.current) {
+        await bridge.cancelScan(jobId);
+        return;
+      }
       jobIdRef.current = jobId;
-      setScanning(true);
     } catch (error) {
       logger.warn("[storage] startScan failed", { error });
-      setScanning(false);
+      if (generation === generationRef.current && activeRef.current) setScanning(false);
+    } finally {
+      if (generation === generationRef.current) pendingStartRef.current = false;
     }
   }, [bridge]);
 
   const cancel = useCallback(async () => {
+    generationRef.current++;
+    pendingStartRef.current = false;
     const jobId = jobIdRef.current;
     jobIdRef.current = null;
     setScanning(false);
@@ -59,6 +74,7 @@ export function useStorageUsage({
 
   useEffect(() => {
     if (!enabled || !bridge) return;
+    activeRef.current = true;
     let disposed = false;
     const unsubscribe = bridge.subscribeScanProgress((next) => {
       if (disposed || next.jobId !== jobIdRef.current) return;
@@ -77,6 +93,7 @@ export function useStorageUsage({
     void start();
     return () => {
       disposed = true;
+      activeRef.current = false;
       unsubscribe();
       void cancel();
     };
@@ -90,7 +107,8 @@ export function useStorageUsage({
       if (blurTimer) clearTimeout(blurTimer);
       blurTimer = setTimeout(() => {
         blurTimer = null;
-        if (!jobIdRef.current) return;
+        // 请求尚在等待 jobId 时也要失效；否则失焦取消同样会漏掉正在启动的扫描。
+        if (!jobIdRef.current && !pendingStartRef.current) return;
         cancelledByBlur = true;
         void cancel();
       }, STORAGE_SCAN_BLUR_CANCEL_MS);
@@ -117,10 +135,13 @@ export function useStorageUsage({
   const clean = useCallback(
     async (request: StorageCleanRequest) => {
       if (!bridge) throw new Error("storage bridge unavailable");
+      const generation = ++generationRef.current;
+      pendingStartRef.current = false;
       jobIdRef.current = null;
       setScanning(false);
       const result = await bridge.clean(request);
-      await start();
+      // 清理不随页面取消，但返回后只能刷新发起操作时仍有效的页面。
+      if (generation === generationRef.current && activeRef.current) await start();
       return result;
     },
     [bridge, start],

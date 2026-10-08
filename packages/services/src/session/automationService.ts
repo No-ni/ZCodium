@@ -374,23 +374,12 @@ export class AutomationService {
       options.resetRetry = true;
     }
 
-    const effectiveEndAt =
-      normalizedParams.endAt === undefined ? existing.endAt : (normalizedParams.endAt ?? undefined);
+    // 单独延长/清除截止时间也可能恢复终态，必须一并检查剩余次数，不能绕过耗尽的上限。
     if (
-      effectiveEndAt !== undefined &&
-      (options.nextRunAt ?? existing.nextRunAt ?? Infinity) > effectiveEndAt
+      normalizedParams.recurring !== undefined ||
+      normalizedParams.maxRuns !== undefined ||
+      normalizedParams.endAt !== undefined
     ) {
-      options.nextRunAt = null;
-      options.lifecycleStatus = "completed";
-    } else if (
-      normalizedParams.endAt !== undefined &&
-      (existing.lifecycleStatus === "completed" || existing.lifecycleStatus === "failed")
-    ) {
-      options.lifecycleStatus = "active";
-    }
-
-    // 改 recurring / max_runs：重算生命周期。
-    if (normalizedParams.recurring !== undefined || normalizedParams.maxRuns !== undefined) {
       const nextMaxRuns =
         normalizedParams.maxRuns === undefined
           ? existing.maxRuns
@@ -403,6 +392,7 @@ export class AutomationService {
       const reachedMax = !nextRecurring && scheduledRunCount >= (nextMaxRuns ?? 1);
       if (reachedMax) {
         options.lifecycleStatus = "completed";
+        options.nextRunAt = null;
       } else if (
         existing.lifecycleStatus === "completed" ||
         existing.lifecycleStatus === "failed"
@@ -419,6 +409,17 @@ export class AutomationService {
           );
         }
       }
+    }
+
+    // 截止时间是独立约束，放在恢复判断之后，防止增加次数把已到期任务重新启用。
+    const effectiveEndAt =
+      normalizedParams.endAt === undefined ? existing.endAt : (normalizedParams.endAt ?? undefined);
+    if (
+      effectiveEndAt !== undefined &&
+      (options.nextRunAt ?? existing.nextRunAt ?? Infinity) > effectiveEndAt
+    ) {
+      options.nextRunAt = null;
+      options.lifecycleStatus = "completed";
     }
 
     return this.repo.update(automationId, updateParams, options, workspaceKey);
