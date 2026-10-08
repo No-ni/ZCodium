@@ -3,7 +3,8 @@
 ## 背景与问题
 
 ZCodium Exp. 当前沿用上游 ZCode 的发版制版本机器：根 `package.json` 的 `version` 经
-`packages/desktop/scripts/build-metadata.mjs` 注入 `extraMetadata` 与 `__ZCODE_VERSION__`，
+`scripts/rolling-app-version.mjs` 统一派生版本串，经 `build-metadata.mjs` 注入 `extraMetadata`
+与 `__ZCODE_VERSION__`（桌面 / server / web 四处注入点同源），
 配套 `release-it` 打 `v*` tag、CHANGELOG 按版本分段、CI 只在 tag 触发，`autoUpdater.ts`
 围绕 semver 比较、按版本号跳过、按版本号存取 release notes，`forceUpdateGuard.ts` 读上游
 `minimalVersion` 门禁。
@@ -47,7 +48,7 @@ build / collect）派生出的版本串必须一致。三处消费依赖这一�
 
 `actions/checkout` 默认 `depth=1`，浅克隆里 `rev-list --count HEAD` 恒为 1，同一天不同
 commit 会派生相同版本串，updater 漏推更新。CI 全部 checkout 必须 `fetch-depth: 0`
-（`.github/workflows/desktop.yml` 已加）；`build-metadata.mjs` 检测到浅克隆时显式告警，
+（`.github/workflows/desktop.yml` 已加）；`rolling-app-version.mjs` 检测到浅克隆时显式告警，
 不静默产出撞号版本。非 git 检出（源码 tar 包）回退 `ZCODE_COMMIT_COUNT` 或 `0`。
 
 ### 用户可见面
@@ -77,25 +78,34 @@ commit 会派生相同版本串，updater 漏推更新。CI 全部 checkout 必�
 
 ### 版本派生（唯一入口）
 
-`packages/desktop/scripts/build-metadata.mjs` 的 `collectBuildMetadata()`：
+`scripts/rolling-app-version.mjs`（仓库根，中立位置，桌面 / server / web 构建配置共同引用）：
 
-- 现状：`appVersion: normalizeVersion(rootPackageJson.version)`。
-- 改为：基线仍读根 `package.json`，拼装 `<基线>-<YYYYMMDD>.<commitCount>`；`buildCommitId`
-  （`git rev-parse --short=8 HEAD`）与 `buildTime` 保持现有派生方式。
-- 同一函数同时服务 `tsup.config.ts` / `vite.config.ts` 的 `__ZCODE_VERSION__` 注入与
-  electron-builder `extraMetadata.version`，不存在第二条版本来源。
+- `collectRollingAppVersion()` 返回 `{ appVersion, upstreamBaseline }`；`formatRollingAppVersion`
+  是纯拼装函数，单调性不变量由它的测试钉住。
+- 基线读根 `package.json`，日期取 commit committer date，count 取 `git rev-list --count HEAD`。
+- 消费方：`packages/desktop/scripts/build-metadata.mjs`（桌面身份，叠加 `buildCommitId` /
+  `buildTime` / `releaseBuildNumber` 后落盘 `out/metadata/build-meta.json`，供 tsup / vite /
+  electron-builder `extraMetadata.version` 读取）、`packages/server/build-remote.ts` 与
+  `packages/server/tsup.config.ts`（`__ZCODE_VERSION__` 注入，server `--version` 与部署校验读它）、
+  `packages/web/vite.config.ts`（web 端同一注入）。
+- 不存在第二条版本来源：任何构建配置再读根 `package.json` 的 version 当产品版本都是缺陷。
 
 ### 消费方（只读，不随本 spec 改变接口）
 
-| 消费方                                                  | 现状                                          | 滚动后                                                                      |
-| ------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
-| `packages/shared/src/version.ts`                        | 注入值原样导出 `ZCODE_VERSION`                | 不变，值变成滚动串                                                          |
-| `packages/desktop/src/main/about.ts`                    | About 页 `version` 字段                       | 不再作为"版本"展示；`releaseBuildNumber` 非空展示官方形式，为空展示自建形式 |
-| `packages/desktop/src/host/index.ts`                    | `appVersion` 透传                             | 不变                                                                        |
-| `packages/desktop/src/main/exportLogs.ts`               | 导出包内 `appVersion`                         | 不变                                                                        |
-| `packages/desktop/src/main/desktopRuntimeEnv.ts`        | `ZCODE_APP_VERSION_ENV`                       | 不变                                                                        |
-| `packages/desktop/src/main/windowsChromeAppBoundKey.ts` | `expectedAppVersion`                          | 不变                                                                        |
-| `scripts/prepare-prebuilds.mjs`                         | `mock-cdn/releases/<version>/manifest-*.json` | 目录名与 `appVersion` 用滚动串                                              |
+| 消费方                                                  | 现状                                          | 滚动后                                                                           |
+| ------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
+| `packages/shared/src/version.ts`                        | 注入值原样导出 `ZCODE_VERSION`                | 不变，值变成滚动串                                                               |
+| `packages/desktop/src/main/about.ts`                    | About 页 `version` 字段                       | 不再作为"版本"展示；`releaseBuildNumber` 非空展示官方形式，为空展示自建形式      |
+| `packages/desktop/src/host/index.ts`                    | `appVersion` 透传                             | 不变                                                                             |
+| `packages/desktop/src/main/exportLogs.ts`               | 导出包内 `appVersion`                         | 不变                                                                             |
+| `packages/desktop/src/main/desktopRuntimeEnv.ts`        | `ZCODE_APP_VERSION_ENV`                       | 不变                                                                             |
+| `packages/desktop/src/main/windowsChromeAppBoundKey.ts` | `expectedAppVersion`                          | 不变                                                                             |
+| `scripts/prepare-prebuilds.mjs`                         | `mock-cdn/releases/<version>/manifest-*.json` | 目录名与 `appVersion` 用滚动串                                                   |
+| `scripts/bundle-remote-assets.mjs`                      | `releases/<version>` 目录名与 verify 版本串   | 同源读 `getBuildMetadata`，不再读 package.json                                   |
+| `scripts/ci/remote-assets-smoke.mjs`                    | server `--version` 比对                       | 同源读 `getBuildMetadata`                                                        |
+| `packages/server/build-remote.ts` / `tsup.config.ts`    | `__ZCODE_VERSION__` 注入                      | 同源读 `collectRollingAppVersion`，server 报滚动串                               |
+| `packages/web/vite.config.ts`                           | `__ZCODE_VERSION__` 注入                      | 同源读 `collectRollingAppVersion`，web 报滚动串                                  |
+| `scripts/ci/desktop-release.mjs`                        | `collect` 按版本串匹配产物名                  | `collect` 读 `getBuildMetadata`；`check-version`/tag 路径仍读基线（随 tag 退役） |
 
 ### 发布序号（展示专用，不进版本串）
 
@@ -126,13 +136,14 @@ flowchart LR
     A["根 package.json<br/>version = 上游基线"] --> D
     B["git rev-list --count HEAD<br/>commitCount"] --> D
     C["commit committer date UTC<br/>YYYYMMDD"] --> D
-    Z["ZCODE_RELEASE_BUILD_NUMBER<br/>仅 CI 注入，可空"] --> D
-    D["build-metadata.mjs<br/>collectBuildMetadata"] --> E["appVersion<br/>基线-日期.N"]
-    D --> Y["releaseBuildNumber<br/>展示专用"]
-    E --> F["extraMetadata.version"]
-    E --> G["__ZCODE_VERSION__"]
-    E --> H["mock-cdn manifest"]
+    D["scripts/rolling-app-version.mjs<br/>collectRollingAppVersion"] --> E["appVersion<br/>基线-日期.N"]
+    E --> F["build-metadata.mjs<br/>+ commit/time/发布序号"]
+    F --> G["extraMetadata.version"]
+    F --> H["__ZCODE_VERSION__ desktop"]
+    E --> S["__ZCODE_VERSION__ server / web"]
+    E --> M["mock-cdn manifest"]
     E --> I["manifest provider<br/>下发 version 字段"]
+    F --> Y["releaseBuildNumber<br/>展示专用"]
     Y --> J["about.ts<br/>官方/自建两种展示形式"]
 ```
 
@@ -140,7 +151,8 @@ flowchart LR
 
 ### 阶段 1：版本派生与去版本号展示
 
-- `collectBuildMetadata` 拼装滚动版本串。
+- `scripts/rolling-app-version.mjs` 上线，桌面 / server / web 四处 `__ZCODE_VERSION__` 注入点
+  与 mock-cdn、collect 全部切到同源读取。
 - 删除 `.release-it.mjs`、`apps/zcode-cli/.release-it.json`、根与 CLI 的 `release*` 脚本；
   根 `package.json` 与 `apps/zcode-cli/package.json` 的 `version` 冻结为上游基线，仅同步上游
   时手改。

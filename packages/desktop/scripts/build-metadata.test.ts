@@ -1,6 +1,6 @@
 import semver from "semver";
 import { afterEach, describe, expect, it } from "vitest";
-import { collectBuildMetadata, formatRollingAppVersion } from "./build-metadata.mjs";
+import { collectBuildMetadata } from "./build-metadata.mjs";
 
 const RELEASE_BUILD_NUMBER_ENV = "ZCODE_RELEASE_BUILD_NUMBER";
 const originalReleaseBuildNumber = process.env[RELEASE_BUILD_NUMBER_ENV];
@@ -11,28 +11,6 @@ afterEach(() => {
   } else {
     process.env[RELEASE_BUILD_NUMBER_ENV] = originalReleaseBuildNumber;
   }
-});
-
-describe("formatRollingAppVersion", () => {
-  it("按 <上游基线>-<YYYYMMDD>.<commitCount> 拼装", () => {
-    expect(formatRollingAppVersion("3.14.3", "20261008", 1234)).toBe("3.14.3-20261008.1234");
-  });
-
-  // 单调性是滚动更新的地基：跨天与同天多次构建都必须判新，否则 updater 不推更新。
-  it("prerelease 段保证跨天与同天多次构建均单调递增", () => {
-    const previousDay = formatRollingAppVersion("3.14.3", "20261008", 9);
-    const nextDay = formatRollingAppVersion("3.14.3", "20261009", 1);
-    const sameDayLater = formatRollingAppVersion("3.14.3", "20261008", 10);
-    expect(semver.gt(nextDay, previousDay)).toBe(true);
-    expect(semver.gt(sameDayLater, previousDay)).toBe(true);
-    expect(semver.gt(nextDay, sameDayLater)).toBe(true);
-  });
-
-  it("上游基线 bump 后大于 bump 前的全部构建", () => {
-    const beforeSync = formatRollingAppVersion("3.14.3", "20261009", 4321);
-    const afterSync = formatRollingAppVersion("3.15.0", "20261008", 1);
-    expect(semver.gt(afterSync, beforeSync)).toBe(true);
-  });
 });
 
 describe("collectBuildMetadata", () => {

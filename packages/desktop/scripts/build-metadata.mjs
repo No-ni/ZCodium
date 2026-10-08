@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectRollingAppVersion } from "../../../scripts/rolling-app-version.mjs";
 
 const require = createRequire(import.meta.url);
 const moduleDir = import.meta.dirname;
@@ -57,99 +58,6 @@ function normalizeVersion(version) {
   return normalized || version;
 }
 
-// 上游基线只承担"基于哪个上游版本"的信息位，只在同步上游发布时手改根 package.json 的 version。
-const UPSTREAM_BASELINE_PATTERN = /^\d+\.\d+\.\d+$/;
-const NUMERIC_PATTERN = /^\d+$/;
-
-/**
- * 滚动版本串：`<上游基线>-<YYYYMMDD>.<commitCount>`，例 `3.14.3-20261008.1234`。
- *
- * 单调性全部由破折号后的 prerelease 段承担：日期段在前、commitCount 在后，semver 对点分的
- * 数字标识按数值逐段比较，跨天与同天多次构建都单调。日期与序号必须放在 `-` 之后的
- * prerelease 段：semver 优先级比较完全忽略 `+` build metadata，放那里 updater 看不见变化。
- */
-export function formatRollingAppVersion(baseline, buildDate, commitCount) {
-  return `${baseline}-${buildDate}.${commitCount}`;
-}
-
-function resolveUpstreamBaseline(version) {
-  const normalized = normalizeVersion(version);
-  // electron-updater 的 AppUpdater 构造函数同步解析 app.getVersion()，非法 semver 直接抛
-  // ERR_UPDATER_INVALID_VERSION。基线不是 x.y.z 时退到 0.0.0，保证版本串永远 semver 合法。
-  return UPSTREAM_BASELINE_PATTERN.test(normalized) ? normalized : "0.0.0";
-}
-
-function resolveUtcBuildDate(now = new Date()) {
-  return now.toISOString().slice(0, 10).replace(/-/g, "");
-}
-
-/**
- * 版本串的日期段取 commit 的 committer date（UTC），不取构建时刻。
- * 同一 commit 在任意时间、任意 CI job（remote-assets / build / collect）派生出的版本串必须一致：
- * electron-builder beforePack 校验 bundled-remote manifest 的 appVersion 与此相等，
- * collect 按此匹配产物名；跨 UTC 日的两次构建也不能让版本串漂移。
- */
-function resolveCommitBuildDate() {
-  try {
-    const commitDate = execSync("git log -1 --format=%cI", {
-      cwd: workspaceDir,
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .toString()
-      .trim();
-    const utcDate = new Date(commitDate).toISOString().slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(utcDate)) {
-      return utcDate.replace(/-/g, "");
-    }
-  } catch {
-    // 非 git 检出（源码 tar 包等）时回退构建日
-  }
-
-  return resolveUtcBuildDate();
-}
-
-function isShallowRepository() {
-  try {
-    return (
-      execSync("git rev-parse --is-shallow-repository", {
-        cwd: workspaceDir,
-        stdio: ["ignore", "pipe", "ignore"],
-      })
-        .toString()
-        .trim() === "true"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function resolveCommitCount() {
-  try {
-    const output = execSync("git rev-list --count HEAD", {
-      cwd: workspaceDir,
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .toString()
-      .trim();
-    if (NUMERIC_PATTERN.test(output)) {
-      if (isShallowRepository()) {
-        // 浅克隆（actions/checkout 默认 depth=1）里 rev-list 只见 graft 出来的少量 commit，
-        // count 不是全史序号：同一天不同 commit 会派生相同版本串，updater 会漏推更新。
-        // CI 必须 fetch-depth: 0；这里显式告警，避免静默产出撞号版本。
-        console.warn(
-          `[build-meta] shallow checkout: commitCount=${output} is not the full history count; CI must use fetch-depth: 0`,
-        );
-      }
-      return output;
-    }
-  } catch {
-    // 非 git 检出（源码 tar 包等）时走环境变量回退
-  }
-
-  const fromEnv = process.env.ZCODE_COMMIT_COUNT?.trim();
-  return fromEnv && NUMERIC_PATTERN.test(fromEnv) ? fromEnv : "0";
-}
-
 /**
  * 发布序号只服务 About 展示（官方构建显示"构建 #N"），由 CI 注入。
  * 禁止进入版本串：它与 commitCount 不是同一套序列，混入会让自建构建（count 数千）
@@ -157,7 +65,7 @@ function resolveCommitCount() {
  */
 function resolveReleaseBuildNumber() {
   const raw = process.env.ZCODE_RELEASE_BUILD_NUMBER?.trim();
-  if (!raw || !NUMERIC_PATTERN.test(raw)) {
+  if (!raw || !/^\d+$/.test(raw)) {
     return null;
   }
 
@@ -187,16 +95,12 @@ function resolveCommitId() {
 }
 
 export function collectBuildMetadata() {
-  const rootPackageJson = readJson(resolve(workspaceDir, "package.json"));
   const desktopPackageJson = readJson(resolve(desktopDir, "package.json"));
-  const upstreamBaseline = resolveUpstreamBaseline(rootPackageJson.version);
+  // 版本串唯一来源：scripts/rolling-app-version.mjs，桌面 / server / web 构建同源。
+  const { appVersion, upstreamBaseline } = collectRollingAppVersion();
 
   return {
-    appVersion: formatRollingAppVersion(
-      upstreamBaseline,
-      resolveCommitBuildDate(),
-      resolveCommitCount(),
-    ),
+    appVersion,
     upstreamBaseline,
     buildCommitId: resolveCommitId(),
     buildTime: new Date().toISOString(),
