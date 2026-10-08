@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectRollingAppVersion } from "../../../scripts/rolling-app-version.mjs";
 
 const require = createRequire(import.meta.url);
 const moduleDir = import.meta.dirname;
@@ -57,6 +58,20 @@ function normalizeVersion(version) {
   return normalized || version;
 }
 
+/**
+ * 发布序号只服务 About 展示（官方构建显示"构建 #N"），由 CI 注入。
+ * 禁止进入版本串：它与 commitCount 不是同一套序列，混入会让自建构建（count 数千）
+ * 永远判新于官方构建（序号数百），官方更新推不到自建用户手上。
+ */
+function resolveReleaseBuildNumber() {
+  const raw = process.env.ZCODE_RELEASE_BUILD_NUMBER?.trim();
+  if (!raw || !/^\d+$/.test(raw)) {
+    return null;
+  }
+
+  return Number(raw);
+}
+
 function resolveInstalledPackageVersion(packageName, fallbackVersion) {
   try {
     const packageJsonPath = require.resolve(`${packageName}/package.json`, { paths: [desktopDir] });
@@ -80,13 +95,16 @@ function resolveCommitId() {
 }
 
 export function collectBuildMetadata() {
-  const rootPackageJson = readJson(resolve(workspaceDir, "package.json"));
   const desktopPackageJson = readJson(resolve(desktopDir, "package.json"));
+  // 版本串唯一来源：scripts/rolling-app-version.mjs，桌面 / server / web 构建同源。
+  const { appVersion, upstreamBaseline } = collectRollingAppVersion();
 
   return {
-    appVersion: normalizeVersion(rootPackageJson.version),
+    appVersion,
+    upstreamBaseline,
     buildCommitId: resolveCommitId(),
     buildTime: new Date().toISOString(),
+    releaseBuildNumber: resolveReleaseBuildNumber(),
     electronBuilderVersion: resolveInstalledPackageVersion(
       "electron-builder",
       desktopPackageJson.devDependencies?.["electron-builder"],
@@ -131,6 +149,6 @@ if (entryFilePath === currentFilePath) {
   const metadata = writeBuildMetadata();
   process.stdout.write(`[build-meta] wrote ${metadataPath}\n`);
   process.stdout.write(
-    `[build-meta] commit=${metadata.buildCommitId} time=${metadata.buildTime}\n`,
+    `[build-meta] version=${metadata.appVersion} commit=${metadata.buildCommitId} time=${metadata.buildTime}\n`,
   );
 }

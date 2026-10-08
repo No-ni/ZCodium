@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { build, type Plugin } from "esbuild";
+import { collectRollingAppVersion } from "../../scripts/rolling-app-version.mjs";
 import { validateRemoteServerBundle } from "./buildRemoteValidation.js";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
 import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
 import { createRemotePtyBuildPlugin } from "../../scripts/remote-pty-build.mjs";
 
-const { version } = JSON.parse(readFileSync("../../package.json", "utf-8"));
+// 版本串唯一来源：与桌面 app、web 同源（scripts/rolling-app-version.mjs）。
+// server --version 与部署校验读的是它，不能停留在 package.json 的上游基线上。
+const { appVersion: version } = collectRollingAppVersion();
 const { content: zcodeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
 
 /**

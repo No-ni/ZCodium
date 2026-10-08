@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { defineConfig } from "tsup";
@@ -9,10 +8,13 @@ const { loadBuiltinProviderConfig } = await import(
 const { stageThirdPartyNotices } = await import(
   pathToFileURL(resolve(import.meta.dirname, "../../scripts/third-party-notices.mjs")).href
 );
+const { collectRollingAppVersion } = await import(
+  pathToFileURL(resolve(import.meta.dirname, "../../scripts/rolling-app-version.mjs")).href
+);
 
 // tsup config 可能从不同 cwd 加载，基于配置文件自身目录解析仓库根 package.json。
-const rootPackageJsonPath = resolve(import.meta.dirname, "../../package.json");
-const { version } = JSON.parse(readFileSync(rootPackageJsonPath, "utf-8"));
+// 版本串唯一来源：与桌面 app、remote bundle 同源（scripts/rolling-app-version.mjs）。
+const { appVersion: version } = collectRollingAppVersion();
 
 const { environment: zcodeEnv, content: zcodeBuiltinProviderConfigJson } =
   await loadBuiltinProviderConfig();

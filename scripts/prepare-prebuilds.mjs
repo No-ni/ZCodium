@@ -35,6 +35,7 @@ import { prepareRemoteNode, REMOTE_NODE_VERSION } from "./remote-node-runtime.mj
 import { bundleRepositoryRemoteAssets } from "./bundle-remote-assets.mjs";
 import { validateBuiltinPluginAssets } from "./builtin-plugin-assets.mjs";
 import { stageCuaDriverRuntime } from "./cua-driver-runtime-assets.mjs";
+import { getBuildMetadata } from "../packages/desktop/scripts/build-metadata.mjs";
 export { DEFAULT_NODE_DIST_BASE, nodeDistBase } from "./remote-node-runtime.mjs";
 
 export { computeComponentSourceSha256, packComponentSourceAsArchive };
@@ -44,7 +45,10 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
 const desktopDir = join(rootDir, "packages/desktop");
 const mockCdnDir = join(desktopDir, "mock-cdn");
-const version = require(join(rootDir, "package.json")).version;
+// 版本串唯一来源：与 electron-builder beforePack 的 bundled-remote 校验、desktop-release collect
+// 的产物名匹配同源。直接读 package.json 会让 manifest.appVersion 停在裸基线上，与构建期滚动
+// 版本串漂移，beforePack 的相等校验必炸。getBuildMetadata 与打包侧读取同一函数，浅克隆告警也一致。
+const { appVersion: version } = getBuildMetadata();
 const agentVersion = require(join(rootDir, "apps/zcode-cli/package.json")).version;
 const releaseDir = join(mockCdnDir, "releases", version);
 const nodeVersion = REMOTE_NODE_VERSION;

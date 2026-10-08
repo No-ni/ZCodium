@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { tsImport } from "tsx/esm/api";
 import { verifyArchiveSha256 } from "./remote-node-runtime.mjs";
+import { getBuildMetadata } from "../packages/desktop/scripts/build-metadata.mjs";
 
 const { BUNDLED_REMOTE_MANIFEST, parseBundledRemoteManifest, remoteComponentRequiredPaths } =
   await tsImport("@zcode/shared/bundled-remote-assets", import.meta.url);
@@ -78,7 +79,9 @@ export async function bundleRemoteAssets({
 }
 
 export async function bundleRepositoryRemoteAssets(root) {
-  const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  // 版本串唯一来源：mock-cdn releases/<version> 目录名、manifest.appVersion 与打包侧
+  // beforePack 校验、collect 产物名必须同源；读 package.json 会拿到裸基线而找不到目录。
+  const { appVersion: version } = getBuildMetadata();
   const { stdout } = await run("git", ["rev-parse", "HEAD"], { cwd: root });
   const { stdout: dirty } = await run("git", ["status", "--porcelain", "--untracked-files=no"], {
     cwd: root,
@@ -94,8 +97,9 @@ export async function bundleRepositoryRemoteAssets(root) {
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const root = resolve(import.meta.dirname, "..");
+  // 与 bundleRepositoryRemoteAssets 同源：verify 的版本串必须等于 manifest.appVersion。
+  const { appVersion: version } = getBuildMetadata();
   if (process.argv[2] === "verify") {
-    const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
     await verifyBundledRemoteAssets(
       resolve(process.argv[3] || join(root, "packages/desktop/bundled-remote-assets")),
       version,

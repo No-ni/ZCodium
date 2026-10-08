@@ -14,8 +14,10 @@ import { createCustomAboutDialogHtml } from "./aboutWindow.js";
 
 interface DesktopBuildMetadata {
   appVersion?: string;
+  upstreamBaseline?: string;
   buildCommitId?: string;
   buildTime?: string;
+  releaseBuildNumber?: number | null;
   electronBuilderVersion?: string;
 }
 
@@ -23,6 +25,7 @@ interface AboutSnapshot {
   appVersion: string;
   buildCommitId: string;
   buildTime: string;
+  releaseBuildNumber: number | null;
   environment: string;
   electronVersion: string;
   electronBuilderVersion: string;
@@ -63,7 +66,7 @@ const ABOUT_MESSAGES: Record<
   Locale,
   {
     aboutTitle: string;
-    versionLabel: string;
+    buildLabel: string;
     okButtonLabel: string;
     optimizedForAppleSilicon: string;
     copyright: (year: number) => string;
@@ -71,14 +74,14 @@ const ABOUT_MESSAGES: Record<
 > = {
   "zh-CN": {
     aboutTitle: "关于 ZCodium Exp",
-    versionLabel: "版本",
+    buildLabel: "构建",
     okButtonLabel: "确定",
     optimizedForAppleSilicon: "已针对 Apple Silicon 优化。",
     copyright: (year) => `版权所有 © ${year} ZCodium Exp。`,
   },
   "en-US": {
     aboutTitle: "About ZCodium Exp",
-    versionLabel: "version",
+    buildLabel: "Build",
     okButtonLabel: "OK",
     optimizedForAppleSilicon: "Optimized for Apple Silicon.",
     copyright: (year) => `Copyright © ${year} ZCodium Exp.`,
@@ -155,6 +158,10 @@ export function createAboutSnapshot(options: AboutSnapshotOptions = {}): AboutSn
     appVersion: normalizeValue(options.appVersion ?? buildMetadata?.appVersion ?? ZCODE_VERSION),
     buildCommitId: normalizeValue(buildMetadata?.buildCommitId ?? ZCODE_COMMIT),
     buildTime: normalizeValue(buildMetadata?.buildTime ?? ZCODE_BUILD_TIME),
+    releaseBuildNumber:
+      typeof buildMetadata?.releaseBuildNumber === "number"
+        ? buildMetadata.releaseBuildNumber
+        : null,
     environment: normalizeValue(options.environment ?? ZCODE_ENV),
     electronVersion: normalizeValue(runtimeVersions.electron),
     electronBuilderVersion: resolveElectronBuilderVersion(buildMetadata),
@@ -170,9 +177,31 @@ export function createAboutSnapshot(options: AboutSnapshotOptions = {}): AboutSn
   };
 }
 
+/**
+ * About 展示的构建信息。滚动更新下不展示内部版本串（`3.14.3-20261008.1234`）：
+ * 官方发布构建带 CI 注入的发布序号，展示 `2026-10-08 · #4382`；
+ * 自建构建没有发布序号，展示短 commit id，让用户报问题时能直接定位源码。
+ */
+export function formatAboutBuildValue(
+  snapshot: Pick<AboutSnapshot, "buildTime" | "buildCommitId" | "releaseBuildNumber">,
+): string {
+  const buildDate = /^\d{4}-\d{2}-\d{2}/.exec(normalizeValue(snapshot.buildTime))?.[0];
+  const date = buildDate ?? "unknown";
+  const releaseBuildNumber = snapshot.releaseBuildNumber;
+  if (
+    typeof releaseBuildNumber === "number" &&
+    Number.isInteger(releaseBuildNumber) &&
+    releaseBuildNumber > 0
+  ) {
+    return `${date} · #${releaseBuildNumber}`;
+  }
+
+  return `${date} · ${normalizeValue(snapshot.buildCommitId)}`;
+}
+
 export function formatAboutDetail(snapshot: AboutSnapshot): string {
   return [
-    `Version: ${snapshot.appVersion}`,
+    `Build: ${formatAboutBuildValue(snapshot)}`,
     `Commit: ${snapshot.buildCommitId}`,
     `Build Time: ${snapshot.buildTime}`,
     `Environment: ${snapshot.environment}`,
@@ -258,10 +287,10 @@ export async function showAboutDialog(
     `data:text/html;charset=utf-8,${encodeURIComponent(
       createCustomAboutDialogHtml({
         applicationName: ABOUT_APPLICATION_NAME,
-        appVersion: snapshot.appVersion,
+        buildLabel: aboutMessages.buildLabel,
+        buildValue: formatAboutBuildValue(snapshot),
         copyright: formatAboutCopyright(undefined, locale),
         optimizationLine: formatAboutOptimizationLine(snapshot, locale),
-        versionLabel: aboutMessages.versionLabel,
         okButtonLabel: aboutMessages.okButtonLabel,
       }),
     )}`,

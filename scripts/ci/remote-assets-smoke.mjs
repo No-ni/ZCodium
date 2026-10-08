@@ -7,11 +7,13 @@ import { promisify } from "node:util";
 import { build } from "esbuild";
 import { createRemotePtyBuildPlugin } from "../remote-pty-build.mjs";
 import { verifyBundledRemoteAssets } from "../bundle-remote-assets.mjs";
+import { getBuildMetadata } from "../../packages/desktop/scripts/build-metadata.mjs";
 import { smokeCuaDriverRuntime } from "./cua-driver-smoke.mjs";
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../..");
-const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+// 与 bundleRepositoryRemoteAssets / beforePack 同源：校验的版本串必须等于 manifest.appVersion。
+const { appVersion: version } = getBuildMetadata();
 const { version: agentVersion } = JSON.parse(
   await readFile(join(root, "apps/zcode-cli/package.json"), "utf8"),
 );
