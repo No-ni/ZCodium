@@ -25,10 +25,30 @@ schema 而非产品版本，上游发版节奏也不等于本仓库节奏。版�
 - **上游基线**：根 `package.json` 的 `version` 字段，仅在同步上游发布时修改，**只升不降**。
   已发布过的基线禁止回退——semver 判定 `3.14.3-20261009.1` 大于 `3.15.0-20261008.3`，
   回退基线会让新构建被 updater 判旧（见"验收"）。
-- **日期段**：构建日，UTC，`YYYYMMDD`。
+- **日期段**：commit 的 committer date（UTC），`YYYYMMDD`。
 - **commitCount**：`git rev-list --count HEAD`。本地可复现、全局单调、不依赖 CI 编号。
 - 单调性全部由破折号后的 prerelease 段承担。**禁止把日期/序号放进 `+` build metadata**：
   semver 优先级比较忽略 build metadata，updater 看不见变化。
+
+### 版本串是 commit 的纯函数
+
+日期段取 committer date 而非构建时刻：同一 commit 在任意时间、任意 CI job（remote-assets /
+build / collect）派生出的版本串必须一致。三处消费依赖这一点——
+
+1. electron-builder `beforePack` 用 `context.packager.appInfo.version` 与 bundled-remote
+   manifest 的 `appVersion` 做**相等**校验（`parseBundledRemoteManifest`）；
+2. `scripts/ci/desktop-release.mjs collect` 按版本串匹配 electron-builder 产物名；
+3. `scripts/prepare-prebuilds.mjs` 写 mock-cdn manifest 时用同一版本串。
+
+三处都经 `getBuildMetadata()` 读取，不存在第二个版本来源。`check-version` 与 tag 发布路径
+仍读根 `package.json` 的上游基线（该路径随"删除 tag 触发"一并退役）。
+
+### 浅克隆禁令
+
+`actions/checkout` 默认 `depth=1`，浅克隆里 `rev-list --count HEAD` 恒为 1，同一天不同
+commit 会派生相同版本串，updater 漏推更新。CI 全部 checkout 必须 `fetch-depth: 0`
+（`.github/workflows/desktop.yml` 已加）；`build-metadata.mjs` 检测到浅克隆时显式告警，
+不静默产出撞号版本。非 git 检出（源码 tar 包）回退 `ZCODE_COMMIT_COUNT` 或 `0`。
 
 ### 用户可见面
 
@@ -105,7 +125,7 @@ debian/rpm/pacman 均按第一个 `-` 切成 `ver-rel`，各自比较算法对 `
 flowchart LR
     A["根 package.json<br/>version = 上游基线"] --> D
     B["git rev-list --count HEAD<br/>commitCount"] --> D
-    C["构建日 UTC<br/>YYYYMMDD"] --> D
+    C["commit committer date UTC<br/>YYYYMMDD"] --> D
     Z["ZCODE_RELEASE_BUILD_NUMBER<br/>仅 CI 注入，可空"] --> D
     D["build-metadata.mjs<br/>collectBuildMetadata"] --> E["appVersion<br/>基线-日期.N"]
     D --> Y["releaseBuildNumber<br/>展示专用"]
@@ -150,6 +170,8 @@ flowchart LR
 
 - 同一 commit 连续构建两次，版本串相同，updater 判定无更新；新 commit 构建版本串更大，
   updater 判定可更新。
+- remote-assets job 生成的 bundled-remote manifest 与 build job 的 `appInfo.version` 一致
+  （`beforePack` 相等校验通过）；collect 能找到全部产物。
 - 同步上游 bump 基线后，新构建版本串大于 bump 前所有构建。
 - 全部用户可见界面不出现版本号字符串；About 展示构建日期与上游基线。
 - main 推送触发完整构建与产物收集，不依赖 `v*` tag。

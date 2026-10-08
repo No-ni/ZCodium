@@ -83,6 +83,46 @@ function resolveUtcBuildDate(now = new Date()) {
   return now.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
+/**
+ * 版本串的日期段取 commit 的 committer date（UTC），不取构建时刻。
+ * 同一 commit 在任意时间、任意 CI job（remote-assets / build / collect）派生出的版本串必须一致：
+ * electron-builder beforePack 校验 bundled-remote manifest 的 appVersion 与此相等，
+ * collect 按此匹配产物名；跨 UTC 日的两次构建也不能让版本串漂移。
+ */
+function resolveCommitBuildDate() {
+  try {
+    const commitDate = execSync("git log -1 --format=%cI", {
+      cwd: workspaceDir,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    const utcDate = new Date(commitDate).toISOString().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(utcDate)) {
+      return utcDate.replace(/-/g, "");
+    }
+  } catch {
+    // 非 git 检出（源码 tar 包等）时回退构建日
+  }
+
+  return resolveUtcBuildDate();
+}
+
+function isShallowRepository() {
+  try {
+    return (
+      execSync("git rev-parse --is-shallow-repository", {
+        cwd: workspaceDir,
+        stdio: ["ignore", "pipe", "ignore"],
+      })
+        .toString()
+        .trim() === "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
 function resolveCommitCount() {
   try {
     const output = execSync("git rev-list --count HEAD", {
@@ -92,6 +132,14 @@ function resolveCommitCount() {
       .toString()
       .trim();
     if (NUMERIC_PATTERN.test(output)) {
+      if (isShallowRepository()) {
+        // 浅克隆（actions/checkout 默认 depth=1）里 rev-list 只见 graft 出来的少量 commit，
+        // count 不是全史序号：同一天不同 commit 会派生相同版本串，updater 会漏推更新。
+        // CI 必须 fetch-depth: 0；这里显式告警，避免静默产出撞号版本。
+        console.warn(
+          `[build-meta] shallow checkout: commitCount=${output} is not the full history count; CI must use fetch-depth: 0`,
+        );
+      }
       return output;
     }
   } catch {
@@ -146,7 +194,7 @@ export function collectBuildMetadata() {
   return {
     appVersion: formatRollingAppVersion(
       upstreamBaseline,
-      resolveUtcBuildDate(),
+      resolveCommitBuildDate(),
       resolveCommitCount(),
     ),
     upstreamBaseline,

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { copyFile, lstat, mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { resolveDesktopProductIdentity } from "../../packages/desktop/scripts/desktop-product-identity.mjs";
+import { getBuildMetadata } from "../../packages/desktop/scripts/build-metadata.mjs";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -185,11 +186,15 @@ async function main() {
     if (process.env.GITHUB_REF_TYPE === "tag") validateTag(process.env.GITHUB_REF_NAME, version);
     console.log(`Release version: ${version}`);
   } else if (command === "collect") {
+    // 产物名带的是构建期滚动版本串（electron-builder extraMetadata.version），
+    // 不是 package.json 的上游基线；collect 必须与打包侧同源读取，否则按基线名找不到产物。
+    const buildVersion = getBuildMetadata().appVersion;
+    validateVersion(buildVersion);
     await collectArtifacts(
       join(root, "packages/desktop/dist"),
       artifacts,
       platform,
-      version,
+      buildVersion,
       process.env.ZCODE_TARGET_ARCH,
       resolveDesktopProductIdentity(),
     );

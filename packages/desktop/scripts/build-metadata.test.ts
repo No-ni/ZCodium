@@ -43,6 +43,12 @@ describe("collectBuildMetadata", () => {
     expect(metadata.upstreamBaseline).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
+  // 日期段取 commit 的 committer date：同一 commit 在任意时间、任意 CI job 派生结果一致。
+  // electron-builder beforePack 校验 bundled-remote manifest 与此相等，collect 按此匹配产物名。
+  it("同一 commit 多次收集得到相同版本串", () => {
+    expect(collectBuildMetadata().appVersion).toBe(collectBuildMetadata().appVersion);
+  });
+
   it("未注入发布序号时 releaseBuildNumber 为 null（自建构建）", () => {
     delete process.env[RELEASE_BUILD_NUMBER_ENV];
     expect(collectBuildMetadata().releaseBuildNumber).toBeNull();

@@ -30,6 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # 全史检出：版本串的 commitCount 取 git rev-list --count HEAD，浅克隆会恒为 1，
+          # 同一天不同 commit 派生相同版本串，updater 漏推更新（见 packages/desktop/scripts/build-metadata.mjs）
+          fetch-depth: 0
           persist-credentials: false
       - name: Validate release version
         run: node scripts/ci/desktop-release.mjs check-version
@@ -123,6 +126,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
       - name: Build remote components from source
@@ -178,6 +182,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Install Linux packaging tools
         if: runner.os == 'Linux'
@@ -246,6 +251,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
       # 与 linux/win 同样下载 ubuntu 上产出的 Linux x64 远端运行时：
@@ -283,6 +289,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
         with:
