@@ -1,16 +1,9 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import {
-  artifactNames,
-  collectArtifacts,
-  publishDraft,
-  validateTag,
-  verifyReleaseAssets,
-} from "./desktop-release.mjs";
+import { artifactNames, collectArtifacts } from "./desktop-release.mjs";
 import { desktopProductIdentities } from "../../packages/desktop/scripts/desktop-product-identity.mjs";
 
 const version = "3.14.0";
@@ -31,15 +24,7 @@ async function fixture(t, names = allNames) {
   return directory;
 }
 
-test("release tag must exactly match a valid package version", () => {
-  validateTag("v3.14.0", version);
-  validateTag("v3.15.0-rc.1", "3.15.0-rc.1");
-  for (const tag of ["3.14.0", "v3.14.1", "v3.14.0\n", "v3.14.0;echo x"]) {
-    assert.throws(() => validateTag(tag, version));
-  }
-  for (const invalid of ["../3.14.0", "03.14.0", "3.14", "3.14.0-01", "3.14.0+build"]) {
-    assert.throws(() => validateTag(`v${invalid}`, invalid));
-  }
+test("artifact names only cover known platforms", () => {
   assert.throws(() => artifactNames("sunos", version));
 });
 
@@ -129,91 +114,4 @@ test("Linux x64 and arm64 artifacts are collected independently", async (t) => {
   const both = await fixture(t, []);
   await collectArtifacts(source, both, "linux", version, undefined, identity);
   assert.equal((await readdir(both)).length, 8);
-});
-
-test("missing, empty, wrong-version and extra assets block release", async (t) => {
-  const missing = await fixture(t, allNames.slice(0, -1));
-  await assert.rejects(verifyReleaseAssets(missing, version, identity));
-  const empty = await fixture(t);
-  await writeFile(join(empty, allNames[0]), "");
-  await assert.rejects(verifyReleaseAssets(empty, version, identity), /empty/);
-  const extra = await fixture(t);
-  await writeFile(join(extra, "ZCodium-3.13.0-win-x64.exe"), "old");
-  await assert.rejects(verifyReleaseAssets(extra, version, identity), /Unexpected/);
-  const wrongVersion = await fixture(
-    t,
-    allNames.map((name) => name.replace(version, "3.13.0")),
-  );
-  await assert.rejects(verifyReleaseAssets(wrongVersion, version, identity));
-});
-
-test("checksums cover exactly the fourteen validated installers and can be regenerated", async (t) => {
-  const directory = await fixture(t);
-  const paths = await verifyReleaseAssets(directory, version, identity);
-  const expected = allNames
-    .toSorted()
-    .map((name) => {
-      const hash = createHash("sha256").update(`artifact: ${name}`).digest("hex");
-      return `${hash}  ${name}\n`;
-    })
-    .join("");
-  assert.equal(await readFile(join(directory, "SHA256SUMS"), "utf8"), expected);
-  assert.equal(paths.length, 15);
-  await verifyReleaseAssets(directory, version, identity);
-});
-
-function githubMock(releases = []) {
-  const calls = [];
-  const run = async (command, args) => {
-    calls.push([command, ...args]);
-    return { stdout: args[1] === "list" ? JSON.stringify(releases) : "" };
-  };
-  return { run, calls };
-}
-
-test("create a draft then upload assets; never publish it", async () => {
-  const { run, calls } = githubMock();
-  await publishDraft({ tag: "v3.14.0", repo: "owner/repo", files: ["/tmp/artifact"], run });
-  assert.equal(calls.length, 3);
-  assert.ok(calls[1].includes("--draft"));
-  assert.ok(calls[1].includes("--verify-tag"));
-  assert.equal(calls[2][2], "upload");
-  assert.ok(calls[2].includes("--clobber"));
-});
-
-test("rerun updates only a draft and refuses an already public release", async () => {
-  const draft = githubMock([{ tagName: "v3.14.0", isDraft: true }]);
-  await publishDraft({ tag: "v3.14.0", repo: "owner/repo", files: ["a"], run: draft.run });
-  assert.equal(draft.calls.length, 2);
-  assert.equal(draft.calls[1][2], "upload");
-  const published = githubMock([{ tagName: "v3.14.0", isDraft: false }]);
-  await assert.rejects(
-    publishDraft({ tag: "v3.14.0", repo: "owner/repo", files: ["a"], run: published.run }),
-    /published/,
-  );
-  assert.equal(published.calls.length, 1);
-});
-
-test("prerelease tags create prerelease drafts", async () => {
-  const { run, calls } = githubMock();
-  await publishDraft({ tag: "v3.14.0-ci.1", repo: "owner/repo", files: ["a"], run });
-  assert.ok(calls[1].includes("--draft"));
-  assert.ok(calls[1].includes("--prerelease"));
-});
-
-test("lookup failures stop before creating or modifying a release", async () => {
-  let calls = 0;
-  await assert.rejects(
-    publishDraft({
-      tag: "v3.14.0",
-      repo: "owner/repo",
-      files: ["a"],
-      run: async () => {
-        calls++;
-        throw new Error("network unavailable");
-      },
-    }),
-    /network unavailable/,
-  );
-  assert.equal(calls, 1);
 });

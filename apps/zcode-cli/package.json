@@ -21,8 +21,6 @@
     "prompt-trajectory:model-io": "pnpm --filter @zcode/prompt-trajectory model-io --",
     "registry:check": "node scripts/generate-bash-command-registry.mjs --check",
     "registry:generate": "node scripts/generate-bash-command-registry.mjs",
-    "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",
-    "release:dry": "pnpm run release --release-version",
     "sea": "pnpm --filter @zcode/cli sea",
     "typecheck": "turbo run typecheck"
   },
