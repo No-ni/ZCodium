@@ -1744,6 +1744,8 @@ const enUS: Record<string, string> = {
   "webRemoteControl.trigger": "Mobile remote control",
   "webRemoteControl.title": "Mobile remote control",
   "webRemoteControl.description": "Control ZCode workspaces through chat bots.",
+  "webRemoteControl.tab.qr": "Scan to connect",
+  "webRemoteControl.tab.bots": "Bot channels",
   "webRemoteControl.botChannel.title": "Use a bot channel",
   "webRemoteControl.botChannel.description": "Connect a chat bot for longer-running mobile access.",
   "webRemoteControl.botChannel.weixin.title": "Weixin",

@@ -1628,6 +1628,8 @@ const zhCN: Record<string, string> = {
   "webRemoteControl.trigger": "移动端远程控制",
   "webRemoteControl.title": "移动端远程控制",
   "webRemoteControl.description": "通过聊天机器人控制 ZCode 工作区。",
+  "webRemoteControl.tab.qr": "扫码连接",
+  "webRemoteControl.tab.bots": "Bot 渠道",
   "webRemoteControl.botChannel.title": "使用 Bot Channel",
   "webRemoteControl.botChannel.description": "连接聊天 Bot，适合更长时间的移动端访问。",
   "webRemoteControl.botChannel.weixin.title": "微信",
