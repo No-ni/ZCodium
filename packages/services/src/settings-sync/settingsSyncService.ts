@@ -26,6 +26,7 @@ import type {
   SettingsSyncSourceRootSummary,
   SettingsSyncTaskImportResult,
 } from "@zcode/shared";
+import { withFileLock } from "@zcode/shared/node";
 import {
   copyFile,
   cp,
@@ -1141,19 +1142,24 @@ async function writeJsonFile(filePath: string, value: Record<string, unknown>): 
 }
 
 async function addPluginDirToConfig(filePath: string, pluginPath: string): Promise<void> {
-  const parsed = await readJsonFileOrEmpty(filePath);
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  const dirs = readStringArray(plugins.dirs);
-  const resolvedPluginPath = resolve(pluginPath);
-  if (dirs.map((item) => resolve(item)).includes(resolvedPluginPath)) {
-    return;
-  }
-  await writeJsonFile(filePath, {
-    ...parsed,
-    plugins: {
-      ...plugins,
-      dirs: [...dirs, resolvedPluginPath],
-    },
+  // Bug 原因：global scope 的 filePath 就是 ~/.zcodium/cli/config.json，由 Main、Host 与 CLI
+  // 共同写入；修复前锁外读、锁外写会用旧快照覆盖其他写入方刚写入的字段。
+  // 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+  await withFileLock(filePath, async () => {
+    const parsed = await readJsonFileOrEmpty(filePath);
+    const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+    const dirs = readStringArray(plugins.dirs);
+    const resolvedPluginPath = resolve(pluginPath);
+    if (dirs.map((item) => resolve(item)).includes(resolvedPluginPath)) {
+      return;
+    }
+    await writeJsonFile(filePath, {
+      ...parsed,
+      plugins: {
+        ...plugins,
+        dirs: [...dirs, resolvedPluginPath],
+      },
+    });
   });
 }
 

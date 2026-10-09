@@ -42,6 +42,7 @@ import {
   migrateUserSubagentMarkdown,
   migrateSubagentStateFile,
   scanOfficialPluginCacheRoots,
+  withFileLock,
 } from "@zcode/shared/node";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 
@@ -157,42 +158,68 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function readAgentStateFile(options?: SubagentsServiceOptions): Promise<AgentsStateFile> {
-  await migrateSubagentStateFile(await resolveSubagentStateFile(options));
+function normalizeAgentsStateFile(parsed: unknown): AgentsStateFile {
+  const record = (
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {}
+  ) as {
+    builtInModelSelectionOverrides?: unknown;
+    pluginAgentModelSelectionOverrides?: unknown;
+    builtInModelOverrides?: unknown;
+    builtInThoughtLevelOverrides?: unknown;
+    disabledAgentIds?: unknown;
+  };
+  const selections = normalizeBuiltInSelectionOverrides(record.builtInModelSelectionOverrides);
+  return {
+    ...record,
+    builtInModelSelectionOverrides: selections,
+    pluginAgentModelSelectionOverrides: parsePluginSubagentModelSelectionOverrides(
+      record.pluginAgentModelSelectionOverrides,
+    ),
+    disabledAgentIds: Array.isArray(record.disabledAgentIds)
+      ? record.disabledAgentIds.filter(
+          (id): id is string => typeof id === "string" && id.trim().length > 0,
+        )
+      : [],
+  };
+}
+
+async function readAgentStateFileRaw(options?: SubagentsServiceOptions): Promise<AgentsStateFile> {
   try {
     const raw = await readFile(await resolveSubagentStateFile(options), "utf-8");
-    const parsed = JSON.parse(raw) as {
-      builtInModelSelectionOverrides?: unknown;
-      pluginAgentModelSelectionOverrides?: unknown;
-      builtInModelOverrides?: unknown;
-      builtInThoughtLevelOverrides?: unknown;
-      disabledAgentIds?: unknown;
-    };
-    const selections = normalizeBuiltInSelectionOverrides(parsed.builtInModelSelectionOverrides);
-    return {
-      ...parsed,
-      builtInModelSelectionOverrides: selections,
-      pluginAgentModelSelectionOverrides: parsePluginSubagentModelSelectionOverrides(
-        parsed.pluginAgentModelSelectionOverrides,
-      ),
-      disabledAgentIds: Array.isArray(parsed.disabledAgentIds)
-        ? parsed.disabledAgentIds.filter(
-            (id): id is string => typeof id === "string" && id.trim().length > 0,
-          )
-        : [],
-    };
+    return normalizeAgentsStateFile(JSON.parse(raw));
   } catch {
     return emptyAgentsState();
   }
 }
 
-async function writeAgentStateFile(
-  next: AgentsStateFile,
+async function readAgentStateFile(options?: SubagentsServiceOptions): Promise<AgentsStateFile> {
+  await migrateSubagentStateFile(await resolveSubagentStateFile(options));
+  return readAgentStateFileRaw(options);
+}
+
+/**
+ * 在跨进程锁内完成 agents-state.json 的读-改-写。
+ *
+ * Bug 原因：该文件由 Host 与 CLI 共同写，CLI 的 migrateSubagentStateFile 已持锁而 Host 侧
+ * 读写在锁外，后写方用旧快照整文件覆盖对方刚写入的覆盖项（跨进程丢更新）。
+ * 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+ *
+ * 迁移在锁外先行：migrateSubagentStateFile 自己会拿同一文件的锁，嵌套会导致同进程重入死等。
+ */
+async function updateAgentStateFile(
+  update: (state: AgentsStateFile) => AgentsStateFile | Promise<AgentsStateFile>,
   options?: SubagentStorageOptions,
-): Promise<void> {
+): Promise<AgentsStateFile> {
   const stateFile = await resolveSubagentStateFile(options);
-  await mkdir(dirname(stateFile), { recursive: true });
-  await atomicWriteText(stateFile, JSON.stringify(next, null, 2));
+  await migrateSubagentStateFile(stateFile);
+  return withFileLock(stateFile, async () => {
+    // 锁内只用不迁移的裸读：migrateSubagentStateFile 自己会拿同一文件的锁，嵌套会重入死等。
+    const next = await update(await readAgentStateFileRaw(options));
+    await mkdir(dirname(stateFile), { recursive: true });
+    // 调用方已持跨进程锁，内层再加锁会自我等待到超时。
+    await atomicWriteText(stateFile, JSON.stringify(next, null, 2), { useFileLock: false });
+    return next;
+  });
 }
 
 async function discoverFileAgents(params: {
@@ -637,16 +664,17 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     },
 
     async setEnabled(params: { agentId: string; enabled: boolean }): Promise<void> {
-      const runUpdate = async () => {
-        const state = await readAgentStateFile(storageOptions);
-        const previous = new Set(state.disabledAgentIds);
-        if (params.enabled) {
-          previous.delete(params.agentId);
-        } else {
-          previous.add(params.agentId);
-        }
-        state.disabledAgentIds = [...previous].sort();
-        await writeAgentStateFile(state, storageOptions);
+      const runUpdate = async (): Promise<void> => {
+        await updateAgentStateFile((state) => {
+          const previous = new Set(state.disabledAgentIds);
+          if (params.enabled) {
+            previous.delete(params.agentId);
+          } else {
+            previous.add(params.agentId);
+          }
+          state.disabledAgentIds = [...previous].sort();
+          return state;
+        }, storageOptions);
       };
 
       const queued = writeQueue.then(runUpdate, runUpdate);
@@ -655,24 +683,19 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     },
 
     async setBuiltInModelOverride(params: BuiltInSubagentModelOverrideParams): Promise<void> {
-      const runUpdate = async () => {
-        const state = await readAgentStateFile(storageOptions);
-        const builtInModelSelectionOverrides = {
-          ...state.builtInModelSelectionOverrides,
-        };
-        const modelSelection = normalizeSubagentModelSelection(params.modelSelection);
-        if (modelSelection) {
-          builtInModelSelectionOverrides[params.agentName] = modelSelection;
-        } else {
-          delete builtInModelSelectionOverrides[params.agentName];
-        }
-        await writeAgentStateFile(
-          {
-            ...state,
-            builtInModelSelectionOverrides,
-          },
-          storageOptions,
-        );
+      const runUpdate = async (): Promise<void> => {
+        await updateAgentStateFile((state) => {
+          const builtInModelSelectionOverrides = {
+            ...state.builtInModelSelectionOverrides,
+          };
+          const modelSelection = normalizeSubagentModelSelection(params.modelSelection);
+          if (modelSelection) {
+            builtInModelSelectionOverrides[params.agentName] = modelSelection;
+          } else {
+            delete builtInModelSelectionOverrides[params.agentName];
+          }
+          return { ...state, builtInModelSelectionOverrides };
+        }, storageOptions);
       };
 
       const queued = writeQueue.then(runUpdate, runUpdate);
@@ -683,16 +706,14 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     async setPluginAgentModelOverride(params: PluginSubagentModelOverrideParams): Promise<void> {
       if (!params.agentId.startsWith("plugin:") || params.agentId.trim() !== params.agentId)
         throw new Error("无效插件 Subagent 身份");
-      const runUpdate = async () => {
-        const state = await readAgentStateFile(storageOptions);
-        const overrides = { ...state.pluginAgentModelSelectionOverrides };
-        const selection = normalizeSubagentModelSelection(params.modelSelection);
-        if (selection) overrides[params.agentId] = selection;
-        else delete overrides[params.agentId];
-        await writeAgentStateFile(
-          { ...state, pluginAgentModelSelectionOverrides: overrides },
-          storageOptions,
-        );
+      const runUpdate = async (): Promise<void> => {
+        await updateAgentStateFile((state) => {
+          const overrides = { ...state.pluginAgentModelSelectionOverrides };
+          const selection = normalizeSubagentModelSelection(params.modelSelection);
+          if (selection) overrides[params.agentId] = selection;
+          else delete overrides[params.agentId];
+          return { ...state, pluginAgentModelSelectionOverrides: overrides };
+        }, storageOptions);
       };
       const queued = writeQueue.then(runUpdate, runUpdate);
       writeQueue = queued.catch(() => {});
@@ -761,11 +782,12 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     async deleteAgent(params: AgentDeleteParams): Promise<void> {
       await rm(params.filePath, { force: true });
 
-      const state = await readAgentStateFile(storageOptions);
-      const disabledSet = new Set(state.disabledAgentIds);
-      disabledSet.delete(params.agentId);
-      state.disabledAgentIds = [...disabledSet].sort();
-      await writeAgentStateFile(state, storageOptions);
+      await updateAgentStateFile((state) => {
+        const disabledSet = new Set(state.disabledAgentIds);
+        disabledSet.delete(params.agentId);
+        state.disabledAgentIds = [...disabledSet].sort();
+        return state;
+      }, storageOptions);
     },
   };
 }
@@ -803,20 +825,15 @@ async function migrateDisabledAgentId(
   if (previousAgentId === nextAgentId) {
     return;
   }
-  const state = await readAgentStateFile(options);
-  const disabledSet = new Set(state.disabledAgentIds);
-  if (!disabledSet.has(previousAgentId)) {
-    return;
-  }
-  disabledSet.delete(previousAgentId);
-  disabledSet.add(nextAgentId);
-  await writeAgentStateFile(
-    {
-      ...state,
-      disabledAgentIds: [...disabledSet].sort(),
-    },
-    options,
-  );
+  await updateAgentStateFile((state) => {
+    const disabledSet = new Set(state.disabledAgentIds);
+    if (!disabledSet.has(previousAgentId)) {
+      return state;
+    }
+    disabledSet.delete(previousAgentId);
+    disabledSet.add(nextAgentId);
+    return { ...state, disabledAgentIds: [...disabledSet].sort() };
+  }, options);
 }
 
 function normalizeConfig(config: SubAgentConfig): SubAgentConfig {

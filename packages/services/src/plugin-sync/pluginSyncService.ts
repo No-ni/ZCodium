@@ -1,5 +1,6 @@
 import { ZCODE_PLUGIN_MANIFEST_DIR_NAME, ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 /* eslint-disable max-lines -- plugin 同步需要集中维护候选扫描、归档安全、远端判重和配置写入，拆分会增加远端同步回归面。 */
+import { withFileLock } from "@zcode/shared/node";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
@@ -909,30 +910,35 @@ async function addPluginDirToUserConfig(
   enabledOverride: boolean | undefined,
 ): Promise<void> {
   const filePath = getUserZcodeConfigPath();
-  const parsed = await readJsonFileOrEmpty(filePath);
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  const resolvedPluginPath = resolve(pluginPath);
-  const dirs = readStringArray(plugins.dirs);
-  const nextDirs = dirs.map((item) => resolve(item)).includes(resolvedPluginPath)
-    ? dirs
-    : [...dirs, resolvedPluginPath];
-  const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
-  await writeJsonFileAtomic(filePath, {
-    ...parsed,
-    plugins: {
-      ...plugins,
-      dirs: nextDirs,
-      ...(enabledOverride !== undefined
-        ? {
-            enabledPlugins: {
-              ...enabledPlugins,
-              [pluginId]: enabledOverride,
-            },
-          }
-        : Object.keys(enabledPlugins).length > 0
-          ? { enabledPlugins }
-          : {}),
-    },
+  // Bug 原因：config.json 由 Main、Host 与 CLI 共同写入，读改写整体必须在同一把跨进程锁内；
+  // 修复前锁外读、锁外写会用旧快照覆盖其他写入方刚写入的字段。
+  // 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+  await withFileLock(filePath, async () => {
+    const parsed = await readJsonFileOrEmpty(filePath);
+    const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+    const resolvedPluginPath = resolve(pluginPath);
+    const dirs = readStringArray(plugins.dirs);
+    const nextDirs = dirs.map((item) => resolve(item)).includes(resolvedPluginPath)
+      ? dirs
+      : [...dirs, resolvedPluginPath];
+    const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
+    await writeJsonFileAtomic(filePath, {
+      ...parsed,
+      plugins: {
+        ...plugins,
+        dirs: nextDirs,
+        ...(enabledOverride !== undefined
+          ? {
+              enabledPlugins: {
+                ...enabledPlugins,
+                [pluginId]: enabledOverride,
+              },
+            }
+          : Object.keys(enabledPlugins).length > 0
+            ? { enabledPlugins }
+            : {}),
+      },
+    });
   });
 }
 

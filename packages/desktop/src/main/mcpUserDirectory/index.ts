@@ -20,6 +20,7 @@ import type {
   NativeMcpServerRecord,
   SaveCliMcpToUserDirectoryRequest,
 } from "@zcode/shared";
+import { withFileLock } from "@zcode/shared/node";
 import type { McpConfigKeyName } from "./types.js";
 import { isRecord, readJsonObject, writeTextAtomic } from "./utils.js";
 import { migrateLegacyCommonMcp } from "./legacy.js";
@@ -249,11 +250,16 @@ async function cleanupLegacyMcpEnabledOverride(
   location: SettingsDirectoryLocation,
   name: string,
 ): Promise<void> {
-  const userConfig = await readUserCliConfig();
-  const result = removeLegacyMcpEnabledOverride(userConfig, location, name);
-  if (result.changed) {
-    await writeUserCliConfig(result.config);
-  }
+  // Bug 原因：config.json 由 Main、Host 与 CLI 共同写入，读改写整体必须在同一把跨进程锁内；
+  // 修复前锁外读、锁外写会用旧快照覆盖其他写入方刚写入的字段。
+  // 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+  await withFileLock(getUserCliConfigPath(), async () => {
+    const userConfig = await readUserCliConfig();
+    const result = removeLegacyMcpEnabledOverride(userConfig, location, name);
+    if (result.changed) {
+      await writeUserCliConfig(result.config);
+    }
+  });
 }
 
 async function writeServerEnabledToFile(
@@ -265,25 +271,28 @@ async function writeServerEnabledToFile(
   const scope: Exclude<McpScope, "common"> = location.scope === "project" ? "workspace" : "user";
   const workspacePath = scope === "workspace" ? location.projectPath : undefined;
   const filePath = buildDirectoryConfigPath(descriptor, scope, workspacePath);
-  const current = (await readJsonObject(filePath)) ?? {};
-  const serverMap = readServerMapFromJson(current, descriptor.configKeyName);
-  const currentServer = serverMap[name];
-  if (!isRecord(currentServer)) {
-    return;
-  }
+  // 读改写持跨进程锁（与 Node Host、CLI 共享同一文件），避免并发丢更新。
+  await withFileLock(filePath, async () => {
+    const current = (await readJsonObject(filePath)) ?? {};
+    const serverMap = readServerMapFromJson(current, descriptor.configKeyName);
+    const currentServer = serverMap[name];
+    if (!isRecord(currentServer)) {
+      return;
+    }
 
-  // MCP 自身已有 mcp.servers/mcpServers 结构；禁用状态写在 server 配置对象内，
-  // 避免把目录路径写到 mcp 顶层后和真实 MCP 配置混在一起。
-  const nextServerMap = {
-    ...serverMap,
-    [name]: setServerEnabled(currentServer, enabled),
-  };
-  let next = writeServerMapToJson(current, descriptor.configKeyName, nextServerMap);
-  const legacyCleanup = removeLegacyMcpEnabledOverride(next, location, name);
-  if (legacyCleanup.changed) {
-    next = legacyCleanup.config;
-  }
-  await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
+    // MCP 自身已有 mcp.servers/mcpServers 结构；禁用状态写在 server 配置对象内，
+    // 避免把目录路径写到 mcp 顶层后和真实 MCP 配置混在一起。
+    const nextServerMap = {
+      ...serverMap,
+      [name]: setServerEnabled(currentServer, enabled),
+    };
+    let next = writeServerMapToJson(current, descriptor.configKeyName, nextServerMap);
+    const legacyCleanup = removeLegacyMcpEnabledOverride(next, location, name);
+    if (legacyCleanup.changed) {
+      next = legacyCleanup.config;
+    }
+    await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
+  });
 }
 
 async function readDirectoryServersFromFile(
@@ -304,9 +313,12 @@ async function readDirectoryServersFromFile(
     if (migration.changed) {
       // 就地把存量 enable 折叠成 enabled 并落盘，用户无感；没有残留时不写文件，保证幂等。
       // 写盘失败（只读目录、权限不足等）不应阻断加载：内存结果已是正确口径，下次加载会重试。
+      // 迁移也是读改写，同样持跨进程锁，避免与并发写入方互相覆盖。
       try {
-        const next = writeServerMapToJson(parsed, descriptor.configKeyName, serverMap);
-        await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
+        await withFileLock(filePath, async () => {
+          const next = writeServerMapToJson(parsed, descriptor.configKeyName, serverMap);
+          await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
+        });
       } catch (error) {
         console.warn(
           ...safeLogArgs(["[mcp-user-directory] legacy enable migration failed:", error]),
@@ -360,9 +372,12 @@ async function writeZCodeServersToFile(
   workspacePath?: string,
 ): Promise<void> {
   const filePath = buildDirectoryConfigPath(ZCODE_MCP_DESCRIPTOR, scope, workspacePath);
-  const current = (await readJsonObject(filePath)) ?? {};
-  const next = writeServerMapToJson(current, ZCODE_MCP_DESCRIPTOR.configKeyName, servers);
-  await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
+  // 读改写持跨进程锁（与 Node Host、CLI 共享同一文件），避免并发丢更新。
+  await withFileLock(filePath, async () => {
+    const current = (await readJsonObject(filePath)) ?? {};
+    const next = writeServerMapToJson(current, ZCODE_MCP_DESCRIPTOR.configKeyName, servers);
+    await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
+  });
 }
 
 export async function loadCliMcpFromUserDirectory(
