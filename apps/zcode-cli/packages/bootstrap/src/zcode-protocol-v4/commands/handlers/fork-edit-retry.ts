@@ -9,6 +9,8 @@ import type {
   CommandPayloadMap,
   CommandResult,
 } from "@zcode/shared/zcode-protocol-v4";
+import type { SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
+import type { ModelSelection } from "@zcode/shared";
 import {
   RewindStrategy,
   traceContextToLogContext,
@@ -214,6 +216,11 @@ async function editUserQuery(
     payload.newText,
     attachmentRefs,
     attachments,
+    {
+      modelSelection: payload.modelSelection,
+      mode: payload.mode,
+      planEnabled: payload.planEnabled,
+    },
   );
   // 生产 renderer 不落日志，过去只能从通用 rewind + send 猜测发生过编辑，
   // 无法与 retry 稳定区分。命令副作用完成后由 Agent server 写低频 info 审计索引。
@@ -268,6 +275,11 @@ async function retryTurn(
     resolution.editTarget.intent.text,
     attachmentRefs,
     attachments,
+    {
+      modelSelection: payload.modelSelection,
+      mode: payload.mode,
+      planEnabled: payload.planEnabled,
+    },
   );
   return undefined;
 }
@@ -334,6 +346,23 @@ function stableAttachmentRefs(editTarget: ConversationEditTarget) {
   );
 }
 
+/**
+ * edit/retry 的 Submission 选择：payload 显式字段 > canonical intent 原值。
+ * Renderer 新发送端在确认编辑/点击重试瞬间冻结当前 Composer 选择随命令提交；
+ * 旧发送端缺省时沿用被编辑轮提交时的原参数，保持历史行为（迁移期兜底）。
+ */
+function resolveSubmissionOverride(payload: {
+  modelSelection?: unknown;
+  mode?: unknown;
+  planEnabled?: unknown;
+}): { modelSelection?: ModelSelection; mode?: SubmissionMode; planEnabled?: boolean } {
+  return {
+    ...(payload.modelSelection ? { modelSelection: payload.modelSelection as ModelSelection } : {}),
+    ...(payload.mode ? { mode: payload.mode as SubmissionMode } : {}),
+    ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled as boolean } : {}),
+  };
+}
+
 async function startCanonicalIntent(
   host: V4CommandCoreHost,
   record: V4SessionRecordView,
@@ -342,6 +371,7 @@ async function startCanonicalIntent(
   text: string,
   attachmentRefs: ReturnType<typeof stableAttachmentRefs>,
   attachments: Awaited<ReturnType<typeof mapAttachmentRefsToTurnAttachments>>,
+  submissionOverride?: { modelSelection?: unknown; mode?: unknown; planEnabled?: unknown },
 ): Promise<void> {
   const intent = inputIntentMetadataFromCanonical(
     envelope,
@@ -354,9 +384,7 @@ async function startCanonicalIntent(
       requestedDelivery: editTarget.intent.requestedDelivery,
       admittedDelivery: editTarget.intent.admittedDelivery,
       fallbackReasonCode: editTarget.intent.fallbackReasonCode,
-      modelSelection: editTarget.intent.modelSelection,
-      mode: editTarget.intent.mode,
-      planEnabled: editTarget.intent.planEnabled,
+      ...resolveSubmissionOverride(submissionOverride ?? {}),
       attachmentRefs,
       provenance: editTarget.intent.provenance,
     },

@@ -399,7 +399,9 @@ function submissionConfigFromCommand(
       ? (payload.firstInput as Record<string, unknown> | undefined)
       : type === "sendText" || type === "sendGoalCommand"
         ? payload
-        : undefined;
+        : type === "editUserQuery" || type === "retryTurn"
+          ? payload
+          : undefined;
   if (!candidate?.modelSelection || !candidate.mode) return null;
   return {
     modelSelection: candidate.modelSelection as ComposerSubmissionConfig["modelSelection"],
@@ -2875,6 +2877,8 @@ export function SessionPane({
         logger.warn("[v4-pane] edit 跳过：行内编辑内容为空且无附件");
         return false;
       }
+      // 与 sendText 同源：确认编辑那一刻冻结，await 之后用户再切模不影响本次重发。
+      const submission = createSubmissionFromComposer();
       const ack = await dispatchCommand(
         "editUserQuery",
         {
@@ -2884,6 +2888,7 @@ export function SessionPane({
           // editUserQuery 的 attachments 缺省表示保留 canonical 原附件；
           // 只有显式透传 []，CLI 才能区分“用户删除全部”与“调用方未修改附件”。
           ...(attachments ? { attachments: [...attachments] } : {}),
+          ...(submission ? { ...submission } : {}),
         },
         sessionId,
         current.revision,
@@ -2896,7 +2901,7 @@ export function SessionPane({
       // fork ACK 只做旧协议解码兼容；新 edit 永不导航 child。blocked 由行内冲突弹窗处理。
       return ack;
     },
-    [dispatchCommand, sessionId],
+    [createSubmissionFromComposer, dispatchCommand, sessionId],
   );
 
   const dispatchRetryTurn = useCallback(
@@ -2905,16 +2910,22 @@ export function SessionPane({
       if (!sessionId || current === null) {
         throw new Error("retryTurn 缺少当前 session 投影");
       }
+      // 重试同 edit：点击那一刻冻结 Composer 当前选择随命令提交，
+      // CLI 以它覆盖被重试轮提交时的历史模型/模式。
+      const submission = createSubmissionFromComposer();
       // retryTurn 是 CAS 命令：baseRevision 取当前投影 revision。
       return dispatchCommand(
         "retryTurn",
-        { target },
+        {
+          target,
+          ...(submission ? { ...submission } : {}),
+        },
         sessionId,
         current.revision,
         current.logEpoch,
       );
     },
-    [dispatchCommand, sessionId],
+    [createSubmissionFromComposer, dispatchCommand, sessionId],
   );
 
   const handleRetry = useCallback(

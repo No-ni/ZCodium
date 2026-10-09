@@ -270,6 +270,10 @@ interface InputCommandForAdmission {
   admittedDelivery?: ConversationInputIntent["delivery"]["admitted"];
   fallbackReasonCode?: string;
   provenance?: ConversationInputIntent["provenance"];
+  /** edit/retry 的当前 Submission 选择：payload 显式携带时覆盖 canonical 原值。 */
+  modelSelection?: ConversationInputIntent["modelSelection"];
+  mode?: ConversationInputIntent["mode"];
+  planEnabled?: ConversationInputIntent["planEnabled"];
 }
 
 type ResolveAdmissionRowTarget = (
@@ -359,6 +363,9 @@ function resolveInputCommandForAdmission(
     target: { rowId: number; entityId: string };
     newText?: string;
     attachments?: AttachmentRef[];
+    modelSelection?: InputCommandForAdmission["modelSelection"];
+    mode?: InputCommandForAdmission["mode"];
+    planEnabled?: InputCommandForAdmission["planEnabled"];
   };
   const resolution = resolveRowTarget(envelope.sessionId, payload.target, envelope.type);
   if (!resolution?.ok || !resolution.editTarget) return null;
@@ -377,6 +384,11 @@ function resolveInputCommandForAdmission(
       envelope.type === "editUserQuery" && payload.attachments
         ? payload.attachments
         : admissionAttachmentRefs(canonical.intent.attachments),
+    // edit/retry 重发是一次新的 Submission：模型/模式/计划开关在命令里显式携带时
+    // 以命令为准（Renderer 确认瞬间冻结的当前选择）；缺省保留 canonical 原值兜底旧发送端。
+    ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
+    ...(payload.mode ? { mode: payload.mode } : {}),
+    ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
     ...(canonical.intent.requestedDelivery
       ? { requestedDelivery: canonical.intent.requestedDelivery }
       : {}),
@@ -437,6 +449,9 @@ function buildForkInitialInput(
       : { state: "notRequested" },
     dispatch: { state: "admitted" },
     admittedAt: admission.admittedAt,
+    ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
+    ...(input.mode ? { mode: input.mode } : {}),
+    ...(input.planEnabled !== undefined ? { planEnabled: input.planEnabled } : {}),
     ...(input.provenance ? { provenance: input.provenance } : {}),
   });
   return {
@@ -780,6 +795,9 @@ export function createConversationV4Gateway(
             : { state: "notRequested" },
         dispatch: { state: "admitted" },
         admittedAt: admission.admittedAt,
+        ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
+        ...(input.planEnabled !== undefined ? { planEnabled: input.planEnabled } : {}),
         ...(input.provenance ? { provenance: input.provenance } : {}),
       });
       await context.deps.sessionStore.saveSessionInput({
@@ -800,6 +818,13 @@ export function createConversationV4Gateway(
             admittedDelivery: conversationInputIntent.delivery.admitted,
             ...(fallbackReasonCode ? { fallbackReasonCode } : {}),
             attachmentRefs,
+            ...(conversationInputIntent.modelSelection
+              ? { modelSelection: conversationInputIntent.modelSelection }
+              : {}),
+            ...(conversationInputIntent.mode ? { mode: conversationInputIntent.mode } : {}),
+            ...(conversationInputIntent.planEnabled !== undefined
+              ? { planEnabled: conversationInputIntent.planEnabled }
+              : {}),
             ...(conversationInputIntent.sharedContextRefs
               ? { sharedContextRefs: conversationInputIntent.sharedContextRefs }
               : {}),

@@ -146,8 +146,20 @@ export const commandPayloadSchemas = {
     attachments: z.array(attachmentRefSchema).optional(),
     // 缺省 preserve：仅切 conversation branch；rewind 会先安全恢复该轮文件。
     workspaceMode: z.enum(["preserve", "rewind"]).optional(),
+    // 与 sendText 同语义：Renderer 在确认编辑瞬间冻结当前 Submission；
+    // 旧发送端缺省时 CLI 沿用 canonical intent 的原值（历史行为兜底）。
+    modelSelection: modelSelectionSchema.optional(),
+    mode: submissionModeSchema.optional(),
+    planEnabled: z.boolean().optional(),
   }),
-  retryTurn: z.object({ target: conversationRowTargetSchema }),
+  // modelSelection/mode/planEnabled 同 editUserQuery：点击重试那一刻的当前选择，
+  // 不是被重试轮提交时的历史参数。
+  retryTurn: z.object({
+    target: conversationRowTargetSchema,
+    modelSelection: modelSelectionSchema.optional(),
+    mode: submissionModeSchema.optional(),
+    planEnabled: z.boolean().optional(),
+  }),
   // （2026-09-12）：原 setToolWidgetState / setSessionPluginUiState 已删除——插件 UI widgetState
   // 回退为宿主 renderer 内存保存，不再写 CLI 会话存储；模型可见信息改走 ui/update-model-context。
   setAssistantFeedback: z.object({
