@@ -43,6 +43,23 @@ test("release tag must exactly match a valid package version", () => {
   assert.throws(() => artifactNames("sunos", version));
 });
 
+// tag 只标识上游基线（v3.14.4），产物名带的是构建期滚动版本串（#38 起 electron-builder
+// 用 extraMetadata.version 命名）。collect 与 publish 的 verifyReleaseAssets 都必须按滚动串
+// 匹配，否则 tag 一发就按基线名找不到产物。这里钉住 artifactNames 对 prerelease 串可用。
+test("artifact names accept the rolling prerelease build version", () => {
+  const rolling = "3.14.4-20261009.258";
+  // linux x64 的 AppImage 产物名用 x86_64（builder-util 的 getArtifactArchName 特例）。
+  assert.ok(
+    artifactNames("linux", rolling, "x64", identity)[0].includes(
+      `ZCodium Exp-${rolling}-linux-x86_64`,
+    ),
+  );
+  assert.notEqual(
+    artifactNames("linux", rolling, "x64", identity)[0],
+    artifactNames("linux", "3.14.4", "x64", identity)[0],
+  );
+});
+
 test("collect only installers, excluding unpacked app and builder metadata", async (t) => {
   const source = await fixture(t);
   const output = await fixture(t, []);

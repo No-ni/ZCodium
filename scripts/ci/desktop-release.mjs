@@ -204,7 +204,11 @@ async function main() {
     }
     const tag = process.env.GITHUB_REF_NAME;
     validateTag(tag, version);
-    const files = await verifyReleaseAssets(artifacts, version);
+    // tag 只标识上游基线（v3.14.4），产物名带的却是构建期滚动版本串
+    // （electron-builder extraMetadata.version，见 #38）。校验与 collect 必须同源读
+    // getBuildMetadata，否则按基线名找不到产物——tag 推送时检出的就是被打标的同一
+    // commit，派生结果与构建 job 一致。
+    const files = await verifyReleaseAssets(artifacts, getBuildMetadata().appVersion);
     await publishDraft({ tag, repo: process.env.GITHUB_REPOSITORY, files });
   } else {
     throw new Error("Usage: desktop-release.mjs check-version | collect <linux|win> | publish");
