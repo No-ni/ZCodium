@@ -149,20 +149,26 @@ flowchart LR
 
 ## 分期
 
-### 阶段 1：版本派生与去版本号展示（已完成，PR #38 / #40）
+### 阶段 1：版本派生与去版本号展示（部分完成）
+
+已落地（PR #38 / #39 / #41）：
 
 - `scripts/rolling-app-version.mjs` 上线，桌面 / server / web 四处 `__ZCODE_VERSION__` 注入点
-  与 mock-cdn、collect 全部切到同源读取。
-- 删除 `.release-it.mjs`、`apps/zcode-cli/.release-it.json`、`scripts/release-it/`、根与 CLI
-  的 `release*` 脚本及四个 conventional-changelog 依赖；根 `package.json` 与
-  `apps/zcode-cli/package.json` 的 `version` 冻结为上游基线，仅同步上游时手改。
-- CI `desktop.yml`：删除 `tags: ["v*"]` 触发与 Draft release job 及 `desktop-release.mjs`
-  的 `publish` / `validateTag` / `verifyReleaseAssets` 路径；main 推送与 PR 即构建
-  linux/win 全矩阵；**macOS 仅 `workflow_dispatch` 手动触发**（无 Apple Developer 账号，
-  签名与自动更新不可用，10x 计费）。产物目前只进 workflow artifact（retention 14 天），
-  面向用户的分发位置（`ZCODIUM_UPDATE_ORIGIN`）另见 `update-source-ownership.md`。
-- About 页与菜单、更新弹窗去除版本号展示。
-- `CHANGELOG.md` 停止按版本分段维护（文件保留历史记录，顶部注明以 git log 为准）。
+  与 mock-cdn、collect 全部切到同源读取；日期段取 commit committer date，CI 全 checkout
+  `fetch-depth: 0`。
+- About 页展示构建信息（官方 `构建 #N` / 自建短 commit id），不出现内部版本串。
+- preview 产品身份改名 ZCodium Rust（appId 不变）。
+
+**CI 发版制已恢复（PR #42 revert #40，2026-10 用户决策）**：一次砍掉整套发版流程动静过大，
+`tags: ["v*"]` 触发、Draft release job、tag 专属 macOS 条件、`desktop-release.mjs` 的
+`publish` / `validateTag` / `verifyReleaseAssets`、release-it 配置与依赖、CHANGELOG 版本分段
+全部恢复原状。因此以下两项**不再是本 spec 的范围**，保持发版制现状：
+
+- ~~删除 release-it / `release*` 脚本 / CHANGELOG 版本分段~~（已恢复）
+- ~~CI 改 main 推送即构建、删 tag 触发~~（已恢复）
+
+恢复时已修补的兼容点：`publish` 的 `verifyReleaseAssets` 与 `collect` 同源读
+`getBuildMetadata()`——产物名带滚动版本串而 tag 只标识上游基线，不同源会按基线名找不到产物。
 
 ### 阶段 2：更新状态机简化
 
