@@ -108,7 +108,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 发行版本以根目录 [package.json](package.json) 为准。发布标签必须严格匹配 `v<version>`，由 `node scripts/ci/desktop-release.mjs check-version` 校验。安装包通过独立的 ZCodium 产品身份区分，文件名为 `ZCodium-<version>-<platform>-<arch>.<ext>`，不要求添加 `-modified` 后缀。
 
-Desktop CI 在日常推送时产出 Windows 安装包和 macOS arm64 DMG；标签和手动运行额外构建 macOS x64。本 fork 不分发 Linux 安装包或 Linux 远端运行资源，手机远控继续提供。
+Desktop CI 仅在版本标签推送和手动运行时构建；手动运行产出 Windows 安装包和 macOS arm64 DMG，标签推送额外构建 macOS x64。本 fork 不分发 Linux 安装包或 Linux 远端运行资源，手机远控继续提供。
 
 ## 初始化
 
@@ -241,7 +241,7 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 ### 自动构建与发布
 
-[Desktop CI](.github/workflows/desktop.yml) 在 PR、main 推送、手动运行和版本标签推送时检查代码并构建 Windows x64/arm64；macOS arm64/x64 只在手动运行和标签推送时构建。Windows 产物为 exe，macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。
+[Desktop CI](.github/workflows/desktop.yml) 仅在版本标签推送和手动运行时触发（不做 push/PR 自动构建，避免 fork 的 Actions 用量触发 GitHub 停用）；手动运行检查代码并构建 Windows x64/arm64 与 macOS arm64，标签推送额外构建 macOS x64。Windows 产物为 exe，macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。
 
 本 fork 保留 [macOS Desktop Build](.github/workflows/macos.yml) 作为只构建 arm64 DMG 的手动安装入口，产物名为 `zcodium-macos-arm64`。
 

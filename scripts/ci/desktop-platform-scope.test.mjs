@@ -194,6 +194,11 @@ test("desktop configuration keeps mobile assets without bundling a Linux runtime
 test("CI schedules only Windows/macOS packages and no Linux remote producer", async () => {
   const desktop = parse(await readFile(resolve(root, ".github/workflows/desktop.yml"), "utf8"));
   const mac = parse(await readFile(resolve(root, ".github/workflows/macos.yml"), "utf8"));
+  // 手动制：GitHub 会因 fork 的 Actions 用量停用 Workflows，禁止恢复 push 分支/PR 自动触发。
+  assert.equal(desktop.on?.pull_request ?? null, null);
+  assert.equal(desktop.on?.push?.branches ?? null, null);
+  assert.deepEqual(desktop.on?.push?.tags, ["v*"]);
+  assert.ok("workflow_dispatch" in (desktop.on ?? {}));
   assert.deepEqual(
     desktop.jobs.build.strategy.matrix.include.map(({ platform, arch }) => [platform, arch]),
     [

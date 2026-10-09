@@ -1,9 +1,10 @@
 name: Desktop CI
 
+# 仅 tag 发布与手动运行触发：GitHub 会因 fork 的 Actions 用量自动停用整个仓库的
+# Workflows（2026-10-09 曾触发），日常推送不再自动构建。同步上游时不得恢复
+# push 分支 / pull_request 自动触发。
 on:
-  pull_request:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
