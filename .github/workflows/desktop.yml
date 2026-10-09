@@ -4,7 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +11,7 @@ permissions:
 
 concurrency:
   group: desktop-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
   HUSKY: "0"
@@ -226,9 +225,10 @@ jobs:
 
   build-macos:
     name: Build (mac ${{ matrix.arch }})
-    # macOS runner 按 10 倍费率计分钟，只在发版 tag 与手动触发时打包；
-    # 日常 push/PR 的打包回归由 linux/win 矩阵与 checks 覆盖。
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag')
+    # macOS runner 按 10 倍费率计分钟，且没有 Apple Developer 账号就无法签名/公证，
+    # Squirrel.Mac 自动更新不可用（见 .agents/specs/update-source-ownership.md 阶段 2）。
+    # 因此 macOS 只保留手动触发；日常 push/PR 的打包回归由 linux/win 矩阵与 checks 覆盖。
+    if: github.event_name == 'workflow_dispatch'
     needs: [checks, remote-assets]
     strategy:
       fail-fast: false
@@ -277,48 +277,3 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
-
-  release:
-    name: Draft release
-    if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: [checks, build, build-macos]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: ./.github/actions/setup-workspace
-        with:
-          install-dependencies: "false"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-linux-x64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-linux-arm64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-win-x64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-win-arm64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-mac-arm64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-mac-x64
-          path: dist/release-assets
-      - name: Verify assets and create or update draft
-        run: node scripts/ci/desktop-release.mjs publish
-        env:
-          GH_TOKEN: ${{ github.token }}
