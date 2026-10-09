@@ -241,9 +241,7 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 ### 自动构建与发布
 
-[Desktop CI](.github/workflows/desktop.yml) 仅在版本标签推送和手动运行时触发（不做 push/PR 自动构建，避免 fork 的 Actions 用量触发 GitHub 停用）；手动运行检查代码并构建 Windows x64/arm64 与 macOS arm64，标签推送额外构建 macOS x64。Windows 产物为 exe，macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。
-
-本 fork 保留 [macOS Desktop Build](.github/workflows/macos.yml) 作为只构建 arm64 DMG 的手动安装入口，产物名为 `zcodium-macos-arm64`。
+[Desktop CI](.github/workflows/desktop.yml) 仅在版本标签推送和手动运行时触发（不做 push/PR 自动构建，避免 fork 的 Actions 用量触发 GitHub 停用）；手动运行检查代码并构建 Windows x64/arm64 与 macOS arm64，标签推送额外构建 macOS x64。Windows 产物为 exe，macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。这是仓库唯一的构建工作流。
 
 推送 `v<package.json.version>` 标签会在全部检查和全平台构建成功后创建**草稿 Release**，附安装包和 `SHA256SUMS`。版本允许预发布标识（如 `-rc.1`），不接受 build metadata。维护者测试后手动公开发布；重新运行可补传草稿资产，不会覆盖已公开版本。手动运行工作流只生成构建产物。
 

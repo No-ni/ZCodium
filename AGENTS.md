@@ -3,7 +3,7 @@
 - 桌面仅构建 Windows/macOS：Windows 产 exe，macOS 只产 dmg；不构建、下载或嵌入 Linux 安装包及远端运行资源，同步上游时不得恢复这条依赖。
 - 默认在 GitHub 构建，只有用户明确要求才在本机打包；构建前确认目标分支已推送，不借构建绕过用户的「不推送」要求。
 - 改动只推送到自己的 fork（`origin = No-ni/ZCodium`）；同步上游用 merge，默认不提 PR、不开 issue；提交文案用中文，提交前先展示给用户。
-- 给本机装新版时只下载 macOS arm64 artifact（`zcodium-macos-arm64` 或 `desktop-mac-arm64`）；直接覆盖 ZCodium，不做备份，旧 `ZCodium.app.bak-*` 可直接删除。
+- 构建只由用户明确要求时手动触发（`gh workflow run desktop.yml`）：GitHub 会因 fork 的 Actions 用量停用 Workflows，push/PR 不再自动构建，唯一工作流是 `desktop.yml`（独立的 `macos.yml` 已删除）。给本机装新版只下载 macOS arm64 artifact（`desktop-mac-arm64`）；直接覆盖 ZCodium，不做备份，旧 `ZCodium.app.bak-*` 可直接删除。
 - 同步上游保留 ZCodium 身份、`.zcodium` 业务数据目录和自有更新源边界；未配置自有更新源时不回退到官方更新源。
 - 本机 pnpm 使用 `corepack pnpm`；正式版构建从准备阶段起设置 `ZCODE_ENV=production`，避免生成 Preview 混合身份包。
 
