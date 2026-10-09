@@ -158,6 +158,8 @@ export class IPCServer<TContext = string>
     channelName: string,
     routerOrFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean),
   ): T {
+    // 返回的 channel 方法有自己的 this；显式捕获当前 IPCServer。
+    // oxlint-disable-next-line typescript/no-this-alias
     const that = this;
     const isFilter = typeof routerOrFilter === "function";
 
@@ -216,6 +218,8 @@ export class IPCServer<TContext = string>
     eventName: string,
     arg: any,
   ): Event<T> {
+    // 返回的 channel 方法有自己的 this；显式捕获当前 IPCServer。
+    // oxlint-disable-next-line typescript/no-this-alias
     const that = this;
     let disposables: DisposableStore | undefined;
 

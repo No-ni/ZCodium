@@ -1106,12 +1106,6 @@ importers:
       '@streamdown/mermaid':
         specifier: ^1.0.2
         version: 1.0.2(react@19.2.7)
-      '@stripe/react-stripe-js':
-        specifier: ^6.4.0
-        version: 6.4.0(@stripe/stripe-js@9.6.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@stripe/stripe-js':
-        specifier: ^9.6.0
-        version: 9.6.0
       '@xterm/addon-clipboard':
         specifier: ^0.2.0
         version: 0.2.0
@@ -4678,17 +4672,6 @@ packages:
     resolution: {integrity: sha512-Fr/4sBWnAeSnxM3PcrV/+DiZe5oPMq9gOkUIAH7ZauJeuwrZ/DVzD4g0zlav6AH0axh2m/sOfrfLtY5aLT7niw==}
     peerDependencies:
       react: 19.2.7
-
-  '@stripe/react-stripe-js@6.4.0':
-    resolution: {integrity: sha512-5cAf7GAqf8VHPoPLVnJQ2MHtDWLdiEPs5GW/loU7iDEue3xf620v11skrk5HICUraDOhODPYpttgFC5N579NxA==}
-    peerDependencies:
-      '@stripe/stripe-js': '>=9.5.0 <10.0.0'
-      react: 19.2.7
-      react-dom: 19.2.7
-
-  '@stripe/stripe-js@9.6.0':
-    resolution: {integrity: sha512-v5MebYvJbddSRn15fknxTVwypJPzjeIXI1Q2HBxCBrQieWna8PC+RXEVUZ3F4ANAeILEj97HzFlr0r7CXvG7ZA==}
-    engines: {node: '>=12.16'}
 
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
@@ -13196,15 +13179,6 @@ snapshots:
     dependencies:
       mermaid: 11.14.0
       react: 19.2.7
-
-  '@stripe/react-stripe-js@6.4.0(@stripe/stripe-js@9.6.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      '@stripe/stripe-js': 9.6.0
-      prop-types: 15.8.1
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-
-  '@stripe/stripe-js@9.6.0': {}
 
   '@szmarczak/http-timer@4.0.6':
     dependencies:

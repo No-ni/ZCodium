@@ -7,6 +7,17 @@
   },
   "overrides": [
     {
+      // 这两处专门过滤文件名/协议字段里的控制字符，匹配控制字符是安全边界本身。
+      // managed 模块不增加内联 lint disable，例外仅限此规则与这两个文件。
+      "files": [
+        "packages/ui/src/plugin-ui/domain/pluginUiDownloadFile.ts",
+        "packages/shared/src/zcode-protocol-v4/transport.ts"
+      ],
+      "rules": {
+        "no-control-regex": "off"
+      }
+    },
+    {
       // 测试文件天然会堆叠大量场景与断言，继续复用生产代码的行数上限会造成误报，
       // 因此只对 test/spec 文件关闭 max-lines，避免放宽业务代码约束。
       "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],

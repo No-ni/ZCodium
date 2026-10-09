@@ -104,6 +104,8 @@ export class StartupDiskSampler {
     if (this.busy || this.stopped) return;
     this.busy = true;
     try {
+      // probe 后会重建 scope key，快照避免同一采样轮重复遍历。
+      // oxlint-disable-next-line unicorn/no-useless-spread
       for (const scope of [...this.scopes.values()]) {
         if (this.stopped) break;
         try {

@@ -10,6 +10,8 @@ const listeners = new Set<() => void>();
 /** task row 或 membership mutation 后调用：通知所有 sessions-index 派生列表重新拉取左表。 */
 export function bumpTaskListMembershipVersion(): void {
   version += 1;
+  // 回调可增删订阅，当前通知固定使用开始时的快照。
+  // oxlint-disable-next-line unicorn/no-useless-spread
   for (const listener of [...listeners]) {
     listener();
   }

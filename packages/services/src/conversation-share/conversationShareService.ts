@@ -83,6 +83,8 @@ async function mapWithConcurrency<Input, Output>(
   run: (item: Input, index: number) => Promise<Output>,
 ): Promise<Output[]> {
   if (items.length === 0) return [];
+  // 并发 worker 按输入下标写入，预分配只用于保留输出顺序。
+  // oxlint-disable-next-line unicorn/no-new-array
   const results = new Array<Output>(items.length);
   let nextIndex = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {

@@ -155,6 +155,8 @@ export class Emitter<T> implements IDisposable {
     if (this.disposed) {
       return;
     }
+    // 通知期间订阅集合可变，快照防止新订阅被同一事件再次触发。
+    // oxlint-disable-next-line unicorn/no-useless-spread
     for (const listener of [...this.listeners]) {
       listener(event);
     }

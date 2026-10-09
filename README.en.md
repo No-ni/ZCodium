@@ -86,15 +86,12 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 - 2026-09-24: Re-verified the i18n key gap against the official 3.14.3 installer — `bots` is down to 0 keys and 258 keys remain; the method is documented under "Capability delta versus the official package".
 - 2026-09-24: Switched the Computer Use runtime to `@trycua/cua-driver` as the single native engine and removed the in-house desk-pilot; the client is injected by the upper layer, the runtime stays fail-closed without one, and older GNOME / Wayland goes through a separate physical-input compatibility layer.
 - 2026-09-24: Merged upstream 3.14.3 (`328c1a0`); adopted the official bots and the newly open-sourced remote-control surfaces, keeping the `.zcodium` data namespace.
-- 2026-09-24: Bumped the root `package.json` version to `3.14.3-modified` to mark this repository's artifacts; see Versioning below.
 
 ## Versioning
 
-The root `package.json` version carries a `-modified` suffix after the upstream version (currently `3.14.3-modified`) so this repository's artifacts are distinguishable from official packages. The suffix is a valid semver prerelease identifier and is accepted by `node scripts/ci/desktop-release.mjs check-version`.
+The release version comes from the root [package.json](package.json). Release tags must be exactly `v<version>`; `node scripts/ci/desktop-release.mjs check-version` validates this match. Installer names use the separate ZCodium product identity: `ZCodium-<version>-<platform>-<arch>.<ext>`. The fork does not require a `-modified` suffix.
 
-Release tags must match the version exactly, i.e. `v3.14.3-modified`; CI artifact names become `ZCodium-3.14.3-modified-<platform>-<arch>.<ext>`. The CLI distribution defaults to the same version, so `dist/zcode/releases/3.14.3-modified/` is the default output directory.
-
-Note: if `ZCODE_REMOTE_ASSET_CDN_BASE_URL` is pinned to a versioned directory, it must match the running version, or `assertRemoteCdnBaseVersionMatches` fails at startup. Upstream has no `3.14.3-modified` directory, so host the remote assets yourself or use a version-less release root.
+Desktop CI builds Windows installers and a macOS arm64 DMG on ordinary pushes. macOS x64 is included for tags and manual runs. This fork does not distribute Linux installers or Linux remote runtime assets; phone remote control remains available.
 
 ## Setup
 

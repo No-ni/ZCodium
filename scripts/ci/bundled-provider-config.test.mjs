@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, writeFile, rm, readdir, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, readdir, mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { tsImport } from "tsx/esm/api";
@@ -116,7 +116,8 @@ test("standalone CLI points to packaged config while managed CLI retains Host pa
     entrypoint: join(dir, "entry.js"),
     sea: { isSea: () => false },
   });
-  assert.equal(env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE, local);
+  // macOS 的 /var 是 /private/var 软链接；入口解析后的真实路径仍指向同一配置。
+  assert.equal(env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE, await realpath(local));
   assert.equal(env.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE, undefined);
   const managed = {
     ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: file,

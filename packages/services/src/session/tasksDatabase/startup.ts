@@ -91,6 +91,8 @@ export async function prepareTasksIndexStorage(
     try {
       db.close();
     } catch (error) {
+      // 无业务异常时才暴露 close 失败，已有异常始终保留首因。
+      // oxlint-disable-next-line no-unsafe-finally
       if (!failure) throw error;
     }
   }
@@ -112,6 +114,8 @@ export async function prepareTasksIndexStorage(
         closeFailure ??= error;
       }
     }
+    // 仓库都已关闭后才报告首个 close 错误，不覆盖准备阶段异常。
+    // oxlint-disable-next-line no-unsafe-finally
     if (!preparationFailure && closeFailure) throw closeFailure;
   }
   markTasksStoragePrepared(path);
