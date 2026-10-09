@@ -55,36 +55,38 @@ interface AboutSnapshotOptions {
   };
 }
 
-// 产品名与桌面安装包身份（desktop-product-identity.mjs 的 productName）保持一致的展示形态；
-// 安装包/目录名用无空格的 `zcodium-exp`，这里是人读的名字。
-const ABOUT_APPLICATION_NAME = "ZCodium Exp";
 // 自定义 About 内容本体是 256x280；原生窗口如果同尺寸会让内容贴满透明窗口边界。
 // 这里给 BrowserWindow 额外留出背景呼吸空间，避免正式 About 看起来比 demo 更局促。
 const ABOUT_WINDOW_WIDTH = 256;
 const ABOUT_WINDOW_HEIGHT = 312;
+// 展示名取运行时应用名（app.setName(runtimeApplicationName) 之后的 app.name，构建期
+// 产品身份经 desktopRuntimeEnv 解析）：正式包是 ZCodium Exp，Preview 包自 2026-10 起是
+// ZCodium Rust。之前这里硬编码 "ZCodium Exp"，Preview 包的 About 会显示错误的产品名。
+const ABOUT_APPLICATION_NAME_FALLBACK = "ZCodium Exp";
+
 const ABOUT_MESSAGES: Record<
   Locale,
   {
-    aboutTitle: string;
+    aboutTitle: (applicationName: string) => string;
     buildLabel: string;
     okButtonLabel: string;
     optimizedForAppleSilicon: string;
-    copyright: (year: number) => string;
+    copyright: (year: number, applicationName: string) => string;
   }
 > = {
   "zh-CN": {
-    aboutTitle: "关于 ZCodium Exp",
+    aboutTitle: (applicationName) => `关于 ${applicationName}`,
     buildLabel: "构建",
     okButtonLabel: "确定",
     optimizedForAppleSilicon: "已针对 Apple Silicon 优化。",
-    copyright: (year) => `版权所有 © ${year} ZCodium Exp。`,
+    copyright: (year, applicationName) => `版权所有 © ${year} ${applicationName}。`,
   },
   "en-US": {
-    aboutTitle: "About ZCodium Exp",
+    aboutTitle: (applicationName) => `About ${applicationName}`,
     buildLabel: "Build",
     okButtonLabel: "OK",
     optimizedForAppleSilicon: "Optimized for Apple Silicon.",
-    copyright: (year) => `Copyright © ${year} ZCodium Exp.`,
+    copyright: (year, applicationName) => `Copyright © ${year} ${applicationName}.`,
   },
 };
 
@@ -104,6 +106,14 @@ function normalizePackageVersion(version: string | undefined): string {
 
 function getAboutMessages(locale: Locale): (typeof ABOUT_MESSAGES)[Locale] {
   return ABOUT_MESSAGES[locale] ?? ABOUT_MESSAGES[DEFAULT_LOCALE];
+}
+
+/**
+ * About 展示名：优先运行时应用名（`app.setName(runtimeApplicationName)` 后的 `app.name`，
+ * 随构建期产品身份变化——正式包 ZCodium Exp，Preview 包 ZCodium Rust），空值时回退。
+ */
+export function resolveAboutApplicationName(appName: string | undefined | null): string {
+  return appName?.trim() || ABOUT_APPLICATION_NAME_FALLBACK;
 }
 
 function readJsonFile<T>(filePath: string): T | null {
@@ -222,10 +232,11 @@ export function formatAboutDetail(snapshot: AboutSnapshot): string {
 }
 
 function formatAboutCopyright(
+  applicationName: string,
   year = new Date().getFullYear(),
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return getAboutMessages(locale).copyright(year);
+  return getAboutMessages(locale).copyright(year, applicationName);
 }
 
 function formatAboutOptimizationLine(
@@ -255,6 +266,7 @@ export async function showAboutDialog(
     buildMetadata: readBuildMetadata(),
   });
   const aboutMessages = getAboutMessages(locale);
+  const applicationName = resolveAboutApplicationName(app.name);
   // 之前只有 macOS 使用自绘 About，Windows/Linux 仍走原生 message box。
   // 问题原因：各平台原生消息框的排版、图标和按钮样式差异很大，无法复用 macOS 参考样式。
   // 这里统一使用自绘 modal，保证 About 的品牌展示和多语言文案在三端一致。
@@ -271,7 +283,7 @@ export async function showAboutDialog(
     maximizable: false,
     fullscreenable: false,
     show: false,
-    title: aboutMessages.aboutTitle,
+    title: aboutMessages.aboutTitle(applicationName),
     icon: existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       contextIsolation: true,
@@ -286,10 +298,10 @@ export async function showAboutDialog(
   void aboutWindow.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(
       createCustomAboutDialogHtml({
-        applicationName: ABOUT_APPLICATION_NAME,
+        applicationName,
         buildLabel: aboutMessages.buildLabel,
         buildValue: formatAboutBuildValue(snapshot),
-        copyright: formatAboutCopyright(undefined, locale),
+        copyright: formatAboutCopyright(applicationName, undefined, locale),
         optimizationLine: formatAboutOptimizationLine(snapshot, locale),
         okButtonLabel: aboutMessages.okButtonLabel,
       }),

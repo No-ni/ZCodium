@@ -1,13 +1,18 @@
 /**
  * 构建期开关：为真时安装包使用 Preview 身份，而后端环境仍由 `ZCODE_ENV` 单独决定。
  * 典型用法是 `ZCODE_ENV=production ZCODE_PREVIEW_IDENTITY=1`，得到一个连接生产后端、
- * 可与正式版并排安装的 `ZCodium Exp Preview`。
+ * 可与正式版并排安装的 `ZCodium Rust`。
  *
  * Bugfix：正式身份由 `ZCodium` 改名为 `ZCodium Exp`。原因是 `ZCodium-project/ZCodium`
  * 的 #13/#17 正把用户级数据根收敛到 `~/.zcodium`、bin 改名为 `zcodium`，与本仓库
  * 自 `dev.zcodium.app` / `zcodium` 起的身份完全重合——两边的安装包在包管理器里是同一个
  * 包（dpkg/rpm/pacman 同名同 appId，装一个卸一个），安装目录与桌面项也互相覆盖。
  * 改名后本仓库是独立产品线 `ZCodium Exp`，与对方平级而非同身份。
+ *
+ * 2026-10 起 Preview 身份改名 `ZCodium Preview` → `ZCodium Rust`：滚动更新模型下
+ * preview 是与 stable 同一条流的提前通道（见 .agents/specs/rolling-update.md 渠道决策），
+ * 需要独立的产品名与用户沟通。appId 保持 `dev.zcodium.app.preview` 不变——既有 preview
+ * 安装靠它无缝升级到 Rust，不需要用户手工卸载。
  *
  * `productName` 不带缩写点：它会流进 macOS `.app` 名（`${productName}.app`）与
  * Electron userData 目录名，带点会得到 `ZCodium Exp..app`，且 Windows 目录名不能以点
@@ -27,9 +32,9 @@ const PRODUCTION_IDENTITY = Object.freeze({
 const PREVIEW_IDENTITY = Object.freeze({
   flavor: "preview",
   appId: "dev.zcodium.app.preview",
-  productName: "ZCodium Preview",
-  linuxExecutableName: "zcodium-preview",
-  linuxPackageName: "zcodium-preview",
+  productName: "ZCodium Rust",
+  linuxExecutableName: "zcodium-rust",
+  linuxPackageName: "zcodium-rust",
   cuaHelperInstallVariant: "preview",
 });
 
@@ -79,7 +84,7 @@ export function resolveDesktopProductIdentity(env = process.env) {
 
 /**
  * 产物文件名后缀标记的是后端环境而不是身份：`_TEST` 只出现在测试后端的安装包上。
- * 生产后端的 Preview 包靠 productName（`ZCode Preview-<version>-...`）与正式包区分。
+ * 生产后端的 Preview 包靠 productName（`ZCodium Rust-<version>-...`）与正式包区分。
  */
 export function resolveDesktopArtifactSuffix(env = process.env) {
   return normalizeDesktopZCodeEnv(env) === "test" ? "_TEST" : "";
