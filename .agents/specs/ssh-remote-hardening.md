@@ -1,12 +1,11 @@
 # SSH 远端连接的两项遗留缺陷
 
-> **状态：未实现，待排期。** 本 spec 记录两项已在代码中核实的安全 / 并发缺陷、证据与候选修法，
-> 不包含实现。按仓库「行为变更先写 spec」的规矩落档。
+> **状态：缺陷 1 已实现（TOFU 主机密钥校验）；缺陷 2 未实现，待排期。**
 
 ## 背景
 
 `packages/server/src/remote/` 下的 SSH 远端连接有两项遗留问题，均在 `axiom-desu/ZCodium`
-主线代码中核实过，尚未处理。
+主线代码中核实过。缺陷 1 已按下方「实现」落地，缺陷 2 仍开放。
 
 ## 缺陷 1：SSH 不校验主机密钥（安全）
 
@@ -33,29 +32,40 @@ return {
 中间人可以冒充目标主机完成密钥交换，用户输入的密码 / 私钥口令会直接交给冒充者。
 对于会执行任意命令的远端 Agent 部署链路，这等同于把凭据暴露给主动攻击者。
 
-### 候选修法
+### 实现（缺陷 1，已落地）
 
-按 OpenSSH 默认策略做 TOFU（trust on first use）：
+- `packages/server/src/remote/sshKnownHosts.ts`：TOFU 存储与判定。
+  - 存储位置：`getAppConfigDir()/ssh/known-hosts.json`（`<数据根>/.zcodium-exp/v2/ssh/`，
+    新目录首次使用自动创建，不涉及既有数据迁移）。
+  - 存储键沿用 `buildSshRemoteHostKey()`，已知其排除密码与私钥口令；落盘内容经测试断言
+    不含任何凭据。
+  - 指纹：`sha256(原始主机公钥)` hex，随记录一起落库。
+  - 判定：无记录 → 接受并落库；匹配 → 接受并刷新 lastSeenAt；不一致 → 拒绝且**不覆盖**
+    已有记录。存储读取 / 解析 / 写入故障一律 fail-closed 拒绝（含首连写不进去——TOFU 的
+    价值全在“下次能发现变更”，写不进去就是静默失去保护）。
+  - `createSSHHostVerifier` 生成 ssh2 的 `hostVerifier`；拒绝时先经 `onRejection` 记录
+    可区分原因（`changed` / `store-error`）再回调 `verify(false)`——ssh2 对 `verify(false)`
+    只抛固定的 `Host denied (verification failed)`，不记录就分不清两类原因。
+- `packages/server/src/remote/sshAuth.ts`：`buildSSHConnectConfig` 新增 `hostVerifier`
+  入参（不透传等于回到缺陷）；`normalizeSSHConnectError` 增加 host denied 兜底文案，
+  不断言密钥变更（那需要 verifier 的证据）。
+- `packages/server/src/remote/ssh-backend.ts`：构造期注入 store + verifier；`onClientError`
+  优先用 `formatHostKeyRejectionError` 把拒绝原因换成可操作的产品错误。
+- 测试：`sshKnownHosts.test.ts` 14 例，覆盖三方判定、记录不覆盖、凭据不进存储、
+  损坏 / schema 不兼容 fail-closed、verifier 回调顺序与错误文案区分。
 
-1. 新增 known_hosts 存储，键沿用 `buildSshRemoteHostKey()` 的归一化结果
-   （`packages/shared/src/remoteSshHostKey.ts`），存算法 + 主机公钥指纹。
-   注意**不要**把密码 / 私钥口令纳入存储键——该函数已刻意排除，保持这一约束。
-2. 连接时三方判定：
-   - 无记录 → 接受并落库（首次连接）；
-   - 记录匹配 → 接受；
-   - 记录不匹配 → **拒绝连接**，并把「主机密钥已变更」作为独立错误码透出，不得静默重连。
-3. 首次连接与密钥变更都需要 UI 面：首连是信息性提示，密钥变更必须是阻断式确认。
-   当前 `astrbotProvider` 之外的远端错误链路见 `packages/server/src/remote/` 的
-   error 归一化处，需要新增一个可区分的错误类型。
+### 未定项的消解
 
-### 未定
+- **存储位置**：随应用配置根，见上。
+- **逃生开关**：按原倾向不提供。
+- **`sshConfigAlias`**：核实该字段只用于 `openInEditor.ts` 的 VSCode remote authority
+  字符串，不进入 ssh2 连接链路（ssh2 本身不读 `~/.ssh/config`），存储键即实际连接目标，
+  无需特殊处理。
 
-- 存储位置：数据根下新目录，需与 `.zcodium-exp` 的迁移策略一起考虑
-  （见 [zcodium-data-dir.md](zcodium-data-dir.md)）。
-- 是否允许用户显式关闭校验（逃生开关）。倾向不提供：关闭后等于回到现状，
-  而现状正是缺陷本身；确有需要的用户可自行维护 `~/.ssh/known_hosts` 并用
-  `ssh config alias` 连接。
-- `sshConfigAlias` 场景（走 `~/.ssh/config` 的 Host）是否复用同一存储。
+### 仍未覆盖（后续）
+
+- 首连的信息性 UI 提示与密钥变更的阻断式确认弹窗。当前首连静默接受并落库，变更拒绝以
+  连接错误形式透出——安全判定已闭环，展示层待补。
 
 ## 缺陷 2：跨窗口并发部署（并发）
 

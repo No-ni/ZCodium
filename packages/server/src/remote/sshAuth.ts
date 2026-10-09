@@ -12,6 +12,11 @@ interface SSHConnectConfigInput {
   passphrase?: string;
   password?: string;
   agent?: string;
+  /**
+   * 主机密钥校验器（TOFU known_hosts，见 sshKnownHosts.ts）。
+   * 不提供时 ssh2 接受任意主机密钥——中间人可冒充目标主机骗取凭据，\   * 因此正式连接链路必须注入；仅测试与明确无需校验的场景才留空。
+   */
+  hostVerifier?: ConnectConfig["hostVerifier"];
 }
 
 function isMissingPrivateKeyPassphraseMessage(message: string): boolean {
@@ -20,6 +25,13 @@ function isMissingPrivateKeyPassphraseMessage(message: string): boolean {
 
 function isInvalidPrivateKeyPassphraseMessage(message: string): boolean {
   return /(bad passphrase|key integrity check failed|unable to authenticate data)/i.test(message);
+}
+
+// ssh2 在 hostVerifier 回调 verify(false) 后抛出的固定文案（lib/protocol/kex.js）。
+// 正常链路里拒绝原因已由 ssh-backend 从 verifier 的 onRejection 取出并换成可区分错误，
+// 这里只是兜底：消息必须如实说“校验未通过”，不能断言是密钥变更（那需要 verifier 的证据）。
+function isHostKeyVerificationDeniedMessage(message: string): boolean {
+  return message.includes("Host denied (verification failed)");
 }
 
 export function buildSSHConnectConfig(input: SSHConnectConfigInput): ConnectConfig {
@@ -38,6 +50,7 @@ export function buildSSHConnectConfig(input: SSHConnectConfigInput): ConnectConf
     passphrase: input.passphrase,
     password: hasPassword ? input.password : undefined,
     agent: resolvedAgent,
+    hostVerifier: input.hostVerifier,
     // ssh2 默认 readyTimeout 是 20s，公网弱网或服务端抖动时容易误判超时。
     // 这里显式放宽连接握手超时，既给真实慢连接机会，也让错误归一化能和实际配置保持一致。
     readyTimeout: SSH_READY_TIMEOUT_MS,
@@ -76,6 +89,12 @@ export function normalizeSSHConnectError(error: unknown): Error {
     (error as { level?: string }).level === "client-authentication"
   ) {
     return new Error("SSH 认证失败：请检查用户名、密码或私钥配置");
+  }
+
+  if (isHostKeyVerificationDeniedMessage(error instanceof Error ? error.message : String(error))) {
+    return new Error(
+      "SSH 主机密钥校验未通过，已拒绝连接。若服务器更换过主机密钥，请先清理本地 known_hosts 记录",
+    );
   }
 
   if (
