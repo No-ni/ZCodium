@@ -149,20 +149,17 @@ flowchart LR
 
 ## 分期
 
-### 阶段 1：版本派生与去版本号展示（已完成，PR #38 / #40）
+### 阶段 1：版本派生与去版本号展示
 
 - `scripts/rolling-app-version.mjs` 上线，桌面 / server / web 四处 `__ZCODE_VERSION__` 注入点
   与 mock-cdn、collect 全部切到同源读取。
-- 删除 `.release-it.mjs`、`apps/zcode-cli/.release-it.json`、`scripts/release-it/`、根与 CLI
-  的 `release*` 脚本及四个 conventional-changelog 依赖；根 `package.json` 与
-  `apps/zcode-cli/package.json` 的 `version` 冻结为上游基线，仅同步上游时手改。
-- CI `desktop.yml`：删除 `tags: ["v*"]` 触发与 Draft release job 及 `desktop-release.mjs`
-  的 `publish` / `validateTag` / `verifyReleaseAssets` 路径；main 推送与 PR 即构建
-  linux/win 全矩阵；**macOS 仅 `workflow_dispatch` 手动触发**（无 Apple Developer 账号，
-  签名与自动更新不可用，10x 计费）。产物目前只进 workflow artifact（retention 14 天），
-  面向用户的分发位置（`ZCODIUM_UPDATE_ORIGIN`）另见 `update-source-ownership.md`。
+- 删除 `.release-it.mjs`、`apps/zcode-cli/.release-it.json`、根与 CLI 的 `release*` 脚本；
+  根 `package.json` 与 `apps/zcode-cli/package.json` 的 `version` 冻结为上游基线，仅同步上游
+  时手改。
+- CI `desktop.yml`：删除 `tags: ["v*"]` 触发、tag 专属的 macOS 打包条件与 Draft release 的
+  `github.ref_type == 'tag'` 门禁；改为 main 推送即构建（macOS runner 计费代价见"阻塞项"）。
 - About 页与菜单、更新弹窗去除版本号展示。
-- `CHANGELOG.md` 停止按版本分段维护（文件保留历史记录，顶部注明以 git log 为准）。
+- `CHANGELOG.md` 不再按版本分段维护。
 
 ### 阶段 2：更新状态机简化
 
@@ -178,9 +175,8 @@ flowchart LR
 
 - macOS 代码签名与自动更新可用性（`update-source-ownership.md` 阶段 2）。签名落地前 macOS
   渠道升级方式仍是重新构建覆盖安装；滚动更新对该渠道不生效。
-- stable / preview 双渠道：**已决策——保留 preview 渠道**，作为提前于 stable 的同一条滚动流；
-  preview 的产品身份在这个阶段改名为 **ZCodium Rust**（见 `desktop-product-identity.mjs`，
-  appId 不变以保留与既有 preview 安装的升级连续性）。
+- stable / preview 双渠道的存废：砍成单一滚动流，或保留 preview 作为"提前一天的同一条流"。
+  **待用户决策，未定前渠道语义与 `ElectronReleaseChannel` 机制保持原样。**
 
 ## 验收
 

@@ -1,7 +1,3 @@
-> **自滚动更新起停止维护。** ZCodium Exp. 已改为 Arch 式滚动更新（无发版版号，版本串由构建期
-> 从 commit 派生，见 `.agents/specs/rolling-update.md`）。本文件保留至 3.14.3 的历史记录，
-> 之后的变更历史以 `git log` 为准。
-
 # Changelog
 
 ## [](https://github.com/axiom-desu/ZCodium/compare/v3.14.3-1...vnull) (2026-09-26)
