@@ -11,6 +11,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { RuntimeConfigPatch, UiLocale } from "@zcode/contracts";
+import { withFileLock } from "@zcode/shared/node";
 import { z } from "zod";
 import {
   CANONICAL_CUA_PLUGIN_ID,
@@ -224,14 +225,16 @@ export async function updateUiLocaleInFileConfig(
   locale: UiLocale,
 ): Promise<UiLocalePatchResult> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const next = patchUiLocale(parsed, locale);
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const next = patchUiLocale(parsed, locale);
 
-  await atomicWriteJson(resolvedPath, next);
-  return {
-    locale,
-    path: resolvedPath,
-  };
+    await atomicWriteJson(resolvedPath, next);
+    return {
+      locale,
+      path: resolvedPath,
+    };
+  });
 }
 
 /**
@@ -243,15 +246,17 @@ export async function updatePluginEnabledInFileConfig(
   enabled: boolean,
 ): Promise<PluginEnabledPatchResult> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const next = patchPluginEnabled(parsed, pluginId, enabled);
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const next = patchPluginEnabled(parsed, pluginId, enabled);
 
-  await atomicWriteJson(resolvedPath, next);
-  return {
-    enabled,
-    path: resolvedPath,
-    pluginId,
-  };
+    await atomicWriteJson(resolvedPath, next);
+    return {
+      enabled,
+      path: resolvedPath,
+      pluginId,
+    };
+  });
 }
 
 /**
@@ -266,30 +271,29 @@ export async function enablePluginsByDefaultInFileConfig(
   pluginIds: readonly string[],
 ): Promise<{ enabledIds: string[]; path: string }> {
   const resolvedPath = resolvePath(filePath);
-  if (pluginIds.length === 0) {
-    return { enabledIds: [], path: resolvedPath };
-  }
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
-  const enabledIds = pluginIds.filter(
-    (id) => !Object.prototype.hasOwnProperty.call(enabledPlugins, id),
-  );
-  if (enabledIds.length === 0) {
-    return { enabledIds: [], path: resolvedPath };
-  }
-  const next = {
-    ...parsed,
-    plugins: {
-      ...plugins,
-      enabledPlugins: {
-        ...enabledPlugins,
-        ...Object.fromEntries(enabledIds.map((id) => [id, true])),
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+    const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
+    const enabledIds = pluginIds.filter(
+      (id) => !Object.prototype.hasOwnProperty.call(enabledPlugins, id),
+    );
+    if (enabledIds.length === 0) {
+      return { enabledIds: [], path: resolvedPath };
+    }
+    const next = {
+      ...parsed,
+      plugins: {
+        ...plugins,
+        enabledPlugins: {
+          ...enabledPlugins,
+          ...Object.fromEntries(enabledIds.map((id) => [id, true])),
+        },
       },
-    },
-  };
-  await atomicWriteJson(resolvedPath, next);
-  return { enabledIds, path: resolvedPath };
+    };
+    await atomicWriteJson(resolvedPath, next);
+    return { enabledIds, path: resolvedPath };
+  });
 }
 
 /**
@@ -302,16 +306,18 @@ export async function updatePluginOptionsInFileConfig(
   clearOptionKeys: string[] = [],
 ): Promise<PluginOptionsPatchResult> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const next = patchPluginOptions(parsed, pluginId, options, clearOptionKeys);
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const next = patchPluginOptions(parsed, pluginId, options, clearOptionKeys);
 
-  await atomicWriteJson(resolvedPath, next);
-  return {
-    clearedOptionKeys: clearOptionKeys,
-    options,
-    path: resolvedPath,
-    pluginId,
-  };
+    await atomicWriteJson(resolvedPath, next);
+    return {
+      clearedOptionKeys: clearOptionKeys,
+      options,
+      path: resolvedPath,
+      pluginId,
+    };
+  });
 }
 
 /**
@@ -327,18 +333,20 @@ export async function removePluginFromFileConfig(
   pluginId: string,
 ): Promise<PluginRemovePatchResult> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const { next, removedEnabled, removedOptions } = patchPluginRemoved(parsed, pluginId);
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const { next, removedEnabled, removedOptions } = patchPluginRemoved(parsed, pluginId);
 
-  if (removedEnabled || removedOptions) {
-    await atomicWriteJson(resolvedPath, next);
-  }
-  return {
-    path: resolvedPath,
-    pluginId,
-    removedEnabled,
-    removedOptions,
-  };
+    if (removedEnabled || removedOptions) {
+      await atomicWriteJson(resolvedPath, next);
+    }
+    return {
+      path: resolvedPath,
+      pluginId,
+      removedEnabled,
+      removedOptions,
+    };
+  });
 }
 
 /**
@@ -352,27 +360,29 @@ export async function removePluginEnabledFromFileConfig(
   pluginId: string,
 ): Promise<{ path: string; pluginId: string; removedEnabled: boolean }> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
-  const aliases = pluginIdAliases(pluginId);
-  const removedEnabled = aliases.some((id) =>
-    Object.prototype.hasOwnProperty.call(enabledPlugins, id),
-  );
-  if (!removedEnabled) {
-    return { path: resolvedPath, pluginId, removedEnabled: false };
-  }
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+    const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
+    const aliases = pluginIdAliases(pluginId);
+    const removedEnabled = aliases.some((id) =>
+      Object.prototype.hasOwnProperty.call(enabledPlugins, id),
+    );
+    if (!removedEnabled) {
+      return { path: resolvedPath, pluginId, removedEnabled: false };
+    }
 
-  const nextEnabled = { ...enabledPlugins };
-  for (const id of aliases) delete nextEnabled[id];
-  await atomicWriteJson(resolvedPath, {
-    ...parsed,
-    plugins: {
-      ...plugins,
-      enabledPlugins: nextEnabled,
-    },
+    const nextEnabled = { ...enabledPlugins };
+    for (const id of aliases) delete nextEnabled[id];
+    await atomicWriteJson(resolvedPath, {
+      ...parsed,
+      plugins: {
+        ...plugins,
+        enabledPlugins: nextEnabled,
+      },
+    });
+    return { path: resolvedPath, pluginId, removedEnabled: true };
   });
-  return { path: resolvedPath, pluginId, removedEnabled: true };
 }
 
 export interface SuppressedBuiltinPatchResult {
@@ -391,23 +401,25 @@ export async function addSuppressedBuiltinInFileConfig(
   pluginId: string,
 ): Promise<SuppressedBuiltinPatchResult> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  const canonicalPluginId = canonicalizePluginId(pluginId);
-  const aliases = pluginIdAliases(canonicalPluginId);
-  const current = Array.isArray(plugins.suppressedBuiltins)
-    ? (plugins.suppressedBuiltins as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
-  const retained = current.filter((id) => !aliases.includes(id));
-  if (retained.length === current.length && current.includes(canonicalPluginId)) {
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+    const canonicalPluginId = canonicalizePluginId(pluginId);
+    const aliases = pluginIdAliases(canonicalPluginId);
+    const current = Array.isArray(plugins.suppressedBuiltins)
+      ? (plugins.suppressedBuiltins as unknown[]).filter((v): v is string => typeof v === "string")
+      : [];
+    const retained = current.filter((id) => !aliases.includes(id));
+    if (retained.length === current.length && current.includes(canonicalPluginId)) {
+      return { path: resolvedPath, pluginId, suppressed: true };
+    }
+    const next = {
+      ...parsed,
+      plugins: { ...plugins, suppressedBuiltins: [...retained, canonicalPluginId] },
+    };
+    await atomicWriteJson(resolvedPath, next);
     return { path: resolvedPath, pluginId, suppressed: true };
-  }
-  const next = {
-    ...parsed,
-    plugins: { ...plugins, suppressedBuiltins: [...retained, canonicalPluginId] },
-  };
-  await atomicWriteJson(resolvedPath, next);
-  return { path: resolvedPath, pluginId, suppressed: true };
+  });
 }
 
 /**
@@ -419,22 +431,24 @@ export async function removeSuppressedBuiltinInFileConfig(
   pluginId: string,
 ): Promise<SuppressedBuiltinPatchResult> {
   const resolvedPath = resolvePath(filePath);
-  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  const aliases = pluginIdAliases(pluginId);
-  const current = Array.isArray(plugins.suppressedBuiltins)
-    ? (plugins.suppressedBuiltins as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
-  const nextSuppressedBuiltins = current.filter((id) => !aliases.includes(id));
-  if (nextSuppressedBuiltins.length === current.length) {
+  // 读改写整体持跨进程锁：config.json 由 Main、Host 与 CLI 共同写入，锁外读会用旧快照覆盖他人字段。
+  return withFileConfigLocked(resolvedPath, async (parsed) => {
+    const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+    const aliases = pluginIdAliases(pluginId);
+    const current = Array.isArray(plugins.suppressedBuiltins)
+      ? (plugins.suppressedBuiltins as unknown[]).filter((v): v is string => typeof v === "string")
+      : [];
+    const nextSuppressedBuiltins = current.filter((id) => !aliases.includes(id));
+    if (nextSuppressedBuiltins.length === current.length) {
+      return { path: resolvedPath, pluginId, suppressed: false };
+    }
+    const next = {
+      ...parsed,
+      plugins: { ...plugins, suppressedBuiltins: nextSuppressedBuiltins },
+    };
+    await atomicWriteJson(resolvedPath, next);
     return { path: resolvedPath, pluginId, suppressed: false };
-  }
-  const next = {
-    ...parsed,
-    plugins: { ...plugins, suppressedBuiltins: nextSuppressedBuiltins },
-  };
-  await atomicWriteJson(resolvedPath, next);
-  return { path: resolvedPath, pluginId, suppressed: false };
+  });
 }
 
 /**
@@ -471,6 +485,23 @@ async function readJsonConfigFile(filePath: string): Promise<Record<string, unkn
   }
 
   return parsed;
+}
+
+/**
+ * 在跨进程锁内完成 config.json 的读-改-写。
+ *
+ * Bug 原因：config.json 由 Main、Host 与 CLI 三个进程共同写入，CLI 侧原先锁外读、锁外写，
+ * 后写的一方用旧快照整文件覆盖其他进程刚写入的字段（跨进程丢更新）。
+ * 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+ *
+ * 读取沿用 readJsonConfigFileOrEmpty：ENOENT 视为空配置，其他错误（含 JSON 损坏）上抛，
+ * 不把损坏文件静默当成空配置后整文件写回。
+ */
+async function withFileConfigLocked<T>(
+  filePath: string,
+  operation: (parsed: Record<string, unknown>) => T | Promise<T>,
+): Promise<T> {
+  return withFileLock(filePath, async () => operation(await readJsonConfigFileOrEmpty(filePath)));
 }
 
 async function readJsonConfigFileOrEmpty(filePath: string): Promise<Record<string, unknown>> {

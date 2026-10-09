@@ -23,6 +23,7 @@ import {
   type ZCodeCommand,
 } from "@zcode/shared";
 import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@zcode/shared";
+import { withFileLock } from "@zcode/shared/node";
 import type { ICommandsService } from "./commands.js";
 import { CommandFileParser, type CommandFileFormat } from "./commandFileParser.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
@@ -110,6 +111,22 @@ async function writeUserCliConfig(config: Record<string, unknown>): Promise<void
   const filePath = getUserCliConfigPath();
   await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * 在跨进程锁内完成 config.json 的读-改-写。
+ *
+ * Bug 原因：config.json 由 Main、Host 与 CLI 共同写入，原先各调用点锁外读、锁外写，
+ * 后写的一方用旧快照整文件覆盖其他进程刚写入的字段（跨进程丢更新）。
+ * 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+ */
+async function updateUserCliConfig(
+  update: (config: Record<string, unknown>) => Record<string, unknown>,
+): Promise<void> {
+  const filePath = getUserCliConfigPath();
+  await withFileLock(filePath, async () => {
+    await writeUserCliConfig(update(await readUserCliConfig()));
+  });
 }
 
 function readCommandEnabledOverrides(config: Record<string, unknown>): Map<string, boolean> {
@@ -600,7 +617,7 @@ export function createCommandsService(_options?: CommandsServiceOptions): IComma
       descriptor.format,
     );
     await writeFile(filePath, content, "utf-8");
-    await writeUserCliConfig(setCommandEnabledOverride(await readUserCliConfig(), filePath, true));
+    await updateUserCliConfig((config) => setCommandEnabledOverride(config, filePath, true));
 
     const parsed = CommandFileParser.parseCommandFile(content, filePath, descriptor.format);
     if (!parsed) {
@@ -681,13 +698,17 @@ export function createCommandsService(_options?: CommandsServiceOptions): IComma
       enabledOverrides.has(params.oldFilePath)
     ) {
       // 禁用状态按命令文件路径存放；编辑命令改名会换文件路径，必须迁移 override，
-      // 否则用户刚禁用的命令会因为改名重新启用。
-      const migratedConfig = setCommandEnabledOverride(
-        setCommandEnabledOverride(await readUserCliConfig(), params.oldFilePath, true),
-        newFilePath,
-        enabledOverrides.get(params.oldFilePath) ?? true,
+      // 否则用户刚禁用的命令会因为改名重新启用。迁移是 config 的纯函数，放进锁内基于最新值计算，
+      // 避免用锁外旧快照整文件写回。
+      const previousFilePath = params.oldFilePath;
+      const previousEnabled = enabledOverrides.get(previousFilePath) ?? true;
+      await updateUserCliConfig((config) =>
+        setCommandEnabledOverride(
+          setCommandEnabledOverride(config, previousFilePath, true),
+          newFilePath,
+          previousEnabled,
+        ),
       );
-      await writeUserCliConfig(migratedConfig);
     }
 
     const parsed = CommandFileParser.parseCommandFile(content, newFilePath, descriptor.format);
@@ -728,18 +749,13 @@ export function createCommandsService(_options?: CommandsServiceOptions): IComma
         throw error;
       }
     }
-    await writeUserCliConfig(
-      setCommandEnabledOverride(await readUserCliConfig(), params.filePath, true),
-    );
+    await updateUserCliConfig((config) => setCommandEnabledOverride(config, params.filePath, true));
   }
 
   async function setCommandEnabled(params: CommandSetEnabledParams): Promise<void> {
-    const nextConfig = setCommandEnabledOverride(
-      await readUserCliConfig(),
-      params.filePath,
-      params.enabled,
+    await updateUserCliConfig((config) =>
+      setCommandEnabledOverride(config, params.filePath, params.enabled),
     );
-    await writeUserCliConfig(nextConfig);
   }
 
   async function getPrimaryUserCommandsDirectory(params?: {
