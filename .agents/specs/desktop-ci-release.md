@@ -27,6 +27,8 @@ GitHub Actions 工作流拥有调度和权限；现有 `bundle:desktop` 拥有�
 
 版本串所有权：`prepare:runtime-assets` 必须在任何消费方读取版本前先落盘 `build-meta.json`（即先执行 `prepare:build-meta`，再执行 `prepare:remote-assets`）。`prepare:remote-assets` 把 `appVersion` 烧进 `bundled-remote-assets` 的 manifest，electron-builder 的 beforePack/afterPack 用 `context.packager.appInfo.version` 校验同一份 manifest；两侧都经 `getBuildMetadata()` 读同一份缓存，因此缓存刷新必须早于第一次读取。
 
+构建阶段不重复执行：`bundle:desktop` 串联 `prepare:runtime-assets` 与构建脚本。`build` 自身以 `prepare:runtime-assets` 开头，因此显式准备过运行时资产后只能调用 `build:no-runtime-assets`；否则 `prepare:remote-assets`（实测约 42s）与 `prepare:agent-bundle`（实测约 31s）整段重复执行。`--skip-prepare` 的语义是「不单独跑准备阶段、交给 `build` 自己准备」，此时才调用完整的 `build`。
+
 ```mermaid
 flowchart TD
   A[PR / main / 手动 / 标签] --> B[版本与依赖检查]
