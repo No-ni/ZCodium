@@ -48,6 +48,13 @@ function runTimedPnpmScript(scriptName) {
   }
 }
 
+// 版本串必须在任何消费方读取前落盘。prepare:remote-assets 会把 appVersion 烧进
+// bundled-remote-assets 的 manifest，而 electron-builder 的 beforePack/afterPack 用
+// context.packager.appInfo.version 校验同一份 manifest；两侧都经 getBuildMetadata()
+// 读同一份 build-meta.json。若此处不先刷新，烘焙读到的是上一次构建留下的旧缓存，
+// 新增 commit 后校验必然以 Bundled remote appVersion mismatch 失败。
+runTimedPnpmScript("prepare:build-meta");
+
 const shouldSkipRemoteAssets = process.env.ZCODE_SKIP_REMOTE_ASSETS === "1";
 
 if (!shouldSkipRemoteAssets) {

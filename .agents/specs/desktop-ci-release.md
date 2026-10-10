@@ -15,6 +15,7 @@
 - 只有版本标签推送允许创建 GitHub **草稿** Release，公开发布由维护者审核后操作。
 - 带预发布标识的版本同时标记为 prerelease，审核发布时不会被误当作稳定版本。
 - 标签必须为 `v<package.json.version>`，版本需满足 SemVer（可带预发布标识，不接受 build metadata）。无效标签在构建前失败。
+- 滚动版本串（`scripts/rolling-app-version.mjs` 的 `collectRollingAppVersion`）是 `mock-cdn/releases/<version>` 目录名、`manifest.appVersion` 与打包侧 `appInfo.version` 的唯一来源；三者在单次构建内必须同源。
 - 依赖安装使用 frozen lockfile。Node 从 mise.toml、pnpm 从 package.json 读取；同步已有依赖遗漏的锁文件项，不升级业务依赖。
 - 工具链读取器显式解析 mise.toml 的 tools 表，只接受固定版本，并验证 pnpm 与 packageManager 一致；缺失或不一致时在安装前失败。
 - 构建只使用当前源码与仓库已有资源，不读取 references/，不需要官方账号、服务凭据、私有镜像或签名证书。
@@ -23,6 +24,8 @@
 ## 所有者、接口与事件顺序
 
 GitHub Actions 工作流拥有调度和权限；现有 `bundle:desktop` 拥有构建、运行时依赖验证与体积审计；发布脚本只拥有产物筛选、校验和及草稿上传，不复制业务状态。
+
+版本串所有权：`prepare:runtime-assets` 必须在任何消费方读取版本前先落盘 `build-meta.json`（即先执行 `prepare:build-meta`，再执行 `prepare:remote-assets`）。`prepare:remote-assets` 把 `appVersion` 烧进 `bundled-remote-assets` 的 manifest，electron-builder 的 beforePack/afterPack 用 `context.packager.appInfo.version` 校验同一份 manifest；两侧都经 `getBuildMetadata()` 读同一份缓存，因此缓存刷新必须早于第一次读取。
 
 ```mermaid
 flowchart TD
@@ -58,6 +61,7 @@ flowchart TD
 3. 手动运行可下载各平台产物，标签上下文的手动运行仍不创建 Release。
 4. 合法标签、全平台构建与检查全部成功后，只生成草稿及 SHA256SUMS；维护者仍须手动发布。
 5. 版本不匹配、单平台失败、缺包、错版本和空包阻断发布；重跑不能覆盖公开 Release。
+   5a. 在已有陈旧 `build-meta.json` 的工作区里，`bundle:desktop --os linux --arch x64` 不得因 `Bundled remote appVersion mismatch` 失败；烘焙出的 `manifest-linux-x64.json` 的 `appVersion` 必须等于当前 HEAD 算出的滚动版本。
 6. 发布辅助脚本用临时目录和模拟 GitHub 调用测试，覆盖以上失败语义，不访问真实 Release。
 7. Linux arm64 与 Linux x64 的产物按 arch 分别收集，互不覆盖；`deb`/`AppImage`/`rpm`/`pacman` 的 arm 架构名与 `builder-util` 的实际命名一致。
 8. 原生 runner 上执行 CUA 原生库与打包后 Electron 运行时探针；交叉打包的架构只校验随包资产文件（`--files-only`）。
