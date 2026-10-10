@@ -328,6 +328,9 @@ const cuaOperationLogger = createServiceLogger("cua-operation-turn");
 const PLUGIN_MANAGEMENT_WORKSPACE_DIR_NAME = "plugin-workspace";
 // 状态探测完成后释放闲置的 MCP 子进程；只作用于控制面，不回收会话进程。
 const MCP_STATUS_LANE_IDLE_TIMEOUT_MS = 5 * 60_000;
+// 插件管理同样是按需控制面：安装/卸载/更新/校验都由用户显式触发，操作间隔以分钟计。
+// 空闲即回收，见 .agents/specs/cli-lane-idle-reclaim.md（实测单进程空闲 RSS 276.6 MiB）。
+const PLUGIN_LANE_IDLE_TIMEOUT_MS = 5 * 60_000;
 // 官方 Claude marketplace 首次接入需要 clone/copy GitHub 仓库，30s 默认协议超时会杀掉健康 agent。
 // 插件市场管理属于低频网络 I/O 操作，单独放宽超时，不影响普通会话消息的实时失败边界。
 const PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS = 5 * 60_000;
@@ -839,6 +842,8 @@ interface CreateZCodeAgentServiceOptions extends Omit<
 > {
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
+  /** 仅供插件管理进程使用，不能把空闲回收传给 chat。 */
+  pluginLaneIdleTimeoutMs?: number;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
   authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
   modelSelectionReadinessSource?: ModelSelectionReadinessSource;
@@ -913,6 +918,8 @@ export function createZCodeAgentService(
     requestTimeoutMs: options?.requestTimeoutMs,
     resolveSpawnEnv: options?.resolveSpawnEnv,
     waitForSpawnAdmission: options?.waitForSpawnAdmission,
+    lane: "plugin",
+    idleTimeoutMs: options?.pluginLaneIdleTimeoutMs ?? PLUGIN_LANE_IDLE_TIMEOUT_MS,
   });
   // 合并时误删了独立进程：mcp/list 的慢握手会堵住串行 stdio 队列，连带卡住插件卸载。
   // 恢复专用控制面进程及空闲回收；共享 workspace 路径，不共享请求队列或 watchdog。
