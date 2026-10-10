@@ -706,12 +706,17 @@ async function main() {
     process.exit(0);
   }
 
+  // prepare:runtime-assets 与 build 脚本各自都会准备本机运行时资产，串联会重复执行。
+  // 显式准备过就只能调 build:no-runtime-assets；--skip-prepare 才走完整 build，
+  // 让它自己准备。见 .agents/specs/desktop-ci-release.md。
+  const buildScript = skipPrepare ? "build" : "build:no-runtime-assets";
+
   if (!skipPrepare) {
     run(pnpmCommand, ["prepare:runtime-assets"], buildEnv);
   }
 
   if (!skipBuild) {
-    run(pnpmCommand, ["build"], buildEnv);
+    run(pnpmCommand, [buildScript], buildEnv);
   }
 
   await runTimedAsync("bundle:electron-builder", () =>

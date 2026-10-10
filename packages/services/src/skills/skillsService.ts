@@ -31,6 +31,7 @@ import {
   ZCODE_USER_DATA_DIR_NAME,
   ZCODE_WORKSPACE_CONFIG_DIR_NAME,
 } from "@zcode/shared";
+import { withFileLock } from "@zcode/shared/node";
 import type { ISkillsService } from "./skills.js";
 import { SKILL_FILE_NAME, walkSkillMarkdownPaths } from "./skillDiscoveryWalk.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
@@ -564,28 +565,33 @@ async function readSkillEnabledMap(): Promise<Record<string, boolean>> {
 }
 
 async function writeSkillEnabledMap(next: Record<string, boolean>): Promise<void> {
-  const config = await readCliConfigFile();
-  const skillsConfig = isObjectRecord(config.skills) ? config.skills : {};
-  for (const [path, enable] of Object.entries(next).sort(([left], [right]) =>
-    left.localeCompare(right),
-  )) {
-    // 技能开关之前分散在 workspace/provider/context 状态文件，导致同一技能在不同入口表现不一致。
-    // 现在只按 SKILL.md 路径写入 CLI config 的 skills 字段，避免额外迁移或旧文件副作用。
-    const normalizedPath = normalizeSkillConfigPath(path);
-    if (enable) {
-      // 开启态是默认值，不应落盘成 `{ enable: true }`；删除 override 才能跟随插件/默认配置变化。
-      delete skillsConfig[normalizedPath];
-    } else {
-      skillsConfig[normalizedPath] = { enable };
+  // Bug 原因：SKILL_CLI_CONFIG_FILE 就是 ~/.zcodium/cli/config.json，由 Main、Host 与 CLI
+  // 共同写入；修复前锁外读、锁外写会用旧快照覆盖其他写入方刚写入的字段。
+  // 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+  await withFileLock(SKILL_CLI_CONFIG_FILE, async () => {
+    const config = await readCliConfigFile();
+    const skillsConfig = isObjectRecord(config.skills) ? config.skills : {};
+    for (const [path, enable] of Object.entries(next).sort(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
+      // 技能开关之前分散在 workspace/provider/context 状态文件，导致同一技能在不同入口表现不一致。
+      // 现在只按 SKILL.md 路径写入 CLI config 的 skills 字段，避免额外迁移或旧文件副作用。
+      const normalizedPath = normalizeSkillConfigPath(path);
+      if (enable) {
+        // 开启态是默认值，不应落盘成 `{ enable: true }`；删除 override 才能跟随插件/默认配置变化。
+        delete skillsConfig[normalizedPath];
+      } else {
+        skillsConfig[normalizedPath] = { enable };
+      }
     }
-  }
-  if (Object.keys(skillsConfig).length > 0) {
-    config.skills = skillsConfig;
-  } else {
-    delete config.skills;
-  }
-  await mkdir(SKILL_CLI_SETTINGS_DIR, { recursive: true });
-  await writeFile(SKILL_CLI_CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    if (Object.keys(skillsConfig).length > 0) {
+      config.skills = skillsConfig;
+    } else {
+      delete config.skills;
+    }
+    await mkdir(SKILL_CLI_SETTINGS_DIR, { recursive: true });
+    await writeFile(SKILL_CLI_CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  });
 }
 
 interface SkillRootDescriptor {
@@ -1075,9 +1081,8 @@ export function createSkillsService(options?: SkillsServiceOptions): ISkillsServ
         if (!skill) {
           throw new Error(`Skill not found: ${params.skillId}`);
         }
-        const enabledByPath = await readSkillEnabledMap();
-        enabledByPath[normalizeSkillConfigPath(skill.path)] = params.enabled;
-        await writeSkillEnabledMap(enabledByPath);
+        // 锁外旧开关表会重新禁用其他窗口刚启用的技能；只传本次目标路径的增量。
+        await writeSkillEnabledMap({ [normalizeSkillConfigPath(skill.path)]: params.enabled });
       };
 
       const queued = writeQueue.then(runUpdate, runUpdate);

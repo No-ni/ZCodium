@@ -90,3 +90,7 @@ Checks 中的诊断回归直接读取受检源码，不依赖 CLI package 的 `d
 - [setup-node](https://github.com/actions/setup-node)：按 mise.toml 安装 Node。
 - [pnpm/action-setup](https://github.com/pnpm/action-setup)：按 packageManager 安装 pnpm。
 - [upload-artifact](https://github.com/actions/upload-artifact) / [download-artifact](https://github.com/actions/download-artifact)：同一工作流内传递产物。
+
+## 构建阶段避免重复准备
+
+`bundle:desktop` 显式执行 `prepare:runtime-assets` 后调用 `build:no-runtime-assets`。只有 `--skip-prepare` 且未跳过构建时调用完整 `build`，由它负责准备。保留现有 Windows/macOS 目标、本机 Agent 与原生资源校验，不恢复 Linux 资源步骤。回归覆盖普通、skip-prepare、skip-build 及同时跳过两阶段的调用顺序，不执行真实打包。

@@ -1,11 +1,10 @@
-import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- SSH backend 集中维护连接、exec、SFTP 上传和 fallback 进度链路；集中维护以避免拆分引入远端连接回归。 */
+import { safeLogArgs, resolveZCodeRuntimeEnv, type SSHConnectOptions } from "@zcode/shared";
 import { Client as SSHClient } from "ssh2";
 import type { ConnectConfig } from "ssh2";
 import { createReadStream } from "node:fs";
 import { posix } from "node:path";
 import { Emitter } from "@zcode/rpc";
-import { resolveZCodeRuntimeEnv } from "@zcode/shared";
 import type {
   IRemoteBackend,
   RemoteDisconnectEvent,
@@ -30,6 +29,13 @@ import {
   createKeyboardInteractiveResponder,
   normalizeSSHConnectError,
 } from "@zcode/server/remote/sshAuth.js";
+import {
+  createSSHHostVerifier,
+  formatHostKeyRejectionError,
+  getSSHKnownHostsPath,
+  SSHHostKeyStore,
+  type SSHHostKeyRejection,
+} from "@zcode/server/remote/sshKnownHosts.js";
 import {
   createSSHUploadProgressReporter,
   formatSSHUploadError,
@@ -94,11 +100,18 @@ export class SSHBackend implements IRemoteBackend {
   private client: SSHClient;
   private connected = false;
   private readonly config: ConnectConfig;
+  private readonly hostKeyTarget: SSHConnectOptions;
+  private connectionGeneration = 0;
+  private connecting: Promise<void> | undefined;
   private homeDirPromise: Promise<string> | null = null;
   private execUploadOnly = false;
   private disposed = false;
   private hasEverConnected = false;
   private disconnectReported = false;
+  // 本次连接尝试中 hostVerifier 记录的拒绝原因。ssh2 对 verify(false) 只抛固定的
+  // "Host denied (verification failed)"，分不清密钥变更与存储故障；verifier 先行记录，
+  // onClientError 优先把它换成可区分、可操作的产品错误。
+  private hostKeyRejection: SSHHostKeyRejection | null = null;
   private readonly disconnectEmitter = new Emitter<RemoteDisconnectEvent>();
   readonly onDidDisconnect = this.disconnectEmitter.event;
 
@@ -108,7 +121,7 @@ export class SSHBackend implements IRemoteBackend {
       // dispose 期间保留监听器只为吸收这类迟到事件，不能再向上层重复报告或触发未捕获异常。
       return;
     }
-    const normalizedError = normalizeSSHConnectError(error);
+    const normalizedError = this.normalizeConnectError(error);
     // ready 之后如果底层连接抖动，ssh2 仍会发出 "error" 事件。
     // 若没有常驻监听，Node 会把它当成未捕获异常直接抛出，可能导致 host 进程崩溃。
     // 这里先记录错误详情再上报断连；上层收到断连后会退出 host，反过来会丢掉真实 error 文案。
@@ -125,10 +138,15 @@ export class SSHBackend implements IRemoteBackend {
   };
 
   constructor(options: SSHBackendOptions) {
-    this.client = new SSHClient();
-    this.client.on("error", this.onClientError);
-    this.client.on("close", this.onClientClose);
-    this.client.on("end", this.onClientEnd);
+    // 存储键复用 buildSshRemoteHostKey；密码仅决定认证方式，known_hosts 不落凭据。
+    this.hostKeyTarget = {
+      kind: "ssh",
+      host: options.host,
+      port: options.port,
+      username: options.username,
+      privateKeyPath: options.privateKeyPath,
+      password: options.password,
+    };
     this.config = buildSSHConnectConfig({
       host: options.host,
       port: options.port,
@@ -138,6 +156,7 @@ export class SSHBackend implements IRemoteBackend {
       password: options.password,
       agent: options.agent,
     });
+    this.client = this.createClient();
     if (resolveZCodeRuntimeEnv(process.env) === "development") {
       this.config.debug = (message: string) => {
         // SSH ready 超时只暴露 client-timeout 时无法判断卡在 TCP、协商还是认证。
@@ -149,20 +168,35 @@ export class SSHBackend implements IRemoteBackend {
         console.debug(...safeLogArgs([`[ssh2] ${message}`]));
       };
     }
-    if (typeof options.password === "string" && options.password.length > 0) {
+  }
+
+  private createClient(): SSHClient {
+    const client = new SSHClient();
+    // ssh2 旧 socket 的 close/error 可能晚于重试；各实例只更新自己的连接状态，旧 error 保留 sink。
+    client.on("error", (error) => {
+      if (this.client === client) this.onClientError(error);
+    });
+    client.on("close", () => {
+      if (this.client === client) this.onClientClose();
+    });
+    client.on("end", () => {
+      if (this.client === client) this.onClientEnd();
+    });
+    if (typeof this.config.password === "string" && this.config.password.length > 0) {
       // `ssh2` 类型定义遗漏了 keyboard-interactive 事件，但运行时确实支持。
       // 这里局部转成 EventEmitter 接口，避免为了一个事件把整段代码降级到 any。
       (
-        this.client as unknown as {
+        client as unknown as {
           on(event: string, listener: (...args: unknown[]) => void): void;
         }
       ).on(
         "keyboard-interactive",
-        createKeyboardInteractiveResponder(options.password) as unknown as (
+        createKeyboardInteractiveResponder(this.config.password) as unknown as (
           ...args: unknown[]
         ) => void,
       );
     }
+    return client;
   }
 
   private assertNotDisposed(): void {
@@ -171,18 +205,49 @@ export class SSHBackend implements IRemoteBackend {
     }
   }
 
+  private normalizeConnectError(error: unknown): Error {
+    return this.hostKeyRejection
+      ? formatHostKeyRejectionError(this.hostKeyRejection, getSSHKnownHostsPath())
+      : normalizeSSHConnectError(error);
+  }
+
   private async ensureConnected(): Promise<void> {
     // 连接取消会先释放 backend，但迟到的 deploy/cleanup continuation 仍可能
     // 调用 ensureConnected。ssh2 Client 支持 end 后再次 connect，必须在 backend 边界阻止旧凭据复活。
     this.assertNotDisposed();
     if (this.connected) return;
-    return new Promise((resolve, reject) => {
+    // 同一 backend 的并发调用复用本次握手；否则后一 connect 会关闭前一 socket，并使校验失效。
+    if (this.connecting) return this.connecting;
+    if (this.connectionGeneration > 0) {
+      const previousClient = this.client;
+      this.client = this.createClient();
+      previousClient.end();
+    }
+    const client = this.client;
+    // 拒绝原因只属于本次握手，不能让旧主机密钥错误掩盖重试时的认证或网络失败。
+    this.hostKeyRejection = null;
+    const generation = ++this.connectionGeneration;
+    // 每次 connect 独立绑定代际；取消、断连或重试后不能回调旧协议，也不能改写新拒绝原因。
+    const hostVerifier = createSSHHostVerifier({
+      store: new SSHHostKeyStore(),
+      target: this.hostKeyTarget,
+      isActive: () => !this.disposed && this.connectionGeneration === generation,
+      onRejection: (rejection) => {
+        this.hostKeyRejection = rejection;
+      },
+    });
+    this.connecting = new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        client.off("ready", handleReady);
+        client.off("error", handleConnectError);
+        client.off("close", handleConnectClose);
+      };
       const handleReady = () => {
-        this.client.off("error", handleConnectError);
+        cleanup();
         if (this.disposed) {
           // dispose 与 ssh2 ready 可能交错；迟到的 ready 若重新标记 connected，
           // 后续 detect 会继续使用已取消连接的旧凭据。再次关闭 socket，并让原调用失败。
-          this.client.end();
+          client.end();
           reject(new Error("SSH backend 已释放，无法重新建立连接"));
           return;
         }
@@ -192,16 +257,37 @@ export class SSHBackend implements IRemoteBackend {
         resolve();
       };
       const handleConnectError = (error: unknown) => {
-        this.client.off("ready", handleReady);
-        reject(normalizeSSHConnectError(error));
+        cleanup();
+        // 常驻监听只负责日志/断连；调用方也需要得到具体拒绝原因，不能退回通用 host denied。
+        reject(this.normalizeConnectError(error));
       };
-      this.client.once("ready", handleReady);
-      this.client.once("error", handleConnectError);
-      this.client.connect(this.config);
+      const handleConnectClose = () => {
+        cleanup();
+        // ready 前关闭没有后续回调；必须结束原等待，不能让已取消握手永久 pending。
+        reject(
+          new Error(
+            this.disposed ? "SSH backend 已释放，无法重新建立连接" : "SSH 连接在握手完成前关闭",
+          ),
+        );
+      };
+      client.once("ready", handleReady);
+      client.once("error", handleConnectError);
+      client.once("close", handleConnectClose);
+      try {
+        // 正式连接始终注入 TOFU verifier；不提供时 ssh2 会接受任意主机密钥。
+        client.connect({ ...this.config, hostVerifier });
+      } catch (error) {
+        this.connectionGeneration += 1;
+        handleConnectError(error);
+      }
+    }).finally(() => {
+      this.connecting = undefined;
     });
+    return this.connecting;
   }
 
   private reportDisconnect(reason: RemoteDisconnectReason, error?: Error): void {
+    this.connectionGeneration += 1;
     const shouldReport =
       !this.disposed && !this.disconnectReported && (this.connected || this.hasEverConnected);
 
@@ -619,8 +705,6 @@ export class SSHBackend implements IRemoteBackend {
     // dispose 后保留 onClientError 作为 no-op sink，不能按 end/close 事件时序提前移除，
     // 否则迟到事件会逃逸为 uncaughtException，让共享 Window Host 连带退出其它 workspace。
     // client 只由当前 backend 持有，监听器会随 client 一起回收；此处优先保证退役阶段不崩溃。
-    this.client.off("close", this.onClientClose);
-    this.client.off("end", this.onClientEnd);
     this.client.end();
     this.connected = false;
     this.disconnectEmitter.dispose();

@@ -67,13 +67,16 @@ export interface ZCodeAgentProcessManagerOptions {
   /**
    * 进程泳道标识。同一 workspace 的不同泳道各走独立 manager 实例；lane 会写入
    * runtimeIdentity 与 spawn/exit 日志，便于排障区分。
-   * 缺省为 chat 主泳道，不追加任何标记。
+   * 缺省为 chat 主泳道，不追加任何标记。泳道标签同时决定资源遥测的角色归属：不传会被
+   * resolveCliProcessResourceRole 判成 chat，把控制面样本误计入 cli_chat。控制面 lane
+   * 必须显式传标签，见 .agents/specs/cli-lane-idle-reclaim.md。
    */
   lane?: string;
   /**
    * 空闲回收阈值：连接上没有请求在飞持续超过该时长，就主动回收整棵进程树，
    * 下次 getClient 透明重新拉起。只给 mcp-status 这类“按需探测、进程内挂着 MCP 子进程”
-   * 的控制面 lane 使用；chat / plugin 缺省不回收。
+   * 的控制面 lane 使用；chat 缺省不回收——会话在飞时回收会打断用户正在进行的对话。
+   * 见 .agents/specs/cli-lane-idle-reclaim.md。
    */
   idleTimeoutMs?: number;
   /**
