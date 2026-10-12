@@ -4,23 +4,18 @@ import { copyFile, lstat, mkdir, open, readFile, readdir, writeFile } from "node
 import { join, resolve } from "node:path";
 import { resolveDesktopProductIdentity } from "../../packages/desktop/scripts/desktop-product-identity.mjs";
 import { getBuildMetadata } from "../../packages/desktop/scripts/build-metadata.mjs";
+import { collectRollingAppVersion } from "../rolling-app-version.mjs";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-/**
- * Draft release 的首段固定为本仓库的立意句。
- *
- * 出处：王勃《滕王阁序》 —— 「老当益壮，宁移白首之心？穷且益坚，不坠青云之志。」
- * 英文为该句的英译，非某一特定译者的定本。
- * 排版约定：中文在前，空行，英文在后。
- */
+// 用户指定以 Shakespeare《Hamlet》原文开头并附中文，避免默认发行文案偏离本次授权要求。
 const RELEASE_MESSAGE_HEADING =
-  "老当益壮，宁移白首之心？穷且益坚，不坠青云之志。\n" +
-  "——王勃《滕王阁序》\n\n" +
-  "Age may advance, yet ambition shall not wane;\n" +
-  "Hardship may deepen, yet aspiration shall remain.";
+  "To be, or not to be, that is the question.\n\n" +
+  "生存还是毁灭，这是一个问题。\n\n" +
+  "— William Shakespeare, Hamlet / 莎士比亚《哈姆雷特》";
 const RELEASE_MESSAGE_BODY =
+  "Features: workflow Holes; mobile replayable realtime; scoped upstream 3.15.1 sync. Manual platform acceptance is not complete.\n\n" +
   "macOS arm64/x64, Linux x64/arm64 and Windows x64/arm64. Unsigned builds; review and test each platform before publishing. Verify downloads with SHA256SUMS.";
 // electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
 // macOS 同时发 arm64 与 x64（Intel），两者各自在原生 runner 上构建（macos-15 /
@@ -67,9 +62,12 @@ function validateVersion(version) {
   }
 }
 
-export function validateTag(tag, version) {
+export function validateTag(tag, version, expectedRollingVersion) {
   validateVersion(version);
-  if (tag !== `v${version}`) throw new Error(`Expected tag v${version}, received ${tag}`);
+  if (expectedRollingVersion !== undefined) validateVersion(expectedRollingVersion);
+  const expectedVersion = expectedRollingVersion ?? version;
+  if (tag !== `v${expectedVersion}`)
+    throw new Error(`Expected tag v${expectedVersion}, received ${tag}`);
 }
 
 // 同一架构在不同产物格式里的写法不同（deb=amd64、AppImage/rpm=x86_64、exe=x64），
@@ -182,9 +180,11 @@ async function main() {
   const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
   const artifacts = join(root, "dist", "release-assets");
   if (command === "check-version") {
-    validateVersion(version);
-    if (process.env.GITHUB_REF_TYPE === "tag") validateTag(process.env.GITHUB_REF_NAME, version);
-    console.log(`Release version: ${version}`);
+    const rollingVersion = collectRollingAppVersion().appVersion;
+    validateVersion(rollingVersion);
+    if (process.env.GITHUB_REF_TYPE === "tag")
+      validateTag(process.env.GITHUB_REF_NAME, version, rollingVersion);
+    console.log(`Release version: ${rollingVersion}`);
   } else if (command === "collect") {
     // 产物名带的是构建期滚动版本串（electron-builder extraMetadata.version），
     // 不是 package.json 的上游基线；collect 必须与打包侧同源读取，否则按基线名找不到产物。
@@ -203,12 +203,10 @@ async function main() {
       throw new Error("Draft releases require a tag push");
     }
     const tag = process.env.GITHUB_REF_NAME;
-    validateTag(tag, version);
-    // tag 只标识上游基线（v3.14.4），产物名带的却是构建期滚动版本串
-    // （electron-builder extraMetadata.version，见 #38）。校验与 collect 必须同源读
-    // getBuildMetadata，否则按基线名找不到产物——tag 推送时检出的就是被打标的同一
-    // commit，派生结果与构建 job 一致。
-    const files = await verifyReleaseAssets(artifacts, getBuildMetadata().appVersion);
+    const rollingVersion = collectRollingAppVersion().appVersion;
+    validateTag(tag, version, rollingVersion);
+    // tag 与产物必须来自当前被打标 commit 的滚动派生值；不读 build-meta 缓存，避免陈旧值让错误 tag/产物蒙混通过。
+    const files = await verifyReleaseAssets(artifacts, rollingVersion);
     await publishDraft({ tag, repo: process.env.GITHUB_REPOSITORY, files });
   } else {
     throw new Error("Usage: desktop-release.mjs check-version | collect <linux|win> | publish");

@@ -12,6 +12,7 @@ import {
   verifyReleaseAssets,
 } from "./desktop-release.mjs";
 import { desktopProductIdentities } from "../../packages/desktop/scripts/desktop-product-identity.mjs";
+import { collectRollingAppVersion } from "../rolling-app-version.mjs";
 
 const version = "3.14.0";
 // 产物名改由构建期产品身份派生（bugfix：曾硬编码 `ZCodium-`，身份改为 `ZCodium Exp`
@@ -31,16 +32,30 @@ async function fixture(t, names = allNames) {
   return directory;
 }
 
-test("release tag must exactly match a valid package version", () => {
+test("baseline tag validation remains compatible and rolling tags match exactly", () => {
   validateTag("v3.14.0", version);
   validateTag("v3.15.0-rc.1", "3.15.0-rc.1");
-  for (const tag of ["3.14.0", "v3.14.1", "v3.14.0\n", "v3.14.0;echo x"]) {
+  const rolling = "3.15.1-20261010.1234";
+  validateTag(`v${rolling}`, "3.15.1", rolling);
+  assert.throws(() => validateTag("v3.15.1", "3.15.1", rolling));
+  for (const tag of ["3.14.0", "v3.14.1", "v3.14.0\\n", "v3.14.0;echo x", "v3.15.1"]) {
     assert.throws(() => validateTag(tag, version));
+  }
+  for (const wrongRolling of [
+    "3.15.1-20261011.1234",
+    "3.15.1-20261010.1235",
+    "3.15.1-20261010.1234+build",
+  ]) {
+    assert.throws(() => validateTag(`v${wrongRolling}`, "3.15.1", rolling));
   }
   for (const invalid of ["../3.14.0", "03.14.0", "3.14", "3.14.0-01", "3.14.0+build"]) {
     assert.throws(() => validateTag(`v${invalid}`, invalid));
   }
   assert.throws(() => artifactNames("sunos", version));
+});
+
+test("rolling app version is stable for the same checked-out commit", () => {
+  assert.deepEqual(collectRollingAppVersion(), collectRollingAppVersion());
 });
 
 // tag 只标识上游基线（v3.14.4），产物名带的是构建期滚动版本串（#38 起 electron-builder
@@ -194,6 +209,12 @@ test("create a draft then upload assets; never publish it", async () => {
   assert.equal(calls.length, 3);
   assert.ok(calls[1].includes("--draft"));
   assert.ok(calls[1].includes("--verify-tag"));
+  const notesIndex = calls[1].indexOf("--notes");
+  assert.notEqual(notesIndex, -1);
+  assert.equal(
+    calls[1][notesIndex + 1],
+    "To be, or not to be, that is the question.\n\n生存还是毁灭，这是一个问题。\n\n— William Shakespeare, Hamlet / 莎士比亚《哈姆雷特》\n\nFeatures: workflow Holes; mobile replayable realtime; scoped upstream 3.15.1 sync. Manual platform acceptance is not complete.\n\nmacOS arm64/x64, Linux x64/arm64 and Windows x64/arm64. Unsigned builds; review and test each platform before publishing. Verify downloads with SHA256SUMS.",
+  );
   assert.equal(calls[2][2], "upload");
   assert.ok(calls[2].includes("--clobber"));
 });

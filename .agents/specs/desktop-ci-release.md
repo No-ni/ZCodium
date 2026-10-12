@@ -14,7 +14,7 @@
 - 同一架构族在不同格式里的写法不同，按 arch 筛选时必须归一（`ARCH_ALIASES`），否则 `x64` 匹配不到 deb/AppImage。
 - 只有版本标签推送允许创建 GitHub **草稿** Release，公开发布由维护者审核后操作。
 - 带预发布标识的版本同时标记为 prerelease，审核发布时不会被误当作稳定版本。
-- 标签必须为 `v<package.json.version>`，版本需满足 SemVer（可带预发布标识，不接受 build metadata）。无效标签在构建前失败。
+- 标签版本需满足 SemVer（可带预发布标识，不接受 build metadata）。保留 `validateTag(tag, baseline)` 的兼容行为：两参数仍精确校验 `v<baseline>`；可选第三参数 `expectedRollingVersion` 时，只有 `v<expectedRollingVersion>` 精确通过。滚动发行传入当前 checkout 的 `collectRollingAppVersion().appVersion`，不以任意日期/序号正则代替精确匹配。CLI `check-version` 与 `publish` 都直接派生当前值，不读构建缓存。
 - 滚动版本串（`scripts/rolling-app-version.mjs` 的 `collectRollingAppVersion`）是 `mock-cdn/releases/<version>` 目录名、`manifest.appVersion` 与打包侧 `appInfo.version` 的唯一来源；三者在单次构建内必须同源。
 - 依赖安装使用 frozen lockfile。Node 从 mise.toml、pnpm 从 package.json 读取；同步已有依赖遗漏的锁文件项，不升级业务依赖。
 - 工具链读取器显式解析 mise.toml 的 tools 表，只接受固定版本，并验证 pnpm 与 packageManager 一致；缺失或不一致时在安装前失败。
@@ -54,6 +54,7 @@ flowchart TD
 - 同一 ref 的普通构建允许取消旧运行；标签发布串行且不取消在途运行。
 - 发布仅消费当前 run 的固定 artifact。任何平台缺失、错误版本、空文件或额外文件均拒绝上传。
 - SHA256SUMS 由最终下载后的文件生成。重跑仅可更新同标签草稿；已公开 Release 拒绝覆盖。
+- Draft notes 第一段固定为用户指定 Shakespeare 引文及中文翻译/出处，其后含本次实际 features：Holes、mobile replayable realtime、scoped upstream 3.15.1 同步；注明人工验收未完成。保留 unsigned 与 SHA256SUMS 平台提示。创建前不得执行真实 tag 或 GitHub Release 写入。
 - 发布 job 是 Release 的唯一写入者；失败不会自动发布。上传中断可能留下草稿，重跑覆盖同名草稿资产。
 
 ## 检查、远端资产与打包的 needs 图与失败语义
@@ -81,7 +82,7 @@ flowchart LR
 2. 各平台独立产生所有预期安装包，并通过已有 app.asar 运行时依赖校验。
 3. 手动运行可下载各平台产物，标签上下文的手动运行仍不创建 Release。
 4. 合法标签、全平台构建与检查全部成功后，只生成草稿及 SHA256SUMS；维护者仍须手动发布。
-5. 版本不匹配、单平台失败、缺包、错版本和空包阻断发布；重跑不能覆盖公开 Release。
+5. 版本不匹配、单平台失败、缺包、错版本和空包阻断发布；重跑不能覆盖公开 Release。baseline 两参 tag 校验保持兼容；滚动发行精确接受当前派生 tag，拒绝同格式但错误 date/count、旧/裸 baseline tag。
    5a. 在已有陈旧 `build-meta.json` 的工作区里，`bundle:desktop --os linux --arch x64` 不得因 `Bundled remote appVersion mismatch` 失败；烘焙出的 `manifest-linux-x64.json` 的 `appVersion` 必须等于当前 HEAD 算出的滚动版本。
 6. 发布辅助脚本用临时目录和模拟 GitHub 调用测试，覆盖以上失败语义，不访问真实 Release。
 7. Linux arm64 与 Linux x64 的产物按 arch 分别收集，互不覆盖；`deb`/`AppImage`/`rpm`/`pacman` 的 arm 架构名与 `builder-util` 的实际命名一致。

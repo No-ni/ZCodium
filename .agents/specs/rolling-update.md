@@ -41,8 +41,7 @@ build / collect）派生出的版本串必须一致。三处消费依赖这一�
 2. `scripts/ci/desktop-release.mjs collect` 按版本串匹配 electron-builder 产物名；
 3. `scripts/prepare-prebuilds.mjs` 写 mock-cdn manifest 时用同一版本串。
 
-三处都经 `getBuildMetadata()` 读取，不存在第二个版本来源。`check-version` 与 tag 发布路径
-仍读根 `package.json` 的上游基线（该路径随"删除 tag 触发"一并退役）。
+三处都经 `getBuildMetadata()` 读取，不存在第二个版本来源。`check-version` 与 tag 发布路径按当前授权发行规则，直接调用 `collectRollingAppVersion()` 精确校验当前滚动值（不读构建缓存）；裸 baseline 两参 tag 校验仅保留为兼容接口。
 
 ### 浅克隆禁令
 
@@ -63,10 +62,22 @@ commit 会派生相同版本串，updater 漏推更新。CI 全部 checkout 必�
     `buildCommitId`），自建构建没有发布流水线序号，commit id 可直接定位源码。
 - 展示字符串与内部标识符是两个东西：前者可以随时改，后者不可。
 
-### 无发版事件
+### 经维护者授权的滚动版发行
 
-- 不存在"发版"这个动作：没有版本 bump 提交、没有 `v*` tag、没有按版本组织的 CHANGELOG。
-- 构建由 main 推送与手动触发驱动；`git log` 即唯一历史。
+滚动版本仍由 `collectRollingAppVersion()` 唯一派生。经用户明确授权执行发行时，release tag 必须为
+`v<collectRollingAppVersion().appVersion>`，并与当前 checkout 实时派生值精确一致；不得从 tag
+格式任意接受另一个日期或 commitCount。发行脚本保留旧的 `validateTag(tag, baseline)` 裸基线校验
+兼容接口，仅新增可选第三参数来校验精确滚动版本。CLI `check-version` 与 `publish` 均直接调用
+`collectRollingAppVersion()`，不读取可能陈旧的构建缓存。现有裸基线 tag 校验仍可用，但不代表
+滚动发行允许它。
+
+滚动串含 SemVer prerelease，因此本次 tag / draft 仍标记为 prerelease；这不是 stable 验收。
+不得改变滚动算法、用户可见 UI 版本号或其他 workspace package 版本。该发行仍只能由现有 `v*`
+工作流产生六平台产物和 Draft；脚本拒绝错误/旧版本及覆盖已公开 Release，工作流只消费当前 run
+经校验的 artifacts。公开发布与真实 tag 创建不是本地准备任务的一部分。
+
+未签名包、SHA256SUMS 校验提示及各平台人工验收要求保留。未完成签名、真机/目标平台安装验收前，
+不得宣称 stable 或完成发布验收。
 
 ### 比较禁令
 
@@ -92,20 +103,20 @@ commit 会派生相同版本串，updater 漏推更新。CI 全部 checkout 必�
 
 ### 消费方（只读，不随本 spec 改变接口）
 
-| 消费方                                                  | 现状                                          | 滚动后                                                                           |
-| ------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
-| `packages/shared/src/version.ts`                        | 注入值原样导出 `ZCODE_VERSION`                | 不变，值变成滚动串                                                               |
-| `packages/desktop/src/main/about.ts`                    | About 页 `version` 字段                       | 不再作为"版本"展示；`releaseBuildNumber` 非空展示官方形式，为空展示自建形式      |
-| `packages/desktop/src/host/index.ts`                    | `appVersion` 透传                             | 不变                                                                             |
-| `packages/desktop/src/main/exportLogs.ts`               | 导出包内 `appVersion`                         | 不变                                                                             |
-| `packages/desktop/src/main/desktopRuntimeEnv.ts`        | `ZCODE_APP_VERSION_ENV`                       | 不变                                                                             |
-| `packages/desktop/src/main/windowsChromeAppBoundKey.ts` | `expectedAppVersion`                          | 不变                                                                             |
-| `scripts/prepare-prebuilds.mjs`                         | `mock-cdn/releases/<version>/manifest-*.json` | 目录名与 `appVersion` 用滚动串                                                   |
-| `scripts/bundle-remote-assets.mjs`                      | `releases/<version>` 目录名与 verify 版本串   | 同源读 `getBuildMetadata`，不再读 package.json                                   |
-| `scripts/ci/remote-assets-smoke.mjs`                    | server `--version` 比对                       | 同源读 `getBuildMetadata`                                                        |
-| `packages/server/build-remote.ts` / `tsup.config.ts`    | `__ZCODE_VERSION__` 注入                      | 同源读 `collectRollingAppVersion`，server 报滚动串                               |
-| `packages/web/vite.config.ts`                           | `__ZCODE_VERSION__` 注入                      | 同源读 `collectRollingAppVersion`，web 报滚动串                                  |
-| `scripts/ci/desktop-release.mjs`                        | `collect` 按版本串匹配产物名                  | `collect` 读 `getBuildMetadata`；`check-version`/tag 路径仍读基线（随 tag 退役） |
+| 消费方                                                  | 现状                                          | 滚动后                                                                              |
+| ------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `packages/shared/src/version.ts`                        | 注入值原样导出 `ZCODE_VERSION`                | 不变，值变成滚动串                                                                  |
+| `packages/desktop/src/main/about.ts`                    | About 页 `version` 字段                       | 不再作为"版本"展示；`releaseBuildNumber` 非空展示官方形式，为空展示自建形式         |
+| `packages/desktop/src/host/index.ts`                    | `appVersion` 透传                             | 不变                                                                                |
+| `packages/desktop/src/main/exportLogs.ts`               | 导出包内 `appVersion`                         | 不变                                                                                |
+| `packages/desktop/src/main/desktopRuntimeEnv.ts`        | `ZCODE_APP_VERSION_ENV`                       | 不变                                                                                |
+| `packages/desktop/src/main/windowsChromeAppBoundKey.ts` | `expectedAppVersion`                          | 不变                                                                                |
+| `scripts/prepare-prebuilds.mjs`                         | `mock-cdn/releases/<version>/manifest-*.json` | 目录名与 `appVersion` 用滚动串                                                      |
+| `scripts/bundle-remote-assets.mjs`                      | `releases/<version>` 目录名与 verify 版本串   | 同源读 `getBuildMetadata`，不再读 package.json                                      |
+| `scripts/ci/remote-assets-smoke.mjs`                    | server `--version` 比对                       | 同源读 `getBuildMetadata`                                                           |
+| `packages/server/build-remote.ts` / `tsup.config.ts`    | `__ZCODE_VERSION__` 注入                      | 同源读 `collectRollingAppVersion`，server 报滚动串                                  |
+| `packages/web/vite.config.ts`                           | `__ZCODE_VERSION__` 注入                      | 同源读 `collectRollingAppVersion`，web 报滚动串                                     |
+| `scripts/ci/desktop-release.mjs`                        | `collect` 按版本串匹配产物名                  | `collect` 读 `getBuildMetadata`；tag check/publish 同步直接派生并精确校验当前滚动值 |
 
 ### 发布序号（展示专用，不进版本串）
 
@@ -196,7 +207,7 @@ flowchart LR
   （`beforePack` 相等校验通过）；collect 能找到全部产物。
 - 同步上游 bump 基线后，新构建版本串大于 bump 前所有构建。
 - 全部用户可见界面不出现版本号字符串；About 展示构建日期与上游基线。
-- main 推送触发完整构建与产物收集，不依赖 `v*` tag。
+- 本任务沿用当前 `v*` 标签工作流触发六平台构建与 Draft；滚动发行 tag 必须精确等于被打标 checkout 的派生版本。
 - CI 构建的 About 页展示官方形式（日期 + 构建 #N）；本地构建展示自建形式（日期 + 8 位短
   commit id），两者都不出现内部版本串与"版本号"字样。
 - 日志、导出包、`ZCODE_APP_VERSION_ENV`、mock-cdn manifest 中的版本均为滚动串。
