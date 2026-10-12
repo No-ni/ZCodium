@@ -9,6 +9,7 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "@zcode/client": "workspace:*",
     "@zcode/rpc": "workspace:*",
     "@zcode/shared": "workspace:*",

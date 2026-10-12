@@ -1,4 +1,6 @@
 /* eslint-disable max-lines -- 手机配对协议客户端：鉴权/信封收发/装配重传都在同一条 WebSocket 生命周期里，拆分会让序号、缓冲与定时器所有者分叉（与 rpcTransport.ts 同一口径）。 */
+import { hmac } from "@noble/hashes/hmac";
+import { sha256 } from "@noble/hashes/sha256";
 import { RemoteServiceAccess } from "@zcode/client";
 import { ChannelClient, VSBuffer } from "@zcode/rpc";
 import { WorkspaceBridgeLifecycle } from "./workspaceBridgeLifecycle.js";
@@ -138,6 +140,8 @@ export class MobileRemoteControlClient {
   private disposed = false;
   private reconnectTimer: number | null = null;
   private connectAttempt = 0;
+  private terminalFailure: { reason: string; closeCode?: number } | null = null;
+  private endpointErrorCode: string | null = null;
 
   constructor(
     private readonly params: MobilePairingParams & { wsUrl: string },
@@ -145,6 +149,7 @@ export class MobileRemoteControlClient {
   ) {}
 
   connect(): void {
+    if (this.terminalFailure) return;
     this.disposed = false;
     this.openSocket();
   }
@@ -156,7 +161,7 @@ export class MobileRemoteControlClient {
    * 也会触发这个入口，那时正在连接中，强行重连反而会把刚建立的链路踢掉。
    */
   retryNow(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.terminalFailure) return;
     const readyState = this.socket?.readyState;
     if (readyState === WebSocket.OPEN || readyState === WebSocket.CONNECTING) return;
     if (this.state !== "closed" && this.state !== "error") return;
@@ -169,12 +174,13 @@ export class MobileRemoteControlClient {
   }
 
   private openSocket(): void {
+    if (this.disposed || this.terminalFailure) return;
     const socket = new WebSocket(this.params.wsUrl);
     this.socket = socket;
+    this.endpointErrorCode = null;
     this.ensureAssemblySweepTimer();
     socket.addEventListener("open", () => {
-      if (this.disposed || this.socket !== socket) return;
-      this.connectAttempt = 0;
+      if (this.disposed || this.terminalFailure || this.socket !== socket) return;
       this.setState("authenticating");
       this.send({
         type: "auth_init",
@@ -189,15 +195,31 @@ export class MobileRemoteControlClient {
       });
     });
     socket.addEventListener("message", (event) => {
-      if (this.disposed || this.socket !== socket) return;
+      if (this.disposed || this.terminalFailure || this.socket !== socket) return;
       void this.handleMessage(event.data, socket);
     });
     socket.addEventListener("close", (event) => {
-      if (this.socket !== socket) return;
+      if (this.socket !== socket || this.terminalFailure) return;
       // bridge 与 socket 同生共死；accessor 里可能还有在途请求，连同 RPC 序号一起作废。
       this.bridge.invalidate();
       this.clearAssemblySweepTimer();
       this.failPending(new Error(`mobile connection closed: ${event.code}`));
+      if (
+        event.code === 4002 ||
+        event.code === 4003 ||
+        (event.code === 4001 && this.endpointErrorCode !== "INTERNAL")
+      ) {
+        // LAN 的 INTERNAL 也用 4001 关闭；优先保留已收到的临时错误语义，不能误判为失效配对。
+        // 其余拒绝/互踢/过期必须终止，自动重试会让旧链接反复抢占配对关系。
+        const reason =
+          event.code === 4002
+            ? "KICKED"
+            : event.code === 4003
+              ? "AUTH_FAILED"
+              : "CONNECTION_REJECTED";
+        this.terminate(reason, event.code);
+        return;
+      }
       if (this.disposed) {
         this.setState("closed", { closeCode: event.code, reason: event.reason });
         return;
@@ -205,14 +227,14 @@ export class MobileRemoteControlClient {
       this.scheduleReconnect(event);
     });
     socket.addEventListener("error", () => {
-      if (this.disposed || this.socket !== socket) return;
+      if (this.disposed || this.terminalFailure || this.socket !== socket) return;
       this.setState("error");
     });
   }
 
   /** 指数退避 + 抖动重连（上限 30s）；重连后走同一条 auth_init，配对信息不丢。 */
   private scheduleReconnect(event: CloseEvent): void {
-    if (this.reconnectTimer !== null) return;
+    if (this.terminalFailure || this.reconnectTimer !== null) return;
     this.connectAttempt += 1;
     const backoff = Math.min(30_000, 1_000 * 2 ** Math.min(this.connectAttempt - 1, 5));
     const delay = backoff + Math.floor(Math.random() * 1_000);
@@ -220,7 +242,7 @@ export class MobileRemoteControlClient {
     this.setState("connecting", { closeCode: event.code, reason: event.reason });
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
-      if (!this.disposed) this.openSocket();
+      if (!this.disposed && !this.terminalFailure) this.openSocket();
     }, delay);
   }
 
@@ -349,6 +371,11 @@ export class MobileRemoteControlClient {
   request(
     payload: WebRemoteControlAppPayload & { requestId: string },
   ): Promise<WebRemoteControlAppPayload> {
+    if (this.terminalFailure) {
+      return Promise.reject(
+        new Error(`mobile connection terminated: ${this.terminalFailure.reason}`),
+      );
+    }
     const { requestId } = payload;
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
@@ -568,8 +595,8 @@ export class MobileRemoteControlClient {
     if (type === "auth_challenge") {
       const nonce = String(frame.nonce ?? "");
       const proof = await this.calculateProof(nonce);
-      // WebCrypto 异步返回时可能已重连；旧 challenge 的 proof 不能发往新 socket。
-      if (this.disposed || this.socket !== socket) return;
+      // 鉴权计算异步完成时可能已断线、终止或重连；旧 challenge 不能再发送 proof。
+      if (this.disposed || this.terminalFailure || this.socket !== socket) return;
       this.send({
         type: "auth_response",
         device_sid: this.params.deviceSid,
@@ -579,13 +606,21 @@ export class MobileRemoteControlClient {
       return;
     }
     if (type === "auth_ack" || type === "pair_status_ack") {
-      const pairStatus = String(frame.pair_status ?? "");
+      const pairStatus = frame.pair_status;
+      if (pairStatus !== "matched" && pairStatus !== "waiting") return;
+      if (type === "auth_ack") this.connectAttempt = 0;
       this.setState(pairStatus === "matched" ? "paired" : "waiting");
       return;
     }
     if (type === "error") {
-      this.setState("error", { reason: String(frame.code ?? "unknown") });
-      this.failPending(new Error(String(frame.message ?? frame.code ?? "relay error")));
+      const code = String(frame.code ?? "unknown");
+      this.endpointErrorCode = code;
+      if (["AUTH_FAILED", "KICKED", "WRONG_PARAM"].includes(code)) {
+        this.terminate(code);
+      } else {
+        this.setState("error", { reason: code });
+        this.failPending(new Error(code));
+      }
       return;
     }
     if (type === "data") {
@@ -611,25 +646,36 @@ export class MobileRemoteControlClient {
     }
   }
 
-  private async calculateProof(nonce: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(this.params.passHash),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
+  private calculateProof(nonce: string): string {
+    // WebCrypto 在非安全上下文的 LAN HTTP 中没有 subtle；Noble 的纯 JS 实现与 HTTPS
+    // 共用同一 UTF-8 HMAC 路径，避免鉴权降级，也正确处理 SHA-256 长 key 预处理。
+    const signature = hmac(
+      sha256,
+      new TextEncoder().encode(this.params.passHash),
+      new TextEncoder().encode(`${nonce}|mobile|${this.params.deviceSid}`),
     );
-    const signature = await crypto.subtle.sign(
-      "HMAC",
-      key,
-      encoder.encode(`${nonce}|mobile|${this.params.deviceSid}`),
-    );
-    return toBase64Url(new Uint8Array(signature));
+    return toBase64Url(signature);
+  }
+
+  private terminate(reason: string, closeCode?: number): void {
+    if (this.terminalFailure) return;
+    this.terminalFailure = { reason, ...(closeCode === undefined ? {} : { closeCode }) };
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    // 终止时释放旧 bridge/RPC 请求；保留客户端终态，禁止 close、迟到帧或外部重试复活。
+    this.bridge.invalidate();
+    this.clearAssemblySweepTimer();
+    this.failPending(new Error(reason));
+    const detail = { reason, ...(closeCode === undefined ? {} : { closeCode }) };
+    if (this.state === "error") this.events.onStateChange("error", detail);
+    else this.setState("error", detail);
+    this.socket?.close();
   }
 
   private send(frame: unknown): void {
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    if (!this.terminalFailure && this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(frame));
     }
   }

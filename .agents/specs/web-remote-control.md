@@ -145,6 +145,68 @@ server→client  error                {code, message}              # KICKED|AUTH
   通知发送方，对应桌面 `bridge-degraded{reason:"rpc-transport-fault"}`。
 - 未配对（`waiting`）状态的 `data` 丢弃；端点不缓存、不补投——补投是两端语义。
 
+### 手机 LAN HTTP 鉴权与重连边界（bug 修复）
+
+- 默认 LAN 的 HTTP 页面必须能计算同一份 `HMAC-SHA256(pass_hash, "${nonce}|mobile|${device_sid}")`
+  base64url proof；不得依赖安全上下文限定的
+  `crypto.subtle`，不得改成跳过鉴权或明文比对。浏览器端使用显式依赖的
+  `@noble/hashes` 实现 SHA-256/HMAC，HTTPS/custom relay 使用同一路径。
+- 手机 socket、连接状态、重试计数、终止原因唯一所有者仍为
+  `MobileRemoteControlClient`；UI 只投影状态/原因，不能自建重连循环。
+- `AUTH_FAILED`、`KICKED`、`WRONG_PARAM` 为终止错误；收到后释放 bridge/在途请求、
+  清理重连定时器并关闭 socket，保留稳定 `error` 和原因；后续请求立即拒绝，不再等待超时。
+  拒绝原因只使用安全错误码，不把端点原始错误文本透传到 UI。随后 close/error/迟到帧、
+  online/前台恢复的 `retryNow()`、同实例重复 `connect()` 均不得重新抢占配对。
+  用户需关闭重复页面或从桌面重新获取链接，再建立新的客户端。
+- 终止错误帧未送达时，已知关闭码 `4001`（拒绝）、`4002`（互踢）、
+  `4003`（配对过期）同样终止；未知网络关闭与 `INTERNAL` 保留自动退避重连。
+  LAN 对 `INTERNAL` 同样使用 `4001` 关闭，已收到的 `INTERNAL` 错误帧优先于该通用关闭码，
+  每次新 socket 清空上一轮错误码，不能影响新连接的拒绝判断。
+- WebSocket `open` 不代表鉴权成功，不清零失败计数；仅有效 `auth_ack` 后清零，
+  连续握手前断线仍以 1/2/4…秒（抖动、上限规则不变）退避。
+- UI 分别呈现连接中、认证中、等待桌面、自动重连及终止错误；鉴权失效提示重新扫码，
+  互踢提示关闭重复页面，终止态不得显示「正在自动重连」。不展示 hash/proof/原始凭据。
+- 不改默认 HTTP/WS 部署与信任边界：本修复只解决浏览器兼容性，不提供 TLS；
+  LAN 明文仅用于可信网络，公网继续由用户 TLS 前置保护。多网卡地址选择不在本修复内。
+
+```text
+手机打开 LAN HTTP / custom HTTPS
+  → MobileRemoteControlClient（socket/重连唯一所有者）
+  → challenge → 同协议 HMAC proof → auth_ack → paired/waiting
+  ├─ 临时断网 → bridge 失效 → 退避 → 重新鉴权
+  │             → mobile replayable：重开桥 + 订阅 + 快照/缺口恢复
+  └─ AUTH_FAILED/KICKED/WRONG_PARAM → 终止 error → 关闭，无自动重试
+桌面 continuous → 原有 Host 实时流（owner/lease、identity、stale run 边界不变）
+```
+
+验收（先测试后实现）：
+
+1. 无 `crypto.subtle` 的环境收到 challenge 后发送有效 proof，与 Node `createHmac`
+   一致（含 UTF-8 和长 key）；真实非 loopback HTTP 浏览器能配对并取得 bootstrap。
+2. 错误/旧链接、重复手机页面：错误帧 + close 后终止；推进定时器、online/前台重试
+   不新增 socket，第二页面保持配对，旧页面不反抢。
+3. 仅关闭码拒绝/互踢/过期也终止；旧 socket 的关闭/错误/消息不能污染新 socket。
+4. 连续 open 后未经 auth_ack 就断线，退避递增；成功鉴权后网络断线仍恢复。
+5. 手机桥接已有 Host 的 replayable/RPC 回归通过，桌面 continuous 相关测试通过；
+   不改变 workspace identity、attachment、队列和会话事实源。
+
+本次验证证据：
+
+- `pnpm exec vitest run packages/web/src/mobile`：46 项通过，含 HMAC、终止/恢复策略、
+  状态文案以及既有 replayable 订阅/快照/RPC 测试。
+- `node --import tsx --test packages/services/test/importedClaudeRecovery.test.ts packages/services/test/nonCliAcpRetirement.test.ts`：
+  7 项通过，覆盖 Desktop/replayable 两种投影。
+- `node scripts/ci/web-remote-control-mobile-smoke.mjs`：真实 Chromium 手机尺寸页面 +
+  真实 LAN endpoint 通过；HTTP 非安全 origin（测试域名解析到 loopback，`subtle` 确认缺失），
+  配对/读取 fixture bootstrap、错误 hash 停止重试、第二页面互踢、临时断连自动恢复均通过。
+  仅 bootstrap 业务响应为 fixture；未声称验证物理手机、真实 Wi-Fi、防火墙、多网卡选址或
+  Electron Host attachment 的页面级联调。需已安装 Playwright Chromium，亦可用
+  `ZCODE_TEST_CHROMIUM_EXECUTABLE` 指定浏览器。
+- `pnpm typecheck`、`pnpm lint`（50 条存量 warning、0 errors）、
+  `pnpm architecture:check --changed`（0 violations）及 Web 构建通过。
+  改动文件格式检查通过；全库 `pnpm fmt:check` 被既有未跟踪 `logs/` 下 5 个 JSON 文件阻塞，
+  未格式化或删除用户本地日志。验证环境为 Node 24.19.0，仓库指定 24.14.0，本环境无 mise。
+
 ## 配对与二维码
 
 - secret：24 随机字节 base64url，一次性；`passHash = SHA256(secret)` base64。
