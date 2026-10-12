@@ -27,6 +27,11 @@ export function createJournalSequenceCapture(journal: JournalStorePort): {
     updateRunCaps: (runId, caps) => journal.updateRunCaps(runId, caps),
     updateRunScript: (runId, scriptText, scriptHash) =>
       journal.updateRunScript(runId, scriptText, scriptHash),
+    commitHoleFill: (runId, scriptText, scriptHash, event) => {
+      const stored = journal.commitHoleFill(runId, scriptText, scriptHash, event);
+      lastStored = stored;
+      return stored;
+    },
     putActor: (record) => journal.putActor(record),
     getActor: (runId, siteId, ordinal) => journal.getActor(runId, siteId, ordinal),
     listActors: (runId) => journal.listActors(runId),

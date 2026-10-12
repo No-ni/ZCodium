@@ -949,6 +949,13 @@ export interface JournalStorePort {
    * {@link updateRunUsage} 同族。
    */
   updateRunScript(runId: string, scriptText: string, scriptHash: string): void;
+  /** 必需原子提交：有效脚本/hash 与 hole-filled 一起成功或一起失败，无两次写降级。 */
+  commitHoleFill(
+    runId: string,
+    scriptText: string,
+    scriptHash: string,
+    event: Extract<RunEvent, { type: "hole-filled" }>,
+  ): StoredEvent;
 
   putActor(record: ActorRecord): void;
   getActor(runId: string, siteId: string, ordinal: number): ActorRecord | undefined;

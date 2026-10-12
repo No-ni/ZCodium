@@ -4,7 +4,7 @@
  * 与 escalation 不同——那个活在 driver 执行一次 ask 的内部，引擎核心看不见——留白是 Boundary A
  * 的调用：脚本自己在等它，所以引擎像拥有一次 ask 那样拥有它，少一个 driver。与 ask 又有一处
  * 根本不同：**没有 journal 行**。留白不是会自己结算出一个结果的节点，补全产出的东西已经以
- * 有效脚本的身份写在 run 行上（`updateRunScript`），resume 重放有效脚本时体内联执行、shim 不过
+ * 有效脚本的身份与补全事件原子写入（`commitHoleFill`），resume 重放有效脚本时体内联执行、shim 不过
  * 线、`hole-reached` 不再出现。
  *
  * 本模块持有引擎的留白状态（停驻表 + 本世已补全的代码表），方法体是自由函数，经
@@ -54,7 +54,9 @@ export interface HoleFill {
  * `fillHole` 的结果。两条 no-op 都**不写不发**：`not_waiting`——这个站点没有停驻的分支、本世也
  * 没记住过它的代码；`settled`——run 已结算。
  */
-export type FillHoleResult = { ok: true } | { ok: false; reason: "not_waiting" | "settled" };
+export type FillHoleResult =
+  | { ok: true; commitSequence: number }
+  | { ok: false; reason: "not_waiting" | "settled" };
 
 /** 一处仍在等的留白（快照投影用，docs/execution-engine.md「The run snapshot」）。 */
 export interface OpenHole {
@@ -193,8 +195,8 @@ export function reachHole(
 }
 
 /**
- * `fillHole` 的方法体（docs/execution-engine.md「The engine's part」）：一个同步步骤里——换规格表
- * 与阶段表（调用方负责，见 `swapTables`）、写有效脚本、记 `hole-filled`、记住代码、放行停驻的
+ * `fillHole` 的方法体（docs/execution-engine.md「The engine's part」）：一个同步步骤里——原子提交
+ * 有效脚本与 `hole-filled`、换规格表与阶段表（见 `swapTables`）、广播、记住代码、放行停驻的
  * 每一个分支。两条 no-op 不写不发。
  */
 export function fillHole(
@@ -208,10 +210,9 @@ export function fillHole(
 ): FillHoleResult {
   if (state.isRunSettled()) return { ok: false, reason: "settled" };
   if (!holes.isWaitingOrFilled(fill.siteId)) return { ok: false, reason: "not_waiting" };
-  swapTables(fill.askSpecs, fill.sitePhases);
-  state.journal.updateRunScript(state.runId, fill.script.text, fill.script.hash);
   const filledAt = holes.clock();
-  state.record({
+  // 旧路径先换表/脚本再 append，失败后 resume 会执行未获成功的补全；必须先原子落库。
+  const committed = state.journal.commitHoleFill(state.runId, fill.script.text, fill.script.hash, {
     type: "hole-filled",
     siteId: fill.siteId,
     filledAt,
@@ -220,6 +221,8 @@ export function fillHole(
     ...(fill.holes === undefined ? {} : { holes: fill.holes }),
     ...(fill.scriptPath === undefined ? {} : { scriptPath: fill.scriptPath }),
   });
+  swapTables(fill.askSpecs, fill.sitePhases);
+  state.record(committed.event, committed);
   holes.release(fill.siteId, fill.code, filledAt, fill.filledBy);
-  return { ok: true };
+  return { ok: true, commitSequence: committed.sequence };
 }

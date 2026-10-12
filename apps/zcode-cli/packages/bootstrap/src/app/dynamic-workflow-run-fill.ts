@@ -17,17 +17,20 @@
 //   6. 引擎收下之后才动宿主侧：注册表条目换成有效脚本的事实，草稿**就地**改写。草稿写失败不撤销
 //      补全——journal 已经是真相，草稿只是把手。
 
+import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import type { DynamicWorkflowRunFillHoleRequest, FillWorkflowHoleResult } from "@zcode/contracts";
 import {
   analyzeWorkflowScript,
   checkSiteStability,
+  collectPhaseNames,
+  collectSitePhases,
   collectSites,
   createWorkflowProgram,
   spliceHoleBody,
 } from "@zcode/dynamic-workflow";
-import { compileProgram, collectSitePhasesOf, phaseNamesOfFlow } from "./dynamic-workflow-run-compile.js";
-import { mapFillDiagnostics, openHoleIndexes } from "./dynamic-workflow-run-holes.js";
+import { compileProgram } from "./dynamic-workflow-run-compile.js";
+import { mapFillDiagnostics } from "./dynamic-workflow-run-holes.js";
 import type { RunRegistryEntry } from "./dynamic-workflow-run-observation.js";
 import type { DynamicWorkflowRunServiceDeps } from "./dynamic-workflow-run-service.js";
 
@@ -99,6 +102,15 @@ async function fillOnce(
   // 2. run 此刻的脚本（条目上的就是引擎手里的那份：一次补全会同步换掉它）。在自己轮到时才读——
   //    排在前面的补全已经把它换成了带那个函数体的有效脚本。
   const scriptText = entry.scriptText;
+  const scriptHash = createHash("sha256").update(scriptText, "utf8").digest("hex");
+  // 审批期间其他留白可能已改完整脚本；只能在串行轮到本次时核对，不能把旧批准拼进新基线。
+  const expectedScriptHash = request.expectedScriptHash ?? scriptHash;
+  if (expectedScriptHash !== scriptHash) {
+    return refuse(
+      "fill_preview_stale",
+      "The effective script changed after the fill preview. Nothing was filled; resolve and approve the fill again against the current script.",
+    );
+  }
   const workflow = createWorkflowProgram(scriptText);
   const before = collectSites(workflow);
   const site = before.holes.find((hole) => hole.id === holeId);
@@ -171,14 +183,15 @@ async function fillOnce(
     );
   }
 
-  // 有效脚本的阶段表：控制流投影里有名阶段的名字（留白按名字占位），开放留白下标由它算。
-  const phaseNames = phaseNamesOfFlow(analysis.flow);
-  const holeIndexes = openHoleIndexes(phaseNames, compiled.holes);
-  // 站点 → 词法出生阶段：与提交同一条投影（`collectSitePhases` 的宿主等价物）。
+  // 有效脚本的阶段表与其中的开放留白下标：控制流投影是唯一所有者（留白按名字占位），
+  // 与提交路径读同一份来源，补全后重算的表因此与 launch 时的表按同一条规则对齐。
+  const { phaseNames, holes: holeIndexes } = collectPhaseNames(analysis.flow);
+  // 站点 → 词法出生阶段：分析层 `collectSitePhases` 是唯一所有者（issue 与 actor 两种出生
+  // 事件都盖戳）；`core` 缺席（理论上不可能，`analysis.ok` 已保证）时退回空表。
   const sitePhases =
-    analysis.core === undefined ? new Map<string, string>() : collectSitePhasesOf(analysis.core);
+    analysis.core === undefined ? new Map<string, string>() : collectSitePhases(analysis.core);
 
-  // 5. 交给引擎（一个同步步骤：换表、写回有效脚本、记 hole-filled、放行停驻的分支）。
+  // 5. 交给引擎：先原子提交有效脚本与 hole-filled，成功后才换表、广播与放行。
   const filledBy =
     request.parentSessionId === undefined ? {} : { filledBy: String(request.parentSessionId) };
   const result = entry.control.fillHole({
@@ -188,7 +201,7 @@ async function fillOnce(
     askSpecs: compiled.askSpecs,
     sitePhases,
     phaseNames,
-    ...(holeIndexes === undefined ? {} : { holes: holeIndexes }),
+    ...(holeIndexes.length === 0 ? {} : { holes: holeIndexes }),
     ...filledBy,
   });
   if (result === undefined || !result.ok) {
@@ -227,6 +240,7 @@ async function fillOnce(
     phasesAdded: phaseNames.filter((name) => !previousPhases.has(name)),
     ...(scriptPath === undefined ? {} : { scriptPath }),
     scriptText: spliced.text,
+    commitSequence: result.commitSequence,
   };
 }
 

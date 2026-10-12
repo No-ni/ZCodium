@@ -14,10 +14,7 @@ import {
   deriveActorSubmitProfilesFor,
   lowerWorkflow,
   synthesizeAskSchemas,
-  UNPHASED_ID,
-  type AnalysisCore,
   type CompileDiagnostic,
-  type ControlFlowGraph,
   type SiteTable,
   type WorkflowProgram,
 } from "@zcode/dynamic-workflow";
@@ -120,45 +117,7 @@ export function compileProgram(
   };
 }
 
-/**
- * 站点 → 词法出生阶段名（`collectSitePhases` 的本仓库等价物，execution-engine.md「Identity:
- * sites, ordinals, phases」）。P1 未把分析层集成落进本仓库，P2 只补这一条宿主需要的投影：
- * 一个站点的所有 issue 落在**同一个有名阶段**时记下它的名字，落在两个阶段或只落在 unphased 的
- * 站点不进表（引擎对它退回动态当前阶段）。以 trace 而不是投影图为源，因为这里要的恰是「是否唯一」。
- *
- * 与上游的差别（已记入 spec 与报告）：本仓库的 `ActorEvent` 还没有 `phase` 字段（P1 未落分析层
- * 集成），所以这里只对 issue 事件做词法盖戳；actor 站点因此仍退回动态当前阶段，与 P1 行为一致。
- */
-export function collectSitePhasesOf(core: AnalysisCore): ReadonlyMap<string, string> {
-  const nameOf = new Map<string, string>();
-  for (const phase of core.trace.phases) nameOf.set(phase.id, phase.name);
-
-  const claims = new Map<string, Set<string>>();
-  const claim = (site: string, phase: string): void => {
-    const set = claims.get(site);
-    if (set === undefined) claims.set(site, new Set([phase]));
-    else set.add(phase);
-  };
-  for (const event of core.trace.events) {
-    if (event.at === "issue") claim(event.step, event.phase);
-  }
-
-  const table = new Map<string, string>();
-  for (const [site, phases] of claims) {
-    if (phases.size !== 1) continue;
-    const [phase] = phases;
-    if (phase === undefined || phase === UNPHASED_ID) continue;
-    const name = nameOf.get(phase);
-    if (name !== undefined) table.set(site, name);
-  }
-  return table;
-}
-
-/** 控制流投影里有名阶段的名字（声明/首次到达序），留白按名字占位。 */
-export function phaseNamesOfFlow(flow: ControlFlowGraph | undefined): string[] {
-  const names: string[] = [];
-  for (const phase of flow?.phases ?? []) {
-    if (phase.name !== undefined) names.push(phase.name);
-  }
-  return names;
-}
+// 阶段表投影（`collectPhaseNames` / `collectSitePhases`）的单一所有者在分析层
+// （dynamic-workflow/src/analysis/site-phases.ts）。本文件不再自带等价实现：P3a 落分析层集成时
+// 已把 `ActorEvent.phase` 补齐，补全路径直接调分析层，交出去的 `sitePhases` / `phaseNames` /
+// `holes` 与提交路径读同一份控制流投影。

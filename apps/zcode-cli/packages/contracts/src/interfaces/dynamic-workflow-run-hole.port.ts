@@ -51,6 +51,8 @@ export interface DynamicWorkflowRunFillHoleRequest {
   /** 留白的站点 id（`hole#21b40fca`，名字键）。 */
   holeId: string;
   body: string;
+  /** resolve 审批预览的脚本基线；内部调用可省略并使用本地当前基线。 */
+  expectedScriptHash?: string;
   /** 补全的会话，落进 `hole-filled.filledBy`。 */
   parentSessionId?: SessionId | string;
   /** 发起这次补全的 FillWorkflowHole 工具调用。 */
@@ -70,7 +72,9 @@ export type DynamicWorkflowRunFillHoleRefusalReason =
   /** 有效脚本编不过；`diagnostics` 在场。什么都没拼、没记、留白照旧在等。 */
   | "compile_failed"
   /** 编好的有效脚本给某个既有站点换了号：分析器的编号规则被打破，是宿主故障而非模型的错；留白照旧在等。 */
-  | "fill_ids_unstable";
+  | "fill_ids_unstable"
+  /** 审批之后有效脚本已改变：重新 resolve/审批，不能在新脚本上执行旧批准。 */
+  | "fill_preview_stale";
 
 /**
  * 一条补全诊断。`inFill` 为真时 `line` / `column` 是**函数体内**的坐标（拼进去的那一段），否则是
@@ -90,7 +94,13 @@ export interface DynamicWorkflowRunFillHoleDiagnostic {
  * 由实现侧铸一份）；`phasesAdded` 是函数体带来的阶段名。
  */
 export type FillWorkflowHoleResult =
-  | { ok: true; phasesAdded: string[]; scriptPath?: string; scriptText: string }
+  | {
+      ok: true;
+      phasesAdded: string[];
+      scriptPath?: string;
+      scriptText: string;
+      commitSequence: number;
+    }
   | {
       ok: false;
       reason: DynamicWorkflowRunFillHoleRefusalReason;

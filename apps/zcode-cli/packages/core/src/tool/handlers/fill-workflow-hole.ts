@@ -7,12 +7,15 @@
 // （与 CreateWorkflow 同一条投影路径）。确认之前的一切（run / 留白 / 归属 / 函数体字节）在
 // fill-workflow-hole-resolve.ts。
 
+import path from "node:path";
+
 import {
   FILL_WORKFLOW_HOLE_TOOL_NAME,
   FillWorkflowHoleInputJsonSchema,
   FillWorkflowHoleInputSchema,
   FillWorkflowHoleOutputJsonSchema,
   FillWorkflowHoleOutputSchema,
+  SAVED_WORKFLOW_FILE_EXTENSION,
   type CreateWorkflowDiagnostic,
   type CreateWorkflowOutput,
   type DynamicWorkflowRunFillHoleDiagnostic,
@@ -32,10 +35,11 @@ import {
   FILL_WORKFLOW_HOLE_ERROR_CODE,
   rememberRejectedFill,
   resolveFillWorkflowHoleInput,
-  takeFillPreview,
   validateFillWorkflowHoleSource,
 } from "./fill-workflow-hole-resolve.js";
 import { boundGraphOfAnalysis, displayOfAnalysis } from "./workflow-analysis-display.js";
+import { recordAuthoredWorkflowDraft } from "./workflow-draft-read-state.js";
+import { writeWorkflowFillFile } from "./workflow-fill-files.js";
 import { analyzeScript } from "./workflow-script-analysis.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 import { requireDynamicWorkflowSkill } from "./workflow-skill-gate.js";
@@ -73,6 +77,12 @@ function fillRefusalFor(reason: string, message: string, runId: string): ToolHan
         errorCode: FILL_WORKFLOW_HOLE_ERROR_CODE.HOLE_NOT_WAITING,
         message: `hole_not_waiting: ${message}`,
       };
+    case "fill_preview_stale":
+      return {
+        result: false,
+        errorCode: FILL_WORKFLOW_HOLE_ERROR_CODE.PREVIEW_STALE,
+        message: `fill_preview_stale: ${message}`,
+      };
     case "fill_ids_unstable":
       // 宿主故障，不是模型的错：留白照旧在等，函数体不必改。
       return {
@@ -89,10 +99,18 @@ function fillRefusalFor(reason: string, message: string, runId: string): ToolHan
   }
 }
 
-/** fill 文件的模型面身份：模型自己给的 `path`（上游的内联提交写文件留到 P3）。 */
+/** fill 文件的模型面身份：内联提交刚写下的（「The fill is saved at」）或模型自己给的（「The fill file is」）。 */
 interface FillFileLocation {
-  kind: "path";
+  kind: "saved" | "path";
   described: string;
+}
+
+/** fill 文件的 run 段：草稿文件名主干优先，没草稿就用 run id。 */
+function fillFileRunName(parsed: FillWorkflowHoleInput): string {
+  const draftPath = parsed.hole?.draft_path;
+  if (draftPath === undefined) return parsed.run_id;
+  const base = path.basename(draftPath, SAVED_WORKFLOW_FILE_EXTENSION);
+  return base === "" ? parsed.run_id : base;
 }
 
 /**
@@ -133,8 +151,10 @@ function compileFailureResponse(
 ): string {
   const lead =
     fillFile === undefined
-      ? "Fix the body below and resubmit it inline."
-      : `The fill file is ${fillFile.described}. Edit that file in place and resubmit with \`path\`.`;
+      ? "The fill could not be saved to a file; fix the body below and resubmit it inline."
+      : fillFile.kind === "saved"
+        ? `The fill is saved at ${fillFile.described}. Edit that file in place and resubmit with \`path\`; do not paste it inline again.`
+        : `The fill file is ${fillFile.described}. Edit that file in place and resubmit with \`path\`.`;
   const draftFile =
     parsed.hole?.draft_path === undefined
       ? undefined
@@ -168,8 +188,17 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
         "workflow_fill_body_unavailable: the call reached the handler without a resolved body. Pass `script` or `path`. Nothing was filled.",
     } satisfies ToolHandlerFailure;
   }
+  // 批准工具必须携带 resolve 的脚本基线；老宿主/绕过 resolve 不能退化成对新脚本的隐式批准。
+  const expectedScriptHash = parsed.hole?.base_script_hash;
+  if (expectedScriptHash === undefined) {
+    return fillRefusalFor(
+      "fill_preview_stale",
+      "No resolved script baseline is available. Resolve and approve this fill again; nothing was filled.",
+      parsed.run_id,
+    );
+  }
   const cwd = context.workingDirectory;
-  const fillFile: FillFileLocation | undefined =
+  let fillFile: FillFileLocation | undefined =
     parsed.path === undefined
       ? undefined
       : { kind: "path", described: describeWorkflowScriptPath(parsed.path, cwd ?? "") };
@@ -178,6 +207,7 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
     runId: parsed.run_id,
     holeId: parsed.hole_id,
     body,
+    expectedScriptHash,
     parentSessionId: context.sessionId,
     toolCallId: context.toolCallId,
     trace: resolveTraceContext(context),
@@ -189,6 +219,27 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
     }
     // 记下这份被拒的字节：同一份再经 `path` 交回来就是忘了编辑（`fill_unchanged`）。
     rememberRejectedFill(context.sessionId, parsed.run_id, parsed.hole_id, body);
+    // 内联提交被拒：先把函数体写成 fill 文件，下一次按 `path` 交回（数据根，不是 run 草稿旁）。
+    // 写不成退回「内联重提」的老话；这与补全本身无关，不改变拒绝结果。
+    if (fillFile === undefined) {
+      const written = await writeWorkflowFillFile({
+        sessionId: context.sessionId,
+        runId: parsed.run_id,
+        holeId: parsed.hole_id,
+        runName: fillFileRunName(parsed),
+        holeName: parsed.hole?.name ?? parsed.hole_id,
+        source: body,
+      });
+      if (written !== undefined) {
+        fillFile = { kind: "saved", described: describeWorkflowScriptPath(written, cwd ?? "") };
+        // 这份字节就是模型本次的 `script`：记作它写过的文件，下一次 Edit 不必先 Read。
+        await recordAuthoredWorkflowDraft(context, {
+          path: written,
+          source: body,
+          toolName: "FillWorkflowHole",
+        });
+      }
+    }
     const diagnostics = result.diagnostics ?? [];
     return {
       fill: fillBlock(parsed),
@@ -219,7 +270,7 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
       ? "The run has no draft file, so a later revision must pass the whole script to AmendWorkflow."
       : `The run's draft ${describeWorkflowScriptPath(result.scriptPath, cwd ?? "")} now holds the effective script: edit that file and pass \`path\` to AmendWorkflow for any later revision.`;
   return {
-    fill: fillBlock(parsed),
+    fill: { ...fillBlock(parsed), commitSequence: result.commitSequence },
     diagnostics: [],
     ok: true,
     response: `The fill joined run ${parsed.run_id} at hole "${holeName}" (${parsed.hole_id}); the branch parked there has resumed and the run keeps going in the background. ${phases} ${draft} Do not wait for the run or poll it with TaskOutput; you will be notified when it completes.`,
@@ -228,16 +279,17 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
 };
 
 /**
- * 确认窗预览：有效脚本的图（resolveInput 拼好、记在单槽里的那份）。拼不出来窗照开、只是没图；
- * 有效脚本编不过则放行给 handler——端口会回诊断，一个注定作废的窗没有意义。
+ * 确认窗预览：有效脚本的图（resolveInput 拼好、回填进入参的那份）。拼不出来窗照开、只是没图；
+ * 有效脚本编不过也不在预览层免确认；owner 是否放行由权限服务唯一判定。
  */
 function prepareFillWorkflowHoleApproval(input: unknown): ToolApprovalGate {
   const parsed = FillWorkflowHoleInputSchema.safeParse(input);
   if (!parsed.success || parsed.data.script === undefined) return { gate: "ask" };
-  const preview = takeFillPreview(parsed.data.run_id, parsed.data.hole_id, parsed.data.script);
-  if (preview === undefined) return { gate: "ask" };
-  const analysis = analyzeScript(preview.effectiveScript);
-  if (!analysis.ok) return { gate: "proceed" };
+  const effectiveScript = parsed.data.hole?.effective_script;
+  if (effectiveScript === undefined) return { gate: "ask" };
+  const analysis = analyzeScript(effectiveScript);
+  // foreign run 即使编不过也不能绕过确认；权限免确认仅由 owner 规则授予。
+  if (!analysis.ok) return { gate: "ask" };
   const display = displayOfAnalysis(analysis, FILL_WORKFLOW_HOLE_TOOL_NAME);
   return { gate: "ask", ...(display ? { display } : {}) };
 }
@@ -285,7 +337,7 @@ export const fillWorkflowHoleToolEntry: ToolEntry = {
     // 与 CreateWorkflow / AmendWorkflow 同一道门（alwaysAsk）；本会话自己的 run 由权限服务的 owner
     // 规则在 always-ask 分支里放行。
     alwaysAsk: true,
-    askOptions: { allowAlways: "session" },
+    askOptions: { allowAlways: false },
   },
   resultBudget: {
     maxInlineBytes: FILL_WORKFLOW_HOLE_MODEL_BYTES,

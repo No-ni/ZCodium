@@ -18,6 +18,7 @@ export {
   type CoreAskSite,
   type CoreFacts,
   type CoreFanoutSite,
+  type CoreHoleSite,
   type CoreSimpleSite,
   type CoreSites,
   type CoreTypes,
@@ -75,11 +76,14 @@ export {
   type ControlFlowGraph,
   type FlowEdge,
   type FlowEdgeKind,
+  type FlowHole,
   type FlowNode,
   type FlowNodeKind,
   type FlowPhase,
   type FlowVia,
 } from "./analysis/flow-graph.js";
+// 站点 → 出生阶段名与 run 声明阶段表（含留白下标）：浏览器端重算投影时同样要用。
+export { collectPhaseNames, collectSitePhases } from "./analysis/site-phases.js";
 export {
   FANOUT_EXPAND_CAP,
   projectHandoffGraph,

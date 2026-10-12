@@ -102,6 +102,28 @@ export class InMemoryJournalStore implements JournalStorePort {
     r.scriptHash = scriptHash;
   }
 
+  commitHoleFill(
+    runId: string,
+    scriptText: string,
+    scriptHash: string,
+    event: Extract<RunEvent, { type: "hole-filled" }>,
+  ): StoredEvent {
+    const run = this.runs.get(runId);
+    const events = this.events.get(runId);
+    if (run === undefined || events === undefined) throw new Error(`journal: unknown run ${runId}`);
+    const previous = clone(run);
+    const previousEvents = events.slice();
+    try {
+      // 补全与事件必须一起成功；append 抛错（包括存储边界深拷贝）不能留下可 resume 的脚本。
+      this.updateRunScript(runId, scriptText, scriptHash);
+      return this.appendEvent(runId, event);
+    } catch (error) {
+      this.runs.set(runId, previous);
+      this.events.set(runId, previousEvents);
+      throw error;
+    }
+  }
+
   putActor(record: ActorRecord): void {
     const bucket = this.requireActorBucket(record.runId);
     bucket.set(key(record.siteId, record.ordinal), clone(record));

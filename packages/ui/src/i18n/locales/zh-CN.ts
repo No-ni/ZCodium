@@ -5082,6 +5082,10 @@ const zhCN: Record<string, string> = {
   "chat.backgroundResult.workflow.waiting": "子代理正在等待回答",
   "chat.backgroundResult.workflow.answered": "子代理的问题已回答",
   "chat.backgroundResult.workflow.asked": "子代理提出了问题",
+  // 留白通知行：run 停在一处 `hole<T>()`，主代理欠一段代码。三态按 run 投影的留白表活翻转。
+  "chat.backgroundResult.workflow.hole.waiting": "工作流留白 · 等待补全",
+  "chat.backgroundResult.workflow.hole.filled": "留白已补全",
+  "chat.backgroundResult.workflow.hole.left": "工作流留白",
   // 通知行折叠头部的产物 chips 溢出计数（≤ 3 枚 chip + 「+N」）。
   "chat.backgroundResult.workflow.artifacts.more": "+{count}",
   // ── 升级问答工具卡 ──
@@ -5100,6 +5104,21 @@ const zhCN: Record<string, string> = {
   "chat.toolCall.workflow.resolveQuestion.outcome": "结果",
   "chat.toolCall.workflow.resolveQuestion.fallbackName": "回答",
   // ── workflow run 详情页──
+  "chat.toolCall.workflow.hole.stands.between": "站在「{before}」与「{after}」之间。",
+  "chat.toolCall.workflow.hole.stands.after": "站在「{before}」之后。",
+  "chat.toolCall.workflow.hole.stands.before": "站在「{after}」之前。",
+  "chat.toolCall.workflow.hole.draftPath": "草稿",
+  "chat.toolCall.workflow.hole.waited": "已等待 {time}",
+  "chat.toolCall.workflow.hole.locate": "定位到这处留白",
+  "chat.toolCall.workflow.hole.returns": "须返回：{type}",
+  "chat.toolCall.workflow.fill.writing": "正在补全工作流留白",
+  "chat.toolCall.workflow.fill.awaitingConfirmation": "留白补全 · 等待确认",
+  "chat.toolCall.workflow.fill.done": "留白已补全",
+  "chat.toolCall.workflow.fill.failed": "留白补全 · 未应用",
+  "chat.permission.workflow.fill.title": "补全这处工作流留白？",
+  "chat.permission.workflow.fill.bodyOnly":
+    "完整拼接预览暂不可用。下方代码仅为拟提交的留白函数体。",
+  "chat.toolCall.workflow.hole.open": "打开留白「{name}」",
   "chat.toolCall.workflow.openRunDetails": "查看实例详情",
   "chat.toolCall.workflow.run.status.pending": "待启动",
   "chat.toolCall.workflow.run.status.running": "运行中",

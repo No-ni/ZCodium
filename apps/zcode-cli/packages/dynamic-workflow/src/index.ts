@@ -94,11 +94,14 @@ export {
   type ControlFlowGraph,
   type FlowEdge,
   type FlowEdgeKind,
+  type FlowHole,
   type FlowNode,
   type FlowNodeKind,
   type FlowPhase,
   type FlowVia,
 } from "./analysis/flow-graph.js";
+// 站点 → 出生阶段名（引擎戳）与 run 声明阶段表（含留白下标）：执行引擎 / 侧栏的唯一来源。
+export { collectPhaseNames, collectSitePhases } from "./analysis/site-phases.js";
 export {
   actorGraphToMermaid,
   causalityGraphToMermaid,
@@ -132,6 +135,7 @@ export {
   type CoreAskSite,
   type CoreFacts,
   type CoreFanoutSite,
+  type CoreHoleSite,
   type CoreSimpleSite,
   type CoreSites,
   type CoreTypes,

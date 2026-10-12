@@ -64,6 +64,22 @@ export const workflowNotificationMetaSchema = z.discriminatedUnion("kind", [
     context: z.string().max(4000).optional(),
     askedAt: z.number().optional(),
   }),
+  // 留白（`hole-reached`）：run 走到一个开着的 `hole<T>()`，那条分支停驻、主代理欠一段代码。
+  // `siteId` 是定位到时间线那一站的键；`before` / `after` 是留白两侧的阶段名；`draftPath` / `line`
+  // 指向草稿文件里留白所在的那一行。prompt 与升级问题同一条 4000 上界。
+  z.object({
+    kind: z.literal("hole"),
+    siteId: z.string().min(1).max(64),
+    ordinal: z.number().int().nonnegative(),
+    name: z.string().min(1).max(128),
+    type: z.string().min(1).max(128),
+    prompt: z.string().max(4000).optional(),
+    draftPath: z.string().max(1024).optional(),
+    line: z.number().int().positive().optional(),
+    before: z.string().max(128).optional(),
+    after: z.string().max(128).optional(),
+    reachedAt: z.number().optional(),
+  }),
   // run 级停滞：每个 stall 段一条，不是终态。
   z.object({
     kind: z.literal("stall"),

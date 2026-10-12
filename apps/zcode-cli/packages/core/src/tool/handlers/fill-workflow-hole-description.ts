@@ -14,6 +14,7 @@ export const FILL_WORKFLOW_HOLE_TOOL_DESCRIPTION = [
   "- Read the run's draft at the path the notification names for context: the body is compiled WHERE THE HOLE STANDS and sees every binding declared before it. Write only the statements of the hole's function — not the `hole(...)` call, not an arrow, not the script around it — and return a value of the hole's type, or end with a new tail hole named for the next step when the workflow's shape is not known yet.",
   "- Rehearse fixed logic in EvalWorkflowSnippet first. A hole is filled once: a body under a loop runs on every iteration with that iteration's bindings.",
   "- On diagnostics the fill is saved to a fill file; edit that file in place and resubmit with `path` instead of pasting the body again. To change anything OUTSIDE the hole, use AmendWorkflow.",
+  "- If fill_preview_stale is returned, another fill changed the effective script after your preview. Nothing was filled. Submit again to resolve and approve a fresh preview; this is not a compile failure.",
   "",
   `Load the \`${DYNAMIC_WORKFLOW_SKILL_NAME}\` skill with the Skill tool before writing a body: it carries the facade the body is checked against and the hole rules. A call is refused until that skill has been loaded in this session. Pass \`script\` (the statements inline) or \`path\` (a file holding them), never both.`,
 ].join("\n");

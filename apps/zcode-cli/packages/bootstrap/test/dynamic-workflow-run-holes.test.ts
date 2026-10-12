@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 
 import {
@@ -15,7 +16,11 @@ import {
 import type { DynamicWorkflowRunServiceDeps } from "../src/app/dynamic-workflow-run-service.js";
 import type { RunRegistryEntry } from "../src/app/dynamic-workflow-run-observation.js";
 import { fillDynamicWorkflowHole } from "../src/app/dynamic-workflow-run-fill.js";
-import { compiledHolesOf, projectRunHoles, type CompiledHole } from "../src/app/dynamic-workflow-run-holes.js";
+import {
+  compiledHolesOf,
+  projectRunHoles,
+  type CompiledHole,
+} from "../src/app/dynamic-workflow-run-holes.js";
 
 /**
  * P2 驱动面（bootstrap）：补全服务的事务边界与留白快照投影。用例只依赖端口实现体与纯合成规则，
@@ -26,7 +31,7 @@ const OPEN_SCRIPT = 'const x = await hole<string>("decide", "what next");\nretur
 const FILLED_SCRIPT = 'const x = await hole<string>("done", "p", async () => "v");\nreturn x;';
 
 interface FakeControl {
-  fillHole(fill: unknown): { ok: true } | { ok: false; reason: string };
+  fillHole(fill: unknown): { ok: true; commitSequence: number } | { ok: false; reason: string };
   openHoles(): readonly OpenHole[];
 }
 
@@ -51,7 +56,7 @@ function harness(options: {
   const control: FakeControl = {
     fillHole: (fill) => {
       fillCalls.push(fill);
-      return { ok: true };
+      return { ok: true, commitSequence: fillCalls.length };
     },
     openHoles: () => openHoles,
   };
@@ -109,6 +114,44 @@ describe("fillDynamicWorkflowHole — 成功路径", () => {
 });
 
 describe("fillDynamicWorkflowHole — 拒绝即零副作用", () => {
+  it("B approval becomes stale after queued A fill changes its script baseline", async () => {
+    const scriptText =
+      'const a = await hole<string>("A");\nconst b = await hole<string>("B");\nreturn b;';
+    const h = harness({ scriptText });
+    const expectedScriptHash = createHash("sha256").update(scriptText).digest("hex");
+    const a = fillDynamicWorkflowHole(h.ctx, {
+      runId: "dwfrun-1",
+      holeId: holeSiteId("A"),
+      body: 'return "a";',
+      trace: {} as never,
+    });
+    const b = fillDynamicWorkflowHole(h.ctx, {
+      runId: "dwfrun-1",
+      holeId: holeSiteId("B"),
+      body: 'return "b";',
+      expectedScriptHash,
+      trace: {} as never,
+    });
+    const first = await a;
+    assert.ok(first.ok);
+    const before = { script: h.entry.scriptText, holes: h.entry.holes, phases: h.entry.phaseNames };
+    const stale = await b;
+    assert.equal(stale.ok ? "success" : stale.reason, "fill_preview_stale");
+    assert.equal(h.fillCalls.length, 1);
+    assert.deepEqual(
+      { script: h.entry.scriptText, holes: h.entry.holes, phases: h.entry.phaseNames },
+      before,
+    );
+    const retry = await fillDynamicWorkflowHole(h.ctx, {
+      runId: "dwfrun-1",
+      holeId: holeSiteId("B"),
+      body: 'return "b";',
+      expectedScriptHash: createHash("sha256").update(h.entry.scriptText).digest("hex"),
+      trace: {} as never,
+    });
+    assert.ok(retry.ok);
+    assert.equal(retry.commitSequence, 2);
+  });
   it("run_not_found：journal 与注册表都没有它", async () => {
     const h = harness({});
     h.ctx.runs.clear();
@@ -222,11 +265,7 @@ describe("projectRunHoles — 快照 holes[] 投影", () => {
 
   it("waiting 与 filled 两态：waiting 来自引擎停驻表、filled 来自 hole-filled 事件", () => {
     const reached = (siteId: string, ordinal: number, name: string): StoredEvent =>
-      stored(
-        0,
-        { type: "hole-reached", instance: { siteId, ordinal }, name },
-        ordinal * 10,
-      );
+      stored(0, { type: "hole-reached", instance: { siteId, ordinal }, name }, ordinal * 10);
     const events = [
       stored(0, { type: "run-launched", inputId: "t", phaseNames: ["decide", "second"] }),
       reached("hole#aaaa", 1, "decide"),
@@ -260,9 +299,7 @@ describe("projectRunHoles — 快照 holes[] 投影", () => {
   });
 
   it("上界 32 条：超出的到达不再进快照", () => {
-    const events: StoredEvent[] = [
-      stored(0, { type: "run-launched", inputId: "t" }),
-    ];
+    const events: StoredEvent[] = [stored(0, { type: "run-launched", inputId: "t" })];
     for (let i = 0; i < 40; i += 1) {
       events.push(
         stored(i + 1, {

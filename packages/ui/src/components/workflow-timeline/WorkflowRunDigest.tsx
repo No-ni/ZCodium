@@ -10,7 +10,10 @@ import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
+import {
+  hasWorkflowGraphContent,
+  type WorkflowCausalityGraphData,
+} from "@/components/workflow-graph/types.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/fileSummaryTypes.js";
 import { buildWorkflowTimeline, type TimelinePill } from "./timeline-model.js";
@@ -95,9 +98,10 @@ export function WorkflowRunDigest({
   const [expanded, setExpanded] = useState(true);
 
   // 阶段线只在有活投影且有图时画：没有投影的图全是 pending 灯，会把一条已完成的 run 画成没跑过。
+  // 纯留白的阶段/留白表已足够画站，不能用零 step 隐藏它。
   const model = useMemo(
     () =>
-      graph !== undefined && graph.steps.length > 0 && run !== undefined
+      hasWorkflowGraphContent(graph) && run !== undefined
         ? buildWorkflowTimeline(graph, run)
         : undefined,
     [graph, run],

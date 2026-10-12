@@ -134,11 +134,12 @@ export function WorkflowStationRow({
             <span
               aria-hidden
               className={cn(
-                stationLampClass(station.status),
+                stationLampClass(station.status, station.hole),
                 "mx-3",
                 foldClass,
                 draft && "wf-land",
               )}
+              data-hole={station.hole?.state}
               data-lamp={station.status ?? "pending"}
             />
             <StationHead

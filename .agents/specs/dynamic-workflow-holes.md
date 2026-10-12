@@ -1,7 +1,62 @@
 # 动态工作流留白能力（Dynamic Workflow Holes）
 
-**当前状态：未实现。** 实现前需先与本 spec 对齐；本文只定义能力边界、联动面、验收与分期，
-不引入代码。
+**当前状态：P1 / P2 / P3a / P3b 源码与自动测试已落地；真机验收暂缓。**
+原子补全、stale approval preview、strict display.fill 与 shared/UI 的 commitSequence 接入，
+以及 steps 为空但 phases/holes 非空的图展示均已实现。展示规则、自动验收与待执行的真机
+场景见 [`workflow-holes-ui.md`](./workflow-holes-ui.md)。CLI 使用包级 node:test；shared/UI
+使用 Vitest，不混用 runner。下文分期记录与验证数字保留为当时快照，不代表当前待办或本轮重跑结果。
+这不是上游全量 parity：hole 数据依赖完整图、生长动画、model_bindings 检查与 Rust 同步未做。
+
+## 正确性收尾：审批基线与 durable 提交顺序
+
+- resolve 是 `hole.base_script_hash` 的唯一生产者，模型 schema omit 整个 hole；hash 与
+  effective_script 必须来自同一次 getScript 字节。获批工具缺 hash 时 fail closed，不调用补全端口。
+- `fillHole.expectedScriptHash?: string` 在 bootstrap 每 run 串行轮到本次时，对当前 scriptHash
+  校验；不等返回新增 `fill_preview_stale`（保留原四理由），零编译/草稿/事件/放行副作用，重新
+  resolve/审批。内部无显式 hash 调用兼容本地当前基线，不降低 foreign / 用户手停权限边界。
+- Journal 必需接口 `commitHoleFill(runId, scriptText, scriptHash, holeFilledEvent): StoredEvent`
+  将脚本/hash 与 hole-filled 原子持久化；SQLite 同一事务，内存实现异常不留下部分写入。
+  不允许 updateRunScript + appendEvent 降级。引擎先 commit，成功后 swapTables、沿 EngineState
+  唯一 record 广播路径通知已存事件（不重复 append）、最后登记 filled 与放行 promise。
+  commit 失败：run 行、事件、内存表、停驻 promise 完全不变，resume 不执行失败补全。
+- StoredEvent.sequence 是唯一 durable 顺序，返回引擎 FillHoleResult.commitSequence，端口
+  FillWorkflowHoleResult.commitSequence，再传 CreateWorkflowOutput.fill.commitSequence 与 strict
+  display.fill schema（复用 fill schema）。shared schema 已同步；UI 只读同 run 成功补全的
+  最大 commitSequence 选图，不用时间戳/工具行位置排序。
+- 通知 manifest 的 name/type 等展示字段按 shared workflow-row-meta 运行时界限截断；不修改
+  原始编译类型或编译约束。129 字符合法类型通知必须能通过真实 shared schema。
+
+```text
+resolve(getScript 字节 → hash + effective_script) → owner/foreign/manual-stop 权限 → 审批
+  → bootstrap run 串行 admission → expectedScriptHash 校验 → compile / stability
+  → engine → journal 原子 commit(script/hash + hole-filled) → sequence
+           → swapTables → EngineState.record(已存事件，仅广播) → filled / promise 放行
+  → bootstrap 事实/草稿 → handler fill.commitSequence → executor display.fill.commitSequence
+commit 抛错 ─→ 全部原样；stale ─→ fill_preview_stale → 新 resolve / 审批
+Desktop continuous / mobile replayable 使用同一 journal sequence，无新通知/状态 owner。
+```
+
+验收用真实 node:test：旧 B 审批期间 A 补全后 B stale 零副作用；atomic append 故障
+（内存/engine 与可用 SQLite adapter）回滚，成功仅一条 hole-filled、sequence 递增与 metadata
+透传；129 字符合法类型 manifest 通过 shared runtime schema。
+
+### 原子补全验证与交接（历史快照）
+
+以下为原子补全负责者当时的范围与验证；其 shared/UI 交接已完成，未执行的真机场景仍暂缓。
+
+- CLI 递归 build / test / typecheck 均 exit 0；test 141/141（其中本域 105/105），包括真实
+  SQLite trigger 注入 append 失败回滚、内存 append 后抛错、真实 engine 与 sandbox stale approval。
+- 根 `pnpm typecheck` / `pnpm lint` / `pnpm fmt:check` 最后均 exit 0。此前 typecheck /
+  fmt 曾因域外 Web 并行半成品失败，未触碰。架构检查前后 exit 0，violations / baseline /
+  new 均 0。本轮文件 targeted lint / formatter check exit 0。
+- CLI 顶层 typecheck/lint 脚本 exit 1（`turbo: not found`），另执行递归包 typecheck exit 0；
+  递归包 lint exit 1（若干包 root ignore 导致 No files found）。对本域五包 `oxlint src
+--no-ignore` 有域外本地半成品 max-lines 基线失败；只查本轮文件 exit 0，不恢复半成品。
+  CLI 全量 format:check exit 1（已有大量格式差异），仅格式化本轮文件。
+- 日志均在 `/tmp/holes-atomic-*`，精确本轮文件名单 `/tmp/holes-atomic-files.txt`；没有写 git
+  操作，没有改 shared/UI/其他 spec/诊断生成物。CLI 提示 Node 期望 24.14.0，运行环境为 24.19.0。
+- 后续展示负责者需将 shared fill schema 同步 `commitSequence?: nonnegative integer`，UI 按
+  同 run 最新成功 fill 的最大 commitSequence 选图；不能依靠工具行位置或 timestamp。未跑 UI/E2E。
 
 ## 背景
 
@@ -11,7 +66,7 @@
 
 三条证据说明它是**真实能力**而不是重构：
 
-1. 我们树里 `FillWorkflowHole` / `HOLE_CODE` **0 命中**（复核命令见
+1. 移植前基线树里 `FillWorkflowHole` / `HOLE_CODE` **0 命中**（复核命令见
    [`upstream-sync-3.15.1.md`](./upstream-sync-3.15.1.md) 的「工作项 4」）。整个能力（facade
    符号、编译规则、引擎停驻表、线协议请求、工具、端口、v4 展示）在这边都不存在。
 2. 它在协议、工具、权限、UI 四处都有自己的名字与载荷：`hole-reached` / `hole-filled` 事件、
@@ -37,7 +92,10 @@
 - 不搬依赖遥测 / 商业 / 官方鉴权的联动面（`packages/shared/src/{telemetry,...}` 等，见该 spec
   的「故意不跟」表）；留白本身不依赖这些。
 - 不整包跟随 `dynamic-workflow` 的其他演进（`zcodeSessionProjection`、UI 产品面改版等）。
-- 不引入新的 runner：验收测试用本仓库的 `node:test` 口径。
+- 不引入新的 runner：CLI 验收用包级 `node:test`；shared/UI 用仓库已有 Vitest。
+- 不搬上游 hole 数据依赖完整图（`holeData` / `hole-flow` / 站点图 hole 节点与相关序列化）；
+  当前 phase/hole 图与空 steps 展示不等于该完整图。
+- 不做上游补全生长动画或 `model_bindings` 检查；Rust 等价实现/同步未做，不宣称全量 parity。
 
 **与上游保持一致的部分**：协议事件名、`HOLE_CODE`（9012）、`hole#<8hex>` 站点 id 形状、
 `FillWorkflowHole` 工具名与拒绝原因字符串、v4 `WorkflowRunHole` 字段。这些是跨端契约，改名会
@@ -219,7 +277,7 @@ shared v4（归约）
 P1 完成前不落 P2，P2 完成前不落 P3；每期各自补测试与验收，且必须先跑
 `node scripts/check-workspace-freshness.mjs` 与 `pnpm typecheck` / `pnpm lint`。
 
-## 待确认问题清单
+## 待确认问题清单（P1 前历史快照，非当前 TODO）
 
 1. **是否跟随上游的站点 id 形状**：`hole#<8 位十六进制>` 由名字的 FNV-1a 哈希铸出。我们要不要
    保持逐字节一致？不一致会让与上游 journal 对照失去锚点，但一致意味着继承其哈希撞车语义。
@@ -269,8 +327,132 @@ P1 完成前不落 P2，P2 完成前不落 P3；每期各自补测试与验收�
 
 ## 当前状态
 
-**P2 实现中。** 本文的 8 条待确认问题已在上面的「定案（P1 开始前）」逐条收敛；P1（契约 + 编译 +
-引擎 + 线协议）与 P2（bootstrap 驱动 + core 工具与通知）按下面的「移植记录」推进。P3（展示）未开始。
+**P1 / P2 / P3a / P3b 源码与自动测试已落地，真机验收暂缓。**
+P1 契约/引擎/线协议、P2 驱动/工具/权限/通知、P3a 阶段分析与 v4 归约、P3b 展示与正确性
+收尾均已接线。P2 的重复投影、通知 manifest、fill 文件与权限、display 契约历史偏差已修正；
+未实现的 model_bindings 与上游 hole 数据依赖完整图仍明确排除，不将它们算作已完成。
+
+- 原子 journal 提交先于内存表替换/广播/放行；审批基线过期返回 `fill_preview_stale`，零副作用。
+- durable sequence 已从引擎/端口/output/display 贯穿至 shared/UI；同 run 最新成功图按最大
+  commitSequence 派生，failed/pending 与旧序号 replay 不覆盖。
+- phase/hole-only（steps=[]）图已在工具行/直接启动行联接、审批、工具卡、run digest 与侧栏
+  同源展示；通知保留原始 siteId 落站意图。SSR/纯逻辑测试不等于真实 DOM 滚动验收。
+- 自动测试包括 shared 的归约与 display 两文件、UI 的 `workflowHoles.test.ts` 与
+  `workflowHoleOnlySurfaces.test.ts`；CI Vitest 增加这些入口并保留原有目录，CLI node:test
+  沿包级 test 脚本拾取。servicePipe 新 case 沿原入口拾取，mobile 四个测试已被原目录覆盖。
+- 当前展示契约与真机场景以 [`workflow-holes-ui.md`](./workflow-holes-ui.md) 为准；
+  下列分期验证、交接与「本期不做」均保留为历史时点，不是当前 TODO。
+
+### P3b 后端规则与验收
+
+- 阶段词汇表与站点出生阶段唯一所有者是 dynamic-workflow 的公共
+  `collectPhaseNames` / `collectSitePhases`；bootstrap 删除重复投影。launch 的声明表与
+  compiled holes 生成 `run-launched.holes`；fill 从有效脚本重算 `hole-filled.holes`。
+- 被拒内联函数体异步写入 `<用户数据根>/workflow-fills/<session哈希>/<run哈希>/<site哈希>/`，
+  用户数据根复用 `appDirNames.ts` 与 `ZCODE_DATA_BASE_DIR` 口径；名称只作可读标签，完整身份
+  哈希隔离会话/run/site，内容哈希实现相同字节复用；先写完整临时文件再原子独占发布，
+  并发重试不会读到半写文件，不覆盖用户编辑。
+- 保留 7 天（mtime）；每次写入先 await best-effort 清理过期普通 fill 文件，然后写本次文件，
+  不用定时器，不在 run 结束时删除（模型可跨长会话重试）。清理忽略符号链接/非 fill 文件；
+  崩溃遗留的 `.uuid.pending` 也按相同保留期清理；写失败仍返回原编译诊断。
+  测试可注入 root / now / retentionMs。
+- 输入 path 可读本次作用域的 fill 文件或正常用户提供的文件；拒绝 `..` 路径段，托管数据根
+  内禁止跨 session/run/site 与符号链接绕过。写入路径不使用原始身份或名字作目录路径。
+- 批准预览唯一载体是 resolveInput 回填的 `hole.effective_script`，不再使用进程级单槽缓存，
+  并发补全不会抢走彼此预览；模型提供的整个 hole 块（包括该字段）都无条件剥掉。
+- resolveInput 无条件剥掉模型伪造的 hole 事实，端口快照回填 owner：parentSessionId 匹配
+  且 stopReason 非 user 才 owned；权限服务调用 contracts 的 `isFillWorkflowHoleOwnedRun`。
+  FillWorkflowHole 不接受会话级全工具免确认；foreign/manual-stop 不能被 yolo/plan 或 session
+  allow 绕过。硬 deny 始终优先。编译失败也不替 foreign 输入免确认。
+- 每条有效 hole-reached 恰一条通知，originMeta.workflowNotification.kind 为 hole，携带
+  siteId/ordinal/name/type 与可用 prompt/草稿/行/前后阶段；文本和 manifest 共用有界 prompt。
+  hole-filled 不通知。沿现有 taskId/branchGeneration fencing 与通知 delivery 管线，不另造队列。
+- FillWorkflowHole 成功输出与批准预览走 CreateWorkflow display 单一投影（纳入工具名），
+  成功输出带 fill 身份与有效脚本图；图边界搬运控制流 holes 与 phase.fill（phase 词汇表
+  整体超限时一起丢弃），step.fill 取站点所属阶段的 fill；不手造分析器尚未提供的 hole step
+  或 phaseStreams。不引入未实现的 telemetry / model_bindings。
+
+```text
+模型输入 → core resolveInput（快照事实 + 路径隔离 + 有效脚本预览）
+         → PermissionService（owned 放行；其余 ask；deny 优先）
+         → bootstrap 每 run 串行 fill → 编译/稳定性复核 → engine 唯一写入口
+                                                        ├─ 更新 journal / hole-filled / 放行
+                                                        └─ bootstrap 更新事实 / 草稿
+compile_failed → core 清理过期文件 → 独占保存函数体 → 返回可编辑重试 path
+hole-reached → core 一条通知（文本 + hole manifest）→ 现有 continuous/replayable 通知管线
+```
+
+验收使用实际 node:test：磁盘写读/过期清理/并发不覆盖/身份隔离/路径遍历与符号链接；
+resolveInput + PermissionService 的 owned/foreign/manual-stop/伪造与 deny；真实编译/引擎的
+launch 与 fill 阶段下标；通知 manifest 数量与字段；成功工具输出和批准预览 display。
+后端只修改 bootstrap/core 与本 spec；contracts/shared/UI 由并行负责者修改，诊断生成物最后统一生成。
+
+### P3b 后端验证记录（历史快照，strict display/shared/UI 交接已完成）
+
+- 新增 17 个 node:test（core 原 3 → 19，bootstrap 原 29 → 30）；本域 49/49 通过。
+  真正启动 bootstrap run service + 沙箱 + 内存 journal 验证 launch.holes=[1]、补全后
+  nested hole-filled.holes=[3] 与 actor 出生阶段；不是仅验证 mock fill 成功。
+- `pnpm -r --filter './apps/zcode-cli/packages/*' build` exit 0。
+- 同过滤器 `test` 最后一次 exit 1：contracts/test/holes-display-contract.test.ts 引入 vitest，
+  该包入口是 node:test，报 runner `config` undefined；此前未有该并行新文件时递归 125 个测试通过。
+- 最后一次 `pnpm typecheck` / `pnpm lint` / `pnpm fmt:check` 全为 exit 0；
+  `pnpm architecture:check --changed` 前后 exit 0、violations/baseline/new 均为 0。
+  core lint 与 bootstrap `oxlint src --no-ignore` 也 exit 0（bootstrap 的普通 lint 脚本
+  因根 ignore 报 No files found，exit 1，不能视为通过）。日志保存在 `/tmp/holes-backend-*`。
+- 曾遇到并行 shared 测试跨 rootDir 导入、UI 超行数/格式失败，已在最后一轮检查消失；
+  未修改它们。typecheck 曾产生 contracts/src 临时 emit 文件，该域负责者现已清理。
+- 待跨域同步：shared/UI 读取 display.fill，但 contracts 的
+  `src/tools/tool-result-metadata.ts` create_workflow strict schema 尚无 fill；后端当前不冒险
+  添加额外 display 键（现有输出根 fill 块与图、批准输入 hole.effective_script 已有数据）。
+  同步 schema 后可在现有 createCreateWorkflowDisplay 中搬运 fill，不另建 display kind。
+- 未执行 UI/E2E；本域不生成 diagnosticLogCatalog，最后由指定负责者统一生成。
+
+### P3a 范围与验收（本期）
+
+**范围**：
+
+1. **分析层留白集成**（`apps/zcode-cli/packages/dynamic-workflow/src/analysis/**`）：
+   - 新落 `site-phases.ts`，导出 `collectPhaseNames(flow)`（run 声明阶段表 + 开放留白下标）与
+     `collectSitePhases(core)`（站点 → 词法出生阶段名）。
+   - 把留白接进时序走查与控制流投影：`causality-order-{types,state,calls}.ts` 的 `walkHole` /
+     `mintHolePhase` / `fillStack`、`causality-order.ts` 的开放留白步、`core.ts` 的
+     `CoreHoleSite` / `CoreSites.holes`、`interpret.ts` 的站点铸造、`flow-phase.ts` 的
+     `collectFlowHoles` 与 `fill` 传播、`flow-graph.ts` 的 `FlowHole` / `ControlFlowGraph.holes`。
+   - 关键结果：**控制流投影的阶段表纳入留白名**（留白按名字站在它的位置上），于是
+     `createWorkflowPhaseNames(causalityGraph)`（contracts，读的就是 `flow.phases`）与
+     bootstrap 的 `openHoleIndexes` 对现有脚本能返回**真实下标**——`run-launched.holes` /
+     `hole-filled.holes` 从此真实生效。
+2. **shared v4 归约**（`packages/shared/src/zcode-protocol-v4/**`）：新落 `workflow-runs-holes.ts`
+   （`readPhaseHoles` / `readPhaseNames` / `reduceHoleReached` / `reduceHoleFilled` /
+   `withoutWaitingHoles`），`workflow-runs.ts` 补 `WorkflowRunHole` schema、`maxHoles` /
+   `maxHoleTypeLength` / `maxHolePromptLength` 上限与 `phaseHoles` / `holes` 字段；
+   `workflow-runs-reducer.ts` 接 `hole-reached` / `hole-filled` 分支、终态剥 `waiting`；
+   `workflow-runs-phases.ts` 搬运 `phaseHoles`；`workflow-runs-started.ts` 新一世剥 `waiting`。
+   reducer 保持纯函数，越界 / 重复下标一律丢弃。
+
+**所有者**：
+
+- 开放留白名进阶段表的所有者是控制流投影（`flow.phases`）；`collectPhaseNames` 只读它，
+  用 `flow.holes` 标出哪几站是还开着的留白。
+- 站点 → 出生阶段名（引擎戳）的唯一所有者是分析层 `collectSitePhases(core)`：issue 与 actor
+  两种出生事件都按词法阶段盖戳；一个站点落在多个阶段则不进表。
+- v4 留白状态的所有者是 `workflow-runs-reducer.ts` 的分支；`waiting` 的真相在引擎停驻表，
+  归约只搬运事件，终态 / 新一世剥 `waiting`，`filled` 跨世保留。
+
+**本期覆盖的验收场景**（编号沿用上文「验收场景」）：
+
+- 场景 4 的**数据链**：阶段表含留白名 → `collectPhaseNames` 给出 `holes` 下标 →
+  `run-launched.holes` / `hole-filled.holes` 真实在场；journal 的 `hole-reached` /
+  `hole-filled` 在 shared v4 归约成 `WorkflowRunHole`。
+- 场景 5 的**归约侧边界**：`readPhaseHoles` 丢越界 / 非整数 / 重复下标并按 `maxPhases` 截断；
+  name 按 `maxPhaseNameLength`、type 按 `maxHoleTypeLength`、prompt 按 `maxHolePromptLength`
+  （499 + `…`）截断；`holes[]` 按 `maxHoles` 拒新并置 `truncated`。
+- 场景 6 的**生命周期**：`run-settled` 与新一世 `run-started` 都剥掉 `waiting` 记录，
+  `filled` 记录跨世保留；`withoutWaitingHoles` 一条不剩时整个键摘掉。
+
+**本期不做（→ P3b）**：UI 时间线虚线灯、通知行、补全工具行、确认窗、`phaseAlongside` 的
+`+k` 右移视觉、`CreateWorkflowOutput.holes[]` / `Step.fill` / `phaseStreams` 展示面、
+`workflowNotification` manifest 的 `kind: "hole"`。
 
 ### P1 移植记录（与上游 `aac47556` 对照）
 
@@ -336,30 +518,38 @@ flow-graph,site-phases,actor-models}.ts` 的图/阶段集成、fill 文件落地
   `core/src/runtime/methods/dynamic-workflow-run-progress.ts`（接上留白通知）
 - `core/src/runtime-task/workflow-notification-copy.ts`（`formatWorkflowHoleNotification`）
 
-**与上游的偏差（先记 spec、再改代码）：**
+**P2 时点与上游的历史偏差（以下保留当时快照，非当前 TODO）：**
 
-1. **缺 `collectSitePhases` / `collectPhaseNames`（P1 分析层未落）。** 上游在
-   `dynamic-workflow/src/analysis/site-phases.ts` 导出这两条；本仓库 P1 没落该文件。P2 在宿主侧
-   实现等价投影：`collectSitePhasesOf(core)` 与 `phaseNamesOfFlow(flow)`（bootstrap 的
-   `dynamic-workflow-run-compile.ts`）。
-2. **`ActorEvent` 还没有 `phase` 字段。** 上游的 `collectSitePhases` 对 issue 与 spawn 都做
-   词法盖戳；本仓库 `causality-order-types.ts` 的 `ActorEvent` 只有 `actor` / `regions`，所以
-   `collectSitePhasesOf` 只对 issue 事件盖戳；actor 站点仍退回动态当前阶段，与 P1 行为一致。
-   补 `ActorEvent.phase` 属 P3 的分析层集成。
-3. **`flow-graph.ts` 还没有 `FlowHole` / `collectFlowHoles`，且分析层的留白集成未落。** 阶段表
-   （因果图 / 控制流投影）目前**不含留白名**，所以 `openHoleIndexes(phaseNames, holes)` 对现有脚本
-   会回 `undefined`，`run-launched.holes` 与 `hole-filled.holes` 暂时缺席；开放留白的阶段下标因此
-   用「留白名对表」从宿主侧算，不读 `flow.holes`。两条规则在 9012「留白名唯一且占一个阶段」下等价，
-   但要让阶段表真含留白名（侧栏虚线站在位）需要 P3 的分析层集成。
+当前已删除 bootstrap 重复投影并复用分析层公共接口（含 actor 盖戳），阶段下标、通知 manifest、
+fill 文件/权限/完整审批预览与 strict display.fill/phase/step fill 已接通（1–7 的本地能力偏差
+已收尾）。第 6 项的 model_bindings 检查与第 8 项的上游 hole 数据依赖完整图未做，仍属非目标；
+不把这些排除项写成 parity 已完成。原始条目保留如下：
+
+1. **`collectSitePhases` / `collectPhaseNames` 已在 P3a 落于分析层**
+   （`dynamic-workflow/src/analysis/site-phases.ts`）。但 bootstrap 的宿主等价投影
+   `collectSitePhasesOf` / `phaseNamesOfFlow`（`dynamic-workflow-run-compile.ts`）**本期保留**：
+   P3a 的允许改动目录只含 `dynamic-workflow` 与 shared v4，不含 `bootstrap`。两者规则一致
+   （`collectSitePhasesOf` 现在还会漏 actor 站点——P3a 已给 `ActorEvent` 补 `phase`，切到
+   `collectSitePhases` 后 actor 站点也会被盖戳）；切换与删除重复实现留给 P3b / 后续。
+2. **`ActorEvent` 已由 P3a 补上 `phase` 字段**（上游形状）并接入 `walkCall`，所以
+   `collectSitePhases` 对 issue 与 actor 都盖戳；bootstrap 的 `collectSitePhasesOf` 只盖 issue
+   是旧实现的偏差，不是分析层的。
+3. **分析层留白集成已落，`openHoleIndexes` 对现有脚本能返回真实下标**：`flow.phases` 现含留白名，
+   `flow.holes` 由 `collectFlowHoles` 给出，`collectPhaseNames` 据此算 `holes` 下标。
+   `run-launched.holes` / `hole-filled.holes` 从「暂时缺席」变为真实生效。
 4. **`CreateWorkflowOutput` 只加 `fill` 块，不加 `holes[]` / `Step.fill` / `phaseStreams`。**
-   图展示面（display 契约）属 P3。
+   图展示面（display 契约）属 P3b。
 5. **通知只发模型可见文本，不带 `workflowNotification` manifest。** manifest 的 `kind: "hole"`
-   要 shared v4 schema 同步（属 P3）；P2 只落 `formatWorkflowHoleNotification` 文本。
+   要 UI 与 shared v4 schema 同步（属 P3b）；P2 只落 `formatWorkflowHoleNotification` 文本。
 6. **fill 文件落地、权限确认窗与 `model_bindings` 检查未落。** P2 的 `resolveInput` 只归一 `script`
    / `path` 与 `hole` 事实块、拼确认窗预览；内联提交写 fill 文件、`fill_unchanged` 之外的 fill 文件
-   生命周期、`allScriptModelsBound` 与权限 owner 放行留到 P3（见报告）。
+   生命周期、`allScriptModelsBound` 与权限 owner 放行留到 P3b（见报告）。
 7. **`run-launched.holes` 由提交方按编译产物与声明表算出**（`openHoleIndexes`），与上游同规；
    resume 的阶段表从 `run-launched` / 最后一条 `hole-filled` 读回。
+8. **P3a 按上游最小子集移植，不搬 `holeData` / `hole-flow` 数据边与站点图 hole 节点。**
+   `CoreFacts.holeData`、`graph.ts` 的 `hole` 站点节点、`causality-graph.ts` 的 `hole` step 与
+   `Step.fill`、mermaid / serialize 的 hole 行都**未搬**：它们服务的是数据依赖图与展示，不是
+   本期的阶段表 / v4 归约。`collectFlowHoles` 只读 `core.sites.holes`，与这些无关。
 
 **P2 测试：**
 
@@ -368,3 +558,42 @@ flow-graph,site-phases,actor-models}.ts` 的图/阶段集成、fill 文件落地
   的 `fill_ids_unstable` 判据、快照 `holes[]` 两态与 32 条上限、`compiledHolesOf`。
 - `core/test/dynamic-workflow-run-hole-notification.test.ts` — 每条 `hole-reached` 恰好一条通知、
   `hole-filled` 不发、端口缺席时通知照发。
+
+### P3a 移植记录（与上游 `aac47556` 对照）
+
+**整文件移植（内容与上游一致）：**
+
+- `dynamic-workflow/src/analysis/site-phases.ts` — `collectPhaseNames` / `collectSitePhases`。
+- `packages/shared/src/zcode-protocol-v4/workflow-runs-holes.ts` — `WORKFLOW_HOLE_SITE_ID_PATTERN`、
+  `readPhaseHoles` / `readPhaseNames`、`reduceHoleReached` / `reduceHoleFilled`、`withoutWaitingHoles`。
+
+**hunk 合并（只取留白相关改动，其余本仓库自有改动保留）：**
+
+- `analysis/causality-order-types.ts`（`PhaseInfo.fill`、`ActorEvent.phase`）
+- `analysis/causality-order-state.ts`（`holeByCall` / `holePhases` / `fillStack`、开放留白进
+  `realSteps` / `callByStep`、`phaseIdOf` 的 `.size` 编号与 `fill` 盖戳）
+- `analysis/causality-order-calls.ts`（`walkHole` / `mintHolePhase`、actor 事件盖阶段）
+- `analysis/causality-order.ts`（`stepSites` 纳入开放留白）
+- `analysis/core.ts`（`CoreHoleSite` / `CoreSites.holes`、`isActorSite` 按最后一段判种类、
+  core 文本的 `hole` / `fill=` 行）
+- `analysis/interpret.ts`（开放留白站点铸造）
+- `analysis/flow-phase.ts`（`collectFlowHoles`、`FlowPhase.fill` 传播）
+- `analysis/flow-graph.ts`（`FlowHole`、`FlowPhase.fill`、`ControlFlowGraph.holes`）
+- `analysis/core-json.ts`（老样例包缺 `holes` 时按空表解码）
+- `dynamic-workflow/src/index.ts` / `projections.ts`（导出新符号）
+- `packages/shared/src/zcode-protocol-v4/workflow-runs.ts`（`WorkflowRunHole`、上限、`phaseHoles` / `holes` 字段）
+- `packages/shared/src/zcode-protocol-v4/workflow-runs-phases.ts`（`run-launched` 搬 `phaseHoles`）
+- `packages/shared/src/zcode-protocol-v4/workflow-runs-reducer.ts`（两个分支 + 终态剥 `waiting`）
+- `packages/shared/src/zcode-protocol-v4/workflow-runs-started.ts`（新一世剥 `waiting`）
+- `packages/shared/src/zcode-protocol-v4/index.ts`（导出 holes 模块）
+
+**P3a 测试：**
+
+- `dynamic-workflow/test/site-phases.test.ts`（`node:test`）— 阶段表含留白名与 `holes` 下标、
+  P2 `openHoleIndexes` 规则复算相等、空词汇表、已补全留白、嵌套留白与 `fill`、`collectSitePhases`
+  的 issue / actor / 开放留白 / 跨阶段 helper。
+- `packages/shared/src/zcode-protocol-v4/workflow-runs-holes.test.ts`（vitest）— `readPhaseHoles`
+  的越界 / 非整数 / 重复 / 截断、`reduceHoleReached` 的 upsert / 上限 / prompt 截断 / 纯函数、
+  `reduceHoleFilled` 的 filled 翻转 / `phaseAlongside` 右移 / 越界下标、`withoutWaitingHoles`、
+  以及 `reduceWorkflowRunsState` 全链路的 `run-launched` → `hole-reached` → `hole-filled` /
+  `run-settled` / `run-started`。

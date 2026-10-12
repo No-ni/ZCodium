@@ -79,6 +79,13 @@ export const FillWorkflowHoleHoleSchema = z
     draft_path: z.string().min(1).optional(),
     /** 留白调用在草稿里的行号（1 起）；读不到时缺席。 */
     line: z.number().int().positive().optional(),
+    /** 审批只读预览：后端将函数体拼入存档后的完整有效脚本，script 字段仍保留函数体。 */
+    effective_script: z.string().min(1).optional(),
+    /** 与预览同一次读出的有效脚本 SHA-256；只由 resolve 生成，模型不能提交。 */
+    base_script_hash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     owned_by_this_session: z.boolean(),
   })
   .strict();

@@ -9,6 +9,7 @@ import {
   CREATE_WORKFLOW_DISPLAY_MAX_DIAGNOSTICS,
   CREATE_WORKFLOW_DISPLAY_MAX_MESSAGE_CHARS,
   CREATE_WORKFLOW_TOOL_NAME,
+  FILL_WORKFLOW_HOLE_TOOL_NAME,
   CreateWorkflowOutputSchema,
   type ToolResultDisplayPayload,
 } from "@zcode/contracts";
@@ -21,8 +22,12 @@ export function createCreateWorkflowDisplay(
   toolName: string,
   output: unknown,
 ): ToolResultDisplayPayload | undefined {
-  // 两个启动工具共用同一个 display kind：图、草稿笔与诊断卡在 UI 侧只有一份实现
-  if (toolName !== CREATE_WORKFLOW_TOOL_NAME && toolName !== AMEND_WORKFLOW_TOOL_NAME) {
+  // 补全与启动共用同一个 display kind；漏掉工具名会让成功行与批准预览静默丢图。
+  if (
+    toolName !== CREATE_WORKFLOW_TOOL_NAME &&
+    toolName !== AMEND_WORKFLOW_TOOL_NAME &&
+    toolName !== FILL_WORKFLOW_HOLE_TOOL_NAME
+  ) {
     return undefined;
   }
   const parsed = CreateWorkflowOutputSchema.safeParse(output);
@@ -32,7 +37,7 @@ export function createCreateWorkflowDisplay(
   // 「没有 run 端口、只 typecheck」这条来路。工具卡因此退回响应正文那一段。
   if (parsed.data.retuned !== undefined) return undefined;
 
-  const { causalityGraph, diagnostics, ok } = parsed.data;
+  const { causalityGraph, diagnostics, ok, fill } = parsed.data;
   // display 不经过 tool result budget：诊断条数与单条 message 长度都必须在进入实时事件和
   // 持久化 metadata 前独立限长，避免类型错误把 continuous/replayable 消息扩成无界载荷。
   // causalityGraph 已在工具输出边界限长（handler 的 boundCausalityGraph + 输出 schema），
@@ -54,6 +59,8 @@ export function createCreateWorkflowDisplay(
     errorCount,
     diagnostics: bounded,
     ...(causalityGraph === undefined ? {} : { causalityGraph }),
+    // transcript 入参不含 resolveInput 回填的 hole；成功与拒绝都须从输出透传，不能让 UI 猜留白名。
+    ...(fill === undefined ? {} : { fill }),
     ...(truncated ? { truncated: true } : {}),
   };
 }

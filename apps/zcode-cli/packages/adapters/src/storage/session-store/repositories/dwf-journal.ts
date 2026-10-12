@@ -395,6 +395,25 @@ class SqliteDwfJournalStore implements JournalStorePort, DwfRunIntrospectionQuer
     return listArtifactItems(this.db, runId, artifactId, query);
   }
 
+  commitHoleFill(
+    runId: string,
+    scriptText: string,
+    scriptHash: string,
+    event: Extract<RunEvent, { type: "hole-filled" }>,
+  ): StoredEvent {
+    // SAVEPOINT 同时兼容宿主已有事务；事件插入失败必须回滚脚本，否则 resume 会执行未成功补全。
+    this.db.exec("SAVEPOINT dwf_hole_fill");
+    try {
+      this.updateRunScript(runId, scriptText, scriptHash);
+      const stored = this.appendEvent(runId, event);
+      this.db.exec("RELEASE dwf_hole_fill");
+      return stored;
+    } catch (error) {
+      this.db.exec("ROLLBACK TO dwf_hole_fill; RELEASE dwf_hole_fill");
+      throw error;
+    }
+  }
+
   appendEvent(runId: string, event: RunEvent): StoredEvent {
     // 写进 time_created 的那一刻要原样回给调用方：读回这一行时 decodeEvent 给的是同一个数，
     // 追加路径却拿不到它，就会出现「刚写的事件没有时刻、读回来才有」这种两面不一致。

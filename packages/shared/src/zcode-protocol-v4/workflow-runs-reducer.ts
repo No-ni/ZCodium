@@ -65,6 +65,7 @@ import {
   workflowActorEntry,
 } from "./workflow-runs-entries.js";
 import { canonicalWorkflowRun, workflowRunUnchanged } from "./workflow-runs-delta.js";
+import { reduceHoleFilled, reduceHoleReached, withoutWaitingHoles } from "./workflow-runs-holes.js";
 import { readRunIdField, readWorkflowRunStopReason } from "./workflow-runs-lineage.js";
 import { carryNodeProgress, reduceNodeProgress } from "./workflow-runs-node-progress.js";
 import { reducePhaseEntered, reduceRunLaunched } from "./workflow-runs-phases.js";
@@ -521,6 +522,15 @@ function applyWorkflowRunEvent(
     case "run-launched":
       return reduceRunLaunched(run, payload);
 
+    /**
+     * hole-reached / hole-filled：留白的停驻与补全（docs/dynamic-workflow/presentation.md「Holes on the
+     * timeline」）。不碰 nodes / actors——留白没有节点行；规则在同族的 workflow-runs-holes.ts。
+     */
+    case "hole-reached":
+      return reduceHoleReached(run, payload);
+    case "hole-filled":
+      return reduceHoleFilled(run, payload);
+
     case "run-settled": {
       const status = payload.status;
       const error = isPlainRecord(payload.error) ? payload.error : undefined;
@@ -532,7 +542,10 @@ function applyWorkflowRunEvent(
       // 若还挂着 pending，那也只是一条永远不会有下文的残影。
       // 冷却是"新派发被冻结到何时"，终态 run 不再派发任何东西——留着它只会让状态头显示一个
       // 没有对象的倒计时。cap / ceiling 照留：它们是这次 run 跑在什么并发下的历史事实。
-      const cleared = withoutCooldown(withoutPendingQuestions(run, () => false));
+      // 停驻中的留白与停驻问题同命：真相是进程内的 deferred，终态 run 没有人在等补全；补上了的照留。
+      const cleared = withoutWaitingHoles(
+        withoutCooldown(withoutPendingQuestions(run, () => false)),
+      );
       // actor 三态里 waiting / completed 的分界看 run 是否终态，所以终态要重新派生一遍：
       // 一个建了却没被 ask 过的 actor 在 run 结束那一刻从「等待」变成「已完成」。
       // 三终态词；`stopReason` 只在 stopped 时搬运，

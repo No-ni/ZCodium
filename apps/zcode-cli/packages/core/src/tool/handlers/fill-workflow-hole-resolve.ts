@@ -6,6 +6,7 @@
 // （内联或读文件）、留白是不是这个 run 正在等的、它归不归本会话、草稿在哪。此后权限、确认窗与
 // handler 面对的只有一份函数体与一个 `hole` 事实块。
 
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   FILL_WORKFLOW_HOLE_SOURCE_ERROR,
@@ -22,7 +23,7 @@ import type {
   ToolInputResolutionResult,
 } from "../types.js";
 import { spliceHoleBodyPreview } from "./fill-workflow-hole-splice.js";
-import { resolveWorkflowScriptFilePath } from "./workflow-path-source.js";
+import { resolveWorkflowFillFilePath, type WorkflowFillFileScope } from "./workflow-fill-files.js";
 import { workflowRunNotFoundFailure } from "./workflow-run-introspection.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 
@@ -38,6 +39,7 @@ export const FILL_WORKFLOW_HOLE_ERROR_CODE = {
   FILL_FILE: 34,
   IDS_UNSTABLE: 35,
   BODY_UNAVAILABLE: 36,
+  PREVIEW_STALE: 37,
 } as const;
 
 /** 入参级违规（来源不是恰好一个）的码，与 CreateWorkflow / AmendWorkflow 的同一个 400。 */
@@ -83,37 +85,12 @@ export function rememberRejectedFill(
   rejectedFills.set(rejectionKey(sessionId, runId, holeId), body);
 }
 
-/** 测试用：清空「上一次被拒」表与预览单槽，让用例之间互不看见。 */
+/** 测试用：清空「上一次被拒」表，让用例之间互不看见。 */
 export function resetFillWorkflowHoleRejectionsForTests(): void {
   rejectedFills.clear();
-  preview = undefined;
 }
 
-// ------------------------------------------------------------
-// 确认窗的预览
-// ------------------------------------------------------------
-// prepareApproval 是同步的、只拿得到入参，而有效脚本要读端口（run 的脚本）才拼得出来。所以
-// resolveInput 拼好之后记在一个**单槽**里，prepareApproval 按 (run, hole, body) 认领——与
-// workflow-script-analysis.ts 的单槽记忆同一种姿态。
-
-/** 单槽里的一份预览：有效脚本。 */
-export interface FillPreview {
-  effectiveScript: string;
-}
-
-let preview: ({ runId: string; holeId: string; body: string } & FillPreview) | undefined;
-
-/** prepareApproval 取预览：入参对得上就给有效脚本，否则 `undefined`（窗照开，只是没图）。 */
-export function takeFillPreview(
-  runId: string,
-  holeId: string,
-  body: string,
-): FillPreview | undefined {
-  if (preview === undefined) return undefined;
-  if (preview.runId !== runId || preview.holeId !== holeId || preview.body !== body)
-    return undefined;
-  return { effectiveScript: preview.effectiveScript };
-}
+// 批准预览直接随归一化 hole.effective_script 走，进程单槽会被并发 fill 抢走，不能当事实源。
 
 // ------------------------------------------------------------
 // resolveInput
@@ -133,14 +110,23 @@ export async function resolveFillWorkflowHoleInput(
   input: unknown,
   context: ToolInputResolutionContext,
 ): Promise<ToolInputResolutionResult> {
-  const parsed = FillWorkflowHoleInputSchema.safeParse(input);
-  if (!parsed.success) return { result: true, input };
+  // 先剥模型事实再校验，畸形 hole/hash 也不能让 safeParse 早退后把伪造 owner 带进权限判断。
+  const modelInput =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? Object.fromEntries(Object.entries(input).filter(([key]) => key !== "hole"))
+      : input;
+  const parsed = FillWorkflowHoleInputSchema.safeParse(modelInput);
+  if (!parsed.success) return { result: true, input: modelInput };
   const cwd = context.workingDirectory ?? ".";
-  const { hole: _forged, ...model } = parsed.data;
-  void _forged;
+  const model = parsed.data;
   const port = context.dynamicWorkflowRunPort;
+  const scope: WorkflowFillFileScope = {
+    sessionId: context.sessionId,
+    runId: model.run_id,
+    holeId: model.hole_id,
+  };
   if (port === undefined) {
-    const body = await resolveFillBody(model, cwd);
+    const body = await resolveFillBody(model, cwd, scope);
     if (!body.result) return body;
     return { result: true, input: { ...model, ...body.fields } satisfies FillWorkflowHoleInput };
   }
@@ -150,7 +136,7 @@ export async function resolveFillWorkflowHoleInput(
   const waiting = findWaitingHole(snapshot, model.run_id, model.hole_id);
   if (waiting !== undefined && "result" in waiting) return waiting;
 
-  const body = await resolveFillBody(model, cwd);
+  const body = await resolveFillBody(model, cwd, scope);
   if (!body.result) return body;
   if (model.path !== undefined) {
     const rejected = rejectedFills.get(
@@ -163,13 +149,21 @@ export async function resolveFillWorkflowHoleInput(
 
   const hole =
     waiting === undefined ? undefined : describeHole(snapshot, waiting, context.sessionId);
-  await rememberFillPreview(port, model.run_id, model.hole_id, body.fields.script);
+  const preview = await readFillPreview(port, model.run_id, model.hole_id, body.fields.script);
   return {
     result: true,
     input: {
       ...model,
       ...body.fields,
-      ...(hole === undefined ? {} : { hole }),
+      // 批准预览必须展示拼接后的完整脚本，不能把函数体当整份 workflow；只传宿主计算的事实。
+      ...(hole === undefined
+        ? {}
+        : {
+            hole: {
+              ...hole,
+              ...preview,
+            },
+          }),
     } satisfies FillWorkflowHoleInput,
   };
 }
@@ -227,7 +221,11 @@ function notWaitingFailure(detail: string): ToolHandlerFailure {
   };
 }
 
-function unchangedFillFailure(described: string, runId: string, holeId: string): ToolHandlerFailure {
+function unchangedFillFailure(
+  described: string,
+  runId: string,
+  holeId: string,
+): ToolHandlerFailure {
   return {
     result: false,
     errorCode: FILL_WORKFLOW_HOLE_ERROR_CODE.FILL_UNCHANGED,
@@ -270,11 +268,13 @@ type FillBodyResolution =
 async function resolveFillBody(
   model: FillWorkflowHoleInput,
   cwd: string,
+  scope: WorkflowFillFileScope,
 ): Promise<FillBodyResolution> {
   if (model.path !== undefined) {
-    const absolute = resolveWorkflowScriptFilePath(cwd, model.path);
-    const described = describeWorkflowScriptPath(absolute, cwd);
+    let described = model.path;
     try {
+      const absolute = await resolveWorkflowFillFilePath(model.path, cwd, scope);
+      described = describeWorkflowScriptPath(absolute, cwd);
       const script = await readFile(absolute, "utf8");
       if (script.length === 0) return fillFileFailure(`${described} is empty`);
       return { result: true, described, fields: { script, path: absolute } };
@@ -299,14 +299,13 @@ function fillFileFailure(detail: string): ToolHandlerFailure {
   };
 }
 
-/** 拼一次有效脚本记进单槽（读不到 run 的脚本、拼不了都只是没有预览，绝不失败）。 */
-async function rememberFillPreview(
+/** 预览与 hash 来自同一次读；缺失时 handler fail closed，不能执行未经基线绑定的批准。 */
+async function readFillPreview(
   port: DynamicWorkflowRunPort,
   runId: string,
   holeId: string,
   body: string,
-): Promise<void> {
-  preview = undefined;
+): Promise<Pick<FillWorkflowHoleHole, "effective_script" | "base_script_hash"> | undefined> {
   if (typeof port.getScript !== "function") return;
   let stored: string | undefined;
   try {
@@ -317,5 +316,8 @@ async function rememberFillPreview(
   if (stored === undefined || stored.length === 0) return;
   const effectiveScript = spliceHoleBodyPreview(stored, holeId, body);
   if (effectiveScript === undefined) return;
-  preview = { runId, holeId, body, effectiveScript };
+  return {
+    effective_script: effectiveScript,
+    base_script_hash: createHash("sha256").update(stored, "utf8").digest("hex"),
+  };
 }

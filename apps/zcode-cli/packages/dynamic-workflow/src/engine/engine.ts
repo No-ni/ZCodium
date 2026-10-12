@@ -45,6 +45,7 @@ import type {
   JournalStorePort,
   PersonaSpec,
   RunEvent,
+  StoredEvent,
   RunStallInfo,
   RunStatus,
   RunStopReason,
@@ -190,7 +191,7 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
       isRunSettled: () => this.runSettled,
       runError: () => this.runError(),
       failRun: (error) => this.failRun(error),
-      record: (event) => this.record(event),
+      record: (event, committed) => this.record(event, committed),
       nextOrdinal: (siteId) => this.nextOrdinal(siteId),
       holdForReplay: (instance, release) => {
         this.replaySettleOrder.hold(instance, release);
@@ -658,8 +659,7 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
     this.ordinals.set(siteId, next);
     // 词法优先、动态兜底：编译期表里的阶段才是确认图上用户看到的那个。
     const phase = this.sitePhases.get(siteId) ?? this.currentPhase;
-    if (phase !== undefined)
-      this.instancePhases.set(refToString({ siteId, ordinal: next }), phase);
+    if (phase !== undefined) this.instancePhases.set(refToString({ siteId, ordinal: next }), phase);
     return next;
   }
 
@@ -681,9 +681,10 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
    * 所有事件的唯一漏斗，出生阶段也就在这里补上（{@link stampBirthPhase}）。两条路线拿到的
    * 必须是**同一个对象**：bootstrap 的 `createJournalSequenceCapture` 按引用相等核对序号。
    */
-  private record(event: RunEvent): void {
-    const stamped = stampBirthPhase(event, this.instancePhases);
-    this.journal.appendEvent(this.runId, stamped);
+  private record(event: RunEvent, committed?: StoredEvent): void {
+    // 原子补全已落库，仍沿唯一广播漏斗，但绝不能重复 append。
+    const stamped = committed?.event ?? stampBirthPhase(event, this.instancePhases);
+    if (committed === undefined) this.journal.appendEvent(this.runId, stamped);
     this.driver.emit(stamped);
   }
 }

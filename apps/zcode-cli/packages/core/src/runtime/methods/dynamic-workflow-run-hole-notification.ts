@@ -23,6 +23,10 @@ export const HOLE_REACHED_EVENT_TYPE = "hole-reached";
 /** manifest 载荷与通知里 prompt 的界（spec：4000 字符，截断以 `…` 收尾）。 */
 const WORKFLOW_HOLE_PROMPT_MAX_CHARS = 4_000;
 const PROMPT_ELLIPSIS = "…";
+// shared workflow-row-meta 的展示边界；只截 manifest，不改编译类型/通知模型文本的完整契约。
+const HOLE_MANIFEST_NAME_TYPE_MAX_CHARS = 128;
+const HOLE_MANIFEST_SITE_MAX_CHARS = 64;
+const HOLE_MANIFEST_PATH_MAX_CHARS = 1024;
 
 export async function notifyHoleReached(
   this: AgentRuntimeInternal,
@@ -60,6 +64,25 @@ export async function notifyHoleReached(
       title: runLabel,
       // workId ≡ runId：与该 run 的其余通知同一个展示锚点。
       workId: payload.runId,
+      // manifest 与模型文本取同一份快照事实；不能让 UI 反向解析通知文本。
+      workflowNotification: {
+        kind: "hole",
+        siteId: siteId.slice(0, HOLE_MANIFEST_SITE_MAX_CHARS),
+        ordinal,
+        name: name.slice(0, HOLE_MANIFEST_NAME_TYPE_MAX_CHARS),
+        type: type.slice(0, HOLE_MANIFEST_NAME_TYPE_MAX_CHARS),
+        ...(prompt === undefined ? {} : { prompt }),
+        ...(draftPath === undefined
+          ? {}
+          : { draftPath: draftPath.slice(0, HOLE_MANIFEST_PATH_MAX_CHARS) }),
+        ...(line === undefined ? {} : { line }),
+        ...(before === undefined
+          ? {}
+          : { before: before.slice(0, HOLE_MANIFEST_NAME_TYPE_MAX_CHARS) }),
+        ...(after === undefined
+          ? {}
+          : { after: after.slice(0, HOLE_MANIFEST_NAME_TYPE_MAX_CHARS) }),
+      },
     },
     // taskId 让通知继承该 run 的 branchGeneration（迟到通知的 fencing）；丢弃后的兜底是快照查询。
     taskId: payload.runId,

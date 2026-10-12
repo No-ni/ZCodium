@@ -31,6 +31,9 @@ export const ZCODE_KNOWN_TOOL_NAMES = [
   // 修订入口：登记进 workflow family 让确认窗
   // 按 family 选中运行确认块；工具行侧则按名先分流（resolveRenderer.ts），family 兜底不会吞掉它。
   "AmendWorkflow",
+  // 留白补全：同 AmendWorkflow 登记进 workflow family——确认窗按 family 选运行确认块；
+  // 工具行侧按名先分流，复用 CreateWorkflow 的输出形状（display kind 同为 create_workflow）。
+  "FillWorkflowHole",
   // wire 名就是 snake_case 的 submit_result（仓库里唯一一个），下划线必须字面在场：
   // 未登记时 UI identity 退回 unknown，动态工作流 actor 的提交会落到 raw fallback renderer。
   "submit_result",
@@ -88,6 +91,7 @@ const TOOL_FAMILY_BY_NAME: Record<ZCodeKnownToolName, ZCodeToolFamily> = {
   Skill: "skill",
   CreateWorkflow: "workflow",
   AmendWorkflow: "workflow",
+  FillWorkflowHole: "workflow",
   submit_result: "workflow",
 };
 
@@ -103,6 +107,8 @@ export function normalizeZCodeToolName(
     return null;
   }
 
+  // 补全工具的 snake_case wire 拼写也必须进入同一 workflow/permission 分流，不能落 unknown。
+  if (normalized.toLowerCase() === "fill_workflow_hole") return "FillWorkflowHole";
   return TOOL_NAME_BY_LOWER.get(normalized.toLowerCase()) ?? null;
 }
 
