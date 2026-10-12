@@ -5,6 +5,8 @@
 - 构建矩阵覆盖 Linux x64/arm64、Windows x64/arm64、macOS arm64/x64；除 Windows arm64 在 x64 runner 上交叉打包外，均使用 GitHub 托管的**原生** runner（Linux arm64 用 `ubuntu-24.04-arm`）。
 - PR、main 推送、手动运行和 `v*` 标签推送均执行检查与全平台打包。
 - Linux 沿用现有 AppImage、deb、rpm、pkg.tar.zst，Windows 沿用 NSIS exe，macOS 发 dmg 与 zip。
+  本机缺 `rpmbuild` / `pacman` 时可用 `ZCODE_DESKTOP_LINUX_TARGETS=deb`（逗号分隔，取值限本次四种）只打子集；
+  发布工作流不设置该变量，始终保持完整列表，未知取值直接失败而不是静默少出产物。
 - 产物文件名遵循现有打包器的架构命名（`builder-util` 的 `getArtifactArchName`，按 target 名判定）：
   - deb：x64 → `amd64`，arm64 → `arm64`；
   - AppImage：x64 → `x86_64`，arm64 → `arm64`；

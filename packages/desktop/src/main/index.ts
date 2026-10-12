@@ -1743,8 +1743,11 @@ app.whenReady().then(async () => {
       ? { registryMaxEntries: Number(process.env.ZCODE_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) }
       : {}),
   });
-  // Electron 的 net.request 只能在 app ready 后使用；灰度请求仍是旁路预热，不阻塞首个 Host。
-  void desktopContextPromptRollout?.refresh();
+  // 灰度模块 desktopContextPromptRollout 已在 38632dec「replace remote rollout and help config
+  // with local defaults」整体删除，此处不再有可预热的远端灰度请求。
+  // 注意：该引用曾被上游 cherry-pick 反复带回，且在缺少声明的 whenReady 回调里直接求值，
+  // 打包产物会抛 ReferenceError: desktopContextPromptRollout is not defined，
+  // 使主进程启动链断裂、窗口不再创建（见 issue #58），不要再加回。
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );

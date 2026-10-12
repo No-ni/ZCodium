@@ -644,6 +644,23 @@ comm -23 /tmp/up.txt /tmp/our.txt | grep -Fxf /tmp/tree.txt | wc -l  # (c-1) 38
 | 上游留白完整能力面      | hole 数据依赖完整图、生长动画、model_bindings 检查与 Rust 同步未做，见 holes spec 非目标 |
 | parity 对账政策         | `upstream-i18n-parity.md` / `upstream-parity-audit.md` 政策仍待 owner 决定，不擅自修改   |
 
+### 回归修复：main 启动链悬空引用（issue #58）
+
+`ZCodium Exp v3.15.1-20261012.324` 安装后启动即白屏，日志只有一个
+`unhandledRejection: { errorType: 'ReferenceError', frames: ['main/index.js:1:1'] }`：
+`app.whenReady()` 回调在 `void desktopContextPromptRollout?.refresh()` 处直接抛
+`ReferenceError: desktopContextPromptRollout is not defined`，主进程启动链断裂，Host 不再 spawn。
+
+- **原因**：`38632dec`「replace remote rollout and help config with local defaults」已删除
+  `packages/desktop/src/main/desktopContextPromptRollout.ts` 及其 import，但 `0ccd000e`
+  （cherry-pick 上游 UI 插件，merge base 为 v3.14.3）把这行调用重新带回，却没有恢复声明。
+  可选链（`?.`）只挡 `null`/`undefined`，挡不住未声明标识符。
+- **修复**：删除该行，并在原位留注释说明模块已删除、不得再由 cherry-pick 引入。
+- **门禁缺口**：根 `typecheck` 脚本只跑 `packages/desktop/tsconfig.host.json`，**不含
+  `tsconfig.main.json`**；后者当前有 63 个历史类型错误，其中 `TS2304` 正是本事故的直接形态。
+  在把 main 纳入类型检查（或补齐这 63 个错误）之前，每次上游 cherry-pick 后必须手工执行
+  `tsc -b packages/desktop/tsconfig.main.json`，确认没有新增 `Cannot find name`。
+
 ## 附：测量口径
 
 本文所有数字均由本仓库对 `upstream/main` 与 `29628c9` 的 git 树直接测量，非引用第三方：

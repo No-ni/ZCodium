@@ -206,6 +206,29 @@ function resolveElectronDownloadMirror(env = process.env) {
   return DEFAULT_ELECTRON_MIRROR;
 }
 
+// 本地缺 rpmbuild / rpm / pacman 时只能打部分 Linux 格式；发布工作流不设置该变量，
+// 始终按完整列表出包。异常写法直接失败，避免静默少出产物被当成完整发布。
+function resolveLinuxTargets(env = process.env) {
+  const allowed = new Set(["AppImage", "deb", "rpm", "pacman"]);
+  const raw = env.ZCODE_DESKTOP_LINUX_TARGETS?.trim();
+  if (!raw) {
+    return ["AppImage", "deb", "rpm", "pacman"];
+  }
+  const targets = raw
+    .split(",")
+    .map((target) => target.trim())
+    .filter(Boolean);
+  if (targets.length === 0) {
+    throw new Error("ZCODE_DESKTOP_LINUX_TARGETS 不能为空");
+  }
+  for (const target of targets) {
+    if (!allowed.has(target)) {
+      throw new Error(`不支持的 Linux target: ${target}；可选值 ${[...allowed].join("/")}`);
+    }
+  }
+  return targets;
+}
+
 const commandStdoutMaxBuffer = 64 * 1024 * 1024;
 // 产物后缀只标记后端环境（_TEST）；身份靠 productName 区分，生产后端的 Preview 包没有后缀。
 const desktopArtifactEnvSuffix = resolveDesktopArtifactSuffix(process.env);
@@ -753,7 +776,7 @@ export default {
     artifactName: buildDesktopArtifactName("win"),
   },
   linux: {
-    target: ["AppImage", "deb", "rpm", "pacman"],
+    target: resolveLinuxTargets(process.env),
     artifactName: buildDesktopArtifactName("linux"),
     // desktop 包名是 scoped package（@zcode/desktop），electron-builder 默认会把
     // Linux executable/Icon 推成 @zcodedesktop。部分桌面环境无法按这个 icon name 命中
