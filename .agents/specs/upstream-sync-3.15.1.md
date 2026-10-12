@@ -249,8 +249,9 @@ Non-goals），Rust 重写的意义随之消失。
 
 - 上游 `dynamic-workflow` 共 **2,058** 个文件，其中 `src/*.ts(x)` 只有 **120** 个；其余是测试
   快照与夹具。所以「20.2 倍」不是实现量。
-- 我们树里 `FillWorkflowHole` / `HOLE_CODE` **0 命中**——上游这次的核心新增「留白（Holes）」
-  是一个**我们完全没有的新纵向能力**，不是文件缺失。
+- 立项前基线树里 `FillWorkflowHole` / `HOLE_CODE` **0 命中**（历史快照）——上游这次的核心
+  新增「留白（Holes）」当时是一个完全没有的新纵向能力，不是文件缺失；当前 P1–P3b 的源码
+  与自动测试已落地，见 `dynamic-workflow-holes.md` 与 `workflow-holes-ui.md`。
 - `src` 增量三类：**(a)** 上游新增且我们没有 **27 个（约 3,264 行）**；**(b)** 两边都改过
   **20 个（约 +1,610/−474）**；**(c-1)** 上游改过、我们从未动过 **38 个（约 +845/−296）**。
 - 耦合面：`bootstrap` 42 个、`core` 6 个、`adapters` 5 个 `src` 文件引用
@@ -315,14 +316,14 @@ CI 守护（会红，必须一起处理）：
 
 ## 会失效的 spec
 
-| spec                                                                                    | 处理                 |
-| --------------------------------------------------------------------------------------- | -------------------- |
-| `pdf-plugin-backfill.md`、`pdf-plugin-phase3-qa.md`、`pdf-plugin-phase4-typesetting.md` | 标历史快照           |
-| `spreadsheets-plugin-backfill.md`                                                       | 标历史快照           |
-| `documents-doc-layer-backfill.md`、`documents-doc-layer-cleanroom.md`                   | 标历史快照           |
-| `image-search-local-backend.md`                                                         | 标历史快照           |
-| `plugin-backfill-openbase-survey.md`、`content-backfill-openbase-survey.md`             | 标历史快照           |
-| `builtin-plugin-parity.md`                                                              | 部分失效，需逐节判定 |
+| spec                                                                                    | 处理                                                               |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `pdf-plugin-backfill.md`、`pdf-plugin-phase3-qa.md`、`pdf-plugin-phase4-typesetting.md` | 标历史快照                                                         |
+| `spreadsheets-plugin-backfill.md`                                                       | 标历史快照                                                         |
+| `documents-doc-layer-backfill.md`、`documents-doc-layer-cleanroom.md`                   | 标历史快照                                                         |
+| `image-search-local-backend.md`                                                         | 标历史快照                                                         |
+| `plugin-backfill-openbase-survey.md`、`content-backfill-openbase-survey.md`             | 标历史快照                                                         |
+| `builtin-plugin-parity.md`                                                              | 已逐节判定：3 节失效 / 1 节有效 / 6 节部分有效（见该文档顶部总结） |
 
 **建议标记为历史快照而非删除**——那批 audit 结论（键级判定、许可排查、被排除的基座）仍有查证价值，且删除会让 `rolling-update.md:208`、`provider-config-menu-entry.md:26` 的引用悬空。
 
@@ -359,17 +360,17 @@ CI 守护（会红，必须一起处理）：
 
 ## 进度
 
-| 工作项                            | 状态                                                                                                                                                                                                                                                                          |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. 协议 delta                     | **已核对（第二轮补全口径，见「补充清单」）**：MCP UI 实例与 MCP resource read 两边都有；`zcode-protocol/trace.ts` 只是上游拆了文件（我们的 `zcodeProtocolTraceSchema` 内联在 `index.ts:285`，字段一致）；其余新增面逐项判定为「不跟（我方没有的产品能力）」或「归入工作项 6」 |
-| 2. 插件换上游（含前置 diff 判断） | **本轮做完 12 个**：skill-creator、visualize、plugin-creator、zcode-guide、pdf、documents、presentations、spreadsheets、android-emulator（+构建）、ios-simulator（+构建）、restore-legacy-sessions、superpowers（改为整理，不换）                                             |
-| 3. CUA 只取文本                   | **已做**（早已执行 + 本轮按缺口补，见工作项 3）                                                                                                                                                                                                                               |
-| 4. 核心包判断                     | **已完成：判定为不搬**。构成 1,575 个为图分析期望输出快照、`src` `.ts(x)` 仅 120 个；`src` 增量三类（a 27 / b 20 / c-1 38），`FillWorkflowHole`/`HOLE_CODE` 我们 0 命中。留白能力单独立项：`dynamic-workflow-holes.md`                                                        |
-| 5. Browser 放开 subagent          | **已做**（`58b4952a`，设计见 `browser-subagent-shared-tabs.md`）                                                                                                                                                                                                              |
-| 6. 远控分片与确认式中继           | **已完成**：分片/装配/重传/ack 已实现（`web-remote-control-acked-relay.md`）；最后一项「topic resource relay 协议面 + `zcodeEndpoint.ts` relay 地址解析」判定为**不适用**（无 producer/consumer、我们无该地址解析），见 `web-remote-control-resource-relay.md`                |
-| 清单与契约同步                    | **本轮同步做了 5 类**：`builtinPluginAssets.ts` 的 seed 清单、`official-plugin-definitions.ts` 的三处版本、`requiresRuntime` 与构建脚本、根 `NOTICE.md`、`third-party/copied-components.json` 台账                                                                            |
-| `.zcodium-plugin` 改名            | **已定：保留我们的名字**（上游用 `.zcode-plugin`），本轮所有新换插件都改回 `.zcodium-plugin`，此项结束                                                                                                                                                                        |
-| spec 标历史快照                   | **已完成**：9 份 backfill/cleanroom spec 已加历史快照标记（`image-search-local-backend.md` 标为「规格仍有效、只是不再是 backfill 记录」）                                                                                                                                     |
+| 工作项                            | 状态                                                                                                                                                                                                                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. 协议 delta                     | **已核对（第二轮补全口径，见「补充清单」）**：MCP UI 实例与 MCP resource read 两边都有；`zcode-protocol/trace.ts` 只是上游拆了文件（我们的 `zcodeProtocolTraceSchema` 内联在 `index.ts:285`，字段一致）；其余新增面逐项判定为「不跟（我方没有的产品能力）」或「归入工作项 6」                   |
+| 2. 插件换上游（含前置 diff 判断） | **本轮做完 12 个**：skill-creator、visualize、plugin-creator、zcode-guide、pdf、documents、presentations、spreadsheets、android-emulator（+构建）、ios-simulator（+构建）、restore-legacy-sessions、superpowers（改为整理，不换）                                                               |
+| 3. CUA 只取文本                   | **已做**（早已执行 + 本轮按缺口补，见工作项 3）                                                                                                                                                                                                                                                 |
+| 4. 核心包判断                     | **已完成：判定为不搬**。构成 1,575 个为图分析期望输出快照、`src` `.ts(x)` 仅 120 个；`src` 增量三类（a 27 / b 20 / c-1 38）与 `FillWorkflowHole`/`HOLE_CODE` 0 命中为立项前历史快照。留白单独立项后 P1–P3b 源码与自动测试已落地，真机暂缓：`dynamic-workflow-holes.md` / `workflow-holes-ui.md` |
+| 5. Browser 放开 subagent          | **已做**（`58b4952a`，设计见 `browser-subagent-shared-tabs.md`）                                                                                                                                                                                                                                |
+| 6. 远控分片与确认式中继           | **已完成**：分片/装配/重传/ack 已实现（`web-remote-control-acked-relay.md`）；最后一项「topic resource relay 协议面 + `zcodeEndpoint.ts` relay 地址解析」判定为**不适用**（无 producer/consumer、我们无该地址解析），见 `web-remote-control-resource-relay.md`                                  |
+| 清单与契约同步                    | **本轮同步做了 5 类**：`builtinPluginAssets.ts` 的 seed 清单、`official-plugin-definitions.ts` 的三处版本、`requiresRuntime` 与构建脚本、根 `NOTICE.md`、`third-party/copied-components.json` 台账                                                                                              |
+| `.zcodium-plugin` 改名            | **已定：保留我们的名字**（上游用 `.zcode-plugin`），本轮所有新换插件都改回 `.zcodium-plugin`，此项结束                                                                                                                                                                                          |
+| spec 标历史快照                   | **已完成**：9 份 backfill/cleanroom spec 已加历史快照标记（`image-search-local-backend.md` 标为「规格仍有效、只是不再是 backfill 记录」）                                                                                                                                                       |
 
 ### 本轮新增的两个决定
 
@@ -433,9 +434,10 @@ diff -q <(git show $M:"$f" | tr -d '[:space:]') <(git show $A:"$f" | tr -d '[:sp
 RET-001/002/003/004/005/008/009/011）。`@zcode/contracts` 此前没有测试也没有 `test` 脚本，
 现在补了 `test` 脚本与 `tsx` devDependency。
 
-**注意**：`apps/zcode-cli/packages/*` 的包级测试目前**不在 CI 门禁内**——CI 只跑
-`scripts/ci/*.test.mjs` 与 `packages/zcode-cua/test/*.test.mjs`。这批测试目前只有
-`pnpm --filter @zcode/contracts test` 这个入口；要不要把它接进 CI 是一独立决定。
+**当时快照**：第二轮时 `apps/zcode-cli/packages/*` 的包级测试尚未进入 CI 门禁，只有包级
+入口。**当前** `.github/workflows/desktop.yml` 已通过
+`pnpm -r --filter './apps/zcode-cli/packages/*' test` 拾取 node:test；contracts/bootstrap/core 的
+包级测试不放进 Vitest include。
 
 ### 有实质改动但我们不搬（逐项理由）
 
@@ -552,7 +554,10 @@ xargs -d '\n' -n 150 git diff -U0 872ad960 aac47556 -- < /tmp/both.txt > /tmp/bo
 不是「一条条修复」。其中已核对并落地的是上表 5 项；其余按 `AGENTS.md` 的「改革线 vs 白拿线」
 判断，整文件跟等于把 fork 变成上游镜像，需要逐能力决策而不是搬运。
 
-**手机远控仍未做（本轮明确记录）**：
+**手机远控仍未做（第三轮续当时快照，非当前 TODO）**：
+
+下表保留该轮时点；当前实时订阅已完成，4s 会话轮询已移除，最新未验收边界见文末。
+`remoteSessionId` 的历史弹层调用方结论未在本次重新审计，不据此宣称全链路已验证。
 
 | 项                            | 说明                                                                                                |
 | ----------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -611,17 +616,33 @@ git ls-tree -r --name-only main | sort > /tmp/tree.txt
 comm -23 /tmp/up.txt /tmp/our.txt | grep -Fxf /tmp/tree.txt | wc -l  # (c-1) 38
 ```
 
-**结论：不整包搬**；要取就按能力取 `src` 增量，测试快照不 vendor。「留白（Holes）」（上游
-3.15.1 的核心新增，`FillWorkflowHole` / `HOLE_CODE` 我们 0 命中）作为新功能立项：
+**结论：不整包搬**；要取就按能力取 `src` 增量，测试快照不 vendor。上述统计保留为立项前
+测量快照，不按当前工作区重新计算。「留白（Holes）」（上游 3.15.1 的核心新增，立项前
+`FillWorkflowHole` / `HOLE_CODE` 0 命中）作为新功能立项：
 [`dynamic-workflow-holes.md`](./dynamic-workflow-holes.md)。
 
-### 本轮仍未做
+### 本轮收尾小结（当前源码状态）
 
-| 项                      | 说明                                                                               |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| 留白能力（Holes）       | 已立项但未实现，见 `dynamic-workflow-holes.md`（需先对齐规格）                     |
-| 手机端实时流            | 现在仍是 4s 轮询（`MobileApp.tsx`）；服务通路已修好（main 透明转发），推送订阅待接 |
-| 远端 workspace 真机验收 | 手机链路没有 E2E 门禁，只能真机手验                                                |
+- **Holes P1 / P2 / P3a / P3b 源码与自动测试已落地**：原子 journal 提交、stale approval preview、
+  commitSequence 的 strict output/display/shared/UI 接入、phase/hole 空 steps 图同源展示均已实现。
+  规则与分期记录见 [`dynamic-workflow-holes.md`](./dynamic-workflow-holes.md)，展示契约与
+  真机场景见 [`workflow-holes-ui.md`](./workflow-holes-ui.md)。不宣称上游全量 parity。
+- **手机实时订阅代码已完成**：`MobileApp.tsx` 经 `TaskConversationLifecycle` /
+  `subscribeTaskStream` 订阅 Host `onDynamicTaskEvent` replayable 流；首次/恢复读取
+  `readSessionMessages` 快照，不再每 4s 轮询。旧 bridge/generation、订阅释放、快照与在途事件
+  fencing 有自动测试；mobile 目录的四个测试和 servicePipe 原路径均已被 CI Vitest 入口覆盖。
+- **CI 入口收尾**：保留原有 Vitest 目录，新增 shared v4 归约/display 与 UI 两个测试入口；
+  CLI 仍用包级 node:test，不将 contracts/bootstrap/core 测试纳入 Vitest。
+- 旧统计、插件 diff 数字与各轮未做记录均为当时快照；本次不重新测量或盲改。
+
+### 本轮仍未做（当前）
+
+| 项                      | 说明                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| Holes 真机 / manual E2E | 按用户要求暂缓；自动测试与 SSR 不等于 Desktop/Web 手机真实定位、滚动与交互已验收         |
+| 远端 workspace 真机验收 | 实时订阅代码与自动测试已落地；真实远端 attachment、断线恢复及跨端会话链路仍待真机验收    |
+| 上游留白完整能力面      | hole 数据依赖完整图、生长动画、model_bindings 检查与 Rust 同步未做，见 holes spec 非目标 |
+| parity 对账政策         | `upstream-i18n-parity.md` / `upstream-parity-audit.md` 政策仍待 owner 决定，不擅自修改   |
 
 ## 附：测量口径
 
