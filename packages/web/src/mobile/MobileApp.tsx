@@ -1,17 +1,15 @@
-/* eslint-disable max-lines -- 手机远控壳层：home 列表 + task 会话 + 订阅/快照生命周期同属一个 React 组件树，拆文件会把 reducer 分发、代际校验与 notice 的所有者分叉（与 protocol.ts 同一口径）。 */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   MobileRemoteControlClient,
   readPairingParamsFromLocation,
   type MobileConnectionState,
-  type TaskStreamSubscription,
 } from "./protocol.js";
 import {
-  conversationMessagesFromSnapshot,
   conversationReducer,
   initialConversationState,
   type ConversationScope,
 } from "./conversationReducer.js";
+import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
 import { logger } from "../../../ui/src/logger.js";
 import type {
   WebRemoteControlBootstrapResult,
@@ -26,7 +24,7 @@ import type {
  * clientMode 固定 web-remote-replayable（与桌面 continuous 语义分离）。
  *
  * 实时更新走 Host replayable 事件流订阅（`onDynamicTaskEvent`），不再周期轮询：
- * 首次/恢复只读一次 `readSessionMessages` 作为快照屏障，之后由事件流增量 upsert。
+ * 首次/恢复读取 `readSessionMessages` 作为快照屏障，在途事件使读取过期时由控制器补读。
  */
 
 type View = { kind: "home" } | { kind: "task"; task: WebRemoteControlTaskRef };
@@ -61,7 +59,7 @@ export function MobileApp() {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   // 传输降级回调由「订阅 effect」注册：`onPayload` 在 client 构造时绑定，
-  // 之后通过 ref 把 bridge-degraded 路由到当前 task 的 resync。
+  // 之后通过 ref 把 bridge-degraded 路由到当前 task 的完整桥恢复。
   const onTransportDegradedRef = useRef<() => void>(() => {});
 
   const reportError = useCallback((message: string, error: unknown) => {
@@ -143,85 +141,37 @@ export function MobileApp() {
     const { workspaceKey, taskId } = view.task;
     const scope: ConversationScope = { workspaceKey, taskId };
     const workspace = findWorkspace(bootstrap, workspaceKey);
-    let disposed = false;
-    let subscription: TaskStreamSubscription | null = null;
-
-    // beginScope 首次重置、重连时保留气泡并置快照屏障（快照落地前丢弃增量）。
-    dispatchConversation({ type: "beginScope", scope });
-    onTransportDegradedRef.current = () => dispatchConversation({ type: "resync", scope });
-
-    void (async () => {
-      await client.ensureWorkspaceBridge({ workspaceKey, taskId });
-      if (disposed) return;
-      const handle = await client.subscribeTaskStream(
-        {
+    const lifecycle = new TaskConversationLifecycle(scope, {
+      subscribe: (onEvent) =>
+        client.subscribeTaskStream(
+          {
+            workspaceKey,
+            workspacePath: workspace?.workspacePath ?? "",
+            workspaceIdentity: workspace?.workspaceIdentity,
+            taskId,
+          },
+          onEvent,
+        ),
+      read: () =>
+        client.readTaskSnapshot({
           workspaceKey,
+          taskId,
           workspacePath: workspace?.workspacePath ?? "",
           workspaceIdentity: workspace?.workspaceIdentity,
-          taskId,
-        },
-        (event) => dispatchConversation({ type: "streamEvent", scope, event }),
-      );
-      if (disposed) {
-        handle.dispose();
-        return;
-      }
-      subscription = handle;
-    })().catch((error) => {
-      if (!disposed) reportError("[mobile] 任务事件流订阅失败", error);
+          remoteSessionId: workspace?.remoteSessionId,
+          limit: 100,
+        }),
+      dispatch: dispatchConversation,
+      onError: (error) => reportError("[mobile] 会话同步失败", error),
     });
-
+    // 协议先作废 bridge，控制器再重订阅/补读；不依赖 flags 变化触发 React effect。
+    onTransportDegradedRef.current = () => lifecycle.recoverBridge();
+    lifecycle.start();
     return () => {
-      disposed = true;
-      subscription?.dispose();
-      subscription = null;
+      lifecycle.dispose();
       onTransportDegradedRef.current = () => {};
     };
   }, [view, bootstrap, connection, reportError]);
-
-  // 快照屏障：needsResync / awaitingSnapshot 为真时读一次权威历史，覆盖本地增量。
-  useEffect(() => {
-    if (view.kind !== "task" || connection !== "paired") return;
-    if (!conversation.needsResync && !conversation.awaitingSnapshot) return;
-    const client = clientRef.current;
-    if (!client) return;
-    const { workspaceKey, taskId } = view.task;
-    const scope: ConversationScope = { workspaceKey, taskId };
-    const workspace = findWorkspace(bootstrap, workspaceKey);
-    let cancelled = false;
-
-    void client
-      .readTaskSnapshot({
-        workspaceKey,
-        taskId,
-        workspacePath: workspace?.workspacePath ?? "",
-        workspaceIdentity: workspace?.workspaceIdentity,
-        remoteSessionId: workspace?.remoteSessionId,
-        limit: 100,
-      })
-      .then((read) => {
-        if (cancelled) return;
-        dispatchConversation({
-          type: "applySnapshot",
-          scope,
-          messages: conversationMessagesFromSnapshot(read),
-        });
-      })
-      .catch((error) => {
-        if (!cancelled) reportError("[mobile] 会话快照读取失败", error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    view,
-    bootstrap,
-    connection,
-    conversation.needsResync,
-    conversation.awaitingSnapshot,
-    reportError,
-  ]);
 
   const sendPrompt = useCallback(async () => {
     const client = clientRef.current;

@@ -115,22 +115,14 @@ describe("conversationReducer stream chunks", () => {
     ]);
   });
 
-  it("重复 chunk 幂等：不新增气泡也不重复累加", () => {
+  it.each([
+    ["ha", "ha", "haha"],
+    ["a", "ab", "aab"],
+  ])("同 inputId/messageId 纯 delta %s + %s = %s", (first, second, text) => {
     let state = applySnapshot(begin(), []);
-    state = stream(state, chunk({ messageId: "m1", content: "hello" }));
-    state = stream(state, chunk({ messageId: "m1", content: " world" }));
-    const before = state;
-
-    state = stream(state, chunk({ messageId: "m1", content: " world" }));
-    expect(state).toBe(before);
-    expect(state.messages).toEqual([{ id: "m1", role: "assistant", text: "hello world" }]);
-  });
-
-  it("累计式 chunk 覆盖而不追加", () => {
-    let state = applySnapshot(begin(), []);
-    state = stream(state, chunk({ messageId: "m1", content: "你好" }));
-    state = stream(state, chunk({ messageId: "m1", content: "你好，世界" }));
-    expect(state.messages).toEqual([{ id: "m1", role: "assistant", text: "你好，世界" }]);
+    state = stream(state, chunk({ messageId: "m1", inputId: "input-1", content: first }));
+    state = stream(state, chunk({ messageId: "m1", inputId: "input-1", content: second }));
+    expect(state.messages).toEqual([{ id: "m1", role: "assistant", text }]);
   });
 
   it("缺 messageId 时按 traceId 归并", () => {

@@ -298,19 +298,55 @@ deliveryKind: "replayable"})`；`replayable` ⇒ Host `includeSnapshot` 语义�
   `EventListen` / `EventFire`），不新增协议信封、不改 `packages/shared`。
 - **订阅所有者**：订阅状态由 Host 与手机两端持有，Main 只透明转发；Main 与 relay 都不保存
   session 事实，也不替手机建立/销毁订阅。
-- **快照屏障**：进入任务、断线重订、收到 `task_snapshot_updated` 或 `bridge-degraded` 时置
-  `awaitingSnapshot`；屏障期间丢弃 `agent_message_chunk` 增量，只读一次
-  `readSessionMessages` 作为权威快照落地（`applySnapshot` 解除屏障），
-  避免迟到的流式碎片覆盖已恢复历史。
-- **按 `messageId` 幂等 upsert**：`agent_message_chunk` 按 `messageId`（缺失时退回 `traceId`）
-  归并到同一条 assistant 气泡；重复到达不新增气泡、不重复正文；累计式正文覆盖，
-  增量正文追加。
+- **快照屏障唯一所有者**：`TaskConversationLifecycle`（无 React/浏览器依赖）拥有订阅世代、
+  读取中的事件版本与补读循环；reducer 的 flags 仅为视图投影，不驱动第二条读取路径。
+  进入任务、断线重订、快照更新/终态信号开启屏障。屏障期 delta 不渲染但推进事件版本；
+  R 发起后版本改变则丢弃 R 结果并串行权威补读，只有版本未变的结果可解除屏障。
+  `readSessionMessages` 没有与流对齐的 sequence 水位，禁止缓存 delta 拼到快照上（可能重复）。
+  不用轮询或超时掩盖同步；失败保持屏障并上报，后续信号可重新发起读取。
+- **正文纯 delta**：生产者 `text_delta` 原样转成 `content`，没有唯一 eventId。
+  `messageId`（缺失退回 `traceId`）仅定位 assistant 气泡；所有正文按到达顺序追加，
+  不用 `inputId+content` 去重，不猜累计前缀。传输 seq 负责重复帧幂等。
 - **降级恢复**：`bridge-degraded` / 断档 / 断线重连 → 置 `needsResync` 清本地增量 →
   重开 bridge → 重订阅 → 重读快照；恢复路径不依赖传输层 replay。
-- **代际防迟到**：`MobileRemoteControlClient` 在 socket `close` / `dispose()` /
-  `ensureWorkspaceBridge` 换 workspace 时自增 bridge 代际并释放旧订阅；订阅回调与
-  `await` 返回点都按代际 + scope 校验，切换后旧 workspace/task 的迟到事件被丢弃。
-  切 workspace 先 dispose 旧订阅，再开新 bridge。
+- **代际防迟到**：协议客户端内 `WorkspaceBridgeLifecycle` 唯一拥有 bridge ready/目标/世代。
+  socket close/dispose、bridge-degraded、换 workspace 同步清 ready 并换代，释放旧订阅及
+  ChannelClient（拒绝旧在途 RPC），accessor 与消息 listener 同时失效。
+  open 串行等待上一次握手响应，过时排队请求不发送、过时响应不接管；A ready→B pending→A
+  必须重新开 A，不能复用旧 ready。新 open 发出前重置 seq/assembler/replay/ack 并创建
+  新 ChannelClient，捕获可能先于 ready 到达的 Host Initialize；ready 后不得再次重置装配器。
+  新 accessor 的出站受世代保护，旧 ChannelClient 不能向新桥写请求。
+  握手失败也释放对应世代 client，不保留半就绪 accessor；下一次 ensure 可重试。
+  socket 回调（含异步鉴权结果）必须绑定原 socket；旧 socket 消息不得进入新桥。
+  **身份绑定决策**：复用 open 请求已有 `bridgeSessionId` 作为唯一代际 id，不增加 wire
+  信封或 ready 字段。手机 `WorkspaceBridgeLifecycle` 换代并在 open 发出前生成
+  `rpcStreamId = bridgeSessionId`、创建新 client；Desktop `bridgeController` 将该 id 传给
+  `hostBridge`，双向所有 message/ack/flow 帧的 streamId 都必须严格等于当前 id。
+  attachmentId 只用于 Host port 的挂载/释放和诊断，不作为 RPC wire 身份。
+  手机不能首见锁流或记录未知身份作兜底；Main 在 ack 消费、装配及写入 Host port 之前
+  同样拒绝其他 bridgeSessionId。换桥只接受当前白名单，旧帧不能初始化新 client、推进
+  新桥 seq、释放新桥 replay 或触发降级。每方向 seq/assembler/replay/ack 独立拥有，
+  同一个身份不意味着共享序号空间：接收 ack 只确认本端出站，发 ack 只描述本端入站。
+  Host AttachServicePort 是异步的，ready 与 Initialize 没有先后保证；允许当前身份的
+  Initialize 在 ready 前或后到达，不需要 ready 前缓存或新超时。串行握手只约束 open
+  顺序，不作为 RPC 身份屏障。共享装配器的第一片身份锁定、分片幂等和重传规则不变。
+  若入站事件回调同步换桥，该事件返回后不再向新世代的调度器排旧 ack。
+  以上仅影响 mobile `web-remote-replayable`，不改 desktop-continuous、Host owner/lease 或协议。
+
+```text
+TaskConversationLifecycle（投影时序 owner）
+  subscribe → R(version=v) → delta(version=v+1, 不拼快照) → complete(version=v+2)
+            → R resolve(丢弃) → R2(version=v+2) → R2 resolve → applySnapshot/解除屏障
+  bridge-degraded → 协议 invalidate → 生命周期换代 → open → subscribe → read
+
+WorkspaceBridgeLifecycle（桥时序 owner）
+  A ready → ensure B(同步清 ready/换代/销毁 ChannelClient) → B open pending
+          → ensure A(再次换代) → B ready(过时，拒绝) → A2 client/open(id=A2)
+          → 首次迟到 B Initialize(id=B，丢弃，不能锁流)
+          → A2 ready / A2 Initialize(顺序任意) → 新 seq=1 → 订阅/快照 settle
+  Main 新桥(id=A2) ← 旧手机 message/ack/flow(id=A1/B，丢弃)；不写新 Host port
+```
+
 - **错误处理**：订阅 / 快照 / 发送失败不再静默吞掉，上抛到 `notice`，日志经
   `packages/ui/src/logger.ts` 输出，不用 `console.*`。
 
@@ -382,9 +418,20 @@ deliveryKind: "replayable"})`；`replayable` ⇒ Host `includeSnapshot` 语义�
     本地 workspace 行为不变。
 16. 手机打开任务：首屏只读一次 `readSessionMessages` 快照，之后由 Host replayable 事件流
     增量更新；不出现 4s 周期 `setInterval(readSessionMessages)` 轮询。
-17. 同一 `messageId` 的 chunk 重复到达或乱序交错：仍只有一条 assistant 气泡，正文不重复；
-    快照屏障落地前的增量被丢弃，快照落地后正常追加。
-18. 断线重连 / 切 workspace：旧订阅先 dispose（代际失效），恢复路径 = 重开 bridge +
+17. 同一 `messageId`/`inputId` 的合法 `ha`,`ha` 得 `haha`；`a`,`ab` 得 `aab`，交错消息只
+    归并气泡、不做内容去重。重复物理 seq 帧仍只交付一次。
+18. deferred R→delta→complete（或 task_snapshot_updated）→R resolve 必须触发第二次 read，
+    R2 权威最终正文落地；屏障期 delta 不直接拼接快照。快照失败保持屏障并通知错误，
+    下一次信号重试；同 scope 恢复也要作废旧读取、回调及迟到订阅句柄。
+19. bridge-degraded 不只读快照：旧订阅/accessor 立即失效，重开 bridge→新 Initialize→
+    新 replayable EventListen→快照读取。A ready→B deferred open→A：迟到 B 不接管，最终 A
+    新桥入站/出站 seq 从 1 开始，旧回调/读取结果均不能更新新世代。
+20. A ready→B open→ensure A 作废 B→B ready→A2 client/open 后，才首次收到 B Initialize：
+    丢弃 B，不影响 A2 Initialize/真实 readSessionMessages reply settle；不得在测试中强制
+    B Initialize 先于 B ready。Main 新 Host bridge 拒绝旧手机 message/ack/flow（含分片、
+    重传），新身份 Initialize→RPC 调用→EventListen/EventFire/EventDispose 正常；双向 ack
+    不串空间，旧 ack 不释放新 replay。桌面 continuous 链路及 Host owner/lease 不变。
+21. 断线重连 / 切 workspace：旧订阅先 dispose（代际失效），恢复路径 = 重开 bridge +
     重订阅 + 重读快照；旧 task 的迟到事件不进入新会话。
 
 ## 分期
@@ -425,7 +472,7 @@ deliveryKind: "replayable"})`；`replayable` ⇒ Host `includeSnapshot` 语义�
 | ------------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P0 协议契约                          | ✅   | `packages/shared/src/webRemoteControl/`（envelope / relayFrame / rpcTransport / status）+ `channels.ts` 8 个 IPC + settings 4 键 + `IPlatformService` 8 方法                                                                                                              |
 | P1 桌面运行时 + LAN 直连 + UI + i18n | ✅   | `packages/desktop/src/main/webRemoteControl/`（manager / lanEndpoint / deviceTransport / authProvider / authStorage / qrUrl / mobileAppAssets / ipc）；`WebRemoteControlDialog` + `WorkspaceWebRemoteControlTrigger` + `useWebRemoteControl`；89 键已落 `zh-CN` / `en-US` |
-| P2 Host bridge + RPC 装配器          | ✅   | `hostBridge.ts`（AttachServicePort `web-remote-replayable` + MessagePortProtocol + ChannelClient + 服务代理）+ `bridgeController.ts`                                                                                                                                      |
+| P2 Host bridge + RPC 装配器          | ✅   | `hostBridge.ts`（AttachServicePort `web-remote-replayable` + servicePipe 透明转发，无 Main ChannelClient）+ `bridgeController.ts`                                                                                                                                         |
 | P3 移动端 mobile entry               | ✅   | `packages/web/mobile.html` + `src/mobile/`（protocol 配对客户端 / MobileApp mobileHome+mobileShell）；vite 多入口构建                                                                                                                                                     |
 | P4 可配置对外端点 + relay 客户端传输 | ✅   | `relayTransport.ts`（注册/挑战鉴权/心跳 10s±jitter/重连续配/`AUTH_FAILED` 转注册/oversize）；settings `webRemoteControlEndpointMode/CustomEndpointUrl` + 弹层「连接方式」区；未配置 custom 地址时直接失败，不回退 LAN                                                     |
 | P5 `packages/relay` 自托管包         | ✅   | `packages/relay`（esbuild 单文件 CLI + Dockerfile + compose + README）：配对注册表、per-IP 限速、静态托管 mobile 页、`/healthz`、TTL 清扫、优雅退出                                                                                                                       |

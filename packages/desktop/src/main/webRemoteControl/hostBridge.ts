@@ -127,6 +127,8 @@ function decodePortMessage(value: unknown): unknown {
 
 export interface OpenHostBridgeParams {
   attachment: WebRemoteControlHostAttachment;
+  /** open 的唯一代际身份；attachmentId 仅属于本地 Host port 生命周期。 */
+  bridgeSessionId: string;
   /** 桌面 → 手机：把 rpc-frame 信封交给传输层。 */
   emitFrame(envelope: {
     zcode_type: "rpc-frame";
@@ -142,9 +144,12 @@ export interface OpenHostBridgeResult {
 }
 
 export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): OpenHostBridgeResult {
-  const streamId = params.attachment.attachmentId;
+  // ready 先于 Host Initialize 时，手机不能靠首见 attachmentId 识别当前桥。
+  // 双向绑定 open 的 bridgeSessionId，但 seq/ack/replay 各方向仍是独立空间。
+  const streamId = params.bridgeSessionId;
+  const attachmentId = params.attachment.attachmentId;
   let outboundSeq = 0;
-  const assembler = new WebRemoteControlRpcAssembler();
+  const assembler = new WebRemoteControlRpcAssembler({ streamId });
   // 出站重传缓冲 + ack 批量调度：单序号空间 `(ackedSeq, lastSentSeq]`，与接收侧装配器各自一侧。
   const replayBuffer = new WebRemoteControlRpcReplayBuffer();
   let disposed = false;
@@ -184,7 +189,7 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
         }
         case "fault": {
           params.logger.warn("[web-remote-control] rpc transport fault", {
-            attachmentId: streamId,
+            attachmentId,
             seq: event.seq,
             reasonCode: event.reasonCode,
             expected: assembler.acknowledgedSeq + 1,
@@ -228,7 +233,7 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
           ? error.reasonCode
           : "rpc-transport-fault";
       params.logger.warn("[web-remote-control] rpc message rejected", {
-        attachmentId: streamId,
+        attachmentId,
         seq,
         reasonCode,
       });
@@ -239,7 +244,7 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
     const recorded = replayBuffer.record(seq, frames);
     if (!recorded.accepted) {
       params.logger.warn("[web-remote-control] rpc replay buffer overflow", {
-        attachmentId: streamId,
+        attachmentId,
         seq,
         reasonCode: recorded.reasonCode,
       });
@@ -257,14 +262,15 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
   const pipe = createWebRemoteControlServicePipe({
     hostPort,
     sendToMobile,
-    attachmentId: streamId,
+    attachmentId,
     logger: params.logger,
   });
   hostPort.start();
 
   const bridge: WebRemoteControlRpcBridge = {
     acceptFrame(frame) {
-      if (disposed) return;
+      // 旧手机帧会被路由到当前单槽 bridge；必须在 ack 消费/装配/Host 写入前拒绝旧身份。
+      if (disposed || frame.streamId !== streamId) return;
       // ack 帧不进装配器：前向 ack 的语义是「对端已连续装配到的 seq」，只推进窗口、释放
       // 已确认前缀；正常流水下 ack 必然滞后于 lastSentSeq（批量合并 + 在途帧），若在此按
       // (ackSeq, lastSentSeq] 重发，每个正常 ack 都会触发一次无意义重传。丢片重传由对端

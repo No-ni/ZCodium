@@ -91,6 +91,7 @@ export function openWorkspaceBridge(
     });
     opened = openWebRemoteControlHostBridge({
       attachment,
+      bridgeSessionId: request.bridgeSessionId,
       emitFrame: (envelope) => {
         sendAppPayload(runtime, envelope as never);
         return runtime.mobileConnected;

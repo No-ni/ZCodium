@@ -11,8 +11,16 @@ import {
   type MessagePortLike,
   type MessagePortPayload,
 } from "@zcode/rpc";
-import { encodeWebRemoteControlRpcFrames, WebRemoteControlRpcAssembler } from "@zcode/shared";
+import {
+  encodeWebRemoteControlRpcFrames,
+  WebRemoteControlRpcAssembler,
+  type WebRemoteControlRpcTransportFrame,
+} from "@zcode/shared";
 import { createWebRemoteControlServicePipe } from "./servicePipe.js";
+import { openWebRemoteControlHostBridge } from "./hostBridge.js";
+
+// 测试只替换 Electron 容器；Host bridge、装配器和 Channel RPC 均用生产实现。
+vi.mock("electron", () => ({ MessageChannelMain: vi.fn() }));
 
 /**
  * servicePipe 回归测试：证明「手机 → Host」是真实的一条 RPC 链路。
@@ -168,6 +176,174 @@ function createHarness() {
     },
   };
 }
+
+function createIdentityHarness() {
+  const bridgeSessionId = "bridge-current";
+  const { a: serverPort, b: hostPort } = createFakePortPair();
+  const posted = vi.spyOn(hostPort, "postMessage");
+  const electronPort = {
+    on(_type: string, listener: PortListener) {
+      hostPort.addEventListener("message", listener);
+    },
+    off(_type: string, listener: PortListener) {
+      hostPort.removeEventListener("message", listener);
+    },
+    postMessage: (data: MessagePortPayload) => hostPort.postMessage(data),
+    start: () => hostPort.start?.(),
+    close: () => hostPort.close?.(),
+  };
+  const pingEmitter = new Emitter<string>();
+  const unsubscribed = vi.fn();
+  const subscribed = vi.fn();
+  const echo = vi.fn(async (value: string) => `echo:${value}`);
+  const serverProtocol = new MessagePortProtocol(serverPort);
+  const server = new ChannelServer(serverProtocol, "identity-test");
+  server.registerChannel(
+    "test-channel",
+    ProxyChannel.fromService({
+      echo,
+      repeat: async (value: string) => value,
+      onDidPing(listener: (value: string) => void) {
+        subscribed();
+        const subscription = pingEmitter.event(listener);
+        return {
+          dispose() {
+            unsubscribed();
+            subscription.dispose();
+          },
+        };
+      },
+    }),
+  );
+  const emitted: WebRemoteControlRpcTransportFrame[] = [];
+  const assembler = new WebRemoteControlRpcAssembler({ streamId: bridgeSessionId });
+  const messages = new Emitter<VSBuffer>();
+  const onDegraded = vi.fn();
+  const opened = openWebRemoteControlHostBridge({
+    attachment: {
+      attachmentId: "host-port-not-wire-identity",
+      port: electronPort as unknown as import("electron").MessagePortMain,
+      dispose: () => hostPort.close?.(),
+    },
+    bridgeSessionId,
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    onDegraded,
+    emitFrame({ frame }) {
+      emitted.push(frame);
+      if (frame.kind === "ack") return true;
+      for (const event of assembler.push(frame)) {
+        if (event.kind === "message") {
+          messages.fire(VSBuffer.wrap(jsonSafeToPortPayload(event.message)));
+        }
+      }
+      return true;
+    },
+  });
+  let mobileSeq = 0;
+  const client = new ChannelClient({
+    onMessage: messages.event,
+    send(buffer) {
+      mobileSeq += 1;
+      for (const frame of encodeWebRemoteControlRpcFrames(toJsonSafe(buffer.buffer), {
+        streamId: bridgeSessionId,
+        seq: mobileSeq,
+      })) {
+        opened.bridge.acceptFrame(frame);
+      }
+    },
+  });
+  const service = ProxyChannel.toService<StubServiceShape>(client.getChannel("test-channel"));
+  return {
+    bridgeSessionId,
+    bridge: opened.bridge,
+    emitted,
+    posted,
+    echo,
+    subscribed,
+    unsubscribed,
+    pingEmitter,
+    service,
+    onDegraded,
+    dispose() {
+      client.dispose();
+      opened.dispose();
+      server.dispose();
+      serverProtocol.disconnect();
+      messages.dispose();
+      pingEmitter.dispose();
+    },
+  };
+}
+
+describe("hostBridge bridgeSessionId binding", () => {
+  it("旧手机 message/分片/重传/ack/flow 不能进入新 Host，当前 Initialize/RPC/event lifecycle 正常", async () => {
+    const h = createIdentityHarness();
+    try {
+      const stale = encodeWebRemoteControlRpcFrames(
+        { stale: "x".repeat(1_100_000) },
+        {
+          streamId: "bridge-retired",
+          seq: 1,
+        },
+      );
+      expect(stale.length).toBeGreaterThan(1);
+      for (const frame of [...stale, ...stale]) h.bridge.acceptFrame(frame);
+      h.bridge.acceptFrame({ streamId: "bridge-retired", kind: "ack", seq: 10, ackSeq: 10 });
+      h.bridge.acceptFrame({ streamId: "bridge-retired", kind: "flow", seq: 1, flow: "saturated" });
+      expect(h.posted).not.toHaveBeenCalled();
+      expect(h.onDegraded).not.toHaveBeenCalled();
+      expect(await h.service.echo("new-host")).toBe("echo:new-host");
+      expect(h.echo).toHaveBeenCalledExactlyOnceWith("new-host");
+      expect(h.emitted.every((frame) => frame.streamId === h.bridgeSessionId)).toBe(true);
+      const received: string[] = [];
+      const subscription = h.service.onDidPing((value) => received.push(value));
+      await vi.waitFor(() => expect(h.subscribed).toHaveBeenCalledOnce());
+      h.pingEmitter.fire("current-event");
+      await vi.waitFor(() => expect(received).toEqual(["current-event"]));
+      subscription.dispose();
+      await vi.waitFor(() => expect(h.unsubscribed).toHaveBeenCalledOnce());
+      h.pingEmitter.fire("disposed-event");
+      expect(received).toEqual(["current-event"]);
+      expect(await h.service.repeat("x".repeat(900_000))).toHaveLength(900_000);
+    } finally {
+      h.dispose();
+    }
+  });
+
+  it("同身份双向 ack 独立：旧 ack 不释放新 replay，当前 ack 只确认出站不推进入站", async () => {
+    const h = createIdentityHarness();
+    try {
+      expect(await h.service.echo("one")).toBe("echo:one");
+      await vi.waitFor(() => {
+        expect(h.emitted.filter((frame) => frame.kind === "ack")).toContainEqual({
+          streamId: h.bridgeSessionId,
+          kind: "ack",
+          seq: 1,
+          ackSeq: 1,
+        });
+      });
+      // Host 出站为 Initialize(seq=1)、reply(seq=2)，手机入站只有 request(seq=1)。
+      h.bridge.acceptFrame({ streamId: "bridge-retired", kind: "ack", seq: 2, ackSeq: 2 });
+      const gap = encodeWebRemoteControlRpcFrames({}, { streamId: h.bridgeSessionId, seq: 4 })[0]!;
+      const start = h.emitted.length;
+      h.bridge.acceptFrame(gap);
+      expect(
+        h.emitted
+          .slice(start)
+          .filter((frame) => frame.kind !== "ack")
+          .map((frame) => frame.seq),
+      ).toEqual([1, 2]);
+      h.bridge.acceptFrame({ streamId: h.bridgeSessionId, kind: "ack", seq: 2, ackSeq: 2 });
+      const afterAck = h.emitted.length;
+      h.bridge.acceptFrame(gap);
+      expect(h.emitted.slice(afterAck).filter((frame) => frame.kind !== "ack")).toEqual([]);
+      // 若 ack=2 错误推进手机入站，合法 request(seq=2) 会被视为 stale、永远不 settle。
+      expect(await h.service.echo("two")).toBe("echo:two");
+    } finally {
+      h.dispose();
+    }
+  });
+});
 
 describe("createWebRemoteControlServicePipe", () => {
   it("手机 ChannelClient 能穿过 pipe 收到 Host ChannelServer 的 Initialize", async () => {

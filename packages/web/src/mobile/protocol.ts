@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- 手机配对协议客户端：鉴权/信封收发/装配重传都在同一条 WebSocket 生命周期里，拆分会让序号、缓冲与定时器所有者分叉（与 rpcTransport.ts 同一口径）。 */
-import { connectViaProtocol } from "@zcode/client";
-import { VSBuffer } from "@zcode/rpc";
+import { RemoteServiceAccess } from "@zcode/client";
+import { ChannelClient, VSBuffer } from "@zcode/rpc";
+import { WorkspaceBridgeLifecycle } from "./workspaceBridgeLifecycle.js";
 import {
   encodeWebRemoteControlRpcFrames,
   generateTraceId,
@@ -9,7 +10,6 @@ import {
   WebRemoteControlRpcAckScheduler,
   WebRemoteControlRpcAssembler,
   WebRemoteControlRpcReplayBuffer,
-  WEB_REMOTE_CONTROL_RPC_FAULT_REASONS,
   WEB_REMOTE_CONTROL_RPC_LIMITS,
   type WebRemoteControlRpcAssemblyEvent,
   type WebRemoteControlRpcMessageFrame,
@@ -126,18 +126,14 @@ export class MobileRemoteControlClient {
   });
   /** 装配槽周期清扫定时器（静默链路也收敛残片）。 */
   private assemblySweepTimer: number | null = null;
-  /** 已握手成功的 workspace bridge（桌面按 workspaceKey 路由，rpc-frame 只有在 bridge 存在时才被接收）。 */
-  private bridgeReadyWorkspaceKey: string | null = null;
-  /** 同一 workspace 的在途 bridge 握手：订阅与快照读取并发时共用同一次 open，避免重复开桥互相作废。 */
-  private bridgeOpenPromise: { workspaceKey: string; promise: Promise<void> } | null = null;
-  /**
-   * bridge 代际：socket 重连、`dispose()`、`ensureWorkspaceBridge` 换 workspace 时自增。
-   * 订阅回调与 `await` 返回点都按代际校验，拦截旧 bridge 的迟到事件。
-   */
-  private bridgeGeneration = 0;
+  private readonly bridge = new WorkspaceBridgeLifecycle(
+    () => this.releaseBridge(),
+    (target, generation) => this.openWorkspaceBridge(target, generation),
+  );
+  private channelClient: ChannelClient | null = null;
   /** 当前 socket/bridge 生命周期内的任务事件流订阅；换代际时统一释放。 */
   private taskStreamSubscriptions = new Set<{ generation: number; dispose(): void }>();
-  private serviceAccessorInstance: ReturnType<typeof connectViaProtocol> | null = null;
+  private serviceAccessorInstance: RemoteServiceAccess | null = null;
   private onRpcMessage: ((data: unknown) => void) | null = null;
   private disposed = false;
   private reconnectTimer: number | null = null;
@@ -177,6 +173,7 @@ export class MobileRemoteControlClient {
     this.socket = socket;
     this.ensureAssemblySweepTimer();
     socket.addEventListener("open", () => {
+      if (this.disposed || this.socket !== socket) return;
       this.connectAttempt = 0;
       this.setState("authenticating");
       this.send({
@@ -192,18 +189,13 @@ export class MobileRemoteControlClient {
       });
     });
     socket.addEventListener("message", (event) => {
-      void this.handleMessage(event.data);
+      if (this.disposed || this.socket !== socket) return;
+      void this.handleMessage(event.data, socket);
     });
     socket.addEventListener("close", (event) => {
       if (this.socket !== socket) return;
       // bridge 与 socket 同生共死；accessor 里可能还有在途请求，连同 RPC 序号一起作废。
-      this.rotateBridgeGeneration();
-      this.bridgeReadyWorkspaceKey = null;
-      this.serviceAccessorInstance = null;
-      this.rpcSeq = 0;
-      this.rpcAssembler = new WebRemoteControlRpcAssembler();
-      this.rpcReplayBuffer.clear();
-      this.rpcAckScheduler.clear();
+      this.bridge.invalidate();
       this.clearAssemblySweepTimer();
       this.failPending(new Error(`mobile connection closed: ${event.code}`));
       if (this.disposed) {
@@ -213,6 +205,7 @@ export class MobileRemoteControlClient {
       this.scheduleReconnect(event);
     });
     socket.addEventListener("error", () => {
+      if (this.disposed || this.socket !== socket) return;
       this.setState("error");
     });
   }
@@ -233,7 +226,7 @@ export class MobileRemoteControlClient {
 
   dispose(): void {
     this.disposed = true;
-    this.rotateBridgeGeneration();
+    this.bridge.invalidate();
     if (this.reconnectTimer !== null) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -241,8 +234,6 @@ export class MobileRemoteControlClient {
     this.clearAssemblySweepTimer();
     this.rpcAckScheduler.dispose();
     this.rpcReplayBuffer.clear();
-    this.bridgeReadyWorkspaceKey = null;
-    this.serviceAccessorInstance = null;
     this.socket?.close();
     this.socket = null;
     this.failPending(new Error("mobile client disposed"));
@@ -253,8 +244,7 @@ export class MobileRemoteControlClient {
    * socket 关闭、客户端 dispose、以及 `ensureWorkspaceBridge` 换 workspace 都走这里，
    * 保证旧订阅回调（迟到事件）无法写进新会话。
    */
-  private rotateBridgeGeneration(): void {
-    this.bridgeGeneration += 1;
+  private releaseBridge(): void {
     for (const subscription of this.taskStreamSubscriptions) {
       try {
         subscription.dispose();
@@ -263,6 +253,15 @@ export class MobileRemoteControlClient {
       }
     }
     this.taskStreamSubscriptions.clear();
+    // connectViaProtocol 不暴露 dispose；使用公开 ChannelClient/RemoteServiceAccess，
+    // 拒绝旧在途 RPC，不能把已 Initialize 的旧 client 接到新桥。
+    this.channelClient?.dispose(new Error("mobile bridge invalidated"));
+    this.channelClient = null;
+    this.serviceAccessorInstance = null;
+    this.onRpcMessage = null;
+    this.rpcAssembler = new WebRemoteControlRpcAssembler();
+    this.rpcReplayBuffer.clear();
+    this.rpcAckScheduler.clear();
   }
 
   /**
@@ -283,19 +282,19 @@ export class MobileRemoteControlClient {
     });
     if (this.disposed) return NOOP_TASK_STREAM_SUBSCRIPTION;
     // await 期间可能已断线或切 workspace：bridge 已作废就不订阅。
-    if (this.bridgeReadyWorkspaceKey !== params.workspaceKey) {
+    if (!this.bridge.isReady(params.workspaceKey)) {
       return NOOP_TASK_STREAM_SUBSCRIPTION;
     }
-    const generation = this.bridgeGeneration;
-    const { zcodeTaskService } = this.createServiceAccessor();
+    const generation = this.bridge.version;
+    const { zcodeTaskService } = this.createServiceAccessor(params.workspaceKey);
     const disposable = zcodeTaskService.onDynamicTaskEvent({
       workspacePath: params.workspacePath,
       ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
       taskId: params.taskId,
       deliveryKind: "replayable",
     })((event) => {
-      if (this.disposed || generation !== this.bridgeGeneration) return;
-      if (this.bridgeReadyWorkspaceKey !== params.workspaceKey) return;
+      if (this.disposed || !this.bridge.isCurrent(generation)) return;
+      if (!this.bridge.isReady(params.workspaceKey)) return;
       onEvent(event);
     });
     let active = true;
@@ -317,7 +316,7 @@ export class MobileRemoteControlClient {
     params: TaskAccessParams & { limit?: number },
   ): Promise<ZCodeMessageWithParts[]> {
     await this.ensureWorkspaceBridge({ workspaceKey: params.workspaceKey, taskId: params.taskId });
-    const { zcodeSessionService } = this.createServiceAccessor();
+    const { zcodeSessionService } = this.createServiceAccessor(params.workspaceKey);
     return zcodeSessionService.readSessionMessages({
       sessionId: params.taskId,
       workspacePath: params.workspacePath ?? "",
@@ -330,7 +329,7 @@ export class MobileRemoteControlClient {
   /** 发送一条 prompt；clientMode 固定 `web-remote-replayable`（与桌面 continuous 语义分离）。 */
   async sendTaskPrompt(params: TaskAccessParams & { content: string }): Promise<void> {
     await this.ensureWorkspaceBridge({ workspaceKey: params.workspaceKey, taskId: params.taskId });
-    const { zcodeTaskService } = this.createServiceAccessor();
+    const { zcodeTaskService } = this.createServiceAccessor(params.workspaceKey);
     // workspace 归属由 taskId 反查（task meta 持久化 workspacePath/Identity）；
     // 远端工作区的 session 路由显式带上 remoteSessionId。
     await zcodeTaskService.sendPrompt({
@@ -371,6 +370,9 @@ export class MobileRemoteControlClient {
    * 只有整条消息装配成功才交付并排 ack（ack 语义 = 已连续装配到的逻辑 seq，走批量调度）。
    */
   acceptRpcFrame(frame: WebRemoteControlRpcTransportFrame): void {
+    // Host attach 异步，旧 B 的首次 Initialize 可能晚于 A2 open；首见锁流无法隔离它。
+    // 身份只由当前 open 的 bridgeSessionId 决定，message/ack/flow 都先过同一白名单。
+    if (!this.channelClient || frame.streamId !== this.rpcStreamId) return;
     // ack 帧不进装配器：前向 ack 的语义是「桌面已连续装配到的 seq」，只推进窗口、释放
     // 已确认前缀；正常流水下 ack 必然滞后于 lastSentSeq（批量合并 + 在途帧），若在此按
     // (ackSeq, lastSentSeq] 重发，每个正常 ack 都会触发一次无意义重传。丢片重传由对端
@@ -387,27 +389,21 @@ export class MobileRemoteControlClient {
   private handleRpcAssemblyEvents(events: WebRemoteControlRpcAssemblyEvent[]): void {
     for (const event of events) {
       if (event.kind === "message") {
+        const generation = this.bridge.version;
         this.onRpcMessage?.(decodeRpcMessage(event.message));
+        // 回调可能同步切桥；旧消息返回后不能再污染新世代的 ack 调度器。
+        if (!this.bridge.isCurrent(generation)) return;
         // 不逐条立即 ack：交给批量调度，deadline 保证最后一个一定发出。
         this.rpcAckScheduler.record(event.seq);
         continue;
       }
       if (event.kind === "fault") {
-        console.warn("[mobile-remote] rpc transport fault", event.reasonCode, event.seq);
-        this.events.onPayload?.({
+        this.notifyBridgeDegraded({
           zcode_type: "bridge-degraded",
           bridgeSessionId: this.rpcStreamId,
           reason: event.reasonCode,
         } as WebRemoteControlAppPayload);
-        if (
-          event.reasonCode === WEB_REMOTE_CONTROL_RPC_FAULT_REASONS.frameGap ||
-          event.reasonCode === WEB_REMOTE_CONTROL_RPC_FAULT_REASONS.bufferTimeout
-        ) {
-          // 丢片：把「最后连续装配到的 seq」再 ack 一次，对端据此从 ackSeq+1 重传；
-          // 不新增 wire 帧类型，仍复用单序号空间的 ack。本方向也按窗口 go-back-N，双向收敛。
-          this.rpcAckScheduler.record(this.rpcAssembler.acknowledgedSeq);
-          this.emitRpcFrames(this.rpcReplayBuffer.replayUnacknowledged());
-        }
+        return;
       }
     }
   }
@@ -454,28 +450,22 @@ export class MobileRemoteControlClient {
    * `workspace-bridge-ready` / `workspace-bridge-error`。
    */
   async ensureWorkspaceBridge(params: { workspaceKey: string; taskId?: string }): Promise<void> {
-    if (this.bridgeReadyWorkspaceKey === params.workspaceKey) return;
-    // 同一 workspace 的并发调用复用同一次 open：桌面每次 open 都会 dispose 旧 bridge，
-    // 重复开桥会让先建好的订阅挂到已被替换的 bridge 上。
-    const inFlight = this.bridgeOpenPromise;
-    if (inFlight && inFlight.workspaceKey === params.workspaceKey) return inFlight.promise;
-    // 换 workspace（或首次挂 bridge）先换代际：旧 bridge 的事件流订阅立即失效，
-    // 避免旧 workspace 的迟到事件写进新会话。
-    this.rotateBridgeGeneration();
-    const promise = this.openWorkspaceBridge(params);
-    this.bridgeOpenPromise = { workspaceKey: params.workspaceKey, promise };
-    try {
-      await promise;
-    } finally {
-      if (this.bridgeOpenPromise?.promise === promise) this.bridgeOpenPromise = null;
-    }
+    if (this.disposed) throw new Error("mobile client disposed");
+    await this.bridge.ensure(params);
+    if (!this.bridge.isReady(params.workspaceKey)) throw new Error("workspace bridge superseded");
   }
 
-  private async openWorkspaceBridge(params: {
-    workspaceKey: string;
-    taskId?: string;
-  }): Promise<void> {
-    const generation = this.bridgeGeneration;
+  private async openWorkspaceBridge(
+    params: { workspaceKey: string; taskId?: string },
+    generation: number,
+  ): Promise<void> {
+    // Host Initialize 可能先于 ready 到达；必须先建新 client/装配器，ready 后不能再清 seq。
+    this.rpcStreamId = `mobile-${generation}-${Math.random().toString(36).slice(2)}`;
+    this.rpcSeq = 0;
+    this.rpcAssembler = new WebRemoteControlRpcAssembler({ streamId: this.rpcStreamId });
+    this.rpcReplayBuffer.clear();
+    this.rpcAckScheduler.clear();
+    this.serviceAccessorInstance = this.buildServiceAccessor();
     const requestId = `bridge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const response = await this.request({
       zcode_type: "workspace-bridge-open",
@@ -483,53 +473,49 @@ export class MobileRemoteControlClient {
       workspaceKey: params.workspaceKey,
       ...(params.taskId ? { taskId: params.taskId } : {}),
       bridgeSessionId: this.rpcStreamId,
+      bridgeGeneration: generation,
     } as WebRemoteControlAppPayload & { requestId: string });
+    this.bridge.assertCurrent(generation);
     if (response.zcode_type === "workspace-bridge-error") {
       throw new Error(`workspace bridge rejected: ${response.reason}`);
     }
     if (response.zcode_type !== "workspace-bridge-ready") {
       throw new Error(`unexpected workspace bridge response: ${response.zcode_type}`);
     }
-    // 握手期间已断线/切 workspace（代际已变）→ 本次 open 作废，不写回 bridge 状态。
-    if (this.disposed || generation !== this.bridgeGeneration) return;
-    // 桌面每次 openBridge 都会新建 hostBridge（内部装配器从 seq 1 开始），换 workspace 时
-    // 我们必须同时重置出站序号、装配器与重传/ack 状态，否则新 bridge 收到 seq>1 会判成 rpc-frame-gap。
-    this.rpcSeq = 0;
-    this.rpcAssembler = new WebRemoteControlRpcAssembler();
-    this.rpcReplayBuffer.clear();
-    this.rpcAckScheduler.clear();
-    this.bridgeReadyWorkspaceKey = params.workspaceKey;
   }
 
   /**
-   * 把配对 WS 包装成 @zcode/rpc 的 IMessagePassingProtocol（结构化声明，避免浏览器包
-   * 直接依赖 @zcode/rpc / @zcode/services），经 @zcode/client 的 connectViaProtocol
-   * 拿到与桌面同构的 service 代理。
+   * 从当前就绪桥获取 service 代理；ChannelClient 仅在 open 发出前创建。
    *
    * 按实例记忆化：每次调用都新建会把 protocol 的单槽 `onRpcMessage` 覆盖掉，
    * 上一个 accessor 的在途请求再也收不到回复（快照读取与发送都会调用，必现）。
    */
-  createServiceAccessor(): ReturnType<typeof connectViaProtocol> {
-    if (this.serviceAccessorInstance) return this.serviceAccessorInstance;
-    this.serviceAccessorInstance = this.buildServiceAccessor();
+  private createServiceAccessor(workspaceKey: string): RemoteServiceAccess {
+    // await ensure 返回与调用服务之间也可能切桥；不能临时创建 client 或借用其他目标的 accessor。
+    if (!this.bridge.isReady(workspaceKey) || !this.serviceAccessorInstance) {
+      throw new Error("workspace bridge superseded");
+    }
     return this.serviceAccessorInstance;
   }
 
-  private buildServiceAccessor(): ReturnType<typeof connectViaProtocol> {
-    return connectViaProtocol({
+  private buildServiceAccessor(): RemoteServiceAccess {
+    const generation = this.bridge.version;
+    this.channelClient = new ChannelClient({
       onMessage: (listener) => {
-        this.onRpcMessage = (data) => {
-          if (data instanceof Uint8Array) {
+        const onMessage = (data: unknown) => {
+          if (this.bridge.isCurrent(generation) && data instanceof Uint8Array) {
             listener(VSBuffer.wrap(data));
           }
         };
+        this.onRpcMessage = onMessage;
         return {
           dispose: () => {
-            this.onRpcMessage = null;
+            if (this.onRpcMessage === onMessage) this.onRpcMessage = null;
           },
         };
       },
       send: (buffer) => {
+        if (this.disposed || !this.bridge.isCurrent(generation)) return;
         const seq = this.rpcSeq + 1;
         let frames: WebRemoteControlRpcMessageFrame[];
         try {
@@ -541,22 +527,37 @@ export class MobileRemoteControlClient {
             },
           );
         } catch (error) {
-          console.warn("[mobile-remote] rpc message rejected", error);
+          this.notifyBridgeDegraded({
+            zcode_type: "bridge-degraded",
+            bridgeSessionId: this.rpcStreamId,
+            reason: error instanceof Error ? error.message : "rpc-transport-fault",
+          });
           return;
         }
         // 入队失败就不发出半条：seq 不推进，对端期望值也不会跳过。
         const recorded = this.rpcReplayBuffer.record(seq, frames);
         if (!recorded.accepted) {
-          console.warn("[mobile-remote] rpc replay buffer overflow", recorded.reasonCode);
+          this.notifyBridgeDegraded({
+            zcode_type: "bridge-degraded",
+            bridgeSessionId: this.rpcStreamId,
+            reason: recorded.reasonCode,
+          });
           return;
         }
         this.rpcSeq = seq;
         this.emitRpcFrames(frames);
       },
     });
+    return new RemoteServiceAccess(this.channelClient);
   }
 
-  private async handleMessage(raw: unknown): Promise<void> {
+  private notifyBridgeDegraded(payload: WebRemoteControlAppPayload): void {
+    // 降级不只是快照信号：旧 ready/accessor/订阅先失效，再通知视图重开桥。
+    this.bridge.invalidate();
+    this.events.onPayload(payload);
+  }
+
+  private async handleMessage(raw: unknown, socket: WebSocket): Promise<void> {
     let frame: Record<string, unknown>;
     try {
       frame = JSON.parse(typeof raw === "string" ? raw : String(raw)) as Record<string, unknown>;
@@ -567,6 +568,8 @@ export class MobileRemoteControlClient {
     if (type === "auth_challenge") {
       const nonce = String(frame.nonce ?? "");
       const proof = await this.calculateProof(nonce);
+      // WebCrypto 异步返回时可能已重连；旧 challenge 的 proof 不能发往新 socket。
+      if (this.disposed || this.socket !== socket) return;
       this.send({
         type: "auth_response",
         device_sid: this.params.deviceSid,
@@ -589,6 +592,11 @@ export class MobileRemoteControlClient {
       const payload = frame.payload as WebRemoteControlAppPayload;
       if (payload.zcode_type === "rpc-frame" || payload.zcode_type === "rpc-frame-ack") {
         this.acceptRpcFrame(payload.frame);
+        return;
+      }
+      if (payload.zcode_type === "bridge-degraded") {
+        if (payload.bridgeSessionId !== this.rpcStreamId) return;
+        this.notifyBridgeDegraded(payload);
         return;
       }
       const requestId = "requestId" in payload ? payload.requestId : undefined;

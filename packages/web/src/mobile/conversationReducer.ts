@@ -10,8 +10,8 @@ import type { ZCodeMessageWithParts, ZCodeStreamEvent } from "@zcode/shared";
  * - **快照屏障**：`beginScope` 与 `task_snapshot_updated` 置 `awaitingSnapshot`，
  *   屏障期间丢弃增量 chunk，等 `applySnapshot` 落地权威历史。这样迟到的流式碎片
  *   不会覆盖已恢复的快照。
- * - **按 messageId 幂等 upsert**：同一 `messageId` 的 chunk 始终落到同一条 assistant
- *   气泡；重复投递（传输层重放）不新增气泡、不重复正文。
+ * - **按 messageId 定位气泡**：同一 `messageId` 的纯 delta 按序追加；重复物理帧
+ *   已由传输 seq 去重，正文内容不能充当事件身份。
  * - **resync 标志**：`bridge-degraded` / 断档 / 快照信号都置 `needsResync`，
  *   由宿主重开 bridge、重订阅并重读快照。
  * - **作用域代际**：每条 action 携带 `scope`（workspace + task），与当前 scope 不一致
@@ -38,8 +38,6 @@ export interface ConversationState {
   awaitingSnapshot: boolean;
   /** 需要重读快照：degraded / 断档 / `task_snapshot_updated` / 终态事件。 */
   needsResync: boolean;
-  /** `messageId` → 已接受的 chunk 指纹，用于拦截传输层重复投递。 */
-  acceptedChunks: Record<string, string[]>;
 }
 
 export const initialConversationState: ConversationState = {
@@ -47,7 +45,6 @@ export const initialConversationState: ConversationState = {
   messages: [],
   awaitingSnapshot: true,
   needsResync: false,
-  acceptedChunks: {},
 };
 
 export type ConversationAction =
@@ -99,7 +96,6 @@ export function conversationReducer(
         messages: [],
         awaitingSnapshot: true,
         needsResync: false,
-        acceptedChunks: {},
       };
     }
     case "appendOptimisticUserMessage": {
@@ -120,7 +116,6 @@ export function conversationReducer(
         messages: action.messages,
         awaitingSnapshot: false,
         needsResync: false,
-        acceptedChunks: {},
       };
     }
     case "streamEvent": {
@@ -146,37 +141,22 @@ function reduceStreamEvent(state: ConversationState, event: ZCodeStreamEvent): C
   if (content.length === 0) return state;
   // messageId 缺失时退回 traceId，保证同一轮次的碎片仍归并到同一条气泡。
   const key = event.messageId ?? event.traceId;
-  const fingerprint = `${event.inputId ?? ""}\u0000${content}`;
-  const accepted = state.acceptedChunks[key] ?? [];
-  if (accepted.includes(fingerprint)) return state;
-
+  // 生产者 content 是纯 delta 且没有唯一 eventId；内容去重会误删 ha/ha，前缀猜测会误合并 a/ab。
+  // seq 层已保证交付幂等，messageId 只用于定位气泡。
   const index = findAssistantMessageIndex(state.messages, key);
-  const nextAcceptedChunks = { ...state.acceptedChunks, [key]: [...accepted, fingerprint] };
   if (index === -1) {
     return {
       ...state,
       messages: [...state.messages, { id: key, role: "assistant", text: content }],
-      acceptedChunks: nextAcceptedChunks,
     };
   }
   const existing = state.messages[index];
   if (!existing) return state;
   const messages = [...state.messages];
-  messages[index] = { ...existing, text: mergeChunkText(existing.text, content) };
-  return { ...state, messages, acceptedChunks: nextAcceptedChunks };
+  messages[index] = { ...existing, text: existing.text + content };
+  return { ...state, messages };
 }
 
 function findAssistantMessageIndex(messages: ConversationMessage[], id: string): number {
   return messages.findIndex((message) => message.id === id && message.role === "assistant");
-}
-
-/**
- * 合并同一 messageId 的正文：
- * - 新正文是已有正文的前缀扩展（累计式快照）→ 覆盖，避免重复累加；
- * - 否则按增量追加（Host `mapModelStreaming` 的 text_delta 语义）。
- */
-function mergeChunkText(existing: string, incoming: string): string {
-  if (existing.length === 0) return incoming;
-  if (incoming === existing || incoming.startsWith(existing)) return incoming;
-  return existing + incoming;
 }
