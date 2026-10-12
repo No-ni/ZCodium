@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BufferReader, BufferWriter, deserialize, serialize, VSBuffer } from "@zcode/rpc";
 import {
@@ -27,6 +29,7 @@ class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
   readyState = FakeWebSocket.CONNECTING;
   sent: WebRemoteControlAppPayload[] = [];
+  sentWire: Record<string, unknown>[] = [];
   private listeners = new Map<
     string,
     ((event: { data?: string; code?: number; reason?: string }) => void)[]
@@ -51,6 +54,7 @@ class FakeWebSocket {
   }
   send(raw: string) {
     const frame = JSON.parse(raw);
+    this.sentWire.push(frame);
     if (frame.type === "data") this.sent.push(frame.payload);
   }
   receive(payload: WebRemoteControlAppPayload) {
@@ -124,11 +128,12 @@ async function flush() {
 }
 const clients: MobileRemoteControlClient[] = [];
 function client(onPayload = vi.fn<(payload: WebRemoteControlAppPayload) => void>()) {
+  const onStateChange = vi.fn();
   const c = new MobileRemoteControlClient(
     { deviceSid: "test-device", passHash: "test-hash", wsUrl: "ws://localhost/ws" },
     {
       onPayload,
-      onStateChange: vi.fn(),
+      onStateChange,
     },
   );
   clients.push(c);
@@ -136,7 +141,7 @@ function client(onPayload = vi.fn<(payload: WebRemoteControlAppPayload) => void>
   const socket = FakeWebSocket.instances.at(-1)!;
   socket.open();
   socket.wire({ type: "auth_ack", pair_status: "matched" });
-  return { c, socket, onPayload };
+  return { c, socket, onPayload, onStateChange };
 }
 const access = { workspaceKey: "A", taskId: "task-a", workspacePath: "/workspace" };
 const chunk: ZCodeStreamEvent = {
@@ -163,6 +168,112 @@ afterEach(() => {
 });
 
 describe("MobileRemoteControlClient fake WebSocket", () => {
+  it("无 crypto.subtle 时仍使用 UTF-8 HMAC-SHA256（含长 key）并与 Node 一致", async () => {
+    vi.stubGlobal("crypto", {});
+    const params = {
+      deviceSid: "sid-手机",
+      passHash: "长密钥🌏".repeat(40),
+      wsUrl: "ws://localhost/ws",
+    };
+    const c = new MobileRemoteControlClient(params, {
+      onPayload: vi.fn(),
+      onStateChange: vi.fn(),
+    });
+    clients.push(c);
+    c.connect();
+    const socket = FakeWebSocket.instances.at(-1)!;
+    socket.open();
+    const nonce = "nonce-雪🌙";
+    socket.wire({ type: "auth_challenge", nonce });
+    await flush();
+    const auth = socket.sentWire.find((frame) => frame.type === "auth_response");
+    const expected = createHmac("sha256", params.passHash)
+      .update(`${nonce}|mobile|${params.deviceSid}`, "utf8")
+      .digest("base64url");
+    expect(auth?.proof).toBe(expected);
+  });
+
+  it.each(["AUTH_FAILED", "KICKED", "WRONG_PARAM"])(
+    "%s 错误终止并保留状态，不因 close/重试/重复 connect 复活",
+    async (code) => {
+      const { c, socket, onStateChange } = client();
+      socket.wire({ type: "error", code, message: "stable failure" });
+      expect(c.getState()).toBe("error");
+      socket.close();
+      await vi.advanceTimersByTimeAsync(60_000);
+      c.retryNow();
+      c.connect();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      expect(c.getState()).toBe("error");
+      expect(onStateChange).toHaveBeenLastCalledWith("error", { reason: code });
+    },
+  );
+
+  it.each([
+    [4001, "拒绝"],
+    [4002, "互踢"],
+    [4003, "配对过期"],
+  ])("关闭码 %i 是终止错误（原因：%s）", async (code, reason) => {
+    const { c, socket, onStateChange } = client();
+    socket.fire("close", { code, reason });
+    await vi.advanceTimersByTimeAsync(60_000);
+    c.retryNow();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(c.getState()).toBe("error");
+    expect(onStateChange).toHaveBeenLastCalledWith("error", {
+      reason: code === 4002 ? "KICKED" : code === 4003 ? "AUTH_FAILED" : "CONNECTION_REJECTED",
+      closeCode: code,
+    });
+  });
+
+  it("终止释放在途 bridge 请求，迟到帧不复活且后续请求立即拒绝", async () => {
+    const { c, socket } = client();
+    const ready = c
+      .ensureWorkspaceBridge({ workspaceKey: "A" })
+      .catch((error: Error) => error.message);
+    await flush();
+    const open = socket.opens()[0]!;
+    socket.wire({ type: "error", code: "KICKED", message: "proof=should-not-leak" });
+    expect(await ready).toBe("KICKED");
+    socket.ready(open);
+    socket.wire({ type: "auth_ack", pair_status: "matched" });
+    socket.fire("error");
+    expect(c.getState()).toBe("error");
+    await expect(
+      c.request({ zcode_type: "bootstrap-request", requestId: "after-stop" }),
+    ).rejects.toThrow("mobile connection terminated: KICKED");
+  });
+
+  it("未经 auth_ack 的 open 不清退避，pair_status_ack 不清零，auth_ack 才清零", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const c = new MobileRemoteControlClient(
+      { deviceSid: "sid", passHash: "hash", wsUrl: "ws://localhost/ws" },
+      { onPayload: vi.fn(), onStateChange: vi.fn() },
+    );
+    clients.push(c);
+    c.connect();
+    const first = FakeWebSocket.instances[0]!;
+    first.open();
+    first.close();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const second = FakeWebSocket.instances[1]!;
+    second.open();
+    second.wire({ type: "pair_status_ack", pair_status: "waiting" });
+    second.close();
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    const third = FakeWebSocket.instances[2]!;
+    third.open();
+    third.wire({ type: "auth_ack", pair_status: "matched" });
+    third.close();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(FakeWebSocket.instances).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(FakeWebSocket.instances).toHaveLength(4);
+  });
+
   it("Initialize 可先于 ready，replayable 订阅使用真实 RPC，重复物理 seq 只交付一次", async () => {
     const { c, socket } = client();
     let state = conversationReducer(initialConversationState, {
@@ -389,6 +500,22 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
           payload.frame.kind === "ack",
       ),
     ).toEqual([]);
+  });
+
+  it("INTERNAL 保持临时错误并在断线后自动重试", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { c, socket } = client();
+    socket.wire({ type: "error", code: "INTERNAL", message: "temporary" });
+    socket.fire("close", { code: 4001, reason: "INTERNAL" });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const next = FakeWebSocket.instances[1]!;
+    next.open();
+    // 新一轮的 4001 不能沿用上一轮 INTERNAL 语义。
+    next.fire("close", { code: 4001, reason: "AUTH_FAILED" });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(c.getState()).toBe("error");
   });
 
   it("旧 socket 回调不改新连接状态/信封/RPC", async () => {

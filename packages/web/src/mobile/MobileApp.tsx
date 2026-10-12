@@ -1,9 +1,14 @@
+/* eslint-disable max-lines -- 移动端首页与会话共享连接态，避免拆分状态投影所有权。 */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   MobileRemoteControlClient,
   readPairingParamsFromLocation,
   type MobileConnectionState,
 } from "./protocol.js";
+import {
+  presentMobileConnection,
+  type MobileConnectionSnapshot,
+} from "./connectionPresentation.js";
 import {
   conversationReducer,
   initialConversationState,
@@ -46,7 +51,10 @@ export function MobileApp() {
   );
   const [paramsError, setParamsError] = useState<string | null>(null);
   const clientRef = useRef<MobileRemoteControlClient | null>(null);
-  const [connection, setConnection] = useState<MobileConnectionState>("connecting");
+  const [connectionSnapshot, setConnectionSnapshot] = useState<MobileConnectionSnapshot>({
+    state: "connecting",
+  });
+  const connection = connectionSnapshot.state;
   const [bootstrap, setBootstrap] = useState<WebRemoteControlBootstrapResult | null>(null);
   const [view, setView] = useState<View>({ kind: "home" });
   const [organize, setOrganize] = useState<"timeline" | "workspace">("timeline");
@@ -88,7 +96,7 @@ export function MobileApp() {
   useEffect(() => {
     if (!params) return;
     const client = new MobileRemoteControlClient(params, {
-      onStateChange: (state) => setConnection(state),
+      onStateChange: (state, detail) => setConnectionSnapshot({ state, detail }),
       onPayload: (payload) => {
         if (payload.zcode_type === "workspace-list-updated") {
           setBootstrap((current) =>
@@ -227,6 +235,7 @@ export function MobileApp() {
     return (
       <Shell
         connection={connection}
+        connectionDetail={connectionSnapshot.detail}
         title={`任务会话`}
         onBack={() => setView({ kind: "home" })}
         notice={notice}
@@ -273,6 +282,7 @@ export function MobileApp() {
   return (
     <Shell
       connection={connection}
+      connectionDetail={connectionSnapshot.detail}
       onRefresh={() =>
         void refreshBootstrap().catch((error) => reportError("[mobile] 刷新工作区失败", error))
       }
@@ -292,7 +302,7 @@ export function MobileApp() {
               : "inline-flex h-6 items-center rounded-full border border-border px-2 text-ui-xs font-medium text-foreground-subtle"
           }
         >
-          {connection === "paired" ? "已连接到当前桌面窗口" : "未连接"}
+          {presentMobileConnection(connection, connectionSnapshot.detail).label}
         </span>
         <span className="text-ui-xs text-foreground-subtle">
           {bootstrap?.workspaces.length ?? 0} 个工作区 · {bootstrap?.tasks.length ?? 0} 个任务
@@ -384,12 +394,16 @@ function taskStatusLabel(status: WebRemoteControlTaskRef["displayStatus"]): stri
 
 function Shell(props: {
   connection?: MobileConnectionState;
+  connectionDetail?: MobileConnectionSnapshot["detail"];
   title?: string;
   notice?: string | null;
   onBack?: () => void;
   onRefresh?: () => void;
   children: React.ReactNode;
 }) {
+  const connectionPresentation = props.connection
+    ? presentMobileConnection(props.connection, props.connectionDetail)
+    : null;
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-card px-3 py-2">
@@ -407,10 +421,14 @@ function Shell(props: {
           </button>
         ) : null}
       </header>
-      {props.connection && props.connection !== "paired" ? (
-        <p className="px-3 py-1 text-center text-ui-xs text-foreground-subtle">
-          {props.connection === "closed" ? "连接已断开" : "正在自动重连..."}
-        </p>
+      {connectionPresentation && props.connection !== "paired" ? (
+        <div
+          className={`px-3 py-1 text-center text-ui-xs ${connectionPresentation.terminal ? "text-destructive" : "text-foreground-subtle"}`}
+          role="status"
+        >
+          <p className="font-medium">{connectionPresentation.label}</p>
+          <p>{connectionPresentation.description}</p>
+        </div>
       ) : null}
       {props.notice ? (
         <p className="px-3 py-1 text-center text-ui-xs text-destructive">{props.notice}</p>
