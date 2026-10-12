@@ -58,6 +58,14 @@ Desktop continuous / mobile replayable 使用同一 journal sequence，无新通
 - 后续展示负责者需将 shared fill schema 同步 `commitSequence?: nonnegative integer`，UI 按
   同 run 最新成功 fill 的最大 commitSequence 选图；不能依靠工具行位置或 timestamp。未跑 UI/E2E。
 
+## CI frozen lockfile 修复记录（2026-05-18）
+
+- `@zcode/dynamic-workflow` 是其 CLI `node --import tsx --test` 测试运行时依赖的唯一声明所有者；新增 `devDependencies.tsx: ^4.20.0` 必须反映到仓库 `pnpm-lock.yaml`，CI 继续使用 frozen install，不移除测试依赖或放宽锁定。
+- 已核对 CLI 的 `adapters`、`core`、`bootstrap`：三者测试脚本也使用 `--import tsx`，但 package.json 中均没有新增或声明 `tsx`；本次已知变更只有 `dynamic-workflow` 新增依赖。按本任务仅改 lockfile 与本 spec 的边界，不擅自改其它 manifest；若这些测试包的隐式解析另有问题，另行立项处理。
+- 生成锁文件使用仓库 pinned pnpm `10.33.2`，只在 `@zcode/dynamic-workflow` importer 增加 `tsx ^4.20.0 → 4.21.0`，未改解析版本；验收保持 frozen install。`pnpm install --frozen-lockfile --ignore-scripts` 实际安装 exit 0（不是 lockfile-only 验证）。
+- 验证结果：CLI `dynamic-workflow/adapters/core/bootstrap` build exit 0；四包测试分别 24/1/25/32，全通过（合计 82）；根 `pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check --changed` 均 exit 0。Lint 报 50 条既有 warning、0 error。各命令完整日志位于 `/tmp/ci-lock-fix-{lockfile,frozen-install,cli-build,cli-test,typecheck,lint,fmt,architecture}.log`；变更摘要 `/tmp/ci-lock-fix-diff-summary.log`。
+- 环境提示 Node 实际 `24.19.0`，仓库要求 `24.14.0`；锁生成 / install 另有已知 deprecated 与 peer dependency warning，不影响退出结果。CI 源日志 `/tmp/failed-ci-job.log` 确认根因是 `ERR_PNPM_OUTDATED_LOCKFILE`，dynamic-workflow 新增 tsx 缺少 importer 锁定记录。
+
 ## 背景
 
 上游 3.15.1（`aac47556`）在 `apps/zcode-cli/packages/dynamic-workflow` 里新增了一条纵向能力
