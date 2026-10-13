@@ -24,8 +24,13 @@ interface WorkflowDraftPathModule {
 interface WorkflowDraftPathInput {
   /** 工具输入里的写入目标，相对路径按 workingDirectory 解析，绝对路径原样保留。 */
   filePath: string;
-  /** 会话工作目录；缺席（空串）即不成立，见下。 */
+  /** 执行 cwd：相对 filePath 的解析基准；缺席（空串）即不成立，见下。 */
   workingDirectory: string;
+  /**
+   * 工作区级根：草稿目录挂在它下面（工具链的 `workspaceScopeRoot` = `workspaceLevelRootOf(runtime)`）。缺席即回落
+   * `workingDirectory`——CLI/TUI 与只建模执行边界的调用方两者同值。
+   */
+  workspaceScopeRoot?: string;
   /** 平台 path 实现，默认取当前平台的 `node:path`。 */
   pathModule?: WorkflowDraftPathModule;
 }
@@ -41,8 +46,10 @@ interface WorkflowDraftWriteInput {
   toolName: string;
   /** 工具输入（尚未按具体工具的 schema 解析），只从中取 `file_path`。 */
   input: unknown;
-  /** 会话工作目录；调用方拿不到时可以缺席，缺席即不免确认。 */
+  /** 执行 cwd；调用方拿不到时可以缺席，缺席即不免确认。 */
   workingDirectory?: string;
+  /** 工作区级根（草稿目录根）；缺席即回落 workingDirectory。 */
+  workspaceScopeRoot?: string;
   pathModule?: WorkflowDraftPathModule;
 }
 
@@ -67,16 +74,27 @@ export function isPreapprovedWorkflowDraftWrite(input: WorkflowDraftWriteInput):
     filePath,
     pathModule: input.pathModule,
     workingDirectory: input.workingDirectory,
+    ...(input.workspaceScopeRoot === undefined
+      ? {}
+      : { workspaceScopeRoot: input.workspaceScopeRoot }),
   });
 }
 
-/** `filePath` 是否落在 `<workingDirectory>/.zcodium/workflow-drafts/` 之内。 */
+/**
+ * `filePath` 是否落在草稿目录之内。
+ *
+ * 草稿目录挂在**工作区级根**下（与 `writeWorkflowDraft` 的落点同源），而相对 `filePath`
+ * 仍按执行 cwd 解析——这两件事在对话会话里不是同一个目录，混用会让免确认失效。
+ */
 function isWorkflowDraftPath(input: WorkflowDraftPathInput): boolean {
   const path = input.pathModule ?? nodePath;
   // 没有工作目录就没有"哪个项目的草稿目录"可言，宁可不放行：免确认的前提是目标可被定位。
   if (input.workingDirectory.length === 0 || input.filePath.length === 0) return false;
 
-  const draftsDir = path.resolve(input.workingDirectory, WORKFLOW_DRAFTS_DIR);
+  const draftsRoot = input.workspaceScopeRoot?.length
+    ? input.workspaceScopeRoot
+    : input.workingDirectory;
+  const draftsDir = path.resolve(draftsRoot, WORKFLOW_DRAFTS_DIR);
   const resolved = path.resolve(input.workingDirectory, input.filePath);
   const relativePath = path.relative(draftsDir, resolved);
 

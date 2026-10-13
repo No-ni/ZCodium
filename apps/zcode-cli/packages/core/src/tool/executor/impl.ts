@@ -78,6 +78,19 @@ export class ToolExecutorImpl implements ToolExecutor {
           options.getWorkingDirectory?.() ??
           options.workingDirectory ??
           "."),
+      // 工作区级机制（workflow 定义与草稿、skills 发现、草稿免确认闸门）的**工作区级根**
+      // （`workspaceLevelRootOf`：有 workspacePath 时是工作区键路径，CLI/TUI 里跟随当前执行 cwd）。
+      // 注意字段名是历史名：它不是身份用的 `workspaceScopeRootOf`，也**不是** hook 的执行 cwd
+      // （hook 用 `getWorkingDirectory`，见 hook-flow.ts）。调用方没给时回落 getWorkspaceRoot：
+      // 只有「没有 workspacePath」的替身会走到这一支，那时两者本就相等。
+      getWorkspaceScopeRoot:
+        options.getWorkspaceScopeRoot ??
+        options.getWorkspaceRoot ??
+        (() =>
+          options.workspaceRoot ??
+          options.getWorkingDirectory?.() ??
+          options.workingDirectory ??
+          "."),
       workspaceIdentity: options.workspaceIdentity,
       remoteSessionId: options.remoteSessionId,
       clientMode: options.clientMode,

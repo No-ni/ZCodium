@@ -26,7 +26,7 @@ const LIST_SAVED_WORKFLOWS_TIMEOUT_MS = 10_000;
 const LIST_SAVED_WORKFLOWS_MODEL_BYTES = 24_000;
 
 const LIST_SAVED_WORKFLOWS_DESCRIPTION = [
-  `Lists the dynamic workflows saved in this project (\`${SAVED_WORKFLOW_PROJECT_DIR}/\`, keyed on the session's working directory) and the global archive (\`~/.zcodium/workflows\`, available from every project). These are workflow DEFINITIONS you can run, not past runs — for the run history use ListWorkflowRuns instead.`,
+  `Lists the dynamic workflows saved in this project (\`${SAVED_WORKFLOW_PROJECT_DIR}/\`, keyed on the session's workspace) and the global archive (\`~/.zcodium/workflows\`, available from every project). These are workflow DEFINITIONS you can run, not past runs — for the run history use ListWorkflowRuns instead.`,
   "",
   "- Each row gives the name, what the workflow does, when to reach for it, and the arguments it takes.",
   "- Run one by passing its name to CreateWorkflow as `saved: { name, args }`. The user still confirms the run.",
@@ -37,8 +37,11 @@ const LIST_SAVED_WORKFLOWS_DESCRIPTION = [
 const listSavedWorkflowsHandler: ToolHandler = async (input, context) => {
   ListSavedWorkflowsInputSchema.parse(input);
 
-  // cwd 恒取本会话的工作目录：模型无权跨项目扫盘，这同时是 `sideEffectScope: "none"` 的前提。
-  const { entries, invalid } = listSavedWorkflows({ cwd: context.workingDirectory ?? "." });
+  // 枚举根是本会话的**工作区级根**（对话会话的它是对话根，不是每会话的执行目录）：
+  // 模型无权跨项目扫盘，这同时是 `sideEffectScope: "none"` 的前提。
+  const { entries, invalid } = listSavedWorkflows({
+    cwd: context.workspaceScopeRoot ?? context.workingDirectory ?? ".",
+  });
 
   return {
     workflows: entries,

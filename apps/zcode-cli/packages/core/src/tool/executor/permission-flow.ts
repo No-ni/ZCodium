@@ -54,9 +54,10 @@ export async function resolveToolPermission(
     mode,
     prePlanMode: deps.sessionModePort?.getPrePlanMode(),
     planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
-    // workflow 草稿免确认要按工作目录解析相对路径，见 PermissionService 的
-    // isPreapprovedWorkflowDraftWrite。
+    // workflow 草稿免确认要按工作目录解析相对路径、按工作区键路径定位草稿目录，
+    // 见 PermissionService 的 isPreapprovedWorkflowDraftWrite。
     workingDirectory: deps.getWorkingDirectory(),
+    workspaceScopeRoot: deps.getWorkspaceScopeRoot(),
   };
   const runtimePermissionContext = resolveRuntimePermissionContext(deps);
   const rulePolicy = entry.resolvePermissionRulePolicy?.(executionInput, runtimePermissionContext);

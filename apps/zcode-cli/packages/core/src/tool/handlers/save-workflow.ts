@@ -112,6 +112,15 @@ function validateSaveWorkflowInput(input: unknown): ToolInputValidationResult {
 }
 
 /**
+ * 归一化用的两个根：`script_path` 是模型给的相对路径（按执行 cwd 解析），
+ * 而落点 / 覆盖判定 / 遮蔽检测读的是工作区级根下的 `.zcodium/workflows`。
+ */
+interface SaveWorkflowResolveDirectories {
+  executionCwd: string;
+  workspaceDirectory: string;
+}
+
+/**
  * 归一化：把落点、覆盖判定与遮蔽事实算出来填进入参。
  *
  * 这些事实是确认窗的决策关键内容（批准一次覆盖 = 同意丢掉磁盘上那一份；遮蔽提示 = 告诉用户
@@ -123,7 +132,7 @@ function validateSaveWorkflowInput(input: unknown): ToolInputValidationResult {
  */
 async function resolveSaveWorkflowInput(
   input: unknown,
-  cwd: string,
+  directories: SaveWorkflowResolveDirectories,
 ): Promise<ToolInputResolutionResult> {
   const parsed = SaveWorkflowInputSchema.safeParse(input);
   if (!parsed.success) return { result: true, input };
@@ -132,7 +141,10 @@ async function resolveSaveWorkflowInput(
   // 块被丢掉（只留正文）——元数据由本次调用的字段说了算，那才是用户批准的东西。
   let script = parsed.data.script;
   if (parsed.data.script_path !== undefined) {
-    const read = await readWorkflowScriptFile({ cwd, inputPath: parsed.data.script_path });
+    const read = await readWorkflowScriptFile({
+      cwd: directories.executionCwd,
+      inputPath: parsed.data.script_path,
+    });
     if (!read.ok) {
       return { result: false, errorCode: SAVE_WORKFLOW_FAILURE_CODE, message: read.message };
     }
@@ -140,14 +152,18 @@ async function resolveSaveWorkflowInput(
   }
 
   const { scope, name } = parsed.data;
-  const shadowing = findSavedWorkflowShadowing({ cwd, name, scope });
+  const shadowing = findSavedWorkflowShadowing({
+    cwd: directories.workspaceDirectory,
+    name,
+    scope,
+  });
   return {
     result: true,
     input: {
       ...parsed.data,
       ...(script === undefined ? {} : { script }),
-      path: savedWorkflowPath(savedWorkflowRoot(cwd, scope), name),
-      overwrite: savedWorkflowExists({ cwd, name, scope }),
+      path: savedWorkflowPath(savedWorkflowRoot(directories.workspaceDirectory, scope), name),
+      overwrite: savedWorkflowExists({ cwd: directories.workspaceDirectory, name, scope }),
       // 无同名时省略该键：一个 undefined 会给每次保存挂一个噪音字段。
       ...(shadowing === undefined ? {} : { shadowing }),
     } satisfies SaveWorkflowInput,
@@ -156,10 +172,13 @@ async function resolveSaveWorkflowInput(
 
 const saveWorkflowHandler: ToolHandler = async (input, context) => {
   const parsed = SaveWorkflowInputSchema.parse(input) as SaveWorkflowInput;
-  const cwd = context.workingDirectory ?? ".";
+  // 保存是工作区级产物：落点与覆盖判定都按工作区级根。模型给的 `script_path` 的相对解析
+  // 仍走执行 cwd，那一半在归一化里（resolveSaveWorkflowInput）。
+  const workspaceDirectory = context.workspaceScopeRoot ?? context.workingDirectory ?? ".";
   const scope = parsed.scope;
   // 落点由归一化填好；缺席只可能是有人绕过了 executor 的生命周期，此时自己算一遍而不是崩。
-  const path = parsed.path ?? savedWorkflowPath(savedWorkflowRoot(cwd, scope), parsed.name);
+  const path =
+    parsed.path ?? savedWorkflowPath(savedWorkflowRoot(workspaceDirectory, scope), parsed.name);
   const script = parsed.script;
   if (script === undefined) {
     // 到不了：validateInput 挡掉「两个都不给」，resolveInput 会把 `script_path` 读成 `script`。
@@ -193,7 +212,7 @@ const saveWorkflowHandler: ToolHandler = async (input, context) => {
   // 确认窗与 hook 看的事实，而 hook 能改写入参——让它改变落盘后的自述会把一个展示字段
   // 变成一个行为开关。
   const written = saveSavedWorkflow({
-    cwd,
+    cwd: workspaceDirectory,
     name: parsed.name,
     meta: toMeta(parsed),
     script,
@@ -267,7 +286,10 @@ export const saveWorkflowToolEntry: ToolEntry = {
   resolveInput: (input, context) =>
     // 技能门先于落点解析（handlers/workflow-skill-gate.ts）：保存的也是一段脚本。
     requireDynamicWorkflowSkill(context, SAVE_WORKFLOW_TOOL_NAME) ??
-    resolveSaveWorkflowInput(input, context.workingDirectory ?? "."),
+    resolveSaveWorkflowInput(input, {
+      executionCwd: context.workingDirectory ?? ".",
+      workspaceDirectory: context.workspaceScopeRoot ?? context.workingDirectory ?? ".",
+    }),
   prepareApproval: prepareSaveWorkflowApproval,
   inputSchema: SaveWorkflowInputJsonSchema,
   outputSchema: SaveWorkflowOutputJsonSchema,

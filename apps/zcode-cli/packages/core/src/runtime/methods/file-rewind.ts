@@ -18,10 +18,13 @@ import type {
   WorkspaceCheckpointArtifact,
 } from "../deps.js";
 import {
+  resolveWorkspaceCheckpointRoot,
   selectCheckpointForRewind,
   selectCheckpointsForMessages,
   throwIfTurnAborted,
 } from "../helpers/index.js";
+// 深路径而不是 barrel：barrel 里没有 workspace-scope（各 method 都按同一路径直接引）。
+import { workspaceScopeRootOf } from "../helpers/workspace-scope.js";
 import type {
   WorkspaceFileRewindApplyResult,
   WorkspaceFileRewindIgnoredFile,
@@ -359,11 +362,20 @@ async function buildWorkspaceFileRewindPlan(
   const unsupportedByPath = new Map<string, FileAggregate>();
 
   for (const { artifact, checkpoint } of artifacts) {
+    // checkpoint 的 `files[].path` 是模型原文：相对路径按**创建它时的 cwd** 解析，而不是无条件
+    // 按本次执行 cwd。artifact 自己记了 `workspaceRoot` 就用它；老 checkpoint（本字段之前写的）
+    // 按工作区键路径——那时模型 cwd 恒等于它，而存量对话会话补发独立目录后两者不再相等，认本次
+    // 执行 cwd 会把老文件误判成「已被外部修改」并阻断整次回滚（见 spec 已知边界 24）。
+    const checkpointRoot = resolveWorkspaceCheckpointRoot({
+      recordedRoot: artifact.workspaceRoot,
+      executionRoot: this.workspaceRoot,
+      workspaceKeyRoot: workspaceScopeRootOf(this),
+    });
     if (isIgnoredShellTool(artifact.toolName)) {
       for (const file of artifact.files) {
         addIgnoredFile(
           ignoredByPath,
-          resolveCheckpointFilePath(this.workspaceRoot, file.path),
+          resolveCheckpointFilePath(checkpointRoot, file.path),
           artifact.toolName,
         );
       }
@@ -374,7 +386,7 @@ async function buildWorkspaceFileRewindPlan(
       // Write/ApplyPatch checkpoint 会保留模型传入的工作区相对路径，而
       // FileSystemPort 只接受绝对路径。若不在计划阶段按 runtime workspace root
       // 解析，安全文件会被误报 file_read_failed，组合 rewind 只返回 blocked。
-      const filePath = resolveCheckpointFilePath(this.workspaceRoot, file.path);
+      const filePath = resolveCheckpointFilePath(checkpointRoot, file.path);
       const afterContent = resolveCheckpointAfterContent(file);
       if (afterContent === undefined) {
         markUnsafe(unsupportedByPath, {
@@ -473,8 +485,12 @@ async function buildWorkspaceFileRewindPlan(
   };
 }
 
-function resolveCheckpointFilePath(workspaceRoot: string, path: string): string {
-  return isAbsolute(path) ? path : resolve(workspaceRoot, path);
+/**
+ * checkpoint 里一条 `files[].path` 的绝对化。`checkpointRoot` 由
+ * `resolveWorkspaceCheckpointRoot` 给出（artifact 记录 cwd → 工作区键路径 → 本次执行 cwd）。
+ */
+function resolveCheckpointFilePath(checkpointRoot: string, path: string): string {
+  return isAbsolute(path) ? path : resolve(checkpointRoot, path);
 }
 
 function resolveTargetCheckpoints(

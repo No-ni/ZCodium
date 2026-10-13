@@ -21,6 +21,7 @@ import {
 import { ZCODE_CUA_OFFICIAL_MCP_NAMESPACE_NAME as ZCODE_CUA_OFFICIAL_MCP_SERVER_NAME } from "@zcode/shared";
 import { OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION } from "@zcode/zcode-cua/frame-contract";
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import type { ToolRegistry } from "../tool/registry.js";
 import { createToolRuleNameSet } from "../tool/tool-visibility.js";
 import type { ToolEntry } from "../tool/types.js";
@@ -253,14 +254,23 @@ export function createMcpToolEntry(
             turnId: context.turnId,
           },
           runtimeScope: context.runtimeScope ?? "main",
-          workspacePath: context.workingDirectory,
+          // `_meta.workspace_path` / `workspace_key` 是 **workspace 身份/隔离**，不是调用进程的
+          // 工作目录：契约（contracts/interfaces/mcp.port.ts 的 McpCallToolRequest）写明这两个
+          // 字段「仅用于 shared-host 隔离，不改变 MCP tool 参数」；消费者只把它们当隔离 key——
+          // node-repl CUA bridge 取 `workspace_key ?? workspace_identity ?? workspace_path` 作
+          // workspaceKey（browser tab ownership / CUA turn 归属），协议侧 browser-control-broker
+          // 也是用「工作区键路径」构造同一组字段。启动侧（runtime/methods/mcp.ts）把连接身份收到
+          // 工作区级根并 `resolve()` 后交给池（pool.resolveWorkspaceKey =
+          // workspaceIdentity || workingDirectory），这里若用执行 cwd，同一次调用会与它所在的连接
+          // 分属两个工作区；不做同样的 `resolve()`，尾斜杠/`.` 段的写法又会与连接键分裂。
+          workspacePath: resolve(context.workspaceScopeRoot),
           ...(context.remoteSessionId ? { remoteSessionId: context.remoteSessionId } : {}),
           ...(context.workspaceIdentity?.trim()
             ? {
                 workspaceIdentity: context.workspaceIdentity.trim(),
                 workspaceKey: context.workspaceIdentity.trim(),
               }
-            : { workspaceKey: context.workingDirectory }),
+            : { workspaceKey: resolve(context.workspaceScopeRoot) }),
           ...(context.turnId ? { turnId: context.turnId } : {}),
           clientMode: context.clientMode ?? "desktop-continuous",
           deliveryKind: context.deliveryKind ?? "desktop-continuous",

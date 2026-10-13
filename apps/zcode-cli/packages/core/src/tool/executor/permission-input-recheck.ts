@@ -40,8 +40,11 @@ export async function recheckPermissionHookModifiedInput(input: {
     planEnabled: input.deps.sessionModePort?.isPlanEnabled?.(),
     riskLevel: input.entry.metadata.riskLevel,
     toolName: input.toolCall.name,
-    // 与首次判定同源：hook 改过 input 之后，草稿免确认仍要按同一个工作目录复核。
+    // 与首次判定同源：hook 改过 input 之后，草稿免确认仍要按同一个工作目录复核；
+    // 工作区键路径也必须一起带（首次判定在 permission-flow 里两个字段都传），否则
+    // 草稿目录会退化成按执行 cwd 定位，复核与首判结论分叉。
     workingDirectory: input.deps.getWorkingDirectory(),
+    workspaceScopeRoot: input.deps.getWorkspaceScopeRoot(),
   };
   const rulePolicy = input.entry.resolvePermissionRulePolicy?.(
     input.modifiedInput,

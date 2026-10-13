@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import type {
   CollaborationMode,
   ExecutionShellSelection,
@@ -17,6 +19,7 @@ import type {
   ContextBuilder,
 } from "../deps.js";
 import { isInspectablePermissionBroker, projectIdFromDirectory } from "../helpers/index.js";
+import { workspaceScopeRootOf } from "../helpers/workspace-scope.js";
 import {
   deriveChildClientPorts,
   type ChildClientPortsContext,
@@ -105,7 +108,11 @@ export function setSessionModelSelection(
 
 export function getProjectId(this: AgentRuntimeInternal): ProjectId {
   // Bash cd 会改变执行 cwd，但 project identity 不能随工具内 cwd 漂移。
-  return projectIdFromDirectory(this.workspaceRoot);
+  // 必须用工作区键路径：它要与 bootstrap 建 app 时的 projectID、session 行落库的 projectID
+  // 三方一致；对话会话的执行 cwd 是会话独立目录，用它会读不到项目级权限模式。
+  // `resolve()` 同样是为了对齐 bootstrap：create-app 用 resolve 后的 workspaceDirectory 派生
+  // projectID，含 `.`/`..` 段的 workspacePath 不规范化会让两处算出不同 project。
+  return projectIdFromDirectory(resolve(workspaceScopeRootOf(this)));
 }
 
 export function setWorkingDirectory(this: AgentRuntimeInternal, cwd: string): void {

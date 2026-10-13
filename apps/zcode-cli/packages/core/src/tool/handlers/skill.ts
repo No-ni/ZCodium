@@ -36,7 +36,11 @@ const skillHandler: ToolHandler = async (input, context) => {
   const loaded = await skillPort.loadSkill(
     {
       name: skill,
-      workingDirectory: context.workingDirectory,
+      // 技能发现根 = 工作区级根（与 discoverSkillsForContext 同一来源，见
+      // runtime/helpers/workspace-scope.ts）：用执行 cwd 会让对话会话只看到会话目录下的
+      // 技能，加载与系统提示里列出的技能不再是同一批
+      // （见 docs/specs/conversation-session-workspace.md 规则 9）。
+      workingDirectory: context.workspaceScopeRoot,
       maxBytes: MAX_SKILL_BYTES,
       trace: {
         traceId: context.traceId,

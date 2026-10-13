@@ -72,7 +72,12 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
     throw new Error("CreateWorkflow handler received input without a resolved script");
   }
   const saved = parsed.saved;
-  const cwd = context.workingDirectory;
+  // 执行 cwd：run 的沙箱/项目键（对外契约单字段，双角色）与模型面的路径写法。
+  const executionCwd = context.workingDirectory;
+  // 工作区级根：`.zcodium/workflow-drafts` 草稿与 `.zcodium/workflows` 已保存定义的根
+  // （有 workspacePath 时是工作区键路径；CLI/TUI 没有它时是当前执行 cwd）。
+  // 用执行 cwd 会让对话会话的草稿与定义落到会话目录，GUI 与后续会话都找不到。
+  const workspaceDirectory = context.workspaceScopeRoot;
 
   const analysis = analyzeScript(script);
   const { diagnostics, ok } = analysis;
@@ -86,7 +91,7 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   const inlineDraft =
     saved === undefined && parsed.path === undefined
       ? await writeWorkflowDraft({
-          cwd,
+          cwd: workspaceDirectory,
           name: resolveWorkflowDraftName(parsed.name, causalityGraph),
           source: script,
         })
@@ -99,7 +104,7 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
       toolName: "CreateWorkflow",
     });
   }
-  const location = describeScriptLocation(parsed, inlineDraft?.path, cwd);
+  const location = describeScriptLocation(parsed, inlineDraft?.path, executionCwd);
 
   if (!ok) {
     return {
@@ -115,7 +120,7 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
         // 保持正文行不变——转录面画的是正文。
         ...formatWorkflowDiagnosticLines(diagnostics, location),
         "",
-        diagnosticsNote(parsed, location, cwd),
+        diagnosticsNote(parsed, location, executionCwd),
       ].join("\n"),
       ...(causalityGraph === undefined ? {} : { causalityGraph }),
     } satisfies CreateWorkflowOutput;
@@ -141,6 +146,8 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   const submitted = await port.submit(
     {
       scriptText: script,
+      // run 的 `cwd` 是对外契约里的单字段：既是 dwf_run 的项目键又是脚本沙箱根，无法只改一半，
+      // 因此保持执行 cwd（运行记录按会话执行目录分桶；`listWorkflowRuns` 同键）。见报告残留项。
       cwd: context.workingDirectory,
       // 可选的展示名一路落到 dwf_run.name（submit → EngineConfig → createRun），不能只留在
       // 工具行与任务标题的兜底链上——否则跨会话枚举出来的 run 只能是一串裸 runId。
@@ -343,7 +350,10 @@ export const createWorkflowToolEntry: ToolEntry = {
     }
     return resolveCreateWorkflowInput(
       input,
-      context.workingDirectory ?? ".",
+      {
+        executionCwd: context.workingDirectory ?? ".",
+        workspaceDirectory: context.workspaceScopeRoot ?? context.workingDirectory ?? ".",
+      },
       context.dynamicWorkflowRunPort?.concurrencyCeiling?.(),
       context.modelCatalogPort,
     );

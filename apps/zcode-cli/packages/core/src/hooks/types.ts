@@ -96,6 +96,12 @@ export interface ConfiguredHookRunnerOptions {
   config: HooksRuntimeConfig;
   emitEvent?: (event: SessionEvent) => Promise<void>;
   executionPort: ExecutionPort;
+  /**
+   * Hook 的兜底执行 cwd，也是 `CLAUDE_PROJECT_DIR`/`ZCODE_PROJECT_DIR` 与
+   * `${...PROJECT_DIR}` 展开的基准：它是**模型当前 cwd**（runtime 侧为
+   * `runtime.workingDirectory`，Bash `cd` 之后跟着走），hook 脚本因此作用在模型正在编辑的
+   * 目录上。工作区级的是 hooks 的**发现与信任**根（`workspaceScopeRootOf(runtime)`）。
+   */
   getWorkingDirectory: () => string;
   logger?: Logger;
   workspaceHookAdmission?: WorkspaceHookRuntimeAdmissionPort;

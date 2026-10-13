@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import type { WorkspaceId } from "@zcode/contracts";
 import { buildExecutionStateEntry, readRuntimeExecutionState } from "../execution-state.js";
 import {
@@ -592,15 +594,33 @@ async function persistSession(
 
   try {
     const directory = this.workingDirectory;
-    // bootstrap 会用 path.resolve 规范化执行 cwd；过去又把同一个值写入
-    // session.path/directory，导致本地 workspacePath 的末尾 `/` 丢失。冷恢复随后按精确
-    // workspaceKey 查 provider registry 时就会落到另一个身份。持久化必须保留协议入口路径。
-    const persistedWorkspacePath = this.config.workspacePath ?? directory;
+    // 会话持久化必须区分两个路径（见 docs/specs/conversation-session-workspace.md）：
+    // `directory` = 工作区键路径，冷启动列表、分组与 tab/workspaceKey 都按它聚合；`path` =
+    // 会话执行 cwd，对话会话是 `<对话根>/<创建日>/<会话id前8位>`，项目会话两者相同。
+    // `config.workspacePath` 是协议入口给的**未经 path.resolve 的**工作区键表示：过去把它和
+    // 执行 cwd 合并写入 session.path/directory，导致本地 workspacePath 的末尾 `/` 丢失，冷恢复
+    // 按精确 workspaceKey 查 provider registry 时落到另一个身份。因此这里既不能合并两个字段，
+    // 也不能用规范化后的 workingDirectory 顶替 workspacePath。
+    // 空串与缺席同义（与 `workspaceScopeRootOf` / `workspaceLevelRootOf` 的空串护栏同口径）：
+    // 否则这一行会落 `directory: ""`，而 `projectID` 按 `resolve("")` = 进程 cwd 派生，同一个 runtime
+    // 的 `getProjectId()`（走会话执行边界）与落库的 projectID 就分叉成两个 project。
+    // 协议入口的 schema 已拒绝空串（`workspacePath` min(1)），这条护栏只对嵌入式调用方生效。
+    const declaredWorkspacePath = this.config.workspacePath?.length
+      ? this.config.workspacePath
+      : undefined;
+    const persistedWorkspacePath = declaredWorkspacePath ?? directory;
     const title = titleFromInput(input);
     const workspaceIdentity = this.config.memory?.workspaceIdentity?.trim();
     await this.sessionStore.createSession({
       id: this.sessionId,
-      projectID: projectIdFromDirectory(directory),
+      // projectID 与 create-app 的项目级设置键同源：必须按**工作区键路径**算，不能被会话目录
+      // 带偏，否则权限模式等项目级设置的读写会分叉到两个 project。
+      //
+      // 且必须先 `resolve()`：bootstrap（create-app 的 `workspaceDirectory`）与 core 的
+      // `getProjectId()` 都按规范化后的路径派生身份，含 `.`/`..` 段的 workspacePath 若直接
+      // 取 slug，就会算出第三个 project。这里只规范化**身份派生的输入**，落库的 `directory`
+      // 仍保留协议原串（尾斜杠等表示不能被吞掉，见上面的注释）。
+      projectID: projectIdFromDirectory(resolve(persistedWorkspacePath)),
       // Memory workspaceIdentity 是上游提供的不透明隔离键。这里只做类型品牌化，
       // 不能调用会改写字符串的 ID 生成器，否则恢复后的 Memory root 会发生漂移。
       workspaceID: this.config.workspaceIdentity ?? (workspaceIdentity as WorkspaceId | undefined),
@@ -609,7 +629,15 @@ async function persistSession(
       taskType: this.config.taskType,
       slug: slugify(this.sessionId),
       directory: persistedWorkspacePath,
-      path: persistedWorkspacePath,
+      // 执行 cwd：恢复时 runtime 从这里取回会话自己的目录（不是对话根）。
+      //
+      // 必须用 `this.workspaceRoot`（context 初始化后的**会话执行边界**）而不是 `this.workingDirectory`
+      // （落库那一刻的活 cwd）：协议侧靠「`path` 严格落在工作区键路径之下」识别本规则铸造的会话
+      // 目录（bootstrap 的 `isPersistedConversationExecutionPath`），一旦 `path` 是对话根之外的
+      // 目录，该会话就被判成「没有独立目录」——快照回落对话根（UI 文件树/提及/终端看错目录），
+      // 而 core 恢复后仍在那个目录里跑。可达路径上两者恒等（Bash 只能在首个 turn 内、持久化之后
+      // 改 cwd），这里选前者是为了让「会话执行边界」这个语义不依赖落库时机。
+      path: this.workspaceRoot,
       title,
       titleSource: "first_input",
       version: this.appVersion,

@@ -186,6 +186,21 @@ export class AgentRuntime {
   private skillLoadOutcome?: SkillLoadOutcome;
   private workingDirectory: string;
   private workspaceRoot: string;
+  /**
+   * 工作区键路径（workspace key path）。与 workspaceRoot 分工不同：
+   * - 执行 cwd（`workingDirectory` / `workspaceRoot`）：文件读写、命令 cwd、相对路径解析、
+   *   checkpoint/rewind 的文件路径解析、plan 文件、上下文快照里的 `path.cwd`。
+   * - 工作区键路径（本字段）：项目记忆根、项目级配置/权限、projectID、按工作区分桶的
+   *   存储与展示，以及 workspace 级 MCP 工程配置。
+   *
+   * 对话会话（未指定项目的会话）的执行 cwd 是每会话独立目录，工作区身份仍是「对话根」；
+   * 两者混用会让这些 workspace 级能力按会话各建一份而静默失效。
+   * 见 docs/specs/conversation-session-workspace.md 规则 9。
+   *
+   * 读取一律走 `workspaceScopeRootOf()`（helpers/workspace-scope.ts）：它对本字段缺席的
+   * 部分 runtime 替身按「没有 workspacePath 时工作区键路径 = 执行边界」回落。
+   */
+  private workspaceScopeRoot: string;
   private sessionStore?: SessionStorePort;
   private sessionPersisted = false;
   private needsPlanModeExitReminder = false;
@@ -284,6 +299,12 @@ export class AgentRuntime {
     this.modelCatalogPort = deps.modelCatalogPort;
     this.registry = deps.toolRegistry ?? createToolRegistry();
     this.workspaceRoot = this.workingDirectory;
+    // 工作区身份在这里先定一次：`config.workspacePath` 是调用方传入的工作区键路径
+    // （CLI/TUI 独立运行不传，此时与执行 cwd 相等，行为与改动前逐位一致）。
+    // 之后只有 context 初始化会重算一次（`this.config.workspacePath ?? snapshot.workingDirectory`，
+    // 见 methods/context.ts）：有 workspacePath 时值不变；没有时把身份收敛到**本次会话的执行
+    // 边界**，覆盖冷恢复时已经过时的启动 cwd。Bash `cd` 不改身份。
+    this.workspaceScopeRoot = config.workspacePath ?? this.workingDirectory;
     const tooling = initializeRuntimeTooling(runtime, deps, sessionId);
     this.hookRunner = tooling.hookRunner;
     this.workspaceHookAdmission = deps.workspaceHookAdmission;

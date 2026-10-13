@@ -118,9 +118,21 @@ export const SUBAGENT_MODEL_UNAVAILABLE =
  * 的模型目录（`context.modelCatalogPort`，缺席即不能选模型）。`max_concurrency` 与
  * `subagent_model` 都是顶层字段，三条来源同样处理。
  */
+export interface CreateWorkflowResolveDirectories {
+  /**
+   * 执行 cwd：`path` 来源里模型给的相对脚本路径按它解析（模型的文件路径语义跟随执行目录）。
+   */
+  executionCwd: string;
+  /**
+   * 工作区键路径：`.zcodium/workflows` 的已保存定义、可用清单与工作副本草稿的根。
+   * 用执行 cwd 会让对话会话保存/找到的定义只在本会话可见（GUI 按对话根枚举不到）。
+   */
+  workspaceDirectory: string;
+}
+
 export async function resolveCreateWorkflowInput(
   input: unknown,
-  cwd: string,
+  directories: CreateWorkflowResolveDirectories,
   ceiling?: number,
   catalog?: ModelCatalogPort,
 ): Promise<ToolInputResolutionResult> {
@@ -140,7 +152,7 @@ export async function resolveCreateWorkflowInput(
       : { max_concurrency: clampWorkflowMaxConcurrency(requested, ceiling) };
 
   if (model.path !== undefined) {
-    return resolvePathSource(model, model.path, cwd, {
+    return resolvePathSource(model, model.path, directories.executionCwd, {
       ...clampedField,
       ...subagentModelField,
     });
@@ -168,8 +180,19 @@ export async function resolveCreateWorkflowInput(
     };
   }
 
-  const found = resolveSavedWorkflow({ cwd, name: model.saved.name, scope: model.saved.scope });
-  if (!found.ok) return describeResolveFailure(model.saved.name, found, cwd, model.saved.scope);
+  const found = resolveSavedWorkflow({
+    cwd: directories.workspaceDirectory,
+    name: model.saved.name,
+    scope: model.saved.scope,
+  });
+  if (!found.ok) {
+    return describeResolveFailure(
+      model.saved.name,
+      found,
+      directories.workspaceDirectory,
+      model.saved.scope,
+    );
+  }
 
   const validated = validateWorkflowArgs(found.meta.args, model.saved.args);
   if (!validated.ok) {
@@ -186,7 +209,7 @@ export async function resolveCreateWorkflowInput(
   // 工作副本就在这一次读之后写下，写的是**刚读到的那串字节**（元数据块一起），所以不可能有
   // 第二次读与它分叉。定义本身永不因为一次 run 被改动：模型改的是这份拷贝
   const draft = await writeWorkflowDraft({
-    cwd,
+    cwd: directories.workspaceDirectory,
     name: model.name ?? found.name,
     source: found.source,
   });
@@ -281,7 +304,7 @@ async function resolvePathSource(
 function describeResolveFailure(
   name: string,
   found: Exclude<ReturnType<typeof resolveSavedWorkflow>, { ok: true }>,
-  cwd: string,
+  workspaceDirectory: string,
   scope: SavedWorkflowScope | undefined,
 ): ToolHandlerFailure {
   if (found.reason === "invalid_name") {
@@ -306,16 +329,16 @@ function describeResolveFailure(
     scope === undefined
       ? `No saved workflow named '${name}' in this project or globally.`
       : `No ${scope} workflow named '${name}'.`;
-  return failure(`${headline}\n\n${describeAvailableWorkflows(cwd)}`);
+  return failure(`${headline}\n\n${describeAvailableWorkflows(workspaceDirectory)}`);
 }
 
 /**
  * 两个档案里实际可用的名字，各带作用域标签。定向扫每一根（不做遮蔽），好让被项目档遮蔽的
  * 全局定义也出现在清单里——模型据此才知道要拿它得指定 `scope: "global"`。
  */
-function describeAvailableWorkflows(cwd: string): string {
-  const project = listSavedWorkflows({ cwd, scope: "project" }).entries;
-  const global = listSavedWorkflows({ cwd, scope: "global" }).entries;
+function describeAvailableWorkflows(workspaceDirectory: string): string {
+  const project = listSavedWorkflows({ cwd: workspaceDirectory, scope: "project" }).entries;
+  const global = listSavedWorkflows({ cwd: workspaceDirectory, scope: "global" }).entries;
   const tagged = [
     ...project.map((entry) => `${entry.name} (project)`),
     ...global.map((entry) => `${entry.name} (global)`),

@@ -21,6 +21,7 @@ import {
 } from "./tool-allowlist.js";
 import { isStaleBranchRuntimeTaskEvent } from "../methods/runtime-command-generation.js";
 import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
+import { workspaceLevelRootOf, workspaceScopeRootOf } from "./workspace-scope.js";
 import { sessionHasLoadedSkill } from "../../agent/loaded-skills.js";
 
 const DEFAULT_SUBAGENT_BACKGROUND_BASH_MAX_MS = 3_600_000;
@@ -97,6 +98,9 @@ function createRuntimeHookRunner(
             await runtime.appendEvent(event, getCurrentTraceContext() ?? runtime.rootTraceContext);
           },
           executionPort: deps.executionPort,
+          // Hook 的兜底执行 cwd（也是 CLAUDE_PROJECT_DIR/ZCODE_PROJECT_DIR 与
+          // `${...PROJECT_DIR}` 展开的基准）：模型当前 cwd，Bash `cd` 之后跟着走
+          // （与改动前一致）。hooks 的**发现/信任**根才是工作区键路径。
           getWorkingDirectory: () => runtime.workingDirectory,
           logger: runtime.logger,
           workspaceHookAdmission: deps.workspaceHookAdmission,
@@ -210,12 +214,20 @@ function createRuntimeToolExecutor(
     getWorkingDirectory: () => runtime.workingDirectory,
     setWorkingDirectory: runtime.setWorkingDirectory.bind(runtime),
     getWorkspaceRoot: () => runtime.workspaceRoot,
+    // 工具链里的「工作区级机制」读点（workflow 定义/草稿、skills 发现与加载、草稿免确认闸门）
+    // 用**工作区级根**：有 workspacePath 时是工作区键路径，CLI/TUI 没有它时是当前执行 cwd
+    // （改动前这些读点用的就是它，Bash cd 之后必须继续跟随）。工具自身的路径基准仍走
+    // getWorkingDirectory/getWorkspaceRoot；项目身份、项目记忆根与 MCP 连接身份走
+    // workspaceScopeRootOf（不随 cd 漂移）。
+    getWorkspaceScopeRoot: () => workspaceLevelRootOf(runtime),
     workspaceIdentity: runtime.config.workspaceIdentity?.toString(),
     remoteSessionId: runtime.config.remoteSessionId,
     clientMode: runtime.config.clientMode,
     deliveryKind: runtime.config.deliveryKind,
     getMemoryRoot: () =>
-      deps.memoryRoot ?? resolveEnabledProjectMemoryRoot(runtime.config, runtime.workspaceRoot),
+      // 项目记忆根按工作区键路径分桶，不随执行 cwd 漂移。
+      deps.memoryRoot ??
+      resolveEnabledProjectMemoryRoot(runtime.config, workspaceScopeRootOf(runtime)),
     runtimeScope: runtime.config.taskType === "subagent_child" ? "subagent" : "main",
     permissionTimeoutMs: runtime.config.permissionTimeoutMs,
     sessionId: runtime.sessionId,

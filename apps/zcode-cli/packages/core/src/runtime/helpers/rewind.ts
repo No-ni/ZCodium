@@ -55,9 +55,42 @@ export function getFileMutationCheckpointCandidate(
   };
 }
 
+/**
+ * checkpoint 产物里相对路径的解析根。
+ *
+ * `files[].path` 是**模型原文**，相对路径只有在「创建这个 checkpoint 时的 cwd」下才有意义。
+ * 该 cwd 在 artifact 里（`workspaceRoot`）与本次执行 cwd（会话执行目录）可能不同：
+ * 存量对话会话补发独立目录后执行 cwd 从工作区键路径变成会话目录，而老 checkpoint 的文件仍在
+ * 工作区键路径那边。因此优先级是：
+ *
+ * 1. artifact 自己记录的 `workspaceRoot`（本字段落地后写的 checkpoint 都有，权威）；
+ * 2. 老 checkpoint（本字段之前写的，那时模型 cwd 恒等于工作区键路径）→ 工作区键路径；
+ * 3. CLI/TUI 独立运行没有工作区键路径（`config.workspacePath` 缺席）→ 当前执行 cwd，
+ *    与改动前逐位一致。
+ *
+ * 见 docs/specs/conversation-session-workspace.md 已知边界 24。
+ */
+export function resolveWorkspaceCheckpointRoot(input: {
+  recordedRoot?: string | undefined;
+  workspaceKeyRoot?: string | undefined;
+  executionRoot: string;
+}): string {
+  const recorded = input.recordedRoot?.trim();
+  if (recorded) {
+    return recorded;
+  }
+  const workspaceKeyRoot = input.workspaceKeyRoot?.trim();
+  return workspaceKeyRoot || input.executionRoot;
+}
+
 export function stringifyWorkspaceCheckpointArtifact(
   candidate: FileMutationCheckpointCandidate,
   result: ToolExecutionResult,
+  /**
+   * 创建这一刻的执行 cwd（`runtime.workspaceRoot`）。写入它是为了让 rewind 能在执行 cwd 后来
+   * 变化（存量会话补发独立目录等）时仍按「写下这些文件时的工作目录」解析相对路径。
+   */
+  workspaceRoot?: string,
 ): string {
   const artifact: WorkspaceCheckpointArtifact = {
     createdAt: new Date().toISOString(),
@@ -75,6 +108,7 @@ export function stringifyWorkspaceCheckpointArtifact(
     toolCallId: result.toolCallId,
     toolName: result.toolName,
     version: 1,
+    ...(workspaceRoot?.trim() ? { workspaceRoot: workspaceRoot.trim() } : {}),
   };
 
   return JSON.stringify(artifact, null, 2);

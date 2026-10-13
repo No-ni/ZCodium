@@ -104,6 +104,12 @@ export const workspaceCheckpointArtifactSchema = z
     createdAt: z.string().min(1),
     toolCallId: z.string().min(1),
     toolName: z.string().min(1),
+    /**
+     * 创建这个 checkpoint 时的执行 cwd（模型工作目录）。`files[].path` 是模型原文，相对路径
+     * 只有在这个根下才有意义；本字段之前写的 checkpoint 缺席，由 rewind 按工作区键路径兜底
+     * （那时模型 cwd 恒等于它）。见 docs/specs/conversation-session-workspace.md 已知边界 24。
+     */
+    workspaceRoot: z.string().min(1).optional(),
     files: z
       .array(
         z

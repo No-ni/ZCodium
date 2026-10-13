@@ -62,6 +62,47 @@ export async function readApprovedPlanFileReferenceEntry(input: {
   sessionId: SessionId | string;
   traceContext?: TraceContext;
   workspaceRoot: string;
+  /**
+   * 工作区键路径（老计划文件的落点）。
+   *
+   * 本特性把对话会话的执行 cwd 从工作区键路径改成会话独立目录，而**升级前**写下的计划文件仍住在
+   * `<工作区键路径>/.zcodium/plans/`：只按执行 cwd 找会让这次压缩的「计划仍在进行」提醒静默消失
+   * （文件从未被删，只是换了地方）。执行 cwd 下找不到时才回退到这里；两个根相等（CLI/TUI 独立运行、
+   * 项目工作区、以及会话还没有独立目录）时不产生第二次读。
+   *
+   * 判据方向是「宁可不提醒，不读错文件」：先执行 cwd（本会话当前事实），命中即用；只有 not_found
+   * 才看老落点，而计划文件名带会话 id、一个 id 只会有一个计划文件，因此回退读到的必然是本会话自己的
+   * 老计划（不是别的会话的）。见 docs/specs/conversation-session-workspace.md 已知边界 25。
+   */
+  workspaceKeyRoot?: string;
+}): Promise<RuntimeMessageEntry | undefined> {
+  for (const workspaceRoot of resolveApprovedPlanFileReadRoots(input)) {
+    const entry = await readApprovedPlanFileReferenceEntryAtRoot({
+      ...input,
+      workspaceRoot,
+    });
+    if (entry) return entry;
+  }
+  return undefined;
+}
+
+/** 计划文件的读取根次序：执行 cwd 优先，工作区键路径只在两者不同且前者没命中时兜底。 */
+function resolveApprovedPlanFileReadRoots(input: {
+  workspaceRoot: string;
+  workspaceKeyRoot?: string;
+}): string[] {
+  const executionRoot = input.workspaceRoot.trim();
+  const keyRoot = input.workspaceKeyRoot?.trim();
+  if (!keyRoot || keyRoot === executionRoot) return [executionRoot];
+  return [executionRoot, keyRoot];
+}
+
+async function readApprovedPlanFileReferenceEntryAtRoot(input: {
+  abortSignal?: AbortSignal;
+  fileSystemPort: FileSystemPort;
+  sessionId: SessionId | string;
+  traceContext?: TraceContext;
+  workspaceRoot: string;
 }): Promise<RuntimeMessageEntry | undefined> {
   const path = resolveApprovedPlanFilePath(input);
   let content: string;

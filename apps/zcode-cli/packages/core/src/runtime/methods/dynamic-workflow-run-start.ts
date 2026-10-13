@@ -19,6 +19,7 @@ import {
 import { writeWorkflowDraft } from "../../tool/handlers/workflow-drafts.js";
 import { analyzeScript } from "../../tool/handlers/workflow-script-analysis.js";
 import type { ExecutableToolCall } from "../../tool/types.js";
+import { workspaceLevelRootOf } from "../helpers/workspace-scope.js";
 import { uuidv7 } from "@zcode/shared";
 import { createMessageId, traceContextToLogContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
@@ -76,10 +77,26 @@ export async function startSavedWorkflowRun(
     return { ok: false, reason: "session_busy" };
   }
 
-  const cwd = this.workingDirectory;
+  // 执行 cwd：run 的沙箱根，同时是 `dwf_run.cwd` 这个对外契约单字段的项目键（无法只改一半）。
+  const executionCwd = this.workingDirectory;
+  // 工作区级根：已保存定义与工作副本草稿的根，与 CreateWorkflow 的 saved 解析、SaveWorkflow 的
+  // 落点、ListSavedWorkflows 的枚举**必须是同一个根**（同一次「按名字找一份定义」不该有两个结论）。
+  //
+  // 这里必须是 `workspaceLevelRootOf` 而不是 `workspaceScopeRootOf`：后者在没有
+  // `config.workspacePath` 的 CLI/TUI 里返回 context 初始化时冻结的执行边界，而本函数改动前
+  // 用的是**当前**执行 cwd（`this.workingDirectory`），冻结会让 Bash `cd sub` 之后中枢按启动
+  // 目录找定义、工具侧按 `sub` 找定义，两边对同一个名字给出相反结论。
+  // 有 `workspacePath` 的协议会话两者同值（对话会话 = 对话根），GUI 中枢（`workflows/list` 用
+  // 请求里的 workspacePath）因此仍与枚举同根。见
+  // docs/specs/conversation-session-workspace.md 规则 9。
+  const workspaceDirectory = workspaceLevelRootOf(this);
 
   // (1) 解析 + 实参校验：复用 create-workflow-source 的同一段归一化（第二个调用方，不复制）。
-  const found = resolveSavedWorkflow({ cwd, name: input.name, scope: input.scope });
+  const found = resolveSavedWorkflow({
+    cwd: workspaceDirectory,
+    name: input.name,
+    scope: input.scope,
+  });
   if (!found.ok) {
     if (found.reason === "invalid_name") {
       return {
@@ -166,14 +183,18 @@ export async function startSavedWorkflowRun(
   // (3b) 工作副本。中枢直接启动与 `CreateWorkflow` 的 saved 来源是同一件事，所以拷贝也按同一条
   // 规矩写：逐字节（元数据块一起）、保存的定义本身一个字都不动。写不成就没有 `scriptPath`——run 照常起，
   // 只是终态通知里没有可编辑的文件可指。
-  const draft = await writeWorkflowDraft({ cwd, name: found.name, source: found.source });
+  const draft = await writeWorkflowDraft({
+    cwd: workspaceDirectory,
+    name: found.name,
+    source: found.source,
+  });
 
   // (4) 提交启动。提交失败（拒绝 / 抛错）在启动轮之前退出——绝不吞成带 runId 的成功。
   let runId: string;
   try {
     const submitted = await port.submit({
       scriptText: found.script,
-      cwd,
+      cwd: executionCwd,
       name: found.name,
       ...(hasArgs ? { args: validated.args } : {}),
       parentSessionId: this.sessionId,

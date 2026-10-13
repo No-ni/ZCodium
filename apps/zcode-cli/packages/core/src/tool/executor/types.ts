@@ -125,6 +125,17 @@ export interface ToolExecutorOptions {
   getWorkingDirectory?: () => string;
   setWorkingDirectory?: (cwd: string) => Promise<void> | void;
   getWorkspaceRoot?: () => string;
+  /**
+   * **工作区级根**（= `workspaceLevelRootOf(runtime)`）：`.zcodium` 下的工作区级产物
+   * （workflow 定义与草稿、skills/commands 发现、草稿免确认闸门）按它读写与枚举。
+   * 有 `config.workspacePath` 时是工作区键路径；CLI/TUI 独立运行没有它时是**当前执行 cwd**
+   * （改动前这些读点用的就是它，Bash `cd` 之后必须继续跟随）。
+   *
+   * 与 hook 无关：hook 的**执行** cwd 与 `CLAUDE_PROJECT_DIR`/`ZCODE_PROJECT_DIR` 一律走
+   * `getWorkingDirectory()`（模型当前 cwd），发现/信任根在 app 装配层。工具的路径基准仍走
+   * `getWorkspaceRoot`/`getWorkingDirectory`，两者不能混用。
+   */
+  getWorkspaceScopeRoot?: () => string;
   getMemoryRoot?: () => string | undefined;
   traceContext?: TraceContext;
   mode?: CollaborationMode;
@@ -226,6 +237,8 @@ export interface ToolExecutorDeps {
   getWorkingDirectory: () => string;
   setWorkingDirectory?: (cwd: string) => Promise<void> | void;
   getWorkspaceRoot: () => string;
+  /** 工作区级根（见 `ToolExecutorOptions.getWorkspaceScopeRoot`）；缺席的调用方按 getWorkspaceRoot 回落。 */
+  getWorkspaceScopeRoot: () => string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";

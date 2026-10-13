@@ -177,6 +177,14 @@ export interface ToolExecutionContext {
   setWorkingDirectory?: (cwd: string) => Promise<void> | void;
   workingDirectory: string;
   workspaceRoot: string;
+  /**
+   * **工作区级根**：`.zcodium` 下的**工作区级产物**（dwf 的 `.zcodium/workflows` 定义、
+   * `.zcodium/workflow-drafts` 草稿、skills/commands 发现、草稿免确认闸门）按它读写与枚举。
+   * = `workspaceLevelRootOf(runtime)`：有 workspacePath 时是工作区键路径（对话会话 = 对话根），
+   * CLI/TUI 独立运行没有它时是**当前执行 cwd**（改动前这些读点用的就是它）。执行/沙箱路径仍走
+   * workingDirectory / workspaceRoot，两者不能混用。见 runtime/helpers/workspace-scope.ts。
+   */
+  workspaceScopeRoot: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";
@@ -232,6 +240,8 @@ export type ToolInputValidationResult = { result: true } | ToolHandlerFailure;
  */
 export interface ToolInputResolutionContext {
   workingDirectory?: string;
+  /** 工作区级根；与 `workingDirectory`（执行 cwd）分开，见 ToolContext 的同名字段。 */
+  workspaceScopeRoot?: string;
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   /**
    * workflow run 端口与本会话 id：AmendWorkflow 用它们把 `run_id` 解析成「前驱是不是本会话的、

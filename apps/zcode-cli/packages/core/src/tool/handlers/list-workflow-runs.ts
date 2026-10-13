@@ -55,6 +55,8 @@ const listWorkflowRunsHandler: ToolHandler = async (input, context) => {
   const result = await port.listRuns({
     // cwd 恒取本会话的工作目录：模型无权跨项目扫库，这同时是 `sideEffectScope: "none"` 的前提。
     // 字面等值匹配、不做路径规范化——写入侧（submit）原样落，读侧原样查，规范化只会造出单侧不匹配。
+    // run 记录的项目键是 `dwf_run.cwd`，写入侧（submit/amend）用的就是执行 cwd —— 这里必须
+    // 同键，否则本会话刚跑的 run 会从清单里消失。见报告残留项。
     cwd: context.workingDirectory,
     // 界已由输入 schema 钳到 [1, 50]（preprocess），端口因此从不看到一次无界枚举。
     limit: parsed.limit,

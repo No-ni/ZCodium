@@ -63,6 +63,7 @@ import { runCompactSummaryModelRequest } from "./compact-summary-model-request.j
 import { resolveNormalRequestMaxOutputTokens } from "./model-token-limits.js";
 import { recordModelUsageFact } from "./usage-observability.js";
 import { createRuntimeModel } from "./runtime-model.js";
+import { workspaceScopeRootOf } from "../helpers/workspace-scope.js";
 import {
   filterOutputTokenContinuationEntries,
   preserveCanonicalContextPrefix,
@@ -441,6 +442,10 @@ async function compactActiveConversationImpl(
             sessionId: this.sessionId,
             traceContext: modelTraceContext,
             workspaceRoot: this.workspaceRoot,
+            // 升级前写下的计划文件住在工作区键路径下（那时执行 cwd 恒等于它）：两个根不同时
+            // 让读取回退一次，否则存量会话压缩后「计划仍在进行」的提醒会静默消失。
+            // 见 docs/specs/conversation-session-workspace.md 已知边界 25。
+            workspaceKeyRoot: workspaceScopeRootOf(this),
           })
         : undefined;
       const postCompactReminderEntries = [

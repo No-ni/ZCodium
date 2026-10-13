@@ -4,9 +4,11 @@ import {
   ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   ZCODE_PLUGIN_ID_ENV_KEY,
 } from "@zcode/shared";
+import { resolve } from "node:path";
 import { registerMcpTools, traceContextToLogContext } from "../deps.js";
 import type { McpConnectionSnapshot, McpServerConfig, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { workspaceLevelRootOf } from "../helpers/workspace-scope.js";
 import type { McpToolDescriptor, PluginReferenceCatalog } from "@zcode/contracts";
 
 const MCP_SESSION_OAUTH_AUTHORIZATION_TIMEOUT_MS = 15_000;
@@ -75,7 +77,13 @@ export function startMcpStartup(
       // 导致模型请求迟迟不发出；session 只等 15s，授权入口由设置页 mcp/list 展示。
       oauthAuthorizationTimeoutMs: MCP_SESSION_OAUTH_AUTHORIZATION_TIMEOUT_MS,
       trace: traceContext,
-      workingDirectory: this.workingDirectory,
+      // MCP 工程配置属于工作区：stdio server 的进程 cwd 与连接身份都用**工作区级根**
+      // （有 workspacePath 时是工作区键路径；CLI/TUI 没有它时跟随当前执行 cwd）。
+      // 用执行 cwd 会让对话会话把 project 作用域 MCP 起在会话目录、并按会话各起一份连接。
+      // 必须 `resolve()`：池键是 `workspaceIdentity || workingDirectory`，而同一 workspace 的
+      // 手工连接入口（session facade）传的是规范化路径，未规范化的尾斜杠/`.` 段会分裂成两个池条目
+      // （同一个 workspace 起两份 workspace 隔离的 stdio server）。
+      workingDirectory: resolve(workspaceLevelRootOf(this)),
       workspaceIdentity: this.config.workspaceIdentity?.toString(),
     })
     .then((snapshot) => {

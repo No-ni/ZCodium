@@ -13,6 +13,7 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { getSessionShellSelectionFromConfig } from "../methods/session-shell-environment.js";
 import { buildRuntimeProviderRequestMessages } from "./runtime-provider-request-messages.js";
 import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
+import { workspaceLevelRootOf } from "./workspace-scope.js";
 
 export interface ProjectMemoryAgentContext {
   memoryRoot: string;
@@ -99,6 +100,14 @@ export function createProjectMemoryAgentToolExecutor(
     getMemoryRoot: () => context.memoryRoot,
     getWorkingDirectory: () => context.workingDirectory,
     getWorkspaceRoot: () => context.workspaceRoot,
+    // 工作区级根必须显式给：缺了它 tool/executor/impl.ts 的回落链会退化成 getWorkspaceRoot
+    // （冻结的执行边界），memory 抽取里的 workspace 级读点（workflow 定义与草稿、skills 发现、
+    // 草稿免确认闸门）就与主 runtime 的 `workspaceLevelRootOf` 不一致——CLI/TUI 里 Bash `cd`
+    // 之后主链跟随当前执行 cwd，抽取链却停在启动目录。
+    //
+    // 这里**不能**用 `workspaceScopeRootOf`：那个是身份（projectID / 项目记忆根 / MCP 连接身份），
+    // 而本字段的语义是「工作区级产物落在哪」，与主链同源。
+    getWorkspaceScopeRoot: () => workspaceLevelRootOf(runtime),
     imageProcessorPort: runtime.imageProcessorPort,
     pdfDocumentPort: runtime.pdfDocumentPort,
     maxConcurrency: runtime.config.toolConcurrency?.maxConcurrency,

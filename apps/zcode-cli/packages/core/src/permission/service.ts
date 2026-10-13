@@ -42,6 +42,11 @@ export interface PermissionContext {
    * 可选：拿不到工作目录的调用方照常按其余规则判定，不会因此少一层确认。
    */
   workingDirectory?: string;
+  /**
+   * 工作区级根：草稿目录的根（草稿与 `.zcodium/workflows` 一样是工作区级产物）。
+   * 缺席即回落 `workingDirectory`，CLI/TUI 与替身因此行为不变。
+   */
+  workspaceScopeRoot?: string;
 }
 
 export interface PermissionToolCapability {
@@ -204,6 +209,9 @@ export class PermissionService {
         input: context.input,
         toolName: context.toolName,
         workingDirectory: context.workingDirectory,
+        ...(context.workspaceScopeRoot === undefined
+          ? {}
+          : { workspaceScopeRoot: context.workspaceScopeRoot }),
       })
     ) {
       return this.allow(

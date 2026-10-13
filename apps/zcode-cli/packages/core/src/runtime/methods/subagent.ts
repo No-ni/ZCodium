@@ -48,6 +48,7 @@ import { deriveChildClientPorts } from "../helpers/child-client-ports.js";
 import { createCoordinatorResponsePort } from "../../subagent/coordinator-response.js";
 import { isStaleBranchRuntimeTaskEvent } from "./runtime-command-generation.js";
 import { loadPersistentAgentMemory } from "../../subagent/persistent-memory.js";
+import { workspaceLevelRootOf, workspaceScopeRootOf } from "../helpers/workspace-scope.js";
 import {
   createOfficialCuaPolicy,
   SUBAGENT_COMPUTER_USE_UNAVAILABLE_CODE,
@@ -134,7 +135,9 @@ export function createDefaultSubagentPort(
         memory: this.config.memory,
         profile: request.profile,
         traceContext: request.traceContext,
-        workspaceRoot: request.workspaceRoot,
+        // profile 的 project/local 作用域落在 `<工作区>/.zcodium/agent-memory*`，
+        // 是工作区级持久记忆：用执行 cwd 会让对话会话每个会话各建一份，等于功能失效。
+        workspaceRoot: workspaceScopeRootOf(this),
       });
       // 空 agent prompt 不是一个语义段；先硬拼 `\n\n` 会把缺失段的边界
       // 泄漏到 persistent Memory 开头。这里只组合非空正文，block 左边界由 builder 统一添加。
@@ -155,7 +158,15 @@ export function createDefaultSubagentPort(
         [],
         this.config.pluginReferenceCatalog,
       );
-      await validateSubagentComputerUseConfiguration(request, preflightCuaPolicy, this.skillPort);
+      // 技能发现根（第 4 个参数）给**工作区级根**：`request.workingDirectory` 是子会话的
+      // 执行 cwd，父 skill port 按它解析会把对话会话的技能根落到会话目录；CLI/TUI 没有
+      // workspacePath 时它仍跟随当前执行 cwd（与改动前一致）。
+      await validateSubagentComputerUseConfiguration(
+        request,
+        preflightCuaPolicy,
+        this.skillPort,
+        workspaceLevelRootOf(this),
+      );
       const childMcpAccess = await resolveSubagentMcpAccess.call(
         this,
         request,
@@ -177,7 +188,12 @@ export function createDefaultSubagentPort(
         childMcpAccess.parentSnapshot?.tools ?? childMcpAccess.snapshot?.tools ?? [],
         this.config.pluginReferenceCatalog,
       );
-      await validateSubagentComputerUseConfiguration(request, childCuaPolicy, this.skillPort);
+      await validateSubagentComputerUseConfiguration(
+        request,
+        childCuaPolicy,
+        this.skillPort,
+        workspaceLevelRootOf(this),
+      );
       const childSkillPort = resolveSubagentSkillPort(
         this.skillPort,
         request.profile.skills,
@@ -246,6 +262,10 @@ export function createDefaultSubagentPort(
           modelSelection: cloneModelSelection(childSelection),
           modelContextBudgetStrategy: this.config.modelContextBudgetStrategy,
           workingDirectory: request.workingDirectory,
+          // 派生会话继承父会话的工作区身份：子代理必须继承父会话的工作区键路径，
+          // 否则 workspace 级配置读点（项目级 MCP、projectID、持久记忆）会落到执行目录。
+          // CLI/TUI 直接运行时父未传该字段（undefined），子的 workspaceScopeRoot 回落执行 cwd。
+          workspacePath: this.config.workspacePath,
           // 执行模型只由 child Active Model 投影进 Context；envInfo 不保存第二份模型事实。
           envInfo: childRuntimeEnvInfo,
           // Explore 子运行时之前没有继承主会话的流式配置，Protocol 桌面端虽已默认
@@ -715,6 +735,19 @@ function resolveSubagentSkillPort(
   );
 }
 
+/**
+ * 子 agent 的 skill port：只做「按 profile 允许名单过滤 + 官方 CUA 技能拦截」的装饰，
+ * **不改技能发现根**。
+ *
+ * 透传 `request` 就是正确的根：调用方（子 runtime 的 `discoverSkillsForContext` 与 Skill
+ * handler）传进来的 `workingDirectory` 已经是**子 runtime 的工作区级根**
+ * （`workspaceLevelRootOf(subRuntime)`，不是身份用的 `workspaceScopeRootOf`——技能发现是
+ * 工作区级产物读点，CLI/TUI 里必须跟随当前执行 cwd），而子 runtime 的 `config.workspacePath`
+ * 由父会话继承（见下方 AgentRuntime 构造的 `workspacePath: this.config.workspacePath`），
+ * 所以协议会话里它就是对话根。
+ * 这里**不能**再按父 runtime 的执行 cwd 重新推断一遍，否则对话会话会退化成按会话目录找技能
+ * （见 docs/specs/conversation-session-workspace.md 规则 9）。
+ */
 class FilteredSkillPort implements SkillPort {
   constructor(
     private readonly parent: SkillPort,
@@ -829,6 +862,12 @@ async function validateSubagentComputerUseConfiguration(
   request: ExploreSubagentRuntimeRequest,
   cuaPolicy: OfficialCuaPolicy,
   parentSkillPort: SkillPort | undefined,
+  /**
+   * 父会话的工作区级根（`workspaceLevelRootOf(parentRuntime)`）。这个函数用**父**的
+   * skill port 做发现，所以根必须来自父 runtime，而不是 `request.workingDirectory`
+   * （那是子会话的执行 cwd）。调用方只有一个来源函数，避免出现第二套推断。
+   */
+  skillDiscoveryRoot: string,
 ): Promise<void> {
   const explicitServer = request.profile.mcpServers?.find((serverName) =>
     cuaPolicy.serverNames.has(serverName.trim()),
@@ -843,7 +882,7 @@ async function validateSubagentComputerUseConfiguration(
   if (!explicitSkill && parentSkillPort && request.profile.skills?.length) {
     try {
       const outcome = await parentSkillPort.discoverSkills({
-        workingDirectory: request.workingDirectory,
+        workingDirectory: skillDiscoveryRoot,
         trace: request.traceContext,
       });
       explicitSkill = request.profile.skills.find((skillName) =>

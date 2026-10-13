@@ -33,6 +33,8 @@ export async function runSessionStartHooks(
   return this.hookRunner.run(
     {
       agentName: this.config.agentName,
+      // Hook 的执行 cwd 是模型当前 cwd（与改动前一致，也是 CLAUDE_PROJECT_DIR/
+      // ZCODE_PROJECT_DIR 的基准）；工作区级的是发现与信任根，那部分走工作区键路径。
       cwd: this.workingDirectory,
       hookEventName: HookEventName.SessionStart,
       mode: this.getMode(),
@@ -60,6 +62,7 @@ export async function runUserPromptSubmitHooks(
     {
       agentName: this.config.agentName,
       attachmentsSummary: summarizeTurnAttachments(attachments),
+      // 同 SessionStart：hook 执行 cwd 与 *_PROJECT_DIR 都是模型当前 cwd。
       cwd: this.workingDirectory,
       hookEventName: HookEventName.UserPromptSubmit,
       mode: this.getMode(),
@@ -87,6 +90,7 @@ export async function runStopHooks(
   return this.hookRunner.run(
     {
       agentName: this.config.agentName,
+      // 同 SessionStart：hook 执行 cwd 与 *_PROJECT_DIR 都是模型当前 cwd。
       cwd: this.workingDirectory,
       hookEventName: HookEventName.Stop,
       mode: this.getMode(),

@@ -120,7 +120,10 @@ export async function resumeFromStore(
     traceContext,
   });
 
-  this.workingDirectory = session.directory;
+  // 恢复的是**执行 cwd**：它只能取持久化的 `path`。`directory` 是工作区键路径（对话会话
+  // 的它是对话根），拿它当执行 cwd 会让恢复后的会话落回对话根、并行会话重新互相可见。
+  // 存量行 `path === directory`（或缺席），此处的 `??` 因此与改动前逐位一致。
+  this.workingDirectory = session.path ?? session.directory;
   this.config.taskType = session.taskType;
   if (this.config.memory) {
     // Memory root 必须使用会话落盘时的 workspace identity，不能沿用进程启动 workspace。

@@ -25,6 +25,10 @@ export async function runPreToolUseHooks(
   if (!deps.hookRunner) return { additionalContexts: [] };
   return deps.hookRunner.run(
     {
+      // Hook 的**执行** cwd 是模型当前 cwd（Bash cd 之后跟着走，与改动前一致），也是
+      // CLAUDE_PROJECT_DIR/ZCODE_PROJECT_DIR 的基准：hook 脚本（formatter/linter）就作用在
+      // 模型正在编辑的目录上。工作区级的是**发现与信任**根（hooks 配置从哪里读），那部分
+      // 仍走工作区键路径，见 runtime/methods/hooks.ts 与 core/hooks 的发现路径。
       cwd: deps.getWorkingDirectory(),
       hookEventName: HookEventName.PreToolUse,
       mode,
@@ -59,6 +63,7 @@ export async function runPermissionRequestHooks(
   if (!deps.hookRunner) return undefined;
   const hookResult = await deps.hookRunner.run(
     {
+      // 同 PreToolUse：hook 的执行 cwd 是模型当前 cwd。
       cwd: deps.getWorkingDirectory(),
       hookEventName: HookEventName.PermissionRequest,
       mode,
@@ -135,6 +140,7 @@ export async function runPostToolUseHooks(
   return deps.hookRunner.run(
     {
       artifactRefs: artifactPath ? [artifactPath] : undefined,
+      // 同 PreToolUse：hook 的执行 cwd 是模型当前 cwd。
       cwd: deps.getWorkingDirectory(),
       hookEventName: HookEventName.PostToolUse,
       mode: deps.getMode(),
@@ -168,6 +174,7 @@ export async function runPostToolUseFailureHooks(
   const normalized = error instanceof Error ? error : new Error(String(error));
   return deps.hookRunner.run(
     {
+      // 同 PreToolUse：hook 的执行 cwd 是模型当前 cwd。
       cwd: deps.getWorkingDirectory(),
       error: {
         message: normalized.message,

@@ -114,6 +114,8 @@ export interface AgentRuntimeInternal
   skillLoadOutcome?: SkillLoadOutcome;
   workingDirectory: string;
   workspaceRoot: string;
+  /** 工作区键路径（workspace key path）；与执行 cwd 的分工见 agent-runtime.ts 字段注释。 */
+  workspaceScopeRoot: string;
   sessionStore?: SessionStorePort;
   sessionMailboxPort?: SessionMailboxPort;
   sessionPersisted: boolean;

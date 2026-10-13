@@ -189,7 +189,9 @@ export async function emitFileMutationCheckpoint(
         turnId: options.traceContext.turnId,
         toolCallId: options.result.toolCallId,
         toolName: options.result.toolName,
-        content: stringifyWorkspaceCheckpointArtifact(candidate, options.result),
+        // 记录创建这一刻的执行 cwd：rewind 之后要按它解析 checkpoint 里的模型原文相对路径
+        // （执行 cwd 可能已经变化，例如存量会话补发独立目录）。
+        content: stringifyWorkspaceCheckpointArtifact(candidate, options.result, this.workspaceRoot),
         contentType: WORKSPACE_CHECKPOINT_CONTENT_TYPE,
         retention: "session",
         trace: options.traceContext,

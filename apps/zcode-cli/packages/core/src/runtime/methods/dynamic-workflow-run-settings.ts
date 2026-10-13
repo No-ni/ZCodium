@@ -24,6 +24,7 @@ import {
 } from "../../tool/handlers/workflow-drafts.js";
 import { analyzeScript } from "../../tool/handlers/workflow-script-analysis.js";
 import type { ExecutableToolCall } from "../../tool/types.js";
+import { workspaceLevelRootOf } from "../helpers/workspace-scope.js";
 import { traceContextToLogContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { boundedCompileDiagnostics } from "./dynamic-workflow-run-start.js";
@@ -179,6 +180,7 @@ export async function amendWorkflowRunSettings(
   // 不记的话，模型之后要修订这个 run 就只剩把整份脚本内联再抄一遍这一条路。草稿尽力而为：写不成
   // 即缺席，run 照常起。它是 amend 之前唯一的落盘，留下的至多是一个没人引用的草稿文件。
   const graph = boundGraphOfAnalysis(analysis);
+  // 前驱脚本文件的字节比对：只读，`scriptPath` 是绝对路径，相对回落按执行 cwd 解析。
   const keptFile = await resolveKeptScriptFile({
     cwd: this.workingDirectory,
     scriptPath: snapshot.scriptPath,
@@ -188,7 +190,9 @@ export async function amendWorkflowRunSettings(
     keptFile?.path ??
     (
       await writeWorkflowDraft({
-        cwd: this.workingDirectory,
+        // 草稿是工作区级产物，与 CreateWorkflow / 中枢启动同根：有 workspacePath 时是工作区键
+        // 路径，CLI/TUI 没有它时跟随当前执行 cwd（改动前就是它）。
+        cwd: workspaceLevelRootOf(this),
         name: resolveWorkflowDraftName(snapshot.name, graph),
         source: script,
       })
@@ -203,6 +207,7 @@ export async function amendWorkflowRunSettings(
   try {
     amended = await port.amend({
       scriptText: script,
+      // run 的 `cwd` 是对外契约里的单字段（项目键 + 沙箱根），保持执行 cwd。
       cwd: this.workingDirectory,
       predecessorRunId: input.runId,
       parentSessionId: this.sessionId,

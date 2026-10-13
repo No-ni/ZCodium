@@ -146,7 +146,9 @@ async function amendResolvedWorkflow(
   // 缺脚本，只可能是绕过归一化的调用方——同样回结构化失败，而不是把 undefined 交给编译器。
   const script = parsed.script;
   if (script === undefined) return scriptUnavailableFailure(parsed.run_id, "host");
-  const cwd = context.workingDirectory;
+  // 草稿是工作区级产物（`.zcodium/workflow-drafts`），按工作区级根；执行 cwd 仍用于
+  // 下面 port.amend 的 run 键/沙箱根。
+  const workspaceDirectory = context.workspaceScopeRoot ?? context.workingDirectory;
 
   const analysis = analyzeScript(script);
   const { diagnostics, ok } = analysis;
@@ -159,7 +161,7 @@ async function amendResolvedWorkflow(
   const inlineDraft =
     parsed.path === undefined
       ? await writeWorkflowDraft({
-          cwd,
+          cwd: workspaceDirectory,
           name: resolveWorkflowDraftName(parsed.name ?? parsed.predecessor?.name, causalityGraph),
           source: script,
         })
@@ -182,7 +184,8 @@ async function amendResolvedWorkflow(
       ? undefined
       : {
           kind: parsed.path === undefined ? "draft" : "path",
-          described: describeWorkflowScriptPath(scriptPath, cwd),
+          // 模型面的路径写法按执行 cwd 相对化（它下一次 Read/Edit 就是按那里解析的）。
+          described: describeWorkflowScriptPath(scriptPath, context.workingDirectory),
           lineOffset: parsed.script_line_offset ?? 0,
         };
 

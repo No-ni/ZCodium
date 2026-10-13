@@ -22,6 +22,7 @@ import {
   normalizeReadFileStateMtimeMs,
 } from "../../tool/read-file-state.js";
 import { resolveEnabledProjectMemoryRoot } from "../helpers/project-memory.js";
+import { workspaceLevelRootOf, workspaceScopeRootOf } from "../helpers/workspace-scope.js";
 import { buildContextHistoryEntries } from "./context-history-entries.js";
 import { resolveRuntimeEmbeddedSearchEnabled } from "./embedded-search-branch.js";
 import { getContextSourceShellDisplayName } from "./session-shell-environment.js";
@@ -64,6 +65,16 @@ export async function ensureContextInitialized(
   this.workingDirectory = snapshot.workingDirectory;
   // Bash cd 之后 workingDirectory 会变化，但 workspaceRoot 仍表示会话初始工作区边界。
   this.workspaceRoot = snapshot.workingDirectory;
+  // 工作区键路径与执行边界**同点**更新，原因分两种调用方：
+  // - 协议/远程会话恒有 `config.workspacePath`（对话根），这一支等于不改，身份仍不随执行
+  //   cwd 漂移；
+  // - CLI/TUI 独立运行不传 workspacePath，此时工作区身份本就等于「本次会话的执行边界」。
+  //   冷恢复（`cd /tmp && zcode -p --resume <id>`）时构造期的启动 cwd 已不是本次会话的
+  //   边界（`resumeFromStore` 把执行 cwd 换成持久化的 `path`），继续冻结它会让 projectID、
+  //   项目记忆、hook 执行 cwd 与 MCP 身份跟到 `/tmp`，与改动前行为不一致
+  //   （见 docs/specs/conversation-session-workspace.md 规则 6）。
+  // Bash cd 只改 `workingDirectory`，不会重跑本方法，因此执行边界之后的漂移仍不改身份。
+  this.workspaceScopeRoot = this.config.workspacePath ?? snapshot.workingDirectory;
   this.contextSourceSnapshot = snapshot;
   this.startMcpStartup(traceContext);
   this.skillLoadOutcome = await this.discoverSkillsForContext(traceContext);
@@ -154,7 +165,8 @@ export async function loadProjectMemoryRoot(
   this: AgentRuntimeInternal,
   traceContext: TraceContext,
 ): Promise<string | undefined> {
-  const memoryRoot = resolveEnabledProjectMemoryRoot(this.config, this.workspaceRoot);
+  // 项目记忆根按工作区键路径分桶：用执行 cwd 会让对话会话每个会话各建一份记忆。
+  const memoryRoot = resolveEnabledProjectMemoryRoot(this.config, workspaceScopeRootOf(this));
   if (!memoryRoot) {
     this.logMemorySkipped(traceContext, "disabled_or_excluded", {
       taskType: this.config.taskType,
@@ -226,7 +238,12 @@ export async function discoverSkillsForContext(
 
   try {
     const outcome = await this.skillPort.discoverSkills({
-      workingDirectory: this.workingDirectory,
+      // 技能发现根 = **工作区级根**：项目技能根是 `<工作区>/.zcodium/skills`，config 里
+      // `skills.roots` 的相对项也按它解析（adapters 的 resolveProjectSkillDirectories 在没有
+      // `.git` 时只取传入目录本身）。用执行 cwd 会让对话会话把技能根落到会话目录，
+      // 工作区级 skills 静默失效；CLI/TUI 没有 workspacePath 时必须继续跟随当前执行 cwd
+      // （改动前就是它）。见 docs/specs/conversation-session-workspace.md 规则 9。
+      workingDirectory: workspaceLevelRootOf(this),
       trace: traceContext,
     });
     this.logger?.debug("Skills discovered", {
