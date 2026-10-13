@@ -9,6 +9,10 @@ export {
   GEN_UI_OUTPUT_DIRECTORY,
   getGenUiOutputDirectory,
 } from "./node/genUiPaths.js";
+export {
+  ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV,
+  resolveConversationWorkspaceRoot,
+} from "./node/conversationWorkspaceEnv.js";
 export { scanOfficialPluginCacheRoots } from "./node/officialPluginCache.js";
 export {
   migrateUserSubagentMarkdown,

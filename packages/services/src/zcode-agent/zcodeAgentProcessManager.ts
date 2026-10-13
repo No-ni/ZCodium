@@ -35,7 +35,11 @@ import { readZCodeStdioTapDevState } from "./zcodeStdioTapDevConfig.js";
 import type { ZCodeAgentPresentationSurface } from "./zcodeAgentPresentationSurface.js";
 import { shouldSpawnInDetachedProcessGroup } from "../process/processTreeTerminator.js";
 import type { RuntimeProcessLifecycleReporter } from "../process/runtimeProcessLifecycle.js";
-import { buildAgentWorkspaceIdentityEnv } from "../runtime-tools/agentProxyEnv.js";
+import {
+  buildAgentConversationWorkspaceEnv,
+  buildAgentWorkspaceIdentityEnv,
+} from "../runtime-tools/agentProxyEnv.js";
+import { getConversationWorkspaceDir } from "../paths.js";
 
 export interface ZCodeAgentCommand {
   /** 本地配套 CLI bundle 的存储专用 Worker 入口；远端/自定义命令不推断能力。 */
@@ -990,6 +994,14 @@ export class ZCodeAgentProcessManager {
         [GEN_UI_OUTPUT_ROOT_ENV]: join(getAppConfigDir(), GEN_UI_OUTPUT_DIRECTORY),
         // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
         ...buildAgentWorkspaceIdentityEnv(params.workspaceIdentity),
+        // 对话工作区（未指定项目的会话）的执行 cwd 由 Agent 按会话铸造：这里只把
+        // 「本 workspace 就是对话根」这一 Host 侧事实施加给子进程，目录规则与命名
+        // 全部归会话所有者。见 docs/specs/conversation-session-workspace.md。
+        ...buildAgentConversationWorkspaceEnv(
+          params.workspacePath,
+          params.workspaceIdentity,
+          getConversationWorkspaceDir(),
+        ),
         ...buildE2EAgentCoverageEnv(),
       },
       stdio: ["pipe", "pipe", "pipe"],

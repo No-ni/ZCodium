@@ -1,9 +1,11 @@
+import { resolve } from "node:path";
 import {
   ZCODE_AGENT_CA_CERT_ENV_KEY,
   ZCODE_HTTP_PROXY_ENV_KEY,
   ZCODE_NO_PROXY_ENV_KEY,
   ZCODE_WORKSPACE_IDENTITY_ENV,
 } from "@zcode/shared";
+import { ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV } from "@zcode/shared/node";
 
 // 把设置页的 HTTP 代理、No Proxy 和自定义 CA 翻译成 agent 子进程的环境变量补丁。
 // agent 是子进程，继承宿主 process.env；这里在 spawn 时把代理与证书注入进去，所以「下次启动 agent」生效。
@@ -118,6 +120,46 @@ export function buildAgentWorkspaceIdentityEnv(
 ): Record<string, string> {
   const trimmed = workspaceIdentity?.trim();
   return trimmed ? { [ZCODE_WORKSPACE_IDENTITY_ENV]: trimmed } : {};
+}
+
+/**
+ * 把「这个 workspace 就是对话根」这一 Host 侧事实注入对应 Agent。
+ *
+ * 谁是对话根只有 Host 知道（`getConversationWorkspaceDir()`），而会话目录怎么建只有会话所有者
+ * Agent CLI 知道（session id 由 CLI 铸造），所以这个事实只能在 spawn 边界下发。判定必须同时
+ * 要求「路径等于对话根」与「没有 remote identity」：远端 workspace 的路径形态不受本地数据根
+ * 约束，多带一个标记会让远端会话按本地对话根规则建目录。
+ *
+ * 判据必须与 CLI 侧同口径（`conversation-session-workspace.ts` 的
+ * `isConversationWorkspaceEnabled` 与回收侧 `conversation-session-workspace-reclaim.ts` 都用
+ * `resolve()` 比较）：裸字符串比较会让尾部分隔符（`<根>/`）、`.`/`..` 段等**同一路径的不同写法**
+ * 漏注入，该 workspace 的会话就悄悄退回旧行为（cwd = workspacePath），而 CLI 侧再看不出原因。
+ *
+ * 返回类型是 `Record<string, string>`，所以「不适用」也必须**显式返回该键的空串**，不能返回 `{}`：
+ * spawn env 以 `sanitizeZCodeRuntimeEnv(process.env)` 起底，而本键不在清洗名单里——宿主 shell
+ * 里若已有同名变量，不覆盖就会原样下发给 Agent，使「未注入 = 安全回滚」在进程 env 层不成立。
+ * 空串在 CLI 侧 `resolveConversationWorkspaceRoot` 判为「未启用」，与缺席等价。
+ *
+ * 见 docs/specs/conversation-session-workspace.md。
+ */
+export function buildAgentConversationWorkspaceEnv(
+  // 与同文件的 `buildAgentWorkspaceIdentityEnv` 一样容忍缺席：workspacePath 来自 RPC 参数，
+  // 该通道没有运行时校验（`isZCodeAgentWorkspaceTarget` 无调用点），裸 `.trim()` 会把一个
+  // 本来只是"路径不对"的调用变成 `TypeError`。"不适用" 与 "空路径" 在这里是同一个结果。
+  workspacePath: string | undefined,
+  workspaceIdentity: string | undefined,
+  conversationWorkspaceRoot: string | undefined,
+): Record<string, string> {
+  if (workspaceIdentity?.trim()) {
+    return { [ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV]: "" };
+  }
+  const root = conversationWorkspaceRoot?.trim();
+  const path = workspacePath?.trim() ?? "";
+  // 空路径不参与比较：`resolve("")` 会得到当前工作目录，可能偶然等于对话根。
+  if (!root || path.length === 0 || resolve(path) !== resolve(root)) {
+    return { [ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV]: "" };
+  }
+  return { [ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV]: root };
 }
 
 function normalizeProxyValue(value: string | undefined): string | undefined {
