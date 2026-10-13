@@ -1,5 +1,10 @@
 # A5b：内置插件补齐开源基座普查（Plugin Backfill Open-base Survey）
 
+> [!WARNING]
+> **历史快照，不反映当前实现。**
+> 上游 3.15.1 同步已把 `android-emulator` / `ios-simulator` 等插件换成上游版本（清单目录仍沿用本仓库的 `.zcodium-plugin`），本文描述的 backfill 构建方式已不再是当前实现（`superpowers` 仍保留我们这份）；其中的键级判定、许可排查与被排除基座等查证结论仍有参考价值。
+> 取代背景与决策依据见 [`upstream-sync-3.15.1.md`](./upstream-sync-3.15.1.md)。
+
 2026-09-23。目的：为建设 `android-emulator-plugin`、`ios-simulator-plugin` 与
 `superpowers-plugin` 三个插件寻找开源基座。内容层文档的开源事实源记录见
 `content-backfill-openbase-survey.md`。
@@ -23,6 +28,16 @@ ESM `.mjs` 是既定约定（见 `zcode-cua-plugin/scripts/` 的六个模块）�
 TypeScript 编译产物目录，而由 plugin.json 的 `mcpServers` 声明直接指向该脚本。
 传输契约为标准 MCP over stdio（换行分隔的 JSON-RPC 2.0，initialize /
 tools/list / tools/call / ping）。
+
+## Android emulator 插件 3.15.1 上游同步
+
+同步基线为 `zai-org/ZCode` 提交 `aac47556`。插件从原先直接运行的 `.mjs`
+MCP server 切换为 TypeScript 源码，并在插件构建时由 `tsc` 类型检查、esbuild
+将 `src/mcp/server.ts` 打包到 `dist/mcp/server.js`；内置插件 seed 仅分发此运行时
+入口及 skills、commands、hooks、templates、`.mcp.json` 内容。插件清单固定放在
+`.zcodium-plugin/plugin.json`，用户目录与工作区配置示例按 fork 的
+`~/.zcodium-exp/`、`.zcodium/` 约定书写。测试保持上游全部用例与断言，运行器采用
+Node test runner + tsx，避免向嵌套 workspace 引入 vitest。
 
 ## 实施结果（2026-09-23）
 

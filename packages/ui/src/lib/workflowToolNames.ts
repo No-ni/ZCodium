@@ -97,3 +97,8 @@ export function isCreateWorkflowToolCall(source: WorkflowToolNameSource): boolea
 export function isAmendWorkflowToolCall(source: WorkflowToolNameSource): boolean {
   return matchesToolName(source, "amendworkflow");
 }
+
+/** 补全复用创建输出面，但不能显示「已启动工作流」的词汇。 */
+export function isFillWorkflowHoleToolCall(source: WorkflowToolNameSource): boolean {
+  return matchesToolName(source, "fillworkflowhole");
+}

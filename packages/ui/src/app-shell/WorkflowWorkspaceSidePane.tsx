@@ -144,8 +144,11 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
     [snapshot?.workflowRuns, tab.runId],
   );
   const graph = useMemo(
-    () => buildWorkflowGraphByToolCallId(snapshot?.rows.window).get(tab.toolCallId),
-    [snapshot?.rows.window, tab.toolCallId],
+    () =>
+      buildWorkflowGraphByToolCallId(snapshot?.rows.window, snapshot?.workflowRuns?.runs).get(
+        tab.toolCallId,
+      ),
+    [snapshot?.rows.window, snapshot?.workflowRuns, tab.toolCallId],
   );
 
   const workspace = useWorkflowRunWorkspace({

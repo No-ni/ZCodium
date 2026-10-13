@@ -12,6 +12,7 @@ import {
 import {
   CREATE_WORKFLOW_DISPLAY_MAX_DIAGNOSTICS,
   CreateWorkflowCausalityGraphSchema,
+  CreateWorkflowOutputSchema,
   createWorkflowToolResultDisplayDiagnosticSchema,
 } from "./create-workflow.js";
 import {
@@ -266,6 +267,9 @@ export const createWorkflowToolResultDisplayPayloadSchema = z
       .max(CREATE_WORKFLOW_DISPLAY_MAX_DIAGNOSTICS),
     // 工具输出边界已限长（见 create-workflow.ts 的图 schema），display 直接复用同一契约。
     causalityGraph: CreateWorkflowCausalityGraphSchema.optional(),
+    // fill 已在 shared strict display 中声明；producer 遗漏会导致成功/拒绝行整块 metadata 被拒收。
+    // 复用输出的有界 strict 契约，保持 siteId/name/draftPath/line 与 shared 镜像一致。
+    fill: CreateWorkflowOutputSchema.shape.fill,
     truncated: z.boolean().optional(),
   })
   .strict();

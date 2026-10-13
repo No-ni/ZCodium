@@ -1,14 +1,9 @@
-import { ChevronRightIcon, RotateCcwIcon } from "lucide-react";
+import { RotateCcwIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { Button } from "@/components/ui/button.js";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
-import { cn } from "@/components/lib/utils.js";
+import { WorkflowScriptFold } from "./WorkflowScriptFold.js";
+import { hasWorkflowGraphContent } from "@/components/workflow-graph/types.js";
 import { draftTimeline, scanWorkflowDraft } from "@/components/workflow-timeline/draft-scan.js";
 import { WorkflowArtifactStrip } from "@/components/workflow-timeline/WorkflowArtifactStrip.js";
 import {
@@ -28,6 +23,7 @@ import {
 } from "@/components/workflow-timeline/WorkflowCardChrome.js";
 import { WorkflowTimeline } from "@/components/workflow-timeline/WorkflowTimeline.js";
 import { isAmendWorkflowToolCall } from "@/lib/workflowToolNames.js";
+import { readWorkflowFillPresentation } from "./workflowFillInput.js";
 import {
   isPlainRecord,
   readWorkflowAmendTarget,
@@ -89,21 +85,25 @@ export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext)
   const saved = useMemo(() => readWorkflowSaved(toolCall.input), [toolCall.input]);
   const fallbackOutputText = display ? null : readFallbackOutputText(toolCall.output);
   const fallbackName = intl.formatMessage({ id: "chat.toolCall.workflow.fallbackName" });
-  const name = workflowName ?? fallbackName;
-
   const workflowRun = context.workflowRun;
   const run = workflowRun?.run;
   const hasCompileErrors = display?.ok === false;
   const showFailureStatus = hasCompileErrors || (!display && toolCall.status === "failed");
   const draft = context.workflowDraft;
 
-  // 空图（脚本里一次 ask / files.* 都没有）不值得一条空轨道；有 step 才建模型。
-  const graph =
-    display?.causalityGraph !== undefined && display.causalityGraph.steps.length > 0
-      ? display.causalityGraph
-      : undefined;
+  // 纯留白无 step 也有可定位的站；与审批、侧栏统一判定，不丢阶段/留白图。
+  const graph = hasWorkflowGraphContent(display?.causalityGraph)
+    ? display.causalityGraph
+    : undefined;
   const v4Status = isPlainRecord(toolCall.raw) ? toolCall.raw.v4Status : undefined;
   const writing = context.isRunning && v4Status === "inputStreaming";
+  const fill = readWorkflowFillPresentation(
+    toolCall,
+    display,
+    context.isRunning,
+    showFailureStatus,
+  );
+  const name = fill?.name ?? workflowName ?? fallbackName;
   // 沿用前驱脚本的修订：行上的入参是模型发出的
   // 那一份，`script` 与 `path` 都没有就是省略了脚本（`path` 修订不带 `script`，却是改过的脚本）
   // ——只在入参写完之后才这么说，流式中脚本可能还没到。缺脚本是这次
@@ -136,7 +136,6 @@ export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext)
       return !previous;
     });
   }, [toolCall.toolId]);
-  const [scriptOpen, setScriptOpen] = useState(false);
 
   const onOpenWorkflowRun = context.onOpenWorkflowRun;
   const named = useMemo(() => (workflowName === undefined ? {} : { workflowName }), [workflowName]);
@@ -242,15 +241,17 @@ export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext)
           kindLabel={
             context.kindLabelOverride ??
             intl.formatMessage({
-              id: readWorkflowPrelaunchKindMessageId(
-                {
-                  compileErrors: hasCompileErrors,
-                  failed: showFailureStatus,
-                  writing,
-                  revising: (draft?.ordinal ?? 1) >= 2,
-                },
-                amend,
-              ),
+              id:
+                fill?.kind ??
+                readWorkflowPrelaunchKindMessageId(
+                  {
+                    compileErrors: hasCompileErrors,
+                    failed: showFailureStatus,
+                    writing,
+                    revising: (draft?.ordinal ?? 1) >= 2,
+                  },
+                  amend,
+                ),
             })
           }
           sourceLabel={context.sourceLabel}
@@ -274,9 +275,10 @@ export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext)
 
   // 已联接 run 的种类词按 run 状态说（旧宿主的运行卡）；修订行在 run 出现之前用修订词汇。
   const kindId =
-    workflowRun !== undefined
+    fill?.kind ??
+    (workflowRun !== undefined
       ? workflowRunKindMessageId(workflowRun)
-      : readWorkflowKindMessageId(toolCall.raw, context.isRunning, amend, retuning);
+      : readWorkflowKindMessageId(toolCall.raw, context.isRunning, amend, retuning));
   const kindText = context.kindLabelOverride ?? intl.formatMessage({ id: kindId });
   // 种类词按文案换（编写中 → 待确认 → 运行中）：换词动画由表头自己包，见 WorkflowCardHeader。
   const live = workflowRun !== undefined ? workflowRun.status === "running" : context.isRunning;
@@ -416,36 +418,7 @@ export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext)
 
             {showScriptFold ? (
               // 没有 run 就没有详情页的 Script 区，脚本原文只能在这里读；默认收起，与确认窗同形。
-              <Collapsible open={scriptOpen} onOpenChange={setScriptOpen}>
-                <CollapsibleTrigger
-                  className="flex min-w-0 items-center gap-1 rounded-md py-0.5 text-left text-ui-xs font-medium text-foreground-subtlest transition-colors hover:text-foreground-subtle"
-                  data-testid="workflow-card-script-toggle"
-                >
-                  <ChevronRightIcon
-                    className={cn(
-                      "size-3.5 shrink-0 transition-transform",
-                      scriptOpen && "rotate-90",
-                    )}
-                  />
-                  <span className="min-w-0 truncate">
-                    {intl.formatMessage({
-                      id: scriptOpen
-                        ? "chat.permission.workflow.hideScript"
-                        : "chat.permission.workflow.showScript",
-                    })}
-                  </span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-1.5">
-                  <div className="max-h-72 overflow-auto">
-                    <CodeBlock
-                      code={scriptText}
-                      language="typescript"
-                      renderMermaid={false}
-                      showLineNumbers
-                    />
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <WorkflowScriptFold script={scriptText} />
             ) : null}
           </div>
         ) : null}

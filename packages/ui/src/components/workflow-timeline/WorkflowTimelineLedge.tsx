@@ -10,6 +10,7 @@ import { STATUS_DOT } from "@/components/workflow-graph/run-status-presentation.
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { TimelineRail, TimelineStation } from "./timeline-model.js";
+import { holeLampDashed, type TimelineHole } from "./timeline-holes.js";
 import { LEDGE_PITCH, LEDGE_LAMP, ledgeLamps, railKey, scrollbarThumb } from "./timeline-ledge.js";
 import type { TimelineViewport } from "./use-timeline-viewport.js";
 
@@ -24,13 +25,23 @@ import type { TimelineViewport } from "./use-timeline-viewport.js";
  * 卡上或正在滚时露出，悬停轨道加粗到 4px；拇指可拖，点轨道翻页。原生滚动条隐藏。
  */
 
-/** 站灯：`STATUS_DOT` 词汇表，running 外加 3px 光晕（呼吸）——它是画面上唯一发光的东西。 */
-export function stationLampClass(status: StepRunStatus | undefined): string {
+/**
+ * 站灯：`STATUS_DOT` 词汇表，running 外加 3px 光晕（呼吸）。
+ * 开放 / 等待中的留白（`hole` 且状态不是 filled）换成**虚线灯**：内空、1.5px 虚线描边，
+ * 等待时描边取警示色——它是「缺一段代码」而不是「在干活」，所以照旧不发光（无 shimmer）。
+ */
+export function stationLampClass(status: StepRunStatus | undefined, hole?: TimelineHole): string {
   const resolved = status ?? "pending";
+  const dashed = holeLampDashed(hole);
   return cn(
     "wf-lamp size-2.5 shrink-0 rounded-full",
-    STATUS_DOT[resolved],
-    resolved === "running" && "wf-lamp-running motion-reduce:animate-none",
+    dashed
+      ? cn(
+          "border-[1.5px] border-dashed bg-transparent",
+          hole?.state === "waiting" ? "border-warning" : "border-foreground-subtlest",
+        )
+      : STATUS_DOT[resolved],
+    !dashed && resolved === "running" && "wf-lamp-running motion-reduce:animate-none",
   );
 }
 
@@ -144,7 +155,8 @@ export function WorkflowLedge({
         >
           <span
             aria-hidden
-            className={cn(stationLampClass(station.status), "wf-land")}
+            className={cn(stationLampClass(station.status, station.hole), "wf-land")}
+            data-hole={station.hole?.state}
             data-lamp={station.status ?? "pending"}
           />
         </button>

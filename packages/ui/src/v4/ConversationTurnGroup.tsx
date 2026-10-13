@@ -63,6 +63,10 @@ import type { ConversationCuaGroupEvent } from "@/v4/conversationCuaGroups.js";
 import { ConversationAgentToolCallRow } from "@/v4/ConversationAgentToolCallRow.js";
 import { ConversationFileSummaryPanel } from "@/v4/ConversationFileSummaryPanel.js";
 import { WorkflowNotificationToolRow } from "@/v4/WorkflowNotificationToolRow.js";
+import {
+  workflowNotificationOf,
+  workflowNotificationOpenRequest,
+} from "@/v4/workflowHoleNotification.js";
 import { ConversationWorkflowDigests } from "@/v4/ConversationWorkflowDigests.js";
 import { ConversationWorkflowCompletion } from "@/v4/ConversationWorkflowCompletion.js";
 import { resolveWorkflowTurnDigests } from "@/v4/workflowTurnDigests.js";
@@ -936,9 +940,7 @@ function resolveBackgroundResultTitle(unit: ConversationTurnRenderUnit): string 
 function resolveWorkflowNotification(
   unit: ConversationTurnRenderUnit,
 ): WorkflowNotificationMeta | undefined {
-  if (unit.header?.origin !== "backgroundResult") return undefined;
-  const originMeta = unit.header.originMeta;
-  return originMeta?.backgroundSource === "workflow" ? originMeta.workflowNotification : undefined;
+  return workflowNotificationOf(unit.header);
 }
 
 function ConversationBackgroundResultWork({
@@ -1001,19 +1003,22 @@ function ConversationBackgroundResultWork({
     workflowNotification && workflowRunId
       ? context.workflowRunByRunId?.get(workflowRunId)
       : undefined;
+  const openRequest = workflowNotificationOpenRequest({
+    ...(context.sessionId == null ? {} : { parentSessionId: context.sessionId }),
+    ...(workflowRunId === undefined ? {} : { runId: workflowRunId }),
+    ...(workflowRunSummary?.toolCallId === undefined
+      ? {}
+      : { toolCallId: workflowRunSummary.toolCallId }),
+    workflowName: title,
+  });
   const openWorkflowRun =
-    workflowNotification &&
-    workflowRunId &&
-    context.onOpenWorkflowRun &&
-    context.sessionId &&
-    workflowRunSummary?.toolCallId
-      ? () =>
-          context.onOpenWorkflowRun?.({
-            parentSessionId: context.sessionId!,
-            toolCallId: workflowRunSummary.toolCallId!,
-            runId: workflowRunId,
-            workflowName: title,
-          })
+    context.onOpenWorkflowRun && openRequest
+      ? () => context.onOpenWorkflowRun?.(openRequest)
+      : undefined;
+  // 复用现有 focusPhaseId→展开/scrollIntoView 路径，siteId 不可只显示在 toast 中。
+  const locateWorkflowHole =
+    context.onOpenWorkflowRun && openRequest
+      ? (siteId: string) => context.onOpenWorkflowRun?.({ ...openRequest, phaseId: siteId })
       : undefined;
   const workflowPendingQids =
     workflowNotification && workflowRunId
@@ -1053,6 +1058,10 @@ function ConversationBackgroundResultWork({
           onOpenRun={openWorkflowRun}
           onOpenArtifact={openWorkflowArtifact}
           pendingQids={workflowPendingQids}
+          {...(workflowRunSummary?.run === undefined
+            ? {}
+            : { holes: workflowRunSummary.run.holes ?? [] })}
+          {...(locateWorkflowHole === undefined ? {} : { onLocateHole: locateWorkflowHole })}
         />
       ) : (
         <div className="flex w-full border-b border-[var(--color-border)]/50 pb-2">

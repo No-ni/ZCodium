@@ -160,7 +160,9 @@ export function boundCausalityGraph(
   const boundPhases: CreateWorkflowPhase[] = (declaredPhases ?? []).map((phase) => {
     // 合成阶段 `unphased` 无 name（UI 本地化）；空名同样按「无名」处理而不是让整个输出
     // 解析失败，与车道 name 同一姿态。
-    const name = phase.name ? boundGraphText(phase.name, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS) : undefined;
+    const name = phase.name
+      ? boundGraphText(phase.name, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS)
+      : undefined;
     // `alongside`：进入这个阶段时还在跑的其他阶段（strand 未 join）。与边同一条引用完整性
     // 规则——指向未列出阶段的引用丢掉，自引用丢掉（自己不与自己并行），去重保序，上界同
     // 阶段表。它**不**经过 foldEdges / reduceOrdering：这是节点事实不是边，控制没有从那里
@@ -179,6 +181,10 @@ export function boundCausalityGraph(
       ...(name === undefined ? {} : { name }),
       ...(phase.loc === undefined ? {} : { line: phase.loc.line, column: phase.loc.column }),
       ...(alongside.length === 0 ? {} : { alongside }),
+      // 不搬 fill 会让已补函数体的新阶段在时间线上失去归属；直接读取分析层唯一事实。
+      ...(phase.fill === undefined
+        ? {}
+        : { fill: boundGraphText(phase.fill, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }),
     };
   });
   const exits = (declaredPhases ?? [])
@@ -187,7 +193,9 @@ export function boundCausalityGraph(
 
   const boundLanes: CreateWorkflowLane[] = keptLanes.map((lane) => {
     // 空 name（如 agent("")）会违反契约的 min(1)，按“无名”处理而不是让整个输出解析失败。
-    const name = lane.name ? boundGraphText(lane.name, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS) : undefined;
+    const name = lane.name
+      ? boundGraphText(lane.name, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS)
+      : undefined;
     const namePattern = boundNamePattern(lane.namePattern);
     return {
       id: boundGraphText(lane.id, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS),
@@ -197,10 +205,13 @@ export function boundCausalityGraph(
     };
   });
 
+  const phaseFills = new Map((declaredPhases ?? []).map((phase) => [phase.id, phase.fill]));
   const boundSteps: CreateWorkflowStep[] = steps.map((step) => {
     const lanes = (step.lanes ?? []).filter((lane) => laneIds.has(lane));
     // ask 的 label 来自脚本字面量，可能为空；契约要求 min(1)，退回 step id。
-    const label = step.label ? boundGraphText(step.label, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS) : step.id;
+    const label = step.label
+      ? boundGraphText(step.label, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS)
+      : step.id;
     const labelPattern = boundNamePattern(step.labelPattern);
     return {
       id: boundGraphText(step.id, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS),
@@ -225,6 +236,9 @@ export function boundCausalityGraph(
         ? { phase: boundGraphText(step.phase, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }
         : {}),
       ...(step.repeat === undefined ? {} : { repeat: step.repeat }),
+      ...(emitPhases && step.phase !== undefined && phaseFills.get(step.phase) !== undefined
+        ? { fill: boundGraphText(phaseFills.get(step.phase)!, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }
+        : {}),
     };
   });
 
@@ -232,15 +246,29 @@ export function boundCausalityGraph(
   // （契约：`participant.phase` ∈ `phases[].id`，或 `phases` 缺席时全部为 `unphased`）。卡 id
   // 不改——它是不透明键，交接边与运行状态都按它关联；UI 的隐式模块只看 `phase` 字段。
   const boundParticipants: CreateWorkflowParticipant[] = participants.map((participant) =>
-    emitPhases && phaseIds.has(participant.phase) ? participant : { ...participant, phase: UNPHASED },
+    emitPhases && phaseIds.has(participant.phase)
+      ? participant
+      : { ...participant, phase: UNPHASED },
   );
 
+  // holes 与 phase 词汇表同进退，避免虚线站引用已经整体裁掉的阶段。
+  const holes = (flow?.holes ?? []).slice(0, CREATE_WORKFLOW_GRAPH_MAX_PHASES).map((hole) => ({
+    siteId: boundGraphText(hole.siteId, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS),
+    name: boundGraphText(hole.name, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS),
+    type: boundGraphText(hole.type, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS),
+    ...(hole.phase !== undefined && phaseIds.has(hole.phase)
+      ? { phase: boundGraphText(hole.phase, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }
+      : {}),
+    ...(hole.tail === true ? { tail: true } : {}),
+  }));
+  truncated = truncated || (flow?.holes?.length ?? 0) > CREATE_WORKFLOW_GRAPH_MAX_PHASES;
   return {
     steps: boundSteps,
     lanes: boundLanes,
     participants: boundParticipants,
     handoffs,
     ...(emitPhases ? { phases: boundPhases, phaseEdges, exits } : {}),
+    ...(emitPhases && holes.length > 0 ? { holes } : {}),
     ...(sink.length > 0 ? { sink } : {}),
     ...(truncated ? { truncated: true } : {}),
   };
@@ -266,8 +294,12 @@ function boundNamePattern(
   pattern: { head?: string; tail?: string } | undefined,
 ): CreateWorkflowNamePattern | undefined {
   if (pattern === undefined) return undefined;
-  const head = pattern.head ? boundGraphText(pattern.head, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS) : "";
-  const tail = pattern.tail ? boundGraphText(pattern.tail, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS) : "";
+  const head = pattern.head
+    ? boundGraphText(pattern.head, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS)
+    : "";
+  const tail = pattern.tail
+    ? boundGraphText(pattern.tail, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS)
+    : "";
   if (head === "" && tail === "") return undefined;
   return {
     ...(head === "" ? {} : { head }),

@@ -2,7 +2,7 @@ import {
   toolCallCreateWorkflowDisplaySchema,
   type ToolCallCreateWorkflowDisplay,
 } from "@zcode/shared/zcode-protocol-v4";
-import { isPlainRecord } from "@/ToolCallBlocks/renderers/createWorkflowInput.js";
+import { isPlainRecord } from "./createWorkflowInput.js";
 
 /**
  * CreateWorkflow 工具输出侧的读取规则（display 载荷与纯文本兜底）。从 `create-workflow.tsx`

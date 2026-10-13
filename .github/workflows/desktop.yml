@@ -40,6 +40,9 @@ jobs:
       - name: Lint
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm lint
+      - name: Format
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm fmt:check
       - name: Architecture
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm architecture:check
@@ -47,6 +50,20 @@ jobs:
         id: agent-build
         # 根安装采用 hoisted 布局；从子 workspace 启动会丢失根目录的工具路径。
         run: pnpm -r --filter './apps/zcode-cli/packages/*' build
+      - name: Agent package tests
+        if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
+        # 这些包的测试是 node:test、入口在各自的包级 test 脚本里；根 CI 此前只跑了 scripts/ci 与 zcode-cua，
+        # 新增（如 @zcode/contracts）的包级测试不会进入门禁，因此在这里补一道。
+        run: pnpm -r --filter './apps/zcode-cli/packages/*' test
+      - name: Vitest suites
+        if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
+        # 这批测试用 vitest，覆盖远控分片/重传/ack、MCP Apps 契约、adapter 出站响应等回归场景；
+        # 此前 CI 只跑了 scripts/ci 与包级 node:test，这些套件一直没进门禁。
+        # workspace 包的 exports 指向 src，套件不依赖构建产物，因此放在构建步骤之后、Release tests 之前。
+        # UI 留白套件依赖 @ alias 与 SSR JSX，单独使用受控配置；任一命令失败即门禁失败。
+        run: |
+          pnpm vitest run packages/shared/src/webRemoteControl packages/shared/src/mcp-apps packages/ui/src/lib/webRemoteControlTarget.test.ts packages/desktop/src/main/webRemoteControl/servicePipe.test.ts apps/zcode-cli/packages/adapters/src/network packages/web/src/mobile packages/shared/src/zcode-protocol-v4
+          pnpm vitest run --config packages/ui/vitest.holes.config.ts
       - name: Release tests
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
@@ -182,7 +199,7 @@ jobs:
 
   build-macos:
     name: Build (mac ${{ matrix.arch }})
-    # 日常 push/PR 自动产出本机安装用的 arm64 DMG；x64 仅在发版或手动运行时构建。
+    # 本仓库只在标签推送与手动运行时触发，因此每次都产出 arm64 与 x64 两个 DMG。
     # checks 失败时仍然打包（理由同 build job）。
     if: ${{ !cancelled() }}
     needs: checks

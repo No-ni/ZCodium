@@ -34,6 +34,15 @@ import {
   type RailSpec,
   type TimelineRailKind,
 } from "./timeline-bands.js";
+import {
+  holeTable,
+  phaseAlongsideOfRun,
+  stationFillOf,
+  tailStubOf,
+  type HoleParents,
+  type TimelineFill,
+  type TimelineHole,
+} from "./timeline-holes.js";
 
 /**
  * 时间线模型。
@@ -103,6 +112,10 @@ export interface TimelineStation {
   unlisted?: StationUnlisted;
   /** 流式草稿里尚未闭合的最后一站。 */
   typing?: true;
+  /** 这一站是一处留白（`timeline-holes.ts`）：开放时画虚线灯。 */
+  hole?: TimelineHole;
+  /** 这一站是某次补全写进来的（display 阶段上的 `fill`）。 */
+  fill?: string;
 }
 
 /** 一条轨道上前后相接的两站之间的一段轨道；下标指向 `stations`。 */
@@ -159,6 +172,12 @@ export interface WorkflowTimelineModel {
   live: boolean;
   /** 流式草稿：站由笔逐字写出，子代理只计数不画（`draft-scan.ts`）。分析器的模型没有它。 */
   draft?: { agents: number };
+  /** 有阶段的补全的头（`timeline-holes.ts`），按 `from` 升序；没有补全时为空。 */
+  fills?: TimelineFill[];
+  /** 留白 id → 包着它的留白 id。 */
+  holeParents?: HoleParents;
+  /** 末站是尾巴留白：`open` 画淡出的虚线残段，`filled` 只留余地。 */
+  tailStub?: "open" | "filled";
 }
 
 /** `currentPhase` 与一站的关联，与 `phaseEntryFor` 同一条名字规则。 */
@@ -209,6 +228,12 @@ function computeWorkflowTimeline(
   const graph = withImplicitPhase(input);
   const phases = graph.phases ?? [];
   const index = new Map(phases.map((phase, i) => [phase.id, i]));
+  // 留白：开放 / 等待 / 已补。状态读 v4 归约（`run.holes` / `run.phaseHoles`）与 display 的
+  // `graph.holes` / `phases[].fill`，展示不自算。
+  const holes = holeTable(graph, phases, run, undefined);
+  // 补全后阶段表按插入位置右移：归约把 `phaseAlongside` 的 `> h` 下标一律 `+k`，这里只搬运
+  // （名字空间 → 阶段 id）；缺席时沿用 display 的 `phase.alongside`。
+  const alongsides = phaseAlongsideOfRun(run, phases);
   const members = phaseMembers(graph);
   const overlay = workflowRunOverlay(run, graph);
   const live = liveParticipantView(graph, run);
@@ -238,10 +263,12 @@ function computeWorkflowTimeline(
     seen.add(key);
     edges.push({ from, to });
   }
+  const alongsideIds = (phase: (typeof phases)[number]): readonly string[] =>
+    alongsides?.get(phase.id) ?? phase.alongside ?? [];
   const folded = foldPhaseBands(
     phases.length,
     phases.map((phase) =>
-      (phase.alongside ?? []).flatMap((id) => {
+      alongsideIds(phase).flatMap((id) => {
         const at = index.get(id);
         return at === undefined ? [] : [at];
       }),
@@ -328,21 +355,28 @@ function computeWorkflowTimeline(
           : {}),
       };
     });
+    // 停在留白上的 run：那一站就是当前站，灯的画法由 `hole` 说（虚线 + 等待色）。
+    const hole = holes.byPhase.get(phase.id);
+    const waiting = hole?.state === "waiting";
     return {
       id: phase.id,
       naming: { id: phase.id, ...(phase.name === undefined ? {} : { name: phase.name }) },
       pills,
-      status: stationStatus(
-        run,
-        collapseStatuses(
-          memberSteps.map((step) => step.id),
-          overlay.statuses,
-        ),
-        isCurrentPhase(run, phase.name),
-        observed.entered,
-      ),
-      visited: observed.visited,
+      status: waiting
+        ? "running"
+        : stationStatus(
+            run,
+            collapseStatuses(
+              memberSteps.map((step) => step.id),
+              overlay.statuses,
+            ),
+            isCurrentPhase(run, phase.name),
+            observed.entered,
+          ),
+      visited: observed.visited || waiting,
       rounds: observed.rounds,
+      ...(hole === undefined ? {} : { hole }),
+      ...stationFillOf(phase, hole),
       onLoop: onLoop.has(i),
       track: trackOf(folded, i),
       ...(observed.observed === 0
@@ -433,7 +467,18 @@ function computeWorkflowTimeline(
     }),
   }));
 
-  return { arcs, bands, live: run !== undefined, rails, runningIndex, stations };
+  const tailStub = tailStubOf(stations);
+  return {
+    arcs,
+    bands,
+    ...(holes.fills.length === 0 ? {} : { fills: holes.fills }),
+    ...(Object.keys(holes.parents).length === 0 ? {} : { holeParents: holes.parents }),
+    live: run !== undefined,
+    rails,
+    runningIndex,
+    stations,
+    ...(tailStub === undefined ? {} : { tailStub }),
+  };
 }
 
 /** 一枚药丸「正在做什么」：优先正在跑的 step 的 label，其次最后一个已结算的，再次第一个。 */

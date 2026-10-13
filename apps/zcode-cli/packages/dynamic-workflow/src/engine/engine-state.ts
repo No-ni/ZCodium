@@ -19,6 +19,7 @@ import type {
   JournalStorePort,
   RunEvent,
   RunStopReason,
+  StoredEvent,
   WorkflowDriver,
   WorkflowError,
 } from "./types.js";
@@ -70,7 +71,7 @@ export interface EngineState {
   /** run 级失败（first-wins；见 engine-settlement.ts 的 settleFailed）。 */
   failRun(error: WorkflowError): void;
   /** 事件既落 journal 又扇出（Boundary C）；出生阶段在引擎的漏斗里补上。 */
-  record(event: RunEvent): void;
+  record(event: RunEvent, committed?: StoredEvent): void;
   /** 站点序号的唯一铸造点。 */
   nextOrdinal(siteId: string): number;
   /**

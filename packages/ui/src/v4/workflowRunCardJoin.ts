@@ -1,7 +1,12 @@
 import { workflowRunStepCounts, type WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
-import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
+import {
+  hasWorkflowGraphContent,
+  type WorkflowCausalityGraphData,
+} from "@/components/workflow-graph/types.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/shared.js";
+import { isFillWorkflowHoleToolCall } from "../lib/workflowToolNames.js";
+import { isPlainRecord } from "../ToolCallBlocks/renderers/createWorkflowInput.js";
 
 /**
  * 工具卡 → dwf run 的联接。
@@ -112,7 +117,7 @@ export function buildWorkflowRunPendingQuestionsByRunId(
  * - 中枢直接启动没有工具行：图挂在启动轮 turnHeader / userInput 行
  *   的 `workflowLaunch` 元数据上（同一个 toolCallId、同一个 display schema）。
  *
- * 空图（脚本里一次 ask / files.* 都没有）不值得一条空轨道，按「无图」处理；与工具卡同一条判定。
+ * steps/phases/holes 全空才按「无图」处理；纯留白没有 step 也有可定位的站，与工具卡同一判定。
  */
 function workflowGraphOfRow(
   row: ConversationRow,
@@ -121,18 +126,14 @@ function workflowGraphOfRow(
     const display = row.display;
     if (display?.kind !== "create_workflow") return undefined;
     const graph = display.causalityGraph;
-    return graph !== undefined && graph.steps.length > 0
-      ? { toolCallId: row.toolCallId, graph }
-      : undefined;
+    return hasWorkflowGraphContent(graph) ? { toolCallId: row.toolCallId, graph } : undefined;
   }
   if (row.kind === "turnHeader" || row.kind === "userInput") {
     const launch = row.workflowLaunch;
     const display = launch?.display;
     if (launch === undefined || display?.kind !== "create_workflow") return undefined;
     const graph = display.causalityGraph;
-    return graph !== undefined && graph.steps.length > 0
-      ? { toolCallId: launch.toolCallId, graph }
-      : undefined;
+    return hasWorkflowGraphContent(graph) ? { toolCallId: launch.toolCallId, graph } : undefined;
   }
   return undefined;
 }
@@ -145,6 +146,7 @@ function workflowGraphOfRow(
  */
 export function buildWorkflowGraphByToolCallId(
   rows: readonly ConversationRow[] | undefined,
+  runs?: readonly WorkflowRunState[],
 ): ReadonlyMap<string, WorkflowCausalityGraphData> {
   const byToolCallId = new Map<string, WorkflowCausalityGraphData>();
   for (const row of rows ?? []) {
@@ -153,6 +155,46 @@ export function buildWorkflowGraphByToolCallId(
     if (found !== undefined && !byToolCallId.has(found.toolCallId)) {
       byToolCallId.set(found.toolCallId, found.graph);
     }
+  }
+  // 工具行按输入排布，不是 durable 提交顺序；并发补全必须取同 run 最大 commitSequence，
+  // 否则 snapshot/replay 或输入 A/B、提交 B/A 会把新图回退。待审批/失败绝不覆盖。
+  const launchByRun = new Map((runs ?? []).map((run) => [run.runId, run.toolCallId]));
+  const sequenced = new Map<string, { sequence: number; graph: WorkflowCausalityGraphData }>();
+  const legacy = new Map<string, { toolCallId: string; graph: WorkflowCausalityGraphData }>();
+  const ambiguousLegacy = new Set<string>();
+  for (const row of rows ?? []) {
+    if (row.kind !== "toolCall" || row.status !== "success" || !isFillWorkflowHoleToolCall(row))
+      continue;
+    const display = row.display;
+    if (
+      display?.kind !== "create_workflow" ||
+      !display.ok ||
+      !hasWorkflowGraphContent(display.causalityGraph)
+    )
+      continue;
+    const runId = isPlainRecord(row.input) ? row.input.run_id : undefined;
+    const launchId = typeof runId === "string" ? launchByRun.get(runId) : undefined;
+    if (!launchId || typeof runId !== "string") continue;
+    const graph = display.causalityGraph;
+    const sequence = display.fill?.commitSequence;
+    if (sequence !== undefined) {
+      const current = sequenced.get(runId);
+      if (current === undefined || sequence > current.sequence) {
+        sequenced.set(runId, { sequence, graph });
+      }
+    } else {
+      // 旧协议无序号只兼容唯一成功调用；多个 legacy 无法证明谁最新，保留发起图，不猜时间。
+      const current = legacy.get(runId);
+      if (current === undefined) legacy.set(runId, { toolCallId: row.toolCallId, graph });
+      else if (current.toolCallId !== row.toolCallId) ambiguousLegacy.add(runId);
+    }
+  }
+  for (const [runId, launchId] of launchByRun) {
+    if (!launchId) continue;
+    const graph =
+      sequenced.get(runId)?.graph ??
+      (ambiguousLegacy.has(runId) ? undefined : legacy.get(runId)?.graph);
+    if (graph !== undefined) byToolCallId.set(launchId, graph);
   }
   return byToolCallId;
 }

@@ -4,7 +4,9 @@
 
 import {
   AMEND_WORKFLOW_TOOL_NAME,
+  FILL_WORKFLOW_HOLE_TOOL_NAME,
   isAmendWorkflowOwnedPredecessor,
+  isFillWorkflowHoleOwnedRun,
   PermissionCapabilityGroup,
   type PermissionCapabilityGroup as PermissionCapabilityGroupType,
   type PermissionRuleValue,
@@ -370,7 +372,11 @@ export class PermissionService {
     }
     // 会话免确认：阻断分支之后、ask 之前。命中即放行，不发 permission 事件、不弹窗；
     // 与 gate 本身一样不看模式（yolo / plan / build 一致）。
-    if (this.matchesProjectRules(this.sessionRules, "allow", context, capability, rulePolicy)) {
+    // Fill 的会话全工具授权会放行 foreign/manual-stop；只有该 run 的 owner 能免确认。
+    if (
+      context.toolName !== FILL_WORKFLOW_HOLE_TOOL_NAME &&
+      this.matchesProjectRules(this.sessionRules, "allow", context, capability, rulePolicy)
+    ) {
       return this.allow(
         context,
         capability,
@@ -378,11 +384,11 @@ export class PermissionService {
         `Tool ${context.toolName} was allowed for this session`,
       );
     }
-    // 修订免确认：AmendWorkflow 的前驱是
-    // **本会话发起**的 run、且不是用户亲手停下的，即放行。与会话规则同位——阻断分支之后、ask 之前，
-    // 不看模式。事实来自 resolveInput 回填的 `predecessor`（journal 的 parent_session_id / stopReason），
-    // 不是内存表：重启、冷恢复后依然成立，也没有可播种、可撤销的东西。别的会话的 run、用户停过的
-    // run 照常 ask：钥匙是 run 的归属，不是字段的在场。
+    // 修订 / 补全免确认：AmendWorkflow 的前驱、或 FillWorkflowHole 的留白，说的是同一件事——
+    // 这段代码归**本会话发起**的 run、且不是用户亲手停下的，即放行。与会话规则同位——阻断分支
+    // 之后、ask 之前，不看模式。事实来自 resolveInput 回填的 `predecessor` / `hole`（journal 的
+    // parent_session_id / stopReason），不是内存表：重启、冷恢复后依然成立，也没有可播种、可撤销的
+    // 东西。别的会话的 run、用户停过的 run 照常 ask：钥匙是 run 的归属，不是字段的在场。
     if (this.isOwnedWorkflowAmend(context)) {
       return this.allow(
         context,
@@ -399,12 +405,21 @@ export class PermissionService {
     );
   }
 
-  /** AmendWorkflow 且回填的 `predecessor` 说「本会话的 run、非用户停下」。 */
+  /**
+   * AmendWorkflow 且回填的 `predecessor` 说「本会话的 run、非用户停下」；或 FillWorkflowHole 且
+   * 回填的 `hole` 说同一件事（补全是对一个在飞 run 脚本的修订，由同一条 amend 规则判定）。
+   */
   private isOwnedWorkflowAmend(context: PermissionContext): boolean {
-    if (context.toolName !== AMEND_WORKFLOW_TOOL_NAME) return false;
     if (!context.input || typeof context.input !== "object") return false;
+    const input = context.input as Record<string, unknown>;
     // 谓词本体住在契约里：就地调并发落回修订时读的必须是同一条规则，不能各写一遍。
-    return isAmendWorkflowOwnedPredecessor((context.input as Record<string, unknown>).predecessor);
+    if (context.toolName === AMEND_WORKFLOW_TOOL_NAME) {
+      return isAmendWorkflowOwnedPredecessor(input.predecessor);
+    }
+    if (context.toolName === FILL_WORKFLOW_HOLE_TOOL_NAME) {
+      return isFillWorkflowHoleOwnedRun(input.hole);
+    }
+    return false;
   }
 
   private checkPlanMode(

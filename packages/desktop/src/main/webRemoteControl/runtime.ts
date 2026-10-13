@@ -3,6 +3,7 @@ import type {
   WebRemoteControlFailure,
   WebRemoteControlMobileDeviceInfo,
   WebRemoteControlMobileViewState,
+  WebRemoteControlRpcTransportFrame,
   WebRemoteControlStatusSnapshot,
   WebRemoteControlStatusState,
   WebRemoteControlTaskRef,
@@ -38,6 +39,8 @@ export interface WebRemoteControlRuntime {
   pendingTimer?: NodeJS.Timeout;
   workspaces: WebRemoteControlWorkspaceRef[];
   tasks: WebRemoteControlTaskRef[];
+  /** 最近一次推给手机的清单签名；用于避免每 4s 同步都发一遍同样的 payload。 */
+  lastWorkspaceListSignature?: string;
   bridge?: WebRemoteControlBridgeState;
 }
 
@@ -45,12 +48,8 @@ export interface WebRemoteControlBridgeState {
   bridgeSessionId: string;
   workspaceKey: string;
   attachmentId: string;
-  acceptFrame(frame: {
-    streamId: string;
-    seq: number;
-    kind: "message" | "ack" | "flow";
-    message?: unknown;
-  }): void;
+  /** RPC 帧契约的唯一定义在 shared（含分片字段），这里不再复制一份字段表。 */
+  acceptFrame(frame: WebRemoteControlRpcTransportFrame): void;
   emitAck(seq: number): void;
   dispose(): void;
   readyAnnounced: boolean;

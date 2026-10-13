@@ -93,6 +93,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "node --import tsx --test --test-isolation=none test/*.test.ts",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",

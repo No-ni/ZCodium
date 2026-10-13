@@ -145,6 +145,68 @@ server→client  error                {code, message}              # KICKED|AUTH
   通知发送方，对应桌面 `bridge-degraded{reason:"rpc-transport-fault"}`。
 - 未配对（`waiting`）状态的 `data` 丢弃；端点不缓存、不补投——补投是两端语义。
 
+### 手机 LAN HTTP 鉴权与重连边界（bug 修复）
+
+- 默认 LAN 的 HTTP 页面必须能计算同一份 `HMAC-SHA256(pass_hash, "${nonce}|mobile|${device_sid}")`
+  base64url proof；不得依赖安全上下文限定的
+  `crypto.subtle`，不得改成跳过鉴权或明文比对。浏览器端使用显式依赖的
+  `@noble/hashes` 实现 SHA-256/HMAC，HTTPS/custom relay 使用同一路径。
+- 手机 socket、连接状态、重试计数、终止原因唯一所有者仍为
+  `MobileRemoteControlClient`；UI 只投影状态/原因，不能自建重连循环。
+- `AUTH_FAILED`、`KICKED`、`WRONG_PARAM` 为终止错误；收到后释放 bridge/在途请求、
+  清理重连定时器并关闭 socket，保留稳定 `error` 和原因；后续请求立即拒绝，不再等待超时。
+  拒绝原因只使用安全错误码，不把端点原始错误文本透传到 UI。随后 close/error/迟到帧、
+  online/前台恢复的 `retryNow()`、同实例重复 `connect()` 均不得重新抢占配对。
+  用户需关闭重复页面或从桌面重新获取链接，再建立新的客户端。
+- 终止错误帧未送达时，已知关闭码 `4001`（拒绝）、`4002`（互踢）、
+  `4003`（配对过期）同样终止；未知网络关闭与 `INTERNAL` 保留自动退避重连。
+  LAN 对 `INTERNAL` 同样使用 `4001` 关闭，已收到的 `INTERNAL` 错误帧优先于该通用关闭码，
+  每次新 socket 清空上一轮错误码，不能影响新连接的拒绝判断。
+- WebSocket `open` 不代表鉴权成功，不清零失败计数；仅有效 `auth_ack` 后清零，
+  连续握手前断线仍以 1/2/4…秒（抖动、上限规则不变）退避。
+- UI 分别呈现连接中、认证中、等待桌面、自动重连及终止错误；鉴权失效提示重新扫码，
+  互踢提示关闭重复页面，终止态不得显示「正在自动重连」。不展示 hash/proof/原始凭据。
+- 不改默认 HTTP/WS 部署与信任边界：本修复只解决浏览器兼容性，不提供 TLS；
+  LAN 明文仅用于可信网络，公网继续由用户 TLS 前置保护。多网卡地址选择不在本修复内。
+
+```text
+手机打开 LAN HTTP / custom HTTPS
+  → MobileRemoteControlClient（socket/重连唯一所有者）
+  → challenge → 同协议 HMAC proof → auth_ack → paired/waiting
+  ├─ 临时断网 → bridge 失效 → 退避 → 重新鉴权
+  │             → mobile replayable：重开桥 + 订阅 + 快照/缺口恢复
+  └─ AUTH_FAILED/KICKED/WRONG_PARAM → 终止 error → 关闭，无自动重试
+桌面 continuous → 原有 Host 实时流（owner/lease、identity、stale run 边界不变）
+```
+
+验收（先测试后实现）：
+
+1. 无 `crypto.subtle` 的环境收到 challenge 后发送有效 proof，与 Node `createHmac`
+   一致（含 UTF-8 和长 key）；真实非 loopback HTTP 浏览器能配对并取得 bootstrap。
+2. 错误/旧链接、重复手机页面：错误帧 + close 后终止；推进定时器、online/前台重试
+   不新增 socket，第二页面保持配对，旧页面不反抢。
+3. 仅关闭码拒绝/互踢/过期也终止；旧 socket 的关闭/错误/消息不能污染新 socket。
+4. 连续 open 后未经 auth_ack 就断线，退避递增；成功鉴权后网络断线仍恢复。
+5. 手机桥接已有 Host 的 replayable/RPC 回归通过，桌面 continuous 相关测试通过；
+   不改变 workspace identity、attachment、队列和会话事实源。
+
+本次验证证据：
+
+- `pnpm exec vitest run packages/web/src/mobile`：46 项通过，含 HMAC、终止/恢复策略、
+  状态文案以及既有 replayable 订阅/快照/RPC 测试。
+- `node --import tsx --test packages/services/test/importedClaudeRecovery.test.ts packages/services/test/nonCliAcpRetirement.test.ts`：
+  7 项通过，覆盖 Desktop/replayable 两种投影。
+- `node scripts/ci/web-remote-control-mobile-smoke.mjs`：真实 Chromium 手机尺寸页面 +
+  真实 LAN endpoint 通过；HTTP 非安全 origin（测试域名解析到 loopback，`subtle` 确认缺失），
+  配对/读取 fixture bootstrap、错误 hash 停止重试、第二页面互踢、临时断连自动恢复均通过。
+  仅 bootstrap 业务响应为 fixture；未声称验证物理手机、真实 Wi-Fi、防火墙、多网卡选址或
+  Electron Host attachment 的页面级联调。需已安装 Playwright Chromium，亦可用
+  `ZCODE_TEST_CHROMIUM_EXECUTABLE` 指定浏览器。
+- `pnpm typecheck`、`pnpm lint`（50 条存量 warning、0 errors）、
+  `pnpm architecture:check --changed`（0 violations）及 Web 构建通过。
+  改动文件格式检查通过；全库 `pnpm fmt:check` 被既有未跟踪 `logs/` 下 5 个 JSON 文件阻塞，
+  未格式化或删除用户本地日志。验证环境为 Node 24.19.0，仓库指定 24.14.0，本环境无 mise。
+
 ## 配对与二维码
 
 - secret：24 随机字节 base64url，一次性；`passHash = SHA256(secret)` base64。
@@ -186,11 +248,34 @@ server→client  error                {code, message}              # KICKED|AUTH
 - 装配器职责：应用消息 ↔ 物理帧的分片与重组（`maxMessageBytes` / `maxFragments` /
   `maxPhysicalFrameBytes`）、`seq` 单调有序、`ack` 确认与超窗回放、帧指纹去重、
   流控（`saturated` / `drained` 背压）、`measureFrameBytes` 度量。
+- **ack 只释放不重传**：`ack` 的语义是「已连续装配到的逻辑 seq（含）」。发送侧收到 ack
+  只做 `replayBuffer.acknowledge(ackSeq)` —— 推进已确认前缀并释放缓冲；**不**在 ack 分支
+  重发 `(ackSeq, lastSentSeq]`。正常流水下 ack 本来就滞后于 `lastSentSeq`（ack 批量合并 +
+  在途帧），按 ack 重发会把每个前向 ack 都变成一次无意义重传（流量随在途规模放大）。
+  丢片重传由接收侧 nudge 驱动：本地装配器报 `rpc-frame-gap` / `buffer-timeout` 时，把最后
+  连续装配到的 `acknowledgedSeq` 再 ack 一次（nudge，复用 ack 帧、不新增 wire 类型），对端
+  据此从 `ackSeq+1` 重传；同时本方向也 `replayUnacknowledged()` 做同向 go-back-N。重发幂等
+  （同 seq 同片由接收侧装配器判 `duplicate` / `stale`，不重复交付）。
 - `readyAnnounced` 之前或 `degraded` 之后不出帧；降级路径发 `bridge-degraded` 并保留
   window 运行时失败状态（不因二次失败覆盖首次 failure）。
 - 断链：装配器标记 degraded → 桌面经端点重连 → `recoveryId` 续配 → 未确认帧回放。
 - 语义归属：`web-remote-replayable`（快照 + 回放），与桌面 `desktop-continuous`
   （实时流）严格分离；`workbenchGroupStore` 等消费方已有 `configureClientMode` 门控。
+
+## 远控弹层「同一目标」判定
+
+打开弹层时，只有当前状态快照属于「当前目标」才复用已有会话，否则为当前目标重新 `start`。
+
+- 目标身份 key 统一为 `workspaceIdentity?.trim() || workspacePath`（`getWorkspaceKey`）。
+- 远端 workspace 在身份 key 一致的前提下还必须比较 `remoteSessionId`：同路径但
+  `remoteSessionId` 不同（远端重连换了连接实例）视为不同目标，不复用；同 identity + 同
+  `remoteSessionId` 才复用。`workspaceIdentity` 缺失时不得只按路径匹配远端目标。
+- `remoteSessionId` 贯穿路径：`WorkspaceShellLayout.workspaceRemoteSessionId` →
+  `WorkspaceSidebar` → `WorkspaceSidebarFooter` → `WorkspaceWebRemoteControlTrigger` →
+  `WebRemoteControlDialog` → `useWebRemoteControl` → `isSameWebRemoteControlTarget` 与
+  `startWebRemoteControl` / `refreshWebRemoteControlPairing`；桌面 `WebRemoteControlRuntime`
+  保存它并随状态快照回传，远端 workspace 的 Host attachment scope 也据它绑定。
+- 身份 key 只用于去重、绑定与缓存；`workspacePath` 仍用于文件操作、命令 cwd、Git 与展示。
 
 ## 桌面运行时（`WebRemoteControlManager`，按窗口）
 
@@ -210,6 +295,19 @@ paired / kicked / error`；`paired` 时若有移动端在途则保持 `active` �
   credential `web-remote-control:external-relay:pass_hash`、
   `webRemoteControlLastEnabledContext`。日志脱敏对齐官方 `safeAuthLogFields`
   （只记 deviceSid 末 6 位、布尔位，不记 secret/hash/proof）。
+
+### 远端 workspace 连接态（安全与生命周期）
+
+- 远端 workspace 的连接态由桌面 main 的 remote session 路由表裁定；UI 同步载荷里的
+  `kind` / `connectionState` 不是事实来源。`WebRemoteControlManager.syncWorkspaces` 对带
+  `remoteSessionId` 的条目，用 `resolveRemoteWorkspaceConnectionState`（由
+  `RemoteWorkspaceSessionManager.hasAttachableRemoteSession` 派生的权威解析：路由存在且
+  `attachmentState === "attachable"`）覆盖 `connectionState`；没有 `remoteSessionId` 的本地
+  条目不动；解析未注入时不覆盖也不写假值。
+- `workspace-bridge-open` 对 `kind === "remote"` 的判定以权威态为准：`connectionState`
+  缺失时通过同一回调重新解析一次修因；仍拿不到则返回 `invalidMobileConnection` 并记 warn
+  （不静默放行、不用超时或默认值掩盖）。明确为 `disconnected` 时同样返回
+  `invalidMobileConnection`。
 
 ## 桌面 UI（扩展现有弹层）
 
@@ -248,6 +346,71 @@ IPC 面（preload ↔ main，`packages/shared/src/channels.ts` 新增）：
   selection 文本契约应答（与 bots 侧 `astrbotSelectionPayload` 的 canonical 文本同源，
   序号 + 命令格式）。
 - 重连：visibility/online 事件驱动；`recoveryId` 续配后拉 snapshot 回放。
+
+### 会话实时流：Host 事件流订阅（不再周期轮询）
+
+手机任务视图的消息更新走 Host 已有的 replayable 事件流，不再 4s 轮询 `readSessionMessages`：
+
+- **订阅入口**：打开任务后先 `await ensureWorkspaceBridge({workspaceKey, taskId})`，
+  bridge 就绪后再经 service accessor 调
+  `zcodeTaskService.onDynamicTaskEvent({workspacePath, workspaceIdentity, taskId,
+deliveryKind: "replayable"})`；`replayable` ⇒ Host `includeSnapshot` 语义。
+  链路仍是 `web-remote-replayable`，不改 `clientMode`。
+- **传输复用**：动态事件与 `onRpcMessage` 共用同一条 `rpc-frame`（ProxyChannel 的
+  `EventListen` / `EventFire`），不新增协议信封、不改 `packages/shared`。
+- **订阅所有者**：订阅状态由 Host 与手机两端持有，Main 只透明转发；Main 与 relay 都不保存
+  session 事实，也不替手机建立/销毁订阅。
+- **快照屏障唯一所有者**：`TaskConversationLifecycle`（无 React/浏览器依赖）拥有订阅世代、
+  读取中的事件版本与补读循环；reducer 的 flags 仅为视图投影，不驱动第二条读取路径。
+  进入任务、断线重订、快照更新/终态信号开启屏障。屏障期 delta 不渲染但推进事件版本；
+  R 发起后版本改变则丢弃 R 结果并串行权威补读，只有版本未变的结果可解除屏障。
+  `readSessionMessages` 没有与流对齐的 sequence 水位，禁止缓存 delta 拼到快照上（可能重复）。
+  不用轮询或超时掩盖同步；失败保持屏障并上报，后续信号可重新发起读取。
+- **正文纯 delta**：生产者 `text_delta` 原样转成 `content`，没有唯一 eventId。
+  `messageId`（缺失退回 `traceId`）仅定位 assistant 气泡；所有正文按到达顺序追加，
+  不用 `inputId+content` 去重，不猜累计前缀。传输 seq 负责重复帧幂等。
+- **降级恢复**：`bridge-degraded` / 断档 / 断线重连 → 置 `needsResync` 清本地增量 →
+  重开 bridge → 重订阅 → 重读快照；恢复路径不依赖传输层 replay。
+- **代际防迟到**：协议客户端内 `WorkspaceBridgeLifecycle` 唯一拥有 bridge ready/目标/世代。
+  socket close/dispose、bridge-degraded、换 workspace 同步清 ready 并换代，释放旧订阅及
+  ChannelClient（拒绝旧在途 RPC），accessor 与消息 listener 同时失效。
+  open 串行等待上一次握手响应，过时排队请求不发送、过时响应不接管；A ready→B pending→A
+  必须重新开 A，不能复用旧 ready。新 open 发出前重置 seq/assembler/replay/ack 并创建
+  新 ChannelClient，捕获可能先于 ready 到达的 Host Initialize；ready 后不得再次重置装配器。
+  新 accessor 的出站受世代保护，旧 ChannelClient 不能向新桥写请求。
+  握手失败也释放对应世代 client，不保留半就绪 accessor；下一次 ensure 可重试。
+  socket 回调（含异步鉴权结果）必须绑定原 socket；旧 socket 消息不得进入新桥。
+  **身份绑定决策**：复用 open 请求已有 `bridgeSessionId` 作为唯一代际 id，不增加 wire
+  信封或 ready 字段。手机 `WorkspaceBridgeLifecycle` 换代并在 open 发出前生成
+  `rpcStreamId = bridgeSessionId`、创建新 client；Desktop `bridgeController` 将该 id 传给
+  `hostBridge`，双向所有 message/ack/flow 帧的 streamId 都必须严格等于当前 id。
+  attachmentId 只用于 Host port 的挂载/释放和诊断，不作为 RPC wire 身份。
+  手机不能首见锁流或记录未知身份作兜底；Main 在 ack 消费、装配及写入 Host port 之前
+  同样拒绝其他 bridgeSessionId。换桥只接受当前白名单，旧帧不能初始化新 client、推进
+  新桥 seq、释放新桥 replay 或触发降级。每方向 seq/assembler/replay/ack 独立拥有，
+  同一个身份不意味着共享序号空间：接收 ack 只确认本端出站，发 ack 只描述本端入站。
+  Host AttachServicePort 是异步的，ready 与 Initialize 没有先后保证；允许当前身份的
+  Initialize 在 ready 前或后到达，不需要 ready 前缓存或新超时。串行握手只约束 open
+  顺序，不作为 RPC 身份屏障。共享装配器的第一片身份锁定、分片幂等和重传规则不变。
+  若入站事件回调同步换桥，该事件返回后不再向新世代的调度器排旧 ack。
+  以上仅影响 mobile `web-remote-replayable`，不改 desktop-continuous、Host owner/lease 或协议。
+
+```text
+TaskConversationLifecycle（投影时序 owner）
+  subscribe → R(version=v) → delta(version=v+1, 不拼快照) → complete(version=v+2)
+            → R resolve(丢弃) → R2(version=v+2) → R2 resolve → applySnapshot/解除屏障
+  bridge-degraded → 协议 invalidate → 生命周期换代 → open → subscribe → read
+
+WorkspaceBridgeLifecycle（桥时序 owner）
+  A ready → ensure B(同步清 ready/换代/销毁 ChannelClient) → B open pending
+          → ensure A(再次换代) → B ready(过时，拒绝) → A2 client/open(id=A2)
+          → 首次迟到 B Initialize(id=B，丢弃，不能锁流)
+          → A2 ready / A2 Initialize(顺序任意) → 新 seq=1 → 订阅/快照 settle
+  Main 新桥(id=A2) ← 旧手机 message/ack/flow(id=A1/B，丢弃)；不写新 Host port
+```
+
+- **错误处理**：订阅 / 快照 / 发送失败不再静默吞掉，上抛到 `notice`，日志经
+  `packages/ui/src/logger.ts` 输出，不用 `console.*`。
 
 ## relay 需求（用户自托管，摘要）
 
@@ -306,6 +469,32 @@ IPC 面（preload ↔ main，`packages/shared/src/channels.ts` 新增）：
     （groups 门控、snapshot/queue/重连语义）。
 11. 日志审计：grep 不到 secret / passHash / proof / 完整 deviceSid；无任何上报请求。
 12. `pnpm typecheck` / `pnpm lint` / 架构检查保持基线。
+13. ack 只释放不重传：正常流水下发送侧收到滞后 ack 不重发未确认尾部；接收侧 gap/timeout 时
+    以 `acknowledgedSeq` nudge，发送侧据此从 `ackSeq+1` 重传，接收侧幂等不重复交付。
+14. 目标判定带 `remoteSessionId`：同路径不同 `remoteSessionId` 不复用（触发重新 start）；
+    同 identity + 同 `remoteSessionId` 复用；`remoteSessionId` 随远端 workspace 进入
+    Host attachment scope。
+15. 远端 workspace 连接态以桌面 remote session 路由表为准：已 attach（路由
+    `attachmentState === "attachable"`）→ 即使 UI 载荷未带正确 `connectionState`，bridge
+    仍可开；未 attach / 拿不到权威态 → 明确返回 `invalidMobileConnection`（不挂起）；
+    本地 workspace 行为不变。
+16. 手机打开任务：首屏只读一次 `readSessionMessages` 快照，之后由 Host replayable 事件流
+    增量更新；不出现 4s 周期 `setInterval(readSessionMessages)` 轮询。
+17. 同一 `messageId`/`inputId` 的合法 `ha`,`ha` 得 `haha`；`a`,`ab` 得 `aab`，交错消息只
+    归并气泡、不做内容去重。重复物理 seq 帧仍只交付一次。
+18. deferred R→delta→complete（或 task_snapshot_updated）→R resolve 必须触发第二次 read，
+    R2 权威最终正文落地；屏障期 delta 不直接拼接快照。快照失败保持屏障并通知错误，
+    下一次信号重试；同 scope 恢复也要作废旧读取、回调及迟到订阅句柄。
+19. bridge-degraded 不只读快照：旧订阅/accessor 立即失效，重开 bridge→新 Initialize→
+    新 replayable EventListen→快照读取。A ready→B deferred open→A：迟到 B 不接管，最终 A
+    新桥入站/出站 seq 从 1 开始，旧回调/读取结果均不能更新新世代。
+20. A ready→B open→ensure A 作废 B→B ready→A2 client/open 后，才首次收到 B Initialize：
+    丢弃 B，不影响 A2 Initialize/真实 readSessionMessages reply settle；不得在测试中强制
+    B Initialize 先于 B ready。Main 新 Host bridge 拒绝旧手机 message/ack/flow（含分片、
+    重传），新身份 Initialize→RPC 调用→EventListen/EventFire/EventDispose 正常；双向 ack
+    不串空间，旧 ack 不释放新 replay。桌面 continuous 链路及 Host owner/lease 不变。
+21. 断线重连 / 切 workspace：旧订阅先 dispose（代际失效），恢复路径 = 重开 bridge +
+    重订阅 + 重读快照；旧 task 的迟到事件不进入新会话。
 
 ## 分期
 
@@ -345,7 +534,7 @@ IPC 面（preload ↔ main，`packages/shared/src/channels.ts` 新增）：
 | ------------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P0 协议契约                          | ✅   | `packages/shared/src/webRemoteControl/`（envelope / relayFrame / rpcTransport / status）+ `channels.ts` 8 个 IPC + settings 4 键 + `IPlatformService` 8 方法                                                                                                              |
 | P1 桌面运行时 + LAN 直连 + UI + i18n | ✅   | `packages/desktop/src/main/webRemoteControl/`（manager / lanEndpoint / deviceTransport / authProvider / authStorage / qrUrl / mobileAppAssets / ipc）；`WebRemoteControlDialog` + `WorkspaceWebRemoteControlTrigger` + `useWebRemoteControl`；89 键已落 `zh-CN` / `en-US` |
-| P2 Host bridge + RPC 装配器          | ✅   | `hostBridge.ts`（AttachServicePort `web-remote-replayable` + MessagePortProtocol + ChannelClient + 服务代理）+ `bridgeController.ts`                                                                                                                                      |
+| P2 Host bridge + RPC 装配器          | ✅   | `hostBridge.ts`（AttachServicePort `web-remote-replayable` + servicePipe 透明转发，无 Main ChannelClient）+ `bridgeController.ts`                                                                                                                                         |
 | P3 移动端 mobile entry               | ✅   | `packages/web/mobile.html` + `src/mobile/`（protocol 配对客户端 / MobileApp mobileHome+mobileShell）；vite 多入口构建                                                                                                                                                     |
 | P4 可配置对外端点 + relay 客户端传输 | ✅   | `relayTransport.ts`（注册/挑战鉴权/心跳 10s±jitter/重连续配/`AUTH_FAILED` 转注册/oversize）；settings `webRemoteControlEndpointMode/CustomEndpointUrl` + 弹层「连接方式」区；未配置 custom 地址时直接失败，不回退 LAN                                                     |
 | P5 `packages/relay` 自托管包         | ✅   | `packages/relay`（esbuild 单文件 CLI + Dockerfile + compose + README）：配对注册表、per-IP 限速、静态托管 mobile 页、`/healthz`、TTL 清扫、优雅退出                                                                                                                       |

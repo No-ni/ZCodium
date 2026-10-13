@@ -214,7 +214,9 @@ export const CREATE_WORKFLOW_GRAPH_MAX_PHASE_EDGES = 128;
 export const CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS = 64;
 export const CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS = 128;
 
-export const CREATE_WORKFLOW_STEP_KINDS = ["ask", "world-read"] as const;
+// `hole`：开着的留白自己的站点（展示面用它把这一站画成虚线灯）。
+// 站点 id 与阶段 id 同为 `hole#<8 位十六进制>`，run 的 `holes[]` 按 siteId 与它相接。
+export const CREATE_WORKFLOW_STEP_KINDS = ["ask", "world-read", "hole"] as const;
 
 // 名字只在运行时成形（`` agent(`研究员${i + 1}`) ``）时静态能拿到的那部分：第一个洞之前的
 // 字面量（head）与最后一个洞之后的字面量（tail）。两者至少有一个在场——分析器拿不到就整个
@@ -260,6 +262,8 @@ export const CreateWorkflowStepSchema = z
      * 划分是全的），要么全缺席（零标记脚本）。
      */
     phase: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS).optional(),
+    /** 这个站点是某次补全写进来的：值是那个留白的站点 id（名字键 `hole#<8 位十六进制>`）。 */
+    fill: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS).optional(),
     repeat: z.enum(["stack", "serial"]).optional(),
   })
   .strict();
@@ -357,6 +361,8 @@ export const CreateWorkflowPhaseSchema = z
       .min(1)
       .max(CREATE_WORKFLOW_GRAPH_MAX_PHASES)
       .optional(),
+    /** 这个阶段是某次补全写进来的：值是那个留白的站点 id。 */
+    fill: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS).optional(),
   })
   .strict();
 
@@ -382,6 +388,25 @@ export const CreateWorkflowCausalityGraphSchema = z
     phaseEdges: z
       .array(CreateWorkflowEdgeSchema)
       .max(CREATE_WORKFLOW_GRAPH_MAX_PHASE_EDGES)
+      .optional(),
+    phaseStreams: z
+      .array(z.object({ from: z.string().min(1).max(64), to: z.string().min(1).max(64) }).strict())
+      .max(CREATE_WORKFLOW_GRAPH_MAX_PHASE_EDGES)
+      .optional(),
+    // 留白是图上的阶段事实，不是输出根字段；放错层会被 strict 图 schema 拒收、导致 backend 丢图。
+    holes: z
+      .array(
+        z
+          .object({
+            siteId: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS),
+            name: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS),
+            type: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS),
+            phase: z.string().min(1).max(CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS).optional(),
+            tail: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .max(CREATE_WORKFLOW_GRAPH_MAX_PHASES)
       .optional(),
     /**
      * 控制流可以在其后正常完成的阶段（控制流图阶段商里指向 sink 终端的边的源），阶段表序。
@@ -499,6 +524,22 @@ export const CreateWorkflowOutputSchema = z
         maxConcurrency: z.number().int().positive(),
         previous: z.number().int().positive(),
         ceiling: z.number().int().positive(),
+      })
+      .strict()
+      .optional(),
+    /**
+     * `FillWorkflowHole` 补的是哪处留白：站点 id 与**名字**，外加草稿路径与行号。成功与被拒都在场，
+     * **跨 v4**——display 投影原样带上它，工具行靠它给自己起名。不能从行的入参读：transcript 存的是
+     * 模型自己的入参，resolveInput 回填的 `hole` 块到不了行。
+     */
+    fill: z
+      .object({
+        siteId: z.string().min(1).max(64),
+        name: z.string().min(1).max(128),
+        /** 成功补全的 journal durable 顺序；被拒补全缺席。 */
+        commitSequence: z.number().int().nonnegative().optional(),
+        draftPath: z.string().min(1).max(1_024).optional(),
+        line: z.number().int().positive().optional(),
       })
       .strict()
       .optional(),

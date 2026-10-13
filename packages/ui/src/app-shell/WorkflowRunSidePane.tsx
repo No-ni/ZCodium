@@ -127,7 +127,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   const graph = useMemo<WorkflowCausalityGraphData | undefined>(
     () =>
       resolveWorkflowRunGraph(
-        buildWorkflowGraphByToolCallId(snapshot?.rows.window),
+        buildWorkflowGraphByToolCallId(snapshot?.rows.window, snapshot?.workflowRuns?.runs),
         tab.toolCallId,
         snapshot?.workflowRuns?.runs,
       ),
