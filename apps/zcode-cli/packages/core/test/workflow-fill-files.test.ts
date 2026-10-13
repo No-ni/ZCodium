@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, utimes, symlink, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  writeFile,
+  utimes,
+  symlink,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -83,6 +92,38 @@ describe("workflow fill files — actual disk IO", () => {
       }
       assert.equal(await resolveWorkflowFillFilePath(first, root, { root, ...scope }), first);
     }));
+  it("accepts the canonical returned path through a root alias but rejects file symlinks", async () =>
+    withRoot(async (root) => {
+      const configuredRoot = path.join(root, "configured-root");
+      const aliasRoot = path.join(root, "root-alias");
+      await mkdir(configuredRoot);
+      await symlink(configuredRoot, aliasRoot, "dir");
+      const file = await writeWorkflowFillFile({
+        root: aliasRoot,
+        ...scope,
+        holeName: "decide",
+        source,
+      });
+      assert.ok(file);
+      assert.equal(
+        await resolveWorkflowFillFilePath(file, root, { root: aliasRoot, ...scope }),
+        file,
+      );
+
+      const outsideAlias = path.join(root, "outside-link.dwf.ts");
+      await symlink(file, outsideAlias);
+      await assert.rejects(
+        resolveWorkflowFillFilePath(outsideAlias, root, { root: aliasRoot, ...scope }),
+        /symlink/,
+      );
+
+      const insideAlias = path.join(path.dirname(file), "same-scope-link.dwf.ts");
+      await symlink(file, insideAlias);
+      await assert.rejects(
+        resolveWorkflowFillFilePath(insideAlias, root, { root: aliasRoot, ...scope }),
+        /symlink/,
+      );
+    }));
   it("rejects traversal and symlink escapes; malicious names stay under root", async () =>
     withRoot(async (root) => {
       const file = await writeWorkflowFillFile({
@@ -94,7 +135,7 @@ describe("workflow fill files — actual disk IO", () => {
         source,
       });
       assert.ok(file);
-      assert.ok(!path.relative(root, file).startsWith(".."));
+      assert.ok(!path.relative(await realpath(root), file).startsWith(".."));
       await assert.rejects(
         resolveWorkflowFillFilePath("../outside.dwf.ts", root, { root, ...scope }),
         /traversal/,

@@ -84,7 +84,7 @@ export interface DynamicWorkflowRunSubmitRequest {
   subagentModel?: ModelSelection;
   /**
    * 本 run 的脚本**来自哪个文件**的绝对路径。与 {@link subagentModel} 走同一条路：随 `run-launched` 记一次、引擎从不读、
-   * 零 SQL（`dwf_run` 上没有这一列），两条读面再从事件读回。
+   * 零 SQL（`dwf_run` 上没有这一列）。读面仅在确认草稿与有效脚本同步时返回该路径。
    *
    * ⚠ 与本文件里产物的 `sourcePath` 无关：那是产物落盘的位置，这里是**脚本**的家。
    *
@@ -240,10 +240,10 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
    */
   subagentModel?: string;
   /**
-   * 本 run 的脚本文件（绝对路径，journal 事件 `run-launched` 上的那一个）。**只在这个 run 记下过文件时在场**。
+   * 本 run 的脚本文件（绝对路径，journal 事件 `run-launched` 上的那一个）。**只在这个 run 有已确认同步的草稿时在场**；写回失败或补全后的冷恢复未确认时缺席。
    *
-   * 终态通知据它把「改好脚本再内联提交」换成「就地编辑那个文件、再 `path` 修订」，所以它必须
-   * 能从快照读到；用户面一概不显示（与 `subagentModel` 不同，后者会进桌面的 run 面板）。
+   * 终态通知据它把「改好脚本再内联提交」换成「就地编辑那个文件、再 `path` 修订」，所以已确认同步时可
+   * 从快照读到；用户面一概不显示（与 `subagentModel` 不同，后者会进桌面的 run 面板）。
    */
   scriptPath?: string;
   /** 结构化失败（与 {@link DynamicWorkflowRunDetail.error} 同源）；基类的 `error` 是它的 message。 */
@@ -939,7 +939,7 @@ export interface DynamicWorkflowRunDetail extends DynamicWorkflowRunSummary {
    */
   subagentModel?: string;
   /**
-   * 本 run 的脚本文件，语义同 {@link DynamicWorkflowRunSnapshot.scriptPath}：只在记下过文件时
+   * 本 run 的脚本文件，语义同 {@link DynamicWorkflowRunSnapshot.scriptPath}：只在确认草稿同步时
    * 在场。`GetWorkflowRun` 据它在 `<amendable>` 里把下一步说成「就地编辑这个文件」。
    */
   scriptPath?: string;

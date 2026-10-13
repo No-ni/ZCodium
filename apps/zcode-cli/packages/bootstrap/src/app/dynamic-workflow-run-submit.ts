@@ -476,7 +476,8 @@ export async function resumeDynamicWorkflowRun(
   const resumedSubagentModel = readRunSubagentModel(deps.journal, runId);
   const resumedScriptPath = readRunScriptPath(deps.journal, runId);
   // 此刻生效的阶段表：补全过就是最后一条 `hole-filled` 上的，否则是 `run-launched` 的声明表。
-  const resumedPhaseNames = phaseNamesFromEvents(readRunHoleEvents(deps.journal, runId));
+  const resumedHoleEvents = readRunHoleEvents(deps.journal, runId);
+  const resumedPhaseNames = phaseNamesFromEvents(resumedHoleEvents);
   const controller = new AbortController();
   // 与 submit 路同规：新条目 = 新 AbortController + 新控制面。上一世的句柄绑的是已经结算的那个
   // 引擎，留着它会让 retune 对一个死引擎说话。
@@ -506,6 +507,8 @@ export async function resumeDynamicWorkflowRun(
     // 脚本文件：与子代理模型同一条读、同一条论证（建 run 那一世写死、余生不变，抄下来不会
     // 与事件分叉）。resume 之后两条读面因此照旧「有条目就读条目」。
     ...(resumedScriptPath === undefined ? {} : { scriptPath: resumedScriptPath }),
+    // 冷恢复只有 journal 的启动路径，不能据此断言已补全脚本曾成功写回。
+    scriptPathStale: resumedHoleEvents.some((stored) => stored.event.type === "hole-filled"),
     settlement: Promise.resolve<RunSettlement>({ status: "stopped", reason: "user" }),
   };
   runs.set(runId, entry);

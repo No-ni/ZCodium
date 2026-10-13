@@ -133,12 +133,16 @@ function formatFillDiagnosticLines(
  * 输出里的 `fill` 块：行给自己起名的唯一来源。transcript 只存模型自己的入参，resolveInput 回填的
  * `hole` 到不了行，所以名字必须随输出走；`hole` 缺席（端口 stub、绕过归一化的调用方）时退回站点 id。
  */
-function fillBlock(parsed: FillWorkflowHoleInput): NonNullable<CreateWorkflowOutput["fill"]> {
+function fillBlock(
+  parsed: FillWorkflowHoleInput,
+  options?: { draftPath?: string },
+): NonNullable<CreateWorkflowOutput["fill"]> {
   const hole = parsed.hole;
+  const draftPath = options === undefined ? hole?.draft_path : options.draftPath;
   return {
     siteId: parsed.hole_id,
     name: hole?.name ?? parsed.hole_id,
-    ...(hole?.draft_path === undefined ? {} : { draftPath: hole.draft_path }),
+    ...(draftPath === undefined ? {} : { draftPath }),
     ...(hole?.line === undefined ? {} : { line: hole.line }),
   };
 }
@@ -267,10 +271,10 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
       : `It added the phase${result.phasesAdded.length === 1 ? "" : "s"} ${result.phasesAdded.join(", ")}.`;
   const draft =
     result.scriptPath === undefined
-      ? "The run has no draft file, so a later revision must pass the whole script to AmendWorkflow."
+      ? "No updated draft file is available, so pass the full effective script to AmendWorkflow for any later revision."
       : `The run's draft ${describeWorkflowScriptPath(result.scriptPath, cwd ?? "")} now holds the effective script: edit that file and pass \`path\` to AmendWorkflow for any later revision.`;
   return {
-    fill: { ...fillBlock(parsed), commitSequence: result.commitSequence },
+    fill: { ...fillBlock(parsed, { draftPath: result.scriptPath }), commitSequence: result.commitSequence },
     diagnostics: [],
     ok: true,
     response: `The fill joined run ${parsed.run_id} at hole "${holeName}" (${parsed.hole_id}); the branch parked there has resumed and the run keeps going in the background. ${phases} ${draft} Do not wait for the run or poll it with TaskOutput; you will be notified when it completes.`,

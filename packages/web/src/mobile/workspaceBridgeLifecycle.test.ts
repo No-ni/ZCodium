@@ -24,10 +24,10 @@ describe("WorkspaceBridgeLifecycle", () => {
       .mockReturnValueOnce(a2.promise);
     const bridge = new WorkspaceBridgeLifecycle(invalidate, open);
     await bridge.ensure({ workspaceKey: "A" });
-    expect(bridge.isReady("A")).toBe(true);
+    expect(bridge.isReady({ workspaceKey: "A" })).toBe(true);
     const firstVersion = bridge.version;
     const pendingB = bridge.ensure({ workspaceKey: "B" }).catch((error: Error) => error.message);
-    expect(bridge.isReady("A")).toBe(false);
+    expect(bridge.isReady({ workspaceKey: "A" })).toBe(false);
     expect(bridge.isCurrent(firstVersion)).toBe(false);
     await flush();
     expect(open).toHaveBeenCalledTimes(2);
@@ -37,12 +37,12 @@ describe("WorkspaceBridgeLifecycle", () => {
     b.resolve();
     await flush();
     expect(await pendingB).toBe("workspace bridge superseded");
-    expect(bridge.isReady("B")).toBe(false);
+    expect(bridge.isReady({ workspaceKey: "B" })).toBe(false);
     expect(open).toHaveBeenCalledTimes(3);
     expect(open.mock.calls.map(([target]) => target.workspaceKey)).toEqual(["A", "B", "A"]);
     a2.resolve();
     await pendingA;
-    expect(bridge.isReady("A")).toBe(true);
+    expect(bridge.isReady({ workspaceKey: "A" })).toBe(true);
     expect(invalidate).toHaveBeenCalledTimes(3);
   });
 
@@ -50,16 +50,29 @@ describe("WorkspaceBridgeLifecycle", () => {
     const first = deferred();
     const open = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
     const bridge = new WorkspaceBridgeLifecycle(vi.fn(), open);
-    const a = bridge.ensure({ workspaceKey: "A" }).catch(() => {});
+    const a = bridge.ensure({ workspaceKey: "A", remoteSessionId: "session-A" }).catch(() => {});
     await flush();
-    const b = bridge.ensure({ workspaceKey: "B" }).catch(() => {});
-    const c = bridge.ensure({ workspaceKey: "C" });
-    expect(bridge.ensure({ workspaceKey: "C" })).toBe(c);
+    const b = bridge.ensure({ workspaceKey: "B", remoteSessionId: "session-B" }).catch(() => {});
+    const cTarget = { workspaceKey: "C", remoteSessionId: "session-C" };
+    const c = bridge.ensure(cTarget);
+    expect(bridge.ensure(cTarget)).toBe(c);
     first.resolve();
     await Promise.all([a, b, c]);
     expect(open.mock.calls.map(([target]) => target.workspaceKey)).toEqual(["A", "C"]);
-    await bridge.ensure({ workspaceKey: "C" });
+    await bridge.ensure(cTarget);
     expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it("同一 workspace key 的 remoteSessionId 换代时重开", async () => {
+    const open = vi.fn().mockResolvedValue(undefined);
+    const bridge = new WorkspaceBridgeLifecycle(vi.fn(), open);
+    await bridge.ensure({ workspaceKey: "remote-workspace", remoteSessionId: "remote-A" });
+    await bridge.ensure({ workspaceKey: "remote-workspace", remoteSessionId: "remote-B" });
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open.mock.calls.map(([target]) => target.remoteSessionId)).toEqual([
+      "remote-A",
+      "remote-B",
+    ]);
   });
 
   it("握手失败释放半就绪世代，下次 ensure 可重试", async () => {
@@ -72,11 +85,11 @@ describe("WorkspaceBridgeLifecycle", () => {
     const first = bridge.ensure({ workspaceKey: "A" });
     const generation = bridge.version;
     await expect(first).rejects.toThrow("open rejected");
-    expect(bridge.isReady("A")).toBe(false);
+    expect(bridge.isReady({ workspaceKey: "A" })).toBe(false);
     expect(bridge.isCurrent(generation)).toBe(false);
     expect(invalidate).toHaveBeenCalledTimes(2);
     await bridge.ensure({ workspaceKey: "A" });
-    expect(bridge.isReady("A")).toBe(true);
+    expect(bridge.isReady({ workspaceKey: "A" })).toBe(true);
     expect(open).toHaveBeenCalledTimes(2);
   });
 
@@ -85,7 +98,7 @@ describe("WorkspaceBridgeLifecycle", () => {
     const bridge = new WorkspaceBridgeLifecycle(vi.fn(), open);
     await bridge.ensure({ workspaceKey: "A" });
     bridge.invalidate();
-    expect(bridge.isReady("A")).toBe(false);
+    expect(bridge.isReady({ workspaceKey: "A" })).toBe(false);
     await bridge.ensure({ workspaceKey: "A" });
     expect(open).toHaveBeenCalledTimes(2);
   });

@@ -109,6 +109,9 @@ view，而这类子会话保留的 view 无人可见、无人可认领，只会�
   Map/Set 写入，重复登记不产生第二份。
 - 登记结束用父会话一致性校验（`childSessionParents.get(child) === parent`）保护，避免一个
   后来登记的父会话被前一个的清理误删。
+- 登记成功后，子 runtime 的构造、恢复/持久化、session-ready/model 事件发布及执行都属于
+  登记生命周期；这些阶段任一失败或成功结束都必须撤销登记。初始化失败也不能留下仍可被
+  `requireSession` 放行的子会话。
 - 连接记忆只在**会话校验通过之后**写入：被拒的请求不在共享状态里留条目。
 - 子会话的 `turnEnded` / `closeSession` 不向桌面发生命周期（tabOwner: parent），因此不存在
   「子代理把父会话的 tab 关掉」这条路径。
@@ -126,7 +129,9 @@ view，而这类子会话保留的 view 无人可见、无人可认领，只会�
    请求也能解析到父会话（这是 2026-09-30 那条 bug 的回归守卫）。
 6. **CUA 不回归**：`node-repl-host/test/cua-bridge.test.ts` 的
    `rejects subagents before opening the broker` 仍必须通过。
-7. **版本一致**：`node-repl-host` 的 package.json、`.zcodium-plugin/plugin.json`、
+7. **初始化失败仍撤销登记**：子 runtime 构造、恢复/持久化或 ready/model 事件发布失败后，
+   broker 不再接受该 child session 的请求，且不会向桌面发送 tab 生命周期请求。
+8. **版本一致**：`node-repl-host` 的 package.json、`.zcodium-plugin/plugin.json`、
    `tool-contract.ts` 的 `NODE_REPL_SERVER_VERSION`、官方 seed 定义、SEA 清单五处版本一致。
 
 ## 依赖方向

@@ -71,13 +71,18 @@ export async function resolveWorkflowFillFilePath(
   const root = path.resolve(scope.root ?? resolveWorkflowFillFilesRoot());
   const resolvedFile = await realpath(file);
   const resolvedRoot = await realpath(root).catch(() => root);
-  if (inside(root, file) || inside(resolvedRoot, resolvedFile)) {
+  const lexicalManaged = inside(root, file);
+  const canonicalManaged = inside(resolvedRoot, resolvedFile);
+  if (lexicalManaged || canonicalManaged) {
     const ownedDir = path.join(resolvedRoot, ...scopeParts(scope));
     if (!inside(ownedDir, resolvedFile))
       throw new Error("fill file belongs to another session/run/site scope");
-    // 即使链接指向同 scope 也不接收，避免批准前后目标被换掉；root 自身允许宿主配置的链接。
-    const lexicalFile = path.join(resolvedRoot, path.relative(root, file));
-    if (lexicalFile !== resolvedFile) throw new Error("managed fill symlink is not allowed");
+    // 配置根自身可为链接；canonical 返回路径按 real root 校验。根内文件链接仍须拒绝。
+    const relative = lexicalManaged ? path.relative(root, file) : path.relative(resolvedRoot, resolvedFile);
+    const expectedFile = path.join(resolvedRoot, relative);
+    if (expectedFile !== resolvedFile || (!lexicalManaged && file !== resolvedFile)) {
+      throw new Error("managed fill symlink is not allowed");
+    }
   }
   return file;
 }

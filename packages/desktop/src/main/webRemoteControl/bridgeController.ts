@@ -116,6 +116,24 @@ export function openWorkspaceBridge(
       logger: deps.logger,
     });
   } catch (error) {
+    if (attachment) {
+      try {
+        attachment.dispose();
+      } catch (disposeError) {
+        try {
+          deps.logger.warn(
+            "[web-remote-control] attachment cleanup failed after bridge open error",
+            {
+              windowId: runtime.windowId,
+              attachmentId: attachment.attachmentId,
+              error: disposeError instanceof Error ? disposeError.message : String(disposeError),
+            },
+          );
+        } catch {
+          // 清理或日志失败不能覆盖 bridge 初始化的原错。
+        }
+      }
+    }
     const message = error instanceof Error ? error.message : String(error);
     return fail("unexpectedError", message);
   }

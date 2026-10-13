@@ -90,8 +90,8 @@ export interface DynamicWorkflowRunFillHoleDiagnostic {
 
 /**
  * `fillHole` 的结构化结果。成功时 `scriptText` 是**有效脚本**（已拼入函数体、已落库的那一份），
- * 工具层据它铸 display；`scriptPath` 是 run 的草稿（已被就地改写成有效脚本；run 原本没有草稿时
- * 由实现侧铸一份）；`phasesAdded` 是函数体带来的阶段名。
+ * 工具层据它铸 display；`scriptPath` 只在已有草稿被成功改写后返回，缺席表示没有可用的同步草稿；
+ * `phasesAdded` 是函数体带来的阶段名。
  */
 export type FillWorkflowHoleResult =
   | {
