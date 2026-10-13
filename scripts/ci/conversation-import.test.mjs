@@ -3,18 +3,21 @@ import test from "node:test";
 import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash } from "node:crypto";
 import { tsImport } from "tsx/esm/api";
+import {
+  conversationShareArchiveFixture,
+  sha256Hex,
+} from "./fixtures/conversation-share-archive.mjs";
 const { ConversationArchiveImports } = await tsImport(
   "../../packages/services/src/conversation-share/conversationArchiveImports.ts",
   import.meta.url,
 );
-const { ConversationArchiveImporter } = await tsImport(
-  "../../packages/services/src/conversation-share/conversationArchiveImporter.ts",
+const { formatSharedContextV1 } = await tsImport(
+  "../../packages/services/src/conversation-share/sharedContextFormatter.ts",
   import.meta.url,
 );
-const { buildConversationSharePublicProjection } = await tsImport(
-  "../../packages/services/src/conversation-share/conversationSharePublicProjection.ts",
+const { ConversationArchiveImporter } = await tsImport(
+  "../../packages/services/src/conversation-share/conversationArchiveImporter.ts",
   import.meta.url,
 );
 const { encodeConversationArchive } = await tsImport(
@@ -29,7 +32,8 @@ const { importConversationArchive } = await tsImport(
   "../../packages/ui/src/lib/importConversationArchive.ts",
   import.meta.url,
 );
-const hash = (data) => createHash("sha256").update(data).digest("hex");
+const hash = sha256Hex;
+const archive = conversationShareArchiveFixture;
 
 test("import transport enforces scope, length, sequential chunks, retry identity and capacity", async () => {
   let now = 0;
@@ -63,55 +67,6 @@ test("import transport enforces scope, length, sequential chunks, retry identity
   assert.throws(() => transfers.append(owner, expired, 0, "YQ=="));
 });
 
-function archive() {
-  const bytes = Buffer.from("offline attachment\0");
-  const base = {
-    turnId: "share-turn-1",
-    productTurnId: "share-product-turn-1",
-    createdAt: 1,
-    createdAtSeq: 1,
-  };
-  const projection = buildConversationSharePublicProjection({
-    rows: [
-      {
-        ...base,
-        rowId: 1,
-        kind: "turnHeader",
-        state: "completedSuccess",
-        origin: "userInput",
-        startedAt: 1,
-      },
-      { ...base, rowId: 2, kind: "userInput", origin: "realUser", text: "Imported question" },
-      {
-        ...base,
-        rowId: 3,
-        kind: "artifact",
-        artifactVersionId: "original",
-        logicalArtifactKey: "key",
-        displayName: "CON.txt",
-        artifactType: "text",
-        mimeType: "text/plain",
-        sizeBytes: bytes.length,
-        sha256: hash(bytes),
-        ref: "zcode-artifact://session/result",
-        state: "current",
-      },
-    ],
-    selectedProductTurnIds: [base.productTurnId],
-  });
-  const descriptors = projection.artifacts.map((item) => item.descriptor);
-  return {
-    content: {
-      format: "zcodium-conversation",
-      version: 1,
-      title: "Offline note",
-      selectedProductTurnIds: projection.selectedProductTurnIds,
-      rows: projection.rows,
-      artifacts: descriptors,
-    },
-    artifacts: new Map(descriptors.map((item) => [item.artifact_id, bytes])),
-  };
-}
 async function fixture(run) {
   const root = await mkdtemp(join(tmpdir(), "zcodium-import-"));
   const sessions = new Map();
@@ -171,6 +126,83 @@ test("offline import creates local provenance and reopens the same session after
     );
     assert.doesNotMatch(installed.workspaceRelativePath, /\/CON\.txt$/);
   });
+});
+
+test("shared context markdown points the model at absolute installed artifact paths", async () => {
+  await fixture(async ({ root, creates, importer }) => {
+    const sha = hash("absolute artifact paths");
+    const decoded = archive();
+    await importer().import(
+      decoded,
+      sha,
+      { archiveId: "handle", clientRequestId: "request" },
+      "op",
+    );
+    const history = creates[0].importedHistory;
+    const installed = history.provenance.installedArtifacts[0];
+    const absolutePath = join(root, installed.workspaceRelativePath);
+    // 导入后的会话 cwd 是会话执行目录（对话工作区）或工作区根（项目工作区），
+    // 工作区根相对路径在两种 cwd 下模型都读不到；`Path:` 必须是绝对路径。
+    assert.ok(
+      history.markdown.split("\n").includes(`- Path: ${absolutePath}`),
+      `shared context must print an absolute artifact path, got:\n${history.markdown}`,
+    );
+    assert.deepEqual(await readFile(absolutePath), [...decoded.artifacts.values()][0]);
+    // 落盘副本的字段集不能变：崩溃恢复路径会逐字节比对 shared-conversation.json。
+    const stored = JSON.parse(
+      await readFile(
+        join(root, ".zcodium-share", `archive-${sha}`, "shared-conversation.json"),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(Object.keys(stored.artifacts[0]).sort(), [
+      "artifactId",
+      "displayName",
+      "mimeType",
+      "workspaceRelativePath",
+    ]);
+    assert.equal(stored.artifacts[0].workspaceRelativePath, installed.workspaceRelativePath);
+  });
+});
+
+test("shared context formatter writes the absolute install path for attachments and artifacts", () => {
+  const artifactId = "share-artifact-1";
+  const workspaceRelativePath = join(".zcodium-share", "archive-x", "file-1-a.txt");
+  const absolutePath = join("workspace-root", workspaceRelativePath);
+  const document = formatSharedContextV1({
+    share: { shareId: "archive-x", title: "Fixture" },
+    rows: [
+      { rowId: 1, kind: "turnHeader" },
+      {
+        rowId: 2,
+        kind: "userInput",
+        text: "Imported question",
+        attachments: [
+          { ref: `zcode-artifact://share/${artifactId}`, fileName: "a.txt", mime: "text/plain" },
+        ],
+      },
+      { rowId: 3, kind: "artifact", artifactVersionId: artifactId },
+    ],
+    installedArtifacts: [
+      {
+        artifactId,
+        workspaceRelativePath,
+        absolutePath,
+        displayName: "a.txt",
+        mimeType: "text/plain",
+        sha256: "a".repeat(64),
+      },
+    ],
+  });
+  const lines = document.markdown.split("\n");
+  // 附件行（缩进两格）与 artifact 行都必须写绝对路径；整行等于工作区相对路径时才算旧行为。
+  assert.ok(lines.includes(`  - Path: ${absolutePath}`));
+  assert.ok(lines.includes(`- Path: ${absolutePath}`));
+  assert.equal(lines.includes(`  - Path: ${workspaceRelativePath}`), false);
+  assert.equal(lines.includes(`- Path: ${workspaceRelativePath}`), false);
+  // formatterVersion 是信息字段（唯一出现处是形状校验），Path 由相对改绝对不改变行结构。
+  assert.equal(document.formatterVersion, 1);
+  assert.match(document.markdownSha256, /^[0-9a-f]{64}$/u);
 });
 
 test("failed or uncertain commit preserves attachments and retry uses the same session id", async () => {

@@ -470,6 +470,15 @@ export type WorkspaceHookAdmissionSnapshotState = z.infer<typeof workspaceHookAd
 export const conversationSnapshotSchema = z.object({
   protocolVersion: z.literal(1),
   sessionId: z.string(),
+  /**
+   * 会话执行 cwd（会话持久化的 `path`），additive 可选。
+   *
+   * 与 tab 的 workspacePath（工作区身份，对话会话是对话根）分离：UI 的文件树/提及/终端/
+   * 文件搜索在会话已绑定时用这个目录。**必须 optional**——旧快照与旧发送端不带该字段仍要能
+   * 解析，缺席时 UI 回落 tab 的 workspacePath。它也只在这里出现，不进 StatePatch/delta：
+   * 会话执行 cwd 在会话生命周期内不变，没有可下发的键级更新。
+   */
+  workspacePath: z.string().optional(),
   logEpoch: z.string(),
   // 快照对齐水位（= 所在帧 toSeq；从内存投影原子取值）。
   seq: z.number(),

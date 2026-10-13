@@ -152,6 +152,22 @@ interface SplitWorkspaceFileSearchIgnoreSections {
   customSection: string;
 }
 
+/**
+ * 规则根：规则文件（与被它当作初始内容的 `.gitignore`）解析在哪个目录。
+ *
+ * 缺省等于搜索根——项目 workspace 与今天逐位一致。对话会话（会话 cwd 是对话根下的独立
+ * 目录）把对话根作为规则根：规则仍只有一份，落在对话根上，**不在会话目录里生成
+ * `.zcodiumignore`**。匹配语义不变（相对路径仍相对搜索根），规则根只决定规则文件的位置。
+ * 见 docs/specs/conversation-session-workspace.md 规则 10。
+ */
+export function resolveWorkspaceFileSearchIgnoreRulesRoot(
+  rootPath: string,
+  ignoreRulesRoot?: string,
+): string {
+  const rulesRoot = ignoreRulesRoot?.trim();
+  return resolve(rulesRoot && rulesRoot.length > 0 ? rulesRoot : rootPath);
+}
+
 /** 按双标记切分文件；任一标记缺失（旧格式/用户删除）返回 null，调用方退化为整体重建。 */
 function splitWorkspaceFileSearchIgnoreSections(
   content: string,
@@ -287,18 +303,23 @@ async function atomicWriteIgnoreFile(path: string, content: string): Promise<voi
  * 文件不存在 → 原子创建（.gitignore 拷贝 / 默认模板）；
  * 创建或读取失败（只读 fs、权限）→ 内存使用 .gitignore 内容 → 再失败用内置默认规则。
  * 任何降级只 warn 一次，绝不让 @ 面板因规则文件不可用而扫描失败。
+ *
+ * `options.ignoreRulesRoot` 只改「规则文件在哪里」：缺省仍是搜索根 `rootPath`，
+ * 传入对话根时规则读写全部落在对话根（会话目录内不生成 `.zcodiumignore`）。
  */
 export async function loadWorkspaceFileSearchIgnoreRules(
   rootPath: string,
   logger?: WorkspaceFileIgnoreLogger,
+  options?: { ignoreRulesRoot?: string },
 ): Promise<WorkspaceFileSearchIgnoreRules> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const rulesRoot = resolveWorkspaceFileSearchIgnoreRulesRoot(rootPath, options?.ignoreRulesRoot);
+  const ignorePath = resolve(rulesRoot, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
 
   const degradeToInMemory = async (
     reason: string,
     error: unknown,
   ): Promise<WorkspaceFileSearchIgnoreRules> => {
-    const gitignoreContent = await readOptionalFile(resolve(rootPath, GITIGNORE_FILE_NAME)).catch(
+    const gitignoreContent = await readOptionalFile(resolve(rulesRoot, GITIGNORE_FILE_NAME)).catch(
       () => null,
     );
     if (gitignoreContent !== null) {
@@ -330,7 +351,7 @@ export async function loadWorkspaceFileSearchIgnoreRules(
     return { matcher: buildIgnoreMatcher(existing), source: "file" };
   }
 
-  const gitignoreContent = await readOptionalFile(resolve(rootPath, GITIGNORE_FILE_NAME)).catch(
+  const gitignoreContent = await readOptionalFile(resolve(rulesRoot, GITIGNORE_FILE_NAME)).catch(
     () => null,
   );
   const initialContent = buildWorkspaceFileSearchIgnoreTemplate(gitignoreContent);
@@ -377,16 +398,21 @@ export function isWorkspaceFileSearchPathIgnored(
     : rules.matcher.ignores(relativePath);
 }
 
-/** 设置页读取：文件不存在时返回初始内容预览（source: template），不落盘。 */
+/**
+ * 设置页读取：文件不存在时返回初始内容预览（source: template），不落盘。
+ * `ignoreRulesRoot` 与搜索取规则的位置必须是同一个根，否则设置页会编辑出第二个规则文件。
+ */
 export async function readWorkspaceFileSearchIgnore(
   rootPath: string,
+  ignoreRulesRoot?: string,
 ): Promise<WorkspaceFileSearchIgnoreContent> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const rulesRoot = resolveWorkspaceFileSearchIgnoreRulesRoot(rootPath, ignoreRulesRoot);
+  const ignorePath = resolve(rulesRoot, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
   const existing = await readOptionalFile(ignorePath);
   if (existing !== null) {
     return { content: existing, source: "file" };
   }
-  const gitignoreContent = await readOptionalFile(resolve(rootPath, GITIGNORE_FILE_NAME)).catch(
+  const gitignoreContent = await readOptionalFile(resolve(rulesRoot, GITIGNORE_FILE_NAME)).catch(
     () => null,
   );
   return {
@@ -405,10 +431,12 @@ type WorkspaceFileSearchIgnoreTransform = "sync-gitignore" | "reset-defaults";
 export async function transformWorkspaceFileSearchIgnore(
   rootPath: string,
   transform: WorkspaceFileSearchIgnoreTransform,
+  ignoreRulesRoot?: string,
 ): Promise<{ content: string }> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const rulesRoot = resolveWorkspaceFileSearchIgnoreRulesRoot(rootPath, ignoreRulesRoot);
+  const ignorePath = resolve(rulesRoot, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
   const existing = await readOptionalFile(ignorePath).catch(() => null);
-  const gitignoreContent = await readOptionalFile(resolve(rootPath, GITIGNORE_FILE_NAME)).catch(
+  const gitignoreContent = await readOptionalFile(resolve(rulesRoot, GITIGNORE_FILE_NAME)).catch(
     () => null,
   );
   const currentContent = existing ?? buildWorkspaceFileSearchIgnoreTemplate(gitignoreContent);
@@ -423,7 +451,9 @@ export async function transformWorkspaceFileSearchIgnore(
 export async function writeWorkspaceFileSearchIgnore(
   rootPath: string,
   content: string,
+  ignoreRulesRoot?: string,
 ): Promise<void> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const rulesRoot = resolveWorkspaceFileSearchIgnoreRulesRoot(rootPath, ignoreRulesRoot);
+  const ignorePath = resolve(rulesRoot, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
   await atomicWriteIgnoreFile(ignorePath, content);
 }

@@ -9,6 +9,14 @@ export interface ConversationShareArtifactReadInput {
   workspacePath: string;
   ref: string;
   maxBytes: number;
+  /**
+   * 相对 `ref` 的解析根（会话执行 cwd）；缺省 = `workspacePath`（旧行为）。
+   *
+   * 会话执行目录独立后，正文里的相对引用（`docs/report.md`）是模型按它自己的 cwd 写下的，
+   * 用工作区身份路径解析会指向不存在的文件。**安全边界仍然是 `workspacePath`**：这里只决定
+   * 相对路径从哪里起步，绝对引用与越界判定都不受影响。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface ConversationShareMaterializedArtifact {
@@ -55,6 +63,14 @@ function remotePathApi(path: string): typeof posix | typeof win32 {
   return /^[A-Za-z]:[\\/]/u.test(path) || path.startsWith("\\\\") ? win32 : posix;
 }
 
+/**
+ * 相对引用的解析根：显式传入的会话执行 cwd 优先，缺省回落 `workspacePath`。
+ * 边界判定不读这个值——它只决定相对路径从哪里起步。
+ */
+function referenceRootOf(input: { workspacePath: string; fileReferenceRootPath?: string }): string {
+  return input.fileReferenceRootPath?.trim() || input.workspacePath;
+}
+
 function isRemoteInsideWorkspace(workspacePath: string, targetPath: string): boolean {
   const pathApi = remotePathApi(workspacePath);
   const relativePath = pathApi.relative(workspacePath, targetPath);
@@ -82,7 +98,7 @@ export function createRemoteConversationShareArtifactSource(
         const workspaceRealPath = await fileService.resolvePath({ path: input.workspacePath });
         const requestedPath = pathApi.isAbsolute(input.ref)
           ? input.ref
-          : pathApi.resolve(input.workspacePath, input.ref);
+          : pathApi.resolve(referenceRootOf(input), input.ref);
         const artifactRealPath = await fileService.resolvePath({ path: requestedPath });
         if (!isRemoteInsideWorkspace(workspaceRealPath, artifactRealPath)) {
           throw new ConversationShareServiceError(
@@ -129,7 +145,7 @@ export function createRemoteConversationShareArtifactSource(
         const workspaceRealPath = await fileService.resolvePath({ path: input.workspacePath });
         const requestedPath = pathApi.isAbsolute(input.ref)
           ? input.ref
-          : pathApi.resolve(input.workspacePath, input.ref);
+          : pathApi.resolve(referenceRootOf(input), input.ref);
         const artifactRealPath = await fileService.resolvePath({ path: requestedPath });
         if (!isRemoteInsideWorkspace(workspaceRealPath, artifactRealPath)) {
           throw new ConversationShareServiceError(
@@ -220,7 +236,7 @@ export function createLocalConversationShareArtifactSource(): ConversationShareA
         const workspaceRealPath = await realpath(input.workspacePath);
         const requestedPath = isAbsolute(input.ref)
           ? input.ref
-          : resolve(input.workspacePath, input.ref);
+          : resolve(referenceRootOf(input), input.ref);
         const artifactRealPath = await realpath(requestedPath);
         if (!isInsideWorkspace(workspaceRealPath, artifactRealPath)) {
           throw new ConversationShareServiceError(
@@ -268,10 +284,12 @@ export function createLocalConversationShareArtifactSource(): ConversationShareA
         const workspaceRealPath = await realpath(input.workspacePath);
         const requestedPath = isAbsolute(input.ref)
           ? input.ref
-          : resolve(input.workspacePath, input.ref);
+          : resolve(referenceRootOf(input), input.ref);
         const artifactRealPath = await realpath(requestedPath);
         // artifact Row 的 ref 来自会话数据，不能因为当前仅支持本地发布就默认可信；
         // 必须在跟随符号链接后再次验证 workspace 边界，避免分享读取任意本机文件。
+        // 解析根换成会话执行 cwd 后这条不变：`realpath` 之后再按 workspacePath 判包含，
+        // 因此 `../../` 逃逸与会话目录内的符号链接指向外部都会在这里被拒。
         if (!isInsideWorkspace(workspaceRealPath, artifactRealPath)) {
           throw new ConversationShareServiceError(
             "unsafe_structure",

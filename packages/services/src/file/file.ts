@@ -16,6 +16,13 @@ export interface WorkspaceFileSearchParams {
   limit?: number;
   /** 无命中补扫：绕过尚未过期的文件索引。 */
   refresh?: boolean;
+  /**
+   * 忽略规则根（`.zcodiumignore` 的所在目录）。缺省 = `rootPath`，行为与今天逐位一致。
+   * 对话会话（未指定项目的会话）必须传**对话根**：会话 cwd 是对话根下的独立目录，
+   * 规则仍只有一份、落在对话根上，会话目录里不生成 `.zcodiumignore`。
+   * 见 docs/specs/conversation-session-workspace.md 规则 10。
+   */
+  ignoreRulesRoot?: string;
 }
 
 export interface IFileService {
@@ -45,8 +52,10 @@ export interface IFileService {
    * workspace 文件索引的列式打包长度（字符数）。与 listWorkspaceFilesRange 配对，
    * 调用方按长度分块拉取（见 fetchWorkspaceFileEntriesPacked）。
    * 返回 number：RPC Int 快速路径。
+   * `ignoreRulesRoot` 与 searchWorkspaceFiles 同义；两次调用必须传同一个规则根，
+   * 否则索引会因签名不同而重扫。
    */
-  listWorkspaceFilesLength(params: { rootPath: string }): Promise<number>;
+  listWorkspaceFilesLength(params: { rootPath: string; ignoreRulesRoot?: string }): Promise<number>;
   /**
    * 分块返回列式打包字符串（workspaceFileEntriesCodec 格式，[offset, offset+length)）。
    * 必须是裸 string 顶层返回：RPC String 快速路径（长度前缀+原始字节）；Object 会
@@ -59,13 +68,17 @@ export interface IFileService {
     rootPath: string;
     offset: number;
     length: number;
+    ignoreRulesRoot?: string;
   }): Promise<string>;
   /**
    * workspace 搜索忽略规则（.zcodiumignore）的读写，供设置页编辑使用。
+   * `ignoreRulesRoot` 必须与搜索用的规则根一致，否则设置页会编辑出第二个规则文件
+   * （对话会话因此绝不能把规则写进会话目录）。
    * source: "file" 已存在文件内容；"template" 尚未创建时的初始内容预览（保存时才落盘）。
    */
   readWorkspaceFileSearchIgnore(params: {
     rootPath: string;
+    ignoreRulesRoot?: string;
   }): Promise<{ content: string; source: "file" | "template" }>;
   /**
    * 设置页分区操作（返回新内容填充编辑框，保存才落盘）：
@@ -75,8 +88,13 @@ export interface IFileService {
   applyWorkspaceFileSearchIgnoreTransform(params: {
     rootPath: string;
     transform: "sync-gitignore" | "reset-defaults";
+    ignoreRulesRoot?: string;
   }): Promise<{ content: string }>;
-  writeWorkspaceFileSearchIgnore(params: { rootPath: string; content: string }): Promise<void>;
+  writeWorkspaceFileSearchIgnore(params: {
+    rootPath: string;
+    content: string;
+    ignoreRulesRoot?: string;
+  }): Promise<void>;
 }
 
 export const IFileService = createServiceDescriptor<IFileService>(ServiceChannels.File);

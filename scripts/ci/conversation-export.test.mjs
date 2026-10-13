@@ -103,18 +103,16 @@ test("real service exports selected turns and files offline with scoped handles"
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
-  const { ConversationShareService, conversationShareConnectionScopeFactory } = await tsImport(
-    "../../packages/services/src/conversation-share/conversationShareService.ts",
-    import.meta.url,
-  );
-  const { createLocalConversationShareArtifactSource } = await tsImport(
-    "../../packages/services/src/conversation-share/conversationShareArtifactSource.ts",
-    import.meta.url,
-  );
-  const { decodeConversationArchive } = await tsImport(
-    "../../packages/services/src/conversation-share/conversationArchive.ts",
-    import.meta.url,
-  );
+  // 服务与 artifactSource 必须来自**同一次** tsImport：tsx 每次调用都新建独立模块图，跨图拿到的
+  // `ConversationShareServiceError` 是两个类对象，服务里所有 `instanceof` 判定（发布侧候选降级、
+  // 预检 missing）都会静默失效——happy path 照样绿，错误路径断言永远不会触发。
+  // 共享夹具就是为钉住这条判据而存在，见 fixtures/conversation-share-service.mjs 头部注释。
+  const {
+    ConversationShareService,
+    conversationShareConnectionScopeFactory,
+    createLocalConversationShareArtifactSource,
+    decodeConversationArchive,
+  } = await import("./fixtures/conversation-share-service.mjs");
   const directory = await mkdtemp(join(tmpdir(), "zcodium-export-"));
   const originalFetch = globalThis.fetch;
   const forbidden = () => {
@@ -215,6 +213,114 @@ test("real service exports selected turns and files offline with scoped handles"
     await assert.rejects(service.readExportChunk(archive.archiveId, 0));
   } finally {
     globalThis.fetch = originalFetch;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("publishing resolves relative body references from the session execution directory", async () => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  // 服务与 artifactSource 必须来自**同一次** tsImport：tsx 每次调用都新建独立模块图，跨图拿到的
+  // `ConversationShareServiceError` 是两个类对象，服务里所有 `instanceof` 判定（发布侧候选降级、
+  // 预检 missing）都会静默失效——happy path 照样绿，错误路径断言永远不会触发。
+  // 共享夹具就是为钉住这条判据而存在，见 fixtures/conversation-share-service.mjs 头部注释。
+  const {
+    ConversationShareService,
+    conversationShareConnectionScopeFactory,
+    createLocalConversationShareArtifactSource,
+    decodeConversationArchive,
+  } = await import("./fixtures/conversation-share-service.mjs");
+  const directory = await mkdtemp(join(tmpdir(), "zcodium-export-root-"));
+  const sessionDirectory = join(directory, "2026-10-11", "a1b2c3d4");
+  const base = {
+    turnId: "private-turn",
+    productTurnId: "private-product",
+    createdAt: 1,
+    createdAtSeq: 1,
+  };
+  const rows = [
+    {
+      ...base,
+      rowId: 1,
+      kind: "turnHeader",
+      origin: "userInput",
+      state: "completedSuccess",
+      startedAt: 1,
+    },
+    { ...base, rowId: 2, kind: "userInput", origin: "realUser", text: "Share the report" },
+    // 模型写相对路径时的基准是会话执行 cwd，不是工作区身份根。
+    {
+      ...base,
+      rowId: 3,
+      kind: "assistantText",
+      state: "complete",
+      text: "见 [报告](docs/report.pdf)",
+    },
+  ];
+  const readRows = async () => ({ rows, hasMore: false, atRevision: 1, atLogEpoch: "epoch" });
+  const collectArchive = async (service, archive) => {
+    const parts = [];
+    for (let offset = 0; offset < archive.byteLength; ) {
+      const part = Buffer.from(await service.readExportChunk(archive.archiveId, offset), "base64");
+      parts.push(part);
+      offset += part.length;
+    }
+    return decodeConversationArchive(Buffer.concat(parts));
+  };
+  try {
+    await mkdir(join(sessionDirectory, "docs"), { recursive: true });
+    // 同一段正文里的同一个相对引用，在两处各放一份不同内容的同名文件：
+    // 物化出来的是哪一份，就唯一地证明了引用按哪个根解析。
+    const workspaceFile = Buffer.from("workspace root copy\0\xff");
+    const sessionFile = Buffer.from("session directory copy\0\xff");
+    await mkdir(join(directory, "docs"), { recursive: true });
+    await writeFile(join(directory, "docs", "report.pdf"), workspaceFile);
+    await writeFile(join(sessionDirectory, "docs", "report.pdf"), sessionFile);
+    const host = new ConversationShareService({
+      zcodeAgentService: { conversationRowsRangeV4: readRows },
+      artifactSource: createLocalConversationShareArtifactSource(),
+      conversationWorkspaceRoot: directory,
+      logger: { info() {}, warn() {}, error() {}, debug() {} },
+    });
+    const service = host[conversationShareConnectionScopeFactory]({
+      conversationRowsRangeV4: readRows,
+    });
+    const input = {
+      workspacePath: directory,
+      sessionId: "session",
+      title: "Report",
+      selection: { kind: "productTurns", productTurnIds: ["private-product"] },
+    };
+    // 缺省 = 旧行为：相对引用按工作区身份根解析。
+    const legacy = await service.publish(
+      { ...input, clientRequestId: "legacy", selection: input.selection },
+      "legacy",
+    );
+    const legacyDecoded = await collectArchive(service, legacy);
+    assert.equal(legacyDecoded.artifacts.size, 1);
+    assert.deepEqual([...legacyDecoded.artifacts.values()][0], workspaceFile);
+    await service.releaseExport(legacy.archiveId);
+    // 显式传会话执行目录：同一个相对引用被解析到会话目录下的文件并物化进归档。
+    const archive = await service.publish(
+      {
+        ...input,
+        clientRequestId: "session-root",
+        selection: input.selection,
+        fileReferenceRootPath: sessionDirectory,
+      },
+      "session-root",
+    );
+    const decoded = await collectArchive(service, archive);
+    assert.equal(decoded.artifacts.size, 1);
+    assert.deepEqual([...decoded.artifacts.values()][0], sessionFile);
+    const artifactRows = decoded.content.rows.filter((row) => row.kind === "artifact");
+    assert.equal(artifactRows.length, 1);
+    // 归档里的 artifact row 只带公开投影后的描述符（run 的 ref 会被重写成 zcode-artifact://），
+    // 因此「按哪个根解析」由上面的字节断言唯一地证明。
+    assert.equal(artifactRows[0].displayName, "report.pdf");
+    await service.releaseExport(archive.archiveId);
+  } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });

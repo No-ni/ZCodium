@@ -23,6 +23,16 @@ export interface PublishTextConversationInput {
   title: string;
   selection: ConversationShareSelection;
   clientRequestId: string;
+  /**
+   * 正文相对路径的解析根（会话执行 cwd，即模型写相对路径时的基准目录）。
+   * 缺省 = workspacePath（项目工作区与旧调用方的行为不变）。
+   *
+   * 两分法：`workspacePath` 同时承担①分享的安全边界（只允许工作区内的文件）与
+   * ②工作区身份/键；本字段**只**表达相对路径从哪里解析。因此它不参与
+   * `workspaceKeyOf` / `previewPreflightKey`——分享的键按 spec 规则 7 保持工作区级，
+   * 不能因为同一工作区里两个会话的执行目录不同就分裂成两套预检缓存与导出归属。
+   */
+  fileReferenceRootPath?: string;
   /** 界面语言。 */
   locale?: Locale;
 }
@@ -33,6 +43,12 @@ export interface ConversationSharePreflightInput {
   remoteSessionId?: string;
   sessionId: string;
   selection: ConversationShareSelection;
+  /**
+   * 正文相对路径的解析根（会话执行 cwd）；缺省 = workspacePath；安全边界仍是 workspacePath。
+   * 预检与发布必须传同一个值，否则「预检可见的卡片」与「发布物化的卡片」不同源
+   * （候选指纹会因此不匹配，选择阶段看到的结果物在发布阶段被静默跳过）。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface ConversationShareAllowedArtifact {
@@ -170,6 +186,12 @@ function inferFailureReasonCode(message: string): ConversationShareFailureReason
   if (/not allowed by server capabilities/iu.test(message)) return "artifact_type_not_allowed";
   if (/extension is missing/iu.test(message)) return "artifact_extension_missing";
   if (/outside the workspace/iu.test(message)) return "artifact_outside_workspace";
+  // 预检快照与发布之间的**生效解析根**变化：包内消息逐字为
+  // "Conversation reference root changed while preparing share"。解析根一变，候选集合就整体
+  // 换了一批文件（同名不同内容），这是「会话在准备分享期间发生变化」的同一类问题，必须复用
+  // 既有的 stale_conversation 让 UI 提示「返回选择后重试」；落进下面的兜底
+  // invalid_conversation 会把文案错报成「所选内容包含当前版本暂不支持的结构」。
+  if (/reference root changed/iu.test(message)) return "stale_conversation";
   if (/changed after|file changed|size\/mtime/iu.test(message)) return "artifact_changed";
   // 本地/远程 artifact source 的兜底消息是 "artifact cannot be read"，
   // 旧正则只覆盖 ended|source|chunk|readable，读失败因此被误判为 invalid_conversation。

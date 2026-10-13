@@ -141,13 +141,24 @@ function isAbsolutePath(path: string): boolean {
   return path.startsWith("/") || /^[a-zA-Z]:[\\/]/u.test(path) || path.startsWith("\\\\");
 }
 
+/**
+ * 相对路径的词法归一化。
+ *
+ * 允许**前导** `..`：解析根是会话执行 cwd（严格在工作区边界**之内**一层），`../x.md` 是模型引用
+ * 上层目录的正常写法，而这里的 chroot 曾经等价于安全边界——那只是因为过去解析根就是工作区根。
+ * 越界与否不归本函数判：候选构建阶段的 `isInsideWorkspace` 是唯一的安全边界（artifactSource 的
+ * realpath 包含判定是第二道），这里返回的带 `..` 结果会由调用方拼成绝对路径再归一化。
+ */
 function normalizeRelativePath(path: string): string | null {
   const segments: string[] = [];
   for (const segment of normalizeSlashes(path).split("/")) {
     if (!segment || segment === ".") continue;
     if (segment === "..") {
-      if (segments.length === 0) return null;
-      segments.pop();
+      if (segments.length > 0 && segments.at(-1) !== "..") {
+        segments.pop();
+        continue;
+      }
+      segments.push("..");
       continue;
     }
     segments.push(segment);
@@ -170,8 +181,12 @@ function normalizeAbsolutePath(path: string): string {
   return `${prefix}${segments.join("/")}`;
 }
 
+/**
+ * 把引用解析成绝对路径。`referenceRootPath` 是**相对路径的解析根**（工作区身份路径或会话执行 cwd，
+ * 由调用方决定）；绝对路径与 `file://` URL 原样归一化，不受该根影响。
+ */
 export function resolveConversationPreviewPath(
-  workspacePath: string,
+  referenceRootPath: string,
   rawPath: string,
 ): string | null {
   const cleaned = cleanPath(rawPath);
@@ -184,8 +199,10 @@ export function resolveConversationPreviewPath(
   if (isAbsolutePath(filePath)) return normalizeAbsolutePath(filePath);
   const relative = normalizeRelativePath(filePath);
   if (relative === null) return null;
-  const workspace = normalizeAbsolutePath(workspacePath).replace(/\/$/u, "");
-  return `${workspace}/${relative}`;
+  const root = normalizeAbsolutePath(referenceRootPath).replace(/\/$/u, "");
+  // 相对段可能带前导 `..`（引用解析根之外的相邻目录）：词法归一化成绝对形态，
+  // 是否越界留给候选构建的 `isInsideWorkspace` 一处裁决（唯一的安全边界）。
+  return normalizeAbsolutePath(`${root}/${relative}`);
 }
 
 export function getConversationPreviewFileType(path: string): PreviewFileTypeDefinition | null {
@@ -219,15 +236,22 @@ function readDirectiveParameter(parameters: string, name: string): string | unde
   return match?.[1]?.trim() || undefined;
 }
 
+/**
+ * 从正文里抽出预览卡片候选的文件引用。
+ *
+ * `referenceRootPath` 是**正文相对路径的解析根**（会话执行 cwd，即模型写相对路径时的基准目录），
+ * 不是安全边界：边界判定在 `buildConversationPreviewArtifactCandidates*` 里按 `workspacePath` 做。
+ * 缺省调用方仍应传工作区身份路径（旧行为）。
+ */
 export function extractConversationPreviewFileReferences(
   content: string,
-  workspacePath: string,
+  referenceRootPath: string,
 ): ConversationPreviewFileReference[] {
   if (!content.trim()) return [];
   const references: ConversationPreviewFileReference[] = [];
   const protectedRanges: Array<[number, number]> = [];
   const addReference = (raw: string, start: number, end: number) => {
-    const path = resolveConversationPreviewPath(workspacePath, raw);
+    const path = resolveConversationPreviewPath(referenceRootPath, raw);
     const definition = path ? getConversationPreviewFileType(path) : null;
     if (!path || !definition) return;
     references.push({ start, end, kind: definition.kind, path, raw });
@@ -241,7 +265,7 @@ export function extractConversationPreviewFileReferences(
     const rawPath = readDirectiveParameter(match[1] ?? "", "path");
     if (!rawPath) continue;
     const artifactKind = readDirectiveParameter(match[1] ?? "", "artifact_kind")?.toLowerCase();
-    const path = resolveConversationPreviewPath(workspacePath, rawPath);
+    const path = resolveConversationPreviewPath(referenceRootPath, rawPath);
     const definition = path ? getConversationPreviewFileType(path) : null;
     const citationKind =
       definition?.kind === "docx" ||
@@ -318,16 +342,25 @@ export function buildConversationPreviewArtifactCandidatesFromReferences(input: 
   references: readonly ConversationPreviewFileReference[];
   productTurnId: string;
   workspacePath: string;
+  /**
+   * 相对路径的解析根（会话执行 cwd）；缺省回落 `workspacePath`（旧行为）。
+   * `fileChanges[].path` 是模型写进 write/edit 的原始路径（相对执行 cwd 或绝对），
+   * 因此它的相对解析也必须用这个根。
+   */
+  fileReferenceRootPath?: string;
   fileChanges?: readonly ConversationPreviewFileChange[];
   enforceWorkspaceBoundary?: boolean;
 }): ConversationPreviewArtifactCandidate[] {
+  // 解析根与安全边界是两件事：解析用会话执行 cwd，边界仍必须是工作区身份路径，
+  // 否则 `.zcodium-share/...` 这类落在工作区根上的绝对引用会被误判出界而丢掉。
+  const referenceRootPath = input.fileReferenceRootPath?.trim() || input.workspacePath;
   const changes = input.fileChanges ?? [];
   const activePaths = new Set(
     changes
       .filter((change) => change.state !== "reverted")
       .map((change) =>
         normalizeAbsolutePath(
-          resolveConversationPreviewPath(input.workspacePath, change.path) ?? change.path,
+          resolveConversationPreviewPath(referenceRootPath, change.path) ?? change.path,
         ),
       ),
   );
@@ -336,7 +369,7 @@ export function buildConversationPreviewArtifactCandidatesFromReferences(input: 
       .filter((change) => change.state === "reverted")
       .map((change) =>
         normalizeAbsolutePath(
-          resolveConversationPreviewPath(input.workspacePath, change.path) ?? change.path,
+          resolveConversationPreviewPath(referenceRootPath, change.path) ?? change.path,
         ),
       ),
   );
@@ -348,6 +381,7 @@ export function buildConversationPreviewArtifactCandidatesFromReferences(input: 
       const definition = getConversationPreviewFileType(reference.path);
       if (!definition) return null;
       const normalizedPath = normalizeAbsolutePath(reference.path);
+      // 安全边界固定用 workspacePath：分享只允许工作区内的文件。
       if (
         input.enforceWorkspaceBoundary !== false &&
         !isInsideWorkspace(normalizedPath, input.workspacePath)
@@ -382,11 +416,15 @@ export function buildConversationPreviewArtifactCandidates(input: {
   assistantText: string;
   productTurnId: string;
   workspacePath: string;
+  /** 相对路径的解析根（会话执行 cwd）；缺省回落 `workspacePath`。安全边界始终是 `workspacePath`。 */
+  fileReferenceRootPath?: string;
   fileChanges?: readonly ConversationPreviewFileChange[];
 }): ConversationPreviewArtifactCandidate[] {
+  // 正文引用与 fileChanges 必须用同一个解析根，否则「预览卡片可见」与「文件变更匹配」会各算一套。
+  const referenceRootPath = input.fileReferenceRootPath?.trim() || input.workspacePath;
   return buildConversationPreviewArtifactCandidatesFromReferences({
     ...input,
-    references: extractConversationPreviewFileReferences(input.assistantText, input.workspacePath),
+    references: extractConversationPreviewFileReferences(input.assistantText, referenceRootPath),
   });
 }
 

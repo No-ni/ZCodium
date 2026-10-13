@@ -55,6 +55,24 @@ export interface ConversationSharePreviewPreflightSnapshot {
   capabilitiesFingerprint: string;
   candidateFingerprint: string;
   visibleSourceRefs: readonly string[];
+  /**
+   * 预检时用的**生效解析根**（`fileReferenceRootPath?.trim() || workspacePath`）。
+   *
+   * 发布阶段必须与它相等：`candidateFingerprint` 里的 sourceRef 已经是按这个根解析出的绝对路径，
+   * 根一变，候选集合就整体换了一批文件（同名不同内容时用户看到的卡片与分享出去的字节不是同一份）。
+   * 因此根变化不能像陈旧水位那样"重新发现、放宽到全部候选"，必须显式失败让人重试。
+   */
+  fileReferenceRootPath: string;
+  /**
+   * 预检时有候选的 stat 没能定论（`artifact_read_failed` 的 deferred 情形）：水位不可用，
+   * 发布阶段必须像「没有快照」那样重新按**全部候选**确认，不能按 `visibleSourceRefs` 收敛
+   * （当时根本没能判断它们是否可见）。
+   *
+   * 但快照本身**必须保留**：`fileReferenceRootPath` 的一致性不能因为水位不可用而一起放弃——
+   * 否则解析根在预检与发布之间变化时（切会话首帧等）发布方会按新根重新解析，把用户选中的
+   * 「同名不同内容」文件分享出去，且没有任何提示。见 spec 已知边界 13。
+   */
+  candidatesUnsettled?: boolean;
 }
 
 export function getConversationSharePreviewCandidateFingerprint(
@@ -113,6 +131,8 @@ function matchAllowedArtifact(
 
 async function materializeRegisteredArtifacts(options: {
   workspacePath: string;
+  /** 已解析的相对引用根（会话执行 cwd），由调用方按 `fileReferenceRootPath ?? workspacePath` 算好。 */
+  referenceRootPath: string;
   maxArtifactBytes: number;
   artifacts: ConversationSharePublicArtifact[];
   artifactSource: ConversationShareArtifactSource;
@@ -121,6 +141,7 @@ async function materializeRegisteredArtifacts(options: {
   for (const artifact of options.artifacts) {
     const { bytes, canonicalPath } = await options.artifactSource.read({
       workspacePath: options.workspacePath,
+      fileReferenceRootPath: options.referenceRootPath,
       ref: artifact.sourceRef,
       maxBytes: options.maxArtifactBytes,
     });
@@ -189,15 +210,16 @@ async function discoverPreviewArtifacts(options: {
     (maximum, row) => Math.max(maximum, row.rowId),
     0,
   );
+  // 相对引用的解析根 = 会话执行 cwd（模型写相对路径时的基准），缺省回落工作区身份路径。
+  // 注意：workspacePath 仍是安全边界与工作区键，只在这里把它降级成「缺省值」。
+  const referenceRootPath =
+    options.input.fileReferenceRootPath?.trim() || options.input.workspacePath;
 
   for (const [productTurnId, textParts] of assistantTextByProductTurnId) {
     const header = headersByProductTurnId.get(productTurnId);
     if (!header) continue;
     const assistantText = textParts.join("\n\n");
-    const references = extractConversationPreviewFileReferences(
-      assistantText,
-      options.input.workspacePath,
-    );
+    const references = extractConversationPreviewFileReferences(assistantText, referenceRootPath);
     const needsFileChanges = references.some(
       (reference) => reference.kind === "markdown" || reference.kind === "html",
     );
@@ -208,6 +230,7 @@ async function discoverPreviewArtifacts(options: {
       }
       let result: Awaited<ReturnType<IZCodeAgentService["conversationFileChangesV4"]>>;
       try {
+        // sessionId 的定位键必须是工作区键路径（Host 按它路由进程/session），不是执行 cwd。
         result = await options.zcodeAgentService.conversationFileChangesV4({
           workspacePath: options.input.workspacePath,
           ...(options.input.workspaceIdentity
@@ -230,6 +253,10 @@ async function discoverPreviewArtifacts(options: {
         }
         throw error;
       }
+      // `conversationFileChangesV4` 的 `items[].path` 是模型写进 write/edit 的**原始**路径
+      // （CLI 侧 checkpoint artifact 的 `path` 直接取自工具输出 `filePath`，见
+      // core/src/runtime/helpers/rewind.ts 的 stringifyWorkspaceCheckpointArtifact），
+      // 因此相对路径的基准同样是会话执行 cwd——与正文引用共用一个解析根。
       fileChanges = result.items.map((item) => ({
         path: item.path,
         state: result.state === "reverted" ? "reverted" : "active",
@@ -240,9 +267,19 @@ async function discoverPreviewArtifacts(options: {
       assistantText,
       productTurnId,
       workspacePath: options.input.workspacePath,
+      fileReferenceRootPath: referenceRootPath,
       fileChanges,
     });
     const preflightSnapshot = options.preflightPreviewSnapshots?.get(productTurnId);
+    if (
+      preflightSnapshot !== undefined &&
+      preflightSnapshot.fileReferenceRootPath !== referenceRootPath
+    ) {
+      // 预检与发布之间解析根变了（会话执行 cwd 与 tab 工作区路径互换，例如切会话首帧的快照尚未到达）。
+      // 按发布侧继续会把「选择阶段可见的卡片」换成另一个根下的同名文件，且**没有任何 warning**——
+      // 显式失败让用户重试，重试时两端都会用已稳定的新根。见 spec 已知边界 13。
+      throwDiscoveryError("Conversation reference root changed while preparing share");
+    }
     const preflightMatches =
       preflightSnapshot !== undefined &&
       preflightSnapshot.revision === options.revision &&
@@ -250,11 +287,12 @@ async function discoverPreviewArtifacts(options: {
       preflightSnapshot.capabilitiesFingerprint === options.currentCapabilitiesFingerprint &&
       preflightSnapshot.candidateFingerprint ===
         getConversationSharePreviewCandidateFingerprint(candidates);
-    const candidatesForPublish = preflightMatches
-      ? candidates.filter((candidate) =>
-          preflightSnapshot.visibleSourceRefs.includes(candidate.sourceRef),
-        )
-      : candidates;
+    const candidatesForPublish =
+      preflightMatches && preflightSnapshot.candidatesUnsettled !== true
+        ? candidates.filter((candidate) =>
+            preflightSnapshot.visibleSourceRefs.includes(candidate.sourceRef),
+          )
+        : candidates;
     const visibleCandidates: ConversationPreviewArtifactCandidate[] = [];
     const previewCanonicalPaths = new Set<string>();
     const fallbackReadCache = new Map<string, { bytes: Uint8Array; canonicalPath: string }>();
@@ -263,6 +301,7 @@ async function discoverPreviewArtifacts(options: {
       // 发布阶段重新确认失败时要回传 warning，避免“分享成功”却悄悄漏掉选择时可见的卡片。
       const visibleCandidateSource = {
         workspacePath: options.input.workspacePath,
+        fileReferenceRootPath: referenceRootPath,
         ref: candidate.sourceRef,
       } as const;
       try {
@@ -282,6 +321,26 @@ async function discoverPreviewArtifacts(options: {
           fallbackReadCache.set(candidate.sourceRef, materialized);
         }
       } catch (error) {
+        // 阅读前就被判「在工作区之外」的候选（典型：会话目录里模型自己 `ln -s` 指向工作区外的文件）
+        // 与「读不到」同档处理：文件**没有被读取**，边界没有被放松，只是不该因为它让整次分享失败
+        // （预检对同一形状只给非阻断提示，发布侧必须同粒度，否则用户看到的是"可以发"却最后失败）。
+        if (
+          error instanceof ConversationShareServiceError &&
+          error.reasonCode === "artifact_outside_workspace"
+        ) {
+          options.warnings.push({
+            code: "artifact_read_failed",
+            scope: "artifact",
+            rowId: header.rowId,
+            turnOrdinal: turnOrdinalByProductTurnId.get(productTurnId),
+            artifactDisplayName: candidate.displayName,
+            artifactType: candidate.artifactType,
+            extension: candidate.displayName.split(".").at(-1)?.toLowerCase(),
+            mimeType: candidate.mimeType,
+            availability: "unknown",
+          });
+          continue;
+        }
         if (
           error instanceof ConversationShareServiceError &&
           error.reasonCode === "artifact_read_failed"
@@ -342,6 +401,7 @@ async function discoverPreviewArtifacts(options: {
         } else {
           materialized = await options.artifactSource.read({
             workspacePath: options.input.workspacePath,
+            fileReferenceRootPath: referenceRootPath,
             ref: candidate.sourceRef,
             maxBytes: options.capabilities.max_artifact_bytes,
           });
@@ -351,7 +411,12 @@ async function discoverPreviewArtifacts(options: {
           !(error instanceof ConversationShareServiceError) ||
           error.reasonCode !== "artifact_read_failed"
         ) {
-          // limit_exceeded / unsafe_structure 仍然阻断：那是需要用户处理的真实约束。
+          // 这一轮（真正读取）里只有 artifact_read_failed 降级。越界候选的降级只发生在
+          // 上面的「读取前存在性确认」：那种候选**从未被读取**，安全边界没有被放松，
+          // 因此与预检同粒度地降级成逐条 warning；而**到读取时才暴露**的越界
+          // （第一轮 stat 之后文件被换成指向工作区外的符号链接）与其它 unsafe_structure
+          // 成因、limit_exceeded 一样仍然阻断——那是需要用户处理的真实约束，
+          // 不能靠跳过单个候选把整次发布蒙混过去。
           throw error;
         }
         options.warnings.push({
@@ -683,6 +748,7 @@ export async function buildConversationShareArtifactSnapshot(options: {
   const selectedRows = inputAttachments.rows;
   const registered = await materializeRegisteredArtifacts({
     workspacePath: options.input.workspacePath,
+    referenceRootPath: options.input.fileReferenceRootPath?.trim() || options.input.workspacePath,
     maxArtifactBytes: options.capabilities.max_artifact_bytes,
     artifacts: options.registeredArtifacts,
     artifactSource: options.artifactSource,

@@ -916,6 +916,10 @@ export class ConversationShareService implements IConversationShareService {
       Extract<ConversationRow, { kind: "turnHeader" }>
     >();
     const assistantTextByProductTurnId = new Map<string, string[]>();
+    // 预检与发布必须用同一个相对引用解析根（会话执行 cwd），否则候选指纹不同源：
+    // 预检时「可见」的结果物在发布阶段会被按另一个根解析而静默跳过。
+    // 解析根不参与 previewPreflightKey——分享的键按 spec 规则 7 保持工作区级。
+    const referenceRootPath = input.fileReferenceRootPath?.trim() || input.workspacePath;
     for (const row of selectedRows) {
       if (row.kind === "turnHeader" && row.productTurnId) {
         headersByProductTurnId.set(row.productTurnId, row);
@@ -931,10 +935,7 @@ export class ConversationShareService implements IConversationShareService {
       const header = headersByProductTurnId.get(productTurnId);
       if (!header) continue;
       const assistantText = textParts.join("\n\n");
-      const references = extractConversationPreviewFileReferences(
-        assistantText,
-        input.workspacePath,
-      );
+      const references = extractConversationPreviewFileReferences(assistantText, referenceRootPath);
       const needsFileChanges = references.some(
         (reference) => reference.kind === "markdown" || reference.kind === "html",
       );
@@ -970,6 +971,7 @@ export class ConversationShareService implements IConversationShareService {
         assistantText,
         productTurnId,
         workspacePath: input.workspacePath,
+        fileReferenceRootPath: referenceRootPath,
         fileChanges,
       });
       const visibleCandidates: ConversationPreviewArtifactCandidate[] = [];
@@ -983,6 +985,7 @@ export class ConversationShareService implements IConversationShareService {
             settle(() =>
               artifactSourceStat({
                 workspacePath: input.workspacePath,
+                fileReferenceRootPath: referenceRootPath,
                 ref: candidate.sourceRef,
               }),
             ),
@@ -1066,9 +1069,23 @@ export class ConversationShareService implements IConversationShareService {
           capabilitiesFingerprint: capabilitiesFingerprint(capabilities),
           candidateFingerprint: getConversationSharePreviewCandidateFingerprint(candidates),
           visibleSourceRefs: visibleCandidates.map((candidate) => candidate.sourceRef),
+          // 发布阶段要用它做一致性硬校验：根变了就必须失败重试（见 discovery 里的判定）。
+          fileReferenceRootPath: referenceRootPath,
         });
       } else {
-        this.previewPreflightSnapshots.delete(snapshotKey);
+        // 有候选的 stat 没能定论：水位（visibleSourceRefs）不可用，但**根一致性必须保留**。
+        // 删掉快照会让发布阶段既丢掉可见候选水位、也丢掉解析根硬校验，从而按新的根重新解析并
+        // 分享与卡片同名的另一份文件（无 warning）。因此这里改写为「保留根 + 标记水位不可用」，
+        // 发布阶段据此退回「按全部候选确认」，与删除快照时的候选行为逐位一致。
+        this.setPreviewPreflightSnapshot(snapshotKey, {
+          revision: conversation.revision,
+          logEpoch: conversation.logEpoch,
+          capabilitiesFingerprint: capabilitiesFingerprint(capabilities),
+          candidateFingerprint: getConversationSharePreviewCandidateFingerprint(candidates),
+          visibleSourceRefs: [],
+          candidatesUnsettled: true,
+          fileReferenceRootPath: referenceRootPath,
+        });
       }
     }
 

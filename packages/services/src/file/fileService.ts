@@ -24,6 +24,7 @@ import {
   isWorkspaceFileSearchPathIgnored,
   loadWorkspaceFileSearchIgnoreRules,
   readWorkspaceFileSearchIgnore,
+  resolveWorkspaceFileSearchIgnoreRulesRoot,
   transformWorkspaceFileSearchIgnore,
   writeWorkspaceFileSearchIgnore,
 } from "./workspaceFileIgnore.js";
@@ -203,8 +204,10 @@ export interface CreateFileServiceOptions {
  * 37 万文件 workspace 的全仓扫描即使并发化也要数秒，同一 workspace 的
  * 反复打开（@ 面板关闭即清理的 renderer 语义、Command Center、文件树）
  * 不应每次都重扫。服务内按 workspaceIdentity（缺省为 rootPath）隔离，
- * 校验 rootPath + .zcodiumignore 的 mtime/size 指纹；规则编辑后缓存失效，
+ * 校验 rootPath + 规则根 + .zcodiumignore 的 mtime/size 指纹；规则编辑后缓存失效，
  * 保持"编辑规则后下次使用生效"的契约。
+ * 规则根进签名是必须的：同一搜索根配不同规则根（对话根 vs 会话目录）会得到不同的
+ * 结果，只按搜索根做签名会让后一次查询命中前一次的索引。
  */
 const WORKSPACE_FILE_LIST_CACHE_TTL_MS = 60_000;
 const WORKSPACE_FILE_LIST_SCAN_CONCURRENCY = 8;
@@ -216,9 +219,9 @@ interface WorkspaceFileIndex {
   candidates?: ReturnType<typeof buildHostFileSearchCandidates>;
 }
 
-async function statWorkspaceFileSearchIgnoreFingerprint(rootPath: string): Promise<string> {
+async function statWorkspaceFileSearchIgnoreFingerprint(rulesRoot: string): Promise<string> {
   try {
-    const fileStat = await stat(join(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME));
+    const fileStat = await stat(join(rulesRoot, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME));
     return `${fileStat.mtimeMs}:${fileStat.size}`;
   } catch {
     return "none";
@@ -270,10 +273,18 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
     rootPath: string,
     workspaceIdentity?: string,
     refresh = false,
+    ignoreRulesRoot?: string,
   ): Promise<WorkspaceFileIndex> => {
     const workspaceKey = workspaceIdentity?.trim() || rootPath;
-    const ignoreRules = await loadWorkspaceFileSearchIgnoreRules(rootPath, workspaceIgnoreLogger);
-    const cacheSignature = `${rootPath}\n${await statWorkspaceFileSearchIgnoreFingerprint(rootPath)}`;
+    // 规则根 = 显式参数 ?? 搜索根。这里刻意**不做**任何"看起来像会话目录"的结构推断：
+    // 「哪个 workspace 是对话根」的唯一所有者是下发标记的 Host 与铸造目录的 CLI，服务层
+    // 再判一次就会出现两个定义（对"嵌在对话根下的项目 workspace"误判、并写坏规则文件）。
+    // 对话会话的调用方必须显式传对话根，见 docs/specs/conversation-session-workspace.md 规则 10。
+    const rulesRoot = resolveWorkspaceFileSearchIgnoreRulesRoot(rootPath, ignoreRulesRoot);
+    const ignoreRules = await loadWorkspaceFileSearchIgnoreRules(rootPath, workspaceIgnoreLogger, {
+      ignoreRulesRoot: rulesRoot,
+    });
+    const cacheSignature = `${rootPath}\n${rulesRoot}\n${await statWorkspaceFileSearchIgnoreFingerprint(rulesRoot)}`;
     for (const [key, value] of workspaceFileListCache) {
       if (Date.now() - value.at >= WORKSPACE_FILE_LIST_CACHE_TTL_MS)
         workspaceFileListCache.delete(key);
@@ -621,20 +632,35 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
         params.rootPath,
         params.workspaceIdentity,
         params.refresh,
+        params.ignoreRulesRoot,
       );
       index.candidates ??= buildHostFileSearchCandidates(index.packed, params.rootPath);
       return searchHostFileCandidates(await index.candidates, params.query, limit);
     },
-    async listWorkspaceFilesLength(params: { rootPath: string }): Promise<number> {
-      const { packed } = await ensureWorkspaceFileIndex(params.rootPath);
+    async listWorkspaceFilesLength(params: {
+      rootPath: string;
+      ignoreRulesRoot?: string;
+    }): Promise<number> {
+      const { packed } = await ensureWorkspaceFileIndex(
+        params.rootPath,
+        undefined,
+        false,
+        params.ignoreRulesRoot,
+      );
       return packed.length;
     },
     async listWorkspaceFilesRange(params: {
       rootPath: string;
       offset: number;
       length: number;
+      ignoreRulesRoot?: string;
     }): Promise<string> {
-      const { packed } = await ensureWorkspaceFileIndex(params.rootPath);
+      const { packed } = await ensureWorkspaceFileIndex(
+        params.rootPath,
+        undefined,
+        false,
+        params.ignoreRulesRoot,
+      );
       const offset = Math.max(0, Math.trunc(params.offset));
       if (offset >= packed.length) {
         return "";
@@ -644,20 +670,36 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
     },
     async readWorkspaceFileSearchIgnore(params: {
       rootPath: string;
+      ignoreRulesRoot?: string;
     }): Promise<{ content: string; source: "file" | "template" }> {
-      return readWorkspaceFileSearchIgnore(params.rootPath);
+      // 设置页三个方法与搜索索引共用同一个规则根解析（显式参数 ?? 搜索根），
+      // 否则设置页会编辑出第二个规则文件。
+      return readWorkspaceFileSearchIgnore(
+        params.rootPath,
+        resolveWorkspaceFileSearchIgnoreRulesRoot(params.rootPath, params.ignoreRulesRoot),
+      );
     },
     async applyWorkspaceFileSearchIgnoreTransform(params: {
       rootPath: string;
       transform: "sync-gitignore" | "reset-defaults";
+      ignoreRulesRoot?: string;
     }): Promise<{ content: string }> {
-      return transformWorkspaceFileSearchIgnore(params.rootPath, params.transform);
+      return transformWorkspaceFileSearchIgnore(
+        params.rootPath,
+        params.transform,
+        resolveWorkspaceFileSearchIgnoreRulesRoot(params.rootPath, params.ignoreRulesRoot),
+      );
     },
     async writeWorkspaceFileSearchIgnore(params: {
       rootPath: string;
       content: string;
+      ignoreRulesRoot?: string;
     }): Promise<void> {
-      await writeWorkspaceFileSearchIgnore(params.rootPath, params.content);
+      await writeWorkspaceFileSearchIgnore(
+        params.rootPath,
+        params.content,
+        resolveWorkspaceFileSearchIgnoreRulesRoot(params.rootPath, params.ignoreRulesRoot),
+      );
     },
   };
 }

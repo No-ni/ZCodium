@@ -112,6 +112,10 @@ test("Windows CUA uses the shared host only when enabled; browser-only never ena
       assert.deepEqual(config([plugin("computer-use")]), {});
       const browser = config([host, plugin("browser-use")]).node_repl;
       assert.equal(browser.env.ZCODE_CUA_DRIVER_EMBEDDED, undefined);
+      // 宿主把入参 cwd 原样写进 server config：这是「谁决定 node_repl 的进程 cwd」的唯一契约点。
+      // 调用方（create-app）传的是**会话执行 cwd**，不是工作区键路径——改回后者会让 `js` 里的相对
+      // 写入落进对话根（见 spec 已知边界 23 与 wiring 测试的 node_repl 契约）。
+      assert.equal(browser.cwd, "/fixture");
       const cua = config([host, plugin("computer-use")]).node_repl;
       assert.equal(cua.env.ZCODE_CUA_DRIVER_EMBEDDED, "1");
       assert.equal(cua.env.ZCODE_CUA_DRIVER_SOCKET, undefined);

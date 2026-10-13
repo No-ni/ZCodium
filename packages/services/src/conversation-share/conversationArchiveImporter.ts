@@ -232,13 +232,18 @@ export class ConversationArchiveImporter {
           .replace(/[. ]+$/u, "")
           .slice(0, 120) || "attachment";
       const name = `file-${index + 1}-${safe}`;
+      const workspaceRelativePath = `.zcodium-share/${shareId}/shared-artifacts/${name}`;
       return {
         artifactId: artifact.artifact_id,
         displayName: artifact.display_name,
         mimeType: artifact.mime_type,
         sha256: artifact.sha256,
         name,
-        workspaceRelativePath: `.zcodium-share/${shareId}/shared-artifacts/${name}`,
+        workspaceRelativePath,
+        // 只进「模型可见的共享上下文 markdown」，不进 shared-conversation.json：
+        // 导入会话的执行 cwd 是会话执行目录（对话工作区）或工作区根（项目工作区），
+        // 相对对话根的路径模型按自己的 cwd 读不到，必须给绝对路径。
+        absolutePath: join(workspacePath, workspaceRelativePath),
       };
     });
     const storedConversation = JSON.stringify({

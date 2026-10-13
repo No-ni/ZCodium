@@ -10,6 +10,15 @@ interface SharedContextFormatterInputV1 {
   installedArtifacts: Array<{
     artifactId: string;
     workspaceRelativePath: string;
+    /**
+     * 安装文件的绝对路径（= 工作区根 + workspaceRelativePath）。
+     *
+     * 为什么必须写绝对路径：导入会话的执行 cwd 不再是工作区根——对话工作区会话跑在
+     * `<对话根>/<日期>/<id8>`，项目工作区会话才跑在工作区根。`- Path:` 是给模型读的，
+     * 写相对对话根的 `.zcodium-share/...` 时两种 cwd 都解析不到（模型会按自己的 cwd 拼接），
+     * 绝对路径在两种 cwd 下都指向同一份已安装文件。
+     */
+    absolutePath: string;
     displayName: string;
     mimeType: string;
     sha256: string;
@@ -51,7 +60,7 @@ export function formatSharedContextV1(
             return installed
               ? [
                   `- ${installed.displayName}`,
-                  `  - Path: ${installed.workspaceRelativePath}`,
+                  `  - Path: ${installed.absolutePath}`,
                   `  - MIME: ${installed.mimeType}`,
                   `  - SHA-256: ${installed.sha256}`,
                 ]
@@ -93,7 +102,7 @@ export function formatSharedContextV1(
         sections.push(
           [
             `## Artifact: ${artifact.displayName}`,
-            `- Path: ${artifact.workspaceRelativePath}`,
+            `- Path: ${artifact.absolutePath}`,
             `- MIME: ${artifact.mimeType}`,
             `- SHA-256: ${artifact.sha256}`,
           ].join("\n"),
@@ -115,6 +124,11 @@ export function formatSharedContextV1(
   }
   const markdown = `${sections.join("\n\n")}\n`;
   return {
+    // 保持 1：本字段是随 provenance 落盘/过协议的**信息字段**，没有任何消费方按它分支
+    // （唯一出现处是 shared-context-import.ts 的 `formatterVersion: z.literal(1)` 形状校验）。
+    // `- Path:` 由工作区相对改绝对只改变该行的取值，行的形状与 markdown 结构不变，且
+    // markdownSha256 始终是这段真实 markdown 的哈希；升到 2 既不会让谁改变行为，还会让
+    // 既存会话里 version=1 的 provenance 失去兼容，收益为零。
     formatterVersion: 1,
     markdown,
     markdownSha256: createHash("sha256").update(markdown, "utf8").digest("hex"),
