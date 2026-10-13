@@ -302,6 +302,15 @@ export class ConversationTopicPublisher {
   }
 
   /**
+   * 会话执行 cwd 种子：静态事实，直改投影初值，不产 delta / 不进事件日志
+   * （语义见 ProductProjection.seedSessionWorkspacePath）。
+   */
+  seedSessionWorkspacePath(workspacePath: string | null | undefined): void {
+    this.projection.seedSessionWorkspacePath(workspacePath);
+    this.wireSnapshotBytesUpperBound = this.measureWireSnapshotBytes(this.getWireSnapshot());
+  }
+
+  /**
    * 下发用快照：rows 只带尾部窗口（snapshotTailWindowRows），
    * totalCount/firstRowId 保留全序口径——客户端以 `window[0].rowId === firstRowId`
    * 判定已到顶，更早历史经 rows/range 游标拉取。投影内部快照保持全量

@@ -261,6 +261,14 @@ export interface V4GatewayHost {
     sessionId: string,
     persistedMessages?: MessageWithParts[],
   ): Promise<SessionUsageSeed | null> | SessionUsageSeed | null;
+  /**
+   * 会话执行 cwd 种子（会话持久化的 `path`；对话会话是 `<对话根>/<创建日>/<id8>`）。
+   *
+   * 会话生命周期内不变，只作为 snapshot 的 additive 字段 `workspacePath` 下发（不产 delta），
+   * UI 据此把文件树/提及/终端/文件搜索绑到会话目录，而不是 tab 的 workspacePath。
+   * 会话不在册或旧宿主未实现 → 字段缺席，UI 回落 tab 的 workspacePath（UI 只读，不代算）。
+   */
+  getSessionWorkspacePath?(sessionId: string): string | null;
   /** sessions-index：某 workspace 下当前在册的会话 id（冷启动 snapshot 用）。 */
   listWorkspaceSessionIds?(workspaceId: string): string[];
   /**
@@ -1045,6 +1053,11 @@ export class ConversationV4Gateway {
         this.detachedChildrenByParent.set(parentSessionId, children);
       }
       children.add(sessionId);
+      // 父子关系现在才知道：publisher 若在它之前就建出来了（订阅先于第一个 child 事件，或
+      // rehydrate 早于首次 ingest），创建/水合两次种子都拿不到父 record，快照会一直缺
+      // `workspacePath`（面板按对话根解析相对路径）。这里补种一次（幂等，事件优先）。
+      const publisher = this.publishers.get(sessionId);
+      if (publisher) this.seedPublisherWorkspacePath(sessionId, publisher);
     }
     // child 是一次性 session，没有 record 也没有后继 turn，publisher 曾驻留到进程退出。
     // 记下终态时间，供 pruneDetachedChildPublishers 在 grace 后释放；child 再次开 turn 则撤销。
@@ -2880,8 +2893,41 @@ export class ConversationV4Gateway {
       this.publishers.set(sessionId, publisher);
       // config 种子：创建即注入 runtime 真值（不产 delta / 不 bump revision）。
       this.seedPublisherConfig(sessionId, publisher);
+      // 执行 cwd 种子：与 config 同因（创建时机可能早于 record 完全就位）。
+      this.seedPublisherWorkspacePath(sessionId, publisher);
     }
     return publisher;
+  }
+
+  /**
+   * 会话执行 cwd 种子注入（防御式：种子失败不打断 conversation 主路径）。
+   * 与 config 种子同规：publisher 创建与 hydration 收尾两处都调用，幂等且不产 delta。
+   *
+   * 派生会话（subagent child / workflow actor）在进程内**没有 record**（不进 `context.sessions`），
+   * 宿主那个投影钩子对它们恒返回 null；但按规则 5 它们继承父会话的执行 cwd，面板里模型写的相对
+   * 路径必须按会话目录解析。这里用 gateway 自己持有的父子映射向宿主问**父 record** 的执行 cwd
+   * （子会话运行期间父 record 一定在册）。父会话 `cd` 过时子会话 cwd 可能更深，继承基线仍比
+   * 「字段缺席 ⇒ UI 回落对话根」精确一层；父子都没有值时保持缺席（UI 回落 tab 的 workspacePath）。
+   * 见 docs/specs/conversation-session-workspace.md 规则 5 与已知边界 27。
+   */
+  private seedPublisherWorkspacePath(
+    sessionId: string,
+    publisher: ConversationTopicPublisher,
+  ): void {
+    const getWorkspacePath = this.host.getSessionWorkspacePath;
+    if (!getWorkspacePath) return;
+    try {
+      const ownWorkspacePath = getWorkspacePath.call(this.host, sessionId);
+      if (ownWorkspacePath !== null && ownWorkspacePath !== undefined) {
+        publisher.seedSessionWorkspacePath(ownWorkspacePath);
+        return;
+      }
+      const parentSessionId = this.detachedChildParent.get(sessionId);
+      if (!parentSessionId) return;
+      publisher.seedSessionWorkspacePath(getWorkspacePath.call(this.host, parentSessionId));
+    } catch (error) {
+      this.host.onError?.("v4.sessionWorkspacePath", error);
+    }
   }
 
   /**
@@ -3022,6 +3068,7 @@ export class ConversationV4Gateway {
       // 创建时种子可能落空（record 尚未入册），首次订阅补一次（幂等、事件优先）。
       this.hydrationBuffers.delete(sessionId);
       this.seedPublisherConfig(sessionId, latestPublisher);
+      this.seedPublisherWorkspacePath(sessionId, latestPublisher);
       if (loaded.sharedContextImport) {
         latestPublisher.seedSharedContextImport(loaded.sharedContextImport);
       }
@@ -3061,6 +3108,8 @@ export class ConversationV4Gateway {
       publisher.seedSharedContextImport(loaded.sharedContextImport);
     }
     if (loaded.subagentsSeed) publisher.seedSubagents(loaded.subagentsSeed);
+    // rehydrate 会整体换掉 projection（静态种子随之丢失），执行 cwd 必须重新种一次。
+    this.seedPublisherWorkspacePath(sessionId, publisher);
     // 同次恢复的种子先应用，再补 live buffer；较新的使用量和选模事件始终获胜。
     if (loaded.usageSeed) publisher.seedUsage(loaded.usageSeed);
     const sourceEventSeq = Math.max(
@@ -3138,6 +3187,7 @@ export class ConversationV4Gateway {
     // （reconcileResumedRuntimeSettings），而合成/持久化事件里可能没有 ModelSelected——
     // 种子只填事件未触碰的字段，日志有值时以日志为准（冷恢复口径）。
     this.seedPublisherConfig(sessionId, publisher);
+    this.seedPublisherWorkspacePath(sessionId, publisher);
     if (loaded.usageSeed === undefined) {
       await this.seedPublisherUsage(sessionId, publisher, persistedMessages);
     }

@@ -83,6 +83,11 @@ import type {
   WorkspaceId,
 } from "@zcode/contracts";
 import { HYDRATION_TRACE_ID } from "../zcode-protocol-v4/projection-state.js";
+import { resolveConversationWorkspaceRootFromEnv } from "../app/conversation-session-workspace.js";
+import {
+  isConversationSessionDirectoryInUseAcrossProcesses,
+  reclaimConversationSessionDirOnDelete,
+} from "../app/conversation-session-workspace-reclaim.js";
 import { resolveWorkspaceRefFromId } from "./mapper.js";
 import { buildLiveWorkspaceConfigStateV4 } from "./v4-workspace-config.js";
 import {
@@ -1094,6 +1099,10 @@ export function createConversationV4Gateway(
         // handler 已校验存在性；此处只兜并发竞态（重复删除幂等成功）。
         return;
       }
+      // 会话目录回收要在注册表摘除**之前**读走内存事实：草稿会话（deferred）sqlite 里
+      // 还没有行，执行 cwd 只活在 record 上（`executionWorkspacePath`）。
+      const executionPath = record.executionWorkspacePath;
+      const workspace = record.workspace;
       record.unsubscribe?.();
       await record.app.close?.();
       // v4 通道：会话关闭同时清 publisher / 订阅调度；重开会话走 snapshot 冷启动。
@@ -1103,6 +1112,30 @@ export function createConversationV4Gateway(
       // 恒为 null，删除会话后侧栏列表项永不消失（e2e conversation-session-v4-sidebar 抓出）。
       context.v4Gateway?.disposeSession(sessionId);
       context.sessions.delete(sessionId);
+      // 空目录回收是删除的旁路副作用：关闭与摘除都完成后再做，只删空目录，
+      // 任何失败（非空、不存在、权限）都只记日志，不改删除结果。见
+      // docs/specs/conversation-session-workspace.md 规则 8。
+      await reclaimConversationSessionDirOnDelete({
+        conversationRoot: resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env),
+        executionPath,
+        logger: context.logger,
+        remoteSessionId: workspace.remoteSessionId,
+        sessionId,
+        // 注册表摘除之后再算：fork / 侧会话继承父会话执行 cwd，父会话被删时不能连坐它们的目录。
+        // 同上：注册表只是本进程能看见的事实，别的 app-server 里继承同一执行 cwd 的 fork /
+        // 侧会话只能从会话库认出来；被关会话自己的行（v4 deleteSession 不真删 record）必须排除。
+        // **惰性**传入：项目工作区 / 远端 / 未注入标记的宿主每次都必然在判定链被拒，
+        // 不能为「注定不回收」的关闭白跑一次全表 `listSessions`（与启动清扫零 IO 同口径）。
+        resolveSharedByOtherSession: () =>
+          isConversationSessionDirectoryInUseAcrossProcesses({
+            executionPath,
+            excludeSessionId: String(sessionId),
+            registrySessions: context.sessions.values(),
+            sessionPathSource: context.deps.sessionStore,
+          }),
+        workspaceIdentity: workspace.workspaceIdentity,
+        workspaceKey: workspace.workspaceKey,
+      });
     },
     // createSession 的执行面：record 建立/事件接线/catalog 同步/失败自清理全在旧
     // createSession op 内（半初始化 record 的回收顺序修过 bug，不重复实现）。
@@ -1541,6 +1574,11 @@ export function createConversationV4Gateway(
         ? null
         : record.workspace.workspaceKey;
     },
+    // 会话执行 cwd 种子（snapshot 的 additive 字段 workspacePath）：只读内存 record，
+    // 与删除边界的空目录回收同源。只在启用对话根规则时才有值，其余场景缺席，UI 回落
+    // tab 的 workspacePath（UI 只读，不代算）。draft 会话不落 sqlite，这里同样只认 record。
+    getSessionWorkspacePath: (sessionId) =>
+      context.sessions.get(sessionId)?.executionWorkspacePath ?? null,
     getSessionIndexMeta: (sessionId) => {
       const record = context.sessions.get(sessionId);
       if (!record) return null;

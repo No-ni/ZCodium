@@ -19,6 +19,7 @@ import type { McpPort, ModelSelection } from "@zcode/contracts";
 import type { PresentationSurface } from "@zcode/core";
 import type { RunZCodeProtocolAgentOptions, ZCodeAppOptions } from "./app/types.js";
 import { createZCodeApp } from "./app/create-app.js";
+import { scheduleConversationSessionEmptySweep } from "./app/conversation-session-workspace-reclaim.js";
 import {
   createNodeReplBrowserBroker,
   type NodeReplBrowserBroker,
@@ -287,6 +288,21 @@ export async function runZCodeProtocolAgent(
     protocolMaintenance = startProtocolMaintenance(server, logger, (message) =>
       connection.send(message),
     );
+    // 对话会话目录的启动清扫（每进程一次，fire-and-forget）：
+    // 未注入 ZCODE_CONVERSATION_WORKSPACE_ROOT（TUI/项目工作区/远端）时零 IO 直接跳过；
+    // 只删 7 天前的**空**会话目录与随之变空的日期目录，用于兜底「草稿会话被删/进程崩溃后
+    // 没有删除边界可依附」的残留目录。放在握手已可进行的 connection.start() 之后且不 await，
+    // 冷启动与握手都不等它；失败只记日志，不影响服务可用性。
+    // 触发点只在 app-server 启动（CLI/TUI 走别的入口），也不在任何会话创建路径上。
+    // 清扫开始前会查一遍会话库（这里把已经打开好的 sessionStore 当窄面传进去）：年龄只是本进程
+    // 能看见的事实，别的 CLI 进程里仍在使用的空目录会话只能靠库里的 path 认出来，否则会被扫掉；
+    // 没有可用的 sessionPathSource 时清扫整体放弃（fail-closed），不退回「只按年龄删」。
+    // 见 docs/specs/conversation-session-workspace.md 规则 8。
+    scheduleConversationSessionEmptySweep({
+      env: runtimeEnv,
+      logger,
+      sessionPathSource: sessionStore,
+    });
     startupTimer.complete("ZCode Protocol agent startup completed", {
       event: "zcode_protocol.startup.completed",
       stage: "total",

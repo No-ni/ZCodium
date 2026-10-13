@@ -101,6 +101,19 @@ export interface ZCodeProtocolSessionRecord {
   unsubscribe?: () => void;
   updatedAt: number;
   workspace: ZCodeWorkspaceRef;
+  /**
+   * 会话执行 cwd（会话持久化的 `path`）——**只有本会话真正拥有独立目录时才有值**。
+   *
+   * 与 `workspace.workspacePath`（工作区键路径：tab、workspaceKey、任务索引键、持久化
+   * `directory`）分离：这里才是 Agent 的文件与命令落盘目录，值恒为
+   * `<对话根>/<创建日>/<会话id前8位>`（8 位碰撞时回退 12 位）。
+   * 项目工作区、远端 identity、CLI/TUI 独立运行的执行 cwd 等于 `workspace.workspacePath`，
+   * 不是本规则拥有的目录，因此字段**缺席**；缺席即「不适用」，UI 回落 tab 的 workspacePath。
+   *
+   * 必须在 record 上留一份内存事实：v4 草稿会话是 deferred 持久化（sqlite 里还没有行），
+   * 派生子会话的执行 cwd 继承、快照投影与删除边界的空目录回收都只能读这里。
+   */
+  executionWorkspacePath?: string;
   activeAbortController?: AbortController;
   /** background runner 释放 ready lock 后，持久化/snapshot/broadcast 尚未完成的引用计数。 */
   residencyFinalizationCount?: number;

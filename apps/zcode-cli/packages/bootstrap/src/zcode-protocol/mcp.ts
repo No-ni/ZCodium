@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { createConfig, resolvePath } from "@zcode/adapters/config";
 import type { Logger, McpConnectionSnapshot, McpPort, McpServerStatus } from "@zcode/contracts";
 import {
@@ -32,7 +34,14 @@ export async function listMcpServers(
   rawParams: unknown,
 ): Promise<ZCodeMcpListResult> {
   const params = parseParams(zcodeMcpListParamsSchema, rawParams);
-  const workingDirectory = params.workspace.workspacePath;
+  // 必须 `resolve()`：设置页的连接走进程级 `protocol-settings` lease，而会话 runtime
+  // （core/runtime/methods/mcp.ts）已经把工作区级根 `resolve()` 过再交给同一个连接池；池键是
+  // `workspaceIdentity?.trim() || workingDirectory?.trim()`（adapters 的 pool.ts），
+  // 未规范化的尾斜杠 / `.` 段会让同一个工作区出现**两条** `isolation: "workspace"` 连接
+  // （内置 node_repl 就是这种隔离：浏览器/CUA 归属会分裂）。三个消费点（createConfig /
+  // resolveStartupPlugins / connectConfiguredServers）都要同一个规范形态。
+  // 远端 workspace 不经过这里：它的请求由远端 Agent 处理，路径在那台机器上才是本地的。
+  const workingDirectory = resolve(params.workspace.workspacePath);
   const configResult = createConfig({
     env: context.deps.env,
     workingDirectory,

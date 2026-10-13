@@ -728,6 +728,25 @@ export class ProductProjection {
   }
 
   /**
+   * 会话执行 cwd 种子（会话持久化的 `path`）。
+   *
+   * 这是会话生命周期内不变的静态事实，不是事件派生的运行态：只作为 snapshot 的 additive
+   * 字段下发，不产 delta、不进事件日志、不递增 revision/seq（与 config/usage 种子同规）。
+   * 项目工作区 / 远端 identity 的会话没有独立目录，钩子返回 null，字段保持缺席，UI 回落 tab
+   * 的 workspacePath。
+   *
+   * 空值**不覆盖**已种下的值：本函数在 publisher 创建、hydration 收尾与 rehydrate 后各调一次，
+   * 而「读不到 record」既可能是项目工作区（本就不该有值）也可能是记录暂时不在注册表；
+   * 后者清场会让 UI 回落对话根、看错目录，保留上一次的可用值更安全（record 真被删除时
+   * publisher 也随 disposeSession 一起销毁）。
+   */
+  seedSessionWorkspacePath(workspacePath: string | null | undefined): void {
+    const normalized = workspacePath?.trim();
+    if (!normalized || this.snapshot.workspacePath === normalized) return;
+    this.snapshot = { ...this.snapshot, workspacePath: normalized };
+  }
+
+  /**
    * rowId → 权威 messageId。桥接层执行 forkAssistant/editUserQuery 时把命令载荷的
    * 内部 rowId 翻译成 core 需要的 messageId。未知 rowId（非 assistant/user 行、
    * 或迟到）返回 null，桥接层据此回 rejected。

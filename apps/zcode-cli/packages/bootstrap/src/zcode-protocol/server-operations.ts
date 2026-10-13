@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- ZCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
+import { resolve } from "node:path";
 import { observeSessionDebug } from "./session-debug.js";
 import {
   TASK_LIST_SESSION_TYPES,
@@ -82,6 +83,7 @@ import {
   type ZCodeSessionResumeParams,
   type ZCodeSessionPersistence,
   type ZCodeStateUpdatedNotification,
+  type ZCodeWorkspaceRef,
 } from "@zcode/shared";
 import {
   buildSessionSnapshot,
@@ -119,6 +121,26 @@ import {
 import { runSessionModelConfigMutation } from "../zcode-protocol-v4/model-config-mutation.js";
 import { runWithSessionResidencyFinalization } from "./session-residency.js";
 import { abortMcpUiToolCallsForSession, clearMcpUiAppToolsForSession } from "./mcp-ui/index.js";
+import {
+  classifyPersistedConversationExecutionPathUnusable,
+  degradeConversationSessionDirectoryToWorkspacePath,
+  ensureConversationSessionWorkspaceDir,
+  isConversationSessionWorkspacePath,
+  isConversationWorkspaceEnabled,
+  isPersistedConversationExecutionPath,
+  isReusablePersistedConversationExecutionPath,
+  persistConversationSessionBackfillDirectory,
+  resolveConversationSessionWorkspaceForCreate,
+  resolveConversationSessionWorkspaceForResume,
+  resolveConversationSessionWorkspaceInherited,
+  resolveConversationWorkspaceRootFromEnv,
+  resolvePersistedConversationExecutionFallback,
+  type ConversationSessionWorkspaceLogger,
+} from "../app/conversation-session-workspace.js";
+import {
+  isConversationSessionDirectoryInUseAcrossProcesses,
+  reclaimConversationSessionDirOnDelete,
+} from "../app/conversation-session-workspace-reclaim.js";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -138,7 +160,15 @@ type ZCodeSessionRecordParams = (
       // 共用 record 初始化函数；resume 兼容分支也必须声明该策略字段。
       titleGenerationEnabled?: ZCodeSessionCreateParams["titleGenerationEnabled"];
     })
-) & { taskType?: SessionTaskType };
+) & {
+  taskType?: SessionTaskType;
+  /**
+   * 会话执行 cwd（会话持久化的 `path`）。**内部字段，不是协议参数**（zod 解析会剥掉它）：
+   * 创建边界由 createRecord 按对话根规则铸造；恢复与 fork 边界由调用方从持久化路径或父会话
+   * record 给出，避免在这里按当前时间重算日期。见 docs/specs/conversation-session-workspace.md。
+   */
+  executionWorkspacePath?: string;
+};
 
 interface SessionStartupPreferences {
   memoryEnabled: boolean;
@@ -996,6 +1026,22 @@ async function removePreviousImportedSessionHistory(params: {
   return removedCount;
 }
 
+/**
+ * 导入历史会话自身的创建时间（无则 undefined）。
+ *
+ * 两个消费点必须同源：`persistImportedSessionHistory` 写 sqlite `time.created`，createRecord 决定
+ * 会话目录的日期段。任一处各算一次就会出现「目录归档在导入日、列表显示在历史日」。
+ */
+function resolveImportedSessionCreationTimeMs(
+  importedHistory: ZCodeSessionCreateParams["importedHistory"],
+): number | undefined {
+  if (!importedHistory) return undefined;
+  return (
+    importedHistory.createdAt ??
+    (importedHistory.source === "claudeCode" ? importedHistory.messages[0]?.timestamp : undefined)
+  );
+}
+
 async function persistImportedSessionHistory(params: {
   context: ZCodeProtocolAgentServerContext;
   record: ZCodeProtocolSessionRecord;
@@ -1012,12 +1058,7 @@ async function persistImportedSessionHistory(params: {
   const workspace = params.record.workspace;
   const workspaceIdentity = workspace.workspaceIdentity?.trim();
   const now = Date.now();
-  const createdAt =
-    importedHistory.createdAt ??
-    (importedHistory.source === "claudeCode"
-      ? importedHistory.messages[0]?.timestamp
-      : undefined) ??
-    now;
+  const createdAt = resolveImportedSessionCreationTimeMs(importedHistory) ?? now;
   const updatedAt =
     importedHistory.source === "claudeCode"
       ? (importedHistory.updatedAt ?? importedHistory.messages.at(-1)?.timestamp ?? createdAt)
@@ -1042,12 +1083,15 @@ async function persistImportedSessionHistory(params: {
     await sessionStore.commitSharedContextImportBundle({
       session: {
         id: params.sessionId,
-        projectID: projectIdFromDirectory(workspace.workspacePath),
+        // 与 create-app / core 的身份派生同口径：先 resolve() 再算 slug，含 `.`/`..` 段的
+        // workspacePath 不规范化会让导入会话行落到另一个 project（尾斜杠等表示不受影响）。
+        projectID: projectIdFromDirectory(resolve(workspace.workspacePath)),
         workspaceID: workspaceIdentity as WorkspaceId | undefined,
         traceID: params.record.traceContext.traceId,
         slug: slugifyImportedSession(params.sessionId),
         directory: workspace.workspacePath,
-        path: workspace.workspacePath,
+        // 同下面的普通导入分支：`path` 必须是会话执行 cwd，否则运行期 cwd 与持久化事实分叉。
+        path: params.record.executionWorkspacePath ?? workspace.workspacePath,
         title: importedHistory.title,
         titleSource: "custom",
         version: params.context.deps.version ?? "0.0.0",
@@ -1117,13 +1161,17 @@ async function persistImportedSessionHistory(params: {
 
   await sessionStore.createSession({
     id: params.sessionId,
-    projectID: projectIdFromDirectory(workspace.workspacePath),
+    // 同 sharedContext 分支：身份派生前先规范化，与 create-app / core 同口径。
+    projectID: projectIdFromDirectory(resolve(workspace.workspacePath)),
     // 导入会话创建后会立即 resume；必须先落盘当前 identity，避免恢复时退化为路径隔离。
     workspaceID: workspaceIdentity as WorkspaceId | undefined,
     traceID: params.record.traceContext.traceId,
     slug: slugifyImportedSession(params.sessionId),
     directory: workspace.workspacePath,
-    path: workspace.workspacePath,
+    // 这里是**会话执行 cwd**：导入会话的 record 已按对话根规则铸造了独立目录，行里若仍写
+    // workspacePath，运行期 cwd 与持久化 `path` 就会分叉，重启后恢复会按会话创建日补发到
+    // 另一个目录，导入后写入的文件全部失联。`directory` 仍是工作区键路径（对话根）。
+    path: params.record.executionWorkspacePath ?? workspace.workspacePath,
     title: importedHistory.title?.trim() || "Imported session",
     titleSource: "custom",
     version: params.context.deps.version ?? "0.0.0",
@@ -1391,6 +1439,32 @@ async function createSessionWithProjection<T>(
     }
     // 内存 event store 随 record 释放。
     await record.eventStore.deleteSession(sessionId as SessionId).catch(() => undefined);
+    // 创建失败时刚铸出的空会话目录也要收回去——但**只覆盖 record 已经建出来的失败**：这个会话
+    // 从不存在（草稿建了又失败、导入写库失败），留着只会在对话根里堆积空目录等 7 天清扫。
+    // 判定与删除边界同源（只删空目录、注册表摘除后判共用）。
+    // 已知边界：createRecord 在 createWorkspaceZCodeApp **之前**就 mkdir 并刷新 mtime，若 app 构造
+    // 本身抛错，那时还没有 record 可依附，这个空目录不会被这里收回，只能等启动清扫的 7 天年龄门禁。
+    // 不算数据损失：定名对同一 id 幂等（`resolveConversationSessionDirNameForCreate` 复用同名真目录），
+    // 重试会落回同一个名字，目录里也不可能有内容被孤立。
+    await reclaimConversationSessionDirOnDelete({
+      conversationRoot: resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env),
+      executionPath: record.executionWorkspacePath,
+      logger: context.logger,
+      remoteSessionId: workspace.remoteSessionId,
+      sessionId: String(sessionId),
+      // 跨进程复检**惰性**传入：只有判定链通过才会查库。注册表只是本进程能看见的事实，
+      // 别的 app-server 里继承同一执行 cwd 的 fork / 侧会话只能从会话库认出来；
+      // 拿不到库事实即视为在用（保守 = 保留空目录）。见 reclaim 模块的同名函数。
+      resolveSharedByOtherSession: () =>
+        isConversationSessionDirectoryInUseAcrossProcesses({
+          executionPath: record.executionWorkspacePath,
+          excludeSessionId: String(sessionId),
+          registrySessions: context.sessions.values(),
+          sessionPathSource: context.deps.sessionStore,
+        }),
+      workspaceIdentity: workspace.workspaceIdentity,
+      workspaceKey: workspace.workspaceKey,
+    });
     throw error;
   }
 }
@@ -1400,6 +1474,55 @@ interface ActivatedSessionForResume {
   knownSession?: SessionInfo;
   /** 仅供启动本次 V4 hydration，不写入 record 或跨请求缓存。 */
   persistedMessages?: MessageWithParts[];
+}
+
+/**
+ * 常驻会话的「恢复」也要刷新会话目录 mtime（规则 3：创建 / 恢复 / fork 都刷新）。
+ *
+ * 命中注册表的早退分支不经过 `resolveRecordExecutionWorkspacePath`，而 deferred 草稿**不落 sqlite**
+ * ⇒ 不在启动清扫的在册集合里；早退不刷新会让一个 7 天没动过、仍空着的活草稿目录被**另一个**
+ * app-server 的启动清扫当残留删掉，之后首发在该 cwd 写相对路径即 ENOENT（提升落库的 `path` 也指向
+ * 已不存在的目录）。
+ *
+ * 只对**本规则铸造的**目录（严格落在对话根之下）动手：不做路径推断，也不会给项目工作区凭空建目录。
+ * `mkdir` + `utimes` 幂等，失败只记一条 warn、不阻断恢复（目录真的缺了时这次调用顺手补回来）。
+ * 见 docs/specs/conversation-session-workspace.md 规则 3 与已知边界 28。
+ */
+async function touchResidentConversationSessionDir(input: {
+  context: ZCodeProtocolAgentServerContext;
+  executionPath: string | undefined;
+  sessionId: string;
+}): Promise<void> {
+  const directory = input.executionPath?.trim();
+  if (!directory) return;
+  const conversationRoot = resolveConversationWorkspaceRootFromEnv(
+    input.context.deps.env ?? process.env,
+  );
+  if (!isConversationSessionWorkspacePath(directory, conversationRoot)) return;
+  // touch 的幂等 `mkdir` 会**跟随**日期段/末段的活符号链接，把会话目录铸到对话根之外（回收的
+  // `isRealDirectory` 与清扫的 `dirent.isDirectory` 都不认这种目录，永不清理）。复用/补发分支都有
+  // 规则 8 的两层门禁，常驻早退分支是唯一漏网入口，这里补上同一份判据：占位（文件/链接）时静默
+  // 跳过 touch——本分支不做 cwd 裁决，mtime 略旧只影响清扫年龄门禁的读数，绝不能因此铸目录。
+  if (
+    classifyPersistedConversationExecutionPathUnusable({
+      conversationRoot,
+      persistedPath: directory,
+    })
+  ) {
+    return;
+  }
+  try {
+    await ensureConversationSessionWorkspaceDir(directory);
+  } catch (error) {
+    input.context.logger?.warn("ZCode Protocol conversation session dir touch failed", {
+      // 只记稳定错误码：fs 错误的 message 自带绝对路径，日志规则禁止采集用户路径（与
+      // backfill/degrade 的降级 warn 同一口径）。
+      errorCode: (error as NodeJS.ErrnoException | undefined)?.code,
+      event: "zcode_protocol.session.dir_touch_failed",
+      module: "bootstrap.zcode_protocol",
+      sessionId: input.sessionId,
+    });
+  }
 }
 
 /**
@@ -1428,6 +1551,11 @@ export async function activateSessionForResume(
   await context.sessionResidentPool?.waitForDeactivation(params.sessionId);
   const existing = context.sessions.get(params.sessionId);
   if (existing) {
+    await touchResidentConversationSessionDir({
+      context,
+      executionPath: existing.executionWorkspacePath,
+      sessionId: params.sessionId,
+    });
     return { record: existing };
   }
   let session = await getPersistedSession(context, params.sessionId);
@@ -1456,8 +1584,123 @@ export async function activateSessionForResume(
       // 重建 workspace，identity 会退化成 path key，无法命中按 workspaceID 隔离的
       // provider registry，最终把可用模型误判为不可用并永久触发 restoreWarning。
       workspaceIdentity: session.workspaceID,
-      workspacePath: session.path ?? session.directory,
+      // 工作区键路径优先取 `directory`：对话会话的 `path` 是会话执行 cwd（`directory` 之下的
+      // 子目录），把它当 workspacePath 传下去会让 workspaceKey 漂移，provider registry、
+      // 任务归属与 pane 绑定全部对不上。`path` 只作为更老记录缺 `directory` 时的兜底。
+      workspacePath: session.directory ?? session.path,
     });
+  // 执行 cwd 与会话请求里携带的 workspace 是两件事：resume 请求（含手机 attachment）给的
+  // workspacePath 是**对话根**，只是工作区键；会话真正的执行 cwd 只能来自持久化 `path`，
+  // 缺失时按存量补发一次（日期取会话自身创建日）。两者混用会让 cwd 落到对话根或让身份漂移。
+  const conversationRoot = resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env);
+  // 「本规则是否适用于本次会话」必须单独算一次：后面的兜底与降级都按它分支，不能用
+  // 「解析结果是不是 undefined」代替——那会把「规则适用但解析被拒（日期目录不可用）」
+  // 与「规则根本不适用（未注入标记的旧宿主 / 项目工作区 / 远端）」混成一种，
+  // 于是刚被拒的持久化路径又被下面的兜底捞回来（会话目录被建到对话根之外，或 mkdir ENOTDIR）。
+  const conversationRuleApplies = isConversationWorkspaceEnabled({
+    conversationRoot,
+    workspaceIdentity: workspace.workspaceIdentity,
+    workspacePath: workspace.workspacePath,
+  });
+  const executionWorkspace = resolveConversationSessionWorkspaceForResume({
+    conversationRoot,
+    createdAtMs: session.time?.created ?? Date.now(),
+    // 日期目录不可用时只记 warn（不带真实路径），随后的 undefined 让本次恢复回退旧行为。
+    logger: context.logger,
+    persistedDirectory: session.directory,
+    persistedPath: session.path,
+    sessionId: params.sessionId,
+    workspaceIdentity: workspace.workspaceIdentity,
+    workspacePath: workspace.workspacePath,
+  });
+  let executionWorkspaceDirectory = executionWorkspace?.directory;
+  if (executionWorkspace?.backfilled) {
+    // 补发必须落盘（`path` 只改这一个字段，`directory` 仍是对话根），否则 core 冷恢复按
+    // `session.path ?? session.directory` 取 cwd 时会打回对话根，补发等于没发生。落盘失败就
+    // 回退旧行为 `cwd = workspacePath`，保证 runtime cwd 与库里的持久化事实始终一致。
+    const persistedBackfill = await persistConversationSessionBackfillDirectory({
+      directory: executionWorkspace.directory,
+      sessionId: params.sessionId,
+      store: context.deps.sessionStore,
+      // 维护性路径写入不能伪装成用户活动时间，否则会话被顶到侧栏最前。
+      timeUpdated: session.time?.updated,
+    });
+    if (persistedBackfill.status === "available") {
+      // cwd 取**重读到的持久化 path**（可能被并发改成别的值），保证 runtime 与库一致。
+      executionWorkspaceDirectory = persistedBackfill.directory;
+      if (persistedBackfill.applied) {
+        // 存量会话补发只发生一次：一旦按新规则持久化，下次恢复就走复用分支。这里留一条
+        // 一次性事件便于对账（不落路径，用户目录不进日志）。
+        context.logger?.info("ZCode Protocol session execution workspace backfilled", {
+          event: "zcode_protocol.session_resume.execution_workspace_backfilled",
+          module: "bootstrap.zcode_protocol",
+          sessionId: params.sessionId,
+        });
+      } else {
+        context.logger?.warn("ZCode Protocol session execution workspace backfill not applied", {
+          event: "zcode_protocol.session_resume.execution_workspace_backfill_not_applied",
+          module: "bootstrap.zcode_protocol",
+          sessionId: params.sessionId,
+        });
+      }
+    } else {
+      executionWorkspaceDirectory = undefined;
+      context.logger?.warn("ZCode Protocol session execution workspace backfill unavailable", {
+        // 只记稳定错误码：fs 错误的 message 自带绝对路径，日志规则禁止采集用户路径。
+        errorCode: (persistedBackfill.error as NodeJS.ErrnoException | undefined)?.code,
+        event: "zcode_protocol.session_resume.execution_workspace_backfill_failed",
+        module: "bootstrap.zcode_protocol",
+        reason: persistedBackfill.reason,
+        // 回退后本次 cwd = workspacePath（对话根），与库里未变的事实一致；下次恢复会再试。
+        sessionId: params.sessionId,
+      });
+    }
+  } else if (
+    conversationRuleApplies &&
+    executionWorkspaceDirectory === undefined &&
+    // 只有「行里确实是我们铸造的会话目录」才降级写回：规则适用但持久化路径在对话根之外
+    // （别的 workspace 的同 id 旧行）不是本规则能处置的状态，不能顺手改它的 path。
+    isConversationSessionWorkspacePath(session.path, conversationRoot)
+  ) {
+    // 规则适用、行里是我们的会话目录，解析却被拒 ⇒ 日期目录或**会话目录自身**被占位
+    // （普通文件 / 符号链接，两层同一判据）。必须把 `path` 写回工作区键路径：core 的冷恢复只认库
+    // 里的 `path`，只把裁决留在内存里会让 runtime 继续在坏掉的会话目录（不存在，或经链接落在
+    // 对话根之外）里跑，而 UI 快照已回落对话根——两边分叉。
+    // 见 docs/specs/conversation-session-workspace.md 规则 8。
+    const degradedReason = classifyPersistedConversationExecutionPathUnusable({
+      conversationRoot,
+      persistedPath: session.path,
+    });
+    const degraded = await degradeConversationSessionDirectoryToWorkspacePath({
+      sessionId: params.sessionId,
+      store: context.deps.sessionStore,
+      timeUpdated: session.time?.updated,
+      workspacePath: workspace.workspacePath,
+    });
+    if (degraded.status === "available") {
+      executionWorkspaceDirectory = degraded.directory;
+      context.logger?.warn(
+        "ZCode Protocol session execution workspace degraded to workspace root",
+        {
+          event: "zcode_protocol.session_resume.execution_workspace_degraded",
+          module: "bootstrap.zcode_protocol",
+          // 进本分支 ⟺ 分类器给出了原因（它是唯一的拒绝入口），这里用 spread 只为类型收口，
+          // 不写一个假的兜底 reason。
+          ...(degradedReason ? { reason: degradedReason } : {}),
+          sessionId: params.sessionId,
+        },
+      );
+    } else {
+      // 写不回库 ⇒ runtime 仍会按库里的坏 path 走（未注入标记的那一支也救不了）。只记稳定字段。
+      context.logger?.warn("ZCode Protocol session execution workspace degrade not persisted", {
+        errorCode: (degraded.error as NodeJS.ErrnoException | undefined)?.code,
+        event: "zcode_protocol.session_resume.execution_workspace_degrade_failed",
+        module: "bootstrap.zcode_protocol",
+        reason: degraded.reason,
+        sessionId: params.sessionId,
+      });
+    }
+  }
   let persistedMessages = await readPersistedSessionMessages(context, params.sessionId);
   const mode = derivePersistedSessionMode(persistedMessages);
   // shell 设置变更只对新 session 生效；冷恢复必须使用创建时落库的
@@ -1478,6 +1721,22 @@ export async function activateSessionForResume(
       // 反复对它们发 session/resume。fork 路径一直带着 taskType，这里必须同样带。
       taskType: session.taskType,
       workspace,
+      // 执行 cwd 来自持久化路径（或本次已落盘的补发结果），不在这里按当前时间重算日期。
+      // 判定为「本规则不适用」（未启用 / 持久化目录在对话根之外 / 补发落盘失败）时显式沿用
+      // 旧行为 `cwd = workspacePath`：恢复边界绝不能落回 createRecord 的**新建**分支去铸新目录，
+      // 否则一个不属于本规则的会话会被静默搬进对话根目录树。
+      // 兜底裁决见 `resolvePersistedConversationExecutionFallback`：只有「本规则不适用」才允许
+      // 沿用它；规则适用时 undefined 的含义是「解析被拒（日期目录不可用）」，再兜回 `session.path`
+      // 就等于把规则 8 的裁决丢掉。
+      executionWorkspacePath:
+        executionWorkspaceDirectory ??
+        resolvePersistedConversationExecutionFallback({
+          conversationRoot,
+          persistedPath: session.path,
+          workspaceIdentity: workspace.workspaceIdentity,
+          workspacePath: workspace.workspacePath,
+        }) ??
+        workspace.workspacePath,
     },
     params.sessionId as SessionId,
     true,
@@ -1532,6 +1791,10 @@ async function repairLegacyRemoteSessionWorkspaceForResume(
     return session;
   }
   const legacyWorkspaceDirectory = session.path ?? session.directory;
+  // 这条提前返回同时是「本会话不是 legacy 形态」的判定：它只服务「identity 曾被当成执行路径
+  // 落库、directory 与 path 是同一个目录」的远端会话（下面的 `repairLegacyRemoteSessionWorkspace`
+  // 也按 directory = path = 旧目录 做 CAS）。对话会话的 directory = 对话根、path = 会话执行 cwd，
+  // 天然不满足该形态，跳过修复是正确结果，不是漏修。
   if (session.directory !== legacyWorkspaceDirectory) return session;
   const legacyRemote = resolveLegacyRemoteWorkspace(context, legacyWorkspaceDirectory);
   if (!legacyRemote) return session;
@@ -1641,7 +1904,11 @@ export async function listSessions(context: ZCodeProtocolAgentServerContext, raw
     return (
       (params.includeArchived || session.time.archived === undefined) &&
       (!params.workspace ||
-        (session.workspaceID?.trim() || session.path || session.directory) ===
+        // 归属比较必须用**工作区键路径**（对话会话是 `directory` = 对话根）：`path` 现在是
+        // 会话执行 cwd（对话根之下的子目录），本地对话会话 workspaceID 为 NULL，若继续用
+        // `session.path` 命中工作区路径，所有对话会话都会被这条过滤掉、侧栏静默清空。
+        // `path` 只作为更老记录缺 `directory` 时的兜底。
+        (session.workspaceID?.trim() || session.directory || session.path) ===
           (params.workspace.workspaceIdentity?.trim() || params.workspace.workspacePath))
     );
   });
@@ -1650,7 +1917,10 @@ export async function listSessions(context: ZCodeProtocolAgentServerContext, raw
     mapSessionInfo({
       session,
       workspace:
-        params.workspace ?? buildWorkspaceRef({ workspacePath: session.path ?? session.directory }),
+        params.workspace ??
+        // 同上：没有显式 workspace 时按工作区键路径（`directory`）重建，不能用会话执行 cwd，
+        // 否则 tab/workspaceKey 会挂在会话目录上。
+        buildWorkspaceRef({ workspacePath: session.directory ?? session.path }),
     }),
   );
   if (params.sessionIds) return { sessions };
@@ -2270,6 +2540,108 @@ export async function registerForkedSession(
   if (!forkedSession) {
     throw new Error(`Persisted child session not found: ${fork.forkedSessionId}`);
   }
+  // 派生会话继承父会话的执行 cwd，不回落对话根：只在「创建时已能取到父会话执行 cwd」这一处
+  // 继承。父 record 上还没有值（存量父会话尚未补发）时退回持久化行判定——core fork 会把父行的
+  // `directory`/`path` 复制给子行，所以后代仍拿得到父会话的执行 cwd；子行 `path` 仍是对话根时
+  // 按同一个恢复规则补发一次。两条路都不在 core 里重算目录。
+  const conversationRoot = resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env);
+  // 同 resume：「本规则是否适用」单独算一次，下面的兜底与降级都按它分支（不能用
+  // 「解析结果是不是 undefined」代替，否则「规则适用但日期目录不可用」会被兜底捞回子行的 path）。
+  const conversationRuleApplies = isConversationWorkspaceEnabled({
+    conversationRoot,
+    workspaceIdentity: record.workspace.workspaceIdentity,
+    workspacePath: record.workspace.workspacePath,
+  });
+  const inheritedExecutionWorkspacePath = resolveConversationSessionWorkspaceInherited(
+    record.executionWorkspacePath,
+  );
+  const forkedExecutionWorkspace =
+    inheritedExecutionWorkspacePath !== undefined
+      ? { backfilled: false, directory: inheritedExecutionWorkspacePath }
+      : resolveConversationSessionWorkspaceForResume({
+          conversationRoot,
+          createdAtMs: forkedSession.time?.created ?? Date.now(),
+          logger: context.logger,
+          persistedDirectory: forkedSession.directory,
+          persistedPath: forkedSession.path,
+          sessionId: String(fork.forkedSessionId),
+          workspaceIdentity: record.workspace.workspaceIdentity,
+          workspacePath: record.workspace.workspacePath,
+        });
+  let forkedExecutionWorkspaceDirectory = forkedExecutionWorkspace?.directory;
+  if (forkedExecutionWorkspace?.backfilled) {
+    // 与 resume 同一条规则：给子会话补发出来的目录也必须写回**子会话行**（core fork 复制的是
+    // 父行，父行还是对话根时子行的 path 也是对话根）。只留内存的话，子会话下次恢复会重新补发——
+    // 那一次解析看到的是同一个 8 位名（定名对同一会话幂等：同名真目录会被复用，只有被别的在册
+    // 会话占用或非目录占位时才回退 12 位），因此不会把子会话搬到另一个目录；但**行不落库**会让
+    // 库里的 `path` 一直是对话根：删除边界的空目录回收认不出这个目录、冷恢复也要再补发一次。
+    const persistedBackfill = await persistConversationSessionBackfillDirectory({
+      directory: forkedExecutionWorkspace.directory,
+      sessionId: String(fork.forkedSessionId),
+      store: context.deps.sessionStore,
+      timeUpdated: forkedSession.time?.updated,
+    });
+    if (persistedBackfill.status === "available") {
+      forkedExecutionWorkspaceDirectory = persistedBackfill.directory;
+    } else {
+      // 拿不到任何持久化 path：回退旧行为 `cwd = workspacePath`，保持 runtime 与库一致。
+      forkedExecutionWorkspaceDirectory = undefined;
+      context.logger?.warn(
+        "ZCode Protocol forked session execution workspace backfill unavailable",
+        {
+          // 只记稳定错误码：fs 错误的 message 自带绝对路径，日志规则禁止采集用户路径。
+          errorCode: (persistedBackfill.error as NodeJS.ErrnoException | undefined)?.code,
+          event: "zcode_protocol.session_fork.execution_workspace_backfill_failed",
+          forkedSessionId: fork.forkedSessionId,
+          module: "bootstrap.zcode_protocol",
+          reason: persistedBackfill.reason,
+        },
+      );
+    }
+  } else if (
+    conversationRuleApplies &&
+    forkedExecutionWorkspaceDirectory === undefined &&
+    // 同 resume：只有「子行确实是我们铸造的会话目录」才降级写回（core fork 复制父行，
+    // 父行是会话目录时子行的 path 也是会话目录）。
+    isConversationSessionWorkspacePath(forkedSession.path, conversationRoot)
+  ) {
+    // 日期目录或**会话目录自身**不可用 ⇒ 子会话也降级为 `cwd = workspacePath`，并把**子行**的
+    // `path` 写回工作区键路径：core 的 fork 冷恢复同样只认库里的 `path`，只改内存会让子会话继续
+    // 在坏掉的目录里跑。原因由同一份判据给出，日志不做第二套说法。
+    const degradedReason = classifyPersistedConversationExecutionPathUnusable({
+      conversationRoot,
+      persistedPath: forkedSession.path,
+    });
+    const degraded = await degradeConversationSessionDirectoryToWorkspacePath({
+      sessionId: String(fork.forkedSessionId),
+      store: context.deps.sessionStore,
+      timeUpdated: forkedSession.time?.updated,
+      workspacePath: record.workspace.workspacePath,
+    });
+    if (degraded.status === "available") {
+      forkedExecutionWorkspaceDirectory = degraded.directory;
+      context.logger?.warn(
+        "ZCode Protocol forked session execution workspace degraded to workspace root",
+        {
+          event: "zcode_protocol.session_fork.execution_workspace_degraded",
+          forkedSessionId: fork.forkedSessionId,
+          module: "bootstrap.zcode_protocol",
+          ...(degradedReason ? { reason: degradedReason } : {}),
+        },
+      );
+    } else {
+      context.logger?.warn(
+        "ZCode Protocol forked session execution workspace degrade not persisted",
+        {
+          errorCode: (degraded.error as NodeJS.ErrnoException | undefined)?.code,
+          event: "zcode_protocol.session_fork.execution_workspace_degrade_failed",
+          forkedSessionId: fork.forkedSessionId,
+          module: "bootstrap.zcode_protocol",
+          reason: degraded.reason,
+        },
+      );
+    }
+  }
   const forkRecord = await materializeSessionRecord(
     context,
     {
@@ -2280,6 +2652,19 @@ export async function registerForkedSession(
       ...(fork.parentSessionId ? { parentSessionId: fork.parentSessionId } : {}),
       taskType: forkedSession.taskType,
       workspace: record.workspace,
+      // 同 resume 边界：判定不适用本规则时显式沿用旧行为 `cwd = workspacePath`（子行已带着会话
+      // 目录而本进程未注入标记时仍按持久化 path 走——core 的 fork 复制父行 `path`），不让 fork
+      // 落回 createRecord 的新建分支（那会给子会话另铸一个目录）。规则适用时 undefined 的含义是
+      // 「解析被拒」，不能再兜回子行 path（见 `resolvePersistedConversationExecutionFallback`）。
+      executionWorkspacePath:
+        forkedExecutionWorkspaceDirectory ??
+        resolvePersistedConversationExecutionFallback({
+          conversationRoot,
+          persistedPath: forkedSession.path,
+          workspaceIdentity: record.workspace.workspaceIdentity,
+          workspacePath: record.workspace.workspacePath,
+        }) ??
+        record.workspace.workspacePath,
     },
     fork.forkedSessionId as SessionId,
     true,
@@ -2675,6 +3060,12 @@ export async function closeSession(context: ZCodeProtocolAgentServerContext, raw
     // immediate；条件关闭必须在 Agent record 上原子判断，不能依赖 renderer 的旧快照。
     return { closed: false };
   }
+  // 与 v4 deleteSession 同一份内存事实：草稿会话（deferred）sqlite 里还没有行，执行 cwd 只在
+  // record 上。旧 session/close 仍是活路径（兼容删除、草稿丢弃、草稿预热失效），回收不能只挂在
+  // v4 侧，否则这些路径留下的空目录要等 7 天清扫。见
+  // docs/specs/conversation-session-workspace.md 规则 8。
+  const executionPath = record.executionWorkspacePath;
+  const workspace = record.workspace;
   record.unsubscribe?.();
   // 会话关闭时 abort 仍在进行的插件 UI 工具调用，登记表不留孤儿。
   abortMcpUiToolCallsForSession(params.sessionId);
@@ -2688,8 +3079,32 @@ export async function closeSession(context: ZCodeProtocolAgentServerContext, raw
   // （读 context.sessions）定位 workspace 才能推 session.removed 给 sessions-index 订阅者。
   context.v4Gateway?.disposeSession(params.sessionId);
   context.sessions.delete(params.sessionId);
-  // 内存 event store 随 record 释放。
-  await record.eventStore.deleteSession(params.sessionId as SessionId);
+  // 内存 event store 随 record 释放。尽力而为：record 已经从注册表摘除、app 也关了，
+  // 这里再抛错只会让客户端以为"关闭失败"（其实会话已关），并跳过下面的空目录回收。
+  // 创建路径的同一调用一直就是这个口径（见 createSessionWithProjection 的失败自清理）。
+  await record.eventStore.deleteSession(params.sessionId as SessionId).catch(() => undefined);
+  // 回收是删除的旁路副作用，绝不改变删除结果；注册表摘除之后再判定「目录是否仍被别的会话使用」，
+  // 避免父会话删除时 rmdir 掉仍存活的 fork / 侧会话正在用的目录。
+  await reclaimConversationSessionDirOnDelete({
+    conversationRoot: resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env),
+    executionPath,
+    logger: context.logger,
+    remoteSessionId: workspace.remoteSessionId,
+    sessionId: params.sessionId,
+    // 同上：注册表只是本进程能看见的事实，别的 app-server 里继承同一执行 cwd 的 fork /
+    // 侧会话只能从会话库认出来；被关会话自己的行（v4 deleteSession 不真删 record）必须排除。
+    // **惰性**传入：项目工作区 / 远端 / 未注入标记的宿主每次都必然在判定链被拒，
+    // 不能为「注定不回收」的关闭白跑一次全表 `listSessions`（与启动清扫零 IO 同口径）。
+    resolveSharedByOtherSession: () =>
+      isConversationSessionDirectoryInUseAcrossProcesses({
+        executionPath,
+        excludeSessionId: String(params.sessionId),
+        registrySessions: context.sessions.values(),
+        sessionPathSource: context.deps.sessionStore,
+      }),
+    workspaceIdentity: workspace.workspaceIdentity,
+    workspaceKey: workspace.workspaceKey,
+  });
   return { closed: true };
 }
 
@@ -3269,6 +3684,153 @@ async function materializeSessionRecord(
   return createRecord(context, params, sessionId, resume, startupPreferences, trace);
 }
 
+/**
+ * 既有行的执行 cwd（创建边界的"持久化事实优先"）。只在导入类创建里查一次库。
+ *
+ * 只认**本规则拥有的目录**或**恰好等于本次工作区键路径**的值：别的 workspace 里同 id 的旧行
+ * 不能把新会话劫持到它的执行目录（客户端可带 sessionId，id 不保证全局唯一语义）。
+ * 查库失败一律当作"没有既有行"——创建不能被一次读失败阻断。
+ *
+ * 命中后返回 `resolve` 规范化（纯词法）后的路径：库里的 `path` 可能带着尾分隔符或 `..` 写法，
+ * 而本模块其他生产者（创建、恢复、补发）一律给规范化值。原样返回会让 record、
+ * 快照投影与后续持久化带上非规范形态——同一目录在库里出现两种字符串，
+ * 依赖字符串比较的判定（占用集合、回收所有权）就会把"同一个目录"判成两个。
+ * 包含判定仍按库里的原值做（判定本来就是词法的，`resolve` 前后的包含关系等价）。
+ */
+async function resolveExistingPersistedExecutionPath(
+  context: ZCodeProtocolAgentServerContext,
+  sessionId: SessionId,
+  workspace: ZCodeWorkspaceRef,
+  conversationRoot: string | undefined,
+): Promise<{ executionPath: string; timeUpdated?: number } | undefined> {
+  const store = context.deps.sessionStore;
+  if (!store) return undefined;
+  let persistedPath: string | undefined;
+  let timeUpdated: number | undefined;
+  try {
+    const row = await store.getSession(sessionId);
+    persistedPath = row?.path?.trim() || undefined;
+    timeUpdated = row?.time?.updated;
+  } catch (error) {
+    // 查库失败被当作「没有既有行」，本次创建会按"现在"重算目录，随后导入分支用 upsert 覆盖
+    // `path`：上一次尝试那个 8 位目录里的文件就永远不再属于这个会话（非空目录也不会被空目录
+    // 回收）。这里不 fail-closed（一次读失败不该阻断创建），但必须留一条**不带路径**的 warn，
+    // 否则整条链上一声不响，事后无从对账。
+    context.logger?.warn("ZCode Protocol import execution path lookup failed", {
+      errorCode: (error as NodeJS.ErrnoException | undefined)?.code,
+      event: "zcode_protocol.session_create.import_path_lookup_failed",
+      module: "bootstrap.zcode_protocol",
+      sessionId,
+    });
+    return undefined;
+  }
+  if (!persistedPath) return undefined;
+  if (
+    !(
+      isConversationSessionWorkspacePath(persistedPath, conversationRoot) ||
+      isPersistedConversationExecutionPath(persistedPath, workspace.workspacePath)
+    )
+  ) {
+    return undefined;
+  }
+  return {
+    executionPath: resolve(persistedPath),
+    // 降级写回是**维护性**写入：必须带上行原有的 `time.updated`，否则 store 会写成
+    // `max(time_updated, now)`，把这条老会话顶到冷启动侧栏最前（同 resume 边界两处）。
+    ...(timeUpdated === undefined ? {} : { timeUpdated }),
+  };
+}
+
+/**
+ * 「被**别的在册会话**占用」的执行目录集合（创建边界给 8 位定名用）。
+ *
+ * 注册表是进程内事实：同一 workspace 的会话都在 `context.sessions` 里，每个在册 record 的
+ * `executionWorkspacePath` 就是它真正拥有的执行目录（只在会话有独立目录时有值）。
+ *
+ * **必须按 id 排除本次会话自己**：草稿预热、协议重试、并发冷恢复都会带着同一个 id 再进一次创建边界，
+ * 上一次尝试留下的目录此刻可能已经在注册表里；把它算作"别人占用"会让定名回退 12 位——行被 upsert
+ * 到新目录，前一次目录里已写的文件永久失联（非空目录不会被空目录回收），正好破坏
+ * `resolveConversationSessionDirNameForCreate` 要保证的幂等。只取非空值并 `resolve` 规范化，
+ * 尾分隔符/相对写法不能漏判。返回数组（判定侧仍按词法规范化比较，不要求目录此刻存在）。
+ */
+function collectOtherSessionExecutionWorkspacePaths(
+  context: ZCodeProtocolAgentServerContext,
+  sessionId: SessionId,
+): string[] {
+  const directories: string[] = [];
+  for (const [id, session] of context.sessions) {
+    if (id === sessionId) {
+      continue;
+    }
+    const executionPath = session.executionWorkspacePath?.trim();
+    if (executionPath) {
+      directories.push(resolve(executionPath));
+    }
+  }
+  return directories;
+}
+
+/**
+ * 解析本次 record 的执行 cwd（= 会话持久化的 `path`）。
+ *
+ * 调用方能在创建时给出执行 cwd 的（恢复复用持久化路径、存量补发、fork 继承父会话）直接用它：
+ * 那是已经持久化的事实，不能在这里按当前时间重算。否则按对话根规则铸造新目录。
+ * 未启用规则且持久化路径也不是会话目录时保持旧行为 `cwd = workspacePath`（项目工作区、
+ * 远端 identity、CLI/TUI 独立运行）。
+ *
+ * mkdir 幂等且必须早于建 app：首次创建、被手工删除后的恢复、fork 继承同一目录三种情况
+ * 都要保证 cwd 存在，否则 Agent 第一次落盘就写进不存在的目录。mkdir 失败向上冒泡——
+ * 落到错误的 cwd 执行比直接失败更糟。
+ *
+ * `createdAtMs` 由调用方给出（导入历史会话用记录自带的历史时间），因为目录里的日期段必须与
+ * sqlite `time.created` 同源：用 `Date.now()` 会让导入一份旧历史时目录归档在导入日、列表显示
+ * 在历史日，同一会话两条时间线。
+ *
+ * `occupiedDirectories` 只在**新铸目录**这一分支生效（`provided` 与持久化复用分支是既有事实，
+ * 不受别人占用影响）：8 位路径被别的在册会话占用时回退 12 位，两个会话不会共用目录。
+ *
+ * `logger` 只用于「日期目录不可用」这一类降级 warn（见 `resolveConversationSessionWorkspaceForCreate`）：
+ * 那种情况下本函数返回 `workspacePath`，与未启用规则时逐位一致。
+ */
+async function resolveRecordExecutionWorkspacePath(
+  params: ZCodeSessionRecordParams,
+  workspace: ZCodeWorkspaceRef,
+  sessionId: SessionId,
+  conversationRoot: string | undefined,
+  createdAtMs: number,
+  occupiedDirectories: Iterable<string> | undefined,
+  logger: ConversationSessionWorkspaceLogger | undefined,
+): Promise<string> {
+  const provided = params.executionWorkspacePath?.trim();
+  if (provided) {
+    // 只建**本规则拥有**的目录（严格落在对话根之下）。项目工作区与远端工作区路径保持旧行为：
+    // 它们的存在由 Host / 远端机器负责，本地代建会在本机凭空造出远端路径（如 /home/user/proj）。
+    if (
+      isConversationSessionWorkspacePath(provided, conversationRoot) ||
+      isPersistedConversationExecutionPath(provided, workspace.workspacePath)
+    ) {
+      await ensureConversationSessionWorkspaceDir(provided);
+    }
+    return provided;
+  }
+  const resolution = resolveConversationSessionWorkspaceForCreate({
+    // 对话根由 createRecord 从依赖注入的进程环境读一次后传入（业务代码不另读 process.env）。
+    conversationRoot,
+    createdAtMs,
+    // 日期目录不可用时只记 warn（不带真实路径）：返回 undefined 后本函数回退 cwd = workspacePath。
+    logger,
+    ...(occupiedDirectories ? { occupiedDirectories } : {}),
+    sessionId: String(sessionId),
+    workspaceIdentity: workspace.workspaceIdentity,
+    workspacePath: workspace.workspacePath,
+  });
+  if (!resolution) {
+    return workspace.workspacePath;
+  }
+  await ensureConversationSessionWorkspaceDir(resolution.directory);
+  return resolution.directory;
+}
+
 async function createRecord(
   context: ZCodeProtocolAgentServerContext,
   params: ZCodeSessionRecordParams,
@@ -3290,6 +3852,111 @@ async function createRecord(
       : undefined;
   const taskType = params.taskType ?? "interactive";
   const runtimeMcp = protocolMcpServersToRuntimeMcpConfig(params.mcpServers);
+  // 执行 cwd 与工作区身份分离：`workspace.workspacePath` 仍是工作区键路径（tab/workspaceKey/
+  // 任务索引键/持久化 `directory`），`workingDirectory` 才是 Agent 落盘与执行命令的目录。
+  // 对话会话（未指定项目的会话）必须各自独立，否则并行会话互相看见对方的临时文件与产物；
+  // 「谁是对话根」由 Host 在 spawn 时经 ZCODE_CONVERSATION_WORKSPACE_ROOT 下发，目录怎么建
+  // 归会话所有者的 Agent CLI。见 docs/specs/conversation-session-workspace.md。
+  const conversationRoot = resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env);
+  // 会话创建时间与会话目录的日期段必须同源：导入历史会话的 `time.created` 是记录自带的历史时间
+  // （见 persistImportedSessionHistory），目录日期也必须取它，否则归档日与列表日分叉。
+  const createdAtMs =
+    resolveImportedSessionCreationTimeMs(
+      "importedHistory" in params ? params.importedHistory : undefined,
+    ) ?? Date.now();
+  // 导入类创建允许客户端指定 sessionId（普通 session/create 不允许），因此行可能**已经存在**：
+  // 分享导入的幂等重试、claude 导入的"幂等回填"、删除/归档后重新导入都走这条。此时必须以
+  // 行里持久化的执行 cwd 为准，不能在创建边界按"现在"重算目录——重算会在跨零点等情况下落到
+  // 另一个日期目录，而 `commitSharedContextImportBundle` 对已存在的行是回读不写：runtime 在一个
+  // 目录、库在另一个目录，这次会话写下的文件下次冷恢复就不属于它了（非空目录也不会被回收）。
+  // 只有导入类创建才可能有既有行：协议入口只允许「带 importedHistory」的请求指定 sessionId
+  // （见 createSessionWithProjection 的校验），其余创建都是新铸 id，不必为此多读一次库。
+  const reusedPersistedExecution =
+    params.executionWorkspacePath || !("importedHistory" in params) || !params.importedHistory
+      ? undefined
+      : await resolveExistingPersistedExecutionPath(
+          context,
+          sessionId,
+          workspace,
+          conversationRoot,
+        );
+  const reusedExecutionWorkspacePath = reusedPersistedExecution?.executionPath;
+  // 复用一支同样要过规则 8 的两层门禁：行里的 `path` 是**上一次**铸造的事实，可能落在已经坏掉的
+  // 目录里（`<根>/<日期>` 或**会话目录自身**被普通文件 / 符号链接占住）。直接把它当 provided 交下去
+  // 会重演规则 8 要消灭的两种结局：文件占位 ⇒ `mkdir` 报 ENOTDIR/EEXIST、整个导入创建失败；活链接
+  // ⇒ 跟随链接把会话目录建到对话根之外（回收与清扫都不认）。被拒的复用改为让创建分支按规则 8
+  // 降级为 `cwd = workspacePath`，并把降级**写回行**——core 的冷恢复只认库里的 `path`，只改内存会
+  // 让两边分叉。被拒原因（哪一层不可用）由同一份判据给出，不做第二套说法。
+  const reusedExecutionRejectedReason = reusedExecutionWorkspacePath
+    ? classifyPersistedConversationExecutionPathUnusable({
+        conversationRoot,
+        persistedPath: reusedExecutionWorkspacePath,
+      })
+    : undefined;
+  const acceptedReusedExecutionWorkspacePath =
+    reusedExecutionWorkspacePath !== undefined &&
+    isReusablePersistedConversationExecutionPath({
+      conversationRoot,
+      persistedPath: reusedExecutionWorkspacePath,
+    })
+      ? reusedExecutionWorkspacePath
+      : undefined;
+  if (
+    reusedExecutionWorkspacePath !== undefined &&
+    acceptedReusedExecutionWorkspacePath === undefined
+  ) {
+    // 只有「本就是本规则的会话目录、但日期目录或会话目录自身不可用」才会走到这里（其余持久化路径
+    // 一律可复用）。写不动库不抛错：规则 8 的裁决是降级，下一次恢复还有兜底（与恢复边界同一取舍）。
+    // `timeUpdated` 必须带行原有的值：这次写回是维护性写入，漏传会被 store 写成
+    // `max(time_updated, now)`，把老会话顶到冷启动侧栏最前（与 resume 边界两处同一条契约）。
+    const degraded = await degradeConversationSessionDirectoryToWorkspacePath({
+      store: context.deps.sessionStore,
+      sessionId,
+      workspacePath: workspace.workspacePath,
+      ...(reusedPersistedExecution?.timeUpdated === undefined
+        ? {}
+        : { timeUpdated: reusedPersistedExecution.timeUpdated }),
+    });
+    if (degraded.status === "available") {
+      context.logger?.warn("ZCode Protocol imported session execution workspace degraded", {
+        event: "zcode_protocol.session_create.execution_workspace_degraded",
+        module: "bootstrap.zcode_protocol",
+        ...(reusedExecutionRejectedReason ? { reason: reusedExecutionRejectedReason } : {}),
+        sessionId,
+      });
+    } else {
+      context.logger?.warn("ZCode Protocol imported session workspace degrade not persisted", {
+        errorCode: (degraded.error as NodeJS.ErrnoException | undefined)?.code,
+        event: "zcode_protocol.session_create.execution_workspace_degrade_failed",
+        module: "bootstrap.zcode_protocol",
+        reason: degraded.reason,
+        sessionId,
+      });
+    }
+  }
+  const executionWorkspacePath = await resolveRecordExecutionWorkspacePath(
+    acceptedReusedExecutionWorkspacePath
+      ? { ...params, executionWorkspacePath: acceptedReusedExecutionWorkspacePath }
+      : params,
+    workspace,
+    sessionId,
+    conversationRoot,
+    createdAtMs,
+    // 定名的"占用事实"：别的在册会话正在用的执行目录。本次会话自己的（同 id）已被排除，
+    // 因此重试/并发冷恢复仍复用同一个 8 位名字；同日两个会话撞前 8 位时才各自落到不同目录。
+    collectOtherSessionExecutionWorkspacePaths(context, sessionId),
+    context.logger,
+  );
+  // record 上只留「本规则真正拥有的独立目录」：快照投影的会话 cwd、派生子会话的继承来源与
+  // 删除边界的空目录回收都只认它。项目工作区/远端/CLI-TUI 的执行 cwd 等于 workspacePath，
+  // 不是独立目录，字段缺席即「不适用」（UI 回落 tab 的 workspacePath）。
+  // 未注入对话根标记时用同一份兜底判据（持久化路径严格落在工作区键路径之下），保证
+  // 「runtime 实际 cwd」与「快照对外投影」在两种启动方式下都不分叉。
+  const conversationExecutionWorkspacePath =
+    isConversationSessionWorkspacePath(executionWorkspacePath, conversationRoot) ||
+    isPersistedConversationExecutionPath(executionWorkspacePath, workspace.workspacePath)
+      ? executionWorkspacePath
+      : undefined;
   context.logger?.info("ZCode Protocol createRecord MCP config", {
     event: "zcode_protocol.create_record.mcp_config",
     rootTraceId: traceContext.traceId,
@@ -3341,7 +4008,9 @@ async function createRecord(
       // 这里补一份默认配置开启；具体是否生成仍由 runtime 按 parent/taskType/turnNumber 把关。
       // automation 执行会话显式关闭二次命名，避免回答内容覆盖原始用户 query 标题。
       titleGeneration: params.titleGenerationEnabled === false ? { enabled: false } : {},
-      workingDirectory: workspace.workspacePath,
+      // 执行 cwd：对话会话是独立会话目录，其余场景等于 workspacePath。
+      // workspacePath 另由 createWorkspaceZCodeApp 注入，两者不能合并成一个字段。
+      workingDirectory: executionWorkspacePath,
       // 身份隔离与路径执行分开：core 只把 identity 写入 session.workspace_id，
       // workingDirectory 仍是远端机器上的实际路径；本地 workspace 保持 undefined。
       workspaceIdentity: workspace.workspaceIdentity as WorkspaceId | undefined,
@@ -3378,6 +4047,11 @@ async function createRecord(
     app,
     createdAt: now,
     eventStore,
+    // 内存事实：草稿会话（deferred）sqlite 里还没有行，派生子会话继承、快照投影与删除边界的
+    // 空目录回收都只能读 record 上的执行 cwd；只有独立会话目录才有值，其余场景缺席。
+    ...(conversationExecutionWorkspacePath
+      ? { executionWorkspacePath: conversationExecutionWorkspacePath }
+      : {}),
     memoryEnabled: startupPreferences.memoryEnabled,
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
