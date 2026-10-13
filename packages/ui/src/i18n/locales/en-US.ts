@@ -5358,6 +5358,10 @@ const enUS: Record<string, string> = {
   "chat.backgroundResult.workflow.waiting": "Subagent is waiting for an answer",
   "chat.backgroundResult.workflow.answered": "Subagent question answered",
   "chat.backgroundResult.workflow.asked": "Subagent asked a question",
+  // 留白通知行：run 停在一处 `hole<T>()`，主代理欠一段代码。三态按 run 投影的留白表活翻转。
+  "chat.backgroundResult.workflow.hole.waiting": "Workflow hole · waiting for fill",
+  "chat.backgroundResult.workflow.hole.filled": "Hole filled",
+  "chat.backgroundResult.workflow.hole.left": "Workflow hole",
   "chat.backgroundResult.workflow.artifacts.more": "+{count}",
   // ── Escalation tool cards ──
   // escalate：子代理把阻塞问题升级给主代理，停驻等答案。asking 相可能持续很久，措辞要平静。
@@ -5373,6 +5377,21 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.resolveQuestion.answer": "Answer",
   "chat.toolCall.workflow.resolveQuestion.outcome": "Outcome",
   "chat.toolCall.workflow.resolveQuestion.fallbackName": "Answer",
+  "chat.toolCall.workflow.hole.stands.between": 'Standing between "{before}" and "{after}".',
+  "chat.toolCall.workflow.hole.stands.after": 'Standing after "{before}".',
+  "chat.toolCall.workflow.hole.stands.before": 'Standing before "{after}".',
+  "chat.toolCall.workflow.hole.draftPath": "Draft",
+  "chat.toolCall.workflow.hole.waited": "Waiting {time}",
+  "chat.toolCall.workflow.hole.locate": "Locate this hole",
+  "chat.toolCall.workflow.hole.returns": "Must return: {type}",
+  "chat.toolCall.workflow.fill.writing": "Filling workflow hole",
+  "chat.toolCall.workflow.fill.awaitingConfirmation": "Hole fill · awaiting confirmation",
+  "chat.toolCall.workflow.fill.done": "Hole filled",
+  "chat.toolCall.workflow.fill.failed": "Hole fill · not applied",
+  "chat.permission.workflow.fill.title": "Fill this workflow hole?",
+  "chat.permission.workflow.fill.bodyOnly":
+    "Full spliced preview is unavailable. The code below is only the proposed hole body.",
+  "chat.toolCall.workflow.hole.open": 'Open hole "{name}"',
   "chat.toolCall.workflow.openRunDetails": "Open run details",
   "chat.toolCall.workflow.run.status.pending": "Pending",
   "chat.toolCall.workflow.run.status.running": "Running",

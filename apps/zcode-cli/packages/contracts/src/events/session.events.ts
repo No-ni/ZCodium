@@ -285,6 +285,23 @@ export type WorkflowNotificationMeta =
       context?: string;
       askedAt?: number;
     }
+  /**
+   * 留白（`hole-reached`）：run 走到一个开着的 `hole<T>()`，那条分支停驻、主代理欠一段代码。
+   * 与 shared 的 `workflowNotificationMetaSchema` 的 `hole` 分支手工同步；`siteId` 是时间线定位键。
+   */
+  | {
+      kind: "hole";
+      siteId: string;
+      ordinal: number;
+      name: string;
+      type: string;
+      prompt?: string;
+      draftPath?: string;
+      line?: number;
+      before?: string;
+      after?: string;
+      reachedAt?: number;
+    }
   /** run 级停滞：每个 stall 段一条，不是终态。 */
   | {
       kind: "stall";

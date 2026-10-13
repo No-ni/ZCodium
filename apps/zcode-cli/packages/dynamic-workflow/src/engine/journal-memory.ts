@@ -93,6 +93,37 @@ export class InMemoryJournalStore implements JournalStorePort {
     r.caps = clone(caps);
   }
 
+  updateRunScript(runId: string, scriptText: string, scriptHash: string): void {
+    const r = this.runs.get(runId);
+    if (r === undefined) throw new Error(`journal: unknown run ${runId}`);
+    // 两列同一笔写：resume 拿行里的哈希对行里的文本，拆开写就会出现一个自相矛盾的行。
+    // 只碰这两列，状态 / 用量 / 上界 / 结算袋一律不动（与 updateRunUsage 同族）。
+    r.scriptText = scriptText;
+    r.scriptHash = scriptHash;
+  }
+
+  commitHoleFill(
+    runId: string,
+    scriptText: string,
+    scriptHash: string,
+    event: Extract<RunEvent, { type: "hole-filled" }>,
+  ): StoredEvent {
+    const run = this.runs.get(runId);
+    const events = this.events.get(runId);
+    if (run === undefined || events === undefined) throw new Error(`journal: unknown run ${runId}`);
+    const previous = clone(run);
+    const previousEvents = events.slice();
+    try {
+      // 补全与事件必须一起成功；append 抛错（包括存储边界深拷贝）不能留下可 resume 的脚本。
+      this.updateRunScript(runId, scriptText, scriptHash);
+      return this.appendEvent(runId, event);
+    } catch (error) {
+      this.runs.set(runId, previous);
+      this.events.set(runId, previousEvents);
+      throw error;
+    }
+  }
+
   putActor(record: ActorRecord): void {
     const bucket = this.requireActorBucket(record.runId);
     bucket.set(key(record.siteId, record.ordinal), clone(record));

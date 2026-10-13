@@ -41,7 +41,9 @@ const toolCallCreateWorkflowCausalityGraphSchema = z
         z
           .object({
             id: z.string().min(1).max(64),
-            kind: z.enum(["ask", "world-read"]),
+            // `hole`：开着的留白自己的站点。它的阶段 id 与站点 id 同为 `hole#<8 位十六进制>`，
+            // run 的 `holes[]` 按 siteId 与它相接，时间线据此画虚线灯。
+            kind: z.enum(["ask", "world-read", "hole"]),
             label: z.string().min(1).max(128),
             // 内联 `agent()` receiver 让 label 落到兜底串时，那个名字的静态形状。
             labelPattern: namePatternSchema.optional(),
@@ -55,6 +57,8 @@ const toolCallCreateWorkflowCausalityGraphSchema = z
             // 作者用 `phase("…")` 标记划入的阶段。
             // 与图的 phases / phaseEdges / exits 同进同退：全在场或全缺席。
             phase: z.string().min(1).max(64).optional(),
+            // 这个站点是某次补全写进来的：值是那个留白的站点 id（名字键 `hole#<8 位十六进制>`）。
+            fill: z.string().min(1).max(64).optional(),
             repeat: z.enum(["stack", "serial"]).optional(),
           })
           .strict(),
@@ -116,12 +120,36 @@ const toolCallCreateWorkflowCausalityGraphSchema = z
             // 为空时缺席。是节点事实而不是边——控制没有从那里转移过来，所以不进 phaseEdges。
             // 时间轴据此把相邻阶段折成一条分叉的「带」，侧栏迷你轨道画成双线段。
             alongside: z.array(z.string().min(1).max(64)).min(1).max(32).optional(),
+            // 这个阶段是某次补全写进来的：值是那个留白的站点 id。时间线把同一个 `fill` 的连续几站
+            // 折成一段「补全的头 + 区域」；本仓库最小实现只读它给站盖 `fill`。
+            fill: z.string().min(1).max(64).optional(),
           })
           .strict(),
       )
       .max(32)
       .optional(),
     phaseEdges: z.array(workflowEdgeSchema).max(128).optional(),
+    // 阶段流：两端互为 alongside 的 data 边，只有 {from, to}——不是 runs after，不进 phaseEdges。
+    phaseStreams: z
+      .array(z.object({ from: z.string().min(1).max(64), to: z.string().min(1).max(64) }).strict())
+      .max(128)
+      .optional(),
+    // 还开着的留白，源码序：一个留白就是一个阶段（id = 站点 id、name = 字面量），这张表只补阶段表
+    // 说不出的两件事——它是留白、它的类型原文——外加 `tail`。补全过的留白不在这里。
+    holes: z
+      .array(
+        z
+          .object({
+            siteId: z.string().min(1).max(64),
+            name: z.string().min(1).max(128),
+            type: z.string().min(1).max(128),
+            phase: z.string().min(1).max(64).optional(),
+            tail: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .max(32)
+      .optional(),
     // 控制流可在其后正常完成的阶段（阶段视图的「阶段 → 返回物」箭头）；组内可为空数组。
     exits: z.array(z.string().min(1).max(64)).max(32).optional(),
     sink: z.array(z.string().min(1).max(64)).max(64).optional(),
@@ -151,6 +179,18 @@ export const toolCallCreateWorkflowDisplaySchema = z
       .max(100),
     causalityGraph: toolCallCreateWorkflowCausalityGraphSchema.optional(),
     truncated: z.boolean().optional(),
+    // FillWorkflowHole 行补的是哪处留白：站点 id、名字、草稿路径与行号。行靠它给自己起名。
+    fill: z
+      .object({
+        siteId: z.string().min(1).max(64),
+        name: z.string().min(1).max(128),
+        draftPath: z.string().min(1).max(1_024).optional(),
+        line: z.number().int().positive().optional(),
+        // durable journal 的提交序号：镜像 contracts 的非负整数界，不按工具行顺序猜最新图。
+        commitSequence: z.number().int().nonnegative().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type ToolCallCreateWorkflowDisplay = z.infer<typeof toolCallCreateWorkflowDisplaySchema>;

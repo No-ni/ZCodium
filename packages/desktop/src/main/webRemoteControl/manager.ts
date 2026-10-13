@@ -22,7 +22,7 @@ import {
   type WebRemoteControlDeviceTransportEvents,
 } from "./relayTransport.js";
 import { buildStatusSnapshot, type WebRemoteControlRuntime } from "./runtime.js";
-import { routeMobilePayload } from "./payloadRouter.js";
+import { buildWorkspaceListResult, routeMobilePayload } from "./payloadRouter.js";
 import { clearPendingOutbound, flushPendingOutbound, sendAppPayload } from "./outboundBuffer.js";
 import { clearGraceTimer, mapTransportState } from "./transportState.js";
 import { createStartAuthorizationStore, type StartAuthorization } from "./authorization.js";
@@ -83,6 +83,11 @@ export interface WebRemoteControlManagerDeps {
   /** 请 renderer 重连指定 workspace 的远端会话（workspace-reconnect-request）。 */
   reconnectWorkspace(windowId: number, workspaceKey: string): Promise<void>;
   resolveHostProcess(webContentsId: number): ElectronUtilityProcessLike | undefined;
+  /**
+   * 远端 workspace 连接态的权威解析：由桌面 remote session 路由表裁定。
+   * UI 同步载荷里的 `kind` / `connectionState` 不是事实来源；未注入时保持原值不覆盖。
+   */
+  resolveRemoteWorkspaceConnectionState?: (remoteSessionId: string) => "connected" | "disconnected";
 }
 
 export type WebRemoteControlOpenBridgeResult =
@@ -111,6 +116,29 @@ export interface WebRemoteControlManager {
   syncWorkspaces(windowId: number, workspaces: WebRemoteControlWorkspaceRef[]): void;
   syncTasks(windowId: number, tasks: WebRemoteControlTaskRef[]): void;
   disposeWindow(windowId: number): Promise<void>;
+}
+
+/**
+ * 清单变化时主动推给手机。
+ *
+ * 手机只在配对时拉一次 bootstrap；远端工作区重连会换 `remoteSessionId`，不推送的话手机端会一直
+ * 拿着旧 identity 去请求（服务调用打到已经失效的 session 上）。未配对时不推，避免占满出站缓冲——
+ * 配对那一刻的 bootstrap 会拉全量。
+ */
+function pushWorkspaceListIfChanged(
+  runtime: WebRemoteControlRuntime,
+  logger: WebRemoteControlLogger,
+): void {
+  const result = buildWorkspaceListResult(runtime);
+  const signature = JSON.stringify(result);
+  if (runtime.lastWorkspaceListSignature === signature) return;
+  runtime.lastWorkspaceListSignature = signature;
+  if (!runtime.mobileConnected) return;
+  sendAppPayload(
+    runtime,
+    { zcode_type: "workspace-list-updated", result } as WebRemoteControlAppPayload,
+    logger,
+  );
 }
 
 export function createWebRemoteControlManager(
@@ -374,11 +402,25 @@ export function createWebRemoteControlManager(
     },
     syncWorkspaces(windowId, workspaces) {
       const runtime = runtimes.get(windowId);
-      if (runtime) runtime.workspaces = workspaces;
+      if (!runtime) return;
+      runtime.workspaces = workspaces.map((workspace) => {
+        // 带 remoteSessionId 的条目连接态归桌面裁定；UI 传来的值不作为事实。
+        // deps 未注入时不覆盖，也不写假值（保持原始条目）。
+        if (!workspace.remoteSessionId || !deps.resolveRemoteWorkspaceConnectionState) {
+          return workspace;
+        }
+        return {
+          ...workspace,
+          connectionState: deps.resolveRemoteWorkspaceConnectionState(workspace.remoteSessionId),
+        };
+      });
+      pushWorkspaceListIfChanged(runtime, deps.logger);
     },
     syncTasks(windowId, tasks) {
       const runtime = runtimes.get(windowId);
-      if (runtime) runtime.tasks = tasks;
+      if (!runtime) return;
+      runtime.tasks = tasks;
+      pushWorkspaceListIfChanged(runtime, deps.logger);
     },
     async disposeWindow(windowId) {
       await stopRuntime(windowId, "window-disposed");

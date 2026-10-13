@@ -1,10 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { generateTraceId } from "@zcode/shared";
+/* eslint-disable max-lines -- 移动端首页与会话共享连接态，避免拆分状态投影所有权。 */
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   MobileRemoteControlClient,
   readPairingParamsFromLocation,
   type MobileConnectionState,
 } from "./protocol.js";
+import {
+  presentMobileConnection,
+  type MobileConnectionSnapshot,
+} from "./connectionPresentation.js";
+import {
+  conversationReducer,
+  initialConversationState,
+  type ConversationScope,
+} from "./conversationReducer.js";
+import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
+import { logger } from "../../../ui/src/logger.js";
 import type {
   WebRemoteControlBootstrapResult,
   WebRemoteControlAppPayload,
@@ -16,14 +27,22 @@ import type {
  * 移动端远控应用：mobileHome（工作区/任务列表） + mobileShell（任务会话）。
  * 会话内容经 rpc 桥读桌面 Host；发送走 IZCodeTaskService.sendPrompt，
  * clientMode 固定 web-remote-replayable（与桌面 continuous 语义分离）。
+ *
+ * 实时更新走 Host replayable 事件流订阅（`onDynamicTaskEvent`），不再周期轮询：
+ * 首次/恢复读取 `readSessionMessages` 作为快照屏障，在途事件使读取过期时由控制器补读。
  */
 
 type View = { kind: "home" } | { kind: "task"; task: WebRemoteControlTaskRef };
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function findWorkspace(
+  bootstrap: WebRemoteControlBootstrapResult | null,
+  workspaceKey: string,
+): WebRemoteControlWorkspaceRef | undefined {
+  return bootstrap?.workspaces.find((item) => item.workspaceKey === workspaceKey);
 }
 
 export function MobileApp() {
@@ -32,41 +51,52 @@ export function MobileApp() {
   );
   const [paramsError, setParamsError] = useState<string | null>(null);
   const clientRef = useRef<MobileRemoteControlClient | null>(null);
-  const [connection, setConnection] = useState<MobileConnectionState>("connecting");
+  const [connectionSnapshot, setConnectionSnapshot] = useState<MobileConnectionSnapshot>({
+    state: "connecting",
+  });
+  const connection = connectionSnapshot.state;
   const [bootstrap, setBootstrap] = useState<WebRemoteControlBootstrapResult | null>(null);
   const [view, setView] = useState<View>({ kind: "home" });
   const [organize, setOrganize] = useState<"timeline" | "workspace">("timeline");
   const [sortBy, setSortBy] = useState<"created" | "updated">("updated");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversation, dispatchConversation] = useReducer(
+    conversationReducer,
+    initialConversationState,
+  );
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  // 传输降级回调由「订阅 effect」注册：`onPayload` 在 client 构造时绑定，
+  // 之后通过 ref 把 bridge-degraded 路由到当前 task 的完整桥恢复。
+  const onTransportDegradedRef = useRef<() => void>(() => {});
+
+  const reportError = useCallback((message: string, error: unknown) => {
+    logger.error(message, error);
+    setNotice(describeError(error));
+  }, []);
 
   useEffect(() => {
     try {
       setParams(readPairingParamsFromLocation());
     } catch (error) {
-      setParamsError(error instanceof Error ? error.message : String(error));
+      setParamsError(describeError(error));
     }
   }, []);
 
   const refreshBootstrap = useCallback(async () => {
     const client = clientRef.current;
     if (!client) return;
-    const requestId = `bootstrap-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const response = await client.request({
       zcode_type: "bootstrap-request",
-      requestId,
+      requestId: `bootstrap-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     });
-    if (response.zcode_type === "bootstrap-response") {
-      setBootstrap(response.result);
-    }
+    if (response.zcode_type === "bootstrap-response") setBootstrap(response.result);
   }, []);
 
   useEffect(() => {
     if (!params) return;
     const client = new MobileRemoteControlClient(params, {
-      onStateChange: (state) => setConnection(state),
+      onStateChange: (state, detail) => setConnectionSnapshot({ state, detail }),
       onPayload: (payload) => {
         if (payload.zcode_type === "workspace-list-updated") {
           setBootstrap((current) =>
@@ -79,9 +109,8 @@ export function MobileApp() {
               : current,
           );
         }
-        if (payload.zcode_type === "app-error") {
-          setNotice(payload.error ?? payload.reason);
-        }
+        if (payload.zcode_type === "bridge-degraded") onTransportDegradedRef.current();
+        if (payload.zcode_type === "app-error") setNotice(payload.error ?? payload.reason);
       },
     });
     clientRef.current = client;
@@ -92,68 +121,90 @@ export function MobileApp() {
     };
   }, [params]);
 
+  // 网络恢复 / 页面回到前台时立刻补一次重连；其余情况交给客户端内部的退避重连。
+  useEffect(() => {
+    const onOnline = () => clientRef.current?.retryNow();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") clientRef.current?.retryNow();
+    };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
   useEffect(() => {
     if (connection !== "paired" || bootstrap) return;
-    void refreshBootstrap().catch((error) =>
-      setNotice(error instanceof Error ? error.message : String(error)),
-    );
-  }, [connection, bootstrap, refreshBootstrap]);
+    void refreshBootstrap().catch((error) => reportError("[mobile] bootstrap 拉取失败", error));
+  }, [connection, bootstrap, refreshBootstrap, reportError]);
 
-  // 任务视图：拉历史 + 周期刷新（实时流接入见 spec 分期 P3 后续）。
+  // 任务视图订阅：进入任务即订阅 Host replayable 事件流；退出/换 workspace 释放旧订阅。
+  // 断线重连（connection 重新变 paired）会重跑本 effect：重开 bridge + 重订阅 + 重读快照。
   useEffect(() => {
-    if (view.kind !== "task") return;
+    if (view.kind !== "task" || connection !== "paired") return;
     const client = clientRef.current;
     if (!client) return;
-    let cancelled = false;
-    const load = async () => {
-      const { zcodeSessionService: sessionService } = client.createServiceAccessor();
-      const workspace = bootstrap?.workspaces.find(
-        (item) => item.workspaceKey === view.task.workspaceKey,
-      );
-      const taskId = view.task.taskId;
-      const read = await sessionService.readSessionMessages({
-        sessionId: taskId,
-        workspacePath: workspace?.workspacePath ?? "",
-        workspaceIdentity: workspace?.workspaceIdentity,
-        remoteSessionId: workspace?.remoteSessionId,
-        limit: 100,
-      });
-      if (cancelled) return;
-      setMessages(
-        read.map((message) => toChatMessage(message as Parameters<typeof toChatMessage>[0])),
-      );
-    };
-    void load().catch(() => undefined);
-    const timer = window.setInterval(() => void load().catch(() => undefined), 4000);
+    const { workspaceKey, taskId } = view.task;
+    const scope: ConversationScope = { workspaceKey, taskId };
+    const workspace = findWorkspace(bootstrap, workspaceKey);
+    const lifecycle = new TaskConversationLifecycle(scope, {
+      subscribe: (onEvent) =>
+        client.subscribeTaskStream(
+          {
+            workspaceKey,
+            workspacePath: workspace?.workspacePath ?? "",
+            workspaceIdentity: workspace?.workspaceIdentity,
+            taskId,
+          },
+          onEvent,
+        ),
+      read: () =>
+        client.readTaskSnapshot({
+          workspaceKey,
+          taskId,
+          workspacePath: workspace?.workspacePath ?? "",
+          workspaceIdentity: workspace?.workspaceIdentity,
+          remoteSessionId: workspace?.remoteSessionId,
+          limit: 100,
+        }),
+      dispatch: dispatchConversation,
+      onError: (error) => reportError("[mobile] 会话同步失败", error),
+    });
+    // 协议先作废 bridge，控制器再重订阅/补读；不依赖 flags 变化触发 React effect。
+    onTransportDegradedRef.current = () => lifecycle.recoverBridge();
+    lifecycle.start();
     return () => {
-      cancelled = true;
-      window.clearInterval(timer);
+      lifecycle.dispose();
+      onTransportDegradedRef.current = () => {};
     };
-  }, [view, bootstrap]);
+  }, [view, bootstrap, connection, reportError]);
 
   const sendPrompt = useCallback(async () => {
     const client = clientRef.current;
     const content = draft.trim();
     if (!client || view.kind !== "task" || !content) return;
-    const workspace = bootstrap?.workspaces.find(
-      (item) => item.workspaceKey === view.task.workspaceKey,
-    );
-    const { zcodeTaskService: taskService } = client.createServiceAccessor();
+    const { workspaceKey, taskId } = view.task;
+    const workspace = findWorkspace(bootstrap, workspaceKey);
     setDraft("");
-    setMessages((current) => [
-      ...current,
-      { id: `local-${Date.now()}`, role: "user", text: content },
-    ]);
-    // workspace 归属由 taskId 反查（task meta 持久化 workspacePath/Identity）；
-    // 远端工作区的 session 路由显式带上 remoteSessionId。
-    await taskService.sendPrompt({
-      taskId: view.task.taskId,
-      traceId: generateTraceId(view.task.taskId),
-      content,
-      clientMode: "web-remote-replayable",
-      remoteSessionId: workspace?.remoteSessionId,
+    dispatchConversation({
+      type: "appendOptimisticUserMessage",
+      scope: { workspaceKey, taskId },
+      id: `local-${Date.now()}`,
+      text: content,
     });
-  }, [draft, view, bootstrap]);
+    try {
+      await client.sendTaskPrompt({
+        workspaceKey,
+        taskId,
+        content,
+        remoteSessionId: workspace?.remoteSessionId,
+      });
+    } catch (error) {
+      reportError("[mobile] 发送消息失败", error);
+    }
+  }, [draft, view, bootstrap, reportError]);
 
   const groupedWorkspaces = useMemo(() => {
     const workspaces = bootstrap?.workspaces ?? [];
@@ -162,9 +213,7 @@ export function MobileApp() {
       if (sortBy === "updated") return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
       return (b.createdAt ?? 0) - (a.createdAt ?? 0);
     });
-    if (organize === "timeline") {
-      return [{ key: "timeline", label: null, tasks: sorted }];
-    }
+    if (organize === "timeline") return [{ key: "timeline", label: null, tasks: sorted }];
     return workspaces.map((workspace) => ({
       key: workspace.workspaceKey,
       label: workspace.label ?? workspace.workspacePath,
@@ -186,12 +235,13 @@ export function MobileApp() {
     return (
       <Shell
         connection={connection}
+        connectionDetail={connectionSnapshot.detail}
         title={`任务会话`}
         onBack={() => setView({ kind: "home" })}
         notice={notice}
       >
         <div className="flex flex-col gap-3 pb-24">
-          {messages.map((message) => (
+          {conversation.messages.map((message) => (
             <div
               key={message.id}
               className={
@@ -203,7 +253,7 @@ export function MobileApp() {
               {message.text}
             </div>
           ))}
-          {messages.length === 0 ? (
+          {conversation.messages.length === 0 ? (
             <p className="text-center text-ui-base text-foreground-subtle">暂无消息</p>
           ) : null}
         </div>
@@ -232,7 +282,10 @@ export function MobileApp() {
   return (
     <Shell
       connection={connection}
-      onRefresh={() => void refreshBootstrap().catch(() => undefined)}
+      connectionDetail={connectionSnapshot.detail}
+      onRefresh={() =>
+        void refreshBootstrap().catch((error) => reportError("[mobile] 刷新工作区失败", error))
+      }
       notice={notice}
     >
       <section className="space-y-1">
@@ -249,7 +302,7 @@ export function MobileApp() {
               : "inline-flex h-6 items-center rounded-full border border-border px-2 text-ui-xs font-medium text-foreground-subtle"
           }
         >
-          {connection === "paired" ? "已连接到当前桌面窗口" : "未连接"}
+          {presentMobileConnection(connection, connectionSnapshot.detail).label}
         </span>
         <span className="text-ui-xs text-foreground-subtle">
           {bootstrap?.workspaces.length ?? 0} 个工作区 · {bootstrap?.tasks.length ?? 0} 个任务
@@ -339,39 +392,18 @@ function taskStatusLabel(status: WebRemoteControlTaskRef["displayStatus"]): stri
   }
 }
 
-/** ZCodeMessageWithParts → 移动端纯文本气泡（v1 只渲染文本 part）。 */
-function toChatMessage(message: {
-  id?: string;
-  role?: string;
-  parts?: unknown[];
-  text?: string;
-}): ChatMessage {
-  const record = message;
-  const text =
-    typeof record.text === "string"
-      ? record.text
-      : (record.parts ?? [])
-          .map((part) => {
-            const item = part as { type?: string; text?: string };
-            return item.type === "text" && typeof item.text === "string" ? item.text : "";
-          })
-          .filter(Boolean)
-          .join("\n");
-  return {
-    id: record.id ?? `msg-${Math.random().toString(36).slice(2)}`,
-    role: record.role === "user" ? "user" : "assistant",
-    text,
-  };
-}
-
 function Shell(props: {
   connection?: MobileConnectionState;
+  connectionDetail?: MobileConnectionSnapshot["detail"];
   title?: string;
   notice?: string | null;
   onBack?: () => void;
   onRefresh?: () => void;
   children: React.ReactNode;
 }) {
+  const connectionPresentation = props.connection
+    ? presentMobileConnection(props.connection, props.connectionDetail)
+    : null;
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-card px-3 py-2">
@@ -389,10 +421,14 @@ function Shell(props: {
           </button>
         ) : null}
       </header>
-      {props.connection && props.connection !== "paired" ? (
-        <p className="px-3 py-1 text-center text-ui-xs text-foreground-subtle">
-          {props.connection === "closed" ? "连接已断开" : "正在自动重连..."}
-        </p>
+      {connectionPresentation && props.connection !== "paired" ? (
+        <div
+          className={`px-3 py-1 text-center text-ui-xs ${connectionPresentation.terminal ? "text-destructive" : "text-foreground-subtle"}`}
+          role="status"
+        >
+          <p className="font-medium">{connectionPresentation.label}</p>
+          <p>{connectionPresentation.description}</p>
+        </div>
       ) : null}
       {props.notice ? (
         <p className="px-3 py-1 text-center text-ui-xs text-destructive">{props.notice}</p>

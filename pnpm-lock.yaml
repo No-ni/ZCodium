@@ -210,7 +210,27 @@ importers:
         specifier: ^2.10.3
         version: 2.10.3
 
-  apps/zcode-cli/packages/android-emulator-plugin: {}
+  apps/zcode-cli/packages/android-emulator-plugin:
+    dependencies:
+      '@modelcontextprotocol/server':
+        specifier: 2.0.0
+        version: 2.0.0
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.2
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      tsx:
+        specifier: ^4.20.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
 
   apps/zcode-cli/packages/bootstrap:
     dependencies:
@@ -358,6 +378,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
+      tsx:
+        specifier: ^4.20.0
+        version: 4.21.0
 
   apps/zcode-cli/packages/core:
     dependencies:
@@ -456,6 +479,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
+      tsx:
+        specifier: ^4.20.0
+        version: 4.21.0
 
   apps/zcode-cli/packages/dynamic-workflow-runtime:
     dependencies:
@@ -475,7 +501,27 @@ importers:
 
   apps/zcode-cli/packages/image-search-plugin: {}
 
-  apps/zcode-cli/packages/ios-simulator-plugin: {}
+  apps/zcode-cli/packages/ios-simulator-plugin:
+    dependencies:
+      '@modelcontextprotocol/server':
+        specifier: 2.0.0
+        version: 2.0.0
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.2
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      tsx:
+        specifier: ^4.20.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
 
   apps/zcode-cli/packages/node-repl-host:
     dependencies:
@@ -507,6 +553,9 @@ importers:
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
+      tsx:
+        specifier: ^4.20.0
+        version: 4.21.0
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
@@ -1263,6 +1312,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@noble/hashes':
+        specifier: ^1.8.0
+        version: 1.8.0
       '@zcode/client':
         specifier: workspace:*
         version: link:../client

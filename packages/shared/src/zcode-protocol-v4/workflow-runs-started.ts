@@ -8,6 +8,7 @@
 
 import { reduceRunStartedConcurrency } from "./workflow-runs-concurrency.js";
 import { workflowRunTablesForNewLife } from "./workflow-runs-eviction.js";
+import { withoutWaitingHoles } from "./workflow-runs-holes.js";
 import { readRunIdField } from "./workflow-runs-lineage.js";
 import { WORKFLOW_RUNS_LIMITS, type WorkflowRunState } from "./workflow-runs.js";
 
@@ -73,9 +74,11 @@ export function reduceRunStarted(
   // 这条事件到达。读不出就退回已知值——老 CLI 不发这个键，而把已经显示出来的模型抹掉是退化里
   // 最坏的一种：run 看上去换了模型，其实只是少了一个字段。缺席即整个键不在（不是 undefined）。
   const subagentModel = readSubagentModel(payload.subagentModel) ?? rebased.subagentModel;
+  // 停驻中的留白与停驻问题同属上一世的残影（workflow-runs-holes.ts）：resume 重跑到那个站点会再发
+  // 一条 `hole-reached`；补上了的留白是接进 run 的代码，跨世保留。
   return reduceRunStartedConcurrency(
     {
-      ...rebased,
+      ...withoutWaitingHoles(rebased as WorkflowRunState),
       ...(resumedFrom === undefined ? {} : { resumedFrom }),
       ...(subagentModel === undefined ? {} : { subagentModel }),
       status: "running",

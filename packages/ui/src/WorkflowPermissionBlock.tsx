@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/collapsible.js";
 import { cn } from "@/components/lib/utils.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
+import { hasWorkflowGraphContent } from "@/components/workflow-graph/types.js";
 import { workflowPhasesDetail } from "@/components/workflow-timeline/timeline-summary.js";
 import { WorkflowCardHeader } from "@/components/workflow-timeline/WorkflowCardChrome.js";
 import { WorkflowTimeline } from "@/components/workflow-timeline/WorkflowTimeline.js";
@@ -32,7 +33,11 @@ import {
 } from "@/components/workflow-timeline/subagent-model-label.js";
 import { useWorkflowSubagentModelProviderName } from "@/hooks/useWorkflowSubagentModelProviderName.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { isAmendWorkflowToolCall } from "@/lib/workflowToolNames.js";
+import { isAmendWorkflowToolCall, isFillWorkflowHoleToolCall } from "@/lib/workflowToolNames.js";
+import {
+  readWorkflowFill,
+  readWorkflowFillPreview,
+} from "@/ToolCallBlocks/renderers/workflowFillInput.js";
 
 /**
  * saved 来源徽标：这次运行的脚本来自项目里的一个文件，而不是模型现写的一段。
@@ -121,8 +126,12 @@ export function WorkflowPermissionBlock({
 
   // v4 ask 的 raw 就是工具入参（product-projection 的 detail: payload.input），
   // 与聊天卡片共用 create-workflow.tsx 的读取规则，避免两处对同一入参各自解析。
-  const scriptText = readWorkflowScript(request.raw);
-  const workflowName = readWorkflowName(request.raw);
+  const filling = isFillWorkflowHoleToolCall(request);
+  const fill = filling ? readWorkflowFill(request.raw) : undefined;
+  const fillPreview = filling ? readWorkflowFillPreview(request.raw) : undefined;
+  // script 是补全函数体；完整拼接预览只读后端字段，UI 不自行拼接或伪称完整脚本。
+  const scriptText = filling ? fillPreview?.script : readWorkflowScript(request.raw);
+  const workflowName = fill?.name ?? readWorkflowName(request.raw);
   const saved = readWorkflowSaved(request.raw);
   // 修订按工具名判（kind / title 是 v4 ask 挂上的工具名）；lineage 只对修订成立。
   const amend = isAmendWorkflowToolCall(request);
@@ -154,12 +163,11 @@ export function WorkflowPermissionBlock({
     [intl, subagentModel, subagentModelProviderName],
   );
 
-  // 空图（脚本里一次 ask / files.* 都没有）不值得一条空轨道；和聊天卡片同一判定。
+  // 纯留白无 step 但有阶段/留白站；和聊天卡片、侧栏共用非空图判定，避免审批丢站。
   const display = request.display?.kind === "create_workflow" ? request.display : null;
-  const causalityGraph =
-    display?.causalityGraph !== undefined && display.causalityGraph.steps.length > 0
-      ? display.causalityGraph
-      : undefined;
+  const causalityGraph = hasWorkflowGraphContent(display?.causalityGraph)
+    ? display.causalityGraph
+    : undefined;
   const hasGraph = causalityGraph !== undefined;
   const model = useMemo(
     () =>
@@ -167,7 +175,7 @@ export function WorkflowPermissionBlock({
     [causalityGraph],
   );
 
-  // 有图时脚本默认收起；零 step 脚本没有图可看，代码就是唯一内容，默认展开。
+  // 有图时脚本默认收起；真正空图才以代码为唯一内容，默认展开。
   const [scriptOpen, setScriptOpen] = useState(!hasGraph);
 
   // PermissionDialog 会跨请求复用同一组件实例（只按 requestId 重置内部状态），
@@ -178,7 +186,11 @@ export function WorkflowPermissionBlock({
 
   const fallbackName = intl.formatMessage({ id: "chat.toolCall.workflow.fallbackName" });
   const title = intl.formatMessage({
-    id: amend ? "chat.permission.workflow.amend.title" : "chat.permission.workflow.title",
+    id: filling
+      ? "chat.permission.workflow.fill.title"
+      : amend
+        ? "chat.permission.workflow.amend.title"
+        : "chat.permission.workflow.title",
   });
   const amendsLabel = intl.formatMessage({ id: "chat.permission.workflow.amends" });
   const stillRunningLabel = intl.formatMessage({ id: "chat.permission.workflow.amends.running" });
@@ -270,6 +282,26 @@ export function WorkflowPermissionBlock({
         </p>
       )}
 
+      {fill === undefined ? null : (
+        <p
+          className="break-words font-mono text-ui-sm text-foreground-subtle"
+          data-testid="workflow-permission-fill-site"
+        >
+          {fill.draftPath === undefined
+            ? null
+            : fill.line === undefined
+              ? fill.draftPath
+              : `${fill.draftPath}:L${fill.line}`}
+        </p>
+      )}
+      {filling && fillPreview?.complete !== true ? (
+        <p
+          className="text-ui-sm text-foreground-subtle"
+          data-testid="workflow-permission-fill-body-only"
+        >
+          {intl.formatMessage({ id: "chat.permission.workflow.fill.bodyOnly" })}
+        </p>
+      ) : null}
       {saved ? <WorkflowSavedSourceBadge saved={saved} /> : null}
 
       {model === undefined ? null : <WorkflowTimeline className="py-1" model={model} />}

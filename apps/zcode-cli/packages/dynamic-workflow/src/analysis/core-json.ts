@@ -23,7 +23,8 @@ export type MapEntries<V> = [string, V][];
 export interface AnalysisCoreJson {
   /** 格式版本；解码器只认识它认得的版本，其余抛错而不是猜。 */
   version: 1;
-  sites: CoreSites;
+  /** 留白站点表（2026-09-28 加入）；早于它冻结的样例包没有 `holes` 键，解码按空表补。 */
+  sites: Omit<CoreSites, "holes"> & { holes?: CoreSites["holes"] };
   facts: {
     askData: MapEntries<TaintOcc[]>;
     askActor: MapEntries<TaintOcc[]>;
@@ -80,7 +81,7 @@ export function decodeAnalysisCore(json: AnalysisCoreJson): AnalysisCore {
       returnData: json.facts.returnData,
       worldReadData: new Map(json.facts.worldReadData),
     },
-    sites: json.sites,
+    sites: { ...json.sites, holes: json.sites.holes ?? [] },
     trace: json.trace,
     types: {
       joinPortTypes: new Map(

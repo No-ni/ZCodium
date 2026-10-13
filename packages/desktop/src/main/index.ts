@@ -1742,7 +1742,11 @@ app.whenReady().then(async () => {
       ? { registryMaxEntries: Number(process.env.ZCODE_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) }
       : {}),
   });
-  // 灰度模块已移除，不能再调用其 refresh；遗留引用会在首个 Host 启动前抛 ReferenceError。
+  // 灰度模块 desktopContextPromptRollout 已在 38632dec「replace remote rollout and help config
+  // with local defaults」整体删除，此处不再有可预热的远端灰度请求。
+  // 注意：该引用曾被上游 cherry-pick 反复带回，且在缺少声明的 whenReady 回调里直接求值，
+  // 打包产物会抛 ReferenceError: desktopContextPromptRollout is not defined，
+  // 使主进程启动链断裂、窗口不再创建（见 issue #58），不要再加回。
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );
@@ -1873,6 +1877,10 @@ app.whenReady().then(async () => {
     settingService: mainSettingService,
     credentialService: createCredentialService(),
     resolveHostProcess: (webContentsId) => windowHostProcessMap.get(webContentsId),
+    resolveRemoteWorkspaceConnectionState: (remoteSessionId: string) =>
+      remoteSessionManager.hasAttachableRemoteSession({ remoteSessionId })
+        ? "connected"
+        : "disconnected",
   }).catch((error) => {
     logger.error("[web-remote-control] failed to initialize:", error);
     return null;

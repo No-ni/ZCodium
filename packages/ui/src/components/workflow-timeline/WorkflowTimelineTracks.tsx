@@ -270,12 +270,13 @@ export function WorkflowTimelineLamps({
         <span
           aria-hidden
           className={cn(
-            stationLampClass(station.status),
+            stationLampClass(station.status, station.hole),
             "absolute",
             "wf-foldable",
             folded.has(i) && "wf-folded",
             draft && "wf-land",
           )}
+          data-hole={station.hole?.state}
           data-lamp={station.status ?? "pending"}
           data-lamp-track={station.track}
           key={station.id}

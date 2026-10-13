@@ -249,4 +249,14 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
       }
     }
   }
+  // checks 是 coverage 型门禁：打包只看是否被取消，不因 checks 失败被跳过；
+  // 草稿发布则必须等 checks 通过，且只在标签推送时进行。
+  for (const id of ["build", "build-macos"]) {
+    const condition = String(desktop.jobs[id].if);
+    assert.match(condition, /!cancelled\(\)/);
+    assert.ok(!/needs\.checks\.result|success\(\)/.test(condition), id);
+  }
+  const release = desktop.jobs.release;
+  assert.deepEqual([release.needs].flat().sort(), ["build", "build-macos", "checks"]);
+  assert.equal(release.if, "github.event_name == 'push' && github.ref_type == 'tag'");
 });
