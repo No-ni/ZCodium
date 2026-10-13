@@ -36,6 +36,16 @@ export type ConversationFileChangesState = Exclude<
 export interface ConversationRowRenderContext {
   logEpoch?: string;
   workspacePath: string;
+  /**
+   * 文件 mention 的搜索根（会话执行 cwd）。会话已绑定时由 SessionPane 从快照派生；
+   * 缺席时行内编辑器回落 `workspacePath`。见 docs/specs/conversation-session-workspace.md。
+   */
+  fileSearchRootPath?: string;
+  /**
+   * 上述搜索根是否已由会话事实解析出来（缺省 true = 改动前行为）。false ⇒ 行内编辑器的
+   * 拖拽/Add to chat 提及投绝对路径；判据见 `resolvePaneFileSearchRoot`（已知边界 14）。
+   */
+  fileReferenceRootResolved?: boolean;
   /** 当前 workspace Host 的用户 Home，用于解析 Assistant 输出中的 ~/ 路径。 */
   workspaceHomePath?: string;
   workspaceIdentity?: string;

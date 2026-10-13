@@ -219,6 +219,8 @@ export function ReadSessionContextToolCallBlock(context: ToolCallBlockRenderCont
             <MessageResponse
               className="min-w-0 break-words text-ui-base"
               workspacePath={context.workspacePath}
+              // 会话上下文结果里的相对链接按会话执行 cwd 解析（缺省回落身份根）。
+              fileReferenceRootPath={context.fileReferenceRootPath ?? context.workspacePath}
               theme={context.theme}
               codePreviewSettings={context.codePreviewSettings}
               onOpenCodeViewer={context.onOpenCodeViewer}
@@ -243,6 +245,7 @@ export function ReadSessionContextToolCallBlock(context: ToolCallBlockRenderCont
       context.onOpenCodeViewer,
       context.onOpenFileLink,
       context.theme,
+      context.fileReferenceRootPath,
       context.workspacePath,
       intl,
       query,

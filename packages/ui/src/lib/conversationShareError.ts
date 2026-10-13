@@ -45,6 +45,10 @@ const PUBLISH_ERROR_MESSAGE_BY_REASON: Readonly<Record<string, string>> = {
   artifact_manifest: "conversationShare.error.artifactManifest",
   no_shareable_content: "conversationShare.error.noShareableContent",
   payload_limit: "conversationShare.error.payloadLimit",
+  // 预检与发布之间解析根变化（services 的 discovery 显式失败）：文案与 issue 版共用同一条
+  // 「会话在准备分享期间发生变化，请返回选择后重试。」，不能落回 kind 的 invalid_conversation
+  // ——那会错报成「所选内容包含当前版本暂不支持的结构」。
+  stale_conversation: "conversationShare.issue.staleConversation",
 } as const;
 
 const SAFE_DIAGNOSTIC_KEYS = new Set([

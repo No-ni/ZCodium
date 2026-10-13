@@ -23,6 +23,7 @@ export function WorkspaceFileTreeStickyFolders({
   contextMenuLabels,
   editorState,
   workspacePath,
+  workspaceScopePath,
   workspaceIdentity,
   onSelect,
   onToggleDirectory,
@@ -38,7 +39,10 @@ export function WorkspaceFileTreeStickyFolders({
   gitStatusLabelByStatus: WorkspaceFileGitStatusLabels;
   contextMenuLabels: WorkspaceFileTreeContextMenuLabels;
   editorState: WorkspaceFileTreeEditorState;
+  /** 浏览根（会话 cwd 或 tab 的 workspacePath）：相对路径按它计算。 */
   workspacePath: string;
+  /** 工作区身份路径（tab 的 workspacePath）：拖拽 / Add to chat payload 的归属。 */
+  workspaceScopePath: string;
   workspaceIdentity?: string;
   onSelect: (path: string) => void;
   onToggleDirectory: (row: WorkspaceFileTreeRow) => void;
@@ -80,6 +84,7 @@ export function WorkspaceFileTreeStickyFolders({
               isRemoteWorkspaceFileTree={editorState.isRemoteWorkspaceFileTree}
               remoteTarget={editorState.remoteTarget}
               workspacePath={workspacePath}
+              workspaceScopePath={workspaceScopePath}
               workspaceIdentity={workspaceIdentity}
               style={{}}
               onSelect={onSelect}

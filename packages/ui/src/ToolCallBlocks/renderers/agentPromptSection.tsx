@@ -6,6 +6,7 @@ import { formatAgentMessage } from "./agentHelpers.js";
 export function AgentPromptSection({
   prompt,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   onOpenCodeViewer,
@@ -13,7 +14,10 @@ export function AgentPromptSection({
   onOpenBrowserUrl,
 }: {
   prompt: string;
+  /** 工作区身份根：markdown 的 payload/作用域；语义不要改。 */
   workspacePath: string;
+  /** prompt 里的相对链接是模型写的：解析根 = 会话执行 cwd，缺省回落身份根。 */
+  fileReferenceRootPath?: string;
   theme?: ToolCallBlockRenderContext["theme"];
   codePreviewSettings?: ToolCallBlockRenderContext["codePreviewSettings"];
   onOpenCodeViewer?: ToolCallBlockRenderContext["onOpenCodeViewer"];
@@ -36,6 +40,7 @@ export function AgentPromptSection({
           <MessageResponse
             className="px-3 py-2 min-w-0 break-words text-ui-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             workspacePath={workspacePath}
+            fileReferenceRootPath={fileReferenceRootPath ?? workspacePath}
             theme={theme}
             codePreviewSettings={codePreviewSettings}
             onOpenCodeViewer={onOpenCodeViewer}

@@ -64,6 +64,11 @@ function ActiveWorkspaceFileSearchEditor({
   const resolution = useWorkspaceServicesResolution(workspacePath, undefined, workspaceIdentity);
   const services = resolution.services;
   const rpcReady = resolution.rpcReady;
+  // 忽略规则根固定是对话根（本页的 workspacePath 就是 tab 的 workspacePath）：
+  // 文件搜索的根在对话会话里是会话执行 cwd，规则文件却只有一份、落在对话根上，
+  // 显式传规则根，避免设置页保存时把第二份 .zcodiumignore 写进会话目录
+  //（见 docs/specs/conversation-session-workspace.md 规则 10 与验收 8）。
+  const ignoreRulesRoot = workspacePath;
 
   const [loaded, setLoaded] = useState<IgnoreFileState | null>(null);
   const [draft, setDraft] = useState("");
@@ -81,6 +86,7 @@ function ActiveWorkspaceFileSearchEditor({
     try {
       const result = await services.fileService.readWorkspaceFileSearchIgnore({
         rootPath: workspacePath,
+        ignoreRulesRoot,
       });
       if (loadVersionRef.current !== version) {
         return;
@@ -100,7 +106,7 @@ function ActiveWorkspaceFileSearchEditor({
         setLoading(false);
       }
     }
-  }, [intl, rpcReady, services, workspacePath]);
+  }, [ignoreRulesRoot, intl, rpcReady, services, workspacePath]);
 
   // 分区操作：只重写对应标记区（sync-gitignore 重写 gitignore 同步区；reset-defaults
   // 重置默认排除段），用户自定义规则区不受影响；结果填充编辑框，保存才落盘。
@@ -114,6 +120,7 @@ function ActiveWorkspaceFileSearchEditor({
       try {
         const result = await services.fileService.applyWorkspaceFileSearchIgnoreTransform({
           rootPath: workspacePath,
+          ignoreRulesRoot,
           transform,
         });
         if (loadVersionRef.current !== version) {
@@ -132,7 +139,7 @@ function ActiveWorkspaceFileSearchEditor({
         toast(intl.formatMessage({ id: "settings.workspaceFileSearch.transformFailed" }));
       }
     },
-    [intl, rpcReady, services, workspacePath],
+    [ignoreRulesRoot, intl, rpcReady, services, workspacePath],
   );
 
   useEffect(() => {
@@ -155,6 +162,7 @@ function ActiveWorkspaceFileSearchEditor({
     try {
       await services.fileService.writeWorkspaceFileSearchIgnore({
         rootPath: workspacePath,
+        ignoreRulesRoot,
         content: draft,
       });
       setLoaded({ content: draft, source: "file" });
@@ -167,7 +175,7 @@ function ActiveWorkspaceFileSearchEditor({
     } finally {
       setSaving(false);
     }
-  }, [draft, intl, services, workspacePath]);
+  }, [draft, ignoreRulesRoot, intl, services, workspacePath]);
 
   // 保存语义是"把编辑框内容落盘"：template 态（.zcodiumignore 尚未创建）即使未编辑也允许保存，
   // 否则用户第一次进页面什么都不改就永远无法创建文件；已落盘态才按"有修改才可保存"门控。

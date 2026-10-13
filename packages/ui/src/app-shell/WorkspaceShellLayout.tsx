@@ -248,6 +248,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   projectName,
   workspaceTabs,
   activeTaskId,
+  // 会话执行 cwd（文件树 / 终端 / 文件搜索的归属目录）：App 派生一次、本组件只消费。
+  // sessionWorkspacePath 是快照原值（判断文件树是否归属当前 tab），effectiveWorkspacePath 已带回落。
+  sessionWorkspacePath,
+  effectiveWorkspacePath,
   sidePaneOwnerId,
   activeTraceId,
   activeSessionId,
@@ -1425,6 +1429,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       isBrowserOpen={isBrowserOpen}
       supportsEmbeddedBrowser={supportsEmbeddedBrowser}
       workspaceAbsPath={workspaceAbsPath}
+      effectiveWorkspacePath={effectiveWorkspacePath}
       workspaceIdentity={workspaceIdentity}
       workspaceRemoteSessionId={workspaceRemoteSessionId}
       activeTaskId={activeTaskId}
@@ -1549,6 +1554,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                 <WorkflowRunOpenProvider onOpenRun={handleOpenSidebarWorkflowRun}>
                   <WorkspaceSidebar
                     workspacePath={workspaceAbsPath}
+                    activeSessionWorkspacePath={sessionWorkspacePath}
                     workspaceRemoteSessionId={workspaceRemoteSessionId}
                     activePreviewPath={activePreviewPath}
                     onSelectTask={handleSelectTaskInChat}

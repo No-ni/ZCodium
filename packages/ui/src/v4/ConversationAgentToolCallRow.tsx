@@ -75,6 +75,9 @@ export function ConversationAgentToolCallRow({
       <ToolCallBlock
         toolCallNode={toolCallNode}
         workspacePath={context.workspacePath}
+        // 工具卡子树的展示/解析根 = 会话执行 cwd（模型写相对路径的 cwd），
+        // 与 assistant 正文同源；缺省回落身份根（非对话会话 = 改动前行为）。
+        fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
         theme={context.theme}
         codePreviewSettings={context.codePreviewSettings}
         showTodoToolCalls={context.messageStreamShowTodos === true}

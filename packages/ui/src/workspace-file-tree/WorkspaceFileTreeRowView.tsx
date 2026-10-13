@@ -66,6 +66,7 @@ export function WorkspaceFileTreeRowView({
   isRemoteWorkspaceFileTree,
   remoteTarget,
   workspacePath,
+  workspaceScopePath,
   workspaceIdentity,
   style,
   onSelect,
@@ -85,7 +86,10 @@ export function WorkspaceFileTreeRowView({
   installedEditors: EditorInfo[];
   isRemoteWorkspaceFileTree: boolean;
   remoteTarget?: OpenInEditorRemoteTarget;
+  /** 浏览根：行标题/复制相对路径按它计算。 */
   workspacePath: string;
+  /** 工作区身份路径（tab 的 workspacePath）：拖拽 / Add to chat payload 的归属，必须与 composer 匹配。 */
+  workspaceScopePath: string;
   workspaceIdentity?: string;
   style: CSSProperties;
   onSelect: (path: string) => void;
@@ -126,8 +130,15 @@ export function WorkspaceFileTreeRowView({
   const shouldShowDirectoryGitDots = !row.loading && directoryGitStatuses.length > 0;
   const workspaceFilePayload = {
     type: row.type === "directory" ? ("directory" as const) : ("file" as const),
-    workspacePath,
+    // payload 的 workspace 归属是工作区身份（tab 的 workspacePath），不是浏览根：
+    // composer 按它匹配来源，写会话目录会让「Add to chat」/拖拽被静默丢弃。
+    workspacePath: workspaceScopePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    // `relativePath` 的解析根是**本组件里的 workspacePath**（= 树根 / 浏览根），
+    // 它与身份根 workspaceScopePath 在会话绑定时不同（会话执行 cwd vs 对话根）。
+    // 目标 composer 只在这两个解析根相等时才敢用相对路径，否则回落绝对路径
+    // （见 docs/specs/conversation-session-workspace.md 已知边界 14）。
+    fileReferenceRootPath: workspacePath,
     path: row.path,
     relativePath,
     name: row.name,

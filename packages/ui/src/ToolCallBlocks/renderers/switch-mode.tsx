@@ -21,7 +21,10 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
   const { intl } = useZCodeIntl();
   const { toolCall } = context.toolCallNode;
   const errorText = getToolCallErrorText(toolCall);
-  const { markdown, planFilePath } = extractPlanToolCallContent(toolCall, context.workspacePath);
+  const { markdown, planFilePath } = extractPlanToolCallContent(
+    toolCall,
+    context.fileReferenceRootPath ?? context.workspacePath,
+  );
   const snapshotNotice = (
     <ToolSnapshotFieldNotice
       refs={toolCall.snapshotRefs ?? []}
@@ -116,6 +119,8 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
               <MessageResponse
                 className="min-w-0 break-words text-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_li]:text-foreground-subtle [&_p]:text-foreground-subtle"
                 workspacePath={context.workspacePath}
+                // 计划正文是模型写的 markdown：相对引用按会话执行 cwd 解析（缺省回落身份根）。
+                fileReferenceRootPath={context.fileReferenceRootPath ?? context.workspacePath}
                 theme={context.theme}
                 codePreviewSettings={context.codePreviewSettings}
                 onOpenCodeViewer={context.onOpenCodeViewer}

@@ -42,6 +42,11 @@ const CARD_STAGGER_CAP_MS = 360;
 interface WorkflowWorkspaceSidePaneProps {
   tab: WorkflowWorkspaceSidePaneTab;
   focused: boolean;
+  /**
+   * 脚本 `files.read(path)` 相对路径的解析根（脚本沙箱根 = run 的 cwd；对话会话里是会话执行
+   * 目录，不是工作区身份根）。由宿主传当前会话的 cwd；缺席回落 `tab.workspacePath`。
+   */
+  fileReferenceRootPath?: string;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
 }
 
@@ -122,6 +127,7 @@ function ChapterHeader({ chapter }: { chapter: WorkspaceChapter }) {
 
 const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
   tab,
+  fileReferenceRootPath,
   onOpenCodeViewer,
 }: WorkflowWorkspaceSidePaneProps) {
   const { intl } = useZCodeIntl();
@@ -248,7 +254,7 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
                   run={run}
                   runId={tab.runId}
                   sessionId={tab.parentSessionId}
-                  workspacePath={tab.workspacePath}
+                  fileReferenceRootPath={fileReferenceRootPath ?? tab.workspacePath}
                 />
               );
             })}
@@ -343,6 +349,7 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
 export const WorkflowWorkspaceSidePane = memo(function WorkflowWorkspaceSidePane({
   tab,
   focused,
+  fileReferenceRootPath,
   onOpenCodeViewer,
 }: WorkflowWorkspaceSidePaneProps) {
   const scope = useMemo<PaneWorkspaceScope>(
@@ -355,7 +362,12 @@ export const WorkflowWorkspaceSidePane = memo(function WorkflowWorkspaceSidePane
   );
   return (
     <V4PaneConversationProvider scope={scope}>
-      <WorkflowWorkspaceContent tab={tab} focused={focused} onOpenCodeViewer={onOpenCodeViewer} />
+      <WorkflowWorkspaceContent
+        tab={tab}
+        focused={focused}
+        {...(fileReferenceRootPath === undefined ? {} : { fileReferenceRootPath })}
+        onOpenCodeViewer={onOpenCodeViewer}
+      />
     </V4PaneConversationProvider>
   );
 });

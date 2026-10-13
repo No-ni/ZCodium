@@ -4,6 +4,7 @@ import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
+import { isAbsoluteFilePath, joinFilePath } from "@/lib/path.js";
 import { countPatchFileDiffs } from "@/lib/patchDiffPreview.js";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
 import type { ToolDisplayModel } from "@/lib/toolDisplay.js";
@@ -26,6 +27,37 @@ export function readStringField(
   }
 
   return undefined;
+}
+
+/**
+ * 工具卡子树里「真去读文件」的路径解析根（code viewer / 预览读取）。
+ *
+ * 工具输出里的路径是**模型写的原文**，可能是相对路径：CLI 的工具 handler 把原始输入
+ * 直接回填到结果里（`handlers/write.ts` 的 `filePath: file_path`、`handlers/edit.ts` 的
+ * `filePath: input.inputFilePath`），真正落盘用的是按 `workingDirectory` 解析后的绝对路径。
+ * 因此读这些路径必须按**模型 cwd**（对话会话 = 会话执行 cwd）解析；
+ * 工作区身份根只做作用域（code viewer tab、插件 scope、mention 同源匹配）。
+ *
+ * 约定：
+ * - 绝对路径（含 Windows 盘符与 UNC）原样返回，不重复拼接；
+ * - `fileReferenceRootPath` 缺席时原样返回（= 改动前行为），调用方负责传
+ *   `fileReferenceRootPath ?? workspacePath`；
+ * - 只解析"读"：`summary.path` 字段本身不改写，展示仍走 `resolveFileDisplayBasePath`
+ *   （见 docs/specs/conversation-session-workspace.md 已知边界 12），避免把展示语义与
+ *   读取语义混在同一个字段上；
+ * - `.` / `..` 形态不做归一化，沿用 `joinFilePath` 的既有拼接行为。
+ */
+export function resolveToolCallFilePath(filePath: string, fileReferenceRootPath?: string): string {
+  // 空白根与缺席同义（展示侧的 `resolveFileDisplayBasePath` 也过滤空白根）：避免拼出
+  // `"   /src/foo.ts"` 这种既不是绝对路径也不是可用相对路径的串。
+  const root = fileReferenceRootPath?.trim();
+  if (!filePath || !root || isAbsoluteFilePath(filePath)) {
+    return filePath;
+  }
+
+  // `file://` URL 不在这里解码：工具入参里的路径就是文件系统路径，URL 形态由调用方经
+  // `decodeFilePathUriEscapes` 之类的既有入口处理；这里按普通相对路径拼接即可（当前无该调用点）。
+  return joinFilePath(root, filePath);
 }
 
 export function readUnifiedDiffField(value: unknown): string | undefined {
@@ -204,7 +236,19 @@ export interface WorkflowDraftPosition {
 export interface ToolCallBlockRenderContext {
   isOfficeMode?: boolean;
   toolCallNode: TaskChatToolCallTreeNode;
+  /**
+   * 工作区身份根（tab 的 workspacePath）：code viewer 作用域、插件 UI scope、
+   * `agent.tsx` 的子代理候选匹配、mention payload 都读它。**语义不要改**。
+   */
   workspacePath: string;
+  /**
+   * 模型写相对路径时的 cwd（对话会话 = `<对话根>/<创建日>/<会话id前8位>`）：
+   * 展示与链接解析的基准（文件变更 chip 的前缀、工具输出 markdown 的相对链接）。
+   * 与 `workspacePath` 分工同 `MessageResponse.fileReferenceRootPath`。
+   * 缺省回落 `workspacePath`（身份根）——即改动前行为，非对话会话与旧宿主都命中这条。
+   * 见 docs/specs/conversation-session-workspace.md 已知边界 12。
+   */
+  fileReferenceRootPath?: string;
   /**
    * 插件 UI：scope 是沙箱登记需要的 session 范围，onOpenSidePane 是"在侧栏打开"回调；
    * 由 PluginUiSessionProvider 在边界注入。缺省表示宿主不提供，带 ui:// 资源的工具回退普通 MCP 卡片。

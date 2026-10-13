@@ -6,6 +6,12 @@ import type { WorkspaceTabState } from "@/store/tabStore.js";
 interface TaskFileTreeTarget {
   workspacePath: string;
   workspaceName: string;
+  /**
+   * 这次请求属于哪个会话（= `task.taskId`）。侧栏靠它区分「当前 tab 自己的树」与「另一个会话的
+   * 树」——对话工作区里每个会话的 workspacePath 都是对话根，workspaceKey 分辨不出两者
+   * （见 workspace-file-tree/sidebarFileTreePath.ts）。
+   */
+  taskId: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
 }
@@ -40,6 +46,7 @@ function resolveTaskFileTreeTarget(
   }
 
   return {
+    taskId: task.taskId,
     workspacePath: task.workspacePath,
     workspaceName: matchingTab?.label || getPathLeaf(task.workspacePath) || task.workspacePath,
     ...(task.workspaceIdentity?.trim() ? { workspaceIdentity: task.workspaceIdentity } : {}),

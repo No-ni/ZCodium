@@ -58,6 +58,7 @@ export function WorkspaceFileTreeList({
   emptyTitle,
   workspaceTitle,
   workspacePath,
+  workspaceScopePath,
   workspaceIdentity,
   selectedPath,
   gitStatusByPath,
@@ -80,7 +81,10 @@ export function WorkspaceFileTreeList({
   totalSize: number;
   emptyTitle: string;
   workspaceTitle: string;
+  /** 浏览根（会话 cwd 或 tab 的 workspacePath）：相对路径按它计算。 */
   workspacePath: string;
+  /** 工作区身份路径（tab 的 workspacePath）：拖拽 / Add to chat payload 的归属。 */
+  workspaceScopePath: string;
   workspaceIdentity?: string;
   selectedPath: string | null;
   gitStatusByPath: Map<string, WorkspaceFileGitStatus>;
@@ -134,6 +138,7 @@ export function WorkspaceFileTreeList({
       isRemoteWorkspaceFileTree={editorState.isRemoteWorkspaceFileTree}
       remoteTarget={editorState.remoteTarget}
       workspacePath={workspacePath}
+      workspaceScopePath={workspaceScopePath}
       workspaceIdentity={workspaceIdentity}
       style={style}
       onSelect={onSelect}

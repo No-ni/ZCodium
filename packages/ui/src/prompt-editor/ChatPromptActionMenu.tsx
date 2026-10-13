@@ -40,6 +40,8 @@ export function ChatPromptActionMenu({
   inputApiRef,
   workspacePath,
   workspaceIdentity,
+  fileSearchRootPath = workspacePath,
+  fileReferenceRootResolved = true,
   sessionId,
   container,
   showPlugins,
@@ -57,6 +59,10 @@ export function ChatPromptActionMenu({
   inputApiRef: MutableRefObject<LexicalChatInputHandle | null>;
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 文件列表的搜索根：会话已绑定时是会话执行 cwd；缺省 = `workspacePath`。 */
+  fileSearchRootPath?: string;
+  /** 上述搜索根是否已由会话事实证明（缺省 true）：false ⇒ 文件候选按绝对路径插入。 */
+  fileReferenceRootResolved?: boolean;
   sessionId: string | null;
   container: HTMLElement | null;
   showPlugins: boolean;
@@ -89,6 +95,7 @@ export function ChatPromptActionMenu({
   const provider = useChatViewActiveTaskProvider(sessionId, workspacePath, workspaceIdentity);
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
   const files = useFileMentionProvider(
+    { resolved: fileReferenceRootResolved, rootPath: fileSearchRootPath },
     workspacePath,
     workspaceIdentity,
     "",
@@ -188,7 +195,7 @@ export function ChatPromptActionMenu({
       errorText: group.errorText,
       options: group.items.map((item) => ({
         ...item,
-        content: <ContextMentionOptionContent item={item} workspacePath={workspacePath} />,
+        content: <ContextMentionOptionContent item={item} workspacePath={fileSearchRootPath} />,
       })),
     })),
   ].filter((section) => section.id !== "add" || section.options.length > 0);

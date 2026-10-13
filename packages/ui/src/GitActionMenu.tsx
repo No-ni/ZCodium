@@ -65,6 +65,11 @@ import {
 interface GitActionMenuProps {
   workspacePath: string;
   workspaceIdentity?: string;
+  /**
+   * 会话执行 cwd：`activeTaskChangeSummary.files[].path` 是模型原文（可能是相对路径），
+   * 提交范围与提交消息的文件筛选都按它解析；缺席回落 `workspacePath` = 改动前行为。
+   */
+  fileReferenceRootPath?: string;
   gitSummary: GitRepositorySummary;
   activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
   commitMessageConversationContext?: GitCommitMessageConversationContext | null;
@@ -822,6 +827,7 @@ function GitPushDialog({
 export function GitActionMenu({
   workspacePath,
   workspaceIdentity,
+  fileReferenceRootPath,
   gitSummary,
   activeTaskChangeSummary = null,
   commitMessageConversationContext = null,
@@ -933,17 +939,22 @@ export function GitActionMenu({
         });
         const rawUnstagedFiles = buildGitBranchCommitPreviewFiles(refreshResult.unstagedChanges);
         const rawStagedFiles = buildGitBranchCommitPreviewFiles(refreshResult.stagedChanges);
+        // 模型原文（`files[].path` 可能是相对路径）按会话执行 cwd 解析后再做范围匹配：
+        // 不解析时相对路径写出的变更会被整条过滤掉——git 侧候选是工作区键路径相对拼写
+        // （见 currentSessionFileScope 的注释与 spec 规则 11）。
         const unstagedFiles = filterCommitPreviewFilesByCurrentSession({
           files: rawUnstagedFiles,
           summary: activeTaskChangeSummary,
           gitSummary: refreshResult.summary,
           workspacePath,
+          fileReferenceRootPath: fileReferenceRootPath ?? workspacePath,
         });
         const stagedFiles = filterCommitPreviewFilesByCurrentSession({
           files: rawStagedFiles,
           summary: activeTaskChangeSummary,
           gitSummary: refreshResult.summary,
           workspacePath,
+          fileReferenceRootPath: fileReferenceRootPath ?? workspacePath,
         });
         setCommitDialogState({
           summary: refreshResult.summary,
@@ -969,7 +980,14 @@ export function GitActionMenu({
         closeCommitDialog();
       }
     },
-    [activeTaskChangeSummary, closeCommitDialog, gitService, intl, workspacePath],
+    [
+      activeTaskChangeSummary,
+      closeCommitDialog,
+      fileReferenceRootPath,
+      gitService,
+      intl,
+      workspacePath,
+    ],
   );
 
   const openCommitDialog = useCallback(async () => {
@@ -989,7 +1007,10 @@ export function GitActionMenu({
   const generateCommitMessage = useCallback(
     async (state: GitCommitDialogState, includeUnstaged: boolean): Promise<string> => {
       const files = getCommitDialogFiles(state, includeUnstaged);
-      const currentSessionFilePaths = getCurrentSessionFilePaths(state.activeTaskChangeSummary);
+      const currentSessionFilePaths = getCurrentSessionFilePaths(
+        state.activeTaskChangeSummary,
+        fileReferenceRootPath ?? workspacePath,
+      );
       logger.info("[GitActionMenu] 开始生成提交消息", {
         workspacePath,
         branchName: gitSummary.branchName,
@@ -1020,6 +1041,7 @@ export function GitActionMenu({
     },
     [
       commitMessageConversationContext,
+      fileReferenceRootPath,
       gitService,
       gitSummary.branchName,
       locale,

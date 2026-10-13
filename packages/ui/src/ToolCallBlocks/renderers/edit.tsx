@@ -3,7 +3,7 @@ import { PencilIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { ToolCallBody } from "@/ToolCallBlocks/ToolCallBody.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
-import { getFileDisplayPath } from "@/lib/fileDisplay.js";
+import { getFileDisplayPath, resolveFileDisplayBasePath } from "@/lib/fileDisplay.js";
 import type { ToolInlinePreview } from "@/lib/toolDisplay.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
@@ -11,9 +11,10 @@ import { EditInlineDiffContent } from "@/ToolCallBlocks/renderers/EditInlineDiff
 import {
   getEditKindLabelMessageId,
   renderDiffCount,
-  renderFilePath,
+  renderFileDirectoryPath,
   renderJoinedFileChips,
   renderFileChip,
+  resolveToolCallFilePath,
   type EditKindSource,
 } from "../shared.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -40,14 +41,24 @@ function isRawToolCallFailed(raw: unknown) {
   return typeof status === "string" && status === "failed";
 }
 
+/**
+ * 构造 code viewer 源。
+ *
+ * 第二个参数是**读取**用的解析根（模型 cwd）：工具输出里的 `summary.path` 可能是模型写的
+ * 相对路径（见 `resolveToolCallFilePath` 的注释），viewer 拿到 `type: "file"` 会真去读它。
+ * 只在真正交给 `onOpenCodeViewer` 的调用点传根；`buildEditInlinePreview` 只用 `path` 做
+ * diff 标签/语言推断，保持原样以免把展示串改成绝对路径。
+ */
 export function buildEditCodeViewerSource(
   summary: NonNullable<ToolCallBlockRenderContext["rawFileSummaries"]>[number],
+  fileReferenceRootPath?: string,
 ): CodeViewerSource {
+  const resolvedPath = resolveToolCallFilePath(summary.path, fileReferenceRootPath);
   if (!summary.patch) {
     return {
       type: "file",
       title: summary.fileName,
-      path: summary.path,
+      path: resolvedPath,
     };
   }
 
@@ -56,7 +67,7 @@ export function buildEditCodeViewerSource(
     title: summary.fileName,
     // summary.filePath 是 fileDisplay 生成的目录展示路径，不是可打开的文件路径。
     // 传给 side pane 后会按目录解析图标，导致 .ts/.tsx diff tab 退回通用文件图标。
-    path: summary.path,
+    path: resolvedPath,
     patch: summary.patch,
   };
 }
@@ -99,9 +110,11 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
         return;
       }
 
-      onOpenCodeViewer(buildEditCodeViewerSource(summary));
+      onOpenCodeViewer(
+        buildEditCodeViewerSource(summary, context.fileReferenceRootPath ?? context.workspacePath),
+      );
     },
-    [onOpenCodeViewer],
+    [context.fileReferenceRootPath, context.workspacePath, onOpenCodeViewer],
   );
 
   const primaryText = useMemo(
@@ -109,18 +122,36 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
       rawFileSummaries.length > 0
         ? renderJoinedFileChips(rawFileSummaries, {
             clickable: Boolean(onOpenCodeViewer),
-            basePath: context.workspacePath,
+            // 展示基准取最深包含根：会话执行 cwd 命中就用它，否则回落工作区身份根。
+            resolveBasePath: (summary) =>
+              resolveFileDisplayBasePath(summary.path, [
+                context.fileReferenceRootPath,
+                context.workspacePath,
+              ]),
             onClick: openFilePreview,
           })
         : null,
-    [context.workspacePath, onOpenCodeViewer, openFilePreview, rawFileSummaries],
+    [
+      context.fileReferenceRootPath,
+      context.workspacePath,
+      onOpenCodeViewer,
+      openFilePreview,
+      rawFileSummaries,
+    ],
   );
+  const singleFileSummary = rawFileSummaries.length === 1 ? rawFileSummaries[0] : undefined;
   const secondaryText = useMemo(
     () =>
-      rawFileSummaries.length === 1
-        ? renderFilePath(rawFileSummaries[0]?.filePath, context.workspacePath)
+      singleFileSummary
+        ? renderFileDirectoryPath(
+            singleFileSummary.path,
+            resolveFileDisplayBasePath(singleFileSummary.path, [
+              context.fileReferenceRootPath,
+              context.workspacePath,
+            ]),
+          )
         : undefined,
-    [context.workspacePath, rawFileSummaries],
+    [context.fileReferenceRootPath, context.workspacePath, singleFileSummary],
   );
   const totalChangeStat = useMemo(
     () =>
@@ -195,6 +226,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
             displayModel={context.displayModel}
             toolCall={toolCall}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             onOpenCodeViewer={context.onOpenCodeViewer}
@@ -232,6 +264,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
                   displayModel={context.displayModel}
                   toolCall={toolCall}
                   workspacePath={context.workspacePath}
+                  fileReferenceRootPath={context.fileReferenceRootPath}
                   theme={context.theme}
                   codePreviewSettings={context.codePreviewSettings}
                   animateDiffCountOnMount={context.animateDiffCountOnMount}
@@ -267,6 +300,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
                 }
                 toolCall={toolCall}
                 workspacePath={context.workspacePath}
+                fileReferenceRootPath={context.fileReferenceRootPath}
                 theme={context.theme}
                 codePreviewSettings={context.codePreviewSettings}
                 onOpenCodeViewer={context.onOpenCodeViewer}
@@ -294,6 +328,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onOpenFileLink,
       context.sourceLabel,
       context.theme,
+      context.fileReferenceRootPath,
       context.workspacePath,
       effectiveStatusLabel,
       errorText,
@@ -352,6 +387,7 @@ function EditFileSummaryBlock({
   displayModel,
   toolCall,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   showIcon = true,
@@ -370,7 +406,10 @@ function EditFileSummaryBlock({
   childToolList: ToolCallBlockRenderContext["childToolList"];
   displayModel: ToolCallBlockRenderContext["displayModel"];
   toolCall: ToolCallBlockRenderContext["toolCallNode"]["toolCall"];
+  /** 工作区身份根：展示基准的回落项；语义不要改。 */
   workspacePath: string;
+  /** 模型写相对路径的 cwd（会话执行目录）：展示基准优先取它。 */
+  fileReferenceRootPath?: string;
   theme?: ToolCallBlockRenderContext["theme"];
   codePreviewSettings?: ToolCallBlockRenderContext["codePreviewSettings"];
   showIcon?: boolean;
@@ -382,26 +421,33 @@ function EditFileSummaryBlock({
     id: getEditKindLabelMessageId([summary.operationKind], [summary.actionLabel], isRunning),
   });
   const inlinePreviewOverride = buildEditInlinePreview(summary);
+  // 展示基准取最深包含根：主摘要行、次级路径与 tooltip 必须是同一层根。
+  const displayBasePath = resolveFileDisplayBasePath(summary.path, [
+    fileReferenceRootPath,
+    workspacePath,
+  ]);
   const openFilePreview = useCallback(() => {
     if (!onOpenCodeViewer) {
       return;
     }
 
-    onOpenCodeViewer(buildEditCodeViewerSource(summary));
-  }, [onOpenCodeViewer, summary]);
+    // 读取根是**模型 cwd**（不是 displayBasePath）：相对路径没有任何展示根"包含"它，
+    // 但模型是按自己的执行目录写下的，必须解析到会话目录而不是身份根。
+    onOpenCodeViewer(buildEditCodeViewerSource(summary, fileReferenceRootPath ?? workspacePath));
+  }, [fileReferenceRootPath, onOpenCodeViewer, summary, workspacePath]);
   const primaryText = useMemo(
     () =>
       renderFileChip({
         summary,
         clickable: Boolean(onOpenCodeViewer),
-        basePath: workspacePath,
+        basePath: displayBasePath,
         onClick: openFilePreview,
       }),
-    [onOpenCodeViewer, openFilePreview, summary, workspacePath],
+    [displayBasePath, onOpenCodeViewer, openFilePreview, summary],
   );
   const secondaryText = useMemo(
-    () => renderFilePath(summary.filePath, workspacePath),
-    [summary.filePath, workspacePath],
+    () => renderFileDirectoryPath(summary.path, displayBasePath),
+    [displayBasePath, summary.path],
   );
   const diffCount = useMemo(
     () =>
@@ -411,8 +457,10 @@ function EditFileSummaryBlock({
     [animateDiffCountOnMount, summary.changeStat],
   );
   const title = useMemo(
-    () => getFileDisplayPath(summary.filePath ?? summary.path, workspacePath),
-    [summary.filePath, summary.path, workspacePath],
+    // tooltip 用完整相对路径（含文件名）；此前传的是摘要按身份根算好的父目录串，
+    // 会话目录下会带 `2026-10-11/<id8>/` 前缀。
+    () => getFileDisplayPath(summary.path, displayBasePath),
+    [displayBasePath, summary.path],
   );
   const renderContent = useCallback(
     () => (
@@ -432,6 +480,7 @@ function EditFileSummaryBlock({
           }
           toolCall={toolCall}
           workspacePath={workspacePath}
+          fileReferenceRootPath={fileReferenceRootPath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           onOpenCodeViewer={onOpenCodeViewer}
@@ -450,6 +499,7 @@ function EditFileSummaryBlock({
       onOpenFileLink,
       theme,
       toolCall,
+      fileReferenceRootPath,
       workspacePath,
     ],
   );

@@ -73,6 +73,10 @@ export function renderFileChip({
   clickable?: boolean;
   onClick?: () => void;
   title?: string;
+  /**
+   * 展示基准根：调用方传**最深包含根**（`resolveFileDisplayBasePath(path, [会话执行 cwd, 身份根])`），
+   * 不是无脑的身份根——对话会话下身份根会把 `2026-10-11/<id8>/` 留在 chip 提示里。
+   */
   basePath?: string;
 }) {
   const descriptor = resolveFileDisplayDescriptor(summary.path, {
@@ -113,6 +117,7 @@ export function renderFileChip({
 }
 
 export function renderFilePath(path: string | null | undefined, basePath?: string) {
+  // basePath 同 renderFileChip：调用方传最深包含根（会话执行 cwd 优先，回落身份根）。
   if (!path) {
     return null;
   }
@@ -124,6 +129,23 @@ export function renderFilePath(path: string | null | undefined, basePath?: strin
       {getFileDisplayPath(path, basePath)}
     </span>
   );
+}
+
+/**
+ * 次级路径（父目录）展示。
+ *
+ * 注意第一参数必须是**绝对文件路径**，不是摘要对象上的 `filePath`：后者是摘要构建期
+ * 按 fileDisplay 的模块缺省基准（Root.tsx 注入的 activeWorkspacePath = 工作区身份根）
+ * 算好的相对目录串，展示基准换成会话执行 cwd（模型写相对路径的 cwd）后必须按新基准重算，
+ * 否则次级路径仍带 `2026-10-11/a1b2c3d4/` 前缀，
+ * 见 docs/specs/conversation-session-workspace.md 已知边界 12。
+ */
+export function renderFileDirectoryPath(path: string | null | undefined, basePath?: string) {
+  if (!path) {
+    return null;
+  }
+
+  return renderFilePath(resolveFileDisplayDescriptor(path, { basePath }).filePath, basePath);
 }
 
 export function getEditKindLabelMessageId(
@@ -155,6 +177,11 @@ export function renderJoinedFileChips(
     clickable?: boolean;
     onClick?: (summary: RawToolCallFileSummary) => void;
     basePath?: string;
+    /**
+     * 逐条文件的展示基准根：同一次工具调用的多个文件可能落在不同根下
+     * （会话执行目录内与会话执行目录外的绝对路径混在一起），给定时优先于 `basePath`。
+     */
+    resolveBasePath?: (summary: RawToolCallFileSummary) => string | undefined;
   } = {},
 ) {
   return (
@@ -165,7 +192,7 @@ export function renderJoinedFileChips(
           {renderFileChip({
             summary,
             clickable: options.clickable,
-            basePath: options.basePath,
+            basePath: options.resolveBasePath?.(summary) ?? options.basePath,
             onClick: options.onClick ? () => options.onClick?.(summary) : undefined,
           })}
         </span>

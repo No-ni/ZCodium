@@ -86,6 +86,8 @@ export function PlanGuidanceToolCallBlock(context: ToolCallBlockRenderContext) {
           <MessageResponse
             className="min-w-0 break-words [&_h1]:text-foreground-subtlest [&_h2]:text-foreground-subtlest [&_h3]:text-foreground-subtlest [&_li]:text-foreground-subtlest [&_p]:text-foreground-subtlest"
             workspacePath={context.workspacePath}
+            // 指引正文是模型写的 markdown：相对引用按会话执行 cwd 解析（缺省回落身份根）。
+            fileReferenceRootPath={context.fileReferenceRootPath ?? context.workspacePath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             onOpenCodeViewer={context.onOpenCodeViewer}
@@ -104,6 +106,7 @@ export function PlanGuidanceToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onOpenCodeViewer,
       context.onOpenFileLink,
       context.theme,
+      context.fileReferenceRootPath,
       context.workspacePath,
       errorText,
       guidanceMarkdown,

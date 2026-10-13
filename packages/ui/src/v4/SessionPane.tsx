@@ -94,7 +94,10 @@ import {
   createComposerSubmissionConfig,
   type ComposerSubmissionConfig,
 } from "@/v4/composer/composerSubmissionConfig.js";
-import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
+import {
+  type DraftPrewarmBinding,
+  useDraftSessionPrewarm,
+} from "@/v4/composer/useDraftSessionPrewarm.js";
 import { projectSessionConfigToTaskConfigOptions } from "@/v4/composer/sessionConfigTaskCache.js";
 import { useDraftRuntimeRebuildGate } from "@/v4/composer/useDraftRuntimeRebuildGate.js";
 import { useDraftModelReadinessGate } from "@/v4/composer/useDraftModelReadinessGate.js";
@@ -218,6 +221,7 @@ import {
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
+import { resolvePaneFileSearchRoot } from "@/v4/sessionWorkspacePath.js";
 import { usePendingCommandRecovery } from "@/v4/usePendingCommandRecovery.js";
 import { shouldFocusTimelineAfterComposerSend } from "@/v4/promptScrollFocusPolicy.js";
 import {
@@ -551,6 +555,26 @@ export function SessionPane({
   const [lease, setLease] = useState<SessionLease | null>(null);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
+  // 预热会话 binding 的镜像 ref：文件搜索根的派生点在 `useDraftSessionPrewarm`（本组件下半段）
+  // 之前，读不到 hook 的返回值，所以 ref 声明在这里、赋值仍在 hook 之后（同一帧稍后执行）。
+  // 因此派生读到的可能是**上一帧**的预热会话 id：那一帧 lease 还没换过去（本 pane 根本读不到该
+  // 会话的快照），等价于回落 tab 的 workspacePath，不会把别的会话目录当成本 pane 的根；
+  // 预热提升为正式会话时 id 与目录都不变，首发不会因此闪一下。
+  const prewarmBindingRef = useRef<DraftPrewarmBinding | null>(null);
+  // 会话执行 cwd 是 per-session 的服务器事实（快照 additive 字段），pane 内只派生这一次，
+  // 向下注入给提及 / @ 动作菜单的文件搜索、主 composer 与行内消息编辑器的拖拽解析根、
+  // 分享预检与发布的正文解析根、权限弹窗的工具入参路径、文件变更摘要面板的读取根。
+  // 草稿态用预热会话目录（它就是要首发的会话）；身份校验与回落规则见 helper 的注释。
+  const paneFileSearchRoot = resolvePaneFileSearchRoot({
+    snapshot,
+    sessionId,
+    prewarmSessionId: prewarmBindingRef.current?.sessionId ?? null,
+    tabWorkspacePath: workspacePath,
+  });
+  const fileSearchRootPath = paneFileSearchRoot.rootPath;
+  // 解析根是不是「会话事实」（见 resolvePaneFileSearchRoot）：提及的接收方 cwd 未知时
+  // （草稿预热未就绪 / 首帧身份不匹配）必须投绝对路径，不能按同源判据投相对路径。
+  const fileReferenceRootResolved = paneFileSearchRoot.resolved;
 
   const shareDraft = useConversationShareSelectionStore((storeState) =>
     sessionId ? storeState.drafts[sessionId] : undefined,
@@ -682,7 +706,12 @@ export function SessionPane({
           conversationShareTurnFingerprint(
             snapshot?.rows.window ?? [],
             productTurnId,
-            workspacePath,
+            // 第 3 个参数是「预览候选的相对解析根」，必须与服务端一致：会话执行 cwd
+            // （fileSearchRootPath；草稿态是预热会话目录，未预热时回落 tab 的 workspacePath）。
+            // 身份键走第 4 个参数的 workspaceKey，不能拿它当解析根，否则两端对同一段正文
+            // 解析出不同候选。该指纹只用于 UI 自己的预检缓存失效判定（服务端返回的
+            // turnFingerprint 目前 UI 没消费），属于一致性收口，不是会崩的 bug。
+            fileSearchRootPath,
             {
               workspaceKey: workspaceIdentity?.trim() || workspacePath,
               remoteSessionId: remoteSessionId ?? "",
@@ -695,6 +724,7 @@ export function SessionPane({
         ]),
       ),
     [
+      fileSearchRootPath,
       remoteSessionId,
       selectedShareProductTurnIds,
       sessionId,
@@ -828,6 +858,9 @@ export function SessionPane({
             kind: "productTurns",
             productTurnIds: missingProductTurnIds,
           },
+          // 正文相对路径按会话执行 cwd 解析（草稿态 = 预热会话目录，未预热时回落 tab 的 workspacePath）。
+          // 必须与 publish 传同一个值，否则预检可见的结果物在发布阶段会被跳过。
+          fileReferenceRootPath: fileSearchRootPath,
         })
         .then(
           (result) => {
@@ -844,7 +877,7 @@ export function SessionPane({
             const resultTurnFingerprints = new Map(
               missingProductTurnIds.map((productTurnId) => [
                 productTurnId,
-                conversationShareTurnFingerprint(requestRows, productTurnId, workspacePath, {
+                conversationShareTurnFingerprint(requestRows, productTurnId, fileSearchRootPath, {
                   workspaceKey: workspaceIdentity?.trim() || workspacePath,
                   remoteSessionId: remoteSessionId ?? "",
                   sessionId,
@@ -1616,11 +1649,13 @@ export function SessionPane({
       onOpenWorkflowRun?.({
         ...request,
         workspacePath,
+        // run 的 cwd 是发起这次打开的会话执行目录：详情面板里的产物 chip 也按它拼 sourcePath。
+        fileReferenceRootPath: fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
       });
     },
-    [onOpenWorkflowRun, remoteSessionId, workspaceIdentity, workspacePath],
+    [fileSearchRootPath, onOpenWorkflowRun, remoteSessionId, workspaceIdentity, workspacePath],
   );
   // 药丸 → 子代理 transcript：与 plan-detail / workflow-run 同构，卡片只交出实例身份，scope 在这里补。
   const handleOpenWorkflowActorSession = useCallback(
@@ -1640,11 +1675,19 @@ export function SessionPane({
       onOpenWorkflowWorkspace?.({
         ...request,
         workspacePath,
+        // run 的 cwd 是发起这次打开的会话执行目录：脚本 transcript 的 Read 卡按它拼绝对路径。
+        fileReferenceRootPath: fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
       });
     },
-    [onOpenWorkflowWorkspace, remoteSessionId, workspaceIdentity, workspacePath],
+    [
+      fileSearchRootPath,
+      onOpenWorkflowWorkspace,
+      remoteSessionId,
+      workspaceIdentity,
+      workspacePath,
+    ],
   );
   // 产物 chip 与 run 详情同构：卡片/通知行只发意图，scope 由这里补齐。
   const handleOpenWorkflowArtifact = useCallback(
@@ -1652,11 +1695,14 @@ export function SessionPane({
       onOpenWorkflowArtifact?.({
         ...request,
         workspacePath,
+        // 产物 sourcePath 是相对 **run cwd** 产出的：带本 pane 的解析根，宿主就不会用聚焦会话的
+        // 目录去拼别的 pane 的产物（分屏时两者可能不同）。
+        fileReferenceRootPath: fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
       });
     },
-    [onOpenWorkflowArtifact, remoteSessionId, workspaceIdentity, workspacePath],
+    [fileSearchRootPath, onOpenWorkflowArtifact, remoteSessionId, workspaceIdentity, workspacePath],
   );
   // 工具卡 → workflow run 的关联表。权威来源是 workflowRuns 投影里每条 run 的 toolCallId
   // （schema 注释就写着它是「工具卡 → 详情页的关联键」）；工具行自己的 output 在 v4 下
@@ -1723,16 +1769,25 @@ export function SessionPane({
     [handleOpenWorkflowRun, sessionId],
   );
   // run 目录页的入口（同一条页脚行）。同样只补 scope，不在这里多造一条打开路径。
+  // fileReferenceRootPath 与 handleOpenWorkflowRun 同一口径：目录页 → run 详情 → 产物 chip
+  // 这条链路解析相对 `sourcePath` 用的也是发起会话的执行目录，必须在这里冻结。
   const handleOpenWorkflowRunDirectoryFromPanel = useCallback(
     (request: OpenWorkflowRunDirectorySideTabRequest) => {
       onOpenWorkflowRunDirectory?.({
         ...request,
         workspacePath,
+        fileReferenceRootPath: fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
       });
     },
-    [onOpenWorkflowRunDirectory, remoteSessionId, workspaceIdentity, workspacePath],
+    [
+      fileSearchRootPath,
+      onOpenWorkflowRunDirectory,
+      remoteSessionId,
+      workspaceIdentity,
+      workspacePath,
+    ],
   );
   const handleAddSelectionToCurrentTask = useCallback(
     (reference: ConversationSelectionReference) => {
@@ -2024,6 +2079,10 @@ export function SessionPane({
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       workspacePath,
+      // 行内编辑的 @ 文件面板与 composer 用同一个搜索根，不在展示组件里二次解析会话 cwd。
+      fileSearchRootPath,
+      // 同一个来源事实：未由会话事实证明的解析根 ⇒ 行内编辑器的提及也投绝对路径。
+      fileReferenceRootResolved,
       workspaceHomePath,
       workspaceIdentity,
       workspaceRemoteSessionId: remoteSessionId ?? undefined,
@@ -2082,6 +2141,8 @@ export function SessionPane({
     }),
     [
       workspacePath,
+      fileReferenceRootResolved,
+      fileSearchRootPath,
       workspaceHomePath,
       workspaceIdentity,
       remoteSessionId,
@@ -2152,7 +2213,7 @@ export function SessionPane({
     // 预热会话只消费当前 Root Composer Draft 的一次性初始化结果。
     resolveInitialConfig: resolveInitialDraftConfig,
   });
-  const prewarmBindingRef = useRef(prewarmBinding);
+  // ref 本体在组件开头声明（文件搜索根的派生点在本行之前，需要读到预热会话 id）。
   prewarmBindingRef.current = prewarmBinding;
   const prewarmSessionId = prewarmBinding?.sessionId ?? null;
   // runtime 换代（CUA Helper 就绪、liveness 恢复等触发 workspace-dispose）会冲掉草稿态尚未
@@ -3857,6 +3918,8 @@ export function SessionPane({
           selection: { kind: "productTurns", productTurnIds },
           clientRequestId: shareAttempt.clientRequestId,
           locale,
+          // 正文相对路径按会话执行 cwd 解析（与 preflight 同一根）；workspacePath 仍是安全边界。
+          fileReferenceRootPath: fileSearchRootPath,
         },
         operationId,
       );
@@ -3937,6 +4000,10 @@ export function SessionPane({
     }
   }, [
     conversationShareService,
+    // 解析根必须进依赖：发布请求带的是它，而服务侧的根一致性校验只在「预检根 ≠ 发布根」时
+    // 才会以 `stale_conversation` 显式失败——用旧根发送会让两侧看起来一致，于是按旧根重新解析
+    // 正文引用（零附件或分享出对话根下的同名文件）。见 spec 已知边界 13。
+    fileSearchRootPath,
     platform,
     intl,
     remoteSessionId,
@@ -4124,6 +4191,8 @@ export function SessionPane({
       disabled={connecting || draftRuntimeRebuilding || queueEditActiveForCurrentComposer}
       workspacePath={workspacePath}
       workspaceIdentity={workspaceIdentity}
+      fileSearchRootPath={fileSearchRootPath}
+      fileReferenceRootResolved={fileReferenceRootResolved}
       remoteSessionId={remoteSessionId ?? undefined}
       modelSelectionView={modelSelectionView}
       modelSelectionState={modelSelectionRead.state}
@@ -4251,6 +4320,9 @@ export function SessionPane({
           key="conversation-interactions"
           sessionId={sessionId}
           workspacePath={workspacePath}
+          // 权限弹窗里的工具入参路径是模型写的原文（相对路径基准 = 会话执行 cwd），
+          // 展示/读取跟会话 cwd 走；`workspacePath` 仍是弹窗的工作区身份。
+          fileReferenceRootPath={fileSearchRootPath}
           workspaceIdentity={workspaceIdentity}
           remoteSessionId={remoteSessionId ?? undefined}
           provider={provider}
@@ -4373,6 +4445,8 @@ export function SessionPane({
           <ConversationStatusPanel
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
+            // git 提交弹窗按会话执行 cwd 解析模型原文路径（相对路径写出的变更否则筛不出来）。
+            fileReferenceRootPath={fileSearchRootPath}
             gitSummary={gitSummary}
             gitDirtyFileCount={gitDirtyFileCount}
             gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}

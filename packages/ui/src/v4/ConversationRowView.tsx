@@ -1042,6 +1042,8 @@ const UserInputRowView = memo(function UserInputRowView({
       <RowShell rowId={row.rowId} className="flex flex-col items-end">
         <ChatPromptEditor
           workspacePath={context.workspacePath}
+          fileSearchRootPath={context.fileSearchRootPath}
+          fileReferenceRootResolved={context.fileReferenceRootResolved}
           taskId={context.sessionId ?? null}
           initialValue={parsedPrompt.visibleContent}
           submitting={submitting}
@@ -1523,6 +1525,10 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           renderZCodeFileCitations
           streaming={streaming}
           workspacePath={context.workspacePath}
+          // 正文里相对路径（markdown 链接 / `zcode-file-citation` / 图片）的解析基准 =
+          // 会话执行 cwd（模型写路径时的 cwd）。workspacePath 仍是工作区身份：
+          // GenUiCard 的作用域键、code-viewer tab、mention 同源匹配都继续用它。
+          fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
           workspaceIdentity={context.workspaceIdentity}
           workspaceRemoteSessionId={context.workspaceRemoteSessionId}
           theme={context.theme}
@@ -1988,6 +1994,9 @@ const ToolCallRowView = memo(function ToolCallRowView({
         <ToolCallBlock
           toolCallNode={toolCallNode}
           workspacePath={context.workspacePath}
+          // 工具卡子树的展示/解析根 = 会话执行 cwd（模型写相对路径的 cwd），
+          // 与同一行的 assistant 正文同源；缺省回落身份根（非对话会话 = 改动前行为）。
+          fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
           theme={context.theme}
           codePreviewSettings={context.codePreviewSettings}
           showTodoToolCalls={context.messageStreamShowTodos === true}

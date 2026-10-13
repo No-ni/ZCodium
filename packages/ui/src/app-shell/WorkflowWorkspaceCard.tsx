@@ -69,14 +69,19 @@ interface WorkflowWorkspaceCardProps {
   enterDelayMs?: number;
   /** 落点那张卡：到位后底色亮一下。 */
   landed?: boolean;
-  /** 工作区根：Read 卡的相对路径据此补成绝对路径再交给代码查看器。 */
-  workspacePath: string;
+  /**
+   * Read 卡里相对路径的解析根：脚本 `files.read(path)` 的基准是**脚本沙箱根 = run 的 cwd**
+   * （对话会话里是会话执行目录，不是工作区身份根），据此补成绝对路径再交给代码查看器。
+   */
+  fileReferenceRootPath: string;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
 }
 
-function readSummaryOf(path: string, workspacePath: string): ReadSummary {
+function readSummaryOf(path: string, fileReferenceRootPath: string): ReadSummary {
   const absolute =
-    path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) ? path : `${workspacePath}/${path}`;
+    path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
+      ? path
+      : `${fileReferenceRootPath}/${path}`;
   const descriptor = resolveFileDisplayDescriptor(absolute);
   return {
     path: absolute,
@@ -116,7 +121,7 @@ export const WorkflowWorkspaceCard = memo(function WorkflowWorkspaceCard({
   run,
   runId,
   sessionId,
-  workspacePath,
+  fileReferenceRootPath,
 }: WorkflowWorkspaceCardProps) {
   const { intl } = useZCodeIntl();
   const format = intl.formatMessage.bind(intl);
@@ -157,8 +162,8 @@ export const WorkflowWorkspaceCard = memo(function WorkflowWorkspaceCard({
   );
 
   const readSummary = useMemo(
-    () => (kind === "read" ? readSummaryOf(card.primary, workspacePath) : null),
-    [card.primary, kind, workspacePath],
+    () => (kind === "read" ? readSummaryOf(card.primary, fileReferenceRootPath) : null),
+    [card.primary, fileReferenceRootPath, kind],
   );
   const openRead = useCallback(() => {
     if (readSummary === null || onOpenCodeViewer === undefined) return;

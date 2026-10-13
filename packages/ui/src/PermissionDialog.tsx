@@ -355,6 +355,7 @@ function buildPermissionBlockContext(
   toolCall: TaskChatToolCall,
   rawFileSummaries: ToolCallBlockRenderContext["rawFileSummaries"],
   workspacePath: string,
+  fileReferenceRootPath: string | undefined,
   blockKind: PermissionBlockKind,
   kindLabelOverride: ReactNode,
   theme: ToolCallBlockRenderContext["theme"],
@@ -368,6 +369,12 @@ function buildPermissionBlockContext(
       childToolCalls: [],
     } as ToolCallBlockRenderContext["toolCallNode"],
     workspacePath,
+    // 权限弹窗里的文件路径同样是**模型写在工具入参里的原文**（可能是相对路径，基准是它当时的
+    // 执行 cwd），因此展示与读取都必须跟会话执行 cwd 走：宿主 V4InteractionDialogs 由 SessionPane
+    // 渲染，会话 cwd（`fileSearchRootPath`）在那里可得，经 props 传进来。
+    // 缺席（旧 CLI / 会话未绑定 / 首帧）即回落 workspacePath = 改动前行为。
+    // 见 docs/specs/conversation-session-workspace.md 已知边界 12。
+    ...(fileReferenceRootPath ? { fileReferenceRootPath } : {}),
     // store 耦合剥离：展示组件不再自取 store，主题/代码预览设置由对话框宿主注入。
     theme,
     codePreviewSettings,
@@ -430,6 +437,7 @@ export function PermissionDialog({
   request,
   onRespond,
   workspacePath,
+  fileReferenceRootPath,
   provider,
   responding = false,
   responseError,
@@ -439,6 +447,12 @@ export function PermissionDialog({
   responseError?: string;
   onRespond: (requestId: string, option: ZCodePermissionOption, feedback?: string) => void;
   workspacePath: string;
+  /**
+   * 工具入参里相对路径的解析/展示根 = 会话执行 cwd（模型写路径时的 cwd）。
+   * 缺席（旧 CLI / 会话未绑定 / 切会话首帧）时回落 `workspacePath`，即改动前行为。
+   * 见 docs/specs/conversation-session-workspace.md 已知边界 12。
+   */
+  fileReferenceRootPath?: string;
   provider?: ZCodeProvider;
 }) {
   const { intl } = useZCodeIntl();
@@ -483,12 +497,22 @@ export function PermissionDialog({
         toolCall,
         rawFileSummaries,
         workspacePath,
+        fileReferenceRootPath,
         blockKind,
         intl.formatMessage({ id: "chat.permission.awaitingApproval" }),
         theme,
         codePreviewSettings,
       ),
-    [blockKind, codePreviewSettings, intl, rawFileSummaries, theme, toolCall, workspacePath],
+    [
+      blockKind,
+      codePreviewSettings,
+      fileReferenceRootPath,
+      intl,
+      rawFileSummaries,
+      theme,
+      toolCall,
+      workspacePath,
+    ],
   );
   const displayReason = useMemo(() => getPermissionDisplayReason(request), [request]);
   const [selectedIndex, setSelectedIndex] = useState(0);

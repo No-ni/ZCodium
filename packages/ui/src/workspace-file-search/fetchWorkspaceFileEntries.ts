@@ -10,12 +10,19 @@ import { WORKSPACE_FILE_ENTRIES_CHUNK_SIZE } from "@zcode/shared/workspaceFileEn
 export async function fetchWorkspaceFileEntriesPacked(
   fileService: Pick<IFileService, "listWorkspaceFilesLength" | "listWorkspaceFilesRange">,
   rootPath: string,
+  /**
+   * 忽略规则根（`.zcodiumignore` 所在目录）。缺省 = 搜索根。对话会话的搜索根是会话执行
+   * cwd，必须把对话根传进来，规则才只落在对话根上、会话目录里不生成规则文件；
+   * 两次调用必须传同一个规则根，否则索引签名不同会重扫。
+   */
+  ignoreRulesRoot?: string,
 ): Promise<string> {
-  const totalLength = await fileService.listWorkspaceFilesLength({ rootPath });
+  const params = { rootPath, ignoreRulesRoot };
+  const totalLength = await fileService.listWorkspaceFilesLength(params);
   let packed = "";
   for (let offset = 0; offset < totalLength; offset += WORKSPACE_FILE_ENTRIES_CHUNK_SIZE) {
     const chunk = await fileService.listWorkspaceFilesRange({
-      rootPath,
+      ...params,
       offset,
       length: WORKSPACE_FILE_ENTRIES_CHUNK_SIZE,
     });

@@ -21,6 +21,7 @@ export function ToolCallBody({
   inlinePreviewOverride,
   toolCall,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   onOpenCodeViewer,
@@ -31,7 +32,13 @@ export function ToolCallBody({
   displayModel: ToolDisplayModel;
   inlinePreviewOverride?: ToolInlinePreview;
   toolCall: TaskChatToolCallTreeNode["toolCall"];
+  /** 工作区身份根：透传给 markdown 的 payload/作用域；语义不要改。 */
   workspacePath: string;
+  /**
+   * 工具输出里 markdown 相对链接的解析根 = 模型写路径时的 cwd（会话执行目录）。
+   * 缺省回落 `workspacePath`（改动前行为）。
+   */
+  fileReferenceRootPath?: string;
   /** 应用主题（store 耦合剥离）：透传给 markdown / 代码块渲染，缺省按 "system" 兜底。 */
   theme?: Theme;
   /** 代码预览设置（store 耦合剥离）：透传给 markdown 渲染，需保持引用稳定。 */
@@ -50,6 +57,7 @@ export function ToolCallBody({
             <InlineCodeContent
               preview={inlinePreview.source}
               workspacePath={workspacePath}
+              fileReferenceRootPath={fileReferenceRootPath}
               theme={theme}
               codePreviewSettings={codePreviewSettings}
               onOpenCodeViewer={onOpenCodeViewer}
@@ -65,6 +73,7 @@ export function ToolCallBody({
               plan={displayModel.planResult.plan}
               planFilePath={displayModel.planResult.planFilePath}
               workspacePath={workspacePath}
+              fileReferenceRootPath={fileReferenceRootPath}
               theme={theme}
               codePreviewSettings={codePreviewSettings}
               onOpenCodeViewer={onOpenCodeViewer}
@@ -90,6 +99,7 @@ export function ToolCallBody({
 function InlineCodeContent({
   preview,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   onOpenCodeViewer,
@@ -98,6 +108,7 @@ function InlineCodeContent({
 }: {
   preview: TextCodeViewerSource;
   workspacePath: string;
+  fileReferenceRootPath?: string;
   theme?: Theme;
   codePreviewSettings?: CodePreviewSettings;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
@@ -110,6 +121,9 @@ function InlineCodeContent({
         <MessageResponse
           className="min-w-0 break-words"
           workspacePath={workspacePath}
+          // 工具输出里的 markdown 相对链接是**模型写的**，基准是它的执行 cwd；
+          // workspacePath 只保留给 payload/作用域。缺省回落身份根 = 改动前行为。
+          fileReferenceRootPath={fileReferenceRootPath ?? workspacePath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           onOpenCodeViewer={onOpenCodeViewer}
@@ -161,6 +175,7 @@ function InlinePlanResult({
   plan,
   planFilePath,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   onOpenCodeViewer,
@@ -170,6 +185,7 @@ function InlinePlanResult({
   plan: string;
   planFilePath?: string;
   workspacePath: string;
+  fileReferenceRootPath?: string;
   theme?: Theme;
   codePreviewSettings?: CodePreviewSettings;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
@@ -191,6 +207,8 @@ function InlinePlanResult({
       <MessageResponse
         className="size-full min-w-0 break-words whitespace-normal [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
         workspacePath={workspacePath}
+        // 计划正文同为模型产出：相对引用基准是它的执行 cwd（缺省回落身份根）。
+        fileReferenceRootPath={fileReferenceRootPath ?? workspacePath}
         theme={theme}
         codePreviewSettings={codePreviewSettings}
         onOpenCodeViewer={onOpenCodeViewer}

@@ -325,12 +325,28 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
         parentSessionId: tab.parentSessionId,
         runId: tab.runId,
         artifactId,
+        // 产物 `sourcePath` 是相对 **run 的 cwd**（= 发起这次打开的会话执行目录）产出的：
+        // 解析根取本 tab 打开时冻结的那个（`WorkflowRunSidePaneTab.fileReferenceRootPath`），
+        // 不能用宿主侧的「当前会话 cwd」；没有冻结根（旧记忆状态里的 tab / 中枢入口）时回落
+        // 工作区身份根，即改动前行为。
+        fileReferenceRootPath: tab.fileReferenceRootPath ?? tab.workspacePath,
         ...(artifact?.title === undefined ? {} : { title: artifact.title }),
         ...(artifact?.contentType === undefined ? {} : { contentType: artifact.contentType }),
         ...(artifact?.sourcePath === undefined ? {} : { sourcePath: artifact.sourcePath }),
       });
     },
-    [artifacts, onOpenWorkflowArtifact, tab.parentSessionId, tab.runId, tabScope],
+    [
+      artifacts,
+      onOpenWorkflowArtifact,
+      // 冻结根必须进依赖：同一个 tab id 会在重开时被 `{...existing, ...nextTab}` 覆盖
+      // `fileReferenceRootPath`（首帧回落 → 快照到达后换成会话执行 cwd），漏掉它会让这里
+      // 继续用旧根拼产物路径（404 / 定位不到）。
+      tab.fileReferenceRootPath,
+      tab.parentSessionId,
+      tab.runId,
+      tabScope,
+      tab.workspacePath,
+    ],
   );
 
   const result = workflowRunResultView(run);

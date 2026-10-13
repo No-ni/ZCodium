@@ -50,6 +50,9 @@ function buildWorkflowRunDirectoryOpenRequest(
     parentSessionId: tab.parentSessionId,
     runId: row.runId,
     toolCallId: row.toolCallId,
+    // 产物 `sourcePath` 是相对 run 的 cwd（发起会话的执行目录）产出的：把打开目录页时冻结的
+    // 根透传给详情 tab，缺席（旧记忆状态）沿用详情侧「回落 workspacePath」的改动前行为。
+    ...(tab.fileReferenceRootPath ? { fileReferenceRootPath: tab.fileReferenceRootPath } : {}),
     // 展示名冻进 tab 只作投影缺席时的标题兜底（见 WorkflowRunSidePaneTab 的注释）。
     ...(row.label ? { workflowName: row.label } : {}),
   };

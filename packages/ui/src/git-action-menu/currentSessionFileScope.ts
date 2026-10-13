@@ -1,5 +1,6 @@
 import type { GitRepositorySummary, ZCodeTaskChangeSummary } from "@zcode/shared";
 import type { GitBranchCommitPreviewFile } from "@/git-branch-switcher/display.js";
+import { resolveToolCallFilePath } from "@/ToolCallBlocks/fileSummaryTypes.js";
 
 function normalizeCommitScopePath(path: string): string {
   return path
@@ -58,8 +59,9 @@ function buildCurrentSessionFileScope(options: {
   summary: ZCodeTaskChangeSummary | null;
   gitSummary: GitRepositorySummary;
   workspacePath: string;
+  fileReferenceRootPath?: string | undefined;
 }): Set<string> | null {
-  const filePaths = getCurrentSessionFilePaths(options.summary);
+  const filePaths = getCurrentSessionFilePaths(options.summary, options.fileReferenceRootPath);
   if (!filePaths) {
     return null;
   }
@@ -94,12 +96,28 @@ function isPreviewFileInScope(
   );
 }
 
+/**
+ * 本会话变更过的文件路径（模型原文），按会话执行 cwd 解析成绝对路径。
+ *
+ * 为什么要在这里解析：`summary.files[].path` 是**模型写的原文**，可能是相对路径；而 git 侧
+ * 的候选拼写是工作区键路径相对（`<日期>/<id8>/docs/report.md`）。原文不解析时相对路径两条
+ * `stripBasePath` 分支都落空，提交弹窗会把这次会话写下的变更**整条过滤掉**（列表空白、
+ * 「包含未暂存」被置 false），同一份文件用绝对路径写却正常——改动前模型 cwd 恰好是工作区键
+ * 路径，原文与 git 拼写逐字相等，所以这是本特性引入的收窄（见
+ * docs/specs/conversation-session-workspace.md 规则 11）。
+ * `fileReferenceRootPath` 缺席时原样返回 = 改动前行为，调用方负责传
+ * `fileReferenceRootPath ?? workspacePath`。
+ */
 export function getCurrentSessionFilePaths(
   summary: ZCodeTaskChangeSummary | null,
+  fileReferenceRootPath?: string | undefined,
 ): string[] | undefined {
   const paths = Array.from(
     new Set(
-      (summary?.files ?? []).map((file) => file.path.trim()).filter((path) => path.length > 0),
+      (summary?.files ?? [])
+        .map((file) => file.path.trim())
+        .filter((path) => path.length > 0)
+        .map((path) => resolveToolCallFilePath(path, fileReferenceRootPath)),
     ),
   );
   return paths.length > 0 ? paths : undefined;
@@ -110,11 +128,13 @@ export function filterCommitPreviewFilesByCurrentSession(options: {
   summary: ZCodeTaskChangeSummary | null;
   gitSummary: GitRepositorySummary;
   workspacePath: string;
+  fileReferenceRootPath?: string | undefined;
 }): GitBranchCommitPreviewFile[] {
   const scope = buildCurrentSessionFileScope({
     summary: options.summary,
     gitSummary: options.gitSummary,
     workspacePath: options.workspacePath,
+    fileReferenceRootPath: options.fileReferenceRootPath,
   });
   return options.files.filter((file) => isPreviewFileInScope(file, scope));
 }

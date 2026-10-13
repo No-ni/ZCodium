@@ -150,7 +150,11 @@ interface DraftSessionPrewarm {
   binding: DraftPrewarmBinding | null;
 }
 
-interface DraftPrewarmBinding {
+/**
+ * 导出类型：SessionPane 需要在 `useDraftSessionPrewarm` 之前的派生点（文件搜索根）读预热会话 id，
+ * 只能先声明镜像 ref 再在同一帧稍后赋值，因此需要能命名这个类型。
+ */
+export interface DraftPrewarmBinding {
   workspaceKey: string;
   sessionId: string;
   /** 首条 admission 命令发出前同步占住生命周期；false 表示 binding 已不是当前 owner。 */

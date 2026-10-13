@@ -1,7 +1,7 @@
 import { PencilIcon } from "lucide-react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { getFileDisplayPath } from "@/lib/fileDisplay.js";
+import { getFileDisplayPath, resolveFileDisplayBasePath } from "@/lib/fileDisplay.js";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { buildEditCodeViewerSource } from "@/ToolCallBlocks/renderers/edit.js";
@@ -13,7 +13,7 @@ import {
   getEditKindLabelMessageId,
   renderDiffCount,
   renderFileChip,
-  renderFilePath,
+  renderFileDirectoryPath,
 } from "@/ToolCallBlocks/renderers.js";
 
 const CHANGES_GROUP_ICON = <PencilIcon className="size-4 shrink-0 text-foreground-subtle" />;
@@ -71,10 +71,14 @@ type ChangeFileSummary = ReturnType<typeof readRawToolCallFileSummaries>[number]
 function ResponsiveFileChipList({
   files,
   workspacePath,
+  fileReferenceRootPath,
   onOpenCodeViewer,
 }: {
   files: readonly ChangeFileSummary[];
+  /** 工作区身份根：展示基准的回落项；语义不要改。 */
   workspacePath: string;
+  /** 模型写相对路径的 cwd（会话执行目录）；展示基准优先取它。 */
+  fileReferenceRootPath?: string;
   onOpenCodeViewer: ToolCallBlockRenderContext["onOpenCodeViewer"];
 }) {
   const containerRef = useRef<HTMLSpanElement>(null);
@@ -123,6 +127,11 @@ function ResponsiveFileChipList({
     >
       {files.map((summary, index) => {
         const isVisible = index < resolvedVisibleCount;
+        // 展示基准 = 最深包含根：会话执行 cwd 命中就用它，否则回落身份根。
+        const basePath = resolveFileDisplayBasePath(summary.path, [
+          fileReferenceRootPath,
+          workspacePath,
+        ]);
         return (
           <span
             key={summary.path}
@@ -139,8 +148,12 @@ function ResponsiveFileChipList({
             {renderFileChip({
               summary,
               clickable: isVisible && Boolean(onOpenCodeViewer),
-              basePath: workspacePath,
-              onClick: () => onOpenCodeViewer?.(buildEditCodeViewerSource(summary)),
+              basePath,
+              onClick: () =>
+                onOpenCodeViewer?.(
+                  // 打开是"读"：relative 路径必须按模型 cwd 解析，展示根管不了相对路径。
+                  buildEditCodeViewerSource(summary, fileReferenceRootPath ?? workspacePath),
+                ),
             })}
           </span>
         );
@@ -172,15 +185,21 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
     const unique = new Map<string, ReturnType<typeof readRawToolCallFileSummaries>[number]>();
     for (const entry of childSummaries) {
       for (const summary of entry.summaries) {
-        const fileKey = getFileDisplayPath(summary.path, context.workspacePath).replaceAll(
-          "\\",
-          "/",
-        );
+        // 去重键只用于分组内识别同一文件，展示基准同样取最深包含根：
+        // 用身份根时同一会话内的文件会带上 `2026-10-11/<id8>/` 前缀（仅影响键的可读性，
+        // 但两处键不一致会让「同一文件」在同组内被判成两条）。
+        const fileKey = getFileDisplayPath(
+          summary.path,
+          resolveFileDisplayBasePath(summary.path, [
+            context.fileReferenceRootPath,
+            context.workspacePath,
+          ]),
+        ).replaceAll("\\", "/");
         if (!unique.has(fileKey)) unique.set(fileKey, summary);
       }
     }
     return [...unique.values()];
-  }, [childSummaries, context.workspacePath]);
+  }, [childSummaries, context.fileReferenceRootPath, context.workspacePath]);
   const latest = childSummaries.findLast((entry) => entry.summaries.length > 0);
   const latestFile = latest?.summaries.at(-1);
   const hasResolvedFiles = files.length > 0;
@@ -214,10 +233,11 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       <ResponsiveFileChipList
         files={files}
         workspacePath={context.workspacePath}
+        fileReferenceRootPath={context.fileReferenceRootPath}
         onOpenCodeViewer={context.onOpenCodeViewer}
       />
     ),
-    [context.onOpenCodeViewer, context.workspacePath, files],
+    [context.fileReferenceRootPath, context.onOpenCodeViewer, context.workspacePath, files],
   );
   const completedSummary = useMemo(
     () =>
@@ -240,6 +260,13 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
     () => <span className="shrink-0">{countText}</span>,
     [countText],
   );
+  // 运行态次级行的展示基准：最深包含根（会话执行 cwd 命中优先，回落身份根）。
+  const latestFileDisplayBasePath = latestFile
+    ? resolveFileDisplayBasePath(latestFile.path, [
+        context.fileReferenceRootPath,
+        context.workspacePath,
+      ])
+    : undefined;
   const runningSecondaryText = useMemo(
     () =>
       latestFile ? (
@@ -250,12 +277,12 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
           ) : null}
           {renderFileChip({
             summary: latestFile,
-            basePath: context.workspacePath,
+            basePath: latestFileDisplayBasePath,
           })}
-          {renderFilePath(latestFile.filePath, context.workspacePath)}
+          {renderFileDirectoryPath(latestFile.path, latestFileDisplayBasePath)}
         </span>
       ) : undefined,
-    [actionText, context.workspacePath, latestFile],
+    [actionText, latestFile, latestFileDisplayBasePath],
   );
   const runningDiffCount = useMemo(
     () => renderDiffCount(latestFile?.changeStat, { animateInitial: true }),
@@ -269,6 +296,7 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
             key={child.toolCall.toolId}
             toolCallNode={child}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             showIcon={false}
@@ -291,6 +319,7 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onLoadFullToolCallFields,
       context.theme,
       context.codePreviewSettings,
+      context.fileReferenceRootPath,
       context.workspacePath,
     ],
   );

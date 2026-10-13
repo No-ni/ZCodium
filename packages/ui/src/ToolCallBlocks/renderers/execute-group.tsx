@@ -84,6 +84,7 @@ export function ExecuteGroupToolCallBlock(context: ToolCallBlockRenderContext) {
             key={child.toolCall.toolId}
             toolCallNode={child}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             showIcon={false}
             onOpenCodeViewer={context.onOpenCodeViewer}
             onOpenFileLink={context.onOpenFileLink}
@@ -101,6 +102,7 @@ export function ExecuteGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onOpenBrowserUrl,
       context.onOpenCodeViewer,
       context.onOpenFileLink,
+      context.fileReferenceRootPath,
       context.workspacePath,
     ],
   );

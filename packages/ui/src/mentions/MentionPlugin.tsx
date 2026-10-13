@@ -59,6 +59,16 @@ interface MentionPluginProps {
   container?: HTMLElement | null;
   workspacePath: string;
   workspaceIdentity?: string;
+  /**
+   * 文件（`@`）mention 的搜索根：会话已绑定时是会话执行 cwd，缺省回落 `workspacePath`。
+   * 其余分组（# 会话、$ Skills、Plugins）仍按 workspace 身份解析，不受此参数影响。
+   */
+  fileSearchRootPath?: string;
+  /**
+   * 上述搜索根是否已由会话事实证明（缺省 true = 改动前行为）：false ⇒ 文件候选按绝对路径插入。
+   * 判据见 `FileReferenceRoot`（草稿预热未就绪时接收方会话的执行 cwd 还没铸出来）。
+   */
+  fileReferenceRootResolved?: boolean;
   /** 已有 Session 的 id；null/undefined = 新建草稿。决定 Plugins 分组的 catalog authority。 */
   sessionId?: string | null;
   disabled?: boolean;
@@ -130,6 +140,9 @@ function shouldFreezeMentionRecalcWhileComposing(isComposing: boolean, userAgent
 export function MentionPlugin({
   workspacePath,
   workspaceIdentity,
+  // 文件搜索根（会话执行 cwd）由宿主 pane 下发；缺席时回落 tab 的 workspacePath。
+  fileSearchRootPath = workspacePath,
+  fileReferenceRootResolved = true,
   sessionId,
   provider,
   container,
@@ -179,6 +192,7 @@ export function MentionPlugin({
     ? MENTION_FILES_ONLY_DEFAULT_PREVIEW_LIMIT
     : MENTION_DEFAULT_GROUP_PREVIEW_LIMIT;
   const fileResult = useFileMentionProvider(
+    { resolved: fileReferenceRootResolved, rootPath: fileSearchRootPath },
     workspacePath,
     workspaceIdentity,
     deferredActiveQuery,
@@ -313,7 +327,7 @@ export function MentionPlugin({
           // 跟输入框里的 mention token 不一致。这里统一复用 fileDisplay，让面板和 token 使用同一套文件语义展示。
           content:
             item.category === "files" ? (
-              <ContextMentionOptionContent item={item} workspacePath={workspacePath} />
+              <ContextMentionOptionContent item={item} workspacePath={fileSearchRootPath} />
             ) : item.category === "skills" ? (
               <span className="min-w-0 flex flex-1 items-center gap-2">
                 {/* skills 候选项需要和命令类项保持一致的主次信息密度，
@@ -340,6 +354,9 @@ export function MentionPlugin({
                 </span>
               </span>
             ) : item.category === "sessions" ? (
+              // 会话项不是文件：仍按 workspace 身份解析（与 :66 的注释同一条规则）。
+              // 本组当前只展示 label/description，传会话执行目录会让将来给会话项补路径展示时
+              // 静默泄漏会话目录全路径。
               <ContextMentionOptionContent item={item} workspacePath={workspacePath} />
             ) : item.category === "plugins" ? (
               <PluginMentionOptionContent item={item} />

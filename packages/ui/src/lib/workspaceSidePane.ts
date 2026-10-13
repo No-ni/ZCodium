@@ -242,6 +242,15 @@ export interface WorkflowRunSidePaneTab {
   workflowName?: string;
   /** 落点：展开这一站、列出全部、节头滚到顶。缺席即停在原处。 */
   focusPhaseId?: string;
+  /**
+   * 打开这次 tab 时**发起 pane 的会话执行 cwd**（= run 的 cwd），打开即冻结。
+   *
+   * 详情面板里的产物 chip 也要拼 `sourcePath`（相对 run cwd 产出）：过去它只带 workspace 身份，
+   * 宿主只能按身份根拼，对话会话里就是对话根下的同名位置（404 或打开错文件）。与
+   * `WorkflowArtifactSidePaneTab.fileReferenceRootPath` 同一判据：解析根属于**这次请求**，
+   * 不属于壳层焦点；缺席（旧发送端 / 中枢入口）才由宿主回落聚焦会话 cwd。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface OpenWorkflowRunSideTabRequest {
@@ -279,10 +288,22 @@ export interface WorkflowRunDirectorySidePaneTab {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   parentSessionId: string;
+  /**
+   * 打开目录页时冻结的发起会话执行 cwd（run 的 cwd）：从目录页打开 run 详情时透传给
+   * `OpenScopedWorkflowRunSideTabRequest`，产物 chip 据此拼相对 `sourcePath`。
+   * 缺席（旧记忆状态里的 tab）沿用「回落 `workspacePath`」的改动前行为。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface OpenWorkflowRunDirectorySideTabRequest {
   parentSessionId: string;
+  /**
+   * 发起这次打开的 pane 的会话执行 cwd。目录页 → run 详情这一跳要用它构造
+   * `OpenScopedWorkflowRunSideTabRequest.fileReferenceRootPath`，否则详情里的产物 chip 会把
+   * 相对 `sourcePath` 拼回对话根（身份根）而不是 run 的 cwd。缺席（旧记忆状态）沿用旧回落。
+   */
+  fileReferenceRootPath?: string;
 }
 
 /**
@@ -378,6 +399,15 @@ export interface WorkflowWorkspaceSidePaneTab {
   workflowName?: string;
   /** 落点：滚到这一站的第一张卡；还没到的站落到末尾。缺席即停在原处。 */
   focusPhaseId?: string;
+  /**
+   * 打开这次 tab 时**发起 pane 的会话执行 cwd**（= run 的 cwd），打开即冻结。
+   *
+   * 脚本 transcript 的 Read 卡把 `path` 拼成绝对路径（`WorkflowWorkspaceCard`）：相对路径的
+   * 基准是 run 的 cwd，不是工作区身份根。过去宿主用自己的「聚焦会话 cwd」，会话已绑定但快照
+   * 未到达的首帧会回落对话根（与 `WorkflowArtifactSidePaneTab` 同一窗口），卡片上的真实路径
+   * 就指到对话根下的同名位置。缺席（旧发送端 / 中枢入口）才由宿主回落聚焦会话 cwd。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface OpenWorkflowWorkspaceSideTabRequest {
@@ -392,6 +422,8 @@ export interface OpenScopedWorkflowWorkspaceSideTabRequest extends OpenWorkflowW
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
+  /** 发起这次打开的 pane 的会话执行 cwd（= run 的 cwd），见 `WorkflowWorkspaceSidePaneTab`。 */
+  fileReferenceRootPath?: string;
 }
 
 /**
@@ -429,6 +461,16 @@ export interface WorkflowArtifactSidePaneTab {
   version?: number;
   /** 打开时冻结的展示名，仅作元数据缺席（冷恢复 / 老 CLI）时的标题兜底。 */
   title?: string;
+  /**
+   * 打开这次请求时**发起 pane 的会话执行 cwd**（= `sourcePath` 的解析根），打开即冻结。
+   *
+   * 为什么必须存在 tab 上：产物 `sourcePath` 是相对 run cwd（会话执行目录）产出的，解析根属于
+   * **这次请求**，不属于壳层焦点。宿主过去一律用 `effectiveWorkspacePath`（= 聚焦会话的 cwd）：
+   * 会话已绑定但快照尚未到达的首帧会回落对话根，卡片上的真实路径/「在工作区显示」就指向
+   * 对话根下的同名位置（`useAppPanels` 的「直接开浏览器」分支第六轮已改用请求自带的根，本字段
+   * 是把同一判据补到侧栏 tab 这一路）。缺席（旧发送端 / 中枢入口）才由宿主回落聚焦会话 cwd。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface OpenWorkflowArtifactSideTabRequest {
@@ -451,6 +493,14 @@ export interface OpenWorkflowArtifactSideTabRequest {
 
 export interface OpenScopedWorkflowArtifactSideTabRequest extends OpenWorkflowArtifactSideTabRequest {
   workspacePath: string;
+  /**
+   * 产物 `sourcePath` 的解析根（= 发起这次打开的 pane 的会话执行 cwd）。
+   *
+   * 必须由 pane 自己带上：宿主侧的「当前会话 cwd」只对**聚焦** pane 成立，分屏时另一个 pane 的
+   * 会话可能不同（`V4WorkspaceChatArea` 的 focus 会覆盖 shell 的 activeTaskId），用聚焦会话的目录
+   * 去拼另一个会话的 `sourcePath` 会打开错的同名文件。缺席回落 `workspacePath`（改动前行为）。
+   */
+  fileReferenceRootPath?: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
 }
@@ -459,12 +509,24 @@ export interface OpenScopedWorkflowRunSideTabRequest extends OpenWorkflowRunSide
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
+  /**
+   * 发起这次打开的 pane 的会话执行 cwd（= run 的 cwd）。详情面板里的产物 chip 要用它把
+   * `sourcePath` 拼成本机真实位置——见 `WorkflowRunSidePaneTab.fileReferenceRootPath`。
+   * 缺席（旧发送端 / 中枢入口）回落 `workspacePath`（改动前行为）。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface OpenScopedWorkflowRunDirectorySideTabRequest extends OpenWorkflowRunDirectorySideTabRequest {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
+  /**
+   * 发起这次打开的 pane 的会话执行 cwd（= run 的 cwd）。从目录页打开 run 详情时透传给
+   * `OpenScopedWorkflowRunSideTabRequest.fileReferenceRootPath`，产物 chip 据此拼相对
+   * `sourcePath`。缺席（旧发送端）回落 `workspacePath`（改动前行为）。
+   */
+  fileReferenceRootPath?: string;
 }
 
 export interface OpenScopedPlanDetailSideTabRequest extends OpenPlanDetailSideTabRequest {
@@ -821,6 +883,9 @@ function createWorkflowRunSidePaneTab(
     parentSessionId: options.parentSessionId,
     toolCallId: options.toolCallId,
     runId: options.runId,
+    ...(options.fileReferenceRootPath
+      ? { fileReferenceRootPath: options.fileReferenceRootPath }
+      : {}),
     ...(options.workflowName ? { workflowName: options.workflowName } : {}),
     ...(options.phaseId ? { focusPhaseId: options.phaseId } : {}),
   };
@@ -843,6 +908,9 @@ function createWorkflowRunDirectorySidePaneTab(
     ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
     ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
     parentSessionId: options.parentSessionId,
+    ...(options.fileReferenceRootPath
+      ? { fileReferenceRootPath: options.fileReferenceRootPath }
+      : {}),
   };
 }
 
@@ -897,6 +965,9 @@ function createWorkflowWorkspaceSidePaneTab(
     parentSessionId: options.parentSessionId,
     toolCallId: options.toolCallId,
     runId: options.runId,
+    ...(options.fileReferenceRootPath
+      ? { fileReferenceRootPath: options.fileReferenceRootPath }
+      : {}),
     ...(options.workflowName ? { workflowName: options.workflowName } : {}),
     ...(options.phaseId ? { focusPhaseId: options.phaseId } : {}),
   };
@@ -924,6 +995,9 @@ function createWorkflowArtifactSidePaneTab(
     parentSessionId: options.parentSessionId,
     runId: options.runId,
     artifactId: options.artifactId,
+    ...(options.fileReferenceRootPath
+      ? { fileReferenceRootPath: options.fileReferenceRootPath }
+      : {}),
     ...(options.version === undefined ? {} : { version: options.version }),
     ...(options.title ? { title: options.title } : {}),
   };

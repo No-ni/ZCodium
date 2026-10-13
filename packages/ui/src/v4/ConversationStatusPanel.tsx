@@ -104,6 +104,11 @@ import {
 interface ConversationStatusPanelProps {
   workspacePath: string;
   workspaceIdentity?: string;
+  /**
+   * 会话执行 cwd：git 提交弹窗的「当前会话文件范围」按它解析 `activeTaskChangeSummary` 里的
+   * 模型原文路径（可能是相对路径）；缺席回落 `workspacePath` = 改动前行为。
+   */
+  fileReferenceRootPath?: string;
   gitSummary?: GitRepositorySummary | null;
   gitDirtyFileCount?: number;
   gitWorktreeReviewSourceId?: GitChangeSourceId | null;
@@ -364,6 +369,7 @@ function GitStatusSection({
   separated,
   workspaceIdentity,
   workspacePath,
+  fileReferenceRootPath,
   useVerticalFloatingPanels,
 }: {
   activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
@@ -375,6 +381,7 @@ function GitStatusSection({
   separated: boolean;
   workspaceIdentity?: string;
   workspacePath: string;
+  fileReferenceRootPath?: string | undefined;
   useVerticalFloatingPanels: boolean;
 }) {
   const { intl } = useZCodeIntl();
@@ -443,6 +450,7 @@ function GitStatusSection({
         <GitActionMenu
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
+          fileReferenceRootPath={fileReferenceRootPath}
           gitSummary={gitSummary}
           activeTaskChangeSummary={activeTaskChangeSummary ?? null}
           onRefreshGit={onRefreshGit}
@@ -1706,6 +1714,7 @@ function StatusSummaryRow({
 function ConversationStatusPanelImpl({
   workspacePath,
   workspaceIdentity,
+  fileReferenceRootPath,
   gitSummary,
   gitDirtyFileCount = 0,
   gitWorktreeReviewSourceId,
@@ -1969,6 +1978,7 @@ function ConversationStatusPanelImpl({
                 gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
                 workspacePath={workspacePath}
                 workspaceIdentity={workspaceIdentity}
+                fileReferenceRootPath={fileReferenceRootPath}
                 activeTaskChangeSummary={activeTaskChangeSummary}
                 onRefreshGit={onRefreshGit}
                 onOpenGitReview={onOpenGitReview}

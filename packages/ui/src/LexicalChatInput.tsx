@@ -1322,6 +1322,10 @@ interface LexicalChatInputProps {
   triggerPanelContainer?: HTMLElement | null;
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 文件 mention 的搜索根（会话执行 cwd）；缺省 = `workspacePath`。 */
+  fileSearchRootPath?: string;
+  /** 上述搜索根是否已由会话事实证明（缺省 true）：false ⇒ 文件候选按绝对路径插入。 */
+  fileReferenceRootResolved?: boolean;
   taskId: string | null;
   /** 仅影响 Skill 引用目录；草稿可使用 prewarm Session runtime。 */
   skillCatalogSessionId?: string | null;
@@ -1355,6 +1359,8 @@ export function LexicalChatInput({
   triggerPanelContainer,
   workspacePath,
   workspaceIdentity,
+  fileSearchRootPath,
+  fileReferenceRootResolved = true,
   taskId,
   skillCatalogSessionId,
   inputTestId,
@@ -1514,6 +1520,8 @@ export function LexicalChatInput({
           <MentionPlugin
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
+            fileSearchRootPath={fileSearchRootPath}
+            fileReferenceRootResolved={fileReferenceRootResolved}
             sessionId={skillCatalogSessionId ?? taskId}
             provider={activeTaskProvider}
             container={triggerPanelContainer}

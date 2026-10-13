@@ -29,6 +29,12 @@ import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 interface V4InteractionDialogsProps {
   sessionId: string;
   workspacePath: string;
+  /**
+   * 权限弹窗里工具入参相对路径的解析/展示根 = 会话执行 cwd（模型写路径时的 cwd）。
+   * 缺席时回落 `workspacePath`（改动前行为）。见
+   * docs/specs/conversation-session-workspace.md 已知边界 12。
+   */
+  fileReferenceRootPath?: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
   provider?: ZCodeProvider;
@@ -92,6 +98,7 @@ function createInteractionAutoResolutionIntentTracker(): InteractionAutoResoluti
 export function V4InteractionDialogs({
   sessionId,
   workspacePath,
+  fileReferenceRootPath,
   workspaceIdentity,
   remoteSessionId,
   provider,
@@ -327,6 +334,7 @@ export function V4InteractionDialogs({
         key={pending.interactionId}
         request={request}
         workspacePath={workspacePath}
+        fileReferenceRootPath={fileReferenceRootPath}
         provider={provider}
         responding={
           permissionResponse?.interactionId === pending.interactionId && permissionResponse.pending

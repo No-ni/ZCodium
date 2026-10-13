@@ -15,7 +15,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { FileDisplayInline } from "@/lib/fileDisplay.js";
+import { FileDisplayInline, resolveFileDisplayBasePath } from "@/lib/fileDisplay.js";
+import { resolveToolCallFilePath } from "@/ToolCallBlocks/fileSummaryTypes.js";
 import { toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
 import { buildChangeSummaryFilePreviewSource } from "@/messageChangeSummaryPreview.js";
 import { OpenSplitButton } from "@/OpenSplitButton.js";
@@ -49,22 +50,44 @@ function openDiff(
   item: FileChangeItem,
   context: Pick<
     ConversationRowRenderContext,
-    "workspacePath" | "workspaceIdentity" | "workspaceRemoteSessionId" | "onOpenCodeViewer"
+    | "workspacePath"
+    | "fileSearchRootPath"
+    | "workspaceIdentity"
+    | "workspaceRemoteSessionId"
+    | "onOpenCodeViewer"
   >,
 ) {
   const patch = formatPatch(item.path, item.patches);
   const { workspacePath, workspaceIdentity, workspaceRemoteSessionId, onOpenCodeViewer } = context;
   if (!patch || !onOpenCodeViewer) return;
-  const relativePath = toWorkspaceRelativePath(workspacePath, item.path);
+  // `item.path` 是模型写进 write/edit 的**原文**（可为相对路径，基准是它当时的执行 cwd）。
+  // 展示标题按最深包含根算；读取/打开路径必须按模型 cwd 解析，否则 diff tab 的「查看源文件」
+  // 会把相对路径拼到工作区身份根上（对话会话下指向对话根的同名文件或不存在）。
+  const readablePath = readSummaryFilePath(item.path, context);
+  const displayBasePath =
+    resolveFileDisplayBasePath(item.path, [context.fileSearchRootPath, workspacePath]) ??
+    workspacePath;
+  const relativePath = toWorkspaceRelativePath(displayBasePath, item.path);
   onOpenCodeViewer({
     type: "patch",
     title: relativePath,
-    path: item.path,
+    path: readablePath,
     patch,
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(workspaceRemoteSessionId ? { workspaceRemoteSessionId } : {}),
   });
+}
+
+/**
+ * 文件变更项里「真去读」的路径：`item.path` 是模型写的原文（相对路径的基准是会话执行 cwd），
+ * 读取/打开必须按它解析；展示仍走 `resolveFileDisplayBasePath`（见 spec 规则 11/12）。
+ */
+function readSummaryFilePath(
+  path: string,
+  context: Pick<ConversationRowRenderContext, "workspacePath" | "fileSearchRootPath">,
+): string {
+  return resolveToolCallFilePath(path, context.fileSearchRootPath ?? context.workspacePath);
 }
 
 export function ConversationFileSummaryPanel({
@@ -250,10 +273,24 @@ export function ConversationFileSummaryPanel({
               </div>
             ) : (
               items.map((item) => {
-                const relativePath = toWorkspaceRelativePath(context.workspacePath, item.path);
+                // 展示/标题用的相对路径：基准取最深包含根（会话执行 cwd 命中优先，
+                // 回落工作区身份根）。直接用 `fileSearchRootPath ?? workspacePath` 会让
+                // 会话目录之外、仍在对话根下的文件（如 `.zcodium/skills/...`）退化成绝对路径，
+                // 所以这里按「谁真正包含它」选根。
+                const displayBasePath =
+                  resolveFileDisplayBasePath(item.path, [
+                    context.fileSearchRootPath,
+                    context.workspacePath,
+                  ]) ?? context.workspacePath;
+                // `toWorkspaceRelativePath` 名字里的 workspace 是历史命名，这里喂的是展示基准根。
+                const relativePath = toWorkspaceRelativePath(displayBasePath, item.path);
                 const canReview = item.patches.length > 0 && Boolean(context.onOpenCodeViewer);
+                // 注意：preview source 的 workspacePath 仍是工作区身份根（code viewer 作用域），
+                // 只有 title 用展示相对路径——与 spec 已知边界 4「预览面包屑按工作区键路径」的
+                // 例外只落在这一处标题上，diff 本身的 scope 不变。
                 const filePreviewSource = buildChangeSummaryFilePreviewSource({
-                  path: item.path,
+                  // 读取/打开用模型 cwd 解析后的路径；标题仍是展示相对路径。
+                  path: readSummaryFilePath(item.path, context),
                   relativePath,
                   workspacePath: context.workspacePath,
                   workspaceIdentity: context.workspaceIdentity,
@@ -282,7 +319,7 @@ export function ConversationFileSummaryPanel({
                           <FileDisplayInline
                             path={item.path}
                             options={{
-                              basePath: context.workspacePath,
+                              basePath: displayBasePath,
                               showFilePath: true,
                               className: "inline-flex min-w-0 max-w-full items-center gap-1.5",
                               fileNameClassName:
@@ -330,7 +367,7 @@ export function ConversationFileSummaryPanel({
                         <OpenSplitButton
                           target={{
                             type: "file",
-                            path: item.path,
+                            path: readSummaryFilePath(item.path, context),
                             title: relativePath,
                             label: relativePath,
                             previewSource: filePreviewSource,

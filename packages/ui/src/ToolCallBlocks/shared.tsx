@@ -8,10 +8,12 @@ export type {
   WorkflowRunCardSummary,
 } from "@/ToolCallBlocks/fileSummaryTypes.js";
 export { readRawToolCallFileSummaries } from "@/ToolCallBlocks/fileSummaries.js";
+export { resolveToolCallFilePath } from "@/ToolCallBlocks/fileSummaryTypes.js";
 export {
   getEditKindLabelMessageId,
   renderDiffCount,
   renderFileChip,
+  renderFileDirectoryPath,
   renderFilePath,
   renderJoinedFileChips,
 } from "@/ToolCallBlocks/renderers.js";

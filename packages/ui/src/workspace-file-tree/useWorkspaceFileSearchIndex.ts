@@ -21,11 +21,17 @@ export function useWorkspaceFileSearchIndex({
   workspaceIdentity,
   workspaceRemoteSessionId,
   enabled,
+  ignoreRulesRoot,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   enabled: boolean;
+  /**
+   * 忽略规则根。搜索根是会话执行 cwd 时必须传对话根（tab 的 workspacePath），
+   * 否则规则文件会被写进会话目录（见 conversation-session-workspace spec 规则 10）。
+   */
+  ignoreRulesRoot?: string;
 }): WorkspaceFileSearchIndexState {
   const { fileService } = useWorkspaceServices(
     workspacePath,
@@ -33,7 +39,16 @@ export function useWorkspaceFileSearchIndex({
     workspaceIdentity,
   );
   // packed 直存（Host 返回列式字符串）：树渲染用 useMemo unpack，搜索态直透 worker。
-  const [packed, setPacked] = useState("");
+  // 索引作用域 = 解包基准（workspacePath）+ 归属身份（workspace/远端会话）+ 忽略规则根。
+  // 只要其中一个变了，已取回的 packed 就不再属于当前根：解包基准变了，entries 里的相对/绝对
+  // 路径全部按旧根算；规则根变了，条目集合也按旧规则过滤。
+  const indexScopeKey = `${workspaceIdentity ?? ""}\u0000${workspaceRemoteSessionId ?? ""}\u0000${workspacePath}\u0000${ignoreRulesRoot ?? ""}`;
+  // Bug 原因：packed 过去只有一份裸字符串，作用域切换后旧索引会在 effect 清理**之前**的那一帧
+  // 按新 workspacePath 解包（错误路径进入文件树），清理发生在绘制之后、救不了首帧。
+  // 现在把「它是为哪个作用域取的」和 payload 一起存，渲染期派生「无数据」；
+  // effect 清理保留为状态收敛，不再承担首帧正确性。
+  const [packedState, setPackedState] = useState<{ scopeKey: string; packed: string } | null>(null);
+  const packed = packedState?.scopeKey === indexScopeKey ? packedState.packed : "";
   const entries = useMemo<WorkspaceFileEntry[]>(
     () => unpackWorkspaceFileEntries(packed, workspacePath),
     [packed, workspacePath],
@@ -45,12 +60,14 @@ export function useWorkspaceFileSearchIndex({
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
-    setPacked("");
+    setPackedState(null);
     setLoading(false);
     setLoaded(false);
     setError(null);
     requestVersionRef.current += 1;
-  }, [workspaceIdentity, workspacePath, workspaceRemoteSessionId]);
+    // ignoreRulesRoot 也参与索引签名（见 fetchWorkspaceFileEntriesPacked），漏进依赖数组会让
+    // 换规则根后仍沿用旧作用域；它必须与上面的 indexScopeKey 保持同一组输入。
+  }, [ignoreRulesRoot, workspaceIdentity, workspacePath, workspaceRemoteSessionId]);
 
   const refresh = useCallback(() => {
     setRefreshVersion((current) => current + 1);
@@ -66,12 +83,12 @@ export function useWorkspaceFileSearchIndex({
     setLoading(true);
     setError(null);
 
-    void fetchWorkspaceFileEntriesPacked(fileService, workspacePath)
+    void fetchWorkspaceFileEntriesPacked(fileService, workspacePath, ignoreRulesRoot)
       .then((result) => {
         if (requestVersionRef.current !== currentVersion) {
           return;
         }
-        setPacked(result);
+        setPackedState({ scopeKey: indexScopeKey, packed: result });
         setLoaded(true);
       })
       .catch((nextError) => {
@@ -85,7 +102,7 @@ export function useWorkspaceFileSearchIndex({
           setLoading(false);
         }
       });
-  }, [enabled, fileService, refreshVersion, workspacePath]);
+  }, [enabled, fileService, ignoreRulesRoot, refreshVersion, workspacePath]);
 
   return {
     entries,

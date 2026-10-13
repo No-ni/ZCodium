@@ -79,6 +79,7 @@ import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
 import { startMemoryDiagnosticsLogger } from "@/lib/memoryDiagnostics.js";
+import { useSessionWorkspacePath } from "@/v4/sessionWorkspacePath.js";
 
 const EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY: NonNullable<
   AppProps["reconnectingRemoteWorkspaceLogsByWorkspaceKey"]
@@ -197,6 +198,15 @@ export function App({
     (state) => state.getWorkspaceState(workspaceAbsPath, workspaceIdentity).draftSessionId,
   );
   const sidePaneOwnerId = activeTaskId ?? draftSessionId ?? null;
+  // 会话执行 cwd 的唯一派生点（唯一一份回落规则）：命令面板 Cmd+P 的文件搜索根与
+  // WorkspaceShellLayout（文件树 / 终端 / 文件搜索）共用这一份值。
+  // 会话未绑定 / 旧 CLI 无快照字段时 `effectiveWorkspacePath` 就是 workspaceAbsPath。
+  const { sessionWorkspacePath, effectiveWorkspacePath } = useSessionWorkspacePath({
+    sessionId: activeTaskId,
+    workspacePath: workspaceAbsPath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
+  });
   const [summaryPanelVariantOverride, setSummaryPanelVariantOverride] =
     useState<ChatViewSummaryPanelVariant | null>(null);
   const draftFocusVersion = workspaceShellZCodeState.draftFocusVersion;
@@ -248,6 +258,8 @@ export function App({
     handleBrowserPageMetadataChange,
   } = useAppPanels({
     workspaceAbsPath,
+    // 产物 sourcePath 的解析根由发起打开的 pane 随请求带上（分屏时聚焦会话可能不是它），
+    // 宿主这里不再注入「当前会话 cwd」。
     workspaceIdentity,
     workspaceRemoteSessionId,
     activeTaskId,
@@ -1069,6 +1081,7 @@ export function App({
         commands={quickPickCommands}
         workspaceAbsPath={workspaceAbsPath}
         workspaceIdentity={workspaceIdentity}
+        fileSearchRootPath={effectiveWorkspacePath}
         activeTaskId={activeTaskId}
         activeTaskChangeSummary={activeTaskChangeSummary}
         workspaceTabs={commandCenterWorkspaceTabs}
@@ -1152,6 +1165,8 @@ export function App({
           projectName={projectName}
           workspaceTabs={workspaceTabs}
           activeTaskId={activeTaskId}
+          sessionWorkspacePath={sessionWorkspacePath}
+          effectiveWorkspacePath={effectiveWorkspacePath}
           sidePaneOwnerId={sidePaneOwnerId}
           activeTraceId={activeTraceId}
           activeSessionId={activeSessionId}

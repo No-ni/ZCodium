@@ -29,9 +29,10 @@ import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
+import { resolveRecentChangeDisplayPath } from "@/lib/recentChangeDisplayPath.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
-import { toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
 import { getPathLeaf } from "@/lib/path.js";
+import { resolveToolCallFilePath } from "@/ToolCallBlocks/fileSummaryTypes.js";
 import { logger } from "@/logger.js";
 import { HighlightedMatchText } from "@/quickpick/HighlightedMatchText.js";
 import { QUICK_PICK_SECTION_ORDER, type QuickPickCommand } from "@/quickpick/quickPickCommands.js";
@@ -57,6 +58,8 @@ import {
 
 const EMPTY_QUICK_PICK_COMMANDS: QuickPickCommand[] = [];
 const EMPTY_COMMAND_CENTER_WORKSPACE_TABS: WorkspaceTabState[] = [];
+// 稳定空数组：scope 不匹配时 fileRows 的 useMemo 依赖不能每次换新引用（否则无谓重算）。
+const EMPTY_WORKSPACE_FILE_ENTRIES: WorkspaceFileEntry[] = [];
 const COMMAND_CENTER_SECTION_LIMIT = 3;
 const COMMAND_CENTER_CONTEXT_SECTION_LIMIT = 3;
 const COMMAND_CENTER_FILE_RESULT_LIMIT = 80;
@@ -401,6 +404,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   commands,
   workspaceAbsPath,
   workspaceIdentity,
+  fileSearchRootPath,
   activeTaskId,
   activeTaskChangeSummary,
   workspaceTabs,
@@ -413,6 +417,12 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   commands: QuickPickCommand[];
   workspaceAbsPath: string;
   workspaceIdentity?: string;
+  /**
+   * 文件搜索根：会话已绑定时是会话执行 cwd，否则回落 `workspaceAbsPath`（缺省即后者）。
+   * 由 App 从 conversation snapshot 派生；`workspaceAbsPath` 仍是工作区身份（历史、任务分组）
+   * 与忽略规则根——见 docs/specs/conversation-session-workspace.md 的所有者表与规则 10。
+   */
+  fileSearchRootPath?: string;
   activeTaskId?: string | null;
   activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
   workspaceTabs: WorkspaceTabState[];
@@ -430,6 +440,11 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   const { fileService } = useServices();
   const { intl } = useZCodeIntl();
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  // 文件搜索根：会话已绑定时是会话执行 cwd（App 由快照派生），否则回落 tab 的 workspaceAbsPath。
+  const fileSearchRoot = fileSearchRootPath ?? workspaceAbsPath;
+  // 文件索引按「工作区身份 + 搜索根」归属：同 workspace 换会话（会话 cwd 变）必须重取，
+  // 不同 host 上同名根之间也不能复用同一份索引。
+  const workspaceFilesScopeKey = `${workspaceKey}\u0000${fileSearchRoot}`;
   const [rawQuery, setRawQuery] = useState("");
   const [manualScope, setManualScope] = useState<CommandCenterSearchScope>("all");
   const [expandedSections, setExpandedSections] = useState<Set<CommandCenterSectionId>>(
@@ -440,7 +455,9 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>([]);
   const [workspaceFilesLoading, setWorkspaceFilesLoading] = useState(false);
   const [workspaceFilesError, setWorkspaceFilesError] = useState<string | null>(null);
-  const [loadedWorkspaceKey, setLoadedWorkspaceKey] = useState<string | null>(null);
+  const [loadedWorkspaceFilesScopeKey, setLoadedWorkspaceFilesScopeKey] = useState<string | null>(
+    null,
+  );
   // 性能修复：Command Center 关闭时不需要跟随 chat streaming 重算命令、任务和 recent changes。
   // 保留 hooks 顺序，但把关闭态输入降为空，避免隐藏弹窗在每个 token 批次重建结果区。
   const effectiveCommands = open ? commands : EMPTY_QUICK_PICK_COMMANDS;
@@ -519,9 +536,17 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     () => buildTaskResultRows({ tasks: taskList.items, query: searchQuery }),
     [searchQuery, taskList.items],
   );
+  // 索引与「它属于哪个 scope」一起判定：scope 变化（同 workspace 换会话 → 搜索根变）时
+  // effect 清理发生在绘制**之后**，而旧根的 entries 是按旧根解包的（relativePath / 目录列
+  // 都相对旧根），这一帧直接展示会短暂指向错的根。按 scope 不匹配在渲染期派生「无数据」，
+  // effect 清理只作为状态收敛，不再承担首帧正确性。
+  const scopedWorkspaceFiles =
+    loadedWorkspaceFilesScopeKey === workspaceFilesScopeKey
+      ? workspaceFiles
+      : EMPTY_WORKSPACE_FILE_ENTRIES;
   const fileRows = useMemo(
-    () => filterWorkspaceFileEntries(workspaceFiles, searchQuery),
-    [searchQuery, workspaceFiles],
+    () => filterWorkspaceFileEntries(scopedWorkspaceFiles, searchQuery),
+    [scopedWorkspaceFiles, searchQuery],
   );
   const recentChangeRows = useMemo(
     () => [...(effectiveActiveTaskChangeSummary?.files ?? [])].sort(compareRecentChangedFiles),
@@ -559,27 +584,29 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     setWorkspaceFiles([]);
     setWorkspaceFilesError(null);
     setWorkspaceFilesLoading(false);
-    setLoadedWorkspaceKey(null);
-  }, [workspaceKey]);
+    setLoadedWorkspaceFilesScopeKey(null);
+  }, [workspaceFilesScopeKey]);
 
   useEffect(() => {
-    if (!searchFiles || loadedWorkspaceKey === workspaceKey) {
+    if (!searchFiles || loadedWorkspaceFilesScopeKey === workspaceFilesScopeKey) {
       return;
     }
 
     let cancelled = false;
     setWorkspaceFilesLoading(true);
     setWorkspaceFilesError(null);
-    void fetchWorkspaceFileEntriesPacked(fileService, workspaceAbsPath)
+    // rootPath = 搜索根（会话 cwd / 工作区路径）；ignoreRulesRoot = 工作区身份路径（对话根），
+    // 规则文件只有一份、落在对话根上，不在会话目录里再生成一份。
+    void fetchWorkspaceFileEntriesPacked(fileService, fileSearchRoot, workspaceAbsPath)
       .then((result) => {
         // Host 返回列式 packed 字符串（避免大数组结构化克隆），此处一次性解包。
-        const entries = unpackWorkspaceFileEntries(result, workspaceAbsPath);
+        const entries = unpackWorkspaceFileEntries(result, fileSearchRoot);
         if (cancelled) {
           return;
         }
 
         setWorkspaceFiles(entries);
-        setLoadedWorkspaceKey(workspaceKey);
+        setLoadedWorkspaceFilesScopeKey(workspaceFilesScopeKey);
       })
       .catch((error) => {
         if (!cancelled) {
@@ -595,7 +622,14 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     return () => {
       cancelled = true;
     };
-  }, [fileService, loadedWorkspaceKey, searchFiles, workspaceAbsPath, workspaceKey]);
+  }, [
+    fileSearchRoot,
+    fileService,
+    loadedWorkspaceFilesScopeKey,
+    searchFiles,
+    workspaceAbsPath,
+    workspaceFilesScopeKey,
+  ]);
 
   const rememberSearch = useCallback(
     (scope: CommandCenterSearchScope = activeScope) => {
@@ -673,14 +707,27 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   const selectRecentChange = useCallback(
     (file: TaskChangedFileSummary) => {
       closeDialog();
-      const relativePath = toWorkspaceRelativePath(workspaceAbsPath, file.path);
+      // 读取基准只派生一次（模型 cwd）：展示基准在下面单独取「最深包含根」，两者不能互相冒充。
+      // 写成一个显式变量是因为本组件的 `workspaceAbsPath` 同时承担身份根、忽略规则根与这个回落值，
+      // 直接内联 `??` 会让「只改了一侧」的漂移在评审里看不出来（见 spec 规则 11/12）。
+      const readRoot = fileSearchRootPath ?? workspaceAbsPath;
+      // 标题只做展示：基准取最深包含根（会话目录优先、回落身份根），否则会话目录之外、
+      // 仍在对话根下的改动文件（`.zcodium/skills/...`）会显示成绝对全路径。
+      const relativePath = resolveRecentChangeDisplayPath({
+        filePath: file.path,
+        fileSearchRootPath,
+        workspaceAbsPath,
+      });
       onOpenCodeViewer({
         type: "file",
         title: getPathLeaf(relativePath) || relativePath,
-        path: file.path,
+        // 打开必须按**读取基准**（模型 cwd）解析：`file.path` 是 checkpoint artifact 里的原始
+        // 工具入参（可为相对路径），预览面板会把它交给 fileService 读取，而服务端对相对路径按
+        // Host 进程 cwd 解析 ⇒ 报错或读到无关文件。展示根不能当读取根（见 spec 规则 11/12）。
+        path: resolveToolCallFilePath(file.path, readRoot),
       });
     },
-    [closeDialog, onOpenCodeViewer, workspaceAbsPath],
+    [closeDialog, fileSearchRootPath, onOpenCodeViewer, workspaceAbsPath],
   );
 
   const selectRecentTask = useCallback(
@@ -742,7 +789,12 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
           </CommandEmpty>
         ) : null}
         {rows.map((file) => {
-          const relativePath = toWorkspaceRelativePath(workspaceAbsPath, file.path);
+          // 行标签与标题同一个展示基准（最深包含根）；搜索匹配用的 value 也随展示串。
+          const relativePath = resolveRecentChangeDisplayPath({
+            filePath: file.path,
+            fileSearchRootPath,
+            workspaceAbsPath,
+          });
           const descriptor = resolveFileDisplayDescriptor(file.path);
           return (
             <CommandItem

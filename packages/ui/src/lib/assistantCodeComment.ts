@@ -29,6 +29,18 @@ export interface AssistantCodeCommentCard extends AssistantCodeComment {
   path: string;
 }
 
+/**
+ * 代码注释卡片的两根分工（对话会话下两者不同）。
+ *
+ * `workspacePath` 是**相对路径的解析基准**（= 会话执行 cwd），与对话正文里模型写路径的基准一致；
+ * `displayRootPath` 只是**展示基准**（= 工作区键路径）：`displayPath` 先相对解析基准算，落不到
+ * 再相对它算。这样会话目录里的文件显示成模型写的样子（`src/foo.ts`），而引用工作区根上的文件
+ * （例如 `<对话根>/.zcodium/skills/...`）仍能算出可读的相对路径，不会因为落在解析基准之外丢卡片。
+ */
+export interface AssistantCodeCommentCardOptions extends AssistantFilePathResolveOptions {
+  displayRootPath?: string;
+}
+
 interface AssistantCodeCommentProjection {
   comments: AssistantCodeComment[];
   visibleText: string;
@@ -177,12 +189,19 @@ export function buildAssistantCodeCommentCards(
   content: string,
   workspacePath: string,
   limit = 50,
-  options: AssistantFilePathResolveOptions = {},
+  options: AssistantCodeCommentCardOptions = {},
 ): AssistantCodeCommentCard[] {
+  const { displayRootPath, ...resolveOptions } = options;
   return extractAssistantCodeComments(content)
     .flatMap((comment) => {
-      const path = resolveAssistantRawFilePath(workspacePath, comment.file, options);
-      const displayPath = path ? resolveWorkspaceRelativePath(workspacePath, path) : null;
+      const path = resolveAssistantRawFilePath(workspacePath, comment.file, resolveOptions);
+      // 展示路径优先相对解析基准（模型写路径的基准），落不到再相对展示根：
+      // 两句都必须保留，前者决定会话说"src/foo.ts"时卡片显示同名路径，后者保证引用
+      // 工作区根上的文件（解析基准之外）仍可显示而不是被丢卡片。
+      const displayPath = path
+        ? (resolveWorkspaceRelativePath(workspacePath, path) ??
+          (displayRootPath ? resolveWorkspaceRelativePath(displayRootPath, path) : null))
+        : null;
       if (!path || !displayPath) return [];
       return [
         {

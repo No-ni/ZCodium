@@ -84,6 +84,7 @@ import {
 } from "@/lib/markdownFileLink.js";
 import { stripBalancedAssistantPathQuotes } from "@/lib/assistantPathQuotes.js";
 import { getPathLeaf } from "@/lib/path.js";
+import { resolveFileDisplayBasePath } from "@/lib/fileDisplay.js";
 import { getWorkspaceFileRelativePath } from "@/workspace-file-tree/model.js";
 import { resolveWorkspaceEditorSelection } from "@/lib/workspaceEditorSelection.js";
 import { sortInstalledEditorsForFileTree } from "@/workspace-file-tree/helpers.js";
@@ -361,6 +362,13 @@ export type MessageResponseProps = {
   streaming?: boolean;
   streamingAnimationKey?: string;
   workspacePath?: string;
+  /**
+   * 正文里相对路径（markdown 链接、`zcode-file-citation`、图片）的**解析基准**：
+   * 对话会话是会话执行 cwd（模型写路径时的 cwd），其余场景等于 `workspacePath`。
+   * 与 `workspacePath`（工作区身份：code-viewer 作用域、mention 同源匹配）分开——
+   * 用身份路径解析相对引用会让链接打开对话根上不存在的文件（或同名旧文件）。
+   */
+  fileReferenceRootPath?: string;
   workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -861,6 +869,7 @@ export function buildMessageStreamdownRenderKey(params: {
   renderZCodeFileCitations?: boolean;
   sessionId?: string;
   workspacePath?: string;
+  fileReferenceRootPath?: string;
   workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -876,6 +885,7 @@ export function buildMessageStreamdownRenderKey(params: {
     params.wrapLongLines ? "wrap" : "scroll",
     params.renderZCodeFileCitations ? "citations" : "plain",
     params.workspacePath ?? "",
+    params.fileReferenceRootPath ?? "",
     params.workspaceHomePath ?? "",
     params.workspaceIdentity ?? "",
     params.workspaceRemoteSessionId ?? "",
@@ -935,6 +945,8 @@ export function buildMessageFileLinkTarget(input: {
   label: string;
   path: string;
   workspacePath?: string;
+  /** 相对路径（`relativePath`）的解析基准；缺席时沿用 `workspacePath`（改动前行为）。 */
+  fileReferenceRootPath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
 }): MessageFileLinkTarget {
@@ -943,12 +955,22 @@ export function buildMessageFileLinkTarget(input: {
   const pathKind = isExplicitDirectoryMarkdownLink(input.path, input.href)
     ? ("directory" as const)
     : undefined;
+  // `relativePath` 的唯一消费方是「复制相对路径」（useFileContextActions），按**最深包含根**
+  // 计算：会话目录内的文件按会话执行 cwd 剥前缀；会话目录之外、对话根之内的文件（
+  // `.zcodium-share/`、`.zcodium/skills/`、plans 等常驻位置）回落身份根，得到
+  // `.zcodium/skills/foo/SKILL.md` 这类可用相对路径。只按执行 cwd 一个基准算时，
+  // `getWorkspaceFileRelativePath` 对根外文件退化成裸文件名（剪贴板回归）。
+  // 两个根都缺席时保持旧回落（label）；空串基准会让 helper 误剥首斜杠，必须挡住。
+  const displayBasePath = resolveFileDisplayBasePath(input.path, [
+    input.fileReferenceRootPath,
+    input.workspacePath,
+  ]);
   return {
     path: input.path,
     label: input.label,
     pathKind,
-    relativePath: input.workspacePath
-      ? getWorkspaceFileRelativePath(input.workspacePath, input.path)
+    relativePath: displayBasePath
+      ? getWorkspaceFileRelativePath(displayBasePath, input.path)
       : input.label,
     workspacePath: input.workspacePath,
     workspaceIdentity: input.workspaceIdentity,
@@ -1299,6 +1321,7 @@ export const messageResponsePropsAreEqual = (
   nextProps.streaming === prevProps.streaming &&
   nextProps.streamingAnimationKey === prevProps.streamingAnimationKey &&
   nextProps.workspacePath === prevProps.workspacePath &&
+  nextProps.fileReferenceRootPath === prevProps.fileReferenceRootPath &&
   nextProps.workspaceHomePath === prevProps.workspaceHomePath &&
   nextProps.workspaceIdentity === prevProps.workspaceIdentity &&
   nextProps.workspaceRemoteSessionId === prevProps.workspaceRemoteSessionId &&
@@ -1321,6 +1344,7 @@ export const MessageResponse = memo(
     onOpenExternalUrl,
     renderZCodeFileCitations = false,
     workspacePath,
+    fileReferenceRootPath,
     workspaceHomePath,
     workspaceIdentity,
     workspaceRemoteSessionId,
@@ -1331,6 +1355,8 @@ export const MessageResponse = memo(
     children,
   }: MessageResponseProps) => {
     const wrapLongLines = forceCodeWrap || codePreviewSettings.wrapLongLines;
+    // 正文里相对引用的唯一解析基准：会话执行 cwd（缺席时 = 工作区身份路径，与改动前一致）。
+    const fileReferenceBase = fileReferenceRootPath ?? workspacePath;
     const rawMarkdown = useMemo(() => extractCodeText(children), [children]);
     const renderStreaming = streaming;
     const projectedCitationMarkdown = useMemo(
@@ -1358,11 +1384,11 @@ export const MessageResponse = memo(
         // Windows 绝对路径链接里的 `\.` 会在 remark 解析期被当成标点转义吃掉
         // rehype 阶段已经看不到原文。这条还原必须无条件生效，不能挂在 citation 开关下。
         windowsFileLinkEscapeRemarkPlugin,
-        ...(renderZCodeFileCitations && workspacePath
-          ? [createZCodeFileCitationRemarkPlugin(workspacePath, workspaceHomePath)]
+        ...(renderZCodeFileCitations && fileReferenceBase
+          ? [createZCodeFileCitationRemarkPlugin(fileReferenceBase, workspaceHomePath)]
           : []),
       ],
-      [renderZCodeFileCitations, workspaceHomePath, workspacePath],
+      [fileReferenceBase, renderZCodeFileCitations, workspaceHomePath],
     );
     const responseClassName = cn(
       "size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
@@ -1405,6 +1431,7 @@ export const MessageResponse = memo(
           renderZCodeFileCitations,
           sessionId,
           workspacePath,
+          fileReferenceRootPath,
           workspaceHomePath,
           workspaceIdentity,
           workspaceRemoteSessionId,
@@ -1421,6 +1448,7 @@ export const MessageResponse = memo(
       sessionId,
       workspaceHomePath,
       workspacePath,
+      fileReferenceRootPath,
       workspaceIdentity,
       workspaceRemoteSessionId,
     ]);
@@ -1434,7 +1462,7 @@ export const MessageResponse = memo(
         }: ComponentProps<"a"> & { node?: unknown }) => {
           const resolvedHref =
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
-          const fileLink = resolveMarkdownFileLink(workspacePath, resolvedHref, {
+          const fileLink = resolveMarkdownFileLink(fileReferenceBase, resolvedHref, {
             homePath: workspaceHomePath,
           });
 
@@ -1447,6 +1475,7 @@ export const MessageResponse = memo(
               path: fileLink.path,
               label: labelText,
               workspacePath,
+              ...(fileReferenceRootPath ? { fileReferenceRootPath } : {}),
               workspaceIdentity,
               workspaceRemoteSessionId,
             });
@@ -1501,7 +1530,8 @@ export const MessageResponse = memo(
         img: (imageProps: MarkdownImageProps) => (
           <MarkdownImage
             {...imageProps}
-            workspacePath={workspacePath}
+            // MarkdownImage 只用这个值解析相对 `src`（不承担身份），因此给解析基准。
+            workspacePath={fileReferenceBase}
             workspaceHomePath={workspaceHomePath}
             sessionId={sessionId}
             readAttachment={readAttachment}
@@ -1596,6 +1626,13 @@ export const MessageResponse = memo(
         codePreviewSettings.fontSizePx,
         wrapLongLines,
         forceCodeWrap,
+        // Bug 原因：下面的 `a` / `img` renderer 闭包捕获了解析基准 `fileReferenceBase`
+        // （= fileReferenceRootPath ?? workspacePath），`a` 还把原值透传给 link target；
+        // 依赖数组漏了它们时，基准**原地**变化（同一条消息挂到新的解析根下）会继续用旧
+        // renderer 解析相对链接与图片。兄弟 memo `streamdownRenderKey` 已列了
+        // fileReferenceRootPath，这里补齐同一依赖面（两个值都列：base 是捕获值，原值供 target）。
+        fileReferenceBase,
+        fileReferenceRootPath,
         onOpenFileLink,
         onOpenCodeViewer,
         onOpenExternalUrl,

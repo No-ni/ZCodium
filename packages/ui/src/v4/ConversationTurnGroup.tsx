@@ -185,6 +185,9 @@ function ConversationExploreGroupRow({
       <ToolCallBlock
         toolCallNode={item.node}
         workspacePath={context.workspacePath}
+        // 工具卡子树的展示/解析根 = 会话执行 cwd（模型写相对路径的 cwd），
+        // 与 assistant 正文同源；缺省回落身份根（非对话会话 = 改动前行为）。
+        fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
         theme={context.theme}
         codePreviewSettings={context.codePreviewSettings}
         showTodoToolCalls={context.messageStreamShowTodos === true}
@@ -244,6 +247,9 @@ function ConversationToolGroupRow({
       <ToolCallBlock
         toolCallNode={item.node}
         workspacePath={context.workspacePath}
+        // 工具卡子树的展示/解析根 = 会话执行 cwd（模型写相对路径的 cwd），
+        // 与 assistant 正文同源；缺省回落身份根（非对话会话 = 改动前行为）。
+        fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
         theme={context.theme}
         codePreviewSettings={context.codePreviewSettings}
         showTodoToolCalls={context.messageStreamShowTodos === true}
@@ -302,6 +308,9 @@ function ConversationCuaGroupRow({
       <ToolCallBlock
         toolCallNode={item.node}
         workspacePath={context.workspacePath}
+        // 工具卡子树的展示/解析根 = 会话执行 cwd（模型写相对路径的 cwd），
+        // 与 assistant 正文同源；缺省回落身份根（非对话会话 = 改动前行为）。
+        fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
         theme={context.theme}
         codePreviewSettings={context.codePreviewSettings}
         showTodoToolCalls={context.messageStreamShowTodos === true}
@@ -798,7 +807,9 @@ function ConversationTurnFlow({
     row: unit.latestAssistantTextRow,
     assistantTextRows: unit.assistantTextRows,
     latestAssistantTextRow: unit.latestAssistantTextRow,
-    workspacePath: context.workspacePath,
+    // 相对文件引用的解析基准 = 会话执行 cwd（行上下文里与提及搜索根同一个值，App/SessionPane
+    // 只派生一次）。缺省时回落 tab 的工作区键路径，即改动前的行为。
+    fileReferenceRootPath: context.fileSearchRootPath ?? context.workspacePath,
     workspaceHomePath: context.workspaceHomePath,
     fileChangesTarget: unit.header?.entityId
       ? { rowId: unit.header.rowId, entityId: unit.header.entityId }
@@ -967,7 +978,8 @@ function ConversationBackgroundResultWork({
     row: latestAssistantTextRow,
     assistantTextRows: unit.assistantTextRows,
     latestAssistantTextRow,
-    workspacePath: context.workspacePath,
+    // 同上：会话执行 cwd 是相对文件引用的解析基准。
+    fileReferenceRootPath: context.fileSearchRootPath ?? context.workspacePath,
     workspaceHomePath: context.workspaceHomePath,
     fileChangesTarget: unit.header?.entityId
       ? { rowId: unit.header.rowId, entityId: unit.header.entityId }
@@ -1143,13 +1155,22 @@ function ConversationTurnGroupImpl({
       // 只有终态 row 才生成卡片，避免运行中卡片先出现又因模型续写而回滚。
       (latestAssistantTextRow?.state === "complete" ||
         latestAssistantTextRow?.state === "interrupted")
-        ? buildAssistantCodeCommentCards(assistantRawCopyText, context.workspacePath, 50, {
-            homePath: context.workspaceHomePath,
-          })
+        ? buildAssistantCodeCommentCards(
+            // 解析基准 = 会话执行 cwd（模型写路径的基准）；展示根仍是工作区键路径，
+            // 于是会话目录里的文件显示成模型写的样子，工作区根上的文件也仍能显示。
+            assistantRawCopyText,
+            context.fileSearchRootPath ?? context.workspacePath,
+            50,
+            {
+              displayRootPath: context.workspacePath,
+              homePath: context.workspaceHomePath,
+            },
+          )
         : [],
     [
       assistantRawCopyText,
       codeCommentCardsEnabled,
+      context.fileSearchRootPath,
       context.workspaceHomePath,
       context.workspacePath,
       latestAssistantTextRow?.state,

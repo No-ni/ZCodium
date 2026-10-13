@@ -7,7 +7,8 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getExecuteSecondaryText } from "@/ToolCallBlocks/renderers/execute.js";
 import { buildReadSummary, ReadFileChip } from "@/ToolCallBlocks/renderers/read.js";
 import { getSearchPrimaryText } from "@/ToolCallBlocks/renderers/search.js";
-import { renderFilePath } from "@/ToolCallBlocks/shared.js";
+import { renderFileDirectoryPath, resolveToolCallFilePath } from "@/ToolCallBlocks/shared.js";
+import { resolveFileDisplayBasePath } from "@/lib/fileDisplay.js";
 import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
@@ -315,7 +316,11 @@ function getLatestExploreChildSummary(
       context.onOpenCodeViewer?.({
         type: "file",
         title: readSummary.fileName,
-        path: readSummary.path,
+        // 同 read.tsx：相对路径是模型按自己的 cwd 写的，读它必须按模型 cwd 解析。
+        path: resolveToolCallFilePath(
+          readSummary.path,
+          context.fileReferenceRootPath ?? context.workspacePath,
+        ),
       });
     };
 
@@ -325,7 +330,15 @@ function getLatestExploreChildSummary(
         actionKindLabel,
         <ReadFileChip summary={readSummary} clickable={canOpenPreview} onClick={openFilePreview} />,
       ),
-      secondaryText: renderFilePath(readSummary.filePath),
+      // buildReadSummary 里的 filePath 按模块缺省基准（工作区身份根）算；聚合行展示
+      // 基准换成会话执行 cwd 后必须重算，否则父目录串带 `2026-10-11/<id8>/` 前缀。
+      secondaryText: renderFileDirectoryPath(
+        readSummary.path,
+        resolveFileDisplayBasePath(readSummary.path, [
+          context.fileReferenceRootPath,
+          context.workspacePath,
+        ]),
+      ),
       title: readSummary.path,
     };
   }
@@ -427,6 +440,7 @@ export function ExploreToolCallBlock(context: ToolCallBlockRenderContext) {
               key={childToolCallNode.toolCall.toolId}
               toolCallNode={childToolCallNode}
               workspacePath={context.workspacePath}
+              fileReferenceRootPath={context.fileReferenceRootPath}
               showIcon={false}
               onOpenCodeViewer={context.onOpenCodeViewer}
               onOpenFileLink={context.onOpenFileLink}
@@ -444,6 +458,7 @@ export function ExploreToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onOpenBrowserUrl,
       context.onOpenCodeViewer,
       context.onOpenFileLink,
+      context.fileReferenceRootPath,
       context.workspacePath,
     ],
   );

@@ -101,6 +101,7 @@ export function TodoToolCallBlock(context: ToolCallBlockRenderContext) {
             displayModel={context.displayModel}
             toolCall={toolCall}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             onOpenCodeViewer={context.onOpenCodeViewer}
@@ -125,6 +126,7 @@ export function TodoToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onOpenCodeViewer,
       context.onOpenFileLink,
       context.theme,
+      context.fileReferenceRootPath,
       context.workspacePath,
       handleLoadFullToolCallFields,
       plan,

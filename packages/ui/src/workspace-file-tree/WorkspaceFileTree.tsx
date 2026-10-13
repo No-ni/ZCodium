@@ -90,6 +90,7 @@ export function WorkspaceFileTree({
   workspaceName,
   workspaceIdentity,
   workspaceRemoteSessionId,
+  workspaceScopePath,
   revealPath,
   temporaryExternalDirectory = false,
   canOpenLocalFileManager = false,
@@ -100,6 +101,8 @@ export function WorkspaceFileTree({
 }: WorkspaceFileTreeProps) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
+  // 工作区身份路径（默认就是浏览根）：规则根与拖拽 payload 用它，其余一律用浏览根。
+  const workspaceScope = workspaceScopePath ?? workspacePath;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const pendingActivePreviewRevealPathRef = useRef<string | null>(null);
@@ -151,6 +154,7 @@ export function WorkspaceFileTree({
     workspaceIdentity,
     workspaceRemoteSessionId,
     enabled: hasFileSearchQuery,
+    ignoreRulesRoot: workspaceScope,
   });
   const {
     entries: searchIndexEntries,
@@ -748,6 +752,7 @@ export function WorkspaceFileTree({
             contextMenuLabels={fileContextMenuLabels}
             editorState={editorState}
             workspacePath={workspacePath}
+            workspaceScopePath={workspaceScope}
             workspaceIdentity={workspaceIdentity}
             onSelect={setSelectedPath}
             onToggleDirectory={handleToggleDirectory}
@@ -773,6 +778,7 @@ export function WorkspaceFileTree({
             })}
             workspaceTitle={workspaceTitle}
             workspacePath={workspacePath}
+            workspaceScopePath={workspaceScope}
             workspaceIdentity={workspaceIdentity}
             selectedPath={selectedPath}
             gitStatusByPath={treeData.gitStatusByPath}

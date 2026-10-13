@@ -290,6 +290,7 @@ export function AnimatedSidePanePanel({
   isBrowserOpen,
   supportsEmbeddedBrowser = true,
   workspaceAbsPath,
+  effectiveWorkspacePath,
   workspaceIdentity,
   workspaceRemoteSessionId,
   activeTaskId,
@@ -355,6 +356,12 @@ export function AnimatedSidePanePanel({
   isBrowserOpen: boolean;
   supportsEmbeddedBrowser?: boolean;
   workspaceAbsPath: string;
+  /**
+   * 文件树 / 终端 / 文件搜索的归属目录 = 会话执行 cwd（会话已绑定时），否则 = `workspaceAbsPath`。
+   * 仅终端 cwd 默认值用它；其余 workspace 作用域（browser / git / preview / 插件）继续用
+   * `workspaceAbsPath` 与 `workspaceIdentity` 的工作区身份，不受会话 cwd 影响。
+   */
+  effectiveWorkspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   activeTaskId: string | null;
@@ -1193,6 +1200,12 @@ export function AnimatedSidePanePanel({
                           <WorkflowWorkspaceSidePane
                             tab={tab}
                             focused={isVisible && tab.id === visibleActiveTabId}
+                            // 脚本 read 卡的相对路径基准是 run 的 cwd（= 发起打开的会话执行目录），
+                            // 不是 tab 的工作区身份根：优先用 tab 打开时冻结的请求根，缺席才回落
+                            // 聚焦会话 cwd。
+                            fileReferenceRootPath={
+                              tab.fileReferenceRootPath ?? effectiveWorkspacePath
+                            }
                             onOpenCodeViewer={onOpenCodeViewer}
                           />
                         ) : tab.type === "workflow-artifact" ? (
@@ -1200,6 +1213,13 @@ export function AnimatedSidePanePanel({
                           // 不新造第二条定位路径。
                           <WorkflowArtifactSidePane
                             tab={tab}
+                            // 产物 sourcePath 相对 run 的 cwd（= 发起打开的会话执行目录）：
+                            // 优先用 tab 打开时冻结的那个根（`fileReferenceRootPath`），它属于
+                            // 这次请求，与壳层焦点无关；缺席（旧发送端 / 中枢入口）才回落聚焦
+                            // 会话 cwd，与改动前一致。
+                            fileReferenceRootPath={
+                              tab.fileReferenceRootPath ?? effectiveWorkspacePath
+                            }
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             {...(onRevealGitFileInTree === undefined
                               ? {}
@@ -1280,7 +1300,9 @@ export function AnimatedSidePanePanel({
                             services={services}
                             sessionId={tab.id}
                             workspaceKey={workspaceKey}
-                            cwd={tab.cwd ?? workspaceAbsPath}
+                            // tab.cwd 仍是用户的显式选择（最高优先级）；没有显式 cwd 时
+                            // 默认落到会话执行 cwd（旧 CLI / 未绑定会话回落工作区路径）。
+                            cwd={tab.cwd ?? effectiveWorkspacePath}
                             isVisible={isVisible && tab.id === visibleActiveTabId}
                             isWindowsDesktop={isWindowsDesktop}
                             onOpenBrowserUrl={onOpenBrowserUrl}

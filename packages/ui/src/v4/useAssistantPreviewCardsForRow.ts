@@ -19,7 +19,12 @@ interface UseAssistantPreviewCardsForAssistantTextRowParams {
   row?: AssistantTextRow;
   assistantTextRows: readonly AssistantTextRow[];
   latestAssistantTextRow?: AssistantTextRow;
-  workspacePath: string;
+  /**
+   * 对话正文里相对文件路径的**解析基准**：会话执行 cwd（对话会话是 `<对话根>/<日期>/<id8>`），
+   * 也就是模型写路径时的 cwd，不是 tab 的工作区键路径。用工作区键路径会让"报告存在 report.md 里"
+   * 这类相对引用解析到对话根，卡片因文件不存在被静默过滤（改前两者恰好相同，所以只有对话会话暴露）。
+   */
+  fileReferenceRootPath: string;
   workspaceHomePath?: string;
   fileChangesTarget: ConversationRowTarget | null;
   fileChangesState?: ConversationFileChangesState;
@@ -47,7 +52,7 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   row,
   assistantTextRows,
   latestAssistantTextRow,
-  workspacePath,
+  fileReferenceRootPath,
   workspaceHomePath,
   fileChangesTarget,
   fileChangesState,
@@ -61,11 +66,11 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   const fileReferences = useMemo(
     () =>
       canBuildCards
-        ? extractAssistantFileReferences(turnText, workspacePath, {
+        ? extractAssistantFileReferences(turnText, fileReferenceRootPath, {
             homePath: workspaceHomePath,
           })
         : [],
-    [canBuildCards, turnText, workspaceHomePath, workspacePath],
+    [canBuildCards, turnText, workspaceHomePath, fileReferenceRootPath],
   );
   const needsFileChanges = fileReferences.some(
     (reference) => reference.kind === "markdown" || reference.kind === "html",
@@ -127,11 +132,23 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   return useMemo(
     () =>
       canBuildCards
-        ? buildAssistantPreviewCardsFromReferences(turnText, workspacePath, fileReferences, {
-            changedFilePaths,
-            homePath: workspaceHomePath,
-          })
+        ? buildAssistantPreviewCardsFromReferences(
+            turnText,
+            fileReferenceRootPath,
+            fileReferences,
+            {
+              changedFilePaths,
+              homePath: workspaceHomePath,
+            },
+          )
         : [],
-    [canBuildCards, changedFilePaths, fileReferences, turnText, workspaceHomePath, workspacePath],
+    [
+      canBuildCards,
+      changedFilePaths,
+      fileReferences,
+      turnText,
+      workspaceHomePath,
+      fileReferenceRootPath,
+    ],
   );
 }

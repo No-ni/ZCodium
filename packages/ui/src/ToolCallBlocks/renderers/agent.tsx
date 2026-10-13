@@ -1,7 +1,6 @@
 import { BotIcon } from "lucide-react";
 import { useCallback, useMemo, type ReactNode } from "react";
 import type { AgentColor } from "@zcode/shared";
-import { MessageResponse } from "@/components/ai-elements/message.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { resolveSubagentColorFromName, SUBAGENT_TEXT_COLOR_CLASS } from "@/lib/subagentColors.js";
@@ -12,6 +11,7 @@ import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotic
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 import { getLatestExploreChildSummaryFromChildren } from "./explore.js";
+import { AgentActivitySection } from "./agentActivitySection.js";
 import { AgentPromptSection } from "./agentPromptSection.js";
 import {
   formatAgentMessage,
@@ -28,6 +28,7 @@ const AGENT_TOOL_ICON = <BotIcon className="size-4 shrink-0 text-foreground-subt
 function AgentChildToolList({
   childToolCalls,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   onOpenCodeViewer,
@@ -38,6 +39,8 @@ function AgentChildToolList({
 }: {
   childToolCalls: ToolCallBlockRenderContext["toolCallNode"]["childToolCalls"];
   workspacePath: string;
+  /** 子工具卡必须继承同一解析根，否则子卡退回身份根（已知边界 12）。 */
+  fileReferenceRootPath?: string;
   theme?: ToolCallBlockRenderContext["theme"];
   codePreviewSettings?: ToolCallBlockRenderContext["codePreviewSettings"];
   onOpenCodeViewer?: ToolCallBlockRenderContext["onOpenCodeViewer"];
@@ -58,6 +61,7 @@ function AgentChildToolList({
           toolCallNode={childToolCallNode}
           depth={1}
           workspacePath={workspacePath}
+          fileReferenceRootPath={fileReferenceRootPath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           showIcon={false}
@@ -70,50 +74,6 @@ function AgentChildToolList({
         />
       ))}
     </div>
-  );
-}
-
-function AgentActivitySection({
-  label,
-  content,
-  workspacePath,
-  theme,
-  codePreviewSettings,
-  onOpenCodeViewer,
-  onOpenFileLink,
-  onOpenBrowserUrl,
-}: {
-  label: string;
-  content: string;
-  workspacePath: string;
-  theme?: ToolCallBlockRenderContext["theme"];
-  codePreviewSettings?: ToolCallBlockRenderContext["codePreviewSettings"];
-  onOpenCodeViewer?: ToolCallBlockRenderContext["onOpenCodeViewer"];
-  onOpenFileLink?: ToolCallBlockRenderContext["onOpenFileLink"];
-  onOpenBrowserUrl?: ToolCallBlockRenderContext["onOpenBrowserUrl"];
-}) {
-  return (
-    <section className="space-y-2">
-      <div className="rounded-lg border border-border bg-background-alt/40 flex flex-col">
-        <h4 className="p-3 text-ui-base font-medium tracking-wide text-foreground-subtlest uppercase">
-          {label}
-        </h4>
-        <div className="overflow-auto max-h-64" data-markdown-table-sticky-scrollbar="disabled">
-          {/* Agent 活动内容同样可能包含长代码/路径，允许横向滚动避免窄屏截断。*/}
-          <MessageResponse
-            className="px-3 py-2 min-w-0 break-words text-ui-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-            workspacePath={workspacePath}
-            theme={theme}
-            codePreviewSettings={codePreviewSettings}
-            onOpenCodeViewer={onOpenCodeViewer}
-            onOpenFileLink={onOpenFileLink}
-            onOpenExternalUrl={onOpenBrowserUrl}
-          >
-            {content}
-          </MessageResponse>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -300,6 +260,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
           <AgentPromptSection
             prompt={prompt}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             onOpenCodeViewer={context.onOpenCodeViewer}
@@ -312,6 +273,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
             label={formatAgentMessage(intl, "chat.toolCall.agent.thought", "Agent thought")}
             content={activityThought}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             onOpenCodeViewer={context.onOpenCodeViewer}
@@ -324,6 +286,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
             label={formatAgentMessage(intl, "chat.toolCall.agent.output", "Agent output")}
             content={activityContent}
             workspacePath={context.workspacePath}
+            fileReferenceRootPath={context.fileReferenceRootPath}
             theme={context.theme}
             codePreviewSettings={context.codePreviewSettings}
             onOpenCodeViewer={context.onOpenCodeViewer}
@@ -334,6 +297,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
         <AgentChildToolList
           childToolCalls={childToolCalls}
           workspacePath={context.workspacePath}
+          fileReferenceRootPath={context.fileReferenceRootPath}
           theme={context.theme}
           codePreviewSettings={context.codePreviewSettings}
           onOpenCodeViewer={context.onOpenCodeViewer}
@@ -355,6 +319,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
       context.onOpenCodeViewer,
       context.onOpenFileLink,
       context.theme,
+      context.fileReferenceRootPath,
       context.workspacePath,
       intl,
       isAgentVisuallyRunning,

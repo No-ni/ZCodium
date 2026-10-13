@@ -117,6 +117,7 @@ function CuaGroupChildren({
               key={`tool:${event.row.toolCallId}`}
               toolCallNode={event.node}
               workspacePath={context.workspacePath}
+              fileReferenceRootPath={context.fileReferenceRootPath}
               theme={context.theme}
               codePreviewSettings={context.codePreviewSettings}
               showIcon

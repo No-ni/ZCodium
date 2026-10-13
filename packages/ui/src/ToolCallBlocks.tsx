@@ -75,6 +75,7 @@ function ToolCallBlockComponent({
   toolCallNode,
   depth = 0,
   workspacePath,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   showIcon = true,
@@ -107,7 +108,13 @@ function ToolCallBlockComponent({
 }: {
   toolCallNode: TaskChatToolCallTreeNode;
   depth?: number;
+  /** 工作区身份根：code viewer 作用域 / 插件 scope / 子代理候选匹配；语义不要改。 */
   workspacePath: string;
+  /**
+   * 模型写相对路径时的 cwd（对话会话 = 会话执行目录）：展示与链接解析的基准。
+   * 缺省不传 = 回落 `workspacePath`（身份根，改动前行为）。
+   */
+  fileReferenceRootPath?: string;
   /** 应用主题（store 耦合剥离）：由宿主（v4 SessionPane 等）传入，缺省按 "system" 兜底。 */
   theme?: ToolCallBlockRenderContext["theme"];
   /** 代码预览设置（store 耦合剥离）：由宿主传入并保持引用稳定。 */
@@ -202,8 +209,12 @@ function ToolCallBlockComponent({
   const identity = resolveToolCallIdentity(toolCall);
   const toolState = mapToolStatus(toolCall.status);
   const displayModel = useMemo(
-    () => buildToolDisplayModel(toolCall, workspacePath),
-    [toolCall, workspacePath],
+    // 第二个参数在 buildToolDisplayModel 里**只做相对路径解析**（viewer/内容预览/planFilePath
+    // 都是 `isAbsolute ? raw : joinFilePath(root, raw)`，返回的 source 不带 scope）：
+    // 工具输出里的路径是模型写的原文（CLI handler 回填原始输入），相对路径必须按模型 cwd 解析。
+    // 缺省回落 workspacePath = 改动前行为。
+    () => buildToolDisplayModel(toolCall, fileReferenceRootPath ?? workspacePath),
+    [toolCall, fileReferenceRootPath, workspacePath],
   );
   const rawFileSummaries = useMemo(
     () =>
@@ -250,6 +261,7 @@ function ToolCallBlockComponent({
               toolCallNode={childToolCallNode}
               depth={depth + 1}
               workspacePath={workspacePath}
+              fileReferenceRootPath={fileReferenceRootPath}
               theme={theme}
               codePreviewSettings={codePreviewSettings}
               showIcon={showIcon}
@@ -286,6 +298,7 @@ function ToolCallBlockComponent({
       theme,
       codePreviewSettings,
       toolPreviewCodeViewer,
+      fileReferenceRootPath,
       workspacePath,
     ],
   );
@@ -295,6 +308,8 @@ function ToolCallBlockComponent({
       isOfficeMode,
       toolCallNode,
       workspacePath,
+      // 解析/展示根与身份根分开：下游用它剥展示前缀、解析模型写的相对链接。
+      fileReferenceRootPath,
       theme,
       codePreviewSettings,
       displayModel,
@@ -365,6 +380,7 @@ function ToolCallBlockComponent({
       workflowRun,
       workflowDraft,
       workspacePath,
+      fileReferenceRootPath,
     ],
   );
 

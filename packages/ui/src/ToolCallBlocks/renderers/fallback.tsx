@@ -25,6 +25,7 @@ export function FallbackToolCallBlock(context: FallbackToolCallBlockProps) {
     childToolList,
     displayModel,
     workspacePath,
+    fileReferenceRootPath,
     theme,
     codePreviewSettings,
     onOpenCodeViewer,
@@ -46,6 +47,7 @@ export function FallbackToolCallBlock(context: FallbackToolCallBlockProps) {
           displayModel={displayModel}
           toolCall={toolCall}
           workspacePath={workspacePath}
+          fileReferenceRootPath={fileReferenceRootPath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           onOpenCodeViewer={onOpenCodeViewer}
@@ -78,6 +80,7 @@ export function FallbackToolCallBlock(context: FallbackToolCallBlockProps) {
       onOpenFileLink,
       theme,
       toolCall,
+      fileReferenceRootPath,
       workspacePath,
     ],
   );

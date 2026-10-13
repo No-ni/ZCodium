@@ -36,10 +36,12 @@ const EMPTY_SUMMARIES: readonly WorkflowRunArtifactSummary[] = [];
 
 const WorkflowArtifactContent = memo(function WorkflowArtifactContent({
   tab,
+  fileReferenceRootPath,
   onOpenBrowserUrl,
   onRevealFileInTree,
 }: {
   tab: WorkflowArtifactSidePaneTab;
+  fileReferenceRootPath?: string;
   onOpenBrowserUrl?: (url: string) => void;
   onRevealFileInTree?: (path: string) => void;
 }) {
@@ -108,6 +110,7 @@ const WorkflowArtifactContent = memo(function WorkflowArtifactContent({
           artifact={artifact}
           metadataLoading={metadataLoading}
           tab={tab}
+          {...(fileReferenceRootPath === undefined ? {} : { fileReferenceRootPath })}
           theme={theme}
           {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
           {...(onRevealFileInTree === undefined ? {} : { onRevealFileInTree })}
@@ -125,6 +128,7 @@ function WorkflowArtifactView({
   artifact,
   metadataLoading,
   tab,
+  fileReferenceRootPath,
   theme,
   onOpenBrowserUrl,
   onRevealFileInTree,
@@ -133,6 +137,8 @@ function WorkflowArtifactView({
   /** 元数据（含预置看板的 spec）还在读；正文据此区分「还没到」与「真的没有」。 */
   metadataLoading: boolean;
   tab: WorkflowArtifactSidePaneTab;
+  /** run cwd 相对路径的解析根（见 `WorkflowArtifactSidePane` 同名 prop）。 */
+  fileReferenceRootPath?: string;
   theme: Theme;
   onOpenBrowserUrl?: (url: string) => void;
   onRevealFileInTree?: (path: string) => void;
@@ -179,8 +185,9 @@ function WorkflowArtifactView({
     enabled: preset,
   });
 
-  // 「在工作区显示」与 html 的「在浏览器中打开」共用这一条路径：工作区相对的 `sourcePath`
-  // 拼上 workspacePath 才是本机上真实存在的位置。远程 workspace 与无出处的产物都得不到它。
+  // 「在工作区显示」与 html 的「在浏览器中打开」共用这一条路径：相对 **run cwd** 的 `sourcePath`
+  // 拼上解析根才是本机上真实存在的位置（对话会话的 run cwd 是会话执行目录，不是工作区身份根）。
+  // 远程 workspace 与无出处的产物都得不到它。
   const sourcePath = artifact.sourcePath;
   const localSourcePath =
     sourcePath !== undefined &&
@@ -189,7 +196,7 @@ function WorkflowArtifactView({
       ...(tab.workspaceIdentity === undefined ? {} : { workspaceIdentity: tab.workspaceIdentity }),
       ...(tab.remoteSessionId === undefined ? {} : { remoteSessionId: tab.remoteSessionId }),
     })
-      ? joinFilePath(tab.workspacePath, sourcePath)
+      ? joinFilePath(fileReferenceRootPath ?? tab.workspacePath, sourcePath)
       : undefined;
 
   const [copied, setCopied] = useState(false);
@@ -382,10 +389,17 @@ function ArtifactVersionStepper({
  */
 export const WorkflowArtifactSidePane = memo(function WorkflowArtifactSidePane({
   tab,
+  fileReferenceRootPath,
   onOpenBrowserUrl,
   onRevealFileInTree,
 }: {
   tab: WorkflowArtifactSidePaneTab;
+  /**
+   * 产物 `sourcePath` 的解析根：它是**相对 run 的 cwd** 产出的（`artifact.publish` 用
+   * `toWorkspaceRelative(deps.cwd, …)`），而 run 的 cwd 在对话会话里是会话执行目录，
+   * 不是工作区身份根。由宿主传当前会话的 cwd；缺席回落 `tab.workspacePath`（改动前行为）。
+   */
+  fileReferenceRootPath?: string;
   /** html 产物的「在浏览器中打开」。 */
   onOpenBrowserUrl?: (url: string) => void;
   /** 「在工作区显示」：复用既有的文件树 reveal（与 Git 面板同一条路径）。 */
@@ -404,6 +418,7 @@ export const WorkflowArtifactSidePane = memo(function WorkflowArtifactSidePane({
     <V4PaneConversationProvider scope={scope}>
       <WorkflowArtifactContent
         tab={tab}
+        {...(fileReferenceRootPath === undefined ? {} : { fileReferenceRootPath })}
         {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
         {...(onRevealFileInTree === undefined ? {} : { onRevealFileInTree })}
       />

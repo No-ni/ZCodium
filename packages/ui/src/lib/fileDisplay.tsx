@@ -92,7 +92,75 @@ function stripBasePath(path: string, basePath?: string): string {
     return normalizedPath.slice(normalizedBasePath.length + 1);
   }
 
+  // Windows 上同一目录可能以不同大小写出现在不同来源（Agent 工具输出 / tab 元数据 / 会话目录）。
+  // 选根（`isFilePathInsideRoot`）是大小写不敏感的，剥前缀若严格敏感就会出现「选中了深根却剥不掉」，
+  // 展示退化成绝对全路径——比改动前（基准恒为身份根）更差。这里沿用 `toWorkspaceRelativePath`
+  // 的既有做法：降级做一次只用于比较的大小写不敏感前缀匹配，返回值仍用原串切片。
+  const lowerPath = normalizedPath.toLowerCase();
+  const lowerPrefix = `${normalizedBasePath}/`.toLowerCase();
+  if (lowerPath.startsWith(lowerPrefix)) {
+    return normalizedPath.slice(normalizedBasePath.length + 1);
+  }
+
   return path;
+}
+
+/**
+ * 词法包含判定：filePath 是否落在 rootPath 之下（含相等）。
+ *
+ * 与 `workspace-file-tree/model.ts` 的 `isWorkspaceFilePathInside` 同一套归一化
+ * （统一分隔符 + 去尾分隔符），并额外做大小写不敏感比较：Windows 上同一路径在不同
+ * 来源（Agent 工具输出 / tab 元数据）可能大小写不一致，只按大小写敏感比较会把该剥的
+ * 前缀漏掉（`toWorkspaceRelativePath` 也有一份同样用途的降级匹配）。
+ *
+ * 刻意在 fileDisplay 内自带一份，不 import 文件树模块：展示层不该依赖 workspace-file-tree
+ * （方向相反，且会引入循环依赖）。判定只用于"选哪一层根"，返回值仍是入参原值，
+ * 真正的剥前缀仍由 `stripBasePath` 完成。
+ */
+function isFilePathInsideRoot(rootPath: string, filePath: string): boolean {
+  const normalizedRoot = trimTrailingSeparator(normalizePath(rootPath)).toLowerCase();
+  const normalizedFilePath = trimTrailingSeparator(normalizePath(filePath)).toLowerCase();
+
+  if (normalizedRoot.length === 0) {
+    return false;
+  }
+
+  return (
+    normalizedFilePath === normalizedRoot || normalizedFilePath.startsWith(`${normalizedRoot}/`)
+  );
+}
+
+/**
+ * 解析展示基准根：展示相对路径时该按哪一层根剥前缀。
+ *
+ * 入参 `roots` 按「深 → 浅」排列（调用方传 `[fileReferenceRootPath, workspacePath]`：
+ * 会话执行 cwd 在前、工作区身份根在后）。返回**第一个真正包含 filePath** 的根，
+ * 都不包含时返回**最后一个已定义的根**——保持既有展示行为，工作区外的绝对路径不会
+ * 因为多了一层根就突然变成全路径。
+ *
+ * 会话执行 cwd（`<对话根>/<日期>/<会话id8>`）是模型写相对路径的 cwd，也是文件变更 chip /
+ * 工具输出的展示基准；`workspacePath` 仍是工作区身份（code viewer 作用域等）。
+ * 见 docs/specs/conversation-session-workspace.md 已知边界 12。
+ */
+export function resolveFileDisplayBasePath(
+  filePath: string,
+  roots: readonly (string | undefined)[],
+): string | undefined {
+  const definedRoots = roots.filter(
+    (root): root is string => typeof root === "string" && root.trim().length > 0,
+  );
+
+  if (definedRoots.length === 0) {
+    return undefined;
+  }
+
+  for (const root of definedRoots) {
+    if (isFilePathInsideRoot(root, filePath)) {
+      return root;
+    }
+  }
+
+  return definedRoots[definedRoots.length - 1];
 }
 
 function buildFilePath(path: string, fileName: string): string | null {

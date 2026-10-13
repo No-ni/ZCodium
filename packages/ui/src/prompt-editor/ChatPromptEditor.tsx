@@ -41,6 +41,8 @@ function runAfterFrame(callback: () => void) {
 export function ChatPromptEditor({
   workspacePath,
   workspaceIdentity,
+  fileSearchRootPath,
+  fileReferenceRootResolved = true,
   taskId,
   skillCatalogSessionId,
   initialValue,
@@ -91,6 +93,10 @@ export function ChatPromptEditor({
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 文件 mention / + 菜单文件列表的搜索根（会话执行 cwd）；缺省 = `workspacePath`。 */
+  fileSearchRootPath?: string;
+  /** `fileSearchRootPath` 是否已由会话事实解析出来（缺省 true）：false ⇒ 提及投绝对路径。 */
+  fileReferenceRootResolved?: boolean;
   taskId: string | null;
   /** 仅供 Composer Skill catalog；可为草稿的 prewarm Session。 */
   skillCatalogSessionId?: string | null;
@@ -301,6 +307,12 @@ export function ChatPromptEditor({
           payload: workspaceFilePayload,
           workspacePath,
           workspaceIdentity,
+          // 本编辑器与主 composer 共用同一套同源判据：解析根缺席会被归一化成身份根，
+          // 于是「会话目录树 → 本编辑器」这条同源拖拽也会被判不同源、插入绝对路径
+          // （不会写错文件，但与主 composer 行为不一致，违反 spec 规则 12 / 验收 12）。
+          fileReferenceRootPath: fileSearchRootPath,
+          // 与主 composer 同样按解析根的来源决定：未由会话事实证明 ⇒ 投绝对路径。
+          fileReferenceRootResolved,
           onTextChange: handleTextChange,
         });
         return;
@@ -313,6 +325,8 @@ export function ChatPromptEditor({
     },
     [
       enableWorkspaceFileDrop,
+      fileReferenceRootResolved,
+      fileSearchRootPath,
       handleTextChange,
       onDrop,
       resolvedInputApiRef,
@@ -373,6 +387,9 @@ export function ChatPromptEditor({
           triggerPanelContainer={resolvedTriggerPanelContainer}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
+          fileSearchRootPath={fileSearchRootPath}
+          // 文件候选的插入形态也跟同一个来源事实：解析根未被会话事实证明时投绝对路径。
+          fileReferenceRootResolved={fileReferenceRootResolved}
           taskId={taskId}
           skillCatalogSessionId={skillCatalogSessionId}
           inputTestId={inputTestId}
@@ -398,6 +415,8 @@ export function ChatPromptEditor({
                   inputApiRef={resolvedInputApiRef}
                   workspacePath={workspacePath}
                   workspaceIdentity={workspaceIdentity}
+                  fileSearchRootPath={fileSearchRootPath}
+                  fileReferenceRootResolved={fileReferenceRootResolved}
                   sessionId={taskId}
                   container={resolvedTriggerPanelContainer}
                   showPlugins={enableMentionPanel !== false}

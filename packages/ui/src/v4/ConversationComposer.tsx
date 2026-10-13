@@ -396,6 +396,13 @@ interface ConversationComposerProps {
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 文件 mention / + 菜单文件列表的搜索根（会话执行 cwd）；缺省 = `workspacePath`。 */
+  fileSearchRootPath?: string;
+  /**
+   * `fileSearchRootPath` 是否已由会话事实解析出来（缺省 true = 改动前行为）：false ⇒ 提及
+   * 一律投绝对路径。判据与理由见 `resolvePaneFileSearchRoot` 与 spec 已知边界 14。
+   */
+  fileReferenceRootResolved?: boolean;
   remoteSessionId?: string;
   /** SessionPane 从目标 Host 原子读取的选择事实；Composer 不自行解析 Host。 */
   modelSelectionView?: ModelSelectionView | null;
@@ -498,6 +505,8 @@ function ConversationComposerImpl({
   autoFocusEnabled = true,
   workspacePath,
   workspaceIdentity,
+  fileSearchRootPath,
+  fileReferenceRootResolved = true,
   remoteSessionId,
   modelSelectionView = null,
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
@@ -654,13 +663,26 @@ function ConversationComposerImpl({
           payload: workspaceFilePayload,
           workspacePath,
           workspaceIdentity,
+          // 本 composer 的解析根：会话已绑定时是会话执行 cwd（`fileSearchRootPath`），
+          // 缺席时由 createWorkspaceFileComposerMention 回落 workspacePath。
+          fileReferenceRootPath: fileSearchRootPath,
+          // 解析根还没被会话事实证明（草稿态预热未就绪 / 首帧身份不匹配）时投绝对路径：
+          // 首发会话的执行目录还没铸出来，相对路径会被它按自己的 cwd 解析而找不到文件。
+          fileReferenceRootResolved,
           onTextChange: updateText,
         });
         return;
       }
       attachmentsApi.handleDropComposer(event);
     },
-    [attachmentsApi.handleDropComposer, updateText, workspaceIdentity, workspacePath],
+    [
+      attachmentsApi.handleDropComposer,
+      fileReferenceRootResolved,
+      fileSearchRootPath,
+      updateText,
+      workspaceIdentity,
+      workspacePath,
+    ],
   );
   const conversationDragKind = workspaceFileDragging
     ? "workspace"
@@ -1510,6 +1532,9 @@ function ConversationComposerImpl({
         payload: event.detail,
         workspacePath,
         workspaceIdentity,
+        // 同 handleConversationDrop：解析根用本 composer 的会话执行 cwd（缺席回落 workspacePath）。
+        fileReferenceRootPath: fileSearchRootPath,
+        fileReferenceRootResolved,
         onTextChange: updateText,
       });
     };
@@ -1517,7 +1542,14 @@ function ConversationComposerImpl({
     return () => {
       window.removeEventListener(WORKSPACE_FILE_ADD_TO_CHAT_EVENT, handleWorkspaceFileAddToChat);
     };
-  }, [listenAddToChatEvents, updateText, workspaceIdentity, workspacePath]);
+  }, [
+    fileReferenceRootResolved,
+    fileSearchRootPath,
+    listenAddToChatEvents,
+    updateText,
+    workspaceIdentity,
+    workspacePath,
+  ]);
 
   // 动态 placeholder（旧 chatViewPlaceholder 语义）：无历史 → newTask；
   // 有历史空闲 → followUpAsk；有历史处理中 → followUpQueue。
@@ -2149,6 +2181,8 @@ function ConversationComposerImpl({
         <ChatPromptEditor
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
+          fileSearchRootPath={fileSearchRootPath}
+          fileReferenceRootResolved={fileReferenceRootResolved}
           taskId={sessionId}
           skillCatalogSessionId={skillCatalogSessionId}
           placeholder={placeholder}

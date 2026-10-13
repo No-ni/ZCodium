@@ -113,6 +113,10 @@ import type { Theme } from "@/useTheme.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { WorkspaceFileTree } from "@/WorkspaceFileTree.js";
+import {
+  resolveSidebarFileTreePath,
+  type SidebarFileTreeTarget,
+} from "@/workspace-file-tree/sidebarFileTreePath.js";
 import { WorkspaceArchivedTasksFlatSection } from "@/WorkspaceArchivedTasksFlatSection.js";
 import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
 import { WorkspacePinnedTasksSection } from "@/WorkspacePinnedTasksSection.js";
@@ -159,15 +163,6 @@ type TaskOrganizeBy = SidebarTaskOrganizeBy;
 type TaskSortBy = SidebarTaskSortBy;
 type PrimaryTaskMode = "workspace" | "grouped";
 type SidebarTaskViewMode = "grouped" | "workspace" | "timeline" | "archived";
-
-interface SidebarFileTreeTarget {
-  workspacePath: string;
-  workspaceName: string;
-  workspaceIdentity?: string;
-  workspaceRemoteSessionId?: string;
-  revealPath?: string;
-  temporaryExternalDirectory?: boolean;
-}
 
 // 流式 task 事件会让 sidebar 父级频繁刷新；缺任务分组时如果传新的 []
 // 会让 memo 的 workspace 行误判 taskItems 变化，穿透到 TaskList/TaskListItem 重渲染。
@@ -222,6 +217,7 @@ function resolveSidebarTaskViewMode(params: {
 
 export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   workspacePath,
+  activeSessionWorkspacePath,
   activePreviewPath,
   onSelectTask,
   onStartDraftInWorkspace,
@@ -260,6 +256,12 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onFileTreeOpenChange,
 }: {
   workspacePath: string;
+  /**
+   * 当前对话的会话执行 cwd（见 docs/specs/conversation-session-workspace.md）。
+   * 文件树归属当前 workspace tab 且会话已绑定时，用它替换 tab 的 workspacePath 作为
+   * 文件树根；其余 tab / 外部目录 / 未绑定会话的树不变。null = 未绑定，回落 workspacePath。
+   */
+  activeSessionWorkspacePath?: string | null;
   workspaceRemoteSessionId?: string;
   activePreviewPath?: string | null;
   onSelectTask: (
@@ -1643,10 +1645,18 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
         >
           {fileTreeTarget ? (
             <WorkspaceFileTree
-              workspacePath={fileTreeTarget.workspacePath}
+              workspacePath={resolveSidebarFileTreePath({
+                target: fileTreeTarget,
+                activeTaskId,
+                activeWorkspaceKey: buildTaskWorkspaceKey(workspacePath, workspaceIdentity),
+                activeSessionWorkspacePath,
+              })}
               workspaceName={fileTreeTarget.workspaceName}
               workspaceIdentity={fileTreeTarget.workspaceIdentity}
               workspaceRemoteSessionId={fileTreeTarget.workspaceRemoteSessionId}
+              // 工作区身份路径（tab 的 workspacePath）：忽略规则只有一份、落在对话根上，
+              // 拖拽 / Add to chat 的 payload 也按它匹配，绝不能用会话目录。
+              workspaceScopePath={fileTreeTarget.workspacePath}
               revealPath={fileTreeTarget.revealPath}
               temporaryExternalDirectory={fileTreeTarget.temporaryExternalDirectory}
               canOpenLocalFileManager={isDesktop}

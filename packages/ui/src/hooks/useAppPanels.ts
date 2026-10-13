@@ -793,9 +793,11 @@ export function useAppPanels(options: {
     revealSidePaneForCurrentOwner();
     commitOpenedSidePaneState((current) => {
       const title = createTerminalSidePaneTitle(current, workspaceAbsPath);
+      // 不在这里烘焙 cwd：终端 tab 的默认工作目录是「当前会话执行 cwd」，由 side pane
+      // 在渲染时按 effectiveWorkspacePath 解析（会话未绑定时回落 workspaceAbsPath）。
+      // 写死 workspaceAbsPath 会让对话会话的终端永远开在对话根上。
       const next = openTerminalSidePane(current, {
         title,
-        cwd: workspaceAbsPath,
         remoteSessionId: workspaceRemoteSessionId,
       });
       logger.info(
@@ -1117,9 +1119,16 @@ export function useAppPanels(options: {
       }
 
       const openInBrowser = (sourcePath: string) => {
-        // 工作区相对的 sourcePath 拼上 workspacePath 才是本机真实位置；与产物卡上
+        // 相对 **run cwd** 的 sourcePath 拼上解析根才是本机真实位置；与产物卡上
         // 「在浏览器中打开」走同一条路径（WorkflowArtifactSidePane 的 localSourcePath）。
-        const url = toFileUrl(joinFilePath(request.workspacePath, sourcePath));
+        // 对话会话的 run cwd 是会话执行目录，按工作区身份根拼会指到对话根下的同名路径。
+        //
+        // 解析根取**请求自带**的那个（发起 pane 的会话 cwd），不能用宿主侧的 `sessionWorkspacePath`
+        // ——那个是 shell 聚焦会话的 cwd：分屏时 focus 会覆盖 activeTaskId，用聚焦会话的目录去拼
+        // 另一个 pane 的产物会打开错的同名文件（或 404）。请求没带根（旧发送端 / 中枢设置页这类
+        // 没有会话上下文的入口）时回落工作区身份根，与改动前一致。
+        const artifactRootPath = request.fileReferenceRootPath?.trim() || request.workspacePath;
+        const url = toFileUrl(joinFilePath(artifactRootPath, sourcePath));
         const tabId = openFileUrlInBrowserSidePane({
           url,
           ownerTaskId: request.parentSessionId,

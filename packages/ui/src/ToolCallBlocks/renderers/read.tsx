@@ -3,13 +3,14 @@ import { useCallback, useMemo } from "react";
 import {
   FileDisplayIcon,
   FOLDER_FILE_ICON_SRC,
+  resolveFileDisplayBasePath,
   resolveFileDisplayDescriptor,
 } from "@/lib/fileDisplay.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolLayout } from "../ToolLayout.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
-import { renderFilePath } from "../shared.js";
+import { renderFileDirectoryPath, resolveToolCallFilePath } from "../shared.js";
 
 const READ_TOOL_ICON = <SearchIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
@@ -265,9 +266,14 @@ export function ReadToolCallBlock(context: ToolCallBlockRenderContext) {
     onOpenCodeViewer({
       type: "file",
       title: summary.fileName,
-      path: summary.path,
+      // 打开是"读"：工具输出里的路径可能是模型写的相对路径（CLI 回填的是原始输入），
+      // 必须按模型 cwd 解析；身份根只做 code viewer 作用域。
+      path: resolveToolCallFilePath(
+        summary.path,
+        context.fileReferenceRootPath ?? context.workspacePath,
+      ),
     });
-  }, [onOpenCodeViewer, summary]);
+  }, [context.fileReferenceRootPath, context.workspacePath, onOpenCodeViewer, summary]);
   const primaryText = useMemo(
     () =>
       summary ? (
@@ -291,7 +297,19 @@ export function ReadToolCallBlock(context: ToolCallBlockRenderContext) {
         sourceLabel={context.sourceLabel}
         primaryText={primaryText}
         prioritizePrimaryText
-        secondaryText={summary ? renderFilePath(summary.filePath) : undefined}
+        secondaryText={
+          summary
+            ? renderFileDirectoryPath(
+                summary.path,
+                // ReadSummary.filePath 是 createReadSummary 按模块缺省基准（工作区身份根）
+                // 算好的父目录串，展示基准换成会话执行 cwd 后必须按新基准重算。
+                resolveFileDisplayBasePath(summary.path, [
+                  context.fileReferenceRootPath,
+                  context.workspacePath,
+                ]),
+              )
+            : undefined
+        }
         statusLabel={statusLabel}
         statusTooltip={toolCall.status === "failed" ? errorText : undefined}
         showFailureStatus={toolCall.status === "failed"}
