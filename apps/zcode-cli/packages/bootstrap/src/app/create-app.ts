@@ -63,6 +63,7 @@ import {
   readSessionModelSelection,
 } from "./session-store.js";
 import { createWorkflowFacade } from "./workflow-facade.js";
+import { ensureConversationSessionDirForBareResume } from "./conversation-session-workspace.js";
 import { createInputFacade } from "./input-facade.js";
 import { createPluginFacadeForApp } from "./plugin-facade.js";
 import { resolvePluginRuntimeFeatures } from "./plugin-runtime-features.js";
@@ -148,12 +149,25 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
   const appVersion = options.version ?? "0.0.0";
   const sessionId = options.sessionId ?? createSessionId();
   const traceContext = options.traceContext ?? createRootTraceContext({ sessionId });
+  // 执行 cwd：文件读写、命令 cwd、相对路径解析、checkpoint/rewind 与上下文快照里的 path.cwd
+  // 都属于它。对话会话的它是每会话独立的执行目录（`<对话根>/<创建日>/<会话id前8位>`）。
   const workingDirectory = resolve(options.runtimeConfig?.workingDirectory ?? process.cwd());
+  // 工作区键路径：所有 workspace 级配置与身份读点的唯一根。workspace 级配置发现、hooks 发现、
+  // skills/commands、MCP 工程配置、projectID 与项目记忆都必须读它——对话会话的执行 cwd 是会话
+  // 独立目录，工作区身份仍是对话根，用执行 cwd 去读会让这些能力静默失效（见
+  // docs/specs/conversation-session-workspace.md 规则 9）。CLI/TUI 独立运行不传 workspacePath，
+  // 两者相等，行为与改动前逐位一致。
+  const workspaceDirectory = resolve(
+    options.runtimeConfig?.workspacePath ??
+      options.runtimeConfig?.workingDirectory ??
+      process.cwd(),
+  );
   const configResult = resolveEffectiveConfigResult(
     createConfig({
       env: options.env,
       projectConfigPath: options.projectConfigPath,
-      workingDirectory,
+      // `.zcodium/config.json`、project config 与 hooks 快照的来源都是工作区，不是执行 cwd。
+      workingDirectory: workspaceDirectory,
       workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
       skipUserConfig: options.skipUserConfig,
       userConfigPath: options.userConfigPath,
@@ -197,7 +211,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     const zcodeSubagentProfileOutcome = await loadZCodeAgentProfiles({
       logger,
       storageRoot,
-      workingDirectory,
+      // `.zcodium/agents` 是工作区级 profile 来源。
+      workingDirectory: workspaceDirectory,
     });
     const zcodeSubagentProfiles = zcodeSubagentProfileOutcome.profiles;
     const pluginOutcome = resolveStartupPlugins({
@@ -207,7 +222,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       logger,
       options,
       startupTimer,
-      workingDirectory,
+      // 插件配置读点是 `<工作区>/.zcodium/config.json`，不是执行 cwd。
+      workingDirectory: workspaceDirectory,
     });
     // 随 CLI 内置的技能包（dynamic-workflows 等）：不属于任何插件，用户无法停用或卸载。
     const bundledSkillRoots = await resolveBundledSkillRoots({ cliStorageRoot, logger });
@@ -220,6 +236,11 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     const pluginRuntimeFeatures = resolvePluginRuntimeFeatures(pluginOutcome);
     const builtInMcpServers = resolveBuiltInNodeReplMcpServers({
       pluginOutcome,
+      // 内置 node_repl MCP server 的 cwd = **本会话的执行 cwd**，不是工作区键路径：
+      // 模型在 `js` 里用相对路径写出的文件必须落在 Read/Write/Bash 解析的同一个根
+      // （spec 规则 11），落在对话根会写出「写完读不回来、不进本会话文件树、两个会话
+      // 互相覆盖」的第三个 cwd。代价是 config 参与 MCP 池键 ⇒ 对话工作区里每个执行
+      // 目录各持一份 node_repl 连接（浏览器经进程级 broker 仍是共享的），见 spec 边界 23。
       workingDirectory,
     });
     // 用户目录已在 loader 前完成原地迁移；不能给项目/插件旧身份加内存兼容旁路。
@@ -228,7 +249,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     const sessionStore =
       options.sessionStore ?? (await openStartupSessionStore(configResult, startupTimer));
     const localSettingStore = asLocalSettingStore(sessionStore);
-    const projectID = projectIdFromDirectory(workingDirectory);
+    // projectID 必须与 core 的 `getProjectId()`、session 行落库的 projectID 三方一致，
+    // 否则项目级权限模式读不到（core 用 workspaceScopeRoot 推导身份）。
+    const projectID = projectIdFromDirectory(workspaceDirectory);
     const persistedMode = options.runtimeConfig?.mode
       ? undefined
       : readProjectPermissionMode(localSettingStore, projectID);
@@ -247,7 +270,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         subagentOutputRootDir: join(cliStorageRoot, "agents"),
         subagentProfiles,
         storageRoot,
+        // 执行 cwd 保持原语义（runtimeConfig.workingDirectory）；
+        // workspaceDirectory 只用于 AGENTS.md 等 workspace 级发现根。
         workingDirectory,
+        workspaceDirectory,
         workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
       });
     const browserControlPort = options.browserControlPort;
@@ -306,7 +332,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       sessionId,
       snapshot: configResult.sources.project.workspaceHookSnapshot,
       userConfigPath: configResult.sources.user.path,
-      workingDirectory,
+      // Hooks 的发现根与 toggle 写回目标都是 `<工作区>/.zcodium/config.json`：
+      // 用执行 cwd 会读不到已信任的 hooks，并把开关写进会话目录。
+      workingDirectory: workspaceDirectory,
       ...(options.workspaceHookReviewHost
         ? {
             emitReviewEvent: async (event) => {
@@ -363,11 +391,13 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       startupTimer,
       storageRoot,
     });
+    // MCP 工程配置的作用域是工作区：server 子进程 cwd 与连接身份都按工作区键路径，
+    // 用执行 cwd 会让对话会话的 project 作用域 MCP 落到会话目录并各起一份进程。
     const mcpPort =
       options.mcpPort ??
       (runtimeConfig.mcp?.enabled === false
         ? undefined
-        : (options.mcpPortFactory?.({ workingDirectory }) ??
+        : (options.mcpPortFactory?.({ workingDirectory: workspaceDirectory }) ??
           createMcpAdapter({
             clientVersion: appVersion,
             env: options.env,
@@ -377,7 +407,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               noProxy: configResult.config.network.noProxy,
               caCertFile: configResult.config.network.caCertFile,
             },
-            workingDirectory,
+            workingDirectory: workspaceDirectory,
           })));
     const ownsMcpPort = options.mcpPort === undefined && mcpPort !== undefined;
     const executionPort =
@@ -474,6 +504,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         const resumeTraceContext = resumeOptions?.traceContext ?? traceContext;
         const modelSelection = await restorePersistedModelSelection();
         await initializeSessionShellEnvironment();
+        // 裸 CLI/TUI 恢复的唯一目录重建点：`path`（会话目录）可能已被回收/手工删除，协议路径
+        // 的重建都在 server-operations 的创建/复用/补发/降级分支里，这条边界只能在这里补
+        //（core 业务层禁 fs）。失败只记 warn，不阻断恢复。
+        await ensureConversationSessionDirForBareResume({
+          logger,
+          sessionId,
+          store: sessionStore,
+        });
         const result = await runtime.resumeFromStore({
           ...(resumeOptions?.abortSignal ? { abortSignal: resumeOptions.abortSignal } : {}),
           // 只传调用方原始 mode；项目/全局默认值不能伪装成 invocation override，
@@ -556,7 +594,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       sessionStore,
       storageRoot,
       traceContext,
+      // 两个根在这一层分开：run 项目键、项目档 `.zcodium/workflows` 查找与作用域判定走
+      // workspaceDirectory；子脚本进程与子 agent 会话的沙箱 cwd 走 workingDirectory（执行 cwd）。
       workingDirectory,
+      workspaceDirectory,
     });
 
     // workflow run service：CreateWorkflow 的确认窗 Allow 之后真启动引擎的那一侧。
@@ -773,7 +814,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           // 剔除，但用户仍可手打命令名，两条路径必须给出同一个结论。TUI 缺席时不设门禁；
           // headless 按 --enable-workflow 显式取值，见 runtimeConfig 字段注释。
           dynamicWorkflowEnabled: runtimeConfig.dynamicWorkflowEnabled,
-          workingDirectory,
+          // `/init` 的 AGENTS.md 目标在工作区根，不能写进会话执行目录。
+          workingDirectory: workspaceDirectory,
         });
         if (builtinPrompt !== undefined) {
           return builtinPrompt;
@@ -788,7 +830,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           skipUserConfig: options.skipUserConfig,
           traceContext: resolverOptions?.traceContext ?? traceContext,
           userConfigPath: options.userConfigPath,
-          workingDirectory,
+          // 自定义命令（slash commands）与 skills 的发现根是工作区 `.zcodium`/`.agents`；
+          // 用执行 cwd 会让对话会话看不到工作区里已安装的命令。
+          workingDirectory: workspaceDirectory,
         });
       },
       inputHistoryStore,
@@ -818,7 +862,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       sessionStore,
       storageRoot,
       traceContext,
+      // expert workflow 的 run 项目键与枚举按工作区键路径；workflow 子会话的沙箱 cwd
+      // 仍是执行 cwd（规则 5：派生会话继承父会话的执行 cwd）。
       workingDirectory,
+      workspaceDirectory,
     });
     const sessionFacade = createSessionFacade({
       // App 关闭时停下本会话拥有的 dwf run：
@@ -854,7 +901,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       sessionStore,
       traceContext,
       untrustedProjectMcpServers,
-      workingDirectory,
+      // session-facade 只用它做 UI 手工连接 MCP server 的进程 cwd（project 作用域），
+      // 属于工作区语义；本字段不参与任何会话执行路径。
+      workingDirectory: workspaceDirectory,
     });
 
     const closeSession = sessionFacade.close;
@@ -1235,7 +1284,12 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               return await getRuntime().amendWorkflowRunSettings({ ...input, traceContext });
             },
           }),
-      ...createPluginFacadeForApp({ configResult, options, workingDirectory }),
+      ...createPluginFacadeForApp({
+        configResult,
+        options,
+        // 插件清单/启停读写的都是工作区 `.zcodium/plugins`，不是执行 cwd。
+        workingDirectory: workspaceDirectory,
+      }),
       getPluginReferenceCatalog: () => pluginReferenceCatalog,
       getSkillCatalog: async () => {
         // Skill 目录属于 context 初始化结果。冷恢复必须先恢复 Session 边界，再读取

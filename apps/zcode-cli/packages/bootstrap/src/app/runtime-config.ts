@@ -44,7 +44,13 @@ export function resolveAppRuntimeConfig(input: {
   subagentOutputRootDir: string;
   subagentProfiles?: readonly AgentProfile[];
   storageRoot?: string;
+  /** 执行 cwd：文件读写、命令 cwd 与会话执行目录。 */
   workingDirectory: string;
+  /**
+   * 工作区键路径：workspace 级发现根（AGENTS.md 等）。
+   * CLI/TUI 不传 workspacePath，调用方传同一个值，行为与改动前一致。
+   */
+  workspaceDirectory?: string;
   workspaceIdentity?: string;
 }): ResolvedAppRuntimeConfig {
   const {
@@ -60,7 +66,12 @@ export function resolveAppRuntimeConfig(input: {
     workingDirectory,
     workspaceIdentity,
   } = input;
-  const userInstructions = options.runtimeConfig?.userInstructions ?? { workingDirectory };
+  // AGENTS.md 是工作区级指令文件：对话会话的执行 cwd 是会话独立目录，用它做默认发现根会让
+  // 项目指令静默失效。执行 cwd 仍由 runtimeConfig.workingDirectory 表达，两者不合并。
+  const workspaceDirectory = input.workspaceDirectory ?? workingDirectory;
+  const userInstructions = options.runtimeConfig?.userInstructions ?? {
+    workingDirectory: workspaceDirectory,
+  };
   const registrySelection = resolveInitialRegistrySelection(options);
   // 恢复历史不等于开始执行：失效/缺失选择保持未绑定，不能借 configured default 补齐。
   const initialModelSelection = options.resume
@@ -138,10 +149,13 @@ export function resolveAppRuntimeConfig(input: {
     runtimeFeatures: pluginRuntimeFeatures,
     language: options.runtimeConfig?.language,
     titleGeneration,
+    // 执行 cwd：core 的文件读写、命令 cwd、checkpoint 与 path.cwd 全部读它。
     workingDirectory,
     userInstructions: {
       ...userInstructions,
-      workingDirectory: userInstructions.workingDirectory ?? workingDirectory,
+      // 调用方显式传了 userInstructions 但没带发现根时，仍按工作区语义回落，
+      // 不能用执行 cwd（否则 AGENTS.md 会在会话目录里找不到）。
+      workingDirectory: userInstructions.workingDirectory ?? workspaceDirectory,
     },
     skillMetadataBudget:
       options.runtimeConfig?.skillMetadataBudget ?? configResult.config.skills.metadataBudget,
@@ -274,10 +288,13 @@ export function runtimeConfigLogContext(
   runtimeConfig: AgentRuntimeConfig,
   workingDirectory: string,
 ) {
+  // 项目记忆按工作区键路径分桶（与 core 的 workspaceScopeRoot 同源）。这里若用执行 cwd，
+  // 对话会话会算出一个 runtime 实际不使用的记忆根，日志与行为分叉。
+  const memoryWorkspacePath = runtimeConfig.workspacePath ?? workingDirectory;
   const memoryRoot = runtimeConfig.memory?.cliStorageRoot
     ? getProjectMemoryRoot(
         runtimeConfig.memory.cliStorageRoot,
-        workingDirectory,
+        memoryWorkspacePath,
         runtimeConfig.memory.workspaceIdentity,
       )
     : undefined;
