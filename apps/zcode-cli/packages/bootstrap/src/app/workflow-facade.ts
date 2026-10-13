@@ -66,7 +66,13 @@ interface CreateWorkflowFacadeDeps {
   sessionStore: SessionStorePort;
   storageRoot: string;
   traceContext: TraceContext;
+  /** 执行 cwd：workflow 子会话/子 agent 的沙箱，继承父会话（不变）。 */
   workingDirectory: string;
+  /**
+   * 工作区键路径：expert workflow run 的项目键与枚举过滤都用它。
+   * 用执行 cwd 会让对话会话保存/枚举的 run 只在本会话可见（改动前按工作区可见）。
+   */
+  workspaceDirectory: string;
 }
 
 export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFacade {
@@ -217,7 +223,7 @@ export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFa
       workflowKind = definition.kind;
     }
     return workflowStore.listRuns(
-      { cwd: deps.workingDirectory, kind: workflowKind, limit: options?.limit },
+      { cwd: deps.workspaceDirectory, kind: workflowKind, limit: options?.limit },
       { signal: options?.abortSignal },
     );
   };
@@ -266,7 +272,7 @@ export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFa
     switchWorkflowToYolo,
     traceContext: deps.traceContext,
     workflowRuntimeForLookup,
-    workingDirectory: deps.workingDirectory,
+    workspaceDirectory: deps.workspaceDirectory,
   });
 }
 

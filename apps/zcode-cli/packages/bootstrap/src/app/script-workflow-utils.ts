@@ -167,11 +167,12 @@ export async function collectScriptWorkflowSessionStats(
   return stats;
 }
 
+/** 工作区分档判定：`workspaceDirectory` 是工作区键路径（项目档根），不是执行 cwd。 */
 export function inferScriptWorkflowScope(
   scriptPath: string,
-  workingDirectory: string,
+  workspaceDirectory: string,
 ): "explicit" | "project" | "user" {
-  if (isWithin(scriptPath, join(workingDirectory, ".zcodium", "workflows"))) return "project";
+  if (isWithin(scriptPath, join(workspaceDirectory, ".zcodium", "workflows"))) return "project";
   if (isWithin(scriptPath, join(homedir(), ZCODE_USER_DATA_DIR_NAME, "workflows"))) return "user";
   return "explicit";
 }

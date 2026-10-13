@@ -43,7 +43,8 @@ interface CreateWorkflowMethodsDeps {
     runId?: string;
     workflowKind?: string;
   }): Promise<ExpertWorkflowRuntime>;
-  workingDirectory: string;
+  /** 工作区键路径：expert workflow run 的项目键（store 按它过滤），不是沙箱 cwd。 */
+  workspaceDirectory: string;
 }
 
 export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): WorkflowFacade {
@@ -59,7 +60,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
         })
       ).status({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         runId: options?.runId,
         workflowKind: options?.workflowKind ?? builtInExpertWorkflowDefinition.kind,
@@ -74,7 +75,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
         })
       ).status({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         runId: options?.runId,
         workflowKind: options?.workflowKind,
@@ -91,7 +92,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
       ).retry({
         abortSignal: options?.abortSignal,
         activityId: options?.activityId,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         nodeId: options?.nodeId,
         onEvent: options?.onEvent,
@@ -143,7 +144,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
         })
       ).resume({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         onEvent: options?.onEvent,
         runId: options?.runId,
@@ -163,7 +164,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
         })
       ).resume({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         onEvent: options?.onEvent,
         runId: options?.runId,
@@ -181,7 +182,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
         })
       ).cancel({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         runId: options?.runId,
         workflowKind: options?.workflowKind ?? builtInExpertWorkflowDefinition.kind,
@@ -196,7 +197,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
         })
       ).cancel({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: options?.definitionId,
         runId: options?.runId,
         workflowKind: options?.workflowKind,
@@ -215,7 +216,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
       );
       return workflow.startBackground({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: input.definitionId,
         onEvent: options?.onEvent,
         sessionId: deps.sessionId,
@@ -235,7 +236,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
       );
       return workflow.startBackground({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: input.definitionId ?? definition.definitionId,
         onEvent: options?.onEvent,
         sessionId: deps.sessionId,
@@ -258,7 +259,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
       );
       return workflow.start({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: input.definitionId ?? definition.definitionId,
         onEvent: options?.onEvent,
         sessionId: deps.sessionId,
@@ -278,7 +279,7 @@ export function createWorkflowMethods(deps: CreateWorkflowMethodsDeps): Workflow
       );
       return workflow.start({
         abortSignal: options?.abortSignal,
-        cwd: deps.workingDirectory,
+        cwd: deps.workspaceDirectory,
         definitionId: input.definitionId ?? definition.definitionId,
         onEvent: options?.onEvent,
         sessionId: deps.sessionId,

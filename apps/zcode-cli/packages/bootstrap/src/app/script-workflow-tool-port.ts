@@ -34,7 +34,8 @@ interface ScriptWorkflowToolPortDeps {
   sessionStore: SessionStorePort;
   storageRoot: string;
   traceContext: TraceContext;
-  workingDirectory: string;
+  /** 工作区键路径：项目档 `.zcodium/workflows` 的查找根（不是执行 cwd）。 */
+  workspaceDirectory: string;
 }
 
 export function createScriptWorkflowToolPort(deps: ScriptWorkflowToolPortDeps): WorkflowPort {
@@ -315,7 +316,7 @@ async function resolveNamedWorkflowPath(
 ): Promise<string> {
   const fileName = workflowFileName(name);
   const candidates = [
-    join(deps.workingDirectory, ".zcodium", "workflows", fileName),
+    join(deps.workspaceDirectory, ".zcodium", "workflows", fileName),
     join(homedir(), ZCODE_USER_DATA_DIR_NAME, "workflows", fileName),
   ];
   const builtIn = BUILTIN_WORKFLOW_ALLOWLIST.get(name);

@@ -46,6 +46,12 @@ const MAX_WORKFLOW_AGENT_CALLS = 1000;
 export interface ScriptWorkflowRuntimeDeps extends ScriptWorkflowAgentRuntimeDeps {
   prepareUserExecutionBoundary: PrepareUserExecutionBoundary;
   traceContext: TraceContext;
+  /**
+   * 工作区键路径：script workflow 的 run 项目键、项目档 `.zcodium/workflows` 查找根与
+   * 「项目/用户/显式」作用域判定都用它。子脚本进程与子 agent 会话的**沙箱 cwd** 仍用
+   * workingDirectory（执行 cwd），两者不能合并。
+   */
+  workspaceDirectory: string;
 }
 
 type ScriptWorkflowRunOptions = {
@@ -80,7 +86,7 @@ export class ScriptWorkflowRuntime {
 
   async list(input: { limit?: number } = {}): Promise<{ response: string; traceId: string }> {
     const runs = await this.store().listScriptWorkflowRuns({
-      cwd: this.deps.workingDirectory,
+      cwd: this.deps.workspaceDirectory,
       limit: input.limit ?? 20,
     });
     return {
@@ -99,7 +105,7 @@ export class ScriptWorkflowRuntime {
       ? await this.store().getScriptWorkflowRun(input.runId)
       : (
           await this.store().listScriptWorkflowRuns({
-            cwd: this.deps.workingDirectory,
+            cwd: this.deps.workspaceDirectory,
             limit: 1,
           })
         )[0];
@@ -144,7 +150,7 @@ export class ScriptWorkflowRuntime {
       resumeFromRunId: input.resumeFromRunId,
       runId: input.runId,
       store: this.store(),
-      workingDirectory: this.deps.workingDirectory,
+      workspaceDirectory: this.deps.workspaceDirectory,
     });
     await this.appendEvent(run.id, "workflow_started", { scriptPath: document.path });
 

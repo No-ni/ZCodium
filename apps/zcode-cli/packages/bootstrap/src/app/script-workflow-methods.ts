@@ -49,7 +49,7 @@ export function createScriptWorkflowBridge(deps: ScriptWorkflowBridgeDeps): Scri
       sessionStore: deps.sessionStore,
       storageRoot: deps.storageRoot,
       traceContext: deps.traceContext,
-      workingDirectory: deps.workingDirectory,
+      workspaceDirectory: deps.workspaceDirectory,
     }),
   };
 }

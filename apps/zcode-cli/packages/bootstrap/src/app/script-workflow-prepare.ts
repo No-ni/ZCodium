@@ -15,13 +15,14 @@ export async function prepareScriptWorkflowRun(input: {
   resumeFromRunId?: string;
   runId?: string;
   store: ScriptWorkflowStorePort;
-  workingDirectory: string;
+  /** 工作区键路径：run 的项目键与「项目档」作用域判定都用它。 */
+  workspaceDirectory: string;
 }): Promise<ScriptWorkflowRunRecord> {
   const definition = await input.store.upsertScriptWorkflowDefinition({
     id: `script_${stableHash(`${input.document.path}:${input.document.hash}`).slice(0, 24)}`,
     meta: input.document.meta,
     name: input.document.meta.name,
-    scope: inferScriptWorkflowScope(input.document.path, input.workingDirectory),
+    scope: inferScriptWorkflowScope(input.document.path, input.workspaceDirectory),
     scriptHash: input.document.hash,
     scriptPath: input.document.path,
     source: "user",
@@ -34,7 +35,7 @@ export async function prepareScriptWorkflowRun(input: {
   return input.store.createScriptWorkflowRun({
     args: input.args,
     argsHash: input.args === undefined ? undefined : stableHash(input.args),
-    cwd: input.workingDirectory,
+    cwd: input.workspaceDirectory,
     definitionId: definition.id,
     id: input.runId ?? `wf_${crypto.randomUUID()}`,
     name: input.document.meta.name,
