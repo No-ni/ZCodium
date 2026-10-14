@@ -188,6 +188,7 @@ export interface PlanDetailSidePaneTab {
   openedAt?: number;
   workspaceKey: string;
   workspacePath: string;
+  fileReferenceRootPath?: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
   parentSessionId: string;
@@ -201,6 +202,7 @@ export interface OpenPlanDetailSideTabRequest {
   toolCallId: string;
   markdown: string;
   planFilePath?: string;
+  fileReferenceRootPath?: string;
 }
 
 /**
@@ -854,6 +856,9 @@ function createPlanDetailSidePaneTab(
     openedAt: Date.now(),
     workspaceKey: options.workspaceKey,
     workspacePath: options.workspacePath,
+    ...(options.fileReferenceRootPath
+      ? { fileReferenceRootPath: options.fileReferenceRootPath }
+      : {}),
     ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
     ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
     parentSessionId: options.parentSessionId,

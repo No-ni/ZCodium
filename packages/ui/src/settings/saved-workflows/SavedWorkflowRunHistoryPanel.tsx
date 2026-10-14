@@ -13,7 +13,7 @@ import {
   savedWorkflowRunDurationMs,
 } from "@/settings/saved-workflows/savedWorkflowRunHistory.js";
 
-/** 详情页某一行运行记录对应的项目（全局工作流跨 cwd 时用；cwd 命中已打开项目才能「查看实例」）。 */
+/** 详情页某一行运行记录对应的项目（全局工作流跨项目时用；项目已打开才能「查看实例」）。 */
 export interface SavedWorkflowRunProject {
   label: string;
   /** 完整 cwd 路径，挂在 title 上。 */

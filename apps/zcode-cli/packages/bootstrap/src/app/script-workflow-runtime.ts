@@ -134,6 +134,9 @@ export class ScriptWorkflowRuntime {
     traceId: string;
   }> {
     await this.deps.prepareUserExecutionBoundary(options);
+    // 裸 CLI 恢复及父 Bash cd 都会改变 runtime cwd；装配时的目录不再代表执行事实。
+    // 每个 run 在准备后冻结一次，脚本和迟到的子代理共用它，不能随父会话后续 cd 漂移。
+    const workingDirectory = this.deps.runtime.getWorkingDirectory();
     const document = await readWorkflowScriptDocument({
       fileSystemPort: this.deps.fileSystemPort,
       scriptPath: input.scriptPath,
@@ -165,9 +168,10 @@ export class ScriptWorkflowRuntime {
         budgetTotal: run.budgetTotal,
         document,
         handleEvent: (event) => this.handleChildEvent(run.id, event.type, event.payload),
-        handleRequest: (request) => this.handleChildRequest(run, request, options),
+        handleRequest: (request) =>
+          this.handleChildRequest(run, request, workingDirectory, options),
         signal: options?.abortSignal,
-        workingDirectory: this.deps.workingDirectory,
+        workingDirectory,
       });
       await this.store().updateScriptWorkflowRun({
         completedAt: Date.now(),
@@ -220,10 +224,12 @@ export class ScriptWorkflowRuntime {
   private async handleChildRequest(
     run: ScriptWorkflowRunRecord,
     request: ScriptWorkflowChildRequest,
+    workingDirectory: string,
     options?: ScriptWorkflowRunOptions,
   ): Promise<unknown> {
     if (request.type === "agent") {
-      return this.runAgent(run, WorkflowAgentCallInputSchema.parse(request.payload), options);
+      const input = WorkflowAgentCallInputSchema.parse(request.payload);
+      return this.runAgent(run, input, workingDirectory, options);
     }
     if (request.type === "workflow") {
       throw new Error("Nested workflow() is reserved for a later workflow runtime version.");
@@ -244,6 +250,7 @@ export class ScriptWorkflowRuntime {
   private async runAgent(
     run: ScriptWorkflowRunRecord,
     input: WorkflowAgentCallInput,
+    workingDirectory: string,
     options?: ScriptWorkflowRunOptions,
   ): Promise<unknown> {
     if (this.callIndex >= MAX_WORKFLOW_AGENT_CALLS) {
@@ -276,13 +283,16 @@ export class ScriptWorkflowRuntime {
       runId: run.id,
       type: "agent",
     });
-    return this.limiter.run(() => this.runLiveAgent(run, activity, input, options));
+    return this.limiter.run(() =>
+      this.runLiveAgent(run, activity, input, workingDirectory, options),
+    );
   }
 
   private async runLiveAgent(
     run: ScriptWorkflowRunRecord,
     activity: ScriptWorkflowActivityRecord,
     input: WorkflowAgentCallInput,
+    workingDirectory: string,
     options?: ScriptWorkflowRunOptions,
   ): Promise<unknown> {
     if (input.opts?.isolation === "worktree") {
@@ -300,7 +310,7 @@ export class ScriptWorkflowRuntime {
     });
     const childRuntime = createScriptWorkflowAgentRuntime({
       childSessionId,
-      deps: this.deps,
+      deps: { ...this.deps, workingDirectory },
       request: input,
       traceContext: childTraceContext,
     });

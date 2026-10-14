@@ -24,10 +24,13 @@ import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 
 const {
+  ConversationSessionWorkspaceCollisionError,
+  ConversationSessionWorkspaceUnavailableError,
   CONVERSATION_SESSION_DATE_DIR_UNUSABLE_REASON,
   buildConversationSessionDirName,
   ensureConversationSessionDirForBareResume,
   ensureConversationSessionWorkspaceDir,
+  ensureConversationSessionWorkspaceForExecution,
   formatConversationSessionDateDir,
   isConversationSessionDateDirUsable,
   isConversationSessionWorkspacePath,
@@ -380,6 +383,108 @@ test("新建定名：悬空符号链接占住 8 位路径时也必须回退，�
   });
 });
 
+test("定名占用比较复用平台大小写规则，避免不同拼写共享执行目录", async () => {
+  await withRoot(async (root) => {
+    const createdAtMs = Date.now();
+    const plan = planConversationSessionWorkspace({
+      conversationRoot: root,
+      sessionId: SESSION_ID,
+      createdAtMs,
+    });
+    await mkdir(plan.directory, { recursive: true });
+    const input = { conversationRoot: root, sessionId: SESSION_ID, createdAtMs };
+    const upperShort = join(plan.dateDir, plan.name.toUpperCase());
+    const longName = buildConversationSessionDirName(SESSION_ID, 12);
+    assert.equal(
+      resolveConversationSessionDirNameForCreate({
+        ...input,
+        occupiedDirectories: [upperShort],
+      }),
+      process.platform === "linux" ? plan.name : longName,
+    );
+    if (process.platform !== "linux") {
+      assert.throws(
+        () =>
+          resolveConversationSessionDirNameForCreate({
+            ...input,
+            occupiedDirectories: [upperShort, join(plan.dateDir, longName.toUpperCase())],
+          }),
+        ConversationSessionWorkspaceCollisionError,
+      );
+      assert.equal(
+        resolveConversationSessionWorkspaceForResume({
+          ...input,
+          workspacePath: root,
+          persistedPath: root,
+          occupiedDirectories: [upperShort],
+        }).directory,
+        join(plan.dateDir, longName),
+      );
+    }
+  });
+});
+
+test("派生 cwd 仍认领祖先候选目录，目录缺失时新建与补发也不得复用", async () => {
+  await withRoot(async (root) => {
+    const createdAtMs = Date.now();
+    const plan = planConversationSessionWorkspace({
+      conversationRoot: root,
+      sessionId: SESSION_ID,
+      createdAtMs,
+    });
+    const input = { conversationRoot: root, sessionId: SESSION_ID, createdAtMs };
+    const longName = buildConversationSessionDirName(SESSION_ID, 12);
+    const nested = join(plan.directory, "nested", "child");
+    assert.equal(
+      resolveConversationSessionDirNameForCreate({ ...input, occupiedDirectories: [nested] }),
+      longName,
+    );
+    assert.equal(
+      resolveConversationSessionWorkspaceForResume({
+        ...input,
+        workspacePath: root,
+        persistedPath: root,
+        occupiedDirectories: [nested],
+      }).directory,
+      join(plan.dateDir, longName),
+    );
+    assert.throws(
+      () =>
+        resolveConversationSessionDirNameForCreate({
+          ...input,
+          occupiedDirectories: [nested, join(plan.dateDir, longName, "nested")],
+        }),
+      ConversationSessionWorkspaceCollisionError,
+    );
+    // 同名前缀邻居和位于候选祖先的旧共享根不构成这个候选的认领。
+    assert.equal(
+      resolveConversationSessionDirNameForCreate({
+        ...input,
+        occupiedDirectories: [root, join(plan.dateDir, `${plan.name}ff`, "nested")],
+      }),
+      plan.name,
+    );
+  });
+});
+
+test("在册路径缺失时仍通过最近祖先规范化根别名", async () => {
+  const { conversationSessionDirectoryKey } = await tsImport(
+    "../../apps/zcode-cli/packages/bootstrap/src/app/conversation-session-workspace-registry.ts",
+    import.meta.url,
+  );
+  await withRoot(async (root) => {
+    const canonical = join(root, "default");
+    const alias = join(root, "alias");
+    await mkdir(canonical);
+    await symlink(canonical, alias, "dir");
+    const suffix = join("2026-10-14", "a1b2c3d4", "nested");
+    assert.equal(
+      await conversationSessionDirectoryKey(join(alias, suffix)),
+      await conversationSessionDirectoryKey(join(canonical, suffix)),
+    );
+  });
+});
+
 test("新建定名：8 位目录被别的在册会话占用时回退 12 位，占用只对「别的会话」成立", async () => {
   await withRoot(async (root) => {
     const createdAtMs = new Date(2026, 9, 11, 9, 0, 0).getTime();
@@ -416,16 +521,86 @@ test("新建定名：8 位目录被别的在册会话占用时回退 12 位，�
     // 创建边界同一份判定：占用集合穿透到目录规划。
     assert.equal(createWorkspace([shortPath])?.directory, longPath);
 
-    // 第三层不兜底：12 位也被占住（同名文件，mkdir 必失败）时定名仍给 12 位，由 mkdir 报错暴露。
+    // 12 位被用户文件占位时拒绝创建，不能把会话 cwd 降级到共享根。
     await mkdir(dateDir, { recursive: true });
     await writeFile(longPath, "occupied by a file");
-    assert.equal(resolveName([shortPath]), "a1b2c3d45e6f");
-    await assert.rejects(() => ensureConversationSessionWorkspaceDir(longPath));
+    assert.throws(
+      () => resolveName([shortPath]),
+      (error) => error instanceof ConversationSessionWorkspaceUnavailableError,
+    );
+    // 即使 12 位长名是另一个会话的真实目录，也必须拒绝，不能静默共用。
+    const longCollisionId = "sess_a1b2c3d4-5e6f-9abc-8c9d-111111111111";
+    assert.equal(buildConversationSessionDirName(longCollisionId, 12), "a1b2c3d45e6f");
     // 占用判定不要求目录此刻存在：占位者被手工删掉后，这个名字也不能被别的会话拿走
     // （否则两个会话仍然会落到同一个目录）。
     await rm(longPath);
+    await mkdir(longPath);
+    assert.throws(
+      () =>
+        resolveConversationSessionDirNameForCreate({
+          conversationRoot: root,
+          createdAtMs,
+          occupiedDirectories: [shortPath, longPath],
+          sessionId: longCollisionId,
+        }),
+      (error) => error instanceof ConversationSessionWorkspaceCollisionError,
+    );
+    await rm(longPath, { recursive: true, force: true });
+    // 同一会话自己的长目录仍可幂等复用。
+    await mkdir(longPath);
+    assert.equal(resolveName([shortPath]), "a1b2c3d45e6f");
+    await rm(longPath, { recursive: true, force: true });
     await rm(shortPath, { recursive: true, force: true });
     assert.equal(resolveName([shortPath]), "a1b2c3d45e6f");
+  });
+});
+
+test("执行准入重建自有叶目录，并拒绝 nested cwd 的 symlink 祖先", async () => {
+  await withRoot(async (root) => {
+    const dateDir = join(root, "2026-10-11");
+    const leaf = join(dateDir, "a1b2c3d4");
+    const nested = join(leaf, "subproject");
+    const guard = (executionWorkspacePath) =>
+      ensureConversationSessionWorkspaceForExecution({
+        conversationRoot: root,
+        executionWorkspacePath,
+        workspaceIdentity: undefined,
+        workspacePath: root,
+      });
+
+    await mkdir(dateDir, { recursive: true });
+    await guard(leaf);
+    await assertPresent(leaf);
+    await mkdir(nested);
+    await guard(nested);
+
+    // 派生会话执行根可为父 cd 后的深层路径；删掉后准入应重建，不必先做一次冷恢复。
+    await rm(nested, { recursive: true });
+    await guard(join(nested, "deeper"));
+    await assertPresent(join(nested, "deeper"));
+    await rm(dateDir, { recursive: true });
+    await guard(join(nested, "deeper"));
+    await assertPresent(join(nested, "deeper"));
+    await assert.rejects(
+      () => guard(join(root, "notes", "a1b2c3d4", "nested")),
+      (error) => error instanceof ConversationSessionWorkspaceUnavailableError,
+    );
+    await assert.rejects(
+      () => guard(join(root, "2026-10-11", "notes", "nested")),
+      (error) => error instanceof ConversationSessionWorkspaceUnavailableError,
+    );
+    await assertMissing(join(root, "notes"));
+    await assertMissing(join(dateDir, "notes"));
+
+    await rm(dateDir, { recursive: true, force: true });
+    const outside = join(root, "outside-date");
+    await mkdir(outside);
+    await symlink(outside, dateDir, "dir");
+    await assert.rejects(
+      () => guard(nested),
+      (error) => error instanceof ConversationSessionWorkspaceUnavailableError,
+    );
+    await assertMissing(join(outside, "a1b2c3d4"));
   });
 });
 
@@ -519,7 +694,7 @@ test("常驻恢复的 mtime 刷新也过规则 8 门禁：日期段是活链接�
   });
 });
 
-test("裸 CLI/TUI 恢复的目录重建：path 缺失时幂等补建，占位/非本规则路径不动，失败不抛", async () => {
+test("裸 CLI/TUI 恢复的目录重建：缺失补建、坏占位拒绝，普通 IO 故障不抛", async () => {
   await withRoot(async (root) => {
     const sessionDir = join(root, "2026-10-13", "a1b2c3d4");
     const dateDir = join(root, "2026-10-13");
@@ -545,16 +720,20 @@ test("裸 CLI/TUI 恢复的目录重建：path 缺失时幂等补建，占位/�
       await rm(dateDir2, { recursive: true, force: true });
       await symlink(outsideDir, dateDir2, "dir");
       const warnings2 = [];
-      await ensureConversationSessionDirForBareResume({
-        logger: { warn: (message, fields) => warnings2.push([message, fields]) },
-        sessionId: SESSION_ID,
-        store: {
-          getSession: async () => ({ directory: root, path: join(dateDir2, "a1b2c3d4") }),
-          updateSession: async () => {
-            throw new Error("must not write");
-          },
-        },
-      });
+      await assert.rejects(
+        () =>
+          ensureConversationSessionDirForBareResume({
+            logger: { warn: (message, fields) => warnings2.push([message, fields]) },
+            sessionId: SESSION_ID,
+            store: {
+              getSession: async () => ({ directory: root, path: join(dateDir2, "a1b2c3d4") }),
+              updateSession: async () => {
+                throw new Error("must not write");
+              },
+            },
+          }),
+        ConversationSessionWorkspaceUnavailableError,
+      );
       await assertMissing(join(outsideDir, "a1b2c3d4"));
       assert.equal(warnings2.length, 1);
       assert.match(warnings2[0][0], /not usable/u);
@@ -934,6 +1113,44 @@ test("派生会话：父会话执行 cwd 存在时继承同一个目录，缺席
   // 不允许在这里按会话 id 另造一个目录。
   assert.equal(resolveConversationSessionWorkspaceInherited(undefined), undefined);
   assert.equal(resolveConversationSessionWorkspaceInherited("   "), undefined);
+});
+
+test("派生会话继承复核父目录占位，不跟随链接并保留降级落盘路径", async () => {
+  await withRoot(async (root) => {
+    const dateDir = join(root, "2026-10-11");
+    const directory = join(dateDir, "a1b2c3d4");
+    await mkdir(directory, { recursive: true });
+    assert.equal(resolveConversationSessionWorkspaceInherited(directory, root), directory);
+    await rm(directory, { recursive: true });
+    await writeFile(directory, "user-owned");
+    assert.equal(resolveConversationSessionWorkspaceInherited(directory, root), undefined);
+    // 旧宿主没有启用根标记时，不新增文件系统裁决，沿用持久化路径。
+    assert.equal(resolveConversationSessionWorkspaceInherited(directory), directory);
+    assert.equal(await readFile(directory, "utf8"), "user-owned");
+    await rm(directory);
+    const outside = join(root, "outside");
+    await mkdir(outside);
+    await symlink(outside, directory, "dir");
+    assert.equal(resolveConversationSessionWorkspaceInherited(directory, root), undefined);
+    assert.deepEqual(await readdir(outside), []);
+    assert.equal((await lstat(directory)).isSymbolicLink(), true);
+    // 继承被拒后仍由既有 resume 判据裁决子行，让 registerForkedSession 走降级落盘。
+    assert.equal(
+      resolveConversationSessionWorkspaceForResume({
+        conversationRoot: root,
+        workspacePath: root,
+        persistedPath: directory,
+        sessionId: SESSION_ID,
+        createdAtMs: Date.now(),
+      }),
+      undefined,
+    );
+    await rm(directory);
+    await rm(dateDir, { recursive: true });
+    await symlink(outside, dateDir, "dir");
+    assert.equal(resolveConversationSessionWorkspaceInherited(directory, root), undefined);
+    assert.deepEqual(await readdir(outside), []);
+  });
 });
 
 test("存量补发必须落盘：只改 path、第二次恢复走复用分支", async () => {
@@ -2374,5 +2591,111 @@ test("启动清扫只在注入对话根标记且接线了会话库时排一次�
     await waitForMissing(staleSessionDir);
     await assertMissing(join(root, "2026-01-01"));
     assert.deepEqual(source.inputs, [{ includeArchived: true }]);
+  });
+});
+
+test("嵌套 cwd：恢复与裸 CLI 不跟随上层日期/会话目录活链接", async () => {
+  for (const linkedLayer of ["date", "session"]) {
+    await withRoot(async (root) => {
+      await withRoot(async (external) => {
+        const dateDir = join(root, "2026-10-11");
+        const sessionDir = join(dateDir, "a1b2c3d4");
+        if (linkedLayer === "date") {
+          await symlink(external, dateDir, "dir");
+        } else {
+          await mkdir(dateDir);
+          await symlink(external, sessionDir, "dir");
+        }
+        const nested = join(sessionDir, "child", "work");
+        const warnings = [];
+        const logger = { warn: (_message, data) => warnings.push(data.reason) };
+        assert.equal(
+          resolveConversationSessionWorkspaceForResume({
+            conversationRoot: root,
+            workspacePath: root,
+            persistedDirectory: root,
+            persistedPath: nested,
+            sessionId: SESSION_ID,
+            createdAtMs: Date.now(),
+            logger,
+          }),
+          undefined,
+        );
+        await assert.rejects(
+          () =>
+            ensureConversationSessionDirForBareResume({
+              sessionId: SESSION_ID,
+              store: { getSession: async () => ({ directory: root, path: nested }) },
+              logger,
+            }),
+          ConversationSessionWorkspaceUnavailableError,
+        );
+        assert.deepEqual(
+          warnings,
+          Array(2).fill(linkedLayer === "date" ? "date_dir_unusable" : "session_dir_unusable"),
+        );
+        assert.deepEqual(await readdir(external), []);
+      });
+    });
+  }
+});
+
+test("嵌套 cwd：正常恢复保持路径，裸 CLI 幂等补建缺失后代", async () => {
+  await withRoot(async (root) => {
+    const nested = join(root, "2026-10-11", "a1b2c3d4", "child", "work");
+    await mkdir(join(root, "2026-10-11", "a1b2c3d4"), { recursive: true });
+    assert.deepEqual(
+      resolveConversationSessionWorkspaceForResume({
+        conversationRoot: root,
+        workspacePath: root,
+        persistedPath: nested,
+        sessionId: SESSION_ID,
+        createdAtMs: Date.now(),
+      }),
+      { backfilled: false, directory: nested },
+    );
+    await ensureConversationSessionDirForBareResume({
+      sessionId: SESSION_ID,
+      store: { getSession: async () => ({ directory: root, path: nested }) },
+    });
+    await assertPresent(nested);
+    await ensureConversationSessionWorkspaceForExecution({
+      conversationRoot: root,
+      workspacePath: root,
+      executionWorkspacePath: nested,
+    });
+  });
+});
+
+test("存量补发遵守在册目录占用，持久化复用不重新定名", async () => {
+  await withRoot(async (root) => {
+    const sessionId = "sess_aabbccdd-2222-4222-8222-222222222222";
+    const createdAtMs = Date.now();
+    const shortPath = planConversationSessionWorkspace({
+      conversationRoot: root,
+      sessionId,
+      createdAtMs,
+    }).directory;
+    await mkdir(shortPath, { recursive: true });
+    const common = {
+      conversationRoot: root,
+      workspacePath: root,
+      sessionId,
+      createdAtMs,
+      occupiedDirectories: [shortPath],
+    };
+    const backfill = resolveConversationSessionWorkspaceForResume({
+      ...common,
+      persistedPath: root,
+    });
+    assert.equal(backfill.backfilled, true);
+    assert.notEqual(backfill.directory, shortPath);
+    assert.equal(basename(backfill.directory), buildConversationSessionDirName(sessionId, 12));
+    const reused = resolveConversationSessionWorkspaceForResume({
+      ...common,
+      persistedPath: shortPath,
+    });
+    assert.equal(reused.backfilled, false);
+    assert.equal(reused.directory, shortPath);
   });
 });

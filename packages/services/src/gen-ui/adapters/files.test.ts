@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { getGenUiOutputDirectory } from "@zcode/shared/node";
 import { readGenUiDocument } from "./files.js";
+import { createGenUiService } from "./service.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -18,10 +19,61 @@ async function fixture(workspaceIdentity?: string) {
   const directory = getGenUiOutputDirectory(outputRoot, scope);
   await mkdir(workspacePath);
   await mkdir(directory, { recursive: true });
-  return { root, outputRoot, directory, target: { ...scope, path: join(directory, "chart.html") } };
+  return {
+    root,
+    workspacePath,
+    outputRoot,
+    directory,
+    target: { ...scope, path: join(directory, "chart.html") },
+  };
 }
 
 describe("Gen UI executor file reader", () => {
+  it("reads conversation output using the CLI-owned directory and rejects sibling sessions and links", async () => {
+    const { root, workspacePath, outputRoot, target: oldTarget } = await fixture();
+    const directory = join(workspacePath, "2026-10-13", "a1b2c3d4", "visualizations");
+    const sibling = join(workspacePath, "2026-10-13", "abcd1234", "visualizations");
+    await mkdir(directory, { recursive: true });
+    await mkdir(sibling, { recursive: true });
+    const path = join(directory, "chart.html");
+    const otherPath = join(sibling, "chart.html");
+    await writeFile(path, "<div>Session-owned</div>");
+    await writeFile(otherPath, "<div>Other</div>");
+    const queried: string[] = [];
+    const service = createGenUiService({
+      outputRoot,
+      stateRoot: join(root, "state"),
+      conversationOutput: {
+        conversationWorkspaceRoot: workspacePath,
+        resolveSessionWorkspacePath: async (scope) => {
+          queried.push(scope.sessionId);
+          return scope.sessionId === "test" ? join(directory, "..") : join(sibling, "..");
+        },
+      },
+    });
+    const target = { ...oldTarget, path };
+    try {
+      expect((await service.readDocument(target)).html).toContain("Session-owned");
+      expect(queried).toEqual(["test"]);
+      await expect(service.readDocument({ ...target, sessionId: "other" })).rejects.toThrow(
+        "session output",
+      );
+      await expect(service.readDocument({ ...target, path: otherPath })).rejects.toThrow(
+        "session output",
+      );
+      await writeFile(oldTarget.path, "<div>Legacy</div>");
+      expect((await service.readDocument(oldTarget)).html).toContain("Legacy");
+      await rm(directory, { recursive: true });
+      await symlink(sibling, directory, "junction");
+      await expect(service.readDocument(target)).rejects.toThrow("symbolic links");
+      await rm(directory);
+      await rm(join(directory, ".."), { recursive: true });
+      await symlink(join(sibling, ".."), join(directory, ".."), "junction");
+      await expect(service.readDocument(target)).rejects.toThrow("symbolic links");
+    } finally {
+      service.dispose();
+    }
+  });
   it.each([undefined, "ssh:executor:/workspace"])(
     "reads the session output without writing into Git (%s)",
     async (identity) => {

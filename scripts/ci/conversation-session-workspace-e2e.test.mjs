@@ -39,10 +39,21 @@
 //   resolveConversationSessionWorkspaceForResume。
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -58,8 +69,8 @@ const REPO_ROOT = resolve(import.meta.dirname, "../..");
  * 日志），既让「杀子进程 + 清理临时目录」这条硬要求不可靠，也让退出码/生命周期观测错位。
  * 单进程启动后 `child.pid` 就是 CLI 本身。
  */
-const CLI_ENTRY = join("apps", "zcode-cli", "packages", "cli", "src", "main.ts");
-const TSX_LOADER = "tsx";
+const CLI_ENTRY = resolve(REPO_ROOT, "apps", "zcode-cli", "packages", "cli", "src", "main.ts");
+const TSX_LOADER = import.meta.resolve("tsx");
 
 /** Host → Agent 的对话根标记（packages/shared/src/node/conversationWorkspaceEnv.ts:13）。 */
 const CONVERSATION_WORKSPACE_ROOT_ENV = "ZCODE_CONVERSATION_WORKSPACE_ROOT";
@@ -72,11 +83,40 @@ const RUNTIME_PREFERENCES_REQUEST = "session/requestRuntimePreferences";
 const SESSION_CREATE_METHOD = "session/create";
 const SESSION_RESUME_METHOD = "session/resume";
 const SESSION_LIST_METHOD = "session/list";
+const SESSION_READ_METHOD = "session/read";
 /** 旧协议的会话关闭（兼容删除 / 草稿丢弃 / 草稿预热失效都走它，与 v4 deleteSession 双入口）。 */
 const SESSION_CLOSE_METHOD = "session/close";
+const SESSION_FORK_METHOD = "session/fork";
 const V4_COMMAND_METHOD = "v4/command";
 const V4_CONVERSATION_FRAME = "v4/conversation/frame";
 const V4_CONVERSATION_SUBSCRIBE_METHOD = "v4/conversation/subscribe";
+
+test("A20/规则8：常驻父会话叶目录被占位后 fork 降级落盘且不跟随链接", async () => {
+  for (const kind of ["file", "symlink"]) {
+    await withCliProcess({ label: `a20-${kind}`, injectConversationRoot: true }, async (cli) => {
+      const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+      const seedRow = await cli.waitForSessionRow(sessionId);
+      const read = await cli.request(SESSION_READ_METHOD, { sessionId });
+      assert.equal(read.error, undefined);
+      const messageId = read.result?.messages?.[0]?.info?.messageId;
+      assert.ok(messageId, "导入的父会话必须有可分叉的消息");
+      await rm(seedRow.path, { recursive: true });
+      const outside = join(cli.root, "outside");
+      await mkdir(outside);
+      if (kind === "file") await writeFile(seedRow.path, "user-owned");
+      else await symlink(outside, seedRow.path, "dir");
+      const fork = await cli.request(SESSION_FORK_METHOD, {
+        sessionId,
+        target: { kind: "message", messageId },
+      });
+      assert.equal(fork.error, undefined, `fork 不得因占位失败: ${JSON.stringify(fork.error)}`);
+      assert.equal(cli.readSessionRow(fork.result?.forkedSessionId)?.path, cli.conversationRoot);
+      assert.deepEqual(await readdir(outside), [], "fork 不得跟随链接铸造目录");
+      if (kind === "file") assert.equal(await readFile(seedRow.path, "utf8"), "user-owned");
+      else assert.equal((await lstat(seedRow.path)).isSymbolicLink(), true);
+    });
+  }
+});
 
 /** 起进程 + 握手 + 建会话的预算：实测冷启动 2-3s，留足余量但绝不无限等。 */
 const STARTUP_TIMEOUT_MS = 90_000;
@@ -186,6 +226,7 @@ class CliProcess {
   #exchangeError;
   #exited;
   #resolveExit;
+  #exitSummary;
   #storageState = { phase: undefined, failure: undefined };
   #stopped = false;
   #ownsRoot = true;
@@ -198,7 +239,10 @@ class CliProcess {
     this.#exited = new Promise((resolveExit) => {
       this.#resolveExit = resolveExit;
     });
-    child.on("exit", () => this.#resolveExit());
+    child.on("exit", (code, signal) => {
+      this.#exitSummary = `code=${code ?? "null"}, signal=${signal ?? "none"}`;
+      this.#resolveExit();
+    });
     child.on("error", (error) => this.#recordExchangeError(error));
     child.stdout.on("data", (chunk) => this.#onStdout(chunk));
     child.stderr.on("data", (chunk) => {
@@ -338,6 +382,11 @@ class CliProcess {
         );
       }
       if (this.#exchangeError) throw new Error(`CLI stdout failed: ${this.#exchangeError}`);
+      if (this.#exitSummary) {
+        throw new Error(
+          `CLI exited before storage ready (${this.#exitSummary})\n${this.diagnostics()}`,
+        );
+      }
       await delay(50);
     }
     throw new Error(
@@ -460,6 +509,16 @@ class CliProcess {
     return { error, snapshot: result };
   }
 
+  async readSessionSnapshot(sessionId, messageLimit = 1) {
+    const { result, error } = await this.request(SESSION_READ_METHOD, { sessionId, messageLimit });
+    return { error, snapshot: result };
+  }
+
+  async listSessionsById(sessionId) {
+    const { result, error } = await this.request(SESSION_LIST_METHOD, { sessionIds: [sessionId] });
+    return { error, sessions: result?.sessions ?? [] };
+  }
+
   /**
    * 诊断用：CLI 自己的 session 库读面（与本进程 `context.deps.sessionStore` 同一份配置）。
    *
@@ -521,29 +580,17 @@ class CliProcess {
 }
 
 /**
- * 进程级测试驱动的是 **构建后的 CLI**（CI 在 `node --test` 之前跑
- * `pnpm -r --filter './apps/zcode-cli/packages/*' build`）。
- * 产物缺失时给出可操作的失败信息，而不是让 8 个用例各自超时。
+ * 进程级 E2E 使用 CLI TypeScript 源入口；专用 tsconfig 把 bootstrap/core 包根映射到源码，
+ * 其余依赖继续按 package exports 解析。
  */
-function assertCliBuildPresent() {
-  const builtEntry = join(
-    REPO_ROOT,
-    "apps",
-    "zcode-cli",
-    "packages",
-    "bootstrap",
-    "dist",
-    "index.js",
-  );
-  if (existsSync(builtEntry)) return;
-  throw new Error(
-    `CLI 构建产物缺失：${relativeShape(REPO_ROOT, builtEntry)}。` +
-      "先运行 `pnpm -r --filter './apps/zcode-cli/packages/*' build`（CI 在 node --test 之前已构建）。",
-  );
+function assertCliSourcePresent() {
+  const sourceEntry = CLI_ENTRY;
+  if (existsSync(sourceEntry)) return;
+  throw new Error(`CLI 源码入口缺失：${relativeShape(REPO_ROOT, sourceEntry)}`);
 }
 
 async function startCliProcess({ label, injectConversationRoot, root: existingRoot }) {
-  assertCliBuildPresent();
+  assertCliSourcePresent();
   const root = existingRoot ?? (await mkdtemp(join(tmpdir(), `zcodium-conversation-ws-${label}-`)));
   createdTempRoots.add(root);
   const conversationRoot = join(root, ".zcodium", "workspace", "default");
@@ -557,6 +604,12 @@ async function startCliProcess({ label, injectConversationRoot, root: existingRo
     HOME: root,
     [DATA_BASE_DIR_ENV]: root,
     [SESSION_DB_PATH_ENV]: sessionDbPath,
+    TSX_TSCONFIG_PATH: join(
+      REPO_ROOT,
+      "scripts",
+      "ci",
+      "tsconfig.conversation-workspace-tests.json",
+    ),
   };
   delete env[CONVERSATION_WORKSPACE_ROOT_ENV];
   if (injectConversationRoot) env[CONVERSATION_WORKSPACE_ROOT_ENV] = conversationRoot;
@@ -575,6 +628,69 @@ async function startCliProcess({ label, injectConversationRoot, root: existingRo
     },
   );
   return new CliProcess({ child, root, sessionDbPath, conversationRoot });
+}
+
+async function runBareResumePrompt({
+  root,
+  conversationRoot,
+  sessionDbPath,
+  sessionId,
+  providerConfigPath,
+}) {
+  const env = {
+    ...process.env,
+    HOME: root,
+    [DATA_BASE_DIR_ENV]: root,
+    [SESSION_DB_PATH_ENV]: sessionDbPath,
+    [CONVERSATION_WORKSPACE_ROOT_ENV]: conversationRoot,
+    ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: providerConfigPath,
+    TSX_TSCONFIG_PATH: join(
+      REPO_ROOT,
+      "scripts",
+      "ci",
+      "tsconfig.conversation-workspace-tests.json",
+    ),
+  };
+  for (const key of Object.keys(env)) {
+    if (/(?:API_KEY|TOKEN|SECRET|PASSWORD)/iu.test(key)) delete env[key];
+  }
+  const child = spawn(
+    process.execPath,
+    [
+      "--import",
+      TSX_LOADER,
+      CLI_ENTRY,
+      "--resume",
+      sessionId,
+      "--prompt",
+      "workspace guard fixture",
+    ],
+    {
+      cwd: conversationRoot,
+      env,
+      detached: process.platform !== "win32",
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
+  let stdout = "";
+  let stderr = "";
+  let timedOut = false;
+  child.stdout.on("data", (chunk) => (stdout += chunk.toString()));
+  child.stderr.on("data", (chunk) => (stderr += chunk.toString()));
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    killProcessTree(child);
+  }, 30_000);
+  try {
+    const outcome = await new Promise((resolveOutcome, rejectOutcome) => {
+      child.once("error", rejectOutcome);
+      child.once("close", (code, signal) => resolveOutcome({ code, signal }));
+      child.stdin.end();
+    });
+    return { ...outcome, stderr, stdout, timedOut };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function withCliProcess(options, fn) {
@@ -609,9 +725,9 @@ async function withRestartedCliProcess(
     root = seed.root;
     sessionId = await seed.createPersistedSession({ workspacePath: seed.conversationRoot });
     seedRow = await seed.waitForSessionRow(sessionId);
-  } finally {
-    // 种子进程的 root 由重启后的进程接管并负责清理；这里只杀进程。
+    // Ownership transfers only after the seed is usable; startup failures must clean their own root.
     seed.releaseRoot();
+  } finally {
     await seed.stop();
   }
 
@@ -717,6 +833,31 @@ function updateSessionPaths(dbPath, sessionId, { path, directory }) {
       path,
       directory,
       sessionId,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+function persistSessionModelSelection(dbPath, sessionId) {
+  const db = new DatabaseSync(dbPath);
+  const now = Date.now();
+  try {
+    db.prepare(
+      "insert into session_entry (id, session_id, type, time_created, time_updated, data) values (?, ?, ?, ?, ?, ?)",
+    ).run(
+      randomUUID(),
+      sessionId,
+      "runtime/model_selection",
+      now,
+      now,
+      JSON.stringify({
+        modelSelection: {
+          providerId: "fixture-api",
+          modelId: "fixture-model",
+          options: { reasoningLevel: "disabled" },
+        },
+      }),
     );
   } finally {
     db.close();
@@ -921,6 +1062,11 @@ test("A3-入口二/验收3：旧协议 session/resume 同样按持久化 path �
         sessionDirectory,
         "session/resume 不得改写持久化 path",
       );
+      assert.equal(
+        outcome.snapshot?.session?.executionWorkspacePath,
+        sessionDirectory,
+        "session/resume 的 session 投影必须等于持久化执行 cwd",
+      );
     },
   );
 });
@@ -974,8 +1120,19 @@ test("A4/验收6：不注入标记时保持旧行为 —— 对话根下不新�
     await writeFile(join(cli.conversationRoot, "legacy-note.txt"), "kept\n");
     const before = (await readdir(cli.conversationRoot)).sort();
 
-    const { ack } = await cli.createSession({ workspaceId: cli.conversationRoot });
-    assert.equal(ack.status, "accepted", `createSession ACK: ${JSON.stringify(ack)}`);
+    const draft = await cli.createSession({ workspaceId: cli.conversationRoot });
+    assert.equal(draft.ack.status, "accepted", `createSession ACK: ${JSON.stringify(draft.ack)}`);
+    const draftRead = await cli.readSessionSnapshot(draft.sessionId);
+    assert.equal(
+      draftRead.error,
+      undefined,
+      `session/read error: ${JSON.stringify(draftRead.error)}`,
+    );
+    assert.equal(
+      "executionWorkspacePath" in (draftRead.snapshot?.session ?? {}),
+      false,
+      "未启用独立目录规则时草稿 session 投影必须省略 executionWorkspacePath",
+    );
     assert.deepEqual(
       await readDateDirectories(cli.conversationRoot),
       [],
@@ -994,6 +1151,14 @@ test("A4/验收6：不注入标记时保持旧行为 —— 对话根下不新�
       row.path,
       cli.conversationRoot,
       `未注入标记时 path 必须等于对话根（旧行为），实际行: ${formatRow(cli.root, row)}`,
+    );
+    const listed = await cli.listSessionsById(persistedId);
+    assert.equal(listed.error, undefined, `session/list 精确 ID 查询失败: ${listed.error}`);
+    assert.equal(listed.sessions.length, 1, "session/list 精确 ID 查询应返回持久化任务");
+    assert.equal(
+      "executionWorkspacePath" in listed.sessions[0],
+      false,
+      "未启用独立目录规则时持久化 session 投影必须省略 executionWorkspacePath",
     );
     assert.deepEqual(
       await readDateDirectories(cli.conversationRoot),
@@ -1036,6 +1201,38 @@ test("A5/接口：冷订阅 conversation 快照的 workspacePath = 会话执行 
     );
     assert.equal(outcome.snapshot.sessionId, sessionId, "snapshot.sessionId 必须是被订阅的会话");
     assert.equal(cli.readSessionRow(sessionId)?.path, seedRow.path, "冷订阅不得改写持久化 path");
+  });
+});
+
+test("A5b/规则14-15：草稿读取与冷精确 ID 列表投影执行 cwd", async () => {
+  await withCliProcess({ label: "a5b-draft", injectConversationRoot: true }, async (cli) => {
+    const draft = await cli.createSession({ workspaceId: cli.conversationRoot });
+    assert.equal(draft.ack.status, "accepted", `createSession ACK: ${JSON.stringify(draft.ack)}`);
+    const read = await cli.readSessionSnapshot(draft.sessionId);
+    assert.equal(read.error, undefined, `session/read error: ${JSON.stringify(read.error)}`);
+
+    const expectedPath = join(
+      cli.conversationRoot,
+      (await readDateDirectories(cli.conversationRoot))[0],
+      sessionDirName(draft.sessionId),
+    );
+    assert.equal(await pathExists(expectedPath), true, "草稿执行目录必须已存在");
+    assert.equal(
+      read.snapshot?.session?.executionWorkspacePath,
+      expectedPath,
+      "deferred 草稿的 session/read 必须投影 CLI 已分配的执行 cwd",
+    );
+  });
+
+  await withRestartedCliProcess({ label: "a5b-list" }, async ({ cli, sessionId, seedRow }) => {
+    const listed = await cli.listSessionsById(sessionId);
+    assert.equal(listed.error, undefined, `session/list 精确 ID 查询失败: ${listed.error}`);
+    assert.equal(listed.sessions.length, 1, "session/list 精确 ID 查询应返回持久化任务");
+    assert.equal(
+      listed.sessions[0]?.executionWorkspacePath,
+      seedRow.path,
+      "重启后的精确 ID 查询必须从持久化 path 投影执行 cwd",
+    );
   });
 });
 
@@ -1271,7 +1468,11 @@ test("A9/边界11：前 8 位相同的两个会话必须落到两个不同目录
     };
 
     const dateDirName = localDateDirName(createdAt);
-    const firstRow = await createOnce(firstSessionId);
+    // 并发请求必须持有定名所有权至 record 注册；只查已注册 record 会同时复用 8 位目录。
+    const [firstRow, secondRow] = await Promise.all([
+      createOnce(firstSessionId),
+      createOnce(secondSessionId),
+    ]);
     // 第一个会话没有任何占用者 ⇒ 8 位名。
     assert.equal(
       firstRow.path,
@@ -1279,7 +1480,6 @@ test("A9/边界11：前 8 位相同的两个会话必须落到两个不同目录
       `首个会话必须落在 8 位目录，实际行: ${formatRow(cli.root, firstRow)}`,
     );
 
-    const secondRow = await createOnce(secondSessionId);
     // 第二个会话撞上前 8 位，且该目录属于**别的在册会话** ⇒ 回退 12 位，绝不共用目录。
     assert.equal(
       secondRow.path,
@@ -1596,4 +1796,367 @@ test("A15/验收15：会话目录是符号链接时冷恢复不跟随链接、�
     // 取执行 cwd，行被写回即运行目录不再落在链接目标里。
     assert.equal((await lstat(sessionDirectory)).isSymbolicLink(), true, "占位链接不得被改动");
   });
+});
+
+test("A9b/边界11：关闭后的持久化路径仍占用 8 位前缀", async () => {
+  await withCliProcess({ injectConversationRoot: true, label: "a9b" }, async (cli) => {
+    const firstSessionId = `${SESSION_ID_PREFIX}bbbbbbbb-1111-4111-8111-111111111111`;
+    const secondSessionId = `${SESSION_ID_PREFIX}bbbbbbbb-2222-4222-8222-222222222222`;
+    const createdAt = Date.now();
+    const createOnce = async (sessionId) => {
+      const { result, error } = await cli.request(SESSION_CREATE_METHOD, {
+        workspace: { workspaceKey: cli.conversationRoot, workspacePath: cli.conversationRoot },
+        persistence: "immediate",
+        sessionId,
+        importedHistory: {
+          source: "claudeCode",
+          title: "deactivated 8-hex-prefix collision e2e",
+          createdAt,
+          messages: [{ content: "collision history", role: "user", timestamp: createdAt }],
+        },
+      });
+      assert.equal(error, undefined, `session/create returned error: ${JSON.stringify(error)}`);
+      assert.equal(result?.messages?.[0]?.info?.sessionId, sessionId);
+      return await cli.waitForSessionRow(sessionId);
+    };
+
+    const firstRow = await createOnce(firstSessionId);
+    const closed = await cli.request(SESSION_CLOSE_METHOD, { sessionId: firstSessionId });
+    assert.equal(
+      closed.error,
+      undefined,
+      `session/close returned error: ${JSON.stringify(closed.error)}`,
+    );
+    assert.equal(closed.result?.closed, true, "first session must leave the active registry");
+    assert.equal(
+      cli.readSessionRow(firstSessionId)?.path,
+      firstRow.path,
+      "deactivation must leave its persisted execution path as the collision oracle",
+    );
+
+    const secondRow = await createOnce(secondSessionId);
+    assert.equal(
+      secondRow.path,
+      join(cli.conversationRoot, localDateDirName(createdAt), sessionDirName(secondSessionId, 12)),
+      `persisted closed session must force the 12-digit name, actual: ${formatRow(cli.root, secondRow)}`,
+    );
+    assert.notEqual(secondRow.path, firstRow.path, "closed and new sessions must not share a cwd");
+  });
+});
+
+test("A22/规则45：别名下在册 cwd 及派生目录在存在或缺失时都阻止复用祖先", async () => {
+  await withCliProcess({ injectConversationRoot: true, label: "a22" }, async (cli) => {
+    const alias = join(cli.root, "conversation-alias");
+    await symlink(cli.conversationRoot, alias, "dir");
+    let index = 0;
+    for (const nested of [false, true]) {
+      for (const exists of [false, true]) {
+        index += 1;
+        const prefix = `aa00000${index}`;
+        const targetId = `${SESSION_ID_PREFIX}${prefix}-2222-4222-8222-222222222222`;
+        const createdAt = Date.now();
+        const date = localDateDirName(createdAt);
+        const canonicalLeaf = join(cli.conversationRoot, date, prefix);
+        const occupied = join(alias, date, prefix, ...(nested ? ["nested", "child"] : []));
+        const ownerId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+        const closed = await cli.request(SESSION_CLOSE_METHOD, { sessionId: ownerId });
+        assert.equal(closed.error, undefined);
+        // 只留下派生会话的认领事实，原父行已不在这个目录；不能依赖父行保留祖先。
+        cli.updateSessionPaths(ownerId, { path: occupied, directory: cli.conversationRoot });
+        if (exists) await mkdir(occupied, { recursive: true });
+        else assert.equal(await pathExists(canonicalLeaf), false);
+        const created = await cli.request(SESSION_CREATE_METHOD, {
+          workspace: { workspaceKey: cli.conversationRoot, workspacePath: cli.conversationRoot },
+          persistence: "immediate",
+          sessionId: targetId,
+          importedHistory: {
+            source: "claudeCode",
+            createdAt,
+            messages: [{ role: "user", content: "allocation alias fixture", timestamp: createdAt }],
+          },
+        });
+        assert.equal(created.error, undefined, `session/create: ${JSON.stringify(created.error)}`);
+        const row = await cli.waitForSessionRow(targetId);
+        assert.equal(
+          row.path,
+          join(cli.conversationRoot, date, sessionDirName(targetId, 12)),
+          `nested=${nested}, exists=${exists}: must reserve the occupied ancestor`,
+        );
+        assert.equal(cli.readSessionRow(ownerId)?.path, occupied, "占用者路径不可改写");
+      }
+    }
+  });
+});
+
+test("A16/规则20：草稿目录被清扫后首发重建并保持相对写入 cwd", async () => {
+  await withCliProcess({ label: "a16", injectConversationRoot: true }, async (cli) => {
+    const draft = await cli.createSession({ workspaceId: cli.conversationRoot });
+    assert.equal(draft.ack.status, "accepted", `createSession ACK: ${JSON.stringify(draft.ack)}`);
+    const dateDirs = await readDateDirectories(cli.conversationRoot);
+    assert.equal(dateDirs.length, 1, `草稿应只有一个日期目录: ${JSON.stringify(dateDirs)}`);
+    const executionPath = join(cli.conversationRoot, dateDirs[0], sessionDirName(draft.sessionId));
+    assert.equal(await pathExists(executionPath), true, "草稿创建时必须分配独立 cwd");
+
+    // 等价于启动清扫回收尚未持久化的草稿叶目录；首条真实输入必须先复核并重建它。
+    await rm(executionPath, { recursive: true, force: true });
+    const ack = await cli.command({
+      ...createCommandEnvelope("sendText", {
+        text: "queue after draft workspace cleanup",
+        requestedDelivery: "queue",
+        modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
+        modelExecution: { selectionScope: "execution" },
+      }),
+      sessionId: draft.sessionId,
+    });
+    assert.equal(ack.status, "accepted", `first send ACK: ${JSON.stringify(ack)}`);
+
+    const row = await cli.waitForSessionRow(draft.sessionId);
+    assert.equal(row.path, executionPath, "首发持久化的 cwd 不得漂移到对话根");
+    assert.equal(await pathExists(executionPath), true, "首发准入必须重建被清扫的 cwd");
+    const snapshot = await cli.readSessionSnapshot(draft.sessionId);
+    assert.equal(
+      snapshot.error,
+      undefined,
+      `session/read error: ${JSON.stringify(snapshot.error)}`,
+    );
+    assert.equal(snapshot.snapshot?.session?.executionWorkspacePath, executionPath);
+
+    const write = spawnSync(
+      process.execPath,
+      ["-e", "require('node:fs').writeFileSync('relative-admission-probe.txt', 'ok')"],
+      { cwd: executionPath, encoding: "utf8", timeout: 10_000 },
+    );
+    assert.equal(write.error, undefined, `relative write process error: ${write.error}`);
+    assert.equal(write.status, 0, `relative write failed: ${write.stderr}`);
+    assert.equal(await readFile(join(executionPath, "relative-admission-probe.txt"), "utf8"), "ok");
+  });
+});
+
+test("A17/规则20：坏日期目录降级后拒绝发送且不写入对话根", async () => {
+  await withRestartedCliProcess({ label: "a17" }, async ({ cli, sessionId, seedRow }) => {
+    const dateDir = join(cli.conversationRoot, localDateDirName(seedRow.time_created));
+    await rm(seedRow.path, { recursive: true, force: true });
+    await rm(dateDir, { recursive: true, force: true });
+    await writeFile(dateDir, "date placeholder must remain\n", "utf8");
+
+    const resumed = await cli.resumeSession(sessionId);
+    assert.equal(
+      resumed.error,
+      undefined,
+      `read-only resume fallback failed: ${JSON.stringify(resumed.error)}`,
+    );
+    assert.equal(
+      cli.readSessionRow(sessionId)?.path,
+      cli.conversationRoot,
+      "existing resume fallback compatibility must keep the root path readable",
+    );
+
+    const sentinel = join(cli.conversationRoot, "root-sentinel.txt");
+    await writeFile(sentinel, "unchanged\n", "utf8");
+    const ack = await cli.command({
+      ...createCommandEnvelope("sendText", {
+        text: "must not execute from the shared conversation root",
+        requestedDelivery: "queue",
+        modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
+        modelExecution: { selectionScope: "execution" },
+      }),
+      sessionId,
+    });
+    assert.equal(ack.status, "failed", `unsafe send must be rejected: ${JSON.stringify(ack)}`);
+    assert.equal(ack.reasonCode, "guard.conversationSessionWorkspaceUnavailable");
+    assert.equal(
+      await readFile(sentinel, "utf8"),
+      "unchanged\n",
+      "shared-root sentinel must not change",
+    );
+    assert.equal((await stat(dateDir)).isFile(), true, "user placeholder must remain untouched");
+    assert.equal(cli.readSessionRow(sessionId)?.path, cli.conversationRoot);
+  });
+});
+
+test("A18/规则20：会话叶目录被占位时拒绝发送且不降级写根", async () => {
+  await withCliProcess({ label: "a18", injectConversationRoot: true }, async (cli) => {
+    const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+    const row = await cli.waitForSessionRow(sessionId);
+    await rm(row.path, { recursive: true, force: true });
+    await writeFile(row.path, "leaf placeholder must remain\n", "utf8");
+    const sentinel = join(cli.conversationRoot, "root-sentinel.txt");
+    await writeFile(sentinel, "unchanged\n", "utf8");
+
+    const ack = await cli.command({
+      ...createCommandEnvelope("sendText", {
+        text: "must not execute from an occupied session cwd",
+        requestedDelivery: "queue",
+        modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
+        modelExecution: { selectionScope: "execution" },
+      }),
+      sessionId,
+    });
+    assert.equal(ack.status, "failed", `unsafe send must be rejected: ${JSON.stringify(ack)}`);
+    assert.equal(ack.reasonCode, "guard.conversationSessionWorkspaceUnavailable");
+    assert.equal(await readFile(row.path, "utf8"), "leaf placeholder must remain\n");
+    assert.equal(await readFile(sentinel, "utf8"), "unchanged\n");
+    assert.equal(
+      cli.readSessionRow(sessionId)?.path,
+      row.path,
+      "failed admission must not rewrite cwd",
+    );
+  });
+});
+
+test(
+  "A19/规则20：裸 CLI 从对话根 cwd resume 后准入使用持久化会话执行根",
+  { timeout: 45_000 },
+  async () => {
+    let requestCount = 0;
+    const server = createServer(async (request, response) => {
+      for await (const _chunk of request) {
+        // Consume the fixture request before returning a deterministic auth error.
+      }
+      requestCount += 1;
+      response.writeHead(401, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "fixture reached provider boundary" } }));
+    });
+    await new Promise((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
+
+    try {
+      await withCliProcess({ label: "a19", injectConversationRoot: true }, async (cli) => {
+        const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+        const row = await cli.waitForSessionRow(sessionId);
+        assert.notEqual(
+          row.path,
+          cli.conversationRoot,
+          "seed session must have an independent cwd",
+        );
+        persistSessionModelSelection(cli.sessionDbPath, sessionId);
+
+        const providerConfigPath = join(cli.root, "personal-provider.json");
+        const providerConfig = {
+          schemaVersion: 1,
+          config: {
+            providerConfigRules: {
+              providerRules: [
+                {
+                  providerId: "fixture-api",
+                  providerName: "Local fixture",
+                  enabled: true,
+                  config: {
+                    group: "standard-personal",
+                    api: {
+                      type: "openai-chat-completions",
+                      baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+                    },
+                    access: { type: "api-key", apiKey: "fixture-only" },
+                    personalModelIds: ["fixture-model"],
+                    modelOrder: ["fixture-model"],
+                  },
+                },
+              ],
+            },
+            modelConfigRules: { providerModelRules: [], manualProviderModelRules: [] },
+            providerOrder: ["fixture-api"],
+            defaultModelSelection: {
+              providerId: "fixture-api",
+              modelId: "fixture-model",
+              options: { reasoningLevel: "disabled" },
+            },
+          },
+        };
+        await writeFile(providerConfigPath, JSON.stringify(providerConfig), "utf8");
+
+        const { root, conversationRoot, sessionDbPath } = cli;
+        cli.releaseRoot();
+        await cli.stop();
+        try {
+          const outcome = await runBareResumePrompt({
+            conversationRoot,
+            providerConfigPath,
+            root,
+            sessionDbPath,
+            sessionId,
+          });
+          assert.equal(
+            outcome.timedOut,
+            false,
+            `bare CLI timed out: ${outcome.stderr.slice(-3000)}`,
+          );
+          assert.ok(
+            requestCount > 0,
+            `prompt must pass resume admission before the local provider request; code=${outcome.code} signal=${outcome.signal}\n${outcome.stderr.slice(-3000)}`,
+          );
+          assert.doesNotMatch(outcome.stderr, /guard\.conversationSessionWorkspaceUnavailable/u);
+        } finally {
+          await cleanupDirectory(root);
+        }
+      });
+    } finally {
+      await new Promise((resolveClose, rejectClose) =>
+        server.close((error) => (error ? rejectClose(error) : resolveClose())),
+      );
+    }
+  },
+);
+
+test("A21/规则26：并发旧会话补发及创建混合碰撞保持独立 cwd", async () => {
+  for (const mixed of [false, true]) {
+    const seed = await startCliProcess({
+      label: `a21-seed-${mixed}`,
+      injectConversationRoot: false,
+    });
+    const ids = [
+      "sess_bbbbbbbb-1111-4111-8111-111111111111",
+      "sess_bbbbbbbb-2222-4222-8222-222222222222",
+    ];
+    const createdAt = Date.now();
+    const create = (cli, sessionId) =>
+      cli.request(SESSION_CREATE_METHOD, {
+        workspace: { workspaceKey: cli.conversationRoot, workspacePath: cli.conversationRoot },
+        sessionId,
+        persistence: "immediate",
+        importedHistory: {
+          source: "claudeCode",
+          title: "legacy collision fixture",
+          createdAt,
+          messages: [{ content: "legacy collision fixture", role: "user", timestamp: createdAt }],
+        },
+      });
+    let root;
+    try {
+      await seed.waitForStorageReady();
+      for (const id of mixed ? ids.slice(0, 1) : ids) {
+        assert.equal((await create(seed, id)).error, undefined);
+        assert.equal((await seed.waitForSessionRow(id)).path, seed.conversationRoot);
+      }
+      root = seed.root;
+      seed.releaseRoot();
+    } finally {
+      await seed.stop();
+    }
+    const cli = await startCliProcess({
+      label: `a21-resume-${mixed}`,
+      injectConversationRoot: true,
+      root,
+    });
+    try {
+      await cli.waitForStorageReady();
+      const responses = await Promise.all([
+        cli.request(SESSION_RESUME_METHOD, { sessionId: ids[0] }),
+        mixed ? create(cli, ids[1]) : cli.request(SESSION_RESUME_METHOD, { sessionId: ids[1] }),
+      ]);
+      for (const response of responses) assert.equal(response.error, undefined);
+      const rows = await Promise.all(ids.map((id) => cli.waitForSessionRow(id)));
+      assert.notEqual(rows[0].path, rows[1].path, "补发不能认领另一个会话的执行目录");
+      assert.deepEqual(
+        rows.map((row) => row.path.split(/[\\/]/u).at(-1).length).sort((a, b) => a - b),
+        [8, 12],
+      );
+      for (let index = 0; index < ids.length; index += 1) {
+        const read = await cli.subscribeConversation(ids[index]);
+        assert.equal(read.error, undefined);
+        assert.equal(read.snapshot.workspacePath, rows[index].path);
+      }
+    } finally {
+      await cli.stop();
+    }
+  }
 });

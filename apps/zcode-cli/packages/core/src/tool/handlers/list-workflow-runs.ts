@@ -1,11 +1,11 @@
 // ============================================================
 // ListWorkflowRuns Tool Handler
 // ============================================================
-// 按项目（= 会话的工作目录）枚举 workflow run，含跨会话历史。
+// 按工作区归属枚举 workflow run，含跨会话历史。
 //
 // handler 刻意**很薄**：标签、归属标注、状态合成、时间戳都由 run service 烹熟了交出来
 // （端口的 `DynamicWorkflowRunListItem` 注释解释了为什么原料不过边界）。这里只做三件事：
-// 取端口、把 cwd 钉成本会话的工作目录、把结果投影成契约形状。
+// 取端口、把查询钉成本会话的工作区、把结果投影成契约形状。
 
 import {
   LIST_WORKFLOW_RUNS_TOOL_NAME,
@@ -30,7 +30,7 @@ const LIST_WORKFLOW_RUNS_TIMEOUT_MS = 10_000;
 const LIST_WORKFLOW_RUNS_MODEL_BYTES = 24_000;
 
 const LIST_WORKFLOW_RUNS_DESCRIPTION = [
-  "Lists this project's dynamic-workflow runs (the session's working directory is the project key), most recently updated first. Includes runs started by other sessions — the run journal is per-project, not per-session.",
+  "Lists this workspace's dynamic-workflow runs, most recently updated first. Includes runs started by other sessions — the run journal is per-workspace, not per-session.",
   "",
   WORKFLOW_RUN_INTROSPECTION_STEERING,
   "",
@@ -53,11 +53,9 @@ const listWorkflowRunsHandler: ToolHandler = async (input, context) => {
   }
 
   const result = await port.listRuns({
-    // cwd 恒取本会话的工作目录：模型无权跨项目扫库，这同时是 `sideEffectScope: "none"` 的前提。
-    // 字面等值匹配、不做路径规范化——写入侧（submit）原样落，读侧原样查，规范化只会造出单侧不匹配。
-    // run 记录的项目键是 `dwf_run.cwd`，写入侧（submit/amend）用的就是执行 cwd —— 这里必须
-    // 同键，否则本会话刚跑的 run 会从清单里消失。见报告残留项。
-    cwd: context.workingDirectory,
+    // 独立会话目录与 Bash cd 不能缩窄项目历史；存储查询通过父会话 directory 关联实际 run.cwd。
+    // CLI/TUI 未提供工作区根时沿用执行 cwd，不允许模型指定跨项目查询根。
+    cwd: context.workspaceScopeRoot ?? context.workingDirectory,
     // 界已由输入 schema 钳到 [1, 50]（preprocess），端口因此从不看到一次无界枚举。
     limit: parsed.limit,
     ...(parsed.statuses === undefined ? {} : { statuses: parsed.statuses }),
@@ -185,7 +183,8 @@ export const listWorkflowRunsToolEntry: ToolEntry = {
   cancellation: {
     supported: false,
     cleanup: "none",
-    userVisibleMessage: "ListWorkflowRuns reads the run journal synchronously and cannot be cancelled",
+    userVisibleMessage:
+      "ListWorkflowRuns reads the run journal synchronously and cannot be cancelled",
   },
   trace: {
     required: true,

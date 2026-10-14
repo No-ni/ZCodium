@@ -19,7 +19,7 @@ import {
   useWorkflowRunArtifacts,
   type WorkflowRunArtifactView,
 } from "@/hooks/useWorkflowRunArtifacts.js";
-import { joinFilePath } from "@/lib/path.js";
+import { joinFilePath, resolveDocumentFileReferenceRootPath } from "@/lib/path.js";
 import type { WorkflowArtifactSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
 import { resolveTheme, type Theme } from "@/useTheme.js";
@@ -66,6 +66,7 @@ const WorkflowArtifactContent = memo(function WorkflowArtifactContent({
   const live = run === undefined ? undefined : (run.artifacts ?? EMPTY_SUMMARIES);
   const {
     artifacts,
+    executionWorkspacePath,
     loading: metadataLoading,
     unavailable,
   } = useWorkflowRunArtifacts({
@@ -110,7 +111,7 @@ const WorkflowArtifactContent = memo(function WorkflowArtifactContent({
           artifact={artifact}
           metadataLoading={metadataLoading}
           tab={tab}
-          {...(fileReferenceRootPath === undefined ? {} : { fileReferenceRootPath })}
+          fileReferenceRootPath={executionWorkspacePath ?? fileReferenceRootPath}
           theme={theme}
           {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
           {...(onRevealFileInTree === undefined ? {} : { onRevealFileInTree })}
@@ -189,6 +190,12 @@ function WorkflowArtifactView({
   // 拼上解析根才是本机上真实存在的位置（对话会话的 run cwd 是会话执行目录，不是工作区身份根）。
   // 远程 workspace 与无出处的产物都得不到它。
   const sourcePath = artifact.sourcePath;
+  const artifactRunRootPath =
+    fileReferenceRootPath ?? tab.fileReferenceRootPath ?? tab.workspacePath;
+  const markdownFileReferenceRootPath = resolveDocumentFileReferenceRootPath(
+    sourcePath,
+    artifactRunRootPath,
+  );
   const localSourcePath =
     sourcePath !== undefined &&
     canRevealArtifactInWorkspace({
@@ -196,7 +203,7 @@ function WorkflowArtifactView({
       ...(tab.workspaceIdentity === undefined ? {} : { workspaceIdentity: tab.workspaceIdentity }),
       ...(tab.remoteSessionId === undefined ? {} : { remoteSessionId: tab.remoteSessionId }),
     })
-      ? joinFilePath(fileReferenceRootPath ?? tab.workspacePath, sourcePath)
+      ? joinFilePath(artifactRunRootPath, sourcePath)
       : undefined;
 
   const [copied, setCopied] = useState(false);
@@ -293,6 +300,10 @@ function WorkflowArtifactView({
           resolvedTheme={resolveTheme(theme)}
           theme={theme}
           version={version}
+          workspacePath={tab.workspacePath}
+          fileReferenceRootPath={markdownFileReferenceRootPath}
+          {...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {})}
+          {...(tab.remoteSessionId ? { workspaceRemoteSessionId: tab.remoteSessionId } : {})}
           {...(localSourcePath === undefined ? {} : { localSourcePath })}
           {...(onOpenBrowserUrl === undefined ? {} : { onOpenBrowserUrl })}
           {...(localSourcePath !== undefined && onRevealFileInTree !== undefined

@@ -13,8 +13,11 @@ export interface SidebarFileTreeTarget {
    * 文件树按钮」产生的 target 与激活 tab 的 workspaceKey 相等——只看 key 无法区分「当前 tab
    * 自己的树」与「另一个会话的树」，树根会被换成**激活会话 A** 的执行目录：用户点 B 却看到 A
    * 的文件，拖拽/Add to chat 拿到的也是 A 的文件。判据因此加上「这次请求是哪个会话的」。
+   * null 表示 tab 明确不绑定当前会话；undefined 仍表示 tab/reveal 级请求。
    */
-  taskId?: string;
+  taskId?: string | null;
+  /** 由本次 task 打开动作解析并冻结的 cwd，避免后续激活会话变化改写任务文件树归属。 */
+  executionWorkspacePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   revealPath?: string;
@@ -24,10 +27,9 @@ export interface SidebarFileTreeTarget {
 /**
  * 文件树的归属目录（= 树根 / 浏览根）。
  *
- * 只有「当前 workspace tab 自己的树」跟随该对话的会话执行 cwd（见
- * docs/specs/conversation-session-workspace.md 的所有者表与规则 4）；其它会话的任务行、其它 tab、
- * 临时外部目录的树仍用目标自身的工作区路径。会话未绑定（草稿 / 旧 CLI 无快照字段）或请求不属于
- * 当前会话时同样回落。
+ * 当前 workspace tab 自己的树跟随活动会话执行 cwd；任务行请求在动作时解析并冻结自己的
+ * executionWorkspacePath。其它 tab、临时外部目录及未绑定会话仍用目标自身的工作区路径。
+ * 见 docs/specs/conversation-session-workspace.md 的所有者表与规则 4。
  *
  * 例外（已知边界 4 后半）：reveal 目标落在**工作区身份根内、会话目录之外**时
  * （例如 `<对话根>/.zcodium-share/...`，或用户直接放在对话根的文件），以会话目录为树根时
@@ -55,15 +57,22 @@ export function resolveSidebarFileTreePath(params: {
     params.target.workspacePath,
     params.target.workspaceIdentity,
   );
-  const sessionWorkspacePath = params.activeSessionWorkspacePath;
-  if (targetWorkspaceKey !== params.activeWorkspaceKey || !sessionWorkspacePath) {
-    return params.target.workspacePath;
-  }
-  // 请求绑定了别的会话（任务行的树）时不能借用激活会话的目录：同一对话工作区里所有会话的
-  // workspacePath 都是对话根，key 相等分辨不出它们。`taskId` 缺席（reveal / tab 级请求）时
-  // 才认为「这就是当前 tab 自己的树」。
-  if (params.target.taskId !== undefined && params.target.taskId !== params.activeTaskId) {
-    return params.target.workspacePath;
+  let sessionWorkspacePath = params.target.executionWorkspacePath?.trim() || null;
+  if (!sessionWorkspacePath) {
+    if (targetWorkspaceKey !== params.activeWorkspaceKey || !params.activeSessionWorkspacePath) {
+      return params.target.workspacePath;
+    }
+    // 请求绑定了别的会话（任务行的树）时不能借用激活会话的目录：同一对话工作区里所有会话的
+    // workspacePath 都是对话根，key 相等分辨不出它们。`taskId` 缺席（reveal / tab 级请求）时
+    // 才认为「这就是当前 tab 自己的树」。
+    // 根因：当前草稿的 activeTaskId 也是 null；显式 null 仍是另一个 tab 的身份根请求，不能借预热目录。
+    if (
+      params.target.taskId === null ||
+      (params.target.taskId !== undefined && params.target.taskId !== params.activeTaskId)
+    ) {
+      return params.target.workspacePath;
+    }
+    sessionWorkspacePath = params.activeSessionWorkspacePath;
   }
 
   // 空白 revealPath 等同于"没有 reveal"（WorkspaceFileTree 也按 trim 后判空）。

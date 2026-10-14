@@ -8,7 +8,11 @@
 // `project`）。`global` 时改按本机全局根（`~/.zcodium/workflows/`）操作，`workspace` 只是**载体**——
 // 处理器对全局档不读它的路径。`workflows/move` 把全局档搬回 `workspace` 项目（只此一向）。
 import { unlink, writeFile } from "node:fs/promises";
-import { SavedWorkflowMetaSchema, isValidSavedWorkflowName } from "@zcode/contracts";
+import {
+  SavedWorkflowMetaSchema,
+  isValidSavedWorkflowName,
+  type SessionId,
+} from "@zcode/contracts";
 import {
   listSavedWorkflows,
   moveSavedWorkflow,
@@ -140,8 +144,8 @@ export async function deleteSavedWorkflowOp(
  * 「submit 已回、行未落」的注册表间隙——那几个微任务靠下一次刷新补上，不值得为它把中枢绑到会话。
  * journal 缺席（注入的测试 store、无内省查询的实现）回空页而不是抛错：中枢据此显示「尚未运行」。
  *
- * `project`（缺省）：只查 `dwf_run.cwd === workspacePath`。`global`：**不**按 cwd 过滤，跨所有项目
- * 取该名字的运行历史（全局工作流在任何项目里跑，历史因此跨 cwd）；每行回 `cwd` 供 GUI 标项目。
+ * `project`（缺省）：按执行 cwd 或父会话项目归属查询。`global`：不按 cwd 过滤，跨项目历史
+ * 另投影父会话 workspacePath，cwd 只用于解析实际执行目录中的产物。
  */
 export async function listSavedWorkflowRunsOp(
   context: ZCodeProtocolAgentServerContext,
@@ -153,7 +157,7 @@ export async function listSavedWorkflowRunsOp(
   const limit = Math.min(ZCODE_WORKFLOWS_RUNS_MAX_LIMIT, params.limit);
   const global = scopeOf(params) === "global";
   // 多取一条**只为判定 truncated**（run service 与 v4 事件分页的同一惯例）。
-  // 全局变体省掉 cwd 谓词（journal 的 cwd 可选 = 跨所有项目）；项目变体传 cwd，逐字不变。
+  // 全局变体省掉 cwd 谓词；项目变体传工作区键，journal 用父会话关联识别独立目录的 run。
   const rows = journal.listRuns({
     ...(global ? {} : { cwd: params.workspace.workspacePath }),
     limit: limit + 1,
@@ -164,6 +168,17 @@ export async function listSavedWorkflowRunsOp(
   // 产物汇总：每行一次 `listArtifactRows`（journal 的持久家），只在能力在场时做——缺席即
   // 整字段缺席，中枢的 chips 就不画。**只对这一页的行**取数，所以代价与页大小同阶（≤ 50）。
   const artifactsByRun = savedWorkflowRunArtifacts(journal, page);
+  // 根因：独立目录不能反查已打开的项目。仅查本页去重后的父会话，不建立长期缓存。
+  const store = context.deps.sessionStore;
+  const workspaceByParent = new Map(
+    await Promise.all(
+      typeof store?.getSession === "function"
+        ? [
+            ...new Set(page.flatMap((row) => (row.parentSessionId ? [row.parentSessionId] : []))),
+          ].map(async (id) => [id, (await store.getSession(id as SessionId))?.directory] as const)
+        : [],
+    ),
+  );
   const runs: ZCodeSavedWorkflowRun[] = page.map((row) => ({
     runId: row.runId,
     ...(row.name === undefined ? {} : { name: row.name }),
@@ -175,7 +190,9 @@ export async function listSavedWorkflowRunsOp(
     ...(row.parentSessionId === undefined ? {} : { parentSessionId: row.parentSessionId }),
     ...(row.toolCallId === undefined ? {} : { toolCallId: row.toolCallId }),
     ...(row.args === undefined ? {} : { args: row.args }),
-    // 实际运行的项目目录：全局变体用它给每行标项目；项目变体里它恒等于 workspacePath，无害。
+    ...(row.parentSessionId && workspaceByParent.get(row.parentSessionId)?.trim()
+      ? { workspacePath: workspaceByParent.get(row.parentSessionId)! }
+      : {}),
     ...(row.cwd === undefined ? {} : { cwd: row.cwd }),
     ...(artifactsByRun.get(row.runId) === undefined
       ? {}

@@ -37,6 +37,7 @@ import { collectWorkbenchLayout, dividerStyle, SPLIT_VAR_PREFIX } from "@/v4/wor
 import { WorkbenchLeafPane, type WorkbenchShellBinding } from "@/v4/WorkbenchPane.js";
 import { WorkbenchSplitDivider } from "@/v4/WorkbenchSplitDivider.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
+import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
 import type {
   ChatSearchResultHighlightRequest,
   ChatViewSummaryPanelVariant,
@@ -81,6 +82,11 @@ interface V4WorkspaceChatAreaProps {
   onSessionCreated?: (sessionId: string) => void;
   /** primary pane 会话删除后回 draft（shell 起新草稿）。 */
   onSessionDeleted?: () => void;
+  primaryDraftScopeToken?: object;
+  /** primary draft 的 prewarm effectiveSessionId 只读投影，其他 pane 不上报。 */
+  onPrimaryDraftEffectiveSessionBindingChange?: (
+    event: PrimaryDraftEffectiveSessionBindingEvent,
+  ) => void;
   /**
    * 草稿态 composer contextHeader（m5：workspace 菜单 + Git 分支），
    * 仅下发给 primary pane——其余 pane 的 draft 不承载壳级 workspace 切换。
@@ -149,6 +155,8 @@ export function V4WorkspaceChatArea({
   provider,
   onSessionCreated,
   onSessionDeleted,
+  primaryDraftScopeToken,
+  onPrimaryDraftEffectiveSessionBindingChange,
   draftComposerHeader,
   onPrimaryDraftDropTargetControllerChange,
   gitSummary,
@@ -275,6 +283,8 @@ export function V4WorkspaceChatArea({
       provider,
       onSessionCreated,
       onSessionDeleted,
+      primaryDraftScopeToken,
+      onPrimaryDraftEffectiveSessionBindingChange,
       draftComposerHeader,
       onPrimaryDraftDropTargetControllerChange,
       gitSummary,
@@ -320,6 +330,8 @@ export function V4WorkspaceChatArea({
       provider,
       onSessionCreated,
       onSessionDeleted,
+      primaryDraftScopeToken,
+      onPrimaryDraftEffectiveSessionBindingChange,
       draftComposerHeader,
       onPrimaryDraftDropTargetControllerChange,
       gitSummary,

@@ -25,6 +25,7 @@ import { PreviewPaneOfficeContent } from "@/previewPaneOfficeContent.js";
 import type { PptxElementReferenceSource } from "@/lib/pptxElementReference.js";
 import type { MediaCodeViewerSource, PptxReferencePreviewNavigation } from "@/lib/codeViewer.js";
 import { resolveCodeReviewContentProjection } from "@/previewPaneCodeReview.js";
+import { resolveDocumentFileReferenceRootPath } from "@/lib/path.js";
 
 interface PreviewPaneContentProps {
   source: CodeViewerSource;
@@ -196,6 +197,10 @@ export function PreviewPaneContent({
     const isMarkdownSource = source.language === "markdown";
     const isSvgSource = isSvgPath(source.path);
     if (isMarkdownSource && markdownViewMode === "preview") {
+      const fileReferenceRootPath = resolveDocumentFileReferenceRootPath(
+        source.path,
+        source.fileReferenceRootPath ?? workspacePath,
+      );
       return (
         <MarkdownPreviewContent
           selectionTarget={markdownSelectionTarget}
@@ -207,6 +212,9 @@ export function PreviewPaneContent({
           sourcePath={source.path}
           content={source.content}
           workspacePath={workspacePath}
+          workspaceIdentity={source.workspaceIdentity}
+          workspaceRemoteSessionId={source.workspaceRemoteSessionId}
+          fileReferenceRootPath={fileReferenceRootPath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           onOpenBrowserUrl={onOpenBrowserUrl}
@@ -411,6 +419,10 @@ export function PreviewPaneContent({
   const isMarkdownFile = fileLanguage === "markdown";
   const isSvgFile = isSvgPath(source.path);
   if (source.type !== "code-review" && isMarkdownFile && markdownViewMode === "preview") {
+    const fileReferenceRootPath = resolveDocumentFileReferenceRootPath(
+      source.path,
+      source.fileReferenceRootPath ?? workspacePath,
+    );
     return (
       <MarkdownPreviewContent
         selectionTarget={markdownSelectionTarget}
@@ -419,6 +431,9 @@ export function PreviewPaneContent({
         sourcePath={source.path}
         content={filePreview.content}
         workspacePath={workspacePath}
+        workspaceIdentity={source.workspaceIdentity}
+        workspaceRemoteSessionId={source.workspaceRemoteSessionId}
+        fileReferenceRootPath={fileReferenceRootPath}
         onOpenBrowserUrl={onOpenBrowserUrl}
       />
     );

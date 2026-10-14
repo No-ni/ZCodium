@@ -433,6 +433,8 @@ export interface ToolExecutionResult {
   durationMs: number;
   startedAt: Date;
   completedAt: Date;
+  /** 工具上下文创建时捕获的内部执行 cwd；不进入模型可见结果。 */
+  workingDirectory?: string;
 }
 
 export interface ToolExecutionFollowUpUserInput {

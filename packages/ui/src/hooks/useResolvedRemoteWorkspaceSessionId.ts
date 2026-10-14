@@ -6,11 +6,12 @@ import {
   type WorkspaceServiceResolverState,
 } from "@/lib/workspaceServiceResolver.js";
 
-function resolveRemoteWorkspaceSessionIdForTarget<TServices>(params: {
+export function resolveRemoteWorkspaceSessionIdForTarget<TServices>(params: {
   workspacePath: string | null | undefined;
   preferredRemoteSessionId?: string | null;
   workspaceIdentity?: string | null;
   remoteTarget?: unknown;
+  scopeResolution?: "ambient" | "exact";
   activeTab?: WorkspaceTabState | null;
   state: WorkspaceServiceResolverState<TServices>;
 }): string | null {
@@ -20,6 +21,7 @@ function resolveRemoteWorkspaceSessionIdForTarget<TServices>(params: {
 
   const workspaceIdentity = params.workspaceIdentity?.trim() || undefined;
   const matchingActiveTab =
+    params.scopeResolution !== "exact" &&
     params.activeTab &&
     (workspaceIdentity
       ? params.activeTab.workspaceIdentity?.trim() === workspaceIdentity
@@ -43,7 +45,10 @@ function resolveRemoteWorkspaceSessionIdForTarget<TServices>(params: {
         // 缺少 identity 也可能是 local workspace，不能一律伪造成旧 remote tab。
         // 只有精确匹配的 active tab，或调用方已定位的目标 tab 真正携带 remoteTarget 时，
         // 才开放旧数据的 path fallback。
-        remoteTarget: matchingActiveTab?.remoteTarget ?? params.remoteTarget,
+        remoteTarget:
+          params.scopeResolution === "exact"
+            ? undefined
+            : (matchingActiveTab?.remoteTarget ?? params.remoteTarget),
       },
       params.state,
     ) ?? null
@@ -55,6 +60,7 @@ export function useResolvedRemoteWorkspaceSessionId(
   preferredRemoteSessionId?: string | null,
   workspaceIdentity?: string | null,
   remoteTarget?: unknown,
+  scopeResolution?: "ambient" | "exact",
 ): string | null {
   const activeWorkspaceTab = useTabStore((state) => {
     if (!workspacePath || !state.activeTabId) {
@@ -79,6 +85,7 @@ export function useResolvedRemoteWorkspaceSessionId(
       preferredRemoteSessionId,
       workspaceIdentity,
       remoteTarget,
+      scopeResolution,
       activeTab: activeWorkspaceTab,
       state,
     }),

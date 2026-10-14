@@ -24,6 +24,7 @@ export function GroupedTaskContextMenuContent({
   onArchiveTask,
   onMarkTaskAsUnread,
   onOpenTaskPathInFileManager,
+  onCopyWorkspacePath,
   onCopyText,
   onOpenTaskFeedback,
   disabledReason,
@@ -43,6 +44,7 @@ export function GroupedTaskContextMenuContent({
   onArchiveTask: (task: ZCodeTaskMeta) => void;
   onMarkTaskAsUnread: (task: ZCodeTaskMeta) => void;
   onOpenTaskPathInFileManager: () => void;
+  onCopyWorkspacePath: () => void;
   onCopyText: (label: string, text: string | null) => void;
   onOpenTaskFeedback: () => void;
   disabledReason?: string;
@@ -140,11 +142,7 @@ export function GroupedTaskContextMenuContent({
       >
         {fileManagerLabel}
       </ContextMenuItem>
-      <ContextMenuItem
-        onSelect={() =>
-          onCopyText(intl.formatMessage({ id: "appHeader.copyPath" }), task.workspacePath)
-        }
-      >
+      <ContextMenuItem onSelect={onCopyWorkspacePath}>
         {intl.formatMessage({ id: "appHeader.copyPath" })}
       </ContextMenuItem>
       <ContextMenuItem

@@ -1665,7 +1665,23 @@ export function createLocalServices(options: {
     .register(IMcpSyncService, mcpSyncService)
     .register(
       IGenUiService,
-      createGenUiService({ registerSandbox: options?.registerPluginSandbox }),
+      createGenUiService({
+        registerSandbox: options?.registerPluginSandbox,
+        conversationOutput: {
+          conversationWorkspaceRoot: getConversationWorkspaceDir(),
+          resolveSessionWorkspacePath: async (scope) => {
+            // 生成完成的会话已落库；精确查询既覆盖派生 child，也不会为读文件激活/恢复 runtime。
+            const sessions = await zcodeAgentService.listSessions({
+              ...scope,
+              sessionIds: [scope.sessionId],
+              includeArchived: true,
+            });
+            const session = sessions.find((entry) => entry.sessionId === scope.sessionId);
+            if (!session) throw new Error("Gen UI session not found");
+            return session.executionWorkspacePath;
+          },
+        },
+      }),
     )
     .register(IPluginUiBridgeService, pluginUiBridgeService)
     .register(IPluginUiSamplingService, pluginUiSamplingService)

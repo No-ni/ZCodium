@@ -26,4 +26,39 @@ describe("Gen UI output directory", () => {
     expect(() => getGenUiOutputDirectory(scope.workspacePath, scope)).toThrow();
     expect(() => getGenUiOutputDirectory(join(scope.workspacePath, ".zcode"), scope)).toThrow();
   });
+  it("uses the trusted conversation session directory while retaining project and legacy output", () => {
+    const executionWorkspacePath = join(scope.workspacePath, "2026-10-13", "a1b2c3d4");
+    const conversation = { conversationWorkspaceRoot: scope.workspacePath, executionWorkspacePath };
+    expect(getGenUiOutputDirectory(root, scope, conversation)).toBe(
+      join(executionWorkspacePath, "visualizations"),
+    );
+    expect(
+      getGenUiOutputDirectory(root, scope, {
+        ...conversation,
+        executionWorkspacePath: scope.workspacePath,
+      }),
+    ).toBe(getGenUiOutputDirectory(root, scope));
+    expect(
+      getGenUiOutputDirectory(
+        root,
+        { ...scope, workspaceIdentity: "remote:fixture" },
+        conversation,
+      ),
+    ).toBe(getGenUiOutputDirectory(root, { ...scope, workspaceIdentity: "remote:fixture" }));
+    expect(
+      getGenUiOutputDirectory(root, scope, {
+        ...conversation,
+        conversationWorkspaceRoot: resolve("another"),
+      }),
+    ).toBe(getGenUiOutputDirectory(root, scope));
+    expect(
+      getGenUiOutputDirectory(root, scope, {
+        ...conversation,
+        executionWorkspacePath: resolve("outside"),
+      }),
+    ).toBe(getGenUiOutputDirectory(root, scope));
+    expect(() =>
+      getGenUiOutputDirectory(root, scope, { ...conversation, executionWorkspacePath: "relative" }),
+    ).toThrow("absolute");
+  });
 });

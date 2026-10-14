@@ -91,10 +91,9 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
   // 打开请求里的 workspace 作用域（actor / 脚本 / 产物 / 后继 tab 都带同一份）。
-  const { remoteSessionId, workspaceIdentity, workspacePath } = tab;
   const tabScope = useMemo(
-    () => workflowRunTabScope({ remoteSessionId, workspaceIdentity, workspacePath }),
-    [remoteSessionId, workspaceIdentity, workspacePath],
+    () => workflowRunTabScope(tab),
+    [tab.fileReferenceRootPath, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
   );
 
   const run = useMemo(
@@ -307,29 +306,30 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   // 产物。活投影只带最新版的元数据，spec 与版本历史在
   // journal 里，所以 hook 两边都读——`run` 不在投影里（冷恢复 / 被 8-run 上限淘汰）时
   // `live` 缺席，整份清单走 journal。
-  const { artifacts } = useWorkflowRunArtifacts({
+  const { artifacts, executionWorkspacePath } = useWorkflowRunArtifacts({
     sessionId: tab.parentSessionId,
     runId: tab.runId,
     ...(run === undefined ? {} : { live: run.artifacts ?? EMPTY_ARTIFACTS }),
   });
+  const artifactRoot = executionWorkspacePath ?? tab.fileReferenceRootPath ?? tab.workspacePath;
   const handleOpenArtifact = useCallback(
     (artifactId: string) => {
       // 卡片只发意图（哪个产物），会话与 workspace 身份由这里补齐——与 actor transcript
       // 同一条论证：卡片不感知 scope。**不带版本号**：打开即最新版。
       //
       // 这份清单是活投影 + journal 的合并视图，所以 `contentType` 与 `sourcePath` 两个键都在：
-      // 前者让宿主把 html 产物直接开成浏览器 tab，后者省掉宿主再查一次 journal
+      // 前者让宿主把 html 产物直接开成浏览器 tab，后者供文件入口使用；宿主仍查询 run 的执行根。
       const artifact = artifacts.find((candidate) => candidate.id === artifactId);
       onOpenWorkflowArtifact?.({
         ...tabScope,
         parentSessionId: tab.parentSessionId,
         runId: tab.runId,
         artifactId,
-        // 产物 `sourcePath` 是相对 **run 的 cwd**（= 发起这次打开的会话执行目录）产出的：
-        // 解析根取本 tab 打开时冻结的那个（`WorkflowRunSidePaneTab.fileReferenceRootPath`），
+        // 产物 sourcePath 相对冻结 run cwd；Bash cd 后它可能不同于 pane 初始目录。
+        // 根优先取同次产物查询的 journal 投影；旧 Host 才回落 tab 冻结根，
         // 不能用宿主侧的「当前会话 cwd」；没有冻结根（旧记忆状态里的 tab / 中枢入口）时回落
         // 工作区身份根，即改动前行为。
-        fileReferenceRootPath: tab.fileReferenceRootPath ?? tab.workspacePath,
+        fileReferenceRootPath: artifactRoot,
         ...(artifact?.title === undefined ? {} : { title: artifact.title }),
         ...(artifact?.contentType === undefined ? {} : { contentType: artifact.contentType }),
         ...(artifact?.sourcePath === undefined ? {} : { sourcePath: artifact.sourcePath }),
@@ -337,6 +337,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
     },
     [
       artifacts,
+      artifactRoot,
       onOpenWorkflowArtifact,
       // 冻结根必须进依赖：同一个 tab id 会在重开时被 `{...existing, ...nextTab}` 覆盖
       // `fileReferenceRootPath`（首帧回落 → 快照到达后换成会话执行 cwd），漏掉它会让这里
@@ -436,6 +437,8 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
           artifacts={artifacts}
           runId={tab.runId}
           sessionId={tab.parentSessionId}
+          workspacePath={tab.workspacePath}
+          fileReferenceRootPath={artifactRoot}
           {...(onOpenWorkflowArtifact === undefined ? {} : { onOpenArtifact: handleOpenArtifact })}
         />
       )}

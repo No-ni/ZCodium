@@ -14,6 +14,8 @@ const CUSTOM_COMMAND_NOT_FOUND_PATTERN = /not found/i;
 const PROMPT_CUSTOM_COMMAND_PATTERN = /^\/([^\s]+)(?:\s+([\s\S]*))?$/;
 
 interface ResolveZCodeCustomCommandPromptOptions extends ListZCodeCustomCommandsOptions {
+  /** 命令发现与 shell 执行不能共用身份根。 */
+  executionWorkingDirectory?: string;
   executionPort?: ExecutionPort;
   sessionId?: SessionId;
   signal?: AbortSignal;
@@ -55,7 +57,8 @@ export async function resolveZCodeCustomCommandPrompt(
         sessionId: options.sessionId,
         signal: options.signal,
         traceContext: options.traceContext,
-        workingDirectory: options.workingDirectory ?? process.cwd(),
+        workingDirectory:
+          options.executionWorkingDirectory ?? options.workingDirectory ?? process.cwd(),
       });
       return formatCustomCommandPrompt({
         argumentCount: expanded.argumentCount,

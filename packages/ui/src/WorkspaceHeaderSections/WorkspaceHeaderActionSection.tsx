@@ -14,7 +14,9 @@ export function WorkspaceHeaderActionSection({
   activeTaskId,
   readOnlyReason,
   workspaceAbsPath,
+  sessionWorkspacePath,
   workspaceIdentity,
+  remoteSessionId,
   remoteTarget,
   isDesktop,
   isTerminalOpen,
@@ -41,7 +43,10 @@ export function WorkspaceHeaderActionSection({
         <WorkspaceEditorButtonGroup
           disabledReason={readOnlyReason}
           workspaceAbsPath={workspaceAbsPath}
+          activeTaskId={activeTaskId}
+          workingDirectory={sessionWorkspacePath}
           workspaceIdentity={workspaceIdentity}
+          remoteSessionId={remoteSessionId}
           remoteTarget={remoteTarget}
           onSelectedEditorChange={onSelectedEditorChange}
         />

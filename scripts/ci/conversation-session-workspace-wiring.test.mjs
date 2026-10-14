@@ -15,6 +15,94 @@ import { readFile } from "node:fs/promises";
 // 这正是清单存在的意义（与 session-local-errors / model-choice-submission 同一条路子）。
 const CONTRACTS = [
   [
+    "packages/ui/src/AssistantPreviewCards.tsx",
+    'scope.workspacePath ? "exact" : "ambient",',
+    "预览卡片冻结来源 Host，旧缺席 scope 保留兼容",
+  ],
+  [
+    "packages/ui/src/v4/sessionWorkspacePath.ts",
+    'workspaceIdentity ?? null, undefined, "exact",',
+    "tab 的执行目录订阅不能借同路径活动远程 Host",
+  ],
+  [
+    "packages/ui/src/v4/V4ConversationContext.tsx",
+    'scope.workspaceIdentity ?? null, undefined, "exact",',
+    "显式 pane scope 不借壳层远程身份",
+  ],
+  [
+    "packages/ui/src/WorkspaceEditorButtonGroup.tsx",
+    'workspaceIdentity, remoteTarget, "exact",',
+    "header 任务目录精确读取来源 Host",
+  ],
+  [
+    "packages/ui/src/useTaskListItemContextActions.ts",
+    'workspaceIdentity, undefined, "exact",',
+    "任务菜单 cwd 查询精确读取来源 Host",
+  ],
+  [
+    "packages/ui/src/PreviewPane.tsx",
+    'source?.workspacePath ? "exact" : "ambient",',
+    "冻结 CodeViewer 来源使用精确 Host，旧无来源工作区仍保留 ambient 兼容",
+  ],
+  ...[
+    "packages/ui/src/workspace-file-tree/useWorkspaceFileTreeData.ts",
+    "packages/ui/src/workspace-file-tree/useWorkspaceFileSearchIndex.ts",
+  ].map((path) => [
+    path,
+    'workspaceIdentity, undefined, "exact",',
+    "文件树与搜索读取明确目标 scope，不借同路径活动远程 Host",
+  ]),
+  [
+    "packages/ui/src/components/ai-elements/message.tsx",
+    "resolveTaskExecutionWorkspaceServices({ baseServices, workspaceIdentity: fileLink.workspaceIdentity, remoteSessionId: fileLink.workspaceRemoteSessionId, })",
+    "Markdown 右键编辑器 stat 与左键使用相同来源 Host，不能借预览所在壳层服务",
+  ],
+  [
+    "packages/ui/src/components/ai-elements/message.tsx",
+    "const baseServices = useOptionalBaseWorkspaceServices();",
+    "本地来源右键动作从本机根服务开始，不能把主 pane 的远程服务当成本机",
+  ],
+  [
+    "packages/ui/src/root/useRemoteWorkspaceHistory.ts",
+    "tabStoreApi.getState().activateTab(existingWorkspaceTab.id);",
+    "历史入口已经找到的旧 session-only remote tab 按精确 id 激活，不能误用本地 path-only 导航",
+  ],
+  [
+    "packages/ui/src/app-shell/WorkspaceShellLayout.tsx",
+    "resolveTaskExecutionWorkspaceServices({ baseServices, workspaceIdentity: target.workspaceIdentity, remoteSessionId: target.workspaceRemoteSessionId, });",
+    "跨 Host 分屏文件链接的 stat 按来源 scope 路由，不能读取活动壳层 Host",
+  ],
+  [
+    "packages/ui/src/app-shell/PlanDetailSidePane.tsx",
+    "workspaceIdentity={tab.workspaceIdentity} workspaceRemoteSessionId={tab.remoteSessionId}",
+    "远端分屏打开的 Plan Markdown 必须把冻结 Host 身份带到文件链接",
+  ],
+  [
+    "packages/ui/src/v4/WorkbenchPane.tsx",
+    "onOpenFileLink={shell.onOpenFileLink}",
+    "跨 workspace 分屏共享文件打开 sink，sink 必须消费 SessionPane 的来源身份",
+  ],
+  [
+    "packages/ui/src/previewPaneContent.tsx",
+    "workspaceIdentity={source.workspaceIdentity} workspaceRemoteSessionId={source.workspaceRemoteSessionId}",
+    "远端 CodeViewer 的 Markdown 预览必须继续使用被冻结的文件来源 Host",
+  ],
+  [
+    "packages/ui/src/previewPaneMarkdownContent.tsx",
+    "workspaceIdentity={workspaceIdentity} workspaceRemoteSessionId={workspaceRemoteSessionId}",
+    "Markdown 预览把来源 Host 传至链接动作，而不是借活动壳层连接",
+  ],
+  [
+    "packages/ui/src/App.tsx",
+    "const terminalExecutionSessionId = sessionPathTargetId; const terminalExecutionWorkspacePath = effectiveWorkspacePath;",
+    "project 分类不能否决 CLI 会话执行根；底部与右侧终端共用同一目标会话及执行目录",
+  ],
+  [
+    "packages/ui/src/WorkspaceSidebarItem.tsx",
+    "...(isActiveWorkspace ? (activeTaskId ? { taskId: activeTaskId } : {}) : { taskId: null }),",
+    "当前 tab 草稿省略 taskId 才跟随预热目录；非激活 tab 显式 null 始终请求身份根，不能借当前草稿 cwd",
+  ],
+  [
     "packages/ui/src/ToolCallBlocks.tsx",
     "buildToolDisplayModel(toolCall, fileReferenceRootPath ?? workspacePath)",
     "工具输出里的路径是模型写的原文，相对路径必须按 pane 的会话 cwd 解析；身份根是回落",
@@ -41,7 +129,7 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/app-shell/WorkflowArtifactSidePane.tsx",
-    "joinFilePath(fileReferenceRootPath ?? tab.workspacePath, sourcePath)",
+    "joinFilePath(artifactRunRootPath, sourcePath)",
     "产物 sourcePath 相对 run 的 cwd（会话执行目录），拼身份根会指到对话根的同名位置",
   ],
   [
@@ -51,12 +139,12 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/app-shell/WorkflowRunSidePane.tsx",
-    "fileReferenceRootPath: tab.fileReferenceRootPath ?? tab.workspacePath,",
+    "fileReferenceRootPath: artifactRoot,",
     "run 详情面板里的产物 chip 也要拼 sourcePath（相对 run 的 cwd）：解析根取自 tab 冻结值，缺席回落身份根",
   ],
   [
     "packages/ui/src/hooks/useAppPanels.ts",
-    "const artifactRootPath = request.fileReferenceRootPath?.trim() || request.workspacePath;",
+    "const artifactRootPath = executionWorkspacePath ?? (request.fileReferenceRootPath?.trim() || request.workspacePath);",
     "html 产物「直接开浏览器」的 URL 必须按发起 pane 的会话 cwd 拼（分屏时焦点可能已换）",
   ],
   [
@@ -141,7 +229,7 @@ const CONTRACTS = [
   ],
   [
     "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/server-operations.ts",
-    "const inheritedExecutionWorkspacePath = resolveConversationSessionWorkspaceInherited( record.executionWorkspacePath, );",
+    "const inheritedExecutionWorkspacePath = resolveConversationSessionWorkspaceInherited( record.executionWorkspacePath, conversationRuleApplies ? conversationRoot : undefined, );",
     "规则 5：fork / 侧会话必须继承父会话的执行 cwd（重算会让子会话跑到另一个目录、并让删除边界的『仍被别的在册会话使用』守卫失效）",
   ],
   [
@@ -316,6 +404,175 @@ test("git 提交弹窗的两条筛选入口都显式带会话解析根", async (
   );
 });
 
+test("Markdown 预览与计划详情把文档解析根传入 MessageResponse，计划打开时冻结来源根", async () => {
+  const previewSource = normalize(await readFile("packages/ui/src/previewPaneContent.tsx", "utf8"));
+  assert.ok(
+    previewSource.includes("resolveDocumentFileReferenceRootPath(") &&
+      previewSource.includes("fileReferenceRootPath={fileReferenceRootPath}"),
+    "Markdown 预览应按 source.path 所在目录解析相对引用，再显式传给 MessageResponse",
+  );
+  assert.equal(
+    previewSource.match(/fileReferenceRootPath=\{fileReferenceRootPath\}/g)?.length,
+    2,
+    "text 与 file 两种 Markdown 预览入口都必须传文档解析根",
+  );
+
+  const previewBody = normalize(
+    await readFile("packages/ui/src/previewPaneMarkdownContent.tsx", "utf8"),
+  );
+  assert.ok(
+    previewBody.includes("fileReferenceRootPath={fileReferenceRootPath}"),
+    "MarkdownPreviewContent 必须把引用根交给 MessageResponse，workspacePath 仍保留 service 身份",
+  );
+
+  const artifactBody = normalize(
+    await readFile("packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactBody.tsx", "utf8"),
+  );
+  const artifactPreview = normalize(
+    await readFile(
+      "packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactTilePreview.tsx",
+      "utf8",
+    ),
+  );
+  assert.ok(
+    artifactBody.includes("fileReferenceRootPath={fileReferenceRootPath}") &&
+      artifactBody.includes("workspacePath={workspacePath}") &&
+      artifactPreview.includes("fileReferenceRootPath={markdownFileReferenceRootPath}") &&
+      artifactPreview.includes("workspacePath={workspacePath}"),
+    "完整产物正文与完成/运行缩略图都要把来源文档根交给 MessageResponse，同时保留 workspace 身份路径",
+  );
+
+  const planCard = normalize(
+    await readFile("packages/ui/src/ToolCallBlocks/renderers/switch-mode.tsx", "utf8"),
+  );
+  assert.ok(
+    planCard.includes("fileReferenceRootPath: sourceRootPath") &&
+      planCard.includes("fileReferenceRootPath={documentReferenceRootPath}"),
+    "计划内联预览和详情请求都必须使用同一来源根与文档目录优先级",
+  );
+
+  const planTab = normalize(await readFile("packages/ui/src/lib/workspaceSidePane.ts", "utf8"));
+  assert.ok(
+    planTab.includes("fileReferenceRootPath?: string") &&
+      planTab.includes("fileReferenceRootPath: options.fileReferenceRootPath"),
+    "plan detail request 的来源根必须完整透传并冻结到 tab",
+  );
+
+  const planPane = normalize(
+    await readFile("packages/ui/src/app-shell/PlanDetailSidePane.tsx", "utf8"),
+  );
+  assert.ok(
+    planPane.includes("tab.fileReferenceRootPath ?? tab.workspacePath") &&
+      planPane.includes("fileReferenceRootPath={documentReferenceRootPath}"),
+    "计划详情必须用 tab 冻结根解读 raw toolCall，并按计划文件目录解析正文链接",
+  );
+  const sessionPane = normalize(await readFile("packages/ui/src/v4/SessionPane.tsx", "utf8"));
+  const planProducer = sessionPane.slice(
+    sessionPane.indexOf("const handleOpenPlanDetail ="),
+    sessionPane.indexOf("const handleOpenWorkflowRun ="),
+  );
+  assert.ok(
+    planProducer.includes(
+      "fileReferenceRootPath: request.fileReferenceRootPath ?? fileSearchRootPath",
+    ) && planProducer.includes("[fileSearchRootPath, onOpenPlanDetail"),
+    "状态面板的计划详情请求必须由所属 pane 补冻结根，已有来源根则保留",
+  );
+});
+
+test("Automations saved workflow opens preserve the run cwd through the side-pane request", async () => {
+  const openers = normalize(
+    await readFile(
+      "packages/ui/src/settings/saved-workflows/useSavedWorkflowRunOpeners.ts",
+      "utf8",
+    ),
+  );
+  assert.ok(
+    openers.includes("fileReferenceRootPath: run.cwd?.trim() || target.workspacePath"),
+    "saved run and artifact open requests must use the persisted run cwd, with legacy workspace fallback",
+  );
+
+  const shell = normalize(
+    await readFile("packages/ui/src/app-shell/WorkspaceShellLayout.tsx", "utf8"),
+  );
+  assert.ok(
+    shell.includes("fileReferenceRootPath: params.fileReferenceRootPath ?? targetWorkspacePath"),
+    "the run cwd must be copied into both the run-detail and artifact side-tab requests",
+  );
+});
+
+test("saved workflow navigation keeps explicit local targets independent of the active remote workspace", async () => {
+  const shell = normalize(
+    await readFile("packages/ui/src/app-shell/WorkspaceShellLayout.tsx", "utf8"),
+  );
+  for (const [start, end] of [
+    ["const handleOpenSavedWorkflowRun =", "// 侧栏运行行"],
+    ["const handleOpenSavedWorkflowArtifact =", "const handlePaneActiveSessionChange ="],
+  ]) {
+    const handler = shell.slice(shell.indexOf(start), shell.indexOf(end, shell.indexOf(start)));
+    assert.ok(handler.includes("const targetWorkspaceIdentity = params.workspaceIdentity;"));
+    assert.ok(handler.includes("findTaskNavigationWorkspaceTab(workspaceTabs, {"));
+    assert.ok(!handler.includes("workspaceTabs.find("));
+  }
+  const sidebar = shell.slice(
+    shell.indexOf("const handleOpenSidebarWorkflowRun ="),
+    shell.indexOf("// 中枢的产物 chip"),
+  );
+  assert.match(sidebar, /findTaskNavigationWorkspaceTab\(\s*workspaceTabs,\s*target,?\s*\)/u);
+});
+
+test("sidebar workflow run opens freeze the exact local session root and reject stale lookups", async () => {
+  const shell = normalize(
+    await readFile("packages/ui/src/app-shell/WorkspaceShellLayout.tsx", "utf8"),
+  );
+  const handlerStart = shell.indexOf("const handleOpenSidebarWorkflowRun =");
+  const handlerEnd = shell.indexOf("// 中枢的产物 chip", handlerStart);
+  const handler = shell.slice(handlerStart, handlerEnd);
+  const openKeysStart = shell.indexOf("const openWorkspaceKeys =");
+  const openKeysEnd = shell.indexOf("// 保活回收", openKeysStart);
+  const invalidationEffect = shell.slice(openKeysStart, openKeysEnd);
+  assert.ok(
+    handler.includes("resolveTaskExecutionWorkspaceServices({") &&
+      handler.includes("baseServices,") &&
+      handler.includes("if (!executionServices)") &&
+      handler.includes("await resolveTaskExecutionWorkspacePath(executionServices, {") &&
+      handler.includes("workspacePath: target.workspacePath,") &&
+      handler.includes("sessionId: target.sessionId,") &&
+      handler.includes("fileReferenceRootPath ? {fileReferenceRootPath} : {}") &&
+      handler.includes("workspaceIdentity: target.workspaceIdentity") &&
+      handler.includes("remoteSessionId: targetRemoteSessionId"),
+    "sidebar run summaries omit cwd, so the host must query the exact session and freeze its execution root",
+  );
+  assert.ok(
+    handler.includes("requestVersion !== sidebarWorkflowRunOpenGenerationRef.current") &&
+      invalidationEffect.includes("activeTaskId,") &&
+      invalidationEffect.includes("isSidePaneOpen,") &&
+      invalidationEffect.includes("openWorkspaceKeys,") &&
+      invalidationEffect.includes("sidePaneOwnerId,") &&
+      invalidationEffect.includes("sidePaneState?.activeTabId,") &&
+      invalidationEffect.includes("sidePaneState?.tabs,") &&
+      invalidationEffect.includes("workspaceAbsPath,") &&
+      invalidationEffect.includes("workspaceIdentity,") &&
+      invalidationEffect.includes("workspaceRemoteSessionId,") &&
+      invalidationEffect.includes(
+        "return () => {sidebarWorkflowRunOpenGenerationRef.current += 1;};",
+      ),
+    "a newer click, workspace/session switch, side-pane change, or unmount must discard stale lookup results",
+  );
+});
+
+test("workflow run side-pane scope carries the frozen root into successors and related tabs", async () => {
+  const runPane = normalize(
+    await readFile("packages/ui/src/app-shell/WorkflowRunSidePane.tsx", "utf8"),
+  );
+  assert.ok(
+    runPane.includes("workflowRunTabScope(tab)") &&
+      runPane.includes(
+        "[tab.fileReferenceRootPath, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath]",
+      ),
+    "workflow-run tab scope and its memo dependencies must include the frozen root",
+  );
+});
+
 // 删除边界的三个回收调用点（旧 closeSession、v4 closeSession、创建失败自清理）共用同一条
 // 守卫：`isConversationSessionDirectoryInUseAcrossProcesses`（进程内注册表 + 会话库）。
 // 只查注册表会漏掉**别的 app-server** 里继承同一执行 cwd 的 fork / 侧会话——B 窗口删父会话
@@ -326,6 +583,48 @@ const DELETE_GUARD_WIRING = [
   ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/server-operations.ts", 2],
   ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/v4-bridge.ts", 1],
 ];
+
+test("workflow actor factory consumes the run cwd instead of the app's initial cwd", async () => {
+  const source = normalize(
+    await readFile("apps/zcode-cli/packages/bootstrap/src/app/create-app.ts", "utf8"),
+  );
+  const actorFactory = source.slice(
+    source.indexOf("createActorRuntime: ({"),
+    source.indexOf("// persona 不再经 request.opts.systemPrompt"),
+  );
+  assert.ok(actorFactory.includes("cwd: actorWorkingDirectory"));
+  assert.ok(actorFactory.includes("workingDirectory: actorWorkingDirectory"));
+});
+
+test("real subagent runtime readiness reports cwd after persistence or resume", async () => {
+  const source = normalize(
+    await readFile("apps/zcode-cli/packages/core/src/runtime/methods/subagent.ts", "utf8"),
+  );
+  assert.ok(source.includes("await request.onSessionReady?.(executionWorkspacePath)"));
+  const ready = source.indexOf("await notifySessionReady(childRuntime.getWorkingDirectory())");
+  assert.ok(ready > source.indexOf("await childRuntime.resumeFromStore("));
+  assert.ok(
+    ready > source.indexOf("await childRuntime.ensureSessionPersistedForExternalActivity("),
+  );
+});
+
+test("script actor forwards live child cwd through the existing event sink", async () => {
+  const child = normalize(
+    await readFile(
+      "apps/zcode-cli/packages/bootstrap/src/app/script-workflow-child-runtime.ts",
+      "utf8",
+    ),
+  );
+  assert.ok(child.includes("onSessionEvent: async (event, executionWorkspacePath) =>"));
+  assert.ok(child.includes("childSessionId, executionWorkspacePath, event, traceContext"));
+  const operations = normalize(
+    await readFile(
+      "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/server-operations.ts",
+      "utf8",
+    ),
+  );
+  assert.ok(operations.includes("record.app.sessionId, executionWorkspacePath,"));
+});
 for (const [path, expected] of DELETE_GUARD_WIRING) {
   test(`接线契约：${path} 的删除回收用惰性跨进程复检（${expected} 处）`, async () => {
     const source = normalize(await readFile(path, "utf8"));
@@ -364,3 +663,32 @@ for (const [path, expected] of DELETE_GUARD_WIRING) {
     );
   });
 }
+
+test("dynamic workflow file actions prefer authorized journal cwd over the initial pane root", async () => {
+  const read = async (path) => normalize(await readFile(path, "utf8"));
+  const artifacts = await read("packages/ui/src/hooks/useWorkflowRunArtifacts.ts");
+  assert.ok(
+    artifacts.includes(normalize("setExecutionWorkspacePath(result.executionWorkspacePath);")),
+  );
+  assert.ok(artifacts.includes(normalize("setExecutionWorkspacePath(undefined);")));
+  for (const [file, expected] of [
+    [
+      "packages/ui/src/app-shell/WorkflowArtifactSidePane.tsx",
+      "fileReferenceRootPath={executionWorkspacePath ?? fileReferenceRootPath}",
+    ],
+    [
+      "packages/ui/src/v4/ConversationWorkflowCompletion.tsx",
+      "fileReferenceRootPath={state.executionWorkspacePath ?? fileReferenceRootPath}",
+    ],
+    [
+      "packages/ui/src/app-shell/WorkflowWorkspaceSidePane.tsx",
+      "workspace.executionWorkspacePath ?? fileReferenceRootPath ?? tab.workspacePath",
+    ],
+  ])
+    assert.ok((await read(file)).includes(normalize(expected)), file);
+  const panels = await read("packages/ui/src/hooks/useAppPanels.ts");
+  assert.ok(
+    panels.includes(normalize("openInBrowser(sourcePath, result.executionWorkspacePath);")),
+  );
+  assert.ok(!panels.includes(normalize("openInBrowser(knownSourcePath);")));
+});

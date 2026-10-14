@@ -2,14 +2,16 @@ import { createOpenInEditorRemoteTarget } from "@zcode/shared";
 import { useMemo } from "react";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WindowTabState, type WorkspaceTabState } from "@/store/tabStore.js";
+import { isSameWorkspaceTab } from "@/store/tabWorkspaceIdentity.js";
 
 interface WorkspaceOpenInEditorScope {
   workspacePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
+  scopeResolution?: "ambient" | "exact";
 }
 
-function resolveWorkspaceOpenInEditorTarget(
+export function resolveWorkspaceOpenInEditorTarget(
   tabs: readonly WindowTabState[],
   scope: WorkspaceOpenInEditorScope,
 ) {
@@ -19,28 +21,33 @@ function resolveWorkspaceOpenInEditorTarget(
 
   const requestedIdentity = scope.workspaceIdentity?.trim() || undefined;
   const requestedRemoteSessionId = scope.workspaceRemoteSessionId?.trim() || undefined;
-  const workspaceKey = requestedIdentity || scope.workspacePath;
+  const useAmbientPath =
+    scope.scopeResolution === "ambient" && !requestedIdentity && !requestedRemoteSessionId;
+  const isRemoteWorkspace = Boolean(requestedIdentity || requestedRemoteSessionId);
   const matches = tabs.filter((tab): tab is WorkspaceTabState => {
-    if (!isWorkspaceTab(tab) || tab.workspacePath !== scope.workspacePath) {
-      return false;
-    }
-
-    const tabWorkspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
-    const tabRemoteSessionId = tab.remoteSessionId?.trim() || undefined;
     return (
-      (!requestedIdentity || tabWorkspaceKey === workspaceKey) &&
-      (!requestedRemoteSessionId || tabRemoteSessionId === requestedRemoteSessionId)
+      isWorkspaceTab(tab) &&
+      (useAmbientPath
+        ? tab.workspacePath === scope.workspacePath
+        : isSameWorkspaceTab(tab, scope.workspacePath!, {
+            workspaceIdentity: requestedIdentity,
+            remoteSessionId: requestedRemoteSessionId,
+          })) &&
+      (!requestedRemoteSessionId || tab.remoteSessionId?.trim() === requestedRemoteSessionId)
     );
   });
-  // 远程文件动作以前只携带 Linux path，renderer 无法判断它属于哪个 SSH/WSL 目标；
-  // identity/session 已提供时精确匹配，旧调用仅在工作区匹配唯一时提取既有脱敏目标。
+  // 缺席身份明确表示本地来源，不能借同路径远程 tab；显式远程来源缺 tab/target
+  // 仍保持远程判据，让调用方拒绝打开而不是将远程路径交给本机编辑器。
   const matchedTab = matches.length === 1 ? matches[0] : undefined;
-  const hasRemoteMatch = matches.some((tab) =>
-    Boolean(tab.workspaceIdentity || tab.remoteSessionId || tab.remoteTarget),
-  );
-  const remoteTarget = matchedTab?.remoteTarget;
+  const isRemoteTarget =
+    isRemoteWorkspace ||
+    (useAmbientPath &&
+      matches.some((tab) =>
+        Boolean(tab.workspaceIdentity || tab.remoteSessionId || tab.remoteTarget),
+      ));
+  const remoteTarget = isRemoteTarget ? matchedTab?.remoteTarget : undefined;
   return {
-    isRemoteWorkspace: hasRemoteMatch,
+    isRemoteWorkspace: isRemoteTarget,
     remoteTarget: remoteTarget ? createOpenInEditorRemoteTarget(remoteTarget) : undefined,
   };
 }
@@ -50,6 +57,12 @@ export function useWorkspaceOpenInEditorTarget(scope: WorkspaceOpenInEditorScope
 
   return useMemo(
     () => resolveWorkspaceOpenInEditorTarget(tabs, scope),
-    [scope.workspaceIdentity, scope.workspacePath, scope.workspaceRemoteSessionId, tabs],
+    [
+      scope.workspaceIdentity,
+      scope.workspacePath,
+      scope.workspaceRemoteSessionId,
+      scope.scopeResolution,
+      tabs,
+    ],
   );
 }

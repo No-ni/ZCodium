@@ -405,6 +405,10 @@ export interface V4GatewayHost {
     sessionId: string,
     input: { runId: string },
   ): Promise<readonly DynamicWorkflowRunArtifact[] | undefined>;
+  getDynamicWorkflowRunExecutionWorkspacePath?(
+    sessionId: string,
+    input: { runId: string },
+  ): Promise<string | undefined>;
   listDynamicWorkflowRunArtifactItems?(
     sessionId: string,
     input: { runId: string; artifactId: string; afterSequence?: number; limit: number },
@@ -593,6 +597,7 @@ export class ConversationV4Gateway {
    * 或在 turn 结束且无订阅者、超过 grace 后由低频 tick 释放；否则会驻留到进程退出。
    */
   private readonly detachedChildParent = new Map<string, string>();
+  private readonly detachedChildWorkspacePath = new Map<string, string>();
   private readonly detachedChildrenByParent = new Map<string, Set<string>>();
   private readonly detachedTerminalAt = new Map<string, number>();
   /** 冷恢复协调器（既有 activation 单飞 + 错误分型）。 */
@@ -754,6 +759,28 @@ export class ConversationV4Gateway {
   /** 权威事件入口：投影推进 + 各订阅者按 profile.flushWindowMs 调度打帧。 */
   ingest(sessionId: string, event: SessionEvent): void {
     if (this.disposed) return;
+    if (event.type === SessionEventType.SubagentSpawned) {
+      const payload = event.payload as {
+        childExecutionWorkspacePath?: string;
+        childSessionId?: string;
+      };
+      const childSessionId = payload.childSessionId;
+      const childWorkspacePath = payload.childExecutionWorkspacePath?.trim();
+      if (childSessionId && childWorkspacePath) {
+        try {
+          // 只有对话会话公开独立执行目录；项目子会话保持字段缺席的既有行为。
+          const parentWorkspacePath = this.host.getSessionWorkspacePath?.(sessionId);
+          if (parentWorkspacePath) {
+            this.registerDetachedChild(sessionId, childSessionId);
+            this.detachedChildWorkspacePath.set(childSessionId, childWorkspacePath);
+            const publisher = this.publishers.get(childSessionId);
+            if (publisher) this.seedPublisherWorkspacePath(childSessionId, publisher);
+          }
+        } catch (error) {
+          this.host.onError?.("v4.sessionWorkspacePath", error);
+        }
+      }
+    }
     const hydrationBuffer = this.hydrationBuffers.get(sessionId);
     if (hydrationBuffer) {
       const eventId = String(event.id);
@@ -1040,19 +1067,23 @@ export class ConversationV4Gateway {
     sessionId: string,
     event: SessionEvent,
     parentSessionId?: string,
+    executionWorkspacePath?: string,
   ): void {
     if (!this.detachedLiveSessions.has(sessionId)) {
       this.host.onDebug?.(`register detached live child publisher session=${sessionId}`);
     }
     this.detachedLiveSessions.add(sessionId);
     if (parentSessionId && parentSessionId !== sessionId) {
-      this.detachedChildParent.set(sessionId, parentSessionId);
-      let children = this.detachedChildrenByParent.get(parentSessionId);
-      if (!children) {
-        children = new Set();
-        this.detachedChildrenByParent.set(parentSessionId, children);
+      this.registerDetachedChild(parentSessionId, sessionId);
+      // workflow actor 没有 spawn；首帧取 child 的实际 cwd，恢复事件刷新，后续 cd 不漂移冻结投影。
+      if (
+        executionWorkspacePath &&
+        this.host.getSessionWorkspacePath?.(parentSessionId) &&
+        (!this.detachedChildWorkspacePath.has(sessionId) ||
+          event.type === SessionEventType.SessionResumed)
+      ) {
+        this.detachedChildWorkspacePath.set(sessionId, executionWorkspacePath);
       }
-      children.add(sessionId);
       // 父子关系现在才知道：publisher 若在它之前就建出来了（订阅先于第一个 child 事件，或
       // rehydrate 早于首次 ingest），创建/水合两次种子都拿不到父 record，快照会一直缺
       // `workspacePath`（面板按对话根解析相对路径）。这里补种一次（幂等，事件优先）。
@@ -1091,6 +1122,16 @@ export class ConversationV4Gateway {
   private releaseDetachedChild(childId: string): void {
     this.host.onDebug?.(`release detached live child publisher session=${childId}`);
     this.cleanupSessionRuntime(childId, { clearCommandInbox: false, notifyIndexRemoved: false });
+  }
+
+  private registerDetachedChild(parentSessionId: string, childSessionId: string): void {
+    this.detachedChildParent.set(childSessionId, parentSessionId);
+    let children = this.detachedChildrenByParent.get(parentSessionId);
+    if (!children) {
+      children = new Set();
+      this.detachedChildrenByParent.set(parentSessionId, children);
+    }
+    children.add(childSessionId);
   }
 
   /**
@@ -1686,7 +1727,14 @@ export class ConversationV4Gateway {
     const artifacts = await this.host.listDynamicWorkflowRunArtifacts(params.sessionId, {
       runId: params.runId,
     });
-    return v4ConversationWorkflowRunArtifactsResultSchema.parse({ artifacts: artifacts ?? [] });
+    const executionWorkspacePath = await this.host.getDynamicWorkflowRunExecutionWorkspacePath?.(
+      params.sessionId,
+      { runId: params.runId },
+    );
+    return v4ConversationWorkflowRunArtifactsResultSchema.parse({
+      artifacts: artifacts ?? [],
+      ...(executionWorkspacePath ? { executionWorkspacePath } : {}),
+    });
   }
 
   /**
@@ -1784,8 +1832,13 @@ export class ConversationV4Gateway {
         runId: params.runId,
       })) ?? [];
     const truncated = nodes.length > WORKFLOW_WORKSPACE_LIMITS.maxNodes;
+    const executionWorkspacePath = await this.host.getDynamicWorkflowRunExecutionWorkspacePath?.(
+      params.sessionId,
+      { runId: params.runId },
+    );
     return v4ConversationWorkflowRunWorkspaceResultSchema.parse({
       nodes: truncated ? nodes.slice(0, WORKFLOW_WORKSPACE_LIMITS.maxNodes) : nodes,
+      ...(executionWorkspacePath ? { executionWorkspacePath } : {}),
       ...(truncated ? { truncated: true } : {}),
     });
   }
@@ -2810,6 +2863,7 @@ export class ConversationV4Gateway {
     const parentId = this.detachedChildParent.get(sessionId);
     if (parentId !== undefined) {
       this.detachedChildParent.delete(sessionId);
+      this.detachedChildWorkspacePath.delete(sessionId);
       const siblings = this.detachedChildrenByParent.get(parentId);
       siblings?.delete(sessionId);
       if (siblings && siblings.size === 0) this.detachedChildrenByParent.delete(parentId);
@@ -2819,6 +2873,7 @@ export class ConversationV4Gateway {
       this.detachedChildrenByParent.delete(sessionId);
       for (const childId of children) {
         this.detachedChildParent.delete(childId);
+        this.detachedChildWorkspacePath.delete(childId);
         if (this.host.sessionExists(childId)) continue;
         this.releaseDetachedChild(childId);
       }
@@ -2856,6 +2911,7 @@ export class ConversationV4Gateway {
     this.rawSequenceStates.clear();
     this.detachedLiveSessions.clear();
     this.detachedChildParent.clear();
+    this.detachedChildWorkspacePath.clear();
     this.detachedChildrenByParent.clear();
     this.detachedTerminalAt.clear();
     this.projectionFaultedSessions.clear();
@@ -2903,12 +2959,7 @@ export class ConversationV4Gateway {
    * 会话执行 cwd 种子注入（防御式：种子失败不打断 conversation 主路径）。
    * 与 config 种子同规：publisher 创建与 hydration 收尾两处都调用，幂等且不产 delta。
    *
-   * 派生会话（subagent child / workflow actor）在进程内**没有 record**（不进 `context.sessions`），
-   * 宿主那个投影钩子对它们恒返回 null；但按规则 5 它们继承父会话的执行 cwd，面板里模型写的相对
-   * 路径必须按会话目录解析。这里用 gateway 自己持有的父子映射向宿主问**父 record** 的执行 cwd
-   * （子会话运行期间父 record 一定在册）。父会话 `cd` 过时子会话 cwd 可能更深，继承基线仍比
-   * 「字段缺席 ⇒ UI 回落对话根」精确一层；父子都没有值时保持缺席（UI 回落 tab 的 workspacePath）。
-   * 见 docs/specs/conversation-session-workspace.md 规则 5 与已知边界 27。
+   * 脱离父 runtime 的子会话优先取自身持久化事实，其次用 spawn 时记录的 cwd；旧事件才回退父会话路径。
    */
   private seedPublisherWorkspacePath(
     sessionId: string,
@@ -2920,6 +2971,11 @@ export class ConversationV4Gateway {
       const ownWorkspacePath = getWorkspacePath.call(this.host, sessionId);
       if (ownWorkspacePath !== null && ownWorkspacePath !== undefined) {
         publisher.seedSessionWorkspacePath(ownWorkspacePath);
+        return;
+      }
+      const childWorkspacePath = this.detachedChildWorkspacePath.get(sessionId);
+      if (childWorkspacePath) {
+        publisher.seedSessionWorkspacePath(childWorkspacePath);
         return;
       }
       const parentSessionId = this.detachedChildParent.get(sessionId);

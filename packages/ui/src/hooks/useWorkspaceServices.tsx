@@ -51,7 +51,7 @@ function getDisconnectedRemoteServices(): IServiceAccessor {
   return disconnectedRemoteServices;
 }
 
-function resolveWorkspaceServicesForTarget(params: {
+export function resolveWorkspaceServicesForTarget(params: {
   currentContextServices: IServiceAccessor;
   resolvedRemoteSessionId: string | null;
   baseServices: IServiceAccessor | null;
@@ -84,15 +84,24 @@ function hasRemoteWorkspaceMetadata(tab: WorkspaceServiceTargetTab | null | unde
   );
 }
 
-function resolveWorkspaceServiceIsRemoteTarget(params: {
+export function resolveWorkspaceServiceIsRemoteTarget(params: {
   workspacePath: string | null | undefined;
   workspaceIdentity?: string | null;
   preferredRemoteSessionId?: string | null;
+  remoteTarget?: unknown;
+  scopeResolution?: "ambient" | "exact";
   activeWorkspacePath?: string | null;
   activeWorkspaceIdentity?: string | null;
   activeTab?: WorkspaceServiceTargetTab | null;
   workspaceTabs?: readonly WorkspaceServiceTargetTab[];
 }): boolean {
+  if (params.scopeResolution === "exact") {
+    return Boolean(
+      params.workspaceIdentity?.trim() ||
+      params.preferredRemoteSessionId?.trim() ||
+      params.remoteTarget,
+    );
+  }
   if (params.workspaceIdentity?.trim() || params.preferredRemoteSessionId?.trim()) {
     return true;
   }
@@ -158,6 +167,7 @@ export function useWorkspaceServicesResolution(
   preferredRemoteSessionId?: string | null,
   workspaceIdentity?: string | null,
   remoteTarget?: unknown,
+  scopeResolution?: "ambient" | "exact",
 ): WorkspaceServicesResolution {
   const currentContextServices = useServices();
   const resolvedRemoteSessionId = useResolvedRemoteWorkspaceSessionId(
@@ -165,12 +175,16 @@ export function useWorkspaceServicesResolution(
     preferredRemoteSessionId,
     workspaceIdentity,
     remoteTarget,
+    scopeResolution,
   );
+  // 冻结来源缺席身份就是本地，不能借同路径活动远程 tab；旧 path-only 入口保留推断。
   const isRemoteTarget = useTabStore((state) =>
     resolveWorkspaceServiceIsRemoteTarget({
       workspacePath,
       workspaceIdentity,
       preferredRemoteSessionId,
+      remoteTarget,
+      scopeResolution,
       activeWorkspacePath: state.activeWorkspacePath,
       activeWorkspaceIdentity: state.activeWorkspaceIdentity,
       activeTab: (() => {
@@ -219,11 +233,13 @@ export function useWorkspaceServices(
   preferredRemoteSessionId?: string | null,
   workspaceIdentity?: string | null,
   remoteTarget?: unknown,
+  scopeResolution?: "ambient" | "exact",
 ): IServiceAccessor {
   return useWorkspaceServicesResolution(
     workspacePath,
     preferredRemoteSessionId,
     workspaceIdentity,
     remoteTarget,
+    scopeResolution,
   ).services;
 }

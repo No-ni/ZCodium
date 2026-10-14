@@ -250,6 +250,7 @@ function GroupedTaskRowComponent({
     taskNativeSessionLogFile,
     fileManagerLabel,
     handleCopyText,
+    handleCopyWorkspacePath,
     handleOpenTaskPathInFileManager,
   } = useTaskListItemContextActions({
     workspacePath: task.workspacePath,
@@ -489,6 +490,9 @@ function GroupedTaskRowComponent({
           onArchiveTask={onArchiveTask}
           onMarkTaskAsUnread={onMarkTaskAsUnread}
           onOpenTaskPathInFileManager={() => void handleOpenTaskPathInFileManager()}
+          onCopyWorkspacePath={() =>
+            void handleCopyWorkspacePath(intl.formatMessage({ id: "appHeader.copyPath" }))
+          }
           onCopyText={(label, text) => void handleCopyText(label, text)}
           onOpenTaskFeedback={() => void handleOpenTaskFeedback()}
           disabledReason={workspaceActionsDisabledReason}

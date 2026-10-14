@@ -1,9 +1,10 @@
 import { lstatSync, type Stats } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Logger } from "@zcode/contracts";
+import { foldConversationSessionDirectoryCase } from "./conversation-session-workspace-registry.js";
 
 /**
- * 对话会话目录的**判据与护栏**：包含关系、两层目录可用性、复用门禁与降级日志。
+ * 对话会话目录的**判据与护栏**：包含关系、逐层目录可用性、复用门禁与降级日志。
  *
  * 与 `conversation-session-workspace.ts`（命名 / 规划 / 建目录 / 落盘）拆开的原因：那个模块的
  * 有效行数已顶到 400 行上限，而这一组函数是自洽的一类——它们只回答「这个路径、这层目录能不能
@@ -25,6 +26,15 @@ export const CONVERSATION_SESSION_DATE_DIR_UNUSABLE_REASON = "date_dir_unusable"
  * 是那个名字，而不是「那一天的日期目录坏了」。
  */
 export const CONVERSATION_SESSION_DIR_UNUSABLE_REASON = "session_dir_unusable";
+export const CONVERSATION_SESSION_DIR_NAME_LENGTH = 8;
+export const CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH = 12;
+export const CONVERSATION_SESSION_DIR_NAME_PATTERN = new RegExp(
+  `^[0-9a-f]{${CONVERSATION_SESSION_DIR_NAME_LENGTH}}(?:[0-9a-f]{${
+    CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH - CONVERSATION_SESSION_DIR_NAME_LENGTH
+  }})?$`,
+  "u",
+);
+export const CONVERSATION_SESSION_DATE_DIR_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 export type ConversationSessionDirUnusableReason =
   | typeof CONVERSATION_SESSION_DATE_DIR_UNUSABLE_REASON
   | typeof CONVERSATION_SESSION_DIR_UNUSABLE_REASON;
@@ -33,6 +43,17 @@ export type ConversationSessionDirUnusableReason =
  * `context.logger` 即可；测试也可以给一个只收集消息的窄实现。
  */
 export type ConversationSessionWorkspaceLogger = Pick<Logger, "warn">;
+
+/** 本进程是否对「该 workspace 上的会话」启用独立目录规则。 */
+export function isConversationWorkspaceEnabled(input: {
+  conversationRoot: string | undefined;
+  workspacePath: string;
+  workspaceIdentity?: string | undefined;
+}): boolean {
+  if (input.workspaceIdentity?.trim()) return false;
+  const root = input.conversationRoot?.trim();
+  return Boolean(root) && resolve(root!) === resolve(input.workspacePath);
+}
 
 /**
  * 判断一个持久化路径是不是「对话根下的会话目录」。
@@ -86,6 +107,20 @@ export function isPersistedConversationExecutionPath(
   return isConversationSessionWorkspacePath(path, workspacePath);
 }
 
+/** 无 Host 标记的恢复只管理日期/id 结构，普通项目 child 的 nested cwd 不属于本规则。 */
+export function isManagedPersistedConversationExecutionPath(
+  candidate: string | undefined,
+  workspacePath: string,
+): boolean {
+  if (!isPersistedConversationExecutionPath(candidate, workspacePath)) return false;
+  const segments = relative(resolve(workspacePath), resolve(candidate!)).split(/[\\/]/u);
+  return (
+    segments.length >= 2 &&
+    CONVERSATION_SESSION_DATE_DIR_PATTERN.test(segments[0]!) &&
+    CONVERSATION_SESSION_DIR_NAME_PATTERN.test(segments[1]!)
+  );
+}
+
 /**
  * `lstat` 但不跟随符号链接、且不抛错：拿不到（不存在 / 权限不足）返回 undefined。
  *
@@ -136,11 +171,11 @@ export function isConversationSessionDirUsable(directory: string): boolean {
 }
 
 /**
- * 持久化执行 cwd 里「本规则铸造的那两层」不可用的稳定原因；可用（或缺省）返回 undefined。
+ * 从对话根到持久化执行 cwd 任一层不可用的稳定原因；可用（或缺省）返回 undefined。
  *
  * 单一实现：创建侧复用门禁（`isReusablePersistedConversationExecutionPath`）、恢复侧复用分支与
  * 两处的降级日志都读它，避免「门禁按一套判据、日志按另一套说」。
- * 顺序即优先级：先日期目录（父），再会话目录（末段）。
+ * 顺序即优先级：从对话根逐层检查，首层是日期目录，其余是会话目录及其子目录。
  */
 export function classifyPersistedConversationExecutionPathUnusable(input: {
   conversationRoot: string | undefined;
@@ -150,12 +185,55 @@ export function classifyPersistedConversationExecutionPathUnusable(input: {
   if (!persisted || !isConversationSessionWorkspacePath(persisted, input.conversationRoot)) {
     return undefined;
   }
-  const directory = resolve(persisted);
-  return isConversationSessionDateDirUsable(dirname(directory))
-    ? isConversationSessionDirUsable(directory)
-      ? undefined
-      : CONVERSATION_SESSION_DIR_UNUSABLE_REASON
-    : CONVERSATION_SESSION_DATE_DIR_UNUSABLE_REASON;
+  const root = resolve(input.conversationRoot ?? "");
+  const segments = relative(root, resolve(persisted)).split(/[\\/]/u);
+  let current = root;
+  // 子会话可继承父会话 cd 后的深层 cwd；只查末两层会漏掉日期/会话根链接，mkdir 随后越界。
+  for (const [index, segment] of segments.entries()) {
+    current = join(current, segment);
+    const entry = lstatOrUndefined(current);
+    if (!entry) return undefined;
+    if (!entry.isDirectory()) {
+      return index === 0
+        ? CONVERSATION_SESSION_DATE_DIR_UNUSABLE_REASON
+        : CONVERSATION_SESSION_DIR_UNUSABLE_REASON;
+    }
+  }
+  return undefined;
+}
+
+export function isDirectoryOccupiedByOtherSession(
+  occupiedDirectories: Iterable<string> | undefined,
+  candidate: string,
+): boolean {
+  if (!occupiedDirectories) return false;
+  // 根因：Windows/macOS 的同一目录可能以不同大小写持久化；漏判占用会让两个会话共享 cwd。
+  // 复用回收侧的平台规则，Linux 保留大小写敏感语义。
+  const target = foldConversationSessionDirectoryCase(resolve(candidate));
+  for (const directory of occupiedDirectories) {
+    if (typeof directory !== "string") continue;
+    const value = directory.trim();
+    if (!value) continue;
+    // 根因：父行删除后，子会话的深层 cwd 仍认领整个会话目录，不能把祖先重新分配给别的会话。
+    const child = relative(target, foldConversationSessionDirectoryCase(resolve(value)));
+    if (!child || (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child)))
+      return true;
+  }
+  return false;
+}
+
+/** 规则启用时不允许旧宿主的 workspacePath 回退；其他作用域继续复用持久化 cwd。 */
+export function resolvePersistedConversationExecutionFallback(input: {
+  conversationRoot: string | undefined;
+  workspacePath: string;
+  workspaceIdentity?: string | undefined;
+  persistedPath: string | undefined;
+}): string | undefined {
+  if (isConversationWorkspaceEnabled(input)) return undefined;
+  const persisted = input.persistedPath?.trim();
+  return persisted && isPersistedConversationExecutionPath(persisted, input.workspacePath)
+    ? resolve(persisted)
+    : undefined;
 }
 
 /**

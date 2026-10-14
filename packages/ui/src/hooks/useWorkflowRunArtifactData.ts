@@ -88,6 +88,19 @@ export function useWorkflowRunArtifactData(options: {
   const { artifactId, runId, sessionId } = options;
   const enabled =
     options.enabled !== false && sessionId.length > 0 && runId.length > 0 && artifactId.length > 0;
+  const [scope, setScope] = useState({
+    reader: workflowRunArtifactData,
+    artifactId,
+    runId,
+    sessionId,
+    enabled,
+  });
+  const scopeMatches =
+    scope.reader === workflowRunArtifactData &&
+    scope.artifactId === artifactId &&
+    scope.runId === runId &&
+    scope.sessionId === sessionId &&
+    scope.enabled === enabled;
 
   /**
    * 从游标一路翻到排空。`replace` 是整份重取（切产物 / 切 run），`append` 是增量追加。
@@ -161,8 +174,11 @@ export function useWorkflowRunArtifactData(options: {
         });
         setState((current) => ({ ...current, loading: false, error: message }));
       } finally {
-        inFlightRef.current = false;
-        pendingRef.current = false;
+        // 旧来源的迟到 finally 不能释放新来源的单飞门或吞掉新 report 的补拉标记。
+        if (requestVersion === requestVersionRef.current) {
+          inFlightRef.current = false;
+          pendingRef.current = false;
+        }
       }
     },
     [artifactId, enabled, runId, sessionId, workflowRunArtifactData],
@@ -171,12 +187,18 @@ export function useWorkflowRunArtifactData(options: {
   // 切产物 / 切 run / 从关到开：先清空再整份重取。别的看板的点绝不能留在这块画布上。
   useEffect(() => {
     requestVersionRef.current += 1;
+    // 根因：旧请求仍占单飞门时，换 run 的重取会被吞掉，旧请求失效后新看板永久空白。
+    inFlightRef.current = false;
+    pendingRef.current = false;
     cursorRef.current = undefined;
     lastDrainedCountRef.current = undefined;
+    setScope({ reader: workflowRunArtifactData, artifactId, runId, sessionId, enabled });
     setState(emptyState());
-    if (!enabled) return;
-    void drain("replace");
-  }, [drain, enabled]);
+    if (enabled) void drain("replace");
+    return () => {
+      requestVersionRef.current += 1;
+    };
+  }, [artifactId, drain, enabled, runId, sessionId, workflowRunArtifactData]);
 
   // 增量：`itemCount` 抬升即续拉。
   //
@@ -196,5 +218,6 @@ export function useWorkflowRunArtifactData(options: {
     void drain("append");
   }, [drain, enabled, itemCount]);
 
-  return useMemo(() => state, [state]);
+  // 与字节读取同一边界：effect 换代前不把旧看板条目交给新来源。
+  return useMemo(() => (scopeMatches ? state : emptyState()), [scopeMatches, state]);
 }

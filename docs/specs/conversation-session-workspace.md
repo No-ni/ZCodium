@@ -25,8 +25,8 @@
   文件**或**悬空链接**会让 `mkdir` 报 ENOTDIR/ENOENT（确定性失败），指向别处的**活链接**则会让
   `mkdir(recursive)` 跟随链接成功——把目录建到对话根之外（词法包含判定仍说"在根内"，回收与清扫
   都拒绝这种中间链接）。因此这里的判据必须是 `lstat` 语义、不跟随链接。
-  结果随会话持久化，之后不再重算。「占用」事实来自 CLI 进程内的会话注册表（`context.sessions`
-  的 `executionWorkspacePath`，按 sessionId 排除本次会话自己）——**只对别的会话成立**，因此
+  结果随会话持久化，之后不再重算。「占用」事实来自 CLI 进程内的会话注册表与会话库
+  （含归档，按 sessionId 排除本次会话自己）——**只对别的会话成立**，因此
   写库失败后的重试、并发冷恢复、带 sessionId 的导入二次创建都仍复用同一个名字，不会换名把
   前一次目录里的文件变成孤儿（这是本规则的第一优先级）。
 
@@ -67,8 +67,8 @@
    目录一律复用），下次恢复仍补发到同一个 8 位名；真没人要的空目录由启动清扫的 7 天门禁兜底。
 5. 会话内派生的侧会话与 fork 继承父会话的执行 cwd，不回落对话根。fork / 侧会话的「继承」写在
    宿主侧（`resolveConversationSessionWorkspaceInherited`，见接线契约）；进程内的**派生 live 子会话**
-   （subagent child / workflow actor）没有 record，其 conversation 快照按**父 record 的执行 cwd**
-   投影（`seedPublisherWorkspacePath` 的父回落，见已知边界 27）。
+   （subagent child / workflow actor）没有 record 时按 spawn 捕获的子执行目录投影；旧事件缺席
+   该字段时才按父 record 回落（见规则 17 与边界 27）。
 6. 项目工作区会话与 CLI/TUI 独立运行不受影响：没有标记即沿用旧行为（cwd = workspacePath）。
 7. 明确不做：给本地工作区引入 `workspaceIdentity`；每会话一个 workspace tab 或
    `workspace_key` 分桶；迁移或重命名对话根下已有文件；修改任务索引、checkpoint、
@@ -103,12 +103,12 @@
    占位（含悬空链接）时不铸目录、不复用、不跟随链接，该会话退回旧行为 `cwd = workspacePath`，
    绝不因为用户在那个位置放了一个同名文件就让当天所有会话创建失败、或让某条存量会话永远打不开
    （那个文件属于用户，不删、不修）。判据只有一份（`classifyPersistedConversationExecutionPathUnusable`，
-   先日期目录、再末段，`lstat` 语义），创建侧复用门禁、恢复复用分支与三处降级日志都读它。
+   从日期目录到持久化 cwd 逐层 `lstat`，见边界 35），创建侧复用门禁、恢复复用分支与三处降级日志都读它。
    末段这一层的漏判后果与日期目录同构：普通文件 ⇒ `mkdir` 报 EEXIST（该会话每次打开都失败）；
    符号链接 ⇒ `mkdir(recursive)` 跟随成功，会话跑在对话根之外而回收与清扫都不认它。
-   这份两层判据也必须盖住**常驻恢复的 mtime 刷新**（第十一轮修）：touch 的幂等 `mkdir` 同样会
+   这份逐层判据也必须盖住**常驻恢复的 mtime 刷新**（第十一轮修）：touch 的幂等 `mkdir` 同样会
    跟随活链接，常驻早退分支（命中注册表、不经补发/复用门禁）若只做词法包含判定就直 `mkdir`，
-   是两层门禁之外的唯一漏网入口；占位（文件/链接）时静默跳过 touch，不铸目录、不告警——
+   是复用门禁之外的漏网入口；占位（文件/链接）时静默跳过 touch，不铸目录、不告警——
    该分支不做 cwd 裁决，mtime 略旧只影响清扫年龄门禁的读数。
    这条降级**必须落盘**：core 的冷恢复只认库里的 `path`（`resumeFromStore` 用
    `session.path ?? session.directory`），只把裁决留在内存里会让 runtime 继续在坏掉的会话目录
@@ -123,8 +123,9 @@
    配置、workflow 定义与草稿）必须使用**工作区级根**而不是执行 cwd，否则对话会话的 workspace
    级插件与 skills 静默失效。工作区级根 = 有 `workspacePath` 时的工作区键路径，CLI/TUI 独立运行
    没有 `workspacePath` 时是**当前执行 cwd**（改动前这些读点用的就是它，`cd` 之后必须继续跟随；
-   `workspaceScopeRootOf` 冻结的是另一件事：项目身份、项目记忆根与 MCP 连接身份不得随 `cd`
-   漂移）。Hook 的**执行** cwd 与 `CLAUDE_PROJECT_DIR` 反过来是模型当前 cwd（hook 脚本作用在
+   `workspaceScopeRootOf` 冻结的是另一件事：项目身份与项目记忆根不得随 `cd` 漂移；MCP 连接身份
+   在有 workspacePath 时按工作区隔离，没有时保留当前 cwd 的旧语义）。Hook 的**执行** cwd
+   与 `CLAUDE_PROJECT_DIR` 反过来是模型当前 cwd（hook 脚本作用在
    模型正在编辑的目录上），只有发现与信任根是工作区级。
 10. 文件搜索的忽略规则文件不再自动写入会话目录：对话会话以对话根作为规则根，
     复用根上的 `.zcodiumignore`。
@@ -155,11 +156,253 @@
     同一函数还要分辨**这次请求属于哪个会话**：对话工作区里每个会话的 `task.workspacePath` 都是
     对话根，所以「另一个会话的任务行」产生的 target 与激活 tab 的 workspaceKey 相等——只看 key
     会把树根换成**激活会话**的执行目录（点 B 的文件树看到 A 的文件，拖拽/Add to chat 也拿 A 的）。
-    判据因此是 `taskId`：带 `taskId` 的请求只在 `taskId === activeTaskId` 时跟随会话目录，缺席
-    （reveal / tab 级请求）才无条件跟随。
+    判据因此是 `taskId`：本地任务请求在打开时取得该任务的执行目录并冻结到 target，解析器优先
+    使用这个目录；没有冻结目录时，只允许 `taskId === activeTaskId` 的请求借用激活会话快照。
+    缺席（reveal / tab 级请求）才无条件跟随，显式 `null` 表示工作区根请求。
+14. 任务级「复制路径」「在文件管理器打开」「在编辑器打开」均使用目标会话执行目录。
+    非激活任务及尚未取得快照的激活任务在动作发生时经既有 session 读取接口取得目录，
+    不为整个任务列表建立订阅或恢复 runtime。文件树亦按该规则查询并冻结目标目录，
+    异步结果遵守后一次点击优先；关闭或 reveal 新目标须使旧查询失效。
+    「复制任务路径」仍表示会话记录文件，不与工作目录混淆。文件树 tab 请求必须携带该 tab 的 taskId，
+    不能仅因两个 tab 共用对话根就借用激活 tab 的会话目录（取代已知边界 26 的待确认行为）。
+15. 对话会话的 Gen UI 文件写入 `<会话执行目录>/visualizations/<title>.html`，不再写入
+    应用全局的 `visualizations/<scope-hash>`。CLI 负责目录分配和创建；模型上下文与执行 Host 的读取
+    校验共用路径解析规则。Gen UI 状态键仍按工作区身份和 sessionId 隔离。
+    Host 只信任 CLI 查询投影的执行目录，不信任 Renderer 或模型提供的目录；读取拒绝其他会话、
+    对话根本身、路径上溯、符号链接、过大文件与非 HTML 片段。派生会话继承父目录。
+    项目及远程会话仍使用项目外的 Host 全局输出目录；旧版对话会话的全局输出仍可读取，
+    不搬迁或删除既有文件。没有有效独立目录时保持全局输出，不创建共享对话根输出。
+16. Markdown 文件预览及计划详情中的相对引用按**来源文档所在目录**解析，不能回落到
+    对话根或当前聚焦会话。无来源文件路径时使用打开时冻结的 `fileReferenceRootPath`，
+    再回落工作区根；解析根与 service/workspace 身份分开传递。计划卡内联与详情采用相同优先级，
+    计划详情 tab 冻结来源会话根，切会话不会改变已打开计划的路径归属。
+17. 派生 live 子会话优先使用子运行时在 spawn 事件中投影的初始执行目录，不能在父会话
+    `cd` 后仍使用父 record 的初始目录。字段可选以兼容旧事件；子会话路径事实与持久化 `path`
+    同源，在首个子会话快照前种入 publisher，迟到的父映射不能覆盖已知子目录。
+18. 新终端必须使用目标会话已确认的执行目录，草稿也使用 primary pane 的预热会话事实。
+    目录未确认时不创建 PTY；不得用回落身份根抢先创建。创建后冻结 cwd，切换任务不重启既有 PTY。
+    底部终端的会话选择作用域与 workspace 回收作用域分开，保留先前任务的终端，关闭工作区时
+    按原身份根统一回收；侧栏终端按 tab id 保活。预热生命周期仍由原 prewarm owner 唯一管理，
+    壳层只消费带 primary pane / workspace 归属和失效门禁的只读 binding。
+19. expert workflow 的 run `cwd` 是工作区枚举键，不能在阶段/节点提示词中将它标成执行工作目录。
+    子运行时系统上下文负责声明真正 cwd；工作流提示只将这个路径标为 workflow workspace。
+20. 常驻草稿首次提升/接受执行输入前，CLI 必须再次确认自有会话目录存在。空草稿目录被另一进程
+    清扫或被手动删除后直接首发，不依赖额外 `session/resume` 才能重建；复用已有严格包含与
+    日期/会话目录占位门禁，不跟随符号链接、不删除占位者。无法安全恢复时拒绝执行并保留错误语义，
+    不能持久化坏 cwd 后继续启动工具，也不能静默切到共享 default。
+    门禁覆盖所有启用独立目录的会话（immediate 与 deferred）：创建/恢复降级后缺少执行目录、
+    或执行目录等于身份根时仍可保留只读会话记录，但首次接受执行输入必须显式失败，不能在共享根运行。
+21. dynamic workflow 的 run `cwd` 保持真实执行目录；项目历史查询同时以已有
+    `parent_session_id → session.directory` 关联识别工作区归属，不能因会话独立目录漏掉 run。
+    状态、名称、排序和上限仍在 SQL 中过滤，不新增数据库字段；尚未落库的注册表 run
+    通过宿主已知 workspaceDirectory 匹配当前项目，输出仍保留实际 cwd。
+    `workflows/runs` 另从同页父会话记录投影 optional workspacePath，供全局历史识别目标项目；
+    `cwd` 继续用于冻结文件引用根，不能再用它反查已打开的项目。旧 CLI 缺席时沿用 cwd。
+    模型的 `ListWorkflowRuns` 同样按 `workspaceScopeRoot` 查询项目历史；只在工作区根缺席的
+    CLI/TUI 上回退执行 cwd。Bash cd 或切换对话会话不能让同项目的历史消失。
+22. 文件预览、工作流产物正文与完成卡的 Markdown 引用以源文档目录解析；没有源文档时使用
+    打开时冻结的执行目录。`../` 可指向仍处于工作区边界内的目标，越出身份根则拒绝；
+    不能把文档解析根当作安全边界。工作流后续设置/目录/产物与 transcript 文件预览
+    必须保留原请求的执行根及 workspace/remote scope，不借用当前聚焦会话或本地服务。
+    计划详情的状态面板请求没有来源根时，由所属 pane 补齐并冻结；工具卡已带来源根时保留它。
+    sidebar `TaskWorkflowRunLines` 按目标 identity/remoteSessionId 路由服务：本地使用 baseServices，
+    远程精确选择目标 Host，缺连接时停止。再按 `sessionId` 查询并冻结执行目录到详情 tab；
+    查询中发生 workspace/session/side-pane 切换或关闭时丢弃迟到结果。
+23. 自定义 slash command 的发现根保持工作区目录，但 shell 展开在会话当前执行目录运行；
+    两者分别传递，不能让命令中的相对写入落到共享对话根。
+24. checkpoint 级联/分叉恢复按每个 artifact 自己的创建根（存量缺席时工作区根）解析成绝对路径，
+    再归并相同目标与调用文件系统端口；不同 cwd 下同名相对文件不能被错误合并或恢复到当前会话。
+25. 目录占用同时检查进程内 record 与已有会话库行（含归档、排除自身），不能在会话去激活后复用
+    别的任务目录。同一 app-server 的对话创建从定名到 record 登记串行，覆盖显式导入 ID 的并发
+    前缀碰撞；创建失败必须释放队列，项目/未启用标记的创建沿用原流程。
+    12 位候选也被认领时以 `guard.conversationSessionWorkspaceCollision` 拒绝创建，不共享目录。
+
+26. 存量会话首次恢复补发目录也遵守新建时的占用判定与同一所有者的串行分配边界，包含
+    fork 的补发入口。同日不同会话的 ID 前 8 位碰撞时改用 12 位；已有持久化执行路径和
+    父会话明确继承的路径仍复用，不因占用重新命名。
+
+27. 任务导航和工作流文件入口在有 identity 时以身份键匹配，路径规范化不改变身份；
+    本地与旧远程 tab 的匹配复用 `isSameWorkspaceTab`：缺席远程身份的目标
+    只匹配真正本地 tab，旧数据中只有 `remoteSessionId` 或 `remoteTarget` 的 tab 也属于远程。
+    已知远程 endpoint 时显式传递 `remoteSessionId`，保持旧远程 tab 可寻址；本地历史跳转、
+    目录查询和工作台会话选择不得借用同路径旧远程 tab 的 endpoint。
+    验收包含旧远程 tab 排在本地 tab 前、只有旧远程 tab、以及按 endpoint 寻址旧远程 tab。
+
+28. 通过 `SendMessage` 继续已结束的子代理时，bootstrap 在 core 子运行时恢复之前准备
+    该子会话持久化的执行目录。目录缺失时按原路径重建（包含父会话 `cd` 后派生的深层 cwd），
+    从对话根到目标的任一现存层被文件或符号链接占位时拒绝执行，不跟随链接、不切回父当前目录。
+    core 仅调用可选宿主准备端口，不操作 fs；项目和远程工作区保留原行为。没有宿主标记时，
+    恢复已持久化的受管派生会话仍按规则 39 准备，新建继续保持原行为。
+    显式 `cd` 到对话根外的目录保留原有执行语义；目录准备只管理对话根内的路径，并拒绝共享根。
+    准备成功才恢复子运行时并发出 Ready；验证已完成子会话的目录缺失重建、链接拒绝与持久化 cwd
+    不受父会话后续 `cd` 影响。
+
+29. 动态工作流产物与脚本 transcript 的文件读取使用该 run 冻结的执行目录，不能把
+    conversation snapshot 的初始执行根当成 run 根。CLI 从已有 journal 元数据投影可选执行根，
+    UI 在聊天卡、详情及目录页消费同一事实；旧 CLI 字段缺席时保留冻结根回退。
+    expert workflow 的 `cwd` 是工作区身份键，不作为动态 run 执行根。验收在会话根和 `nested`
+    放同名文件、于 `nested` 启动动态 run 后从聊天与详情打开，确认读取 `nested` 的文件。
+
+30. 动态工作流 transcript 的刷新水位以会话、run 及 Host 查询入口为作用域。切换时以新 run
+    当前序号建立基线，不能让旧 run 的大序号压住新 run 的后续事件；旧请求和延迟刷新在切换时
+    失效，新 run 的节点变化仍触发已有的合并刷新。
+
+31. 壳层消费的会话执行目录必须同时属于当前工作区、Host 和会话。连接或 lease 换代首帧
+    不得仅凭相同 sessionId 复用旧 cwd；远端来源始终回落自身身份根。本地新作用域目录尚未
+    确认时继续等待快照，不能以旧本地目录提前创建 PTY。
+    聊天 pane 同样只消费当前 SessionDataLayer 所属租约；草稿还须匹配当前工作区及预热代。
+    pane 换代首帧的旧租约或旧预热 binding 不能证明目录，引用回落身份根且 `resolved: false`。
+
+32. 执行准入可重建受管会话目录下任意深度的缺失 cwd。前两段须满足日期目录和会话目录
+    规则，覆盖子会话及 fork 继承父 `cd` 后目录的情形；仍逐层拒绝现存文件与符号链接，
+    不重建共享对话根或不属于本规则的目录。
+
+33. 工作流 transcript 的节点正文缓存按当前会话查询 transport 隔离。同一会话/run/站点/序号
+    在不同 Host 上不能复用正文；同一 transport 内仍复用已结算结果并保持容量上限，切换后
+    旧请求迟到不得写入新作用域。
+
+34. 对话会话显式进入根外目录后，新建工作流 actor 的执行 cwd 保持原语义。该 cwd 不属于
+    会话目录所有权，Gen UI 使用原有 Host 全局输出，不能因目录不在对话根内阻断上下文初始化；
+    Host 仍拒读根外 cwd 中的任意文件，仅授权对应会话的全局输出。
+
+35. 裸 CLI/TUI 恢复受管会话路径时，已确认的文件或符号链接占位必须拒绝恢复，不能仅跳过
+    mkdir 后让 core 继续采用坏路径；未启用宿主标记也适用此持久化受管路径判据。普通重建 IO
+    失败仍保留既有 warn 语义，不改项目、远端及其他不受管路径；无标记恢复的受管结构限定
+    遵循规则 39，普通项目的派生 cwd 不能仅因是 directory 的后代而被纳入目录管理。
+
+36. 动态工作流 actor 的新建及恢复在执行前复用 bootstrap 会话目录准备：新 actor 使用 run
+    冻结 cwd，恢复 actor 使用自己的持久化 path。受管目录缺失时重建、文件或链接占位时拒绝
+    ask；缺失会话仍沿用 `SessionNotFound` 后新建的既有流程，不借父当前 cwd 替换恢复路径。
+
+37. 工作流产物与 transcript 查询结果同时绑定 reader、会话、run 和启用状态。作用域切换
+    首帧不能返回旧 executionWorkspacePath、journal 产物、节点、加载结论或错误；同 run 的
+    实时摘要变化仍复用已有结果，旧响应继续按请求代次丢弃。
+
+38. Markdown 图片与正文使用相同的冻结来源 Host。消息、Code Viewer 及计划详情把工作区
+    身份路径与 identity/attachment 传到图片读取 hook；相对图片仍按文档目录解析。本地冻结
+    来源不得借活动远端服务，明确远端断连不得回落另一 Host；图片结果也按读取服务与路径
+    绑定，来源切换首帧隐藏旧图片，不等待 effect 清理。
+
+39. 裸 CLI/TUI 恢复终态子代理或动态 actor 时，没有宿主标记也必须查询其持久化会话。
+    只有本地且 path 按既有受管判据落在其 directory 下、前两段符合既有日期/会话目录
+    命名规则时，复用 bootstrap 目录准备：缺失
+    cwd 重建、文件或链接占位拒绝。项目、远端、不受管路径及无标记新建保持原语义；
+    缺行仍交给 core 的 SessionNotFound，不借父当前 cwd 为旧 child 伪造路径。判据使用
+    持久化 directory 而非 CLI 启动 cwd，主会话裸恢复与派生恢复共用同一受管结构判断。
+
+40. Markdown 文档中的父目录相对链接及图片，在 Streamdown harden 之前按文档目录解析，
+    并核对冻结工作区身份根。合法 `../` 引用先改为确定的绝对路径，保留行号；越过身份根的
+    相对引用拒绝改写为可点击/可读取路径，不能让 URL 归一化丢失 `..` 后被当成当前目录文件。
+    改写序列化保护字面百分号，后续 renderer 解码不能把文件名中的 `%20` 再变为空格。
+
+41. legacy `Workflow` 脚本在用户执行边界准备及主会话恢复之后，冻结当前 runtime cwd。
+    同一次 run 的脚本子进程及所有 child runtime 共用这份执行目录，父会话后续 `cd` 不使
+    在飞 run 漂移；工作流发现根与 run 项目键仍使用 workspaceDirectory，不新增持久化目录字段。
+
+42. 工作流产物字节与看板条目只属于当前 reader、会话、run、产物、版本及启用状态。
+    来源切换首帧隐藏旧内容，旧请求失效；新作用域独立启动读取，不能被旧请求的单飞门阻挡。
+    旧请求迟到或失败时不得清除新作用域的游标、补拉标记或单飞状态；卸载后不再写入状态，
+    产物 object URL 沿用既有释放边界。
+43. 新建与存量补发的在册目录占用比较复用回收侧的平台大小写规则：Windows/macOS
+    下不同大小写形态也算占用，8 位及 12 位候选同时适用；Linux 仍区分大小写。
+    不能因已持久化路径的拼写不同，给另一个会话分配同一物理目录。
+44. Markdown 文档目录与工作区身份根的包含比较按路径所属平台进行：Windows 盘符及 UNC
+    路径忽略大小写并统一分隔符，保留身份根的原始拼写用于生成结果。不同盘符、不同 UNC
+    share、同名前缀邻居及越界 `..` 仍拒绝；POSIX 路径保持大小写敏感，不借 Renderer
+    所在系统推断远端文件系统。验收须经过真实 Streamdown harden 管线，覆盖链接与图片。
+    UNC 目标沿用 Windows 盘符路径的安全序列化边界，harden 前保留 server/share，文件
+    renderer 对称还原；不能将 UNC 当相对目录，也不能让 URL 归一化吞掉服务器名。
+45. 新建与存量补发的占用检查须覆盖候选目录下的派生 cwd：父行删除后，只要仍有会话
+    认领 `<日期>/<名字>/nested`，整个 `<日期>/<名字>` 都不能分配给另一会话，8 位与 12 位
+    候选同样适用，目录暂时缺失也不释放认领。占用事实仍由 CLI 的注册表与会话库提供，
+    排除本次 sessionId 后，在异步观测边界按物理路径映射到当前对话根的拼写，再交给既有
+    定名判据；`/var` 与 `/private/var` 等根别名不得漏判。路径缺失时以最近可解析祖先的
+    realpath 加剩余路径比较，不能因叶目录被手动删除而失去根别名。既有路径恢复及明确
+    父子继承不重新分配；不增加持久化字段或新的状态所有者。
+
+    ```text
+    创建/补发请求 → CLI 分配队列 → 排除自身的注册表/会话库路径
+                                       ↓ 异步规范化根别名，保留缺失路径后缀
+                                  候选目录及后代占用检查 → 定名 → 持久化/投影
+    ```
+
+    桌面 continuous 与手机 replayable 共用这一 CLI 准入路径，传输契约保持不变。
+
+46. 本地 HTML 工作流产物直开浏览器时，补查 sourcePath 与 run 执行根必须使用本机
+    baseServices，不能使用壳层当前远程 Host。全局历史点击在同一个同步块中先导航、再打开
+    产物，导航不代表 ServiceProvider 已换代；查询来源由该打开请求的本地身份确定。
+    本机查询失败仍退回既有产物 tab，不向当前远程 Host 重试；明确远端产物仍使用原有
+    带冻结 scope 的产物 tab。目录事实继续由 CLI journal 提供，UI 不新增缓存或目录推断。
+
+    ```text
+    全局历史点击本地产物 → 发起会话导航（React 尚未提交）
+                       → 现有产物打开入口 → 本机 Host 查询 journal → run cwd + sourcePath → 浏览器
+                                                  └── 失败 → 冻结本地 scope 的产物 tab
+    ```
+
+    desktop continuous 的本地 HTML 直开使用这条查询路径；手机 replayable 仍通过原产物
+    tab 读取字节，协议与会话执行所有者不变。
+
+```mermaid
+sequenceDiagram
+  participant UI as 产物 UI
+  participant Hook as 产物读取 hook
+  participant Old as 旧来源 Host
+  participant New as 新来源 Host
+  UI->>Hook: 旧来源查询
+  Hook->>Old: 读取字节或看板条目
+  UI->>Hook: 切换 reader / run / 产物
+  Hook->>Hook: 隐藏旧结果，旧请求换代，重置单飞及游标
+  Hook->>New: 独立读取新来源
+  Old-->>Hook: 迟到结果或错误
+  Hook->>Hook: 丢弃，保留新请求控制状态
+  New-->>Hook: 当前结果
+  Hook-->>UI: 当前作用域内容
+```
+
+### 本轮修复的路径查询与顺序
+
+`ZCodeSessionInfo.executionWorkspacePath?` 是 CLI 所有的执行目录只读投影，与 V4 snapshot
+`workspacePath` 同源；`session/read` 覆盖尚未落库草稿，`session/list` 精确 ID 查询覆盖持久化任务。
+字段缺席表示旧 CLI 或没有独立目录，任务动作沿用工作区路径；查询失败直接反馈错误，不当成缺席。
+精确列表未找到尚未落库的草稿时，动作仅以 `existing-only` 读取已存在 record 的快照，
+不启动或恢复 runtime；没有快照或读取失败则停止动作，不能误开共享 default。
+Host 向 Gen UI 注入异步目录解析端口，仅在本地对话根内文件读取时查询 CLI，不新增缓存、订阅、
+目录命名器或会话所有者。文件打开前再次核对 canonical 路径及文件身份。
+
+动态工作流沿用 `workflowRunArtifacts` 与 `workflowRunWorkspace` 查询，两者响应新增可选
+`executionWorkspacePath`（`dwf_run.cwd`），不改变 `sourcePath`、live `WorkflowRunState` 或 expert
+workflow 的身份 cwd。`DynamicWorkflowRunPort.getExecutionWorkspacePath(runId)` 是唯一目录读面，
+只在 journal 父会话等于 service 所属父会话时返回；未知及越权 run 的目录缺席，产物清单也不返回。
+app 与 gateway host 原样透传，旧 Host 缺席该能力时沿用请求冻结根。UI 在既有查询响应内保存目录，
+切换 run 时清空并按请求版本丢弃迟到响应；产物预览、Markdown、源文件动作和 `files.read` 统一
+优先读取该字段。HTML 快开始终先查询已有产物元数据，不能因请求已带 `sourcePath` 跳过目录查询。
+
+进程级 E2E 将 bootstrap/core 包入口映射到当前 TypeScript 源码，避免旧 dist 让本轮修复
+未被执行。源码入口的纯类型符号须明确 `export type`，不能把不存在的运行时值交给 tsx。
+CLI 子进程提前退出时立即报告启动失败并清理临时数据根，不消耗完整启动超时。
+
+```mermaid
+sequenceDiagram
+  participant CLI as CLI 会话所有者
+  participant UI as 任务操作 / 模型上下文
+  participant Host as 文件读取 Host
+  CLI->>CLI: 分配并持久化执行目录
+  CLI-->>UI: 快照 / session 查询投影 cwd
+  UI->>UI: 复制、打开 cwd；生成 cwd/visualizations 文件
+  UI->>Host: 引用文件（工作区身份 + sessionId）
+  Host->>CLI: 查询该会话 cwd
+  CLI-->>Host: 权威执行目录
+  Host->>Host: 校验会话边界、符号链接、文件身份
+  Host-->>UI: 返回受限 HTML 片段
+```
 
 ## 接口
 
+- `AgentRuntime.getWorkingDirectory()` 返回当前命令 cwd，供自定义命令 shell 展开；
+  `getExecutionWorkspacePath()` 返回冻结的会话执行根，供恢复后的准入校验，不随 Bash cd 漂移。
+- `ZCodeSavedWorkflowRun.workspacePath?` 投影父会话项目归属，`cwd` 保留实际运行目录。
+- `SubagentSpawnedPayload.childExecutionWorkspacePath?` 携带初始子执行目录，兼容存量事件。
 - `ZCODE_CONVERSATION_WORKSPACE_ROOT`（新增 env，Host → Agent）：值等于对话根时，
   CLI 对该进程内的会话启用独立目录规则；未注入即旧行为。常量与读取器在
   `packages/shared/src/node/conversationWorkspaceEnv.ts`（`@zcode/shared/node`），
@@ -170,6 +413,7 @@
   `runtimeConfig.workingDirectory` = 执行 cwd，`runtimeConfig.workspacePath` = 工作区键路径
   （协议入口由 `createWorkspaceZCodeApp` 注入）。会话持久化写
   `directory` = 工作区键路径、`path` = 执行 cwd、`projectID` = 按工作区键路径派生。
+  Gen UI 额外读取 Host 环境标记 `conversationWorkspaceRoot`，它是启用边界而非新的 cwd 所有者。
 - `ZCodeProtocolSessionRecord.executionWorkspacePath?`（CLI 内存字段，非协议参数）：
   **只在会话真正拥有独立目录时写入**；v4 草稿是 deferred 持久化，落库前该字段是唯一事实。
   消费方：快照投影、派生会话继承、删除边界的空目录回收、创建边界的「占用」判定。
@@ -197,8 +441,8 @@ persistedPath})`：`resolveConversationSessionWorkspaceForResume` 没有给出�
     与 `isConversationSessionWorkspacePath` 并列（唯一一份「严格落在工作区键路径之下且不等于它」）。
 - 创建边界的定名输入 `occupiedDirectories?: Iterable<string>`（`resolveConversationSessionWorkspaceForCreate`
   / `resolveConversationSessionDirNameForCreate`）：被**别的在册会话**占用的执行目录集合，
-  由 `createRecord` 从 `context.sessions` 收集（按 sessionId 排除本次会话自己）。缺省 = 同名真目录
-  一律复用（改动前行为）。8 位被占用 → 12 位；12 位无第三层兜底，交给 `mkdir` 报错。
+  由 `createRecord` 从 `context.sessions` 与会话库收集（含归档，按 sessionId 排除自身），仅对启用
+  本规则且需要新分配的创建查库。8 位被占用 → 12 位；12 位被其他会话认领则抛稳定 collision 错误。
 - 启动清扫的存储端口 `ConversationSessionPathSource`（reclaim 模块导出，结构上由
   `SqliteSessionStore` 满足）：`listSessions({ includeArchived: true })` → 全部非空 `path` 即
   「在册执行目录」。**刻意不带 `directory` 过滤**：那是精确字符串相等匹配，而查询键来自 spawn
@@ -293,7 +537,7 @@ sequenceDiagram
     A->>A: 执行 cwd = 该目录；工作区身份仍为对话根
     A->>S: directory=对话根、path=会话目录
     A-->>C: ACK{sessionId}；快照投影 workspacePath
-    Note over A,S: 恢复：cwd 取 session.path，缺失则 mkdir 重建<br/>存量会话按自身创建日补发一次并写回 path
+    Note over A,S: 恢复：cwd 取 session.path，缺失则 mkdir 重建<br/>存量补发与新建共享 Agent 所有权队列<br/>锁内重读、排除自身检查占用、定名并写回 path
     A->>A: 会话删除（v4 deleteSession / 旧 session/close）回收空目录：<br/>目录仍被别的在册会话使用时保留；含文件永不删；启动清扫 7 天前的空目录
 ```
 
@@ -334,9 +578,100 @@ sequenceDiagram
 验证入口：`pnpm typecheck`、`pnpm lint`、`oxfmt --check <files>`、
 `architecture:check --changed`、`node --test --test-isolation=none scripts/ci/*.test.mjs`，
 以及本次为目录命名/占用、补发、回收与清扫、ignore 规则根、快照字段、引用解析根（UI + 分享）、
-拖拽同源、reveal 树根补充的测试。
+拖拽同源、reveal 树根补充的测试；本功能聚焦 Vitest 必须列入 Desktop CI。
 
 ## 验证结果
+
+### 追加三轮扫描（2026-10-14）
+
+- 第一轮复核上一轮 runtime 修复与恢复/目录链；确认 Markdown 右键动作仍借 ambient Host，
+  编辑器目标在本地/远端同路径时误判。修复 stat 来源路由与精确 tab 匹配（边界 34）。
+- 第二轮检查文件预览、复制、文件树/搜索、终端、冷恢复、import/export/share 与旧 Host。
+  修复冻结来源仍通过 path-only 推断远端服务的问题；嵌套 child cwd 的上层链接漏检已用
+  临时文件系统复现，恢复/裸 CLI 共用逐层门禁（边界 35/36）。正常嵌套目录保持兼容。
+- 第三轮交叉审查新修复、所有相关 caller 与旧兼容：明确 task/pane 的 cwd 查询和连接也
+  接入 exact 作用域，旧无来源预览保留 ambient；remoteTarget-only 存量 tab 不作为本地
+  候选，exact 缺 attachment 仍断连。event sink、ready、actor factory、gateway epoch
+  与释放链未发现新增可达 bug。目录拼写占用候选缺少自然 caller 证据，未作推测性修改。
+
+最终源码验证：全量 CI 脚本 **476 项，475 通过 / 0 失败 / 1 平台跳过**，包含真实 CLI
+进程级 E2E；Agent 包 **157/157**；Desktop CI 聚焦 Vitest **22 文件、109/109**。
+新增 Host 路由行为测试与目录链接回归已纳入 CI，接线契约 **67/67**。
+根及 CLI 类型检查、架构（0 违规）、根格式、50 个修改 CLI 文件格式、根 lint（0 错误/
+警告）与 diff check 均通过。CLI lint 保留既有 **80 errors / 59 warnings**。
+UI 验证使用服务路由行为测试和生产接线契约，未运行桌面点击 E2E、真实 SSH/模型回合或
+Windows 安装包。基线沿用本地 freshness `--no-fetch`（ahead 66 / behind 0），未确认
+远端最新状态。任务命令和子代理均已退出，临时日志清理；未提交、推送或打包。
+
+### 三轮定向扫描（2026-10-14）
+
+- 第一轮扫描目录认领/恢复/回收、配置与 Host 注入、UI 导航完整链；修复最终 tab 激活仍按
+  path-only 选中同路径远端的问题。目录与配置相关既有回归 106 项及 14 项通过，定向真实 CLI
+  E2E A18–A21 四项通过。
+- 第二轮追踪子代理恢复、工作流 actor 与文件链接的执行目录和 Host；修复 Ready 使用父请求
+  cwd、fresh actor 未接 run cwd，以及远程 split 链接错误访问当前主 pane Host。
+- 第三轮交叉检查新修复及未改入口：补齐计划/Markdown 预览身份、目录 owner 精确匹配、旧
+  session-only 远端 tab 兼容，修复没有 spawn 的 workflow actor live 快照目录投影。
+  claim 锁顺序、持久化复用、fork/删除及项目工作区字段缺席边界未发现新增确定问题。
+
+回归使用真实 tab store 与连接注册表、runner 生命周期、Gateway 快照及真实 workflow sandbox /
+driver / journal。actor 工厂测试在模型入口前停止，跨会话续跑测试把 journal 节点置为中断态；
+生产装配透传由接线契约验证。未运行桌面点击 E2E、真实模型回合、Windows 安装包或 SSH。
+接口改动后的跨包类型检查先刷新 contracts/core 的声明文件（仅 declaration emit），不打包。
+
+最终验证：全量 CI 脚本 **464 项，463 通过 / 0 失败 / 1 平台跳过**；Agent 包测试
+**157/157**；Desktop CI 聚焦 Vitest **20 文件、101/101**；接线契约 **57/57**。
+根及 CLI 类型、架构（0 违规）、根格式及 50 个修改 CLI 文件格式、根 lint 和 diff check 通过。
+CLI lint 仍为既有 **80 errors / 59 warnings**。freshness 使用本地 `--no-fetch`（ahead 66 /
+behind 0），未确认远端最新状态。所有任务命令与子代理收尾，临时日志清理；未提交、推送或构建。
+
+### 再次复查（2026-10-14）
+
+- 修复存量补发的短目录名碰撞：恢复、fork 补发与新建共享已有 owner 队列，锁内重读并认领；
+  A21 真实进程验证并发恢复及恢复/创建混合碰撞，持久化路径与快照均保持不同目录。
+- 修复工作流历史跳转的本地/远程身份串线：目标缺席 identity 时按本地匹配，运行详情、产物、
+  侧栏及活动 tab 配置使用同一精确身份查询；3 项纯函数回归与接线断言已纳入 CI。
+- 修复 `ListWorkflowRuns` 按执行 cwd 查询导致跨会话历史缺失，覆盖同项目兄弟会话、Bash cd、
+  外部项目排除与无 workspaceScopeRoot 的 CLI 回落。
+- 全量 CI 脚本 454 通过、0 失败、1 跳过；Agent 包测试 153/153；聚焦 Vitest 96/96。
+- 根及 CLI 类型检查、架构、根及 CLI 修改文件格式、根 lint 和 `git diff --check` 通过。
+  CLI lint 仍为既有 80 个错误、59 个警告。freshness 的远端 fetch 因网络超时失败，
+  本地 `--no-fetch` 检查通过（相对 origin/main ahead 66 / behind 0）。未提交、推送或构建。
+
+### 全链路复查（2026-10-13）
+
+本次继续排查同源遗漏，覆盖主草稿与终端、Markdown 文档解析、侧栏/全局工作流及后继页面、
+slash command shell、checkpoint 级联恢复、派生子快照、并发创建与恢复后的执行准入。
+Desktop CI 已加入 18 个聚焦 Vitest 文件；Agent 包级 node:test 由原门禁自动收集新增用例。
+
+| 实际检查                                                | 最终结果                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------- |
+| 全量 `scripts/ci/*.test.mjs`                            | 448 项，447 通过、0 失败、1 项 macOS 上的 Linux 原生检查跳过          |
+| 所有 Agent 包测试（bootstrap/core 使用当前源码入口）    | 151/151 通过；包括真实 SQLite、文件系统、Gateway 快照行为             |
+| Desktop CI 新增聚焦 Vitest 命令                         | 18 文件、91/91 通过                                                   |
+| 根类型检查、CLI 31 个项目类型检查                       | 均 exit 0                                                             |
+| 根 lint、全仓架构、全仓格式、37 个修改 CLI 文件显式格式 | 均通过                                                                |
+| CLI lint                                                | 既有 80 errors / 59 warnings；29 个修改源码文件与 HEAD 对照无新增诊断 |
+
+真实进程用例覆盖并发前缀碰撞、已有持久化目录占用、草稿叶子被清扫后的首发重建、损坏路径
+拒绝发送，以及从对话根启动裸 `--resume` 后恢复冻结执行目录。裸恢复用本地 HTTP provider
+fixture 验证执行到达模型入口，无外部模型调用。子会话用真实 Gateway 事件入口与快照验证，
+并非真实模型驱动的 Bash cd/subagent 全回合。没有进行新安装包装机、Windows 或真实 SSH 测试。
+
+第一次全量复跑发生在模块拆分仍有修改时，前十项 CLI 启动失败；该结果未计为通过。
+停止修改后完整重跑得出上表结果。临时数据根和子进程由测试 finally 收尾，任务验证日志用完清理。
+
+### 首次消费路径修复复核（2026-10-13）
+
+本轮从干净的 `feat/conversation-session-workspace` 分支开始；只读核对实际问题会话，确认持久化
+执行目录已经是 `default/<创建日>/<会话短 ID>`，遗漏发生在 Gen UI 和任务 UI 的消费入口。
+全量 `scripts/ci/*.test.mjs`：437 通过、0 失败、1 项 Linux x64 原生检查在 macOS 跳过；
+主仓及 CLI 类型检查、主仓 lint、架构检查通过。CLI lint 仍是已有 80 errors / 59 warnings，
+本轮修改文件无新增诊断。未运行桌面安装包或真实模型回合；预览 UI 使用接线契约及路径行为测试验证。
+相关 Vitest 行为测试共 55 项通过，路径接线契约 42 项通过；全仓格式检查及 CLI 修改文件
+的显式格式检查通过。所有任务启动的测试进程已退出，临时数据根已由测试收尾清理。
+
+以下为原特性的验收记录。
 
 验证基线：`main` 与 `origin/main` 同步（ahead 0 / behind 0），改动前 `git status` 干净。
 
@@ -551,7 +886,7 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
 | 15      | 日期目录不可用（悬空链接 / 普通文件 / 活链接）⇒ 创建、恢复与补发都退回 `cwd = workspacePath`，不抛错、不跟随链接、不越界建目录、占位者原样、warn 只带 reason（`conversation-session-workspace` 4 条）；清扫只删 8/12 位小写十六进制形状的目录（1 条）；在用判定与清扫在册命中共用 win32/darwin 大小写折叠（1 条）                                                                                                                                                                                                                                                                                                                                                                                                                                   | 通过 |
 | 16      | 分享根一致性**与水位解耦**：预检有 deferred 候选（`candidatesUnsettled`）时快照仍保留生效解析根 ⇒ 根变化照样 `stale_conversation` 失败；同一根仍按全部候选确认并分享出会话目录那份文件（`conversation-share-publish-root` 1 条，改回「删快照」必红）；越界候选只降级为逐条 warning（`conversation-share-publish-downgrade` 1 条，删分支必红）；失败文案映射到 `conversationShare.issue.staleConversation`（删 `inferFailureReasonCode` 规则或 UI 映射各必红）                                                                                                                                                                                                                                                                                       | 通过 |
 | 16      | E2E A10/A11（**恢复侧**）：日期目录被普通文件 / 符号链接占住时冷恢复降级——不抛错、不跟随链接在对话根之外建目录、占位者原样、库里 `path` 写回工作区键路径（去掉降级写回两条必红）；E2E A12/A13（**创建侧**，第七轮补）：带 sessionId 重放的导入创建同样降级、写回行（去掉 `isReusablePersistedConversationExecutionPath` 门禁即红：A12 报 ENOTDIR、A13 跟随链接越界建目录）；另有创建侧门禁矩阵单测与兜底门禁矩阵单测。第八轮补 E2E A14/A15：**会话目录自身**（末段）被普通文件 / 符号链接占住时同样降级——不抛错（过去文件占位以 `EEXIST` 冒泡成「该会话永远打不开」）、不跟随链接把会话跑在对话根之外、占位者原样、`path` 写回工作区键路径（去掉末段门禁两条必红）                                                                                  | 通过 |
-| 边界 24 | checkpoint/rewind 的相对路径基准 = 创建该 checkpoint 时的 cwd：`resolveWorkspaceCheckpointRoot` 的优先级（artifact 记录的 `workspaceRoot` → 工作区键路径 → 当前执行 cwd）与 `stringifyWorkspaceCheckpointArtifact` 的记录 / schema 往返由 core 的 `runtime/helpers/rewind.test.ts` 6 条钉住；存量对话会话补发目录后，老 checkpoint 的相对路径不再被解析到会话目录（否则整次「编辑并重试 + 回滚工作区」会以「文件已被外部修改」被 guard 阻断）。**未覆盖**：级联 / 分叉恢复那条路（`restoreWorkspaceCheckpointFiles` 仍把模型原文交给要求绝对路径的 `FileSystemPort`），见已知边界 24 的残留                                                                                                                                                         | 通过 |
+| 边界 24 | checkpoint/rewind 的相对路径基准 = 创建该 checkpoint 时的 cwd：`resolveWorkspaceCheckpointRoot` 的优先级（artifact 记录的 `workspaceRoot` → 工作区键路径 → 当前执行 cwd）与 `stringifyWorkspaceCheckpointArtifact` 的记录 / schema 往返由 core 的 `runtime/helpers/rewind.test.ts` 6 条钉住；存量对话会话补发目录后，老 checkpoint 的相对路径不再被解析到会话目录（否则整次「编辑并重试 + 回滚工作区」会以「文件已被外部修改」被 guard 阻断）。本轮追加真实文件系统测试，覆盖级联/分叉恢复的各 artifact 根、绝对目标归并与新文件删除                                                                                                                                                                                                                | 通过 |
 | 规则 9  | hook **执行** cwd / `*_PROJECT_DIR` = 模型当前 cwd（`workspace-scope-roots` 4 条：四个工具事件点 + 三个生命周期 hook，改回工作区键路径必红）；工作区级根（workflow 定义与草稿、skills 发现、MCP 工程配置）对话会话恒为对话根、CLI/TUI 跟随执行 cwd（`workspace-scope-roots` 契约矩阵 + `conversation-session-skills-scope` 3 条 + 既有草稿免确认闸门用例）。内置 node_repl MCP server 的进程 cwd = 会话执行 cwd（`workingDirectory`；`conversation-session-workspace-wiring` 的 node_repl 契约 + `cua-driver-runtime-assets` 的 cwd 透传，改回 `workspaceDirectory` 即红，见已知边界 23）                                                                                                                                                           | 通过 |
 | 17      | 草稿预热就绪后 pane 解析根 = 预热会话执行 cwd：身份根 payload 改投**绝对路径**（与已绑定 composer 逐字一致），预热树同源仍相对，提升为正式会话不闪（UI vitest 3 + 6 条，含旧派生结果作回归对照）；第八轮补**预热未就绪**（无可用会话快照）：`resolved: false` ⇒ 提及一律绝对路径（拖拽 / Add to chat / 行内编辑器 / `@` 与 `+` 菜单四条入口同一事实）                                                                                                                                                                                                                                                                                                                                                                                               | 通过 |
 
@@ -561,15 +896,13 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
 
 ### 已知边界（有意保留）
 
-1. **底部终端坞**（`AnimatedTerminalPanel`）保持工作区根：它的 PTY 身份与回收键就是
-   `workspaceIdentity ?? cwd`（`Terminal.tsx`），改成会话 cwd 会随会话新建 PTY 并让旧 PTY 变孤儿。
-   侧栏/pane 终端已按会话 cwd。
-2. **草稿预热态**：壳层（文件树/终端/Cmd+P）用主 pane 的 `activeTaskId`，草稿态为 null →
-   回落对话根；pane 内（提及、composer 与行内编辑器的拖拽 / Add to chat 解析根、分享预检与
-   发布、权限弹窗、文件变更摘要读取）在预热会话就绪后即按**它的会话执行 cwd** 解析——首发复用
-   同一 sessionId 与同一目录，提升为正式会话不闪；只有预热尚未就绪的窗口（创建往返中、预热被
-   丢弃、旧 CLI 无该字段）才与壳层同样回落对话根，因此草稿期「提及根」比「文件树根」更精确
-   一层。预热就绪后「身份根 payload × 会话目录解析根」不同源 ⇒ 拖拽/Add to chat 投绝对路径。
+1. **底部终端坞**（本轮修复）：独立会话按会话 ID 选择终端组，创建时冻结 cwd；工作区身份
+   单独用于关闭工作区后的回收。切换任务保留旧 PTY 与命令，切回原任务复用原组，避免旧进程孤立。
+   项目与远程工作区保持原工作区组；不会尝试更改已经存在的 PTY 的 cwd。
+2. **草稿预热态**（本轮修复）：主 pane 只读上报其既有预热 sessionId，壳层的文件树、搜索与
+   终端消费同一会话路径；不创建第二份预热会话。绑定带 workspace/primary-pane/generation 门禁，
+   切换工作区后迟到的绑定及旧 cleanup 不影响新草稿。预热未就绪时文件搜索仍可沿用身份根，
+   终端按边界 9 等待；pane 引用保持现有绝对路径降级，首发沿用预热 session 与目录。
 3. **忽略规则的锚定**：只改「规则从哪个根读」，匹配仍相对搜索根。对话根里写的根锚定规则
    （如 `/2026-10-11/`）不会命中会话目录内的相对路径；basename / `**` / 目录名规则正常。
    残留：服务层刻意**不**做「看起来像会话目录」的结构推断（谁是对话根只有 Host 与 CLI 知道），
@@ -585,11 +918,10 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
      项目档作用域判定 = 工作区键路径（对话会话里跨会话共桶，GUI 中枢因此**能**看到本会话的 run），
      脚本子进程的沙箱 cwd 仍是执行 cwd。副作用：run 记录里的 `cwd` 字段是**项目键**，不再等于
      该 run 的沙箱根——读这个字段的人要按本节理解，不要拿它当工作目录显示。
-   - **dynamic workflow**（`dwf_run`）：`DynamicWorkflowRunSubmitRequest.cwd` 在 contracts 里
-     同时是项目键与脚本沙箱根，因此 run 提交/run 清单仍按会话执行目录分桶：对话会话里 GUI 中枢的
-     run 列表看不到本会话的 run。彻底修需要在契约里拆成「项目键 / 沙箱根」两个字段。
-6. **expert workflow prompt 的 “Working directory”** 在对话会话下显示工作区根，而子 agent 沙箱
-   是会话目录；彻底一致同样依赖上一条的字段拆分。
+   - **dynamic workflow**（`dwf_run`）：按规则 21 保留沙箱 cwd，通过已有父会话行识别项目归属；
+     GUI 项目历史能列出独立会话目录中的 run，精确 cwd 查询与全局查询仍有效。
+6. **expert workflow prompt** 按规则 19 将 run 的项目键标为 workflow workspace，执行 cwd
+   由子运行时系统上下文提供，避免让模型根据错误的 “Working directory” 写进共享对话根。
 7. **同一存量会话被两个 CLI 进程并发冷恢复**时后写者胜：两侧算出的目录名相同（同名目录一律
    复用），因此不会各建一个目录；先写者的 runtime 与库中最终值短暂不一致，下次恢复收敛。
    彻底消除需要带 `expectedPath` 的 CAS 更新，属契约层改动。
@@ -601,55 +933,23 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
    删除边界的「目录仍被别的在册会话使用」判定与清扫在册命中**共用同一条折叠规则**
    （`foldConversationSessionDirectoryCase`，同步、不做 realpath）：漏判会 rmdir 掉存活子会话的
    目录，多判只少删。
-9. **切会话的首帧窗口**：会话已绑定但快照尚未到达时，`useSessionWorkspacePath` 回落 tab 的
-   workspacePath（对话根）。若在这个窗口内打开侧栏终端，PTY 的 cwd 会被固定在对话根——PTY 的
-   cwd 创建后不可变。窗口是一个订阅往返（毫秒级），人工操作难以命中；彻底修需要终端延迟建 PTY。
-   同类残留：**预热尚未就绪**的草稿期打开的侧栏终端把 PTY 固定在对话根，首发提升为正式会话后
-   不会跟着换到会话目录——PTY 的 cwd 不可变，复用路径也不看 `cwd` 变更（边界 1 的同一约束）。
+9. **切会话的首帧与预热窗口**（本轮修复）：本地对话终端在匹配的租约快照确认前不创建 PTY。
+   侧栏终端按目标 sessionId 精确查询路径并冻结，过期请求不会在切换/关闭后重开面板；底部终端
+   仅在路径就绪时创建。旧 CLI 的匹配快照没有 additive cwd 字段时仍使用原工作区根，项目与远程
+   终端保持原行为。现有 PTY 继续使用其创建时的 cwd。
 10. **设置页的规则根固定是对话根**（规则只有一份、落在对话根），因此对话会话下设置页编辑的
     规则文件与文件树 / Cmd+P 的搜索根（会话目录）不是同一个目录；搜索仍按对话根的规则排除。
-11. **8 位定名的复用边界**：`<日期>/<id8>` 已被**目录**占用时一律复用（保证定名幂等），
-    除非「占用」事实说明它是**别的在册会话**的目录。该事实只来自本进程的会话注册表，因此：
-    跨进程的 8 位碰撞（同日两个会话、量级 2^-32，且要求两个 CLI 进程同时在创建）不可见；
-    本进程内被常驻池去激活（空闲 10 分钟 / 超水位）的会话也不在注册表里，同样看不见；
-    补发 / fork 分支（`resolveConversationSessionWorkspaceForResume`）不接占用集合。
-    彻底修需要把会话库当碰撞 oracle（创建时按候选路径查一次 `path` 前缀）或在库里做 CAS。
-    只有被**非目录**占位时才回退 12 位：同名文件、符号链接、以及**悬空链接**——判定必须用
-    `lstat`，`existsSync` 会跟随链接把断链判成「不存在」从而绕过护栏（`mkdir` 报 ENOENT，
-    该会话的创建会确定性失败）。12 位若是非目录占位，由 `mkdir` 报错暴露；若 12 位恰好是另一个
-    在册会话的目录，`mkdir` 幂等成功 ⇒ 会共用目录（量级 2^-48，无第三层兜底）。
-    同一进程内**并发创建**的窗口同样存在：占用快照在 app 构造之前取、record 在之后才注册，两个
-    前 8 位相同的 id 同时进入创建边界时谁都看不见谁，`mkdir` 幂等 ⇒ 共用目录（随机 id 量级
-    2^-32；带 `importedHistory` 的请求可自带 id，属可控输入）。彻底修需要同步预约表或库内 CAS。
-    **日期目录不可用**（`<根>/<日期>` 是文件或符号链接，含悬空）时，定名与补发一律返回 undefined
-    （`isConversationSessionDateDirUsable`，`lstat` 语义：不跟随链接、不删不修占位者），该会话退回
-    旧行为 `cwd = workspacePath` 并记一条只带 reason 的 warn。这是对「没有第三层兜底」的有意收窄：
-    坏日期目录只降级**当天**的会话，而不是让当天所有会话创建确定性失败（文件占位 → `mkdir` ENOTDIR）
-    或把目录建到对话根之外（活链接 → 词法说「在根内」、回收与清扫都拒绝）。残留：可用性检查与随后
-    的 `mkdir` 之间仍有竞态（占位者被替换），且恢复/派生分支传入的 `provided` 路径直接
-    `ensureConversationSessionWorkspaceDir`、不再复检日期目录（只在该竞态下才有差异——**创建侧的
-    复用一支已在第七轮收口**，见下 ③）。另：创建路径不校验
-    生成的日期目录名是否符合 `<YYYY-MM-DD>`（畸形的 `time.created`，如年份 >9999，会造出两条破坏性路径
-    都不认的目录而永久残留；代价只是一个空目录）。
-    降级（规则 8）的三条残留：① 写回 `path` 失败（库写不动）时 runtime 仍按库里那个坏 `path` 运行
-    ——兜底门禁只能保证不再 `mkdir` 它（不会 ENOTDIR、不会跟着链接越界建目录），两边分叉只能靠
-    下一次恢复再试；② fork 的**继承分支**（父 record 有 `executionWorkspacePath` 时）不复查日期
-    目录：父会话运行期间用户把 `<根>/<日期>` 换成**普通文件**后 fork，`createRecord` 的 `mkdir` 报
-    ENOTDIR（fork 失败）；换成**符号链接**时 `mkdir(recursive)` 跟随链接**成功**，子会话目录落到
-    对话根之外（回收与清扫都不认）。两种形态都不复查是有意的：派生会话必须与仍活着的父会话同目录
-    （规则 5），父会话此刻正运行在那个路径上，"同一目录"只能靠继承维持；把子会话降级到对话根反而
-    让它与父分叉、并落回共用目录；③ 「复用一支不复查」这个豁口已在第七轮收口：**导入类创建**
-    （带 sessionId 重放 / 删除后重新导入 / 幂等重试）没有活着的父会话，行里的 `path` 必须先过
-    `isReusablePersistedConversationExecutionPath`（日期目录可用性），被拒即退回
-    `cwd = workspacePath` 并把降级写回行（core 冷恢复只认库里的 `path`）。E2E A12/A13 覆盖普通文件
-    与符号链接两种占位形态，去掉门禁即红（A12 以 ENOTDIR 失败、A13 跟随链接越界建目录）。
-    同一门禁在第八轮**补齐了「会话目录自身」这一层**：复用分支随后直接对持久化 `path` 做幂等
-    `mkdir`，末段被占住时过去没有任何检查——普通文件 ⇒ EEXIST（整次恢复/导入失败，侧栏里那条会话
-    **永远打不开**）、符号链接 ⇒ 跟随链接成功、会话跑在对话根之外（词法说"在根内"，回收与清扫都不认）。
-    判据收敛到唯一实现 `classifyPersistedConversationExecutionPathUnusable`（先日期目录、再会话目录，
-    `lstat` 语义、不跟随链接、不删不修占位者），创建侧门禁、恢复复用分支与三处降级日志都读它；
-    两个稳定 reason：`date_dir_unusable` / `session_dir_unusable`。E2E A14/A15 覆盖末段的两种占位形态，
-    去掉这一层即红（A14 以 EEXIST 失败、A15 的 `path` 不写回、会话继续跑在链接目标里）。
+11. **目录定名的剩余并发边界**：占用判定已同时读取进程内 record 与已有持久化行，含归档并
+    排除自身。同一 app-server 从分配到登记串行，冷启动、去激活或并发导入不会复用别的会话
+    已认领的目录。8 位被占用则用 12 位，12 位也被别的会话占用时以稳定 collision 错误拒绝，
+    不添加第三种命名或退回共享根。
+    仍有两个限制：不同 CLI 进程同时在“查库后、落库前”创建碰撞 ID 缺少跨进程 CAS；deferred
+    草稿没有持久化行，其他进程看不到它。已有行与同进程创建的窗口已修复，上述极窄跨进程窗口
+    需要目录锁或持久化认领协议，未扩大数据库契约。
+    日期或叶目录被文件/链接占位时，创建/恢复可保留只读降级记录，不删除或修复占位者；所有
+    启用本规则的执行输入必须再过规则 20 的准入门禁，不能向共享根写入。门禁逐层拒绝根下链接，
+    缺失且符合命名规则的会话叶子可幂等重建。检查与 mkdir 之间的文件系统替换竞态仍非原子。
+    畸形历史创建日（如年份 >9999）可能产生清扫不认的空目录，不新增日期迁移规则。
 12. **工具卡子树（原边界 12，已收敛）**：展示与读取都按会话执行 cwd 了（变更 chip、文件变更
     摘要面板、工具输出 markdown、「查看文件/查看 diff」的打开路径，以及 diff tab 里的「查看源
     文件」）。残留：
@@ -685,10 +985,9 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
       只在「解析根 = 工作区根」时才等价于安全边界，于是在两分法下把仍落在工作区内的目标也一起丢了
       （分享时表现为**静默零附件**：候选从未产出，连 `artifact_read_failed` 都没有）。现在解析层只做
       词法归一化，越界由候选构建的 `isInsideWorkspace` 拒绝（`../../../outside.pdf` 仍被拒），与
-      artifactSource 的 realpath 包含判定同口径。残留：**点击打开** markdown 链接那一路
-      （`markdownFileLink` 的 `isBareWorkspaceRelativeFileHref`）仍把 `../` 开头的 href 与 `/abs`、
-      其它 scheme 归为一类拒绝，因此预览卡会出现、链接本身仍不可点；`~/...` 仍一律不作为引用
-      （Home-relative 路径不是稳定引用）；
+      artifactSource 的 realpath 包含判定同口径。Markdown 链接也按来源文档目录解析 `../`，并以
+      workspace 身份根做 containment；越过身份根仍拒绝。`~/...` 仍一律不作为引用（Home-relative
+      路径不是稳定引用）；
     - 远端 artifactSource（SSH/WSL/Docker）的同构改动只有代码复检，现有测试设施没有远端 fileService 桩。
     - 预检快照是进程内、按 `workspaceKey + sessionId + productTurnId` 寻址的有界缓存（上限淘汰、
       发布后回收）：跨进程或重启后的发布没有根可对，按「未预检」处理（发布侧按当前根发现候选）。
@@ -748,9 +1047,10 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
 17. **workflow 产物 `sourcePath` 的解析根**：run 的 cwd 是会话执行目录，因此基准必须随「发起
     打开的会话」走。三个入口都已按这个口径修：
     - **直接打开**（chip / 通知行 → 宿主 `openInBrowser`）用**请求自带**的
-      `fileReferenceRootPath`（由发起 pane 填自己的 `fileSearchRootPath`）——不能用宿主侧
+      `fileReferenceRootPath`（由发起 pane 填自己的 `fileSearchRootPath`；Automations 历史入口使用
+      持久化的 `run.cwd`，存量缺席时回退目标项目根）——不能用宿主侧
       「当前会话 cwd」：分屏时 focus 会覆盖 shell 的 `activeTaskId`，用聚焦会话的目录拼另一个
-      pane 的产物会打开错的同名文件。请求没带根（中枢设置页这类没有会话上下文的入口）时回落
+      pane 的产物会打开错的同名文件。请求没带根（例如缺少 `cwd` 的存量历史行）时回落
       工作区身份根，与改动前一致。
     - **侧栏 tab 内**：打开时就把这次请求的根冻结在 tab 上
       （`WorkflowArtifactSidePaneTab.fileReferenceRootPath`），渲染时优先用它；缺席（旧发送端 /
@@ -762,26 +1062,29 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
       注意该 tab 的**可见性**本就按 `parentSessionId === sidePaneOwnerId` 收窄
       （`getVisibleSidePaneTabs`）：切到同 workspace 的另一个会话是把旧产物 tab **隐藏**，
       而不是换根重算（早先本节的表述把这条机制写反了）。
-      残留：中枢（设置页）的产物 chip 没有会话上下文，只能按身份根拼（同边界 5）。
+      残留：存量 Automations 历史行没有 `cwd` 时按目标 workspace 根回退；有 `cwd` 的历史 run 与产物
+      使用各自保存的实际运行目录。
       `workflow-workspace`（脚本 transcript）与 `workflow-run` 两个侧栏 tab 第七轮已补上冻结根
       （`WorkflowWorkspaceSidePaneTab.fileReferenceRootPath` / `WorkflowRunSidePaneTab.fileReferenceRootPath`：
       打开时冻结），但两者的读取机制不同，别再写混：
       - `workflow-workspace` 与产物 tab：**宿主**把冻结根传下去
-        （`AnimatedSidePanePanel` 的 `tab.fileReferenceRootPath ?? effectiveWorkspacePath`）；
+        （`AnimatedSidePanePanel` 的 `tab.fileReferenceRootPath ?? effectiveWorkspacePath`）；脚本 Read
+        打开 CodeViewer 时同时冻结 workspace 身份、远端 session 和该执行根，UNC 路径由统一路径工具保留；
       - `workflow-run`：面板自己读本 tab 的冻结根，缺席回落 **tab 自己的 `workspacePath`（身份根）**，
         不读宿主那个"聚焦会话"的值（`AnimatedSidePanePanel` 的 `max-lines` 约束下没给它传 prop）；
         run 详情里的产物 chip 把冻结根随请求带上，不再退回身份根。该面板的 `handleOpenArtifact`
-        依赖数组必须含 `tab.fileReferenceRootPath`：同一 tab id 重开时冻结根会被覆盖。
+        依赖数组必须含 `tab.fileReferenceRootPath`：同一 tab id 重开时冻结根会被覆盖；设置后继 run
+        同样透传这份冻结根。
         **目录页是第三个入口**（第十一轮修）：`workflow-directory` tab 也冻结
         `fileReferenceRootPath`（`SessionPane` 的 `handleOpenWorkflowRunDirectoryFromPanel`
         打开时补 pane 的 `fileSearchRootPath`，`buildWorkflowRunDirectoryOpenRequest` 从 tab
         透传给 `OpenScopedWorkflowRunSideTabRequest`），否则「目录页 → run 详情 → 产物 chip」
         这一跳把根丢给回落（身份根），产物路径拼到对话根。缺席（旧记忆状态）沿用旧回落不变。
-18. **「文档相对」类解析仍是工作区根**：预览面板里 markdown 的相对链接（`previewPaneContent` /
-    `PreviewPane`）与计划详情正文（`PlanDetailSidePane`）都按工作区键路径解析，严格说应以
-    **该文件所在目录**为基准。这是改动前就存在的近似（模型产物过去都落在工作区根、计划文件本来
-    就住在对话根，恰好正确），与本次的会话 cwd 两分法是两件事；改动后从会话目录打开的 `.md`
-    里的相对链接仍会落到对话根。修它要改预览/计划面板的解析语义（文档相对），不在本规则范围内。
+18. **「文档相对」类解析按来源文件目录**（本轮修复）：普通 file 与 text Markdown 预览、计划详情及
+    workflow artifact 正文/缩略预览的相对链接和图片，都以来源文档目录为解析基准；相对 sourcePath
+    先按冻结 run root 补全，来源缺席时回退冻结根。`../` 可在 workspace 身份边界内上溯，不能越界；
+    `workspacePath` 仍作为服务路由身份。覆盖 Windows/UNC 路径、存量缺席路径、切会话后的冻结根，
+    以及 Automation 后继 run 请求保留来源根。
 19. **`activePreviewPath` 通道不触发文件树换根**：规则 13 只覆盖显式 reveal；文件树已打开时预览
     一个「对话根内、会话目录外」的文件（`.zcodium-share/…`、skills、plans），树不会跟随选中/
     展开（改动前树根恒为身份根，会跟随）。让被动预览也换根会把用户的会话目录视图顶掉，属产品
@@ -796,6 +1099,9 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
     refCount 0，keep-warm 过期不生效。这是「壳层随时需要会话 cwd」的取舍，不影响正确性。
 22. **「谁是对话根」的判据只有路径，没有 Host 的 purpose**：标记只比较 `resolve(workspacePath)` 与
     对话根，因此（a）用户把对话根**显式**当项目工作区打开时仍按对话根规则给会话建独立目录；
+    终端亦以 CLI 投影为准，不能用 `workspacePurpose: project` 否决会话执行根；本地会话已绑定
+    但快照未就绪时两种终端入口均不得提前创建身份根 PTY。无绑定会话的普通 project 仍可立即
+    在项目根开终端；快照缺席执行根字段或根与身份根相同时继续复用工作区级终端组。
     （b）对话根本身是符号链接时两侧 `resolve` 不同 ⇒ 标记不注入，整个特性静默关闭（会话共用对话根，
     没有半状态）；（c）标记随 env 继承给 Bash / 工具子进程，在对话根里再起一个 `zcode` 也会启用该
     规则（语义上仍正确，只是没有第二道开关）；（d）旧 Host（不带 `workspacePath`）搭配已经落库了
@@ -831,15 +1137,18 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
     （`currentHash: "missing"`）→ 判 `external_modified` → 整次「编辑并重试 + 回滚工作区」被
     `guard.workspaceRewindUnsafeFiles` 阻断，提示还是"文件已被外部修改"（文件从未被改过）。
     修法（两侧都落地）：
-    - 新写的 checkpoint 记录创建时的执行 cwd（产物字段 `workspaceRoot`，schema 里可选；
-      `stringifyWorkspaceCheckpointArtifact` 由 `runtime.workspaceRoot` 传入）；
+    - 新写的 checkpoint 记录创建时的执行 cwd（产物字段 `workspaceRoot`，schema 里可选）：
+      执行器将工具调用实际 cwd 写入 `ToolExecutionResult.workingDirectory`，emitter 再将它传给
+      `stringifyWorkspaceCheckpointArtifact`；不能在 emitter 阶段重新读取可变的 runtime cwd 或
+      会话初始 `workspaceRoot`，否则 Bash `cd` 或并行工具会把相对路径写到错误根；
     - `resolveWorkspaceCheckpointRoot` 定优先级：artifact 记录的 cwd → **工作区键路径**
       （老 checkpoint 没有记录，而它们当时的 cwd 恒等于它）→ 当前执行 cwd（CLI/TUI 独立运行没有
       工作区键路径，与改动前逐位一致）。`file-rewind.ts` 的两处路径解析都走它。
-      残留：级联/分叉恢复走的 `restoreWorkspaceCheckpointFiles` 把 `files[].path` **原样**交给
-      `FileSystemPort`（该端口要求绝对路径），因此**相对路径**的老 checkpoint 在那条路上仍会
-      `invalid_path`——这是本特性之前就存在的缺口（改动前同样存在），不在本轮扩围；要修需让那条
-      路也走同一个解析根，并补上对应的破坏性操作测试。
+      级联/分叉恢复也通过 `restoreWorkspaceCheckpointArtifacts` 消费同一解析根：每份 artifact
+      先解析成绝对目标，再按绝对路径取最早 before 状态。真实临时文件系统测试覆盖老记录回退、
+      不同 cwd 下同名相对文件分别恢复、同目标相对/绝对别名归并与新建文件删除；回归场景为
+      初始目录存在 `a.txt`，工具先 `cd nested` 再写入相对 `a.txt`，rewind/fork 只恢复
+      `nested/a.txt`，不会触碰初始目录中的同名文件。
 25. **计划文件的落点 = 执行 cwd，老文件按工作区键路径回退读取**（第九轮修复）：
     `ExitPlanMode` 把批准的计划写到 `<执行 cwd>/.zcodium/plans/plan-<会话id>.md`
     （`writeApprovedPlanFile` 的 `workspaceRoot` = 会话执行边界），压缩时的「计划仍在进行」提醒
@@ -855,40 +1164,20 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
     回退读到的必然是本会话自己的老计划；其它读取错误（权限等）照旧向上冒泡，不回退、不吞错。
     残留：回退只覆盖"文件还在老位置"这一种迁移形态——用户手工搬动过计划文件时两侧都找不到，
     与改动前"文件不在预期位置"的后果相同。
-26. **工作区级（tab）文件树按钮的 target 不带 `taskId`**（第九轮记录，未改代码）：sidebar 每个
-    workspace tab 的文件树按钮（`WorkspaceSidebarItem` 的 `handleOpenWorkspaceFileTree`）构造
-    target 时只带 workspacePath/name/identity/remoteSessionId，于是规则 13 的 `taskId` 门禁被跳过，
-    唯一守卫是「target 的 workspaceKey == 激活 tab 的 workspaceKey」。对话工作区里所有 tab 的
-    workspacePath 都是对话根 ⇒ 只要**同一个 workspaceKey 存在第二个 tab**，点它的文件树按钮就会
-    拿到**激活会话**的执行目录（点 B 看 A 的文件，拖拽 / Add to chat 也拿 A 的）。
-    触发条件：tabStore 的 `addTab` / `ensureWorkspaceTab` 都按 workspaceKey 去重，只有启动恢复
-    （`restoreTabs`）原样恢复持久化列表，因此需要持久化里已有同 key 的重复 tab（同一对话根被
-    打开过两次的历史数据、或同一路径不同 identity 归一到同 key）。后果是**视图错位**（看到另一个
-    会话的文件），不写数据、不改变任何身份键。
-    彻底修需要把「激活 tab 的身份」接到 sidebar item 上：`isActiveWorkspace` 目前按
-    `tab.workspacePath === workspacePath` 比较，两个同 key tab 会被同时判为激活
-    （`WorkspaceSidebarItem:1124` 的 `activeTaskId={isActiveWorkspace ? activeTaskId : null}` 也吃
-    这个不精确），因此要先改成按 tab id 判定（还要处理设置页激活时没有 workspace tab 命中的情形），
-    再让 target 带一个显式的「非激活 tab 请求」事实。属产品语义取舍 + 跨组件改动，本轮只记录，
-    等用户确认后再动。
-27. **派生 live 子会话的快照投影走父 record**（第九轮修复，HIGH）：进程内的 subagent child 与
-    workflow actor **没有 record**（`context.sessions` 只有创建 / 恢复 / fork 三处注册），它们的事件
-    经 `ingestDetachedLiveSession` 直接进 publisher；而唯一投影钩子
-    `getSessionWorkspacePath(sessionId)` 只读 record ⇒ 这些子会话的快照**从不带** `workspacePath`。
-    UI 把「有快照但没有该字段」当作「该会话 cwd 恒等于工作区键路径」的证明
-    （`resolvePaneFileSearchRoot`），于是子代理 / actor 面板里模型写的相对路径被拼到**对话根**：
-    正文引用、变更 chip、文件变更摘要、「查看文件 / 查看 diff」全部指向 `<对话根>/<相对路径>`
-    （ENOENT 或打开另一个会话/日期目录下的同名文件），而同一批工具卡在主会话面板里是对的。
-    修法：`seedPublisherWorkspacePath` 在本会话取不到值时回落到 `detachedChildParent` 里父会话的
-    执行 cwd（父子映射在同一函数里登记；登记时若 publisher 已存在再补种一次，覆盖「订阅/rehydrate
-    早于第一个 child 事件」的窗口）。两个片段由 `conversation-session-workspace-wiring.test.mjs`
-    的源码契约钉住（改回单参数取根即红）。
-    残留（**无行为级测试**）：① 判据是「父 record 的执行 cwd」，父会话在某轮里 `cd` 过时子会话的
-    真实 cwd 可能更深一层（子会话继承的是父的 `workingDirectory`），此时仍按父的会话目录解析——
-    比「回落对话根」精确一层，但不等价；② 该修法没有 E2E：驱动 detached child 需要真实模型回合
-    （现有 E2E 只做会话生命周期），因此只有源码契约 + 代码复核；③ 冷恢复后的同一子会话会走
-    `subagent_child` 行（有 record）拿到 `path` 投影，因此链接的落点不会随打开时机变化了
-    ——这条同时是本次修复的效果，不再列为残留。
+26. **工作区级（tab）文件树按钮按目标 tab 的会话归属**（本轮修复）：恢复的重复对话根 tab
+    不能仅按相同 workspacePath 判为激活；sidebar 按 tab id 判断激活状态，文件树请求携带目标
+    tab 的 taskId，再由规则 13 的归属门禁选择执行目录。不会借用另一 tab 的会话 cwd。
+    **草稿 null 归属门禁**：非激活 tab 的显式 `taskId: null` 始终表示身份根请求，即使当前
+    `activeTaskId` 也是 null，亦不能借当前草稿的预热目录。激活 tab 在草稿态省略 taskId，
+    沿用当前 tab 跟随壳层执行目录的既有请求语义；不另存草稿目录或新增会话订阅。
+27. **派生 live 子会话投影**（本轮修复）：spawn 事件携带 child 初始执行 cwd，gateway 在首帧前
+    种入该值。优先级为子会话自己的持久化事实 → spawn 捕获的实际 cwd → 父 record 兼容回落，
+    因此父会话 Bash cd 后，子会话可使用更深的目录，迟到的父映射不能覆盖它。项目工作区维持
+    additive 字段缺席的兼容行为；旧事件没有 child cwd 时仍用父根。正常释放与 gateway 关闭
+    清除该会话映射，不增加会话所有者。
+    恢复已结束的子代理时，readiness hook 必须携带子运行时完成 `resumeFromStore` 后的实际 cwd；
+    父请求的当前 cwd 仅用于新建 child 和旧注入实现的兼容回退。父会话先 `cd` 再继续旧 child 时，
+    spawn 投影仍指向 child 持久化的目录，不被父的新目录覆盖。
 28. **常驻会话的 resume 早退分支也要刷新会话目录 mtime**（第九轮修复）：`activateSessionForResume`
     命中注册表时直接返回，不经过 `resolveRecordExecutionWorkspacePath` ⇒ 规则 3 要求的「恢复也刷新
     mtime」在这条路上过去不成立。触发面很窄但真实：deferred 草稿（v4 pane 预热）**不落 sqlite**，
@@ -898,8 +1187,8 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
     （只对严格落在对话根之下的目录动手，不做路径推断、不给项目工作区建目录；失败只记一条 warn，
     不阻断恢复）。`conversation-session-workspace.test.mjs` 新增用例自带对照组：同年龄的空目录
     不被碰就被清扫删掉，从而证明「是这次刷新救了它」，去掉该调用即红（已实测）。
-    残留：冷恢复路径的 mtime 刷新仍只在 `resolveRecordExecutionWorkspacePath` 里（同一条规则的
-    另一支），以及清扫的在册集合仍是启动快照（边界 15）。
+    执行准入会再次校验冻结的执行根并重建缺失叶子，覆盖草稿未落库期间目录被清扫的情形；
+    清扫的在册集合仍是启动快照（边界 15）。
 29. **删除边界的跨进程复检只看得到「此刻在库里的行」**（第十轮修复后的残留）：复检与清扫共用
     同一份事实来源（会话库的 `path` 列），因此两类盲区原样继承——① deferred 草稿没有行，别的
     进程里**尚未提升落库**的草稿继承同一执行 cwd 时，本侧删除会把它当作无人认领而回收（与
@@ -908,3 +1197,315 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
     其恢复/重建路径 `mkdir` 补回」（规则 3 的恢复重建是既定兜底），而反向（不做复检）的代价是
     整个存活子会话的目录树被拆。彻底消除需要跨进程目录锁或 spawn 前认领协议，超出本规则范围，
     保留为已知边界。
+30. **常驻父会话的 fork 继承也要复核目录**：父 record 保存的是创建时的路径事实，不能证明
+    日期目录或叶目录此刻仍是真目录。fork 注册时继承解析须复用恢复边界的逐层门禁；坏占位时
+    返回缺席，进入现有子行恢复与降级落盘路径，不跟随链接、不删除占位者。规则启用时，所有
+    provided 执行路径在公共 record 创建边界再次复核；无效路径拒绝创建，不能直接 mkdir/utimes。
+31. **从全局工作流历史打开本地会话时不得继承活动远程身份**：打开请求明确指定目标
+    `workspacePath` 时，缺席的 `workspaceIdentity` 表示本地目标，不回退当前工作区身份。
+    目标 tab 的 `remoteSessionId` 也须按 `workspaceIdentity?.trim() || workspacePath` 精确
+    关联；相同路径的远程 tab 不能成为本地目标的路由来源。运行详情、产物和侧栏入口遵循同一规则。
+    最终激活的 `activateTabByPath` 也必须复用 tab 的身份相等判据：本地请求只激活本地 tab，
+    只有同路径远程 tab 时视为未找到并补开本地 tab；远程身份缺少 attachment 时继续拒绝跳转。
+    远程历史已按连接 key 精确选中旧 tab 后直接按 tab id 激活，兼容只有 `remoteSessionId`
+    的存量远程 tab；不能再把缺席 identity 的旧 tab 交给本地路径激活入口。
+32. **文件链接读取按目标 Host 路由**：同一壳层内的 split pane 可以来自另一远程工作区。
+    Markdown 文件/目录链接的 `stat` 使用目标 `workspaceIdentity` / `workspaceRemoteSessionId`
+    解析出的服务，不借活动主 pane 的服务；远程 attachment 不可用时拒绝打开，不回落本机。
+    `base-local` 链接继续使用本机服务。计划详情也传递其 tab 的完整身份，读取和打开保持一致。
+    Code Viewer 的 Markdown 预览也把冻结的来源身份传给链接；目录链接的 owner tab 按同一
+    身份判据查找，本地来源不能命中同路径远程 tab。链接打开后的目录树继续携带来源身份。
+33. **动态工作流新 actor 的 cwd 来自 run**：`launchDynamicWorkflowRun` 将同一冻结 `cwd`
+    传给 world-read 和 actor runtime 工厂，工厂用它构造 child 的 `workingDirectory`。
+    父会话 `cd` 后创建 run、另一会话续跑旧 run、旧 actor 行被清理后重建，均不能借装配 app
+    时的初始目录。已有 actor 恢复仍以该 child 持久化 cwd 为准；工作区配置发现根不变。
+    journal 是 resume 的 run cwd 所有者，不新增路径缓存或会话目录分配器。
+    live actor 没有宿主 record 或 SubagentSpawned 事件，原始会话事件 sink 的可选第二参数
+    因此携带执行 cwd，script child 原样透传给父外部 sink；gateway 在首帧种入，SessionResumed
+    刷新恢复后的路径，其余后续事件不跟随 Bash cd 改写冻结投影。此元数据不进入持久化事件或
+    V4 wire 事件字段；旧 sink 可忽略它，项目父 record 无独立路径时仍保持字段缺席。
+34. **Markdown 文件动作也按链接来源 Host**：消息中的左键、右键“用编辑器打开”及复制相对
+    路径共享 `MessageFileLinkTarget` 的 identity/session。右键 stat 与编辑器目标不能调用当前
+    主 pane 的 ambient file service；本地来源只匹配本地 tab，同路径远程来源必须精确匹配远程
+    identity/session，连接或目标 tab 缺席时禁用/拒绝动作，不回落到另一 Host。
+    旧的仅含 `remoteTarget` 的 tab 仍属于远程，不能成为本地路径匹配候选；预览来源未冻结
+    工作区路径时保留原有 ambient 兼容推断，已冻结来源使用精确匹配。
+35. **嵌套执行 cwd 恢复逐层复核**：派生会话可以持久化父会话 `cd` 后的深层 cwd。
+    从对话根到持久化路径的每一层均须 `lstat` 为真目录；任一层文件或符号链接均拒绝复用，
+    首层报 `date_dir_unusable`，其余报 `session_dir_unusable`。缺失层立即停止检查，恢复仍可
+    幂等补建；执行准入按规则 32 重建受管日期/会话目录下的缺失后代。裸 CLI、恢复、fork 与 provided 路径
+    共用此判据，不跟随上层链接在根外建目录，也不修改占位者。正常嵌套 cwd 保持兼容。
+36. **冻结来源的文件读取使用精确 Host 作用域**：Code Viewer、文件树及消息预览卡片已携带
+    `workspacePath` 的来源，
+    缺席 identity/session 表示本地，读取、watcher、媒体预览均不能借同路径活动远程 tab。
+    文件树搜索、明确任务的 cwd 查询和明确 pane 的会话连接也使用同一作用域；本地会话
+    不能因活动远程 tab 被清掉目录订阅或向另一 Host 查询任务。显式远程按连接注册表解析，
+    缺 attachment 保持断连代理；旧的无来源作用域调用保留现有
+    path-only 兼容推断。服务 hook 是路由唯一入口，不新增服务缓存或预览目录所有者。
+
+```mermaid
+sequenceDiagram
+  participant Child as 子运行时（cwd 所有者）
+  participant Runner as 子代理生命周期
+  participant Gateway as 快照投影
+  participant Pane as 来源 pane
+  participant Registry as 窗口连接注册表
+  participant Host as 目标 Host
+  Child->>Child: 新建持久化 / 恢复持久化 cwd
+  Child-->>Runner: ready(actual cwd)
+  Runner-->>Gateway: SubagentSpawned(actual cwd)
+  Gateway-->>Pane: child 目录投影
+  Pane->>Registry: 文件链接来源身份 / attachment
+  Registry-->>Pane: 目标服务（断连则拒绝）
+  Pane->>Host: stat / 打开文件或目录
+```
+
+### 再次定向复查（2026-10-14）
+
+本轮保留此前未提交修复，仅处理规则 27–29 的三处缺口：旧远程 tab 被本地导航选中、
+`SendMessage` 恢复终态子代理绕过执行目录准备，以及父会话 `cd` 后启动的动态 run
+仍按 pane 初始根读取产物和 transcript。子代理准备复用 bootstrap 目录判据；
+工作流根复用 journal 查询，未新增路径缓存、RPC 或历史数据迁移。
+
+| 验证                                        | 结果                                                                                                                                                                                    |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 根工作区及 CLI 全量类型检查                 | 均 exit 0；CLI 31 个项目                                                                                                                                                                |
+| 全量 CI 脚本（含进程级 E2E）                | 477 tests / 476 pass / 0 fail / 1 skip，exit 0；跳过项为平台条件                                                                                                                        |
+| Agent 包测试（bootstrap/core 映射当前源码） | 161 tests / 161 pass / 0 fail，exit 0                                                                                                                                                   |
+| Desktop CI 会话工作区定向 Vitest 清单       | 24 文件 / 121 tests 全通过，exit 0                                                                                                                                                      |
+| 根工作区 lint / 架构检查                    | lint 0 errors / 0 warnings；架构 0 violations                                                                                                                                           |
+| 格式 / diff 检查                            | 根格式通过；CLI 本轮涉及的 13 个文件显式按子工作区配置检查通过；diff check 通过                                                                                                         |
+| CLI lint                                    | exit 1：81 errors / 59 warnings；开工基线为 80 / 59。本轮新增可选 run 根读面使 `dynamic-workflow-run.port.ts` 的非注释行数达到 401，新增 1 条 `max-lines`；未为消除行数诊断重构无关端口 |
+
+未打包、未提交、未 push；未进行真实桌面点击、SSH 或模型调用验证。远端 freshness fetch
+因 HTTP/2 framing 错误失败，`--no-fetch` 检查通过，但不能据此确认远端最新状态。
+验证使用已安装 Node 24.19.0（仓库固定版本为 24.14.0），未修改 mise 信任或版本配置。
+
+### 第五轮定向复查（2026-10-14）
+
+继续保留此前未提交修改，本轮修复规则 30–32 的三个问题：
+
+- transcript 切换 run/会话/Host 或重新启用时沿用旧事件高水位，新 run 后续节点不刷新；
+  刷新水位现在随既有查询作用域重置，仍丢弃旧响应并取消旧延迟刷新。回归用例修复前复现失败。
+- 壳层 lease 只按 sessionId 匹配，跨工作区或 Host 的同 ID 会话在 effect 换代前借到旧 cwd；
+  租约现携带取得时的工作区与 Agent service，渲染期同时核对来源、远端范围及连接就绪状态。
+- 子会话/fork 继承父 `cd` 后的深层执行根被删除时，执行准入误拒绝重建；现按受管前两段
+  确认所有权后补建缺失后代，文件、链接和非法目录前缀的拒绝行为保持覆盖。
+
+| 验证                                         | 结果                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 根工作区及 CLI 类型检查                      | 全量均 exit 0；最终 bootstrap 类型检查亦 exit 0                                              |
+| 全量 CI 脚本（含进程级 E2E）                 | 477 tests / 476 pass / 0 fail / 1 skip，exit 0；平台条件跳过                                 |
+| Agent 包测试（映射当前 bootstrap/core 源码） | 161 tests / 161 pass / 0 fail，exit 0                                                        |
+| Desktop CI 会话工作区定向 Vitest 清单        | 24 文件 / 127 tests 全通过，exit 0                                                           |
+| 根 lint / 架构 / 格式 / diff                 | 根 lint 0 errors / 0 warnings；架构 0 violations；根格式、CLI 修改目标格式及 diff check 通过 |
+| CLI lint                                     | exit 1，81 errors / 59 warnings，与本轮开工基线一致；本轮没有新增诊断                        |
+
+本轮完整 freshness fetch 成功，当前分支相对 `origin/main` ahead 66 / behind 0，尚无远端跟踪分支。
+未提交、未 push、未打包；未进行真实桌面点击、SSH 或模型调用验证。任务命令与子代理已结束，
+临时日志清理，未保留后台服务。
+
+### 第六轮定向复查（2026-10-14）
+
+保留此前未提交修复，本轮补齐规则 31、33–36 的五处缺口：
+
+- 工作流节点正文缓存按查询 transport 隔离；不同 Host 的同 ID 节点不再串读，旧请求迟到不写入新作用域。
+- 聊天 pane 在读取投影前核对当前 SessionDataLayer 与草稿预热代；Host/workspace 换代首帧不再携带旧 cwd、消息和配置。
+- actor 继承显式根外 cwd 时，Gen UI 回到原有 Host 全局输出；该外部 cwd 仍不成为文件读取授权根。
+- 裸 CLI/TUI 恢复受管路径遇已确认的文件或符号链接占位时拒绝恢复；普通重建 IO 故障保持 warn。
+- 动态 actor 恢复前准备自身持久化 cwd；新建及缺行恢复降级时准备 run 冻结 cwd，复用既有 bootstrap 目录准备入口。
+
+```mermaid
+sequenceDiagram
+  participant Pane as 聊天 pane
+  participant Layer as 当前 Host 的 SessionDataLayer
+  participant Launch as 工作流启动
+  participant Bootstrap as 目录准备
+  participant Runtime as actor runtime
+  Pane->>Layer: 核对 lease 来源及草稿代
+  Layer-->>Pane: 当前投影，失配则 closed
+  Launch->>Bootstrap: 恢复 actor：读取自身持久化 cwd
+  Bootstrap-->>Launch: 重建真目录，坏占位则拒绝
+  Launch->>Runtime: resumeFromStore
+  Runtime-->>Launch: 恢复成功或 SessionNotFound
+  opt SessionNotFound 或新 actor
+    Launch->>Bootstrap: 准备 run 冻结 cwd
+    Launch->>Runtime: 持久化新 actor
+  end
+```
+
+| 验证                                         | 结果                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 根工作区及 CLI 全量类型检查                  | 均 exit 0；最终 bootstrap 类型检查亦 exit 0                                                  |
+| 全量 CI 脚本（含进程级 E2E）                 | 477 tests / 476 pass / 0 fail / 1 skip，exit 0；平台条件跳过                                 |
+| Agent 包测试（映射当前 bootstrap/core 源码） | 162 tests / 162 pass / 0 fail，exit 0；最终 actor 定向测试 2/2、裸 CLI 定向测试 3/3          |
+| Desktop CI 会话工作区定向 Vitest 清单        | 25 文件 / 132 tests 全通过，exit 0；新增 pane 来源测试已加入 CI 清单                         |
+| 根 lint / 架构 / 格式 / diff                 | 根 lint 0 errors / 0 warnings；架构 0 violations；根格式、CLI 修改目标格式及 diff check 通过 |
+| CLI lint                                     | exit 1，81 errors / 59 warnings，与本轮开工基线一致；本轮没有新增诊断                        |
+
+freshness fetch 成功，相对 `origin/main` ahead 66 / behind 0；当前分支无远端跟踪分支。
+未提交、未 push、未打包；未进行真实桌面点击、SSH 或模型调用验证。验证使用已安装的
+Node 24.19.0，未修改仓库版本配置。任务命令与子代理均已结束，临时日志清理，未保留后台服务。
+
+### 第七轮定向复查（2026-10-14）
+
+本轮保留全部既有未提交修改，修复规则 37–41 的剩余入口：
+
+- 工作流产物与 transcript 的查询作用域切换首帧仍返回旧目录和旧清单；现在渲染期校验
+  reader、会话、run 和启用状态，当前 run 的实时摘要及合并刷新保持原语义。
+- Markdown 正文已有来源身份，图片却向活动 pane 的服务读取；现在冻结来源走现有 exact
+  服务入口，图片结果绑定服务与路径，首帧隐藏旧 Host 图片。
+- `../` 文档引用在 Streamdown harden 中被 URL 归一化吞掉；现在先按文档目录和身份根
+  解析，越界则移除引用，并保护百分号免于 renderer 二次解码。测试执行真实 harden 管线。
+- 裸 CLI 派生恢复在无宿主标记时跳过目录准备；现在按持久化 directory/path 准备受管
+  日期/id 目录。主裸恢复复用同一结构判据，普通项目 nested cwd 与远端不会被纳入管理。
+- legacy Workflow 在主会话恢复后仍使用装配初始 cwd；现在每次 run 准备后冻结 runtime cwd，
+  真实脚本进程和后续 child 都使用它，run 项目键仍为 workspaceDirectory。
+
+```mermaid
+sequenceDiagram
+  participant UI as 当前来源 UI
+  participant Hook as 查询与图片 hook
+  participant Host as 来源 Host
+  participant Boundary as 用户执行边界
+  participant Parent as 父 runtime
+  participant Script as Workflow run
+  UI->>Hook: reader / identity / session / run / path
+  Hook->>Hook: 首帧核对结果来源，失配隐藏
+  Hook->>Host: 读取当前作用域
+  Host-->>Hook: 当前结果（旧代响应丢弃）
+  Script->>Boundary: 准备及恢复
+  Boundary->>Parent: 恢复持久化 cwd
+  Parent-->>Script: getWorkingDirectory，按 run 冻结
+  Script->>Script: 脚本子进程与迟到 child 共用 cwd
+```
+
+定向回归修复前已复现工作流旧目录首帧、Markdown 图片跨 Host 读取和父目录引用丢失。
+运行时验证使用真实文件系统与脚本子进程，模型执行点用测试替身；没有调用外部模型。
+
+| 验证                                         | 结果                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 根工作区及 CLI 全量类型检查                  | 均 exit 0                                                                                    |
+| 全量 CI 脚本（含进程级 E2E）                 | 477 tests / 476 pass / 0 fail / 1 skip，exit 0；平台条件跳过                                 |
+| Agent 包测试（映射当前 bootstrap/core 源码） | 165 tests / 165 pass / 0 fail，exit 0                                                        |
+| Desktop CI 会话工作区定向 Vitest 清单        | 27 文件 / 148 tests 全通过，exit 0；两份新 Markdown 测试已加入清单                           |
+| 根 lint / 架构 / 格式 / diff                 | 根 lint 0 errors / 0 warnings；架构 0 violations；根格式、CLI 修改目标格式及 diff check 通过 |
+| CLI lint                                     | exit 1，81 errors / 59 warnings，与本轮开工基线一致；本轮无新增诊断                          |
+
+完整 freshness fetch 成功，相对 `origin/main` ahead 66 / behind 0，当前分支无远端跟踪分支。
+未提交、未 push、未打包；未进行真实桌面点击、SSH 或外部模型验证。验证使用已安装
+Node 24.19.0，未改版本配置。所有任务命令及子代理已结束，临时日志清理，未保留后台服务。
+
+### 第八轮独立复查（2026-10-14）
+
+本轮由主代理独立核对，没有派发子代理。保留开工前的未提交修复，新增修复如下：
+
+- 工作流产物字节及看板条目在 reader、会话、run、产物或版本切换首帧仍返回旧内容。
+  两个 hook 沿用既有查询作用域核对方式，先隐藏旧内容；Blob 继续由原有 effect 释放。
+- 旧看板请求未结束时切换作用域，新请求被旧单飞门吞掉，之后一直空白。
+  现在在换代时重置该门，迟到请求的 `finally` 只有版本仍匹配才可清理控制状态，
+  不会吞掉新来源最后一条 report 的补拉。卸载也使请求失效。
+- 目录命名占用判定只做大小写敏感字符串比较，Windows/macOS 的已持久化路径若只是
+  大小写不同，8 位及 12 位候选会漏判占用，两个会话可能共用 cwd。
+  复用 registry 已有的平台大小写折叠规则，覆盖新建及存量补发，Linux 保留大小写敏感。
+
+唯一所有者仍是 CLI（目录占用事实）及既有产物 hook（请求版本、游标与单飞状态）；
+未引入新的缓存、持久化字段或服务。事件顺序见规则 42 的图。
+涉及 `ui` 与 `zcode-cli`，源文件净增加 43 行；错误形态、桌面 continuous 与手机
+replayable 传输契约均不变，同一 hook 在两端消费所属 Host 的 reader。
+
+修复前已用失败用例复现旧产物首帧、切换后不发新查询、卸载未清理及目录大小写漏判。
+验证结果：
+
+- Desktop CI 会话工作区定向清单：27 文件、163 tests 全部通过。
+- Agent 包测试（映射当前 bootstrap/core 源码）：165 tests 全部通过。
+- 会话工作区目录测试：61 tests 全部通过。
+- 根工作区与 CLI 类型检查通过；架构 0 violations；根 lint 0 errors / 0 warnings。
+- CLI lint 保持 81 errors / 59 warnings，修复前后 140 条诊断排序后逐项相同。
+- 根格式、CLI 修改目标格式及 diff check 通过。
+- 最终全量 CI（含进程级 E2E）：478 tests / 477 pass / 0 fail / 1 skip，exit 0；平台条件跳过。
+
+未提交、未 push、未打包；未进行真实桌面点击、SSH、Windows 实机或外部模型验证。
+使用已安装 Node 24.19.0，未改版本配置；全部执行会话已退出，本轮临时日志已清理，
+没有保留后台服务。
+
+### 第九轮独立复查（2026-10-14）
+
+本轮独立核对目录创建/恢复、派生会话、Gen UI、工作流产物和 Markdown 引用，没有派发
+子代理。保留原有未提交改动，修复规则 44 的两处 Windows 引用问题：
+
+- 文档目录与身份根只有大小写不同，包含判断仍拒绝合法路径；统一按 Windows 盘符/UNC
+  形状折叠比较，实际路径保留原拼写，POSIX 仍区分大小写。
+- UNC 引用在序列化时被当相对路径，或经过 URL harden 后丢掉服务器名；沿用盘符路径的
+  安全序列化入口保护 server/share，文件 renderer 对称还原绝对 UNC 路径。
+
+改动仅在 `ui` 的既有 Markdown 解析/序列化入口，净增加 13 行实现，不新增服务、缓存或
+异步状态所有者。读取仍使用原来冻结的 Host 与文档目录，desktop continuous / mobile
+replayable 契约不变。修复前失败用例已复现大小写误判与 UNC 错拼；验收同时覆盖图片、
+链接、父目录、盘符/share 越界、行列号及百分号只解码一次。
+
+验证：Desktop CI 定向清单 27 文件 / 175 tests 全通过；另补跑现有正文文件链接 4 tests
+通过。根类型、lint（0 errors / 0 warnings）、架构（0 violations）、格式及 diff check
+通过；全量 CI（含进程级 E2E）478 tests / 477 pass / 0 fail / 1 skip，exit 0，平台条件跳过。
+本轮未修改 CLI 实现，未重跑 CLI 独立类型/lint 与 Agent 包测试。
+
+freshness fetch 成功，相对 `origin/main` ahead 66 / behind 0，当前分支无远端跟踪分支。
+使用已安装 Node 24.19.0，未改版本配置；未提交、未 push、未打包。未进行真实桌面点击、
+Windows 实机、SSH 或外部模型验证。
+全部执行会话已退出，任务临时日志已清理，没有保留后台服务。
+
+### 第十轮独立复查（2026-10-14）
+
+本轮主代理核对目录生命周期、Gen UI 与 Markdown/工作流引用，保留已有未提交修复。
+按用户授权派发三份 6.1-sol 审查任务，但子代理未收到任务正文，没有产生审查结论；
+本轮证据与修复均由主代理完成。修复规则 45 的两处目录隔离漏洞：
+
+- 存活派生会话只认领父目录下的深层 cwd，原父行删除后，碰撞的新会话仍可拿走祖先目录。
+  定名占用检查改为同时识别候选自身及后代，覆盖新建和存量补发、8 位及 12 位候选。
+- 会话行与当前 Host 使用不同根别名时，同一物理目录会漏判占用；叶目录被删后，完整
+  realpath 失败又丢失根别名。沿用 registry 的目录 key，在缺失时解析最近可用祖先并保留
+  后缀；协议观测边界将规范路径映射到当前根的拼写，定名入口仍保持同步。
+
+唯一所有者仍为 CLI 的注册表与会话库，使用既有分配队列；不新增缓存、字段或服务。
+改动位于 `zcode-cli` 的 bootstrap app 与协议接线，事件顺序见规则 45 的图，desktop
+continuous / mobile replayable 契约不变；源文件净增加 34 行（含原因注释与调用点格式）。
+新回归在修复前 3 条全部失败，修复后全部通过；
+真实 CLI 场景覆盖普通/派生 cwd 与目录存在/缺失四种组合，也检查占用者路径没有被改写。
+Markdown attachment 来源切换已有 Streamdown reader/session key 负责重挂载，本轮没有
+据组件局部状态重复加入额外修复。
+
+验证结果：
+
+- 全量 CI（含真实 CLI E2E）：481 tests / 480 pass / 0 fail / 1 skip，exit 0；平台条件跳过。
+- Desktop CI 定向 Vitest：27 文件 / 175 tests 全通过；Agent 包测试：165 tests 全通过。
+- 根与 CLI 类型检查通过；根 lint 0 errors / 0 warnings；架构 0 violations。
+- CLI lint exit 1，81 errors / 59 warnings；修复前后 140 条诊断排序后逐项相同。
+- 根格式、CLI 修改目标格式与 diff check 通过。
+
+freshness fetch 成功，相对 `origin/main` ahead 66 / behind 0，当前分支无远端跟踪分支。
+使用已安装 Node 24.19.0，未改版本配置；未提交、未 push、未打包，未进行 Windows 实机、
+真实桌面点击、SSH 或外部模型验证。全部执行会话已退出，本轮临时日志已清理，未保留后台服务。
+
+## 第十一轮独立复查（2026-10-14）
+
+确认并修复本地 HTML 产物查询误用当前远程 Host：全局历史的打开回调在同步块中先导航、
+再查产物，旧 ServiceProvider 此时仍在场；当两端复用相同 session/run ID 时，旧 Host
+的 sourcePath 和 executionWorkspacePath 甚至会被拼成本机 file URL。现有打开入口复用
+useBaseWorkspaceServices，只在已通过本地判据的分支查询本机 journal；失败仍开冻结 scope
+的产物 tab。未改变 CLI 目录事实、状态所有者、协议或远端产物读取路径；源文件净增加 2 行。
+
+补充三条 hook 集成回归：导航提交前取本机 journal 的嵌套 run cwd、本机查询失败回落产物
+tab、显式远端来源保持产物 tab。前两条修复前失败，修复后三条通过，已加入 Desktop CI。
+本轮还核对了派生会话恢复、checkpoint/fork 归属、legacy workflow 执行边界、节点正文缓存、
+文档相对路径及任务导航；没有据未确认的假设追加修改。
+
+验证结果：
+
+- 全量 CI（含真实 CLI E2E）：481 tests / 480 pass / 0 fail / 1 skip，exit 0；平台条件跳过。
+- Desktop CI 定向 Vitest：28 文件 / 178 tests 全通过；Agent 包测试：165 tests 全通过。
+- 根与 CLI 类型检查通过；根 lint 0 errors / 0 warnings；架构 0 violations。
+- CLI lint 仍 exit 1，81 errors / 59 warnings；本轮未修改 CLI 源码。
+- 根格式与 diff check 通过；使用已安装 Node 24.19.0，未改版本配置。
+
+未提交、未 push、未打包；没有进行真实桌面点击、Windows 实机或 SSH 验证。全部执行会话
+已退出，测试框架已确认临时数据根清理；本轮临时日志已清理，未保留后台服务。

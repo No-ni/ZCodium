@@ -249,7 +249,18 @@ function ToolCallBlockComponent({
   // 之前为了避免“双预览”把 onOpenCodeViewer 全局置空，
   // 会导致 edit/read 文件摘要失去点击能力，回归为“看得到文件名但不能点”。
   // 这里恢复透传，保持历史交互；是否做“避免双预览”应改为更细粒度开关，而不是一刀切禁用。
-  const toolPreviewCodeViewer: ToolCallBlockRenderContext["onOpenCodeViewer"] = onOpenCodeViewer;
+  const toolPreviewCodeViewer: ToolCallBlockRenderContext["onOpenCodeViewer"] = useMemo(
+    () =>
+      onOpenCodeViewer
+        ? (source) =>
+            onOpenCodeViewer({
+              ...source,
+              fileReferenceRootPath:
+                source.fileReferenceRootPath ?? fileReferenceRootPath ?? workspacePath,
+            })
+        : undefined,
+    [fileReferenceRootPath, onOpenCodeViewer, workspacePath],
+  );
 
   const childToolList = useMemo(
     () =>

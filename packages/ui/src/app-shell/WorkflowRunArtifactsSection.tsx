@@ -47,12 +47,16 @@ export const WorkflowRunArtifactsSection = memo(function WorkflowRunArtifactsSec
   artifacts,
   sessionId,
   runId,
+  workspacePath,
+  fileReferenceRootPath,
   onOpenArtifact,
 }: {
   /** 已确认非空；零件时调用方整区不渲染（「无则缺席」惯例，不留空壳）。 */
   artifacts: readonly WorkflowRunArtifactView[];
   sessionId: string;
   runId: string;
+  workspacePath: string;
+  fileReferenceRootPath?: string;
   /** 缺席即瓦片禁用（宿主没注入打开 tab 的能力）。 */
   onOpenArtifact?: (artifactId: string) => void;
 }) {
@@ -75,6 +79,8 @@ export const WorkflowRunArtifactsSection = memo(function WorkflowRunArtifactsSec
       runId={runId}
       sessionId={sessionId}
       theme={theme}
+      workspacePath={workspacePath}
+      {...(fileReferenceRootPath ? { fileReferenceRootPath } : {})}
     />
   );
   // 工作区出处进 tooltip：它是一条路径，说明行放不下，也不该抢标题的位置。

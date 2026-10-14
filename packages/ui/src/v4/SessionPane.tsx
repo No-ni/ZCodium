@@ -120,6 +120,7 @@ import {
   type ConversationComposerSendResult,
 } from "@/v4/ConversationComposer.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
+import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
@@ -220,7 +221,11 @@ import {
 } from "@/v4/slashCommands.js";
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
-import { useConversationProjection } from "@/v4/useConversationProjection.js";
+import {
+  resolvePaneSessionProjectionLease,
+  useConversationProjection,
+  type PaneSessionProjectionBinding,
+} from "@/v4/useConversationProjection.js";
 import { resolvePaneFileSearchRoot } from "@/v4/sessionWorkspacePath.js";
 import { usePendingCommandRecovery } from "@/v4/usePendingCommandRecovery.js";
 import { shouldFocusTimelineAfterComposerSend } from "@/v4/promptScrollFocusPolicy.js";
@@ -292,6 +297,10 @@ export interface SessionPaneProps {
   isDesktop?: boolean;
   provider?: ZCodeProvider;
   onSessionCreated?: (sessionId: string) => void;
+  primaryDraftScopeToken?: object;
+  onPrimaryDraftEffectiveSessionBindingChange?: (
+    event: PrimaryDraftEffectiveSessionBindingEvent,
+  ) => void;
   /** deleteSession：删除当前会话后回到 draft（shell 起新草稿）。 */
   onSessionDeleted?: () => void;
   /** 隐藏副屏的 child 已不存在时，由宿主移除对应 tab。 */
@@ -486,6 +495,8 @@ export function SessionPane({
   isDesktop = false,
   provider,
   onSessionCreated,
+  primaryDraftScopeToken,
+  onPrimaryDraftEffectiveSessionBindingChange,
   onSelectionSideChatUnavailable,
   focused = true,
 
@@ -552,13 +563,22 @@ export function SessionPane({
   // SessionPane 已位于目标 Workspace 的 ServiceProvider 内，直接订阅该 Host Service；
   // 不再从展示组件二次解析 workspace/remote 路由。
 
-  const [lease, setLease] = useState<SessionLease | null>(null);
+  const draftRuntimeInvalidationVersion = useZCodeSessionStore(
+    (store) =>
+      store.getWorkspaceState(workspacePath, workspaceIdentity).draftRuntimeInvalidationVersion,
+  );
+  const [leaseBinding, setLeaseBinding] = useState<PaneSessionProjectionBinding | null>(null);
+  const lease = resolvePaneSessionProjectionLease(
+    leaseBinding,
+    layer,
+    sessionId === null ? draftRuntimeInvalidationVersion : undefined,
+  );
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
   // 预热会话 binding 的镜像 ref：文件搜索根的派生点在 `useDraftSessionPrewarm`（本组件下半段）
   // 之前，读不到 hook 的返回值，所以 ref 声明在这里、赋值仍在 hook 之后（同一帧稍后执行）。
-  // 因此派生读到的可能是**上一帧**的预热会话 id：那一帧 lease 还没换过去（本 pane 根本读不到该
-  // 会话的快照），等价于回落 tab 的 workspacePath，不会把别的会话目录当成本 pane 的根；
+  // 因此派生读到的可能是**上一帧**的预热会话 id；上面的 lease 来源/草稿代门禁先屏蔽
+  // 跨工作区、Host 或 runtime 失效代的旧投影，等价于回落 tab 路径，不借旧会话目录；
   // 预热提升为正式会话时 id 与目录都不变，首发不会因此闪一下。
   const prewarmBindingRef = useRef<DraftPrewarmBinding | null>(null);
   // 会话执行 cwd 是 per-session 的服务器事实（快照 additive 字段），pane 内只派生这一次，
@@ -1158,10 +1178,6 @@ export function SessionPane({
   const timelineBottomRequest = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).timelineBottomRequest,
   );
-  const draftRuntimeInvalidationVersion = useZCodeSessionStore(
-    (store) =>
-      store.getWorkspaceState(workspacePath, workspaceIdentity).draftRuntimeInvalidationVersion,
-  );
   const handleExternalTextInsertApplied = useCallback(
     (requestId: number) => {
       useZCodeSessionStore
@@ -1636,11 +1652,13 @@ export function SessionPane({
       onOpenPlanDetail?.({
         ...request,
         workspacePath,
+        // 状态面板不带来源根；由所属 pane 补齐，工具卡的既有来源则保持不变。
+        fileReferenceRootPath: request.fileReferenceRootPath ?? fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
       });
     },
-    [onOpenPlanDetail, remoteSessionId, workspaceIdentity, workspacePath],
+    [fileSearchRootPath, onOpenPlanDetail, remoteSessionId, workspaceIdentity, workspacePath],
   );
   // 与 plan-detail 完全同构：卡片只发意图（runId + toolCallId + 展示名），
   // 会话与 workspace 身份一律由宿主（这里）补齐，卡片不感知 scope。
@@ -1649,7 +1667,7 @@ export function SessionPane({
       onOpenWorkflowRun?.({
         ...request,
         workspacePath,
-        // run 的 cwd 是发起这次打开的会话执行目录：详情面板里的产物 chip 也按它拼 sourcePath。
+        // 请求根仅供旧 Host 兼容；详情与产物优先使用 journal 投影的冻结 run cwd。
         fileReferenceRootPath: fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
@@ -1695,7 +1713,7 @@ export function SessionPane({
       onOpenWorkflowArtifact?.({
         ...request,
         workspacePath,
-        // 产物 sourcePath 是相对 **run cwd** 产出的：带本 pane 的解析根，宿主就不会用聚焦会话的
+        // 产物 sourcePath 相对 run cwd；本 pane 根仅作旧 Host 回落，宿主优先查 journal。避免用聚焦会话的
         // 目录去拼别的 pane 的产物（分屏时两者可能不同）。
         fileReferenceRootPath: fileSearchRootPath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -2216,6 +2234,48 @@ export function SessionPane({
   // ref 本体在组件开头声明（文件搜索根的派生点在本行之前，需要读到预热会话 id）。
   prewarmBindingRef.current = prewarmBinding;
   const prewarmSessionId = prewarmBinding?.sessionId ?? null;
+  const primaryDraftProjectionMount = useRef<object>({});
+  const primaryDraftProjectionGeneration = useMemo(
+    () => ({ binding: prewarmBinding, mount: primaryDraftProjectionMount.current }),
+    [prewarmBinding],
+  );
+  const primaryDraftScopeTokenForPane =
+    primaryDraftScopeToken ?? primaryDraftProjectionMount.current;
+  useEffect(() => {
+    if (
+      sessionId !== null ||
+      !prewarmBinding ||
+      !onPrimaryDraftEffectiveSessionBindingChange
+    ) {
+      return;
+    }
+
+    onPrimaryDraftEffectiveSessionBindingChange({
+      type: "bind",
+      binding: {
+        workspaceKey,
+        paneId,
+        sessionId: prewarmBinding.sessionId,
+        generation: primaryDraftProjectionGeneration,
+      },
+      scopeToken: primaryDraftScopeTokenForPane,
+    });
+    return () => {
+      onPrimaryDraftEffectiveSessionBindingChange({
+        type: "clear",
+        generation: primaryDraftProjectionGeneration,
+        scopeToken: primaryDraftScopeTokenForPane,
+      });
+    };
+  }, [
+    onPrimaryDraftEffectiveSessionBindingChange,
+    paneId,
+    prewarmBinding,
+    primaryDraftProjectionGeneration,
+    primaryDraftScopeTokenForPane,
+    sessionId,
+    workspaceKey,
+  ]);
   // runtime 换代（CUA Helper 就绪、liveness 恢复等触发 workspace-dispose）会冲掉草稿态尚未
   // 持久化的预热会话。重建期间禁止发送，否则附件会挂在已消失的会话上（sessionNotFound）。
   const { rebuilding: draftRuntimeRebuilding } = useDraftRuntimeRebuildGate({
@@ -2305,7 +2365,7 @@ export function SessionPane({
 
   useEffect(() => {
     if (!effectiveSessionId) {
-      setLease(null);
+      setLeaseBinding(null);
       return;
     }
     const nextLease = layer.acquire(effectiveSessionId);
@@ -2314,12 +2374,16 @@ export function SessionPane({
     const offOnlineModelTransition = nextLease.store.onOnlineModelTransition((transition) => {
       onlineModelTransitionHandlerRef.current(effectiveSessionId, nextLease.store, transition);
     });
-    setLease(nextLease);
+    setLeaseBinding({
+      lease: nextLease,
+      layer,
+      draftInvalidationVersion: draftRuntimeInvalidationVersion,
+    });
     return () => {
       offOnlineModelTransition();
       nextLease.release();
     };
-  }, [layer, effectiveSessionId]);
+  }, [layer, effectiveSessionId, draftRuntimeInvalidationVersion]);
 
   useEffect(() => {
     if (!sessionId || !lease || snapshot?.sessionId !== sessionId) return;

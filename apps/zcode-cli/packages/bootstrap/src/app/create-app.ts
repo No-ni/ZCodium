@@ -63,7 +63,12 @@ import {
   readSessionModelSelection,
 } from "./session-store.js";
 import { createWorkflowFacade } from "./workflow-facade.js";
-import { ensureConversationSessionDirForBareResume } from "./conversation-session-workspace.js";
+import {
+  ensureConversationSessionDirForBareResume,
+  ensureConversationSessionWorkspaceForExecution,
+  prepareConversationSubagentSession,
+  resolveConversationWorkspaceRootFromEnv,
+} from "./conversation-session-workspace.js";
 import { createInputFacade } from "./input-facade.js";
 import { createPluginFacadeForApp } from "./plugin-facade.js";
 import { resolvePluginRuntimeFeatures } from "./plugin-runtime-features.js";
@@ -506,7 +511,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         await initializeSessionShellEnvironment();
         // 裸 CLI/TUI 恢复的唯一目录重建点：`path`（会话目录）可能已被回收/手工删除，协议路径
         // 的重建都在 server-operations 的创建/复用/补发/降级分支里，这条边界只能在这里补
-        //（core 业务层禁 fs）。失败只记 warn，不阻断恢复。
+        //（core 业务层禁 fs）。普通重建故障只记 warn，已确认坏占位拒绝恢复。
         await ensureConversationSessionDirForBareResume({
           logger,
           sessionId,
@@ -541,12 +546,18 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     };
 
     const prepareUserExecutionBoundary: PrepareUserExecutionBoundary = async (boundaryOptions) => {
-      // Bash shell 快照属于“首次真实用户执行”边界，而不是 chat
-      // input 独有状态。普通 prompt、expert workflow、script workflow 都可能
-      // 作为新 session 的第一个模型/子 agent 入口，必须统一在 resume/context
-      // 初始化前落定一次，避免模型看到的 Shell 与 Bash 执行 shell 分叉。
-      await initializeSessionShellEnvironment();
       await prepareResume(boundaryOptions?.traceContext, boundaryOptions?.abortSignal);
+      await ensureConversationSessionWorkspaceForExecution({
+        conversationRoot: resolveConversationWorkspaceRootFromEnv(options.env ?? process.env),
+        executionWorkspacePath: getRuntime().getExecutionWorkspacePath(),
+        logger,
+        workspaceIdentity: runtimeConfig.memory?.workspaceIdentity,
+        workspacePath: workspaceDirectory,
+      });
+      // Bash shell 快照属于“首次真实用户执行”边界，而不是 chat input 独有状态。
+      // resume 已在 prepareResume 中恢复快照；新 session 在执行目录校验后统一落定一次，
+      // 避免模型看到的 Shell 与 Bash 执行 shell 分叉。
+      await initializeSessionShellEnvironment();
     };
 
     const modelExecutionConfig = createRuntimeAiSdkModelExecutionConfig(options.env, {
@@ -610,7 +621,22 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         ? undefined
         : createDynamicWorkflowRunService({
             concurrency: workflowConcurrencyGovernor,
+            prepareActorSession: async (sessionId, workingDirectory, resumeFromStore) => {
+              await prepareConversationSubagentSession({
+                sessionId,
+                workingDirectory,
+                resumeFromStore,
+                conversationRoot: resolveConversationWorkspaceRootFromEnv(
+                  options.env ?? process.env,
+                ),
+                workspacePath: workspaceDirectory,
+                workspaceIdentity: runtimeConfig.memory?.workspaceIdentity,
+                store: sessionStore,
+                logger,
+              });
+            },
             createActorRuntime: ({
+              cwd: actorWorkingDirectory,
               persona,
               pinnedModel,
               runSubagentModel,
@@ -665,7 +691,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                   sessionId,
                   sessionStore,
                   storageRoot,
-                  workingDirectory,
+                  workingDirectory: actorWorkingDirectory,
                 },
                 // persona 不再经 request.opts.systemPrompt 整段替换子代理的系统提示，而是经
                 // workflowActor 叠加到基座之上。
@@ -715,6 +741,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             // 孤儿收敛的作用域：本 app 的会话。构造时把**这个会话**留在 journal 里的非终态
             // run（死进程的遗物）收敛成 failed；兄弟会话的在飞 run 因此绝不会被误伤。
             parentSessionId: sessionId,
+            workspaceDirectory,
             // 在飞的引擎把本会话钉成常驻。
             // 惰性取 runtime 同 onRunEvent：run service 是 AgentRuntime 的依赖，构造更早；
             // 而启动只来自工具调用或 v4 命令，那时 runtime 必已就绪。
@@ -748,6 +775,15 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       currentSelection: () => getRuntime().getSessionModelSelection(),
     });
     runtime = new AgentRuntime(sessionId, runtimeConfig, {
+      prepareSubagentSession: async (input) => {
+        await prepareConversationSubagentSession({
+          ...input,
+          conversationRoot: resolveConversationWorkspaceRootFromEnv(options.env ?? process.env),
+          workspacePath: input.workspacePath ?? workspaceDirectory,
+          store: sessionStore,
+          logger,
+        });
+      },
       // 主代理的模型请求过治理器的 observer：立即放行，但让治理器看见它的 429 / 成功。
       modelRequestAdmission: workflowConcurrencyGovernor.observer(),
       eventStore: options.eventStore ?? createInMemorySessionEventStore(),
@@ -836,6 +872,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           // 自定义命令（slash commands）与 skills 的发现根是工作区 `.zcodium`/`.agents`；
           // 用执行 cwd 会让对话会话看不到工作区里已安装的命令。
           workingDirectory: workspaceDirectory,
+          // 根因：发现根与执行根分离；shell 展开仍跟随会话 cwd（含 Bash cd 后的目录）。
+          executionWorkingDirectory: getRuntime().getWorkingDirectory(),
         });
       },
       inputHistoryStore,
@@ -1171,6 +1209,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         : {
             listDynamicWorkflowRunArtifacts: async (input: { runId: string }) =>
               dynamicWorkflowRunPort.listArtifacts!(input.runId),
+            getDynamicWorkflowRunExecutionWorkspacePath: async (input: { runId: string }) =>
+              dynamicWorkflowRunPort.getExecutionWorkspacePath?.(input.runId),
             listDynamicWorkflowRunArtifactItems: async (input: {
               runId: string;
               artifactId: string;

@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { getExecutionWorkspacePath, setWorkingDirectory } from "./config.js";
 import { ensureSessionPersisted } from "./events.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 it("merges first sampling and main-task persistence; a failed attempt can be retried", async () => {
@@ -63,4 +64,16 @@ it("执行 cwd 落库取会话执行边界，不取落库那一刻的活 cwd", a
     directory: "/conversation/root",
     path: "/conversation/root/2026-10-11/a1b2c3d4",
   });
+});
+
+it("执行边界 getter 在 Bash cd 后仍返回会话冻结根", () => {
+  const runtime = {
+    workingDirectory: "/conversation/root/2026-10-11/a1b2c3d4",
+    workspaceRoot: "/conversation/root/2026-10-11/a1b2c3d4",
+  } as unknown as AgentRuntimeInternal;
+
+  expect(getExecutionWorkspacePath.call(runtime)).toBe("/conversation/root/2026-10-11/a1b2c3d4");
+  setWorkingDirectory.call(runtime, "/tmp/another-project");
+  expect(runtime.workingDirectory).toBe("/tmp/another-project");
+  expect(getExecutionWorkspacePath.call(runtime)).toBe("/conversation/root/2026-10-11/a1b2c3d4");
 });

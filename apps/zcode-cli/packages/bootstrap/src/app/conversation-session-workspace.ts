@@ -1,14 +1,25 @@
 import { createHash } from "node:crypto";
-import { mkdir, utimes } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { SessionId, SessionInfo, UpdateSessionInput } from "@zcode/contracts";
 import { resolveConversationWorkspaceRoot } from "@zcode/shared/node";
 import {
+  ConversationSessionWorkspaceUnavailableError,
+  ensureConversationSessionWorkspaceDir as ensureConversationSessionWorkspaceDirImpl,
+  ensureConversationSessionWorkspaceForExecution as ensureConversationSessionWorkspaceForExecutionImpl,
+} from "./conversation-session-workspace-execution.js";
+export { prepareConversationSubagentSession } from "./conversation-session-workspace-execution.js";
+import {
   classifyPersistedConversationExecutionPathUnusable,
   CONVERSATION_SESSION_DATE_DIR_UNUSABLE_REASON,
+  CONVERSATION_SESSION_DATE_DIR_PATTERN as GUARD_DATE_DIR_PATTERN,
+  CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH as GUARD_DIR_NAME_FALLBACK_LENGTH,
+  CONVERSATION_SESSION_DIR_NAME_LENGTH as GUARD_DIR_NAME_LENGTH,
+  CONVERSATION_SESSION_DIR_NAME_PATTERN as GUARD_DIR_NAME_PATTERN,
+  isDirectoryOccupiedByOtherSession,
   isConversationSessionDateDirUsable,
   isConversationSessionWorkspacePath,
-  isPersistedConversationExecutionPath,
+  isConversationWorkspaceEnabled,
+  isManagedPersistedConversationExecutionPath,
   lstatOrUndefined,
   warnConversationSessionDirUnusable,
   type ConversationSessionWorkspaceLogger,
@@ -23,10 +34,13 @@ export {
   isConversationSessionDateDirUsable,
   isConversationSessionDirUsable,
   isConversationSessionWorkspacePath,
+  isConversationWorkspaceEnabled,
   isPersistedConversationExecutionPath,
+  resolvePersistedConversationExecutionFallback,
   type ConversationSessionDirUnusableReason,
   type ConversationSessionWorkspaceLogger,
 } from "./conversation-session-workspace-guards.js";
+export { ConversationSessionWorkspaceUnavailableError };
 
 /**
  * 对话会话的独立执行目录。
@@ -52,9 +66,9 @@ export {
  */
 
 /** 目录名取会话 id 的 uuid 段前 8 位。 */
-export const CONVERSATION_SESSION_DIR_NAME_LENGTH = 8;
+export const CONVERSATION_SESSION_DIR_NAME_LENGTH = GUARD_DIR_NAME_LENGTH;
 /** 前 8 位已存在（碰撞）时回退到 12 位。 */
-export const CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH = 12;
+export const CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH = GUARD_DIR_NAME_FALLBACK_LENGTH;
 /**
  * 会话目录名的形状：恰好 8 位或 12 位**小写十六进制**（uuid 段前缀 / sha256 段前缀）。
  *
@@ -62,14 +76,9 @@ export const CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH = 12;
  * 缺少形状判定时用户在 `<对话根>/<日期>/` 下手建的空目录（如 `notes/`）也会被删掉——
  * 那不是本规则建的目录，清扫无权处理。
  */
-export const CONVERSATION_SESSION_DIR_NAME_PATTERN = new RegExp(
-  `^[0-9a-f]{${CONVERSATION_SESSION_DIR_NAME_LENGTH}}(?:[0-9a-f]{${
-    CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH - CONVERSATION_SESSION_DIR_NAME_LENGTH
-  }})?$`,
-  "u",
-);
+export const CONVERSATION_SESSION_DIR_NAME_PATTERN = GUARD_DIR_NAME_PATTERN;
 /** 日期目录名；只有匹配该形状的子目录才被当作会话容器（清扫与回收的护栏）。 */
-export const CONVERSATION_SESSION_DATE_DIR_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+export const CONVERSATION_SESSION_DATE_DIR_PATTERN = GUARD_DATE_DIR_PATTERN;
 /** CLI 铸造的会话 id 前缀。 */
 export const CONVERSATION_SESSION_ID_PREFIX = "sess_";
 /**
@@ -146,22 +155,6 @@ export function planConversationSessionWorkspace(input: {
   return { root, dateDir, directory: join(dateDir, name), name };
 }
 
-/** 本进程是否对「该 workspace 上的会话」启用独立目录规则。 */
-export function isConversationWorkspaceEnabled(input: {
-  conversationRoot: string | undefined;
-  workspacePath: string;
-  workspaceIdentity?: string | undefined;
-}): boolean {
-  if (input.workspaceIdentity?.trim()) {
-    return false;
-  }
-  const root = input.conversationRoot?.trim();
-  if (!root) {
-    return false;
-  }
-  return resolve(root) === resolve(input.workspacePath);
-}
-
 /**
  * **创建侧**复用一支的门禁：行里的持久化执行 cwd 还能不能当本次创建的 cwd。
  *
@@ -174,9 +167,9 @@ export function isConversationWorkspaceEnabled(input: {
  * - 是**活链接** ⇒ `mkdir(recursive)` 跟随链接把会话目录建到对话根之外：词法包含判定仍说"在根内"，
  *   回收（`isRealDirectory`）与清扫（`dirent.isDirectory`）都拒绝这种中间链接，目录永不回收。
  *
- * 判据与铸造分支同一份（`classifyPersistedConversationExecutionPathUnusable`：日期目录 + 会话目录
- * 两层都是 `lstat` 语义、不跟随链接、不删不修占位者）。不归本规则的持久化路径（项目工作区 / 远端）
- * 没有这两层，一律视为可复用：它们的目录存在性由 Host / 远端机器负责
+ * 判据与铸造分支同一份（`classifyPersistedConversationExecutionPathUnusable`：从对话根逐层
+ * `lstat`，不跟随链接、不删不修占位者）。不归本规则的持久化路径（项目工作区 / 远端）
+ * 不经过此门禁，一律视为可复用：它们的目录存在性由 Host / 远端机器负责
  * （见 `resolveRecordExecutionWorkspacePath`）。
  */
 export function isReusablePersistedConversationExecutionPath(input: {
@@ -195,38 +188,13 @@ export function isReusablePersistedConversationExecutionPath(input: {
   );
 }
 
-/**
- * 恢复/派生边界在「本次解析没有给出目录」时的兜底裁决：还能不能按持久化 `path` 运行。
- *
- * 只有**本规则不适用**（未注入标记的旧宿主 / 回滚态 / 项目工作区 / 远端）才允许沿用：那种情况下
- * core 的冷恢复无论如何都按 `session.path ?? session.directory` 取 cwd，协议层必须同口径，否则
- * UI 快照会回落对话根、看到的目录不是 Agent 真正落盘的地方。
- *
- * 规则**适用**时一律返回 undefined：此时「解析没有给出目录」的含义是**被拒**（日期目录被文件或
- * 符号链接占位，`resolveConversationSessionWorkspaceForResume` 已判定不可用），兜回 `session.path`
- * 会把那条裁决丢掉——`createRecord` 的 provided 分支随后 `mkdir`：日期目录是文件时抛 ENOTDIR
- * （恢复整体失败），是符号链接时把会话目录建到对话根之外（词法说在根内，回收与清扫都不认）。
- * 这是**降级写回失败**（库写不动）时的最后一道守卫；写回成功时调用方拿到的是工作区键路径。
- */
-export function resolvePersistedConversationExecutionFallback(input: {
-  conversationRoot: string | undefined;
-  workspacePath: string;
-  workspaceIdentity?: string | undefined;
-  persistedPath: string | undefined;
-}): string | undefined {
-  if (
-    isConversationWorkspaceEnabled({
-      conversationRoot: input.conversationRoot,
-      workspaceIdentity: input.workspaceIdentity,
-      workspacePath: input.workspacePath,
-    })
-  ) {
-    return undefined;
+export class ConversationSessionWorkspaceCollisionError extends Error {
+  readonly reasonCode = "guard.conversationSessionWorkspaceCollision";
+
+  constructor() {
+    super("conversation session execution workspace name is already occupied");
+    this.name = "ConversationSessionWorkspaceCollisionError";
   }
-  const persisted = input.persistedPath?.trim();
-  return persisted && isPersistedConversationExecutionPath(persisted, input.workspacePath)
-    ? resolve(persisted)
-    : undefined;
 }
 
 /**
@@ -247,10 +215,10 @@ export function resolvePersistedConversationExecutionFallback(input: {
  *   （同日不同会话，量级 2^-32）。调用方（协议创建边界）能从进程内注册表分辨出"这个目录是
  *   别人的"，因此这里不再把碰撞当成"自己的残留"——判据只对**别的会话**成立：本次会话自己的
  *   目录/上一次尝试的残留不在集合里（调用方按 sessionId 排除），所以重试仍然复用同一个名字，
- *   幂等不受影响。占用是词法判定（`resolve` 规范化后比较），不要求目录此刻存在：手工删掉目录
- *   不会让另一个会话拿走这个名字。
+ *   幂等不受影响。占用比较包含候选的后代 cwd，根别名由调用方异步规范化；不要求目录此刻
+ *   存在：手工删掉目录不会让另一个会话拿走这个名字。
  *
- * 12 位也被别的会话占用时不做第三层兜底：沿用长名，真正建不出来由 `mkdir` 报错暴露。
+ * 12 位也被别的会话占用时不做第三层兜底：用稳定 collision 错误拒绝创建，避免两个会话共享 cwd。
  */
 export function resolveConversationSessionDirNameForCreate(input: {
   conversationRoot: string;
@@ -262,6 +230,9 @@ export function resolveConversationSessionDirNameForCreate(input: {
    */
   occupiedDirectories?: Iterable<string> | undefined;
 }): string {
+  const occupiedDirectories = input.occupiedDirectories
+    ? [...input.occupiedDirectories]
+    : undefined;
   const short = buildConversationSessionDirName(
     input.sessionId,
     CONVERSATION_SESSION_DIR_NAME_LENGTH,
@@ -272,11 +243,20 @@ export function resolveConversationSessionDirNameForCreate(input: {
   );
   const shortPath = join(dateDir, short);
   // 占用判定先于「是否存在」：目录被手工删掉但另一个在册会话仍认领它时，也不能把这个名字给它。
-  if (isDirectoryOccupiedByOtherSession(input.occupiedDirectories, shortPath)) {
-    return buildConversationSessionDirName(
+  if (isDirectoryOccupiedByOtherSession(occupiedDirectories, shortPath)) {
+    const fallback = buildConversationSessionDirName(
       input.sessionId,
       CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH,
     );
+    const fallbackPath = join(dateDir, fallback);
+    if (isDirectoryOccupiedByOtherSession(occupiedDirectories, fallbackPath)) {
+      throw new ConversationSessionWorkspaceCollisionError();
+    }
+    const fallbackEntry = lstatOrUndefined(fallbackPath);
+    if (fallbackEntry && !fallbackEntry.isDirectory()) {
+      throw new ConversationSessionWorkspaceUnavailableError();
+    }
+    return fallback;
   }
   // 只有「不存在」或「已经是真目录」才复用 8 位。判存在必须用 `lstat`（不跟随链接）：
   // `existsSync` 跟随符号链接，对**悬空链接**返回 false——那会绕过下面这条护栏，用 8 位去
@@ -287,35 +267,20 @@ export function resolveConversationSessionDirNameForCreate(input: {
   if (!shortEntry || shortEntry.isDirectory()) {
     return short;
   }
-  // 12 位仍被占用时沿用长名：`ensureConversationSessionWorkspaceDir` 对「同一个会话重复创建」
-  // 是幂等的，重复创建不该再造第三个目录；12 位是**非目录**（同名文件 / 悬空链接）占位时由
-  // `mkdir` 报错暴露（若 12 位恰是另一个会话的目录，mkdir 幂等成功 ⇒ 会共用目录，量级 2^-48，
-  // 见 spec 已知边界 11）。
-  return buildConversationSessionDirName(
+  // 没有第三种目录名：长名已被其他会话认领时拒绝创建，避免两个 runtime 共用 cwd。
+  const fallback = buildConversationSessionDirName(
     input.sessionId,
     CONVERSATION_SESSION_DIR_NAME_FALLBACK_LENGTH,
   );
-}
-
-/** 候选目录是否落在「被别的在册会话占用」集合里（`resolve` 规范化后比较，尾分隔符/相对写法不漏判）。 */
-function isDirectoryOccupiedByOtherSession(
-  occupiedDirectories: Iterable<string> | undefined,
-  candidate: string,
-): boolean {
-  if (!occupiedDirectories) {
-    return false;
+  const fallbackPath = join(dateDir, fallback);
+  if (isDirectoryOccupiedByOtherSession(occupiedDirectories, fallbackPath)) {
+    throw new ConversationSessionWorkspaceCollisionError();
   }
-  const target = resolve(candidate);
-  for (const directory of occupiedDirectories) {
-    if (typeof directory !== "string") {
-      continue;
-    }
-    const value = directory.trim();
-    if (value.length > 0 && resolve(value) === target) {
-      return true;
-    }
+  const fallbackEntry = lstatOrUndefined(fallbackPath);
+  if (fallbackEntry && !fallbackEntry.isDirectory()) {
+    throw new ConversationSessionWorkspaceUnavailableError();
   }
-  return false;
+  return fallback;
 }
 
 /**
@@ -327,9 +292,23 @@ function isDirectoryOccupiedByOtherSession(
  * 于是「最近被激活过」等价于「最近被动过」。刷新失败不影响会话本身。
  */
 export async function ensureConversationSessionWorkspaceDir(directory: string): Promise<void> {
-  await mkdir(directory, { recursive: true });
-  const now = new Date();
-  await utimes(directory, now, now).catch(() => undefined);
+  return ensureConversationSessionWorkspaceDirImpl(directory);
+}
+
+/**
+ * 执行准入时复核独立会话 cwd，并重建被启动清扫或用户删除的目录。
+ *
+ * 创建/恢复仍可为坏占位路径保留旧的只读投影兼容；但真正执行不能把缺失或降级到对话根的 cwd
+ * 写入共享目录。仅在 Host 明确启用本规则时生效，项目、远端与旧宿主保持原行为。
+ */
+export async function ensureConversationSessionWorkspaceForExecution(input: {
+  conversationRoot: string | undefined;
+  workspacePath: string;
+  workspaceIdentity?: string | undefined;
+  executionWorkspacePath?: string | undefined;
+  logger?: ConversationSessionWorkspaceLogger | undefined;
+}): Promise<void> {
+  return ensureConversationSessionWorkspaceForExecutionImpl(input);
 }
 
 /**
@@ -355,9 +334,9 @@ export interface ConversationSessionWorkspaceResolution {
  * 退化成对话根目录——调用方据此沿用旧行为 `cwd = workspacePath`，项目工作区与 CLI/TUI
  * 独立运行不受影响。目录创建由调用方用 `ensureConversationSessionWorkspaceDir` 完成。
  *
- * `occupiedDirectories` 是可选输入，只在**创建边界**用得上（见
- * `resolveConversationSessionDirNameForCreate`）：恢复/补发分支复用持久化路径或已落库的名字，
- * 不参与「8 位是否被别人占了」的判定，因此那些调用方不传即可保持现有行为。
+ * `occupiedDirectories` 是可选输入，创建与存量补发都在新铸名字时使用；恢复复用已持久化
+ * 的执行目录不重新定名。占用事实由会话所有者排除自身后提供，见
+ * `resolveConversationSessionDirNameForCreate`。
  *
  * 日期目录不可用（普通文件 / 符号链接，含悬空链接）时返回 undefined 并记一次 warn：定名之后
  * 无论用 8 位还是 12 位都必须经过 `mkdir`，而那正是会失败或写到根外的动作，没有安全的兜底名字。
@@ -426,6 +405,8 @@ export function resolveConversationSessionWorkspaceForResume(input: {
   sessionId: string;
   persistedPath?: string | undefined;
   persistedDirectory?: string | undefined;
+  /** 新目录补发时已在册会话占用的路径；复用持久化路径不参与碰撞裁决。 */
+  occupiedDirectories?: Iterable<string> | undefined;
   createdAtMs: number;
   /** 日期目录不可用时的 warn 出口；缺省只返回 undefined（不产出日志）。 */
   logger?: ConversationSessionWorkspaceLogger | undefined;
@@ -437,7 +418,7 @@ export function resolveConversationSessionWorkspaceForResume(input: {
   const conversationRoot = resolve(input.conversationRoot ?? "");
   const persisted = input.persistedPath?.trim() || input.persistedDirectory?.trim();
   if (persisted && isConversationSessionWorkspacePath(persisted, conversationRoot)) {
-    // 复用分支：调用方随后会对这个 cwd 幂等 mkdir，因此 `<日期>` 与**会话目录自身**两层都必须
+    // 复用分支：调用方随后会对这个 cwd 幂等 mkdir，因此从对话根到 cwd 的现存各层都必须
     // 是真目录，否则同一个坏占位者会把「恢复」也变成 EEXIST/ENOTDIR（整次恢复失败）或根外写入
     // （跟随符号链接）。判据与创建侧复用门禁共用 `classifyPersistedConversationExecutionPathUnusable`。
     const directory = resolve(persisted);
@@ -464,6 +445,7 @@ export function resolveConversationSessionWorkspaceForResume(input: {
   const name = resolveConversationSessionDirNameForCreate({
     conversationRoot,
     createdAtMs: input.createdAtMs,
+    ...(input.occupiedDirectories ? { occupiedDirectories: input.occupiedDirectories } : {}),
     sessionId: input.sessionId,
   });
   return {
@@ -480,15 +462,22 @@ export function resolveConversationSessionWorkspaceForResume(input: {
 /**
  * 派生会话（fork、侧会话、subagent 子会话）的执行 cwd 继承。
  *
- * 只在「创建派生会话时已能取到父会话执行 cwd」这一处继承：父 record 上有值就直接用。
+ * 只在「创建派生会话时已能取到父会话执行 cwd」这一处继承：父 record 上有值且目录可用才复用。
  * 子会话随后按同一规则持久化自己的 `path`，冷恢复自然走持久化复用分支，因此**不需要**
  * 第二套「从父会话反推目录」的推断逻辑；父会话还没补发（存量）时返回 undefined，
  * 由调用方走持久化路径判定（子会话行由 core fork 复制父行，天然带着父的 path）。
  */
 export function resolveConversationSessionWorkspaceInherited(
   parentExecutionWorkspacePath: string | undefined,
+  conversationRoot?: string | undefined,
 ): string | undefined {
   const inherited = parentExecutionWorkspacePath?.trim();
+  // 父 record 是历史路径事实；fork 时目录可能已被文件/链接替换，须复用恢复门禁再继承。
+  if (
+    !isReusablePersistedConversationExecutionPath({ conversationRoot, persistedPath: inherited })
+  ) {
+    return undefined;
+  }
   return inherited ? resolve(inherited) : undefined;
 }
 
@@ -639,22 +628,23 @@ export async function ensureConversationSessionDirForBareResume(input: {
     logConversationSessionDirEnsureFailure(input.logger, (error as NodeJS.ErrnoException)?.code);
     return;
   }
-  if (!session) {
+  if (!session || session.workspaceID?.trim()) {
     return;
   }
   const persisted = session.path;
-  if (!persisted || !isPersistedConversationExecutionPath(persisted, session.directory)) {
+  if (!persisted || !isManagedPersistedConversationExecutionPath(persisted, session.directory)) {
     return;
   }
-  // 规则 8 的两层门禁同样适用于重建：日期目录/末段被文件或活链接占位时 mkdir 要么确定性失败、
-  // 要么把目录铸到对话根之外（回收与清扫都不认）。占位者不删不修，直接放弃重建。
+  // 规则 35 的逐层门禁同样适用于重建：任一层被文件或活链接占位时 mkdir 要么确定性失败、
+  // 要么把目录铸到对话根之外（回收与清扫都不认）。占位者不删不修，拒绝交给 core 恢复。
   const unusable = classifyPersistedConversationExecutionPathUnusable({
     conversationRoot: session.directory,
     persistedPath: persisted,
   });
   if (unusable) {
     warnConversationSessionDirUnusable(input.logger, unusable);
-    return;
+    // 已确认的坏占位不能交给 core 恢复，否则裸 CLI 的无标记执行入口会跟随链接写到根外。
+    throw new ConversationSessionWorkspaceUnavailableError();
   }
   try {
     await ensureConversationSessionWorkspaceDir(persisted);

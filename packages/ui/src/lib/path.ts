@@ -32,6 +32,25 @@ export function getContainingDirectoryPath(path: string): string | null {
   return parentPath || null;
 }
 
+export function resolveDocumentFileReferenceRootPath(
+  sourcePath: string | undefined,
+  fallbackRootPath: string | undefined,
+): string | undefined {
+  // Markdown 相对链接以来源文档目录为基准；相对 sourcePath 先由打开请求冻结的根补全。
+  if (!sourcePath) {
+    return fallbackRootPath;
+  }
+
+  const resolvedSourcePath = isAbsoluteFilePath(sourcePath)
+    ? sourcePath
+    : fallbackRootPath
+      ? joinFilePath(fallbackRootPath, sourcePath)
+      : undefined;
+  return resolvedSourcePath
+    ? (getContainingDirectoryPath(resolvedSourcePath) ?? fallbackRootPath)
+    : fallbackRootPath;
+}
+
 export function isAbsoluteFilePath(path: string): boolean {
   return path.startsWith("/") || WINDOWS_ABSOLUTE_PATH_RE.test(path) || UNC_PATH_RE.test(path);
 }

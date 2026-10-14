@@ -12,6 +12,9 @@ interface MarkdownPreviewContentProps {
   sourcePath?: string;
   selectionTarget?: MarkdownSelectionTarget;
   workspacePath?: string;
+  workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
+  fileReferenceRootPath?: string;
   /** 应用主题（store 耦合剥离）：透传给 markdown 渲染，缺省按 "system" 兜底。 */
   theme?: Theme;
   /** 代码预览设置（store 耦合剥离）：透传给 markdown 渲染，需保持引用稳定。 */
@@ -26,6 +29,9 @@ export function MarkdownPreviewContent({
   sourcePath,
   selectionTarget,
   workspacePath,
+  workspaceIdentity,
+  workspaceRemoteSessionId,
+  fileReferenceRootPath,
   theme,
   codePreviewSettings,
   onOpenBrowserUrl,
@@ -55,6 +61,9 @@ export function MarkdownPreviewContent({
         <MessageResponse
           className="min-w-0 break-words"
           workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          workspaceRemoteSessionId={workspaceRemoteSessionId}
+          fileReferenceRootPath={fileReferenceRootPath}
           theme={theme}
           codePreviewSettings={codePreviewSettings}
           onOpenExternalUrl={onOpenBrowserUrl}

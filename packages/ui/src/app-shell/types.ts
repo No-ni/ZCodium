@@ -31,6 +31,7 @@ import type { TreemappingSidePaneTab } from "@/lib/workspaceSidePane.js";
 import type { WorkspaceZCodeUIState } from "@/store/zcodeSessionStore.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import type { Theme } from "@/useTheme.js";
+import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
 import type {
   ChatSearchResultHighlightRequest,
   ChatViewSummaryPanelVariant,
@@ -166,12 +167,19 @@ export interface WorkspaceShellLayoutProps extends AppProps {
     availability?: import("@/store/tabStore.js").WorkspaceAvailability;
   }>;
   activeTaskId: string | null;
+  primaryDraftScopeToken: object;
+  onPrimaryDraftEffectiveSessionBindingChange: (
+    event: PrimaryDraftEffectiveSessionBindingEvent,
+  ) => void;
   /**
    * 会话执行 cwd（conversation snapshot 的 additive 字段 `workspacePath`）；会话未绑定 / 旧 CLI
    * 缺字段时为 null。由 App 用 `useSessionWorkspacePath` 派生一次，命令面板与壳层共用同一份值
    * （文件树 / 终端 / 文件搜索的归属目录，见 docs/specs/conversation-session-workspace.md）。
    */
   sessionWorkspacePath: string | null;
+  terminalExecutionSessionId: string | null;
+  terminalExecutionWorkspacePath: string;
+  terminalExecutionPathReady: boolean;
   /** `sessionWorkspacePath` 的带回落值：`sessionWorkspacePath ?? workspaceAbsPath`。 */
   effectiveWorkspacePath: string;
   /** 右侧栏按对话隔离的归属 id：草稿态 = draftSessionId，正式态 = activeTaskId（两者同值衔接）。 */

@@ -19,23 +19,39 @@ import {
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { isFileManagerOpenTarget } from "@/lib/openWithEditors.js";
 import { logger } from "@/logger.js";
+import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { resolveTaskExecutionWorkspacePath } from "@/lib/taskExecutionWorkspacePath.js";
+import { toast } from "@/components/ui/toast.js";
 
 export function WorkspaceEditorButtonGroup({
   disabledReason,
   workspaceAbsPath,
+  activeTaskId,
+  workingDirectory,
   workspaceIdentity,
+  remoteSessionId,
   remoteTarget,
   onSelectedEditorChange,
 }: {
   disabledReason?: string;
   workspaceAbsPath: string;
+  activeTaskId?: string | null;
+  workingDirectory?: string | null;
   workspaceIdentity?: string;
+  remoteSessionId?: string;
   remoteTarget?: RemoteTarget;
   onSelectedEditorChange?: (editor: EditorInfo | null) => void;
 }) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
   const isOfficeMode = useIsOfficeMode();
+  const workspaceServices = useWorkspaceServices(
+    workspaceAbsPath,
+    remoteSessionId,
+    workspaceIdentity,
+    remoteTarget,
+    "exact",
+  );
 
   const [installedEditors, setInstalledEditors] = useState<EditorInfo[]>([]);
   const [selectedEditorId, setSelectedEditorId] = useState<string | null>(() =>
@@ -95,7 +111,7 @@ export function WorkspaceEditorButtonGroup({
     return "size-5 shrink-0";
   }, []);
 
-  const handleOpenEditor = (editor: EditorInfo) => {
+  const handleOpenEditor = async (editor: EditorInfo) => {
     if (disabledReason) {
       return;
     }
@@ -111,13 +127,44 @@ export function WorkspaceEditorButtonGroup({
           }
         : undefined;
 
-    void platform.openInEditor(editor.id, workspaceAbsPath, openOptions).then((result) => {
+    // 根因：草稿已有预热执行目录，但尚无 activeTaskId；也必须消费壳层确认过的目录。
+    let path = workingDirectory?.trim() || workspaceAbsPath;
+    if (activeTaskId) {
+      try {
+        const taskPath = await resolveTaskExecutionWorkspacePath(workspaceServices, {
+          workspacePath: workspaceAbsPath,
+          ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          ...(remoteSessionId ? { remoteSessionId } : {}),
+          sessionId: activeTaskId,
+          knownExecutionWorkspacePath: workingDirectory,
+        });
+        if (!taskPath) {
+          logger.warn("[WorkspaceEditorButtonGroup] 精确查询未找到任务会话，停止打开编辑器", {
+            taskId: activeTaskId,
+            workspacePath: workspaceAbsPath,
+          });
+          toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+          return;
+        }
+        path = taskPath;
+      } catch (error) {
+        logger.warn("[WorkspaceEditorButtonGroup] 查询任务工作目录失败，停止打开编辑器", {
+          taskId: activeTaskId,
+          workspacePath: workspaceAbsPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+        return;
+      }
+    }
+
+    void platform.openInEditor(editor.id, path, openOptions).then((result) => {
       if (result.success) {
         return;
       }
       logger.warn("[WorkspaceEditorButtonGroup] 打开编辑器失败", {
         editorId: editor.id,
-        workspaceAbsPath,
+        workspaceAbsPath: path,
         workspaceIdentity,
         error: result.error ?? "unknown-error",
       });

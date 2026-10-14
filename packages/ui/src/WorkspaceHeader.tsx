@@ -23,6 +23,7 @@ export function WorkspaceHeader({
   draftDropTargetController,
   readOnlyReason,
   workspaceAbsPath,
+  sessionWorkspacePath,
   remoteSessionId,
   workspaceIdentity,
   remoteTarget,
@@ -65,6 +66,7 @@ export function WorkspaceHeader({
   draftDropTargetController?: ConversationDropTargetController | null;
   readOnlyReason?: string;
   workspaceAbsPath: string;
+  sessionWorkspacePath: string | null;
   remoteSessionId?: string;
   workspaceIdentity?: string;
   remoteTarget?: RemoteTarget;
@@ -161,6 +163,7 @@ export function WorkspaceHeader({
             variant={variant}
             readOnlyReason={readOnlyReason}
             workspaceAbsPath={workspaceAbsPath}
+            sessionWorkspacePath={sessionWorkspacePath}
             remoteSessionId={remoteSessionId}
             workspaceIdentity={workspaceIdentity}
             remoteTarget={remoteTarget}
@@ -199,6 +202,7 @@ export function WorkspaceHeader({
           activeTaskId={activeTaskId}
           readOnlyReason={readOnlyReason}
           workspaceAbsPath={workspaceAbsPath}
+          sessionWorkspacePath={sessionWorkspacePath}
           workspaceIdentity={workspaceIdentity}
           remoteSessionId={remoteSessionId}
           remoteTarget={remoteTarget}

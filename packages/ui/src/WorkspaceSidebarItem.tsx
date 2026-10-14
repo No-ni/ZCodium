@@ -178,6 +178,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   onOpenFileTree?: (target: {
     workspacePath: string;
     workspaceName: string;
+    taskId?: string | null;
     workspaceIdentity?: string;
     workspaceRemoteSessionId?: string;
   }) => void;
@@ -456,12 +457,16 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       onOpenFileTree({
         workspacePath: tab.workspacePath,
         workspaceName: tab.label,
+        // 当前草稿跟随壳层预热目录；非激活 tab 的 null 则明确请求身份根。
+        ...(isActiveWorkspace ? (activeTaskId ? { taskId: activeTaskId } : {}) : { taskId: null }),
         workspaceIdentity: tab.workspaceIdentity,
         workspaceRemoteSessionId: tab.remoteSessionId,
       });
     },
     [
+      activeTaskId,
       isDisconnectedRemoteWorkspace,
+      isActiveWorkspace,
       onOpenFileTree,
       readOnlyReason,
       tab.label,

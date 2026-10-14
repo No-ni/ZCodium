@@ -107,7 +107,7 @@ interface RemoteWorkspaceTabStoreReader {
 
 interface OpenRemoteWorkspaceFromHistoryParams {
   workspaceKey: string;
-  tabStoreApi: RemoteWorkspaceTabStoreReader;
+  tabStoreApi: ReturnType<typeof import("@/store/TabStoreProvider.js").useTabStoreApi>;
   getRemoteSessions: () => RemoteWorkspaceSessionEntry[];
   inflightReconnectWorkspaceKeys: Set<string>;
   activateTabByPath: (workspacePath: string, options?: { workspaceIdentity?: string }) => boolean;
@@ -398,9 +398,8 @@ async function openRemoteWorkspaceFromHistoryEntry({
         isWorkspaceTab(tab) && buildWorkspaceSessionKey(tab) === workspaceKey,
     );
   if (existingWorkspaceTab?.remoteSessionId) {
-    activateTabByPath(existingWorkspaceTab.workspacePath, {
-      workspaceIdentity: existingWorkspaceTab.workspaceIdentity,
-    });
+    // 旧 tab 可只有 remoteSessionId；既已精确找到 tab，按 id 激活，不能借本地 path-only 查找。
+    tabStoreApi.getState().activateTab(existingWorkspaceTab.id);
     return;
   }
 

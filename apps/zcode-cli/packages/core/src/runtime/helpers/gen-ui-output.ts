@@ -5,13 +5,23 @@ import { workspaceScopeRootOf } from "./workspace-scope.js";
 export function resolveGenUiOutputDirectory(runtime: AgentRuntimeInternal): string | undefined {
   if (runtime.config.presentationSurface !== "zcode_desktop" || !runtime.config.genUiOutputRoot)
     return undefined;
-  return getGenUiOutputDirectory(runtime.config.genUiOutputRoot, {
-    // 工作区级读点统一走唯一入口：不再各自写一份 `config.workspacePath ?? workspaceRoot` 回落，
-    // 否则将来任何一侧的口径变化都会在这里分叉。
-    workspacePath: workspaceScopeRootOf(runtime),
-    workspaceIdentity: runtime.config.workspaceIdentity,
-    sessionId: runtime.sessionId,
-  });
+  return getGenUiOutputDirectory(
+    runtime.config.genUiOutputRoot,
+    {
+      // 工作区级读点统一走唯一入口：不再各自写一份 `config.workspacePath ?? workspaceRoot` 回落，
+      // 否则将来任何一侧的口径变化都会在这里分叉。
+      workspacePath: workspaceScopeRootOf(runtime),
+      workspaceIdentity: runtime.config.workspaceIdentity,
+      sessionId: runtime.sessionId,
+    },
+    runtime.config.conversationWorkspaceRoot
+      ? {
+          conversationWorkspaceRoot: runtime.config.conversationWorkspaceRoot,
+          // workspaceRoot 是会话初始执行边界，不随 Bash cd 漂移；与 CLI record 的投影同源。
+          executionWorkspacePath: runtime.workspaceRoot,
+        }
+      : undefined,
+  );
 }
 
 export async function ensureGenUiOutputDirectory(runtime: AgentRuntimeInternal): Promise<void> {

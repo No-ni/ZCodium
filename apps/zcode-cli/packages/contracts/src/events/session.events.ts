@@ -214,6 +214,12 @@ export interface SessionForkedPayload {
   forkPoint: number;
 }
 
+export interface SubagentSpawnedPayload {
+  childSessionId?: SessionId;
+  /** 首次子会话快照前记录的执行 cwd；父会话之后 cd 不会改变这份事实。 */
+  childExecutionWorkspacePath?: string;
+}
+
 export interface SessionCompactedPayload {
   compactBoundary: CompactBoundaryPayload;
   summary?: string;
@@ -1216,6 +1222,7 @@ export type SessionEventPayload =
   | SessionCreatedPayload
   | SessionResumedPayload
   | SessionForkedPayload
+  | SubagentSpawnedPayload
   | SessionCompactedPayload
   | SessionTitleUpdatedPayload
   | SessionModeChangedPayload

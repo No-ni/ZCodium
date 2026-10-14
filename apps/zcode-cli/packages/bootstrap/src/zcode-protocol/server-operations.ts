@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- ZCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { observeSessionDebug } from "./session-debug.js";
 import {
   TASK_LIST_SESSION_TYPES,
@@ -120,8 +120,10 @@ import {
 } from "./subagent-session-query.js";
 import { runSessionModelConfigMutation } from "../zcode-protocol-v4/model-config-mutation.js";
 import { runWithSessionResidencyFinalization } from "./session-residency.js";
+import { runConversationSessionCreation } from "../app/conversation-session-create-order.js";
 import { abortMcpUiToolCallsForSession, clearMcpUiAppToolsForSession } from "./mcp-ui/index.js";
 import {
+  ConversationSessionWorkspaceUnavailableError,
   classifyPersistedConversationExecutionPathUnusable,
   degradeConversationSessionDirectoryToWorkspacePath,
   ensureConversationSessionWorkspaceDir,
@@ -141,6 +143,7 @@ import {
   isConversationSessionDirectoryInUseAcrossProcesses,
   reclaimConversationSessionDirOnDelete,
 } from "../app/conversation-session-workspace-reclaim.js";
+import { conversationSessionDirectoryKey } from "../app/conversation-session-workspace-registry.js";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -1294,6 +1297,25 @@ async function createSessionWithProjection<T>(
   ) => Promise<{ value: T; phaseDurationsMs?: SnapshotPhaseDurationsMs; messageCount?: number }>,
 ): Promise<T> {
   const params = parseParams(zcodeSessionCreateParamsSchema, rawParams);
+  const create = () => createSessionWithProjectionUnserialized(context, params, trace, project);
+  return isConversationWorkspaceEnabled({
+    conversationRoot: resolveConversationWorkspaceRootFromEnv(context.deps.env ?? process.env),
+    workspacePath: params.workspace.workspacePath,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+  })
+    ? runConversationSessionCreation(context, create)
+    : create();
+}
+
+async function createSessionWithProjectionUnserialized<T>(
+  context: ZCodeProtocolAgentServerContext,
+  rawParams: unknown,
+  trace: ZCodeProtocolTrace | undefined,
+  project: (
+    record: ZCodeProtocolSessionRecord,
+  ) => Promise<{ value: T; phaseDurationsMs?: SnapshotPhaseDurationsMs; messageCount?: number }>,
+): Promise<T> {
+  const params = parseParams(zcodeSessionCreateParamsSchema, rawParams);
   const startedAt = Date.now();
   if (params.sessionId && !params.importedHistory) {
     // 普通 session/create 若允许外部指定 id，会覆盖 context.sessions 里的 active record，
@@ -1602,29 +1624,19 @@ export async function activateSessionForResume(
     workspaceIdentity: workspace.workspaceIdentity,
     workspacePath: workspace.workspacePath,
   });
-  const executionWorkspace = resolveConversationSessionWorkspaceForResume({
+  const claimedExecution = await claimConversationSessionWorkspaceForResume(
+    context,
+    session,
+    workspace,
     conversationRoot,
-    createdAtMs: session.time?.created ?? Date.now(),
-    // 日期目录不可用时只记 warn（不带真实路径），随后的 undefined 让本次恢复回退旧行为。
-    logger: context.logger,
-    persistedDirectory: session.directory,
-    persistedPath: session.path,
-    sessionId: params.sessionId,
-    workspaceIdentity: workspace.workspaceIdentity,
-    workspacePath: workspace.workspacePath,
-  });
+  );
+  const executionWorkspace = claimedExecution.resolution;
   let executionWorkspaceDirectory = executionWorkspace?.directory;
-  if (executionWorkspace?.backfilled) {
+  if (executionWorkspace?.backfilled && claimedExecution.backfill) {
     // 补发必须落盘（`path` 只改这一个字段，`directory` 仍是对话根），否则 core 冷恢复按
     // `session.path ?? session.directory` 取 cwd 时会打回对话根，补发等于没发生。落盘失败就
     // 回退旧行为 `cwd = workspacePath`，保证 runtime cwd 与库里的持久化事实始终一致。
-    const persistedBackfill = await persistConversationSessionBackfillDirectory({
-      directory: executionWorkspace.directory,
-      sessionId: params.sessionId,
-      store: context.deps.sessionStore,
-      // 维护性路径写入不能伪装成用户活动时间，否则会话被顶到侧栏最前。
-      timeUpdated: session.time?.updated,
-    });
+    const persistedBackfill = claimedExecution.backfill;
     if (persistedBackfill.status === "available") {
       // cwd 取**重读到的持久化 path**（可能被并发改成别的值），保证 runtime 与库一致。
       executionWorkspaceDirectory = persistedBackfill.directory;
@@ -1933,6 +1945,7 @@ export async function listSessions(context: ZCodeProtocolAgentServerContext, raw
     sessions.push(
       mapSessionInfo({
         app: record.app,
+        executionWorkspacePath: record.executionWorkspacePath,
         workspace: record.workspace,
         taskType: record.taskType,
         parentSessionId: record.parentSessionId,
@@ -2554,33 +2567,29 @@ export async function registerForkedSession(
   });
   const inheritedExecutionWorkspacePath = resolveConversationSessionWorkspaceInherited(
     record.executionWorkspacePath,
+    conversationRuleApplies ? conversationRoot : undefined,
   );
+  const claimedForkExecution =
+    inheritedExecutionWorkspacePath === undefined
+      ? await claimConversationSessionWorkspaceForResume(
+          context,
+          forkedSession,
+          record.workspace,
+          conversationRoot,
+        )
+      : undefined;
   const forkedExecutionWorkspace =
     inheritedExecutionWorkspacePath !== undefined
       ? { backfilled: false, directory: inheritedExecutionWorkspacePath }
-      : resolveConversationSessionWorkspaceForResume({
-          conversationRoot,
-          createdAtMs: forkedSession.time?.created ?? Date.now(),
-          logger: context.logger,
-          persistedDirectory: forkedSession.directory,
-          persistedPath: forkedSession.path,
-          sessionId: String(fork.forkedSessionId),
-          workspaceIdentity: record.workspace.workspaceIdentity,
-          workspacePath: record.workspace.workspacePath,
-        });
+      : claimedForkExecution?.resolution;
   let forkedExecutionWorkspaceDirectory = forkedExecutionWorkspace?.directory;
-  if (forkedExecutionWorkspace?.backfilled) {
+  if (forkedExecutionWorkspace?.backfilled && claimedForkExecution?.backfill) {
     // 与 resume 同一条规则：给子会话补发出来的目录也必须写回**子会话行**（core fork 复制的是
     // 父行，父行还是对话根时子行的 path 也是对话根）。只留内存的话，子会话下次恢复会重新补发——
     // 那一次解析看到的是同一个 8 位名（定名对同一会话幂等：同名真目录会被复用，只有被别的在册
     // 会话占用或非目录占位时才回退 12 位），因此不会把子会话搬到另一个目录；但**行不落库**会让
     // 库里的 `path` 一直是对话根：删除边界的空目录回收认不出这个目录、冷恢复也要再补发一次。
-    const persistedBackfill = await persistConversationSessionBackfillDirectory({
-      directory: forkedExecutionWorkspace.directory,
-      sessionId: String(fork.forkedSessionId),
-      store: context.deps.sessionStore,
-      timeUpdated: forkedSession.time?.updated,
-    });
+    const persistedBackfill = claimedForkExecution.backfill;
     if (persistedBackfill.status === "available") {
       forkedExecutionWorkspaceDirectory = persistedBackfill.directory;
     } else {
@@ -3365,6 +3374,7 @@ export function onSessionEvent(
   context: ZCodeProtocolAgentServerContext,
   record: ZCodeProtocolSessionRecord,
   event: SessionEvent,
+  executionWorkspacePath?: string,
 ): void {
   const computerUseOperationEvent = mapComputerUseOperationEvent(event);
   if (computerUseOperationEvent) {
@@ -3405,6 +3415,7 @@ export function onSessionEvent(
       String(event.sessionId),
       event,
       record.app.sessionId,
+      executionWorkspacePath,
     );
     return;
   }
@@ -3744,30 +3755,104 @@ async function resolveExistingPersistedExecutionPath(
 /**
  * 「被**别的在册会话**占用」的执行目录集合（创建边界给 8 位定名用）。
  *
- * 注册表是进程内事实：同一 workspace 的会话都在 `context.sessions` 里，每个在册 record 的
- * `executionWorkspacePath` 就是它真正拥有的执行目录（只在会话有独立目录时有值）。
+ * 先合并进程内 record，再查持久会话行（包括已关闭的行）：record 的
+ * `executionWorkspacePath` 与 row 的 `path` 都是各会话实际认领的执行目录。关闭只移出内存注册表，
+ * 不能让后续新会话复用它仍持久化的目录。
  *
  * **必须按 id 排除本次会话自己**：草稿预热、协议重试、并发冷恢复都会带着同一个 id 再进一次创建边界，
  * 上一次尝试留下的目录此刻可能已经在注册表里；把它算作"别人占用"会让定名回退 12 位——行被 upsert
  * 到新目录，前一次目录里已写的文件永久失联（非空目录不会被空目录回收），正好破坏
  * `resolveConversationSessionDirNameForCreate` 要保证的幂等。只取非空值并 `resolve` 规范化，
- * 尾分隔符/相对写法不能漏判。返回数组（判定侧仍按词法规范化比较，不要求目录此刻存在）。
+ * 尾分隔符/相对写法不能漏判。物理路径在此异步观测边界投影到当前根的拼写，定名侧保持同步。
  */
-function collectOtherSessionExecutionWorkspacePaths(
+async function collectOtherSessionExecutionWorkspacePaths(
   context: ZCodeProtocolAgentServerContext,
   sessionId: SessionId,
-): string[] {
-  const directories: string[] = [];
+  conversationRoot: string,
+): Promise<string[]> {
+  const directories = new Set<string>();
   for (const [id, session] of context.sessions) {
     if (id === sessionId) {
       continue;
     }
     const executionPath = session.executionWorkspacePath?.trim();
     if (executionPath) {
-      directories.push(resolve(executionPath));
+      directories.add(resolve(executionPath));
     }
   }
-  return directories;
+  const persistedSessions = await context.deps.sessionStore?.listSessions({
+    includeArchived: true,
+  });
+  for (const session of persistedSessions ?? []) {
+    if (session.id === sessionId) {
+      continue;
+    }
+    const executionPath = session.path?.trim();
+    if (executionPath) {
+      directories.add(resolve(executionPath));
+    }
+  }
+  // 根因：行侧可以用 /private/var 或其他根别名；纯 resolve 比较会把同一物理目录当成空闲。
+  // 保留原认领事实，并用 registry 的规范 key 映射到候选所用的根拼写，缺失目录也不释放名字。
+  const canonicalRoot = await conversationSessionDirectoryKey(conversationRoot);
+  const paths = [...directories];
+  for (const directory of directories) {
+    const child = relative(canonicalRoot, await conversationSessionDirectoryKey(directory));
+    if (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child))
+      paths.push(resolve(conversationRoot, child));
+  }
+  return paths;
+}
+
+/** 补发与新建共享同一所有权：定名后必须落库，才能让下一位看见认领事实。 */
+async function claimConversationSessionWorkspaceForResume(
+  context: ZCodeProtocolAgentServerContext,
+  session: SessionInfo,
+  workspace: ZCodeWorkspaceRef,
+  conversationRoot: string | undefined,
+) {
+  const enabled = isConversationWorkspaceEnabled({
+    conversationRoot,
+    workspaceIdentity: workspace.workspaceIdentity,
+    workspacePath: workspace.workspacePath,
+  });
+  const claim = async () => {
+    // 等待所有权时同一会话可能已补发；锁内重读，不能用旧根覆盖刚落库的目录。
+    const latest = enabled
+      ? ((await getPersistedSession(context, session.id)) ?? session)
+      : session;
+    const persisted = latest.path?.trim() || latest.directory?.trim();
+    const needsBackfill =
+      enabled && (!persisted || resolve(persisted) === resolve(conversationRoot ?? ""));
+    const occupiedDirectories = needsBackfill
+      ? await collectOtherSessionExecutionWorkspacePaths(
+          context,
+          latest.id,
+          workspace.workspacePath,
+        )
+      : undefined;
+    const resolution = resolveConversationSessionWorkspaceForResume({
+      conversationRoot,
+      createdAtMs: latest.time?.created ?? Date.now(),
+      logger: context.logger,
+      persistedDirectory: latest.directory,
+      persistedPath: latest.path,
+      occupiedDirectories,
+      sessionId: latest.id,
+      workspaceIdentity: workspace.workspaceIdentity,
+      workspacePath: workspace.workspacePath,
+    });
+    const backfill = resolution?.backfilled
+      ? await persistConversationSessionBackfillDirectory({
+          directory: resolution.directory,
+          sessionId: latest.id,
+          store: context.deps.sessionStore,
+          timeUpdated: latest.time?.updated,
+        })
+      : undefined;
+    return { resolution, backfill };
+  };
+  return enabled ? runConversationSessionCreation(context, claim) : claim();
 }
 
 /**
@@ -3803,6 +3888,17 @@ async function resolveRecordExecutionWorkspacePath(
 ): Promise<string> {
   const provided = params.executionWorkspacePath?.trim();
   if (provided) {
+    // provided 可来自恢复/派生路径；统一复核门禁，避免调用者漏判后 mkdir 跟随用户链接。
+    if (
+      isConversationWorkspaceEnabled({
+        conversationRoot,
+        workspaceIdentity: workspace.workspaceIdentity,
+        workspacePath: workspace.workspacePath,
+      }) &&
+      !isReusablePersistedConversationExecutionPath({ conversationRoot, persistedPath: provided })
+    ) {
+      throw new ConversationSessionWorkspaceUnavailableError();
+    }
     // 只建**本规则拥有**的目录（严格落在对话根之下）。项目工作区与远端工作区路径保持旧行为：
     // 它们的存在由 Host / 远端机器负责，本地代建会在本机凭空造出远端路径（如 /home/user/proj）。
     if (
@@ -3934,6 +4030,17 @@ async function createRecord(
       });
     }
   }
+  const needsOccupiedDirectories =
+    !params.executionWorkspacePath?.trim() &&
+    !acceptedReusedExecutionWorkspacePath &&
+    isConversationWorkspaceEnabled({
+      conversationRoot,
+      workspaceIdentity: workspace.workspaceIdentity,
+      workspacePath: workspace.workspacePath,
+    });
+  const occupiedDirectories = needsOccupiedDirectories
+    ? await collectOtherSessionExecutionWorkspacePaths(context, sessionId, workspace.workspacePath)
+    : undefined;
   const executionWorkspacePath = await resolveRecordExecutionWorkspacePath(
     acceptedReusedExecutionWorkspacePath
       ? { ...params, executionWorkspacePath: acceptedReusedExecutionWorkspacePath }
@@ -3944,7 +4051,7 @@ async function createRecord(
     createdAtMs,
     // 定名的"占用事实"：别的在册会话正在用的执行目录。本次会话自己的（同 id）已被排除，
     // 因此重试/并发冷恢复仍复用同一个 8 位名字；同日两个会话撞前 8 位时才各自落到不同目录。
-    collectOtherSessionExecutionWorkspacePaths(context, sessionId),
+    occupiedDirectories,
     context.logger,
   );
   // record 上只留「本规则真正拥有的独立目录」：快照投影的会话 cwd、派生子会话的继承来源与
@@ -4067,7 +4174,8 @@ async function createRecord(
     workspace,
   };
   const unsubscribeSessionEvents = app.runtime.subscribeEvents({
-    onSessionEvent: (event) => onSessionEvent(context, record, event),
+    onSessionEvent: (event, executionWorkspacePath) =>
+      onSessionEvent(context, record, event, executionWorkspacePath),
   });
   record.unsubscribe = () => {
     unsubscribeSessionEvents();
@@ -4213,6 +4321,7 @@ async function snapshotWithDiagnostics(
   const buildStartedAt = Date.now();
   const builtSnapshot = await buildSessionSnapshot({
     app: record.app,
+    executionWorkspacePath: record.executionWorkspacePath,
     deliveryKind: record.deliveryKind,
     eventSeq,
     fallbackCreatedAt: record.createdAt,

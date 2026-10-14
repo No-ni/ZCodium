@@ -8,7 +8,7 @@ import {
   genUiStateTargetSchema,
 } from "@zcode/shared/gen-ui";
 import type { PluginSandboxHandle, PluginSandboxRegisterInput } from "@zcode/shared/mcp-apps";
-import type { IGenUiService } from "../contract.js";
+import type { GenUiConversationOutput, IGenUiService } from "../contract.js";
 import { getAppConfigDir } from "../../paths.js";
 import { assertGenUiFragment, readGenUiDocument } from "./files.js";
 import { createGenUiStateStorage } from "./stateStorage.js";
@@ -23,6 +23,7 @@ export function createGenUiService(
     stateRoot?: string;
     outputRoot?: string;
     registerSandbox?: (input: PluginSandboxRegisterInput) => Promise<PluginSandboxHandle>;
+    conversationOutput?: GenUiConversationOutput;
   } = {},
 ): IGenUiService & { dispose(): void } {
   const storage = createGenUiStateStorage(
@@ -31,7 +32,7 @@ export function createGenUiService(
   const runtimeId = `gen-ui:${randomUUID()}`;
   const outputRoot = options.outputRoot ?? join(getAppConfigDir(), GEN_UI_OUTPUT_DIRECTORY);
   return {
-    readDocument: (target) => readGenUiDocument(target, outputRoot),
+    readDocument: (target) => readGenUiDocument(target, outputRoot, options.conversationOutput),
     onStateChanged: storage.onChanged,
     getState: (target) => storage.get(target),
     setState: ({ target, state }) => storage.set(target, state),

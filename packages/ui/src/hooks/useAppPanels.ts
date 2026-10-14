@@ -77,11 +77,15 @@ import { isSidePaneTabVisibleForParent } from "@/lib/workspaceSidePane.js";
 import { openPluginUiSidePane } from "@/plugin-ui/index.js";
 import type { OpenPluginUiSideTabRequest } from "@/plugin-ui/contract.js";
 import { logger } from "@/logger.js";
+import { toast } from "@/components/ui/toast.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { resolveTaskExecutionWorkspacePath } from "@/lib/taskExecutionWorkspacePath.js";
 import { getPathLeaf, joinFilePath, toFileUrl } from "@/lib/path.js";
 import { shouldOpenWorkflowArtifactInBrowser } from "@/lib/workflowArtifactOpen.js";
 import { useWhiteboardStore } from "@/store/whiteboardStore.js";
 import { useModelTrajectoryOpenBridge } from "@/hooks/useModelTrajectoryOpenBridge.js";
 import { useServices } from "@/hooks/useServices.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { clearSelectionSideChat } from "@/lib/selectionSideChatRuntime.js";
 import { clearConversationSelectionReferenceScope } from "@/lib/conversationSelectionReference.js";
@@ -137,6 +141,9 @@ export function useAppPanels(options: {
   activeTaskId: string | null;
   /** 草稿态与正式任务共用稳定 id，作为侧栏对话隔离边界。 */
   sidePaneOwnerId: string | null;
+  terminalExecutionSessionId: string | null;
+  terminalExecutionWorkspacePath: string | null;
+  terminalExecutionPathReady: boolean;
   isDesktop?: boolean;
   /**
    * 展示语义：视图当前是否呈现给用户（设置页覆盖时为 false）。
@@ -168,6 +175,9 @@ export function useAppPanels(options: {
     workspaceRemoteSessionId,
     activeTaskId,
     sidePaneOwnerId,
+    terminalExecutionSessionId,
+    terminalExecutionWorkspacePath,
+    terminalExecutionPathReady,
     isDesktop,
     supportsEmbeddedBrowser: explicitSupportsEmbeddedBrowser,
     defaultWhiteboardNamePrefix,
@@ -176,6 +186,8 @@ export function useAppPanels(options: {
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
   const activeWorkspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const { zcodeAgentService, zcodeSessionService } = useServices();
+  const localAgentService = useBaseWorkspaceServices().zcodeAgentService;
+  const { intl } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const sidePaneMemoryKey = useMemo(
     () =>
@@ -197,7 +209,7 @@ export function useAppPanels(options: {
   const [sidePaneState, setSidePaneState] = useState<WorkspaceSidePaneState | null>(
     initialSidePaneMemoryState.sidePaneState,
   );
-  const [isSidePaneCollapsed, setIsSidePaneCollapsed] = useState(
+  const [isSidePaneCollapsed, setSidePaneCollapsedState] = useState(
     getSidePaneCollapsedPreference(initialSidePaneMemoryState, sidePaneOwnerId) ??
       initialSidePaneMemoryState.isSidePaneCollapsed,
   );
@@ -215,6 +227,55 @@ export function useAppPanels(options: {
   sidePaneOwnerIdRef.current = sidePaneOwnerId;
   const activeWorkspaceKeyRef = useRef(activeWorkspaceKey);
   activeWorkspaceKeyRef.current = activeWorkspaceKey;
+  const terminalTargetSignature = JSON.stringify([
+    workspaceAbsPath,
+    workspaceIdentity?.trim() || null,
+    workspaceRemoteSessionId ?? null,
+    terminalExecutionSessionId,
+    terminalExecutionWorkspacePath,
+    terminalExecutionPathReady,
+    sidePaneOwnerId,
+  ]);
+  const terminalTargetGenerationRef = useRef({ signature: terminalTargetSignature, generation: 0 });
+  if (terminalTargetGenerationRef.current.signature !== terminalTargetSignature) {
+    terminalTargetGenerationRef.current = {
+      signature: terminalTargetSignature,
+      generation: terminalTargetGenerationRef.current.generation + 1,
+    };
+  }
+  const terminalTargetRef = useRef({
+    workspacePath: workspaceAbsPath,
+    workspaceIdentity,
+    remoteSessionId: workspaceRemoteSessionId,
+    sessionId: terminalExecutionSessionId,
+    executionWorkspacePath: terminalExecutionWorkspacePath,
+    executionPathReady: terminalExecutionPathReady,
+    ownerTaskId: sidePaneOwnerId,
+    generation: terminalTargetGenerationRef.current.generation,
+  });
+  terminalTargetRef.current = {
+    workspacePath: workspaceAbsPath,
+    workspaceIdentity,
+    remoteSessionId: workspaceRemoteSessionId,
+    sessionId: terminalExecutionSessionId,
+    executionWorkspacePath: terminalExecutionWorkspacePath,
+    executionPathReady: terminalExecutionPathReady,
+    ownerTaskId: sidePaneOwnerId,
+    generation: terminalTargetGenerationRef.current.generation,
+  };
+  const terminalOpenRequestRef = useRef(0);
+  const sidePaneCollapsedRef = useRef(isSidePaneCollapsed);
+  sidePaneCollapsedRef.current = isSidePaneCollapsed;
+  const setIsSidePaneCollapsed = useCallback(
+    (nextState: boolean | ((collapsed: boolean) => boolean)) => {
+      const nextCollapsed =
+        typeof nextState === "function" ? nextState(sidePaneCollapsedRef.current) : nextState;
+      if (nextCollapsed) terminalOpenRequestRef.current += 1;
+      sidePaneCollapsedRef.current = nextCollapsed;
+      setSidePaneCollapsedState(nextCollapsed);
+    },
+    [],
+  );
   const activeTabByOwnerRef = useRef<Map<string, string>>(new Map());
   const activeSidePaneMemoryKeyRef = useRef<string | null>(sidePaneMemoryKey);
   const latestSidePaneMemoryRef = useRef({
@@ -788,20 +849,72 @@ export function useAppPanels(options: {
     });
   }, [commitOpenedSidePaneState, revealSidePaneForCurrentOwner, workspaceAbsPath]);
 
-  const handleOpenTerminalTab = useCallback(() => {
+  const handleOpenTerminalTab = useCallback(async () => {
     if (isOfficeMode) return;
+    const requestId = ++terminalOpenRequestRef.current;
+    const target = terminalTargetRef.current;
+    const isLocalWorkspace = !target.workspaceIdentity?.trim() && !target.remoteSessionId;
+    let cwd: string | null = target.workspacePath;
+
+    if (isLocalWorkspace) {
+      if (!target.sessionId) {
+        if (!target.executionPathReady) {
+          toast(intl.formatMessage({ id: "terminal.executionPathPending" }), {
+            variant: "warning",
+          });
+          return;
+        }
+      } else {
+        try {
+          cwd = await resolveTaskExecutionWorkspacePath(
+            { zcodeAgentService, zcodeSessionService },
+            {
+              workspacePath: target.workspacePath,
+              sessionId: target.sessionId,
+              knownExecutionWorkspacePath: target.executionPathReady
+                ? target.executionWorkspacePath
+                : null,
+            },
+          );
+        } catch (error) {
+          if (
+            requestId === terminalOpenRequestRef.current &&
+            target.generation === terminalTargetRef.current.generation
+          ) {
+            logger.warn("[App] 无法解析右侧终端 cwd", {
+              error: error instanceof Error ? error.message : String(error),
+              sessionId: target.sessionId,
+            });
+            toast(intl.formatMessage({ id: "terminal.executionPathUnavailable" }), {
+              variant: "warning",
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    const currentTarget = terminalTargetRef.current;
+    if (
+      requestId !== terminalOpenRequestRef.current ||
+      target.generation !== currentTarget.generation ||
+      target.sessionId !== currentTarget.sessionId ||
+      target.ownerTaskId !== currentTarget.ownerTaskId ||
+      !cwd
+    ) {
+      return;
+    }
+
     revealSidePaneForCurrentOwner();
     commitOpenedSidePaneState((current) => {
-      const title = createTerminalSidePaneTitle(current, workspaceAbsPath);
-      // 不在这里烘焙 cwd：终端 tab 的默认工作目录是「当前会话执行 cwd」，由 side pane
-      // 在渲染时按 effectiveWorkspacePath 解析（会话未绑定时回落 workspaceAbsPath）。
-      // 写死 workspaceAbsPath 会让对话会话的终端永远开在对话根上。
+      const title = createTerminalSidePaneTitle(current, target.workspacePath);
       const next = openTerminalSidePane(current, {
         title,
-        remoteSessionId: workspaceRemoteSessionId,
+        cwd,
+        remoteSessionId: target.remoteSessionId,
       });
       logger.info(
-        `[App] 新建右侧终端 tab=${title} workspace=${workspaceAbsPath} tabs=${next.tabs.length}`,
+        `[App] 新建右侧终端 tab=${title} workspace=${target.workspacePath} cwd=${cwd} tabs=${next.tabs.length}`,
       );
       return next;
     });
@@ -809,8 +922,9 @@ export function useAppPanels(options: {
     isOfficeMode,
     commitOpenedSidePaneState,
     revealSidePaneForCurrentOwner,
-    workspaceAbsPath,
-    workspaceRemoteSessionId,
+    intl,
+    zcodeAgentService,
+    zcodeSessionService,
   ]);
 
   const handleOpenModelTrajectory = useCallback(
@@ -1118,16 +1232,16 @@ export function useAppPanels(options: {
         return;
       }
 
-      const openInBrowser = (sourcePath: string) => {
+      const openInBrowser = (sourcePath: string, executionWorkspacePath?: string) => {
         // 相对 **run cwd** 的 sourcePath 拼上解析根才是本机真实位置；与产物卡上
         // 「在浏览器中打开」走同一条路径（WorkflowArtifactSidePane 的 localSourcePath）。
         // 对话会话的 run cwd 是会话执行目录，按工作区身份根拼会指到对话根下的同名路径。
         //
-        // 解析根取**请求自带**的那个（发起 pane 的会话 cwd），不能用宿主侧的 `sessionWorkspacePath`
-        // ——那个是 shell 聚焦会话的 cwd：分屏时 focus 会覆盖 activeTaskId，用聚焦会话的目录去拼
-        // 另一个 pane 的产物会打开错的同名文件（或 404）。请求没带根（旧发送端 / 中枢设置页这类
-        // 没有会话上下文的入口）时回落工作区身份根，与改动前一致。
-        const artifactRootPath = request.fileReferenceRootPath?.trim() || request.workspacePath;
+        // 根因：Bash cd 后 run cwd 不再等于 pane 的初始目录。优先使用受 owner 校验的 journal 根，
+        // 只有旧 Host 缺席新字段才回落请求冻结根；不能借壳层当前焦点的会话目录。
+        const artifactRootPath =
+          executionWorkspacePath ??
+          (request.fileReferenceRootPath?.trim() || request.workspacePath);
         const url = toFileUrl(joinFilePath(artifactRootPath, sourcePath));
         const tabId = openFileUrlInBrowserSidePane({
           url,
@@ -1143,17 +1257,11 @@ export function useAppPanels(options: {
         });
       };
 
-      const knownSourcePath = request.sourcePath?.trim();
-      if (knownSourcePath) {
-        openInBrowser(knownSourcePath);
-        return;
-      }
-
       void (async () => {
         try {
-          // 判据已经保证是本地 workspace（无 workspaceIdentity / remoteSessionId），
-          // 这里只带 workspacePath。
-          const result = await zcodeAgentService.conversationWorkflowRunArtifactsV4({
+          // 根因：全局历史先导航再开产物，同一帧的 services 仍可能属于旧远程 Host。
+          // 本地判据已通过，查询必须走本机 base Host，不能让旧 Host 决定本机文件的解析根。
+          const result = await localAgentService.conversationWorkflowRunArtifactsV4({
             workspacePath: request.workspacePath,
             sessionId: request.parentSessionId,
             runId: request.runId,
@@ -1169,7 +1277,7 @@ export function useAppPanels(options: {
             openArtifactTab();
             return;
           }
-          openInBrowser(sourcePath);
+          openInBrowser(sourcePath, result.executionWorkspacePath);
         } catch (error) {
           logger.warn("[App] 查产物出处失败，退回产物 tab", {
             artifactId: request.artifactId,
@@ -1182,9 +1290,9 @@ export function useAppPanels(options: {
     },
     [
       commitOpenedSidePaneState,
+      localAgentService,
       openFileUrlInBrowserSidePane,
       supportsEmbeddedBrowser,
-      zcodeAgentService,
     ],
   );
 
@@ -1291,6 +1399,7 @@ export function useAppPanels(options: {
   }, [sidePaneState, workspaceAbsPath]);
 
   const handleCloseCodeViewer = useCallback(() => {
+    terminalOpenRequestRef.current += 1;
     logger.info(`[App] 关闭右侧面板 mode=code-viewer workspace=${workspaceAbsPath}`);
     commitSidePaneState((current) => {
       const next = closeCodeViewerSidePane(current);
@@ -1300,6 +1409,7 @@ export function useAppPanels(options: {
   }, [commitSidePaneState, syncSidePaneCollapsedWithTabs, workspaceAbsPath]);
 
   const handleCloseGit = useCallback(() => {
+    terminalOpenRequestRef.current += 1;
     logger.info(`[App] 关闭右侧面板 mode=git workspace=${workspaceAbsPath}`);
     commitSidePaneState((current) => {
       const next = closeGitSidePane(current);
@@ -1422,6 +1532,7 @@ export function useAppPanels(options: {
 
   const handleCloseSidePaneTab = useCallback(
     (tabId: string) => {
+      terminalOpenRequestRef.current += 1;
       const closingTab = sidePaneState?.tabs.find((tab) => tab.id === tabId);
       if (closingTab?.type === "selection-side-chat") {
         closeSelectionSideChatRuntime(closingTab);
@@ -1462,6 +1573,7 @@ export function useAppPanels(options: {
 
   const handleCloseOtherSidePaneTabs = useCallback(
     (tabId: string) => {
+      terminalOpenRequestRef.current += 1;
       const visibleTabs =
         sidePaneState?.tabs.filter((tab) => isSidePaneTabVisibleForParent(tab, activeTaskId)) ?? [];
       const targetExists = visibleTabs.some((tab) => tab.id === tabId);
@@ -1499,6 +1611,7 @@ export function useAppPanels(options: {
   );
 
   const handleCloseAllSidePaneTabs = useCallback(() => {
+    terminalOpenRequestRef.current += 1;
     const visibleTabs =
       sidePaneState?.tabs.filter((tab) => isSidePaneTabVisibleForParent(tab, activeTaskId)) ?? [];
     void closeBrowserTabsWithAuthority(visibleTabs).then((authorized) => {

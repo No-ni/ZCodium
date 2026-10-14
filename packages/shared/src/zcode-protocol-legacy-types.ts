@@ -136,6 +136,8 @@ export const zcodeSessionInfoSchema = z
   .object({
     sessionId: nonEmptyString,
     workspace: zcodeWorkspaceRefSchema,
+    /** CLI 所有的会话执行目录；workspace 仍是身份/路由根。 */
+    executionWorkspacePath: nonEmptyString.optional(),
     parentSessionId: nonEmptyString.optional(),
     traceId: nonEmptyString.optional(),
     sessionKind: zcodeSessionKindSchema,

@@ -75,8 +75,8 @@ export interface ExploreSubagentRuntimeRequest {
   sessionId: SessionId;
   description: string;
   maxTurns?: number;
-  /** child session 已持久化且可被 projection/query 读取后、首次模型执行前调用。 */
-  onSessionReady?: () => Promise<void>;
+  /** child 已持久化/恢复后、首次模型执行前调用；目录为运行时裁决后的真实 cwd，旧注入可缺席。 */
+  onSessionReady?: (executionWorkspacePath?: string) => Promise<void>;
   permissionMode?: AgentProfile["permissionMode"];
   prompt: string;
   profile: AgentProfile;
@@ -223,7 +223,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
           reportActivity: activityWatchdog.reportActivity,
         },
         {
-          onSessionReady: async () => {
+          onSessionReady: async (executionWorkspacePath) => {
             await emitSubagentEvent(
               options,
               SessionEventType.SubagentSpawned,
@@ -233,6 +233,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
                 agentId: lifecycle.agentId,
                 agentType: request.agentType,
                 childSessionId: lifecycle.childSessionId,
+                childExecutionWorkspacePath: executionWorkspacePath ?? request.workingDirectory,
                 description: request.description,
                 prompt: request.prompt,
                 parentToolCallId: request.parentToolCallId,
@@ -462,7 +463,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
           ...(startOptions?.model ? { model: startOptions.model } : {}),
         },
         {
-          onSessionReady: async () => {
+          onSessionReady: async (executionWorkspacePath) => {
             await emitSubagentEvent(
               options,
               SessionEventType.SubagentSpawned,
@@ -473,6 +474,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
                 agentType: request.agentType,
                 background: true,
                 childSessionId: lifecycle.childSessionId,
+                childExecutionWorkspacePath: executionWorkspacePath ?? request.workingDirectory,
                 description: request.description,
                 prompt: request.prompt,
                 parentToolCallId: request.parentToolCallId,
@@ -989,7 +991,7 @@ async function resumeTerminalAgentInBackground(
     { signal: taskAbort.signal },
     {
       resumeFromStore: true,
-      onSessionReady: async () => {
+      onSessionReady: async (executionWorkspacePath) => {
         await emitSubagentEvent(
           options,
           SessionEventType.SubagentSpawned,
@@ -1000,6 +1002,7 @@ async function resumeTerminalAgentInBackground(
             agentType: resumeRequest.agentType,
             background: true,
             childSessionId: lifecycle.childSessionId,
+            childExecutionWorkspacePath: executionWorkspacePath ?? resumeRequest.workingDirectory,
             description: resumeRequest.description,
             outputFile: lifecycle.outputFile,
             parentToolCallId: resumeRequest.parentToolCallId,
@@ -1092,9 +1095,9 @@ async function runAgentToCompletion(
   executionOptions: SubagentExecutionOptions = {},
 ): Promise<{ events: SessionEvent[]; output: AgentCompletedOutput }> {
   let sessionReady = false;
-  const notifySessionReady = async () => {
+  const notifySessionReady = async (executionWorkspacePath?: string) => {
     if (sessionReady) return;
-    await executionOptions.onSessionReady?.();
+    await executionOptions.onSessionReady?.(executionWorkspacePath);
     sessionReady = true;
   };
   const childResult = await options.runExploreAgent(
@@ -1316,8 +1319,8 @@ async function runBackgroundAgent(
       {},
       {
         ...executionOptions,
-        onSessionReady: async () => {
-          await executionOptions.onSessionReady?.();
+        onSessionReady: async (executionWorkspacePath) => {
+          await executionOptions.onSessionReady?.(executionWorkspacePath);
           sessionReady = true;
         },
       },
@@ -1336,7 +1339,7 @@ async function runBackgroundAgent(
 
 interface SubagentExecutionOptions {
   resumeFromStore?: boolean;
-  onSessionReady?: () => Promise<void>;
+  onSessionReady?: (executionWorkspacePath?: string) => Promise<void>;
   onSessionStartFailed?: (error: unknown) => void;
 }
 

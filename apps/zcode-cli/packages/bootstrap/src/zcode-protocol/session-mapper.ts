@@ -58,6 +58,7 @@ const SNAPSHOT_INLINE_IMAGE_DATA_URL_MAX_BYTES = 20 * 1024 * 1024;
 
 export async function buildSessionSnapshot(input: {
   app: ZCodeApp;
+  executionWorkspacePath?: string;
   deliveryKind?: ZCodeDeliveryKind;
   eventSeq: number;
   fallbackCreatedAt?: number;
@@ -115,6 +116,7 @@ export async function buildSessionSnapshot(input: {
     }),
     session: mapSessionInfo({
       app: input.app,
+      executionWorkspacePath: input.executionWorkspacePath,
       fallbackCreatedAt: input.fallbackCreatedAt,
       fallbackUpdatedAt: input.fallbackUpdatedAt,
       projection,
@@ -278,6 +280,7 @@ export async function mapSessionSettings(
 
 export function mapSessionInfo(input: {
   app?: Pick<ZCodeApp, "getMode" | "getModel" | "sessionId" | "traceId">;
+  executionWorkspacePath?: string;
   fallbackCreatedAt?: number;
   fallbackUpdatedAt?: number;
   projection?: SessionProjection;
@@ -299,6 +302,8 @@ export function mapSessionInfo(input: {
     input.fallbackUpdatedAt ??
     input.projection?.updatedAt.getTime() ??
     createdAt;
+  // 根因：任务操作与 Gen UI 只能读到身份根，独立 cwd 必须由会话所有者投影，不能由 UI 重算。
+  const executionPath = input.executionWorkspacePath ?? input.session?.path;
   return {
     archivedAt: input.session?.time.archived,
     createdAt,
@@ -314,6 +319,9 @@ export function mapSessionInfo(input: {
     titleSource: input.session?.titleSource,
     updatedAt,
     workspace: input.workspace,
+    ...(executionPath && executionPath !== input.workspace.workspacePath
+      ? { executionWorkspacePath: executionPath }
+      : {}),
   };
 }
 

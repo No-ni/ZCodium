@@ -108,6 +108,8 @@ function useAssistantPreviewCardValidation(
     scope.workspacePath,
     scope.workspaceRemoteSessionId,
     scope.workspaceIdentity,
+    undefined,
+    scope.workspacePath ? "exact" : "ambient",
   );
   const cardsSignature = useMemo(() => getAssistantPreviewCardsValidationSignature(cards), [cards]);
   const validationCardsRef = useRef({ cards, signature: cardsSignature });

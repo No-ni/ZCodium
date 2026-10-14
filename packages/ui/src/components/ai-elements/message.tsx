@@ -95,7 +95,8 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useOptionalPlatform, usePlatform } from "@/hooks/usePlatform.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
-import { useOptionalServices } from "@/hooks/useServices.js";
+import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { resolveTaskExecutionWorkspaceServices } from "@/lib/taskExecutionWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import type { Theme } from "@/useTheme.js";
@@ -755,22 +756,30 @@ class MessageResponseMarkdownBoundary extends Component<
   }
 }
 
-function formatMarkdownFileLinkTargetHref(href: string): string {
-  const parsedTarget = parseMarkdownFileLinkTarget(href);
+function formatMarkdownFileLinkTargetHref(
+  href: string | ReturnType<typeof parseMarkdownFileLinkTarget>,
+): string {
+  const parsedTarget = typeof href === "string" ? parseMarkdownFileLinkTarget(href) : href;
+  // 解析已解码一次；序列化给 harden 后还会再进文件 renderer，保护文件名中的字面 percent-escape。
+  const serializedPath = parsedTarget.path.replaceAll("%", "%25");
   // Windows 盘符的 `C:` 会被 rehype-harden 当成未知 URI scheme，
   // 在自定义文件链接 renderer 运行前直接替换成 `[blocked]`。临时补成 `/C:/...`
   // 让安全层按普通 path 放行；resolveMarkdownFileLink 会在 Windows Host 上对称还原。
+  // 根因：UNC 对象结果仍含反斜杠时被当相对路径，直接改成 // 又会被 harden 吞掉 server。
+  // 沿用盘符的内部绝对路径格式，读取端仅在 Windows scope 下对称还原。
   const path = windowsDriveAbsolutePathPattern.test(parsedTarget.path)
-    ? `/${parsedTarget.path.replaceAll("\\", "/")}`
-    : fileUrlProtocolPattern.test(href)
-      ? parsedTarget.path
-      : parsedTarget.path.startsWith("./") ||
-          parsedTarget.path.startsWith("/") ||
-          parsedTarget.path.startsWith("#") ||
-          parsedTarget.path.startsWith("../") ||
-          /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(parsedTarget.path)
-        ? parsedTarget.path
-        : `./${parsedTarget.path}`;
+    ? `/${serializedPath.replaceAll("\\", "/")}`
+    : /^(?:\\\\|\/\/)/.test(parsedTarget.path)
+      ? `/UNC:${serializedPath.replaceAll("\\", "/").slice(1)}`
+      : typeof href === "string" && fileUrlProtocolPattern.test(href)
+        ? serializedPath
+        : parsedTarget.path.startsWith("./") ||
+            parsedTarget.path.startsWith("/") ||
+            parsedTarget.path.startsWith("#") ||
+            parsedTarget.path.startsWith("../") ||
+            /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(parsedTarget.path)
+          ? serializedPath
+          : `./${serializedPath}`;
   if (parsedTarget.lineNumber === null) {
     return path;
   }
@@ -806,21 +815,42 @@ function shouldRewriteMarkdownFileLinkHref(href: string): boolean {
   );
 }
 
-function rewriteLocalFileMarkdownTargetsRehypePlugin() {
+export function rewriteLocalFileMarkdownTargetsRehypePlugin(
+  options: { fileReferenceRootPath?: string; workspacePath?: string; homePath?: string } = {},
+) {
   return (tree: HastElementNode) => {
     const visitNode = (node: HastElementNode) => {
       const targetProperty = node.tagName === "a" ? "href" : node.tagName === "img" ? "src" : null;
       if (
         node.type === "element" &&
         targetProperty &&
-        typeof node.properties?.[targetProperty] === "string" &&
-        shouldRewriteMarkdownFileLinkHref(node.properties[targetProperty])
+        typeof node.properties?.[targetProperty] === "string"
       ) {
-        // markdown 图片和链接一样会先经过 rehype-harden。`file://` 会被安全层硬拦，
-        // 裸文件名又会被当成未知 URL；这里在 harden 前统一规整成本地路径/相对路径。
-        node.properties[targetProperty] = formatMarkdownFileLinkTargetHref(
-          node.properties[targetProperty],
-        );
+        const href = node.properties[targetProperty];
+        const parsedTarget = parseMarkdownFileLinkTarget(href);
+        const isRelativeFile =
+          !/^(?:[/#]|[a-zA-Z][a-zA-Z\d+.-]*:|~)/.test(parsedTarget.path) &&
+          (parsedTarget.path.includes("/") || hasFileExtension(getPathLeaf(parsedTarget.path)));
+        if (options.fileReferenceRootPath && isRelativeFile) {
+          // 根因：harden 会先消掉 ../，之后无法辨别文档父目录或越界路径；先按冻结根解析。
+          const resolved = resolveMarkdownFileLink(
+            options.fileReferenceRootPath,
+            `./${stripBalancedAssistantPathQuotes(href)}`,
+            {
+              workspaceRootPath: options.workspacePath,
+              homePath: options.homePath,
+            },
+          );
+          if (resolved) {
+            node.properties[targetProperty] = formatMarkdownFileLinkTargetHref(resolved);
+          } else {
+            delete node.properties[targetProperty];
+          }
+        } else if (shouldRewriteMarkdownFileLinkHref(href)) {
+          // markdown 图片和链接一样会先经过 rehype-harden。`file://` 会被安全层硬拦，
+          // 裸文件名又会被当成未知 URL；这里在 harden 前统一规整成本地路径/相对路径。
+          node.properties[targetProperty] = formatMarkdownFileLinkTargetHref(href);
+        }
       }
 
       node.children?.forEach(visitNode);
@@ -829,11 +859,6 @@ function rewriteLocalFileMarkdownTargetsRehypePlugin() {
     visitNode(tree);
   };
 }
-
-const messageRehypePlugins: PluggableList = [
-  rewriteLocalFileMarkdownTargetsRehypePlugin,
-  ...Object.values(defaultRehypePlugins),
-];
 
 const messageDefaultRemarkPlugins: PluggableList = Object.entries(defaultRemarkPlugins).map(
   ([name, plugin]) => {
@@ -1138,7 +1163,7 @@ interface MessageFileLinkProps {
 function MessageFileLink({ className, fileIconSrc, fileLink, onOpen }: MessageFileLinkProps) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
-  const services = useOptionalServices();
+  const baseServices = useOptionalBaseWorkspaceServices();
   const fileActions = useFileContextActions();
   const openInEditorContext = useWorkspaceOpenInEditorTarget({
     workspacePath: fileLink.workspacePath,
@@ -1187,7 +1212,15 @@ function MessageFileLink({ className, fileIconSrc, fileLink, onOpen }: MessageFi
   }, [editorsLoaded, fileLink.path, loadingEditors, platform]);
 
   const handleOpenInEditor = (editor: EditorInfo) => {
-    if (!services) {
+    // Code Viewer 可预览另一 Host 的文件，右键动作必须与左键一样消费冻结的来源身份。
+    const services = baseServices
+      ? resolveTaskExecutionWorkspaceServices({
+          baseServices,
+          workspaceIdentity: fileLink.workspaceIdentity,
+          remoteSessionId: fileLink.workspaceRemoteSessionId,
+        })
+      : null;
+    if (!services || (openInEditorContext.isRemoteWorkspace && !openInEditorContext.remoteTarget)) {
       logger.warn("[MessageResponse] 无法确认 markdown 链接文件类型", {
         editorId: editor.id,
         path: fileLink.path,
@@ -1376,6 +1409,20 @@ export const MessageResponse = memo(
       [projectedCitationMarkdown],
     );
     const streamdownMode = resolveMessageStreamdownMode(renderStreaming);
+    const messageRehypePlugins = useMemo<PluggableList>(
+      () => [
+        [
+          rewriteLocalFileMarkdownTargetsRehypePlugin,
+          {
+            fileReferenceRootPath: fileReferenceBase,
+            workspacePath,
+            homePath: workspaceHomePath,
+          },
+        ],
+        ...Object.values(defaultRehypePlugins),
+      ],
+      [fileReferenceBase, workspaceHomePath, workspacePath],
+    );
     const messageRemarkPlugins = useMemo<PluggableList>(
       () => [
         // 显式传 remarkPlugins 会覆盖 Streamdown 默认插件；
@@ -1464,6 +1511,7 @@ export const MessageResponse = memo(
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
           const fileLink = resolveMarkdownFileLink(fileReferenceBase, resolvedHref, {
             homePath: workspaceHomePath,
+            workspaceRootPath: workspacePath,
           });
 
           if (fileLink && (onOpenFileLink || onOpenCodeViewer)) {
@@ -1532,6 +1580,9 @@ export const MessageResponse = memo(
             {...imageProps}
             // MarkdownImage 只用这个值解析相对 `src`（不承担身份），因此给解析基准。
             workspacePath={fileReferenceBase}
+            workspaceRootPath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            workspaceRemoteSessionId={workspaceRemoteSessionId}
             workspaceHomePath={workspaceHomePath}
             sessionId={sessionId}
             readAttachment={readAttachment}

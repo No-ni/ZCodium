@@ -2933,9 +2933,10 @@ export const zcodeSavedWorkflowRunSchema = z
     parentSessionId: z.string().optional(),
     toolCallId: z.string().optional(),
     args: z.record(z.string(), z.unknown()).optional(),
-    // 实际运行的项目目录（`dwf_run.cwd`）。全局档的 `workflows/runs` 跨 cwd 查询，GUI 用它给
-    // 每行标项目；项目档变体里它恒等于 workspacePath，GUI 可忽略。老行可缺。
+    // 真正执行目录（dwf_run.cwd），用于解析产物文件引用。老行可缺。
     cwd: z.string().optional(),
+    // 父会话的工作区身份目录；全局历史据此找到目标项目，不能用独立执行目录猜项目。
+    workspacePath: nonEmptyString.optional(),
     // 这次运行发布的**用户面产物**：中枢的运行历史行在
     // 状态词之后画一串 kind chips，详情页头部的「最近产物」条取最近一次 completed run 的这一份。
     // ⚠ 术语：这里的 artifact 是脚本经 `artifact.*` 发布给用户看的产出，不是脚本的顶层返回值。

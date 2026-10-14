@@ -14,7 +14,7 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
-import { isWorkspaceReadOnly, isWorkspaceTab } from "@/store/tabStore.js";
+import { isWorkspaceReadOnly, isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import type { TaskChatMessage as TestChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -75,11 +75,19 @@ import {
   CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT,
   getCloseActiveContextSidePaneTab,
 } from "@/lib/closeActiveContext.js";
-import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
+import { usePaneLayoutStore, V4_PRIMARY_PANE_ID } from "@/v4/paneLayoutStore.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
 import { startMemoryDiagnosticsLogger } from "@/lib/memoryDiagnostics.js";
-import { useSessionWorkspacePath } from "@/v4/sessionWorkspacePath.js";
+import {
+  isTerminalExecutionPathReady,
+  useSessionWorkspacePath,
+} from "@/v4/sessionWorkspacePath.js";
+import {
+  applyPrimaryDraftEffectiveSessionBinding,
+  type PrimaryDraftEffectiveSessionBinding,
+  type PrimaryDraftEffectiveSessionBindingEvent,
+} from "@/v4/primaryDraftSessionBinding.js";
 
 const EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY: NonNullable<
   AppProps["reconnectingRemoteWorkspaceLogsByWorkspaceKey"]
@@ -174,6 +182,18 @@ export function App({
   // Settings tab 覆盖 workspace 时 active tab 不是 workspace tab。
   // 这里必须使用 Root 传入的 workspaceIdentity 兜底，否则远程断连态会把 /home/... 当成本地 base workspace 预热。
   const workspaceIdentity = workspaceRpcTarget.workspaceIdentity;
+  const workspacePurpose = useTabStore((state) => {
+    const identityKey = workspaceIdentity?.trim() || null;
+    const matchesWorkspace = (tab: (typeof state.tabs)[number]): tab is WorkspaceTabState =>
+      isWorkspaceTab(tab) &&
+      tab.workspacePath === workspaceAbsPath &&
+      (tab.workspaceIdentity?.trim() || null) === identityKey;
+    const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
+    const matchingTab =
+      (activeTab && matchesWorkspace(activeTab) ? activeTab : null) ??
+      state.tabs.find(matchesWorkspace);
+    return matchingTab?.workspacePurpose ?? null;
+  });
   const { rpcReady: workspaceRpcReady } = useWorkspaceServicesResolution(
     workspaceAbsPath,
     workspaceRpcTarget.remoteSessionId,
@@ -197,16 +217,94 @@ export function App({
   const draftSessionId = useZCodeSessionStore(
     (state) => state.getWorkspaceState(workspaceAbsPath, workspaceIdentity).draftSessionId,
   );
-  const sidePaneOwnerId = activeTaskId ?? draftSessionId ?? null;
+  const workspaceExecutionKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  const primaryDraftScopeSignature = JSON.stringify([
+    workspaceExecutionKey,
+    workspaceRemoteSessionId ?? null,
+    activeTaskId,
+    workspaceShellZCodeState.draftFocusVersion,
+  ]);
+  const primaryDraftScopeGenerationRef = useRef({
+    signature: primaryDraftScopeSignature,
+    token: {},
+  });
+  if (primaryDraftScopeGenerationRef.current.signature !== primaryDraftScopeSignature) {
+    primaryDraftScopeGenerationRef.current = {
+      signature: primaryDraftScopeSignature,
+      token: {},
+    };
+  }
+  const primaryDraftScopeToken = primaryDraftScopeGenerationRef.current.token;
+  const primaryDraftContextRef = useRef({
+    workspaceKey: workspaceExecutionKey,
+    activeTaskId,
+    isLocalWorkspace: !workspaceIdentity?.trim() && !workspaceRemoteSessionId,
+  });
+  primaryDraftContextRef.current = {
+    workspaceKey: workspaceExecutionKey,
+    activeTaskId,
+    isLocalWorkspace: !workspaceIdentity?.trim() && !workspaceRemoteSessionId,
+  };
+  const [primaryDraftBindingState, setPrimaryDraftBindingState] = useState<{
+    binding: PrimaryDraftEffectiveSessionBinding;
+    scopeToken: object;
+  } | null>(null);
+  const handlePrimaryDraftEffectiveSessionBindingChange = useCallback(
+    (event: PrimaryDraftEffectiveSessionBindingEvent) => {
+      setPrimaryDraftBindingState((currentState) => {
+        const context = primaryDraftContextRef.current;
+        const scopeToken = primaryDraftScopeGenerationRef.current.token;
+        const currentBinding =
+          currentState?.scopeToken === scopeToken ? currentState.binding : null;
+        const nextBinding = applyPrimaryDraftEffectiveSessionBinding(currentBinding, event, {
+          ...context,
+          primaryPaneId: V4_PRIMARY_PANE_ID,
+          scopeToken,
+        });
+        if (nextBinding === currentBinding) return currentState;
+        return nextBinding
+          ? {
+              binding: nextBinding,
+              scopeToken,
+            }
+          : null;
+      });
+    },
+    [],
+  );
+  const primaryDraftBinding =
+    primaryDraftBindingState?.scopeToken === primaryDraftScopeToken
+      ? primaryDraftBindingState.binding
+      : null;
+  const projectedPrimaryDraftBinding =
+    activeTaskId === null &&
+    !workspaceIdentity?.trim() &&
+    !workspaceRemoteSessionId &&
+    primaryDraftBinding?.workspaceKey === workspaceExecutionKey
+      ? primaryDraftBinding
+      : null;
+  const sessionPathTargetId =
+    activeTaskId ?? projectedPrimaryDraftBinding?.sessionId ?? draftSessionId ?? null;
+  const sidePaneOwnerId = sessionPathTargetId;
   // 会话执行 cwd 的唯一派生点（唯一一份回落规则）：命令面板 Cmd+P 的文件搜索根与
   // WorkspaceShellLayout（文件树 / 终端 / 文件搜索）共用这一份值。
   // 会话未绑定 / 旧 CLI 无快照字段时 `effectiveWorkspacePath` 就是 workspaceAbsPath。
-  const { sessionWorkspacePath, effectiveWorkspacePath } = useSessionWorkspacePath({
-    sessionId: activeTaskId,
-    workspacePath: workspaceAbsPath,
-    ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
+  const { sessionWorkspacePath, effectiveWorkspacePath, sessionWorkspacePathReady } =
+    useSessionWorkspacePath({
+      sessionId: sessionPathTargetId,
+      workspacePath: workspaceAbsPath,
+      ...(workspaceIdentity ? { workspaceIdentity } : {}),
+      ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
+    });
+  const terminalExecutionPathReady = isTerminalExecutionPathReady({
+    hasWorkspaceIdentity: Boolean(workspaceIdentity?.trim() || workspaceRemoteSessionId),
+    workspacePurpose,
+    sessionId: sessionPathTargetId,
+    sessionSnapshotReady: sessionWorkspacePathReady,
   });
+  // 根因：project 分类不是执行目录事实；显式打开对话根时仍须消费 CLI 投影，两种终端入口共用。
+  const terminalExecutionSessionId = sessionPathTargetId;
+  const terminalExecutionWorkspacePath = effectiveWorkspacePath;
   const [summaryPanelVariantOverride, setSummaryPanelVariantOverride] =
     useState<ChatViewSummaryPanelVariant | null>(null);
   const draftFocusVersion = workspaceShellZCodeState.draftFocusVersion;
@@ -264,6 +362,10 @@ export function App({
     workspaceRemoteSessionId,
     activeTaskId,
     sidePaneOwnerId,
+    terminalExecutionSessionId,
+    terminalExecutionWorkspacePath:
+      terminalExecutionSessionId === null ? null : sessionWorkspacePath,
+    terminalExecutionPathReady,
     isDesktop,
     isWorkspaceVisible,
     supportsEmbeddedBrowser,
@@ -1165,7 +1267,14 @@ export function App({
           projectName={projectName}
           workspaceTabs={workspaceTabs}
           activeTaskId={activeTaskId}
+          primaryDraftScopeToken={primaryDraftScopeToken}
+          onPrimaryDraftEffectiveSessionBindingChange={
+            handlePrimaryDraftEffectiveSessionBindingChange
+          }
           sessionWorkspacePath={sessionWorkspacePath}
+          terminalExecutionSessionId={terminalExecutionSessionId}
+          terminalExecutionWorkspacePath={terminalExecutionWorkspacePath}
+          terminalExecutionPathReady={terminalExecutionPathReady}
           effectiveWorkspacePath={effectiveWorkspacePath}
           sidePaneOwnerId={sidePaneOwnerId}
           activeTraceId={activeTraceId}

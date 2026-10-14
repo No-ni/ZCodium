@@ -104,6 +104,12 @@ export function ConversationWorkflowCompletion({
       sessionId={sessionId}
       shared={shared}
       theme={context.theme}
+      workspacePath={context.workspacePath}
+      fileReferenceRootPath={context.fileSearchRootPath ?? context.workspacePath}
+      {...(context.workspaceIdentity ? { workspaceIdentity: context.workspaceIdentity } : {})}
+      {...(context.workspaceRemoteSessionId
+        ? { workspaceRemoteSessionId: context.workspaceRemoteSessionId }
+        : {})}
       {...(openArtifactFrom === undefined ? {} : { openArtifactFrom })}
     />
   );
@@ -160,6 +166,10 @@ function WorkflowCompletionWithData({
   sessionId,
   shared,
   theme,
+  workspacePath,
+  fileReferenceRootPath,
+  workspaceIdentity,
+  workspaceRemoteSessionId,
 }: {
   completion: WorkflowTurnCompletion;
   live: readonly WorkflowRunArtifactSummary[] | undefined;
@@ -170,6 +180,10 @@ function WorkflowCompletionWithData({
   sessionId: string;
   shared: Omit<Parameters<typeof WorkflowCompletionCard>[0], "artifacts" | "renderPreview">;
   theme: ConversationRowRenderContext["theme"];
+  workspacePath: string;
+  fileReferenceRootPath: string;
+  workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
 }) {
   const state = useWorkflowRunArtifacts({
     sessionId,
@@ -192,6 +206,10 @@ function WorkflowCompletionWithData({
       runId={completion.runId}
       sessionId={sessionId}
       theme={theme}
+      workspacePath={workspacePath}
+      fileReferenceRootPath={state.executionWorkspacePath ?? fileReferenceRootPath}
+      {...(workspaceIdentity ? { workspaceIdentity } : {})}
+      {...(workspaceRemoteSessionId ? { workspaceRemoteSessionId } : {})}
     />
   );
   // 只有画出来的框挂预览——今天只有交付物行有框；索引行与「还有 N 个」不读字节。

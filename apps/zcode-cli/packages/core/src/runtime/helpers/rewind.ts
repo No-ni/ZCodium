@@ -87,8 +87,8 @@ export function stringifyWorkspaceCheckpointArtifact(
   candidate: FileMutationCheckpointCandidate,
   result: ToolExecutionResult,
   /**
-   * 创建这一刻的执行 cwd（`runtime.workspaceRoot`）。写入它是为了让 rewind 能在执行 cwd 后来
-   * 变化（存量会话补发独立目录等）时仍按「写下这些文件时的工作目录」解析相对路径。
+   * 工具执行时捕获的 cwd。写入它是为了让 rewind 能在执行 cwd 后来变化（Bash cd、存量会话
+   * 补发独立目录等）时仍按「写下这些文件时的工作目录」解析相对路径。
    */
   workspaceRoot?: string,
 ): string {

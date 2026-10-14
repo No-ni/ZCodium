@@ -50,6 +50,7 @@ interface DynamicWorkflowRunIntrospectionContext {
   introspection: DynamicWorkflowIntrospectableJournal;
   journal: JournalStorePort;
   parentSessionId: string;
+  workspaceDirectory?: string;
   /** service 的内存注册表（在飞 + 有界终态）。 */
   runs: ReadonlyMap<string, RunRegistryEntry>;
   /** 升级问答的停驻表，pendingQuestions 切片的唯一投影源。 */
@@ -93,7 +94,8 @@ export function createRunIntrospectionMethods(
       const listed = new Set(rows.map((row) => row.runId));
       const gapItems: DynamicWorkflowRunListItem[] = [];
       for (const [runId, entry] of runs) {
-        if (listed.has(runId) || entry.cwd !== query.cwd) continue;
+        if (listed.has(runId) || (entry.cwd !== query.cwd && ctx.workspaceDirectory !== query.cwd))
+          continue;
         // 行已存在却没被这次查询选中，说明它是被 limit / statuses 排除的——补集绝不
         // 把它捞回来（那等于让一个显式传下来的过滤器静默失效）。
         if (journal.getRun(runId) !== undefined) continue;
@@ -193,9 +195,7 @@ export function createRunIntrospectionMethods(
         ),
         // 草稿只在已确认同步时可用于修订；与快照共用投影，不能让详情重新暴露写回失败的旧文件。
         // 冷行只有启动路径，补全后不能据此证明磁盘内容已同步。
-        ...runScriptPathField(
-          synchronizedRunScriptPath(journal, runId, entry, stored),
-        ),
+        ...runScriptPathField(synchronizedRunScriptPath(journal, runId, entry, stored)),
         usage: {
           // 直读 dwf_run.spent_tokens：run 级 token 用量的唯一权威。
           spentTokens: row.spentTokens,

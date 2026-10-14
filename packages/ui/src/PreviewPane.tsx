@@ -506,6 +506,7 @@ export function PreviewPane({
     workspacePath: sourceWorkspacePath,
     workspaceIdentity: source?.workspaceIdentity,
     workspaceRemoteSessionId: source?.workspaceRemoteSessionId,
+    scopeResolution: source?.workspacePath ? "exact" : "ambient",
   });
   const openInEditorRemoteTarget = matchedOpenContext.remoteTarget;
   const isRemoteSource = Boolean(
@@ -518,6 +519,8 @@ export function PreviewPane({
     sourceWorkspacePath,
     source?.workspaceRemoteSessionId,
     source?.workspaceIdentity,
+    undefined,
+    source?.workspacePath ? "exact" : "ambient",
   );
   const [filePreview, setFilePreview] = useState<FileTextSlice | null>(null);
   const [fileTooLarge, setFileTooLarge] = useState(false);

@@ -83,7 +83,10 @@ import type {
   WorkspaceId,
 } from "@zcode/contracts";
 import { HYDRATION_TRACE_ID } from "../zcode-protocol-v4/projection-state.js";
-import { resolveConversationWorkspaceRootFromEnv } from "../app/conversation-session-workspace.js";
+import {
+  ensureConversationSessionWorkspaceForExecution,
+  resolveConversationWorkspaceRootFromEnv,
+} from "../app/conversation-session-workspace.js";
 import {
   isConversationSessionDirectoryInUseAcrossProcesses,
   reclaimConversationSessionDirOnDelete,
@@ -735,7 +738,6 @@ export function createConversationV4Gateway(
       return gateway.waitForProjectionEventCommit(sessionId, eventId, options);
     },
     admitInputCommand: async (envelope, sessionId, admission) => {
-      if (!context.deps.sessionStore?.saveSessionInput) return null;
       const input = resolveInputCommandForAdmission(
         envelope,
         sessionId,
@@ -745,6 +747,18 @@ export function createConversationV4Gateway(
       if (!input) return null;
       const kind = input.kind;
       const record = context.sessions.get(sessionId);
+      if (record) {
+        await ensureConversationSessionWorkspaceForExecution({
+          conversationRoot: resolveConversationWorkspaceRootFromEnv(
+            context.deps.env ?? process.env,
+          ),
+          executionWorkspacePath: record.executionWorkspacePath,
+          logger: context.logger,
+          workspaceIdentity: record.workspace.workspaceIdentity,
+          workspacePath: record.workspace.workspacePath,
+        });
+      }
+      if (!context.deps.sessionStore?.saveSessionInput) return null;
       if (record?.persistence === "deferred") {
         // session_input 有 session 外键；draft 要到 startPromptTurn 后台阶段才持久化，
         // 如果先写 ledger 会直接 FK 失败，accepted 前仍没有权威记录。因此 admission
@@ -1725,6 +1739,8 @@ export function createConversationV4Gateway(
       return record.app.listDynamicWorkflowRuns(input);
     },
     // dwf 用户面产物的三个读面：能力条件同上。
+    getDynamicWorkflowRunExecutionWorkspacePath: async (sessionId, input) =>
+      context.sessions.get(sessionId)?.app.getDynamicWorkflowRunExecutionWorkspacePath?.(input),
     // ⚠ 术语：artifact = 脚本经 `artifact.*` 发布给用户看的产出，不是 run 的顶层返回值。
     listDynamicWorkflowRunArtifacts: async (sessionId, input) => {
       const record = context.sessions.get(sessionId);

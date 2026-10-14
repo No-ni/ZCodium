@@ -8,6 +8,7 @@ import {
   type GenUiDocument,
   type GenUiStateTarget,
 } from "@zcode/shared/gen-ui";
+import type { GenUiConversationOutput } from "../contract.js";
 
 export function assertGenUiFragment(html: string): void {
   if (Buffer.byteLength(html, "utf8") > GEN_UI_HTML_MAX_BYTES)
@@ -18,17 +19,34 @@ export function assertGenUiFragment(html: string): void {
 export async function readGenUiDocument(
   raw: GenUiStateTarget,
   outputRoot: string,
+  conversation?: GenUiConversationOutput,
 ): Promise<GenUiDocument> {
   const input = genUiStateTargetSchema.parse(raw);
   if (!isAbsolute(input.path) || !isAbsolute(input.workspacePath))
     throw new Error("Invalid executor path");
-  const root = resolve(outputRoot),
-    sessionRoot = getGenUiOutputDirectory(outputRoot, {
-      workspacePath: input.workspacePath,
-      workspaceIdentity: input.workspaceIdentity,
-      sessionId: input.sessionId,
-    }),
-    file = normalize(input.path);
+  const scope = {
+    workspacePath: input.workspacePath,
+    workspaceIdentity: input.workspaceIdentity,
+    sessionId: input.sessionId,
+  };
+  let root = resolve(outputRoot);
+  let sessionRoot = getGenUiOutputDirectory(outputRoot, scope);
+  const file = normalize(input.path);
+  if (
+    conversation &&
+    !input.workspaceIdentity?.trim() &&
+    resolve(conversation.conversationWorkspaceRoot) === resolve(input.workspacePath)
+  ) {
+    const child = relative(resolve(input.workspacePath), file);
+    if (child && child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child)) {
+      // 根因：只换模型输出路径会被旧 Host 拒读。授权根必须查询 CLI，不能取模型/Renderer 的路径。
+      sessionRoot = getGenUiOutputDirectory(outputRoot, scope, {
+        conversationWorkspaceRoot: conversation.conversationWorkspaceRoot,
+        executionWorkspacePath: await conversation.resolveSessionWorkspacePath(scope),
+      });
+      root = resolve(conversation.conversationWorkspaceRoot);
+    }
+  }
   const sessionChild = relative(sessionRoot, file);
   if (
     !sessionChild ||
@@ -40,11 +58,12 @@ export async function readGenUiDocument(
   const child = relative(root, file);
   // 修复依据：realpath 后再做前缀判断仍可能放行替换中的符号链接；逐级拒绝链接并核对打开的文件身份。
   const canonicalRoot = await realpath(root);
-  getGenUiOutputDirectory(canonicalRoot, {
-    workspacePath: await realpath(input.workspacePath),
-    workspaceIdentity: input.workspaceIdentity,
-    sessionId: input.sessionId,
-  });
+  if (root === resolve(outputRoot))
+    getGenUiOutputDirectory(canonicalRoot, {
+      workspacePath: await realpath(input.workspacePath),
+      workspaceIdentity: input.workspaceIdentity,
+      sessionId: input.sessionId,
+    });
   let current = canonicalRoot;
   for (const segment of child.split(sep)) {
     current = join(current, segment);

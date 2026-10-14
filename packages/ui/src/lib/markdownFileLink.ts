@@ -10,13 +10,15 @@ interface ParsedMarkdownFileLink {
 export interface MarkdownFileLinkResolveOptions {
   /** 当前 workspace Host 报告的用户 Home；Renderer 不自行读取本机 Home。 */
   homePath?: string;
+  /** 文件必须留在这个 workspace 身份边界内；缺席时沿用相对解析基准。 */
+  workspaceRootPath?: string;
 }
 
 const LINE_AND_COLUMN_SUFFIX_RE = /^(?<path>.+):(?<line>\d+):(?<column>\d+)$/;
 const LINE_SUFFIX_RE = /^(?<path>.+):(?<line>\d+)$/;
 const HASH_LINE_SUFFIX_RE = /^(?<path>.+)#L(?<line>\d+)(?:-L?\d+)?$/i;
 const FILE_URL_PROTOCOL_RE = /^file:\/\//i;
-const HARDEN_SAFE_WINDOWS_ABSOLUTE_PATH_RE = /^\/[a-zA-Z]:\//;
+const HARDEN_SAFE_WINDOWS_ABSOLUTE_PATH_RE = /^\/(?:[a-zA-Z]:|UNC:)\//;
 const COMMON_UNIX_ABSOLUTE_ROOT_SEGMENTS = new Set([
   "Applications",
   "Library",
@@ -79,7 +81,6 @@ function isBareWorkspaceRelativeFileHref(href: string): boolean {
     !href ||
     href.startsWith("/") ||
     href.startsWith("#") ||
-    href.startsWith("../") ||
     /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(href)
   ) {
     return false;
@@ -106,8 +107,14 @@ function isLikelyUnixAbsoluteFilePath(path: string): boolean {
 }
 
 function isPathInsideWorkspaceRoot(path: string, workspacePath: string): boolean {
-  const normalizedPath = path.replace(/\\/g, "/").replace(/\/$/, "");
-  const normalizedWorkspacePath = workspacePath.replace(/\\/g, "/").replace(/\/$/, "");
+  let normalizedPath = path.replace(/\\/g, "/").replace(/\/$/, "");
+  let normalizedWorkspacePath = workspacePath.replace(/\\/g, "/").replace(/\/$/, "");
+  // 根因：Windows 文档路径与身份根可能只有大小写不同，敏感比较会在 harden 前删掉合法引用。
+  // 仅按盘符/UNC 形状折叠，不能用 Renderer 平台影响 POSIX 远端；实际输出保留原始拼写。
+  if (/^(?:[a-zA-Z]:\/|\/\/)/.test(normalizedWorkspacePath)) {
+    normalizedPath = normalizedPath.toLowerCase();
+    normalizedWorkspacePath = normalizedWorkspacePath.toLowerCase();
+  }
   return (
     normalizedPath === normalizedWorkspacePath ||
     normalizedPath.startsWith(`${normalizedWorkspacePath}/`)
@@ -176,6 +183,24 @@ function resolveContainedWorkspaceRelativePath(
   return joinFilePath(workspacePath, normalizedRelativePath.replaceAll("/", separator));
 }
 
+function resolveContainedDocumentRelativePath(
+  documentPath: string,
+  workspaceRootPath: string,
+  relativePath: string,
+): string | null {
+  if (!isPathInsideWorkspaceRoot(documentPath, workspaceRootPath)) return null;
+  const normalizedDocumentPath = documentPath.replace(/\\/g, "/").replace(/\/$/, "");
+  const normalizedWorkspaceRootPath = workspaceRootPath.replace(/\\/g, "/").replace(/\/$/, "");
+  const relativeDocumentPath =
+    normalizedDocumentPath === normalizedWorkspaceRootPath
+      ? ""
+      : normalizedDocumentPath.slice(normalizedWorkspaceRootPath.length + 1);
+  return resolveContainedWorkspaceRelativePath(
+    workspaceRootPath,
+    [relativeDocumentPath, relativePath].filter(Boolean).join("/"),
+  );
+}
+
 export function parseMarkdownFileLinkTarget(href: string): ParsedMarkdownFileLink {
   // 只在路径归一化阶段解码一次；入口提前 decode 会让 `%2520` 变成 `%20`，
   // 再由 normalizeMarkdownFilePath 解码成空格，破坏文件名中的字面 percent-escape。
@@ -228,11 +253,13 @@ export function resolveMarkdownFileLink(
   href: string,
   options: MarkdownFileLinkResolveOptions = {},
 ): ParsedMarkdownFileLink | null {
-  // 聊天消息里的本地文件链接现在既可能是 `./src/app.ts` 这种工作区相对路径，
+  // 聊天消息里的本地文件链接现在既可能是 `./src/app.ts` 这种文档相对路径，
   // 也可能是 `/abs/path/app.ts:30` 这种绝对路径 + 行号。
-  // 只看到前导 `/` 就当成 workspace 子路径会让绝对路径被再拼一次 workspace 前缀，
+  // 相对基准由调用方提供，身份边界由 workspaceRootPath 单独提供；只看到前导 `/` 就当成
+  // workspace 子路径会让绝对路径被再拼一次前缀，
   // 同时 `:30` 也会混进文件名里。这里先拆掉可选行号，再把“相对路径”和“绝对路径”分开解析。
   const parsedTarget = parseMarkdownFileLinkTarget(href);
+  const workspaceRootPath = options.workspaceRootPath ?? workspacePath;
 
   if (isUnsupportedNamedHomePath(parsedTarget.path)) {
     return null;
@@ -249,23 +276,30 @@ export function resolveMarkdownFileLink(
   }
 
   if (HARDEN_SAFE_WINDOWS_ABSOLUTE_PATH_RE.test(parsedTarget.path)) {
-    // `/C:/...` 只是在 Windows Markdown 渲染管线中绕过 harden 的内部格式。
-    // 旧 guard 只把盘符 workspace 当成 Windows，遗漏统一路径工具已支持的 UNC。
-    // Windows workspace 既可能是盘符也可能是反斜杠 UNC；以 `/` 开头的 Unix 路径仍须拒绝。
-    if (!workspacePath || workspacePath.startsWith("/") || !isAbsoluteFilePath(workspacePath)) {
+    // `/C:/...` 与 `/UNC:/...` 是 harden 的内部格式；UNC 若直接交给 URL 归一会丢掉 server。
+    // 只在 Windows 路径作用域对称还原，不能将这种内部格式解释成 POSIX 相对文件。
+    if (
+      !workspaceRootPath ||
+      !/^(?:[a-zA-Z]:\/|\/\/)/.test(workspaceRootPath.replace(/\\/g, "/"))
+    ) {
       return null;
     }
     return {
       ...parsedTarget,
-      path: parsedTarget.path.slice(1),
+      path: parsedTarget.path.startsWith("/UNC:/")
+        ? parsedTarget.path.replace(/^\/UNC:\//, "//")
+        : parsedTarget.path.slice(1),
     };
   }
+
+  // UNC 是绝对路径；不能落入前导 / 的文档相对路径分支后被再拼一次执行根。
+  if (parsedTarget.path.startsWith("//")) return parsedTarget;
 
   if (
     isWorkspaceRelativeFileHref(parsedTarget.path) ||
     isBareWorkspaceRelativeFileHref(parsedTarget.path)
   ) {
-    if (!workspacePath) {
+    if (!workspacePath || !workspaceRootPath) {
       return null;
     }
 
@@ -276,7 +310,11 @@ export function resolveMarkdownFileLink(
       return null;
     }
 
-    const containedPath = resolveContainedWorkspaceRelativePath(workspacePath, relativePath);
+    const containedPath = resolveContainedDocumentRelativePath(
+      workspacePath,
+      workspaceRootPath,
+      relativePath,
+    );
     if (!containedPath) return null;
 
     return {
@@ -287,12 +325,13 @@ export function resolveMarkdownFileLink(
 
   if (
     workspacePath &&
+    workspaceRootPath &&
     parsedTarget.path.startsWith("/") &&
     !isLikelyUnixAbsoluteFilePath(parsedTarget.path)
   ) {
     // 远程 workspace 常见 `/workspace`、`/repo` 这类非系统根目录。
-    // 如果链接已经位于当前 workspace 内，不能再按 Markdown 根相对路径拼接一次。
-    if (isPathInsideWorkspaceRoot(parsedTarget.path, workspacePath)) {
+    // 如果链接已经位于当前 workspace 身份边界内，不能再按文档目录相对路径拼接一次。
+    if (isPathInsideWorkspaceRoot(parsedTarget.path, workspaceRootPath)) {
       return parsedTarget;
     }
     // Streamdown/rehype-harden 会把 `./flappy.html` 规范化成 `/flappy.html`。

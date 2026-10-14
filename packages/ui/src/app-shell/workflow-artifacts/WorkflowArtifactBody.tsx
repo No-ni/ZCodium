@@ -79,6 +79,11 @@ interface WorkflowArtifactBodyProps {
   onOpenBrowserUrl?: (url: string) => void;
   /** 本地文件系统上的绝对路径（desktop-local ∧ `sourcePath` 在场时才有）。 */
   localSourcePath?: string;
+  /** Markdown 相对链接的 workspace 身份边界与来源文档目录。 */
+  workspacePath?: string;
+  fileReferenceRootPath?: string;
+  workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
   /** 「在工作区显示」：已绑定好路径的文件树 reveal；缺席即无渲染器的卡片上不出这个按钮。 */
   onReveal?: () => void;
   /** 查看的是不是最新版——旧版的工作区原文件早就被覆盖了，html 预览因此只对最新版开放。 */
@@ -155,6 +160,10 @@ function WorkflowArtifactContent({
   onOpenBrowserUrl,
   onReveal,
   localSourcePath,
+  workspacePath,
+  fileReferenceRootPath,
+  workspaceIdentity,
+  workspaceRemoteSessionId,
   isLatestVersion,
 }: WorkflowArtifactBodyProps & { bytes: Uint8Array<ArrayBuffer> }) {
   const { intl } = useZCodeIntl();
@@ -200,7 +209,11 @@ function WorkflowArtifactContent({
       <div className="h-full min-h-0 overflow-y-auto px-4 py-4" data-artifact-body="markdown">
         <MessageResponse
           className="mx-auto w-full min-w-0 max-w-4xl break-words text-foreground"
+          fileReferenceRootPath={fileReferenceRootPath}
           theme={theme}
+          workspaceIdentity={workspaceIdentity}
+          workspacePath={workspacePath}
+          workspaceRemoteSessionId={workspaceRemoteSessionId}
         >
           {text ?? ""}
         </MessageResponse>

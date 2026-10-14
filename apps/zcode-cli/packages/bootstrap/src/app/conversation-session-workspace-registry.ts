@@ -1,5 +1,5 @@
 import { realpath } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 /**
  * 对话会话目录的**观测与比对面**：从会话库读出「哪些执行目录仍在册」，并回答
@@ -88,7 +88,8 @@ export async function readRegisteredConversationSessionDirs(
 }
 
 /**
- * 「同一个执行目录」的比较 key：`realpath` 优先、失败回落 `resolve`，再按平台折叠大小写
+ * 「同一个执行目录」的比较 key：`realpath` 优先，缺失时解析最近祖先并保留后缀，其他失败回落
+ * `resolve`，再按平台折叠大小写
  * （win32 / darwin 的默认文件系统大小写不敏感，Linux 大小写敏感，不能折叠）。
  *
  * 为什么不能用 `resolve` 后的字符串直接比：库里行的 `path` 与清扫侧拼出的候选路径只要
@@ -98,8 +99,22 @@ export async function readRegisteredConversationSessionDirs(
  */
 export async function conversationSessionDirectoryKey(directory: string): Promise<string> {
   const resolved = resolve(directory);
-  const canonical = await realpath(resolved).catch(() => resolved);
-  return foldConversationSessionDirectoryCase(canonical);
+  let current = resolved;
+  const suffix: string[] = [];
+  // 根因：叶目录缺失时直接回落 resolve 会丢失 /var 等根别名，仍在册的名字随后被重复分配。
+  // 只对缺失路径向上找可解析祖先，再保留原后缀；权限等其他错误仍沿用词法 key。
+  for (;;) {
+    try {
+      return foldConversationSessionDirectoryCase(join(await realpath(current), ...suffix));
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const parent = dirname(current);
+      if ((code !== "ENOENT" && code !== "ENOTDIR") || parent === current)
+        return foldConversationSessionDirectoryCase(resolved);
+      suffix.unshift(basename(current));
+      current = parent;
+    }
+  }
 }
 
 /**

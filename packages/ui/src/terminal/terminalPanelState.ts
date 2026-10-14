@@ -3,7 +3,10 @@ import { createUuid } from "@zcode/shared";
 
 export interface TerminalSessionDescriptor {
   id: string;
+  /** 按执行会话选择 tab 组；同一 workspace 可保留多组。 */
   workspaceKey: string;
+  /** workspace 关闭时回收 PTY 的稳定身份根，不随任务切换变化。 */
+  ownerWorkspaceKey: string;
   services: IServiceAccessor;
   cwd?: string;
   index: number;
@@ -22,6 +25,7 @@ export interface TerminalPanelState {
 
 export function createTerminalSession(params: {
   workspaceKey: string;
+  ownerWorkspaceKey: string;
   services: IServiceAccessor;
   cwd?: string;
   index: number;
@@ -29,6 +33,7 @@ export function createTerminalSession(params: {
   return {
     id: createUuid(),
     workspaceKey: params.workspaceKey,
+    ownerWorkspaceKey: params.ownerWorkspaceKey,
     services: params.services,
     cwd: params.cwd,
     index: params.index,
@@ -38,6 +43,7 @@ export function createTerminalSession(params: {
 
 export function createWorkspaceTerminalState(params: {
   workspaceKey: string;
+  ownerWorkspaceKey: string;
   services: IServiceAccessor;
   cwd?: string;
 }): {
@@ -46,6 +52,7 @@ export function createWorkspaceTerminalState(params: {
 } {
   const session = createTerminalSession({
     workspaceKey: params.workspaceKey,
+    ownerWorkspaceKey: params.ownerWorkspaceKey,
     services: params.services,
     cwd: params.cwd,
     index: 1,
@@ -82,6 +89,30 @@ export function getNextTerminalSessionIndex(
 
 export function formatTerminalTabTitle(projectName: string, index: number): string {
   return index === 1 ? projectName : `${projectName} ${index}`;
+}
+
+export function resolveTerminalWorkspaceScopeKey(params: {
+  workspaceOwnerKey: string;
+  workspacePath: string;
+  sessionId: string | null;
+  sessionWorkspacePath: string | null;
+  sessionWorkspacePathReady: boolean;
+  isLocalWorkspace: boolean;
+}): string | null {
+  if (!params.sessionWorkspacePathReady) {
+    return null;
+  }
+
+  if (
+    !params.isLocalWorkspace ||
+    !params.sessionId ||
+    !params.sessionWorkspacePath ||
+    params.sessionWorkspacePath === params.workspacePath
+  ) {
+    return params.workspaceOwnerKey;
+  }
+
+  return JSON.stringify([params.workspaceOwnerKey, params.sessionId]);
 }
 
 type TerminalSessionCloseAction = "none" | "close-panel" | "close-session";
@@ -174,6 +205,7 @@ export function ensureWorkspaceTerminalState(
   state: TerminalPanelState,
   params: {
     workspaceKey: string;
+    ownerWorkspaceKey: string;
     services: IServiceAccessor;
     cwd?: string;
   },
@@ -194,4 +226,35 @@ export function ensureWorkspaceTerminalState(
       [params.workspaceKey]: workspace,
     },
   };
+}
+
+export function retainOpenTerminalWorkspaceStates(
+  state: TerminalPanelState,
+  openWorkspaceOwnerKeys: string[],
+  activeWorkspaceOwnerKey: string,
+): TerminalPanelState {
+  const retainedOwnerKeys = new Set(openWorkspaceOwnerKeys);
+  retainedOwnerKeys.add(activeWorkspaceOwnerKey);
+  const removedWorkspaceKeys = Object.keys(state.workspaces).filter((workspaceKey) => {
+    const workspace = state.workspaces[workspaceKey];
+    const ownerWorkspaceKey = workspace?.sessionIds
+      .map((sessionId) => state.sessions[sessionId]?.ownerWorkspaceKey)
+      .find((value): value is string => Boolean(value));
+    return !ownerWorkspaceKey || !retainedOwnerKeys.has(ownerWorkspaceKey);
+  });
+  if (removedWorkspaceKeys.length === 0) {
+    return state;
+  }
+
+  const nextWorkspaces = { ...state.workspaces };
+  const nextSessions = { ...state.sessions };
+  for (const removedWorkspaceKey of removedWorkspaceKeys) {
+    const workspace = nextWorkspaces[removedWorkspaceKey];
+    delete nextWorkspaces[removedWorkspaceKey];
+    for (const sessionId of workspace?.sessionIds ?? []) {
+      delete nextSessions[sessionId];
+    }
+  }
+
+  return { sessions: nextSessions, workspaces: nextWorkspaces };
 }

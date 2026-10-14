@@ -1494,6 +1494,7 @@ const enUS: Record<string, string> = {
   "appHeader.openInFileExplorer": "Open in File Explorer",
   "appHeader.openInFileManager": "Open in File Manager",
   "appHeader.openInFileManagerFailed": "Could not open in the system file manager",
+  "appHeader.taskWorkingDirectoryUnavailable": "Could not resolve this task's working directory",
   "appHeader.openInEditor": "Open in {editor}",
   "appHeader.selectOpenApp": "Choose app",
   "appHeader.copyPath": "Copy path",
@@ -1945,6 +1946,9 @@ const enUS: Record<string, string> = {
   "terminal.toggle": "Toggle terminal",
   "terminal.close": "Close terminal pane",
   "terminal.new": "New terminal",
+  "terminal.executionPathPending":
+    "Wait for this workspace session to finish loading before opening a terminal.",
+  "terminal.executionPathUnavailable": "Could not resolve the current task workspace.",
   "terminal.closeTab": "Close {title}",
   "terminal.contextMenu.copy": "Copy",
   "terminal.contextMenu.paste": "Paste",

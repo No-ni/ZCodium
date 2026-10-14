@@ -90,6 +90,20 @@ describe("resolveSidebarFileTreePath", () => {
     expect(resolve({ target: createTarget({ taskId: ACTIVE_TASK_ID }) })).toBe(SESSION_DIR);
   });
 
+  it("重复 workspace tab 的文件树显式不绑定当前会话时回到身份根", () => {
+    expect(resolve({ target: createTarget({ taskId: null }) })).toBe(CONVERSATION_ROOT);
+  });
+
+  it("非激活重复 tab 在当前草稿预热后仍使用身份根", () => {
+    expect(resolve({ target: createTarget({ taskId: null }), activeTaskId: null })).toBe(
+      CONVERSATION_ROOT,
+    );
+  });
+
+  it("当前 tab 的草稿请求省略 taskId 时跟随已知预热目录", () => {
+    expect(resolve({ target: createTarget(), activeTaskId: null })).toBe(SESSION_DIR);
+  });
+
   it("任务行是同一 workspace 的**另一个**会话时用目标自身的工作区路径（不借用激活会话目录）", () => {
     // 对话工作区里每个会话的 workspacePath 都是对话根 ⇒ workspaceKey 相等，只有 taskId 能区分。
     // 回归形态：借用激活会话目录会让用户点 B 的文件树却看到 A 的文件（拖拽/Add to chat 也拿 A 的）。
@@ -102,6 +116,31 @@ describe("resolveSidebarFileTreePath", () => {
         }),
       }),
     ).toBe(CONVERSATION_ROOT);
+  });
+
+  it("inactive task target uses its frozen execution directory after exact lookup", () => {
+    const otherTaskPath = `${CONVERSATION_ROOT}/2026-10-10/ffffffff`;
+
+    expect(
+      resolve({
+        target: createTarget({
+          taskId: OTHER_TASK_ID,
+          executionWorkspacePath: otherTaskPath,
+        }),
+        activeSessionWorkspacePath: SESSION_DIR,
+      }),
+    ).toBe(otherTaskPath);
+    // 激活会话之后再次改变，也不会改写这棵已打开树的目标目录。
+    expect(
+      resolve({
+        target: createTarget({
+          taskId: OTHER_TASK_ID,
+          executionWorkspacePath: otherTaskPath,
+        }),
+        activeTaskId: OTHER_TASK_ID,
+        activeSessionWorkspacePath: SESSION_DIR,
+      }),
+    ).toBe(otherTaskPath);
   });
 
   it("任务行但会话未绑定（草稿态 activeTaskId = null）时用目标自身的工作区路径", () => {

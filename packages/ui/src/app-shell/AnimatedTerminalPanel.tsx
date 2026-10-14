@@ -12,6 +12,9 @@ export function AnimatedTerminalPanel({
   services,
   workspaceAbsPath,
   workspaceIdentity,
+  cwd,
+  terminalWorkspaceKey,
+  executionWorkspacePathReady,
   openWorkspaceKeys,
   isVisible,
   isWindowsDesktop,
@@ -24,6 +27,9 @@ export function AnimatedTerminalPanel({
   services: IServiceAccessor;
   workspaceAbsPath: string;
   workspaceIdentity?: string;
+  cwd: string;
+  terminalWorkspaceKey: string | null;
+  executionWorkspacePathReady: boolean;
   openWorkspaceKeys?: string[];
   isVisible: boolean;
   isWindowsDesktop?: boolean;
@@ -135,8 +141,11 @@ export function AnimatedTerminalPanel({
               >
                 <Terminal
                   services={services}
-                  cwd={workspaceAbsPath}
+                  workspacePath={workspaceAbsPath}
+                  cwd={cwd}
                   workspaceIdentity={workspaceIdentity}
+                  terminalWorkspaceKey={terminalWorkspaceKey}
+                  executionWorkspacePathReady={executionWorkspacePathReady}
                   openWorkspaceKeys={openWorkspaceKeys}
                   isVisible={isVisible}
                   isPanelResizing={isTerminalPanelResizing}

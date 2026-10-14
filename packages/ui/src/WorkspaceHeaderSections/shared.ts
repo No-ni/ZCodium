@@ -22,6 +22,7 @@ export interface WorkspaceHeaderTitleSectionProps {
   variant?: WorkspaceHeaderVariant;
   readOnlyReason?: string;
   workspaceAbsPath: string;
+  sessionWorkspacePath: string | null;
   remoteSessionId?: string;
   workspaceIdentity?: string;
   remoteTarget?: RemoteTarget;
@@ -59,6 +60,7 @@ export interface WorkspaceHeaderActionSectionProps {
   activeTaskId?: string | null;
   readOnlyReason?: string;
   workspaceAbsPath: string;
+  sessionWorkspacePath: string | null;
   workspaceIdentity?: string;
   remoteSessionId?: string;
   remoteTarget?: RemoteTarget;

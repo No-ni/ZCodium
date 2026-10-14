@@ -5,10 +5,47 @@ import type {
   SavedWorkflowsOpenRunParams,
 } from "@/settings/saved-workflows/savedWorkflowContract.js";
 
-/** 一行运行记录归属的项目（项目档恒定，全局档按 `run.cwd` 反查）。 */
+/** 一行运行记录归属的项目（项目档恒定，全局档按 `workspacePath ?? cwd` 反查）。 */
 interface SavedWorkflowRunOpenTarget {
   workspacePath: string;
   workspaceIdentity?: string;
+}
+
+export function buildSavedWorkflowRunOpenParams(
+  run: ZCodeSavedWorkflowRun,
+  workflowName: string,
+  target: SavedWorkflowRunOpenTarget,
+  sessionId: string,
+  toolCallId: string,
+): SavedWorkflowsOpenRunParams {
+  return {
+    sessionId,
+    runId: run.runId,
+    toolCallId,
+    workflowName,
+    workspacePath: target.workspacePath,
+    ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+    fileReferenceRootPath: run.cwd?.trim() || target.workspacePath,
+  };
+}
+
+export function buildSavedWorkflowArtifactOpenParams(
+  run: ZCodeSavedWorkflowRun,
+  artifactId: string,
+  target: SavedWorkflowRunOpenTarget,
+  sessionId: string,
+): SavedWorkflowsOpenArtifactParams {
+  const artifact = run.artifacts?.find((candidate) => candidate.id === artifactId);
+  return {
+    sessionId,
+    runId: run.runId,
+    artifactId,
+    ...(artifact?.title === undefined ? {} : { title: artifact.title }),
+    ...(artifact?.contentType === undefined ? {} : { contentType: artifact.contentType }),
+    workspacePath: target.workspacePath,
+    ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+    fileReferenceRootPath: run.cwd?.trim() || target.workspacePath,
+  };
 }
 
 /**
@@ -17,7 +54,7 @@ interface SavedWorkflowRunOpenTarget {
  * ⚠ 术语：这里的 artifact 是脚本经 `artifact.*` 发布给用户看的产出，不是脚本的顶层返回值。
  *
  * 抽成一个 hook 而不是在两个组里各写一遍：项目档与全局档唯一的差别是**目标项目怎么算**
- * （前者恒定，后者按 `run.cwd` 反查已打开项目），而两个门的判据必须一致——它们各写一遍时，
+ * （前者恒定，后者按 `run.workspacePath ?? run.cwd` 反查已打开项目），而两个门的判据必须一致——它们各写一遍时，
  * 「产物不需要 toolCallId」这条会很自然地在其中一处被写成「和查看实例一样」。
  *
  * ```
@@ -30,7 +67,7 @@ interface SavedWorkflowRunOpenTarget {
  * display 上）。产物 tab 不画图，所以老行缺 `toolCallId` 时产物仍然打得开。
  */
 export function useSavedWorkflowRunOpeners(options: {
-  /** 该行归属的项目；返回 null 即两个入口都关闭（全局档里 cwd 对应的项目没打开）。 */
+  /** 该行归属的项目；返回 null 即两个入口都关闭（全局档里对应的项目没打开）。 */
   resolveTarget: (run: ZCodeSavedWorkflowRun) => SavedWorkflowRunOpenTarget | null;
   onOpenWorkflowRun?: (params: SavedWorkflowsOpenRunParams) => void;
   onOpenWorkflowArtifact?: (params: SavedWorkflowsOpenArtifactParams) => void;
@@ -42,38 +79,28 @@ export function useSavedWorkflowRunOpeners(options: {
 
   const handleOpenRun = useCallback(
     (run: ZCodeSavedWorkflowRun, workflowName: string) => {
-      if (!run.parentSessionId || !run.toolCallId) return;
+      const sessionId = run.parentSessionId;
+      const toolCallId = run.toolCallId;
+      if (!sessionId || !toolCallId) return;
       const target = resolveTarget(run);
       if (!target) return;
-      onOpenWorkflowRun?.({
-        sessionId: run.parentSessionId,
-        runId: run.runId,
-        toolCallId: run.toolCallId,
-        workflowName,
-        workspacePath: target.workspacePath,
-        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
-      });
+      onOpenWorkflowRun?.(
+        buildSavedWorkflowRunOpenParams(run, workflowName, target, sessionId, toolCallId),
+      );
     },
     [onOpenWorkflowRun, resolveTarget],
   );
 
   const handleOpenArtifact = useCallback(
     (run: ZCodeSavedWorkflowRun, artifactId: string) => {
-      if (!run.parentSessionId) return;
+      const sessionId = run.parentSessionId;
+      if (!sessionId) return;
       const target = resolveTarget(run);
       if (!target) return;
-      // 行上的 chip 载荷（`ZCodeSavedWorkflowRun.artifacts`）带最新版的 `contentType`：
-      // 终点据它把 html 产物直接开成浏览器 tab。老行整个 `artifacts` 缺席，少一个键是退化不是错误。
-      const artifact = run.artifacts?.find((candidate) => candidate.id === artifactId);
-      onOpenWorkflowArtifact?.({
-        sessionId: run.parentSessionId,
-        runId: run.runId,
-        artifactId,
-        ...(artifact?.title === undefined ? {} : { title: artifact.title }),
-        ...(artifact?.contentType === undefined ? {} : { contentType: artifact.contentType }),
-        workspacePath: target.workspacePath,
-        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
-      });
+      // 行上的 chip 载荷带最新版 contentType；旧行缺少 artifacts 时仍可打开产物 tab。
+      onOpenWorkflowArtifact?.(
+        buildSavedWorkflowArtifactOpenParams(run, artifactId, target, sessionId),
+      );
     },
     [onOpenWorkflowArtifact, resolveTarget],
   );

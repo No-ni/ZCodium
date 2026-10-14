@@ -37,6 +37,8 @@ export function useWorkspaceFileSearchIndex({
     workspacePath,
     workspaceRemoteSessionId,
     workspaceIdentity,
+    undefined,
+    "exact",
   );
   // packed 直存（Host 返回列式字符串）：树渲染用 useMemo unpack，搜索态直透 worker。
   // 索引作用域 = 解包基准（workspacePath）+ 归属身份（workspace/远端会话）+ 忽略规则根。

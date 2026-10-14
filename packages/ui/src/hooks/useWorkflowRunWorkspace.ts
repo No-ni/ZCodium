@@ -20,6 +20,7 @@ import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 const REFRESH_DEBOUNCE_MS = 250;
 
 interface WorkflowRunWorkspaceState {
+  executionWorkspacePath?: string;
   nodes: readonly WorkflowRunWorkspaceNode[];
   /** 至少成功读过一次（占位与落点都等它）。 */
   loaded: boolean;
@@ -46,6 +47,7 @@ export function useWorkflowRunWorkspace(options: {
 }): WorkflowRunWorkspaceState {
   const { workflowRunWorkspace } = useV4Conversation();
   const [nodes, setNodes] = useState<readonly WorkflowRunWorkspaceNode[]>([]);
+  const [executionWorkspacePath, setExecutionWorkspacePath] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [truncated, setTruncated] = useState(false);
@@ -56,6 +58,12 @@ export function useWorkflowRunWorkspace(options: {
 
   const { runId, sessionId } = options;
   const enabled = options.enabled !== false && sessionId.length > 0 && runId.length > 0;
+  const [scope, setScope] = useState({ reader: workflowRunWorkspace, sessionId, runId, enabled });
+  const scopeMatches =
+    scope.reader === workflowRunWorkspace &&
+    scope.sessionId === sessionId &&
+    scope.runId === runId &&
+    scope.enabled === enabled;
 
   const fetchNodes = useCallback(async () => {
     const requestVersion = ++requestVersionRef.current;
@@ -64,6 +72,7 @@ export function useWorkflowRunWorkspace(options: {
       const result = await workflowRunWorkspace({ sessionId, runId });
       if (requestVersion !== requestVersionRef.current) return;
       setNodes(result.nodes);
+      setExecutionWorkspacePath(result.executionWorkspacePath);
       setTruncated(result.truncated === true);
       setUnavailable(false);
       setError(null);
@@ -83,10 +92,16 @@ export function useWorkflowRunWorkspace(options: {
     }
   }, [runId, sessionId, workflowRunWorkspace]);
 
+  const lastSignalRef = useRef<number | undefined>(undefined);
   // 切 run / 切会话：先丢掉旧清单再重查。
   useEffect(() => {
+    // 根因：事件序号属于单个 run，旧 run 的高水位不能压住新 run 的刷新。
+    // 与查询作用域同步重置；Host 切换和重新启用也从当前 run 重新建立基线。
+    lastSignalRef.current = undefined;
     requestVersionRef.current += 1;
+    setScope({ reader: workflowRunWorkspace, sessionId, runId, enabled });
     setNodes([]);
+    setExecutionWorkspacePath(undefined);
     setLoaded(false);
     setTruncated(false);
     setUnavailable(false);
@@ -96,11 +111,10 @@ export function useWorkflowRunWorkspace(options: {
       return;
     }
     void fetchNodes();
-  }, [enabled, fetchNodes]);
+  }, [enabled, fetchNodes, runId, sessionId, workflowRunWorkspace]);
 
   // 信号抬升：合并后重查。首次挂载那一拍由上面的 effect 负责，这里跳过 undefined。
   const signal = options.refreshSignal;
-  const lastSignalRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!enabled || signal === undefined) return;
     if (lastSignalRef.current === undefined) {
@@ -116,7 +130,19 @@ export function useWorkflowRunWorkspace(options: {
   }, [enabled, fetchNodes, signal]);
 
   return useMemo(
-    () => ({ nodes, loaded, loading, truncated, unavailable, error }),
-    [error, loaded, loading, nodes, truncated, unavailable],
+    // 根因：effect 尚未换代的首帧不能把旧 Host/run 的清单和 cwd 投给新来源。
+    () =>
+      scopeMatches
+        ? { nodes, executionWorkspacePath, loaded, loading, truncated, unavailable, error }
+        : {
+            nodes: [],
+            executionWorkspacePath: undefined,
+            loaded: false,
+            loading: false,
+            truncated: false,
+            unavailable: false,
+            error: null,
+          },
+    [error, executionWorkspacePath, loaded, loading, nodes, scopeMatches, truncated, unavailable],
   );
 }

@@ -43,19 +43,32 @@ export function findProjectByCwd(
   return localProjects.find((project) => project.workspacePath === cwd) ?? null;
 }
 
+/** 全局运行按父会话的工作区根找项目；老历史行才回退到实际执行 cwd。 */
+export function findProjectForSavedWorkflowRun(
+  localProjects: readonly AutomationWorkspaceOption[],
+  run: ZCodeSavedWorkflowRun,
+): AutomationWorkspaceOption | null {
+  return findProjectByCwd(localProjects, run.workspacePath ?? run.cwd);
+}
+
 /**
- * 详情页运行历史每行的项目列（全局档跨 cwd）：cwd 命中已打开项目 → 该项目 label 且可「查看实例」；
- * 否则以 `basename(cwd)` 兜底、完整路径挂 title、不可「查看实例」；没有 cwd 的老行不画项目列。
+ * 详情页运行历史每行的项目列（全局档跨项目）：workspacePath 命中已打开项目 → 该项目 label 且可「查看实例」；
+ * 否则以 `basename(workspacePath ?? cwd)` 兜底、完整 cwd 挂 title、不可「查看实例」；没有路径的老行不画项目列。
  */
 export function buildGlobalRunProjectResolver(
   localProjects: readonly AutomationWorkspaceOption[],
 ): (run: ZCodeSavedWorkflowRun) => SavedWorkflowRunProject | null {
   return (run) => {
-    if (!run.cwd) return null;
-    const project = findProjectByCwd(localProjects, run.cwd);
+    const workspacePath = run.workspacePath ?? run.cwd;
+    if (!workspacePath) return null;
+    const project = findProjectForSavedWorkflowRun(localProjects, run);
     if (project) {
-      return { label: project.label, title: run.cwd, canOpen: true };
+      return { label: project.label, title: run.cwd ?? workspacePath, canOpen: true };
     }
-    return { label: basenameOfPath(run.cwd), title: run.cwd, canOpen: false };
+    return {
+      label: basenameOfPath(workspacePath),
+      title: run.cwd ?? workspacePath,
+      canOpen: false,
+    };
   };
 }

@@ -14,6 +14,7 @@ import {
 import { useWorkflowRunArtifactBytes } from "@/hooks/useWorkflowRunArtifactBytes.js";
 import { useWorkflowRunArtifactData } from "@/hooks/useWorkflowRunArtifactData.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { resolveDocumentFileReferenceRootPath } from "@/lib/path.js";
 import type { Theme } from "@/useTheme.js";
 
 /**
@@ -119,11 +120,19 @@ export function WorkflowArtifactTilePreview({
   runId,
   sessionId,
   theme,
+  workspacePath,
+  workspaceIdentity,
+  workspaceRemoteSessionId,
+  fileReferenceRootPath,
 }: {
   artifact: WorkflowCompletionArtifact;
   sessionId: string;
   runId: string;
   theme: Theme;
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
+  fileReferenceRootPath?: string;
 }) {
   const { intl } = useZCodeIntl();
   const preset = isArtifactPresetKind(artifact.kind);
@@ -152,6 +161,10 @@ export function WorkflowArtifactTilePreview({
         ? decodeHead(bytesState.bytes)
         : undefined,
     [bytesState.bytes, mode],
+  );
+  const markdownFileReferenceRootPath = resolveDocumentFileReferenceRootPath(
+    artifact.sourcePath,
+    fileReferenceRootPath ?? workspacePath,
   );
   const rows = useMemo(
     () => (mode === "csv" && text !== undefined ? csvPreviewRows(text) : []),
@@ -247,7 +260,14 @@ export function WorkflowArtifactTilePreview({
       >
         {mode === "markdown" ? (
           // markdown 必须**传 theme**（渲染器按 theme 选代码块配色）。
-          <MessageResponse className="w-full min-w-0 break-words text-foreground" theme={theme}>
+          <MessageResponse
+            className="w-full min-w-0 break-words text-foreground"
+            fileReferenceRootPath={markdownFileReferenceRootPath}
+            theme={theme}
+            workspaceIdentity={workspaceIdentity}
+            workspacePath={workspacePath}
+            workspaceRemoteSessionId={workspaceRemoteSessionId}
+          >
             {text ?? ""}
           </MessageResponse>
         ) : (

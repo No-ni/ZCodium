@@ -21,7 +21,7 @@ import { lastRunByWorkflowName } from "@/settings/saved-workflows/savedWorkflowR
 import {
   GLOBAL_SAVED_WORKFLOW_TARGET,
   buildGlobalRunProjectResolver,
-  findProjectByCwd,
+  findProjectForSavedWorkflowRun,
   resolveGlobalActionTarget,
 } from "@/settings/saved-workflows/globalWorkflowGroupHelpers.js";
 import type { SavedWorkflowGroupMode } from "@/settings/saved-workflows/SavedWorkflowProjectGroup.js";
@@ -237,10 +237,10 @@ export function useSavedWorkflowGlobalGroup({
     (entry: ZCodeSavedWorkflowEntry) => onOpenDetail(entry.name),
     [onOpenDetail],
   );
-  // 全局档的目标项目按 `run.cwd` 反查已打开项目；没打开就两个入口都关掉
-  // （实例必须开在发起它的项目）。门与实参构造与项目档共用（产物不需要 toolCallId）。
+  // 全局档按父会话 workspace 根找项目；旧行回退到 `run.cwd`。
+  // 实际 `cwd` 仍由 opener 作为文件引用根传给详情与产物 tab。
   const resolveRunTarget = useCallback(
-    (run: ZCodeSavedWorkflowRun) => findProjectByCwd(localProjects, run.cwd) ?? null,
+    (run: ZCodeSavedWorkflowRun) => findProjectForSavedWorkflowRun(localProjects, run) ?? null,
     [localProjects],
   );
   const { handleOpenArtifact, handleOpenRun } = useSavedWorkflowRunOpeners({

@@ -705,6 +705,8 @@ export interface DynamicWorkflowRunPort {
    * 读面时才提供；消费方 `typeof` 探测）。
    */
   listArtifacts?(runId: string): Promise<readonly DynamicWorkflowRunArtifact[] | undefined>;
+  /** 冻结的 run 执行目录；仅返回属于本服务父会话的 run，避免将其他会话的路径用于文件读取。 */
+  getExecutionWorkspacePath?(runId: string): Promise<string | undefined>;
   /**
    * 喂给某个预置产物的 `report` 条目，按 journal sequence 升序分页（看板的取数面）。
    * 越界 cursor 返回空页而非报错。可选成员，理由同 {@link listArtifacts}。

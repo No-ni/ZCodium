@@ -13,7 +13,10 @@ import {
 } from "@zcode/zcode-cua/frame-contract";
 import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
 import { hasOfficialCuaFrameAuthority } from "../../mcp/image-normalization.js";
-import { mergeToolExecutionPerformance, readToolExecutionPerformance } from "../handlers/tool-perf.js";
+import {
+  mergeToolExecutionPerformance,
+  readToolExecutionPerformance,
+} from "../handlers/tool-perf.js";
 import {
   normalizeToolExecutionInput,
   prepareInitialToolExecutionInput,
@@ -514,6 +517,9 @@ async function executeToolCallImpl(
           durationMs,
           startedAt: new Date(startTime),
           completedAt: new Date(),
+          // 保存本次工具自己的 cwd。Bash 可能在另一个工具收尾时改变运行时 cwd，checkpoint
+          // 不能因此重新读取可变的 runtime 值。
+          workingDirectory: context.workingDirectory,
         },
         { entry },
       );

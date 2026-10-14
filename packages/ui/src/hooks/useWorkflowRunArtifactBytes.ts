@@ -98,6 +98,21 @@ export function useWorkflowRunArtifactBytes(options: {
     runId.length > 0 &&
     artifactId.length > 0 &&
     version > 0;
+  const [scope, setScope] = useState({
+    reader: workflowRunArtifactRead,
+    artifactId,
+    runId,
+    sessionId,
+    version,
+    enabled,
+  });
+  const scopeMatches =
+    scope.reader === workflowRunArtifactRead &&
+    scope.artifactId === artifactId &&
+    scope.runId === runId &&
+    scope.sessionId === sessionId &&
+    scope.version === version &&
+    scope.enabled === enabled;
 
   useEffect(() => {
     const revokePrevious = () => {
@@ -109,6 +124,7 @@ export function useWorkflowRunArtifactBytes(options: {
       }
     };
     revokePrevious();
+    setScope({ reader: workflowRunArtifactRead, artifactId, runId, sessionId, version, enabled });
     setState(emptyState());
     if (!enabled) return;
 
@@ -181,5 +197,6 @@ export function useWorkflowRunArtifactBytes(options: {
     };
   }, [artifactId, enabled, runId, sessionId, version, workflowRunArtifactRead]);
 
-  return useMemo(() => state, [state]);
+  // 根因：effect 释放旧 Blob 前的首帧仍可换了元数据却显示旧内容，必须同时核对读取来源。
+  return useMemo(() => (scopeMatches ? state : emptyState()), [scopeMatches, state]);
 }

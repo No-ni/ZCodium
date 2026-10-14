@@ -543,17 +543,11 @@ export function createTabStore(storage: StorageLike | null | undefined = undefin
 
     activateTabByPath: (path: string, options) => {
       const stateBefore = get();
-      const tab = stateBefore.tabs.find((currentTab): currentTab is WorkspaceTabState => {
-        if (!isWorkspaceTab(currentTab) || currentTab.workspacePath !== path) {
-          return false;
-        }
-
-        if (options?.workspaceIdentity) {
-          return currentTab.workspaceIdentity === options.workspaceIdentity;
-        }
-
-        return true;
-      });
+      // 未传 identity 是本地目标；复用新增 tab 的匹配规则，避免同路径远端抢走本地会话导航。
+      const tab = stateBefore.tabs.find(
+        (currentTab): currentTab is WorkspaceTabState =>
+          isWorkspaceTab(currentTab) && isSameWorkspaceTab(currentTab, path, options),
+      );
       if (!tab) {
         return false;
       }

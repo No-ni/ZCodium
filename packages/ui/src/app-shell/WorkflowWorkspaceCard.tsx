@@ -32,6 +32,7 @@ import { resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { ReadFileChip, type ReadSummary } from "@/ToolCallBlocks/renderers/read.js";
 import { WorkspaceCardBody } from "@/app-shell/WorkflowWorkspaceCardBody.js";
 import { WorkspacePeek } from "@/app-shell/WorkflowWorkspacePeek.js";
+import { isAbsoluteFilePath, joinFilePath } from "@/lib/path.js";
 import {
   formatAgo,
   formatOffset,
@@ -77,11 +78,15 @@ interface WorkflowWorkspaceCardProps {
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
 }
 
+export function resolveWorkflowWorkspaceReadPath(
+  path: string,
+  fileReferenceRootPath: string,
+): string {
+  return isAbsoluteFilePath(path) ? path : joinFilePath(fileReferenceRootPath, path);
+}
+
 function readSummaryOf(path: string, fileReferenceRootPath: string): ReadSummary {
-  const absolute =
-    path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
-      ? path
-      : `${fileReferenceRootPath}/${path}`;
+  const absolute = resolveWorkflowWorkspaceReadPath(path, fileReferenceRootPath);
   const descriptor = resolveFileDisplayDescriptor(absolute);
   return {
     path: absolute,

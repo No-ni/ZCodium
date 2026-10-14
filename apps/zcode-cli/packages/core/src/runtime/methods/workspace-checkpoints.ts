@@ -31,7 +31,7 @@ import {
   forkSourceMessagesForSession,
   resolveForkHistoryEndIndex,
 } from "./session-fork.js";
-import { forkWorkspaceAtMessage, restoreWorkspaceCheckpointFiles } from "./workspace-fork.js";
+import { forkWorkspaceAtMessage, restoreWorkspaceCheckpointArtifacts } from "./workspace-fork.js";
 import type {
   WorkspaceRewindRestoredFile,
   WorkspaceForkResult,
@@ -45,7 +45,7 @@ export async function restoreWorkspaceCheckpointArtifact(
   traceContext: TraceContext,
   abortSignal?: AbortSignal,
 ): Promise<WorkspaceRewindRestoredFile[]> {
-  return await restoreWorkspaceCheckpointFiles(this, artifact.files, traceContext, abortSignal);
+  return await restoreWorkspaceCheckpointArtifacts(this, [artifact], traceContext, abortSignal);
 }
 
 export async function copySessionMessagesForFork(

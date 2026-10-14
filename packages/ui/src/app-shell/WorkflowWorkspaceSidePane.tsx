@@ -9,7 +9,7 @@
 // 数据两条路：清单（轻行，`lastEventSequence` 抬升即重查）+ 正文（滚进视口 / 展开时才取，
 // 按 tab 缓存）。状态以 journal 为准，活投影只叠 `cached`。
 
-import { Fragment, memo, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { HourglassIcon, Repeat2Icon, TerminalIcon, TriangleAlertIcon } from "lucide-react";
 import { phaseDisplayName } from "@/components/workflow-graph/phase-name.js";
 import { WorkflowRunStatus } from "@/components/workflow-timeline/WorkflowCardChrome.js";
@@ -17,6 +17,7 @@ import { useRunningBackgroundTaskElapsedClock } from "@/hooks/useRunningBackgrou
 import { useWorkflowRunWorkspace } from "@/hooks/useWorkflowRunWorkspace.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
+import { withCodeViewerWorkspaceScope } from "@/lib/codeViewerWorkspaceScope.js";
 import type { WorkflowWorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { buildWorkflowGraphByToolCallId } from "@/v4/workflowRunCardJoin.js";
 import { WorkflowWorkspaceCard } from "@/app-shell/WorkflowWorkspaceCard.js";
@@ -156,6 +157,26 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
     runId: tab.runId,
     ...(run === undefined ? {} : { refreshSignal: run.lastEventSequence }),
   });
+  const executionRoot =
+    workspace.executionWorkspacePath ?? fileReferenceRootPath ?? tab.workspacePath;
+  const openScopedCodeViewer = useCallback(
+    (source: CodeViewerSource) =>
+      onOpenCodeViewer?.(
+        withCodeViewerWorkspaceScope(source, {
+          workspacePath: tab.workspacePath,
+          fileReferenceRootPath: executionRoot,
+          ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+          ...(tab.remoteSessionId ? { workspaceRemoteSessionId: tab.remoteSessionId } : {}),
+        }),
+      ),
+    [
+      executionRoot,
+      onOpenCodeViewer,
+      tab.remoteSessionId,
+      tab.workspaceIdentity,
+      tab.workspacePath,
+    ],
+  );
   const cards = useMemo(
     () => buildWorkspaceCards(workspace.nodes, graph),
     [graph, workspace.nodes],
@@ -252,12 +273,14 @@ const WorkflowWorkspaceContent = memo(function WorkflowWorkspaceContent({
                   key={card.key}
                   landed={card.key === landedKey && landingKey !== undefined}
                   now={card.node.status === "running" ? now : 0}
-                  onOpenCodeViewer={onOpenCodeViewer}
+                  onOpenCodeViewer={
+                    onOpenCodeViewer === undefined ? undefined : openScopedCodeViewer
+                  }
                   origin={origin}
                   run={run}
                   runId={tab.runId}
                   sessionId={tab.parentSessionId}
-                  fileReferenceRootPath={fileReferenceRootPath ?? tab.workspacePath}
+                  fileReferenceRootPath={executionRoot}
                 />
               );
             })}
@@ -363,12 +386,14 @@ export const WorkflowWorkspaceSidePane = memo(function WorkflowWorkspaceSidePane
     }),
     [tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
   );
+  const resolvedFileReferenceRootPath =
+    fileReferenceRootPath ?? tab.fileReferenceRootPath ?? tab.workspacePath;
   return (
     <V4PaneConversationProvider scope={scope}>
       <WorkflowWorkspaceContent
         tab={tab}
         focused={focused}
-        {...(fileReferenceRootPath === undefined ? {} : { fileReferenceRootPath })}
+        fileReferenceRootPath={resolvedFileReferenceRootPath}
         onOpenCodeViewer={onOpenCodeViewer}
       />
     </V4PaneConversationProvider>

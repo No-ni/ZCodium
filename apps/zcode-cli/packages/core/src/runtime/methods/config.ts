@@ -106,6 +106,14 @@ export function setSessionModelSelection(
   this.sessionModelSelection = selection && cloneModelSelection(selection);
 }
 
+export function getWorkingDirectory(this: AgentRuntimeInternal): string {
+  return this.workingDirectory;
+}
+
+export function getExecutionWorkspacePath(this: AgentRuntimeInternal): string {
+  return this.workspaceRoot;
+}
+
 export function getProjectId(this: AgentRuntimeInternal): ProjectId {
   // Bash cd 会改变执行 cwd，但 project identity 不能随工具内 cwd 漂移。
   // 必须用工作区键路径：它要与 bootstrap 建 app 时的 projectID、session 行落库的 projectID
@@ -197,14 +205,23 @@ export function getSessionEventStore(this: AgentRuntimeInternal): SessionEventSt
  */
 export async function notifyExternalChildSessionEvent(
   this: AgentRuntimeInternal,
-  input: { childSessionId: SessionId; event: SessionEvent; traceContext?: TraceContext },
+  input: {
+    childSessionId: SessionId;
+    event: SessionEvent;
+    traceContext?: TraceContext;
+    executionWorkspacePath?: string;
+  },
 ): Promise<void> {
   // 只通知、绝不 append：子 runtime 已经按自己的 sessionId 把这条事件落库了，
   // 再走父 runtime 的 append 链路会造成同一事件在共享 store 里出现两份。
-  await this.notifyEventSinks(input.event, {
-    ...(input.traceContext ?? this.rootTraceContext),
-    sessionId: input.childSessionId,
-  });
+  await this.notifyEventSinks(
+    input.event,
+    {
+      ...(input.traceContext ?? this.rootTraceContext),
+      sessionId: input.childSessionId,
+    },
+    input.executionWorkspacePath,
+  );
 }
 
 /**

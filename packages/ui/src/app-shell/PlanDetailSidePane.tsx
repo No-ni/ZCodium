@@ -5,6 +5,7 @@ import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { extractPlanToolCallContent } from "@/lib/planToolCall.js";
 import type { PlanDetailSidePaneTab } from "@/lib/workspaceSidePane.js";
+import { resolveDocumentFileReferenceRootPath } from "@/lib/path.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
@@ -38,15 +39,21 @@ const PlanDetailContent = memo(function PlanDetailContent({
     return () => nextLease.release();
   }, [layer, tab.parentSessionId]);
   const state = useConversationProjection(lease);
+  const sourceRootPath = tab.fileReferenceRootPath ?? tab.workspacePath;
 
-  const liveMarkdown = useMemo(() => {
+  const livePlanContent = useMemo(() => {
     const row = state.snapshot?.rows.window.find(
       (candidate) => candidate.kind === "toolCall" && candidate.toolCallId === tab.toolCallId,
     );
     if (!row || row.kind !== "toolCall") return undefined;
     const node = toolCallRowToLegacyNode(row);
-    return extractPlanToolCallContent(node.toolCall, tab.workspacePath).markdown;
-  }, [state.snapshot, tab.toolCallId, tab.workspacePath]);
+    return extractPlanToolCallContent(node.toolCall, sourceRootPath);
+  }, [sourceRootPath, state.snapshot, tab.toolCallId]);
+  const liveMarkdown = livePlanContent?.markdown;
+  const documentReferenceRootPath = resolveDocumentFileReferenceRootPath(
+    livePlanContent?.planFilePath ?? tab.planFilePath,
+    sourceRootPath,
+  );
 
   useEffect(() => {
     if (liveMarkdown) setLastMarkdown(liveMarkdown);
@@ -64,6 +71,9 @@ const PlanDetailContent = memo(function PlanDetailContent({
       <MessageResponse
         className="mx-auto w-full max-w-4xl min-w-0 break-words text-foreground"
         workspacePath={tab.workspacePath}
+        workspaceIdentity={tab.workspaceIdentity}
+        workspaceRemoteSessionId={tab.remoteSessionId}
+        fileReferenceRootPath={documentReferenceRootPath}
         theme={theme}
         codePreviewSettings={codePreviewSettings}
         onOpenCodeViewer={onOpenCodeViewer}

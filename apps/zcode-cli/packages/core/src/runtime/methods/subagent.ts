@@ -93,6 +93,15 @@ export function createDefaultSubagentPort(
     },
     runExploreAgent: async (request, options) => {
       request.reportActivity?.();
+      // 根因：terminal child 直接 core resume，绕过 app 的恢复/执行门禁；先让宿主按
+      // child 持久化 cwd 重建并逐层复核，不能借父当前 cwd 覆盖旧 child 的事实。
+      await deps.prepareSubagentSession?.({
+        sessionId: request.sessionId,
+        resumeFromStore: request.resumeFromStore === true,
+        workingDirectory: request.workingDirectory,
+        workspacePath: this.config.workspacePath,
+        workspaceIdentity: this.config.workspaceIdentity ?? this.config.memory?.workspaceIdentity,
+      });
       const builtInExplore = isBuiltInExploreAgentProfile(request.profile);
       const agentsMdInstructions =
         request.profile.injectAgentsMd !== false
@@ -249,9 +258,9 @@ export function createDefaultSubagentPort(
       try {
         const mirroredToolNameByChildToolCallId = new Map<string, string>();
         let sessionReadyNotified = false;
-        const notifySessionReady = async () => {
+        const notifySessionReady = async (executionWorkspacePath: string) => {
           if (sessionReadyNotified) return;
-          await request.onSessionReady?.();
+          await request.onSessionReady?.(executionWorkspacePath);
           sessionReadyNotified = true;
         };
         this.logger?.debug("Starting subagent child runtime", {
@@ -320,6 +329,7 @@ export function createDefaultSubagentPort(
 
             eventStore: this.eventStore,
             sessionStore: deps.sessionStore,
+            prepareSubagentSession: deps.prepareSubagentSession,
             // 子 runtime 继承父的模型请求准入端口：subagent 的请求 provider 同样看得见，
             // 它们该与父一样喂治理器信号（父是 observer 则子也是 observer）。
             modelRequestAdmission: this.modelRequestAdmission,
@@ -358,17 +368,21 @@ export function createDefaultSubagentPort(
             artifactStore: deps.artifactStore,
             appVersion: this.appVersion,
             eventSink: {
-              onSessionEvent: async (event) => {
+              onSessionEvent: async (event, executionWorkspacePath) => {
                 request.reportActivity?.();
                 // child runtime 的事件已经按 childSessionId 落库，但旧链路只把
                 // 少量工具事件镜像给 parent sink，导致 UI 订阅 child topic 后只能拿到打开时
                 // 的 hydration，后续流式内容不会更新。raw child event 只通知父 runtime 的
                 // 外部 sinks，不再次 append，因此不会重复持久化；bootstrap 再按 event.sessionId
                 // 把它路由到 child publisher。
-                await this.notifyEventSinks(event, {
-                  ...request.traceContext,
-                  sessionId: request.sessionId,
-                });
+                await this.notifyEventSinks(
+                  event,
+                  {
+                    ...request.traceContext,
+                    sessionId: request.sessionId,
+                  },
+                  executionWorkspacePath,
+                );
                 const mirroredEvent = mirrorSubagentToolEvent(event, {
                   agentId: request.agentId,
                   agentType: request.agentType,
@@ -384,10 +398,14 @@ export function createDefaultSubagentPort(
 
                 // parent mirror 保留原语义：父会话只看到 subagent 摘要/工具活动，raw child
                 // 正文不会污染父 timeline。
-                await this.notifyEventSinks(mirroredEvent, {
-                  ...request.traceContext,
-                  sessionId: this.sessionId,
-                });
+                await this.notifyEventSinks(
+                  mirroredEvent,
+                  {
+                    ...request.traceContext,
+                    sessionId: this.sessionId,
+                  },
+                  this.workingDirectory,
+                );
               },
             },
             logger: this.logger,
@@ -407,7 +425,8 @@ export function createDefaultSubagentPort(
             traceContext: request.traceContext,
           });
         }
-        await notifySessionReady();
+        // 恢复 child 会按持久化 path 覆盖父请求 cwd；Ready 必须投影恢复后的事实，不能借父 cd 后的目录。
+        await notifySessionReady(childRuntime.getWorkingDirectory());
         if (!resumesExistingChild) {
           // 新 child 的最终模型可能来自继承、lite 或 profile 显式覆盖。它既是首轮
           // 实时投影事实，也是冷恢复必须保留的 transcript 边界；resume 不重复写入。

@@ -366,6 +366,8 @@ export interface AgentRuntime {
   getSessionModelSelection(): ModelSelection | undefined;
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
+  getWorkingDirectory(): string;
+  getExecutionWorkspacePath(): string;
   ensureSessionPersistedForExternalActivity(
     input: string,
     options?: { traceContext?: TraceContext },
@@ -518,6 +520,7 @@ export interface AgentRuntime {
    */
   notifyExternalChildSessionEvent(input: {
     childSessionId: SessionId;
+    executionWorkspacePath?: string;
     event: SessionEvent;
     traceContext?: TraceContext;
   }): Promise<void>;

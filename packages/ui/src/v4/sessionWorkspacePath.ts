@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkspacePurpose } from "@zcode/shared";
 import type { FileReferenceRoot } from "@/lib/fileReferenceRoot.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
@@ -20,6 +21,27 @@ export function readSessionWorkspacePath(
 ): string | null {
   const value = snapshot?.workspacePath;
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function isSessionWorkspaceSnapshotReady(
+  snapshot: Pick<ConversationSnapshot, "sessionId"> | null,
+  sessionId: string | null,
+): boolean {
+  return sessionId !== null && snapshot?.sessionId === sessionId;
+}
+
+export function isTerminalExecutionPathReady(params: {
+  hasWorkspaceIdentity: boolean;
+  workspacePurpose?: WorkspacePurpose | null;
+  sessionId: string | null;
+  sessionSnapshotReady: boolean;
+}): boolean {
+  return (
+    params.hasWorkspaceIdentity ||
+    // 根因：对话根也能显式作为 project 打开；有会话时须等待 CLI 事实，purpose 不能证明 cwd。
+    (params.sessionId === null && params.workspacePurpose === "project") ||
+    (params.sessionId !== null && params.sessionSnapshotReady)
+  );
 }
 
 /**
@@ -92,6 +114,29 @@ export interface SessionWorkspacePathState {
   sessionWorkspacePath: string | null;
   /** 文件树、提及、终端、文件搜索应使用的归属目录（带回落）。 */
   effectiveWorkspacePath: string;
+  /** 目标会话的快照已到达；路径字段缺席也属于已确认的工作区根。 */
+  sessionWorkspacePathReady: boolean;
+}
+
+export function isSessionWorkspaceLeaseCurrent(params: {
+  binding: { lease: SessionLease; workspacePath: string; agentService: unknown } | null;
+  sessionId: string | null;
+  workspacePath: string;
+  agentService: unknown;
+  rpcReady: boolean;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  resolvedRemoteSessionId?: string | null;
+}): boolean {
+  return Boolean(
+    params.rpcReady &&
+    !params.workspaceIdentity?.trim() &&
+    !params.remoteSessionId?.trim() &&
+    !params.resolvedRemoteSessionId &&
+    params.binding?.workspacePath === params.workspacePath &&
+    params.binding?.agentService === params.agentService &&
+    params.binding?.lease.sessionId === params.sessionId,
+  );
 }
 
 /**
@@ -119,12 +164,19 @@ export function useSessionWorkspacePath(params: {
     workspacePath,
     remoteSessionId ?? null,
     workspaceIdentity ?? null,
+    undefined,
+    "exact",
   );
   const agentService = resolution.services.zcodeAgentService;
   const resolvedRemoteSessionId = resolution.remoteSessionId;
   const rpcReady = resolution.rpcReady;
   const createLocalMediaPreviewUrl = platform.createLocalMediaPreviewUrl;
-  const [lease, setLease] = useState<SessionLease | null>(null);
+  const [binding, setBinding] = useState<{
+    lease: SessionLease;
+    workspacePath: string;
+    agentService: typeof agentService;
+  } | null>(null);
+  const lease = binding?.lease ?? null;
 
   useEffect(() => {
     // 身份类/远程 workspace 的会话不可能拥有会话执行目录：CLI 侧
@@ -136,11 +188,11 @@ export function useSessionWorkspacePath(params: {
     // `resolvedRemoteSessionId` 也算身份类：它可能来自 tab 元数据而不是本函数的 props。
     // 返回值因此恒为 { sessionWorkspacePath: null, effectiveWorkspacePath: workspacePath }。
     if (workspaceIdentity?.trim() || remoteSessionId?.trim() || resolvedRemoteSessionId) {
-      setLease(null);
+      setBinding(null);
       return;
     }
     if (!sessionId || !rpcReady) {
-      setLease(null);
+      setBinding(null);
       return;
     }
 
@@ -157,7 +209,7 @@ export function useSessionWorkspacePath(params: {
     // 远程 proxy 换代只在 commit 阶段激活（与 pane provider 同一约束）。
     connectionLease.activateRemoteService();
     const nextLease = connectionLease.layer.acquire(sessionId);
-    setLease(nextLease);
+    setBinding({ lease: nextLease, workspacePath, agentService });
     return () => {
       nextLease.release();
       connectionLease.release();
@@ -185,10 +237,32 @@ export function useSessionWorkspacePath(params: {
     [store],
   );
   const sessionWorkspacePath = useSyncExternalStore(subscribe, getSessionWorkspacePath, () => null);
+  const getSessionSnapshotReady = useCallback(
+    () => isSessionWorkspaceSnapshotReady(store?.getState().snapshot ?? null, sessionId),
+    [sessionId, store],
+  );
+  const sessionSnapshotReady = useSyncExternalStore(
+    subscribe,
+    getSessionSnapshotReady,
+    () => false,
+  );
   // 租约换成目标会话之前（切会话/切 workspace tab 的首帧）读到的仍是**上一个**会话的 store：
   // 不校验身份就会把 A 的会话目录交给 B 的文件树根、Cmd+P 与侧栏终端（终端 PTY 建了就不再变）。
   // 首帧必须回落 tab 的 workspacePath（= 已登记的已知边界 9），而不是"另一个会话的目录"。
-  const activeLease = lease !== null && lease.sessionId === sessionId ? lease : null;
+  // 根因：sessionId 只在所属 Host/workspace 内唯一；effect 清租约前，跨 scope 同 id
+  // 仍会命中旧 lease。渲染期同时验证来源，远端不能消费本机遗留目录来创建 PTY。
+  const activeLease = isSessionWorkspaceLeaseCurrent({
+    binding,
+    sessionId,
+    workspacePath,
+    agentService,
+    rpcReady,
+    workspaceIdentity,
+    remoteSessionId,
+    resolvedRemoteSessionId,
+  })
+    ? (binding?.lease ?? null)
+    : null;
 
   return {
     sessionWorkspacePath: activeLease ? sessionWorkspacePath : null,
@@ -196,5 +270,9 @@ export function useSessionWorkspacePath(params: {
       activeLease ? sessionWorkspacePath : null,
       workspacePath,
     ),
+    sessionWorkspacePathReady:
+      sessionId === null ||
+      Boolean(workspaceIdentity?.trim() || remoteSessionId?.trim() || resolvedRemoteSessionId) ||
+      Boolean(activeLease && sessionSnapshotReady),
   };
 }

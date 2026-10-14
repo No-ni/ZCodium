@@ -74,7 +74,8 @@ export interface SessionEventStorePort {
 // -----------------------------------------------
 
 export interface SessionEventSink {
-  onSessionEvent(event: SessionEvent): void | Promise<void>;
+  /** 可选目录是 live child 投影元数据，不写入原始事件账本。 */
+  onSessionEvent(event: SessionEvent, executionWorkspacePath?: string): void | Promise<void>;
 }
 
 // -----------------------------------------------

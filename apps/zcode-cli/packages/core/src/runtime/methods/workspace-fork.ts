@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import {
   CoreErrorType,
   RewindStrategy,
@@ -7,17 +8,14 @@ import {
   createPartId,
   parseWorkspaceCheckpointArtifact,
 } from "../deps.js";
-import type {
-  MessageId,
-  SessionId,
-  TraceContext,
-  WorkspaceCheckpointArtifact,
-} from "../deps.js";
+import type { MessageId, SessionId, TraceContext, WorkspaceCheckpointArtifact } from "../deps.js";
 import {
   selectCheckpointsForMessages,
   formatWorkspaceForkAtMessageNoticeBody,
   throwIfTurnAborted,
+  resolveWorkspaceCheckpointRoot,
 } from "../helpers/index.js";
+import { workspaceScopeRootOf } from "../helpers/workspace-scope.js";
 import {
   buildForkHistoryMessages,
   copyGoalStateForFork,
@@ -29,9 +27,9 @@ import {
 import type { WorkspaceRewindRestoredFile, WorkspaceForkResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 
-export async function restoreWorkspaceCheckpointFiles(
+export async function restoreWorkspaceCheckpointArtifacts(
   runtime: AgentRuntimeInternal,
-  files: WorkspaceCheckpointArtifact["files"],
+  artifacts: readonly WorkspaceCheckpointArtifact[],
   traceContext: TraceContext,
   abortSignal?: AbortSignal,
 ): Promise<WorkspaceRewindRestoredFile[]> {
@@ -41,8 +39,21 @@ export async function restoreWorkspaceCheckpointFiles(
     });
   }
 
+  // 根因：同名相对路径可能属于不同 checkpoint cwd；先按各自根归一，再取最早 before 状态。
+  const earliestFileByPath = new Map<string, WorkspaceCheckpointArtifact["files"][number]>();
+  for (const artifact of artifacts) {
+    const root = resolveWorkspaceCheckpointRoot({
+      recordedRoot: artifact.workspaceRoot,
+      executionRoot: runtime.workspaceRoot,
+      workspaceKeyRoot: workspaceScopeRootOf(runtime),
+    });
+    for (const file of artifact.files) {
+      const path = resolve(root, file.path);
+      if (!earliestFileByPath.has(path)) earliestFileByPath.set(path, { ...file, path });
+    }
+  }
   const restoredFiles: WorkspaceRewindRestoredFile[] = [];
-  for (const file of files) {
+  for (const file of earliestFileByPath.values()) {
     throwIfTurnAborted(abortSignal);
     if (!file.existedBefore || file.beforeContent === null) {
       await runtime.fileSystemPort.removeFile(
@@ -185,17 +196,6 @@ export async function forkWorkspaceAtMessage(
     artifacts.push(parseWorkspaceCheckpointArtifact(JSON.parse(read.content)));
   }
 
-  // 文件在 fork 点时刻的状态 = fork 点之后第一次变更记录的 before 状态；
-  // 同一文件多次变更时只应用最早那份，后面的都被它覆盖。
-  const earliestFileByPath = new Map<string, WorkspaceCheckpointArtifact["files"][number]>();
-  for (const artifact of artifacts) {
-    for (const file of artifact.files) {
-      if (!earliestFileByPath.has(file.path)) {
-        earliestFileByPath.set(file.path, file);
-      }
-    }
-  }
-
   const forkedSessionId = await createForkedSession(this, {
     forkedSessionId: options.forkedSessionId,
     parentSession,
@@ -216,9 +216,9 @@ export async function forkWorkspaceAtMessage(
     messageIdMap,
     traceContext: options.traceContext,
   });
-  const restoredFiles = await restoreWorkspaceCheckpointFiles(
+  const restoredFiles = await restoreWorkspaceCheckpointArtifacts(
     this,
-    Array.from(earliestFileByPath.values()),
+    artifacts,
     options.traceContext,
     options.abortSignal,
   );

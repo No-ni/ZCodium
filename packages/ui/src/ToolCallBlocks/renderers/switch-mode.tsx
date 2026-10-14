@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getToolCallErrorText } from "@/lib/toolError.js";
 import { extractPlanToolCallContent, getPlanFileLabel } from "@/lib/planToolCall.js";
+import { resolveDocumentFileReferenceRootPath } from "@/lib/path.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 import { ArrowRightIcon, CheckIcon, CopyIcon, NotepadTextIcon } from "lucide-react";
@@ -21,9 +22,11 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
   const { intl } = useZCodeIntl();
   const { toolCall } = context.toolCallNode;
   const errorText = getToolCallErrorText(toolCall);
-  const { markdown, planFilePath } = extractPlanToolCallContent(
-    toolCall,
-    context.fileReferenceRootPath ?? context.workspacePath,
+  const sourceRootPath = context.fileReferenceRootPath ?? context.workspacePath;
+  const { markdown, planFilePath } = extractPlanToolCallContent(toolCall, sourceRootPath);
+  const documentReferenceRootPath = resolveDocumentFileReferenceRootPath(
+    planFilePath,
+    sourceRootPath,
   );
   const snapshotNotice = (
     <ToolSnapshotFieldNotice
@@ -45,6 +48,7 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
       toolCallId: toolCall.toolId,
       markdown,
       ...(planFilePath ? { planFilePath } : {}),
+      fileReferenceRootPath: sourceRootPath,
     });
   };
 
@@ -119,8 +123,7 @@ export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
               <MessageResponse
                 className="min-w-0 break-words text-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_li]:text-foreground-subtle [&_p]:text-foreground-subtle"
                 workspacePath={context.workspacePath}
-                // 计划正文是模型写的 markdown：相对引用按会话执行 cwd 解析（缺省回落身份根）。
-                fileReferenceRootPath={context.fileReferenceRootPath ?? context.workspacePath}
+                fileReferenceRootPath={documentReferenceRootPath}
                 theme={context.theme}
                 codePreviewSettings={context.codePreviewSettings}
                 onOpenCodeViewer={context.onOpenCodeViewer}

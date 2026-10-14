@@ -140,6 +140,8 @@ const MAX_LIST_RUNS_LIMIT = 64;
 /** actor runtime 工厂的输入。runId 在内，因为会话 id 与 task link 都要 run 作用域。 */
 export interface DynamicWorkflowActorRuntimeInput {
   runId: string;
+  /** run 冻结的执行 cwd；不能借续跑者 app 的初始目录。 */
+  cwd: string;
   sessionId: SessionId;
   actor: ActorRef;
   persona: PersonaSpec;
@@ -196,6 +198,8 @@ export interface DynamicWorkflowRunServiceDeps {
    * （就是那个「run 永远停在 running」的 bug）。宁可让接线错误在编译期出现。
    */
   parentSessionId: string;
+  /** 工作区枚举键；run.cwd 保持真实沙箱目录。 */
+  workspaceDirectory?: string;
   /** world-read（files.glob / files.read / files.grep）落到的文件系统端口。 */
   fileSystemPort: FileSystemPort;
   /** git.* world-read 落到的子进程执行端口（cwd = run 的工作区）。 */
@@ -212,6 +216,12 @@ export interface DynamicWorkflowRunServiceDeps {
   artifactStore?: ToolArtifactStorePort;
   /** 造一个 actor 的 child AgentRuntime（生产包装 createScriptWorkflowAgentRuntime）。 */
   createActorRuntime: (input: DynamicWorkflowActorRuntimeInput) => AgentRuntime;
+  /** actor 恢复/首发前由宿主准备执行 cwd；core 不操作目录，旧装配可省略。 */
+  prepareActorSession?: (
+    sessionId: SessionId,
+    workingDirectory: string,
+    resumeFromStore: boolean,
+  ) => Promise<void>;
   /** actor 会话的 task link 落库面；缺席则跳过建 link（会话本身仍落库）。 */
   taskLinkStore?: DynamicWorkflowTaskLinkStore;
   /**
@@ -587,7 +597,17 @@ export function createDynamicWorkflowRunService(
      * 未知 runId 与「本 journal 没有产物读面」都回 `undefined`：对调用方是同一个业务事实。
      */
     async listArtifacts(runId: string): Promise<readonly DynamicWorkflowRunArtifact[] | undefined> {
+      // 与执行目录读面同一 owner 判据，不能把越权元数据配上请求 pane 的兼容根。
+      if (deps.journal.getRun(runId)?.parentSessionId !== deps.parentSessionId) return undefined;
       return artifactsOf(runId, deps.journal).artifacts;
+    },
+
+    async getExecutionWorkspacePath(runId: string): Promise<string | undefined> {
+      const row = deps.journal.getRun(runId);
+      // 根因：pane 初始目录不一定是 run cwd；只投影本会话 run 的持久化执行事实。
+      return row?.parentSessionId === deps.parentSessionId
+        ? row.cwd?.trim() || undefined
+        : undefined;
     },
 
     /**
@@ -665,6 +685,7 @@ export function createDynamicWorkflowRunService(
           introspection,
           journal: deps.journal,
           parentSessionId: deps.parentSessionId,
+          workspaceDirectory: deps.workspaceDirectory,
           runs,
           escalations,
           concurrencyCeiling,

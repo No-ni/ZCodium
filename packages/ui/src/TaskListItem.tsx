@@ -819,6 +819,7 @@ export function TaskListItemContextMenuContent({
     taskNativeSessionLogFile,
     fileManagerLabel,
     handleCopyText,
+    handleCopyWorkspacePath,
     handleOpenTaskPathInFileManager,
   } = useTaskListItemContextActions({
     workspacePath,
@@ -878,7 +879,7 @@ export function TaskListItemContextMenuContent({
         void handleOpenTaskPathInFileManager();
       }}
       onCopyWorkspacePath={() => {
-        void handleCopyText(intl.formatMessage({ id: "appHeader.copyPath" }), workspacePath);
+        void handleCopyWorkspacePath(intl.formatMessage({ id: "appHeader.copyPath" }));
       }}
       onCopyTaskPath={() => {
         void handleCopyText(

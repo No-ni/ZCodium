@@ -52,9 +52,14 @@ import {
   useBrowserScreenshotSurfaceRequest,
 } from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
 import { AnimatedTerminalPanel } from "@/app-shell/AnimatedTerminalPanel.js";
+import { resolveTerminalWorkspaceScopeKey } from "@/terminal/terminalPanelState.js";
+import { isWorkspaceTab } from "@/store/tabStore.js";
 import { SIDE_PANE_DEFAULT_EXPANDED_SIZE } from "@/app-shell/sidePaneLayout.js";
 import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
-import { ensureTaskNavigationWorkspace } from "@/app-shell/taskNavigationWorkspace.js";
+import {
+  ensureTaskNavigationWorkspace,
+  findTaskNavigationWorkspaceTab,
+} from "@/app-shell/taskNavigationWorkspace.js";
 
 import {
   resolveWorkspaceShellPanelRadiusPx,
@@ -73,7 +78,6 @@ import { setWorkspaceSidebarResizeActive } from "@/lib/workspaceSidebarResizeSta
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
   addWorkspacePathOpenRequestListener,
-  selectWorkspacePathFileService,
   shouldFallbackWorkspacePathToCodeViewer,
   type WorkspacePathOpenRequest,
 } from "@/lib/workspacePathNavigation.js";
@@ -83,6 +87,8 @@ import {
 } from "@/lib/selectionSideChatRuntime.js";
 import { getActiveSelectionSideChatTab } from "@/lib/workspaceSidePane.js";
 import { logger } from "@/logger.js";
+import { resolveTaskExecutionWorkspacePath } from "@/lib/taskExecutionWorkspacePath.js";
+import { resolveTaskExecutionWorkspaceServices } from "@/lib/taskExecutionWorkspaceServices.js";
 import {
   areWorkspaceFilePathsEqual,
   isWorkspaceFilePathInside,
@@ -248,9 +254,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   projectName,
   workspaceTabs,
   activeTaskId,
+  primaryDraftScopeToken,
+  onPrimaryDraftEffectiveSessionBindingChange,
   // 会话执行 cwd（文件树 / 终端 / 文件搜索的归属目录）：App 派生一次、本组件只消费。
   // sessionWorkspacePath 是快照原值（判断文件树是否归属当前 tab），effectiveWorkspacePath 已带回落。
   sessionWorkspacePath,
+  terminalExecutionSessionId,
+  terminalExecutionWorkspacePath,
+  terminalExecutionPathReady,
   effectiveWorkspacePath,
   sidePaneOwnerId,
   activeTraceId,
@@ -349,11 +360,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   const [draftHeaderDropTargetController, setDraftHeaderDropTargetController] =
     useState<ConversationDropTargetController | null>(null);
   const fileTreeOpenRequestIdRef = useRef(0);
+  const sidebarWorkflowRunOpenGenerationRef = useRef(0);
   const [fileTreeOpenRequest, setFileTreeOpenRequest] = useState<SidebarFileTreeOpenRequest | null>(
     null,
   );
   const [isSidebarFileTreeOpen, setIsSidebarFileTreeOpen] = useState(false);
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  const terminalWorkspaceKey = resolveTerminalWorkspaceScopeKey({
+    workspaceOwnerKey: workspaceKey,
+    workspacePath: workspaceAbsPath,
+    sessionId: terminalExecutionSessionId,
+    sessionWorkspacePath,
+    sessionWorkspacePathReady: terminalExecutionPathReady,
+    isLocalWorkspace: !workspaceIdentity?.trim() && !workspaceRemoteSessionId,
+  });
   const screenshotSurfaceRequest = useBrowserScreenshotSurfaceRequest(sidePaneState?.tabs ?? []);
   const screenshotSurfaceTab = screenshotSurfaceRequest
     ? findScreenshotSurfaceTabForRender(sidePaneState?.tabs ?? [], screenshotSurfaceRequest)
@@ -386,6 +406,22 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     () => workspaceTabs.map((tab) => tab.workspaceIdentity?.trim() || tab.workspacePath),
     [workspaceTabs],
   );
+  useEffect(() => {
+    sidebarWorkflowRunOpenGenerationRef.current += 1;
+    return () => {
+      sidebarWorkflowRunOpenGenerationRef.current += 1;
+    };
+  }, [
+    activeTaskId,
+    isSidePaneOpen,
+    openWorkspaceKeys,
+    sidePaneOwnerId,
+    sidePaneState?.activeTabId,
+    sidePaneState?.tabs,
+    workspaceAbsPath,
+    workspaceIdentity,
+    workspaceRemoteSessionId,
+  ]);
   // 保活回收：workspace tab 真正关闭（从 openWorkspaceKeys 移除）时，回收属于该 workspace 的
   // side pane terminal 常驻 session（杀 PTY + 销 xterm），避免孤儿进程泄漏。
   // 切 workspace 不会让 workspaceKey 离开这个集合，所以保活的 session 不受影响。
@@ -733,21 +769,21 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   }, [gitState.datasets.staged, gitState.datasets.unstaged]);
   const workspaceRemoteTarget = useMemo(
     () =>
-      workspaceTabs.find(
-        (tab) =>
-          tab.workspacePath === workspaceAbsPath &&
-          (!workspaceIdentity || tab.workspaceIdentity === workspaceIdentity),
-      )?.remoteTarget,
-    [workspaceAbsPath, workspaceIdentity, workspaceTabs],
+      findTaskNavigationWorkspaceTab(workspaceTabs, {
+        workspacePath: workspaceAbsPath,
+        workspaceIdentity,
+        remoteSessionId: workspaceRemoteSessionId,
+      })?.remoteTarget,
+    [workspaceAbsPath, workspaceIdentity, workspaceRemoteSessionId, workspaceTabs],
   );
   const workspaceLocalPathForRemoteMcpSync = useMemo(
     () =>
-      workspaceTabs.find(
-        (tab) =>
-          tab.workspacePath === workspaceAbsPath &&
-          (!workspaceIdentity || tab.workspaceIdentity === workspaceIdentity),
-      )?.localWorkspacePath,
-    [workspaceAbsPath, workspaceIdentity, workspaceTabs],
+      findTaskNavigationWorkspaceTab(workspaceTabs, {
+        workspacePath: workspaceAbsPath,
+        workspaceIdentity,
+        remoteSessionId: workspaceRemoteSessionId,
+      })?.localWorkspacePath,
+    [workspaceAbsPath, workspaceIdentity, workspaceRemoteSessionId, workspaceTabs],
   );
   const workspaceShellSplitStyle = useMemo(
     () =>
@@ -783,7 +819,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       const matches = workspaceTabs.filter(
         (tab) =>
           isWorkspaceFilePathInside(tab.workspacePath, targetPath) &&
-          (!targetWorkspaceIdentity || tab.workspaceIdentity === targetWorkspaceIdentity) &&
+          (targetWorkspaceIdentity?.trim()
+            ? tab.workspaceIdentity?.trim() === targetWorkspaceIdentity.trim()
+            : targetWorkspaceRemoteSessionId ||
+              (!tab.workspaceIdentity?.trim() && !tab.remoteSessionId && !tab.remoteTarget)) &&
           (!targetWorkspaceRemoteSessionId ||
             tab.remoteSessionId === targetWorkspaceRemoteSessionId),
       );
@@ -871,7 +910,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         const workspaceResult = ensureTaskNavigationWorkspace({
           workspacePath: targetWorkspacePath,
           workspaceIdentity: targetWorkspaceIdentity,
-          activateTabByPath: tabStoreApi.getState().activateTabByPath,
+          remoteSessionId: targetRemoteSessionId,
+          activateTabByPath: (path, options) => {
+            if (!options?.remoteSessionId) {
+              return tabStoreApi.getState().activateTabByPath(path, options);
+            }
+            // 旧远程 tab 缺 identity；已知 attachment 时按目标 tab id 激活，不能补开本地 tab。
+            const tab = findTaskNavigationWorkspaceTab(
+              tabStoreApi.getState().tabs.filter(isWorkspaceTab),
+              { workspacePath: path, ...options },
+            );
+            if (!tab) return false;
+            tabStoreApi.getState().activateTab(tab.id);
+            return true;
+          },
           addLocalWorkspaceTab: (workspacePath) => {
             tabStoreApi.getState().addTab(workspacePath);
           },
@@ -893,11 +945,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         }
         const resolvedRemoteSessionId =
           targetRemoteSessionId ??
-          workspaceTabs.find(
-            (tab) =>
-              (tab.workspaceIdentity?.trim() || tab.workspacePath) ===
-              (targetWorkspaceIdentity?.trim() || targetWorkspacePath),
-          )?.remoteSessionId;
+          findTaskNavigationWorkspaceTab(workspaceTabs, {
+            workspacePath: targetWorkspacePath,
+            workspaceIdentity: targetWorkspaceIdentity,
+          })?.remoteSessionId;
         const target: V4SplitPaneSessionTarget = {
           workspacePath: targetWorkspacePath,
           ...(targetWorkspaceIdentity?.trim()
@@ -935,16 +986,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   const handleOpenSavedWorkflowRun = useCallback(
     (params: SavedWorkflowsOpenRunParams) => {
       // 中枢是跨项目视图：实例必须开在发起它的项目，而非活动项目。
-      // params 恒带 workspacePath/identity；仅在异常缺省时兜底回退到活动 workspace。
-      const targetWorkspacePath = params.workspacePath || workspaceAbsPath;
-      const targetWorkspaceIdentity =
-        params.workspaceIdentity ?? (workspaceIdentity?.trim() ? workspaceIdentity : undefined);
-      // remoteSessionId 不在契约里：按目标 workspace 从已打开 tab 反查；命中活动项目即取活动值。
-      const targetRemoteSessionId = workspaceTabs.find(
-        (tab) =>
-          tab.workspacePath === targetWorkspacePath &&
-          (!targetWorkspaceIdentity || tab.workspaceIdentity === targetWorkspaceIdentity),
-      )?.remoteSessionId;
+      // identity 缺席是本地目标，不得继承活动远程 workspace 的身份。
+      const targetWorkspacePath = params.workspacePath;
+      const targetWorkspaceIdentity = params.workspaceIdentity;
+      // remoteSessionId 不在契约里：按目标身份从已打开 tab 精确反查。
+      const targetRemoteSessionId = findTaskNavigationWorkspaceTab(workspaceTabs, {
+        workspacePath: targetWorkspacePath,
+        workspaceIdentity: targetWorkspaceIdentity,
+      })?.remoteSessionId;
       handleSelectTaskInChat(
         targetWorkspacePath,
         params.sessionId,
@@ -959,26 +1008,21 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         toolCallId: params.toolCallId,
         runId: params.runId,
         workflowName: params.workflowName,
+        fileReferenceRootPath: params.fileReferenceRootPath ?? targetWorkspacePath,
       });
     },
-    [
-      handleOpenWorkflowRun,
-      handleSelectTaskInChat,
-      workspaceAbsPath,
-      workspaceIdentity,
-      workspaceTabs,
-    ],
+    [handleOpenWorkflowRun, handleSelectTaskInChat, workspaceTabs],
   );
   // 侧栏运行行：与 composer 徽标
   // 同一跳转——先选中会话，再开 run pane。没有 toolCallId 的 run（不该有）只选中会话。
   const handleOpenSidebarWorkflowRun = useCallback(
-    (target: WorkflowRunOpenTarget) => {
+    async (target: WorkflowRunOpenTarget) => {
+      const requestVersion = ++sidebarWorkflowRunOpenGenerationRef.current;
+      const targetRemoteSessionId = findTaskNavigationWorkspaceTab(
+        workspaceTabs,
+        target,
+      )?.remoteSessionId;
       if (target.run.toolCallId === undefined) {
-        const targetRemoteSessionId = workspaceTabs.find(
-          (tab) =>
-            tab.workspacePath === target.workspacePath &&
-            (!target.workspaceIdentity || tab.workspaceIdentity === target.workspaceIdentity),
-        )?.remoteSessionId;
         handleSelectTaskInChat(
           target.workspacePath,
           target.sessionId,
@@ -987,6 +1031,55 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         );
         return;
       }
+
+      let fileReferenceRootPath: string | undefined;
+      const executionServices = resolveTaskExecutionWorkspaceServices({
+        baseServices,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        ...(targetRemoteSessionId ? { remoteSessionId: targetRemoteSessionId } : {}),
+      });
+      if (!executionServices) {
+        if (requestVersion !== sidebarWorkflowRunOpenGenerationRef.current) return;
+        logger.warn("[WorkspaceShellLayout] 侧栏工作流会话的远程 host 不可用", {
+          sessionId: target.sessionId,
+          workspacePath: target.workspacePath,
+          workspaceIdentity: target.workspaceIdentity,
+          remoteSessionId: targetRemoteSessionId,
+        });
+        toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+        return;
+      }
+      try {
+        fileReferenceRootPath =
+          (await resolveTaskExecutionWorkspacePath(executionServices, {
+            workspacePath: target.workspacePath,
+            ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+            ...(targetRemoteSessionId ? { remoteSessionId: targetRemoteSessionId } : {}),
+            sessionId: target.sessionId,
+          })) ?? undefined;
+      } catch (error) {
+        if (requestVersion !== sidebarWorkflowRunOpenGenerationRef.current) return;
+        logger.warn("[WorkspaceShellLayout] 无法解析侧栏工作流会话 cwd", {
+          sessionId: target.sessionId,
+          workspacePath: target.workspacePath,
+          workspaceIdentity: target.workspaceIdentity,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+        return;
+      }
+      if (requestVersion !== sidebarWorkflowRunOpenGenerationRef.current) return;
+      if (!fileReferenceRootPath) {
+        logger.warn("[WorkspaceShellLayout] 精确查询未找到侧栏工作流会话 cwd", {
+          sessionId: target.sessionId,
+          workspacePath: target.workspacePath,
+          workspaceIdentity: target.workspaceIdentity,
+        });
+        toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+        return;
+      }
+      if (requestVersion !== sidebarWorkflowRunOpenGenerationRef.current) return;
+
       handleOpenSavedWorkflowRun({
         sessionId: target.sessionId,
         runId: target.run.runId,
@@ -994,22 +1087,21 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         workflowName: target.run.name ?? "",
         workspacePath: target.workspacePath,
         ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        ...(fileReferenceRootPath ? { fileReferenceRootPath } : {}),
       });
     },
-    [handleOpenSavedWorkflowRun, handleSelectTaskInChat, workspaceTabs],
+    [baseServices, handleOpenSavedWorkflowRun, handleSelectTaskInChat, intl, workspaceTabs],
   );
   // 中枢的产物 chip：与「查看实例」逐字同构（同一条「先回到发起它的会话」的路径），
   // 只是终点是 `workflow-artifact` tab 而不是 run 详情页。
   const handleOpenSavedWorkflowArtifact = useCallback(
     (params: SavedWorkflowsOpenArtifactParams) => {
-      const targetWorkspacePath = params.workspacePath || workspaceAbsPath;
-      const targetWorkspaceIdentity =
-        params.workspaceIdentity ?? (workspaceIdentity?.trim() ? workspaceIdentity : undefined);
-      const targetRemoteSessionId = workspaceTabs.find(
-        (tab) =>
-          tab.workspacePath === targetWorkspacePath &&
-          (!targetWorkspaceIdentity || tab.workspaceIdentity === targetWorkspaceIdentity),
-      )?.remoteSessionId;
+      const targetWorkspacePath = params.workspacePath;
+      const targetWorkspaceIdentity = params.workspaceIdentity;
+      const targetRemoteSessionId = findTaskNavigationWorkspaceTab(workspaceTabs, {
+        workspacePath: targetWorkspacePath,
+        workspaceIdentity: targetWorkspaceIdentity,
+      })?.remoteSessionId;
       handleSelectTaskInChat(
         targetWorkspacePath,
         params.sessionId,
@@ -1023,19 +1115,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         parentSessionId: params.sessionId,
         runId: params.runId,
         artifactId: params.artifactId,
+        fileReferenceRootPath: params.fileReferenceRootPath ?? targetWorkspacePath,
         ...(params.title === undefined ? {} : { title: params.title }),
         // 中枢的 chip 载荷带得到 contentType（html 产物据它直接开浏览器 tab）；`sourcePath`
         // 那份载荷没有，由 `handleOpenWorkflowArtifact` 自己查 journal 补。
         ...(params.contentType === undefined ? {} : { contentType: params.contentType }),
       });
     },
-    [
-      handleOpenWorkflowArtifact,
-      handleSelectTaskInChat,
-      workspaceAbsPath,
-      workspaceIdentity,
-      workspaceTabs,
-    ],
+    [handleOpenWorkflowArtifact, handleSelectTaskInChat, workspaceTabs],
   );
   const handlePaneActiveSessionChange = useCallback(
     (
@@ -1101,11 +1188,11 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     [handleStartDraftInWorkspaceInChat],
   );
   const activeWorkspacePurpose =
-    workspaceTabs.find(
-      (tab) =>
-        tab.workspacePath === workspaceAbsPath &&
-        (!workspaceIdentity || tab.workspaceIdentity === workspaceIdentity),
-    )?.workspacePurpose ?? "project";
+    findTaskNavigationWorkspaceTab(workspaceTabs, {
+      workspacePath: workspaceAbsPath,
+      workspaceIdentity,
+      remoteSessionId: workspaceRemoteSessionId,
+    })?.workspacePurpose ?? "project";
   const handleSelectConversationWorkspace = useCallback(async () => {
     if (!onResolveConversationWorkspace) {
       return;
@@ -1254,11 +1341,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         return;
       }
       try {
-        const fileService = selectWorkspacePathFileService(
-          target,
-          services.fileService,
-          baseServices.fileService,
-        );
+        // 分屏会话可属于另一条 Host，文件链接必须消费来源 scope，不能借当前壳层服务。
+        const targetServices =
+          target.serviceScope === "base-local"
+            ? baseServices
+            : resolveTaskExecutionWorkspaceServices({
+                baseServices,
+                workspaceIdentity: target.workspaceIdentity,
+                remoteSessionId: target.workspaceRemoteSessionId,
+              });
+        if (!targetServices) {
+          toast(intl.formatMessage({ id: "workspaceFileTree.openFailed" }));
+          return;
+        }
+        const fileService = targetServices.fileService;
         const fileStat = await fileService.stat({
           path: target.path,
         });
@@ -1320,6 +1416,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           target: {
             workspacePath: target.path,
             workspaceName: target.label || getPathLeaf(target.path),
+            workspaceIdentity: target.workspaceIdentity,
+            workspaceRemoteSessionId: target.workspaceRemoteSessionId,
             revealPath: target.path,
             temporaryExternalDirectory: true,
           },
@@ -1347,12 +1445,11 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     },
     [
       findFileLinkOwnerWorkspace,
-      baseServices.fileService,
+      baseServices,
       handleOpenBrowserUrl,
       handleOpenCodeViewer,
       intl,
       openFileTreeRequest,
-      services.fileService,
       workspaceReadOnlyReason,
     ],
   );
@@ -1692,6 +1789,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           }
                           readOnlyReason={workspaceReadOnlyReason}
                           workspaceAbsPath={workspaceAbsPath}
+                          sessionWorkspacePath={sessionWorkspacePath}
                           remoteSessionId={workspaceRemoteSessionId}
                           workspaceIdentity={workspaceIdentity}
                           remoteTarget={workspaceRemoteTarget}
@@ -1836,10 +1934,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               isDesktop={isDesktop === true}
                               remoteSessionId={workspaceRemoteSessionId}
                               sessionId={activeTaskId}
+                              primaryDraftScopeToken={primaryDraftScopeToken}
                               activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
                               provider={activeTaskProvider ?? undefined}
                               onSessionCreated={handleV4SessionCreated}
                               onSessionDeleted={handleV4SessionDeleted}
+                              onPrimaryDraftEffectiveSessionBindingChange={
+                                onPrimaryDraftEffectiveSessionBindingChange
+                              }
                               draftComposerHeader={draftComposerHeader}
                               onPrimaryDraftDropTargetControllerChange={
                                 setDraftHeaderDropTargetController
@@ -1910,6 +2012,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     services={services}
                     workspaceAbsPath={workspaceAbsPath}
                     workspaceIdentity={workspaceIdentity}
+                    cwd={terminalExecutionWorkspacePath}
+                    terminalWorkspaceKey={terminalWorkspaceKey}
+                    executionWorkspacePathReady={terminalExecutionPathReady}
                     openWorkspaceKeys={openWorkspaceKeys}
                     isVisible={isTerminalVisible}
                     isWindowsDesktop={isWindowsDesktop}

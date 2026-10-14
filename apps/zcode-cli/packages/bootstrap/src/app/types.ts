@@ -94,10 +94,7 @@ import type {
   WorkspaceHookPolicyProvider,
   WorkspaceHookReviewTarget,
 } from "@zcode/core";
-import type {
-  BackgroundBashOutputResult,
-  ZCodeToolExecResource,
-} from "@zcode/shared";
+import type { BackgroundBashOutputResult, ZCodeToolExecResource } from "@zcode/shared";
 import type { McpAppsToolVisibility } from "@zcode/shared/mcp-apps";
 import type { SessionTranscriptMessage } from "../session-transcript.js";
 import type { WorkspaceHookReviewCommandResult } from "./workspace-hook-review-controller.js";
@@ -538,6 +535,9 @@ export interface ZCodeApp {
   listDynamicWorkflowRunArtifacts?(input: {
     runId: string;
   }): Promise<readonly DynamicWorkflowRunArtifact[] | undefined>;
+  getDynamicWorkflowRunExecutionWorkspacePath?(input: {
+    runId: string;
+  }): Promise<string | undefined>;
   /**
    * 喂给某个预置看板的 `report` 条目分页（cursor = journal sequence，严格大于）。
    * `limit` 由网关钳好再传下来，这里**精确**兑现——调用方传「上限 + 1」探测 hasMore。

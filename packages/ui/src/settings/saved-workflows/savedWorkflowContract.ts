@@ -15,6 +15,8 @@ export interface SavedWorkflowsOpenRunParams {
   workflowName: string;
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 该次 run 实际 cwd；缺席的历史行回落 workspacePath。 */
+  fileReferenceRootPath?: string;
 }
 
 /**
@@ -37,6 +39,8 @@ export interface SavedWorkflowsOpenArtifactParams {
   contentType?: string;
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 该次 run 实际 cwd；缺席的历史行回落 workspacePath。 */
+  fileReferenceRootPath?: string;
 }
 
 /** 组把自己的加载态回报给页；页据此算总数（count）、空态与首屏 spinner。 */

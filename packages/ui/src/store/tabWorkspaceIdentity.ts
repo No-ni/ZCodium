@@ -2,6 +2,7 @@ interface WorkspaceTabIdentityLike {
   workspacePath: string;
   remoteSessionId?: string;
   workspaceIdentity?: string;
+  remoteTarget?: unknown;
 }
 
 interface WorkspaceTabMatchOptions {
@@ -10,7 +11,7 @@ interface WorkspaceTabMatchOptions {
 }
 
 function hasRemoteTabIdentity(tab: WorkspaceTabIdentityLike): boolean {
-  return Boolean(tab.workspaceIdentity || tab.remoteSessionId);
+  return Boolean(tab.workspaceIdentity?.trim() || tab.remoteSessionId || tab.remoteTarget);
 }
 
 function isLocalWorkspaceTab(tab: WorkspaceTabIdentityLike): boolean {
@@ -26,8 +27,9 @@ export function isSameWorkspaceTab(
     return false;
   }
 
-  if (options?.workspaceIdentity) {
-    return tab.workspaceIdentity === options.workspaceIdentity;
+  const workspaceIdentity = options?.workspaceIdentity?.trim();
+  if (workspaceIdentity) {
+    return (tab.workspaceIdentity?.trim() || tab.workspacePath) === workspaceIdentity;
   }
 
   if (options?.remoteSessionId) {

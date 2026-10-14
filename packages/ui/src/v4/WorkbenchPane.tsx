@@ -40,6 +40,7 @@ import type {
 import { SessionPane } from "@/v4/SessionPane.js";
 import type { PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
+import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
 import {
   paneWorkspaceKey,
@@ -264,6 +265,10 @@ export interface WorkbenchShellBinding {
   provider?: ZCodeProvider;
   onSessionCreated?: (sessionId: string) => void;
   onSessionDeleted?: () => void;
+  primaryDraftScopeToken?: object;
+  onPrimaryDraftEffectiveSessionBindingChange?: (
+    event: PrimaryDraftEffectiveSessionBindingEvent,
+  ) => void;
   draftComposerHeader?: ReactNode;
   onPrimaryDraftDropTargetControllerChange?: (
     controller: ConversationDropTargetController | null,
@@ -561,6 +566,14 @@ export function WorkbenchLeafPane({
           provider={isPrimary && isShellWorkspace ? shell.provider : undefined}
           onSessionCreated={handleSessionCreated}
           onSessionDeleted={handleSessionDeleted}
+          primaryDraftScopeToken={
+            isPrimary && !primaryBinding ? shell.primaryDraftScopeToken : undefined
+          }
+          onPrimaryDraftEffectiveSessionBindingChange={
+            isPrimary && !primaryBinding
+              ? shell.onPrimaryDraftEffectiveSessionBindingChange
+              : undefined
+          }
           focused={focused}
           onSplitRight={canSplit && onSplit ? handleSplitRight : undefined}
           onSplitDown={canSplit && onSplit ? handleSplitDown : undefined}

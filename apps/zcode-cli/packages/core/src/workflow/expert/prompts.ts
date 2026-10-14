@@ -30,7 +30,8 @@ export function buildPhasePrompt(
   return [
     `You are running the ZCode workflow phase: ${definition.phase}.`,
     `Workflow run: ${snapshot.runId}`,
-    `Working directory: ${snapshot.cwd}`,
+    // 根因：run.cwd 是项目枚举键；执行目录由子运行时上下文声明，不能误导模型写进共享根。
+    `Workflow workspace: ${snapshot.cwd}`,
     "",
     `User task:\n${snapshot.task}`,
     "",
@@ -65,7 +66,7 @@ export function buildScheduledNodePrompt(
   return [
     `You are running a ZCode workflow node inside phase: ${definition.phase}.`,
     `Workflow run: ${snapshot.runId}`,
-    `Working directory: ${snapshot.cwd}`,
+    `Workflow workspace: ${snapshot.cwd}`,
     "",
     `User task:\n${snapshot.task}`,
     "",

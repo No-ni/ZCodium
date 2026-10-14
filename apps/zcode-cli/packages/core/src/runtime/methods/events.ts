@@ -531,10 +531,11 @@ export async function notifyEventSinks(
   this: AgentRuntimeInternal,
   event: SessionEvent,
   traceContext: TraceContext,
+  executionWorkspacePath: string = this.workingDirectory,
 ): Promise<void> {
   for (const sink of this.eventSinks) {
     try {
-      await sink.onSessionEvent(event);
+      await sink.onSessionEvent(event, executionWorkspacePath);
     } catch (error) {
       this.logger?.warn("Session event sink failed", {
         ...traceContextToLogContext(traceContext),

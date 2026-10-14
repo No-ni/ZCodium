@@ -118,6 +118,8 @@ export interface AgentRuntimeConfig {
   presentationSurface?: PresentationSurface;
   /** Execution Host's output root, independent of the working repository. */
   genUiOutputRoot?: string;
+  /** Host 注入的既有对话根标记，Gen UI 据此遵守独立会话 cwd。 */
+  conversationWorkspaceRoot?: string;
   mode?: CollaborationMode;
   planEnabled?: boolean;
   modelStreaming?: "off" | "on";
@@ -306,6 +308,14 @@ export interface AgentRuntimeDeps {
   appVersion?: string;
   eventStore: SessionEventStorePort;
   sessionStore?: SessionStorePort;
+  /** 宿主在 child 构造/恢复前准备真实 cwd；core 不接管目录 IO 或持久化路径裁决。 */
+  prepareSubagentSession?: (input: {
+    sessionId: SessionId;
+    resumeFromStore: boolean;
+    workingDirectory: string;
+    workspacePath?: string | undefined;
+    workspaceIdentity?: string | undefined;
+  }) => Promise<void>;
   sessionMailboxPort?: SessionMailboxPort;
   modelFactory: RuntimeModelFactory;
   /** 可选宿主能力：解析未来执行的显式意图；不用于修改已冻结 Model。 */

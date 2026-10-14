@@ -46,6 +46,7 @@ export interface WorkflowRunArtifactView {
 }
 
 interface WorkflowRunArtifactsViewState {
+  executionWorkspacePath?: string;
   artifacts: readonly WorkflowRunArtifactView[];
   /**
    * 元数据的**主**来源。`live` = run 还在活投影里（此时 journal 只用来补 spec / versions）；
@@ -191,6 +192,7 @@ export function useWorkflowRunArtifacts(options: {
 }): WorkflowRunArtifactsViewState {
   const { workflowRunArtifacts } = useV4Conversation();
   const [journal, setJournal] = useState<readonly WorkflowRunArtifact[] | undefined>(undefined);
+  const [executionWorkspacePath, setExecutionWorkspacePath] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +203,12 @@ export function useWorkflowRunArtifacts(options: {
     options.enabled !== false && options.sessionId.length > 0 && options.runId.length > 0;
   const signature = summariesSignature(options.live);
   const { sessionId, runId } = options;
+  const [scope, setScope] = useState({ reader: workflowRunArtifacts, sessionId, runId, enabled });
+  const scopeMatches =
+    scope.reader === workflowRunArtifacts &&
+    scope.sessionId === sessionId &&
+    scope.runId === runId &&
+    scope.enabled === enabled;
 
   const fetchArtifacts = useCallback(async () => {
     const requestVersion = ++requestVersionRef.current;
@@ -210,6 +218,7 @@ export function useWorkflowRunArtifacts(options: {
       const result = await workflowRunArtifacts({ sessionId, runId });
       if (requestVersion !== requestVersionRef.current) return;
       setJournal(result.artifacts);
+      setExecutionWorkspacePath(result.executionWorkspacePath);
       setUnavailable(false);
       setLoading(false);
     } catch (caught) {
@@ -218,6 +227,7 @@ export function useWorkflowRunArtifacts(options: {
       if (isWorkflowRunArtifactsCapabilityMissing(caught)) {
         // 能力缺席不是错误：内容产物的卡片仍然从活投影画得出来，只有看板画不了。
         setJournal(undefined);
+        setExecutionWorkspacePath(undefined);
         setUnavailable(true);
         return;
       }
@@ -230,7 +240,9 @@ export function useWorkflowRunArtifacts(options: {
   useEffect(() => {
     // 切 run / 切会话：先丢掉旧 run 的清单再重查。旧产物留在屏幕上比空白危险得多。
     requestVersionRef.current += 1;
+    setScope({ reader: workflowRunArtifacts, sessionId, runId, enabled });
     setJournal(undefined);
+    setExecutionWorkspacePath(undefined);
     setUnavailable(false);
     setError(null);
     if (!enabled) {
@@ -239,17 +251,19 @@ export function useWorkflowRunArtifacts(options: {
     }
     void fetchArtifacts();
     // signature 是刻意的依赖：新产物出现 / 同 id 发新版都要重查，`itemCount` 变化不重查。
-  }, [enabled, fetchArtifacts, signature]);
+  }, [enabled, fetchArtifacts, runId, sessionId, signature, workflowRunArtifacts]);
 
   return useMemo(
     () => ({
-      artifacts: mergeArtifacts(options.live, journal),
+      // 根因：effect 清理前的首帧不能将旧查询元数据与当前 live 摘要合并。
+      artifacts: mergeArtifacts(options.live, scopeMatches ? journal : undefined),
+      executionWorkspacePath: scopeMatches ? executionWorkspacePath : undefined,
       source: options.live === undefined ? "journal" : "live",
-      loading,
-      unavailable,
-      error,
-      complete: options.live !== undefined || journal !== undefined,
+      loading: scopeMatches && loading,
+      unavailable: scopeMatches && unavailable,
+      error: scopeMatches ? error : null,
+      complete: options.live !== undefined || (scopeMatches && journal !== undefined),
     }),
-    [error, journal, loading, options.live, unavailable],
+    [error, executionWorkspacePath, journal, loading, options.live, scopeMatches, unavailable],
   );
 }

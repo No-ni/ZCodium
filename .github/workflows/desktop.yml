@@ -64,6 +64,35 @@ jobs:
         run: |
           pnpm vitest run packages/shared/src/webRemoteControl packages/shared/src/mcp-apps packages/ui/src/lib/webRemoteControlTarget.test.ts packages/desktop/src/main/webRemoteControl/servicePipe.test.ts apps/zcode-cli/packages/adapters/src/network packages/web/src/mobile packages/shared/src/zcode-protocol-v4
           pnpm vitest run --config packages/ui/vitest.holes.config.ts
+          pnpm vitest run --config packages/ui/vitest.config.ts \
+            packages/services/src/gen-ui/adapters/files.test.ts \
+            packages/ui/src/app-shell/useWorkflowRunPaneSettingsScope.test.ts \
+            packages/ui/src/app-shell/workflowWorkspaceReadPath.test.ts \
+            packages/ui/src/lib/workflowExecutionWorkspace.test.ts \
+            packages/ui/src/hooks/useWorkflowRunExecutionWorkspace.test.ts \
+            packages/ui/src/hooks/useAppPanelsWorkflowArtifact.test.ts \
+            packages/ui/src/app-shell/taskNavigationWorkspace.test.ts \
+            packages/ui/src/lib/workspaceFileLinkHost.test.ts \
+            packages/ui/src/hooks/useWorkspaceOpenInEditorTarget.test.ts \
+            packages/ui/src/hooks/useWorkspaceServicesScope.test.ts \
+            packages/ui/src/terminal/terminalPanelState.test.ts \
+            packages/ui/src/lib/markdownFileLink.test.ts \
+            packages/ui/src/components/ai-elements/markdown-image-scope.test.ts \
+            packages/ui/src/components/ai-elements/messageMarkdownFilePipeline.test.ts \
+            packages/ui/src/lib/taskExecutionWorkspacePath.test.ts \
+            packages/ui/src/lib/taskExecutionWorkspaceServices.test.ts \
+            packages/ui/src/lib/workspaceSidePanePlanDetailRoot.test.ts \
+            packages/ui/src/lib/documentFileReferenceRootPath.test.ts \
+            packages/ui/src/lib/workspaceSidePaneTerminal.test.ts \
+            packages/ui/src/workspace-file-tree/sidebarFileTreePath.test.ts \
+            packages/ui/src/settings/saved-workflows/globalWorkflowGroupHelpers.test.ts \
+            packages/ui/src/settings/saved-workflows/savedWorkflowRunOpenParams.test.ts \
+            packages/ui/src/v4/sessionWorkspacePath.test.ts \
+            packages/ui/src/v4/useConversationProjection.test.ts \
+            packages/ui/src/v4/primaryDraftSessionBinding.test.ts \
+            apps/zcode-cli/packages/core/src/runtime/helpers/gen-ui-output.test.ts \
+            apps/zcode-cli/packages/core/src/runtime/methods/session-persistence-concurrency.test.ts \
+            packages/shared/src/node/genUiPaths.test.ts
       - name: Release tests
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs

@@ -17,8 +17,10 @@ export { resolveProjectMemoryRoot } from "./memory/project-root.js";
 // Tool components
 export { ToolScheduler, defaultToolScheduler, READ_ONLY_TOOLS } from "./tool/scheduler.js";
 export type { ToolSchedule, ToolScheduleItem, ToolDependency } from "./tool/scheduler.js";
-export { createToolRegistry, ToolRegistry, ToolRegistryImpl } from "./tool/registry.js";
-export { createToolExecutor, ToolExecutor, ToolExecutorImpl } from "./tool/executor.js";
+export { createToolRegistry, ToolRegistryImpl } from "./tool/registry.js";
+export type { ToolRegistry } from "./tool/registry.js";
+export { createToolExecutor, ToolExecutorImpl } from "./tool/executor.js";
+export type { ToolExecutor } from "./tool/executor.js";
 export { builtInTools, registerBuiltInTools } from "./tool/handlers/index.js";
 // dwf driver 的 submit profile 运行时守卫要把 typed 声明换回通用声明。
 export {

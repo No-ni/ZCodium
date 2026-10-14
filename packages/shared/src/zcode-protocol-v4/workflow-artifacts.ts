@@ -156,6 +156,8 @@ export const v4ConversationWorkflowRunArtifactsResultSchema = z
   .object({
     /** 按首次出现顺序（= journal 里该 id 第一条 artifact 行的 ordinal）。 */
     artifacts: z.array(workflowRunArtifactSchema),
+    /** The frozen execution cwd for resolving relative sourcePath values. */
+    executionWorkspacePath: z.string().min(1).optional(),
   })
   .strict();
 export type V4ConversationWorkflowRunArtifactsResult = z.infer<

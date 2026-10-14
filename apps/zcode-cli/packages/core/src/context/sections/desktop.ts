@@ -12,7 +12,7 @@ export function buildDesktopContextSection(genUiOutputDirectory?: string): Conte
       ...(genUiOutputDirectory
         ? [
             "- This Desktop host supports Gen UI: completed assistant references to HTML fragments in the supplied session directory render inline, including on remote executors.",
-            `- Writable, durable visualization directory for this session: ${JSON.stringify(genUiOutputDirectory)}. Save inline fragments here, outside the project. Other paths cannot be rendered.`,
+            `- Writable, durable visualization directory for this session: ${JSON.stringify(genUiOutputDirectory)}. Save inline fragments here. Other paths cannot be rendered.`,
             "- Use the independent visualize skill for authoring instructions, styles and the restricted window.zcode bridge. Load the skill before generating an interactive view.",
           ]
         : ["- No visualization output directory is supplied; inline Gen UI is unavailable."]),

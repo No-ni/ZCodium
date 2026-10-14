@@ -3,8 +3,11 @@ import { useCallback } from "react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useTaskNativeSessionLogFile } from "@/hooks/useTaskNativeSessionLogFile.js";
 import { useTaskSessionFilePath } from "@/hooks/useTaskSessionFilePath.js";
+import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
+import { toast } from "@/components/ui/toast.js";
 import { logger } from "@/logger.js";
+import { resolveTaskExecutionWorkspacePath } from "@/lib/taskExecutionWorkspacePath.js";
 
 interface TaskPathState {
   loading: boolean;
@@ -17,6 +20,7 @@ interface TaskListItemContextActionsResult {
   taskNativeSessionLogFile: TaskPathState;
   fileManagerLabel: string;
   handleCopyText: (label: string, value: string | null) => Promise<void>;
+  handleCopyWorkspacePath: (label: string) => Promise<void>;
   handleOpenTaskPathInFileManager: () => Promise<void>;
 }
 
@@ -25,6 +29,7 @@ export function useTaskListItemContextActions({
   remoteSessionId,
   workspaceIdentity,
   taskId,
+  workingDirectory,
   provider,
   intl,
   loadTaskPaths = true,
@@ -33,6 +38,8 @@ export function useTaskListItemContextActions({
   remoteSessionId?: string;
   workspaceIdentity?: string;
   taskId: string;
+  /** Header 已有的当前会话 cwd；避免为同一动作再查询一次。 */
+  workingDirectory?: string;
   provider?: ZCodeProvider;
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
@@ -40,6 +47,13 @@ export function useTaskListItemContextActions({
   loadTaskPaths?: boolean;
 }): TaskListItemContextActionsResult {
   const platform = usePlatform();
+  const workspaceServices = useWorkspaceServices(
+    workspacePath,
+    remoteSessionId,
+    workspaceIdentity,
+    undefined,
+    "exact",
+  );
   const workspaceOpenTarget = useWorkspaceOpenInEditorTarget({
     workspacePath,
     workspaceIdentity,
@@ -73,7 +87,63 @@ export function useTaskListItemContextActions({
     }
   }, []);
 
+  const resolveTaskWorkspacePath = useCallback(async () => {
+    if (!taskId) {
+      return workingDirectory?.trim() || workspacePath;
+    }
+
+    try {
+      const path = await resolveTaskExecutionWorkspacePath(workspaceServices, {
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        ...(remoteSessionId ? { remoteSessionId } : {}),
+        sessionId: taskId,
+        knownExecutionWorkspacePath: workingDirectory,
+      });
+      if (path) {
+        return path;
+      }
+
+      logger.warn("[TaskListItem] 精确查询未找到任务会话，停止路径操作", {
+        taskId,
+        workspacePath,
+      });
+    } catch (error) {
+      logger.warn("[TaskListItem] 查询任务工作目录失败，停止路径操作", {
+        taskId,
+        workspacePath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+    return null;
+  }, [
+    intl,
+    remoteSessionId,
+    taskId,
+    workspaceIdentity,
+    workspacePath,
+    workingDirectory,
+    workspaceServices,
+  ]);
+
+  const handleCopyWorkspacePath = useCallback(
+    async (label: string) => {
+      const path = await resolveTaskWorkspacePath();
+      if (path) {
+        await handleCopyText(label, path);
+      }
+    },
+    [handleCopyText, resolveTaskWorkspacePath],
+  );
+
   const handleOpenTaskPathInFileManager = useCallback(async () => {
+    const path = await resolveTaskWorkspacePath();
+    if (!path) {
+      return;
+    }
+
     const hasRemoteWorkspaceScope = Boolean(
       remoteSessionId || workspaceIdentity?.trim() || workspaceOpenTarget.isRemoteWorkspace,
     );
@@ -83,21 +153,21 @@ export function useTaskListItemContextActions({
         // 避免 SSH/Docker 的 Linux 路径误落到原生 Windows、macOS 或 Linux 文件管理器。
         logger.warn("[TaskListItem] 远程 workspace 不支持本机文件管理器", {
           taskId,
-          path: workspacePath,
+          path,
           remoteKind: workspaceOpenTarget.remoteTarget?.kind ?? "unresolved",
         });
         return;
       }
 
-      const result = await platform.openInEditor("explorer", workspacePath, {
+      const result = await platform.openInEditor("explorer", path, {
         pathKind: "directory",
         remoteTarget: workspaceOpenTarget.remoteTarget,
         workspaceIdentity,
       });
       if (!result.success) {
-        logger.warn("[TaskListItem] 打开 WSL workspace 路径失败", {
+        logger.warn("[TaskListItem] 打开 WSL 任务工作目录失败", {
           taskId,
-          path: workspacePath,
+          path,
           error: result.error ?? "unknown-error",
         });
       }
@@ -108,32 +178,29 @@ export function useTaskListItemContextActions({
     const isWindows = isWindowsLike();
     if (isMac || isWindows) {
       const editorId = isMac ? "finder" : "explorer";
-      const result = await platform.openInEditor(editorId, workspacePath);
+      const result = await platform.openInEditor(editorId, path);
       if (result.success) {
         return;
       }
     }
 
-    const result = await platform.openInFileManager(workspacePath);
+    const result = await platform.openInFileManager(path);
     if (!result.success) {
-      // Header / task 菜单里的“Open in Finder”语义应该是打开项目目录。
-      // 之前这里误绑到了 task session 文件路径，菜单可用性也跟着 task 快照文件走，
-      // 一旦 session 文件还没解析出来，用户会看到 Finder 入口莫名不可用。
-      // 这里统一改成始终打开 workspacePath，让行为和“Copy path=项目路径”保持一致。
-      logger.warn("[TaskListItem] 打开 workspace 路径失败", {
+      // Header / task 菜单里的入口打开任务执行目录；session record 路径仍只用于“Copy task path”。
+      logger.warn("[TaskListItem] 打开任务工作目录失败", {
         taskId,
-        path: workspacePath,
+        path,
         error: result.error ?? "unknown-error",
       });
     }
   }, [
     platform,
     remoteSessionId,
+    resolveTaskWorkspacePath,
     taskId,
     workspaceIdentity,
     workspaceOpenTarget.isRemoteWorkspace,
     workspaceOpenTarget.remoteTarget,
-    workspacePath,
   ]);
 
   return {
@@ -141,6 +208,7 @@ export function useTaskListItemContextActions({
     taskNativeSessionLogFile,
     fileManagerLabel: getFileManagerLabel(intl),
     handleCopyText,
+    handleCopyWorkspacePath,
     handleOpenTaskPathInFileManager,
   };
 }

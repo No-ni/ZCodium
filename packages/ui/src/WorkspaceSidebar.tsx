@@ -91,6 +91,9 @@ import {
   reorderSidebarPurposeSections,
 } from "@/lib/sidebarPurposeSectionPreferences.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { resolveTaskExecutionWorkspacePath } from "@/lib/taskExecutionWorkspacePath.js";
+import { toast } from "@/components/ui/toast.js";
 
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
@@ -312,6 +315,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onFileTreeOpenChange?: (open: boolean) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useZCodeIntl();
+  const baseServices = useBaseWorkspaceServices();
   const handleTaskRowSelect = useCallback(
     (
       targetWorkspacePath: string,
@@ -343,6 +347,13 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
 
     return activeTab.workspaceIdentity;
   });
+  const activeTaskId = useZCodeSessionStore(
+    (state) =>
+      // Web 远程控制从全局 task 入口进入远端 workspace 时，会先按
+      // workspaceIdentity 写入 activeTaskId；如果侧栏仍然只读 path-only 桶，
+      // 当前任务高亮会丢失，也会把后续选择误判成未激活。
+      selectWorkspaceZCodeState(state, workspacePath, workspaceIdentity).activeTaskId,
+  );
   const workspaceReadOnly = useTabStore((state) =>
     isWorkspaceReadOnly(state, workspacePath, workspaceIdentity),
   );
@@ -383,6 +394,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   );
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(false);
   const [fileTreeTarget, setFileTreeTarget] = useState<SidebarFileTreeTarget | null>(null);
+  const fileTreeRequestVersionRef = useRef(0);
   const [groupedStickyHeader, setGroupedStickyHeader] = useState<ReactNode | null>(null);
   const [taskOrganizeBy, setTaskOrganizeBy] = useState<TaskOrganizeBy>(
     () => readSidebarTaskPreferences().organizeBy,
@@ -532,10 +544,11 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     ],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!fileTreeOpenRequest) {
       return;
     }
+    fileTreeRequestVersionRef.current += 1;
     setFileTreeTarget(fileTreeOpenRequest.target);
     setIsFileTreeOpen(true);
   }, [fileTreeOpenRequest]);
@@ -644,9 +657,79 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       increaseWorkspaceTaskVisibleLimit(current, workspaceKey),
     );
   }, []);
-  const handleOpenWorkspaceFileTree = useCallback((target: SidebarFileTreeTarget) => {
-    setFileTreeTarget(target);
-    setIsFileTreeOpen(true);
+  const handleOpenWorkspaceFileTree = useCallback(
+    async (target: SidebarFileTreeTarget) => {
+      const requestVersion = ++fileTreeRequestVersionRef.current;
+      let resolvedTarget = target;
+
+      if (
+        target.taskId &&
+        !target.workspaceIdentity?.trim() &&
+        !target.workspaceRemoteSessionId?.trim()
+      ) {
+        const targetWorkspaceKey = buildTaskWorkspaceKey(
+          target.workspacePath,
+          target.workspaceIdentity,
+        );
+        const activeWorkspaceKey = buildTaskWorkspaceKey(workspacePath, workspaceIdentity);
+        const knownExecutionWorkspacePath =
+          target.taskId === activeTaskId &&
+          targetWorkspaceKey === activeWorkspaceKey &&
+          activeSessionWorkspacePath?.trim()
+            ? activeSessionWorkspacePath
+            : null;
+
+        try {
+          const executionWorkspacePath = await resolveTaskExecutionWorkspacePath(baseServices, {
+            workspacePath: target.workspacePath,
+            sessionId: target.taskId,
+            knownExecutionWorkspacePath,
+          });
+          if (requestVersion !== fileTreeRequestVersionRef.current) {
+            return;
+          }
+          if (!executionWorkspacePath) {
+            logger.warn("[WorkspaceSidebar] 精确查询未找到任务会话，停止打开文件树", {
+              taskId: target.taskId,
+              workspacePath: target.workspacePath,
+            });
+            toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+            return;
+          }
+          resolvedTarget = { ...target, executionWorkspacePath };
+        } catch (error) {
+          if (requestVersion !== fileTreeRequestVersionRef.current) {
+            return;
+          }
+          logger.warn("[WorkspaceSidebar] 查询任务工作目录失败，停止打开文件树", {
+            taskId: target.taskId,
+            workspacePath: target.workspacePath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          toast(intl.formatMessage({ id: "appHeader.taskWorkingDirectoryUnavailable" }));
+          return;
+        }
+      }
+
+      if (requestVersion !== fileTreeRequestVersionRef.current) {
+        return;
+      }
+      setFileTreeTarget(resolvedTarget);
+      setIsFileTreeOpen(true);
+    },
+    [
+      activeSessionWorkspacePath,
+      activeTaskId,
+      baseServices.zcodeAgentService,
+      baseServices.zcodeSessionService,
+      intl,
+      workspaceIdentity,
+      workspacePath,
+    ],
+  );
+  const handleCloseWorkspaceFileTree = useCallback(() => {
+    fileTreeRequestVersionRef.current += 1;
+    setIsFileTreeOpen(false);
   }, []);
   const workspaceScrollMaskStyle = useMemo<CSSProperties>(() => {
     const baseStyle: CSSProperties = { overflowAnchor: "none" };
@@ -749,13 +832,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const handleOpenAutomationsMain = useCallback(() => {
     onOpenAutomations?.();
   }, [onOpenAutomations]);
-  const activeTaskId = useZCodeSessionStore(
-    (state) =>
-      // Web 远程控制从全局 task 入口进入远端 workspace 时，会先按
-      // workspaceIdentity 写入 activeTaskId；如果侧栏仍然只读 path-only 桶，
-      // 当前任务高亮会丢失，也会把后续选择误判成未激活。
-      selectWorkspaceZCodeState(state, workspacePath, workspaceIdentity).activeTaskId,
-  );
+  const activeWorkspaceTabId = useTabStore((state) => state.activeTabId);
 
   useEffect(() => {
     const scrollNode = workspaceScrollRef.current;
@@ -1351,10 +1428,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                   activeTaskId={activeTaskId}
                   taskSortBy={taskSortBy}
                   onSelectTask={handleTaskRowSelect}
-                  onOpenFileTree={(target) => {
-                    setFileTreeTarget(target);
-                    setIsFileTreeOpen(true);
-                  }}
+                  onOpenFileTree={handleOpenWorkspaceFileTree}
                 />
               ) : null}
               <div className="flex min-h-0 flex-col gap-3 px-2">
@@ -1376,10 +1450,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                     activeTaskId={activeTaskId}
                     onSelectTask={onSelectTask}
                     onCreateTask={onCreateTask}
-                    onOpenFileTree={(target) => {
-                      setFileTreeTarget(target);
-                      setIsFileTreeOpen(true);
-                    }}
+                    onOpenFileTree={handleOpenWorkspaceFileTree}
                     onCreateGroupActionChange={handleCreateGroupActionChange}
                     onCreateDraftTaskActionChange={handleCreateDraftTaskActionChange}
                     collapsedGroupIds={collapsedGroupedTaskGroupIds}
@@ -1503,7 +1574,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                           <SortableWorkspaceSidebarItem
                                             key={tab.id}
                                             tab={tab}
-                                            isActiveWorkspace={tab.workspacePath === workspacePath}
+                                            isActiveWorkspace={tab.id === activeWorkspaceTabId}
                                             isExpanded={resolveWorkspaceDragExpanded({
                                               activeDragId: activeWorkspaceDragId,
                                               expanded: expandedWorkspacePaths.has(
@@ -1663,7 +1734,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               temporaryExternalDirectory={fileTreeTarget.temporaryExternalDirectory}
               canOpenLocalFileManager={isDesktop}
               activePreviewPath={activePreviewPath}
-              onClose={() => setIsFileTreeOpen(false)}
+              onClose={handleCloseWorkspaceFileTree}
               onOpenBrowserUrl={isDesktop ? onOpenBrowserUrl : undefined}
               onOpenPreview={(source) => {
                 // 文件树可以查看非当前 workspace 的文件。

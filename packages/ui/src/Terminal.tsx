@@ -19,6 +19,7 @@ import {
   formatTerminalTabTitle,
   getNextTerminalSessionIndex,
   getTerminalSessionCloseAction,
+  retainOpenTerminalWorkspaceStates,
   type TerminalPanelState,
   type TerminalSessionDescriptor,
 } from "@/terminal/terminalPanelState.js";
@@ -26,7 +27,10 @@ import {
 export function Terminal({
   services,
   cwd,
+  workspacePath,
   workspaceIdentity,
+  terminalWorkspaceKey,
+  executionWorkspacePathReady,
   openWorkspaceKeys,
   isVisible,
   isPanelResizing = false,
@@ -36,7 +40,10 @@ export function Terminal({
 }: {
   services: IServiceAccessor;
   cwd?: string;
+  workspacePath: string;
   workspaceIdentity?: string;
+  terminalWorkspaceKey: string | null;
+  executionWorkspacePathReady: boolean;
   openWorkspaceKeys?: string[];
   isVisible: boolean;
   isPanelResizing?: boolean;
@@ -46,10 +53,15 @@ export function Terminal({
 }) {
   const { intl } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
-  const workspaceKey = workspaceIdentity?.trim() || cwd || "__default__";
+  const ownerWorkspaceKey = workspaceIdentity?.trim() || workspacePath || cwd || "__default__";
+  const workspaceKey = terminalWorkspaceKey ?? ownerWorkspaceKey;
   const [panelState, setPanelState] = useState<TerminalPanelState>(() => {
+    if (!executionWorkspacePathReady) {
+      return { sessions: {}, workspaces: {} };
+    }
     const { session, workspace } = createWorkspaceTerminalState({
       workspaceKey,
+      ownerWorkspaceKey,
       services,
       cwd,
     });
@@ -72,14 +84,18 @@ export function Terminal({
     // 业务逻辑：终端会话按 workspace identity 隔离保存，切换 workspace 时只切换可见 tab，
     // 不卸载旧 workspace 的 xterm/PTY，避免长时间运行的命令因为 React 生命周期变化被杀掉。
     // PTY exit 会删除最后一个 session；面板下次重新打开时也通过这里懒创建新终端。
+    if (!executionWorkspacePathReady) {
+      return;
+    }
     setPanelState((current) =>
       ensureWorkspaceTerminalState(current, {
         workspaceKey,
+        ownerWorkspaceKey,
         services,
         cwd,
       }),
     );
-  }, [cwd, isVisible, services, workspaceKey]);
+  }, [cwd, executionWorkspacePathReady, isVisible, ownerWorkspaceKey, services, workspaceKey]);
 
   useEffect(() => {
     const exitedWorkspaceKey = closePanelAfterExitWorkspaceRef.current;
@@ -100,32 +116,10 @@ export function Terminal({
 
     // 终端现在会跨 workspace 切换保活，但 workspace tab 被真正关闭后，
     // 对应的隐藏终端不能继续占着 PTY 进程；这里按仍打开的 workspace key 做回收。
-    const retainedWorkspaceKeys = new Set(openWorkspaceKeys);
-    retainedWorkspaceKeys.add(workspaceKey);
-    setPanelState((current) => {
-      const removedWorkspaceKeys = Object.keys(current.workspaces).filter(
-        (key) => !retainedWorkspaceKeys.has(key),
-      );
-      if (removedWorkspaceKeys.length === 0) {
-        return current;
-      }
-
-      const nextWorkspaces = { ...current.workspaces };
-      const nextSessions = { ...current.sessions };
-      for (const removedWorkspaceKey of removedWorkspaceKeys) {
-        const workspace = nextWorkspaces[removedWorkspaceKey];
-        delete nextWorkspaces[removedWorkspaceKey];
-        for (const sessionId of workspace?.sessionIds ?? []) {
-          delete nextSessions[sessionId];
-        }
-      }
-
-      return {
-        sessions: nextSessions,
-        workspaces: nextWorkspaces,
-      };
-    });
-  }, [openWorkspaceKeys, workspaceKey]);
+    setPanelState((current) =>
+      retainOpenTerminalWorkspaceStates(current, openWorkspaceKeys, ownerWorkspaceKey),
+    );
+  }, [openWorkspaceKeys, ownerWorkspaceKey]);
 
   const handleShellLabelChange = useCallback((sessionId: string, shellLabel: string | null) => {
     setPanelState((current) => {
@@ -148,9 +142,13 @@ export function Terminal({
   }, []);
 
   const handleCreateSession = useCallback(() => {
+    if (!executionWorkspacePathReady) {
+      return;
+    }
     setPanelState((current) => {
       const ensured = ensureWorkspaceTerminalState(current, {
         workspaceKey,
+        ownerWorkspaceKey,
         services,
         cwd,
       });
@@ -161,6 +159,7 @@ export function Terminal({
 
       const session = createTerminalSession({
         workspaceKey,
+        ownerWorkspaceKey,
         services,
         cwd,
         index: getNextTerminalSessionIndex(ensured, workspaceKey),
@@ -185,7 +184,7 @@ export function Terminal({
         },
       };
     });
-  }, [cwd, services, workspaceKey]);
+  }, [cwd, executionWorkspacePathReady, ownerWorkspaceKey, services, workspaceKey]);
 
   const handleCloseSession = useCallback(
     (sessionId: string) => {
@@ -274,10 +273,11 @@ export function Terminal({
   }, []);
 
   const workspace = panelState.workspaces[workspaceKey];
-  const currentSessions =
-    workspace?.sessionIds
-      .map((sessionId) => panelState.sessions[sessionId])
-      .filter((session): session is TerminalSessionDescriptor => Boolean(session)) ?? [];
+  const currentSessions = executionWorkspacePathReady
+    ? (workspace?.sessionIds
+        .map((sessionId) => panelState.sessions[sessionId])
+        .filter((session): session is TerminalSessionDescriptor => Boolean(session)) ?? [])
+    : [];
   const activeSession =
     currentSessions.find((session) => session.id === workspace?.activeSessionId) ??
     currentSessions[0] ??
@@ -335,6 +335,7 @@ export function Terminal({
                 size="icon-md"
                 variant="ghost"
                 onClick={handleCreateSession}
+                disabled={!executionWorkspacePathReady}
                 title={intl.formatMessage({ id: "terminal.new" })}
                 aria-label={intl.formatMessage({ id: "terminal.new" })}
               >

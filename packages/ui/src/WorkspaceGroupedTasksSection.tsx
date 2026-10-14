@@ -543,6 +543,7 @@ export function WorkspaceGroupedTasksSection({
   onOpenFileTree?: (target: {
     workspacePath: string;
     workspaceName: string;
+    taskId?: string | null;
     workspaceIdentity?: string;
     workspaceRemoteSessionId?: string;
   }) => void;

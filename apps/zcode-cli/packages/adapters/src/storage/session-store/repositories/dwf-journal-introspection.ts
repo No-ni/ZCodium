@@ -32,10 +32,10 @@ import {
 /** {@link DwfRunIntrospectionQueries.listRuns} 的查询袋。 */
 export interface DwfListRunsQuery {
   /**
-   * 项目键。字面等值匹配 `dwf_run.cwd`（写入侧原样落，读侧原样查）。
+   * 项目键或执行目录。字面匹配 run.cwd 或父会话的 session.directory。
    *
    * **可选**：缺省即不加 cwd 谓词，跨所有项目枚举。全局工作流的运行历史横跨它被发起过的每个
-   * 项目（`workflows/runs` 的 `scope: "global"` 变体）；项目档变体仍传 cwd，行为逐字不变。
+   * 项目（`workflows/runs` 的 `scope: "global"` 变体）；项目档变体仍传工作区键。
    */
   cwd?: string;
   /**
@@ -116,8 +116,7 @@ export interface DwfRunIntrospectionQueries {
  * 从不枚举 run，这是宿主的读面需求（`ListWorkflowRuns` 工具），所以不进领域端口。
  *
  * cwd / statuses / 排序 / limit **全部下推 SQL**：`dwf_run_cwd_idx`（0021）正是这个形状；
- * 在 JS 里取全量再筛就把索引和 limit 一起浪费掉了。cwd 是**字面**等值匹配——写入侧原样落
- * `context.workingDirectory`，读侧原样查，任何单侧的路径规范化都只会造出不匹配。
+ * 在 JS 里取全量再筛就把索引和 limit 一起浪费掉了。路径只做字面匹配，不单侧规范化。
  *
  * 行是窄投影（{@link DwfRunListItem}，不带 failure / result）：列表面不展示产物，而产物
  * 可以很大。
@@ -133,8 +132,11 @@ export function listRuns(db: DatabaseSync, query: DwfListRunsQuery): DwfRunListI
   if (query.limit <= 0) return [];
 
   // cwd 缺省即不加谓词：全局工作流的历史跨所有它跑过的项目（全局变体不按 cwd 过滤）。
-  // 给了 cwd 就字面等值匹配，走 dwf_run_cwd_idx，行为逐字不变。
-  const cwdFilter = query.cwd === undefined ? "" : " and cwd = ?";
+  // 根因：独立会话让 run.cwd 与项目键分离；借用已有父会话归属，不能改写沙箱 cwd。
+  const cwdFilter =
+    query.cwd === undefined
+      ? ""
+      : " and (cwd = ? or parent_session_id in (select id from session where directory = ?))";
   // 逻辑状态 → 物理谓词（stopped / errored 共享物理 failed，靠 failure_json 的 code 在 SQL
   // 里分清；见 dwf-journal-codecs.ts 的 encodeRunStatusPredicate）。
   const statusPredicate =
@@ -155,7 +157,7 @@ export function listRuns(db: DatabaseSync, query: DwfListRunsQuery): DwfRunListI
       `,
     )
     .all(
-      ...(query.cwd === undefined ? [] : [query.cwd]),
+      ...(query.cwd === undefined ? [] : [query.cwd, query.cwd]),
       ...(statusPredicate?.params ?? []),
       ...(query.name === undefined ? [] : [query.name]),
       query.limit,

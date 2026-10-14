@@ -67,6 +67,8 @@ export function useWorkspaceFileTreeData({
     workspacePath,
     workspaceRemoteSessionId,
     workspaceIdentity,
+    undefined,
+    "exact",
   );
   const workspaceGenerationRef = useRef(0);
   const requestVersionRef = useRef(0);

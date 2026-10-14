@@ -313,7 +313,11 @@ export interface AgentRuntimeTurnMethods {
   ): BackgroundTaskInfo;
   createEvent(type: SessionEventType, payload: unknown, traceContext: TraceContext): SessionEvent;
   appendEvent(event: SessionEvent, traceContext: TraceContext): Promise<void>;
-  notifyEventSinks(event: SessionEvent, traceContext: TraceContext): Promise<void>;
+  notifyEventSinks(
+    event: SessionEvent,
+    traceContext: TraceContext,
+    executionWorkspacePath?: string,
+  ): Promise<void>;
   ensureSessionPersisted(input: string, traceContext: TraceContext): Promise<void>;
   buildCompactTimelinePayload(
     timeline: CompactTimelineContext,

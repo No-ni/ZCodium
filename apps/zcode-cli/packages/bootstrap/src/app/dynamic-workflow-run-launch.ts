@@ -272,8 +272,13 @@ export function launchDynamicWorkflowRun(
       submitProfile,
       modelRequestAdmission,
     }) => {
+      // actor 的恢复绕过主 app 与普通子代理准入；先按自己的持久化 cwd 复核，不能借 run cwd。
+      const journaled = deps.journal.getActor(runId, actor.siteId, actor.ordinal)?.sessionId;
+      if (journaled !== undefined) await deps.prepareActorSession?.(sessionId, cwd, true);
       const runtime = deps.createActorRuntime({
         runId,
+        // world-read 与 fresh actor 必须使用同一 run cwd，跨会话续跑也不借当前父目录。
+        cwd,
         sessionId,
         actor,
         persona,
@@ -318,6 +323,8 @@ export function launchDynamicWorkflowRun(
         sessionId,
       });
       if (attached === "rehydrated") return runtime;
+      // 缺行恢复会降级新建；此时重走冻结 run cwd 的准备，不能沿用缺行准备的早退结果。
+      await deps.prepareActorSession?.(sessionId, cwd, false);
       await persistActorSession({
         actor,
         deps,

@@ -189,9 +189,14 @@ export async function emitFileMutationCheckpoint(
         turnId: options.traceContext.turnId,
         toolCallId: options.result.toolCallId,
         toolName: options.result.toolName,
-        // 记录创建这一刻的执行 cwd：rewind 之后要按它解析 checkpoint 里的模型原文相对路径
-        // （执行 cwd 可能已经变化，例如存量会话补发独立目录）。
-        content: stringifyWorkspaceCheckpointArtifact(candidate, options.result, this.workspaceRoot),
+        // 根因：Bash `cd` 只更新 workingDirectory，workspaceRoot 是会话初始边界；checkpoint
+        // 里的相对路径必须按本次工具执行 cwd 解析，否则 cd 到子目录后 rewind 会改错同名文件。
+        // cwd 在 call-runner 创建结果时捕获，避免并行工具结束期间 runtime cwd 再次变化。
+        content: stringifyWorkspaceCheckpointArtifact(
+          candidate,
+          options.result,
+          options.result.workingDirectory ?? this.workspaceRoot,
+        ),
         contentType: WORKSPACE_CHECKPOINT_CONTENT_TYPE,
         retention: "session",
         trace: options.traceContext,

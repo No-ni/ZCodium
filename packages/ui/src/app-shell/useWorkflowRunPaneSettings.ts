@@ -25,15 +25,19 @@ import type { useV4Conversation } from "@/v4/V4ConversationContext.js";
 
 /** run tab 的 workspace 作用域：打开别的 tab（actor、脚本、产物、后继）时原样带上。 */
 export function workflowRunTabScope(
-  tab: Pick<WorkflowRunSidePaneTab, "workspacePath" | "workspaceIdentity" | "remoteSessionId">,
+  tab: Pick<
+    WorkflowRunSidePaneTab,
+    "workspacePath" | "workspaceIdentity" | "remoteSessionId" | "fileReferenceRootPath"
+  >,
 ): Pick<
   OpenScopedWorkflowRunSideTabRequest,
-  "workspacePath" | "workspaceIdentity" | "remoteSessionId"
+  "workspacePath" | "workspaceIdentity" | "remoteSessionId" | "fileReferenceRootPath"
 > {
   return {
     workspacePath: tab.workspacePath,
     ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
     ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
+    ...(tab.fileReferenceRootPath ? { fileReferenceRootPath: tab.fileReferenceRootPath } : {}),
   };
 }
 
@@ -82,6 +86,7 @@ export function useWorkflowRunPaneSettings({
       sendCommand,
       sessionModel,
       tab.parentSessionId,
+      tab.fileReferenceRootPath,
       tab.remoteSessionId,
       tab.runId,
       tab.workspaceIdentity,
@@ -117,6 +122,7 @@ export function useWorkflowRunPaneSettings({
     onOpenWorkflowRun,
     successorArrived,
     tab.parentSessionId,
+    tab.fileReferenceRootPath,
     tab.remoteSessionId,
     tab.runId,
     tab.workflowName,

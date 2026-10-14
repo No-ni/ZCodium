@@ -73,6 +73,7 @@ export function WorkspaceHeaderTitleSection({
   variant,
   readOnlyReason,
   workspaceAbsPath,
+  sessionWorkspacePath,
   remoteSessionId,
   workspaceIdentity,
   remoteTarget,
@@ -169,12 +170,14 @@ export function WorkspaceHeaderTitleSection({
     taskNativeSessionLogFile,
     fileManagerLabel,
     handleCopyText,
+    handleCopyWorkspacePath,
     handleOpenTaskPathInFileManager,
   } = useTaskListItemContextActions({
     workspacePath: workspaceAbsPath,
     remoteSessionId,
     workspaceIdentity,
     taskId: activeTaskId ?? "",
+    workingDirectory: sessionWorkspacePath ?? undefined,
     // 任务日志查询与 Header 当前展示态使用同一个 provider。
     provider: menuTaskProvider,
     intl,
@@ -644,10 +647,7 @@ export function WorkspaceHeaderTitleSection({
                   void handleOpenTaskPathInFileManager();
                 }}
                 onCopyWorkspacePath={() => {
-                  void handleCopyText(
-                    intl.formatMessage({ id: "appHeader.copyPath" }),
-                    workspaceAbsPath,
-                  );
+                  void handleCopyWorkspacePath(intl.formatMessage({ id: "appHeader.copyPath" }));
                 }}
                 onCopyTaskPath={() => {
                   void handleCopyText(

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { FileReferenceRoot } from "@/lib/fileReferenceRoot.js";
 import {
+  isSessionWorkspaceSnapshotReady,
+  isSessionWorkspaceLeaseCurrent,
+  isTerminalExecutionPathReady,
   readSessionWorkspacePath,
   resolveEffectiveWorkspacePath,
   resolvePaneFileSearchRoot,
 } from "./sessionWorkspacePath.js";
+import type { SessionLease } from "./sessionDataLayer.js";
 
 // 会话 cwd 的唯一来源是 conversation snapshot 的 additive 可选字段 `workspacePath`
 // （见 docs/specs/conversation-session-workspace.md 的所有者表）：
@@ -13,6 +17,99 @@ import {
 
 const TAB_WORKSPACE_PATH = "/Users/me/.zcodium/workspace/default";
 const SESSION_WORKSPACE_PATH = "/Users/me/.zcodium/workspace/default/2026-10-11/a1b2c3d4";
+
+describe("execution directory lease source", () => {
+  it("does not reuse a same-id lease after workspace/Host/remote scope changes before effects", () => {
+    const agentService = {};
+    const current = {
+      binding: {
+        lease: { sessionId: "same-id" } as SessionLease,
+        workspacePath: TAB_WORKSPACE_PATH,
+        agentService,
+      },
+      sessionId: "same-id",
+      workspacePath: TAB_WORKSPACE_PATH,
+      agentService,
+      rpcReady: true,
+    };
+    expect(isSessionWorkspaceLeaseCurrent(current)).toBe(true);
+    for (const change of [
+      { workspacePath: "/other-workspace" },
+      { agentService: {} },
+      { workspaceIdentity: "remote:/workspace" },
+      { remoteSessionId: "remote-host" },
+      { resolvedRemoteSessionId: "remote-host" },
+      { rpcReady: false },
+      { sessionId: "another-session" },
+      { binding: null },
+    ]) {
+      expect(isSessionWorkspaceLeaseCurrent({ ...current, ...change })).toBe(false);
+    }
+  });
+});
+
+describe("isSessionWorkspaceSnapshotReady", () => {
+  it("waits for a snapshot belonging to the exact requested task", () => {
+    expect(isSessionWorkspaceSnapshotReady(null, "task-a")).toBe(false);
+    expect(isSessionWorkspaceSnapshotReady({ sessionId: "task-a" }, "task-b")).toBe(false);
+    expect(isSessionWorkspaceSnapshotReady({ sessionId: "task-a" }, "task-a")).toBe(true);
+    expect(isSessionWorkspaceSnapshotReady(null, null)).toBe(false);
+  });
+});
+
+describe("isTerminalExecutionPathReady", () => {
+  it("allows explicit project workspaces to open at their root without a task", () => {
+    expect(
+      isTerminalExecutionPathReady({
+        hasWorkspaceIdentity: false,
+        workspacePurpose: "project",
+        sessionId: null,
+        sessionSnapshotReady: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("waits for the exact local session snapshot regardless of purpose", () => {
+    expect(
+      isTerminalExecutionPathReady({
+        hasWorkspaceIdentity: false,
+        workspacePurpose: null,
+        sessionId: null,
+        sessionSnapshotReady: false,
+      }),
+    ).toBe(false);
+
+    for (const workspacePurpose of ["conversation", "project", null] as const) {
+      expect(
+        isTerminalExecutionPathReady({
+          hasWorkspaceIdentity: false,
+          workspacePurpose,
+          sessionId: "task-a",
+          sessionSnapshotReady: false,
+        }),
+      ).toBe(false);
+      expect(
+        isTerminalExecutionPathReady({
+          hasWorkspaceIdentity: false,
+          workspacePurpose,
+          sessionId: "task-a",
+          sessionSnapshotReady: true,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("keeps identity workspaces on their existing root behavior", () => {
+    expect(
+      isTerminalExecutionPathReady({
+        hasWorkspaceIdentity: true,
+        workspacePurpose: "conversation",
+        sessionId: null,
+        sessionSnapshotReady: false,
+      }),
+    ).toBe(true);
+  });
+});
 
 describe("readSessionWorkspacePath", () => {
   it("读取快照投影的会话执行 cwd", () => {

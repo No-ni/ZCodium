@@ -99,6 +99,8 @@ export const v4ConversationWorkflowRunWorkspaceResultSchema = z
   .object({
     /** 按落库先后（journal 行 id 升序 = 引擎准入顺序）。 */
     nodes: z.array(workflowRunWorkspaceNodeSchema).max(WORKFLOW_WORKSPACE_LIMITS.maxNodes),
+    /** The frozen execution cwd for resolving relative transcript paths. */
+    executionWorkspacePath: z.string().min(1).optional(),
     /** 清单超过 maxNodes 被截尾。 */
     truncated: z.boolean().optional(),
   })

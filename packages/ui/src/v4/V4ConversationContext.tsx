@@ -243,6 +243,8 @@ export function V4PaneConversationProvider({ scope, children }: V4PaneConversati
     scope.workspacePath,
     scope.remoteSessionId ?? null,
     scope.workspaceIdentity ?? null,
+    undefined,
+    "exact",
   );
   const resolvedScope = useMemo<PaneWorkspaceScope>(
     () => ({
