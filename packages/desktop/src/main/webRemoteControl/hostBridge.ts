@@ -148,6 +148,7 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
   // 双向绑定 open 的 bridgeSessionId，但 seq/ack/replay 各方向仍是独立空间。
   const streamId = params.bridgeSessionId;
   const attachmentId = params.attachment.attachmentId;
+  const attachmentPort = params.attachment.port;
   let outboundSeq = 0;
   const assembler = new WebRemoteControlRpcAssembler({ streamId });
   // 出站重传缓冲 + ack 批量调度：单序号空间 `(ackedSeq, lastSentSeq]`，与接收侧装配器各自一侧。
@@ -265,7 +266,7 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
     attachmentId,
     logger: params.logger,
   });
-  hostPort.start();
+  let onAttachmentPortClose: (() => void) | undefined;
 
   const bridge: WebRemoteControlRpcBridge = {
     acceptFrame(frame) {
@@ -287,7 +288,9 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
       sendAck(seq);
     },
     dispose() {
+      if (disposed) return;
       disposed = true;
+      if (onAttachmentPortClose) attachmentPort.off("close", onAttachmentPortClose);
       clearInterval(sweepTimer);
       ackScheduler.dispose();
       replayBuffer.clear();
@@ -300,6 +303,27 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
     if (disposed) return;
     handleAssemblyEvents(assembler.sweep());
   }, WEB_REMOTE_CONTROL_RPC_LIMITS.assemblySweepIntervalMs);
+
+  onAttachmentPortClose = () => {
+    if (disposed) return;
+    // Host 已关闭 service port：释放当前桥，避免继续接收手机帧或留下 sweep timer。
+    bridge.dispose();
+    params.logger.warn("[web-remote-control] host attachment port closed", {
+      attachmentId,
+    });
+    params.onDegraded("host-attachment-port-closed");
+  };
+  try {
+    attachmentPort.on("close", onAttachmentPortClose);
+    hostPort.start();
+  } catch (error) {
+    try {
+      bridge.dispose();
+    } catch {
+      // 保留初始化原错，由 controller 继续释放 attachment。
+    }
+    throw error;
+  }
 
   return {
     bridge,

@@ -156,6 +156,7 @@ export function MobileApp() {
             workspaceKey,
             workspacePath: workspace?.workspacePath ?? "",
             workspaceIdentity: workspace?.workspaceIdentity,
+            remoteSessionId: workspace?.remoteSessionId,
             taskId,
           },
           onEvent,

@@ -70,7 +70,10 @@ class FakeWebSocket {
   opens(): BridgeOpen[] {
     return this.sent.filter((p): p is BridgeOpen => p.zcode_type === "workspace-bridge-open");
   }
-  ready(open: BridgeOpen) {
+  ready(
+    open: BridgeOpen,
+    scope: { kind: "local" | "remote"; remoteSessionId?: string } = { kind: "local" },
+  ) {
     this.receive({
       zcode_type: "workspace-bridge-ready",
       requestId: open.requestId,
@@ -79,7 +82,7 @@ class FakeWebSocket {
         bridgeSessionId: open.bridgeSessionId,
         workspaceKey: open.workspaceKey,
         workspacePath: "/workspace",
-        kind: "local",
+        ...scope,
         entryKind: "task",
       },
     });
@@ -367,6 +370,24 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     lifecycle.dispose();
   });
 
+  it("Host Initialize 前的 bridge-degraded 会拒绝挂起快照读取", async () => {
+    const { c, socket } = client();
+    const ready = c.ensureWorkspaceBridge({ workspaceKey: access.workspaceKey });
+    await flush();
+    const opened = socket.opens()[0]!;
+    socket.ready(opened);
+    await ready;
+    const read = c.readTaskSnapshot(access).catch((error: Error) => error.message);
+    await flush();
+    expect(requests(socket, opened.bridgeSessionId)).toEqual([]);
+    socket.receive({
+      zcode_type: "bridge-degraded",
+      bridgeSessionId: opened.bridgeSessionId,
+      reason: "rpc-transport-fault",
+    });
+    expect(await read).toBe("mobile bridge invalidated");
+  });
+
   it("deferred A/B/A 的实际 wire open 顺序串行，新桥序号重置且旧帧不进新 client", async () => {
     const { c, socket } = client();
     const readyA = c.ensureWorkspaceBridge({ workspaceKey: "A" });
@@ -418,6 +439,84 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     await flush();
     expect(settled).toHaveBeenCalledWith([]);
     expect(await freshRead).toEqual([]);
+  });
+
+  it("同一 workspace key 的 remoteSessionId 换代时重开 Host bridge", async () => {
+    const { c, socket } = client();
+    const firstReady = c.ensureWorkspaceBridge({
+      workspaceKey: "remote-workspace",
+      remoteSessionId: "remote-A",
+    });
+    await flush();
+    const first = socket.opens()[0]!;
+    const oldHost = host(socket, first.bridgeSessionId);
+    oldHost.send([INITIALIZE]);
+    socket.ready(first, { kind: "remote", remoteSessionId: "remote-A" });
+    await firstReady;
+
+    const secondReady = c.ensureWorkspaceBridge({
+      workspaceKey: "remote-workspace",
+      remoteSessionId: "remote-B",
+    });
+    await flush();
+    expect(socket.opens()).toHaveLength(2);
+    const second = socket.opens()[1]!;
+    oldHost.send([INITIALIZE]);
+    socket.ready(second, { kind: "remote", remoteSessionId: "remote-B" });
+    await secondReady;
+
+    const read = c.readTaskSnapshot({
+      ...access,
+      workspaceKey: "remote-workspace",
+      remoteSessionId: "remote-B",
+    });
+    const readResult = read.then(
+      (value) => ({ value }),
+      (error: Error) => ({ error: error.message }),
+    );
+    await flush();
+    expect(requests(socket, first.bridgeSessionId)).toEqual([]);
+    expect(requests(socket, second.bridgeSessionId)).toEqual([]);
+    const newHost = host(socket, second.bridgeSessionId);
+    newHost.send([INITIALIZE]);
+    await flush();
+    const readRequest = requests(socket, second.bridgeSessionId).find(
+      (request) => request.header[3] === "readSessionMessages",
+    );
+    expect(readRequest?.body).toContainEqual(
+      expect.objectContaining({ remoteSessionId: "remote-B" }),
+    );
+    newHost.send([SUCCESS, Number(readRequest?.header[1])], []);
+    expect(await readResult).toEqual({ value: [] });
+  });
+
+  it("拒绝 remote-A 请求收到 remote-B ready，并允许重试", async () => {
+    const { c, socket } = client();
+    const target = { workspaceKey: "remote-workspace", remoteSessionId: "remote-A" };
+    const firstReady = c.ensureWorkspaceBridge(target).catch((error: Error) => error.message);
+    await flush();
+    const first = socket.opens()[0]!;
+    socket.ready(first, { kind: "remote", remoteSessionId: "remote-B" });
+    expect(await firstReady).toBe("workspace bridge scope mismatch");
+
+    const retry = c.ensureWorkspaceBridge(target);
+    await flush();
+    expect(socket.opens()).toHaveLength(2);
+    socket.ready(socket.opens()[1]!, { kind: "remote", remoteSessionId: "remote-A" });
+    await retry;
+  });
+
+  it.each([
+    { kind: "remote" as const, remoteSessionId: "remote-A" },
+    { kind: "local" as const, remoteSessionId: "remote-A" },
+  ])("本地目标拒绝带 remoteSessionId 的 ready descriptor %#", async (scope) => {
+    const { c, socket } = client();
+    const opening = c
+      .ensureWorkspaceBridge({ workspaceKey: "local-workspace" })
+      .catch((error: Error) => error.message);
+    await flush();
+    socket.ready(socket.opens()[0]!, scope);
+    expect(await opening).toBe("workspace bridge scope mismatch");
   });
 
   it("手机按 open 身份过滤 ack/flow/分片，双向 ack 不串序号空间", async () => {

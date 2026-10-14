@@ -3,7 +3,10 @@ import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha256";
 import { RemoteServiceAccess } from "@zcode/client";
 import { ChannelClient, VSBuffer } from "@zcode/rpc";
-import { WorkspaceBridgeLifecycle } from "./workspaceBridgeLifecycle.js";
+import {
+  WorkspaceBridgeLifecycle,
+  type WorkspaceBridgeTarget,
+} from "./workspaceBridgeLifecycle.js";
 import {
   encodeWebRemoteControlRpcFrames,
   generateTraceId,
@@ -55,6 +58,7 @@ export interface TaskStreamParams {
   workspaceKey: string;
   workspacePath: string;
   workspaceIdentity?: string;
+  remoteSessionId?: string;
   taskId: string;
 }
 
@@ -300,15 +304,16 @@ export class MobileRemoteControlClient {
     if (this.disposed) return NOOP_TASK_STREAM_SUBSCRIPTION;
     await this.ensureWorkspaceBridge({
       workspaceKey: params.workspaceKey,
+      remoteSessionId: params.remoteSessionId,
       taskId: params.taskId,
     });
     if (this.disposed) return NOOP_TASK_STREAM_SUBSCRIPTION;
     // await 期间可能已断线或切 workspace：bridge 已作废就不订阅。
-    if (!this.bridge.isReady(params.workspaceKey)) {
+    if (!this.bridge.isReady(params)) {
       return NOOP_TASK_STREAM_SUBSCRIPTION;
     }
     const generation = this.bridge.version;
-    const { zcodeTaskService } = this.createServiceAccessor(params.workspaceKey);
+    const { zcodeTaskService } = this.createServiceAccessor(params);
     const disposable = zcodeTaskService.onDynamicTaskEvent({
       workspacePath: params.workspacePath,
       ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
@@ -316,7 +321,7 @@ export class MobileRemoteControlClient {
       deliveryKind: "replayable",
     })((event) => {
       if (this.disposed || !this.bridge.isCurrent(generation)) return;
-      if (!this.bridge.isReady(params.workspaceKey)) return;
+      if (!this.bridge.isReady(params)) return;
       onEvent(event);
     });
     let active = true;
@@ -337,8 +342,12 @@ export class MobileRemoteControlClient {
   async readTaskSnapshot(
     params: TaskAccessParams & { limit?: number },
   ): Promise<ZCodeMessageWithParts[]> {
-    await this.ensureWorkspaceBridge({ workspaceKey: params.workspaceKey, taskId: params.taskId });
-    const { zcodeSessionService } = this.createServiceAccessor(params.workspaceKey);
+    await this.ensureWorkspaceBridge({
+      workspaceKey: params.workspaceKey,
+      remoteSessionId: params.remoteSessionId,
+      taskId: params.taskId,
+    });
+    const { zcodeSessionService } = this.createServiceAccessor(params);
     return zcodeSessionService.readSessionMessages({
       sessionId: params.taskId,
       workspacePath: params.workspacePath ?? "",
@@ -350,8 +359,12 @@ export class MobileRemoteControlClient {
 
   /** 发送一条 prompt；clientMode 固定 `web-remote-replayable`（与桌面 continuous 语义分离）。 */
   async sendTaskPrompt(params: TaskAccessParams & { content: string }): Promise<void> {
-    await this.ensureWorkspaceBridge({ workspaceKey: params.workspaceKey, taskId: params.taskId });
-    const { zcodeTaskService } = this.createServiceAccessor(params.workspaceKey);
+    await this.ensureWorkspaceBridge({
+      workspaceKey: params.workspaceKey,
+      remoteSessionId: params.remoteSessionId,
+      taskId: params.taskId,
+    });
+    const { zcodeTaskService } = this.createServiceAccessor(params);
     // workspace 归属由 taskId 反查（task meta 持久化 workspacePath/Identity）；
     // 远端工作区的 session 路由显式带上 remoteSessionId。
     await zcodeTaskService.sendPrompt({
@@ -476,14 +489,14 @@ export class MobileRemoteControlClient {
    * 发 `workspace-bridge-open`（桌面按 `workspaceKey` 在窗口运行时里反查目标），等
    * `workspace-bridge-ready` / `workspace-bridge-error`。
    */
-  async ensureWorkspaceBridge(params: { workspaceKey: string; taskId?: string }): Promise<void> {
+  async ensureWorkspaceBridge(params: WorkspaceBridgeTarget): Promise<void> {
     if (this.disposed) throw new Error("mobile client disposed");
     await this.bridge.ensure(params);
-    if (!this.bridge.isReady(params.workspaceKey)) throw new Error("workspace bridge superseded");
+    if (!this.bridge.isReady(params)) throw new Error("workspace bridge superseded");
   }
 
   private async openWorkspaceBridge(
-    params: { workspaceKey: string; taskId?: string },
+    params: WorkspaceBridgeTarget,
     generation: number,
   ): Promise<void> {
     // Host Initialize 可能先于 ready 到达；必须先建新 client/装配器，ready 后不能再清 seq。
@@ -509,6 +522,13 @@ export class MobileRemoteControlClient {
     if (response.zcode_type !== "workspace-bridge-ready") {
       throw new Error(`unexpected workspace bridge response: ${response.zcode_type}`);
     }
+    // 清单与 open 之间可能再次重连；必须按 Host 实际返回的 scope 校验，不能把 B 桥记成 A。
+    const descriptor = response.bridge;
+    const scopeMatches =
+      params.remoteSessionId === undefined
+        ? descriptor.kind === "local" && descriptor.remoteSessionId === undefined
+        : descriptor.kind === "remote" && descriptor.remoteSessionId === params.remoteSessionId;
+    if (!scopeMatches) throw new Error("workspace bridge scope mismatch");
   }
 
   /**
@@ -517,9 +537,12 @@ export class MobileRemoteControlClient {
    * 按实例记忆化：每次调用都新建会把 protocol 的单槽 `onRpcMessage` 覆盖掉，
    * 上一个 accessor 的在途请求再也收不到回复（快照读取与发送都会调用，必现）。
    */
-  private createServiceAccessor(workspaceKey: string): RemoteServiceAccess {
+  private createServiceAccessor(scope: {
+    workspaceKey: string;
+    remoteSessionId?: string;
+  }): RemoteServiceAccess {
     // await ensure 返回与调用服务之间也可能切桥；不能临时创建 client 或借用其他目标的 accessor。
-    if (!this.bridge.isReady(workspaceKey) || !this.serviceAccessorInstance) {
+    if (!this.bridge.isReady(scope) || !this.serviceAccessorInstance) {
       throw new Error("workspace bridge superseded");
     }
     return this.serviceAccessorInstance;

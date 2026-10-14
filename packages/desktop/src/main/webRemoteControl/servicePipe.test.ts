@@ -61,20 +61,43 @@ function jsonSafeToPortPayload(value: unknown): Uint8Array {
 }
 
 type PortListener = (event: { data: MessagePortPayload }) => void;
+type PortCloseListener = () => void;
+
+interface FakeMessagePort extends MessagePortLike {
+  on(type: string, listener: PortListener | PortCloseListener): void;
+  off(type: string, listener: PortListener | PortCloseListener): void;
+}
 
 /** 内存 MessagePort 对：postMessage 异步投递到对端监听者，模拟 MessagePort 的消息边界。 */
-function createFakePortPair(): { a: MessagePortLike; b: MessagePortLike } {
+function createFakePortPair(): { a: FakeMessagePort; b: FakeMessagePort } {
   const listenersA = new Set<PortListener>();
   const listenersB = new Set<PortListener>();
-  const make = (own: Set<PortListener>, peer: Set<PortListener>): MessagePortLike => ({
+  const closeListenersA = new Set<PortCloseListener>();
+  const closeListenersB = new Set<PortCloseListener>();
+  let closed = false;
+  const make = (
+    own: Set<PortListener>,
+    peer: Set<PortListener>,
+    ownClose: Set<PortCloseListener>,
+    peerClose: Set<PortCloseListener>,
+  ): FakeMessagePort => ({
     addEventListener(_type: "message", listener: PortListener) {
       own.add(listener);
     },
     removeEventListener(_type: "message", listener: PortListener) {
       own.delete(listener);
     },
+    on(type: string, listener: PortListener | PortCloseListener) {
+      if (type === "message") own.add(listener as PortListener);
+      else if (type === "close") ownClose.add(listener as PortCloseListener);
+    },
+    off(type: string, listener: PortListener | PortCloseListener) {
+      if (type === "message") own.delete(listener as PortListener);
+      else if (type === "close") ownClose.delete(listener as PortCloseListener);
+    },
     postMessage(data: MessagePortPayload) {
       setTimeout(() => {
+        if (closed) return;
         // 投递时再取快照：真实 MessagePort 的事件只送给“触发时已注册”的监听者。
         const recipients = Array.from(peer);
         for (const listener of recipients) listener({ data });
@@ -82,10 +105,19 @@ function createFakePortPair(): { a: MessagePortLike; b: MessagePortLike } {
     },
     start() {},
     close() {
+      if (closed) return;
+      closed = true;
       own.clear();
+      peer.clear();
+      for (const listener of [...ownClose, ...peerClose]) listener();
+      ownClose.clear();
+      peerClose.clear();
     },
   });
-  return { a: make(listenersA, listenersB), b: make(listenersB, listenersA) };
+  return {
+    a: make(listenersA, listenersB, closeListenersA, closeListenersB),
+    b: make(listenersB, listenersA, closeListenersB, closeListenersA),
+  };
 }
 
 function createHarness() {
@@ -177,16 +209,18 @@ function createHarness() {
   };
 }
 
-function createIdentityHarness() {
+function createIdentityHarness(deferInit = false) {
   const bridgeSessionId = "bridge-current";
   const { a: serverPort, b: hostPort } = createFakePortPair();
   const posted = vi.spyOn(hostPort, "postMessage");
   const electronPort = {
-    on(_type: string, listener: PortListener) {
-      hostPort.addEventListener("message", listener);
+    on(type: string, listener: PortListener | PortCloseListener) {
+      if (type === "message") hostPort.on("message", listener as PortListener);
+      else if (type === "close") hostPort.on("close", listener as PortCloseListener);
     },
-    off(_type: string, listener: PortListener) {
-      hostPort.removeEventListener("message", listener);
+    off(type: string, listener: PortListener | PortCloseListener) {
+      if (type === "message") hostPort.off("message", listener as PortListener);
+      else if (type === "close") hostPort.off("close", listener as PortCloseListener);
     },
     postMessage: (data: MessagePortPayload) => hostPort.postMessage(data),
     start: () => hostPort.start?.(),
@@ -197,7 +231,7 @@ function createIdentityHarness() {
   const subscribed = vi.fn();
   const echo = vi.fn(async (value: string) => `echo:${value}`);
   const serverProtocol = new MessagePortProtocol(serverPort);
-  const server = new ChannelServer(serverProtocol, "identity-test");
+  const server = new ChannelServer(serverProtocol, "identity-test", 1000, deferInit);
   server.registerChannel(
     "test-channel",
     ProxyChannel.fromService({
@@ -264,6 +298,7 @@ function createIdentityHarness() {
     pingEmitter,
     service,
     onDegraded,
+    closeHostPort: () => serverPort.close(),
     dispose() {
       client.dispose();
       opened.dispose();
@@ -276,6 +311,36 @@ function createIdentityHarness() {
 }
 
 describe("hostBridge bridgeSessionId binding", () => {
+  it("Host Initialize 前 attachment port 关闭时降级，dispose 自关闭不重复报告", async () => {
+    const h = createIdentityHarness(true);
+    const pendingRpc = h.service.echo("before-init");
+    const pendingRpcRejected = expect(pendingRpc).rejects.toThrow("ChannelClient disposed");
+    try {
+      h.closeHostPort();
+      await vi.waitFor(() => {
+        expect(h.onDegraded).toHaveBeenCalledExactlyOnceWith("host-attachment-port-closed");
+      });
+      expect(h.echo).not.toHaveBeenCalled();
+      for (const frame of encodeWebRemoteControlRpcFrames(toJsonSafe(new Uint8Array([1])), {
+        streamId: h.bridgeSessionId,
+        seq: 1,
+      })) {
+        h.bridge.acceptFrame(frame);
+      }
+      expect(h.posted).not.toHaveBeenCalled();
+    } finally {
+      h.dispose();
+    }
+    await pendingRpcRejected;
+    expect(h.onDegraded).toHaveBeenCalledOnce();
+  });
+
+  it("dispose 移除 close listener，不把本地 port 关闭报告为 degraded", () => {
+    const h = createIdentityHarness();
+    h.dispose();
+    expect(h.onDegraded).not.toHaveBeenCalled();
+  });
+
   it("旧手机 message/分片/重传/ack/flow 不能进入新 Host，当前 Initialize/RPC/event lifecycle 正常", async () => {
     const h = createIdentityHarness();
     try {
