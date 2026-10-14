@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
-import { promisify } from "node:util";
+import { promisify, stripVTControlCharacters } from "node:util";
 import test from "node:test";
 import { runSourceTests } from "./source-test-runner.mjs";
 
@@ -31,6 +31,8 @@ test("SSH 信任记录与 Main/Host MCP 迁移回归", async (t) => {
     ],
     { cwd: root, env, timeout: 60_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
   );
-  assert.match(result.stdout, /Tests\s+42 passed/);
+  // CI 的 vitest 输出带 ANSI 颜色码（本地 NO_COLOR/TERM=dumb 时不带），
+  // 直接匹配「Tests 42 passed」会只在 CI 上误报失败；先剥离控制序列再断言。
+  assert.match(stripVTControlCharacters(result.stdout), /Tests\s+42 passed/);
   t.diagnostic("42 tests executed");
 });
