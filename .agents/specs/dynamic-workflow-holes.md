@@ -19,6 +19,11 @@
   不允许 updateRunScript + appendEvent 降级。引擎先 commit，成功后 swapTables、沿 EngineState
   唯一 record 广播路径通知已存事件（不重复 append）、最后登记 filled 与放行 promise。
   commit 失败：run 行、事件、内存表、停驻 promise 完全不变，resume 不执行失败补全。
+- 草稿是 journal 的派生副本：commit 后尽力就地改写，失败不撤销已提交补全；`scriptPath` 只在草稿
+  成功写回后返回，缺席时工具输出不得声称磁盘草稿已同步，也不得把旧路径作为本次成功补全的草稿位置。
+  快照与 GetWorkflowRun 共用草稿可用性投影；写回期间或失败后隐藏路径，内部保留源路径供下次补全
+  重写。成功重写整份有效脚本后恢复路径。冷查询及 resume 遇到既有 hole-filled 时，不凭启动事件的
+  路径推断磁盘已同步；没有本进程写回确认时隐藏路径，journal 仍是有效脚本的唯一权威。
 - StoredEvent.sequence 是唯一 durable 顺序，返回引擎 FillHoleResult.commitSequence，端口
   FillWorkflowHoleResult.commitSequence，再传 CreateWorkflowOutput.fill.commitSequence 与 strict
   display.fill schema（复用 fill schema）。shared schema 已同步；UI 只读同 run 成功补全的
@@ -365,7 +370,8 @@ P1 契约/引擎/线协议、P2 驱动/工具/权限/通知、P3a 阶段分析�
   崩溃遗留的 `.uuid.pending` 也按相同保留期清理；写失败仍返回原编译诊断。
   测试可注入 root / now / retentionMs。
 - 输入 path 可读本次作用域的 fill 文件或正常用户提供的文件；拒绝 `..` 路径段，托管数据根
-  内禁止跨 session/run/site 与符号链接绕过。写入路径不使用原始身份或名字作目录路径。
+  内禁止跨 session/run/site 与符号链接绕过。配置根的链接别名与 realpath 返回路径须一致解析；
+  外部链接及托管目录内的文件链接仍拒绝。写入路径不使用原始身份或名字作目录路径。
 - 批准预览唯一载体是 resolveInput 回填的 `hole.effective_script`，不再使用进程级单槽缓存，
   并发补全不会抢走彼此预览；模型提供的整个 hole 块（包括该字段）都无条件剥掉。
 - resolveInput 无条件剥掉模型伪造的 hole 事实，端口快照回填 owner：parentSessionId 匹配

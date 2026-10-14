@@ -90,7 +90,7 @@ describe("FillWorkflowHole permission facts and display", () => {
     assert.equal(resolved.result, false);
   });
   it("successful output and approval preview reach the existing CreateWorkflow display shape", async () => {
-    const ctx = context();
+    const ctx = context({ scriptPath: "/workspace/workflows/current.ts" });
     const resolved = await resolveFillWorkflowHoleInput(input, ctx);
     assert.equal(resolved.result, true);
     if (!resolved.result) return;
@@ -125,6 +125,8 @@ describe("FillWorkflowHole permission facts and display", () => {
     assert.equal(display?.kind === "create_workflow" ? display.ok : false, true);
     assert.ok(display?.kind === "create_workflow" && display.causalityGraph);
     assert.equal(display.kind === "create_workflow" ? display.fill?.commitSequence : undefined, 7);
+    assert.equal(display.kind === "create_workflow" ? display.fill?.draftPath : undefined, undefined);
+    assert.match((output as { response: string }).response, /No updated draft file is available/);
     assert.equal(
       completedToolPartMetadataSchema.safeParse({ schemaVersion: 1, display }).success,
       true,
@@ -236,7 +238,7 @@ describe("FillWorkflowHole permission facts and display", () => {
       assert.equal((await resolveFillWorkflowHoleInput(retry, ctx)).result, false);
       await writeFile(file, 'return "edited";');
       const edited = await resolveFillWorkflowHoleInput(retry, ctx);
-      assert.equal(edited.result, true);
+      assert.equal(edited.result, true, JSON.stringify(edited));
       if (edited.result)
         assert.equal((edited.input as { script: string }).script, 'return "edited";');
       const foreign = context();

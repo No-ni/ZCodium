@@ -99,6 +99,8 @@ export interface RunRegistryEntry {
    * 值在建 run 那一世写死、余生不变，所以副本与事件不可能分叉。缺席即这个 run 没有文件。
    */
   scriptPath?: string;
+  /** 草稿写回期间/失败或冷恢复后未确认同步；源路径保留，读面不得推荐旧文件修订。 */
+  scriptPathStale?: boolean;
   /** 修订 run 的前驱（`dwf_run.resumed_from` 的内存副本，journal 行出现之前枚举面唯一能读到的地方）。 */
   resumedFrom?: string;
   /**
@@ -208,10 +210,9 @@ export function snapshotOf(
     ...runSubagentModelField(
       entry === undefined ? readRunSubagentModel(journal, taskId) : entry.subagentModel,
     ),
-    // 脚本文件：与子代理模型逐条同规（有条目就读条目，只有冷行才扫一次事件头），同样
-    // 「记过才在场」。终态通知据它把下一步说成「就地编辑那个文件」，所以快照必须带上它。
+    // 终态通知会推荐就地编辑草稿；只有已确认同步的路径才可进入快照，不能指向旧脚本。
     ...runScriptPathField(
-      entry === undefined ? readRunScriptPath(journal, taskId) : entry.scriptPath,
+      synchronizedRunScriptPath(journal, taskId, entry),
     ),
     ...(failure === undefined ? {} : { failure }),
     ...(activeDurationMs === undefined ? {} : { activeDurationMs }),
@@ -280,6 +281,20 @@ export function runSubagentModelField(subagentModel: string | undefined): {
  */
 export function runScriptPathField(scriptPath: string | undefined): { scriptPath?: string } {
   return scriptPath === undefined ? {} : { scriptPath };
+}
+
+/** 快照与详情共用：启动路径不能证明补全后的文件已写回，冷记录因此不推荐旧草稿。 */
+export function synchronizedRunScriptPath(
+  journal: JournalStorePort,
+  runId: string,
+  entry: RunRegistryEntry | undefined,
+  events?: readonly StoredEvent[],
+): string | undefined {
+  if (entry !== undefined) return entry.scriptPathStale ? undefined : entry.scriptPath;
+  if ((events ?? journal.listEvents(runId, {})).some((stored) => stored.event.type === "hole-filled")) {
+    return undefined;
+  }
+  return readRunScriptPath(journal, runId);
 }
 
 /**

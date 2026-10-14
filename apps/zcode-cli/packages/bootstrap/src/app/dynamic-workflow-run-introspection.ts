@@ -18,13 +18,14 @@ import type {
 import type { JournalStorePort } from "@zcode/dynamic-workflow";
 import { reduceWorkflowRunsState, type WorkflowRunsState } from "@zcode/shared/zcode-protocol-v4";
 import type { DynamicWorkflowIntrospectableJournal } from "./dynamic-workflow-run-journal.js";
-import { readRunScriptPath, readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
+import { readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
 import {
   artifactsOf,
   journalRunSummary,
   registryRunSummary,
   runConcurrencyField,
   runScriptPathField,
+  synchronizedRunScriptPath,
   runSubagentModelField,
   terminalErrorField,
   terminalResultField,
@@ -144,7 +145,7 @@ export function createRunIntrospectionMethods(
           // 子代理模型的间隙副本，同一条论证（见 RunRegistryEntry.subagentModel）。
           ...runSubagentModelField(entry.subagentModel),
           // 脚本文件的间隙副本，同一条论证（见 RunRegistryEntry.scriptPath）。
-          ...runScriptPathField(entry.scriptPath),
+          ...runScriptPathField(synchronizedRunScriptPath(journal, runId, entry)),
           // 计数此刻还没有任何权威来源，诚实地为 0；用量的起点却是已知的（修订 run 继承前驱的
           // 累计值，见 RunRegistryEntry.inheritedTokens），报 0 会说「这条 lineage 没花钱」。
           usage: {
@@ -190,11 +191,10 @@ export function createRunIntrospectionMethods(
         ...runSubagentModelField(
           entry === undefined ? readRunSubagentModel(journal, runId) : entry.subagentModel,
         ),
-        // 本 run 的脚本文件，只在记过时在场。与子代理模型逐条同规：权威是 `run-launched`
-        // 事件（dwf_run 上没有这一列），有条目就读条目，只有冷行才去扫一次事件头；同样刻意
-        // 不进 journalRunSummary——列表行不该为一个只有 AmendWorkflow 用得上的字段加宽。
+        // 草稿只在已确认同步时可用于修订；与快照共用投影，不能让详情重新暴露写回失败的旧文件。
+        // 冷行只有启动路径，补全后不能据此证明磁盘内容已同步。
         ...runScriptPathField(
-          entry === undefined ? readRunScriptPath(journal, runId) : entry.scriptPath,
+          synchronizedRunScriptPath(journal, runId, entry, stored),
         ),
         usage: {
           // 直读 dwf_run.spent_tokens：run 级 token 用量的唯一权威。

@@ -226,8 +226,11 @@ async function fillOnce(
   entry.scriptText = spliced.text;
   entry.holes = compiled.holes;
   entry.phaseNames = phaseNames;
-  await rewriteDraft(ctx, entry, runId, spliced.text);
-  const scriptPath = entry.scriptPath;
+  // 草稿是 journal 的派生副本；只有确认写回成功，才把路径作为有效草稿返回。
+  entry.scriptPathStale = true;
+  const draftWritten = await rewriteDraft(ctx, entry, runId, spliced.text);
+  entry.scriptPathStale = !draftWritten;
+  const scriptPath = draftWritten ? entry.scriptPath : undefined;
   deps.logger?.info?.("Dynamic workflow hole filled", {
     event: "dynamic_workflow.fill.applied",
     holeId,
@@ -253,10 +256,11 @@ async function rewriteDraft(
   entry: RunRegistryEntry,
   runId: string,
   text: string,
-): Promise<void> {
-  if (entry.scriptPath === undefined) return;
+): Promise<boolean> {
+  if (entry.scriptPath === undefined) return false;
   try {
     await writeFile(entry.scriptPath, text, "utf8");
+    return true;
   } catch (error) {
     ctx.deps.logger?.warn?.("Dynamic workflow draft could not be rewritten after a fill", {
       errorMessage: error instanceof Error ? error.message : String(error),
@@ -265,5 +269,6 @@ async function rewriteDraft(
       runId,
       scriptPath: entry.scriptPath,
     });
+    return false;
   }
 }
