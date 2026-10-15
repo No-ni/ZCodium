@@ -47,18 +47,50 @@ jobs:
       - name: Cargo test
         run: pnpm test:zcode-cli-rust
 
-  # 当前层只验证 TS protocol schema/oracle；其余 adapter 与 driver 门禁随 CLI wiring 引入。
+  # Schema、contract assets 与 domain fixtures 的 --check 均从当前 TS 契约生成；不检测 Rust DTO 全面漂移，也不替代 Node interop。
   protocol-schema:
     name: Protocol schema and oracle fixtures
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
+      - name: Build Node oracle dependencies
+        run: pnpm build:zcode-cli-rust-oracle-deps
       - name: Protocol contract drift
         run: pnpm check:zcode-cli-rust-protocol-schema
+      - name: Contract asset drift
+        run: pnpm check:zcode-cli-rust-contract-assets
+      - name: Domain fixture drift
+        run: pnpm check:zcode-cli-rust-domain-fixtures
+      # M4/M5 driver 会用 --offline 构建 Rust examples；独立 runner 没有 Rust job 的缓存。
+      # 在本 job 准备工具链和锁定依赖，避免本机旧 registry 让缺失前置条件漏检。
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fetch locked Rust driver dependencies
+        run: cargo fetch --locked --manifest-path apps/zcode-cli-rust/Cargo.toml
+      - name: Driver tests
+        run: pnpm test:zcode-cli-rust-drivers
+
+  linux-node-interop:
+    name: Linux Node/Rust interop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Node oracle dependencies
+        run: pnpm build:zcode-cli-rust-oracle-deps
+      - name: Build Node CLI
+        run: pnpm --dir apps/zcode-cli/packages/cli build
+      - name: Build Rust CLI and Node reader
+        run: cargo build --locked --manifest-path apps/zcode-cli-rust/Cargo.toml --bin zcode-cli-rust --example node_read
+      - name: Run real Node/Rust interop
+        run: pnpm test:zcode-cli-rust-interop
 
   native-platform-check:
     name: Native compile (${{ matrix.os }})
