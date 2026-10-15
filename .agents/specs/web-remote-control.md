@@ -145,6 +145,20 @@ server→client  error                {code, message}              # KICKED|AUTH
   通知发送方，对应桌面 `bridge-degraded{reason:"rpc-transport-fault"}`。
 - 未配对（`waiting`）状态的 `data` 丢弃；端点不缓存、不补投——补投是两端语义。
 
+### 桌面侧持久化 sid 失效的重注册（bug 修复）
+
+- `deviceSid` / `passHash` 落盘（settings / credential store），但配对表只在端点内存：
+  桌面重启、「停止后重开」、TTL 清扫、其他窗口占用同一 sid 都会让持久化 sid 查不到。
+- 端点 `registerDevice` 对失效持久化 sid 只返回 `{ ok: false, reason: "invalid-persisted-auth" }`，
+  不向运行时发 `error`；设备传输收到后清档（`onInvalidPersistedAuth`）并按 register
+  流程重新注册，与 relay 传输对 `AUTH_FAILED` 的处理一致。
+- 恢复在 `start()` 内完成：`onRegisteredAuth` 先于 `start()` 返回，manager 随即用新 sid
+  建 QR，首开即可拿到可用二维码；运行时不停留 error，快照持续输出 `qrUrl`。
+  以前这里直接把运行时置成 error，快照不带 `qrUrl`，UI 一直停在「正在准备二维码」，
+  用户只能手动点「刷新二维码」。
+- 传输 `dispose()` 只按注册时拿到的 sid 释放配对项（恢复路径注册的是新 sid，
+  不能按创建传输时记的旧 sid 再释放一次）。
+
 ### 手机 LAN HTTP 鉴权与重连边界（bug 修复）
 
 - 默认 LAN 的 HTTP 页面必须能计算同一份 `HMAC-SHA256(pass_hash, "${nonce}|mobile|${device_sid}")`
@@ -495,6 +509,9 @@ WorkspaceBridgeLifecycle（桥时序 owner）
     不串空间，旧 ack 不释放新 replay。桌面 continuous 链路及 Host owner/lease 不变。
 21. 断线重连 / 切 workspace：旧订阅先 dispose（代际失效），恢复路径 = 重开 bridge +
     重订阅 + 重读快照；旧 task 的迟到事件不进入新会话。
+22. 持久化 sid 失效（桌面重启 / 停止后重开 / TTL 清扫 / 其他窗口占用同一 sid）时，
+    开启远控自动转注册流程：端点不向运行时发 `error`，`start()` 返回前完成重注册，
+    快照带可用 `qrUrl`，新二维码可直接配对；持久化 sid 仍有效时续用、不重新注册。
 
 ## 分期
 

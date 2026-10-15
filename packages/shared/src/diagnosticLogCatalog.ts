@@ -1409,6 +1409,7 @@ export const diagnosticMessages: readonly string[] = [
   "[web-remote-control] mobile socket error",
   "[web-remote-control] oversize mobile frame dropped",
   "[web-remote-control] oversize relay message dropped",
+  "[web-remote-control] persisted device auth invalid, re-registering",
   "[web-remote-control] platform request failed",
   "[web-remote-control] raw relay bridge degraded",
   "[web-remote-control] relay kicked device",

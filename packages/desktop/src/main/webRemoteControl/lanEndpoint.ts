@@ -36,10 +36,18 @@ export interface LanEndpointDeviceHandlers {
   onPayload(payload: WebRemoteControlAppPayload): void;
   onRegisteredAuth(auth: { deviceSid: string; passHash: string }): void;
   onError(error: Error): void;
-  /** 持久化 sid 已失效：调用方应清档并转注册流程重新配对。 */
-  onInvalidPersistedAuth(): void;
   onMobileDisconnected(): void;
 }
+
+/**
+ * 设备注册结果。持久化 sid 失效时端点只报告、不置 error：配对表只在端点内存里，
+ * 桌面重启或「停止后重开」必然查不到旧 sid，由调用方清档后转注册流程重新配对
+ * （与 relay 传输对 AUTH_FAILED 的处理一致）。若在此处置 error，运行时会被打成
+ * error 态，快照不带 qrUrl，UI 一直停在「正在准备二维码」，只能靠用户手动刷新。
+ */
+export type LanEndpointDeviceRegistration =
+  | { ok: true; handle: LanEndpointDeviceHandle }
+  | { ok: false; reason: "invalid-persisted-auth" };
 
 export interface LanEndpointDeviceHandle {
   readonly deviceSid: string;
@@ -173,13 +181,13 @@ export class LanRemoteControlEndpoint {
     this.info = null;
   }
 
-  /** 创建设备侧会话（桌面用）：register 生成新 sid；persisted 续用（无效则 error）。 */
+  /** 创建设备侧会话（桌面用）：register 生成新 sid；persisted 续用（无效则转注册）。 */
   registerDevice(
     auth:
       | { mode: "register"; passHash: string }
       | { mode: "persisted"; deviceSid: string; passHash: string },
     handlers: LanEndpointDeviceHandlers,
-  ): LanEndpointDeviceHandle {
+  ): LanEndpointDeviceRegistration {
     // device handle 的发送必须落到配对中的手机 socket；空桩会让桌面出站全部静默丢弃。
     const makeHandle = (sid: string): LanEndpointDeviceHandle => ({
       deviceSid: sid,
@@ -190,16 +198,13 @@ export class LanRemoteControlEndpoint {
     if (auth.mode === "persisted") {
       const existing = this.pairs.get(auth.deviceSid);
       if (!existing || existing.passHash !== auth.passHash || existing.device) {
-        // 旧 sid 已失效（TTL / 端点重启 / 刷新配对）：按 error 处理，
-        // 由调用方转注册流程重新配对。
-        handlers.onStateChange("error");
-        handlers.onError(new Error("Persisted web remote control device auth is no longer valid"));
-        handlers.onInvalidPersistedAuth();
-        return makeHandle(auth.deviceSid);
+        // 旧 sid 已失效（端点重启 / 停止后重开 / TTL 清扫 / 其他窗口已占用同一 sid）。
+        // 只报告不置 error，由调用方清档后转注册流程，见 LanEndpointDeviceRegistration。
+        return { ok: false, reason: "invalid-persisted-auth" };
       }
       existing.device = { handle: makeHandle(existing.deviceSid), handlers };
       this.enterWaitingTerminal(existing);
-      return existing.device.handle;
+      return { ok: true, handle: existing.device.handle };
     }
     const deviceSid = randomBytes(16).toString("base64url");
     const entry: PairEntry = {
@@ -213,7 +218,7 @@ export class LanRemoteControlEndpoint {
     handlers.onStateChange("registering");
     handlers.onRegisteredAuth({ deviceSid, passHash: auth.passHash });
     this.enterWaitingTerminal(entry);
-    return entry.device.handle;
+    return { ok: true, handle: entry.device.handle };
   }
 
   private enterWaitingTerminal(entry: PairEntry): void {
