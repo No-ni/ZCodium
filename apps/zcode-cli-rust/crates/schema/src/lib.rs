@@ -5,14 +5,16 @@
 //! construct surfaces as a failing test instead of being silently ignored.
 //! String lengths use UTF-16 code units to match zod (JavaScript `length`).
 //!
-//! `pattern` 使用 Rust `regex` 而非 ECMAScript 引擎：当前由 zod 产出的 pattern 全部是
-//! 纯 ASCII 字符类（hex digest、uuid 交替），两种引擎语义一致。若未来引入 lookaround
-//! 等 JS 专有构造，Rust 侧会在编译 schema 时直接失败并使测试报错（fail-closed），
-//! 不会静默误判。
+//! `pattern` uses Rust regex; unsupported JS-only patterns fail closed at compile time.
 #[path = "json_schema_strip.rs"]
 mod json_schema_strip;
 use regex::Regex;
 use serde_json::Value;
+mod schema_shape;
+mod string_support;
+pub use string_support::{js_is_trim_space, js_json_equal, js_trim, js_trim_value};
+mod type_support;
+use type_support::{matches_type, type_names};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Ty {
@@ -38,8 +40,6 @@ pub struct Node {
     min_length: Option<usize>,
     max_length: Option<usize>,
     pattern: Option<Regex>,
-    /// `format: "uuid"`。zod 的 `.uuid()` 会产出该 format；不校验就是静默放行。
-    uuid_format: bool,
     minimum: Option<f64>,
     maximum: Option<f64>,
     exclusive_minimum: Option<f64>,
@@ -53,10 +53,19 @@ pub struct Node {
     any_of: Vec<Node>,
     one_of: Vec<Node>,
     default: Option<Value>,
+    trim: bool,
 }
 
 const SUPPORTED: &[&str] = &[
     "$schema",
+    "$id",
+    "title",
+    "description",
+    "$comment",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "examples",
     "type",
     "enum",
     "const",
@@ -77,6 +86,7 @@ const SUPPORTED: &[&str] = &[
     "anyOf",
     "oneOf",
     "default",
+    "x-zcode-trim",
 ];
 
 fn ty(name: &str) -> Result<Ty, String> {
@@ -116,10 +126,21 @@ impl Node {
         if let Some(key) = object.keys().find(|k| !SUPPORTED.contains(&k.as_str())) {
             return Err(format!("unsupported schema keyword {key}"));
         }
-        if let Some(format) = schema.get("format").and_then(Value::as_str)
-            && format != "uuid"
+        // 已认识的约束形状异常时不能当作缺省值忽略，否则会静默削弱校验。
+        schema_shape::validate(object)?;
+        if let Some(format) = schema.get("format").and_then(Value::as_str) {
+            if format != "uuid" {
+                return Err(format!("unsupported format {format}"));
+            }
+            if schema.get("pattern").and_then(Value::as_str).is_none() {
+                return Err("format uuid requires a string pattern".into());
+            }
+        }
+        if schema
+            .get("x-zcode-trim")
+            .is_some_and(|value| value != true)
         {
-            return Err(format!("unsupported format {format}"));
+            return Err("x-zcode-trim must be true".into());
         }
         let types = match schema.get("type") {
             None => None,
@@ -149,7 +170,6 @@ impl Node {
             constant: schema.get("const").cloned(),
             min_length: size(schema, "minLength")?,
             max_length: size(schema, "maxLength")?,
-            uuid_format: schema.get("format").and_then(Value::as_str) == Some("uuid"),
             pattern: schema
                 .get("pattern")
                 .and_then(Value::as_str)
@@ -195,7 +215,62 @@ impl Node {
             any_of: variants(schema, "anyOf")?,
             one_of: variants(schema, "oneOf")?,
             default: schema.get("default").cloned(),
+            trim: schema
+                .get("x-zcode-trim")
+                .is_some_and(|value| value == true),
         })
+    }
+
+    /// Apply the bounded command-schema normalizers before validation.
+    pub fn normalize(&self, value: &Value) -> Result<Value, String> {
+        if !self.any_of.is_empty() || !self.one_of.is_empty() {
+            let variants = self.one_of.iter().chain(&self.any_of).collect::<Vec<_>>();
+            if !variants.is_empty() {
+                let mut failures = Vec::new();
+                for variant in variants {
+                    let candidate = variant.normalize(value)?;
+                    if variant.validate(&candidate, "").is_ok() {
+                        return Ok(candidate);
+                    }
+                    failures.push(candidate);
+                }
+                return Ok(failures.into_iter().next().unwrap_or_else(|| value.clone()));
+            }
+        }
+        if self.trim
+            && let Some(text) = value.as_str()
+        {
+            return Ok(Value::String(js_trim_value(text)));
+        }
+        match value {
+            Value::Object(map) => {
+                let mut normalized = map.clone();
+                for (key, child) in &self.properties {
+                    if let Some(value) = map.get(key) {
+                        normalized.insert(key.clone(), child.normalize(value)?);
+                    }
+                }
+                if let Additional::Schema(child) = &self.additional {
+                    for (key, value) in map {
+                        if !self.properties.iter().any(|(name, _)| name == key) {
+                            normalized.insert(key.clone(), child.normalize(value)?);
+                        }
+                    }
+                }
+                Ok(Value::Object(normalized))
+            }
+            Value::Array(items) => Ok(Value::Array(
+                items
+                    .iter()
+                    .map(|item| {
+                        self.items
+                            .as_ref()
+                            .map_or_else(|| Ok(item.clone()), |schema| schema.normalize(item))
+                    })
+                    .collect::<Result<_, String>>()?,
+            )),
+            _ => Ok(value.clone()),
+        }
     }
 
     /// First violation as `path: message`, or `Ok` when `value` satisfies the schema.
@@ -212,12 +287,14 @@ impl Node {
             return fail(format!("expected type {}", type_names(types)));
         }
         if let Some(values) = &self.enumeration
-            && !values.contains(value)
+            && !values
+                .iter()
+                .any(|candidate| js_json_equal(candidate, value))
         {
             return fail("value is not one of the allowed options".into());
         }
         if let Some(constant) = &self.constant
-            && constant != value
+            && !js_json_equal(constant, value)
         {
             return fail(format!("expected {constant}"));
         }
@@ -239,12 +316,8 @@ impl Node {
                 if self.pattern.as_ref().is_some_and(|p| !p.is_match(s)) {
                     return fail("does not match the required pattern".into());
                 }
-                if self.uuid_format && !is_uuid(s) {
-                    return fail("must be a uuid".into());
-                }
             }
             Value::Number(n) => {
-                // 超出 f64 精度的大整数不能退化成 NaN 后跳过范围检查。
                 let n = n.as_f64().ok_or_else(|| {
                     format!(
                         "{}: number is out of range",
@@ -319,58 +392,6 @@ fn variants(schema: &Value, key: &str) -> Result<Vec<Node>, String> {
         .map(|nodes| nodes.iter().map(Node::compile).collect::<Result<_, _>>())
         .transpose()
         .map(Option::unwrap_or_default)
-}
-
-/// RFC 9562 uuid，与 zod `.uuid()` 接受的范围一致（含 nil 与 max）。
-fn is_uuid(s: &str) -> bool {
-    let hex = |c: char| c.is_ascii_hexdigit();
-    match s.len() {
-        45 if s == "ffffffff-ffff-ffff-ffff-ffffffffffff" => return true,
-        36 => {}
-        38 if s.starts_with('{') && s.ends_with('}') => return is_uuid(&s[1..37]),
-        _ => return false,
-    }
-    let b = s.as_bytes();
-    if b[8] != b'-' || b[13] != b'-' || b[18] != b'-' || b[23] != b'-' {
-        return false;
-    }
-    let groups = [&s[0..8], &s[9..13], &s[14..18], &s[19..23], &s[24..36]];
-    if groups.iter().any(|g| !g.chars().all(hex)) {
-        return false;
-    }
-    // version 1-8 且 variant 为 8/9/a/b（RFC 9562），与 zod 一致。
-    matches!(s.as_bytes()[14], b'1'..=b'8')
-        && matches!(s.as_bytes()[19], b'8' | b'9' | b'a' | b'A' | b'b' | b'B')
-}
-
-fn matches_type(ty: Ty, value: &Value) -> bool {
-    match ty {
-        Ty::String => value.is_string(),
-        Ty::Number => value.is_number(),
-        Ty::Integer => value
-            .as_f64()
-            .is_some_and(|n| n.fract() == 0.0 && n.is_finite()),
-        Ty::Boolean => value.is_boolean(),
-        Ty::Object => value.is_object(),
-        Ty::Array => value.is_array(),
-        Ty::Null => value.is_null(),
-    }
-}
-
-fn type_names(types: &[Ty]) -> String {
-    types
-        .iter()
-        .map(|t| match t {
-            Ty::String => "string",
-            Ty::Number => "number",
-            Ty::Integer => "integer",
-            Ty::Boolean => "boolean",
-            Ty::Object => "object",
-            Ty::Array => "array",
-            Ty::Null => "null",
-        })
-        .collect::<Vec<_>>()
-        .join(" | ")
 }
 
 #[cfg(test)]
