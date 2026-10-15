@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- grouped row 同时承载 drag overlay 与常规交互，状态徽标需共用同一渲染语义。 */
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { UniqueIdentifier } from "@dnd-kit/core";
@@ -238,6 +238,9 @@ function GroupedTaskRowComponent({
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [taskRowHovered, setTaskRowHovered] = useState(false);
   const [taskRowFocusWithin, setTaskRowFocusWithin] = useState(false);
+  // 右键菜单关闭后 Radix 会把焦点脚本式返还给触发行；该焦点不是用户的键盘焦点，
+  // 若据此展示 action，鼠标移开后行内 action 会一直残留，需在 contextmenu 时记账忽略。
+  const ignoreRestoredFocusRef = useRef(false);
   const [isHoverNone] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -337,7 +340,20 @@ function GroupedTaskRowComponent({
       onKeyDown={handleKeyDown}
       onMouseEnter={() => setTaskRowHovered(true)}
       onMouseLeave={() => setTaskRowHovered(false)}
-      onFocusCapture={() => setTaskRowFocusWithin(true)}
+      onContextMenu={() => {
+        ignoreRestoredFocusRef.current = true;
+      }}
+      onFocusCapture={(event) => {
+        if (ignoreRestoredFocusRef.current) {
+          ignoreRestoredFocusRef.current = false;
+          return;
+        }
+        // 仅键盘焦点展示行内 action：鼠标点击带来的聚焦在鼠标移开后应随 hover 一起消失；
+        // Tab 导航仍会聚焦并展示 action。
+        if (event.target instanceof Element && event.target.matches(":focus-visible")) {
+          setTaskRowFocusWithin(true);
+        }
+      }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setTaskRowFocusWithin(false);

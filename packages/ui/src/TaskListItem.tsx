@@ -152,6 +152,9 @@ export const MemoTaskItem = memo(function TaskListItem({
 }: TaskListItemProps) {
   const [hoverActionsVisible, setHoverActionsVisible] = useState(false);
   const [focusActionsVisible, setFocusActionsVisible] = useState(false);
+  // 右键菜单关闭后 Radix 会把焦点脚本式返还给触发行；该焦点不是用户的键盘焦点，
+  // 若据此展示 action，鼠标移开后归档/置顶图标会一直残留，需在 contextmenu 时记账忽略。
+  const ignoreRestoredFocusRef = useRef(false);
   const [isHoverNone] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -296,6 +299,7 @@ export const MemoTaskItem = memo(function TaskListItem({
     clearActiveWorkbenchSessionDragPayload();
   }, []);
   const handleContextMenu = useCallback(() => {
+    ignoreRestoredFocusRef.current = true;
     onOpenTaskContextMenu?.(task.taskId);
   }, [onOpenTaskContextMenu, task.taskId]);
   const handleOpenFileTree = useCallback(
@@ -506,7 +510,17 @@ export const MemoTaskItem = memo(function TaskListItem({
       onDragEnd={handleDragEnd}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onFocusCapture={() => setFocusActionsVisible(true)}
+      onFocusCapture={(event) => {
+        if (ignoreRestoredFocusRef.current) {
+          ignoreRestoredFocusRef.current = false;
+          return;
+        }
+        // 仅键盘焦点展示行内 action：鼠标点击带来的聚焦在鼠标移开后应随 hover 一起消失，
+        // 与侧栏其余行的悬停语义一致；Tab 导航仍会聚焦并展示 action。
+        if (event.target instanceof Element && event.target.matches(":focus-visible")) {
+          setFocusActionsVisible(true);
+        }
+      }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setFocusActionsVisible(false);
