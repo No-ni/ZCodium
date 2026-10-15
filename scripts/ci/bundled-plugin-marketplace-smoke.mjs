@@ -92,8 +92,17 @@ try {
       const browserCard = page.locator(
         '[data-testid="plugin-store-card"][data-plugin-id="browser-use@zcode-plugins-official"]',
       );
-      assert.equal(await browserCard.locator("img").count(), 0);
-      assert.ok((await browserCard.locator("svg").count()) > 0);
+      // browser-use 有随包内置图标：卡片渲染本地 <img>，不采用目录里的远端 icon。
+      await browserCard.locator("img").evaluate(async (img) => {
+        await img.decode();
+        if (!img.naturalWidth) throw new Error("Missing bundled icon");
+      });
+      // 没有随包图标的官方插件仍降级为中性 svg 兜底，且不因目录带远端图片而发起请求。
+      const noIconCard = page.locator(
+        '[data-testid="plugin-store-card"][data-plugin-id="superpowers@zcode-plugins-official"]',
+      );
+      assert.equal(await noIconCard.locator("img").count(), 0);
+      assert.ok((await noIconCard.locator("svg").count()) > 0);
       await page
         .locator('[data-plugin-id="documents@zcode-plugins-official"] img')
         .evaluate(async (img) => {

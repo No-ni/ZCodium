@@ -11,7 +11,9 @@ const query = new URLSearchParams(location.search);
 const locale = query.get("locale") || "en-US";
 const official = "zcode-plugins-official";
 const state = (window.marketplaceFixture = { reads: 0, updates: [], descriptions: [], open: true });
-const availablePlugins = ["browser-use", "documents"].map((name) => ({
+// superpowers 是官方市场里没有随包图标的条目：目录仍带远端 icon，
+// 用来验证「无内置图标的官方插件走中性兜底且不请求远端」。
+const availablePlugins = ["browser-use", "documents", "superpowers"].map((name) => ({
   id: `${name}@${official}`,
   name,
   marketplace: official,
@@ -31,7 +33,7 @@ const marketplaces = [
     name: "ZCodium",
     source: { source: "bundled" },
     isOfficial: true,
-    pluginCount: 2,
+    pluginCount: 3,
   },
   {
     id: "personal-fixture",
