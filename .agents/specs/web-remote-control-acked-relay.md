@@ -174,6 +174,39 @@
 
 - **topic resource relay**：协议面大资源通道（`TOPIC_RESOURCE_RELAY_*` + 4 个 schema）+ `zcodeEndpoint.ts` 的 relay 地址解析，需要先定 gateway 侧所有者与 UI 消费方。
 
+## 默认物理计量的重复编码修复（2026-10）
+
+### 原因与规则（实现前确定）
+
+- CI 的 `servicePipe.test.ts` 身份隔离用例在 5 秒超时；该用例同时覆盖旧大帧拒绝和当前大消息往返。本机单独运行能通过，但编码 1.2 MB JSON 的默认 encoder 单次耗时约 0.7–1.0 秒。源码确认分片二分搜索每轮都重新 base64 编码候选并序列化整帧，这些同步计算也发生在真实手机/桌面链路。
+- 只优化默认 relay 信封的片长搜索，不增大测试超时、不缩小测试消息、不改变 wire、CRC32、canonical base64、限额、分片顺序和 fail-closed 规则。
+- 默认信封中 base64 字符都是无需 JSON 转义的 ASCII，候选片长为 `n` 时精确字节数为：同一最坏索引/片数帧的 `dataBase64: ""` 信封 UTF-8 字节数 + `4 * ceil(n / 3)`。空壳须按实际 streamId、seq、checksum、messageBytes 序列化，不能用固定常数代替。
+- 自定义 `measurePhysicalFrameBytes` 继续获得完整真实候选帧，保留自定义外壳或内容相关计量语义。最终每片仍实际序列化计量，超限则整条编码失败。
+- 默认计量仍是 encoder 内部纯计算，无新状态、缓存、写入路径或接口；Host 与手机的 assembler/replay/ack 所有权不变，`desktop-continuous` 完全不受影响。
+
+```text
+逻辑消息 → encoder（原 UTF-8 JSON / CRC32）
+         → 默认：一次空壳计量 → 按 base64 长度二分
+           自定义：每轮完整候选 → 原 measure 回调
+         → 实际片编码 + 实际物理计量 → 原 replay/发送
+接收 → 原 assembler（CRC32/seq/identity）→ 同一 Host owner
+```
+
+### 验收
+
+1. 默认大消息搜索只为单帧探测及最终片执行 base64 编码，不为二分候选重复编码；用调用次数而非机器耗时作为回归门禁。
+2. 默认结果与原完整序列化计量回调逐字段一致，覆盖三种 base64 尾部填充、非 ASCII/需 JSON 转义的 streamId 和最大合法 seq；所有片真实 wire 字节数不超限。
+3. 自定义计量继续消费实际 payload，并能通过额外外壳开销改变片长；原无法容纳任意片的 fail-closed 用例不变。
+4. 执行 CI 同款 Vitest 套件（含手机 replayable、Host identity/RPC/event、大消息分片和 V4/desktop continuous），不调大 timeout；执行 typecheck、lint、架构检查并报告真实结果。
+
+### 本机验证证据
+
+- 新增调用次数门禁先红后绿：原实现对 900 KB 消息调用 base64 编码 23 次，修复后只需单帧探测 + 两个最终片，共 3 次。
+- 同一 1.2 MB 输入的 encoder 复测约 93–133 ms（修复前 701–1027 ms）；独立 Host bridge 身份用例从约 2.9 秒降到约 1.2 秒。这是本机诊断数据，不作为跨机器耗时门禁。
+- CI 同款 Vitest 175 项、UI 留白 19 项、发布脚本 280 项通过；原 5 秒 timeout、旧大帧及 900 KB 往返载荷均保留。
+- `node scripts/ci/web-remote-control-mobile-smoke.mjs` 通过真实 Chromium + LAN endpoint 的 HTTP HMAC 配对/bootstrap、错误 hash 终止、第二页互踢、临时断线自动恢复；业务 bootstrap 为 fixture，未声称物理手机/完整 Electron App E2E 已验收。
+- `pnpm typecheck`、`pnpm architecture:check --changed`、改动文件格式与 `git diff --check` 通过；`pnpm lint` 为 50 条存量 warning、0 errors。根 typecheck 不包含独立 Desktop main 工程，不将它称为全 main 检查通过。
+
 ## 不做什么
 
 - 不实现 `TOPIC_RESOURCE_RELAY_CHANNEL` 那套协议面大资源通道（`read`/`cancel`/`relayChunk`/
