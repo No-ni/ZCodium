@@ -1,4 +1,8 @@
-import { selectBrowserFileData } from "@zcode/ui";
+import {
+  selectBrowserFileData,
+  writeBrowserClipboardText,
+  isBrowserClipboardAvailable,
+} from "@zcode/ui";
 import { saveBrowserFile } from "./saveBrowserFile.js";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
 import { createRoot } from "react-dom/client";
@@ -72,6 +76,7 @@ function clearRetiredLoginCallback(): void {
 
 function createWebPlatform(): IPlatformService {
   return {
+    writeClipboardText: isBrowserClipboardAvailable() ? writeBrowserClipboardText : undefined,
     selectFileData: selectBrowserFileData,
     canSelectFilePath: false,
     saveFile: saveBrowserFile,

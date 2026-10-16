@@ -1,4 +1,8 @@
-import { selectBrowserFileData } from "@zcode/ui";
+import {
+  selectBrowserFileData,
+  writeBrowserClipboardText,
+  isBrowserClipboardAvailable,
+} from "@zcode/ui";
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@zcode/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
@@ -8,6 +12,7 @@ export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
+    writeClipboardText: isBrowserClipboardAvailable() ? writeBrowserClipboardText : undefined,
     selectFileData: selectBrowserFileData,
     canSelectFilePath: true,
     pluginSandbox: createDesktopPluginSandboxPlatform(),

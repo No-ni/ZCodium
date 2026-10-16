@@ -161,6 +161,7 @@ jobs:
           node scripts/ci/web-entry-without-oauth-smoke.mjs
       - name: Conversation file browser checks
         run: |
+          node scripts/ci/copy-conversation-markdown-smoke.mjs
           node scripts/ci/conversation-export-smoke.mjs
           node scripts/ci/conversation-import-smoke.mjs
 

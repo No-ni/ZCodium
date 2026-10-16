@@ -548,6 +548,9 @@ export type CuaOsSupport =
  * 业务服务（文件、终端、凭据等）走 IServiceAccessor 的 RPC 通道。
  */
 export interface IPlatformService {
+  /** 写入当前设备剪贴板；Promise 文本允许浏览器在用户点击时提交、等待完整内容。 */
+  writeClipboardText?(text: string | Promise<string>): Promise<void>;
+
   /** 当前平台的文件选择框是否能返回 agent 可访问的本地绝对路径 */
   canSelectFilePath?: boolean;
 

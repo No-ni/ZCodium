@@ -216,20 +216,32 @@ export function findMarkdownCodeRanges(content: string): AssistantTextRange[] {
   const fencedRanges: Array<[number, number]> = [];
   let fence: { character: "`" | "~"; length: number; start: number } | null = null;
   let lineStart = 0;
+  // CommonMark 支持 LF/CRLF/CR；单次顺序扫描保留原始下标，避免把 CR 后的代码引用当正文。
+  const lines = /\r\n|\r|\n/gu;
 
   while (lineStart < content.length) {
-    const newlineIndex = content.indexOf("\n", lineStart);
-    const lineEnd = newlineIndex < 0 ? content.length : newlineIndex + 1;
-    const line = content.slice(lineStart, newlineIndex < 0 ? content.length : newlineIndex);
-    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    const newline = lines.exec(content);
+    const lineEnd = newline ? lines.lastIndex : content.length;
+    const line = content.slice(lineStart, newline?.index ?? content.length);
+    const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+    const marker = match?.[1];
     if (marker) {
       if (!fence) {
+        if (marker[0] === "`" && match?.[2]?.includes("`")) {
+          lineStart = lineEnd;
+          continue;
+        }
         fence = {
           character: marker[0] as "`" | "~",
           length: marker.length,
           start: lineStart,
         };
-      } else if (marker[0] === fence.character && marker.length >= fence.length) {
+      } else if (
+        marker[0] === fence.character &&
+        marker.length >= fence.length &&
+        /^[ \t]*$/u.test(match?.[2] ?? "")
+      ) {
+        // CommonMark 关闭围栏只能带空白；把 ```后缀 当作关闭会让代码里的引用示例被改写。
         fencedRanges.push([fence.start, lineEnd]);
         fence = null;
       }

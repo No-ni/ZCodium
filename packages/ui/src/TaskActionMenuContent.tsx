@@ -41,6 +41,9 @@ export function TaskActionMenuContent({
   onCopyTaskPath,
   onCopyTaskLogPath,
   onCopySessionId,
+  onCopyMarkdown,
+  copyMarkdownPending = false,
+  copyMarkdownDisabled = false,
   onViewModelTrajectory,
 }: {
   intl: {
@@ -76,6 +79,9 @@ export function TaskActionMenuContent({
   onCopyTaskPath: () => void;
   onCopyTaskLogPath: () => void;
   onCopySessionId?: () => void;
+  onCopyMarkdown?: () => void;
+  copyMarkdownPending?: boolean;
+  copyMarkdownDisabled?: boolean;
   onViewModelTrajectory?: () => void;
 }) {
   const taskTargetActionsDisabled = disableTaskActions || disableTaskTargetActions;
@@ -195,6 +201,29 @@ export function TaskActionMenuContent({
           onSelect={onCopySessionId}
         >
           {intl.formatMessage({ id: "appHeader.copySessionId" })}
+        </Item>
+      ) : null}
+      {onCopyMarkdown ? (
+        <Item
+          data-testid="task-copy-markdown"
+          disabled={
+            taskTargetActionsDisabled ||
+            !activeSessionId ||
+            copyMarkdownPending ||
+            copyMarkdownDisabled
+          }
+          title={
+            taskTargetActionsDisabled
+              ? disabledReason
+              : copyMarkdownDisabled
+                ? intl.formatMessage({ id: "appHeader.copyMarkdownUnavailable" })
+                : undefined
+          }
+          onSelect={onCopyMarkdown}
+        >
+          {intl.formatMessage({
+            id: copyMarkdownPending ? "appHeader.copyMarkdownPending" : "appHeader.copyMarkdown",
+          })}
         </Item>
       ) : null}
       {/* 「前往配置」打开运行时真正生效的 Provider 配置物化副本——随包源配置在 macOS

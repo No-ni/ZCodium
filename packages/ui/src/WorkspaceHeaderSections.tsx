@@ -53,6 +53,8 @@ import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSk
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";
 import { refreshWorkspacePluginCapabilitiesAfterRemoteSync } from "@/lib/remotePluginSyncRefresh.js";
 import { useMcpStore } from "@/store/mcpStore.js";
+import { useCopyConversationMarkdown } from "@/hooks/useCopyConversationMarkdown.js";
+import { useSettings } from "@/hooks/useSettingService.js";
 
 export type { WorkspaceHeaderState, WorkspaceHeaderTitleSectionProps };
 export {
@@ -107,6 +109,22 @@ export function WorkspaceHeaderTitleSection({
   const platform = usePlatform();
   const confirmDialog = useConfirmDialog();
   const services = useWorkspaceServices(workspaceAbsPath, remoteSessionId, workspaceIdentity);
+  const copyServices = useWorkspaceServices(
+    workspaceAbsPath,
+    remoteSessionId,
+    workspaceIdentity,
+    remoteTarget,
+    "exact",
+  );
+  const { settings } = useSettings();
+  const copyMarkdown = useCopyConversationMarkdown(copyServices.zcodeAgentService, {
+    workspacePath: workspaceAbsPath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    ...(remoteSessionId ? { remoteSessionId } : {}),
+    sessionId: activeSessionId,
+    title: activeTaskTitle,
+    showReasoning: settings?.messageStreamShowReasoning ?? true,
+  });
   const baseServices = useBaseWorkspaceServices();
   const removeTaskState = useZCodeSessionStore((state) => state.removeTaskState);
   const upsertOptimisticTaskListItem = useZCodeSessionStore(
@@ -667,6 +685,11 @@ export function WorkspaceHeaderTitleSection({
                     activeSessionId,
                   );
                 }}
+                onCopyMarkdown={() => {
+                  void copyMarkdown.copy();
+                }}
+                copyMarkdownPending={copyMarkdown.pending}
+                copyMarkdownDisabled={!copyMarkdown.available}
                 onViewModelTrajectory={
                   resolvedTaskActionTaskId
                     ? () => {
