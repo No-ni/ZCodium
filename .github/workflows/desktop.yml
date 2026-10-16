@@ -64,6 +64,7 @@ jobs:
         run: |
           pnpm vitest run packages/shared/src/webRemoteControl packages/shared/src/mcp-apps packages/ui/src/lib/webRemoteControlTarget.test.ts packages/desktop/src/main/webRemoteControl/servicePipe.test.ts apps/zcode-cli/packages/adapters/src/network packages/web/src/mobile packages/shared/src/zcode-protocol-v4
           pnpm vitest run --config packages/ui/vitest.holes.config.ts
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/conversationRowSharing.test.ts packages/ui/test/conversationProjectionStore.rowSharing.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts \
             packages/services/src/gen-ui/adapters/files.test.ts \
             packages/ui/src/app-shell/useWorkflowRunPaneSettingsScope.test.ts \
