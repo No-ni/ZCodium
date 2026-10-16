@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_V4_LIMITS } from "../zcode-protocol-v4/core.js";
 import { decodeWireBase64, encodeWireBytesBase64 } from "../zcode-protocol-v4/wire-binary.js";
+import * as wireBinary from "../zcode-protocol-v4/wire-binary.js";
 import {
   encodeWebRemoteControlRpcFrames,
   WEB_REMOTE_CONTROL_RPC_FAULT_REASONS,
@@ -10,6 +11,7 @@ import {
   WebRemoteControlRpcEncodingError,
   WebRemoteControlRpcReplayBuffer,
   webRemoteControlRpcTransportFrameSchema,
+  type WebRemoteControlRpcTransportFrame,
 } from "./rpcTransport.js";
 
 const STREAM = "stream-1";
@@ -109,6 +111,70 @@ describe("web remote control rpc transport · 编码", () => {
     expect(delivered).toHaveLength(1);
     expect(delivered[0]).toMatchObject({ seq: 1, message });
     expect(assembler.acknowledgedSeq).toBe(1);
+  });
+
+  it("默认片长搜索不重复 base64 编码候选", () => {
+    const encodeSpy = vi.spyOn(wireBinary, "encodeWireBytesBase64");
+    try {
+      const frames = encodeWebRemoteControlRpcFrames(
+        { content: "x".repeat(900_000) },
+        { streamId: STREAM, seq: 1 },
+      );
+      expect(frames.length).toBeGreaterThan(1);
+      // 仅允许单帧探测和最终分片编码；不能靠调大超时掩盖每轮二分重复处理大消息。
+      expect(encodeSpy.mock.calls.length).toBeLessThanOrEqual(frames.length + 1);
+      expect(
+        frames.every(
+          (frame) =>
+            relayEnvelopeBytes(frame) <= WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+        ),
+      ).toBe(true);
+    } finally {
+      encodeSpy.mockRestore();
+    }
+  });
+
+  it.each([0, 1, 2])("默认计量与真实序列化一致（字节长度余数 %i）", (remainder) => {
+    const message = { content: "x".repeat(900_000 + remainder) };
+    const options = { streamId: '桥-"\\\n🙂', seq: Number.MAX_SAFE_INTEGER };
+    const frames = encodeWebRemoteControlRpcFrames(message, options);
+    const reference = encodeWebRemoteControlRpcFrames(message, {
+      ...options,
+      measurePhysicalFrameBytes: relayEnvelopeBytes,
+    });
+    expect(frames).toEqual(reference);
+    expect(
+      frames.every(
+        (frame) => relayEnvelopeBytes(frame) <= WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+      ),
+    ).toBe(true);
+    const assembler = new WebRemoteControlRpcAssembler({ expectedSeq: options.seq });
+    expect(assembleAll(assembler, frames).filter((event) => event.kind === "message")).toEqual([
+      { kind: "message", streamId: options.streamId, seq: options.seq, message },
+    ]);
+  });
+
+  it("自定义计量仍收到完整候选并按额外外壳开销分片", () => {
+    const message = { content: "x".repeat(900_000) };
+    const options = { streamId: STREAM, seq: 1 };
+    const frames = encodeWebRemoteControlRpcFrames(message, options);
+    const measure = vi.fn((frame: WebRemoteControlRpcTransportFrame) => {
+      if (frame.kind !== "message") throw new Error("expected a message candidate");
+      expect(decodeWireBase64(frame.dataBase64)?.byteLength).toBeGreaterThan(0);
+      return relayEnvelopeBytes(frame) + 4096;
+    });
+    const custom = encodeWebRemoteControlRpcFrames(message, {
+      ...options,
+      measurePhysicalFrameBytes: measure,
+    });
+    expect(measure).toHaveBeenCalled();
+    expect(custom[0]!.dataBase64.length).toBeLessThan(frames[0]!.dataBase64.length);
+    expect(
+      custom.every(
+        (frame) =>
+          relayEnvelopeBytes(frame) + 4096 <= WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+      ),
+    ).toBe(true);
   });
 
   it("超过消息上限的消息在发送侧 fail closed", () => {
