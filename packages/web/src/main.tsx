@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import {
   selectBrowserFileData,
   writeBrowserClipboardText,
@@ -6,6 +7,7 @@ import {
 import { saveBrowserFile } from "./saveBrowserFile.js";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
 import { createRoot } from "react-dom/client";
+import { installDocumentHiddenMotionPause } from "@zcode/ui/document-hidden-motion-pause";
 import {
   AppErrorBoundary,
   Root,
@@ -18,6 +20,9 @@ import { connectViaWebSocket } from "@zcode/client";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "./communityUrl.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
+
+const disposeDocumentHiddenMotionPause = installDocumentHiddenMotionPause();
+import.meta.hot?.dispose(disposeDocumentHiddenMotionPause);
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("zcode-theme");

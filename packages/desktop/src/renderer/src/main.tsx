@@ -1,7 +1,9 @@
+/// <reference types="vite/client" />
 import { DatabaseStartupAdmission } from "./databaseStartupAdmission.js";
 import { initializeDesktopLocalTtft } from "./localTtftBootstrap.js";
 import { createRoot } from "react-dom/client";
 import { useEffect } from "react";
+import { installDocumentHiddenMotionPause } from "@zcode/ui/document-hidden-motion-pause";
 import {
   AppErrorBoundary,
   Root,
@@ -40,6 +42,8 @@ type DesktopRendererImportMetaEnv = {
 };
 
 startPerformanceTimelineCleanup();
+const disposeDocumentHiddenMotionPause = installDocumentHiddenMotionPause();
+import.meta.hot?.dispose(disposeDocumentHiddenMotionPause);
 
 // T4:renderer bundle 开始执行。同时从 loadURL query 解析 main 注入的 T0-T3。
 const rendererStartedAt = Date.now();

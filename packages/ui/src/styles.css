@@ -63,6 +63,16 @@ body {
   overflow: hidden;
 }
 
+/* Bug 根因：hidden 时 CSS 动画无法结算，DocumentTimeline 会持有被移除的消息子树。
+ * 禁用后台动画，避免持续流式更新叠加引用。改编自 zai-org/ZCode aac4755（Apache-2.0），
+ * 标记由 documentHiddenMotionPause 维护，见 .agents/specs/hidden-document-motion-pause.md。 */
+html[data-document-hidden] *,
+html[data-document-hidden] *::before,
+html[data-document-hidden] *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 /* 中文模板描述按单字断行会拆开“简报”等词组，并把标点挤到下一行。
  * Chromium 支持时启用短语级换行；其它环境保留正常断行，避免 keep-all 在窄屏产生溢出。 */
 .text-wrap-phrase {
