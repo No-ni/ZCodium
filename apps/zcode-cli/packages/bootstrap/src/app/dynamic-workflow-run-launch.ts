@@ -43,9 +43,15 @@ import type { CompiledHole } from "./dynamic-workflow-run-holes.js";
 import {
   readRunLaunchAnchor,
   readRunSubagentModel,
+  readRunModelBindings,
   type RunLaunch,
 } from "./dynamic-workflow-run-launch-anchor.js";
 import { resolveWorkflowConcurrencyCeiling } from "./workflow-concurrency-ceiling.js";
+import {
+  pinnedActorModel,
+  requireActorModelSelection,
+  resolveActorPersonaModel,
+} from "./workflow-actor-model.js";
 import type { ActorSessionQuiescence } from "./workflow-driver-quiescence.js";
 import { createAgentRuntimeWorkflowDriver, mintActorSessionId } from "./workflow-driver.js";
 import type { WorkflowEscalationRegistry } from "./workflow-escalation-registry.js";
@@ -72,9 +78,12 @@ export interface CompiledDynamicWorkflowScript {
   holeBodies: Readonly<Record<string, string>>;
   /** 脚本里每处留白的编译期事实（开放与已补全都在，源码序）：快照与进度载荷的 type / line 来源。 */
   holes: readonly CompiledHole[];
+  modelReferences: readonly import("@zcode/dynamic-workflow").ModelReference[];
 }
 
 interface LaunchDynamicWorkflowRunInput {
+  /** Current journal-derived table; fills replace it before any resumed branch runs. */
+  modelBindings?: () => Record<string, string> | undefined;
   caps: Caps;
   compiled: CompiledDynamicWorkflowScript;
   cwd: string;
@@ -304,6 +313,15 @@ export function launchDynamicWorkflowRun(
         // 决定），pin 只守没有它时的隐式缺省。与 pin 不同，它整条带着 reasoning 档位下去——
         // journal 的 pin 只记身份两段。
         ...(runSubagentModel === undefined ? {} : { runSubagentModel }),
+        ...(() => {
+          const actorModel = resolveActorPersonaModel(
+            persona.model,
+            input.modelBindings?.() ??
+              input.launch?.modelBindings ??
+              readRunModelBindings(deps.journal, runId),
+          );
+          return actorModel === undefined ? {} : { actorModel };
+        })(),
       });
       // persona 的模型档位实际解析成了哪个模型，只有造好的 runtime 说得准（档位映射见
       // workflow-actor-model.ts）。先落库再接入会话：一次失败的会话持久化会让这次 ask 失败，
@@ -544,38 +562,6 @@ export function journalActorResolvedModel(input: {
 /** journal 里 `resolvedModel` 的写法：`providerId/modelId`，与 pin 的读法（workflow-actor-model.ts）互逆。 */
 function formatActorResolvedModel(selection: ModelSelection): string {
   return `${selection.providerId}/${selection.modelId}`;
-}
-
-/**
- * 造好的 actor runtime 必须已经有模型选择：child 继承父会话当前的选择（script-workflow-child-runtime.ts），
- * 父会话没有选择时它连第一次模型请求都发不出去。这里大声失败，而不是把「没选模型」落成一条空 pin。
- */
-function requireActorModelSelection(runtime: AgentRuntime, actor: ActorRef): ModelSelection {
-  const selection = runtime.getSessionModelSelection();
-  if (selection === undefined) {
-    throw new Error(
-      `actor 会话没有模型选择，无法记录 resolvedModel: ${actor.siteId}#${actor.ordinal}`,
-    );
-  }
-  return selection;
-}
-
-/**
- * resume 的 pin 读取：这个 actor 在 journal 里记下的 `resolvedModel`（`providerId/modelId`）。
- *
- * 只有 resume 才会读到值：引擎 replay `createActor` 时把该字段 carry-forward 保了下来；
- * 全新 run 在 runtime 工厂运行的这一刻还没有解析结果，天然缺席。**必须在造 runtime 之前读**，
- * 因为 `journalActorResolvedModel` 随后就会把本轮的解析写回同一字段——读晚了会把本轮结果
- * 误当成上一轮的 pin。pin 与本 run 的 subagentModel 谁优先，见 workflow-actor-model.ts
- * （run 选择在上；pin 只守没有 run 选择时的缺省，persona 冻结不变式的持久化那一半）。
- */
-function pinnedActorModel(input: {
-  actor: ActorRef;
-  journal: JournalStorePort;
-  runId: string;
-}): string | undefined {
-  return input.journal.getActor(input.runId, input.actor.siteId, input.actor.ordinal)
-    ?.resolvedModel;
 }
 
 /**

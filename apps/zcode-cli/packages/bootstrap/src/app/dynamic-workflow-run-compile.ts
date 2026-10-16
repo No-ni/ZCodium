@@ -9,6 +9,8 @@ import { createHash } from "node:crypto";
 import {
   buildAskSpecs,
   collectSites,
+  collectActorModels,
+  type ModelReference,
   collectWorldRunCommands,
   createWorkflowProgram,
   deriveActorSubmitProfilesFor,
@@ -37,10 +39,7 @@ export function compileOnce(scriptText: string): CompiledDynamicWorkflowScript {
 const RESUME_DIAGNOSTICS_MAX_CHARS = 2000;
 
 /** compile_failed 的人可读诊断：一行一条 `L:C message`，整体有界。 */
-export function boundedResumeDiagnostics(
-  runId: string,
-  diagnostics: CompileDiagnostic[],
-): string {
+export function boundedResumeDiagnostics(runId: string, diagnostics: CompileDiagnostic[]): string {
   const body = [
     `The stored script of run ${runId} no longer compiles against the current workflow facade:`,
     ...diagnostics.map(
@@ -75,6 +74,10 @@ export function compileProgram(
   }
 
   const table = collected ?? collectSites(workflow);
+  const models = collectActorModels(workflow, table);
+  if (models.diagnostics.length > 0) {
+    throw new Error(`dynamic workflow model names are not closed (9010); no run was created`);
+  }
   const { diagnostics: schemaDiagnostics, schemas } = synthesizeAskSchemas(workflow, table);
   if (schemaDiagnostics.length > 0) {
     throw new Error(
@@ -98,6 +101,7 @@ export function compileProgram(
   const lowered = lowerWorkflow(workflow, table);
 
   return {
+    modelReferences: models.references,
     askSpecs,
     // 每个 actor 站点的 submit profile：在**同一个** Program 上做解释 + 站点图投影仍是「编译一次」。
     actorSubmitProfiles: deriveActorSubmitProfilesFor(workflow, table, askSpecs),
@@ -115,6 +119,20 @@ export function compileProgram(
     // lowered 与 hash，两者按构造自洽。
     scriptHash: createHash("sha256").update(scriptText, "utf8").digest("hex"),
   };
+}
+
+/** 端口调用也须冻结整份模型集合；缺席不能悄悄落回父会话模型。 */
+export function requireModelBindings(
+  references: readonly ModelReference[],
+  bindings: object | undefined,
+): void {
+  const missing = references.filter(
+    (reference) => bindings === undefined || !Object.hasOwn(bindings, reference.name),
+  );
+  if (missing.length > 0)
+    throw new Error(
+      `dynamic workflow unresolved model (9011): ${missing.map((reference) => reference.name).join(", ")}; no run was created`,
+    );
 }
 
 // 阶段表投影（`collectPhaseNames` / `collectSitePhases`）的单一所有者在分析层

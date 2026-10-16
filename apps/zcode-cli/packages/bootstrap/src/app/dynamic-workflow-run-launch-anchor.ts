@@ -31,6 +31,7 @@ export interface RunLaunchAnchor {
 export interface RunLaunch extends RunLaunchAnchor {
   phaseNames?: string[];
   subagentModel?: string;
+  modelBindings?: Record<string, string>;
   /**
    * 本 run 脚本文件的绝对路径。与阶段表、
    * 子代理选型同规地不属于锚点：修订记的是**这一次修订**的脚本来自哪个文件，绝不沿用前驱的。
@@ -76,6 +77,23 @@ export function readRunSubagentModel(journal: JournalStorePort, runId: string): 
     if (stored.event.type === "run-launched") return stored.event.subagentModel;
   }
   return undefined;
+}
+
+/** 最新 durable 模型表；补全原子事件覆盖整表，resume 绝不再查目录重选。 */
+export function readRunModelBindings(
+  journal: JournalStorePort,
+  runId: string,
+): Record<string, string> | undefined {
+  let bindings: Record<string, string> | undefined;
+  for (const stored of journal.listEvents(runId, {})) {
+    if (
+      (stored.event.type === "run-launched" || stored.event.type === "hole-filled") &&
+      stored.event.modelBindings !== undefined
+    ) {
+      bindings = stored.event.modelBindings;
+    }
+  }
+  return bindings;
 }
 
 /**

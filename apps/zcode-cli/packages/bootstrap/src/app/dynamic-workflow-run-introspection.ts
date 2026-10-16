@@ -18,7 +18,10 @@ import type {
 import type { JournalStorePort } from "@zcode/dynamic-workflow";
 import { reduceWorkflowRunsState, type WorkflowRunsState } from "@zcode/shared/zcode-protocol-v4";
 import type { DynamicWorkflowIntrospectableJournal } from "./dynamic-workflow-run-journal.js";
-import { readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
+import {
+  readRunSubagentModel,
+  readRunModelBindings,
+} from "./dynamic-workflow-run-launch-anchor.js";
 import {
   artifactsOf,
   journalRunSummary,
@@ -146,6 +149,7 @@ export function createRunIntrospectionMethods(
           ...runConcurrencyField(entry.maxConcurrency, concurrencyCeiling()),
           // 子代理模型的间隙副本，同一条论证（见 RunRegistryEntry.subagentModel）。
           ...runSubagentModelField(entry.subagentModel),
+          ...(entry.modelBindings === undefined ? {} : { modelBindings: entry.modelBindings }),
           // 脚本文件的间隙副本，同一条论证（见 RunRegistryEntry.scriptPath）。
           ...runScriptPathField(synchronizedRunScriptPath(journal, runId, entry)),
           // 计数此刻还没有任何权威来源，诚实地为 0；用量的起点却是已知的（修订 run 继承前驱的
@@ -193,6 +197,11 @@ export function createRunIntrospectionMethods(
         ...runSubagentModelField(
           entry === undefined ? readRunSubagentModel(journal, runId) : entry.subagentModel,
         ),
+        ...(() => {
+          const modelBindings =
+            entry === undefined ? readRunModelBindings(journal, runId) : entry.modelBindings;
+          return modelBindings === undefined ? {} : { modelBindings };
+        })(),
         // 草稿只在已确认同步时可用于修订；与快照共用投影，不能让详情重新暴露写回失败的旧文件。
         // 冷行只有启动路径，补全后不能据此证明磁盘内容已同步。
         ...runScriptPathField(synchronizedRunScriptPath(journal, runId, entry, stored)),

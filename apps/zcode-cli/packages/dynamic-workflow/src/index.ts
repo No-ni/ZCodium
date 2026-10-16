@@ -32,6 +32,13 @@ export {
   type WorkflowProgram,
 } from "./compiler/compile.js";
 export { analyzeWorkflowScript, type AnalyzeResult } from "./analysis/analyze.js";
+export { MAIN_LANE } from "./analysis/causality-graph.js";
+export {
+  collectActorModels,
+  MODEL_REFERENCE_CODE,
+  MODEL_UNRESOLVED_CODE,
+  type ModelReference,
+} from "./analysis/actor-models.js";
 export { collectSites, type SiteTable, type HoleSite } from "./analysis/sites.js";
 // 留白：id 键（名字的 FNV-1a 哈希）、编译规则 9012、补全服务的拼接与稳定性复核。
 export {

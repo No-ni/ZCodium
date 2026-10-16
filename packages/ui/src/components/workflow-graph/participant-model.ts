@@ -3,6 +3,7 @@ import { phaseBinder } from "./instance-phases.js";
 import { aggregateRunStatuses, statusOfRunNode } from "./run-status.js";
 import {
   IMPLICIT_PHASE_ID,
+  MAIN_LANE_ID,
   type StepRunStatus,
   type StepStatusTable,
   type WorkflowCausalityGraphData,
@@ -51,12 +52,15 @@ export function withImplicitPhase(graph: WorkflowCausalityGraphData): WorkflowCa
   };
 }
 
-/** 一个阶段的参与者，保持载荷顺序（= 交接序）。 */
+/** 一个阶段的参与者，保持载荷顺序；主代理的开放留白由留白站展示。 */
 export function participantsOfPhase(
   graph: WorkflowCausalityGraphData,
   phaseId: string,
 ): WorkflowParticipantData[] {
-  return graph.participants.filter((participant) => participant.phase === phaseId);
+  // 分析器会为开放留白产生 main 参与者；原样展示会多出一张“未命名子代理”卡。
+  return graph.participants.filter(
+    (participant) => participant.phase === phaseId && participant.lane !== MAIN_LANE_ID,
+  );
 }
 
 export function participantById(
@@ -98,7 +102,10 @@ export function participantCounts(
   let asks = 0;
   let reads = 0;
   for (const id of participant.steps) {
-    if (kinds.get(id) === "world-read") reads += 1;
+    const kind = kinds.get(id);
+    // 留白尚未有可运行代码，不能把其站点计为 ask。
+    if (kind === "hole") continue;
+    if (kind === "world-read") reads += 1;
     else asks += 1;
   }
   return { asks, reads };

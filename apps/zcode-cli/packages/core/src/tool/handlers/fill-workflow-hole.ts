@@ -41,6 +41,7 @@ import { boundGraphOfAnalysis, displayOfAnalysis } from "./workflow-analysis-dis
 import { recordAuthoredWorkflowDraft } from "./workflow-draft-read-state.js";
 import { writeWorkflowFillFile } from "./workflow-fill-files.js";
 import { analyzeScript } from "./workflow-script-analysis.js";
+import { readScriptModelBindings, scriptModelSelections } from "./workflow-script-models.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 import { requireDynamicWorkflowSkill } from "./workflow-skill-gate.js";
 
@@ -212,6 +213,10 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
     holeId: parsed.hole_id,
     body,
     expectedScriptHash,
+    ...(() => {
+      const modelBindings = scriptModelSelections(readScriptModelBindings(parsed));
+      return modelBindings === undefined ? {} : { modelBindings };
+    })(),
     parentSessionId: context.sessionId,
     toolCallId: context.toolCallId,
     trace: resolveTraceContext(context),
@@ -274,7 +279,10 @@ const fillWorkflowHoleHandler: ToolHandler = async (input, context: ToolExecutio
       ? "No updated draft file is available, so pass the full effective script to AmendWorkflow for any later revision."
       : `The run's draft ${describeWorkflowScriptPath(result.scriptPath, cwd ?? "")} now holds the effective script: edit that file and pass \`path\` to AmendWorkflow for any later revision.`;
   return {
-    fill: { ...fillBlock(parsed, { draftPath: result.scriptPath }), commitSequence: result.commitSequence },
+    fill: {
+      ...fillBlock(parsed, { draftPath: result.scriptPath }),
+      commitSequence: result.commitSequence,
+    },
     diagnostics: [],
     ok: true,
     response: `The fill joined run ${parsed.run_id} at hole "${holeName}" (${parsed.hole_id}); the branch parked there has resumed and the run keeps going in the background. ${phases} ${draft} Do not wait for the run or poll it with TaskOutput; you will be notified when it completes.`,

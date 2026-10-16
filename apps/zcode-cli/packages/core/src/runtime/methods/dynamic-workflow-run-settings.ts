@@ -23,6 +23,7 @@ import {
   writeWorkflowDraft,
 } from "../../tool/handlers/workflow-drafts.js";
 import { analyzeScript } from "../../tool/handlers/workflow-script-analysis.js";
+import { bindScriptModels } from "../../tool/handlers/workflow-script-models.js";
 import type { ExecutableToolCall } from "../../tool/types.js";
 import { workspaceLevelRootOf } from "../helpers/workspace-scope.js";
 import { traceContextToLogContext } from "../deps.js";
@@ -173,6 +174,17 @@ export async function amendWorkflowRunSettings(
     };
   }
 
+  const boundModels = bindScriptModels(analysis, this.modelCatalogPort, snapshot.modelBindings);
+  if (boundModels.unbound.length > 0)
+    return {
+      ok: false,
+      reason: "compile_failed",
+      message: boundedCompileDiagnostics(
+        "The workflow names unavailable models:",
+        boundModels.unbound,
+      ),
+    };
+
   // —— 到此为止零副作用。——
 
   // 新 run 的脚本文件，与工具沿用脚本时同一条规则、
@@ -207,6 +219,7 @@ export async function amendWorkflowRunSettings(
   try {
     amended = await port.amend({
       scriptText: script,
+      ...(boundModels.selections === undefined ? {} : { modelBindings: boundModels.selections }),
       // run 的 `cwd` 是对外契约里的单字段（项目键 + 沙箱根），保持执行 cwd。
       cwd: this.workingDirectory,
       predecessorRunId: input.runId,

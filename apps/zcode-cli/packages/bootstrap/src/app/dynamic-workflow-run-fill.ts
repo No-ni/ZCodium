@@ -30,6 +30,7 @@ import {
   spliceHoleBody,
 } from "@zcode/dynamic-workflow";
 import { compileProgram } from "./dynamic-workflow-run-compile.js";
+import { formatModelPickerValue } from "@zcode/shared/model-selection";
 import { mapFillDiagnostics } from "./dynamic-workflow-run-holes.js";
 import type { RunRegistryEntry } from "./dynamic-workflow-run-observation.js";
 import type { DynamicWorkflowRunServiceDeps } from "./dynamic-workflow-run-service.js";
@@ -148,6 +149,42 @@ async function fillOnce(
     };
   }
 
+  // 旧绑定一旦提交就冻结；本次仅补入审批前解析的新增名字，不得重选原 persona 的模型。
+  const modelBindings = { ...entry.modelBindings };
+  for (const reference of analysis.modelReferences) {
+    if (Object.hasOwn(modelBindings, reference.name)) continue;
+    const selection =
+      request.modelBindings !== undefined && Object.hasOwn(request.modelBindings, reference.name)
+        ? request.modelBindings[reference.name]
+        : undefined;
+    if (selection === undefined) {
+      return {
+        ok: false,
+        reason: "compile_failed",
+        message: "The fill names an unresolved model; nothing was filled.",
+        diagnostics: mapFillDiagnostics({
+          diagnostics: [
+            {
+              ...reference,
+              code: 9011,
+              message: `The model "${reference.name}" was not resolved before approval.`,
+            },
+          ],
+          effectiveText: spliced.text,
+          body: request.body,
+          insertedAtLine: spliced.insertedAtLine,
+          insertedLines: spliced.insertedLines,
+        }),
+      };
+    }
+    Object.defineProperty(modelBindings, reference.name, {
+      value: formatModelPickerValue(selection),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+
   // 4. 稳定性复核在编译产物之前：编译（schema 合成、lowering）对一份 id 会错位的脚本是白付。
   const effective = createWorkflowProgram(spliced.text);
   const after = collectSites(effective);
@@ -201,6 +238,11 @@ async function fillOnce(
     askSpecs: compiled.askSpecs,
     sitePhases,
     phaseNames,
+    ...(Object.keys(modelBindings).length === 0 ? {} : { modelBindings }),
+    // 先 durable commit 再换宿主表，且在广播/放行之前；失败零内存与 journal 副作用。
+    onCommitted: () => {
+      entry.modelBindings = modelBindings;
+    },
     ...(holeIndexes.length === 0 ? {} : { holes: holeIndexes }),
     ...filledBy,
   });

@@ -1,4 +1,4 @@
-import { laneClassOf, type LaneClass, type WorkflowLaneData } from "./types.js";
+import { laneClassOf, MAIN_LANE_ID, type LaneClass, type WorkflowLaneData } from "./types.js";
 import { formatNamePattern, type NamePattern } from "./name-pattern.js";
 
 /**
@@ -86,7 +86,9 @@ function anonymousLaneIndexes(lanes: readonly WorkflowLaneData[]): Map<string, n
     (lane) =>
       lane.name === undefined &&
       formatNamePattern(lane.namePattern) === undefined &&
-      laneClassOf(lane.id) === "agent",
+      laneClassOf(lane.id) === "agent" &&
+      // 开放留白的 main 车道不画子代理卡，也不能占用真实匿名子代理的编号。
+      lane.id !== MAIN_LANE_ID,
   );
   if (anonymous.length < 2) return new Map();
   return new Map(anonymous.map((lane, index) => [lane.id, index + 1]));

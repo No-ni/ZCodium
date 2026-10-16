@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { buildActuals } from "./call-actuals.js";
 import {
   addOcc,
   addPlaceholder,
@@ -19,6 +20,7 @@ import {
 } from "./domain.js";
 import type { EvalContext, Evaluator } from "./taint.js";
 import type { ApplicationVia } from "./state.js";
+import type { HoleSite } from "./sites.js";
 import { applySuperCall } from "./classes.js";
 import { handleArrayMethod } from "./array-methods.js";
 import { handlePromiseReject, isPromiseReject } from "./promise-ops.js";
@@ -50,6 +52,9 @@ export function evalCall(ev: Evaluator, node: ts.CallExpression, ctx: EvalContex
   const askId = ev.s.askByCall.get(node);
   if (askId !== undefined) return handleAsk(ev, node, askId, ctx);
 
+  const hole = ev.s.holeByCall.get(node);
+  if (hole !== undefined) return handleHole(ev, node, hole, ctx);
+
   const world = ev.s.worldByCall.get(node);
   if (world !== undefined) return handleWorldRead(ev, world.id, world.args, ctx);
 
@@ -60,7 +65,9 @@ export function evalCall(ev: Evaluator, node: ts.CallExpression, ctx: EvalContex
     const cand = ev.s.candByCall.get(node);
     if (cand !== undefined) return handleArrayMethod(ev, node, cand, ctx);
     if (isJsonStringify(node.expression)) {
-      return node.arguments[0] === undefined ? emptyValue() : collapse(ev.evalExpr(node.arguments[0], ctx));
+      return node.arguments[0] === undefined
+        ? emptyValue()
+        : collapse(ev.evalExpr(node.arguments[0], ctx));
     }
     if (isPromiseReject(node.expression)) return handlePromiseReject(ev, node, ctx);
     if (isObjectAssign(node.expression)) return handleObjectAssign(ev, node, ctx);
@@ -96,46 +103,55 @@ export function evalCall(ev: Evaluator, node: ts.CallExpression, ctx: EvalContex
     // never starts at a member name, so this key collides with nothing.
     if (callbackSemanticsOf(node, ev.checker, ev.s.program)?.deferred === true) {
       const receiver = node.expression.expression;
-      ev.s.mergeSink(ev.s.awaitVal, node.expression.name.getStart(ev.s.scriptFile), collapse(ev.evalExpr(receiver, ctx)));
+      ev.s.mergeSink(
+        ev.s.awaitVal,
+        node.expression.name.getStart(ev.s.scriptFile),
+        collapse(ev.evalExpr(receiver, ctx)),
+      );
     }
   }
 
   return handleGenericCall(ev, node, ctx);
 }
 
-function handleGenericCall(ev: Evaluator, node: ts.CallExpression, ctx: EvalContext): AbstractValue {
-  const { explicit, places, tail } = buildActuals(ev, node.arguments, ctx);
-  return applyCall(ev, node.expression, explicit, ctx, places, tail, node);
+/**
+ * 留白（docs/analysis.md「Sites」的 Hole sites 段）。开放的留白：提示是 sink（如 ask 的
+ * instructions），返回值是一个来自 run 之外的、以留白站点为标签的不透明值（类型 T）。已补全的
+ * 留白：函数体在原地被 cell 调用，所以这里把它当一次**直接**应用——记成 `argument` 应用（时序
+ * 走查据此在调用点内联函数体），返回值就是函数体的返回摘要（无实参，exactness 不清：调用是
+ * 确定的，不是间接分派）。已补全的留白**不是**图里的节点，所以它的提示不进 sink 表。
+ */
+function handleHole(
+  ev: Evaluator,
+  node: ts.CallExpression,
+  site: HoleSite,
+  ctx: EvalContext,
+): AbstractValue {
+  ev.s.markFacade(ctx.regionStack);
+  if (site.body === undefined) {
+    if (site.prompt !== undefined) {
+      ev.s.mergeSink(ev.s.holePrompt, site.id, collapse(ev.evalExpr(site.prompt, ctx)));
+    }
+    return singleOcc(site.id, true);
+  }
+  if (site.prompt !== undefined) ev.evalExpr(site.prompt, ctx);
+  const out = emptyValue();
+  for (const fn of ev.evalExpr(site.body, ctx).fns) {
+    const id = ev.s.fnId.get(fn);
+    if (id === undefined) continue;
+    recordCall(ev, id, ctx.regionStack, [], undefined, { site: node, via: "argument" });
+    mergeInto(out, substitute(ev.s.summaryOf(id), id, [], false));
+  }
+  return out;
 }
 
-/**
- * Evaluate an actual-argument list into positional values, their place aliases (for
- * parameter write-back), and an optional inexact TAIL. Positional certainty ends at the
- * first `...spread`: the spread element (and every actual after it) folds into one
- * collapsed, exactness-cleared tail that binds to every parameter at index >= the spread's
- * position — the runtime unpacking length is unknown, so the smear is the sound baseline.
- * `f(...pair)` evaluated the spread as ONE actual at index 0, so params >= 1
- * resolved to nothing (a dropped may-flow: `pair[1]` never reached `f`'s second param).
- */
-function buildActuals(
+function handleGenericCall(
   ev: Evaluator,
-  argsNodes: readonly ts.Expression[],
+  node: ts.CallExpression,
   ctx: EvalContext,
-): { explicit: AbstractValue[]; places: (AbstractValue | undefined)[]; tail: AbstractValue | undefined } {
-  const spreadIndex = argsNodes.findIndex((a) => ts.isSpreadElement(a));
-  if (spreadIndex < 0) {
-    const explicit = argsNodes.map((a) => ev.evalExpr(a, ctx));
-    return {
-      explicit,
-      places: argsNodes.map((a, i) => ev.argWriteBackPlace(a, explicit[i] as AbstractValue)),
-      tail: undefined,
-    };
-  }
-  const explicit = argsNodes.slice(0, spreadIndex).map((a) => ev.evalExpr(a, ctx));
-  const places = argsNodes.slice(0, spreadIndex).map((a, i) => ev.argWriteBackPlace(a, explicit[i] as AbstractValue));
-  const tail = emptyValue();
-  for (const arg of argsNodes.slice(spreadIndex)) collapseInto(tail, ev.evalExpr(arg, ctx));
-  return { explicit, places, tail: clearExact(tail) };
+): AbstractValue {
+  const { explicit, places, tail } = buildActuals(ev, node.arguments, ctx);
+  return applyCall(ev, node.expression, explicit, ctx, places, tail, node);
 }
 
 /**
@@ -168,7 +184,8 @@ function handleInvocationForwarding(
     // opaque, so smear its collapsed (inexact) taint across every parameter — an ordinary
     // actual at index 1 would never be read by any positional placeholder.
     const argsArray = node.arguments[1];
-    const tail = argsArray === undefined ? emptyValue() : clearExact(collapse(ev.evalExpr(argsArray, ctx)));
+    const tail =
+      argsArray === undefined ? emptyValue() : clearExact(collapse(ev.evalExpr(argsArray, ctx)));
     return applyToFns(ev, fns, false, [], ctx, undefined, tail, receiverVal.bound, node);
   }
   // f.bind(thisArg, ...prefix): the result is a new function value carrying f's `fns` plus
@@ -205,9 +222,12 @@ export function applyCall(
   // A library / facade member is never a script function (see {@link isForeignMember}): the
   // callables a whole-value read smeared into the member slot are the receiver's contents,
   // not the callee. `then(a, b).finally(c)` would otherwise dispatch to a and b as `.finally`.
-  const foreign = ts.isPropertyAccessExpression(calleeExpr) && isForeignMember(calleeExpr.name, ev.checker, ev.s.scriptFile);
+  const foreign =
+    ts.isPropertyAccessExpression(calleeExpr) &&
+    isForeignMember(calleeExpr.name, ev.checker, ev.s.scriptFile);
   const fns = foreign ? [] : [...calleeVal.fns].filter((fn) => ev.s.fnId.has(fn));
-  if (fns.length === 0) return handleUnknownCall(ev, calleeExpr, calleeVal, argVals, ctx, tail, site);
+  if (fns.length === 0)
+    return handleUnknownCall(ev, calleeExpr, calleeVal, argVals, ctx, tail, site);
   const exact = fns.length === 1 && isDirectCallee(calleeExpr);
   return applyToFns(ev, fns, exact, argVals, ctx, argPlaces, tail, calleeVal.bound, site);
 }
@@ -242,7 +262,10 @@ function applyToFns(
   applyAligned(ev, fns, hasBound ? false : exact, explicit, ctx, argPlaces, tail, result, site);
   if (hasBound) {
     const prefixed = [...(bound as AbstractValue[]), ...explicit];
-    const prefixedPlaces = [...(bound as AbstractValue[]).map(() => undefined), ...(argPlaces ?? [])];
+    const prefixedPlaces = [
+      ...(bound as AbstractValue[]).map(() => undefined),
+      ...(argPlaces ?? []),
+    ];
     applyAligned(ev, fns, false, prefixed, ctx, prefixedPlaces, tail, result, site);
   }
   return result;
@@ -276,7 +299,14 @@ function applyAligned(
       places.push(explicitVal !== undefined ? argPlaces?.[i] : undefined);
     }
     const recorded = clear ? args.map((a) => clearExact(a)) : args;
-    recordCall(ev, id, ctx.regionStack, recorded, places, site === undefined ? undefined : { site, via: "callee" });
+    recordCall(
+      ev,
+      id,
+      ctx.regionStack,
+      recorded,
+      places,
+      site === undefined ? undefined : { site, via: "callee" },
+    );
     mergeInto(result, substitute(ev.s.summaryOf(id), id, args, clear));
   }
 }
@@ -311,7 +341,8 @@ function handleUnknownCall(
   site?: ts.Node,
 ): AbstractValue {
   const applied = emptyValue();
-  if (ts.isPropertyAccessExpression(calleeExpr)) collapseInto(applied, ev.evalExpr(calleeExpr.expression, ctx));
+  if (ts.isPropertyAccessExpression(calleeExpr))
+    collapseInto(applied, ev.evalExpr(calleeExpr.expression, ctx));
   for (const arg of argVals) collapseInto(applied, arg);
   if (tail !== undefined) collapseInto(applied, tail);
 
@@ -361,7 +392,14 @@ export function applyPessimistically(
     const id = ev.s.fnId.get(fn);
     if (id === undefined) continue;
     const actuals = (ev.s.fnParamSymbols.get(id) ?? []).map(() => pot);
-    recordCall(ev, id, ctx.regionStack, actuals, undefined, site === undefined ? undefined : { site, via: "argument" });
+    recordCall(
+      ev,
+      id,
+      ctx.regionStack,
+      actuals,
+      undefined,
+      site === undefined ? undefined : { site, via: "argument" },
+    );
     mergeInto(out, substitute(ev.s.summaryOf(id), id, actuals, true));
   }
 }
@@ -427,7 +465,11 @@ export function recordCall(
     const actualLive = argPlaces?.[param];
     if (psym !== undefined && actualLive !== undefined) {
       const paramSlot = ev.s.env.get(psym);
-      if (paramSlot !== undefined && paramSlot !== actualLive && mergeHeapEffects(actualLive, paramSlot, id, param, argVals)) {
+      if (
+        paramSlot !== undefined &&
+        paramSlot !== actualLive &&
+        mergeHeapEffects(actualLive, paramSlot, id, param, argVals)
+      ) {
         ev.s.changed = true;
       }
     }
@@ -541,6 +583,7 @@ function substitute(
   if (summary.bound !== undefined) {
     out.bound = summary.bound.map((el) => substitute(el, fnId, argVals, clear, depth + 1));
   }
-  for (const [key, field] of summary.fields) out.fields.set(key, substitute(field, fnId, argVals, clear, depth + 1));
+  for (const [key, field] of summary.fields)
+    out.fields.set(key, substitute(field, fnId, argVals, clear, depth + 1));
   return out;
 }

@@ -69,6 +69,13 @@ AI 生成的代码、命令、解释、文件和建议可能存在错误、遗�
 
 本仓库第一方代码依照根 [LICENSE](LICENSE) 采用 Apache-2.0；该许可不替其他权利人新增授权，也不覆盖第三方软件、复制代码、原生二进制、字体、图标、网页素材及其他资源的独立条款。具体依赖包详见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。受第三方版权、许可及再分发条件等约束，不承诺提供官方产品的全部功能及活动政策，具体以实际发布的源码和构建产物为准。
 
+### 本轮吸收的上游实现
+
+2026-10-16 吸收并适配了 `zai-org/ZCode@aac4755666d09fdcd70272fcf063c077a639015f`
+的隐藏页面动画暂停、会话行结构共享、工作流留白依赖分析及模型绑定校验实现（Apache-2.0，版权 Z.ai）。
+适配范围、行为差异与验证见 `.agents/specs/hidden-document-motion-pause.md`、
+`.agents/specs/conversation-row-structural-sharing.md` 与 `.agents/specs/dynamic-workflow-holes.md`。
+
 ### 内置插件技能层的来源
 
 内置插件技能层目前**直接采用上游 zai-org/ZCode 的实现**（Apache-2.0，版权 Z.ai）：

@@ -174,6 +174,8 @@ export interface DynamicWorkflowActorRuntimeInput {
    * 表态，pin 只守没有它时的隐式缺省。只管子代理、不动主代理。缺席即跑在 pin 或会话模型上。
    */
   runSubagentModel?: ModelSelection;
+  /** Persona-specific selection, above run default, journal pin and parent. */
+  actorModel?: ModelSelection;
   /**
    * 该 actor runtime 的模型请求准入端口：
    * driver 在治理器端口在场时给出；工厂原样放进 runtime deps。缺席即不受闸门约束。

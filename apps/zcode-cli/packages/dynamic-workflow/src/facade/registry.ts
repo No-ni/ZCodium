@@ -270,7 +270,7 @@ export function facadeContainerOf(declaration: ts.Node | undefined): string | un
  * 一个 facade symbol 的 (容器, 成员) 身份。symbol 的任一声明落在 facade `.d.ts` 内即算命中；
  * 容器由该声明向上解析（顶层 facade 函数无容器）。非 facade symbol → undefined。
  */
-function facadeMemberOf(
+export function facadeMemberOf(
   symbol: ts.Symbol | undefined,
 ): { container: string | undefined; member: string } | undefined {
   const declaration = symbol?.declarations?.find(
@@ -278,6 +278,12 @@ function facadeMemberOf(
   );
   if (declaration === undefined || symbol === undefined) return undefined;
   return { container: facadeContainerOf(declaration), member: symbol.name };
+}
+
+/** Pure value constructors have facade identity but no site or host effect. */
+export function valueFunctionOfSymbol(symbol: ts.Symbol | undefined): "model" | undefined {
+  const member = facadeMemberOf(symbol);
+  return member?.container === undefined && member?.member === "model" ? "model" : undefined;
 }
 
 /** 某 facade symbol 解析到的 world-read op（按声明容器判定），非 world-read 则 undefined。 */

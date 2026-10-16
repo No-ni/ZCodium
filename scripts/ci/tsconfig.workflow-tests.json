@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@zcode/dynamic-workflow": ["../../apps/zcode-cli/packages/dynamic-workflow/src/index.ts"],
+      "@zcode/dynamic-workflow/projections": [
+        "../../apps/zcode-cli/packages/dynamic-workflow/src/projections.ts"
+      ],
+      "@zcode/dynamic-workflow-runtime": [
+        "../../apps/zcode-cli/packages/dynamic-workflow-runtime/src/index.ts"
+      ],
+      "@zcode/contracts": ["../../apps/zcode-cli/packages/contracts/src/index.ts"]
+    }
+  }
+}

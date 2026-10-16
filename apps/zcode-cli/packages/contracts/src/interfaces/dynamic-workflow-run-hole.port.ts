@@ -8,6 +8,7 @@
 
 import type { SessionId, ToolCallId } from "./shared.js";
 import type { TraceContext } from "../tracing/tracer.js";
+import type { ModelSelection } from "../model/model.js";
 
 /**
  * 一处留白在快照上的投影：由 `hole-reached` / `hole-filled` 事件加引擎内存里的停驻表投影——
@@ -53,6 +54,8 @@ export interface DynamicWorkflowRunFillHoleRequest {
   body: string;
   /** resolve 审批预览的脚本基线；内部调用可省略并使用本地当前基线。 */
   expectedScriptHash?: string;
+  /** Approval-frozen additions; the runtime retains all previously committed bindings. */
+  modelBindings?: Record<string, ModelSelection>;
   /** 补全的会话，落进 `hole-filled.filledBy`。 */
   parentSessionId?: SessionId | string;
   /** 发起这次补全的 FillWorkflowHole 工具调用。 */

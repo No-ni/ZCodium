@@ -111,6 +111,8 @@ export interface CoreFacts {
   worldReadData: Map<string, TaintOcc[]>;
   joinIn: Map<string, TaintOcc[]>;
   fanoutIn: Map<string, TaintOcc[]>;
+  /** Artifact occurrences reaching each open hole's prompt. */
+  holeData: Map<string, TaintOcc[]>;
   returnData: TaintOcc[];
 }
 
@@ -173,6 +175,7 @@ function at(loc: ScriptLoc): string {
  *   fact world-read-data world-read#2 <- ask#1 inexact
  *   fact join-in join#1 <- ask#1 exact port=0
  *   fact fan-out-in fan-out#1 <- ask#1 exact
+ *   fact hole-data hole#1 <- ask#1 exact
  *   fact return <- ask#2 exact
  *   region seq#1 seq entered
  *   region loop#1 loop parent=seq#1 @3:1 bound=3 label="helper"
@@ -327,6 +330,7 @@ function renderFacts(facts: CoreFacts): string[] {
     ...group("world-read-data", facts.worldReadData),
     ...group("join-in", facts.joinIn),
     ...group("fan-out-in", facts.fanoutIn),
+    ...group("hole-data", facts.holeData),
     ...facts.returnData.map((occ) => `fact return <- ${occText(occ)}`),
   ];
 }

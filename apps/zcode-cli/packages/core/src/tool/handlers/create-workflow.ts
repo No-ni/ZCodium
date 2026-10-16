@@ -44,6 +44,12 @@ import {
   type WorkflowScriptLocation,
 } from "./workflow-script-notes.js";
 import { analyzeScript } from "./workflow-script-analysis.js";
+import {
+  allScriptModelsBound,
+  readScriptModelBindings,
+  scriptModelSelections,
+  unresolvedScriptModelDiagnostics,
+} from "./workflow-script-models.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 import { createWorkflowNeedsSkill, requireDynamicWorkflowSkill } from "./workflow-skill-gate.js";
 
@@ -80,7 +86,10 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   const workspaceDirectory = context.workspaceScopeRoot;
 
   const analysis = analyzeScript(script);
-  const { diagnostics, ok } = analysis;
+  const bindings = readScriptModelBindings(input);
+  const unbound = unresolvedScriptModelDiagnostics(analysis, bindings, context.modelCatalogPort);
+  const diagnostics = [...analysis.diagnostics, ...unbound];
+  const ok = analysis.ok && unbound.length === 0;
   // 确认窗与持久化输出读的是同一份静态分析：中间没有任何模型调用改写名字。
   const causalityGraph = boundGraphOfAnalysis(analysis);
 
@@ -89,7 +98,7 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   // 脚本反而没有文件」。分析排在前面只为取名：没有 `name` 时文件名取第一个阶段名，而阶段名
   // 在图上。saved 来源的拷贝已在 resolveInput 里写过，`path` 来源不写。
   const inlineDraft =
-    saved === undefined && parsed.path === undefined
+    unbound.length === 0 && saved === undefined && parsed.path === undefined
       ? await writeWorkflowDraft({
           cwd: workspaceDirectory,
           name: resolveWorkflowDraftName(parsed.name, causalityGraph),
@@ -146,6 +155,10 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   const submitted = await port.submit(
     {
       scriptText: script,
+      ...(() => {
+        const modelBindings = scriptModelSelections(bindings);
+        return modelBindings === undefined ? {} : { modelBindings };
+      })(),
       // run 的 `cwd` 是对外契约里的单字段：既是 dwf_run 的项目键又是脚本沙箱根，无法只改一半，
       // 因此保持执行 cwd（运行记录按会话执行目录分桶；`listWorkflowRuns` 同键）。见报告残留项。
       cwd: context.workingDirectory,
@@ -311,7 +324,8 @@ function prepareCreateWorkflowApproval(input: unknown): ToolApprovalGate {
   if (!parsed.success || parsed.data.script === undefined) return { gate: "proceed" };
 
   const analysis = analyzeScript(parsed.data.script);
-  if (!analysis.ok) return { gate: "proceed" };
+  if (!analysis.ok || !allScriptModelsBound(analysis, readScriptModelBindings(input)))
+    return { gate: "proceed" };
 
   // 弹窗自带标题并以图为主体；display 与直接启动的启动轮元数据同一构造函数。
   const display = displayOfAnalysis(analysis);

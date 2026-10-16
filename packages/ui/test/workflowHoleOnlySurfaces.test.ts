@@ -9,6 +9,12 @@ import {
   type WorkflowCausalityGraphData,
 } from "../src/components/workflow-graph/types.js";
 import { buildWorkflowTimeline } from "../src/components/workflow-timeline/timeline-model.js";
+import { laneRefsById } from "../src/components/workflow-graph/lane-name.js";
+import {
+  participantCounts,
+  participantsOfPhase,
+} from "../src/components/workflow-graph/participant-model.js";
+import { toolCallCreateWorkflowDisplaySchema } from "@zcode/shared/zcode-protocol-v4";
 import {
   buildWorkflowGraphByToolCallId,
   buildWorkflowRunByToolCallId,
@@ -89,6 +95,75 @@ function context(causalityGraph: WorkflowCausalityGraphData = graph): ToolCallBl
 }
 
 describe("phase/hole-only workflow graphs on every surface", () => {
+  it("keeps main hole dependencies without inventing a subagent on any renderer", () => {
+    const complete: WorkflowCausalityGraphData = {
+      ...graph,
+      steps: [{ id: siteId, kind: "hole", label: "decide", phase: siteId, lane: "main" }],
+      lanes: [{ id: "main" }, { id: "actor#1" }],
+      participants: [{ id: "hole-main", phase: siteId, lane: "main", steps: [siteId] }],
+      sink: [siteId],
+    };
+    expect(
+      toolCallCreateWorkflowDisplaySchema.parse({ ...display, causalityGraph: complete }),
+    ).toEqual({ ...display, causalityGraph: complete });
+    expect(participantsOfPhase(complete, siteId)).toEqual([]);
+    expect(participantCounts(complete, complete.participants[0]!)).toEqual({ asks: 0, reads: 0 });
+    expect(laneRefsById(complete.lanes).get("actor#1")?.anonymousIndex).toBeUndefined();
+    const model = buildWorkflowTimeline(complete, projection);
+    expect(model.stations[0]?.hole?.siteId).toBe(siteId);
+    expect(model.stations[0]?.pills).toEqual([]);
+    const actualRequest = { ...request, display: { ...display, causalityGraph: complete } };
+    const renderers = [
+      createElement(WorkflowPermissionBlock, { request: actualRequest }),
+      createElement(CreateWorkflowToolCallBlock, context(complete)),
+      createElement(WorkflowRunDigest, {
+        graph: complete,
+        name: "Hole",
+        runId: "run-1",
+        summary,
+        testIdKey: "complete-hole",
+      }),
+    ];
+    for (const renderer of renderers) {
+      const html = renderToStaticMarkup(renderer);
+      expect(html).toContain('data-testid="workflow-timeline-station"');
+      expect(html).toContain('data-hole="');
+      expect(html).not.toContain("chat.toolCall.workflow.graph.lane.anonymous");
+    }
+    // 没有修改或删除分析事实；过滤只发生在参与者的展示选择器。
+    expect(complete.participants).toHaveLength(1);
+    expect(complete.sink).toEqual([siteId]);
+  });
+  it("preserves real anonymous agents and handoffs following a main hole", () => {
+    const mixed: WorkflowCausalityGraphData = {
+      ...graph,
+      steps: [
+        { id: siteId, kind: "hole", label: "decide", phase: siteId, lane: "main" },
+        { id: "ask#1", kind: "ask", label: "work", phase: "after", lane: "actor#1" },
+        { id: "ask#2", kind: "ask", label: "review", phase: "after", lane: "actor#2" },
+      ],
+      lanes: [{ id: "main" }, { id: "actor#1" }, { id: "actor#2" }],
+      phases: [...graph.phases, { id: "after", name: "After" }],
+      phaseEdges: [{ from: siteId, to: "after" }],
+      participants: [
+        { id: "hole-main", phase: siteId, lane: "main", steps: [siteId] },
+        { id: "worker", phase: "after", lane: "actor#1", steps: ["ask#1"] },
+        { id: "reviewer", phase: "after", lane: "actor#2", steps: ["ask#2"] },
+      ],
+      handoffs: [
+        { from: "hole-main", to: "worker", types: ["string"] },
+        { from: "worker", to: "reviewer" },
+      ],
+    };
+    const refs = laneRefsById(mixed.lanes);
+    expect(refs.get("actor#1")?.anonymousIndex).toBe(1);
+    expect(refs.get("actor#2")?.anonymousIndex).toBe(2);
+    const model = buildWorkflowTimeline(mixed);
+    expect(model.stations[0]?.pills).toEqual([]);
+    expect(model.stations[1]?.pills.map((pill) => pill.lane.id)).toEqual(["actor#1", "actor#2"]);
+    expect(participantCounts(mixed, mixed.participants[1]!)).toEqual({ asks: 1, reads: 0 });
+    expect(mixed.handoffs[0]).toEqual({ from: "hole-main", to: "worker", types: ["string"] });
+  });
   it("joins tool rows and direct-launch rows even without steps, but not truly empty graphs", () => {
     expect(buildWorkflowGraphByToolCallId([row], [projection]).get("create")).toBe(graph);
     for (const kind of ["turnHeader", "userInput"] as const) {

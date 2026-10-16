@@ -28,6 +28,7 @@ import {
 } from "./amend-workflow-source.js";
 import { resolveModelReference } from "./model-reference.js";
 import { workflowRunNotFoundFailure } from "./workflow-run-introspection.js";
+import { withScriptModelBindingsResolved } from "./workflow-script-models.js";
 
 export {
   AMEND_WORKFLOW_ERROR_CODE,
@@ -64,8 +65,12 @@ export async function resolveAmendWorkflowInput(
   input: unknown,
   context: ToolInputResolutionContext,
 ): Promise<ToolInputResolutionResult> {
-  const parsed = AmendWorkflowInputSchema.safeParse(input);
-  if (!parsed.success) return { result: true, input };
+  const source =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? Object.fromEntries(Object.entries(input).filter(([key]) => key !== "model_bindings"))
+      : input;
+  const parsed = AmendWorkflowInputSchema.safeParse(source);
+  if (!parsed.success) return { result: true, input: source };
   const cwd = context.workingDirectory ?? ".";
   const port = context.dynamicWorkflowRunPort;
   if (port === undefined) {
@@ -94,15 +99,18 @@ export async function resolveAmendWorkflowInput(
       predecessorScriptPath: undefined,
     });
     if (!script.result) return script;
-    return {
-      result: true,
-      input: {
-        ...rest,
-        ...script.fields,
-        ...(typeof requested === "number" ? { max_concurrency: requested } : {}),
-        ...subagentModel.field,
+    return withScriptModelBindingsResolved(
+      {
+        result: true,
+        input: {
+          ...rest,
+          ...script.fields,
+          ...(typeof requested === "number" ? { max_concurrency: requested } : {}),
+          ...subagentModel.field,
+        },
       },
-    };
+      context.modelCatalogPort,
+    );
   }
   const snapshot = await port.getTask(parsed.data.run_id);
   if (snapshot === undefined) return predecessorNotFoundFailure(parsed.data.run_id);
@@ -162,7 +170,11 @@ export async function resolveAmendWorkflowInput(
       ...(script.inherited ? { script_inherited: true as const } : {}),
     },
   };
-  return { result: true, input: resolved };
+  return withScriptModelBindingsResolved(
+    { result: true, input: resolved },
+    context.modelCatalogPort,
+    snapshot.modelBindings,
+  );
 }
 
 /**

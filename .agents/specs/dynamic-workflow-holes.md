@@ -5,7 +5,68 @@
 以及 steps 为空但 phases/holes 非空的图展示均已实现。展示规则、自动验收与待执行的真机
 场景见 [`workflow-holes-ui.md`](./workflow-holes-ui.md)。CLI 使用包级 node:test；shared/UI
 使用 Vitest，不混用 runner。下文分期记录与验证数字保留为当时快照，不代表当前待办或本轮重跑结果。
-这不是上游全量 parity：hole 数据依赖完整图、生长动画、model_bindings 检查与 Rust 同步未做。
+这不是上游全量 parity：本轮吸收 hole 数据依赖完整图与 model_bindings 检查；生长动画与 Rust 同步仍不在范围。
+
+## 2026-10-15：完整依赖与模型绑定
+
+用户授权吸收此前遗漏的两项留白增强，来源为 `zai-org/ZCode@aac47556`。保留已有
+补全 journal 原子提交、`expectedScriptHash` stale 审批、`commitSequence` 单调投影、
+workspace identity、owner/手停与 lease 保护，不修改数据库 schema。
+
+- 分析器是数据依赖事实的唯一所有者：开放留白的 prompt 是 sink、返回值以 hole 站点为
+  producer；已补留白直接应用内联 body 的摘要，外部消费者接真实 body producer。
+  `holeData` 与旧 core JSON 缺键兼容；site graph、causality、handoff、serialize/Mermaid
+  全部派生自同一 core。开放留白在因果图是 `kind: "hole"`、`lane: "main"`，已补 body
+  的 step/phase 按站点前缀带 `fill`。显示仍走现有有界 steps/participants/handoffs/holes
+  契约，不新增原始 taint 或边表字段，不把控制顺序冒充数据依赖。
+- 编译器校验模型名集合封闭（9010）：`model("…")` 必须非空字面量；persona 的 model
+  只能是字面量类型/其联合或 ModelRef。`model()` 在 lowering 后是名字字符串。
+  宿主模型目录是名字解析的唯一所有者，resolve 在审批前无条件覆盖模型伪造的
+  `model_bindings`，未知/歧义/停用/非法档位报 9011，零启动/补全/存储副作用。
+- 启动/修订/直接启动使用结构化 `modelBindings`，规范串随已有 `run-launched` 事件落库；
+  补全在同一原子 `hole-filled` 事件记录合并后的表，先保留旧绑定再解析新增名字。
+  resume 重放事件表，不默默重选模型。actor 创建只按冻结 persona 名字查表，优先级为
+  persona 绑定 > run 子代理模型 > journal pin > 父会话模型；缺绑定大声失败。
+- 时序：脚本归一化 → 模型目录解析 → 审批 → stale 基线核对 → 完整脚本编译/模型校验 →
+  原子 journal 提交 → 表替换 → 事件广播/停驻放行。desktop continuous 与 mobile
+  replayable 继续复用同 owner 和 durable sequence，UI 不保存第二份绑定或依赖事实。
+- 验收包含 prompt→hole→后续/返回数据边、已补 body 真实依赖/嵌套 fill 归属、旧 JSON
+  往返、strict bounded display 的 main/hole，以及封闭模型集合、伪造绑定、未知模型零
+  副作用、补全新增模型、两处串行补全、冷 resume 与 persona 实际模型优先级。
+
+本轮不吸收 channel/phaseStreams 的额外演进、保存菜单/可调审批设置、补全生长动画、
+Rust 引擎或上游 tests 快照整包。CLI 使用已有 node:test，shared/UI 使用已有 Vitest。
+
+### 本轮验收结果（2026-10-16）
+
+- 上游远端主线仍为 `axiom-desu/ZCodium@68355622`、`zai-org/ZCode@aac47556`，本轮不另做全量同步。
+- 新 CI 源码入口执行 33 项回归，覆盖真实沙箱启动、未知模型零副作用、两次串行补全、提交失败、冻结绑定与冷恢复；全通过。
+- dynamic-workflow 包级 32 项测试与 UI 留白 21 项测试全通过；完整 CI 脚本为 498 通过、1 按既有条件跳过、0 失败。
+- 根类型检查及 CLI contracts/core/bootstrap/runtime 的源码映射类型检查通过；架构 0 违规，根 lint 0 错误。CLI 改动文件额外 lint 仅有既存 create-app.ts max-lines 问题（基线 1173 行、本轮 1175 行），其余通过。
+- 本轮源码、脚本与配置差异（含新文件）：新增 3211 行、删除 293 行，净增 2918 行；涉及 UI/Web/Desktop 入口与 CLI contracts/core/bootstrap/dynamic-workflow 既有模块。
+- 根与 CLI 分别使用各自 formatter 对改动文件检查；不打包、不调用真实模型。
+- ego-browser 使用真实分析器生成的有界图与当前 WorkflowTimeline：390/1280 宽度、中英文切换均无页面横向溢出或伪造的匿名子代理；补全后 Planner 阶段出现，键盘选中留白仍返回原 siteId。测试页面与服务已关闭。
+- 此项浏览器验收只证明组件与样式行为；真实桌面/手机连接、用户审批通知及真实模型执行仍属原有暂缓的真机场景，不宣称已跑。
+
+### 本轮收尾规则
+
+- 启动与补全绑定须随同一 durable 事件转录，冷恢复只读已提交表。测试通过源码映射执行，禁止旧 dist 掩盖漏接。
+- 模型相关读取归入既有 workflow-actor-model 模块；恢复结果类型从主端口拆出并原名再导出，维持 400 行约束。
+- 分析器仅拆出纯实参收集和占位符展开以满足行数限制，固定点状态仍由同一 TaintState 持有。
+- 沙箱集成测试使用独立临时目录，结束先关闭服务，再清理入口文件与目录。
+
+### 分析图接口细则
+
+- 开放留白即使没有 prompt 数据来源，也保持 source→hole 的现有 source completion；
+  有来源时生成 producer→hole 的真实数据边。`T` 作为开放留白的产物类型，actor 只作为
+  receiver，不混入 prompt 的产物来源。
+- 已补 body 作为确定执行的直接函数应用，返回摘要保留 exactness；prompt 仍求值但不生成
+  已补留白 sink。嵌套开放留白保留自身名字 id，由 site.fill 标记最近一层补全归属；
+  body 内普通 step 由稳定 `hole#<hash>/` 前缀派生 fill。
+- main 是等待补全的合成车道，不具 actor mailbox/FIFO 语义；handoff 复用因果图数据边，
+  因而能表达 actor→main 与 main→actor，但不把独立开放留白串行化。
+- v1 JSON 同时兼容缺 sites.holes 和 facts.holeData 的旧数据；编码写入完整表。core、
+  site/causality/control-flow 文本与 Mermaid 仅在存在留白或 fill 时增加对应输出。
 
 ## 正确性收尾：审批基线与 durable 提交顺序
 
@@ -106,9 +167,8 @@ Desktop continuous / mobile replayable 使用同一 journal sequence，无新通
   的「故意不跟」表）；留白本身不依赖这些。
 - 不整包跟随 `dynamic-workflow` 的其他演进（`zcodeSessionProjection`、UI 产品面改版等）。
 - 不引入新的 runner：CLI 验收用包级 `node:test`；shared/UI 用仓库已有 Vitest。
-- 不搬上游 hole 数据依赖完整图（`holeData` / `hole-flow` / 站点图 hole 节点与相关序列化）；
-  当前 phase/hole 图与空 steps 展示不等于该完整图。
-- 不做上游补全生长动画或 `model_bindings` 检查；Rust 等价实现/同步未做，不宣称全量 parity。
+- hole 数据依赖完整图与 `model_bindings` 已纳入 2026-10-15 本轮范围（见上节）；
+  不做上游补全生长动画与 Rust 等价实现/同步，不宣称全量 parity。
 
 **与上游保持一致的部分**：协议事件名、`HOLE_CODE`（9012）、`hole#<8hex>` 站点 id 形状、
 `FillWorkflowHole` 工具名与拒绝原因字符串、v4 `WorkflowRunHole` 字段。这些是跨端契约，改名会
@@ -343,7 +403,7 @@ P1 完成前不落 P2，P2 完成前不落 P3；每期各自补测试与验收�
 **P1 / P2 / P3a / P3b 源码与自动测试已落地，真机验收暂缓。**
 P1 契约/引擎/线协议、P2 驱动/工具/权限/通知、P3a 阶段分析与 v4 归约、P3b 展示与正确性
 收尾均已接线。P2 的重复投影、通知 manifest、fill 文件与权限、display 契约历史偏差已修正；
-未实现的 model_bindings 与上游 hole 数据依赖完整图仍明确排除，不将它们算作已完成。
+本轮追加的 model_bindings 与上游 hole 数据依赖完整图源码及以下自动验收已完成；真机端到端仍按原范围暂缓。
 
 - 原子 journal 提交先于内存表替换/广播/放行；审批基线过期返回 `fill_preview_stale`，零副作用。
 - durable sequence 已从引擎/端口/output/display 贯穿至 shared/UI；同 run 最新成功图按最大
@@ -536,8 +596,8 @@ flow-graph,site-phases,actor-models}.ts` 的图/阶段集成、fill 文件落地
 
 当前已删除 bootstrap 重复投影并复用分析层公共接口（含 actor 盖戳），阶段下标、通知 manifest、
 fill 文件/权限/完整审批预览与 strict display.fill/phase/step fill 已接通（1–7 的本地能力偏差
-已收尾）。第 6 项的 model_bindings 检查与第 8 项的上游 hole 数据依赖完整图未做，仍属非目标；
-不把这些排除项写成 parity 已完成。原始条目保留如下：
+已收尾）。第 6 项的 model_bindings 检查与第 8 项的上游 hole 数据依赖完整图此前未做，
+现纳入 2026-10-15 范围；仍不宣称全量 parity。原始条目保留如下：
 
 1. **`collectSitePhases` / `collectPhaseNames` 已在 P3a 落于分析层**
    （`dynamic-workflow/src/analysis/site-phases.ts`）。但 bootstrap 的宿主等价投影

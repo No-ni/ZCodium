@@ -18,11 +18,12 @@ import type {
 } from "@zcode/contracts";
 import {
   collectDiagnostics,
+  collectActorModels,
+  collectSites,
   createWorkflowProgram,
   type Caps,
   type ImportedRunCache,
   type RunSettlement,
-  type WorkflowProgram,
 } from "@zcode/dynamic-workflow";
 import { formatModelPickerValue } from "@zcode/shared/model-selection";
 import type { ModelSelection } from "@zcode/shared/model-selection";
@@ -36,12 +37,18 @@ import {
   boundedResumeDiagnostics,
   compileOnce,
   compileProgram,
+  requireModelBindings,
 } from "./dynamic-workflow-run-compile.js";
-import { openHoleIndexes, phaseNamesFromEvents, readRunHoleEvents } from "./dynamic-workflow-run-holes.js";
+import {
+  openHoleIndexes,
+  phaseNamesFromEvents,
+  readRunHoleEvents,
+} from "./dynamic-workflow-run-holes.js";
 import {
   readRunLaunchAnchor,
   readRunScriptPath,
   readRunSubagentModel,
+  readRunModelBindings,
   resolveLaunchAnchor,
   type RunLaunch,
 } from "./dynamic-workflow-run-launch-anchor.js";
@@ -88,6 +95,7 @@ export async function submitDynamicWorkflowRun(
     ...(request.phaseNames === undefined ? {} : { phaseNames: request.phaseNames }),
     ...(request.maxConcurrency === undefined ? {} : { maxConcurrency: request.maxConcurrency }),
     ...(request.subagentModel === undefined ? {} : { subagentModel: request.subagentModel }),
+    ...(request.modelBindings === undefined ? {} : { modelBindings: request.modelBindings }),
     // 脚本文件与子代理模型同车：原样下传，
     // 端口不做任何推断——写没写下草稿是工具侧的事实，缺席就是真的没有文件。
     ...(request.scriptPath === undefined ? {} : { scriptPath: request.scriptPath }),
@@ -129,6 +137,9 @@ export async function amendDynamicWorkflowRun(
     return { ok: false, reason: preflight.reason };
   }
   const predecessor = preflight.run;
+  // 修订必须在停止前驱前验证编译与模型表，不能先停工作再发现新脚本没有批准的模型。
+  const precompiled = compileOnce(request.scriptText);
+  requireModelBindings(precompiled.modelReferences, request.modelBindings);
   const runId = mintRunId();
 
   // 在飞判定看**本进程注册表**而不是 journal 状态：journal 说 running 而注册表里没有它，是别的
@@ -219,6 +230,7 @@ export async function amendDynamicWorkflowRun(
     // 的三态，`AmendWorkflow` 的 resolveInput 已经把它归一成这里的一条选择或缺席（缺席 = 回到
     // 会话模型）。端口若再继承一次，「回到会话模型」（`null`）就永远到不了这里。
     ...(request.subagentModel === undefined ? {} : { subagentModel: request.subagentModel }),
+    ...(request.modelBindings === undefined ? {} : { modelBindings: request.modelBindings }),
     // 脚本文件**绝不从前驱继承**：修订记的是这一次修订的脚本来自哪个文件（`path` 提交就是
     // 那个文件，内联提交就是刚写下的草稿）。沿用前驱的路径等于让模型下次去编辑旧脚本。
     ...(request.scriptPath === undefined ? {} : { scriptPath: request.scriptPath }),
@@ -247,6 +259,7 @@ interface StartNewRunInput {
    * 结构化选择进来，落库前归一成 picker 字符串——见 startNewRun 里的注释。
    */
   subagentModel?: ModelSelection;
+  modelBindings?: Record<string, ModelSelection>;
   /**
    * 本 run 脚本文件的绝对路径。缺席即这个
    * run 没有可编辑的脚本文件。纯模型面元数据：不参与执行，也不参与 resume 校验。
@@ -271,6 +284,7 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
   const { deps, runs, escalations } = ctx;
   const { imported, runId } = input;
   const compiled = compileOnce(input.scriptText);
+  requireModelBindings(compiled.modelReferences, input.modelBindings);
   // 钳过的上界只算**一次**：它既要随 EngineConfig 落 dwf_run.caps_max_concurrency，也要作为
   // 注册表条目的间隙副本（journal 行出现之前 getTask / getRunDetail 唯一能读到的地方）。
   // 算两次就等于让两条读面在天花板变化的那一瞬间给出不同的数。
@@ -279,6 +293,15 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
   // 事件、两条读面与进度载荷要的都是一个字符串——在这里归一一次，下游全程搬运。
   const subagentModel =
     input.subagentModel === undefined ? undefined : formatModelPickerValue(input.subagentModel);
+  const modelBindings =
+    input.modelBindings === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(input.modelBindings).map(([name, selection]) => [
+            name,
+            formatModelPickerValue(selection),
+          ]),
+        );
 
   // 发起锚点：修订沿用前驱、直接启动用显式值、聊天用活动轮，
   // 都没有就铸一个。引擎在建 run 那一世把它记成 run-launched。
@@ -302,6 +325,7 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     // 子代理模型与阶段表并列同车（同样不进 resolveLaunchAnchor：修订绝不继承前驱的模型）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列（刻意不做迁移）。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(modelBindings === undefined ? {} : { modelBindings }),
     // 脚本文件与子代理模型并列同车（同样不进 resolveLaunchAnchor：修订记的是新脚本的文件）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
@@ -342,6 +366,7 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     // 「结构化选择 → 规范字符串」的**唯一**归一点：记进 `run-launched` 的是它，两条读面与
     // `run-started` 载荷读到的也是它，所以格式不可能在三处之间分叉。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(modelBindings === undefined ? {} : { modelBindings }),
     // 脚本文件的间隙副本，与子代理模型同规（见 RunRegistryEntry.scriptPath）。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
     ...(imported === undefined ? {} : { resumedFrom: imported.resumedFrom }),
@@ -392,6 +417,7 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
       // 子代理模型不单走一路：它就在 launch 里（见上面的 RunLaunch），随同一条 `run-launched`
       // 落 journal，launch 侧再从同一个对象里取出来解析成选择交给 actor runtime 工厂。
       launch,
+      modelBindings: () => entry.modelBindings,
     }),
   );
 
@@ -426,6 +452,8 @@ export async function resumeDynamicWorkflowRun(
   // 而不是一条泛化的「执行失败」。诊断与随后的编译共用同一个 Program，仍是「编译一次」。
   const workflow = createWorkflowProgram(record.scriptText);
   const diagnostics = collectDiagnostics(workflow.program);
+  if (diagnostics.length === 0)
+    diagnostics.push(...collectActorModels(workflow, collectSites(workflow)).diagnostics);
   if (diagnostics.length > 0) {
     deps.logger?.warn?.("Dynamic workflow resume refused: stored script no longer compiles", {
       diagnosticCount: diagnostics.length,
@@ -440,6 +468,16 @@ export async function resumeDynamicWorkflowRun(
     };
   }
   const compiled = compileProgram(record.scriptText, workflow);
+  const storedBindings = readRunModelBindings(deps.journal, runId);
+  const missingModels = compiled.modelReferences.filter(
+    (reference) => storedBindings === undefined || !Object.hasOwn(storedBindings, reference.name),
+  );
+  if (missingModels.length > 0)
+    return {
+      ok: false,
+      reason: "compile_failed",
+      message: `Stored workflow model bindings are missing (9011): ${missingModels.map((reference) => reference.name).join(", ")}. Amend the workflow to approve new bindings.`,
+    };
   // 服务端先验（引擎构造时仍二次校验，防御纵深）：记录自身被外力改写（scriptText 与
   // scriptHash 不再自洽）时不建注册表条目、不启动——引擎侧同步抛错会把条目簿记成
   // failed 终态，掩盖「记录仍可修复」这个事实。
@@ -474,6 +512,7 @@ export async function resumeDynamicWorkflowRun(
   // 替换注册表条目：同 runId、新 AbortController、新结算 promise——cancel 从此恢复可用。
   // 必须先于 launch（文件头不变式 5：条目是 watcher 的前提）。
   const resumedSubagentModel = readRunSubagentModel(deps.journal, runId);
+  const resumedModelBindings = readRunModelBindings(deps.journal, runId);
   const resumedScriptPath = readRunScriptPath(deps.journal, runId);
   // 此刻生效的阶段表：补全过就是最后一条 `hole-filled` 上的，否则是 `run-launched` 的声明表。
   const resumedHoleEvents = readRunHoleEvents(deps.journal, runId);
@@ -504,6 +543,7 @@ export async function resumeDynamicWorkflowRun(
     // 就写死在 `run-launched` 上、本 run 余生不变，所以抄下来不会与事件分叉；抄了之后两条读面
     // 只剩一条规则——有条目就读条目，只有冷行才去扫事件。
     ...(resumedSubagentModel === undefined ? {} : { subagentModel: resumedSubagentModel }),
+    ...(resumedModelBindings === undefined ? {} : { modelBindings: resumedModelBindings }),
     // 脚本文件：与子代理模型同一条读、同一条论证（建 run 那一世写死、余生不变，抄下来不会
     // 与事件分叉）。resume 之后两条读面因此照旧「有条目就读条目」。
     ...(resumedScriptPath === undefined ? {} : { scriptPath: resumedScriptPath }),
@@ -518,6 +558,7 @@ export async function resumeDynamicWorkflowRun(
     entry,
     launchDynamicWorkflowRun({
       // caps 沿用 journal 记录：spentTokens 是对着这套 caps 累计的，
+      modelBindings: () => entry.modelBindings,
       // 重算等于悄悄挪门柱。
       caps: record.caps,
       compiled,

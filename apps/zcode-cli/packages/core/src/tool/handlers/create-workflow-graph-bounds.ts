@@ -208,6 +208,9 @@ export function boundCausalityGraph(
   const phaseFills = new Map((declaredPhases ?? []).map((phase) => [phase.id, phase.fill]));
   const boundSteps: CreateWorkflowStep[] = steps.map((step) => {
     const lanes = (step.lanes ?? []).filter((lane) => laneIds.has(lane));
+    // 留白本身的阶段记录外层归属，顶层补全阶段没有 fill；步骤归属必须读分析器事实。
+    // phase fallback 仅兼容旧图，不能覆盖嵌套开放留白或补全 body 的真实归属。
+    const fill = step.fill ?? (step.phase === undefined ? undefined : phaseFills.get(step.phase));
     // ask 的 label 来自脚本字面量，可能为空；契约要求 min(1)，退回 step id。
     const label = step.label
       ? boundGraphText(step.label, CREATE_WORKFLOW_GRAPH_MAX_NAME_CHARS)
@@ -236,9 +239,9 @@ export function boundCausalityGraph(
         ? { phase: boundGraphText(step.phase, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }
         : {}),
       ...(step.repeat === undefined ? {} : { repeat: step.repeat }),
-      ...(emitPhases && step.phase !== undefined && phaseFills.get(step.phase) !== undefined
-        ? { fill: boundGraphText(phaseFills.get(step.phase)!, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }
-        : {}),
+      ...(fill === undefined
+        ? {}
+        : { fill: boundGraphText(fill, CREATE_WORKFLOW_GRAPH_MAX_ID_CHARS) }),
     };
   });
 

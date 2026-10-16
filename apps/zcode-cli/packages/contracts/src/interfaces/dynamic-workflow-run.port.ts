@@ -25,6 +25,7 @@ import type { DynamicWorkflowRunProgressPayload } from "../events/session.events
 import type { ModelSelection } from "../model/model.js";
 import type { SessionId, ToolCallId } from "./shared.js";
 import type { TraceContext } from "../tracing/tracer.js";
+import type { DynamicWorkflowRunResumeResult } from "./dynamic-workflow-run-resume.port.js";
 import type { WorkflowTaskSnapshot } from "./workflow.port.js";
 
 /**
@@ -82,6 +83,8 @@ export interface DynamicWorkflowRunSubmitRequest {
    * 发生」有两个答案。主代理自己不受影响：它恒留在会话模型上。
    */
   subagentModel?: ModelSelection;
+  /** Host-resolved script names; persisted as canonical strings in run-launched. */
+  modelBindings?: Record<string, ModelSelection>;
   /**
    * 本 run 的脚本**来自哪个文件**的绝对路径。与 {@link subagentModel} 走同一条路：随 `run-launched` 记一次、引擎从不读、
    * 零 SQL（`dwf_run` 上没有这一列）。读面仅在确认草稿与有效脚本同步时返回该路径。
@@ -148,6 +151,7 @@ export interface DynamicWorkflowRunAmendRequest {
    * `resolveInput` 里连同一次重新解析归一成这里的一个选择或缺席。
    */
   subagentModel?: ModelSelection;
+  modelBindings?: Record<string, ModelSelection>;
   /**
    * **新脚本**来自哪个文件的绝对路径；语义同 {@link DynamicWorkflowRunSubmitRequest.scriptPath}。
    *
@@ -239,6 +243,8 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
    * 这里是字符串而不是 {@link ModelSelection}：读面只用来显示与原样回填，没有人按字段取值。
    */
   subagentModel?: string;
+  /** Latest durable bindings, including atomic hole-filled updates. */
+  modelBindings?: Record<string, string>;
   /**
    * 本 run 的脚本文件（绝对路径，journal 事件 `run-launched` 上的那一个）。**只在这个 run 有已确认同步的草稿时在场**；写回失败或补全后的冷恢复未确认时缺席。
    *
@@ -925,10 +931,12 @@ export type * from "./dynamic-workflow-run-workspace.port.js";
 
 // 留白（快照条目、fillHole 的请求 / 结果）的类型住在 dynamic-workflow-run-hole.port.ts，同一条拆分先例。
 export type * from "./dynamic-workflow-run-hole.port.js";
+export type * from "./dynamic-workflow-run-resume.port.js";
 
 /** 单 run 详情：共同截面 + 进度 + 情势截面 + 按终态分叉的产物 / 失败。 */
 export interface DynamicWorkflowRunDetail extends DynamicWorkflowRunSummary {
   usage: DynamicWorkflowRunUsage;
+  modelBindings?: Record<string, string>;
   /**
    * 本 run 自己的并发上界，语义同 {@link DynamicWorkflowRunSnapshot.maxConcurrency}：只在低于当前
    * 天花板时在场。刻意不进 {@link DynamicWorkflowRunSummary}——列表行不该为一个很少设置的字段加宽。
@@ -999,34 +1007,6 @@ export interface DynamicWorkflowRunDetail extends DynamicWorkflowRunSummary {
    */
   artifacts?: readonly DynamicWorkflowRunArtifact[];
 }
-
-/** {@link DynamicWorkflowRunPort.resume} 的结构化失败原因。 */
-export type DynamicWorkflowRunResumeErrorReason =
-  /** journal 里没有这个 run。 */
-  | "not_found"
-  /** run 不在可恢复集里（completed 或 errored；只有 stopped 可恢复）。 */
-  | "not_resumable"
-  /** run 被一次 AmendWorkflow 停下并替代：活的是后继，重放它等于把同一件事做两遍。 */
-  | "superseded"
-  /** 同 runId 的 run 正在本进程内飞行。 */
-  | "already_running"
-  /** 记录缺 scriptText（落库该字段之前的老 run），没有可重跑的脚本。 */
-  | "script_missing"
-  /** 记录的 scriptHash 与按 scriptText 重算的不一致（记录自身被外力改写过）。 */
-  | "script_mismatch"
-  /**
-   * 记录的 scriptText 在**当前** facade 下不再通过类型检查（facade 重构后的老 run）。逐字重放
-   * 只会失败；出路是按当前 facade 改写脚本后走 AmendWorkflow。`message` 携带有界诊断。
-   */
-  | "compile_failed";
-
-/**
- * resume 的结构化结果。失败走 reason 而不是 throw：五种原因全是调用方可预期的业务分支
- * （错误码而非错误文本做流程判断，house rule），throw 只留给真正的接线故障。
- */
-export type DynamicWorkflowRunResumeResult =
-  | { ok: true; runId: string; toolCallId?: string }
-  | { ok: false; reason: DynamicWorkflowRunResumeErrorReason; message?: string };
 
 /**
  * {@link DynamicWorkflowRunPort.listRunsForSession} 的 run 摘要。字面与 journal 的

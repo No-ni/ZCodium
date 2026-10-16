@@ -139,6 +139,7 @@ export function isAmendWorkflowOwnedPredecessor(predecessor: unknown): boolean {
  * `resume_from` 这类旧拼写在这里也是可见错误。
  */
 export const AmendWorkflowInputSchema = AmendWorkflowModelInputSchema.extend({
+  model_bindings: z.record(z.string(), z.string()).optional(),
   predecessor: AmendWorkflowPredecessorSchema.optional(),
   /**
    * 正文行 → 文件行的偏移，`path` 文件带 `/* zcode-workflow` 块时才非零。与 `predecessor`

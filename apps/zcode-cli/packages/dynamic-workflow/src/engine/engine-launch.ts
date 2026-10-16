@@ -17,6 +17,8 @@ export interface RunLaunchConfig {
   inputId: string;
   phaseNames?: string[];
   subagentModel?: string;
+  /** 脚本点名模型的冻结绑定，供宿主在冷恢复时读回。 */
+  modelBindings?: Record<string, string>;
   /** 本 run 脚本文件的绝对路径。 */
   scriptPath?: string;
   phaseAlongside?: number[][];
@@ -32,7 +34,8 @@ export function runLaunchedEvent(
   launch: RunLaunchConfig,
   origin: { toolCallId?: string | undefined; parentSessionId?: string | undefined },
 ): RunEvent {
-  const { inputId, phaseNames, subagentModel, scriptPath, phaseAlongside, holes } = launch;
+  const { inputId, phaseNames, subagentModel, modelBindings, scriptPath, phaseAlongside, holes } =
+    launch;
   return {
     type: "run-launched",
     inputId,
@@ -40,6 +43,8 @@ export function runLaunchedEvent(
     ...(origin.parentSessionId === undefined ? {} : { parentSessionId: origin.parentSessionId }),
     ...(phaseNames === undefined ? {} : { phaseNames }),
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    // 恢复只能读取 durable 事实；漏掉此字段会在重启后丢失已批准的 persona 模型。
+    ...(modelBindings === undefined ? {} : { modelBindings }),
     ...(scriptPath === undefined ? {} : { scriptPath }),
     ...(phaseAlongside === undefined ? {} : { phaseAlongside }),
     ...(holes === undefined ? {} : { holes }),

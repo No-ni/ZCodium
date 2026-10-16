@@ -18,6 +18,7 @@ import {
 } from "../../tool/handlers/workflow-analysis-display.js";
 import { writeWorkflowDraft } from "../../tool/handlers/workflow-drafts.js";
 import { analyzeScript } from "../../tool/handlers/workflow-script-analysis.js";
+import { bindScriptModels } from "../../tool/handlers/workflow-script-models.js";
 import type { ExecutableToolCall } from "../../tool/types.js";
 import { workspaceLevelRootOf } from "../helpers/workspace-scope.js";
 import { uuidv7 } from "@zcode/shared";
@@ -150,6 +151,17 @@ export async function startSavedWorkflowRun(
     };
   }
 
+  const boundModels = bindScriptModels(analysis, this.modelCatalogPort);
+  if (boundModels.unbound.length > 0)
+    return {
+      ok: false,
+      reason: "compile_failed",
+      message: boundedCompileDiagnostics(
+        "The saved workflow names unavailable models:",
+        boundModels.unbound,
+      ),
+    };
+
   // —— 到此为止零副作用：无 run、无消息、无事件、无任务。——
 
   const port = this.dynamicWorkflowRunPort;
@@ -194,6 +206,7 @@ export async function startSavedWorkflowRun(
   try {
     const submitted = await port.submit({
       scriptText: found.script,
+      ...(boundModels.selections === undefined ? {} : { modelBindings: boundModels.selections }),
       cwd: executionCwd,
       name: found.name,
       ...(hasArgs ? { args: validated.args } : {}),

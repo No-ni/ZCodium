@@ -42,6 +42,9 @@ export interface HoleFill {
   sitePhases: ReadonlyMap<string, string>;
   /** 有效脚本的阶段表，留白按名字占位（`hole-filled` 原样携带）。 */
   phaseNames: string[];
+  modelBindings?: Record<string, string>;
+  /** Host must swap the frozen table before broadcast and parked branches resume. */
+  onCommitted?: () => void;
   /** `phaseNames` 里仍未补全的留白下标。 */
   holes?: number[];
   /** 补全它的会话。 */
@@ -218,10 +221,12 @@ export function fillHole(
     filledAt,
     ...(fill.filledBy === undefined ? {} : { filledBy: fill.filledBy }),
     phaseNames: fill.phaseNames,
+    ...(fill.modelBindings === undefined ? {} : { modelBindings: fill.modelBindings }),
     ...(fill.holes === undefined ? {} : { holes: fill.holes }),
     ...(fill.scriptPath === undefined ? {} : { scriptPath: fill.scriptPath }),
   });
   swapTables(fill.askSpecs, fill.sitePhases);
+  fill.onCommitted?.();
   state.record(committed.event, committed);
   holes.release(fill.siteId, fill.code, filledAt, fill.filledBy);
   return { ok: true, commitSequence: committed.sequence };

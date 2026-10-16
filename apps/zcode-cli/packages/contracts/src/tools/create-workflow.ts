@@ -157,6 +157,8 @@ const CreateWorkflowModelInputSchema = z
  * 可填的参数而是解析结果；模型若硬填，归一化会无条件覆盖。
  */
 export const CreateWorkflowInputSchema = CreateWorkflowModelInputSchema.extend({
+  /** Host-owned exact script name → canonical picker value; never a model input. */
+  model_bindings: z.record(z.string(), z.string()).optional(),
   saved: CreateWorkflowResolvedSavedSourceSchema.optional(),
   /**
    * 正文行 → 文件行的偏移（`path` / `saved` 文件带元数据块时才非零）。诊断按文件行报出来时

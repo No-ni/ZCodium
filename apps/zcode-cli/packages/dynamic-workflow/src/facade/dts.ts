@@ -24,6 +24,13 @@ const FACADE_ACTOR_SEGMENT = String.raw`
  */
 declare interface Node<T> extends PromiseLike<T> {}
 
+/** A model name checked by the host before the run starts; at runtime this is its name. */
+declare class ModelRef {
+  private constructor();
+  private readonly __modelRef: void;
+}
+declare function model(name: string): ModelRef;
+
 /**
  * Persona of an actor: identity, fixed at creation (frozen for the actor's lifetime). Every
  * actor has the regular working tools (reading, searching, editing, running commands); what
@@ -32,6 +39,8 @@ declare interface Node<T> extends PromiseLike<T> {}
 declare interface AgentPersona {
   /** System prompt describing the actor's role. */
   system?: string;
+  /** A closed choice of names, or ModelRefs declared with model("…"). */
+  model?: string | ModelRef;
 }
 
 /**

@@ -58,6 +58,12 @@ import {
   type WorkflowScriptLocation,
 } from "./workflow-script-notes.js";
 import { analyzeScript } from "./workflow-script-analysis.js";
+import {
+  allScriptModelsBound,
+  readScriptModelBindings,
+  scriptModelSelections,
+  unresolvedScriptModelDiagnostics,
+} from "./workflow-script-models.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 import { amendWorkflowNeedsSkill, requireDynamicWorkflowSkill } from "./workflow-skill-gate.js";
 
@@ -151,7 +157,10 @@ async function amendResolvedWorkflow(
   const workspaceDirectory = context.workspaceScopeRoot ?? context.workingDirectory;
 
   const analysis = analyzeScript(script);
-  const { diagnostics, ok } = analysis;
+  const bindings = readScriptModelBindings(parsed);
+  const unbound = unresolvedScriptModelDiagnostics(analysis, bindings, context.modelCatalogPort);
+  const diagnostics = [...analysis.diagnostics, ...unbound];
+  const ok = analysis.ok && unbound.length === 0;
   const causalityGraph = boundGraphOfAnalysis(analysis);
 
   // 内联修订与 `CreateWorkflow` 同一条纪律：工作副本**无论编译结果如何**都落盘，好让一段编不过的
@@ -159,7 +168,7 @@ async function amendResolvedWorkflow(
   // 就不写——那个文件已经是工作副本。沿用的脚本两头都可能：前驱的脚本文件仍是这份字节时
   // resolveInput 已把它填进 `path`（新 run 继续记它），否则这里照「不来自文件的脚本」写一份新的。
   const inlineDraft =
-    parsed.path === undefined
+    unbound.length === 0 && parsed.path === undefined
       ? await writeWorkflowDraft({
           cwd: workspaceDirectory,
           name: resolveWorkflowDraftName(parsed.name ?? parsed.predecessor?.name, causalityGraph),
@@ -213,6 +222,10 @@ async function amendResolvedWorkflow(
   const amended = await port.amend(
     {
       scriptText: script,
+      ...(() => {
+        const modelBindings = scriptModelSelections(bindings);
+        return modelBindings === undefined ? {} : { modelBindings };
+      })(),
       cwd: context.workingDirectory,
       predecessorRunId: parsed.run_id,
       ...(parsed.name === undefined ? {} : { name: parsed.name }),
@@ -281,7 +294,8 @@ function prepareAmendWorkflowApproval(input: unknown): ToolApprovalGate {
   //   - 有人绕过了归一化：放行给 handler，它回结构化失败，窗开了也无物可批。
   if (!parsed.success || parsed.data.script === undefined) return { gate: "proceed" };
   const analysis = analyzeScript(parsed.data.script);
-  if (!analysis.ok) return { gate: "proceed" };
+  if (!analysis.ok || !allScriptModelsBound(analysis, readScriptModelBindings(input)))
+    return { gate: "proceed" };
   const display = displayOfAnalysis(analysis, AMEND_WORKFLOW_TOOL_NAME);
   return { gate: "ask", ...(display ? { display } : {}) };
 }

@@ -26,6 +26,9 @@ import { spliceHoleBodyPreview } from "./fill-workflow-hole-splice.js";
 import { resolveWorkflowFillFilePath, type WorkflowFillFileScope } from "./workflow-fill-files.js";
 import { workflowRunNotFoundFailure } from "./workflow-run-introspection.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
+import { bindScriptModels } from "./workflow-script-models.js";
+import { formatModelPickerValue } from "@zcode/shared/model-selection";
+import { analyzeScript } from "./workflow-script-analysis.js";
 
 /**
  * 本地失败码表。数值只是日志位（executor 投影成 `code: "N"`），判别键在 message 前缀；
@@ -113,7 +116,9 @@ export async function resolveFillWorkflowHoleInput(
   // 先剥模型事实再校验，畸形 hole/hash 也不能让 safeParse 早退后把伪造 owner 带进权限判断。
   const modelInput =
     input !== null && typeof input === "object" && !Array.isArray(input)
-      ? Object.fromEntries(Object.entries(input).filter(([key]) => key !== "hole"))
+      ? Object.fromEntries(
+          Object.entries(input).filter(([key]) => key !== "hole" && key !== "model_bindings"),
+        )
       : input;
   const parsed = FillWorkflowHoleInputSchema.safeParse(modelInput);
   if (!parsed.success) return { result: true, input: modelInput };
@@ -150,11 +155,43 @@ export async function resolveFillWorkflowHoleInput(
   const hole =
     waiting === undefined ? undefined : describeHole(snapshot, waiting, context.sessionId);
   const preview = await readFillPreview(port, model.run_id, model.hole_id, body.fields.script);
+  let bindings = {};
+  if (preview?.effective_script !== undefined) {
+    const analysis = analyzeScript(preview.effective_script);
+    // 补全原表冻结，仅解析新增名字；外部目录变化不能撤销已经提交的 persona 身份。
+    const inherited = snapshot.modelBindings ?? {};
+    const newAnalysis = {
+      ...analysis,
+      modelReferences: analysis.modelReferences.filter(
+        (reference) => !Object.hasOwn(inherited, reference.name),
+      ),
+    };
+    const bound = bindScriptModels(newAnalysis, context.modelCatalogPort);
+    if (bound.unbound.length > 0) {
+      return {
+        result: false,
+        errorCode: 9011,
+        message: bound.unbound
+          .map((diagnostic) => `L${diagnostic.line}:C${diagnostic.column} ${diagnostic.message}`)
+          .join("\n"),
+      };
+    }
+    bindings = {
+      ...Object.fromEntries(
+        Object.entries(bound.selections ?? {}).map(([name, selection]) => [
+          name,
+          formatModelPickerValue(selection),
+        ]),
+      ),
+      ...inherited,
+    };
+  }
   return {
     result: true,
     input: {
       ...model,
       ...body.fields,
+      ...(Object.keys(bindings).length === 0 ? {} : { model_bindings: bindings }),
       // 批准预览必须展示拼接后的完整脚本，不能把函数体当整份 workflow；只传宿主计算的事实。
       ...(hole === undefined
         ? {}

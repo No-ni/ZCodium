@@ -29,7 +29,11 @@ import type {
 import { artifactsOf } from "./dynamic-workflow-run-artifact-projection.js";
 import { runHolesOf, type CompiledHole } from "./dynamic-workflow-run-holes.js";
 import { runLineageActiveMs } from "./dynamic-workflow-run-elapsed.js";
-import { readRunScriptPath, readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
+import {
+  readRunScriptPath,
+  readRunSubagentModel,
+  readRunModelBindings,
+} from "./dynamic-workflow-run-launch-anchor.js";
 import { resolveDynamicWorkflowRunLabel } from "./dynamic-workflow-run-label.js";
 import { lineageFields, supersededByOf } from "./dynamic-workflow-run-lineage.js";
 import type { ActorSessionQuiescence } from "./workflow-driver-quiescence.js";
@@ -93,6 +97,8 @@ export interface RunRegistryEntry {
    * 有条目就读条目，只有冷行（本进程没有条目）才去扫事件。缺席即子代理跑在会话模型上。
    */
   subagentModel?: string;
+  /** Journal-derived latest table; swapped only after an atomic fill commit. */
+  modelBindings?: Record<string, string>;
   /**
    * 本 run 的脚本文件（`run-launched` 事件上那个绝对路径的内存副本）。与 {@link subagentModel} 逐条同规：
    * 三条建条目的路都落值（submit / amend 用入参给的那一个，resume 读一次事件头抄过来），
@@ -210,10 +216,13 @@ export function snapshotOf(
     ...runSubagentModelField(
       entry === undefined ? readRunSubagentModel(journal, taskId) : entry.subagentModel,
     ),
+    ...(() => {
+      const modelBindings =
+        entry === undefined ? readRunModelBindings(journal, taskId) : entry.modelBindings;
+      return modelBindings === undefined ? {} : { modelBindings };
+    })(),
     // 终态通知会推荐就地编辑草稿；只有已确认同步的路径才可进入快照，不能指向旧脚本。
-    ...runScriptPathField(
-      synchronizedRunScriptPath(journal, taskId, entry),
-    ),
+    ...runScriptPathField(synchronizedRunScriptPath(journal, taskId, entry)),
     ...(failure === undefined ? {} : { failure }),
     ...(activeDurationMs === undefined ? {} : { activeDurationMs }),
     ...(entry?.completedAt === undefined ? {} : { completedAt: entry.completedAt }),
@@ -291,7 +300,9 @@ export function synchronizedRunScriptPath(
   events?: readonly StoredEvent[],
 ): string | undefined {
   if (entry !== undefined) return entry.scriptPathStale ? undefined : entry.scriptPath;
-  if ((events ?? journal.listEvents(runId, {})).some((stored) => stored.event.type === "hole-filled")) {
+  if (
+    (events ?? journal.listEvents(runId, {})).some((stored) => stored.event.type === "hole-filled")
+  ) {
     return undefined;
   }
   return readRunScriptPath(journal, runId);

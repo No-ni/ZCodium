@@ -65,6 +65,8 @@ export function refToString(ref: InstanceRef | ActorRef): string {
 export interface PersonaSpec {
   name?: string;
   system?: string;
+  /** Exact script name; the host resolves only through the run's frozen binding table. */
+  model?: string;
 }
 
 /**
@@ -508,6 +510,7 @@ export type RunEvent =
       parentSessionId?: string;
       phaseNames?: string[];
       subagentModel?: string;
+      modelBindings?: Record<string, string>;
       scriptPath?: string;
       phaseAlongside?: number[][];
       /**
@@ -652,6 +655,8 @@ export type RunEvent =
       filledAt: number;
       filledBy?: string;
       phaseNames: string[];
+      /** Full merged table, committed atomically with the effective script. */
+      modelBindings?: Record<string, string>;
       holes?: number[];
       /**
        * 这次补全给一个原本没有草稿的 run 铸下的草稿。`run-launched.scriptPath` 只在建 run 那一世写一次，冷读面若只看它，重启后

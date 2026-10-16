@@ -640,6 +640,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               persona,
               pinnedModel,
               runSubagentModel,
+              actorModel,
               sessionId: actorSessionId,
               submitPort,
               submitProfile,
@@ -668,6 +669,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                     {
                       parentSelection: getRuntime().getSessionModelSelection(),
                       ...(runSubagentModel === undefined ? {} : { runSelection: runSubagentModel }),
+                      ...(actorModel === undefined ? {} : { actorSelection: actorModel }),
                     },
                     pinnedModel,
                   ).configOverrides,

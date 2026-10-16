@@ -2,15 +2,17 @@
 // workflow actor 的模型面（run 选择 / journal pin → AgentRuntime 模型配置）
 // ============================================================
 //
-// persona 的模型档位（`model?: "main" | "lite"`）已退场。宿主在 provider 重构后没有 lite 模型来源，
-// "lite" 与 "main" 早已同路——继承父会话当前模型。
+// persona.model 使用审批前解析并持久化的名字绑定；不再解释为 main / lite 档位。
 //
-// 于是本模块只回答一个问题：**这个 actor 的会话该跑在哪个模型上**。三个来源按优先级排：
-// 本 run 的 `subagentModel`（`CreateWorkflow` / `AmendWorkflow` 的 `subagent_model`）> resume pin（journal 里上一次实际跑的模型）> 父会话当前模型。
+// 于是本模块只回答一个问题：**这个 actor 的会话该跑在哪个模型上**。来源按优先级排：
+// persona 绑定 > 本 run 的 `subagentModel`（`CreateWorkflow` / `AmendWorkflow` 的 `subagent_model`）> resume pin（journal 里上一次实际跑的模型）> 父会话当前模型。
 // 与 workflow-actor-tools.ts 是同一个接缝上的姊妹模块：一个给出工具面，一个给出模型面，
 // 都由 driver 侧的 runtime 工厂在造 AgentRuntime 时展开。
 
+import type { AgentRuntime } from "@zcode/core";
+import type { ActorRef, JournalStorePort } from "@zcode/dynamic-workflow";
 import type { ModelSelection } from "@zcode/shared/model-selection";
+import { parseModelPickerValue } from "@zcode/shared/model-selection";
 import { parseProviderQualifiedModelSelection } from "./provider-registry-selection.js";
 
 /** 解析模型面需要的宿主侧事实。 */
@@ -26,10 +28,11 @@ interface WorkflowActorModelHost {
    * 的 `run-launched` 事件读回）。**整条选择**，含 reasoning
    * 档位——用户说「子代理跑 GLM-5.3-Flash$high」时那个档位是选择的一部分，不能在这里掉。
    *
-   * 位置：**最高**。它是用户对这一次 run 的显式表态；在场时 pin 与父模型都只是它本来要替换的
+   * 位置：在 persona 绑定之下。它是用户对这一次 run 的显式表态；在场时 pin 与父模型都只是它本来要替换的
    * 缺省（见下面的函数注释）。主代理不受它影响——它只描述子代理。
    */
   runSelection?: ModelSelection | undefined;
+  actorSelection?: ModelSelection | undefined;
 }
 
 /** AgentRuntimeConfig 的模型面切片。 */
@@ -65,7 +68,7 @@ export class WorkflowActorPinnedModelError extends Error {
  * `pinnedModel` 是这个 actor 在 journal 里记下的 `resolvedModel`（`providerId/modelId`），
  * 只有 resume（含 amend-resume 从前驱承袭的种子）会带上它。
  *
- * 优先级：**本 run 的 `subagentModel` > resume pin > 父会话当前模型**。
+ * 优先级：**persona 绑定 > 本 run 的 `subagentModel` > resume pin > 父会话当前模型**。
  *
  * | run 选择 | pin | 解析结果 |
  * |---|---|---|
@@ -107,6 +110,8 @@ export function workflowActorModelPolicy(
   host: WorkflowActorModelHost,
   pinnedModel?: string,
 ): WorkflowActorModelPolicy {
+  if (host.actorSelection !== undefined)
+    return { configOverrides: { modelSelection: host.actorSelection } };
   // run 选择在场：整条覆盖，pin 连解析都不解析——它只是本 run 要替换掉的那个缺省。
   if (host.runSelection !== undefined) {
     return { configOverrides: { modelSelection: host.runSelection } };
@@ -124,6 +129,18 @@ export function workflowActorModelPolicy(
   return { configOverrides: { modelSelection: pinned } };
 }
 
+/** 已冻结 persona 按逐字名字查表，缺失不能静默换成默认模型。 */
+export function resolveActorPersonaModel(
+  personaModel: string | undefined,
+  bindings: Readonly<Record<string, string>> | undefined,
+): ModelSelection | undefined {
+  if (personaModel === undefined) return undefined;
+  if (bindings === undefined || !Object.hasOwn(bindings, personaModel)) {
+    throw new Error(`Workflow actor model is unbound (9011): ${personaModel}`);
+  }
+  return parseModelPickerValue(bindings[personaModel]!);
+}
+
 /** pin 比对只看身份两段：journal 只记 `providerId/modelId`，options 不是身份的一部分。 */
 function sameModelIdentity(a: ModelSelection, b: ModelSelection): boolean {
   return a.providerId === b.providerId && a.modelId === b.modelId;
@@ -138,4 +155,36 @@ function parsePinnedModel(pinnedModel: string): ModelSelection {
   const parsed = parseProviderQualifiedModelSelection(pinnedModel);
   if (parsed === undefined) throw new WorkflowActorPinnedModelError(pinnedModel);
   return parsed;
+}
+
+/**
+ * 造好的 actor runtime 必须已经有模型选择：child 继承父会话当前的选择（script-workflow-child-runtime.ts），
+ * 父会话没有选择时它连第一次模型请求都发不出去。这里大声失败，而不是把「没选模型」落成一条空 pin。
+ */
+export function requireActorModelSelection(runtime: AgentRuntime, actor: ActorRef): ModelSelection {
+  const selection = runtime.getSessionModelSelection();
+  if (selection === undefined) {
+    throw new Error(
+      `actor 会话没有模型选择，无法记录 resolvedModel: ${actor.siteId}#${actor.ordinal}`,
+    );
+  }
+  return selection;
+}
+
+/**
+ * resume 的 pin 读取：这个 actor 在 journal 里记下的 `resolvedModel`（`providerId/modelId`）。
+ *
+ * 只有 resume 才会读到值：引擎 replay `createActor` 时把该字段 carry-forward 保了下来；
+ * 全新 run 在 runtime 工厂运行的这一刻还没有解析结果，天然缺席。**必须在造 runtime 之前读**，
+ * 因为 `journalActorResolvedModel` 随后就会把本轮的解析写回同一字段——读晚了会把本轮结果
+ * 误当成上一轮的 pin。pin 与本 run 的 subagentModel 谁优先，见 workflow-actor-model.ts
+ * （run 选择在上；pin 只守没有 run 选择时的缺省，persona 冻结不变式的持久化那一半）。
+ */
+export function pinnedActorModel(input: {
+  actor: ActorRef;
+  journal: JournalStorePort;
+  runId: string;
+}): string | undefined {
+  return input.journal.getActor(input.runId, input.actor.siteId, input.actor.ordinal)
+    ?.resolvedModel;
 }

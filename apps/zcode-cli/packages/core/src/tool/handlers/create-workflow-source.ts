@@ -24,6 +24,13 @@ import {
 } from "./saved-workflows/index.js";
 import { writeWorkflowDraft } from "./workflow-drafts.js";
 import { readWorkflowScriptFile } from "./workflow-path-source.js";
+import {
+  allScriptModelsBound,
+  readScriptModelBindings,
+  withScriptModelBindings,
+  withScriptModelBindingsResolved,
+} from "./workflow-script-models.js";
+import { analyzeScript } from "./workflow-script-analysis.js";
 
 /** 业务失败的错误码，与既有 handler failure 惯例同一形状。 */
 const CREATE_WORKFLOW_FAILURE_CODE = 400;
@@ -136,6 +143,23 @@ export async function resolveCreateWorkflowInput(
   ceiling?: number,
   catalog?: ModelCatalogPort,
 ): Promise<ToolInputResolutionResult> {
+  // 宿主事实先剥后校验：畸形伪造表也不能使解析早退、带入确认窗。
+  const source =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? Object.fromEntries(Object.entries(input).filter(([key]) => key !== "model_bindings"))
+      : input;
+  return withScriptModelBindingsResolved(
+    await resolveCreateWorkflowSource(source, directories, ceiling, catalog),
+    catalog,
+  );
+}
+
+async function resolveCreateWorkflowSource(
+  input: unknown,
+  directories: CreateWorkflowResolveDirectories,
+  ceiling?: number,
+  catalog?: ModelCatalogPort,
+): Promise<ToolInputResolutionResult> {
   const parsed = CreateWorkflowInputSchema.safeParse(input);
   if (!parsed.success) return { result: true, input };
   const model: CreateWorkflowInput = parsed.data;
@@ -208,11 +232,16 @@ export async function resolveCreateWorkflowInput(
 
   // 工作副本就在这一次读之后写下，写的是**刚读到的那串字节**（元数据块一起），所以不可能有
   // 第二次读与它分叉。定义本身永不因为一次 run 被改动：模型改的是这份拷贝
-  const draft = await writeWorkflowDraft({
-    cwd: directories.workspaceDirectory,
-    name: model.name ?? found.name,
-    source: found.source,
-  });
+  const boundInput = withScriptModelBindings({ script: found.script }, catalog);
+  // 9011 的拒绝不能先写工作副本；handler 返回诊断，定义与存储均保持原样。
+  const analysis = analyzeScript(found.script);
+  const draft = allScriptModelsBound(analysis, readScriptModelBindings(boundInput))
+    ? await writeWorkflowDraft({
+        cwd: directories.workspaceDirectory,
+        name: model.name ?? found.name,
+        source: found.source,
+      })
+    : undefined;
 
   return {
     result: true,

@@ -10,6 +10,7 @@ import { FACADE_FILE_NAME } from "../facade/dts.js";
 import { isArtifactPresetOp, type ArtifactOp, type WorldReadOp } from "../facade/registry.js";
 import { collectFacadeMisuse } from "../analysis/facade-misuse.js";
 import { collectHoleDiagnostics } from "../analysis/hole-sites.js";
+import { collectActorModels } from "../analysis/actor-models.js";
 import { lowerHoleCall, printHoleBodies, TRANSPILE_OPTIONS } from "./lower-hole.js";
 import {
   collectSites,
@@ -111,7 +112,11 @@ export function lowerWorkflowScript(scriptText: string): LowerResult {
   const table = collectSites(workflow);
   // 留白规则（9012）与 facade-siting 同席：一个没等值、或落在 fan-out 里的留白降级出去就是
   // 运行期的错，与 analyzeWorkflowScript 同一道门。
-  const misuse = [...collectFacadeMisuse(workflow, table), ...collectHoleDiagnostics(workflow, table)];
+  const misuse = [
+    ...collectFacadeMisuse(workflow, table),
+    ...collectHoleDiagnostics(workflow, table),
+    ...collectActorModels(workflow, table).diagnostics,
+  ];
   if (misuse.length > 0) return { diagnostics: misuse, ok: false };
 
   return { diagnostics, lowered: lowerWorkflow(workflow, table), ok: true };
@@ -152,6 +157,11 @@ export function lowerWorkflow(workflow: WorkflowProgram, table: SiteTable): Lowe
         if (emit !== undefined) return lowerSited(node, emit);
         // 非站点的 facade 调用只可能是 log（agent/ask/glob/read 必定成站点、已在 siteMap）。
         const name = facadeCalleeName(node, checker);
+        // ModelRef 只在类型系统存在，按 facade 身份擦成逐字模型名，避免沙箱第二次解析。
+        if (name === "model") {
+          const arg = node.arguments[0];
+          return arg === undefined ? factory.createVoidZero() : visitExpr(arg);
+        }
         if (name === "log") {
           return factory.createCallExpression(
             hostMember("log"),

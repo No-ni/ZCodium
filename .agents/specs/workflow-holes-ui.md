@@ -55,8 +55,28 @@ Web replayable ────┴→ 同一 owner/sequence 与只读投影（UI 不
 - durable journal 是顺序唯一所有者：`StoredEvent.sequence → FillResult.commitSequence → output/display.fill.commitSequence → UI 只读 max`。Desktop continuous 与 Web snapshot/replay 读取同一序号；不使用工具行输入顺序、时间戳或到达顺序猜提交先后，不新增 UI 状态或 fallback 序号。
 - 同一 run 只考虑工具行 status=success、display.ok=true、有效非空图的 FillWorkflowHole；最大 commitSequence 胜出，failed/pending 不覆盖，run_id 经现有 run.toolCallId 联接，run 间不借补全图。同序号是同一次 durable 提交的重放，载荷应相同；旧序号在完整可见行窗口的 snapshot/replay 重算中不能覆盖较大序号。窗口若移除最新行，仍遵循既有有界历史缺图语义，不创建跨窗口缓存。
 - 迁移保守规则：存在任何带序号的成功候选时只使用带序号候选；仅有一条不同 toolCallId 的无序号成功 fill 时兼容该图（同 toolCallId 重放视为同一条）。多个无序号成功 fill 无法证明提交顺序，保留发起图；不任取某次 legacy fill 为最新，也不根据时间猜测。缺发起图时保持无图。
-- 统一有效图判定：steps、phases 或 holes 任一非空即为有图；纯 `return await hole<string>('decide')` 的 steps=[]、phases/holes 非空必须可联接、审批展示、时间线展示与通知定位。三者均空仍无图。保持原始 siteId 定位与既有 renderer 虚线灯，不引入 hole 数据依赖图。
+- 统一有效图判定：steps、phases 或 holes 任一非空即为有图；纯 `return await hole<string>('decide')` 的 steps=[]、phases/holes 非空必须可联接、审批展示、时间线展示与通知定位。三者均空仍无图。保持原始 siteId 定位与既有 renderer 虚线灯。
 - 新增 Vitest：工具输入 A/B 与提交 B/A 相反、failed/pending、不同 run、旧序号 replay、legacy 单条/歧义/混合；纯 hole 工具行/直接启动行联接、审批/工具卡/run digest/侧栏同源时间线与 siteId 定位意图，以及 truly empty。
+
+## 留白完整依赖分析的展示边界
+
+本次用户授权吸收完整留白依赖分析与 `model_bindings` 校验；补全生长动画和 Rust 引擎仍不在范围内。
+分析器拥有 `holeData` 与完整因果图，工具输出只经既有有界 display 发布
+steps / lanes / participants / handoffs / phases / holes / sink；UI 不新增一份依赖事实或运行态。
+
+```text
+脚本 + 模型绑定 → CLI 校验与依赖分析 → 有界工具 display
+                                           ↓
+                          同一时间线模型 → 审批 / 聊天卡 / 侧栏
+durable commitSequence → 原有最新成功补全图选择（桌面 continuous / 手机 replayable）
+```
+
+- 开放留白以 `kind: hole` 的站点、`main` 合成车道进入依赖图；它代表主代理等待补全，不能画成未命名子代理或分配子代理会话/头像。
+- `main` 不参与匿名子代理编号；留白 step 不计入 ask/read 数量。真实匿名子代理的编号、名称与点击行为保持原有规则。
+- phase、handoff、sink 继续消费分析器提供的依赖结果，保留原始 siteId；UI 不猜测或复制 `holeData`。
+- 已补全留白仍按原子提交序号选最新图；旧 snapshot/replay、失败补全或其他 run 的图不得覆盖新图。
+- 模型绑定错误使用现有结构化诊断和脚本行定位，不新增权限或官方模型服务入口。
+- 回归覆盖 main+匿名子代理、纯留白、留白到后续参与者的依赖和三处真实 SSR renderer；浏览器交互检查不得替代 CLI 的绑定准入测试。
 
 ## UI 留白测试入口与 CI 门禁
 

@@ -64,6 +64,8 @@ export interface WorkflowCausalityGraphSelection {
 export const WORKSPACE_LANE_ID = "workspace";
 /** Lane of an ask whose receiver the analysis could not resolve to an actor site. */
 export const UNKNOWN_LANE_ID = "unknown";
+/** 开放留白属于主代理；不是拥有子会话的子代理。 */
+export const MAIN_LANE_ID = "main";
 /** The terminal marker node: the artifact the workflow returns. */
 export const SINK_NODE_ID = "sink";
 /**
@@ -97,5 +99,5 @@ export function laneClassOf(laneId: string): LaneClass {
 }
 
 export function isSyntheticLaneId(id: string): boolean {
-  return id === WORKSPACE_LANE_ID || id === UNKNOWN_LANE_ID;
+  return id === WORKSPACE_LANE_ID || id === UNKNOWN_LANE_ID || id === MAIN_LANE_ID;
 }

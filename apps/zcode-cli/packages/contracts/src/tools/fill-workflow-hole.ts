@@ -109,6 +109,7 @@ export function isFillWorkflowHoleOwnedRun(hole: unknown): boolean {
  * 来龙去脉，与 AmendWorkflow 同一条「读一次、只读一次」纪律。
  */
 export const FillWorkflowHoleInputSchema = FillWorkflowHoleModelInputSchema.extend({
+  model_bindings: z.record(z.string(), z.string()).optional(),
   hole: FillWorkflowHoleHoleSchema.optional(),
 }).strict();
 
