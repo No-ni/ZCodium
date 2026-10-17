@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "tsup --watch --onSuccess 'node dist/entry-http.js'",
-    "build": "tsup && pnpm run build:remote",
+    "build": "node build.mjs",
     "build:remote": "tsx build-remote.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"

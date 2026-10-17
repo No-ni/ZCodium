@@ -137,9 +137,8 @@ jobs:
 
   remote-assets:
     name: Bundled Linux remote runtime
-    needs: checks
-    # checks 是 coverage 类门禁，打包链路与它相互独立：checks 失败（非取消）时仍要真实构建
-    # 远端资产并上传，否则 build 会下载不存在的 artifact。取消 run 时不再启动。
+    # coverage 与资产 producer 没有数据依赖，之前串行等待 checks 白白增加约 9 分钟。
+    # 从同一 ref 并行生成真实资产；checks 失败仍打包，release 仍单独等待 checks 成功。
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -163,8 +162,8 @@ jobs:
 
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
-    needs: [checks, remote-assets]
-    # 打包只看 assets 是否真实产出，不看 checks 是否通过：
+    needs: remote-assets
+    # 打包只等待 assets 真实产出，不等待 checks 完成，也不看 checks 是否通过：
     # - checks 失败但 assets 成功 -> 继续打包，保留「检查与打包独立」的产品规则；
     # - assets 失败/取消 -> build 跳过，避免四个平台各自下载缺失 artifact 制造重复噪声；
     # 不使用 continue-on-error 或 artifact 静默 fallback，跳过状态如实反映 assets 失败。
@@ -250,7 +249,7 @@ jobs:
     # macOS runner 按 10 倍费率计分钟，只在发版 tag 与手动触发时打包；
     # 日常 push/PR 的打包回归由 linux/win 矩阵与 checks 覆盖。
     if: ${{ !cancelled() && needs.remote-assets.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag')) }}
-    needs: [checks, remote-assets]
+    needs: remote-assets
     strategy:
       fail-fast: false
       matrix:

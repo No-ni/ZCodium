@@ -27,10 +27,11 @@ test("desktop workflow is valid YAML with the expected jobs", async () => {
   ]);
 });
 
-test("checks failure does not skip remote asset build: assets job only gates on cancellation", async () => {
+test("remote assets start independently of checks and only gate on cancellation", async () => {
   const jobs = await loadJobs();
   const assets = jobs["remote-assets"];
-  assert.deepEqual(assets.needs, "checks");
+  // coverage 不生产远端资产；不能让独立 producer 白等整段检查完成。
+  assert.equal(assets.needs, undefined);
   assert.equal(String(assets.if).trim(), "${{ !cancelled() }}");
   // 明确不按 checks 的 success 结果门禁，否则 checks 红时资产 job 会被跳过。
   assert.doesNotMatch(String(assets.if), /needs\.checks\.result|success\(\)/);
@@ -41,7 +42,7 @@ test("build consumes real assets, not checks success, and never silently falls b
   const jobs = await loadJobs();
   for (const id of ["build", "build-macos"]) {
     const job = jobs[id];
-    assert.deepEqual(job.needs, ["checks", "remote-assets"]);
+    assert.deepEqual(job.needs, "remote-assets");
     const condition = String(job.if);
     assert.match(condition, /!cancelled\(\)/);
     assert.match(condition, /needs\.remote-assets\.result == 'success'/);
@@ -56,6 +57,37 @@ test("build consumes real assets, not checks success, and never silently falls b
       if (step.uses?.startsWith("actions/download-artifact"))
         assert.notEqual(step.with?.["if-no-files-found"], "ignore");
     }
+  }
+});
+
+test("parallel packaging preserves coverage commands, full targets and current-run artifact ownership", async () => {
+  const jobs = await loadJobs();
+  const commands = jobs.checks.steps.map((step) => step.run ?? "").join("\n");
+  for (const command of [
+    "pnpm typecheck",
+    "pnpm lint",
+    "pnpm fmt:check",
+    "pnpm architecture:check",
+    "pnpm -r --filter './apps/zcode-cli/packages/*' test",
+    "pnpm vitest run",
+    "node --test --test-isolation=none scripts/ci/*.test.mjs",
+    "node scripts/ci/remote-form-smoke.mjs",
+  ]) {
+    assert.ok(commands.includes(command), `missing coverage command: ${command}`);
+  }
+  for (const id of ["build", "build-macos"]) {
+    const job = jobs[id];
+    assert.equal(job.env?.ZCODE_DESKTOP_LINUX_TARGETS, undefined);
+    for (const download of uses(job, "actions/download-artifact")) {
+      assert.equal(download.with?.["run-id"], undefined);
+      assert.equal(download.with?.repository, undefined);
+    }
+    const commands = job.steps.map((step) => step.run ?? "");
+    const verify = commands.indexOf("node scripts/bundle-remote-assets.mjs verify");
+    const prepare = commands.indexOf("pnpm prepare:desktop-runtime");
+    const build = commands.indexOf("pnpm build:bootstrap");
+    assert.ok(verify >= 0 && prepare > verify && build > prepare);
+    assert.ok(commands.some((command) => command.includes("--skip-prepare --skip-build")));
   }
 });
 

@@ -3,7 +3,7 @@
 ## 范围与产品规则
 
 - 构建矩阵覆盖 Linux x64/arm64、Windows x64/arm64、macOS arm64/x64；除 Windows arm64 在 x64 runner 上交叉打包外，均使用 GitHub 托管的**原生** runner（Linux arm64 用 `ubuntu-24.04-arm`）。
-- PR、main 推送、手动运行和 `v*` 标签推送均执行检查与全平台打包。
+- PR、main 推送、手动运行和 `v*` 标签推送均执行检查与 Linux/Windows 打包；macOS 仅手动运行和标签推送构建（保持现有成本规则）。
 - Linux 沿用现有 AppImage、deb、rpm、pkg.tar.zst，Windows 沿用 NSIS exe，macOS 发 dmg 与 zip。
   本机缺 `rpmbuild` / `pacman` 时可用 `ZCODE_DESKTOP_LINUX_TARGETS=deb`（逗号分隔，取值限本次四种）只打子集；
   发布工作流不设置该变量，始终保持完整列表，未知取值直接失败而不是静默少出产物。
@@ -35,17 +35,19 @@ GitHub Actions 工作流拥有调度和权限；现有 `bundle:desktop` 拥有�
 flowchart TD
   A[PR / main / 手动 / 标签] --> B[版本与依赖检查]
   B --> C[类型检查 / Lint / 架构检查 / 发布脚本测试]
-  C --> D[Linux x64 原生构建]
-  C --> E[Linux arm64 原生构建]
-  C --> F[Windows x64 原生构建]
-  C --> G[Windows arm64 交叉构建]
-  C --> H[macOS arm64 / x64 原生构建]
+  A --> R[当前源码的远端资产 producer]
+  R --> D[Linux x64 原生构建]
+  R --> E[Linux arm64 原生构建]
+  R --> F[Windows x64 原生构建]
+  R --> G[Windows arm64 交叉构建]
+  R --> H[macOS arm64 / x64 原生构建]
+  C --> J
   D --> I[当前 run 的已验证产物]
   E --> I
   F --> I
   G --> I
   H --> I
-  I --> J{标签推送且全平台齐全}
+  I --> J{标签推送且检查成功 / 全平台齐全}
   J -->|是| K[SHA256SUMS + 草稿 Release]
   K --> L[维护者审核后公开发布]
 ```
@@ -65,18 +67,53 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  C[checks] --> A[remote-assets]
-  C --> B{build 只在 assets 真实成功时运行}
-  A -->|result == success| B
+  START[同一 checkout/ref] --> C[checks]
+  START --> A[remote-assets]
+  A -->|result == success| B{build 只在 assets 真实成功时运行}
   A -->|failed / cancelled| S[build 跳过，如实反映]
   B --> R[release: needs checks+build，默认需全部 success]
   C -.->|失败不阻断| A
 ```
 
-- `remote-assets` 只按 `!cancelled()` 门禁：`checks` 失败（非取消）时仍要真实构建并上传资产，否则 `build` 只能拿到不存在的 artifact。取消 run 时不启动构建。
-- `build` / `build-macos` 用 `needs.remote-assets.result == 'success'` 而不看 `checks`：checks 红但 assets 成功时继续打包，保留「检查与打包独立」的产品规则；assets 失败或取消时跳过，避免四个平台各自重复报 artifact-not-found。
+- `remote-assets` 与 `checks` 没有产物依赖，必须从同一 ref 并行启动，不再等待 coverage 门禁结束；仍只按 `!cancelled()` 门禁。`checks` 失败（非取消）时仍要真实构建并上传资产，否则 `build` 只能拿到不存在的 artifact。取消 run 时不启动构建。
+- `build` / `build-macos` 只 `needs: remote-assets`，用 `needs.remote-assets.result == 'success'` 而不等待/检查 `checks`：checks 红或仍在执行但 assets 成功时继续打包，保留「检查与打包独立」的产品规则；assets 失败或取消时跳过，避免四个平台各自重复报 artifact-not-found。
 - 不引入 `continue-on-error`、`if-no-files-found: ignore` 或 artifact 静默 fallback；跳过/失败状态必须诚实可读。
 - `release` 保持 `needs: [checks, build, build-macos]` 的默认全成功语义，`checks` 失败时绝不创建草稿。
+
+## CI 关键路径与重复构建优化（实现前规则）
+
+历史 main run `38209837838` 总计 24:48：Checks 约 9 分钟 → remote-assets 约 2 分钟 → 最慢平台约 13 分钟；PR run `38739244753` 还出现明显调度等待。Linux electron-builder 四种格式耗时约 9–10 分钟；注入 runtime modules 与 sourcemap 清理各重写一次 asar，合计约 40 秒。不能把整个耗时归因于 TS 编译。
+
+本轮保持原有测试、六平台矩阵触发规则、Linux 四种安装包、签名、原生资源校验、取消/失败语义和草稿发布门禁；不通过删测试、少打包或降低压缩/验证换速度，不引入不完整构建缓存。
+
+1. **调度唯一所有者为 workflow。** `checks` 与 remote producer 并行；平台 build 只依赖已验证的当前 run remote artifact；release 仍等待 checks 与所有 required builds 全部成功。不得复用其他 run 的 artifacts，也不把检查失败静默变成成功。
+2. **远端单文件 bundle 唯一生产者为 `prepare:remote-assets`。** Server 的常规 `build` 默认仍编译 HTTP + remote；在已有 `ZCODE_SKIP_REMOTE_ASSETS=1` 的显式场景只编译 HTTP，不再隐式重建已由 producer 生成的 remote bundle。`build:remote` 直接调用仍无条件从源码构建。CI 必须保持下载 artifact → manifest/native 校验 → prepare/runtime → workspace build → package 的顺序；不根据旧 dist 文件存在跳过编译。
+3. **已打包 asar 由一个最终化事务拥有。** 一次 extract → 补齐缺失 runtime 依赖 → 清理全部 sourcemap 注释/map（含新注入依赖）→ 有变更才 repack 一次。无变更不得重写；prepare/cleanup/repack 任一步失败则中止出包并清理 staging，继续使用现有候选 archive/native sidecar 替换与目标平台 unpack 规则。resources/unpacked/extraResources 的清理仍执行，runtime/native/版本边界校验仍位于最终化之后。
+4. 各阶段继续输出计时，优化收益需用修复后真实 Actions job/step 时长比较；本机脚本测试不是完整安装包或 CI 墙钟验收。发行格式内部压缩的分钟级空档另行测量，不在未证明前改变格式或分拆共享打包目录。
+
+```text
+相同源码 ref ┬→ checks（原覆盖全部保留）───────────────────┐
+             └→ remote producer → 当前 run artifact      │
+                → 平台 manifest/native 校验              │
+                → runtime + HTTP/workspace build          │
+                → 单次 asar 最终化 + 原安装包/探针 ─────────┤
+                                                        └→ release 全成功门禁
+```
+
+新增验收：
+
+- 解析真实 workflow 断言上述 DAG，checks 未完成/失败均不能额外阻断 assets/build，assets 失败仍阻断 build，release 仍受 checks 约束；所有原测试命令、产物与安全权限保留。
+- Server build 的默认/显式 skip/直接 remote 入口验证；HTTP 编译失败不得继续 remote，remote 失败不得写成成功。
+- 用真实 asar fixture 覆盖依赖注入和 sourcemap 同时变化时只 extract/repack 一次、无变化零 repack、新注入 map 清理、native unpack、原资源清理，以及 staging 失败不替换原 archive。
+- 执行定向与全套发布脚本测试、`pnpm typecheck`、`pnpm lint`、架构/格式/workflow 检查；推送后观察真实 CI，报告待完成或既有失败，不将其写成通过。
+
+### 本轮本地验证
+
+- 新 DAG 测试先红后绿；293 项发布脚本测试通过，包含真实 asar fixture 的注入/清理/零变更/native unpack/prepare 失败/清理失败/候选 pack 失败/资源链接兼容性回归。
+- `ZCODE_ENV=production ZCODE_SKIP_REMOTE_ASSETS=1 pnpm build:bootstrap` 真实 workspace + Desktop 构建通过；普通 Server build（未设置 skip）及显式 skip 环境下的直接 `build:remote` 也实际执行成功，未用 mock 代替编译验证。
+- CI 同款 Vitest 175 项通过；根 `pnpm typecheck`、`pnpm architecture:check --changed`、改动文件格式与 `git diff --check` 通过；`pnpm lint` 为 50 条存量 warning、0 errors。Actionlint v1.7.12 通过（v1.7.7 不认识现有 `macos-15-intel` label，未为旧工具改动 runner）。
+- 本机 Node 为 24.19.0，仓库/CI 固定版本继续由 mise.toml 解析；独立 Desktop main 工程不在根 typecheck 内，本轮不宣称其全部错误已清理。
+- 最近优化前 main run `38937514122`（`c8aeef2e`）总计 27:20，Checks 7:56、remote-assets 2:21、最慢平台 15:23，Linux arm64 的 package 步骤 12:15。推送后应与真实新 run 对比关键路径与 asar timer；不能把理论移除的串行等待写成已测墙钟收益。
 
 ## 验收场景
 
