@@ -12,7 +12,80 @@ import { getAppIconDataUrl } from "./editors.js";
 import { logger } from "./logger.js";
 import { readWindowsAumidIcon } from "./windowsAumidIcon.js";
 
-const applicationIconCache = new Map<string, Promise<ApplicationIconInfo | null>>();
+const MAX_APPLICATION_ICON_CACHE_ENTRIES = 128;
+
+interface ApplicationIconCacheEntry<T> {
+  promise: Promise<T>;
+  settled: boolean;
+}
+
+interface ApplicationIconCache<T> {
+  readonly size: number;
+  getOrLoad(key: string, load: () => Promise<T>): Promise<T>;
+}
+
+// CUA 历史记录可以带来不断变化的 executable path；永久缓存会一直持有图标 data URL。
+function createApplicationIconCache<T>(
+  capacity = MAX_APPLICATION_ICON_CACHE_ENTRIES,
+): ApplicationIconCache<T> {
+  const maxEntries = Math.max(1, Math.trunc(capacity));
+  const entries = new Map<string, ApplicationIconCacheEntry<T>>();
+  const trimSettledEntries = (): void => {
+    while (entries.size > maxEntries) {
+      let oldestSettledKey: string | undefined;
+      for (const [key, entry] of entries) {
+        if (entry.settled) {
+          oldestSettledKey = key;
+          break;
+        }
+      }
+      if (oldestSettledKey === undefined) return;
+      entries.delete(oldestSettledKey);
+    }
+  };
+
+  return {
+    get size() {
+      return entries.size;
+    },
+    getOrLoad(key, load) {
+      const cached = entries.get(key);
+      if (cached) {
+        entries.delete(key);
+        entries.set(key, cached);
+        return cached.promise;
+      }
+
+      let promise: Promise<T>;
+      try {
+        promise = load();
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      const entry: ApplicationIconCacheEntry<T> = { promise, settled: false };
+      entries.set(key, entry);
+      trimSettledEntries();
+
+      void promise.then(
+        () => {
+          if (entries.get(key) !== entry) return;
+          // 完成时间不代表最近访问；重排会让慢请求覆盖真实 LRU 顺序。
+          entry.settled = true;
+          trimSettledEntries();
+        },
+        () => {
+          if (entries.get(key) !== entry) return;
+          entry.settled = true;
+          entries.delete(key);
+          trimSettledEntries();
+        },
+      );
+      return promise;
+    },
+  };
+}
+
+const applicationIconCache = createApplicationIconCache<ApplicationIconInfo | null>();
 const SAFE_BUNDLE_ID = /^[A-Za-z0-9.-]+$/;
 const SAFE_WINDOWS_FIXED_DRIVE_PATH = /^[A-Za-z]:[\\/][^\\/]/u;
 const FALLBACK_SCAN_BUDGET_MS = 3_000;
@@ -259,9 +332,5 @@ export function getApplicationIcon(
   const normalized = normalizedRequest(request, process.platform);
   if (!normalized) return Promise.resolve(null);
   const cacheKey = normalized.locators.map(locatorCacheKey).join("|");
-  const cached = applicationIconCache.get(cacheKey);
-  if (cached) return cached;
-  const pending = loadApplicationIcon(normalized);
-  applicationIconCache.set(cacheKey, pending);
-  return pending;
+  return applicationIconCache.getOrLoad(cacheKey, () => loadApplicationIcon(normalized));
 }

@@ -19,6 +19,7 @@ interface RegisteredGuest {
   guest: WebContents;
   tabId: string;
   windowId: number;
+  onDestroyed: () => void;
 }
 
 interface AutomationWindowState {
@@ -104,11 +105,16 @@ export class EmbeddedBrowserJavaScriptDialogController {
     const guest = webContents.fromId(webContentsId);
     if (!guest || guest.isDestroyed() || guest.getType() !== "webview") return;
 
-    const registration: RegisteredGuest = { guest, tabId, windowId };
+    const registration: RegisteredGuest = {
+      guest,
+      tabId,
+      windowId,
+      onDestroyed: () => {
+        if (this.guests.get(webContentsId) === registration) this.unbindGuest(webContentsId);
+      },
+    };
     this.guests.set(webContentsId, registration);
-    guest.once("destroyed", () => {
-      if (this.guests.get(webContentsId) === registration) this.unbindGuest(webContentsId);
-    });
+    guest.once("destroyed", registration.onDestroyed);
   }
 
   handleDialogRequest(
@@ -200,7 +206,12 @@ export class EmbeddedBrowserJavaScriptDialogController {
   }
 
   private unbindGuest(webContentsId: number): void {
+    const registration = this.guests.get(webContentsId);
     this.guests.delete(webContentsId);
+    if (registration) {
+      // active 更新会重绑同一 guest；只删 Map 会让旧 once listener 闭包持续累积。
+      registration.guest.removeListener("destroyed", registration.onDestroyed);
+    }
     this.openDialogGuestIds.delete(webContentsId);
   }
 }

@@ -177,6 +177,7 @@ interface ManagedTab {
   viewportMutation?: Promise<void>;
   downloadCleanup?: () => void;
   activityCleanup?: () => void;
+  destroyedCleanup?: () => void;
   /**
    * 注销 debugger 的 "message" 监听。guest 换代后旧监听不该继续挂着：它每次事件都要查表
    * 再靠 current.guest !== guest 兜底丢弃，属于纯泄漏。注意这只是 JS 层清理，native 侧的
@@ -744,13 +745,18 @@ export class BrowserGuestManager {
       `[browser-use] attachGuest tabId=${tabId} windowId=${tab.owner.windowId} cdp=${cdpAttached}`,
     );
 
-    guest.once("destroyed", () => {
-      const current = this.tabs.get(tabId);
-      if (current?.guest === guest) {
-        this.detachGuest(current);
-        this.requestGuestRebind(current, "guest-destroyed");
-      }
-    });
+    if (!isSameGuest) {
+      // 前后台切换会重复上报同一 guest；只在新绑定接线，并在 detach 时移除，避免监听累积。
+      const onDestroyed = () => {
+        const current = this.tabs.get(tabId);
+        if (current?.guest === guest) {
+          this.detachGuest(current);
+          this.requestGuestRebind(current, "guest-destroyed");
+        }
+      };
+      guest.once("destroyed", onDestroyed);
+      tab.destroyedCleanup = () => guest.removeListener?.("destroyed", onDestroyed);
+    }
     // 放在其余接线之前：后面几个 setup 在 guest 已销毁时可能同步抛错并跳过剩余接线，
     // 而这是唯一能关闭 UAF 窗口的监听，不该被别的接线牵连。
     if (!isSameGuest) this.setupCdpCrashGuard(tab, guest);
@@ -4260,6 +4266,14 @@ export class BrowserGuestManager {
   private detachGuest(tab: ManagedTab): void {
     const guest = tab.guest;
     const guestDestroyed = guest ? safeBool(() => guest.isDestroyed(), true) : true;
+    try {
+      tab.destroyedCleanup?.();
+    } catch (error) {
+      // 已销毁的 Electron 对象可能拒绝移除监听，不能因此跳过后续 CDP/native 收口。
+      this.warn(`browser guest destroyed listener cleanup failed tabId=${tab.tabId}`, error);
+    } finally {
+      tab.destroyedCleanup = undefined;
+    }
     if (guest && !this.guestRecoveryFlights.has(tab.tabId)) {
       tab.cachedUrl = safeStr(() => guest.getURL(), tab.cachedUrl);
       tab.cachedTitle = safeStr(() => guest.getTitle(), tab.cachedTitle);
