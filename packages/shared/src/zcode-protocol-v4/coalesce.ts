@@ -29,6 +29,23 @@ function isWorkflowRunBarrier(delta: ConversationDelta, runId: string): boolean 
   return delta.op === "workflowRun.removed" && delta.runId === runId;
 }
 
+/** 仅用于显式 undefined 经 state 浅合并消除屏障的边界；按合并后的实际窗口恢复候选。 */
+function restoreWorkflowRunCandidates(
+  result: readonly ConversationDelta[],
+  candidates: Set<string>,
+): void {
+  candidates.clear();
+  const removed = new Set<string>();
+  for (let index = result.length - 1; index >= 0; index -= 1) {
+    const delta = result[index]!;
+    if (delta.op === "state.updated" && delta.patch.workflowRuns !== undefined) break;
+    if (delta.op === "workflowRun.removed") removed.add(delta.runId);
+    if (delta.op === "workflowRun.updated" && !removed.has(delta.runId)) {
+      candidates.add(delta.runId);
+    }
+  }
+}
+
 /**
  * 规则 6：把一条 `workflowRun.updated` 合进窗口内**最后**一条同 runId 增量里。
  *
@@ -82,12 +99,21 @@ export function coalesceConversationDeltas(
   bounds?: WorkflowRunWireBounds,
 ): ConversationDelta[] {
   const result: ConversationDelta[] = [];
+  // 多工具 upsert / 不同 run 更新常没有回扫目标，原实现仍逐条扫描整个窗口。
+  // 集合只记录本次调用中屏障之后的可合并对象；有目标时沿用原倒扫与 wire bounds。
+  const rowsWithDeltas = new Set<number>();
+  const runsWithUpdates = new Set<string>();
 
   for (const delta of deltas) {
+    const op = delta.op;
+    if (op === "row.removed") rowsWithDeltas.clear();
+    if (op === "state.updated" && delta.patch.workflowRuns !== undefined) {
+      runsWithUpdates.clear();
+    }
     // 规则 3：row.upserted 吞掉同 rowId 更早的 row.delta。
     // 只回溯到最近的屏障（规则 4），且不越过同 rowId 的前一次 upserted/appended——
     // 越过会吞掉「上一代行」的追加，改变终态。
-    if (delta.op === "row.upserted") {
+    if (op === "row.upserted" && rowsWithDeltas.has(delta.row.rowId)) {
       for (let i = result.length - 1; i >= 0; i--) {
         const prev = result[i];
         if (prev === undefined || isBarrier(prev)) break;
@@ -103,25 +129,37 @@ export function coalesceConversationDeltas(
         }
       }
     }
+    if (op === "row.upserted" || op === "row.appended") {
+      rowsWithDeltas.delete(delta.row.rowId);
+    }
 
     // 规则 6：淘汰吞掉该 run 此前的全部增量（出生 + 淘汰同在一个窗口 = 客户端从没见过这条 run，
     // 与逐条投递的终态等价）。回溯同样只到最近的屏障。
-    if (delta.op === "workflowRun.removed") {
-      for (let i = result.length - 1; i >= 0; i--) {
-        const prev = result[i];
-        if (prev === undefined || isWorkflowRunBarrier(prev, delta.runId)) break;
-        if (prev.op === "workflowRun.updated" && prev.runId === delta.runId) result.splice(i, 1);
+    if (op === "workflowRun.removed") {
+      if (runsWithUpdates.has(delta.runId)) {
+        for (let i = result.length - 1; i >= 0; i--) {
+          const prev = result[i];
+          if (prev === undefined || isWorkflowRunBarrier(prev, delta.runId)) break;
+          if (prev.op === "workflowRun.updated" && prev.runId === delta.runId) result.splice(i, 1);
+        }
       }
+      runsWithUpdates.delete(delta.runId);
     }
 
-    if (delta.op === "workflowRun.updated" && mergeWorkflowRunUpdate(result, delta, bounds))
+    if (
+      op === "workflowRun.updated" &&
+      runsWithUpdates.has(delta.runId) &&
+      mergeWorkflowRunUpdate(result, delta, bounds)
+    ) {
       continue;
+    }
+    if (op === "workflowRun.updated") runsWithUpdates.add(delta.runId);
 
     const last = result[result.length - 1];
 
     // 规则 1：相邻同 (rowId, path) 的 row.delta 拼接。
     if (
-      delta.op === "row.delta" &&
+      op === "row.delta" &&
       last?.op === "row.delta" &&
       last.rowId === delta.rowId &&
       last.path === delta.path
@@ -136,17 +174,24 @@ export function coalesceConversationDeltas(
     }
 
     // 规则 2：相邻 state.updated 浅合并（后者的键覆盖前者；键内整体替换所以安全）。
-    if (delta.op === "state.updated" && last?.op === "state.updated") {
+    if (op === "state.updated" && last?.op === "state.updated") {
+      // schema 允许显式 undefined，浅合并会把上一条真实屏障消掉；
+      // 不能沿用提前清空的候选，否则后续 run 更新与原倒扫的 wire 顺序不同。
+      const removesWorkflowRunBarrier =
+        last.patch.workflowRuns !== undefined &&
+        Object.hasOwn(delta.patch, "workflowRuns") &&
+        delta.patch.workflowRuns === undefined;
       result[result.length - 1] = {
         op: "state.updated",
         patch: { ...last.patch, ...delta.patch },
       };
+      if (removesWorkflowRunBarrier) restoreWorkflowRunCandidates(result, runsWithUpdates);
       continue;
     }
 
     // 相邻同 rowId 的 row.upserted：留最后一条（整行替换的传递性）。
     if (
-      delta.op === "row.upserted" &&
+      op === "row.upserted" &&
       last?.op === "row.upserted" &&
       last.row.rowId === delta.row.rowId
     ) {
@@ -154,6 +199,8 @@ export function coalesceConversationDeltas(
       continue;
     }
 
+    // 相邻 token 已合入现有 delta，候选也已登记；只登记真正进入窗口的新 delta。
+    if (op === "row.delta") rowsWithDeltas.add(delta.rowId);
     result.push(delta);
   }
 

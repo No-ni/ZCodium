@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Frontend preview regression</title>
+    <style>
+      /* 对应生产容器的 relative / w-max，不加载完整应用主题。 */
+      [data-docx-fit-frame] {
+        position: relative;
+        margin-inline: auto;
+      }
+      [data-docx-fit-content] {
+        width: max-content;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./frontend-preview-fixture.tsx"></script>
+  </body>
+</html>

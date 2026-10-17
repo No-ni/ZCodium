@@ -1,3 +1,7 @@
+import type {
+  V4ConversationTurnDirectoryParams,
+  V4ConversationTurnDirectoryResult,
+} from "@zcode/shared/zcode-protocol-v4";
 // V4 会话数据层的传输接缝（依赖注入）。
 // desktop 走 preload/MessagePort，web 走 ws relay——数据层对两者零感知，
 // 这是「依赖注入解决 desktop/web 兼容」原则在 v4 数据层的落点。
@@ -61,6 +65,9 @@ export interface ConversationTransport {
   /** v4/conversation/rowsRange（loadOlder）：按游标向上取一窗历史行。 */
   rowsRange(params: V4ConversationRowsRangeParams): Promise<V4ConversationRowsRangeResult>;
   /** v4/conversation/plans：当前有效分支里的全部终态计划。 */
+  turnDirectory?(
+    params: V4ConversationTurnDirectoryParams,
+  ): Promise<V4ConversationTurnDirectoryResult>;
   plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult>;
   /** v4/conversation/workflowRunEvents：workflow run 的事件日志分页（cursor = journal sequence）。 */
   workflowRunEvents(

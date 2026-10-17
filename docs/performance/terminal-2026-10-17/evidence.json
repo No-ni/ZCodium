@@ -1,0 +1,2816 @@
+{
+  "recordedAt": "2026-10-17T08:09:03.835Z",
+  "baselineDir": "C:\\Windows\\Temp\\zcodium-terminal-before-q6d6TR",
+  "baselineFiles": ["message.tsx", "code-block.tsx"],
+  "baselineReplacementLoadHits": {
+    "message.tsx": 1,
+    "code-block.tsx": 1
+  },
+  "browserVersion": "155.0.4283.45",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "payloadChars": 34122,
+  "fences": 240,
+  "warmupsPerVariant": 1,
+  "measuredTrialsPerVariant": 7,
+  "inputTrialsPerVariant": 3,
+  "results": [
+    {
+      "variant": "before",
+      "trial": 1,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 187.20000000298023
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 79.70000000298023,
+        "firstVisibleHighlightMs": 249,
+        "twoRafMs": 118.4,
+        "longTasksMs": [117, 56],
+        "performanceDeltaMs": {
+          "ScriptDuration": 158.778,
+          "LayoutDuration": 3.292,
+          "RecalcStyleDuration": 7.214,
+          "TaskDuration": 251.481
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 69,
+        "firstVisibleHighlightMs": 127.4,
+        "twoRafMs": 112.6,
+        "longTasksMs": [103],
+        "performanceDeltaMs": {
+          "ScriptDuration": 113.033,
+          "LayoutDuration": 2.793,
+          "RecalcStyleDuration": 4.966,
+          "TaskDuration": 139.769
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 1,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 155.09999999403954
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 50.20000000298023,
+        "firstVisibleHighlightMs": 179.6,
+        "twoRafMs": 56.2,
+        "longTasksMs": [55, 53],
+        "performanceDeltaMs": {
+          "ScriptDuration": 96.904,
+          "LayoutDuration": 3.318,
+          "RecalcStyleDuration": 5.783,
+          "TaskDuration": 182.269
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 45.900000005960464,
+        "firstVisibleHighlightMs": 76.9,
+        "twoRafMs": 60.8,
+        "longTasksMs": [50],
+        "performanceDeltaMs": {
+          "ScriptDuration": 60.602,
+          "LayoutDuration": 2.966,
+          "RecalcStyleDuration": 5.33,
+          "TaskDuration": 87.92
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 2,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 151.59999999403954
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 53,
+        "firstVisibleHighlightMs": 186.3,
+        "twoRafMs": 69.6,
+        "longTasksMs": [59, 54],
+        "performanceDeltaMs": {
+          "ScriptDuration": 100.91,
+          "LayoutDuration": 3.733,
+          "RecalcStyleDuration": 6.216,
+          "TaskDuration": 189.138
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 44,
+        "firstVisibleHighlightMs": 71.4,
+        "twoRafMs": 57.3,
+        "longTasksMs": [],
+        "performanceDeltaMs": {
+          "ScriptDuration": 57.889,
+          "LayoutDuration": 2.964,
+          "RecalcStyleDuration": 5.061,
+          "TaskDuration": 83.06
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 2,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 183.6000000089407
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 71.09999999403954,
+        "firstVisibleHighlightMs": 236.2,
+        "twoRafMs": 114.4,
+        "longTasksMs": [105, 58],
+        "performanceDeltaMs": {
+          "ScriptDuration": 147.344,
+          "LayoutDuration": 3.699,
+          "RecalcStyleDuration": 6.86,
+          "TaskDuration": 238.348
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 66.3999999910593,
+        "firstVisibleHighlightMs": 127.6,
+        "twoRafMs": 113,
+        "longTasksMs": [103],
+        "performanceDeltaMs": {
+          "ScriptDuration": 118.856,
+          "LayoutDuration": 4.662,
+          "RecalcStyleDuration": 5.621,
+          "TaskDuration": 149.06
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 3,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 184.79999999701977
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 73.20000000298023,
+        "firstVisibleHighlightMs": 233.9,
+        "twoRafMs": 107.3,
+        "longTasksMs": [106, 60],
+        "performanceDeltaMs": {
+          "ScriptDuration": 146.267,
+          "LayoutDuration": 3.137,
+          "RecalcStyleDuration": 5.584,
+          "TaskDuration": 236.184
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 66.3999999910593,
+        "firstVisibleHighlightMs": 125.3,
+        "twoRafMs": 110.6,
+        "longTasksMs": [102],
+        "performanceDeltaMs": {
+          "ScriptDuration": 111.492,
+          "LayoutDuration": 2.672,
+          "RecalcStyleDuration": 4.771,
+          "TaskDuration": 137.83
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 3,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 157.1000000089407
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 52.3999999910593,
+        "firstVisibleHighlightMs": 185.9,
+        "twoRafMs": 58.7,
+        "longTasksMs": [58, 55],
+        "performanceDeltaMs": {
+          "ScriptDuration": 99.491,
+          "LayoutDuration": 3.785,
+          "RecalcStyleDuration": 5.679,
+          "TaskDuration": 188.322
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 45.900000005960464,
+        "firstVisibleHighlightMs": 75.3,
+        "twoRafMs": 60.5,
+        "longTasksMs": [51],
+        "performanceDeltaMs": {
+          "ScriptDuration": 60.779,
+          "LayoutDuration": 2.757,
+          "RecalcStyleDuration": 4.948,
+          "TaskDuration": 86.386
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 4,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 153.29999999701977
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 49.30000001192093,
+        "firstVisibleHighlightMs": 183.4,
+        "twoRafMs": 55.6,
+        "longTasksMs": [55, 57],
+        "performanceDeltaMs": {
+          "ScriptDuration": 94.416,
+          "LayoutDuration": 3.33,
+          "RecalcStyleDuration": 5.636,
+          "TaskDuration": 185.754
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 45.79999999701977,
+        "firstVisibleHighlightMs": 73.6,
+        "twoRafMs": 59.2,
+        "longTasksMs": [50],
+        "performanceDeltaMs": {
+          "ScriptDuration": 58.9,
+          "LayoutDuration": 2.937,
+          "RecalcStyleDuration": 5.126,
+          "TaskDuration": 85.122
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 4,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 188.70000000298023
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 71.79999999701977,
+        "firstVisibleHighlightMs": 237.9,
+        "twoRafMs": 115.2,
+        "longTasksMs": [106, 60],
+        "performanceDeltaMs": {
+          "ScriptDuration": 148.421,
+          "LayoutDuration": 3.298,
+          "RecalcStyleDuration": 5.719,
+          "TaskDuration": 240.122
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 70.19999998807907,
+        "firstVisibleHighlightMs": 143,
+        "twoRafMs": 117.2,
+        "longTasksMs": [108],
+        "performanceDeltaMs": {
+          "ScriptDuration": 119.198,
+          "LayoutDuration": 3.163,
+          "RecalcStyleDuration": 5.793,
+          "TaskDuration": 153.493
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 5,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 189.69999998807907
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 73.29999999701977,
+        "firstVisibleHighlightMs": 238.4,
+        "twoRafMs": 109.7,
+        "longTasksMs": [109, 54],
+        "performanceDeltaMs": {
+          "ScriptDuration": 150.279,
+          "LayoutDuration": 3.338,
+          "RecalcStyleDuration": 5.812,
+          "TaskDuration": 240.917
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 67.5,
+        "firstVisibleHighlightMs": 130.5,
+        "twoRafMs": 114.4,
+        "longTasksMs": [104],
+        "performanceDeltaMs": {
+          "ScriptDuration": 111.723,
+          "LayoutDuration": 3.009,
+          "RecalcStyleDuration": 5.297,
+          "TaskDuration": 138.784
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 5,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 155
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 55.70000000298023,
+        "firstVisibleHighlightMs": 188.6,
+        "twoRafMs": 62.3,
+        "longTasksMs": [61, 53],
+        "performanceDeltaMs": {
+          "ScriptDuration": 103.263,
+          "LayoutDuration": 3.629,
+          "RecalcStyleDuration": 6.082,
+          "TaskDuration": 191.013
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 46.70000000298023,
+        "firstVisibleHighlightMs": 75.7,
+        "twoRafMs": 60.5,
+        "longTasksMs": [51],
+        "performanceDeltaMs": {
+          "ScriptDuration": 61.257,
+          "LayoutDuration": 2.72,
+          "RecalcStyleDuration": 4.959,
+          "TaskDuration": 86.712
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 6,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 158.20000000298023
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 48.1000000089407,
+        "firstVisibleHighlightMs": 180.9,
+        "twoRafMs": 54.8,
+        "longTasksMs": [54, 57],
+        "performanceDeltaMs": {
+          "ScriptDuration": 93.052,
+          "LayoutDuration": 3.37,
+          "RecalcStyleDuration": 5.591,
+          "TaskDuration": 183.212
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 43.8999999910593,
+        "firstVisibleHighlightMs": 73.1,
+        "twoRafMs": 57.7,
+        "longTasksMs": [],
+        "performanceDeltaMs": {
+          "ScriptDuration": 57.828,
+          "LayoutDuration": 3.07,
+          "RecalcStyleDuration": 5.196,
+          "TaskDuration": 84.378
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 6,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 192.09999999403954
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 71.5,
+        "firstVisibleHighlightMs": 233.5,
+        "twoRafMs": 106.3,
+        "longTasksMs": [105, 56],
+        "performanceDeltaMs": {
+          "ScriptDuration": 145.487,
+          "LayoutDuration": 3.097,
+          "RecalcStyleDuration": 5.293,
+          "TaskDuration": 235.78
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 67.1000000089407,
+        "firstVisibleHighlightMs": 127.9,
+        "twoRafMs": 112.7,
+        "longTasksMs": [104],
+        "performanceDeltaMs": {
+          "ScriptDuration": 112.515,
+          "LayoutDuration": 3.169,
+          "RecalcStyleDuration": 5.901,
+          "TaskDuration": 139.926
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 7,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 189.29999999701977
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 73.29999999701977,
+        "firstVisibleHighlightMs": 237.8,
+        "twoRafMs": 109,
+        "longTasksMs": [108, 55],
+        "performanceDeltaMs": {
+          "ScriptDuration": 149.603,
+          "LayoutDuration": 3.236,
+          "RecalcStyleDuration": 5.84,
+          "TaskDuration": 240.005
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 68.70000000298023,
+        "firstVisibleHighlightMs": 126.4,
+        "twoRafMs": 112,
+        "longTasksMs": [103],
+        "performanceDeltaMs": {
+          "ScriptDuration": 112.216,
+          "LayoutDuration": 2.734,
+          "RecalcStyleDuration": 4.672,
+          "TaskDuration": 138.751
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 7,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 149.20000000298023
+      },
+      "streamingState": {
+        "mode": true,
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "commitName": "terminal",
+        "commitMs": 49.29999999701977,
+        "firstVisibleHighlightMs": 181.5,
+        "twoRafMs": 55.5,
+        "longTasksMs": [54, 55],
+        "performanceDeltaMs": {
+          "ScriptDuration": 96.701,
+          "LayoutDuration": 3.33,
+          "RecalcStyleDuration": 5.53,
+          "TaskDuration": 183.619
+        }
+      },
+      "terminalState": {
+        "codeBlocks": 240,
+        "sourceElements": 240,
+        "highlights": 8
+      },
+      "history": {
+        "commitName": "history-reparent",
+        "commitMs": 44.30000001192093,
+        "firstVisibleHighlightMs": 72.7,
+        "twoRafMs": 57.8,
+        "longTasksMs": [],
+        "performanceDeltaMs": {
+          "ScriptDuration": 58.018,
+          "LayoutDuration": 3.104,
+          "RecalcStyleDuration": 5.402,
+          "TaskDuration": 84.413
+        }
+      },
+      "historyState": {
+        "historyRows": 1,
+        "historyCodeBlocks": 240,
+        "historySources": 240,
+        "historyHighlights": 8,
+        "liveTailRows": 0,
+        "liveTailHighlights": 0
+      }
+    }
+  ],
+  "inputResults": [
+    {
+      "variant": "before",
+      "trial": 1,
+      "initialState": {
+        "mode": true,
+        "sources": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "scenario": "terminal",
+        "requestedTimestampEpochMs": 1792224538655,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": false,
+              "eventTimeStampMs": 567.5,
+              "observedDelayMs": 1.2,
+              "eventEpochMs": 1792224538655,
+              "requestedTimestampEpochMs": 1792224538655,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 567.5,
+              "observedDelayMs": 116.2,
+              "eventEpochMs": 1792224538655,
+              "requestedTimestampEpochMs": 1792224538655,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.4000000059604645
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 116.20000000298023
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 117.09999999403954
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.4000000059604645,
+          "xKeydownMs": 116.20000000298023,
+          "xEchoCommitMs": 117.09999999403954
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": false,
+            "timeStamp": 567.5,
+            "observedAt": 568.7000000029802
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 567.5,
+            "observedAt": 683.7000000029802
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 567.5,
+            "processingStart": 568.7000000029802,
+            "processingEnd": 681.5,
+            "duration": 120,
+            "interactionId": 2330,
+            "inputDelayMs": 1.2,
+            "processingMs": 112.8,
+            "durationMs": 120
+          },
+          {
+            "name": "keydown",
+            "startTime": 567.5,
+            "processingStart": 683.5999999940395,
+            "processingEnd": 683.9000000059605,
+            "duration": 120,
+            "interactionId": 2337,
+            "inputDelayMs": 116.1,
+            "processingMs": 0.3,
+            "durationMs": 120
+          },
+          {
+            "name": "keypress",
+            "startTime": 567.5,
+            "processingStart": 683.9000000059605,
+            "processingEnd": 684.7000000029802,
+            "duration": 120,
+            "interactionId": 2337,
+            "inputDelayMs": 116.4,
+            "processingMs": 0.8,
+            "durationMs": 120
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 568.7,
+            "durationMs": 116
+          }
+        ],
+        "longTasksMs": [116],
+        "transitionMeasure": {
+          "name": "terminal",
+          "commitMs": 74
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 187.40000000596046
+          },
+          {
+            "name": "terminal",
+            "commitMs": 74
+          }
+        ]
+      },
+      "history": {
+        "scenario": "history",
+        "requestedTimestampEpochMs": 1792224538948,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": true,
+              "eventTimeStampMs": 860.5,
+              "observedDelayMs": 0.9,
+              "eventEpochMs": 1792224538948,
+              "requestedTimestampEpochMs": 1792224538948,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 860.5,
+              "observedDelayMs": 128.2,
+              "eventEpochMs": 1792224538948,
+              "requestedTimestampEpochMs": 1792224538948,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 0.9000000059604645
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 128.40000000596046
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 129
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 0.9000000059604645,
+          "xKeydownMs": 128.40000000596046,
+          "xEchoCommitMs": 129
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": true,
+            "timeStamp": 860.5,
+            "observedAt": 861.4000000059605
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 860.5,
+            "observedAt": 988.7000000029802
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 860.5,
+            "processingStart": 861.2999999970198,
+            "processingEnd": 986.9000000059605,
+            "duration": 136,
+            "interactionId": 2351,
+            "inputDelayMs": 0.8,
+            "processingMs": 125.6,
+            "durationMs": 136
+          },
+          {
+            "name": "keydown",
+            "startTime": 860.5,
+            "processingStart": 988.7000000029802,
+            "processingEnd": 989.0999999940395,
+            "duration": 136,
+            "interactionId": 2358,
+            "inputDelayMs": 128.2,
+            "processingMs": 0.4,
+            "durationMs": 136
+          },
+          {
+            "name": "keypress",
+            "startTime": 860.5,
+            "processingStart": 989.0999999940395,
+            "processingEnd": 989.5999999940395,
+            "duration": 136,
+            "interactionId": 2358,
+            "inputDelayMs": 128.6,
+            "processingMs": 0.5,
+            "durationMs": 136
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 861.2,
+            "durationMs": 127
+          }
+        ],
+        "longTasksMs": [127],
+        "transitionMeasure": {
+          "name": "history-reparent",
+          "commitMs": 75.40000000596046
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 187.40000000596046
+          },
+          {
+            "name": "terminal",
+            "commitMs": 74
+          },
+          {
+            "name": "history-reparent",
+            "commitMs": 75.40000000596046
+          }
+        ]
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 1,
+      "initialState": {
+        "mode": true,
+        "sources": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "scenario": "terminal",
+        "requestedTimestampEpochMs": 1792224539651,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": false,
+              "eventTimeStampMs": 485.6,
+              "observedDelayMs": 1.7,
+              "eventEpochMs": 1792224539651,
+              "requestedTimestampEpochMs": 1792224539651,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 485.6,
+              "observedDelayMs": 60,
+              "eventEpochMs": 1792224539651,
+              "requestedTimestampEpochMs": 1792224539651,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.7000000029802322
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 60
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 61
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.7000000029802322,
+          "xKeydownMs": 60,
+          "xEchoCommitMs": 61
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": false,
+            "timeStamp": 485.59999999403954,
+            "observedAt": 487.29999999701977
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 485.59999999403954,
+            "observedAt": 545.5999999940395
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 485.59999999403954,
+            "processingStart": 486.79999999701977,
+            "processingEnd": 543.0999999940395,
+            "duration": 72,
+            "interactionId": 1772,
+            "inputDelayMs": 1.2,
+            "processingMs": 56.3,
+            "durationMs": 72
+          },
+          {
+            "name": "keydown",
+            "startTime": 485.59999999403954,
+            "processingStart": 545.5,
+            "processingEnd": 545.7999999970198,
+            "duration": 72,
+            "interactionId": 1779,
+            "inputDelayMs": 59.9,
+            "processingMs": 0.3,
+            "durationMs": 72
+          },
+          {
+            "name": "keypress",
+            "startTime": 485.59999999403954,
+            "processingStart": 545.7999999970198,
+            "processingEnd": 546.7999999970198,
+            "duration": 72,
+            "interactionId": 1779,
+            "inputDelayMs": 60.2,
+            "processingMs": 1,
+            "durationMs": 72
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 486.8,
+            "durationMs": 56
+          }
+        ],
+        "longTasksMs": [56],
+        "transitionMeasure": {
+          "name": "terminal",
+          "commitMs": 50.099999994039536
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 152.59999999403954
+          },
+          {
+            "name": "terminal",
+            "commitMs": 50.099999994039536
+          }
+        ]
+      },
+      "history": {
+        "scenario": "history",
+        "requestedTimestampEpochMs": 1792224539876,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": true,
+              "eventTimeStampMs": 710.5,
+              "observedDelayMs": 1.5,
+              "eventEpochMs": 1792224539875.9,
+              "requestedTimestampEpochMs": 1792224539876,
+              "skewMs": -0.1,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 710.5,
+              "observedDelayMs": 53.7,
+              "eventEpochMs": 1792224539875.9,
+              "requestedTimestampEpochMs": 1792224539876,
+              "skewMs": -0.1,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.5999999940395355
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 53.79999999701977
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 54.29999999701977
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.5999999940395355,
+          "xKeydownMs": 53.79999999701977,
+          "xEchoCommitMs": 54.29999999701977
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": true,
+            "timeStamp": 710.5,
+            "observedAt": 712
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 710.5,
+            "observedAt": 764.2000000029802
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 710.5,
+            "processingStart": 712,
+            "processingEnd": 762,
+            "duration": 64,
+            "interactionId": 1793,
+            "inputDelayMs": 1.5,
+            "processingMs": 50,
+            "durationMs": 64
+          },
+          {
+            "name": "keydown",
+            "startTime": 710.5,
+            "processingStart": 764.0999999940395,
+            "processingEnd": 764.5,
+            "duration": 64,
+            "interactionId": 1800,
+            "inputDelayMs": 53.6,
+            "processingMs": 0.4,
+            "durationMs": 64
+          },
+          {
+            "name": "keypress",
+            "startTime": 710.5,
+            "processingStart": 764.5,
+            "processingEnd": 764.9000000059605,
+            "duration": 64,
+            "interactionId": 1800,
+            "inputDelayMs": 54,
+            "processingMs": 0.4,
+            "durationMs": 64
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 712,
+            "durationMs": 50
+          }
+        ],
+        "longTasksMs": [50],
+        "transitionMeasure": {
+          "name": "history-reparent",
+          "commitMs": 44.900000005960464
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 152.59999999403954
+          },
+          {
+            "name": "terminal",
+            "commitMs": 50.099999994039536
+          },
+          {
+            "name": "history-reparent",
+            "commitMs": 44.900000005960464
+          }
+        ]
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 2,
+      "initialState": {
+        "mode": true,
+        "sources": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "scenario": "terminal",
+        "requestedTimestampEpochMs": 1792224540518,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": false,
+              "eventTimeStampMs": 497.6,
+              "observedDelayMs": 0.7,
+              "eventEpochMs": 1792224540518,
+              "requestedTimestampEpochMs": 1792224540518,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 497.6,
+              "observedDelayMs": 58.8,
+              "eventEpochMs": 1792224540518,
+              "requestedTimestampEpochMs": 1792224540518,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 0.9000000059604645
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 58.900000005960464
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 59.80000001192093
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 0.9000000059604645,
+          "xKeydownMs": 58.900000005960464,
+          "xEchoCommitMs": 59.80000001192093
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": false,
+            "timeStamp": 497.59999999403954,
+            "observedAt": 498.29999999701977
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 497.59999999403954,
+            "observedAt": 556.4000000059605
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 497.59999999403954,
+            "processingStart": 498.29999999701977,
+            "processingEnd": 554,
+            "duration": 72,
+            "interactionId": 6256,
+            "inputDelayMs": 0.7,
+            "processingMs": 55.7,
+            "durationMs": 72
+          },
+          {
+            "name": "keydown",
+            "startTime": 497.59999999403954,
+            "processingStart": 556.2999999970198,
+            "processingEnd": 556.7000000029802,
+            "duration": 72,
+            "interactionId": 6263,
+            "inputDelayMs": 58.7,
+            "processingMs": 0.4,
+            "durationMs": 72
+          },
+          {
+            "name": "keypress",
+            "startTime": 497.59999999403954,
+            "processingStart": 556.7000000029802,
+            "processingEnd": 557.7000000029802,
+            "duration": 72,
+            "interactionId": 6263,
+            "inputDelayMs": 59.1,
+            "processingMs": 1,
+            "durationMs": 72
+          },
+          {
+            "name": "beforeinput",
+            "startTime": 556.7999999970198,
+            "processingStart": 556.7999999970198,
+            "processingEnd": 556.7999999970198,
+            "duration": 16,
+            "interactionId": 0,
+            "inputDelayMs": 0,
+            "processingMs": 0,
+            "durationMs": 16
+          },
+          {
+            "name": "input",
+            "startTime": 557,
+            "processingStart": 557.0999999940395,
+            "processingEnd": 557.5,
+            "duration": 16,
+            "interactionId": 0,
+            "inputDelayMs": 0.1,
+            "processingMs": 0.4,
+            "durationMs": 16
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 498.3,
+            "durationMs": 55
+          }
+        ],
+        "longTasksMs": [55],
+        "transitionMeasure": {
+          "name": "terminal",
+          "commitMs": 49.5
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 157.8999999910593
+          },
+          {
+            "name": "terminal",
+            "commitMs": 49.5
+          }
+        ]
+      },
+      "history": {
+        "scenario": "history",
+        "requestedTimestampEpochMs": 1792224540744,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": true,
+              "eventTimeStampMs": 723.6,
+              "observedDelayMs": 0.8,
+              "eventEpochMs": 1792224540744,
+              "requestedTimestampEpochMs": 1792224540744,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 723.6,
+              "observedDelayMs": 52.5,
+              "eventEpochMs": 1792224540744,
+              "requestedTimestampEpochMs": 1792224540744,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 0.9000000059604645
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 52.6000000089407
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 53.20000000298023
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 0.9000000059604645,
+          "xKeydownMs": 52.6000000089407,
+          "xEchoCommitMs": 53.20000000298023
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": true,
+            "timeStamp": 723.5999999940395,
+            "observedAt": 724.4000000059605
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 723.5999999940395,
+            "observedAt": 776.0999999940395
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 723.5999999940395,
+            "processingStart": 724.4000000059605,
+            "processingEnd": 773.9000000059605,
+            "duration": 64,
+            "interactionId": 6277,
+            "inputDelayMs": 0.8,
+            "processingMs": 49.5,
+            "durationMs": 64
+          },
+          {
+            "name": "keydown",
+            "startTime": 723.5999999940395,
+            "processingStart": 776,
+            "processingEnd": 776.4000000059605,
+            "duration": 64,
+            "interactionId": 6284,
+            "inputDelayMs": 52.4,
+            "processingMs": 0.4,
+            "durationMs": 64
+          },
+          {
+            "name": "keypress",
+            "startTime": 723.5999999940395,
+            "processingStart": 776.4000000059605,
+            "processingEnd": 776.7999999970198,
+            "duration": 64,
+            "interactionId": 6284,
+            "inputDelayMs": 52.8,
+            "processingMs": 0.4,
+            "durationMs": 64
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 724.4,
+            "durationMs": 51
+          }
+        ],
+        "longTasksMs": [51],
+        "transitionMeasure": {
+          "name": "history-reparent",
+          "commitMs": 44.5
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 157.8999999910593
+          },
+          {
+            "name": "terminal",
+            "commitMs": 49.5
+          },
+          {
+            "name": "history-reparent",
+            "commitMs": 44.5
+          }
+        ]
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 2,
+      "initialState": {
+        "mode": true,
+        "sources": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "scenario": "terminal",
+        "requestedTimestampEpochMs": 1792224541451,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": false,
+              "eventTimeStampMs": 565.1,
+              "observedDelayMs": 1.4,
+              "eventEpochMs": 1792224541451.1,
+              "requestedTimestampEpochMs": 1792224541451,
+              "skewMs": 0.1,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 565.1,
+              "observedDelayMs": 111.3,
+              "eventEpochMs": 1792224541451.1,
+              "requestedTimestampEpochMs": 1792224541451,
+              "skewMs": 0.1,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.4000000059604645
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 111.40000000596046
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 112.30000001192093
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.4000000059604645,
+          "xKeydownMs": 111.40000000596046,
+          "xEchoCommitMs": 112.30000001192093
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": false,
+            "timeStamp": 565.0999999940395,
+            "observedAt": 566.5
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 565.0999999940395,
+            "observedAt": 676.4000000059605
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 565.0999999940395,
+            "processingStart": 566.4000000059605,
+            "processingEnd": 674.2000000029802,
+            "duration": 120,
+            "interactionId": 1698,
+            "inputDelayMs": 1.3,
+            "processingMs": 107.8,
+            "durationMs": 120
+          },
+          {
+            "name": "keydown",
+            "startTime": 565.0999999940395,
+            "processingStart": 676.4000000059605,
+            "processingEnd": 676.7000000029802,
+            "duration": 120,
+            "interactionId": 1705,
+            "inputDelayMs": 111.3,
+            "processingMs": 0.3,
+            "durationMs": 120
+          },
+          {
+            "name": "keypress",
+            "startTime": 565.0999999940395,
+            "processingStart": 676.7000000029802,
+            "processingEnd": 677.5999999940395,
+            "duration": 120,
+            "interactionId": 1705,
+            "inputDelayMs": 111.6,
+            "processingMs": 0.9,
+            "durationMs": 120
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 566.4,
+            "durationMs": 107
+          }
+        ],
+        "longTasksMs": [107],
+        "transitionMeasure": {
+          "name": "terminal",
+          "commitMs": 73.20000000298023
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 188.70000000298023
+          },
+          {
+            "name": "terminal",
+            "commitMs": 73.20000000298023
+          }
+        ]
+      },
+      "history": {
+        "scenario": "history",
+        "requestedTimestampEpochMs": 1792224541729,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": true,
+              "eventTimeStampMs": 843,
+              "observedDelayMs": 1.6,
+              "eventEpochMs": 1792224541729,
+              "requestedTimestampEpochMs": 1792224541729,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 843,
+              "observedDelayMs": 129,
+              "eventEpochMs": 1792224541729,
+              "requestedTimestampEpochMs": 1792224541729,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.5999999940395355
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 129.09999999403954
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 129.90000000596046
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.5999999940395355,
+          "xKeydownMs": 129.09999999403954,
+          "xEchoCommitMs": 129.90000000596046
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": true,
+            "timeStamp": 843,
+            "observedAt": 844.5999999940395
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 843,
+            "observedAt": 972
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 843,
+            "processingStart": 844.5,
+            "processingEnd": 969.7999999970198,
+            "duration": 144,
+            "interactionId": 1719,
+            "inputDelayMs": 1.5,
+            "processingMs": 125.3,
+            "durationMs": 144
+          },
+          {
+            "name": "keydown",
+            "startTime": 843,
+            "processingStart": 972,
+            "processingEnd": 972.4000000059605,
+            "duration": 144,
+            "interactionId": 1726,
+            "inputDelayMs": 129,
+            "processingMs": 0.4,
+            "durationMs": 144
+          },
+          {
+            "name": "keypress",
+            "startTime": 843,
+            "processingStart": 972.4000000059605,
+            "processingEnd": 973,
+            "duration": 144,
+            "interactionId": 1726,
+            "inputDelayMs": 129.4,
+            "processingMs": 0.6,
+            "durationMs": 144
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 844.5,
+            "durationMs": 125
+          }
+        ],
+        "longTasksMs": [125],
+        "transitionMeasure": {
+          "name": "history-reparent",
+          "commitMs": 76.79999999701977
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 188.70000000298023
+          },
+          {
+            "name": "terminal",
+            "commitMs": 73.20000000298023
+          },
+          {
+            "name": "history-reparent",
+            "commitMs": 76.79999999701977
+          }
+        ]
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 3,
+      "initialState": {
+        "mode": true,
+        "sources": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "scenario": "terminal",
+        "requestedTimestampEpochMs": 1792224542512,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": false,
+              "eventTimeStampMs": 561.3,
+              "observedDelayMs": 1.6,
+              "eventEpochMs": 1792224542512,
+              "requestedTimestampEpochMs": 1792224542512,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 561.3,
+              "observedDelayMs": 114.9,
+              "eventEpochMs": 1792224542512,
+              "requestedTimestampEpochMs": 1792224542512,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.5999999940395355
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 115
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 116.20000000298023
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.5999999940395355,
+          "xKeydownMs": 115,
+          "xEchoCommitMs": 116.20000000298023
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": false,
+            "timeStamp": 561.2999999970198,
+            "observedAt": 562.8999999910593
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 561.2999999970198,
+            "observedAt": 676.2000000029802
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 561.2999999970198,
+            "processingStart": 562.7999999970198,
+            "processingEnd": 673.7000000029802,
+            "duration": 128,
+            "interactionId": 5321,
+            "inputDelayMs": 1.5,
+            "processingMs": 110.9,
+            "durationMs": 128
+          },
+          {
+            "name": "keydown",
+            "startTime": 561.2999999970198,
+            "processingStart": 676.0999999940395,
+            "processingEnd": 676.7000000029802,
+            "duration": 128,
+            "interactionId": 5328,
+            "inputDelayMs": 114.8,
+            "processingMs": 0.6,
+            "durationMs": 128
+          },
+          {
+            "name": "keypress",
+            "startTime": 561.2999999970198,
+            "processingStart": 676.7000000029802,
+            "processingEnd": 677.7000000029802,
+            "duration": 128,
+            "interactionId": 5328,
+            "inputDelayMs": 115.4,
+            "processingMs": 1,
+            "durationMs": 128
+          },
+          {
+            "name": "beforeinput",
+            "startTime": 676.7999999970198,
+            "processingStart": 676.7999999970198,
+            "processingEnd": 676.7999999970198,
+            "duration": 16,
+            "interactionId": 0,
+            "inputDelayMs": 0,
+            "processingMs": 0,
+            "durationMs": 16
+          },
+          {
+            "name": "input",
+            "startTime": 677.0999999940395,
+            "processingStart": 677.2000000029802,
+            "processingEnd": 677.5999999940395,
+            "duration": 16,
+            "interactionId": 0,
+            "inputDelayMs": 0.1,
+            "processingMs": 0.4,
+            "durationMs": 16
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 562.7,
+            "durationMs": 111
+          }
+        ],
+        "longTasksMs": [111],
+        "transitionMeasure": {
+          "name": "terminal",
+          "commitMs": 74.5
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 190.70000000298023
+          },
+          {
+            "name": "terminal",
+            "commitMs": 74.5
+          }
+        ]
+      },
+      "history": {
+        "scenario": "history",
+        "requestedTimestampEpochMs": 1792224542792,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": true,
+              "eventTimeStampMs": 841.4,
+              "observedDelayMs": 1.4,
+              "eventEpochMs": 1792224542792.1,
+              "requestedTimestampEpochMs": 1792224542792,
+              "skewMs": 0.1,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 841.4,
+              "observedDelayMs": 132.2,
+              "eventEpochMs": 1792224542792.1,
+              "requestedTimestampEpochMs": 1792224542792,
+              "skewMs": 0.1,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.5
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 132.20000000298023
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 133
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.5,
+          "xKeydownMs": 132.20000000298023,
+          "xEchoCommitMs": 133
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": true,
+            "timeStamp": 841.3999999910593,
+            "observedAt": 842.7999999970198
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 841.3999999910593,
+            "observedAt": 973.5999999940395
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 841.3999999910593,
+            "processingStart": 842.7999999970198,
+            "processingEnd": 971.5,
+            "duration": 144,
+            "interactionId": 5342,
+            "inputDelayMs": 1.4,
+            "processingMs": 128.7,
+            "durationMs": 144
+          },
+          {
+            "name": "keydown",
+            "startTime": 841.3999999910593,
+            "processingStart": 973.5,
+            "processingEnd": 973.8999999910593,
+            "duration": 144,
+            "interactionId": 5349,
+            "inputDelayMs": 132.1,
+            "processingMs": 0.4,
+            "durationMs": 144
+          },
+          {
+            "name": "keypress",
+            "startTime": 841.3999999910593,
+            "processingStart": 973.8999999910593,
+            "processingEnd": 974.5,
+            "duration": 144,
+            "interactionId": 5349,
+            "inputDelayMs": 132.5,
+            "processingMs": 0.6,
+            "durationMs": 144
+          },
+          {
+            "name": "beforeinput",
+            "startTime": 973.8999999910593,
+            "processingStart": 973.8999999910593,
+            "processingEnd": 973.8999999910593,
+            "duration": 16,
+            "interactionId": 0,
+            "inputDelayMs": 0,
+            "processingMs": 0,
+            "durationMs": 16
+          },
+          {
+            "name": "input",
+            "startTime": 974.0999999940395,
+            "processingStart": 974.2000000029802,
+            "processingEnd": 974.5,
+            "duration": 16,
+            "interactionId": 0,
+            "inputDelayMs": 0.1,
+            "processingMs": 0.3,
+            "durationMs": 16
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 842.7,
+            "durationMs": 128
+          }
+        ],
+        "longTasksMs": [128],
+        "transitionMeasure": {
+          "name": "history-reparent",
+          "commitMs": 78.1000000089407
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 190.70000000298023
+          },
+          {
+            "name": "terminal",
+            "commitMs": 74.5
+          },
+          {
+            "name": "history-reparent",
+            "commitMs": 78.1000000089407
+          }
+        ]
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 3,
+      "initialState": {
+        "mode": true,
+        "sources": 240,
+        "highlights": 0
+      },
+      "terminal": {
+        "scenario": "terminal",
+        "requestedTimestampEpochMs": 1792224543515,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": false,
+              "eventTimeStampMs": 502.5,
+              "observedDelayMs": 1.6,
+              "eventEpochMs": 1792224543515,
+              "requestedTimestampEpochMs": 1792224543515,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 502.5,
+              "observedDelayMs": 59.6,
+              "eventEpochMs": 1792224543515,
+              "requestedTimestampEpochMs": 1792224543515,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 1.800000011920929
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 59.70000000298023
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 60.6000000089407
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 1.800000011920929,
+          "xKeydownMs": 59.70000000298023,
+          "xEchoCommitMs": 60.6000000089407
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": false,
+            "timeStamp": 502.5,
+            "observedAt": 504.1000000089407
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 502.5,
+            "observedAt": 562.1000000089407
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 502.5,
+            "processingStart": 504,
+            "processingEnd": 559.8000000119209,
+            "duration": 72,
+            "interactionId": 2455,
+            "inputDelayMs": 1.5,
+            "processingMs": 55.8,
+            "durationMs": 72
+          },
+          {
+            "name": "keydown",
+            "startTime": 502.5,
+            "processingStart": 562,
+            "processingEnd": 562.5,
+            "duration": 72,
+            "interactionId": 2462,
+            "inputDelayMs": 59.5,
+            "processingMs": 0.5,
+            "durationMs": 72
+          },
+          {
+            "name": "keypress",
+            "startTime": 502.5,
+            "processingStart": 562.5,
+            "processingEnd": 563.3000000119209,
+            "duration": 72,
+            "interactionId": 2462,
+            "inputDelayMs": 60,
+            "processingMs": 0.8,
+            "durationMs": 72
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [
+          {
+            "startTimeMs": 504,
+            "durationMs": 55
+          }
+        ],
+        "longTasksMs": [55],
+        "transitionMeasure": {
+          "name": "terminal",
+          "commitMs": 49.599999994039536
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 158.19999998807907
+          },
+          {
+            "name": "terminal",
+            "commitMs": 49.599999994039536
+          }
+        ]
+      },
+      "history": {
+        "scenario": "history",
+        "requestedTimestampEpochMs": 1792224543733,
+        "timestampValidation": {
+          "toleranceMs": 25,
+          "respected": true,
+          "events": [
+            {
+              "key": "Enter",
+              "altKey": true,
+              "eventTimeStampMs": 720.5,
+              "observedDelayMs": 0.7,
+              "eventEpochMs": 1792224543733,
+              "requestedTimestampEpochMs": 1792224543733,
+              "skewMs": 0,
+              "withinTolerance": true
+            },
+            {
+              "key": "x",
+              "altKey": false,
+              "eventTimeStampMs": 720.5,
+              "observedDelayMs": 52.4,
+              "eventEpochMs": 1792224543733,
+              "requestedTimestampEpochMs": 1792224543733,
+              "skewMs": 0,
+              "withinTolerance": true
+            }
+          ]
+        },
+        "inputEvents": [
+          {
+            "key": "Enter",
+            "type": "keydown",
+            "delayMs": 0.800000011920929
+          },
+          {
+            "key": "x",
+            "type": "keydown",
+            "delayMs": 52.400000005960464
+          },
+          {
+            "key": "x",
+            "type": "commit",
+            "delayMs": 53.1000000089407
+          }
+        ],
+        "inputHandlingDelayMs": {
+          "enterKeydownMs": 0.800000011920929,
+          "xKeydownMs": 52.400000005960464,
+          "xEchoCommitMs": 53.1000000089407
+        },
+        "keyCaptures": [
+          {
+            "key": "Enter",
+            "altKey": true,
+            "timeStamp": 720.5,
+            "observedAt": 721.2000000029802
+          },
+          {
+            "key": "x",
+            "altKey": false,
+            "timeStamp": 720.5,
+            "observedAt": 772.9000000059605
+          }
+        ],
+        "eventTimingSupported": true,
+        "eventTimings": [
+          {
+            "name": "keydown",
+            "startTime": 720.5,
+            "processingStart": 721.1000000089407,
+            "processingEnd": 770.8000000119209,
+            "duration": 56,
+            "interactionId": 2476,
+            "inputDelayMs": 0.6,
+            "processingMs": 49.7,
+            "durationMs": 56
+          },
+          {
+            "name": "keydown",
+            "startTime": 720.5,
+            "processingStart": 772.9000000059605,
+            "processingEnd": 773.2000000029802,
+            "duration": 56,
+            "interactionId": 2483,
+            "inputDelayMs": 52.4,
+            "processingMs": 0.3,
+            "durationMs": 56
+          },
+          {
+            "name": "keypress",
+            "startTime": 720.5,
+            "processingStart": 773.2000000029802,
+            "processingEnd": 773.6000000089407,
+            "duration": 56,
+            "interactionId": 2483,
+            "inputDelayMs": 52.7,
+            "processingMs": 0.4,
+            "durationMs": 56
+          }
+        ],
+        "longTaskSupported": true,
+        "longTaskEntries": [],
+        "longTasksMs": [],
+        "transitionMeasure": {
+          "name": "history-reparent",
+          "commitMs": 44.79999999701977
+        },
+        "criticalMeasures": [
+          {
+            "name": "cold-mount",
+            "commitMs": 158.19999998807907
+          },
+          {
+            "name": "terminal",
+            "commitMs": 49.599999994039536
+          },
+          {
+            "name": "history-reparent",
+            "commitMs": 44.79999999701977
+          }
+        ]
+      }
+    }
+  ],
+  "summaries": [
+    {
+      "variant": "before",
+      "samples": 7,
+      "terminal": {
+        "commitMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 73.2,
+          "p95Ms": 79.7
+        },
+        "twoRafMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 109.7,
+          "p95Ms": 118.4
+        },
+        "firstVisibleHighlightMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 237.8,
+          "p95Ms": 249
+        },
+        "longTaskTotalMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 163,
+          "p95Ms": 173
+        },
+        "performanceDeltaMs": {
+          "ScriptDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 148.421,
+            "p95Ms": 158.778
+          },
+          "LayoutDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 3.292,
+            "p95Ms": 3.699
+          },
+          "RecalcStyleDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 5.812,
+            "p95Ms": 7.214
+          },
+          "TaskDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 240.005,
+            "p95Ms": 251.481
+          }
+        }
+      },
+      "history": {
+        "commitMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 67.5,
+          "p95Ms": 70.2
+        },
+        "twoRafMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 112.7,
+          "p95Ms": 117.2
+        },
+        "firstVisibleHighlightMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 127.6,
+          "p95Ms": 143
+        },
+        "longTaskTotalMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 103,
+          "p95Ms": 108
+        },
+        "performanceDeltaMs": {
+          "ScriptDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 112.515,
+            "p95Ms": 119.198
+          },
+          "LayoutDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 3.009,
+            "p95Ms": 4.662
+          },
+          "RecalcStyleDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 5.297,
+            "p95Ms": 5.901
+          },
+          "TaskDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 139.769,
+            "p95Ms": 153.493
+          }
+        }
+      }
+    },
+    {
+      "variant": "after",
+      "samples": 7,
+      "terminal": {
+        "commitMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 50.2,
+          "p95Ms": 55.7
+        },
+        "twoRafMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 56.2,
+          "p95Ms": 69.6
+        },
+        "firstVisibleHighlightMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 183.4,
+          "p95Ms": 188.6
+        },
+        "longTaskTotalMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 112,
+          "p95Ms": 114
+        },
+        "performanceDeltaMs": {
+          "ScriptDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 96.904,
+            "p95Ms": 103.263
+          },
+          "LayoutDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 3.37,
+            "p95Ms": 3.785
+          },
+          "RecalcStyleDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 5.679,
+            "p95Ms": 6.216
+          },
+          "TaskDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 185.754,
+            "p95Ms": 191.013
+          }
+        }
+      },
+      "history": {
+        "commitMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 45.8,
+          "p95Ms": 46.7
+        },
+        "twoRafMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 59.2,
+          "p95Ms": 60.8
+        },
+        "firstVisibleHighlightMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 73.6,
+          "p95Ms": 76.9
+        },
+        "longTaskTotalMs": {
+          "samples": 7,
+          "validSamples": 7,
+          "missingSamples": 0,
+          "medianMs": 50,
+          "p95Ms": 51
+        },
+        "performanceDeltaMs": {
+          "ScriptDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 58.9,
+            "p95Ms": 61.257
+          },
+          "LayoutDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 2.964,
+            "p95Ms": 3.104
+          },
+          "RecalcStyleDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 5.126,
+            "p95Ms": 5.402
+          },
+          "TaskDuration": {
+            "samples": 7,
+            "validSamples": 7,
+            "missingSamples": 0,
+            "medianMs": 85.122,
+            "p95Ms": 87.92
+          }
+        }
+      }
+    }
+  ],
+  "inputSummaries": [
+    {
+      "variant": "before",
+      "samples": 3,
+      "terminal": {
+        "samples": 3,
+        "inputDelayUsableSamples": 3,
+        "inputDelayExcludedTimestampSamples": 0,
+        "inputDelayConclusion": "validated-samples-only",
+        "enterKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 1.4,
+          "p95Ms": 1.6
+        },
+        "xKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 115,
+          "p95Ms": 116.2
+        },
+        "xEchoCommitDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 116.2,
+          "p95Ms": 117.1
+        },
+        "transitionCommitMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 74,
+          "p95Ms": 74.5
+        },
+        "longTaskTotalMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 111,
+          "p95Ms": 116
+        }
+      },
+      "history": {
+        "samples": 3,
+        "inputDelayUsableSamples": 3,
+        "inputDelayExcludedTimestampSamples": 0,
+        "inputDelayConclusion": "validated-samples-only",
+        "enterKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 1.5,
+          "p95Ms": 1.6
+        },
+        "xKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 129.1,
+          "p95Ms": 132.2
+        },
+        "xEchoCommitDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 129.9,
+          "p95Ms": 133
+        },
+        "transitionCommitMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 76.8,
+          "p95Ms": 78.1
+        },
+        "longTaskTotalMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 127,
+          "p95Ms": 128
+        }
+      }
+    },
+    {
+      "variant": "after",
+      "samples": 3,
+      "terminal": {
+        "samples": 3,
+        "inputDelayUsableSamples": 3,
+        "inputDelayExcludedTimestampSamples": 0,
+        "inputDelayConclusion": "validated-samples-only",
+        "enterKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 1.7,
+          "p95Ms": 1.8
+        },
+        "xKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 59.7,
+          "p95Ms": 60
+        },
+        "xEchoCommitDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 60.6,
+          "p95Ms": 61
+        },
+        "transitionCommitMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 49.6,
+          "p95Ms": 50.1
+        },
+        "longTaskTotalMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 55,
+          "p95Ms": 56
+        }
+      },
+      "history": {
+        "samples": 3,
+        "inputDelayUsableSamples": 3,
+        "inputDelayExcludedTimestampSamples": 0,
+        "inputDelayConclusion": "validated-samples-only",
+        "enterKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 0.9,
+          "p95Ms": 1.6
+        },
+        "xKeydownDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 52.6,
+          "p95Ms": 53.8
+        },
+        "xEchoCommitDelayMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 53.2,
+          "p95Ms": 54.3
+        },
+        "transitionCommitMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 44.8,
+          "p95Ms": 44.9
+        },
+        "longTaskTotalMs": {
+          "samples": 3,
+          "validSamples": 3,
+          "missingSamples": 0,
+          "medianMs": 50,
+          "p95Ms": 51
+        }
+      }
+    }
+  ]
+}

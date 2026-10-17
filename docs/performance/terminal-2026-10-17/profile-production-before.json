@@ -1,0 +1,2812 @@
+{
+  "recordedAt": "2026-10-17T07:49:54.974Z",
+  "browser": "155.0.4283.45",
+  "stages": [
+    {
+      "action": "completeStream",
+      "measurement": {
+        "twoFramesMs": 243.3999999910593,
+        "commit": {
+          "name": "terminal",
+          "commitMs": 173.59999999403954
+        },
+        "longTasks": [242]
+      },
+      "profile": {
+        "durationMs": 754.466,
+        "self": [
+          {
+            "ms": 509.1,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 8.1,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 7.7,
+            "name": "setValueForStyle",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 1077
+          },
+          {
+            "ms": 6.5,
+            "name": "removeChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.4,
+            "name": "TooltipContent",
+            "url": "/packages/ui/src/components/ui/tooltip.tsx",
+            "line": 25
+          },
+          {
+            "ms": 4.8,
+            "name": "readNavigatorPlatformInfo",
+            "url": "/packages/ui/src/lib/keyboardShortcuts.ts",
+            "line": 1
+          },
+          {
+            "ms": 4.8,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 10151
+          },
+          {
+            "ms": 4.2,
+            "name": "mergeProps",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 206
+          },
+          {
+            "ms": 3.7,
+            "name": "reconcileChildFibersImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2533
+          },
+          {
+            "ms": 3.3,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.3,
+            "name": "next",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 489
+          },
+          {
+            "ms": 3.2,
+            "name": "Tooltip",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 10066
+          },
+          {
+            "ms": 3.2,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.2,
+            "name": "find",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/space-separated-tokens-Urhnlkoj.js?v=c41b0380",
+            "line": 1279
+          },
+          {
+            "ms": 3.2,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.1,
+            "name": "reconcileChildFibersImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2533
+          },
+          {
+            "ms": 3.1,
+            "name": "commitPassiveUnmountEffectsInsideOfDeletedTree_begin",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6197
+          },
+          {
+            "ms": 3.1,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 1860
+          },
+          {
+            "ms": 3.1,
+            "name": "bailoutOnAlreadyFinishedWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4542
+          },
+          {
+            "ms": 3.1,
+            "name": "commitHostMount",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5206
+          },
+          {
+            "ms": 3,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 3,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4789
+          },
+          {
+            "ms": 2.9,
+            "name": "exports.cloneElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "line": 221
+          },
+          {
+            "ms": 2.7,
+            "name": "updateForwardRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4082
+          },
+          {
+            "ms": 2.7,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4253
+          },
+          {
+            "ms": 2.4,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4612
+          },
+          {
+            "ms": 2.1,
+            "name": "Portal",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 10016
+          },
+          {
+            "ms": 1.8,
+            "name": "contentBefore",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 13718
+          },
+          {
+            "ms": 1.7,
+            "name": "all",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 10620
+          },
+          {
+            "ms": 1.7,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 1.7,
+            "name": "commitDeletionEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5488
+          },
+          {
+            "ms": 1.7,
+            "name": "useReducer",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 3734
+          },
+          {
+            "ms": 1.7,
+            "name": "commitBeforeMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5272
+          },
+          {
+            "ms": 1.7,
+            "name": "resume",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 23259
+          },
+          {
+            "ms": 1.6,
+            "name": "aaObtainFurthestBlock",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 6167
+          },
+          {
+            "ms": 1.6,
+            "name": "exports.createElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "line": 249
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 260
+          },
+          {
+            "ms": 1.6,
+            "name": "enqueueConcurrentHookUpdate",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 1767
+          },
+          {
+            "ms": 1.6,
+            "name": "trimCodeFenceTrailingNewlines",
+            "url": "/packages/ui/src/components/ai-elements/message.tsx",
+            "line": 601
+          },
+          {
+            "ms": 1.6,
+            "name": "mapIntoArray",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "line": 105
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/packages/ui/src/components/ai-elements/code-block.tsx",
+            "line": 314
+          },
+          {
+            "ms": 1.6,
+            "name": "basicStateReducer",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 3032
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 1866
+          },
+          {
+            "ms": 1.6,
+            "name": "recursivelyTraversePassiveUnmountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6136
+          },
+          {
+            "ms": 1.6,
+            "name": "createElement",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.6,
+            "name": "commitBeforeMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5272
+          },
+          {
+            "ms": 1.6,
+            "name": "extractCodeText",
+            "url": "/packages/ui/src/components/ai-elements/message.tsx",
+            "line": 548
+          },
+          {
+            "ms": 1.6,
+            "name": "one",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 21123
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 179
+          },
+          {
+            "ms": 1.6,
+            "name": "store",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 22572
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/Icon-U3JmfPAS.js?v=c41b0380",
+            "line": 11
+          },
+          {
+            "ms": 1.6,
+            "name": "CodeBlockFilename",
+            "url": "/packages/ui/src/components/ai-elements/code-block.tsx",
+            "line": 119
+          },
+          {
+            "ms": 1.6,
+            "name": "placeSingleChild",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2401
+          },
+          {
+            "ms": 1.6,
+            "name": "commitHookEffectListUnmount",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5122
+          },
+          {
+            "ms": 1.6,
+            "name": "detachDeletedInstance",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 800
+          }
+        ],
+        "inclusive": [
+          {
+            "ms": 754.1,
+            "name": "(root)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 509.1,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 230.8,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6263
+          },
+          {
+            "ms": 230.8,
+            "name": "performWorkOnRootViaSchedulerTask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7060
+          },
+          {
+            "ms": 230.8,
+            "name": "performWorkUntilDeadline",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 79
+          },
+          {
+            "ms": 143.3,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6522
+          },
+          {
+            "ms": 143.3,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6474
+          },
+          {
+            "ms": 113.9,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4612
+          },
+          {
+            "ms": 87.5,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6708
+          },
+          {
+            "ms": 87.5,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6342
+          },
+          {
+            "ms": 79.2,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4253
+          },
+          {
+            "ms": 71.4,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 63.7,
+            "name": "performSyncWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7071
+          },
+          {
+            "ms": 63.7,
+            "name": "flushSyncWorkAcrossRoots_impl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6980
+          },
+          {
+            "ms": 63.7,
+            "name": "flushSpawnedWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6827
+          },
+          {
+            "ms": 48.9,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6263
+          },
+          {
+            "ms": 39.4,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6522
+          },
+          {
+            "ms": 39.4,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6474
+          },
+          {
+            "ms": 37.8,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4612
+          },
+          {
+            "ms": 29.9,
+            "name": "Ct",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 31463
+          },
+          {
+            "ms": 27.9,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4789
+          },
+          {
+            "ms": 26.7,
+            "name": "updateForwardRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4082
+          },
+          {
+            "ms": 25.6,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 18.5,
+            "name": "setInitialProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7754
+          },
+          {
+            "ms": 18.5,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4253
+          },
+          {
+            "ms": 17.4,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7531
+          },
+          {
+            "ms": 16.7,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.7,
+            "name": "flushMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6750
+          },
+          {
+            "ms": 16.7,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.7,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.7,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 16.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 16.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.8,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 15.7,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.7,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.6,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          }
+        ],
+        "groupedSelf": [
+          {
+            "ms": 509.1,
+            "functionName": "(program)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 9.7,
+            "functionName": "setAttribute",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 8.1,
+            "functionName": "(garbage collector)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 7.7,
+            "functionName": "setValueForStyle",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 1076,
+            "columnNumber": 26
+          },
+          {
+            "ms": 6.8,
+            "functionName": "reconcileChildFibersImpl",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 2532,
+            "columnNumber": 35
+          },
+          {
+            "ms": 6.5,
+            "functionName": "removeChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 6.4,
+            "functionName": "TooltipContent",
+            "scriptId": "21",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/tooltip.tsx",
+            "lineNumber": 24,
+            "columnNumber": 23
+          },
+          {
+            "ms": 6.2,
+            "functionName": "renderWithHooks",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 2870,
+            "columnNumber": 25
+          },
+          {
+            "ms": 4.8,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10150,
+            "columnNumber": 45
+          },
+          {
+            "ms": 4.8,
+            "functionName": "jsxProd",
+            "scriptId": "35",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react_jsx-runtime.js?v=93ca02a8",
+            "lineNumber": 13,
+            "columnNumber": 17
+          },
+          {
+            "ms": 4.8,
+            "functionName": "mergeProps",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 205,
+            "columnNumber": 19
+          },
+          {
+            "ms": 4.8,
+            "functionName": "readNavigatorPlatformInfo",
+            "scriptId": "1964",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/keyboardShortcuts.ts",
+            "lineNumber": 0,
+            "columnNumber": 34
+          },
+          {
+            "ms": 4.3,
+            "functionName": "exports.cloneElement",
+            "scriptId": "36",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "lineNumber": 220,
+            "columnNumber": 32
+          },
+          {
+            "ms": 4.3,
+            "functionName": "updateFunctionComponent",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 4252,
+            "columnNumber": 33
+          },
+          {
+            "ms": 3.9,
+            "functionName": "commitLayoutEffectOnFiber",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5386,
+            "columnNumber": 35
+          },
+          {
+            "ms": 3.8,
+            "functionName": "updateForwardRef",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 4081,
+            "columnNumber": 26
+          },
+          {
+            "ms": 3.6,
+            "functionName": "commitHookEffectListUnmount",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5121,
+            "columnNumber": 37
+          },
+          {
+            "ms": 3.3,
+            "functionName": "next",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 488,
+            "columnNumber": 13
+          },
+          {
+            "ms": 3.3,
+            "functionName": "commitBeforeMutationEffects",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5271,
+            "columnNumber": 37
+          },
+          {
+            "ms": 3.2,
+            "functionName": "find",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/space-separated-tokens-Urhnlkoj.js?v=c41b0380",
+            "lineNumber": 1278,
+            "columnNumber": 13
+          },
+          {
+            "ms": 3.2,
+            "functionName": "useContext2",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 78,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.2,
+            "functionName": "workLoopSync",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 6521,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 178,
+            "columnNumber": 43
+          },
+          {
+            "ms": 3.2,
+            "functionName": "Tooltip",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10065,
+            "columnNumber": 14
+          },
+          {
+            "ms": 3.1,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 1859,
+            "columnNumber": 43
+          },
+          {
+            "ms": 3.1,
+            "functionName": "get",
+            "scriptId": "73",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/tailwind-merge.js?v=52819aec",
+            "lineNumber": 162,
+            "columnNumber": 5
+          },
+          {
+            "ms": 3.1,
+            "functionName": "",
+            "scriptId": "208",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-t8Qwt55I.js?v=c41b0380",
+            "lineNumber": 22,
+            "columnNumber": 9
+          },
+          {
+            "ms": 3.1,
+            "functionName": "commitDeletionEffectsOnFiber",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5487,
+            "columnNumber": 38
+          },
+          {
+            "ms": 3.1,
+            "functionName": "commitHostMount",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5205,
+            "columnNumber": 25
+          },
+          {
+            "ms": 3.1,
+            "functionName": "commitPassiveUnmountEffectsInsideOfDeletedTree_begin",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 6196,
+            "columnNumber": 62
+          },
+          {
+            "ms": 3.1,
+            "functionName": "bailoutOnAlreadyFinishedWork",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 4541,
+            "columnNumber": 38
+          },
+          {
+            "ms": 3.1,
+            "functionName": "updateReducerImpl",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 3037,
+            "columnNumber": 27
+          },
+          {
+            "ms": 3,
+            "functionName": "completeWork",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 4788,
+            "columnNumber": 22
+          },
+          {
+            "ms": 2.9,
+            "functionName": "recursivelyTraversePassiveUnmountEffects",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 6135,
+            "columnNumber": 50
+          },
+          {
+            "ms": 2.6,
+            "functionName": "appendChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 2.4,
+            "functionName": "beginWork",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 4611,
+            "columnNumber": 19
+          },
+          {
+            "ms": 2.1,
+            "functionName": "Portal",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10015,
+            "columnNumber": 9
+          },
+          {
+            "ms": 1.9,
+            "functionName": "commitMutationEffectsOnFiber",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5635,
+            "columnNumber": 38
+          },
+          {
+            "ms": 1.8,
+            "functionName": "contentBefore",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 13717,
+            "columnNumber": 23
+          },
+          {
+            "ms": 1.8,
+            "functionName": "Button",
+            "scriptId": "31",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/button.tsx",
+            "lineNumber": 35,
+            "columnNumber": 15
+          },
+          {
+            "ms": 1.8,
+            "functionName": "commitReconciliationEffects",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5850,
+            "columnNumber": 37
+          },
+          {
+            "ms": 1.7,
+            "functionName": "placeSingleChild",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 2400,
+            "columnNumber": 27
+          },
+          {
+            "ms": 1.7,
+            "functionName": "resume",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23258,
+            "columnNumber": 16
+          },
+          {
+            "ms": 1.7,
+            "functionName": "all",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 10619,
+            "columnNumber": 12
+          },
+          {
+            "ms": 1.7,
+            "functionName": "useReducer",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 3733,
+            "columnNumber": 22
+          }
+        ],
+        "nonReactInclusive": [
+          {
+            "ms": 29.9,
+            "functionName": "Ct",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 31462,
+            "columnNumber": 23
+          },
+          {
+            "ms": 15.3,
+            "functionName": "wrapped",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 25943,
+            "columnNumber": 17
+          },
+          {
+            "ms": 15.3,
+            "functionName": "next",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 25881,
+            "columnNumber": 15
+          },
+          {
+            "ms": 15.3,
+            "functionName": "run",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 25869,
+            "columnNumber": 13
+          },
+          {
+            "ms": 15.3,
+            "functionName": "executor",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27608,
+            "columnNumber": 19
+          },
+          {
+            "ms": 15.3,
+            "functionName": "run",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27591,
+            "columnNumber": 4
+          },
+          {
+            "ms": 15.3,
+            "functionName": "runSync",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27642,
+            "columnNumber": 8
+          },
+          {
+            "ms": 13,
+            "functionName": "fromMarkdown",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22910,
+            "columnNumber": 21
+          },
+          {
+            "ms": 13,
+            "functionName": "parser",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23836,
+            "columnNumber": 16
+          },
+          {
+            "ms": 13,
+            "functionName": "parse",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27419,
+            "columnNumber": 6
+          },
+          {
+            "ms": 12.3,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 178,
+            "columnNumber": 43
+          },
+          {
+            "ms": 11,
+            "functionName": "Tooltip",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10065,
+            "columnNumber": 14
+          },
+          {
+            "ms": 10.9,
+            "functionName": "raw",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 7891,
+            "columnNumber": 12
+          },
+          {
+            "ms": 10.9,
+            "functionName": "",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 8321,
+            "columnNumber": 16
+          },
+          {
+            "ms": 10,
+            "functionName": "TooltipContent",
+            "scriptId": "21",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/tooltip.tsx",
+            "lineNumber": 24,
+            "columnNumber": 23
+          },
+          {
+            "ms": 6.4,
+            "functionName": "ControlHintTooltip",
+            "scriptId": "62",
+            "url": "http://127.0.0.1:5173/packages/ui/src/ControlHintTooltip.tsx",
+            "lineNumber": 16,
+            "columnNumber": 34
+          },
+          {
+            "ms": 6.3,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10150,
+            "columnNumber": 45
+          },
+          {
+            "ms": 6.3,
+            "functionName": "useContext2",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 78,
+            "columnNumber": 22
+          },
+          {
+            "ms": 6.3,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 1859,
+            "columnNumber": 43
+          },
+          {
+            "ms": 6,
+            "functionName": "one",
+            "scriptId": "2016",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/lib-9yyc6afX.js?v=c41b0380",
+            "lineNumber": 118,
+            "columnNumber": 13
+          },
+          {
+            "ms": 6,
+            "functionName": "all$1",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 7939,
+            "columnNumber": 14
+          },
+          {
+            "ms": 6,
+            "functionName": "root$4",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 7954,
+            "columnNumber": 15
+          },
+          {
+            "ms": 5.9,
+            "functionName": "main",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22371,
+            "columnNumber": 14
+          },
+          {
+            "ms": 5.9,
+            "functionName": "write",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22328,
+            "columnNumber": 15
+          },
+          {
+            "ms": 4.8,
+            "functionName": "flowContinue",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 21823,
+            "columnNumber": 22
+          },
+          {
+            "ms": 4.8,
+            "functionName": "element$3",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 7967,
+            "columnNumber": 18
+          },
+          {
+            "ms": 4.8,
+            "functionName": "mergeProps",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 205,
+            "columnNumber": 19
+          },
+          {
+            "ms": 4.8,
+            "functionName": "readNavigatorPlatformInfo",
+            "scriptId": "1964",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/keyboardShortcuts.ts",
+            "lineNumber": 0,
+            "columnNumber": 34
+          },
+          {
+            "ms": 4.8,
+            "functionName": "isAppleKeyboardPlatform",
+            "scriptId": "1964",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/keyboardShortcuts.ts",
+            "lineNumber": 9,
+            "columnNumber": 39
+          },
+          {
+            "ms": 4.8,
+            "functionName": "usePresence",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 698,
+            "columnNumber": 20
+          },
+          {
+            "ms": 4.8,
+            "functionName": "Presence",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 690,
+            "columnNumber": 15
+          },
+          {
+            "ms": 4.1,
+            "functionName": "one$3",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 549,
+            "columnNumber": 14
+          },
+          {
+            "ms": 4.1,
+            "functionName": "fromParse5",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 530,
+            "columnNumber": 19
+          },
+          {
+            "ms": 3.4,
+            "functionName": "writeToChild",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 21848,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.4,
+            "functionName": "resume",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23258,
+            "columnNumber": 16
+          },
+          {
+            "ms": 3.4,
+            "functionName": "compile",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23040,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.3,
+            "functionName": "next",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 488,
+            "columnNumber": 13
+          },
+          {
+            "ms": 3.3,
+            "functionName": "toPoint",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 450,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.3,
+            "functionName": "useStateMachine",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 685,
+            "columnNumber": 24
+          },
+          {
+            "ms": 3.3,
+            "functionName": "Button",
+            "scriptId": "31",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/button.tsx",
+            "lineNumber": 35,
+            "columnNumber": 15
+          },
+          {
+            "ms": 3.3,
+            "functionName": "code",
+            "scriptId": "24",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ai-elements/message.tsx",
+            "lineNumber": 1036,
+            "columnNumber": 8
+          },
+          {
+            "ms": 3.2,
+            "functionName": "subtokenize",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 14491,
+            "columnNumber": 20
+          },
+          {
+            "ms": 3.2,
+            "functionName": "postprocess",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22739,
+            "columnNumber": 20
+          },
+          {
+            "ms": 3.2,
+            "functionName": "find",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/space-separated-tokens-Urhnlkoj.js?v=c41b0380",
+            "lineNumber": 1278,
+            "columnNumber": 13
+          },
+          {
+            "ms": 3.2,
+            "functionName": "createProperty$1",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 945,
+            "columnNumber": 25
+          }
+        ]
+      }
+    },
+    {
+      "action": "moveToHistory",
+      "measurement": {
+        "twoFramesMs": 239,
+        "commit": {
+          "name": "history-reparent",
+          "commitMs": 178.69999998807907
+        },
+        "longTasks": [234]
+      },
+      "profile": {
+        "durationMs": 550.827,
+        "self": [
+          {
+            "ms": 256.8,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 47.3,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/wasm-BuFdVjIx.js?v=c41b0380",
+            "line": 1
+          },
+          {
+            "ms": 16.7,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 11.7,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 9,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7531
+          },
+          {
+            "ms": 7.4,
+            "name": "appendChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.3,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.8,
+            "name": "recursivelyTraversePassiveUnmountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6136
+          },
+          {
+            "ms": 4.7,
+            "name": "createElement",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.4,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 1860
+          },
+          {
+            "ms": 3.8,
+            "name": "readNavigatorPlatformInfo",
+            "url": "/packages/ui/src/lib/keyboardShortcuts.ts",
+            "line": 1
+          },
+          {
+            "ms": 3.2,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/class-variance-authority.js?v=df8aa83f",
+            "line": 19
+          },
+          {
+            "ms": 3.2,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 10151
+          },
+          {
+            "ms": 3.2,
+            "name": "Tooltip",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "line": 10066
+          },
+          {
+            "ms": 3.2,
+            "name": "updateProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7912
+          },
+          {
+            "ms": 3.2,
+            "name": "useContext2",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 79
+          },
+          {
+            "ms": 3.2,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 179
+          },
+          {
+            "ms": 3.2,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2602
+          },
+          {
+            "ms": 3.2,
+            "name": "setValueForStyle",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 1077
+          },
+          {
+            "ms": 3.1,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/class-variance-authority.js?v=df8aa83f",
+            "line": 19
+          },
+          {
+            "ms": 3.1,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6522
+          },
+          {
+            "ms": 3,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4789
+          },
+          {
+            "ms": 2.7,
+            "name": "compile",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 23041
+          },
+          {
+            "ms": 2.5,
+            "name": "removeChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 2.4,
+            "name": "popUntilTagNamePopped",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 4434
+          },
+          {
+            "ms": 1.9,
+            "name": "finishQueueingConcurrentUpdates",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 1739
+          },
+          {
+            "ms": 1.7,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 22
+          },
+          {
+            "ms": 1.7,
+            "name": "element$5",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 634
+          },
+          {
+            "ms": 1.7,
+            "name": "recursivelyTraversePassiveUnmountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6136
+          },
+          {
+            "ms": 1.7,
+            "name": "exports.createElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "line": 249
+          },
+          {
+            "ms": 1.7,
+            "name": "commitHookEffectListMount",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5102
+          },
+          {
+            "ms": 1.7,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 1.7,
+            "name": "factory",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/lib-LjX52fiR.js?v=c41b0380",
+            "line": 393
+          },
+          {
+            "ms": 1.7,
+            "name": "onsuccessfulcheck",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 22454
+          },
+          {
+            "ms": 1.7,
+            "name": "updateReducerImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 3038
+          },
+          {
+            "ms": 1.7,
+            "name": "creator",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 22724
+          },
+          {
+            "ms": 1.7,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 1.7,
+            "name": "exports.cloneElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "line": 221
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-t8Qwt55I.js?v=c41b0380",
+            "line": 23
+          },
+          {
+            "ms": 1.6,
+            "name": "start",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 22532
+          },
+          {
+            "ms": 1.6,
+            "name": "setRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "line": 17
+          },
+          {
+            "ms": 1.6,
+            "name": "checkScheduledUpdateOrContext",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4558
+          },
+          {
+            "ms": 1.6,
+            "name": "atob",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.6,
+            "name": "one$3",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 550
+          },
+          {
+            "ms": 1.6,
+            "name": "all",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 10620
+          },
+          {
+            "ms": 1.6,
+            "name": "commitHookEffectListMount",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5102
+          },
+          {
+            "ms": 1.6,
+            "name": "createFiberFromTypeAndProps",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 1839
+          },
+          {
+            "ms": 1.6,
+            "name": "propertyValuePrimitive",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 9023
+          },
+          {
+            "ms": 1.6,
+            "name": "trimCodeFenceTrailingNewlines",
+            "url": "/packages/ui/src/components/ai-elements/message.tsx",
+            "line": 601
+          },
+          {
+            "ms": 1.6,
+            "name": "isValidElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "line": 74
+          },
+          {
+            "ms": 1.6,
+            "name": "readContextForConsumer",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2175
+          },
+          {
+            "ms": 1.6,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6522
+          },
+          {
+            "ms": 1.6,
+            "name": "setInitialProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7754
+          },
+          {
+            "ms": 1.6,
+            "name": "reconcileChildFibersImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2533
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/class-variance-authority.js?v=df8aa83f",
+            "line": 30
+          }
+        ],
+        "inclusive": [
+          {
+            "ms": 550.5,
+            "name": "(root)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 256.8,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 221.9,
+            "name": "performWorkUntilDeadline",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 79
+          },
+          {
+            "ms": 220.3,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6263
+          },
+          {
+            "ms": 220.3,
+            "name": "performWorkOnRootViaSchedulerTask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7060
+          },
+          {
+            "ms": 149.3,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6522
+          },
+          {
+            "ms": 149.3,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6474
+          },
+          {
+            "ms": 91.8,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4612
+          },
+          {
+            "ms": 71,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6708
+          },
+          {
+            "ms": 71,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6342
+          },
+          {
+            "ms": 63.9,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4253
+          },
+          {
+            "ms": 60.6,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 54.4,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4789
+          },
+          {
+            "ms": 53.6,
+            "name": "performSyncWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7071
+          },
+          {
+            "ms": 53.6,
+            "name": "flushSyncWorkAcrossRoots_impl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6980
+          },
+          {
+            "ms": 53.6,
+            "name": "flushSpawnedWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6827
+          },
+          {
+            "ms": 50.5,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/wasm-BuFdVjIx.js?v=c41b0380",
+            "line": 1
+          },
+          {
+            "ms": 39.5,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6263
+          },
+          {
+            "ms": 39.2,
+            "name": "setInitialProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7754
+          },
+          {
+            "ms": 36,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 7531
+          },
+          {
+            "ms": 31.2,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6474
+          },
+          {
+            "ms": 29.3,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6522
+          },
+          {
+            "ms": 26.1,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4612
+          },
+          {
+            "ms": 25.5,
+            "name": "Ct",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 31463
+          },
+          {
+            "ms": 24.7,
+            "name": "updateForwardRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 4082
+          },
+          {
+            "ms": 20.3,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 2871
+          },
+          {
+            "ms": 16.7,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 14.1,
+            "name": "flushPassiveEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6870
+          },
+          {
+            "ms": 14.1,
+            "name": "flushPendingEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 6864
+          },
+          {
+            "ms": 13.9,
+            "name": "fromMarkdown",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 22911
+          },
+          {
+            "ms": 13.9,
+            "name": "parser",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 23837
+          },
+          {
+            "ms": 13.9,
+            "name": "parse",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "line": 27420
+          },
+          {
+            "ms": 12.8,
+            "name": "setValueForAttribute",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 864
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          },
+          {
+            "ms": 12.3,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5600
+          },
+          {
+            "ms": 12.3,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "line": 5636
+          }
+        ],
+        "groupedSelf": [
+          {
+            "ms": 256.8,
+            "functionName": "(program)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 47.3,
+            "functionName": "",
+            "scriptId": "2098",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/wasm-BuFdVjIx.js?v=c41b0380",
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          {
+            "ms": 19.6,
+            "functionName": "setAttribute",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 16.7,
+            "functionName": "(garbage collector)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 9,
+            "functionName": "appendChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 9,
+            "functionName": "setProp",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 7530,
+            "columnNumber": 17
+          },
+          {
+            "ms": 6.5,
+            "functionName": "recursivelyTraversePassiveUnmountEffects",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 6135,
+            "columnNumber": 50
+          },
+          {
+            "ms": 6.4,
+            "functionName": "",
+            "scriptId": "202",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/class-variance-authority.js?v=df8aa83f",
+            "lineNumber": 18,
+            "columnNumber": 28
+          },
+          {
+            "ms": 4.8,
+            "functionName": "Tooltip",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10065,
+            "columnNumber": 14
+          },
+          {
+            "ms": 4.7,
+            "functionName": "workLoopSync",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 6521,
+            "columnNumber": 22
+          },
+          {
+            "ms": 4.7,
+            "functionName": "createElement",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 4.4,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 1859,
+            "columnNumber": 43
+          },
+          {
+            "ms": 3.8,
+            "functionName": "readNavigatorPlatformInfo",
+            "scriptId": "1964",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/keyboardShortcuts.ts",
+            "lineNumber": 0,
+            "columnNumber": 34
+          },
+          {
+            "ms": 3.3,
+            "functionName": "commitDeletionEffectsOnFiber",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5487,
+            "columnNumber": 38
+          },
+          {
+            "ms": 3.3,
+            "functionName": "commitHookEffectListMount",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5101,
+            "columnNumber": 35
+          },
+          {
+            "ms": 3.2,
+            "functionName": "useContext2",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 78,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 2601,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.2,
+            "functionName": "setValueForStyle",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 1076,
+            "columnNumber": 26
+          },
+          {
+            "ms": 3.2,
+            "functionName": "renderWithHooks",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 2870,
+            "columnNumber": 25
+          },
+          {
+            "ms": 3.2,
+            "functionName": "jsxProd",
+            "scriptId": "35",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react_jsx-runtime.js?v=93ca02a8",
+            "lineNumber": 13,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "208",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-t8Qwt55I.js?v=c41b0380",
+            "lineNumber": 22,
+            "columnNumber": 9
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 21,
+            "columnNumber": 8
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10150,
+            "columnNumber": 45
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 178,
+            "columnNumber": 43
+          },
+          {
+            "ms": 3.2,
+            "functionName": "updateProperties",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 7911,
+            "columnNumber": 26
+          },
+          {
+            "ms": 3.1,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 259,
+            "columnNumber": 38
+          },
+          {
+            "ms": 3.1,
+            "functionName": "commitMutationEffectsOnFiber",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5635,
+            "columnNumber": 38
+          },
+          {
+            "ms": 3.1,
+            "functionName": "detachFiberAfterEffects",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 5467,
+            "columnNumber": 33
+          },
+          {
+            "ms": 3,
+            "functionName": "factory",
+            "scriptId": "215",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/lib-LjX52fiR.js?v=c41b0380",
+            "lineNumber": 392,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3,
+            "functionName": "completeWork",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 4788,
+            "columnNumber": 22
+          },
+          {
+            "ms": 2.7,
+            "functionName": "compile",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23040,
+            "columnNumber": 17
+          },
+          {
+            "ms": 2.7,
+            "functionName": "readContextForConsumer",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 2174,
+            "columnNumber": 32
+          },
+          {
+            "ms": 2.7,
+            "functionName": "setRef",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 16,
+            "columnNumber": 15
+          },
+          {
+            "ms": 2.5,
+            "functionName": "removeChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 2.4,
+            "functionName": "popUntilTagNamePopped",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 4433,
+            "columnNumber": 22
+          },
+          {
+            "ms": 1.9,
+            "functionName": "finishQueueingConcurrentUpdates",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 1738,
+            "columnNumber": 41
+          },
+          {
+            "ms": 1.7,
+            "functionName": "onsuccessfulcheck",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22453,
+            "columnNumber": 27
+          },
+          {
+            "ms": 1.7,
+            "functionName": "creator",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22723,
+            "columnNumber": 18
+          },
+          {
+            "ms": 1.7,
+            "functionName": "element$5",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 633,
+            "columnNumber": 18
+          },
+          {
+            "ms": 1.7,
+            "functionName": "exports.createElement",
+            "scriptId": "36",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "lineNumber": 248,
+            "columnNumber": 33
+          },
+          {
+            "ms": 1.7,
+            "functionName": "exports.cloneElement",
+            "scriptId": "36",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react.js?v=93ca02a8",
+            "lineNumber": 220,
+            "columnNumber": 32
+          },
+          {
+            "ms": 1.7,
+            "functionName": "updateReducerImpl",
+            "scriptId": "37",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/react-dom_client.js?v=520585cb",
+            "lineNumber": 3037,
+            "columnNumber": 27
+          },
+          {
+            "ms": 1.6,
+            "functionName": "now",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 1.6,
+            "functionName": "start",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22531,
+            "columnNumber": 18
+          },
+          {
+            "ms": 1.6,
+            "functionName": "hook",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22479,
+            "columnNumber": 15
+          }
+        ],
+        "nonReactInclusive": [
+          {
+            "ms": 50.5,
+            "functionName": "",
+            "scriptId": "2098",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/wasm-BuFdVjIx.js?v=c41b0380",
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          {
+            "ms": 25.5,
+            "functionName": "Ct",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 31462,
+            "columnNumber": 23
+          },
+          {
+            "ms": 13.9,
+            "functionName": "fromMarkdown",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22910,
+            "columnNumber": 21
+          },
+          {
+            "ms": 13.9,
+            "functionName": "parser",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23836,
+            "columnNumber": 16
+          },
+          {
+            "ms": 13.9,
+            "functionName": "parse",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27419,
+            "columnNumber": 6
+          },
+          {
+            "ms": 12.8,
+            "functionName": "Tooltip",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10065,
+            "columnNumber": 14
+          },
+          {
+            "ms": 10.4,
+            "functionName": "wrapped",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 25943,
+            "columnNumber": 17
+          },
+          {
+            "ms": 10.4,
+            "functionName": "next",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 25881,
+            "columnNumber": 15
+          },
+          {
+            "ms": 10.4,
+            "functionName": "run",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 25869,
+            "columnNumber": 13
+          },
+          {
+            "ms": 10.4,
+            "functionName": "executor",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27608,
+            "columnNumber": 19
+          },
+          {
+            "ms": 10.4,
+            "functionName": "run",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27591,
+            "columnNumber": 4
+          },
+          {
+            "ms": 10.4,
+            "functionName": "runSync",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 27642,
+            "columnNumber": 8
+          },
+          {
+            "ms": 9.7,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10150,
+            "columnNumber": 45
+          },
+          {
+            "ms": 9.5,
+            "functionName": "Button",
+            "scriptId": "31",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/button.tsx",
+            "lineNumber": 35,
+            "columnNumber": 15
+          },
+          {
+            "ms": 8,
+            "functionName": "",
+            "scriptId": "202",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/class-variance-authority.js?v=df8aa83f",
+            "lineNumber": 18,
+            "columnNumber": 28
+          },
+          {
+            "ms": 6.5,
+            "functionName": "ControlHintTooltip",
+            "scriptId": "62",
+            "url": "http://127.0.0.1:5173/packages/ui/src/ControlHintTooltip.tsx",
+            "lineNumber": 16,
+            "columnNumber": 34
+          },
+          {
+            "ms": 6.4,
+            "functionName": "main",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22371,
+            "columnNumber": 14
+          },
+          {
+            "ms": 6.4,
+            "functionName": "write",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22328,
+            "columnNumber": 15
+          },
+          {
+            "ms": 6.4,
+            "functionName": "writeToChild",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 21848,
+            "columnNumber": 22
+          },
+          {
+            "ms": 6.4,
+            "functionName": "flowContinue",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 21823,
+            "columnNumber": 22
+          },
+          {
+            "ms": 6.3,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 178,
+            "columnNumber": 43
+          },
+          {
+            "ms": 5.9,
+            "functionName": "useContext2",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 78,
+            "columnNumber": 22
+          },
+          {
+            "ms": 5.9,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 21,
+            "columnNumber": 8
+          },
+          {
+            "ms": 5.9,
+            "functionName": "setRef",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 16,
+            "columnNumber": 15
+          },
+          {
+            "ms": 5.9,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 23,
+            "columnNumber": 28
+          },
+          {
+            "ms": 5.8,
+            "functionName": "raw",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 7891,
+            "columnNumber": 12
+          },
+          {
+            "ms": 5.8,
+            "functionName": "",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 8321,
+            "columnNumber": 16
+          },
+          {
+            "ms": 4.9,
+            "functionName": "isAppleKeyboardPlatform",
+            "scriptId": "1964",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/keyboardShortcuts.ts",
+            "lineNumber": 9,
+            "columnNumber": 39
+          },
+          {
+            "ms": 4.4,
+            "functionName": "",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 1859,
+            "columnNumber": 43
+          },
+          {
+            "ms": 4.3,
+            "functionName": "compile",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 23040,
+            "columnNumber": 17
+          },
+          {
+            "ms": 4.3,
+            "functionName": "TooltipPortal",
+            "scriptId": "39",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/radix-ui.js?v=08b53e2d",
+            "lineNumber": 10197,
+            "columnNumber": 20
+          },
+          {
+            "ms": 3.8,
+            "functionName": "readNavigatorPlatformInfo",
+            "scriptId": "1964",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/keyboardShortcuts.ts",
+            "lineNumber": 0,
+            "columnNumber": 34
+          },
+          {
+            "ms": 3.4,
+            "functionName": "one$3",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 549,
+            "columnNumber": 14
+          },
+          {
+            "ms": 3.4,
+            "functionName": "fromParse5",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 530,
+            "columnNumber": 19
+          },
+          {
+            "ms": 3.2,
+            "functionName": "subcontent",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 14565,
+            "columnNumber": 19
+          },
+          {
+            "ms": 3.2,
+            "functionName": "subtokenize",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 14491,
+            "columnNumber": 20
+          },
+          {
+            "ms": 3.2,
+            "functionName": "postprocess",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 22739,
+            "columnNumber": 20
+          },
+          {
+            "ms": 3.2,
+            "functionName": "TooltipContent",
+            "scriptId": "21",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/tooltip.tsx",
+            "lineNumber": 24,
+            "columnNumber": 23
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "208",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-t8Qwt55I.js?v=c41b0380",
+            "lineNumber": 22,
+            "columnNumber": 9
+          },
+          {
+            "ms": 3.2,
+            "functionName": "useId",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 128,
+            "columnNumber": 14
+          },
+          {
+            "ms": 3.1,
+            "functionName": "contentChunk",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=c41b0380",
+            "lineNumber": 13767,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.1,
+            "functionName": "",
+            "scriptId": "213",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/dist-01zISlTN.js?v=c41b0380",
+            "lineNumber": 259,
+            "columnNumber": 38
+          },
+          {
+            "ms": 3.1,
+            "functionName": "",
+            "scriptId": "233",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/createLucideIcon-z_Dy8iWU.js?v=c41b0380",
+            "lineNumber": 42,
+            "columnNumber": 48
+          },
+          {
+            "ms": 3,
+            "functionName": "factory",
+            "scriptId": "215",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/lib-LjX52fiR.js?v=c41b0380",
+            "lineNumber": 392,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3,
+            "functionName": "visit",
+            "scriptId": "215",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-AwkysJ/deps/lib-LjX52fiR.js?v=c41b0380",
+            "lineNumber": 399,
+            "columnNumber": 16
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "external": []
+}

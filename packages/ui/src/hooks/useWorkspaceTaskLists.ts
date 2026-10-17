@@ -45,6 +45,7 @@ import {
   useWorkspaceSessionsIndexItems,
 } from "@/v4/useWorkspaceSessionsIndexItems.js";
 import { resolveWorkspaceTaskVisibleLimit } from "@/lib/workspaceTaskPagination.js";
+import { buildWorkspaceTaskListScopeItems } from "@/hooks/workspaceTaskListScopeItems.js";
 
 interface WorkspaceTaskListQueryConfig {
   scope: {
@@ -120,14 +121,16 @@ async function buildWorkspaceGroupsFromSessions(params: {
     endpoints: [{ service: params.service, scopes: params.scopes }],
   });
   const map = new Map<string, WorkspaceTaskListGroupResult>();
-  for (const scope of params.scopes) {
-    const scopeKey = buildTaskWorkspaceKey(scope.workspacePath, scope.workspaceIdentity);
-    const scopeSessions = params.sessions.filter(
-      (task) => buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity) === scopeKey,
-    );
-    const scopeTaskIndexItems = taskIndexItems.filter(
-      (task) => buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity) === scopeKey,
-    );
+  for (const {
+    scope,
+    workspaceKey: scopeKey,
+    sessions: scopeSessions,
+    taskIndexItems: scopeTaskIndexItems,
+  } of buildWorkspaceTaskListScopeItems({
+    scopes: params.scopes,
+    sessions: params.sessions,
+    taskIndexItems,
+  })) {
     // "workspace" 视图规则 = !pinned && !archived，与 "timeline" 同（matchesTaskMembership）。
     const result = buildTaskListResult({
       taskIndexItems: scopeTaskIndexItems,

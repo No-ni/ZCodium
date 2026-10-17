@@ -2,6 +2,7 @@ import type {
   AssistantTextRow,
   ConversationRow,
   TurnHeaderRow,
+  TurnWorkSegment,
   UserInputRow,
 } from "@zcode/shared/zcode-protocol-v4";
 import {
@@ -15,6 +16,8 @@ import type { AssistantWorkRow, ConversationTurnFlowItem } from "@/v4/conversati
 export interface ConversationTurnWorkStatus {
   state: "running" | "completed" | "interrupted";
   durationMs?: number;
+  /** UI 派生的运行计时锚点；已结束/固定工时不设置，不属于协议事实。 */
+  liveStartedAt?: number;
 }
 
 export interface ConversationTurnWorkSegment {
@@ -96,19 +99,14 @@ function splitVisualWorkSegments(rows: readonly ConversationRow[]): DraftVisualW
 
 function resolveSegmentDurationMs(options: {
   header?: TurnHeaderRow;
-  segmentIndex: number;
   triggerRow?: UserInputRow;
   nextTriggerRow?: UserInputRow;
   segmentRunning: boolean;
   segmentCount: number;
   nowMs?: number;
+  fact?: TurnWorkSegment;
 }): number | undefined {
-  const fact =
-    (options.triggerRow?.entityId
-      ? options.header?.workSegments?.find(
-          (candidate) => candidate.triggerEntityId === options.triggerRow?.entityId,
-        )
-      : undefined) ?? options.header?.workSegments?.[options.segmentIndex];
+  const fact = options.fact;
   if (fact?.activeMs !== undefined) return fact.activeMs;
   if (fact?.endedAt !== undefined) return Math.max(0, fact.endedAt - fact.startedAt);
   if (fact && options.segmentRunning && options.nowMs !== undefined) {
@@ -132,6 +130,23 @@ function resolveSegmentDurationMs(options: {
   return undefined;
 }
 
+function resolveSegmentLiveStartedAt(
+  options: Parameters<typeof resolveSegmentDurationMs>[0],
+): number | undefined {
+  if (!options.segmentRunning) return undefined;
+  const fact = options.fact;
+  if (fact)
+    return fact.activeMs === undefined && fact.endedAt === undefined ? fact.startedAt : undefined;
+  if (options.segmentCount === 1) {
+    return options.header?.activeMs === undefined && options.header?.endedAt === undefined
+      ? options.header?.startedAt
+      : undefined;
+  }
+  if (options.nextTriggerRow?.createdAt !== undefined || options.header?.endedAt !== undefined)
+    return undefined;
+  return options.triggerRow?.createdAt ?? options.header?.startedAt;
+}
+
 export function buildConversationTurnWorkSegments(options: {
   key: string;
   header?: TurnHeaderRow;
@@ -149,6 +164,15 @@ export function buildConversationTurnWorkSegments(options: {
 }): ConversationTurnWorkSegment[] {
   const visualDrafts = splitVisualWorkSegments(options.orderedRows);
   const tailRowIds = new Set(options.assistantTailRows.map((row) => row.rowId));
+  // guide 增长后逐段 find 会平方级扫描工时事实；本次派生只索引一次，
+  // 保留 find 的首个命中和旧快照的位置回退，工时与时钟锚点共用同一事实。
+  const factByTrigger = new Map<string, TurnWorkSegment>();
+  if (visualDrafts.length > 1) {
+    for (const fact of options.header?.workSegments ?? []) {
+      const trigger = fact.triggerEntityId;
+      if (trigger !== undefined && !factByTrigger.has(trigger)) factByTrigger.set(trigger, fact);
+    }
+  }
   return visualDrafts.map((segment, segmentIndex) => {
     const segmentAssistantRows = segment.orderedRows.filter(isAssistantWorkRow);
     const segmentTailRows = segmentAssistantRows.filter((row) => tailRowIds.has(row.rowId));
@@ -178,15 +202,19 @@ export function buildConversationTurnWorkSegments(options: {
     const segmentFollowingRows =
       visibleAssistantIndex < 0 ? [] : segmentFlowRows.slice(visibleAssistantIndex + 1);
     const segmentRunning = segmentIndex === visualDrafts.length - 1 && options.isRunning;
-    const segmentDurationMs = resolveSegmentDurationMs({
+    const durationOptions = {
       header: options.header,
-      segmentIndex,
+      fact:
+        (segment.triggerRow?.entityId
+          ? factByTrigger.get(segment.triggerRow.entityId)
+          : undefined) ?? options.header?.workSegments?.[segmentIndex],
       triggerRow: segment.triggerRow,
       nextTriggerRow: visualDrafts[segmentIndex + 1]?.triggerRow,
       segmentRunning,
       segmentCount: visualDrafts.length,
       nowMs: options.nowMs,
-    });
+    };
+    const segmentDurationMs = resolveSegmentDurationMs(durationOptions);
     const segmentWorkStatus = resolveConversationTurnWorkStatus(
       options.header,
       segmentFlowRows,
@@ -194,6 +222,13 @@ export function buildConversationTurnWorkSegments(options: {
       segmentDurationMs,
       options.isInterrupted && segmentIndex === visualDrafts.length - 1,
     );
+    // 只对随时钟增长的运行段设置 UI 锚点；activeMs/endedAt 的固定事实保持不变。
+    if (segmentWorkStatus?.state === "running") {
+      // 不能用当前 duration 的差分判断时钟：远端 startedAt 领先本机时，clamp 为 0
+      // 会误判成固定工时。直接使用与 duration 相同的权威时间字段选择计时锚点。
+      const liveStartedAt = resolveSegmentLiveStartedAt(durationOptions);
+      if (liveStartedAt !== undefined) segmentWorkStatus.liveStartedAt = liveStartedAt;
+    }
     const segmentKey =
       segmentIndex === 0
         ? options.key

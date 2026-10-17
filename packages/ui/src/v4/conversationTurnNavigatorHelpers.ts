@@ -1,4 +1,5 @@
 import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
+import type { ConversationTurnNavigatorCache } from "./conversationTurnNavigatorCache.js";
 
 export type ConversationTurnNavigatorAssistantPreviewKind = "empty" | "running" | "text";
 
@@ -13,7 +14,7 @@ export interface ConversationTurnNavigatorItem {
   isRunning: boolean;
 }
 
-interface BuildConversationTurnNavigatorItemsOptions {
+export interface BuildConversationTurnNavigatorItemsOptions {
   assistantEmptyPreview: string;
   assistantRunningPreview: string;
   userFallbackPreview: string;
@@ -69,6 +70,7 @@ interface ResolveConversationTurnNavigatorVisualFocusItemIndexOptions {
 const CONVERSATION_TURN_NAVIGATOR_MIN_WIDTH_PX = 864;
 
 export type ConversationTurnNavigatorHydrationResult =
+  | { status: "unsupported"; logEpoch: string }
   | { status: "hydrated"; logEpoch: string }
   | { status: "not-enough-queries"; logEpoch: string }
   | { status: "retryable-failure"; logEpoch: string }
@@ -169,6 +171,7 @@ function buildAssistantPreview(
 export function buildConversationTurnNavigatorItems(
   units: readonly ConversationTurnRenderUnit[],
   options: BuildConversationTurnNavigatorItemsOptions,
+  cache?: ConversationTurnNavigatorCache,
 ): ConversationTurnNavigatorItem[] {
   const resolvedOptions: Required<BuildConversationTurnNavigatorItemsOptions> = {
     ...options,
@@ -177,37 +180,46 @@ export function buildConversationTurnNavigatorItems(
   };
 
   return units.flatMap((unit, unitIndex) => {
-    // provider/store 的物理 role=user 还包含 background/goal/mailbox
-    // 等系统上下文；目录代表用户主动 query，只能使用投影明确裁决的 realUser。
-    const realUserInputs = unit.visibleUserInputs.filter((row) => row.origin === "realUser");
-    if (unit.timelineOnly || realUserInputs.length === 0) {
-      return [];
-    }
-
-    // 导航项按 query 拆分，但 hover 的 assistant 摘要保持旧产品语义：
-    // 取所属 product turn 的文本结果，不在 renderer 猜测 guide 回复分段。
-    const { assistantPreview, assistantPreviewKind } = buildAssistantPreview(unit, resolvedOptions);
-    return realUserInputs.map((row, queryIndex) => ({
-      // 不能以 product turn 为目录粒度，并把同一 turn 的 steer query
-      // 全部拼进一个 preview。目录真正导航的是用户可见 query，必须用稳定 row
-      // 身份逐条建项，turnId 只负责把虚拟列表先定位到所属容器。
-      key: `${unit.key}:query:${row.entityId ?? row.rowId}`,
-      turnId: unit.turnId,
-      unitIndex,
-      rowId: row.rowId,
-      userPreview: buildPreviewText({
-        texts: [row.text],
-        fallback: resolvedOptions.userFallbackPreview,
-        maxPreviewChars: resolvedOptions.maxPreviewChars,
-        maxPreviewParagraphs: resolvedOptions.maxPreviewParagraphs,
-      }),
-      assistantPreview,
-      assistantPreviewKind,
-      // 同一 running product turn 可能已有多个已结束 guide segment；只有最后一条
-      // query 仍代表当前工作，避免所有旧 query 一起呈现 running 强调。
-      isRunning: unit.isRunning && queryIndex === realUserInputs.length - 1,
-    }));
+    const build = () => buildUnitNavigatorItems(unit, unitIndex, resolvedOptions);
+    return cache?.materialize(unit, unitIndex, resolvedOptions, build) ?? build();
   });
+}
+
+function buildUnitNavigatorItems(
+  unit: ConversationTurnRenderUnit,
+  unitIndex: number,
+  resolvedOptions: Required<BuildConversationTurnNavigatorItemsOptions>,
+): ConversationTurnNavigatorItem[] {
+  // provider/store 的物理 role=user 还包含 background/goal/mailbox
+  // 等系统上下文；目录代表用户主动 query，只能使用投影明确裁决的 realUser。
+  const realUserInputs = unit.visibleUserInputs.filter((row) => row.origin === "realUser");
+  if (unit.timelineOnly || realUserInputs.length === 0) {
+    return [];
+  }
+
+  // 导航项按 query 拆分，但 hover 的 assistant 摘要保持旧产品语义：
+  // 取所属 product turn 的文本结果，不在 renderer 猜测 guide 回复分段。
+  const { assistantPreview, assistantPreviewKind } = buildAssistantPreview(unit, resolvedOptions);
+  return realUserInputs.map((row, queryIndex) => ({
+    // 不能以 product turn 为目录粒度，并把同一 turn 的 steer query
+    // 全部拼进一个 preview。目录真正导航的是用户可见 query，必须用稳定 row
+    // 身份逐条建项，turnId 只负责把虚拟列表先定位到所属容器。
+    key: `${unit.key}:query:${row.entityId ?? row.rowId}`,
+    turnId: unit.turnId,
+    unitIndex,
+    rowId: row.rowId,
+    userPreview: buildPreviewText({
+      texts: [row.text],
+      fallback: resolvedOptions.userFallbackPreview,
+      maxPreviewChars: resolvedOptions.maxPreviewChars,
+      maxPreviewParagraphs: resolvedOptions.maxPreviewParagraphs,
+    }),
+    assistantPreview,
+    assistantPreviewKind,
+    // 同一 running product turn 可能已有多个已结束 guide segment；只有最后一条
+    // query 仍代表当前工作，避免所有旧 query 一起呈现 running 强调。
+    isRunning: unit.isRunning && queryIndex === realUserInputs.length - 1,
+  }));
 }
 
 function resolveFiniteNonNegative(value: number): number {

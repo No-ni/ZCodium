@@ -63,21 +63,6 @@ function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-/**
- * 字节 → base64。office 查看器只吃 `FileBinaryPreview.dataBase64`，所以这条回程路是必要的。
- *
- * 分段（8 KiB）而不是 `String.fromCharCode(...bytes)`：后者在 20 MiB 上会以
- * "Maximum call stack size exceeded" 炸掉——展开成 2000 万个实参。
- */
-export function encodeBytesToBase64(bytes: Uint8Array<ArrayBuffer>): string {
-  const step = 0x2000;
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += step) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + step));
-  }
-  return btoa(binary);
-}
-
 export function useWorkflowRunArtifactBytes(options: {
   sessionId: string;
   runId: string;

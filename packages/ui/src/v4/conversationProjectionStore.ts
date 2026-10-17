@@ -6,7 +6,9 @@
 //   3. base 与状态同生共死——断档时状态未被污染，携当前水位重订阅，由服务端裁决 resume/snapshot。
 // 除 optimistic overlay（pending 命令展示）外，本 store 不产生任何 conversation 事实。
 import {
+  type ConversationTurnDirectoryEntry,
   applyConversationDeltas,
+  conversationRowLowerBound,
   isDeterministicContentFault,
   parseConversationTopic,
   PROTOCOL_V4_LIMITS,
@@ -107,6 +109,8 @@ export interface OptimisticCommand {
 }
 
 export interface ConversationStoreState {
+  turnDirectory: readonly ConversationTurnDirectoryEntry[] | null;
+  turnDirectoryLoading: boolean;
   status: ConversationStoreStatus;
   snapshot: ConversationSnapshot | null;
   subscriptionId: string | null;
@@ -141,6 +145,8 @@ export interface SessionOpenRendererTiming {
 }
 
 const INITIAL_STATE: ConversationStoreState = {
+  turnDirectory: null,
+  turnDirectoryLoading: false,
   status: "connecting",
   snapshot: null,
   subscriptionId: null,
@@ -181,15 +187,37 @@ function shouldInvalidatePlanDirectory(frame: ConversationTopicFrame): boolean {
  * - snapshot 整体替换 → true（全新状态，终态作废）；
  * - row.removed → true（rewind/分支裁剪改变可导航 query 集合）；
  * - row.appended/row.upserted 命中 realUser userInput → true（新增/变更用户问题）；
+ * - 正文外 query 所属轮的终态 → true，避免目录遗留 running/旧摘要；
  * - 其余 delta（assistant text、tool、reasoning 流式）→ false，不触发重探测。
  */
-function shouldInvalidateTurnNavigatorDirectory(frame: ConversationTopicFrame): boolean {
+function shouldInvalidateTurnNavigatorDirectory(
+  frame: ConversationTopicFrame,
+  rows: readonly ConversationRow[],
+  directory: readonly ConversationTurnDirectoryEntry[] | null,
+  querying: boolean,
+): boolean {
   if (frame.payload.kind === "snapshot") return true;
   return frame.payload.deltas.some((delta) => {
     if (delta.op === "row.removed") return true;
     if (delta.op !== "row.appended" && delta.op !== "row.upserted") return false;
     const row = delta.row;
-    return row.kind === "userInput" && row.origin === "realUser";
+    if (row.kind === "userInput" && row.origin === "realUser") return true;
+    const terminal =
+      (row.kind === "turnHeader" && row.state !== "running") ||
+      (row.kind === "assistantText" && row.state !== "streaming");
+    if (!terminal) return false;
+    // 长轮次的 query 可落在 cold snapshot 尾窗之外，没有 loaded item 覆盖目录。
+    // 只在该轮终态更新时失效；不能因为每个 token 而重查完整摘要目录。
+    if (directory) {
+      return directory.some(
+        (entry) =>
+          entry.turnId === row.turnId &&
+          rows[conversationRowLowerBound(rows, entry.rowId)]?.rowId !== entry.rowId,
+      );
+    }
+    // 首次查询尚不知道全部 query；尾窗有同轮 guide 也不能排除更早的未加载问题。
+    // 终态保守失效，避免旧摘要提交；普通 token 不走此分支。
+    return querying;
   });
 }
 
@@ -676,6 +704,7 @@ export class ConversationProjectionStore {
       // 规则 1：整体替换；行对象只按值复用旧引用，不合并任何旧业务字段。
       this.setState({
         snapshot,
+        turnDirectory: null,
         planDirectoryRevision: this.state.planDirectoryRevision + 1,
         // snapshot 整体替换后 real-user query 集合可能已变，终态缓存必须失效。
         turnNavigatorDirectoryRevision: this.state.turnNavigatorDirectoryRevision + 1,
@@ -755,9 +784,15 @@ export class ConversationProjectionStore {
         : {}),
       // real-user query 增删（row.appended/row.upserted 命中 realUser userInput，
       // 或 row.removed 截断分支）递增导航目录 revision，使终态缓存失效允许重新探测。
-      ...(shouldInvalidateTurnNavigatorDirectory(frame)
+      ...(shouldInvalidateTurnNavigatorDirectory(
+        frame,
+        next.rows.window,
+        this.state.turnDirectory,
+        this.directoryFlight !== null,
+      )
         ? {
             turnNavigatorDirectoryRevision: this.state.turnNavigatorDirectoryRevision + 1,
+            turnDirectory: null,
           }
         : {}),
     });
@@ -802,17 +837,22 @@ export class ConversationProjectionStore {
     }
     if (shareIds.size === 0 && rememberIds.size === 0) return snapshot;
     let window: ConversationRow[] | null = null;
-    snapshot.rows.window.forEach((row, index) => {
-      if (shareIds.has(row.rowId)) {
+    // 每帧通常只触及尾部一两行。协议保证 rowId 有序，只定位最终仍存在的受影响行，
+    // 避免结构共享再次扫描整个历史；同帧 upsert + delta 仍以最终值执行深共享。
+    for (const rowId of new Set([...shareIds, ...rememberIds])) {
+      const index = conversationRowLowerBound(snapshot.rows.window, rowId);
+      const row = snapshot.rows.window[index];
+      if (row?.rowId !== rowId) continue;
+      if (shareIds.has(rowId)) {
         const shared = this.rowPool.shareRow(this.topic, row);
         if (shared !== row) {
           window ??= [...snapshot.rows.window];
           window[index] = shared;
         }
-      } else if (rememberIds.has(row.rowId)) {
+      } else {
         this.rowPool.remember(this.topic, row);
       }
-    });
+    }
     return window === null ? snapshot : { ...snapshot, rows: { ...snapshot.rows, window } };
   }
 
@@ -1043,7 +1083,17 @@ export class ConversationProjectionStore {
    * - 合并以 rowId 为键：与订阅流的 row.upserted/removed 天然一致，
    *   在途期间到达的 delta 帧不受影响（它们只动 ≥ 窗口首行的行）。
    */
-  async loadOlder(limit: number = PROTOCOL_V4_LIMITS.snapshotTailWindowRows): Promise<void> {
+  private olderFlight: Promise<void> | null = null;
+  loadOlder(limit: number = PROTOCOL_V4_LIMITS.snapshotTailWindowRows): Promise<void> {
+    if (this.olderFlight) return this.olderFlight;
+    const flight = this.fetchOlder(limit).finally(() => {
+      if (this.olderFlight === flight) this.olderFlight = null;
+    });
+    this.olderFlight = flight;
+    return flight;
+  }
+
+  private async fetchOlder(limit: number): Promise<void> {
     if (this.closed || this.state.loadingOlder) return;
     const snapshot = this.state.snapshot;
     if (!hasOlderRows(snapshot) || !snapshot) return;
@@ -1082,6 +1132,95 @@ export class ConversationProjectionStore {
     } finally {
       if (!this.closed) this.setState({ loadingOlder: false });
     }
+  }
+
+  private directoryFlight: {
+    logEpoch: string | undefined;
+    revision: number;
+    promise: Promise<ConversationTurnNavigatorHydrationResult>;
+  } | null = null;
+  loadTurnDirectory(): Promise<ConversationTurnNavigatorHydrationResult> {
+    const logEpoch = this.state.snapshot?.logEpoch;
+    const revision = this.state.turnNavigatorDirectoryRevision;
+    const previous = this.directoryFlight;
+    if (previous) {
+      if (previous.logEpoch === logEpoch && previous.revision === revision) return previous.promise;
+      // 同 epoch rewind 也会换 revision；新调用不得收到旧 flight 的 stale 作为终态。
+      // 等旧请求释放后再查当前代，不并发堆积请求，也不依赖 UI 的下一次渲染/定时器。
+      return previous.promise.then(() => this.loadTurnDirectory());
+    }
+    const promise = this.fetchTurnDirectory().finally(() => {
+      if (this.directoryFlight?.promise === promise) this.directoryFlight = null;
+    });
+    this.directoryFlight = { logEpoch, revision, promise };
+    return promise;
+  }
+
+  private async fetchTurnDirectory(): Promise<ConversationTurnNavigatorHydrationResult> {
+    const initial = this.state.snapshot;
+    const sessionId = parseConversationTopic(this.topic);
+    const logEpoch = initial?.logEpoch ?? "unknown";
+    if (!initial || !sessionId || this.closed) return { status: "stale", logEpoch };
+    if (!this.transport.turnDirectory) return { status: "unsupported", logEpoch };
+    const revision = this.state.turnNavigatorDirectoryRevision;
+    const entries: ConversationTurnDirectoryEntry[][] = [];
+    let beforeRowId: number | undefined;
+    this.setState({ turnDirectoryLoading: true });
+    try {
+      while (!this.closed) {
+        const result = await this.transport.turnDirectory({
+          sessionId,
+          beforeRowId,
+          limit: PROTOCOL_V4_LIMITS.rowsRangeMaxLimit,
+        });
+        if (
+          this.closed ||
+          this.state.snapshot?.logEpoch !== logEpoch ||
+          result.atLogEpoch !== logEpoch ||
+          this.state.turnNavigatorDirectoryRevision !== revision ||
+          result.atSeq > this.state.snapshot.seq
+        )
+          return { status: "stale", logEpoch };
+        const first = result.entries[0]?.rowId;
+        if (
+          result.hasMore &&
+          (first === undefined || (beforeRowId !== undefined && first >= beforeRowId))
+        )
+          return { status: "retryable-failure", logEpoch };
+        entries.push(result.entries);
+        if (!result.hasMore) {
+          const directory = entries.reverse().flat();
+          this.setState({ turnDirectory: directory });
+          return { status: directory.length < 2 ? "not-enough-queries" : "hydrated", logEpoch };
+        }
+        beforeRowId = first;
+      }
+      return { status: "stale", logEpoch };
+    } catch (error) {
+      logger.warn("[v4-store] 问题摘要目录查询失败", { error: String(error) });
+      return { status: "retryable-failure", logEpoch };
+    } finally {
+      if (!this.closed) this.setState({ turnDirectoryLoading: false });
+    }
+  }
+
+  async loadThroughRow(rowId: number): Promise<boolean> {
+    const logEpoch = this.state.snapshot?.logEpoch;
+    const revision = this.state.turnNavigatorDirectoryRevision;
+    while (
+      !this.closed &&
+      this.state.snapshot?.logEpoch === logEpoch &&
+      this.state.turnNavigatorDirectoryRevision === revision
+    ) {
+      const snapshot = this.state.snapshot;
+      if (!snapshot) return false;
+      if (snapshot.rows.window.some((row) => row.rowId === rowId)) return true;
+      const before = snapshot.rows.window[0]?.rowId;
+      if (before === undefined || rowId >= before || !hasOlderRows(snapshot)) return false;
+      await this.loadOlder(PROTOCOL_V4_LIMITS.rowsRangeMaxLimit);
+      if (this.state.snapshot?.rows.window[0]?.rowId === before) return false;
+    }
+    return false;
   }
 
   /**

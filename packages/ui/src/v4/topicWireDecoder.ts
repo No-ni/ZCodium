@@ -25,6 +25,7 @@ export function createTopicWireDecoder<F extends { topic: string; subscriptionId
   onFault?: (fault: TopicWireAssemblyFault) => void,
 ): TopicWireDecoder {
   let expiryTimer: ReturnType<typeof setTimeout> | null = null;
+  let scheduledExpiryAt: number | null = null;
   const faultedRoutes = new Set<string>();
   const routeKey = (topic: string, subscriptionId: string) => `${topic}\0${subscriptionId}`;
 
@@ -61,15 +62,19 @@ export function createTopicWireDecoder<F extends { topic: string; subscriptionId
   };
 
   const scheduleExpiry = (): void => {
+    const nextExpiryAt = assembler.nextExpiryAt;
+    // 分片只推进组装，不延长首片的截止点；同一到期时间复用 timer，避免每片撤销重建。
+    if (expiryTimer !== null && scheduledExpiryAt === nextExpiryAt) return;
     if (expiryTimer) {
       clearTimeout(expiryTimer);
       expiryTimer = null;
     }
-    const nextExpiryAt = assembler.nextExpiryAt;
+    scheduledExpiryAt = nextExpiryAt;
     if (nextExpiryAt === null) return;
     expiryTimer = setTimeout(
       () => {
         expiryTimer = null;
+        scheduledExpiryAt = null;
         handleEvents(assembler.expire(Date.now()));
         scheduleExpiry();
       },
@@ -107,6 +112,7 @@ export function createTopicWireDecoder<F extends { topic: string; subscriptionId
     clear() {
       faultedRoutes.clear();
       assembler.clear();
+      scheduledExpiryAt = null;
       if (expiryTimer) {
         clearTimeout(expiryTimer);
         expiryTimer = null;

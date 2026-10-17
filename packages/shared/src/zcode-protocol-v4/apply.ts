@@ -6,6 +6,7 @@ import type { StreamablePath } from "./core.js";
 import type { ConversationDelta } from "./delta.js";
 import type { ConversationRow } from "./rows.js";
 import type { ConversationSnapshot } from "./snapshot.js";
+import { conversationRowLowerBound } from "./row-range.js";
 import { applyWorkflowRunRemoved, applyWorkflowRunUpdated } from "./workflow-runs-delta.js";
 
 /**
@@ -81,9 +82,10 @@ export function applyConversationDelta(
         },
       };
     case "row.upserted": {
-      const index = snapshot.rows.window.findIndex((row) => row.rowId === delta.row.rowId);
+      // rowId 按协议严格递增；流式尾行不应每帧扫描已加载的全部历史。
+      const index = conversationRowLowerBound(snapshot.rows.window, delta.row.rowId);
       // 未加载 rowId = no-op（被逐出的行只能经 rows/range 取回）。
-      if (index === -1) return snapshot;
+      if (snapshot.rows.window[index]?.rowId !== delta.row.rowId) return snapshot;
       const window = [...snapshot.rows.window];
       window[index] = delta.row;
       return { ...snapshot, rows: { ...snapshot.rows, window } };
@@ -109,9 +111,10 @@ export function applyConversationDelta(
       };
     }
     case "row.delta": {
-      const index = snapshot.rows.window.findIndex((row) => row.rowId === delta.rowId);
+      const index = conversationRowLowerBound(snapshot.rows.window, delta.rowId);
       const target = snapshot.rows.window[index];
-      if (index === -1 || target === undefined) return snapshot;
+      // lower bound 可落在 rewind 空洞后的下一行，只有精确命中才允许追加。
+      if (target?.rowId !== delta.rowId) return snapshot;
       const window = [...snapshot.rows.window];
       window[index] = appendToRow(target, delta.path, delta.append);
       return { ...snapshot, rows: { ...snapshot.rows, window } };
@@ -145,6 +148,21 @@ export function applyConversationDeltas(
   snapshot: ConversationSnapshot,
   deltas: readonly ConversationDelta[],
 ): ConversationSnapshot {
+  // 同一帧逐条复制 rows 会把长会话变成 O(行数 × 增量数)。候选只在本函数内可写，
+  // 帧末才发布；单条/纯状态帧沿用原语义，避免无意义复制整窗。
+  const rowOperations = deltas.filter((delta) => delta.op.startsWith("row."));
+  if (rowOperations.length > 1) {
+    const accumulator = createMutableConversationSnapshotAccumulator(snapshot);
+    let changed = false;
+    for (const delta of deltas) {
+      if (delta.op === "row.upserted" && !accumulator.rowIndexById.has(delta.row.rowId)) continue;
+      if (delta.op === "row.delta" && !accumulator.rowIndexById.has(delta.rowId)) continue;
+      if (delta.op.startsWith("pluginUi.")) continue;
+      applyConversationDeltaMutable(accumulator, delta);
+      changed = true;
+    }
+    return changed ? accumulator.snapshot : snapshot;
+  }
   let current = snapshot;
   for (const delta of deltas) {
     current = applyConversationDelta(current, delta);

@@ -1,5 +1,4 @@
 import { lazy, Suspense, useMemo } from "react";
-import type { FileBinaryPreview } from "@zcode/shared";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -15,7 +14,6 @@ import {
 } from "@/app-shell/workflow-artifacts/WorkflowArtifactCards.js";
 import type { ArtifactItem } from "@/app-shell/workflow-artifacts/presets/index.js";
 import type { WorkflowRunArtifactView } from "@/hooks/useWorkflowRunArtifacts.js";
-import { encodeBytesToBase64 } from "@/hooks/useWorkflowRunArtifactBytes.js";
 import { usePdfViewerLabels, usePptxViewerLabels } from "@/hooks/usePreviewViewerLabels.js";
 import type { Theme } from "@/useTheme.js";
 
@@ -183,16 +181,13 @@ function WorkflowArtifactContent({
     return new TextDecoder().decode(bytes);
   }, [bytes, contentType]);
 
-  // office 查看器只吃 `FileBinaryPreview.dataBase64`，所以这里走一次回程编码。
-  // 只在真的是 office 文件时才算——20 MiB 的 base64 不该为一份 pdf 白算一遍。
-  const officePreview = useMemo<FileBinaryPreview | null>(() => {
+  // Office 直接消费已有字节，不再进行 bytes → base64 → bytes 的往返转换。
+  const officePreview = useMemo<ArrayBuffer | null>(() => {
     if (contentType !== DOCX_CONTENT_TYPE && contentType !== XLSX_CONTENT_TYPE) return null;
-    return {
-      path: artifact.sourcePath ?? artifact.id,
-      dataBase64: encodeBytesToBase64(bytes),
-      totalBytes: bytes.length,
-    };
-  }, [artifact.id, artifact.sourcePath, bytes, contentType]);
+    return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+      ? bytes.buffer
+      : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  }, [bytes, contentType]);
 
   // pptx 查看器吃 ArrayBuffer。`slice` 出一份独立缓冲：Uint8Array 的 buffer 可能带偏移。
   const pptxBuffer = useMemo(

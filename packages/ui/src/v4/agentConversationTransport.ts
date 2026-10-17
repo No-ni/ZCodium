@@ -1,3 +1,7 @@
+import type {
+  V4ConversationTurnDirectoryParams,
+  V4ConversationTurnDirectoryResult,
+} from "@zcode/shared/zcode-protocol-v4";
 import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
 import { getLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
 import { calibrateLocalTtftClock, localTtftNow } from "@zcode/shared";
@@ -62,6 +66,7 @@ type ConversationV4AgentService = Pick<
   | "queryConversationCommandsV4"
   | "conversationRowsRangeV4"
   | "conversationPlansV4"
+  | "conversationTurnDirectoryV4"
   | "conversationWorkflowRunEventsV4"
   | "conversationWorkflowRunsV4"
   | "conversationWorkflowRunArtifactsV4"
@@ -380,6 +385,12 @@ export function createAgentConversationTransport(
         ...(params.beforeRowId !== undefined ? { beforeRowId: params.beforeRowId } : {}),
         limit: params.limit,
       });
+    },
+    async turnDirectory(
+      params: V4ConversationTurnDirectoryParams,
+    ): Promise<V4ConversationTurnDirectoryResult> {
+      await ensureHandshake();
+      return agentService.conversationTurnDirectoryV4({ ...workspace, ...params });
     },
     async plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult> {
       await ensureHandshake();

@@ -1,3 +1,7 @@
+import {
+  v4ConversationTurnDirectoryParamsSchema,
+  type V4ConversationTurnDirectoryResult,
+} from "@zcode/shared/zcode-protocol-v4";
 import { LocalTtftRecorder } from "./local-ttft.js";
 import { localTtftNow, localTtftFactsSchema } from "@zcode/shared/zcode-protocol-v4";
 import {
@@ -1658,6 +1662,17 @@ export class ConversationV4Gateway {
         ? await this.ensureColdReadyPublisher(params.sessionId)
         : await this.hydratePublisher(params.sessionId);
     return publisher.getPlans();
+  }
+
+  async turnDirectory(rawParams: unknown): Promise<V4ConversationTurnDirectoryResult> {
+    const params = v4ConversationTurnDirectoryParamsSchema.parse(rawParams);
+    const existingReady = this.readyFlights.get(params.sessionId);
+    const publisher = existingReady
+      ? await existingReady
+      : !this.hasLiveConversation(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId)
+        : await this.hydratePublisher(params.sessionId);
+    return publisher.getTurnDirectory(params);
   }
 
   /**

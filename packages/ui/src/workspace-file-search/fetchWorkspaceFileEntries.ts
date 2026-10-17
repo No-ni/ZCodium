@@ -16,19 +16,26 @@ export async function fetchWorkspaceFileEntriesPacked(
    * 两次调用必须传同一个规则根，否则索引签名不同会重扫。
    */
   ignoreRulesRoot?: string,
+  signal?: AbortSignal,
 ): Promise<string> {
+  signal?.throwIfAborted();
   const params = { rootPath, ignoreRulesRoot };
   const totalLength = await fileService.listWorkspaceFilesLength(params);
+  signal?.throwIfAborted();
   let packed = "";
   for (let offset = 0; offset < totalLength; offset += WORKSPACE_FILE_ENTRIES_CHUNK_SIZE) {
+    signal?.throwIfAborted();
     const chunk = await fileService.listWorkspaceFilesRange({
       ...params,
       offset,
       length: WORKSPACE_FILE_ENTRIES_CHUNK_SIZE,
     });
+    // 旧请求版本仅丢弃最终结果，关闭后仍会下载整份索引；当前 RPC 收口后停止下一块。
+    signal?.throwIfAborted();
     packed += chunk;
     // 块间让出：处理下一块前先放行排队的输入/渲染任务。
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
+  signal?.throwIfAborted();
   return packed;
 }

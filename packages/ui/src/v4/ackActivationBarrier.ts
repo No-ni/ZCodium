@@ -110,12 +110,16 @@ export function createAckActivationBarrier<T extends { topic: string; subscripti
       }
       const group = pendingByTopic.get(frame.topic);
       if (!group) return;
-      const bytes = encodedBytes(frame);
+      let encodedFrameBytes: number | undefined;
       for (const pending of group) {
         if (pending.overflowReason) continue;
+        // 已失败或帧数已满的暂存必然丢弃；先判上限，避免继续为大消息分配 JSON/UTF-8。
+        // 同 topic 的多个健康 pending 仍共享一次字节计量，各自保留原容量边界。
+        const frameLimitExceeded = pending.frames.length + 1 > MAX_STAGED_FRAMES;
+        const bytes = frameLimitExceeded ? 0 : (encodedFrameBytes ??= encodedBytes(frame));
         if (
+          frameLimitExceeded ||
           bytes > MAX_STAGED_BYTES ||
-          pending.frames.length + 1 > MAX_STAGED_FRAMES ||
           pending.stagedBytes + bytes > MAX_STAGED_BYTES
         ) {
           // 通过 shift 头部来“维持上限”会留下一个看似可激活、

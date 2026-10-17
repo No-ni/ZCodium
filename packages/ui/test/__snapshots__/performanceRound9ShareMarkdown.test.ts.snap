@@ -1,0 +1,22 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`share Markdown artifact-name lookup > preserves complete pre-change results for citation and image combinations 1`] = `
+[
+  "Before Report.PDF after 图表.pdf",
+  "  ",
+  " ",
+  "\`::zcode-file-citation{path="report.pdf"}\`
+Report.PDF",
+  "\`\`\`md
+::zcode-file-citation{path="report.pdf"}
+![protected](https://example.com/a.png)
+\`\`\`
+Report.PDF",
+  "Report.PDF [remote](https://example.com/a.png "title") [protocol](//example.com/b.png) ![local](a.png) ![data](data:image/png;base64,AA)",
+  "Report.PDF Report.PDF Report.PDF",
+  "
+\`\`\`
+![unchanged](https://example.com/x.png)
+\`\`\`",
+]
+`;

@@ -61,9 +61,15 @@ export function PreviewPaneOfficeDocxContent({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const renderContainerRef = useRef<HTMLDivElement | null>(null);
+  const openBrowserUrlRef = useRef(onOpenBrowserUrl);
   const [previewClassName] = useState(createDocxPreviewClassName);
   const [fit, setFit] = useState<DocxPreviewFit | null>(null);
   const [renderState, setRenderState] = useState<"loading" | "ready" | "error">("loading");
+
+  useLayoutEffect(() => {
+    // 回调身份变化不代表文档变化；提交后更新入口，避免重复解析且不使用未提交的回调。
+    openBrowserUrlRef.current = onOpenBrowserUrl;
+  }, [onOpenBrowserUrl]);
 
   const updateFit = useCallback(() => {
     const viewport = viewportRef.current;
@@ -143,7 +149,9 @@ export function PreviewPaneOfficeDocxContent({
         pageSurfaceStyle.textContent = `.${className}-wrapper>section.${className} { box-shadow: ${DOCX_PAGE_BOX_SHADOW}; }`;
         styleContainer.append(pageSurfaceStyle);
 
-        disposeLinkSafety = installDocumentLinkSafety(renderRoot, onOpenBrowserUrl);
+        disposeLinkSafety = installDocumentLinkSafety(renderRoot, (url) => {
+          openBrowserUrlRef.current?.(url);
+        });
 
         visibleContainer.replaceChildren(renderRoot);
         setRenderState("ready");
@@ -170,7 +178,7 @@ export function PreviewPaneOfficeDocxContent({
       renderRoot.remove();
       visibleContainer.replaceChildren();
     };
-  }, [buffer, onOpenBrowserUrl, previewClassName, sourcePath]);
+  }, [buffer, previewClassName, sourcePath]);
 
   useLayoutEffect(() => {
     if (renderState !== "ready") {

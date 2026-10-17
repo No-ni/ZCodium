@@ -130,12 +130,16 @@ export function prepareCuaGroupFlowItems(
   const prepared: ConversationTurnFlowItem[] = [];
   const responseClassifications = classifyResponses(sourceItems);
   let activeGroup: ConversationCuaGroupRenderItem | null = null;
+  // 连续 CUA response 可共用一组；逐次扫描增长数组会平方累积。局部索引只随活动组存活，
+  // 输出仍按首见顺序保留数组，关闭后清空以免同一 ID 在下一组被误判为已记录。
+  const activeResponseIds = new Set<string>();
   const closeGroup = () => {
     if (activeGroup) {
       activeGroup.active = false;
       activeGroup.node.toolCall.status = "completed";
     }
     activeGroup = null;
+    activeResponseIds.clear();
   };
   const ensureGroup = (
     flowKind: ConversationCuaGroupRenderItem["flowKind"],
@@ -143,12 +147,14 @@ export function prepareCuaGroupFlowItems(
     anchorRow?: ToolCallRow,
   ): ConversationCuaGroupRenderItem => {
     if (activeGroup) {
-      if (assistantResponseId && !activeGroup.assistantResponseIds.includes(assistantResponseId)) {
+      if (assistantResponseId && !activeResponseIds.has(assistantResponseId)) {
+        activeResponseIds.add(assistantResponseId);
         activeGroup.assistantResponseIds.push(assistantResponseId);
       }
       return activeGroup;
     }
     activeGroup = buildCuaGroup([], true, flowKind, assistantResponseId, anchorRow);
+    if (assistantResponseId) activeResponseIds.add(assistantResponseId);
     prepared.push(activeGroup);
     return activeGroup;
   };

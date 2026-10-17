@@ -1,3 +1,4 @@
+import { readOfficePreview } from "@/hooks/readOfficePreview.js";
 import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
 /* eslint-disable max-lines -- PreviewPane 当前同时承载文件读取、图片与 Office 预览、markdown/code 渲染和顶部路径面包屑；后续需按 header/body 边界继续拆分。 */
 import {
@@ -24,7 +25,7 @@ import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
-import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@zcode/shared";
+import type { FileMediaPreview, FileTextSlice } from "@zcode/shared";
 import { TID_PREVIEW_PANE } from "@zcode/shared";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { usePptxFileWatch } from "@/hooks/usePptxFileWatch.js";
@@ -542,7 +543,7 @@ export function PreviewPane({
   } | null>(null);
   const [loadingPdfPreview, setLoadingPdfPreview] = useState(false);
   const [pdfViewerSource, setPdfViewerSource] = useState<PdfViewerSource | null>(null);
-  const [officePreview, setOfficePreview] = useState<FileBinaryPreview | null>(null);
+  const [officePreview, setOfficePreview] = useState<ArrayBuffer | null>(null);
   const [loadingOfficePreview, setLoadingOfficePreview] = useState(false);
   const [loadingPptxPreview, setLoadingPptxPreview] = useState(false);
   const [pptxPreviewData, setPptxPreviewData] = useState<ArrayBuffer | null>(null);
@@ -1256,8 +1257,7 @@ export function PreviewPane({
     setOfficePreview(null);
     setError(null);
 
-    void fileService
-      .readBinaryPreview({ path: source.path })
+    void readOfficePreview(fileService, source.path, () => disposed)
       .then((result) => {
         if (!disposed) {
           setOfficePreview(result);

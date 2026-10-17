@@ -157,14 +157,14 @@ export function WorkspaceFileTree({
     ignoreRulesRoot: workspaceScope,
   });
   const {
-    entries: searchIndexEntries,
+    packed: searchIndexPacked,
     error: searchIndexError,
     loaded: searchIndexLoaded,
     loading: searchIndexLoading,
     refresh: refreshSearchIndex,
   } = searchIndex;
   const searchEntries = useWorkspaceFileSearchResults({
-    entries: searchIndexEntries,
+    packed: searchIndexPacked,
     query: fileSearchQuery,
     workspacePath,
   });

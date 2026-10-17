@@ -85,19 +85,23 @@ export function buildConversationFindIndex(
   options: { projectAssistantCodeComments?: boolean } = {},
 ): ConversationFindIndex {
   const normalizedQuery = normalizeConversationFindQuery(query);
-  const targets: ConversationFindTarget[] = [];
-  units.forEach((unit, unitIndex) =>
-    addTargetsForUnit(targets, unit, unitIndex, options.projectAssistantCodeComments === true),
-  );
-
   if (!normalizedQuery) {
+    // 搜索关闭时也会随流式轮次更新调用；只计数，避免构造 target 和解析整段评论正文。
     return {
       query: normalizedQuery,
       matches: [],
       matchCount: 0,
-      loadedRowCount: targets.length,
+      loadedRowCount: units.reduce(
+        (count, unit) => count + unit.visibleUserInputs.length + unit.assistantTextRows.length,
+        0,
+      ),
     };
   }
+
+  const targets: ConversationFindTarget[] = [];
+  units.forEach((unit, unitIndex) =>
+    addTargetsForUnit(targets, unit, unitIndex, options.projectAssistantCodeComments === true),
+  );
 
   const matches: ConversationFindMatch[] = [];
   for (const target of targets) {
@@ -181,12 +185,6 @@ function normalizeSearchResultProbeText(text: string): string {
     .trim();
 }
 
-function includesProbe(sourceText: string, probe: string): boolean {
-  const normalizedSource = normalizeSearchResultProbeText(sourceText).toLocaleLowerCase();
-  const normalizedProbe = normalizeSearchResultProbeText(probe).toLocaleLowerCase();
-  return normalizedProbe.length > 0 && normalizedSource.includes(normalizedProbe);
-}
-
 export function resolveSearchResultHighlightMatch(
   index: ConversationFindIndex,
   request: ChatSearchResultHighlightRequest,
@@ -197,9 +195,18 @@ export function resolveSearchResultHighlightMatch(
 
   const snippet = request.snippet?.trim();
   if (snippet) {
-    const snippetMatch = index.matches.find((match) => includesProbe(match.sourceText, snippet));
-    if (snippetMatch) {
-      return snippetMatch;
+    const probe = normalizeSearchResultProbeText(snippet).toLocaleLowerCase();
+    // 同一正文的每个查询命中都携带 sourceText；逐命中规范化会把长正文处理放大为平方量。
+    // 仅在本次定位内跳过已检查文本，仍按原 matches 顺序返回首个命中对象。
+    const checkedSources = new Set<string>();
+    if (probe) {
+      for (const match of index.matches) {
+        if (checkedSources.has(match.sourceText)) continue;
+        checkedSources.add(match.sourceText);
+        if (normalizeSearchResultProbeText(match.sourceText).toLocaleLowerCase().includes(probe)) {
+          return match;
+        }
+      }
     }
   }
 

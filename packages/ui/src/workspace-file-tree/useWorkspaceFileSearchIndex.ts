@@ -1,15 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceFileEntry } from "@zcode/shared";
-import {
-  packWorkspaceFileEntries,
-  unpackWorkspaceFileEntries,
-} from "@zcode/shared/workspaceFileEntriesCodec";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { fetchWorkspaceFileEntriesPacked } from "@/workspace-file-search/fetchWorkspaceFileEntries.js";
 import { useWorkspaceFileSearchFilterEntries } from "@/workspace-file-search/useWorkspaceFileSearchFilter.js";
 
 interface WorkspaceFileSearchIndexState {
-  entries: WorkspaceFileEntry[];
+  packed: string;
   loading: boolean;
   loaded: boolean;
   error: Error | null;
@@ -40,7 +36,7 @@ export function useWorkspaceFileSearchIndex({
     undefined,
     "exact",
   );
-  // packed 直存（Host 返回列式字符串）：树渲染用 useMemo unpack，搜索态直透 worker。
+  // packed 直存（Host 返回列式字符串）：全量索引只在 worker 解包，树使用有界搜索结果。
   // 索引作用域 = 解包基准（workspacePath）+ 归属身份（workspace/远端会话）+ 忽略规则根。
   // 只要其中一个变了，已取回的 packed 就不再属于当前根：解包基准变了，entries 里的相对/绝对
   // 路径全部按旧根算；规则根变了，条目集合也按旧规则过滤。
@@ -51,10 +47,6 @@ export function useWorkspaceFileSearchIndex({
   // effect 清理保留为状态收敛，不再承担首帧正确性。
   const [packedState, setPackedState] = useState<{ scopeKey: string; packed: string } | null>(null);
   const packed = packedState?.scopeKey === indexScopeKey ? packedState.packed : "";
-  const entries = useMemo<WorkspaceFileEntry[]>(
-    () => unpackWorkspaceFileEntries(packed, workspacePath),
-    [packed, workspacePath],
-  );
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -77,37 +69,46 @@ export function useWorkspaceFileSearchIndex({
 
   useEffect(() => {
     if (!enabled) {
+      setLoading(false);
       return;
     }
 
+    const controller = new AbortController();
     const currentVersion = requestVersionRef.current + 1;
     requestVersionRef.current = currentVersion;
     setLoading(true);
     setError(null);
 
-    void fetchWorkspaceFileEntriesPacked(fileService, workspacePath, ignoreRulesRoot)
+    void fetchWorkspaceFileEntriesPacked(
+      fileService,
+      workspacePath,
+      ignoreRulesRoot,
+      controller.signal,
+    )
       .then((result) => {
-        if (requestVersionRef.current !== currentVersion) {
+        if (controller.signal.aborted || requestVersionRef.current !== currentVersion) {
           return;
         }
         setPackedState({ scopeKey: indexScopeKey, packed: result });
         setLoaded(true);
       })
       .catch((nextError) => {
-        if (requestVersionRef.current !== currentVersion) {
+        if (controller.signal.aborted || requestVersionRef.current !== currentVersion) {
           return;
         }
         setError(nextError instanceof Error ? nextError : new Error(String(nextError)));
       })
       .finally(() => {
-        if (requestVersionRef.current === currentVersion) {
+        if (!controller.signal.aborted && requestVersionRef.current === currentVersion) {
           setLoading(false);
         }
       });
-  }, [enabled, fileService, ignoreRulesRoot, refreshVersion, workspacePath]);
+    // 不再发送已关闭或过期 scope 的剩余分块；正在执行的 RPC 仍按原服务契约收口。
+    return () => controller.abort();
+  }, [enabled, fileService, ignoreRulesRoot, indexScopeKey, refreshVersion, workspacePath]);
 
   return {
-    entries,
+    packed,
     loading,
     loaded,
     error,
@@ -116,19 +117,17 @@ export function useWorkspaceFileSearchIndex({
 }
 
 export function useWorkspaceFileSearchResults({
-  entries,
+  packed,
   query,
   workspacePath,
 }: {
-  entries: WorkspaceFileEntry[];
+  packed: string;
   query: string;
   workspacePath: string;
 }): WorkspaceFileEntry[] {
-  // 打分在 Web Worker 执行（与 @ 文件候选共用同一过滤语义与降级路径）。
-  // 入参是树已解包的 entries（渲染复用），这里重新 pack 一次（~31ms@37 万）
-  // 交给 worker——避免调用方为搜索单独维护一份 packed 状态。
+  // 文件树只展示 Worker 返回的有界结果，完整索引曾在主线程解包再打包。
+  // 直接透传 Host packed，避免每次索引更新都重复构建完整 entries 及编码字符串。
   // requireQuery: true 保持"空 query 不出结果"的文件树搜索行为。
-  const packed = useMemo(() => packWorkspaceFileEntries(entries), [entries]);
   const { items } = useWorkspaceFileSearchFilterEntries(
     packed,
     query,

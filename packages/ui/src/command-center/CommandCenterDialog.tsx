@@ -1,7 +1,6 @@
 /* eslint-disable max-lines -- 聚合命令、任务、文件三类搜索结果，后续可按 result section 拆分。 */
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { unpackWorkspaceFileEntries } from "@zcode/shared/workspaceFileEntriesCodec";
-import { fetchWorkspaceFileEntriesPacked } from "@/workspace-file-search/fetchWorkspaceFileEntries.js";
+import { useCommandCenterFileSearch } from "@/hooks/useCommandCenterFileSearch.js";
 import { Command as CommandPrimitive } from "cmdk";
 import {
   ChevronDownIcon,
@@ -26,7 +25,6 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { toast } from "@/components/ui/toast.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
-import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { resolveRecentChangeDisplayPath } from "@/lib/recentChangeDisplayPath.js";
@@ -58,11 +56,8 @@ import {
 
 const EMPTY_QUICK_PICK_COMMANDS: QuickPickCommand[] = [];
 const EMPTY_COMMAND_CENTER_WORKSPACE_TABS: WorkspaceTabState[] = [];
-// 稳定空数组：scope 不匹配时 fileRows 的 useMemo 依赖不能每次换新引用（否则无谓重算）。
-const EMPTY_WORKSPACE_FILE_ENTRIES: WorkspaceFileEntry[] = [];
 const COMMAND_CENTER_SECTION_LIMIT = 3;
 const COMMAND_CENTER_CONTEXT_SECTION_LIMIT = 3;
-const COMMAND_CENTER_FILE_RESULT_LIMIT = 80;
 const COMMAND_CENTER_TASK_RESULT_LIMIT = 80;
 const commandCenterDialogClassName = cn(
   quickPickDialogClassName,
@@ -93,29 +88,6 @@ type TaskSearchResultRow = {
 function getWorkspaceFileDirectory(entry: WorkspaceFileEntry): string {
   const slashIndex = entry.relativePath.lastIndexOf("/");
   return slashIndex === -1 ? "" : entry.relativePath.slice(0, slashIndex);
-}
-
-function buildWorkspaceFileSearchText(entry: WorkspaceFileEntry): string {
-  return `${entry.name} ${entry.relativePath}`.toLocaleLowerCase();
-}
-
-function filterWorkspaceFileEntries(
-  entries: readonly WorkspaceFileEntry[],
-  query: string,
-): WorkspaceFileEntry[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return [];
-  }
-
-  const parts = normalizedQuery.split(/\s+/).filter(Boolean);
-  return entries
-    .filter((entry) => entry.type === "file")
-    .filter((entry) => {
-      const searchText = buildWorkspaceFileSearchText(entry);
-      return parts.every((part) => searchText.includes(part));
-    })
-    .slice(0, COMMAND_CENTER_FILE_RESULT_LIMIT);
 }
 
 function normalizeSnippetForDedupe(snippet: string): string {
@@ -437,14 +409,10 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   ) => void;
   onOpenCodeViewer: (source: CodeViewerSource) => void;
 }) {
-  const { fileService } = useServices();
   const { intl } = useZCodeIntl();
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   // 文件搜索根：会话已绑定时是会话执行 cwd（App 由快照派生），否则回落 tab 的 workspaceAbsPath。
   const fileSearchRoot = fileSearchRootPath ?? workspaceAbsPath;
-  // 文件索引按「工作区身份 + 搜索根」归属：同 workspace 换会话（会话 cwd 变）必须重取，
-  // 不同 host 上同名根之间也不能复用同一份索引。
-  const workspaceFilesScopeKey = `${workspaceKey}\u0000${fileSearchRoot}`;
   const [rawQuery, setRawQuery] = useState("");
   const [manualScope, setManualScope] = useState<CommandCenterSearchScope>("all");
   const [expandedSections, setExpandedSections] = useState<Set<CommandCenterSectionId>>(
@@ -452,12 +420,6 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   );
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [historyEntries, setHistoryEntries] = useState<CommandCenterSearchHistoryEntry[]>([]);
-  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>([]);
-  const [workspaceFilesLoading, setWorkspaceFilesLoading] = useState(false);
-  const [workspaceFilesError, setWorkspaceFilesError] = useState<string | null>(null);
-  const [loadedWorkspaceFilesScopeKey, setLoadedWorkspaceFilesScopeKey] = useState<string | null>(
-    null,
-  );
   // 性能修复：Command Center 关闭时不需要跟随 chat streaming 重算命令、任务和 recent changes。
   // 保留 hooks 顺序，但把关闭态输入降为空，避免隐藏弹窗在每个 token 批次重建结果区。
   const effectiveCommands = open ? commands : EMPTY_QUICK_PICK_COMMANDS;
@@ -536,18 +498,17 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     () => buildTaskResultRows({ tasks: taskList.items, query: searchQuery }),
     [searchQuery, taskList.items],
   );
-  // 索引与「它属于哪个 scope」一起判定：scope 变化（同 workspace 换会话 → 搜索根变）时
-  // effect 清理发生在绘制**之后**，而旧根的 entries 是按旧根解包的（relativePath / 目录列
-  // 都相对旧根），这一帧直接展示会短暂指向错的根。按 scope 不匹配在渲染期派生「无数据」，
-  // effect 清理只作为状态收敛，不再承担首帧正确性。
-  const scopedWorkspaceFiles =
-    loadedWorkspaceFilesScopeKey === workspaceFilesScopeKey
-      ? workspaceFiles
-      : EMPTY_WORKSPACE_FILE_ENTRIES;
-  const fileRows = useMemo(
-    () => filterWorkspaceFileEntries(scopedWorkspaceFiles, searchQuery),
-    [scopedWorkspaceFiles, searchQuery],
-  );
+  const {
+    files: fileRows,
+    loading: workspaceFilesLoading,
+    error: workspaceFilesError,
+  } = useCommandCenterFileSearch({
+    enabled: searchFiles,
+    rootPath: fileSearchRoot,
+    workspaceIdentity,
+    ignoreRulesRoot: workspaceAbsPath,
+    query: searchQuery,
+  });
   const recentChangeRows = useMemo(
     () => [...(effectiveActiveTaskChangeSummary?.files ?? [])].sort(compareRecentChangedFiles),
     [effectiveActiveTaskChangeSummary],
@@ -579,57 +540,6 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   useEffect(() => {
     setExpandedSections(new Set());
   }, [activeScope, searchQuery]);
-
-  useEffect(() => {
-    setWorkspaceFiles([]);
-    setWorkspaceFilesError(null);
-    setWorkspaceFilesLoading(false);
-    setLoadedWorkspaceFilesScopeKey(null);
-  }, [workspaceFilesScopeKey]);
-
-  useEffect(() => {
-    if (!searchFiles || loadedWorkspaceFilesScopeKey === workspaceFilesScopeKey) {
-      return;
-    }
-
-    let cancelled = false;
-    setWorkspaceFilesLoading(true);
-    setWorkspaceFilesError(null);
-    // rootPath = 搜索根（会话 cwd / 工作区路径）；ignoreRulesRoot = 工作区身份路径（对话根），
-    // 规则文件只有一份、落在对话根上，不在会话目录里再生成一份。
-    void fetchWorkspaceFileEntriesPacked(fileService, fileSearchRoot, workspaceAbsPath)
-      .then((result) => {
-        // Host 返回列式 packed 字符串（避免大数组结构化克隆），此处一次性解包。
-        const entries = unpackWorkspaceFileEntries(result, fileSearchRoot);
-        if (cancelled) {
-          return;
-        }
-
-        setWorkspaceFiles(entries);
-        setLoadedWorkspaceFilesScopeKey(workspaceFilesScopeKey);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setWorkspaceFilesError(String(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setWorkspaceFilesLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    fileSearchRoot,
-    fileService,
-    loadedWorkspaceFilesScopeKey,
-    searchFiles,
-    workspaceAbsPath,
-    workspaceFilesScopeKey,
-  ]);
 
   const rememberSearch = useCallback(
     (scope: CommandCenterSearchScope = activeScope) => {

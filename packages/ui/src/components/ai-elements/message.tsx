@@ -41,6 +41,7 @@ import type { BundledTheme } from "shiki";
 import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from "streamdown";
 import type { Pluggable, PluggableList } from "unified";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
+import { CodeBlockTooltipScope } from "./code-block-tooltip-scope.js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -1641,6 +1642,7 @@ export const MessageResponse = memo(
 
           return (
             <CodeBlock
+              codeView="snippet"
               className="my-4 border border-border bg-card"
               code={codeText}
               // 流式消息里的代码围栏会被 Streamdown 反复拆分/重挂载。
@@ -1699,49 +1701,51 @@ export const MessageResponse = memo(
     );
 
     return (
-      <MessageResponseMarkdownBoundary
-        className={fallbackClassName}
-        fallbackText={targetMarkdown}
-        resetKey={boundaryResetKey}
-        scope={boundaryScope}
-      >
-        <Streamdown
-          key={streamdownRenderKey}
-          className={responseClassName}
-          // Streamdown 自身是 memo，比较函数不看 components。app light/dark 切换时
-          // codeBlockTheme 只存在于自定义 code renderer 闭包里，若不改 key，当前 task 已挂载的
-          // markdown 代码块不会重新执行 renderer；切换 task 触发重建后才会恢复正确主题。
-          // Artifact reader/session 同样只存在于 img renderer 闭包里。权限上下文变化时必须重挂载
-          // markdown 子树，释放旧 blob URL，并确保后续读取只使用当前会话的 reader。
-          // 已结束消息之前也一直走 streaming mode，会触发 remend 对正文做“未闭合 markdown 补全”。
-          // 遇到 `./src/**/*` 这类代码片段时，remend 会误判成未闭合粗体并在末尾补出 `**`。
-          // 性能优化曾让长历史消息也启用 block streaming 模式复用分块缓存；虚拟滚动/懒渲染会
-          // 频繁重挂载历史消息，生产上遇到部分 markdown 会在 Streamdown 内部触发 React #185。
-          // 这里重新收敛为：只有真实流式输出走 streaming 解析，完成态一律 static。
-          mode={streamdownMode}
-          components={messageComponents}
-          parseIncompleteMarkdown={streaming}
-          // Streamdown 内置 code renderer 的 highlighted-body 会在代码高亮结果和 raw fallback
-          // 之间反复 setState，部分历史消息恢复时会触发 React #185。这里保留 markdown 解析能力，
-          // 但代码块改走本项目自己的稳定 CodeBlock 渲染器。
-          // 说明：这里继续关掉 Streamdown 默认链接行为，统一改由上面的自定义 a 渲染器接管。
-          // 这样工作区文件链接和 http/https 外链都能走我们自己的安全分流，其它协议仍保持不可点击。
-          linkSafety={messageLinkSafety}
-          plugins={streamdownPlugins}
-          controls={STREAMDOWN_CONTROLS}
-          // Streamdown 的 harden 插件会在自定义 a renderer 之前把 file:// 标成 [blocked]。
-          // 这里先把 file URI 规整成本地路径 href，让后续 resolveMarkdownFileLink 统一走预览/文件树打开逻辑。
-          rehypePlugins={messageRehypePlugins}
-          remarkPlugins={messageRemarkPlugins}
-          shikiTheme={shikiTheme}
-          // markdown 正文流式淡入会在重渲染时让历史文本整段重新闪烁。
-          // 这里保留 streaming 解析模式，但彻底关闭 Streamdown/正文 rehype 动画。
-          animated={false}
-          isAnimating={false}
+      <CodeBlockTooltipScope>
+        <MessageResponseMarkdownBoundary
+          className={fallbackClassName}
+          fallbackText={targetMarkdown}
+          resetKey={boundaryResetKey}
+          scope={boundaryScope}
         >
-          {targetMarkdown}
-        </Streamdown>
-      </MessageResponseMarkdownBoundary>
+          <Streamdown
+            key={streamdownRenderKey}
+            className={responseClassName}
+            // Streamdown 自身是 memo，比较函数不看 components。app light/dark 切换时
+            // codeBlockTheme 只存在于自定义 code renderer 闭包里，若不改 key，当前 task 已挂载的
+            // markdown 代码块不会重新执行 renderer；切换 task 触发重建后才会恢复正确主题。
+            // Artifact reader/session 同样只存在于 img renderer 闭包里。权限上下文变化时必须重挂载
+            // markdown 子树，释放旧 blob URL，并确保后续读取只使用当前会话的 reader。
+            // 已结束消息之前也一直走 streaming mode，会触发 remend 对正文做“未闭合 markdown 补全”。
+            // 遇到 `./src/**/*` 这类代码片段时，remend 会误判成未闭合粗体并在末尾补出 `**`。
+            // 性能优化曾让长历史消息也启用 block streaming 模式复用分块缓存；虚拟滚动/懒渲染会
+            // 频繁重挂载历史消息，生产上遇到部分 markdown 会在 Streamdown 内部触发 React #185。
+            // 这里重新收敛为：只有真实流式输出走 streaming 解析，完成态一律 static。
+            mode={streamdownMode}
+            components={messageComponents}
+            parseIncompleteMarkdown={streaming}
+            // Streamdown 内置 code renderer 的 highlighted-body 会在代码高亮结果和 raw fallback
+            // 之间反复 setState，部分历史消息恢复时会触发 React #185。这里保留 markdown 解析能力，
+            // 但代码块改走本项目自己的稳定 CodeBlock 渲染器。
+            // 说明：这里继续关掉 Streamdown 默认链接行为，统一改由上面的自定义 a 渲染器接管。
+            // 这样工作区文件链接和 http/https 外链都能走我们自己的安全分流，其它协议仍保持不可点击。
+            linkSafety={messageLinkSafety}
+            plugins={streamdownPlugins}
+            controls={STREAMDOWN_CONTROLS}
+            // Streamdown 的 harden 插件会在自定义 a renderer 之前把 file:// 标成 [blocked]。
+            // 这里先把 file URI 规整成本地路径 href，让后续 resolveMarkdownFileLink 统一走预览/文件树打开逻辑。
+            rehypePlugins={messageRehypePlugins}
+            remarkPlugins={messageRemarkPlugins}
+            shikiTheme={shikiTheme}
+            // markdown 正文流式淡入会在重渲染时让历史文本整段重新闪烁。
+            // 这里保留 streaming 解析模式，但彻底关闭 Streamdown/正文 rehype 动画。
+            animated={false}
+            isAnimating={false}
+          >
+            {targetMarkdown}
+          </Streamdown>
+        </MessageResponseMarkdownBoundary>
+      </CodeBlockTooltipScope>
     );
   },
   messageResponsePropsAreEqual,

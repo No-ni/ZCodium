@@ -145,7 +145,7 @@ import { ConversationShareSelectionScrim } from "@/v4/ConversationShareSelection
 import {
   buildConversationSharePreflightCacheEntries,
   conversationSharePreflightCacheKey,
-  conversationShareTurnFingerprint,
+  conversationShareTurnFingerprints,
   dedupeConversationShareIssues,
   getMissingConversationSharePreflightTurnIds,
 } from "@/v4/conversationSharePreflightCache.js";
@@ -720,28 +720,23 @@ export function SessionPane({
   const [sharePreflightVersion, setSharePreflightVersion] = useState(0);
   const selectedShareTurnFingerprints = useMemo(
     () =>
-      new Map(
-        selectedShareProductTurnIds.map((productTurnId) => [
-          productTurnId,
-          conversationShareTurnFingerprint(
-            snapshot?.rows.window ?? [],
-            productTurnId,
-            // 第 3 个参数是「预览候选的相对解析根」，必须与服务端一致：会话执行 cwd
-            // （fileSearchRootPath；草稿态是预热会话目录，未预热时回落 tab 的 workspacePath）。
-            // 身份键走第 4 个参数的 workspaceKey，不能拿它当解析根，否则两端对同一段正文
-            // 解析出不同候选。该指纹只用于 UI 自己的预检缓存失效判定（服务端返回的
-            // turnFingerprint 目前 UI 没消费），属于一致性收口，不是会崩的 bug。
-            fileSearchRootPath,
-            {
-              workspaceKey: workspaceIdentity?.trim() || workspacePath,
-              remoteSessionId: remoteSessionId ?? "",
-              sessionId: sessionId ?? "",
-              revision: snapshot?.revision,
-              logEpoch: snapshot?.logEpoch,
-              capabilitiesFingerprint: sharePreflightMetaRef.current.capabilitiesFingerprint,
-            },
-          ),
-        ]),
+      conversationShareTurnFingerprints(
+        snapshot?.rows.window ?? [],
+        selectedShareProductTurnIds,
+        // 第 3 个参数是「预览候选的相对解析根」，必须与服务端一致：会话执行 cwd
+        // （fileSearchRootPath；草稿态是预热会话目录，未预热时回落 tab 的 workspacePath）。
+        // 身份键走第 4 个参数的 workspaceKey，不能拿它当解析根，否则两端对同一段正文
+        // 解析出不同候选。该指纹只用于 UI 自己的预检缓存失效判定（服务端返回的
+        // turnFingerprint 目前 UI 没消费），属于一致性收口，不是会崩的 bug。
+        fileSearchRootPath,
+        {
+          workspaceKey: workspaceIdentity?.trim() || workspacePath,
+          remoteSessionId: remoteSessionId ?? "",
+          sessionId: sessionId ?? "",
+          revision: snapshot?.revision,
+          logEpoch: snapshot?.logEpoch,
+          capabilitiesFingerprint: sharePreflightMetaRef.current.capabilitiesFingerprint,
+        },
       ),
     [
       fileSearchRootPath,
@@ -894,18 +889,18 @@ export function SessionPane({
             // dev 下 host 进程不随 services 重建重启，老 host 返回的结果没有
             // turnResults，直接 .map 会抛异常并被下游 catch 报成「服务端预检失败」。
             // 拆条目的降级逻辑收敛在 helper 里，见 conversationSharePreflightCache。
-            const resultTurnFingerprints = new Map(
-              missingProductTurnIds.map((productTurnId) => [
-                productTurnId,
-                conversationShareTurnFingerprint(requestRows, productTurnId, fileSearchRootPath, {
-                  workspaceKey: workspaceIdentity?.trim() || workspacePath,
-                  remoteSessionId: remoteSessionId ?? "",
-                  sessionId,
-                  revision: result.revision,
-                  logEpoch: result.logEpoch,
-                  capabilitiesFingerprint: result.capabilitiesFingerprint,
-                }),
-              ]),
+            const resultTurnFingerprints = conversationShareTurnFingerprints(
+              requestRows,
+              missingProductTurnIds,
+              fileSearchRootPath,
+              {
+                workspaceKey: workspaceIdentity?.trim() || workspacePath,
+                remoteSessionId: remoteSessionId ?? "",
+                sessionId,
+                revision: result.revision,
+                logEpoch: result.logEpoch,
+                capabilitiesFingerprint: result.capabilitiesFingerprint,
+              },
             );
             const entries = buildConversationSharePreflightCacheEntries(
               result,
@@ -3579,6 +3574,9 @@ export function SessionPane({
     return lease?.store.loadOlder();
   }, [lease]);
 
+  const handleLoadTurnDirectory = useCallback(() => lease?.store.loadTurnDirectory() ?? Promise.resolve({ status: "stale" as const, logEpoch: "unknown" }), [lease]);
+  const handleLoadThroughRow = useCallback((rowId: number) => lease?.store.loadThroughRow(rowId) ?? Promise.resolve(false), [lease]);
+
   const handleLoadAllOlder = useCallback(() => {
     return lease
       ? lease.store.loadAllOlder()
@@ -4619,7 +4617,10 @@ export function SessionPane({
               canLoadOlder={timelineSnapshot ? hasOlderRows(timelineSnapshot) : false}
               loadingOlder={timelineSnapshot ? state.loadingOlder : false}
               onLoadOlder={handleLoadOlder}
-              onLoadAllOlder={handleLoadAllOlder}
+              onLoadTurnDirectory={handleLoadTurnDirectory}
+              turnDirectory={state.turnDirectory}
+              turnDirectoryLoading={state.turnDirectoryLoading}
+              onLoadThroughRow={handleLoadThroughRow}
               turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
               bottomDock={conversationBottomDock}
               hideTurnNavigator={shareActive && shareInSelectionStage}

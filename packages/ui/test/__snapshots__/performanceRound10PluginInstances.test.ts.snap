@@ -1,0 +1,1846 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`plugin UI instance derivation compatibility > preserves full original outputs for mixed rows, scopes, duplicates and slice options 1`] = `
+[
+  {
+    "option": "undefined",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": false,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "0",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": true,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "1",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": false,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "3",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": false,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "-1",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": true,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "1.9",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": false,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "-1.9",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": true,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "NaN",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": true,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "Infinity",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": true,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": true,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "option": "-Infinity",
+    "result": {
+      "byToolCallId": {
+        "constructor": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": true,
+        },
+        "round10:call-1": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": true,
+        },
+        "round10:call-10": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-11": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "superseded": false,
+        },
+        "round10:call-12": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "superseded": false,
+        },
+        "round10:call-13": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": true,
+        },
+        "round10:call-14": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-15": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "superseded": false,
+        },
+        "round10:call-16": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-17": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "superseded": false,
+        },
+        "round10:call-18": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-2": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-4": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-5": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-6": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-7": {
+          "autoExpand": false,
+          "forcedInline": true,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "superseded": false,
+        },
+        "round10:call-8": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "round10:call-9": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "superseded": false,
+        },
+        "toString": {
+          "autoExpand": false,
+          "forcedInline": false,
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "superseded": false,
+        },
+      },
+      "instances": [
+        {
+          "activeToolCallId": "round10:call-18",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [
+            "round10:call-1",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-7",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"other"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-8",
+          "key": "["fixture","other","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-9",
+          "key": "["other","fixture","ui://fixture",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-10",
+          "key": "["fixture","fixture","ui://other",{"kind":"surface","surfaceId":"panel"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-11",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-11"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-12",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"round10:call-12"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-14",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"a\\",\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [
+            "round10:call-13",
+          ],
+        },
+        {
+          "activeToolCallId": "round10:call-15",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"toolCall","toolCallId":"widget:[\\"counter\\",[[\\"resourceDomains\\",[\\"b\\"]]]]"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "round10:call-17",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"unsuccessful"}]",
+          "supersededToolCallIds": [],
+        },
+        {
+          "activeToolCallId": "toString",
+          "key": "["fixture","fixture","ui://fixture",{"kind":"surface","surfaceId":"special"}]",
+          "supersededToolCallIds": [
+            "constructor",
+          ],
+        },
+      ],
+    },
+  },
+]
+`;

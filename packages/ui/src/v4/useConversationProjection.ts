@@ -23,6 +23,8 @@ export function resolvePaneSessionProjectionLease(
 }
 
 const CLOSED_STATE: ConversationStoreState = {
+  turnDirectory: null,
+  turnDirectoryLoading: false,
   status: "closed",
   snapshot: null,
   subscriptionId: null,

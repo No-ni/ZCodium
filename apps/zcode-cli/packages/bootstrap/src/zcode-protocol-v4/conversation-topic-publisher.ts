@@ -1,3 +1,13 @@
+import {
+  buildConversationTurnDirectory,
+  sliceTurnDirectory,
+} from "./conversation-turn-directory.js";
+import type {
+  ConversationRow,
+  ConversationTurnDirectoryEntry,
+  V4ConversationTurnDirectoryParams,
+  V4ConversationTurnDirectoryResult,
+} from "@zcode/shared/zcode-protocol-v4";
 // Conversation topic 发布器（传输外壳）。
 // CLI 侧权威运行时：内存有界 delta 日志（logEpoch + 保留窗）+ subscribe(base)
 // 裁决（resume/snapshot）+ 每订阅者 flush 管线（filter → coalesce → 打帧）。
@@ -34,6 +44,7 @@ import {
   filterConversationDeltasForProfile,
   filterConversationRowsForProfile,
   utf8JsonByteLength,
+  sliceConversationRowRange,
 } from "@zcode/shared/zcode-protocol-v4";
 import { Buffer } from "node:buffer";
 import {
@@ -454,21 +465,15 @@ export class ConversationTopicPublisher {
   ): V4ConversationRowsRangeResult {
     const snapshot = this.projection.getSnapshot();
     const limit = Math.max(1, Math.min(params.limit, PROTOCOL_V4_LIMITS.rowsRangeMaxLimit));
-    const visibleRows = filterConversationRowsForProfile(
-      snapshot.rows.window,
-      DELIVERY_PROFILES[deliveryProfile],
-    );
-    const eligible =
-      params.beforeRowId === undefined
-        ? visibleRows
-        : visibleRows.filter((row) => row.rowId < (params.beforeRowId as number));
-    const rows = eligible.slice(-limit);
+    const range = sliceConversationRowRange(snapshot.rows.window, params.beforeRowId, limit);
+    // 当前两种 profile 的完整行一致；保留过滤契约，但只对目标页执行。
+    const rows = filterConversationRowsForProfile(range.rows, DELIVERY_PROFILES[deliveryProfile]);
     return {
       rows,
       atSeq: snapshot.seq,
       atRevision: snapshot.revision,
       atLogEpoch: this.logEpoch,
-      hasMore: eligible.length > rows.length,
+      hasMore: range.hasMore,
     };
   }
 
@@ -477,6 +482,29 @@ export class ConversationTopicPublisher {
    * wire snapshot 只保留 tail window；renderer 扫描可见 rows 会漏掉早期计划，
    * edit/retry 后还可能保留已经被权威 projection 裁掉的旧目录项。
    */
+  private turnDirectoryCache: {
+    rows: WeakRef<readonly ConversationRow[]>;
+    entries: ConversationTurnDirectoryEntry[];
+  } | null = null;
+  getTurnDirectory(params: V4ConversationTurnDirectoryParams): V4ConversationTurnDirectoryResult {
+    const snapshot = this.projection.getSnapshot();
+    if (this.turnDirectoryCache?.rows.deref() !== snapshot.rows.window) {
+      this.turnDirectoryCache = {
+        rows: new WeakRef(snapshot.rows.window),
+        entries: buildConversationTurnDirectory(snapshot.rows.window),
+      };
+    }
+    return {
+      ...sliceTurnDirectory(
+        this.turnDirectoryCache.entries,
+        params.beforeRowId,
+        params.limit ?? 200,
+      ),
+      atSeq: snapshot.seq,
+      atLogEpoch: this.logEpoch,
+    };
+  }
+
   getPlans(): V4ConversationPlansResult {
     const snapshot = this.projection.getSnapshot();
     const plans = snapshot.rows.window

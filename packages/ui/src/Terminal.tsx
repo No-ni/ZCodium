@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { TerminalTabTrigger } from "@/terminal/TerminalTabTrigger.js";
-import { TerminalSession } from "@/terminal/TerminalSession.js";
+import { TerminalSession } from "@/terminal/LazyTerminalSession.js";
 import {
   closeTerminalSession,
   createTerminalSession,

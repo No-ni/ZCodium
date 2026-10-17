@@ -3,7 +3,11 @@ import { measureOperation } from "@/lib/diagnostics/operations.js";
  * useSettingService —— 设置服务 hooks
  */
 import { useState, useEffect, useCallback } from "react";
-import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
+import {
+  APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
+  type AppSettings,
+  type IPlatformService,
+} from "@zcode/shared";
 import type { ISettingService } from "@zcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
@@ -18,6 +22,12 @@ interface SettingsStore {
   snapshot: SettingsSnapshot;
   inflightRefresh: Promise<void> | null;
   listeners: Set<(snapshot: SettingsSnapshot) => void>;
+  platformSubscriptions: Map<IPlatformService, PlatformSettingsSubscription>;
+}
+
+interface PlatformSettingsSubscription {
+  referenceCount: number;
+  dispose: () => void;
 }
 
 // SettingsPage 外层与模型配置页内层可能分别绑定 Local/Remote Service；
@@ -32,6 +42,7 @@ const unavailableSettingsStore: SettingsStore = {
   },
   inflightRefresh: null,
   listeners: new Set(),
+  platformSubscriptions: new Map(),
 };
 
 function getSettingsStore(settingService: ISettingService | undefined): SettingsStore {
@@ -53,6 +64,7 @@ function getSettingsStore(settingService: ISettingService | undefined): Settings
     },
     inflightRefresh: null,
     listeners: new Set(),
+    platformSubscriptions: new Map(),
   };
   stores.set(settingService, created);
   return created;
@@ -105,6 +117,49 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
   return store.inflightRefresh;
 }
 
+// 根因：每个 useSettings 消费者都独立注册同一平台的 IPC listener，重复事件虽共用单飞读取，仍会重复分发。
+// 修复依据：由既有 SettingsStore 按 setting service 与 platform 实例引用计数，共享并在末位卸载时释放订阅。
+function acquirePlatformSettingsSubscription(
+  settingService: ISettingService | undefined,
+  platform: IPlatformService,
+): () => void {
+  const store = getSettingsStore(settingService);
+  let subscription = store.platformSubscriptions.get(platform);
+  if (!subscription) {
+    subscription = {
+      referenceCount: 1,
+      dispose: () => undefined,
+    };
+    // 先发布占位记录，注册时即使同步触发回调并重入，也会复用这条订阅。
+    store.platformSubscriptions.set(platform, subscription);
+    try {
+      subscription.dispose =
+        platform.onSettingsChanged?.(() => {
+          void refreshSettingsStore(settingService);
+        }) ?? (() => undefined);
+    } catch (error) {
+      if (store.platformSubscriptions.get(platform) === subscription) {
+        store.platformSubscriptions.delete(platform);
+      }
+      throw error;
+    }
+  } else {
+    subscription.referenceCount += 1;
+  }
+
+  const ownedSubscription = subscription;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (store.platformSubscriptions.get(platform) !== ownedSubscription) return;
+    ownedSubscription.referenceCount -= 1;
+    if (ownedSubscription.referenceCount > 0) return;
+    store.platformSubscriptions.delete(platform);
+    ownedSubscription.dispose();
+  };
+}
+
 /** 获取和更新应用设置 */
 export function useSettings() {
   const { botsService, broadcastService, settingService, zcodeAgentService } = useServices();
@@ -131,12 +186,8 @@ export function useSettings() {
   }, [refresh, settingsStore]);
 
   useEffect(() => {
-    return (
-      platform.onSettingsChanged?.(() => {
-        void refresh();
-      }) ?? (() => {})
-    );
-  }, [platform, refresh]);
+    return acquirePlatformSettingsSubscription(settingService, platform);
+  }, [platform, settingService]);
 
   const update = useCallback(
     async (patch: Partial<AppSettings>) => {

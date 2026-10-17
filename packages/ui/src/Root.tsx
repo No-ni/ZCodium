@@ -30,7 +30,7 @@ import { useTabPersistence } from "@/hooks/useTabPersistence.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
-import { SettingsPage } from "@/SettingsPage.js";
+import { SettingsPage } from "@/root/LazySettingsPage.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
 
 import { countAllUnreadTasks } from "@/lib/unreadTaskCount.js";

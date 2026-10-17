@@ -1,3 +1,4 @@
+import type { V4ConversationTurnDirectoryResult } from "@zcode/shared/zcode-protocol-v4";
 import type { SessionActivity } from "@zcode/shared/zcode-protocol-v4";
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
@@ -399,6 +400,10 @@ export interface ZCodeAgentConversationRowsRangeParams extends ZCodeAgentSession
 
 /** 当前有效分支里的终态 ExitPlanMode 目录。 */
 export type ZCodeAgentConversationPlansParams = ZCodeAgentSessionTarget;
+export interface ZCodeAgentConversationTurnDirectoryParams extends ZCodeAgentSessionTarget {
+  beforeRowId?: number;
+  limit?: number;
+}
 
 /** workflow run 的事件日志分页（详情页审计面）；cursor = journal sequence。 */
 export interface ZCodeAgentConversationWorkflowRunEventsParams extends ZCodeAgentSessionTarget {
@@ -823,6 +828,9 @@ export interface IZCodeAgentService {
   conversationRowsRangeV4(
     params: ZCodeAgentConversationRowsRangeParams,
   ): Promise<V4ConversationRowsRangeResult>;
+  conversationTurnDirectoryV4(
+    params: ZCodeAgentConversationTurnDirectoryParams,
+  ): Promise<V4ConversationTurnDirectoryResult>;
   conversationPlansV4(
     params: ZCodeAgentConversationPlansParams,
   ): Promise<V4ConversationPlansResult>;

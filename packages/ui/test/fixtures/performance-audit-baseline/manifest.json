@@ -1,0 +1,20 @@
+{
+  "revision": "82ab95f0fea6b0e9a3ab877905473cb483ed2998",
+  "sources": [
+    {
+      "fixture": "apply.ts.txt",
+      "source": "packages/shared/src/zcode-protocol-v4/apply.ts",
+      "sha256": "e5e3543935bc44002d6853cb950cc7203ba88e3f1937e8d28a5df68f5a066a62"
+    },
+    {
+      "fixture": "coalesce.ts.txt",
+      "source": "packages/shared/src/zcode-protocol-v4/coalesce.ts",
+      "sha256": "c4f035aa13976c7b5d5b08221a8c054a8239916985d1f32a2dd1b48e7f1f681c"
+    },
+    {
+      "fixture": "file-tree-model.ts.txt",
+      "source": "packages/ui/src/workspace-file-tree/model.ts",
+      "sha256": "62ead3d0caa7bed08e0283b00841d6bbcd2c5618a19d19fa23d898660cf1aaf6"
+    }
+  ]
+}

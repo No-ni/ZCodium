@@ -317,7 +317,12 @@ export function fetchTaskListMembershipSetsForEndpointsCached(params: {
   membershipPromiseByCacheKey.set(fullCacheKey, promise);
   // 辅助集合可按空集降级，但 task 行分区读取不完整会 reject；不缓存失败，
   // 避免一次短暂 RPC 异常被当前 version 粘住。
-  promise.catch(() => membershipPromiseByCacheKey.delete(fullCacheKey));
+  void promise.catch(() => {
+    // 旧请求可能已被容量淘汰，同 key 已登记新请求；迟到失败只能清理仍属于自己的缓存。
+    if (membershipPromiseByCacheKey.get(fullCacheKey) === promise) {
+      membershipPromiseByCacheKey.delete(fullCacheKey);
+    }
+  });
   while (membershipPromiseByCacheKey.size > MEMBERSHIP_CACHE_MAX_KEYS) {
     const oldestKey = membershipPromiseByCacheKey.keys().next().value;
     if (oldestKey === undefined) {

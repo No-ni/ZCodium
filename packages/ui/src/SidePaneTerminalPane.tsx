@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { IServiceAccessor } from "@zcode/services";
-import { TerminalSession } from "@/terminal/TerminalSession.js";
+import { TerminalSession } from "@/terminal/LazyTerminalSession.js";
 
 export function SidePaneTerminalPane({
   services,

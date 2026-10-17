@@ -1,0 +1,12 @@
+[
+  {
+    "file": "packages/ui/src/components/ai-elements/message.tsx",
+    "beforeSHA256": "dc678e8b2cbed40013be4c963936077b6c7beacbe198c1cbccdc762f74ded9c4",
+    "afterSHA256": "92ae3a3fe4fc199c6dc8ce00dd3dbf461666bb70ee9a5eb77a764808390bcf2e"
+  },
+  {
+    "file": "packages/ui/src/components/ai-elements/code-block.tsx",
+    "beforeSHA256": "ae9c5e3171a0741fb31ccf321c6ef013aac7e7d7759fd254d2f79116a1824564",
+    "afterSHA256": "f0d7c2c742792fa556ffcf9cb6d92c44c25949889667ea9d718eda4ae7aa2f3d"
+  }
+]

@@ -25,13 +25,12 @@ interface ConversationShareTurnFingerprintContext {
   workspaceKey?: string;
 }
 
-export function conversationShareTurnFingerprint(
-  rows: readonly ConversationRow[],
+function fingerprintTurnRows(
+  turnRows: readonly ConversationRow[],
   productTurnId: string,
-  workspacePath = "",
-  context: ConversationShareTurnFingerprintContext = {},
+  workspacePath: string,
+  context: ConversationShareTurnFingerprintContext,
 ): string {
-  const turnRows = rows.filter((row) => row.productTurnId === productTurnId);
   const assistantText = turnRows
     .filter((row): row is Extract<ConversationRow, { kind: "assistantText" }> => {
       return row.kind === "assistantText";
@@ -78,6 +77,30 @@ export function conversationShareTurnFingerprint(
       rows: signature,
       previewCandidates: candidateFingerprint,
     }),
+  );
+}
+
+export function conversationShareTurnFingerprints(
+  rows: readonly ConversationRow[],
+  productTurnIds: readonly string[],
+  workspacePath = "",
+  context: ConversationShareTurnFingerprintContext = {},
+): Map<string, string> {
+  const rowsByTurn = new Map<string, ConversationRow[]>();
+  for (const productTurnId of productTurnIds) {
+    if (!rowsByTurn.has(productTurnId)) rowsByTurn.set(productTurnId, []);
+  }
+  // 多轮选择原来逐轮 filter 全量窗口；同批按原顺序分桶，指纹正文和 scope 字节保持不变。
+  if (rowsByTurn.size === 0) return new Map();
+  for (const row of rows) {
+    const productTurnId = row.productTurnId;
+    if (productTurnId !== undefined) rowsByTurn.get(productTurnId)?.push(row);
+  }
+  return new Map(
+    [...rowsByTurn].map(([productTurnId, turnRows]) => [
+      productTurnId,
+      fingerprintTurnRows(turnRows, productTurnId, workspacePath, context),
+    ]),
   );
 }
 

@@ -22,7 +22,8 @@ import {
 } from "react";
 import type { BundledTheme } from "shiki";
 import { CodeViewer } from "@/components/ui/code-viewer.js";
-import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import { CodeSnippet } from "@/components/ui/code-snippet.js";
+import { CodeBlockControlHint } from "./code-block-tooltip-scope.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { isMermaidLanguage, shouldRenderMermaidCodeBlock } from "@/lib/mermaidLanguage.js";
 import {
@@ -38,6 +39,8 @@ import type { Theme } from "@/useTheme.js";
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string;
+  /** Markdown 围栏使用只读片段；行号、诊断与行定位入口保留完整文件查看器。 */
+  codeView?: "file" | "snippet";
   language: string;
   enableSyntaxHighlighting?: boolean;
   showLineNumbers?: boolean;
@@ -244,6 +247,7 @@ export const CodeBlockActions = ({
 
 export const CodeBlock = ({
   code,
+  codeView = "file",
   enableSyntaxHighlighting = true,
   language,
   showLineNumbers = false,
@@ -332,6 +336,15 @@ export const CodeBlock = ({
               onPreviewSvgChange={setMermaidPreviewSvg}
               // className={cn(children ? "border-t border-border" : null)}
             />
+          ) : codeView === "snippet" ? (
+            <CodeSnippet
+              code={code}
+              language={language}
+              enableSyntaxHighlighting={enableSyntaxHighlighting}
+              theme={theme}
+              wrapLongLines={isWrapped}
+              fontSizePx={fontSizePx}
+            />
           ) : (
             <CodeViewer
               code={code}
@@ -386,7 +399,7 @@ export const CodeBlockWrapButton = ({
   const label = title ?? intl.formatMessage({ id: "codeBlock.wrapLines" });
 
   return (
-    <ControlHintTooltip title={label} side="top">
+    <CodeBlockControlHint title={label}>
       <Button
         aria-label={ariaLabel ?? label}
         aria-pressed={wrapLongLines}
@@ -404,7 +417,7 @@ export const CodeBlockWrapButton = ({
       >
         {children ?? <WrapTextIcon className="size-3.5" />}
       </Button>
-    </ControlHintTooltip>
+    </CodeBlockControlHint>
   );
 };
 
@@ -423,7 +436,7 @@ export const CodeBlockMermaidPreviewButton = ({
   const label = title ?? intl.formatMessage({ id: "codeBlock.mermaid.openPreview" });
 
   return (
-    <ControlHintTooltip title={label} side="top">
+    <CodeBlockControlHint title={label}>
       <Button
         aria-label={ariaLabel ?? label}
         className={cn("shrink-0", className)}
@@ -441,7 +454,7 @@ export const CodeBlockMermaidPreviewButton = ({
       >
         {children ?? <Maximize2Icon className="size-3.5" />}
       </Button>
-    </ControlHintTooltip>
+    </CodeBlockControlHint>
   );
 };
 
@@ -495,7 +508,7 @@ export const CodeBlockCopyButton = ({
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
   return (
-    <ControlHintTooltip title={label} side="top">
+    <CodeBlockControlHint title={label}>
       <Button
         aria-label={ariaLabel ?? label}
         className={cn("shrink-0", className)}
@@ -507,7 +520,7 @@ export const CodeBlockCopyButton = ({
       >
         {children ?? <Icon className="size-3.5" />}
       </Button>
-    </ControlHintTooltip>
+    </CodeBlockControlHint>
   );
 };
 

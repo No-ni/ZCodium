@@ -75,14 +75,20 @@ export function normalizeConversationShareMarkdown(
   const directives = extractZCodeFileCitationDirectives(markdown).filter(
     (directive) => !overlapsAssistantTextRanges(directive.start, directive.end, protectedRanges),
   );
+  const uniqueNames = new Map<string, string | null>();
+  if (directives.length > 0) {
+    // 每条 citation 全扫结果物会重复分配和规范化；同批只索引一次，重复名称仍判歧义。
+    for (const displayName of artifactNames.values()) {
+      const trimmed = displayName.trim();
+      const key = trimmed.toLowerCase();
+      uniqueNames.set(key, uniqueNames.has(key) ? null : trimmed);
+    }
+  }
 
   let result = markdown;
   for (const directive of [...directives].reverse()) {
     const fileName = directive.path ? resolveCitationFileName(directive.path) : "";
-    const candidates = [...artifactNames.values()].filter(
-      (displayName) => displayName.trim().toLowerCase() === fileName.toLowerCase(),
-    );
-    const replacement = candidates.length === 1 ? candidates[0]!.trim() : "";
+    const replacement = uniqueNames.get(fileName.toLowerCase()) ?? "";
     result = `${result.slice(0, directive.start)}${replacement}${result.slice(directive.end)}`;
   }
   // citation 剥离只会缩短正文且不产生新的图片语法，但代码围栏范围可能左移，

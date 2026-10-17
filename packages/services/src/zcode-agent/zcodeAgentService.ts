@@ -1,3 +1,5 @@
+import { v4ConversationTurnDirectoryResultSchema } from "@zcode/shared/zcode-protocol-v4";
+import type { ZCodeAgentConversationTurnDirectoryParams } from "./zcodeAgent.js";
 import { assertNoRetiredIdleExecution } from "@zcode/shared";
 import { zcodeMcpUiSamplingResultSchema } from "@zcode/shared";
 import { MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS } from "@zcode/shared/mcp-apps";
@@ -4833,6 +4835,16 @@ export function createZCodeAgentService(
     },
 
     // 只读计划目录沿现有 workspace attachment 透传，不建立新 runtime。
+    async conversationTurnDirectoryV4(params: ZCodeAgentConversationTurnDirectoryParams) {
+      if (!readTrustedZCodeAgentV4Connection(params))
+        throw new Error("fault.conversation.directoryConnectionUntrusted");
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.conversationTurnDirectory,
+        { sessionId: params.sessionId, beforeRowId: params.beforeRowId, limit: params.limit },
+        v4ConversationTurnDirectoryResultSchema,
+      );
+    },
     async conversationPlansV4(params: ZCodeAgentConversationPlansParams) {
       const client = await getReadOnlyClient(params);
       return client.request(

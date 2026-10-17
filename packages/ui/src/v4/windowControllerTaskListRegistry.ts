@@ -74,6 +74,7 @@ export function getWindowControllerTaskListRegistry(
 
   const listeners = new Set<() => void>();
   const cursors = new Map<string, WindowHostControllerCursor>();
+  const resyncFlights = new Map<string, { cursor: WindowHostControllerCursor; pending: boolean }>();
   const subscriptionIds = new Set<string>();
   const queryCache = new Map<
     string,
@@ -108,6 +109,7 @@ export function getWindowControllerTaskListRegistry(
     frameDisposable?.dispose();
     frameDisposable = null;
     cursors.clear();
+    resyncFlights.clear();
     queryCache.clear();
     taskRows.clear();
     const ids = Array.from(subscriptionIds);
@@ -121,6 +123,35 @@ export function getWindowControllerTaskListRegistry(
     if (started) return;
     started = true;
     const startGeneration = ++generation;
+    const resync = (subscriptionId: string, cursor: WindowHostControllerCursor): void => {
+      const existing = resyncFlights.get(subscriptionId);
+      // 同一缺口的后续帧只记录补拉需求；快照已推进游标时，新缺口不能等待旧 ACK。
+      if (existing?.cursor === cursor) {
+        existing.pending = true;
+        return;
+      }
+      const flight = { cursor, pending: false };
+      resyncFlights.set(subscriptionId, flight);
+      void (async () => {
+        try {
+          await controller.resyncControllerV4({
+            subscriptionId,
+            base: { logEpoch: cursor.logEpoch, seq: cursor.seq },
+            forceSnapshot: true,
+          });
+        } catch (error) {
+          logger.warn("[windowControllerTaskListRegistry] Controller gap resync 失败", error);
+        } finally {
+          if (resyncFlights.get(subscriptionId) === flight) {
+            resyncFlights.delete(subscriptionId);
+            // 首份快照可能早于被合并帧生成；补拉防止事件停止后列表永久缺少最后几次更新。
+            const latestCursor = cursors.get(subscriptionId);
+            if (flight.pending && started && generation === startGeneration && latestCursor)
+              resync(subscriptionId, latestCursor);
+          }
+        }
+      })();
+    };
     frameDisposable = controller.onDynamicControllerFrame()((frame: WindowHostControllerFrame) => {
       if (!started || generation !== startGeneration) return;
       const cursor = cursors.get(frame.subscriptionId);
@@ -129,15 +160,7 @@ export function getWindowControllerTaskListRegistry(
         frame.payload.kind !== "snapshot" &&
         isWindowHostControllerFrameGap(cursor, frame)
       ) {
-        void controller
-          .resyncControllerV4({
-            subscriptionId: frame.subscriptionId,
-            base: { logEpoch: cursor.logEpoch, seq: cursor.seq },
-            forceSnapshot: true,
-          })
-          .catch((error) =>
-            logger.warn("[windowControllerTaskListRegistry] Controller gap resync 失败", error),
-          );
+        resync(frame.subscriptionId, cursor);
         return;
       }
       cursors.set(frame.subscriptionId, {

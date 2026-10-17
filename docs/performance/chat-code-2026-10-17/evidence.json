@@ -1,0 +1,265 @@
+{
+  "recordedAt": "2026-10-17T07:27:25.834Z",
+  "baselineFiles": ["code-block.tsx", "message.tsx"],
+  "browserVersion": "155.0.4283.45",
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "payloadChars": 34122,
+  "fences": 240,
+  "results": [
+    {
+      "variant": "before",
+      "trial": 1,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 909.2999999970198
+      },
+      "transitions": [
+        {
+          "action": "completeStream",
+          "twoFramesMs": 778,
+          "commit": {
+            "name": "terminal",
+            "commitMs": 502.40000000596046
+          },
+          "longTasksMs": [748]
+        },
+        {
+          "action": "moveToHistory",
+          "twoFramesMs": 719.7999999970198,
+          "commit": {
+            "name": "history-reparent",
+            "commitMs": 527
+          },
+          "longTasksMs": [711]
+        }
+      ],
+      "resources": {
+        "codeBlocks": 480,
+        "snippets": 0,
+        "sourceElements": 0,
+        "highlights": 0,
+        "highlightedOffscreen": 0,
+        "elementCount": 14885,
+        "shadowRootCount": 240,
+        "viewerContainerCount": 720,
+        "longTaskCount": 7,
+        "longTaskTotalMs": 3428,
+        "longTaskMaxMs": 1153,
+        "scrollHeight": 50698
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 2,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 938.6000000089407
+      },
+      "transitions": [
+        {
+          "action": "completeStream",
+          "twoFramesMs": 780.7000000029802,
+          "commit": {
+            "name": "terminal",
+            "commitMs": 541.7000000029802
+          },
+          "longTasksMs": [777]
+        },
+        {
+          "action": "moveToHistory",
+          "twoFramesMs": 746,
+          "commit": {
+            "name": "history-reparent",
+            "commitMs": 534.2000000029802
+          },
+          "longTasksMs": [730]
+        }
+      ],
+      "resources": {
+        "codeBlocks": 480,
+        "snippets": 0,
+        "sourceElements": 0,
+        "highlights": 0,
+        "highlightedOffscreen": 0,
+        "elementCount": 14885,
+        "shadowRootCount": 240,
+        "viewerContainerCount": 720,
+        "longTaskCount": 6,
+        "longTaskTotalMs": 3348,
+        "longTaskMaxMs": 1169,
+        "scrollHeight": 50698
+      }
+    },
+    {
+      "variant": "before",
+      "trial": 3,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 888.9000000059605
+      },
+      "transitions": [
+        {
+          "action": "completeStream",
+          "twoFramesMs": 735.2000000029802,
+          "commit": {
+            "name": "terminal",
+            "commitMs": 492.30000001192093
+          },
+          "longTasksMs": [730]
+        },
+        {
+          "action": "moveToHistory",
+          "twoFramesMs": 732.2000000029802,
+          "commit": {
+            "name": "history-reparent",
+            "commitMs": 532.2000000029802
+          },
+          "longTasksMs": [708]
+        }
+      ],
+      "resources": {
+        "codeBlocks": 480,
+        "snippets": 0,
+        "sourceElements": 0,
+        "highlights": 0,
+        "highlightedOffscreen": 0,
+        "elementCount": 14885,
+        "shadowRootCount": 240,
+        "viewerContainerCount": 720,
+        "longTaskCount": 6,
+        "longTaskTotalMs": 3223,
+        "longTaskMaxMs": 1110,
+        "scrollHeight": 50698
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 1,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 857.2000000029802
+      },
+      "transitions": [
+        {
+          "action": "completeStream",
+          "twoFramesMs": 709,
+          "commit": {
+            "name": "terminal",
+            "commitMs": 481.30000001192093
+          },
+          "longTasksMs": [704]
+        },
+        {
+          "action": "moveToHistory",
+          "twoFramesMs": 615,
+          "commit": {
+            "name": "history-reparent",
+            "commitMs": 410.5
+          },
+          "longTasksMs": [600]
+        }
+      ],
+      "resources": {
+        "codeBlocks": 240,
+        "snippets": 240,
+        "sourceElements": 240,
+        "highlights": 8,
+        "highlightedOffscreen": 0,
+        "elementCount": 5173,
+        "shadowRootCount": 0,
+        "viewerContainerCount": 0,
+        "longTaskCount": 7,
+        "longTaskTotalMs": 3303,
+        "longTaskMaxMs": 1112,
+        "scrollHeight": 50015
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 2,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 784.1000000089407
+      },
+      "transitions": [
+        {
+          "action": "completeStream",
+          "twoFramesMs": 690.2999999970198,
+          "commit": {
+            "name": "terminal",
+            "commitMs": 465
+          },
+          "longTasksMs": [685]
+        },
+        {
+          "action": "moveToHistory",
+          "twoFramesMs": 694.5999999940395,
+          "commit": {
+            "name": "history-reparent",
+            "commitMs": 317.79999999701977
+          },
+          "longTasksMs": [680]
+        }
+      ],
+      "resources": {
+        "codeBlocks": 240,
+        "snippets": 240,
+        "sourceElements": 240,
+        "highlights": 8,
+        "highlightedOffscreen": 0,
+        "elementCount": 5173,
+        "shadowRootCount": 0,
+        "viewerContainerCount": 0,
+        "longTaskCount": 7,
+        "longTaskTotalMs": 3188,
+        "longTaskMaxMs": 988,
+        "scrollHeight": 50015
+      }
+    },
+    {
+      "variant": "after",
+      "trial": 3,
+      "cold": {
+        "name": "cold-mount",
+        "commitMs": 756.2999999970198
+      },
+      "transitions": [
+        {
+          "action": "completeStream",
+          "twoFramesMs": 777.9000000059605,
+          "commit": {
+            "name": "terminal",
+            "commitMs": 550.9000000059605
+          },
+          "longTasksMs": [773]
+        },
+        {
+          "action": "moveToHistory",
+          "twoFramesMs": 696.1999999880791,
+          "commit": {
+            "name": "history-reparent",
+            "commitMs": 316.20000000298023
+          },
+          "longTasksMs": [684]
+        }
+      ],
+      "resources": {
+        "codeBlocks": 240,
+        "snippets": 240,
+        "sourceElements": 240,
+        "highlights": 8,
+        "highlightedOffscreen": 0,
+        "elementCount": 5173,
+        "shadowRootCount": 0,
+        "viewerContainerCount": 0,
+        "longTaskCount": 7,
+        "longTaskTotalMs": 3237,
+        "longTaskMaxMs": 957,
+        "scrollHeight": 50015
+      }
+    }
+  ]
+}

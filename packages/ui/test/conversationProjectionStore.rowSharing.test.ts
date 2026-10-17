@@ -7,8 +7,10 @@ import type {
   TopicFrameDeliveryKind,
   ToolCallRow,
   V4ConversationRowsRangeResult,
+  V4ConversationTurnDirectoryResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
+import { conversationRowSchema } from "@zcode/shared/zcode-protocol-v4";
 import { SessionDataLayer } from "@/v4/sessionDataLayer.js";
 import type { ConversationTransport } from "@/v4/transport.js";
 
@@ -129,6 +131,14 @@ function fixture() {
       },
     })),
     rowsRange: vi.fn(async () => range([])),
+    turnDirectory: vi.fn(
+      async (): Promise<V4ConversationTurnDirectoryResult> => ({
+        entries: [],
+        atSeq: 5,
+        atLogEpoch: "epoch-1",
+        hasMore: false,
+      }),
+    ),
     onFrame: (listener: Parameters<ConversationTransport["onFrame"]>[0]) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -169,6 +179,273 @@ function range(rows: ConversationRow[], atLogEpoch = "epoch-1"): V4ConversationR
 }
 
 describe("conversation row sharing in the host data layer", () => {
+  it("locates single-row online updates without scanning a loaded history window", async () => {
+    const f = fixture();
+    const { store } = await f.open();
+    let reads = 0;
+    const rows = Array.from(
+      { length: 10000 },
+      (_, index): ConversationRow => ({
+        kind: "assistantText",
+        get rowId() {
+          reads++;
+          return index * 2;
+        },
+        turnId: "turn",
+        createdAt: 1,
+        createdAtSeq: index,
+        state: "streaming",
+        text: "old",
+      }),
+    );
+    f.emit(store, { kind: "snapshot", snapshot: snapshot(rows) }, "initial");
+    const before = store.getState().snapshot!;
+    reads = 0;
+    f.emit(store, {
+      kind: "deltas",
+      deltas: [{ op: "row.delta", rowId: 19998, path: "text", append: " new" }],
+    });
+    expect(reads).toBeLessThan(100);
+    expect(store.getState().snapshot!.rows.window.at(-1)).toMatchObject({ text: "old new" });
+    expect(store.getState().snapshot!.rows.window[0]).toBe(before.rows.window[0]);
+    expect(before.rows.window.at(-1)).toMatchObject({ text: "old" });
+    const updated = store.getState().snapshot!;
+    reads = 0;
+    f.emit(store, {
+      kind: "deltas",
+      deltas: [{ op: "row.delta", rowId: 19997, path: "text", append: "missing" }],
+    });
+    expect(reads).toBeLessThan(100);
+    expect(store.getState().snapshot!.rows.window).toBe(updated.rows.window);
+  });
+
+  it("hydrates only directory summaries, then loads body rows on explicit navigation", async () => {
+    const f = fixture();
+    const { store } = await f.open();
+    f.emit(
+      store,
+      {
+        kind: "snapshot",
+        snapshot: snapshot([query(100)], {
+          rows: { window: [query(100)], totalCount: 100, firstRowId: 1 },
+        }),
+      },
+      "initial",
+    );
+    f.transport.turnDirectory.mockResolvedValue({
+      entries: [1, 100].map((rowId) => ({
+        rowId,
+        turnId: `t${rowId}`,
+        userPreview: "question",
+        assistantPreview: "",
+        assistantPreviewKind: "empty",
+        isRunning: false,
+      })),
+      atSeq: 5,
+      atLogEpoch: "epoch-1",
+      hasMore: false,
+    });
+    const before = store.getState().snapshot;
+    expect((await store.loadTurnDirectory()).status).toBe("hydrated");
+    expect(store.getState().snapshot).toBe(before);
+    expect(f.transport.rowsRange).not.toHaveBeenCalled();
+    f.transport.rowsRange.mockResolvedValue(range([query(1)]));
+    expect(await store.loadThroughRow(1)).toBe(true);
+    expect(store.getState().snapshot!.rows.window.map((row) => row.rowId)).toEqual([1, 100]);
+  });
+
+  it("discards a directory response after a same-epoch rewind", async () => {
+    const f = fixture();
+    const { store } = await f.open();
+    f.emit(store, { kind: "snapshot", snapshot: snapshot([query(1), query(2)]) }, "initial");
+    const result = deferred<V4ConversationTurnDirectoryResult>();
+    f.transport.turnDirectory.mockReturnValue(result.promise);
+    const flight = store.loadTurnDirectory();
+    f.emit(store, { kind: "deltas", deltas: [{ op: "row.removed", fromRowId: 2 }] });
+    result.resolve({ entries: [], atSeq: 5, atLogEpoch: "epoch-1", hasMore: false });
+    expect((await flight).status).toBe("stale");
+    expect(store.getState().turnDirectory).toBeNull();
+  });
+
+  it.each(["complete", "interrupted", "failed", "header"] as const)(
+    "refreshes summaries for an unloaded query on final %s",
+    async (kind) => {
+      const f = fixture();
+      const { store } = await f.open();
+      const assistant = {
+        kind: "assistantText",
+        rowId: 100,
+        turnId: "old-turn",
+        createdAt: 1,
+        createdAtSeq: 1,
+        state: "streaming",
+        text: "answer",
+      } as const;
+      f.emit(store, { kind: "snapshot", snapshot: snapshot([assistant]) }, "initial");
+      f.transport.turnDirectory.mockResolvedValue({
+        entries: [
+          {
+            rowId: 2,
+            turnId: "old-turn",
+            userPreview: "question",
+            assistantPreview: "answer",
+            assistantPreviewKind: "text",
+            isRunning: true,
+          },
+        ],
+        atSeq: 5,
+        atLogEpoch: "epoch-1",
+        hasMore: false,
+      });
+      await store.loadTurnDirectory();
+      const directory = store.getState().turnDirectory;
+      const revision = store.getState().turnNavigatorDirectoryRevision;
+      f.emit(store, {
+        kind: "deltas",
+        deltas: [{ op: "row.delta", rowId: 100, path: "text", append: " more" }],
+      });
+      expect(store.getState().turnDirectory).toBe(directory);
+      expect(store.getState().turnNavigatorDirectoryRevision).toBe(revision);
+      const finalRow: ConversationRow =
+        kind !== "header"
+          ? { ...assistant, state: kind, text: "answer more" }
+          : {
+              kind: "turnHeader",
+              origin: "userInput",
+              rowId: 1,
+              turnId: "old-turn",
+              createdAt: 1,
+              createdAtSeq: 1,
+              state: "completedSuccess",
+              executionKind: "agent",
+              startedAt: 1,
+              endedAt: 2,
+            };
+      f.emit(store, {
+        kind: "deltas",
+        deltas: [{ op: "row.upserted", row: conversationRowSchema.parse(finalRow) }],
+      });
+      expect(store.getState().turnDirectory).toBeNull();
+      expect(store.getState().turnNavigatorDirectoryRevision).toBe(revision + 1);
+    },
+  );
+
+  it("does not invalidate an unrelated directory turn on final updates", async () => {
+    const f = fixture();
+    const { store } = await f.open();
+    f.emit(store, { kind: "snapshot", snapshot: snapshot([query(100)]) }, "initial");
+    f.transport.turnDirectory.mockResolvedValue({
+      entries: [
+        {
+          rowId: 1,
+          turnId: "other-turn",
+          userPreview: "question",
+          assistantPreview: "answer",
+          assistantPreviewKind: "text",
+          isRunning: false,
+        },
+      ],
+      atSeq: 5,
+      atLogEpoch: "epoch-1",
+      hasMore: false,
+    });
+    await store.loadTurnDirectory();
+    const before = store.getState();
+    f.emit(store, {
+      kind: "deltas",
+      deltas: [
+        {
+          op: "row.upserted",
+          row: {
+            kind: "assistantText",
+            rowId: 200,
+            turnId: "t100",
+            createdAt: 1,
+            createdAtSeq: 1,
+            state: "complete",
+            text: "answer",
+          },
+        },
+      ],
+    });
+    expect(store.getState().turnDirectory).toBe(before.turnDirectory);
+    expect(store.getState().turnNavigatorDirectoryRevision).toBe(
+      before.turnNavigatorDirectoryRevision,
+    );
+  });
+
+  it.each(["snapshot", "close", "final", "same-turn-guide"])(
+    "discards an in-flight directory after %s",
+    async (change) => {
+      const f = fixture();
+      const { store } = await f.open();
+      f.emit(store, { kind: "snapshot", snapshot: snapshot([query(100)]) }, "initial");
+      const pending = deferred<V4ConversationTurnDirectoryResult>();
+      f.transport.turnDirectory.mockReturnValueOnce(pending.promise);
+      const first = store.loadTurnDirectory();
+      if (change === "snapshot")
+        f.emit(store, { kind: "snapshot", snapshot: snapshot([query(200)]) });
+      else if (change === "close") await store.close();
+      else
+        f.emit(store, {
+          kind: "deltas",
+          deltas: [
+            {
+              op: "row.upserted",
+              row: {
+                kind: "assistantText",
+                rowId: 50,
+                turnId: change === "same-turn-guide" ? "t100" : "older-turn",
+                createdAt: 1,
+                createdAtSeq: 1,
+                state: "complete",
+                text: "answer",
+              },
+            },
+          ],
+        });
+      const second = store.loadTurnDirectory();
+      pending.resolve({
+        entries:
+          change === "same-turn-guide"
+            ? [
+                {
+                  rowId: 2,
+                  turnId: "t100",
+                  userPreview: "earlier query",
+                  assistantPreview: "old answer",
+                  assistantPreviewKind: "text",
+                  isRunning: false,
+                },
+              ]
+            : [],
+        atSeq: 5,
+        atLogEpoch: "epoch-1",
+        hasMore: false,
+      });
+      expect((await first).status).toBe("stale");
+      expect((await second).status).toBe(change === "close" ? "stale" : "not-enough-queries");
+      expect(f.transport.turnDirectory).toHaveBeenCalledTimes(change === "close" ? 1 : 2);
+      expect(store.getState().turnDirectory).toEqual(change === "close" ? null : []);
+    },
+  );
+
+  it("queues a new directory generation behind an obsolete in-flight query", async () => {
+    const f = fixture();
+    const { store } = await f.open();
+    f.emit(store, { kind: "snapshot", snapshot: snapshot([query(1), query(2)]) }, "initial");
+    const old = deferred<V4ConversationTurnDirectoryResult>();
+    f.transport.turnDirectory.mockReturnValueOnce(old.promise);
+    const first = store.loadTurnDirectory();
+    f.emit(store, { kind: "deltas", deltas: [{ op: "row.removed", fromRowId: 2 }] });
+    const second = store.loadTurnDirectory();
+    expect(f.transport.turnDirectory).toHaveBeenCalledTimes(1);
+    old.resolve({ entries: [], atSeq: 5, atLogEpoch: "epoch-1", hasMore: false });
+    expect((await first).status).toBe("stale");
+    expect((await second).status).toBe("not-enough-queries");
+    expect(f.transport.turnDirectory).toHaveBeenCalledTimes(2);
+    expect(store.getState().turnDirectory).toEqual([]);
+  });
   beforeEach(() => vi.useFakeTimers());
   afterEach(async () => {
     for (const layer of layers.splice(0)) layer.dispose();

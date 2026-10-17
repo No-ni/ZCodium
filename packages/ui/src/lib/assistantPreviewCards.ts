@@ -158,29 +158,41 @@ function resolveChangedFilePath(workspacePath: string, path: string): string {
   return resolveAssistantRawFilePath(workspacePath, path) ?? path;
 }
 
-function findMatchingChangedFilePath(
-  reference: AssistantFileReference,
+interface ChangedFilePathIndex {
+  exact: Map<string, string>;
+  uniqueLeaf: Map<string, string | null>;
+}
+
+function buildChangedFilePathIndex(
   changedFilePaths: readonly string[],
   workspacePath: string,
-): string | null {
-  const normalizedReferencePath = normalizePathForCompare(reference.path);
-  const normalizedChangedPaths = changedFilePaths.map((path) => {
+): ChangedFilePathIndex {
+  const exact = new Map<string, string>();
+  const uniqueLeaf = new Map<string, string | null>();
+  changedFilePaths.forEach((path) => {
     const resolvedPath = resolveChangedFilePath(workspacePath, path);
-    return { path: resolvedPath, normalized: normalizePathForCompare(resolvedPath) };
+    const normalizedPath = normalizePathForCompare(resolvedPath);
+    const leaf = getPathLeaf(normalizedPath);
+    // 每条引用重复解析全部变更会产生乘积级工作；本轮共用首见 exact 和唯一 leaf 索引。
+    // 重复相同路径也必须令 leaf 歧义，保持原 filter 结果长度严格为 1 的规则。
+    if (!exact.has(normalizedPath)) exact.set(normalizedPath, resolvedPath);
+    uniqueLeaf.set(leaf, uniqueLeaf.has(leaf) ? null : resolvedPath);
   });
-  const exact = normalizedChangedPaths.find(
-    (candidate) => candidate.normalized === normalizedReferencePath,
-  );
-  if (exact) return exact.path;
+  return { exact, uniqueLeaf };
+}
+
+function findMatchingChangedFilePath(
+  reference: AssistantFileReference,
+  index: ChangedFilePathIndex,
+): string | null {
+  const exact = index.exact.get(normalizePathForCompare(reference.path));
+  if (exact !== undefined) return exact;
 
   const cleanedRaw = cleanAssistantFilePathCandidate(reference.raw);
   if (cleanedRaw.includes("/") || cleanedRaw.includes("\\") || /^file:/i.test(cleanedRaw)) {
     return null;
   }
-  const leafMatches = normalizedChangedPaths.filter(
-    (candidate) => getPathLeaf(candidate.normalized) === cleanedRaw,
-  );
-  return leafMatches.length === 1 ? leafMatches[0]!.path : null;
+  return index.uniqueLeaf.get(cleanedRaw) ?? null;
 }
 
 function getWebsiteTitleFromMarkdownLink(content: string, url: string): string | null {
@@ -205,7 +217,7 @@ function getWebsiteFallbackTitle(url: string): string {
 function resolveLocalhostHtmlChangedPath(
   url: string,
   workspacePath: string,
-  changedFilePaths: readonly string[],
+  findChangedPath: (reference: AssistantFileReference) => string | null,
   options: AssistantFilePathResolveOptions = {},
 ): string | null {
   try {
@@ -214,11 +226,7 @@ function resolveLocalhostHtmlChangedPath(
     if (!isAssistantPreviewHtmlPath(pathname)) return null;
     const path = resolveAssistantRawFilePath(workspacePath, pathname, options);
     if (!path) return null;
-    return findMatchingChangedFilePath(
-      { start: 0, end: 0, kind: "html", path, raw: pathname },
-      changedFilePaths,
-      workspacePath,
-    );
+    return findChangedPath({ start: 0, end: 0, kind: "html", path, raw: pathname });
   } catch {
     return null;
   }
@@ -281,6 +289,12 @@ export function buildAssistantPreviewCardsFromReferences(
   if (!content.trim()) return [];
 
   const changedFilePaths = options.changedFilePaths ?? [];
+  let changedFilePathIndex: ChangedFilePathIndex | undefined;
+  const findChangedPath = (reference: AssistantFileReference): string | null =>
+    findMatchingChangedFilePath(
+      reference,
+      (changedFilePathIndex ??= buildChangedFilePathIndex(changedFilePaths, workspacePath)),
+    );
   const positionedCards: PositionedCard[] = [];
   let hasLocalHttpPreview = false;
 
@@ -289,7 +303,7 @@ export function buildAssistantPreviewCardsFromReferences(
     if (!isValidAssistantPreviewWebsiteUrl(url)) continue;
     // Web 远控没有本地端口转发或 HTML 运行环境；在候选上限前过滤，避免隐藏卡片占位。
     if (options.suppressWebRemoteCards) continue;
-    const filePath = resolveLocalhostHtmlChangedPath(url, workspacePath, changedFilePaths, {
+    const filePath = resolveLocalhostHtmlChangedPath(url, workspacePath, findChangedPath, {
       homePath: options.homePath,
     });
     hasLocalHttpPreview = true;
@@ -316,7 +330,7 @@ export function buildAssistantPreviewCardsFromReferences(
 
     let resolvedReference = reference;
     if (reference.kind === "markdown" || reference.kind === "html") {
-      const changedPath = findMatchingChangedFilePath(reference, changedFilePaths, workspacePath);
+      const changedPath = findChangedPath(reference);
       if (!changedPath) continue;
       resolvedReference = { ...reference, path: changedPath };
     }

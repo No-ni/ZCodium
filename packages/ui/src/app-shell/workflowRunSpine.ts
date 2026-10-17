@@ -1,5 +1,6 @@
 import type {
   TimelineInk,
+  TimelineRail,
   WorkflowTimelineModel,
 } from "@/components/workflow-timeline/timeline-model.js";
 
@@ -46,6 +47,18 @@ export function spineSections(model: WorkflowTimelineModel): SpineSection[] {
   const sections: SpineSection[] = model.stations.map(() => ({ curves: [], rails: [] }));
   const trackAt = (i: number): number => model.stations[i]?.track ?? 0;
   const plain = model.rails.filter((rail) => rail.kind === undefined);
+  const aboveByStation = new Map<number, TimelineRail>();
+  const belowByStation = new Map<number, TimelineRail>();
+  // 原来每站两次 find 会重复扫描整张边表；单次派生建立索引，保留各筛选下的首见边。
+  for (const rail of model.rails) {
+    const { from, to, kind } = rail;
+    if (kind !== "twin" && kind !== "merge" && !aboveByStation.has(to)) {
+      aboveByStation.set(to, rail);
+    }
+    if (kind !== "twin" && kind !== "fork" && !belowByStation.has(from)) {
+      belowByStation.set(from, rail);
+    }
+  }
   /** 横跨第 i 节、两端都在轨道 t 上的那条平轨（主轨穿过分支站、分支轨穿过别人的站都读它）。 */
   const spanning = (i: number, track: number): TimelineInk | undefined =>
     plain.find(
@@ -62,12 +75,8 @@ export function spineSections(model: WorkflowTimelineModel): SpineSection[] {
     const track = band?.tracks[station.track];
     if (track === undefined) {
       // 主线上的站：与从前一样，上一站画下半截、下一站画上半截；相邻无边就留空。
-      const above = model.rails.find(
-        (rail) => rail.to === i && rail.kind !== "twin" && rail.kind !== "merge",
-      );
-      const below = model.rails.find(
-        (rail) => rail.from === i && rail.kind !== "twin" && rail.kind !== "fork",
-      );
+      const above = aboveByStation.get(i);
+      const below = belowByStation.get(i);
       if (above !== undefined) section.rails.push({ ink: above.ink, position: "above", track: 0 });
       if (below !== undefined) section.rails.push({ ink: below.ink, position: "below", track: 0 });
       return;

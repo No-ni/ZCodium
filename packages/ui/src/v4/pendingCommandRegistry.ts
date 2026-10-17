@@ -98,6 +98,8 @@ class PendingCommandRegistry {
   private readonly entries = new Map<string, PendingCommandEntry>();
   private readonly listeners = new Set<() => void>();
   private readonly reconcileInFlight = new Map<string, Promise<void>>();
+  private queryBatchDepth = 0;
+  private queryBatchChanged = false;
 
   constructor(options: PendingCommandRegistryOptions = {}) {
     this.storage = options.storage ?? browserStorage();
@@ -187,6 +189,22 @@ class PendingCommandRegistry {
   }
 
   applyQuery(result: CommandsQueryResult): void {
+    // 一次查询最多返回 64 项；逐项 commit 会重复序列化整份账本并通知所有 pane。
+    // 只合并同步响应处理，不能跨 await 延迟新命令的「先持久化、再上行」。
+    this.queryBatchDepth += 1;
+    try {
+      this.applyQueryResults(result);
+    } finally {
+      this.queryBatchDepth -= 1;
+      if (this.queryBatchDepth === 0 && this.queryBatchChanged) {
+        // 先退出批次再通知，保证订阅回调重入 record/ACK/query 时仍立即持久化。
+        this.queryBatchChanged = false;
+        this.commit();
+      }
+    }
+  }
+
+  private applyQueryResults(result: CommandsQueryResult): void {
     for (const item of result.results) {
       let entry = this.entries.get(keyOf(item.key.sessionId, item.key.commandId));
       if (!entry) continue;
@@ -227,22 +245,39 @@ class PendingCommandRegistry {
   }
 
   reconcileSnapshot(snapshot: ConversationSnapshot): void {
+    // 流式快照会持续更新；没有待查命令时不能逐帧扫描整段历史。
+    if (this.entries.size === 0) return;
+    const pending = new Set<string>();
+    for (const entry of this.entries.values()) {
+      if (entry.sessionId === snapshot.sessionId) pending.add(entry.commandId);
+    }
+    if (pending.size === 0) return;
     const settled = new Set<string>();
     for (const item of snapshot.queue.items) {
-      if (item.sourceCommandId) {
+      if (item.sourceCommandId && pending.has(item.sourceCommandId)) {
         // 把“进入 queue”当成仍未投递的话，直到 transcript 才清理
         // localStorage；App/CLI 重启后旧 runtime queue 被正常丢弃，却又触发重发提示。
         // queue projection 已是 CLI 权威接收证据，renderer ingress 账本应在此结算。
         settled.add(item.sourceCommandId);
       }
+      if (settled.size === pending.size) break;
     }
-    for (const row of snapshot.rows.window) {
-      if (row.kind === "userInput" && row.sourceCommandId) {
-        settled.add(row.sourceCommandId);
-      }
-      if (row.kind === "timelineMarker" && row.marker.type === "compact" && row.sourceCommandId) {
-        // compact 不产生 user row；timeline marker 是该维护命令已开始执行的权威证据。
-        settled.add(row.sourceCommandId);
+    // 队列或前面的锚点已覆盖全部待查命令时，后续正文无法提供新的收口证据。
+    if (settled.size < pending.size) {
+      for (const row of snapshot.rows.window) {
+        if (row.kind === "userInput" && row.sourceCommandId && pending.has(row.sourceCommandId)) {
+          settled.add(row.sourceCommandId);
+        }
+        if (
+          row.kind === "timelineMarker" &&
+          row.marker.type === "compact" &&
+          row.sourceCommandId &&
+          pending.has(row.sourceCommandId)
+        ) {
+          // compact 不产生 user row；timeline marker 是该维护命令已开始执行的权威证据。
+          settled.add(row.sourceCommandId);
+        }
+        if (settled.size === pending.size) break;
       }
     }
     if (settled.size === 0) return;
@@ -366,6 +401,10 @@ class PendingCommandRegistry {
   }
 
   private commit(): void {
+    if (this.queryBatchDepth > 0) {
+      this.queryBatchChanged = true;
+      return;
+    }
     if (this.storage) {
       try {
         if (this.entries.size === 0) {

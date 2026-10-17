@@ -1,3 +1,7 @@
+import {
+  shouldForceOpenAbnormalHistory,
+  normalizeRenderUnitPosition,
+} from "./conversationTurnRenderPosition.js";
 import type {
   AssistantTextRow,
   ConversationRow,
@@ -10,6 +14,8 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import type { AssistantWorkRow, ConversationTurnFlowItem } from "@/v4/conversationTurnFlowItems.js";
 import type { PluginUiRowPinResolver } from "@/plugin-ui/index.js";
+import { isPluginUiPinnedToolRow } from "@/plugin-ui/index.js";
+import type { ConversationTurnRenderCache } from "./conversationTurnRenderCache.js";
 import {
   isWorkflowLaunchUserInputRow,
   resolveWorkflowLaunchMeta,
@@ -71,6 +77,7 @@ export interface ConversationTurnRenderUnit {
 }
 
 interface BuildConversationTurnRenderUnitsOptions {
+  cache?: ConversationTurnRenderCache;
   nowMs?: number;
   sessionPhase?: SessionPhase;
   /** 插件卡片折叠裁决（时间线由推导结果 + 手动状态组装）。 */
@@ -220,16 +227,6 @@ function resolveTurnRunning(
   }
   // 仅兼容缺少 turnHeader 的旧投影；background-only work 不阻塞主轮完成。
   return draft.assistantWorkRows.some(isCompletionBlockingWorkRowRunning);
-}
-
-function shouldForceOpenAbnormalHistory(
-  header: TurnHeaderRow | undefined,
-  sessionPhase: SessionPhase | undefined,
-): boolean {
-  if (header) {
-    return header.state === "completedInterrupted" || header.state === "failed";
-  }
-  return sessionPhase === "completedInterrupted" || sessionPhase === "error";
 }
 
 function materializeDraftUnit(
@@ -389,56 +386,6 @@ function shouldKeepRenderUnit(unit: ConversationTurnRenderUnit): boolean {
   );
 }
 
-function normalizeRenderUnitPosition(
-  unit: ConversationTurnRenderUnit,
-  index: number,
-  total: number,
-  options: BuildConversationTurnRenderUnitsOptions,
-): ConversationTurnRenderUnit {
-  const isLastTurn = index === total - 1;
-  const forceOpenHistory = shouldForceOpenAbnormalHistory(unit.header, options.sessionPhase);
-  const assistantHistoryDefaultOpen =
-    unit.workSegments && unit.workSegments.length > 0
-      ? !unit.timelineOnly &&
-        (forceOpenHistory ||
-          (isLastTurn && unit.workSegments.at(-1)?.workStatus?.state === "running") ||
-          (unit.workSegments.length === 1 &&
-            unit.latestAssistantTextRow === undefined &&
-            unit.assistantWorkRows.length > 0))
-      : !unit.timelineOnly &&
-        (forceOpenHistory ||
-          (isLastTurn && unit.workStatus?.state === "running") ||
-          (unit.latestAssistantTextRow === undefined && unit.assistantWorkRows.length > 0));
-  const workSegments = unit.workSegments?.map((segment, segmentIndex, segments) =>
-    segmentIndex === segments.length - 1
-      ? {
-          ...segment,
-          assistantHistoryDefaultOpen:
-            !unit.timelineOnly &&
-            (forceOpenHistory ||
-              (isLastTurn && segment.workStatus?.state === "running") ||
-              (segments.length === 1 &&
-                unit.latestAssistantTextRow === undefined &&
-                segment.assistantWorkRows.length > 0)),
-        }
-      : segment,
-  );
-  if (
-    unit.isLastTurn === isLastTurn &&
-    unit.assistantHistoryDefaultOpen === assistantHistoryDefaultOpen &&
-    workSegments?.at(-1)?.assistantHistoryDefaultOpen ===
-      unit.workSegments?.at(-1)?.assistantHistoryDefaultOpen
-  ) {
-    return unit;
-  }
-  return {
-    ...unit,
-    isLastTurn,
-    assistantHistoryDefaultOpen,
-    ...(workSegments ? { workSegments } : {}),
-  };
-}
-
 export function buildConversationTurnRenderUnits(
   rows: readonly ConversationRow[],
   options: BuildConversationTurnRenderUnitsOptions = {},
@@ -475,9 +422,25 @@ export function buildConversationTurnRenderUnits(
     unit.assistantWorkRows.push(row);
   }
 
-  const materializedUnits = units.map((unit, index) =>
-    materializeDraftUnit(unit, index, units.length, options),
-  );
+  options.cache?.retain(new Set(units.map((unit) => unit.key)));
+  const materializedUnits = units.map((unit, index) => {
+    const build = () => materializeDraftUnit(unit, index, units.length, options);
+    return (
+      options.cache?.materialize(
+        unit.key,
+        {
+          rows: unit.orderedRows,
+          header: unit.header,
+          last: index === units.length - 1,
+          phase: options.sessionPhase,
+          pins: unit.assistantWorkRows.map((row) =>
+            isPluginUiPinnedToolRow(row, options.pluginUiPinResolver),
+          ),
+        },
+        build,
+      ) ?? build()
+    );
+  });
   const keptUnits = materializedUnits.filter(shouldKeepRenderUnit);
   return keptUnits.map((unit, index) =>
     normalizeRenderUnitPosition(unit, index, keptUnits.length, options),

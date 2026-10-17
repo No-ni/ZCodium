@@ -160,7 +160,8 @@ export function addDeletedGitStatusRowsToWorkspaceFileTree(params: {
   childrenByDirectory: Map<string, WorkspaceFileTreeNode[]>;
   statusByPath: ReadonlyMap<string, WorkspaceFileGitStatus>;
 }): Map<string, WorkspaceFileTreeNode[]> {
-  let nextChildrenByDirectory: Map<string, WorkspaceFileTreeNode[]> | null = null;
+  const pathsByDirectory = new Map<string, Set<string>>();
+  const changedChildrenByDirectory = new Map<string, WorkspaceFileTreeNode[]>();
 
   for (const [path, status] of params.statusByPath) {
     if (status !== "deleted") {
@@ -172,25 +173,45 @@ export function addDeletedGitStatusRowsToWorkspaceFileTree(params: {
       continue;
     }
 
-    const currentChildren =
-      (nextChildrenByDirectory ?? params.childrenByDirectory).get(parentDirectory) ?? null;
+    const currentChildren = params.childrenByDirectory.get(parentDirectory);
     if (!currentChildren) {
       continue;
     }
 
-    if (currentChildren.some((child) => areWorkspaceFilePathsEqual(child.path, path))) {
+    let childPaths = pathsByDirectory.get(parentDirectory);
+    if (!childPaths) {
+      childPaths = new Set(currentChildren.map((child) => normalizeForRelativePath(child.path)));
+      pathsByDirectory.set(parentDirectory, childPaths);
+    }
+    const normalizedPath = normalizeForRelativePath(path);
+    if (childPaths.has(normalizedPath)) {
       continue;
     }
 
-    const nextChildren = [
-      ...currentChildren,
-      {
-        path,
-        name: getPathLeaf(path),
-        type: "file" as const,
-        depth: getWorkspaceFileDirectoryChildDepth(params.rootPath, parentDirectory),
-      },
-    ].sort((left, right) => {
+    // 修复：批量删除曾逐项扫描、复制并排序整个目录，1,000 行需约 50 万次比较。
+    // 同目录路径只索引一次，虚拟行批量追加后再排序，保持路径去重及稳定排序语义。
+    let nextChildren = changedChildrenByDirectory.get(parentDirectory);
+    if (!nextChildren) {
+      nextChildren = [...currentChildren];
+      changedChildrenByDirectory.set(parentDirectory, nextChildren);
+    }
+    childPaths.add(normalizedPath);
+    // deleted 文件不在 readdir 中，仍从 Git 状态补出具体的 D 行。
+    nextChildren.push({
+      path,
+      name: getPathLeaf(path),
+      type: "file",
+      depth: getWorkspaceFileDirectoryChildDepth(params.rootPath, parentDirectory),
+    });
+  }
+
+  if (changedChildrenByDirectory.size === 0) {
+    return params.childrenByDirectory;
+  }
+
+  const nextChildrenByDirectory = new Map(params.childrenByDirectory);
+  for (const [parentDirectory, nextChildren] of changedChildrenByDirectory) {
+    nextChildren.sort((left, right) => {
       if (left.type !== right.type) {
         return left.type === "directory" ? -1 : 1;
       }
@@ -198,13 +219,10 @@ export function addDeletedGitStatusRowsToWorkspaceFileTree(params: {
       return left.name.localeCompare(right.name);
     });
 
-    // 修复：deleted 文件已不在文件系统里，单靠 readdir 无法生成行，
-    // 导致文件树只能在目录上显示聚合点，看不到具体文件的 D 状态。
-    nextChildrenByDirectory ??= new Map(params.childrenByDirectory);
     nextChildrenByDirectory.set(parentDirectory, nextChildren);
   }
 
-  return nextChildrenByDirectory ?? params.childrenByDirectory;
+  return nextChildrenByDirectory;
 }
 
 export function getWorkspaceFileRelativePath(workspacePath: string, filePath: string): string {
@@ -324,15 +342,32 @@ function normalizeWorkspaceFileTreeSearchQuery(query: string): string {
 function isWorkspaceFileTreeRowChanged(
   row: WorkspaceFileTreeRow,
   statusByPath: ReadonlyMap<string, WorkspaceFileGitStatus>,
+  changedDirectoryPaths: ReadonlySet<string>,
 ): boolean {
   const gitStatus = getWorkspaceFileGitStatus(statusByPath, row.path);
   if (gitStatus && gitStatus !== "ignored") {
     return true;
   }
 
-  return (
-    row.type === "directory" && getWorkspaceDirectoryGitStatuses(statusByPath, row.path).length > 0
-  );
+  return row.type === "directory" && changedDirectoryPaths.has(normalizeForGitStatusPath(row.path));
+}
+
+function collectWorkspaceGitAncestorDirectories(
+  statusByPath: ReadonlyMap<string, WorkspaceFileGitStatus>,
+): Set<string> {
+  const directories = new Set<string>();
+  // “仅改动”曾对每个已加载目录扫描整张 Git 表，虚拟化不能减少筛选工作。
+  // 按原严格 descendant 语义一次登记祖先；ignored descendant 也必须保留其目录。
+  for (const path of statusByPath.keys()) {
+    const normalizedPath = normalizeForGitStatusPath(path);
+    let boundary = normalizedPath.lastIndexOf("/");
+    while (boundary >= 0) {
+      directories.add(normalizedPath.slice(0, boundary));
+      if (boundary === 0) break;
+      boundary = normalizedPath.lastIndexOf("/", boundary - 1);
+    }
+  }
+  return directories;
 }
 
 export function filterWorkspaceFileTreeRows(params: {
@@ -341,9 +376,13 @@ export function filterWorkspaceFileTreeRows(params: {
   changedOnly: boolean;
   statusByPath: ReadonlyMap<string, WorkspaceFileGitStatus>;
 }): WorkspaceFileTreeRow[] {
-  const changedFilteredRows = params.changedOnly
-    ? params.rows.filter((row) => isWorkspaceFileTreeRowChanged(row, params.statusByPath))
-    : params.rows;
+  let changedFilteredRows = params.rows;
+  if (params.changedOnly) {
+    const changedDirectoryPaths = collectWorkspaceGitAncestorDirectories(params.statusByPath);
+    changedFilteredRows = params.rows.filter((row) =>
+      isWorkspaceFileTreeRowChanged(row, params.statusByPath, changedDirectoryPaths),
+    );
+  }
   const normalizedSearchQuery = normalizeWorkspaceFileTreeSearchQuery(params.searchQuery);
 
   if (!normalizedSearchQuery) {

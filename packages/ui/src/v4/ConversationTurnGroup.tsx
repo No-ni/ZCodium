@@ -88,6 +88,7 @@ import type {
   ConversationTurnWorkSegment,
 } from "@/v4/conversationTurnRenderUnits.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
+import { useConversationWorkDuration } from "@/hooks/useConversationWorkDuration.js";
 import { ConversationTurnRow, resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
@@ -573,11 +574,8 @@ function AssistantHistoryStatus({
   open: boolean;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const durationLabel = formatConversationWorkDuration(
-    segment.workStatus?.durationMs,
-    intl,
-    locale,
-  );
+  const durationMs = useConversationWorkDuration(segment.workStatus);
+  const durationLabel = formatConversationWorkDuration(durationMs, intl, locale);
   const label =
     segment.workStatus?.state === "interrupted"
       ? intl.formatMessage({ id: "chat.history.stopped" })

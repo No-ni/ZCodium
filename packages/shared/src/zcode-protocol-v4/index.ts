@@ -63,3 +63,5 @@ export { bashOutputDisplaySchema } from "../bash-output-display.js";
 export { modelSelectionSchema, type ModelSelection } from "../model-selection.js";
 
 export * from "../localTtft.js";
+export { conversationRowLowerBound, sliceConversationRowRange } from "./row-range.js";
+export * from "./turn-directory.js";

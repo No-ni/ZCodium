@@ -54,17 +54,47 @@ function normalizeCodeLanguage(language: string): BundledLanguage {
 }
 
 const highlighterCache = new Map<
-  string,
+  BundledLanguage,
   Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
 >();
-const tokensCache = new Map<string, TokenizedCode>();
+const pendingResources = new Map<string, Promise<void>>();
+const TOKEN_CACHE_MAX_ENTRIES = 128;
+const TOKEN_CACHE_MAX_CHARS = 2_000_000;
+const TOKEN_CACHE_MAX_TOKENS = 100_000;
+const tokensCache = new Map<string, { result: TokenizedCode; tokenCount: number }>();
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
-// 内存诊断计数器：tokensCache 目前无淘汰，是审计里
-// renderer 最可疑的增长点，先把条数落到日志里。
+let tokensCacheChars = 0;
+let tokensCacheTokens = 0;
+// 流式代码会产生大量不同版本；同时限制项数、源码字符与 token，避免长会话无界保留。
 uiMemoryDiagnosticsRegistry.register("shiki", () => ({
   tokensCache: tokensCache.size,
+  tokensCacheChars,
+  tokensCacheTokens,
+  pending: subscribers.size,
   highlighters: highlighterCache.size,
+  pendingResources: pendingResources.size,
 }));
+
+function cacheCodeTokens(key: string, result: TokenizedCode): void {
+  const tokenCount = result.tokens.reduce((total, line) => total + line.length, 0);
+  if (key.length > TOKEN_CACHE_MAX_CHARS || tokenCount > TOKEN_CACHE_MAX_TOKENS) {
+    return;
+  }
+  tokensCache.set(key, { result, tokenCount });
+  tokensCacheChars += key.length;
+  tokensCacheTokens += tokenCount;
+  while (
+    tokensCache.size > TOKEN_CACHE_MAX_ENTRIES ||
+    tokensCacheChars > TOKEN_CACHE_MAX_CHARS ||
+    tokensCacheTokens > TOKEN_CACHE_MAX_TOKENS
+  ) {
+    const oldest = tokensCache.entries().next().value;
+    if (!oldest) break;
+    tokensCache.delete(oldest[0]);
+    tokensCacheChars -= oldest[0].length;
+    tokensCacheTokens -= oldest[1].tokenCount;
+  }
+}
 
 const getResolvedCodeTheme = (theme?: BundledTheme): BundledTheme => {
   if (theme) {
@@ -79,27 +109,40 @@ const getResolvedCodeTheme = (theme?: BundledTheme): BundledTheme => {
 };
 
 const getCodeTokensCacheKey = (code: string, language: BundledLanguage, theme: BundledTheme) => {
-  const start = code.slice(0, 100);
-  const end = code.length > 100 ? code.slice(-100) : "";
-  return `${theme}:${language}:${code.length}:${start}:${end}`;
+  // 首尾采样无法区分中部等长编辑，必须用完整源码参与相等判断。
+  return `${theme}:${language}:${code}`;
 };
-const getHighlighter = (
+function loadHighlighterResource(key: string, load: () => Promise<void>): Promise<void> {
+  const pending = pendingResources.get(key);
+  if (pending) return pending;
+  const flight = load().finally(() => {
+    pendingResources.delete(key);
+  });
+  pendingResources.set(key, flight);
+  return flight;
+}
+
+const getHighlighter = async (
   language: BundledLanguage,
   theme: BundledTheme,
 ): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
-  const cacheKey = `${theme}:${language}`;
-  const cached = highlighterCache.get(cacheKey);
-  if (cached) {
-    return cached;
+  // 按语言 × 主题建实例会重复常驻同一语法；同语言共用引擎并按需加载主题。
+  // 不能跨语言合并：Shiki 的 lazy embedded grammar 会随已加载语言改变 Markdown 等输出。
+  let highlighterPromise = highlighterCache.get(language);
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({ langs: [language], themes: [] }).catch(
+      (error: unknown) => {
+        highlighterCache.delete(language);
+        throw error;
+      },
+    );
+    highlighterCache.set(language, highlighterPromise);
   }
-
-  const highlighterPromise = createHighlighter({
-    langs: [language],
-    themes: [theme],
-  });
-
-  highlighterCache.set(cacheKey, highlighterPromise);
-  return highlighterPromise;
+  const highlighter = await highlighterPromise;
+  if (!highlighter.getLoadedThemes().includes(theme)) {
+    await loadHighlighterResource(`${language}:${theme}`, () => highlighter.loadTheme(theme));
+  }
+  return highlighter;
 };
 
 const createRawCodeTokens = (code: string): TokenizedCode => ({
@@ -138,21 +181,24 @@ export const highlightCode = (
 
   const cached = tokensCache.get(tokensCacheKey);
   if (cached) {
+    tokensCache.delete(tokensCacheKey);
+    tokensCache.set(tokensCacheKey, cached);
     // 缓存命中时也需要通知 effect，但不能同步触发 setState。
     // 历史消息恢复时大量代码块会在同一次提交后挂载；同步 callback 会把 cache-hit 变成嵌套更新，
     // 和 Streamdown 的重渲染叠在一起时容易触发 React #185。推迟到微任务后再交给幂等 setter。
     if (callback) {
-      queueMicrotask(() => callback(cached));
+      queueMicrotask(() => callback(cached.result));
     }
-    return cached;
+    return cached.result;
   }
 
-  if (callback) {
-    if (!subscribers.has(tokensCacheKey)) {
-      subscribers.set(tokensCacheKey, new Set());
-    }
-    subscribers.get(tokensCacheKey)?.add(callback);
+  const pending = subscribers.get(tokensCacheKey);
+  if (pending) {
+    if (callback) pending.add(callback);
+    return null;
   }
+  // 即使没有订阅者也登记在途任务，多个组件同帧请求只执行一次 tokenize。
+  subscribers.set(tokensCacheKey, new Set(callback ? [callback] : []));
 
   getHighlighter(resolvedLanguage, resolvedTheme)
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
@@ -173,15 +219,19 @@ export const highlightCode = (
         tokens: result.tokens,
       };
 
-      tokensCache.set(tokensCacheKey, tokenized);
+      cacheCodeTokens(tokensCacheKey, tokenized);
 
       const subs = subscribers.get(tokensCacheKey);
+      subscribers.delete(tokensCacheKey);
       if (subs) {
         for (const sub of subs) {
-          sub(tokenized);
+          try {
+            sub(tokenized);
+          } catch (error) {
+            logger.error("[ShikiHighlighter] 高亮结果通知失败", error);
+          }
         }
       }
-      subscribers.delete(tokensCacheKey);
     })
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then), eslint-plugin-promise(prefer-await-to-callbacks)
     .catch((error) => {

@@ -17,8 +17,12 @@ import {
   type ConversationTurnNavigatorVirtualItem,
 } from "@/v4/conversationTurnNavigatorHelpers.js";
 import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
+import type { ConversationTurnDirectoryEntry } from "@zcode/shared/zcode-protocol-v4";
+import { mergeTurnDirectory } from "./mergeTurnDirectory.js";
+import { ConversationTurnNavigatorCache } from "./conversationTurnNavigatorCache.js";
 
 interface ConversationTurnNavigatorProps {
+  directory?: readonly ConversationTurnDirectoryEntry[] | null;
   renderUnits: readonly ConversationTurnRenderUnit[];
   scrollOffsetPx: number;
   viewportHeightPx: number;
@@ -46,6 +50,7 @@ function usePrefersReducedMotion() {
 }
 
 function ConversationTurnNavigatorImpl({
+  directory,
   renderUnits,
   scrollOffsetPx,
   viewportHeightPx,
@@ -57,20 +62,33 @@ function ConversationTurnNavigatorImpl({
   const { intl } = useZCodeIntl();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [interactionItemIndex, setInteractionItemIndex] = useState<number | undefined>(undefined);
+  const [itemCache] = useState(() => new ConversationTurnNavigatorCache());
   const items = useMemo(
     () =>
-      buildConversationTurnNavigatorItems(renderUnits, {
-        assistantEmptyPreview: intl.formatMessage({
-          id: "chat.turnNavigator.emptyAssistant",
-        }),
-        assistantRunningPreview: intl.formatMessage({
-          id: "chat.turnNavigator.runningAssistant",
-        }),
-        userFallbackPreview: intl.formatMessage({
-          id: "chat.turnNavigator.userFallback",
-        }),
-      }),
-    [intl, renderUnits],
+      mergeTurnDirectory(
+        buildConversationTurnNavigatorItems(
+          renderUnits,
+          {
+            assistantEmptyPreview: intl.formatMessage({
+              id: "chat.turnNavigator.emptyAssistant",
+            }),
+            assistantRunningPreview: intl.formatMessage({
+              id: "chat.turnNavigator.runningAssistant",
+            }),
+            userFallbackPreview: intl.formatMessage({
+              id: "chat.turnNavigator.userFallback",
+            }),
+          },
+          itemCache,
+        ),
+        directory,
+        {
+          empty: intl.formatMessage({ id: "chat.turnNavigator.emptyAssistant" }),
+          running: intl.formatMessage({ id: "chat.turnNavigator.runningAssistant" }),
+          user: intl.formatMessage({ id: "chat.turnNavigator.userFallback" }),
+        },
+      ),
+    [intl, renderUnits, directory, itemCache],
   );
 
   const activeUnitIndex = useMemo(

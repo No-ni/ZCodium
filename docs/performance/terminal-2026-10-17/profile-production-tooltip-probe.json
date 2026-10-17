@@ -1,0 +1,2813 @@
+{
+  "recordedAt": "2026-10-17T07:51:26.088Z",
+  "omitControlTooltips": true,
+  "browser": "155.0.4283.45",
+  "stages": [
+    {
+      "action": "completeStream",
+      "measurement": {
+        "twoFramesMs": 146.6000000089407,
+        "commit": {
+          "name": "terminal",
+          "commitMs": 113.09999999403954
+        },
+        "longTasks": [124]
+      },
+      "profile": {
+        "durationMs": 620.873,
+        "self": [
+          {
+            "ms": 479.8,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 10.1,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4789
+          },
+          {
+            "ms": 7.7,
+            "name": "removeChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.3,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7531
+          },
+          {
+            "ms": 4.9,
+            "name": "setValueForStyle",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 1077
+          },
+          {
+            "ms": 4.8,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.7,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.3,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.2,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6522
+          },
+          {
+            "ms": 3.2,
+            "name": "createChild",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 2432
+          },
+          {
+            "ms": 3.1,
+            "name": "CodeSnippet",
+            "url": "/packages/ui/src/components/ui/code-snippet.tsx",
+            "line": 9
+          },
+          {
+            "ms": 2.9,
+            "name": "next",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 489
+          },
+          {
+            "ms": 2.7,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 2.6,
+            "name": "dispatchEvent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 8910
+          },
+          {
+            "ms": 1.8,
+            "name": "hasInButtonScope",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 4533
+          },
+          {
+            "ms": 1.7,
+            "name": "appendChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.7,
+            "name": "listenToNonDelegatedEvent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7203
+          },
+          {
+            "ms": 1.7,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 2871
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/class-variance-authority.js?v=317e2424",
+            "line": 19
+          },
+          {
+            "ms": 1.6,
+            "name": "splice",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/micromark-util-resolve-all-BLg1oFxz.js?v=959ddc22",
+            "line": 24
+          },
+          {
+            "ms": 1.6,
+            "name": "findInstanceBlockingTarget",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 8953
+          },
+          {
+            "ms": 1.6,
+            "name": "set webkitSpeechRecognitionEvent",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.6,
+            "name": "compile",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 23041
+          },
+          {
+            "ms": 1.6,
+            "name": "exports.useState",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react.js?v=cffb16cb",
+            "line": 350
+          },
+          {
+            "ms": 1.6,
+            "name": "detachDeletedInstance",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 800
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/Icon-U3JmfPAS.js?v=959ddc22",
+            "line": 79
+          },
+          {
+            "ms": 1.6,
+            "name": "find",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/space-separated-tokens-Urhnlkoj.js?v=959ddc22",
+            "line": 1279
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/packages/ui/src/components/ui/codeSnippetVisibility.ts",
+            "line": 22
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-t8Qwt55I.js?v=959ddc22",
+            "line": 23
+          },
+          {
+            "ms": 1.6,
+            "name": "updateForwardRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4082
+          },
+          {
+            "ms": 1.6,
+            "name": "subtokenize",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 14492
+          },
+          {
+            "ms": 1.6,
+            "name": "stripNullChildren",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 110
+          },
+          {
+            "ms": 1.6,
+            "name": "completeUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6667
+          },
+          {
+            "ms": 1.6,
+            "name": "jsxProd",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react_jsx-runtime.js?v=cffb16cb",
+            "line": 14
+          },
+          {
+            "ms": 1.6,
+            "name": "subcontent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 14566
+          },
+          {
+            "ms": 1.6,
+            "name": "setValueForStyles",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 1081
+          },
+          {
+            "ms": 1.6,
+            "name": "contentChunk",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 13768
+          },
+          {
+            "ms": 1.6,
+            "name": "factory",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "line": 393
+          },
+          {
+            "ms": 1.6,
+            "name": "onenterdata",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 23388
+          },
+          {
+            "ms": 1.6,
+            "name": "CodeBlock",
+            "url": "/packages/ui/src/components/ai-elements/code-block.tsx",
+            "line": 129
+          },
+          {
+            "ms": 1.6,
+            "name": "setTextContent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 1066
+          },
+          {
+            "ms": 1.6,
+            "name": "createElement",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.6,
+            "name": "push",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 434
+          },
+          {
+            "ms": 1.6,
+            "name": "jsxProd",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react_jsx-runtime.js?v=cffb16cb",
+            "line": 14
+          },
+          {
+            "ms": 1.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7269
+          },
+          {
+            "ms": 1.6,
+            "name": "getCodeLanguage",
+            "url": "/packages/ui/src/components/ai-elements/message.tsx",
+            "line": 545
+          },
+          {
+            "ms": 1.5,
+            "name": "updateReducerImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 3038
+          },
+          {
+            "ms": 1.5,
+            "name": "getListener",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 1235
+          },
+          {
+            "ms": 1.5,
+            "name": "reconcileChildFibersImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 2533
+          },
+          {
+            "ms": 1.5,
+            "name": "commitPassiveUnmountEffectsInsideOfDeletedTree_begin",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6197
+          },
+          {
+            "ms": 1.5,
+            "name": "processRootScheduleInMicrotask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7006
+          },
+          {
+            "ms": 1.4,
+            "name": "commitLayoutEffectOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5387
+          },
+          {
+            "ms": 1.4,
+            "name": "ensureRootIsScheduled",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6975
+          },
+          {
+            "ms": 1.4,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 1.3,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4612
+          }
+        ],
+        "inclusive": [
+          {
+            "ms": 620.5,
+            "name": "(root)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 479.8,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 127.1,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6263
+          },
+          {
+            "ms": 127.1,
+            "name": "performWorkOnRootViaSchedulerTask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7060
+          },
+          {
+            "ms": 127.1,
+            "name": "performWorkUntilDeadline",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 79
+          },
+          {
+            "ms": 98.4,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6522
+          },
+          {
+            "ms": 98.4,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6474
+          },
+          {
+            "ms": 54.7,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4612
+          },
+          {
+            "ms": 42.2,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 2871
+          },
+          {
+            "ms": 42.2,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4253
+          },
+          {
+            "ms": 40.5,
+            "name": "completeUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6667
+          },
+          {
+            "ms": 38.9,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4789
+          },
+          {
+            "ms": 27.1,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6708
+          },
+          {
+            "ms": 27.1,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6342
+          },
+          {
+            "ms": 25.6,
+            "name": "setInitialProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7754
+          },
+          {
+            "ms": 25.5,
+            "name": "Ct",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 31463
+          },
+          {
+            "ms": 23.9,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7531
+          },
+          {
+            "ms": 16,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 16,
+            "name": "flushMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6750
+          },
+          {
+            "ms": 16,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.9,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.9,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.8,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.8,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.8,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.8,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.8,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 15.7,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 15.7,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.6,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          },
+          {
+            "ms": 14.5,
+            "name": "commitMutationEffectsOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5636
+          },
+          {
+            "ms": 14.5,
+            "name": "recursivelyTraverseMutationEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 5600
+          }
+        ],
+        "groupedSelf": [
+          {
+            "ms": 479.8,
+            "functionName": "(program)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 12.8,
+            "functionName": "setAttribute",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 10.1,
+            "functionName": "completeWork",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 4788,
+            "columnNumber": 22
+          },
+          {
+            "ms": 7.7,
+            "functionName": "removeChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 6.3,
+            "functionName": "setProp",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 7530,
+            "columnNumber": 17
+          },
+          {
+            "ms": 4.9,
+            "functionName": "setValueForStyle",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 1076,
+            "columnNumber": 26
+          },
+          {
+            "ms": 3.2,
+            "functionName": "workLoopSync",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 6521,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.2,
+            "functionName": "createChild",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 2431,
+            "columnNumber": 22
+          },
+          {
+            "ms": 3.2,
+            "functionName": "jsxProd",
+            "scriptId": "34",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react_jsx-runtime.js?v=cffb16cb",
+            "lineNumber": 13,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.1,
+            "functionName": "CodeSnippet",
+            "scriptId": "1949",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/code-snippet.tsx",
+            "lineNumber": 8,
+            "columnNumber": 27
+          },
+          {
+            "ms": 2.9,
+            "functionName": "next",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 488,
+            "columnNumber": 13
+          },
+          {
+            "ms": 2.7,
+            "functionName": "(garbage collector)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 2.7,
+            "functionName": "commitMutationEffectsOnFiber",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 5635,
+            "columnNumber": 38
+          },
+          {
+            "ms": 2.6,
+            "functionName": "dispatchEvent",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 8909,
+            "columnNumber": 23
+          },
+          {
+            "ms": 2.3,
+            "functionName": "appendChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 2,
+            "functionName": "recursivelyTraverseMutationEffects",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 5599,
+            "columnNumber": 44
+          },
+          {
+            "ms": 1.8,
+            "functionName": "hasInButtonScope",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 4532,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.7,
+            "functionName": "listenToNonDelegatedEvent",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 7202,
+            "columnNumber": 35
+          },
+          {
+            "ms": 1.7,
+            "functionName": "renderWithHooks",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 2870,
+            "columnNumber": 25
+          },
+          {
+            "ms": 1.6,
+            "functionName": "splice",
+            "scriptId": "207",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/micromark-util-resolve-all-BLg1oFxz.js?v=959ddc22",
+            "lineNumber": 23,
+            "columnNumber": 15
+          },
+          {
+            "ms": 1.6,
+            "functionName": "contentChunk",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 13767,
+            "columnNumber": 22
+          },
+          {
+            "ms": 1.6,
+            "functionName": "subcontent",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 14565,
+            "columnNumber": 19
+          },
+          {
+            "ms": 1.6,
+            "functionName": "subtokenize",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 14491,
+            "columnNumber": 20
+          },
+          {
+            "ms": 1.6,
+            "functionName": "onenterdata",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23387,
+            "columnNumber": 21
+          },
+          {
+            "ms": 1.6,
+            "functionName": "compile",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23040,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.6,
+            "functionName": "factory",
+            "scriptId": "211",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "lineNumber": 392,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.6,
+            "functionName": "find",
+            "scriptId": "2004",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/space-separated-tokens-Urhnlkoj.js?v=959ddc22",
+            "lineNumber": 1278,
+            "columnNumber": 13
+          },
+          {
+            "ms": 1.6,
+            "functionName": "stripNullChildren",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 109,
+            "columnNumber": 26
+          },
+          {
+            "ms": 1.6,
+            "functionName": "set webkitSpeechRecognitionEvent",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 1.6,
+            "functionName": "setValueForStyles",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 1080,
+            "columnNumber": 27
+          },
+          {
+            "ms": 1.6,
+            "functionName": "CodeBlock",
+            "scriptId": "45",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ai-elements/code-block.tsx",
+            "lineNumber": 128,
+            "columnNumber": 25
+          },
+          {
+            "ms": 1.6,
+            "functionName": "push",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 433,
+            "columnNumber": 14
+          },
+          {
+            "ms": 1.6,
+            "functionName": "",
+            "scriptId": "202",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/class-variance-authority.js?v=317e2424",
+            "lineNumber": 18,
+            "columnNumber": 28
+          },
+          {
+            "ms": 1.6,
+            "functionName": "",
+            "scriptId": "204",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-t8Qwt55I.js?v=959ddc22",
+            "lineNumber": 22,
+            "columnNumber": 9
+          },
+          {
+            "ms": 1.6,
+            "functionName": "updateForwardRef",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 4081,
+            "columnNumber": 26
+          },
+          {
+            "ms": 1.6,
+            "functionName": "setTextContent",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 1065,
+            "columnNumber": 24
+          },
+          {
+            "ms": 1.6,
+            "functionName": "createElement",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 1.6,
+            "functionName": "exports.useState",
+            "scriptId": "35",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react.js?v=cffb16cb",
+            "lineNumber": 349,
+            "columnNumber": 28
+          },
+          {
+            "ms": 1.6,
+            "functionName": "getCodeLanguage",
+            "scriptId": "23",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ai-elements/message.tsx",
+            "lineNumber": 544,
+            "columnNumber": 24
+          },
+          {
+            "ms": 1.6,
+            "functionName": "",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/Icon-U3JmfPAS.js?v=959ddc22",
+            "lineNumber": 78,
+            "columnNumber": 40
+          },
+          {
+            "ms": 1.6,
+            "functionName": "completeUnitOfWork",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 6666,
+            "columnNumber": 28
+          },
+          {
+            "ms": 1.6,
+            "functionName": "commitLayoutEffectOnFiber",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 5386,
+            "columnNumber": 35
+          },
+          {
+            "ms": 1.6,
+            "functionName": "detachDeletedInstance",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 799,
+            "columnNumber": 31
+          },
+          {
+            "ms": 1.6,
+            "functionName": "",
+            "scriptId": "2017",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/codeSnippetVisibility.ts",
+            "lineNumber": 21,
+            "columnNumber": 8
+          },
+          {
+            "ms": 1.6,
+            "functionName": "findInstanceBlockingTarget",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 8952,
+            "columnNumber": 36
+          }
+        ],
+        "nonReactInclusive": [
+          {
+            "ms": 25.5,
+            "functionName": "Ct",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 31462,
+            "columnNumber": 23
+          },
+          {
+            "ms": 13.9,
+            "functionName": "fromMarkdown",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22910,
+            "columnNumber": 21
+          },
+          {
+            "ms": 13.9,
+            "functionName": "parser",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23836,
+            "columnNumber": 16
+          },
+          {
+            "ms": 13.9,
+            "functionName": "parse",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27419,
+            "columnNumber": 6
+          },
+          {
+            "ms": 11.6,
+            "functionName": "wrapped",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 25943,
+            "columnNumber": 17
+          },
+          {
+            "ms": 11.6,
+            "functionName": "next",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 25881,
+            "columnNumber": 15
+          },
+          {
+            "ms": 11.6,
+            "functionName": "run",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 25869,
+            "columnNumber": 13
+          },
+          {
+            "ms": 11.6,
+            "functionName": "executor",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27608,
+            "columnNumber": 19
+          },
+          {
+            "ms": 11.6,
+            "functionName": "run",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27591,
+            "columnNumber": 4
+          },
+          {
+            "ms": 11.6,
+            "functionName": "runSync",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27642,
+            "columnNumber": 8
+          },
+          {
+            "ms": 7.3,
+            "functionName": "raw",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 7891,
+            "columnNumber": 12
+          },
+          {
+            "ms": 7.3,
+            "functionName": "",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 8321,
+            "columnNumber": 16
+          },
+          {
+            "ms": 5.2,
+            "functionName": "write",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22328,
+            "columnNumber": 15
+          },
+          {
+            "ms": 4.8,
+            "functionName": "subtokenize",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 14491,
+            "columnNumber": 20
+          },
+          {
+            "ms": 4.8,
+            "functionName": "postprocess",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22739,
+            "columnNumber": 20
+          },
+          {
+            "ms": 4.8,
+            "functionName": "compile",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23040,
+            "columnNumber": 17
+          },
+          {
+            "ms": 4.7,
+            "functionName": "CodeSnippet",
+            "scriptId": "1949",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/code-snippet.tsx",
+            "lineNumber": 8,
+            "columnNumber": 27
+          },
+          {
+            "ms": 4.3,
+            "functionName": "main",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22371,
+            "columnNumber": 14
+          },
+          {
+            "ms": 4.3,
+            "functionName": "writeToChild",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 21848,
+            "columnNumber": 22
+          },
+          {
+            "ms": 4.3,
+            "functionName": "flowContinue",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 21823,
+            "columnNumber": 22
+          },
+          {
+            "ms": 4,
+            "functionName": "element$3",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 7967,
+            "columnNumber": 18
+          },
+          {
+            "ms": 4,
+            "functionName": "one",
+            "scriptId": "2046",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-9yyc6afX.js?v=959ddc22",
+            "lineNumber": 118,
+            "columnNumber": 13
+          },
+          {
+            "ms": 4,
+            "functionName": "all$1",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 7939,
+            "columnNumber": 14
+          },
+          {
+            "ms": 4,
+            "functionName": "root$4",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 7954,
+            "columnNumber": 15
+          },
+          {
+            "ms": 3.4,
+            "functionName": "startTag",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 8185,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.2,
+            "functionName": "subcontent",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 14565,
+            "columnNumber": 19
+          },
+          {
+            "ms": 3.2,
+            "functionName": "factory",
+            "scriptId": "211",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "lineNumber": 392,
+            "columnNumber": 17
+          },
+          {
+            "ms": 3.2,
+            "functionName": "visit",
+            "scriptId": "211",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "lineNumber": 399,
+            "columnNumber": 16
+          },
+          {
+            "ms": 3.2,
+            "functionName": "visitParents",
+            "scriptId": "211",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "lineNumber": 377,
+            "columnNumber": 21
+          },
+          {
+            "ms": 3.2,
+            "functionName": "Button",
+            "scriptId": "31",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ui/button.tsx",
+            "lineNumber": 35,
+            "columnNumber": 15
+          },
+          {
+            "ms": 3.2,
+            "functionName": "",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/Icon-U3JmfPAS.js?v=959ddc22",
+            "lineNumber": 78,
+            "columnNumber": 40
+          },
+          {
+            "ms": 2.9,
+            "functionName": "next",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 488,
+            "columnNumber": 13
+          },
+          {
+            "ms": 2.9,
+            "functionName": "toPoint",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 450,
+            "columnNumber": 17
+          },
+          {
+            "ms": 2.9,
+            "functionName": "one$3",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 549,
+            "columnNumber": 14
+          },
+          {
+            "ms": 2.9,
+            "functionName": "fromParse5",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 530,
+            "columnNumber": 19
+          },
+          {
+            "ms": 2.4,
+            "functionName": "_processToken",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 5555,
+            "columnNumber": 14
+          },
+          {
+            "ms": 1.8,
+            "functionName": "hasInButtonScope",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 4532,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.8,
+            "functionName": "preStartTagInBody",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 6548,
+            "columnNumber": 26
+          },
+          {
+            "ms": 1.8,
+            "functionName": "startTagInBody",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 6719,
+            "columnNumber": 23
+          },
+          {
+            "ms": 1.8,
+            "functionName": "_startTagOutsideForeignContent",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 5909,
+            "columnNumber": 31
+          },
+          {
+            "ms": 1.8,
+            "functionName": "_processStartTag",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 5904,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.6,
+            "functionName": "splice",
+            "scriptId": "207",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/micromark-util-resolve-all-BLg1oFxz.js?v=959ddc22",
+            "lineNumber": 23,
+            "columnNumber": 15
+          },
+          {
+            "ms": 1.6,
+            "functionName": "contentChunk",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 13767,
+            "columnNumber": 22
+          },
+          {
+            "ms": 1.6,
+            "functionName": "onenterdata",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23387,
+            "columnNumber": 21
+          },
+          {
+            "ms": 1.6,
+            "functionName": "findAndReplace",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 9209,
+            "columnNumber": 23
+          }
+        ]
+      }
+    },
+    {
+      "action": "moveToHistory",
+      "measurement": {
+        "twoFramesMs": 193.09999999403954,
+        "commit": {
+          "name": "history-reparent",
+          "commitMs": 184.29999999701977
+        },
+        "longTasks": [62, 128]
+      },
+      "profile": {
+        "durationMs": 529.71,
+        "self": [
+          {
+            "ms": 210.1,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 56.5,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/wasm-BuFdVjIx.js?v=959ddc22",
+            "line": 1
+          },
+          {
+            "ms": 9.1,
+            "name": "setValueForStyle",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 1077
+          },
+          {
+            "ms": 7.3,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 6.3,
+            "name": "appendChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.1,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 5.9,
+            "name": "wasm-function[107]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 5.1,
+            "name": "recursivelyTraversePassiveUnmountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6136
+          },
+          {
+            "ms": 4.9,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.9,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 4.8,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4789
+          },
+          {
+            "ms": 4.5,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7531
+          },
+          {
+            "ms": 3.3,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.3,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 3.3,
+            "name": "main",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 22372
+          },
+          {
+            "ms": 3.2,
+            "name": "code",
+            "url": "/packages/ui/src/components/ai-elements/message.tsx",
+            "line": 1037
+          },
+          {
+            "ms": 3.2,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 3.2,
+            "name": "wasm-function[198]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 3.2,
+            "name": "createElementNS",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.1,
+            "name": "removeChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 2.9,
+            "name": "subtokenize",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 14492
+          },
+          {
+            "ms": 2.9,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/Icon-U3JmfPAS.js?v=959ddc22",
+            "line": 79
+          },
+          {
+            "ms": 2.8,
+            "name": "wasm-function[48]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 2.7,
+            "name": "wasm-function[196]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 2.7,
+            "name": "store",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 22572
+          },
+          {
+            "ms": 2.7,
+            "name": "wasm-function[66]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 2.1,
+            "name": "appendChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.9,
+            "name": "wasm-function[25]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.8,
+            "name": "setValueForStyles",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 1081
+          },
+          {
+            "ms": 1.8,
+            "name": "find",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/space-separated-tokens-Urhnlkoj.js?v=959ddc22",
+            "line": 1279
+          },
+          {
+            "ms": 1.8,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2436
+          },
+          {
+            "ms": 1.8,
+            "name": "cloneObj",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 1567
+          },
+          {
+            "ms": 1.8,
+            "name": "Rule",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2328
+          },
+          {
+            "ms": 1.7,
+            "name": "useState",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 3764
+          },
+          {
+            "ms": 1.7,
+            "name": "serializeChunks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 22650
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[79]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "MatchRule",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2370
+          },
+          {
+            "ms": 1.7,
+            "name": "factory",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "line": 393
+          },
+          {
+            "ms": 1.7,
+            "name": "createShikiPrimitiveAsync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2571
+          },
+          {
+            "ms": 1.7,
+            "name": "_toStandardTokenType",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2896
+          },
+          {
+            "ms": 1.7,
+            "name": "parseTheme",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 1750
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[98]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[204]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "",
+            "url": "/packages/ui/src/components/ai-elements/message.tsx",
+            "line": 876
+          },
+          {
+            "ms": 1.7,
+            "name": "addEventListener",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.7,
+            "name": "_emscripten_memcpy_big",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 1735
+          },
+          {
+            "ms": 1.7,
+            "name": "h",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/micromark-factory-space-Dm5G0cNJ.js?v=959ddc22",
+            "line": 167
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[46]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[79]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "js-to-wasm",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[66]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7269
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[203]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 1.7,
+            "name": "wasm-function[204]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          }
+        ],
+        "inclusive": [
+          {
+            "ms": 529.4,
+            "name": "(root)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 210.1,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 127.6,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6263
+          },
+          {
+            "ms": 127.6,
+            "name": "performWorkOnRootViaSchedulerTask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 7060
+          },
+          {
+            "ms": 127.6,
+            "name": "performWorkUntilDeadline",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 79
+          },
+          {
+            "ms": 117.6,
+            "name": "codeToTokensBase$2",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2672
+          },
+          {
+            "ms": 117.6,
+            "name": "codeToTokensBase$1",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 3584
+          },
+          {
+            "ms": 117.6,
+            "name": "codeToTokens$1",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 3598
+          },
+          {
+            "ms": 117.6,
+            "name": "codeToTokens",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 3928
+          },
+          {
+            "ms": 117.6,
+            "name": "",
+            "url": "/packages/ui/src/lib/shikiHighlighter.ts",
+            "line": 142
+          },
+          {
+            "ms": 114.3,
+            "name": "_tokenize",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3344
+          },
+          {
+            "ms": 114.3,
+            "name": "tokenizeLine2",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3336
+          },
+          {
+            "ms": 114.3,
+            "name": "_tokenizeWithTheme",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2702
+          },
+          {
+            "ms": 114.3,
+            "name": "tokenizeWithTheme",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2696
+          },
+          {
+            "ms": 112.3,
+            "name": "performUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6618
+          },
+          {
+            "ms": 112.3,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6522
+          },
+          {
+            "ms": 112.3,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6474
+          },
+          {
+            "ms": 104.1,
+            "name": "_tokenizeString",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2939
+          },
+          {
+            "ms": 102.5,
+            "name": "scanNext",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2958
+          },
+          {
+            "ms": 100.8,
+            "name": "matchRule",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3090
+          },
+          {
+            "ms": 100.8,
+            "name": "matchRuleOrInjections",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3078
+          },
+          {
+            "ms": 90.1,
+            "name": "prepareRuleSearch",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3126
+          },
+          {
+            "ms": 66.4,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4612
+          },
+          {
+            "ms": 58.1,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/wasm-BuFdVjIx.js?v=959ddc22",
+            "line": 1
+          },
+          {
+            "ms": 54.4,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4253
+          },
+          {
+            "ms": 53.5,
+            "name": "OnigScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 1971
+          },
+          {
+            "ms": 53.5,
+            "name": "createScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2096
+          },
+          {
+            "ms": 53.5,
+            "name": "createOnigScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2433
+          },
+          {
+            "ms": 53.5,
+            "name": "createOnigScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3268
+          },
+          {
+            "ms": 53.5,
+            "name": "CompiledRule",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2842
+          },
+          {
+            "ms": 53.5,
+            "name": "_resolveAnchors",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2837
+          },
+          {
+            "ms": 53.5,
+            "name": "compileAG",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2820
+          },
+          {
+            "ms": 53.5,
+            "name": "compileAG",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2424
+          },
+          {
+            "ms": 51.6,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 2871
+          },
+          {
+            "ms": 51,
+            "name": "js-to-wasm",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 49.3,
+            "name": "wasm-function[196]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 45.9,
+            "name": "completeUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 6667
+          },
+          {
+            "ms": 44.3,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "line": 4789
+          },
+          {
+            "ms": 36.6,
+            "name": "wasm-function[196]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 36.6,
+            "name": "js-to-wasm",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 36.6,
+            "name": "OnigScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 1971
+          },
+          {
+            "ms": 36.6,
+            "name": "createScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2096
+          },
+          {
+            "ms": 36.6,
+            "name": "createOnigScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "line": 2433
+          },
+          {
+            "ms": 36.6,
+            "name": "createOnigScanner",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 3268
+          },
+          {
+            "ms": 36.6,
+            "name": "CompiledRule",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2842
+          },
+          {
+            "ms": 36.6,
+            "name": "compile",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2816
+          },
+          {
+            "ms": 36.6,
+            "name": "compileAG",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2820
+          },
+          {
+            "ms": 36.6,
+            "name": "compileAG",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "line": 2478
+          },
+          {
+            "ms": 30.2,
+            "name": "Ct",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "line": 31463
+          },
+          {
+            "ms": 28.4,
+            "name": "wasm-function[40]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 28.4,
+            "name": "wasm-function[39]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 28.4,
+            "name": "wasm-function[27]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 28.4,
+            "name": "wasm-function[40]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 28.4,
+            "name": "wasm-function[39]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          },
+          {
+            "ms": 28.4,
+            "name": "wasm-function[27]",
+            "url": "wasm://wasm/001c7aca",
+            "line": 1
+          }
+        ],
+        "groupedSelf": [
+          {
+            "ms": 210.1,
+            "functionName": "(program)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 56.5,
+            "functionName": "",
+            "scriptId": "2098",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/wasm-BuFdVjIx.js?v=959ddc22",
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          {
+            "ms": 35.6,
+            "functionName": "wasm-function[25]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 5215
+          },
+          {
+            "ms": 9.1,
+            "functionName": "setValueForStyle",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 1076,
+            "columnNumber": 26
+          },
+          {
+            "ms": 8.4,
+            "functionName": "appendChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 6.6,
+            "functionName": "wasm-function[204]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 161410
+          },
+          {
+            "ms": 6.4,
+            "functionName": "setAttribute",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 6,
+            "functionName": "wasm-function[66]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 53707
+          },
+          {
+            "ms": 6,
+            "functionName": "wasm-function[46]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 33830
+          },
+          {
+            "ms": 5.9,
+            "functionName": "wasm-function[107]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 113460
+          },
+          {
+            "ms": 5.3,
+            "functionName": "recursivelyTraversePassiveUnmountEffects",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 6135,
+            "columnNumber": 50
+          },
+          {
+            "ms": 5,
+            "functionName": "factory",
+            "scriptId": "211",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/lib-LjX52fiR.js?v=959ddc22",
+            "lineNumber": 392,
+            "columnNumber": 17
+          },
+          {
+            "ms": 4.8,
+            "functionName": "completeWork",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 4788,
+            "columnNumber": 22
+          },
+          {
+            "ms": 4.5,
+            "functionName": "setProp",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 7530,
+            "columnNumber": 17
+          },
+          {
+            "ms": 4.4,
+            "functionName": "main",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22371,
+            "columnNumber": 14
+          },
+          {
+            "ms": 3.5,
+            "functionName": "find",
+            "scriptId": "2004",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/space-separated-tokens-Urhnlkoj.js?v=959ddc22",
+            "lineNumber": 1278,
+            "columnNumber": 13
+          },
+          {
+            "ms": 3.4,
+            "functionName": "wasm-function[79]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 80963
+          },
+          {
+            "ms": 3.3,
+            "functionName": "(garbage collector)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 3.3,
+            "functionName": "js-to-wasm",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 3.3,
+            "functionName": "wasm-function[203]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 155488
+          },
+          {
+            "ms": 3.2,
+            "functionName": "reconcileChildFibersImpl",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 2532,
+            "columnNumber": 35
+          },
+          {
+            "ms": 3.2,
+            "functionName": "createElementNS",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 3.2,
+            "functionName": "code",
+            "scriptId": "23",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ai-elements/message.tsx",
+            "lineNumber": 1036,
+            "columnNumber": 8
+          },
+          {
+            "ms": 3.2,
+            "functionName": "wasm-function[198]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 150871
+          },
+          {
+            "ms": 3.2,
+            "functionName": "wasm-function[168]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 133350
+          },
+          {
+            "ms": 3.1,
+            "functionName": "removeChild",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 2.9,
+            "functionName": "subtokenize",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 14491,
+            "columnNumber": 20
+          },
+          {
+            "ms": 2.9,
+            "functionName": "",
+            "scriptId": "231",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/Icon-U3JmfPAS.js?v=959ddc22",
+            "lineNumber": 78,
+            "columnNumber": 40
+          },
+          {
+            "ms": 2.8,
+            "functionName": "wasm-function[48]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 39535
+          },
+          {
+            "ms": 2.7,
+            "functionName": "store",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22571,
+            "columnNumber": 15
+          },
+          {
+            "ms": 2.7,
+            "functionName": "wasm-function[196]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 143964
+          },
+          {
+            "ms": 1.8,
+            "functionName": "setValueForStyles",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 1080,
+            "columnNumber": 27
+          },
+          {
+            "ms": 1.8,
+            "functionName": "cloneObj",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 1566,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.8,
+            "functionName": "Rule",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2327,
+            "columnNumber": 12
+          },
+          {
+            "ms": 1.8,
+            "functionName": "",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2435,
+            "columnNumber": 1
+          },
+          {
+            "ms": 1.7,
+            "functionName": "",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 7268,
+            "columnNumber": 27
+          },
+          {
+            "ms": 1.7,
+            "functionName": "",
+            "scriptId": "23",
+            "url": "http://127.0.0.1:5173/packages/ui/src/components/ai-elements/message.tsx",
+            "lineNumber": 875,
+            "columnNumber": 32
+          },
+          {
+            "ms": 1.7,
+            "functionName": "serializeChunks",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22649,
+            "columnNumber": 24
+          },
+          {
+            "ms": 1.7,
+            "functionName": "compile",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23040,
+            "columnNumber": 17
+          },
+          {
+            "ms": 1.7,
+            "functionName": "h",
+            "scriptId": "212",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/micromark-factory-space-Dm5G0cNJ.js?v=959ddc22",
+            "lineNumber": 166,
+            "columnNumber": 11
+          },
+          {
+            "ms": 1.7,
+            "functionName": "one$3",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 549,
+            "columnNumber": 14
+          },
+          {
+            "ms": 1.7,
+            "functionName": "useState",
+            "scriptId": "38",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/react-dom_client.js?v=4f0501cb",
+            "lineNumber": 3763,
+            "columnNumber": 20
+          },
+          {
+            "ms": 1.7,
+            "functionName": "addEventListener",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "ms": 1.7,
+            "functionName": "createShikiPrimitiveAsync",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2570,
+            "columnNumber": 40
+          },
+          {
+            "ms": 1.7,
+            "functionName": "parseTheme",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 1749,
+            "columnNumber": 19
+          }
+        ],
+        "nonReactInclusive": [
+          {
+            "ms": 117.6,
+            "functionName": "codeToTokensBase$2",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2671,
+            "columnNumber": 27
+          },
+          {
+            "ms": 117.6,
+            "functionName": "codeToTokensBase$1",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 3583,
+            "columnNumber": 27
+          },
+          {
+            "ms": 117.6,
+            "functionName": "codeToTokens$1",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 3597,
+            "columnNumber": 23
+          },
+          {
+            "ms": 117.6,
+            "functionName": "codeToTokens",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 3927,
+            "columnNumber": 16
+          },
+          {
+            "ms": 117.6,
+            "functionName": "",
+            "scriptId": "2016",
+            "url": "http://127.0.0.1:5173/packages/ui/src/lib/shikiHighlighter.ts",
+            "lineNumber": 141,
+            "columnNumber": 54
+          },
+          {
+            "ms": 114.3,
+            "functionName": "_tokenize",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 3343,
+            "columnNumber": 10
+          },
+          {
+            "ms": 114.3,
+            "functionName": "tokenizeLine2",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 3335,
+            "columnNumber": 14
+          },
+          {
+            "ms": 114.3,
+            "functionName": "_tokenizeWithTheme",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2701,
+            "columnNumber": 27
+          },
+          {
+            "ms": 114.3,
+            "functionName": "tokenizeWithTheme",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2695,
+            "columnNumber": 26
+          },
+          {
+            "ms": 104.1,
+            "functionName": "_tokenizeString",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2938,
+            "columnNumber": 24
+          },
+          {
+            "ms": 102.5,
+            "functionName": "scanNext",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2957,
+            "columnNumber": 18
+          },
+          {
+            "ms": 100.8,
+            "functionName": "matchRule",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 3089,
+            "columnNumber": 18
+          },
+          {
+            "ms": 100.8,
+            "functionName": "matchRuleOrInjections",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 3077,
+            "columnNumber": 30
+          },
+          {
+            "ms": 90.1,
+            "functionName": "OnigScanner",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 1970,
+            "columnNumber": 12
+          },
+          {
+            "ms": 90.1,
+            "functionName": "createScanner",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2095,
+            "columnNumber": 15
+          },
+          {
+            "ms": 90.1,
+            "functionName": "createOnigScanner",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2432,
+            "columnNumber": 22
+          },
+          {
+            "ms": 90.1,
+            "functionName": "createOnigScanner",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 3267,
+            "columnNumber": 18
+          },
+          {
+            "ms": 90.1,
+            "functionName": "CompiledRule",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2841,
+            "columnNumber": 12
+          },
+          {
+            "ms": 90.1,
+            "functionName": "compileAG",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2819,
+            "columnNumber": 10
+          },
+          {
+            "ms": 90.1,
+            "functionName": "prepareRuleSearch",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 3125,
+            "columnNumber": 26
+          },
+          {
+            "ms": 86,
+            "functionName": "wasm-function[196]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 143964
+          },
+          {
+            "ms": 58.1,
+            "functionName": "",
+            "scriptId": "2098",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/wasm-BuFdVjIx.js?v=959ddc22",
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          {
+            "ms": 56.3,
+            "functionName": "wasm-function[27]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 12096
+          },
+          {
+            "ms": 54.7,
+            "functionName": "wasm-function[40]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 17238
+          },
+          {
+            "ms": 54.7,
+            "functionName": "wasm-function[39]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 16816
+          },
+          {
+            "ms": 53.5,
+            "functionName": "_resolveAnchors",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2836,
+            "columnNumber": 16
+          },
+          {
+            "ms": 53.5,
+            "functionName": "compileAG",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2423,
+            "columnNumber": 10
+          },
+          {
+            "ms": 44.8,
+            "functionName": "wasm-function[46]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 33830
+          },
+          {
+            "ms": 39.5,
+            "functionName": "wasm-function[48]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 39535
+          },
+          {
+            "ms": 36.8,
+            "functionName": "wasm-function[25]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 5215
+          },
+          {
+            "ms": 36.6,
+            "functionName": "compile",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2815,
+            "columnNumber": 8
+          },
+          {
+            "ms": 36.6,
+            "functionName": "compileAG",
+            "scriptId": "2005",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/esm-CZcSrIxV.js?v=959ddc22",
+            "lineNumber": 2477,
+            "columnNumber": 10
+          },
+          {
+            "ms": 30.2,
+            "functionName": "Ct",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 31462,
+            "columnNumber": 23
+          },
+          {
+            "ms": 16.7,
+            "functionName": "fromMarkdown",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 22910,
+            "columnNumber": 21
+          },
+          {
+            "ms": 16.7,
+            "functionName": "parser",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 23836,
+            "columnNumber": 16
+          },
+          {
+            "ms": 16.7,
+            "functionName": "parse",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27419,
+            "columnNumber": 6
+          },
+          {
+            "ms": 12.8,
+            "functionName": "wasm-function[66]",
+            "scriptId": "2101",
+            "url": "wasm://wasm/001c7aca",
+            "lineNumber": 0,
+            "columnNumber": 53707
+          },
+          {
+            "ms": 11.6,
+            "functionName": "wrapped",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 25943,
+            "columnNumber": 17
+          },
+          {
+            "ms": 11.6,
+            "functionName": "next",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 25881,
+            "columnNumber": 15
+          },
+          {
+            "ms": 11.6,
+            "functionName": "run",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 25869,
+            "columnNumber": 13
+          },
+          {
+            "ms": 11.6,
+            "functionName": "executor",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27608,
+            "columnNumber": 19
+          },
+          {
+            "ms": 11.6,
+            "functionName": "run",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27591,
+            "columnNumber": 4
+          },
+          {
+            "ms": 11.6,
+            "functionName": "runSync",
+            "scriptId": "1946",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/chunk-BO2N2NFS-BnHZ2hOD.js?v=959ddc22",
+            "lineNumber": 27642,
+            "columnNumber": 8
+          },
+          {
+            "ms": 10.8,
+            "functionName": "_findNextMatchSync",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 2007,
+            "columnNumber": 19
+          },
+          {
+            "ms": 10.8,
+            "functionName": "findNextMatchSync",
+            "scriptId": "2060",
+            "url": "http://127.0.0.1:5173/@fs/C:/Windows/TEMP/zcodium-terminal-profile-R6mbLY/deps/shiki.js?v=68870b93",
+            "lineNumber": 1996,
+            "columnNumber": 18
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "external": []
+}

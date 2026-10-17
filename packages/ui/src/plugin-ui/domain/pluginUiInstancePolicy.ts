@@ -56,12 +56,18 @@ export function deriveLogicalUiInstances(
   rows: readonly ConversationRow[],
   options: { autoExpandTurns?: number } = {},
 ): PluginUiInstanceDerivation {
-  // domain 不用 Map / Set（模块边界约束），全部用数组与普通对象。
+  // 流式更新会重复派生全部历史；用调用内成员索引避免逐行 includes 回扫已见回合。
+  const seenTurns: Record<string, true | undefined> = Object.create(null);
   const turnOrder: string[] = [];
   for (const row of rows) {
-    if (!turnOrder.includes(row.turnId)) turnOrder.push(row.turnId);
+    const turnId = row.turnId;
+    if (seenTurns[turnId]) continue;
+    seenTurns[turnId] = true;
+    turnOrder.push(turnId);
   }
   const recentTurns = turnOrder.slice(-(options.autoExpandTurns ?? PLUGIN_UI_AUTO_EXPAND_TURNS));
+  const recentTurnIds: Record<string, true | undefined> = Object.create(null);
+  for (const turnId of recentTurns) recentTurnIds[turnId] = true;
   const groupKeys: string[] = [];
   const groups: Record<string, ToolCallRow[]> = {};
   for (const row of rows) {
@@ -92,12 +98,15 @@ export function deriveLogicalUiInstances(
     const successes = group.filter(isSuccessfulUiRow);
     const active = successes.at(-1) ?? group.at(-1)!;
     const superseded = successes.filter((row) => row !== active).map((row) => row.toolCallId);
+    // 同一 surface 的多次成功结果仍保留原数组顺序和重复 ID，成员判断不再逐行回扫。
+    const supersededIds: Record<string, true | undefined> = Object.create(null);
+    for (const toolCallId of superseded) supersededIds[toolCallId] = true;
     instances.push({ key, activeToolCallId: active.toolCallId, supersededToolCallIds: superseded });
     for (const row of group) {
       byToolCallId[row.toolCallId] = {
         key,
-        superseded: superseded.includes(row.toolCallId),
-        autoExpand: recentTurns.includes(row.turnId),
+        superseded: supersededIds[row.toolCallId] === true,
+        autoExpand: recentTurnIds[row.turnId] === true,
         forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
       };
     }

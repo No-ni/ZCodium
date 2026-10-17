@@ -236,14 +236,28 @@ export function getVisibleTaskMetas(
     | WorkspaceZCodeUIState
     | Partial<Pick<WorkspaceZCodeUIState, "optimisticTaskListByTaskId" | "taskListCache">>,
 ): ZCodeTaskMeta[] {
+  const firstCachedTaskById = new Map<string, ZCodeTaskMeta>();
   const taskById = new Map<string, ZCodeTaskMeta>();
 
   for (const task of workspaceState.taskListCache ?? []) {
-    taskById.set(task.taskId, task);
+    const taskId = task.taskId;
+    if (!firstCachedTaskById.has(taskId)) {
+      firstCachedTaskById.set(taskId, task);
+    }
+    taskById.set(taskId, task);
   }
 
   for (const task of Object.values(workspaceState.optimisticTaskListByTaskId ?? {})) {
-    taskById.set(task.taskId, getTaskMeta(workspaceState, task.taskId) ?? task);
+    const taskId = task.taskId;
+    const cachedTask = firstCachedTaskById.get(taskId) ?? null;
+    const optimisticTask = workspaceState.optimisticTaskListByTaskId?.[taskId];
+    const visibleTask = !optimisticTask
+      ? cachedTask
+      : cachedTask
+        ? mergeTaskWithOptimisticMeta(cachedTask, optimisticTask)
+        : optimisticTask;
+    // getTaskMeta 原先会为每条 optimistic meta 重扫缓存；首见索引保留 find 的基底语义。
+    taskById.set(taskId, visibleTask ?? task);
   }
 
   return Array.from(taskById.values());

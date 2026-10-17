@@ -1,0 +1,142 @@
+{
+  "mode": "before",
+  "browser": "155.0.4283.45",
+  "samples": 12,
+  "themes": 2,
+  "beforeHeap": 13070804,
+  "afterHeap": 23054140,
+  "heapGrowth": 9983336,
+  "repeatedHeap": 23209324,
+  "durationMs": 1336.4000000003725,
+  "counters": {
+    "shiki.tokensCache": 96,
+    "shiki.tokensCacheChars": 7496,
+    "shiki.tokensCacheTokens": 1696,
+    "shiki.pending": 0,
+    "shiki.highlighters": 24
+  },
+  "hashes": [
+    {
+      "language": "javascript",
+      "theme": "github-dark",
+      "sha256": "75f846099363499410fe28b26d5e898da949a1d048379c461740998fb94b5ce5"
+    },
+    {
+      "language": "typescript",
+      "theme": "github-dark",
+      "sha256": "c53019a802da4fed045ff000ef70477037b555b18ec64a59c7c6745b5a3fa69e"
+    },
+    {
+      "language": "tsx",
+      "theme": "github-dark",
+      "sha256": "c571a23fb6fe1788a2aee07195e95f77613e44868e1fbdbe7bc14c6663e732b3"
+    },
+    {
+      "language": "python",
+      "theme": "github-dark",
+      "sha256": "7931e6ed76827a2e628fbb21c4aeac130d2e38359082451ffa03a90bf2dd51c7"
+    },
+    {
+      "language": "shellscript",
+      "theme": "github-dark",
+      "sha256": "69938d2126ad67a537dfd29d9170fa225749569a615118ec73a54c91d1fa0c04"
+    },
+    {
+      "language": "json",
+      "theme": "github-dark",
+      "sha256": "92b225a1f9db5d40966b2e39104c38549041c3ff1d48bd546db5da714735b795"
+    },
+    {
+      "language": "yaml",
+      "theme": "github-dark",
+      "sha256": "acb6e15cd9500c7e41003272ae12b1ad6ccca1207b0208a2311c01072220fb96"
+    },
+    {
+      "language": "css",
+      "theme": "github-dark",
+      "sha256": "aaedfc8ab8eecc93bbe64280f21f407ad357012978a7f246c6337f4a910eceee"
+    },
+    {
+      "language": "html",
+      "theme": "github-dark",
+      "sha256": "049066e8aec557854b43d3176a0948ed808f8ecee8c937d31e98bda68564e040"
+    },
+    {
+      "language": "markdown",
+      "theme": "github-dark",
+      "sha256": "f1c79d5bb27a77f5e63e20040c8240bfe317e078cd4a8174d0294aee9a035fac"
+    },
+    {
+      "language": "vue",
+      "theme": "github-dark",
+      "sha256": "8a33f7200c9bfaadff8f326db918043420c79be36b7240b9b5a04348247af22d"
+    },
+    {
+      "language": "rust",
+      "theme": "github-dark",
+      "sha256": "4b2ee2df96d5824e573be98ac0cd3eed117c2cb723bfd5f38dfdc7daa4c63436"
+    },
+    {
+      "language": "javascript",
+      "theme": "github-light",
+      "sha256": "599e3337016c5b985e15b0f2cbc6ea1976326e97748162ac3beb50ab7a33ce41"
+    },
+    {
+      "language": "typescript",
+      "theme": "github-light",
+      "sha256": "8db57b885eef318a2c5e1096cd1e49e27ff8a9228e24c0a95bad75ebbe6b3024"
+    },
+    {
+      "language": "tsx",
+      "theme": "github-light",
+      "sha256": "a992fd8379d08be1a3daf7ffcf5b28429a1e58a3426f626931eaee970e1afc3a"
+    },
+    {
+      "language": "python",
+      "theme": "github-light",
+      "sha256": "d5f35489c23c7af34a616147a541546d4ad6711767e020f61e5e18a5ae3e5730"
+    },
+    {
+      "language": "shellscript",
+      "theme": "github-light",
+      "sha256": "1a3e178cd1c4ffc1cf47903a8af6fa36116b74ce80d5e59b15e826f99fb2a730"
+    },
+    {
+      "language": "json",
+      "theme": "github-light",
+      "sha256": "bd5ad515035ee766af798cf282789da184e69287f26ab54aca09d78c01fe530b"
+    },
+    {
+      "language": "yaml",
+      "theme": "github-light",
+      "sha256": "02b0ff3ba28ce25782515a157fbd2b23dd3fd5a222e33e58fc8d2eee12c27ec9"
+    },
+    {
+      "language": "css",
+      "theme": "github-light",
+      "sha256": "4db477a1d44493a8dd19a2dc3b075117da6eb6e58621d0c70e88da08d259af45"
+    },
+    {
+      "language": "html",
+      "theme": "github-light",
+      "sha256": "2879125c43d311dfe2f7955e583f8bd9e230e2b8c718d55cc9d44eff8d35fffd"
+    },
+    {
+      "language": "markdown",
+      "theme": "github-light",
+      "sha256": "b9c9b607d43ba253b2d0f7158fa2f44d7890b34ff9c142c84b663acecccd014a"
+    },
+    {
+      "language": "vue",
+      "theme": "github-light",
+      "sha256": "42c14c08b029bacba7ce7231e7e91385bd0d70bcd932f8b2e335521704f3e4f5"
+    },
+    {
+      "language": "rust",
+      "theme": "github-light",
+      "sha256": "8e578f31488d072b0d00efae31e9fa3eabd8aebe50031b8eafdb346a0df516bd"
+    }
+  ],
+  "errors": [],
+  "blockedRequests": []
+}

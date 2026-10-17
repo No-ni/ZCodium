@@ -1,0 +1,939 @@
+{
+  "date": "2026-10-17",
+  "repository": {
+    "head": "82ab95f0fea6b0e9a3ab877905473cb483ed2998",
+    "workingTreeHasUncommittedChanges": true,
+    "version": "3.15.1"
+  },
+  "environment": {
+    "os": "Windows 11 IoT Enterprise LTSC 26100",
+    "cpu": "AMD Ryzen 7 7735H",
+    "physicalCores": 8,
+    "logicalProcessors": 16,
+    "memoryBytes": 16365854720,
+    "electron": "41.0.3",
+    "node": "24.14.0",
+    "pnpm": "10.33.2",
+    "packaged": false,
+    "productionBundles": true,
+    "scaleFactor": 1.5
+  },
+  "method": {
+    "cpu": "Sum of CPU-time deltas for the complete application process tree / wall time / 16 * 100; sampled around 1Hz. Sampler and fixture server excluded.",
+    "memory": "Sum of process working sets (may count shared pages more than once); separate sum of process private commit. MiB=2^20 bytes.",
+    "model": "Loopback OpenAI Chat Completions SSE fixture; each long reply contains 34122 characters and 240 TypeScript fences, 128 characters per chunk, nominal timer 12ms.",
+    "timing": "Playwright/CDP automation included. Fixed test-id/CSS selectors used in confirmation; profiler overhead included.",
+    "startup": "Three process restarts with warm filesystem cache and existing isolated history; default new-task landing page, not automatic conversation restoration.",
+    "limitations": [
+      "Not a packaged/ASAR installation benchmark.",
+      "Not a real model/network TTFT benchmark.",
+      "No macOS, physical phone/remote recovery, large repository, terminal or CUA workload.",
+      "No baseline version A/B comparison or prolonged leak proof."
+    ]
+  },
+  "stages": {
+    "idle-before": {
+      "samples": 61,
+      "durationSeconds": 59.972,
+      "cpuPercent": {
+        "mean": 0.11378023450971006,
+        "p50": 0.09204170593779454,
+        "p95": 0.46770234674329497,
+        "max": 0.6829108391608392
+      },
+      "wsMiB": {
+        "mean": 1158.8808273565573,
+        "p50": 1156.93359375,
+        "p95": 1168.703125,
+        "max": 1173.16015625
+      },
+      "privateMiB": {
+        "mean": 933.9759221311475,
+        "p50": 926.20703125,
+        "p95": 979.03125,
+        "max": 983.81640625
+      },
+      "processCount": [8],
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 107.11923668032787,
+            "p50": 107.046875,
+            "p95": 107.41015625,
+            "max": 108.84375
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 122.65951588114754,
+            "p50": 114.96875,
+            "p95": 167.93359375,
+            "max": 168.05859375
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 184.43999743852459,
+            "p50": 184.35546875,
+            "p95": 184.93359375,
+            "max": 184.93359375
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 245.054943647541,
+            "p50": 244.94921875,
+            "p95": 244.9765625,
+            "max": 247.83984375
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 156.17879098360655,
+            "p50": 156.265625,
+            "p95": 156.484375,
+            "max": 156.484375
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 118.5234375,
+            "p50": 118.5234375,
+            "p95": 118.5234375,
+            "max": 118.5234375
+          }
+        }
+      },
+      "electronProcessCount": [6]
+    },
+    "confirm-long": {
+      "samples": 18,
+      "durationSeconds": 17.006,
+      "cpuPercent": {
+        "mean": 11.361792306526576,
+        "p50": 10.690181213017752,
+        "p95": 17.257341476091476,
+        "max": 17.257341476091476
+      },
+      "wsMiB": {
+        "mean": 2143.441840277778,
+        "p50": 2147.8984375,
+        "p95": 2205.0078125,
+        "max": 2205.0078125
+      },
+      "privateMiB": {
+        "mean": 1821.581814236111,
+        "p50": 1836.6953125,
+        "p95": 1860.65234375,
+        "max": 1860.65234375
+      },
+      "processCount": [11],
+      "longTasks": {
+        "count": 3,
+        "totalMs": 1536,
+        "maxMs": 524
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 118.08072916666667,
+            "p50": 117.921875,
+            "p95": 119.80078125,
+            "max": 119.80078125
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 279.2994791666667,
+            "p50": 281.2421875,
+            "p95": 304.859375,
+            "max": 304.859375
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 229.51540798611111,
+            "p50": 227.94921875,
+            "p95": 237.26953125,
+            "max": 237.26953125
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 659.185546875,
+            "p50": 660.50390625,
+            "p95": 700.390625,
+            "max": 700.390625
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 298.7740885416667,
+            "p50": 300.75390625,
+            "p95": 311.80859375,
+            "max": 311.80859375
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 236.7265625,
+            "p50": 236.7265625,
+            "p95": 236.7265625,
+            "max": 236.7265625
+          }
+        }
+      },
+      "electronProcessCount": [8]
+    },
+    "confirm-scroll": {
+      "samples": 5,
+      "durationSeconds": 4.018,
+      "cpuPercent": {
+        "mean": 4.253213340113174,
+        "p50": 4.024877982646421,
+        "p95": 5.300569227230911,
+        "max": 5.300569227230911
+      },
+      "wsMiB": {
+        "mean": 2204.565625,
+        "p50": 2204.6171875,
+        "p95": 2206.85546875,
+        "max": 2206.85546875
+      },
+      "privateMiB": {
+        "mean": 1888.14609375,
+        "p50": 1888.79296875,
+        "p95": 1889.84765625,
+        "max": 1889.84765625
+      },
+      "processCount": [11],
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 119.48125,
+            "p50": 120.53515625,
+            "p95": 120.5390625,
+            "max": 120.5390625
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 302.4703125,
+            "p50": 302.609375,
+            "p95": 303.3515625,
+            "max": 303.3515625
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 235.128125,
+            "p50": 235.12890625,
+            "p95": 235.14453125,
+            "max": 235.14453125
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 682.51953125,
+            "p50": 683.09375,
+            "p95": 684.203125,
+            "max": 684.203125
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 311.8203125,
+            "p50": 311.8203125,
+            "p95": 311.8203125,
+            "max": 311.8203125
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 236.7265625,
+            "p50": 236.7265625,
+            "p95": 236.7265625,
+            "max": 236.7265625
+          }
+        }
+      },
+      "electronProcessCount": [8]
+    },
+    "confirm-find": {
+      "samples": 7,
+      "durationSeconds": 6.005,
+      "cpuPercent": {
+        "mean": 9.598214027202674,
+        "p50": 9.077635763209393,
+        "p95": 12.095040137614678,
+        "max": 12.095040137614678
+      },
+      "wsMiB": {
+        "mean": 2212.258370535714,
+        "p50": 2211.12109375,
+        "p95": 2224.421875,
+        "max": 2224.421875
+      },
+      "privateMiB": {
+        "mean": 1948.2265625,
+        "p50": 1954.06640625,
+        "p95": 1977.875,
+        "max": 1977.875
+      },
+      "processCount": [11],
+      "longTasks": {
+        "count": 10,
+        "totalMs": 4297,
+        "maxMs": 2211
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 117.58761160714286,
+            "p50": 117.88671875,
+            "p95": 117.93359375,
+            "max": 117.93359375
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 357.8431919642857,
+            "p50": 364.0234375,
+            "p95": 380.66015625,
+            "max": 380.66015625
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 235.23325892857142,
+            "p50": 235.19140625,
+            "p95": 235.34765625,
+            "max": 235.34765625
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 689.0122767857143,
+            "p50": 687.82421875,
+            "p95": 696.27734375,
+            "max": 696.27734375
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 311.8236607142857,
+            "p50": 311.82421875,
+            "p95": 311.82421875,
+            "max": 311.82421875
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 236.7265625,
+            "p50": 236.7265625,
+            "p95": 236.7265625,
+            "max": 236.7265625
+          }
+        }
+      },
+      "electronProcessCount": [8]
+    },
+    "confirm-settings": {
+      "samples": 4,
+      "durationSeconds": 2.992,
+      "cpuPercent": {
+        "mean": 9.463038801389754,
+        "p50": 8.491847826086957,
+        "p95": 12.44638480392157,
+        "max": 12.44638480392157
+      },
+      "wsMiB": {
+        "mean": 2224.4189453125,
+        "p50": 2224.0859375,
+        "p95": 2225.78515625,
+        "max": 2225.78515625
+      },
+      "privateMiB": {
+        "mean": 1977.9521484375,
+        "p50": 1977.78125,
+        "p95": 1978.90625,
+        "max": 1978.90625
+      },
+      "processCount": [11],
+      "longTasks": {
+        "count": 28,
+        "totalMs": 2925,
+        "maxMs": 206
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 117.185546875,
+            "p50": 117.19140625,
+            "p95": 117.203125,
+            "max": 117.203125
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 386.708984375,
+            "p50": 385.44921875,
+            "p95": 390.85546875,
+            "max": 390.85546875
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 230.9384765625,
+            "p50": 229.46484375,
+            "p95": 235.22265625,
+            "max": 235.22265625
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 694.56640625,
+            "p50": 692.0625,
+            "p95": 698.25390625,
+            "max": 698.25390625
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 311.826171875,
+            "p50": 311.82421875,
+            "p95": 311.828125,
+            "max": 311.828125
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 236.7265625,
+            "p50": 236.7265625,
+            "p95": 236.7265625,
+            "max": 236.7265625
+          }
+        }
+      },
+      "electronProcessCount": [8]
+    },
+    "confirm-idle-after": {
+      "samples": 60,
+      "durationSeconds": 59.02,
+      "cpuPercent": {
+        "mean": 0.17639280754910672,
+        "p50": 0,
+        "p95": 0.29652707489878544,
+        "max": 7.786233189241115
+      },
+      "wsMiB": {
+        "mean": 2054.4280598958335,
+        "p50": 2036.84375,
+        "p95": 2217.06640625,
+        "max": 2225.2734375
+      },
+      "privateMiB": {
+        "mean": 1786.6753255208334,
+        "p50": 1768.41796875,
+        "p95": 1949.87109375,
+        "max": 1978.2421875
+      },
+      "processCount": [11],
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 117.06751302083333,
+            "p50": 117.05078125,
+            "p95": 117.20703125,
+            "max": 117.21875
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 355.2503255208333,
+            "p50": 353.59765625,
+            "p95": 361.69140625,
+            "max": 389.9140625
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 223.0529296875,
+            "p50": 222.46875,
+            "p95": 228.55859375,
+            "max": 228.94140625
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 542.6971354166667,
+            "p50": 526.80859375,
+            "p95": 693.93359375,
+            "max": 693.96484375
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 311.845703125,
+            "p50": 311.84765625,
+            "p95": 311.86328125,
+            "max": 311.86328125
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 236.76171875,
+            "p50": 236.7265625,
+            "p95": 236.83203125,
+            "max": 236.83203125
+          }
+        }
+      },
+      "electronProcessCount": [8]
+    },
+    "confirm-background": {
+      "samples": 30,
+      "durationSeconds": 28.984,
+      "cpuPercent": {
+        "mean": 0.14899227825520575,
+        "p50": 0,
+        "p95": 0.35727896341463417,
+        "max": 3.0092880218687874
+      },
+      "wsMiB": {
+        "mean": 2029.3091145833334,
+        "p50": 2036.8515625,
+        "p95": 2037.52734375,
+        "max": 2037.5546875
+      },
+      "privateMiB": {
+        "mean": 1749.40234375,
+        "p50": 1762.4765625,
+        "p95": 1769.16015625,
+        "max": 1769.2578125
+      },
+      "processCount": [11],
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "roleStats": {
+        "main": {
+          "privateMiB": {
+            "mean": 117.06106770833334,
+            "p50": 117.04296875,
+            "p95": 117.34765625,
+            "max": 117.34765625
+          }
+        },
+        "gpu": {
+          "privateMiB": {
+            "mean": 348.4440104166667,
+            "p50": 347.65625,
+            "p95": 353.62109375,
+            "max": 353.62109375
+          }
+        },
+        "utility": {
+          "privateMiB": {
+            "mean": 222.41041666666666,
+            "p50": 222.4609375,
+            "p95": 222.7890625,
+            "max": 222.7890625
+          }
+        },
+        "renderer": {
+          "privateMiB": {
+            "mean": 526.80859375,
+            "p50": 526.80859375,
+            "p95": 526.80859375,
+            "max": 526.80859375
+          }
+        },
+        "agent": {
+          "privateMiB": {
+            "mean": 297.8462239583333,
+            "p50": 311.8671875,
+            "p95": 311.875,
+            "max": 311.875
+          }
+        },
+        "plugin": {
+          "privateMiB": {
+            "mean": 236.83203125,
+            "p50": 236.83203125,
+            "p95": 236.83203125,
+            "max": 236.83203125
+          }
+        }
+      },
+      "electronProcessCount": [8]
+    }
+  },
+  "shortTurns": {
+    "completedFirstBatch": 30,
+    "timedFirstBatch": 29,
+    "count": 29,
+    "p50Ms": 636.3396999999968,
+    "p95Ms": 748.2761000000028,
+    "maxMs": 1603.9927999999927,
+    "note": "The final reply completed, but the first harness missed its transient busy state. Additional short turns with focus/readiness ambiguity are excluded."
+  },
+  "longTurns": {
+    "confirmation": [
+      {
+        "elapsedMs": 5126.2501999999995,
+        "startedAt": 1792218829310,
+        "finishedAt": 1792218834436
+      },
+      {
+        "elapsedMs": 5149.4523,
+        "startedAt": 1792218835243,
+        "finishedAt": 1792218840393
+      },
+      {
+        "elapsedMs": 5204.878000000001,
+        "startedAt": 1792218841278,
+        "finishedAt": 1792218846483
+      }
+    ],
+    "mainThreadLongTasks": [
+      {
+        "stage": "confirm-long",
+        "start": 1365868.400000006,
+        "duration": 497
+      },
+      {
+        "stage": "confirm-long",
+        "start": 1371792.900000006,
+        "duration": 524
+      },
+      {
+        "stage": "confirm-long",
+        "start": 1377893.100000009,
+        "duration": 515
+      }
+    ]
+  },
+  "find": {
+    "primary": [
+      {
+        "query": "needle-239",
+        "count": 3,
+        "elapsedMs": 244.63520000000062
+      },
+      {
+        "query": "needle-23",
+        "count": 33,
+        "elapsedMs": 435.3228999999992
+      },
+      {
+        "query": "needle-2",
+        "count": 153,
+        "elapsedMs": 1202.9686999999976
+      },
+      {
+        "query": "needle-1",
+        "count": 333,
+        "elapsedMs": 2315.6937
+      },
+      {
+        "query": "no-such-perf-key",
+        "count": 0,
+        "elapsedMs": 156.89289999999892
+      },
+      {
+        "query": "needle-23",
+        "count": 33,
+        "elapsedMs": 259.28629999999976
+      },
+      {
+        "query": "needle-239",
+        "count": 3,
+        "elapsedMs": 112.67480000000069
+      }
+    ],
+    "confirmation": {
+      "results": [
+        {
+          "query": "needle-239",
+          "count": 3,
+          "elapsedMs": 3270.0791
+        },
+        {
+          "query": "needle-23",
+          "count": 33,
+          "elapsedMs": 4319.875999999999
+        },
+        {
+          "query": "needle-2",
+          "count": 153,
+          "elapsedMs": 77.42770000000019
+        },
+        {
+          "query": "needle-1",
+          "count": 333,
+          "elapsedMs": 52.542999999999665
+        },
+        {
+          "query": "no-such-perf-key",
+          "count": 0,
+          "elapsedMs": 815.9434999999994
+        }
+      ],
+      "query": "no-such-perf-key",
+      "tasks": [
+        {
+          "query": "needle-239",
+          "start": 77851.39999999106,
+          "duration": 3138
+        },
+        {
+          "query": "needle-239",
+          "start": 80990.09999999404,
+          "duration": 442
+        },
+        {
+          "query": "needle-239",
+          "start": 81435.79999999702,
+          "duration": 76
+        },
+        {
+          "query": "needle-23",
+          "start": 81593.39999999106,
+          "duration": 2023
+        },
+        {
+          "query": "needle-23",
+          "start": 83616.79999999702,
+          "duration": 1352
+        },
+        {
+          "query": "needle-23",
+          "start": 85001.79999999702,
+          "duration": 84
+        },
+        {
+          "query": "needle-23",
+          "start": 85086.59999999404,
+          "duration": 652
+        },
+        {
+          "query": "no-such-perf-key",
+          "start": 86047.59999999404,
+          "duration": 739
+        }
+      ]
+    }
+  },
+  "settings": [
+    {
+      "elapsedMs": 942.0703999999969
+    },
+    {
+      "elapsedMs": 528.0467000000062
+    },
+    {
+      "elapsedMs": 426.95440000000235
+    },
+    {
+      "elapsedMs": 400.5945999999967
+    },
+    {
+      "elapsedMs": 433.90929999999935
+    }
+  ],
+  "snapshots": [
+    {
+      "name": "idle-before-start",
+      "at": 1792217616924,
+      "heapUsedMiB": 36.99568176269531,
+      "cdpDomNodes": 1245,
+      "lightDomElements": 760,
+      "visibility": "visible"
+    },
+    {
+      "name": "idle-before-end",
+      "at": 1792217677166,
+      "heapUsedMiB": 37.65958786010742,
+      "cdpDomNodes": 1249,
+      "lightDomElements": 760,
+      "visibility": "visible"
+    },
+    {
+      "name": "short-turns-end",
+      "at": 1792217754592,
+      "heapUsedMiB": 45.08000946044922,
+      "cdpDomNodes": 2083,
+      "lightDomElements": 1342,
+      "visibility": "visible"
+    },
+    {
+      "name": "long-stream-end",
+      "at": 1792217773068,
+      "heapUsedMiB": 125.4150505065918,
+      "cdpDomNodes": 113383,
+      "lightDomElements": 16403,
+      "visibility": "visible"
+    },
+    {
+      "name": "scroll-end",
+      "at": 1792217779061,
+      "heapUsedMiB": 112.29529571533203,
+      "cdpDomNodes": 116127,
+      "lightDomElements": 16403,
+      "visibility": "visible"
+    },
+    {
+      "name": "idle-after-end",
+      "at": 1792217839325,
+      "heapUsedMiB": 91.18680953979492,
+      "cdpDomNodes": 110451,
+      "lightDomElements": 16403,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-idle-before-end",
+      "at": 1792218672508,
+      "heapUsedMiB": 51.16920471191406,
+      "cdpDomNodes": 22074,
+      "lightDomElements": 771,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-short-end",
+      "at": 1792218828499,
+      "heapUsedMiB": 53.31550979614258,
+      "cdpDomNodes": 2118,
+      "lightDomElements": 1351,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-long-end",
+      "at": 1792218846638,
+      "heapUsedMiB": 145.4571418762207,
+      "cdpDomNodes": 115919,
+      "lightDomElements": 16411,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-scroll-end",
+      "at": 1792218852386,
+      "heapUsedMiB": 97.19623565673828,
+      "cdpDomNodes": 110730,
+      "lightDomElements": 16411,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-find-end",
+      "at": 1792218859429,
+      "heapUsedMiB": 101.68482208251953,
+      "cdpDomNodes": 110491,
+      "lightDomElements": 16524,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-settings-end",
+      "at": 1792218864395,
+      "heapUsedMiB": 106.17409133911133,
+      "cdpDomNodes": 114270,
+      "lightDomElements": 16470,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-idle-after-end",
+      "at": 1792218924422,
+      "heapUsedMiB": 96.00676727294922,
+      "cdpDomNodes": 110677,
+      "lightDomElements": 16470,
+      "visibility": "visible"
+    },
+    {
+      "name": "confirm-background-end",
+      "at": 1792218954459,
+      "heapUsedMiB": 96.05923080444336,
+      "cdpDomNodes": 110677,
+      "lightDomElements": 16470,
+      "visibility": "visible"
+    }
+  ],
+  "startup": [
+    {
+      "runId": "startup-1",
+      "firstWindowMs": 1154.2421,
+      "composerReadyMs": 4688.777,
+      "firstReplyFromClickMs": 3682,
+      "firstReplyFromLaunchMs": 9149.2421875,
+      "errors": []
+    },
+    {
+      "runId": "startup-2",
+      "firstWindowMs": 1082.1788999999999,
+      "composerReadyMs": 4502.8623,
+      "firstReplyFromClickMs": 3040,
+      "firstReplyFromLaunchMs": 8237.178955078125,
+      "errors": []
+    },
+    {
+      "runId": "startup-3",
+      "firstWindowMs": 1050.6409,
+      "composerReadyMs": 4466.3164,
+      "firstReplyFromClickMs": 3282,
+      "firstReplyFromLaunchMs": 8331.640869140625,
+      "errors": []
+    }
+  ],
+  "profileEvidence": {
+    "long": {
+      "durationSeconds": 18.039,
+      "streamdownInclusiveMs": 3297,
+      "markdownParserInclusiveMs": 2581,
+      "pierreDiffsInclusiveMs": 585,
+      "containerCreationSelfMs": 202,
+      "fullRenderSelfMs": 82,
+      "mainThreadShikiInclusiveMs": 14.9,
+      "sha256": "4beec50636289501e37d04396d9363309f53e89a51c5e4e3764f0dc2bb0737cc"
+    },
+    "find": {
+      "durationSeconds": 9.26,
+      "virtualizerFlushSyncInclusiveMs": 4853,
+      "pierreDiffsInclusiveMs": 2125,
+      "containerCreationSelfMs": 798.5,
+      "appendChildSelfMs": 665.8,
+      "indexInclusiveMs": 36,
+      "domHighlightInclusiveMs": 300.2,
+      "scrollIntoViewInclusiveMs": 179.6,
+      "sha256": "aac69dcc2df55a14bf1d26611695dd12b8d4ab5287ed65ae85f764265bfa1331"
+    },
+    "note": "Inclusive call chains overlap and must not be added. Profiles include complete scenarios, not only terminal tasks."
+  },
+  "excludedObservations": [
+    "Setup using an incompatible installed Agent.",
+    "The initial 1061ms task was a global Playwright role query, not application rendering.",
+    "Harness timeouts during page transitions or before submission ACK/editor cleanup.",
+    "Short-reply trials affected by foreground/occlusion and readiness ambiguity.",
+    "rAF frame counts were not used as a reliable frame-rate benchmark."
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "lint": "passed: 0 warnings / 0 errors",
+    "rendererPageErrorsDuringAcceptedRuns": 0,
+    "productCodeChangedForMeasurement": false
+  }
+}

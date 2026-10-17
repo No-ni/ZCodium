@@ -1,0 +1,1364 @@
+{
+  "recordedAt": "2026-10-17T07:47:45.809Z",
+  "browser": "155.0.4283.45",
+  "stages": [
+    {
+      "action": "completeStream",
+      "measurement": {
+        "twoFramesMs": 944.5,
+        "commit": {
+          "name": "terminal",
+          "commitMs": 487.09999999403954
+        },
+        "longTasks": [943]
+      },
+      "profile": {
+        "durationMs": 1498.697,
+        "self": [
+          {
+            "ms": 554.5,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 33.7,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 31,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 27.4,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 26.2,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 25.8,
+            "name": "addObjectToProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2333
+          },
+          {
+            "ms": 18.6,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 15.9,
+            "name": "addObjectToProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2333
+          },
+          {
+            "ms": 14.8,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 14.7,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 13.4,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 12.4,
+            "name": "completeWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6276
+          },
+          {
+            "ms": 11.8,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 11.5,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 10.3,
+            "name": "validateProperty",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1875
+          },
+          {
+            "ms": 9.2,
+            "name": "setValueForStyle",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1804
+          },
+          {
+            "ms": 8.2,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 8.1,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 8.1,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 7.8,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 7,
+            "name": "removeChild",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.4,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 6.4,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.3,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 6.3,
+            "name": "setInitialProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9760
+          },
+          {
+            "ms": 6.2,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 5.9,
+            "name": "exports.createElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react.js?v=4ae80360",
+            "line": 591
+          },
+          {
+            "ms": 5.9,
+            "name": "Tooltip",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/radix-ui.js?v=255693f0",
+            "line": 10066
+          },
+          {
+            "ms": 5.8,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 5.7,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5561
+          },
+          {
+            "ms": 5.5,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 5.5,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.9,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.9,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.8,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.8,
+            "name": "main",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/chunk-BO2N2NFS-1EuBtyE3.js?v=dd813c8b",
+            "line": 23090
+          },
+          {
+            "ms": 4.8,
+            "name": "setProp",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9528
+          },
+          {
+            "ms": 4.8,
+            "name": "jsxDEVImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 148
+          },
+          {
+            "ms": 4.8,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react.js?v=4ae80360",
+            "line": 132
+          },
+          {
+            "ms": 4.7,
+            "name": "mergeProps",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/dist-BTrDCE8k.js?v=dd813c8b",
+            "line": 206
+          },
+          {
+            "ms": 4.7,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 4.7,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.7,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/Icon-AO9-5bTS.js?v=dd813c8b",
+            "line": 79
+          },
+          {
+            "ms": 4.6,
+            "name": "updatedAncestorInfoDev",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1643
+          },
+          {
+            "ms": 4.6,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.4,
+            "name": "measure",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.3,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.3,
+            "name": "updatedAncestorInfoDev",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1643
+          },
+          {
+            "ms": 4.3,
+            "name": "jsxDEVImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 148
+          },
+          {
+            "ms": 4.2,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 3.9,
+            "name": "mergeProps",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/dist-BTrDCE8k.js?v=dd813c8b",
+            "line": 206
+          },
+          {
+            "ms": 3.6,
+            "name": "measure",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.4,
+            "name": "mergeClasses",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/Icon-AO9-5bTS.js?v=dd813c8b",
+            "line": 11
+          },
+          {
+            "ms": 3.3,
+            "name": "jsxDEVImpl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 148
+          },
+          {
+            "ms": 3.3,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6081
+          }
+        ],
+        "inclusive": [
+          {
+            "ms": 1498.3,
+            "name": "(root)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 910.4,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7940
+          },
+          {
+            "ms": 910.4,
+            "name": "performWorkOnRootViaSchedulerTask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9049
+          },
+          {
+            "ms": 910.4,
+            "name": "performWorkUntilDeadline",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 16
+          },
+          {
+            "ms": 554.5,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 477.3,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8532
+          },
+          {
+            "ms": 477.3,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8059
+          },
+          {
+            "ms": 437.6,
+            "name": "performSyncWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9063
+          },
+          {
+            "ms": 437.6,
+            "name": "flushSyncWorkAcrossRoots_impl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8968
+          },
+          {
+            "ms": 437.6,
+            "name": "flushSpawnedWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8687
+          },
+          {
+            "ms": 433.1,
+            "name": "performUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8427
+          },
+          {
+            "ms": 433.1,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8324
+          },
+          {
+            "ms": 433.1,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8268
+          },
+          {
+            "ms": 400.1,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7940
+          },
+          {
+            "ms": 326.8,
+            "name": "runWithFiberInDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 847
+          },
+          {
+            "ms": 324.4,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 321.2,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6081
+          },
+          {
+            "ms": 285.8,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8268
+          },
+          {
+            "ms": 284.3,
+            "name": "performUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8427
+          },
+          {
+            "ms": 284.3,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8324
+          },
+          {
+            "ms": 272.7,
+            "name": "runWithFiberInDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 847
+          },
+          {
+            "ms": 269.6,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 266.3,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6081
+          },
+          {
+            "ms": 229.1,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5561
+          },
+          {
+            "ms": 217.5,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 217.5,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 4201
+          },
+          {
+            "ms": 144.3,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5561
+          },
+          {
+            "ms": 141.1,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 4201
+          },
+          {
+            "ms": 137.9,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 114.3,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8532
+          },
+          {
+            "ms": 114.3,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8059
+          },
+          {
+            "ms": 104.8,
+            "name": "updateForwardRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5388
+          },
+          {
+            "ms": 103.5,
+            "name": "completeUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8482
+          },
+          {
+            "ms": 100.1,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 100.1,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 4201
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 96.3,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 96.3,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          }
+        ]
+      }
+    },
+    {
+      "action": "moveToHistory",
+      "measurement": {
+        "twoFramesMs": 877.6999999880791,
+        "commit": {
+          "name": "history-reparent",
+          "commitMs": 336.3999999910593
+        },
+        "longTasks": [872]
+      },
+      "profile": {
+        "durationMs": 1203.145,
+        "self": [
+          {
+            "ms": 323.1,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 42.9,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 37.1,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 30.1,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 29.2,
+            "name": "addObjectToProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2333
+          },
+          {
+            "ms": 28.9,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 28,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 26.2,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 19.4,
+            "name": "(garbage collector)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 17.6,
+            "name": "addObjectToProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2333
+          },
+          {
+            "ms": 14.1,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 10.8,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react.js?v=4ae80360",
+            "line": 132
+          },
+          {
+            "ms": 10.6,
+            "name": "exports.jsxDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 9.9,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 9.5,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 9,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 7.1,
+            "name": "createTask",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 6.6,
+            "name": "setValueForStyle",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1804
+          },
+          {
+            "ms": 6.4,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react.js?v=4ae80360",
+            "line": 132
+          },
+          {
+            "ms": 6.3,
+            "name": "Tooltip",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/radix-ui.js?v=255693f0",
+            "line": 10066
+          },
+          {
+            "ms": 6.2,
+            "name": "now",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 5.9,
+            "name": "recursivelyTraversePassiveUnmountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7777
+          },
+          {
+            "ms": 5.9,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 5.5,
+            "name": "createElementNS",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.9,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.8,
+            "name": "exports.unstable_now",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 126
+          },
+          {
+            "ms": 4.8,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-dev-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 4.8,
+            "name": "logComponentRender",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2461
+          },
+          {
+            "ms": 4.8,
+            "name": "setAttribute",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.8,
+            "name": "createTask",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.8,
+            "name": "exports.jsx",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 191
+          },
+          {
+            "ms": 4.7,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 4.7,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 4.6,
+            "name": "warnUnknownProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1993
+          },
+          {
+            "ms": 4.6,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/dist-BTrDCE8k.js?v=dd813c8b",
+            "line": 149
+          },
+          {
+            "ms": 4.5,
+            "name": "main",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/chunk-BO2N2NFS-1EuBtyE3.js?v=dd813c8b",
+            "line": 23090
+          },
+          {
+            "ms": 4.5,
+            "name": "measure",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.5,
+            "name": "setInitialProperties",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9760
+          },
+          {
+            "ms": 4.4,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 4.4,
+            "name": "ReactElement",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react_jsx-runtime.js?v=4ae80360",
+            "line": 104
+          },
+          {
+            "ms": 4.3,
+            "name": "Button",
+            "url": "/packages/ui/src/components/ui/button.tsx",
+            "line": 37
+          },
+          {
+            "ms": 4.3,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6081
+          },
+          {
+            "ms": 3.6,
+            "name": "measure",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.4,
+            "name": "runWithFiberInDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 847
+          },
+          {
+            "ms": 3.4,
+            "name": "get",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/tailwind-merge.js?v=16754eff",
+            "line": 163
+          },
+          {
+            "ms": 3.4,
+            "name": "runWithFiberInDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 847
+          },
+          {
+            "ms": 3.4,
+            "name": "getRootForUpdatedFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2632
+          },
+          {
+            "ms": 3.3,
+            "name": "now",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.3,
+            "name": "validateProperty",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 1875
+          },
+          {
+            "ms": 3.3,
+            "name": "",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/dist-BTrDCE8k.js?v=dd813c8b",
+            "line": 179
+          },
+          {
+            "ms": 3.3,
+            "name": "FiberNode",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 2703
+          },
+          {
+            "ms": 3.2,
+            "name": "one$3",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/chunk-BO2N2NFS-1EuBtyE3.js?v=dd813c8b",
+            "line": 661
+          },
+          {
+            "ms": 3.2,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 3.2,
+            "name": "fromMarkdown",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/chunk-BO2N2NFS-1EuBtyE3.js?v=dd813c8b",
+            "line": 23667
+          },
+          {
+            "ms": 3.2,
+            "name": "now",
+            "url": "",
+            "line": 0
+          }
+        ],
+        "inclusive": [
+          {
+            "ms": 1202.9,
+            "name": "(root)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 855.6,
+            "name": "performWorkUntilDeadline",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 16
+          },
+          {
+            "ms": 851,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7940
+          },
+          {
+            "ms": 851,
+            "name": "performWorkOnRootViaSchedulerTask",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9049
+          },
+          {
+            "ms": 553.2,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8532
+          },
+          {
+            "ms": 553.2,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8059
+          },
+          {
+            "ms": 526,
+            "name": "performSyncWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 9063
+          },
+          {
+            "ms": 526,
+            "name": "flushSyncWorkAcrossRoots_impl",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8968
+          },
+          {
+            "ms": 526,
+            "name": "flushSpawnedWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8687
+          },
+          {
+            "ms": 496.1,
+            "name": "performWorkOnRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7940
+          },
+          {
+            "ms": 370.2,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8268
+          },
+          {
+            "ms": 368.6,
+            "name": "performUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8427
+          },
+          {
+            "ms": 368.6,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8324
+          },
+          {
+            "ms": 351.2,
+            "name": "runWithFiberInDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 847
+          },
+          {
+            "ms": 346.7,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 345.2,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6081
+          },
+          {
+            "ms": 323.1,
+            "name": "(program)",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 297.8,
+            "name": "renderRootSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8268
+          },
+          {
+            "ms": 296.3,
+            "name": "performUnitOfWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8427
+          },
+          {
+            "ms": 296.3,
+            "name": "workLoopSync",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8324
+          },
+          {
+            "ms": 218.9,
+            "name": "runWithFiberInDEV",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 847
+          },
+          {
+            "ms": 210.6,
+            "name": "run",
+            "url": "",
+            "line": 0
+          },
+          {
+            "ms": 200.6,
+            "name": "beginWork",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 6081
+          },
+          {
+            "ms": 187.7,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5561
+          },
+          {
+            "ms": 183,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 4201
+          },
+          {
+            "ms": 181.3,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 151.5,
+            "name": "updateForwardRef",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5388
+          },
+          {
+            "ms": 146.6,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 4201
+          },
+          {
+            "ms": 145,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 128.1,
+            "name": "updateFunctionComponent",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 5561
+          },
+          {
+            "ms": 126,
+            "name": "commitRoot",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8532
+          },
+          {
+            "ms": 126,
+            "name": "commitRootWhenReady",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 8059
+          },
+          {
+            "ms": 115.1,
+            "name": "renderWithHooks",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 4201
+          },
+          {
+            "ms": 113.5,
+            "name": "react_stack_bottom_frame",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 12864
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          },
+          {
+            "ms": 109,
+            "name": "commitPassiveMountOnFiber",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7610
+          },
+          {
+            "ms": 109,
+            "name": "recursivelyTraversePassiveMountEffects",
+            "url": "/@fs/C:/Windows/TEMP/zcodium-terminal-profile-o4d9SO/deps/react-dom_client.js?v=4d7ae880",
+            "line": 7603
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "external": []
+}

@@ -1,7 +1,7 @@
 import {
   cloneElement,
   isValidElement,
-  useCallback,
+  useMemo,
   type ComponentProps,
   type ReactNode,
   type Ref,
@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
+import { composeRefs } from "@/lib/composeRefs.js";
 
 interface ControlHintTooltipProps {
   children: ReactNode;
@@ -38,17 +39,6 @@ type TriggerChildProps = {
 
 const shortcutKbdBaseClassName =
   "rounded-md h-4 inline-flex items-center bg-tooltip-tag px-1.5 text-ui-xs font-medium text-tooltip-tag-foreground";
-
-function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (!ref) {
-    return;
-  }
-  if (typeof ref === "function") {
-    ref(value);
-    return;
-  }
-  ref.current = value;
-}
 
 export function ControlHintTooltip({
   children,
@@ -77,11 +67,8 @@ export function ControlHintTooltip({
   const childRef = isTriggerElement ? children.props.ref : undefined;
   // Radix Tooltip/Dropdown/Popper 的 asChild trigger 会在 ref 变化时同步 setState。
   // 这里必须稳定 callback ref 身份，否则每次 render 都会触发 ref detach/attach 并形成更新循环。
-  const composedTriggerRef = useCallback(
-    (value: HTMLElement | null) => {
-      setRef(childRef, value);
-      setRef(triggerRef, value);
-    },
+  const composedTriggerRef = useMemo(
+    () => composeRefs(childRef, triggerRef),
     [childRef, triggerRef],
   );
   const trigger = isTriggerElement ? (

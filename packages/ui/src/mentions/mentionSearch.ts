@@ -140,11 +140,25 @@ function getDefaultMentionItemPriority(item: MentionItem): number {
   return item.data?.kind === "directory" ? 1 : 0;
 }
 
-function sortDefaultMentionItems(items: MentionItem[]): MentionItem[] {
-  return items
-    .map((item, index) => ({ index, item, priority: getDefaultMentionItemPriority(item) }))
-    .sort((left, right) => left.priority - right.priority || left.index - right.index)
-    .map(({ item }) => item);
+function sortDefaultMentionItems(items: MentionItem[], limit?: number): MentionItem[] {
+  const safeLimit = Number.isFinite(limit)
+    ? Math.max(0, Math.trunc(limit ?? 0))
+    : Number.POSITIVE_INFINITY;
+  if (safeLimit === 0) return [];
+
+  // 空查询只有“普通候选、文件目录”两级稳定优先序；先全量包装排序再截取会放大菜单打开成本。
+  // 每级只保留可能进入上限的原对象，普通候选满额后，后续任何候选都不能改变结果。
+  const ordinary: MentionItem[] = [];
+  const directories: MentionItem[] = [];
+  for (const item of items) {
+    if (getDefaultMentionItemPriority(item) === 0) {
+      ordinary.push(item);
+      if (ordinary.length >= safeLimit) return ordinary;
+    } else if (directories.length < safeLimit) {
+      directories.push(item);
+    }
+  }
+  return ordinary.concat(directories.slice(0, safeLimit - ordinary.length));
 }
 
 export function filterMentionItemsWithOptions(
@@ -158,9 +172,7 @@ export function filterMentionItemsWithOptions(
     // `@` 面板一打开就会进入这里。之前空 query 直接返回全量文件，
     // 大工作区会瞬间渲染成千上万条 option，随后上下键每切一次都要让整棵列表参与更新，体感就会非常卡。
     // 这里支持按需要求”必须先输入 query 才展示结果”，并保留结果上限，避免再次把大列表打进渲染层。
-    return options.requireQuery
-      ? []
-      : applyMentionItemLimit(sortDefaultMentionItems(items), effectiveLimit);
+    return options.requireQuery ? [] : sortDefaultMentionItems(items, effectiveLimit);
   }
 
   return applyMentionItemLimit(

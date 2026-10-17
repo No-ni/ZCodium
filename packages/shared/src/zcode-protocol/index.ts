@@ -3794,3 +3794,5 @@ export const zcodeStoragePathReadySchema = z
 
 // 桌面本地 TTFT 的严格事实合同；检查点不能替代实际内容帧。
 export { localTtftFactsSchema } from "../localTtft.js";
+// 问题目录 schema 与 V4 入口共用单一来源；stdio 和 RPC 都不得弱化运行时校验。
+export * from "../zcode-protocol-v4/turn-directory.js";

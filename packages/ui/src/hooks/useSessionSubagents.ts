@@ -99,6 +99,8 @@ export function useSessionSubagents(options: {
     try {
       const requestedCount = Math.max(PAGE_SIZE, loadedEndedCountRef.current);
       let response = await requestPage(Math.min(requestedCount, MAX_PAGE_SIZE));
+      // cleanup 会递增版本；首批完成后先终止失效刷新，避免继续读取旧目录历史页。
+      if (requestVersion !== requestVersionRef.current) return;
       const previous = stateRef.current;
       // 新完成项会插入 ended 顶部。多取同样数量的旧项，避免刷新时把用户已经
       // 加载到目录底部的项目挤出当前内存页；浏览器滚动锚点可继续保持可见行。
@@ -112,6 +114,8 @@ export function useSessionSubagents(options: {
       let cursor = response.ended.nextCursor;
       while (items.length < targetCount && cursor) {
         const page = await requestPage(Math.min(PAGE_SIZE, targetCount - items.length), cursor);
+        // 每页返回后复核版本，目录卸载或 scope 失效时不再派发后续 RPC。
+        if (requestVersion !== requestVersionRef.current) return;
         items = mergeEndedSubagentPages(items, page.ended.items);
         cursor = page.ended.nextCursor;
         response = page;

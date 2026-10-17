@@ -1,3 +1,5 @@
+import type { ConversationTurnDirectoryEntry } from "@zcode/shared/zcode-protocol-v4";
+import { ConversationTurnRenderCache } from "@/v4/conversationTurnRenderCache.js";
 /* oxlint-disable eslint(max-lines) -- ConversationTimeline 集中承载虚拟滚动、滚动锚定、loadOlder 与 find 高亮协调；拆散会让同一滚动状态跨文件传递。 */
 import {
   Component,
@@ -104,7 +106,6 @@ import type { ConversationSelectionReference } from "@/lib/conversationSelection
 const EMPTY_PENDING_GUIDES: readonly QueueItem[] = [];
 
 const ROW_OVERSCAN = 8;
-const RUNNING_WORK_DURATION_TICK_MS = 1000;
 const COMPOSER_MESSAGE_MASK_FADE_PX = 24;
 const COMPOSER_MESSAGE_MASK_TRANSPARENT_HEIGHT_PX = 96;
 const USER_SCROLL_INTENT_TTL_MS = 1200;
@@ -281,7 +282,10 @@ interface ConversationTimelineProps {
   /** 拉取更早一窗历史（接近顶部时自动预取）。 */
   onLoadOlder?: () => Promise<void> | void;
   /** 宽屏问题目录挂载后一次补齐当前有效分支的全部历史。 */
-  onLoadAllOlder?: () => Promise<ConversationTurnNavigatorHydrationResult>;
+  onLoadTurnDirectory?: () => Promise<ConversationTurnNavigatorHydrationResult>;
+  turnDirectory?: readonly ConversationTurnDirectoryEntry[] | null;
+  turnDirectoryLoading?: boolean;
+  onLoadThroughRow?: (rowId: number) => Promise<boolean>;
   /**
    * 问题导航目录失效代际（store turnNavigatorDirectoryRevision）。
    * real-user query 增删后终态必须失效重探测；组件 hydration key
@@ -366,7 +370,10 @@ function ConversationTimelineImpl({
   canLoadOlder = false,
   loadingOlder = false,
   onLoadOlder,
-  onLoadAllOlder,
+  onLoadTurnDirectory,
+  turnDirectory,
+  turnDirectoryLoading = false,
+  onLoadThroughRow,
   turnNavigatorDirectoryRevision = 0,
   bottomDock,
   selectionPanelLayoutContainerRef,
@@ -415,7 +422,7 @@ function ConversationTimelineImpl({
     observer.observe(element);
     return () => observer.disconnect();
   }, [hasHeaderSlot]);
-  const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  const renderCache = useMemo(() => new ConversationTurnRenderCache(), [sessionKey]);
   // 插件卡片展示模型——同资源替代 + 最近三回合自动展开 + 手动固定；推导结果发布给卡片自己读。
   const pluginUiDerivation = useMemo(() => deriveLogicalUiInstances(rows), [rows]);
   useEffect(() => {
@@ -437,17 +444,17 @@ function ConversationTimelineImpl({
   const renderUnits = useMemo(
     () =>
       buildConversationTurnRenderUnits(rows, {
-        nowMs: liveNowMs,
+        nowMs: Date.now(),
+        cache: renderCache,
         sessionPhase,
         pluginUiPinResolver,
       }),
-    [liveNowMs, pluginUiPinResolver, rows, sessionPhase],
+    [renderCache, pluginUiPinResolver, rows, sessionPhase],
   );
   const { virtualizedUnits, liveUnit, liveUnitIndex } = useMemo(
     () => splitConversationTimelineLiveTail(renderUnits),
     [renderUnits],
   );
-  const hasRunningUnit = useMemo(() => renderUnits.some((unit) => unit.isRunning), [renderUnits]);
   const turnNavigatorQueryRowIds = useMemo(
     () =>
       new Set(
@@ -588,27 +595,12 @@ function ConversationTimelineImpl({
     };
   }, [backgroundScrollLocked, selectionPanelLayoutContainerRef, syncShareSelectionPanelLayout]);
 
-  useEffect(() => {
-    if (!hasRunningUnit) {
-      return;
-    }
-
-    // 运行中的 assistant work 状态文案要显示“工作中 N 秒”并随时间推进；
-    // 完成态耗时由协议事实固定，builder 会拒绝把这个 UI 时钟用于已结束轮次。
-    setLiveNowMs(Date.now());
-    const timer = window.setInterval(() => {
-      setLiveNowMs(Date.now());
-    }, RUNNING_WORK_DURATION_TICK_MS);
-
-    return () => window.clearInterval(timer);
-  }, [hasRunningUnit]);
-
   useLayoutEffect(() => {
     const element = timelineRootRef.current;
     if (!element) return;
 
-    // rail 改由 CSS container query 隐藏后，完整历史补拉失去了同一宽度
-    // 资格边界，手机远控与窄分屏也会请求全部 rows。这里仅同步只读分页资格；
+    // rail 由 CSS container query 控制显隐；摘要预取使用同一宽度边界，
+    // 手机远控与窄分屏不请求宽屏目录。这里只同步只读查询资格；
     // rail 的显隐、占位与过渡仍完全由 CSS 裁决，不恢复 composer 几何测量。
     const commitWidth = (width: number) => {
       const normalizedWidth = Math.max(0, Math.round(width));
@@ -638,7 +630,7 @@ function ConversationTimelineImpl({
       !shouldHydrateConversationTurnNavigatorDirectory({
         canLoadOlder,
         containerWidthPx: turnNavigatorContainerWidthPx,
-        hasLoadHandler: Boolean(onLoadAllOlder),
+        hasLoadHandler: Boolean(onLoadTurnDirectory),
         loadingOlder,
       })
     ) {
@@ -658,17 +650,21 @@ function ConversationTimelineImpl({
         status: "idle" as const,
       });
     }
-    if (attempt.status !== "idle" || !onLoadAllOlder) return;
+    if (attempt.status !== "idle" || !onLoadTurnDirectory) return;
     attempt.status = "in-flight";
-    logger.debug("[v4-turn-navigator] 目录请求补齐完整历史", {
+    logger.debug("[v4-turn-navigator] 请求轻量问题目录", {
       attempt: attempt.attemptCount + 1,
       loadedRows: rows.length,
       sessionKey,
       totalRows: totalCount,
     });
-    void onLoadAllOlder().then((result) => {
+    void onLoadTurnDirectory().then((result) => {
       if (attempt.key !== hydrationKey) return;
-      if (result.status === "hydrated" || result.status === "not-enough-queries") {
+      if (
+        result.status === "hydrated" ||
+        result.status === "not-enough-queries" ||
+        result.status === "unsupported"
+      ) {
         attempt.status = "terminal";
         return;
       }
@@ -695,7 +691,7 @@ function ConversationTimelineImpl({
   }, [
     canLoadOlder,
     loadingOlder,
-    onLoadAllOlder,
+    onLoadTurnDirectory,
     rowContext.logEpoch,
     rows,
     sessionKey,
@@ -703,6 +699,7 @@ function ConversationTimelineImpl({
     turnNavigatorContainerWidthPx,
     turnNavigatorDirectoryRevision,
     turnNavigatorHydrationRetryRevision,
+    turnDirectoryLoading,
   ]);
 
   useEffect(
@@ -763,6 +760,15 @@ function ConversationTimelineImpl({
   };
   const virtualRows = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
+  // React 的 key 只在同一个父节点内有效。live → history 若分开 map/父节点，
+  // 终态仍会整轮重挂；统一子项列表，只切换定位与测高，下一轮开始也不迁移正文。
+  const mountedUnits = virtualRows.flatMap((virtualRow) => {
+    const unit = virtualizedUnits[virtualRow.index];
+    return unit ? [{ unit, index: virtualRow.index, start: virtualRow.start, live: false }] : [];
+  });
+  if (liveUnit !== null && liveUnitIndex !== null) {
+    mountedUnits.push({ unit: liveUnit, index: liveUnitIndex, start: totalSize, live: true });
+  }
   const turnNavigatorVirtualItems: ConversationTurnNavigatorVirtualItem[] = useMemo(() => {
     const historyItems = virtualRows.map((row) => ({
       index: row.index,
@@ -829,7 +835,7 @@ function ConversationTimelineImpl({
       if (intent === "none") return;
       userScrollIntentRef.current = { intent, observedAt: Date.now() };
       const element = scrollRef.current;
-      // running -> terminal 会在同一帧迁移 live tail、折叠工作历史并触发
+      // running -> terminal 会在同一帧切换 live tail 定位、折叠工作历史并触发
       // virtualizer 测高。向上滚动必须在 scroll 事件之前先拿走滚动权，否则终态
       // layout effect 会拿过期的 following=true 把用户重新拽到底部。
       if (intent === "awayFromBottom" && element && element.scrollHeight > element.clientHeight) {
@@ -1117,6 +1123,8 @@ function ConversationTimelineImpl({
     const cacheKey = getUnitHeightCacheKey(liveUnit ?? undefined);
     if (!element || cacheKey === undefined) return;
 
+    // epoch/session 改变会合法重建同 key 的 DOM；observer 也必须换到新节点，
+    // 否则仍测量已脱离的旧节点，完成态只能用默认高度估计，破坏虚拟窗口与吸底。
     const cacheHeight = (entry?: ResizeObserverEntry) => {
       const height = measureRowHeight(element, entry);
       heightCacheRef.current?.set(cacheKey, height);
@@ -1160,7 +1168,9 @@ function ConversationTimelineImpl({
     isContentWidthChanging,
     liveUnit?.key,
     markLayoutScrollGuard,
+    rowContext.logEpoch,
     scrollToBottom,
+    sessionKey,
   ]);
 
   const saveCurrentScrollMemory = useCallback(() => {
@@ -1371,6 +1381,45 @@ function ConversationTimelineImpl({
     },
     [clearUserScrollIntent, commitFollowing, liveUnitIndex, syncTurnNavigatorViewport, virtualizer],
   );
+
+  const [pendingDirectoryJump, setPendingDirectoryJump] = useState<{
+    rowId: number;
+    behavior: ScrollBehavior;
+    sessionKey: string;
+  } | null>(null);
+  const requestDirectoryJump = useCallback(
+    (target: { rowId: number; unitIndex: number }, behavior: ScrollBehavior) => {
+      setPendingDirectoryJump(null);
+      if (target.unitIndex >= 0) {
+        scrollToQuery(target, behavior);
+        return;
+      }
+      if (!onLoadThroughRow) return;
+      clearUserScrollIntent();
+      commitFollowing(false);
+      const request = { rowId: target.rowId, behavior, sessionKey };
+      setPendingDirectoryJump(request);
+      void onLoadThroughRow(target.rowId)
+        .then((loaded) => {
+          if (!loaded) setPendingDirectoryJump((current) => (current === request ? null : current));
+        })
+        .catch(() => setPendingDirectoryJump((current) => (current === request ? null : current)));
+    },
+    [onLoadThroughRow, scrollToQuery, clearUserScrollIntent, commitFollowing, sessionKey],
+  );
+  useEffect(() => {
+    if (!pendingDirectoryJump) return;
+    if (pendingDirectoryJump.sessionKey !== sessionKey) {
+      setPendingDirectoryJump(null);
+      return;
+    }
+    const unitIndex = renderUnits.findIndex((unit) =>
+      unit.visibleUserInputs.some((row) => row.rowId === pendingDirectoryJump.rowId),
+    );
+    if (unitIndex < 0) return;
+    scrollToQuery({ rowId: pendingDirectoryJump.rowId, unitIndex }, pendingDirectoryJump.behavior);
+    setPendingDirectoryJump(null);
+  }, [pendingDirectoryJump, renderUnits, scrollToQuery, sessionKey]);
 
   useLayoutEffect(() => {
     if (!scrollToQueryActionRef) return;
@@ -1638,7 +1687,7 @@ function ConversationTimelineImpl({
 
   // 底部锚定：内容变化（新行 / 流式 delta / 动态测高修正 → totalSize 变化）时，
   // 跟随中贴底，解除跟随保持阅读位置。useLayoutEffect 在绘制前完成贴底，避免闪动。
-  // terminal 会同时迁移 live tail、自动折叠历史并
+  // terminal 会同时切换 live tail 定位、自动折叠历史并
   // 触发 virtualizer 多阶段测高；这些 scrollTop 回退属于布局，必须保持 following。
   // 若同帧有用户向上滚动，capture handler 会先登记 awayFromBottom，本 effect 必须让位。
   useLayoutEffect(() => {
@@ -1730,14 +1779,15 @@ function ConversationTimelineImpl({
       {hideTurnNavigator ? null : (
         <ConversationTurnNavigator
           renderUnits={renderUnits}
-          isHydratingDirectory={loadingOlder}
+          directory={turnDirectory}
+          isHydratingDirectory={turnDirectoryLoading}
           scrollOffsetPx={virtualizer.scrollOffset ?? turnNavigatorViewport.scrollOffsetPx}
           viewportHeightPx={
             virtualizer.scrollRect?.height ?? turnNavigatorViewport.viewportHeightPx
           }
           virtualItems={turnNavigatorVirtualItems}
           activeQueryRowId={turnNavigatorViewport.activeQueryRowId}
-          onJumpToQuery={scrollToQuery}
+          onJumpToQuery={requestDirectoryJump}
         />
       )}
       <div
@@ -1773,7 +1823,7 @@ function ConversationTimelineImpl({
           backgroundScrollLocked && "!overflow-y-hidden",
           // Conversation turn map 覆盖 timeline 左侧 48px；表格增强滚动如果仍按
           // 普通 16px 边距借位，会有 32px 落到 turn map 下方，必须把完整占用计入左边界。
-          turnNavigatorQueryRowIds.size >= 2 &&
+          Math.max(turnNavigatorQueryRowIds.size, turnDirectory?.length ?? 0) >= 2 &&
             "@min-[864px]/conversation:[--markdown-table-layout-left-inset:48px]",
         )}
       >
@@ -1852,26 +1902,31 @@ function ConversationTimelineImpl({
                   contentWidthClassName,
                   summaryPanelInlineOffsetClassName,
                 )}
-                style={{ height: totalSize }}
+                // 普通流末轮直接撑高内容列；历史的占位由 padding 表达，
+                // 终态移除 padding、恢复显式总高，不更换任何 turn 的 React 父节点。
+                style={liveUnit ? { paddingTop: totalSize } : { height: totalSize }}
               >
-                {virtualRows.map((virtualRow) => {
-                  const unit = virtualizedUnits[virtualRow.index];
-                  if (!unit) return null;
+                {mountedUnits.map(({ unit, index, start, live }) => {
                   return (
                     <div
-                      key={`${virtualRow.key}:${rowContext.logEpoch ?? ""}`}
-                      ref={virtualizer.measureElement}
-                      data-index={virtualRow.index}
+                      key={`${sessionKey}:${unit.key}:${rowContext.logEpoch ?? ""}`}
+                      ref={live ? liveTailRef : virtualizer.measureElement}
+                      data-index={index}
+                      data-v4-running-live-tail={live ? "true" : undefined}
                       data-v4-turn-unit="true"
                       data-turn-id={unit.turnId}
                       // virtual history 的子项通过 absolute 定位，父级 padding 不会缩小
                       // 它们的 containing block；正文响应式内边距必须落在 turn wrapper 自身。
-                      className="absolute left-0 top-0 w-full"
-                      style={{ transform: `translateY(${virtualRow.start - headerSlotHeight}px)` }}
+                      className={live ? "relative w-full" : "absolute left-0 top-0 w-full"}
+                      style={
+                        live
+                          ? undefined
+                          : { transform: `translateY(${start - headerSlotHeight}px)` }
+                      }
                     >
                       <ConversationTurnGroup
                         unit={unit}
-                        apiRetry={null}
+                        apiRetry={live ? apiRetry : null}
                         context={rowContext}
                         onFork={onFork}
                         onRetry={onRetry}
@@ -1883,34 +1938,6 @@ function ConversationTimelineImpl({
                   );
                 })}
               </div>
-              {liveUnit !== null && liveUnitIndex !== null ? (
-                <div
-                  key={`${liveUnit.key}:${rowContext.logEpoch ?? ""}`}
-                  ref={liveTailRef}
-                  data-index={liveUnitIndex}
-                  data-v4-running-live-tail="true"
-                  data-v4-turn-unit="true"
-                  data-turn-id={liveUnit.turnId}
-                  data-v4-timeline-content-column="true"
-                  className={cn(
-                    // ≥1280px 面板让位时降级为只过渡 transform，避免大范围跳变叠加位移抖动。
-                    "relative mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out @min-[1280px]/conversation:transition-[transform]",
-                    contentWidthClassName,
-                    summaryPanelInlineOffsetClassName,
-                  )}
-                >
-                  <ConversationTurnGroup
-                    unit={liveUnit}
-                    apiRetry={apiRetry}
-                    context={rowContext}
-                    onFork={onFork}
-                    onRetry={onRetry}
-                    onFeedbackChange={onFeedbackChange}
-                    onEdit={onEdit}
-                    shareSelection={shareSelection}
-                  />
-                </div>
-              ) : null}
               {pendingGuides.length > 0 ? (
                 <div
                   data-v4-timeline-content-column="true"

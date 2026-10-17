@@ -121,21 +121,24 @@ function getMountedRowElement(root: HTMLElement, rowId: number): HTMLElement | n
   return root.querySelector<HTMLElement>(`[data-row-id="${rowId}"]`);
 }
 
-function getMountedConversationFindRange(
+function createMountedConversationFindRangeResolver(
   root: HTMLElement,
   query: string,
-  match: ConversationFindMatch,
-): Range | null {
+): (match: ConversationFindMatch) => Range | null {
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return null;
-  }
-  const rowElement = getMountedRowElement(root, match.rowId);
-  if (!rowElement) {
-    return null;
-  }
-  const rowRanges = collectTextRangesInElement(rowElement, normalizedQuery);
-  return rowRanges[match.rowMatchIndex] ?? null;
+  // 每个命中重扫整行会创建 M² 个 Range；一次 apply 内普通/active 高亮共用扫描结果。
+  // 不跨调用保留 DOM，确保虚拟行重挂或同 rowId 文本替换后重新读取。
+  const rangesByRowId = new Map<number, Range[]>();
+  return (match) => {
+    if (!normalizedQuery) return null;
+    let rowRanges = rangesByRowId.get(match.rowId);
+    if (!rowRanges) {
+      const rowElement = getMountedRowElement(root, match.rowId);
+      rowRanges = rowElement ? collectTextRangesInElement(rowElement, normalizedQuery) : [];
+      rangesByRowId.set(match.rowId, rowRanges);
+    }
+    return rowRanges[match.rowMatchIndex] ?? null;
+  };
 }
 
 export function applyConversationFindHighlights({
@@ -155,12 +158,9 @@ export function applyConversationFindHighlights({
     return null;
   }
 
-  const ranges = matches
-    .map((match) => getMountedConversationFindRange(root, query, match))
-    .filter((range): range is Range => range !== null);
-  const activeRange = activeMatch
-    ? getMountedConversationFindRange(root, query, activeMatch)
-    : null;
+  const resolveRange = createMountedConversationFindRangeResolver(root, query);
+  const ranges = matches.map(resolveRange).filter((range): range is Range => range !== null);
+  const activeRange = activeMatch ? resolveRange(activeMatch) : null;
 
   support.highlights.set(FIND_HIGHLIGHT_NAME, createHighlight(support.Highlight, ranges, 0));
   support.highlights.set(
@@ -184,7 +184,7 @@ export function applySearchResultHighlight({
   if (!support) {
     return null;
   }
-  const range = getMountedConversationFindRange(root, query, match);
+  const range = createMountedConversationFindRangeResolver(root, query)(match);
   support.highlights.set(
     SEARCH_RESULT_HIGHLIGHT_NAME,
     createHighlight(support.Highlight, range ? [range] : [], 2),

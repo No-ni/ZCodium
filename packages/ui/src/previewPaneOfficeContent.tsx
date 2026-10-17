@@ -1,7 +1,6 @@
-import { Component, lazy, Suspense, useMemo, type ErrorInfo, type ReactNode } from "react";
-import type { FileBinaryPreview } from "@zcode/shared";
+import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { decodeBase64ToArrayBuffer, type OfficeFilePreviewKind } from "@/lib/officeFilePreview.js";
+import { type OfficeFilePreviewKind } from "@/lib/officeFilePreview.js";
 import { logger } from "@/logger.js";
 
 const LazyXlsxContent = lazy(async () => {
@@ -82,7 +81,7 @@ export function PreviewPaneOfficeContent({
   kind: OfficeFilePreviewKind;
   loading: boolean;
   onOpenBrowserUrl?: (url: string) => void;
-  preview: FileBinaryPreview | null;
+  preview: ArrayBuffer | null;
   resolvedTheme: "light" | "dark";
   sourcePath: string;
 }) {
@@ -90,10 +89,7 @@ export function PreviewPaneOfficeContent({
   const errorMessage = intl.formatMessage({
     id: "codeViewer.officeUnavailable",
   });
-  const buffer = useMemo(
-    () => (preview ? decodeBase64ToArrayBuffer(preview.dataBase64) : null),
-    [preview],
-  );
+  const buffer = preview;
 
   if (loading || (!error && !buffer)) {
     return <OfficePreviewLoading />;
@@ -107,7 +103,7 @@ export function PreviewPaneOfficeContent({
   return (
     <OfficePreviewErrorBoundary
       fallback={fallback}
-      resetKey={`${kind}:${sourcePath}:${preview?.totalBytes ?? 0}`}
+      resetKey={`${kind}:${sourcePath}:${preview?.byteLength ?? 0}`}
     >
       <Suspense fallback={<OfficePreviewLoading />}>
         {kind === "excel" ? (

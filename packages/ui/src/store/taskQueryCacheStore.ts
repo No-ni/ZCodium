@@ -164,6 +164,10 @@ function sortTaskKeysByDescriptor(params: {
   });
 }
 
+function areTaskKeysEqual(left: TaskEntityKey[], right: TaskEntityKey[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
 // republish（membership 重拉、sessions-index 帧）产出的 item 都是全新对象引用。
 // 内容没变时如果照样换引用，taskMetaByEntityKey 和派生 items memo 会整列表换新，
 // 所有列表行无效重渲染。这里做逐字段等价判断，等价则保留旧引用。
@@ -362,12 +366,11 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
     failedShardKeys,
   }) =>
     set((state) => {
-      const nextTaskMetaByEntityKey = { ...state.taskMetaByEntityKey };
+      // 等价 republish 仍会频繁发生；首次实际写入前沿用原索引，避免复制整个历史缓存。
+      let nextTaskMetaByEntityKey = state.taskMetaByEntityKey;
       let taskMetaChanged = false;
       let taskUnreadOverlayChanged = false;
-      const nextTaskUnreadOverlayByEntityKey = {
-        ...state.taskUnreadOverlayByEntityKey,
-      };
+      let nextTaskUnreadOverlayByEntityKey = state.taskUnreadOverlayByEntityKey;
       const searchSnippetsByTaskKey: Record<TaskEntityKey, string> = {};
       const searchSnippetListsByTaskKey: Record<TaskEntityKey, string[]> = {};
       const incomingTaskKeys = items.map((item) => {
@@ -399,10 +402,14 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
         ) {
           // RPC 成功不等于所有在途 membership 查询都已更新。
           // overlay 只有在 query 真正发布出同一字段值后才可释放，旧回包前后都不能覆盖新状态。
+          if (!taskUnreadOverlayChanged) {
+            nextTaskUnreadOverlayByEntityKey = { ...nextTaskUnreadOverlayByEntityKey };
+          }
           delete nextTaskUnreadOverlayByEntityKey[entityKey];
           taskUnreadOverlayChanged = true;
         }
         if (mergedItem !== existingItem) {
+          if (!taskMetaChanged) nextTaskMetaByEntityKey = { ...nextTaskMetaByEntityKey };
           taskMetaChanged = true;
           nextTaskMetaByEntityKey[entityKey] = mergedItem;
         }
@@ -476,13 +483,12 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
         return state;
       }
 
-      const nextTaskMetaByEntityKey = { ...state.taskMetaByEntityKey };
+      // 整批过期或内容等价时不能预复制全局索引；三个 Record 分别在首次写入时复制。
+      let nextTaskMetaByEntityKey = state.taskMetaByEntityKey;
       let taskMetaChanged = false;
       let taskUnreadOverlayChanged = false;
-      const nextTaskUnreadOverlayByEntityKey = {
-        ...state.taskUnreadOverlayByEntityKey,
-      };
-      const nextResultsByQueryKey = { ...state.resultsByQueryKey };
+      let nextTaskUnreadOverlayByEntityKey = state.taskUnreadOverlayByEntityKey;
+      let nextResultsByQueryKey = state.resultsByQueryKey;
       let resultsChanged = false;
 
       for (const entry of entries) {
@@ -526,10 +532,14 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
               ? typeof item.unreadAt !== "number"
               : item.unreadAt === unreadAtOverlay)
           ) {
+            if (!taskUnreadOverlayChanged) {
+              nextTaskUnreadOverlayByEntityKey = { ...nextTaskUnreadOverlayByEntityKey };
+            }
             delete nextTaskUnreadOverlayByEntityKey[entityKey];
             taskUnreadOverlayChanged = true;
           }
           if (mergedItem !== existingItem) {
+            if (!taskMetaChanged) nextTaskMetaByEntityKey = { ...nextTaskMetaByEntityKey };
             taskMetaChanged = true;
             nextTaskMetaByEntityKey[entityKey] = mergedItem;
           }
@@ -582,6 +592,7 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
         ) {
           continue;
         }
+        if (!resultsChanged) nextResultsByQueryKey = { ...nextResultsByQueryKey };
         resultsChanged = true;
         nextResultsByQueryKey[entry.queryKey] = buildCachedTaskListResult(resultParams);
       }
@@ -610,6 +621,8 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
         : existingTask
           ? mergeTaskListMembershipFields(existingTask, mergedTask)
           : mergedTask;
+      // 重复广播的合并结果可能只是新引用；等价时避免复制整个历史实体表并通知列表。
+      if (existingTask && areCachedTaskListItemsEquivalent(existingTask, nextTask)) return state;
       return {
         ...state,
         taskMetaByEntityKey: {
@@ -631,11 +644,11 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
       const nextTask = existingTask
         ? mergeTaskListMembershipFields(existingTask, mergedTask)
         : mergedTask;
-      const nextTaskMetaByEntityKey = {
-        ...state.taskMetaByEntityKey,
-        [entityKey]: nextTask,
-      };
-      const nextResultsByQueryKey = { ...state.resultsByQueryKey };
+      const nextTaskMetaByEntityKey =
+        existingTask && areCachedTaskListItemsEquivalent(existingTask, nextTask)
+          ? state.taskMetaByEntityKey
+          : { ...state.taskMetaByEntityKey, [entityKey]: nextTask };
+      let nextResultsByQueryKey = state.resultsByQueryKey;
 
       for (const [queryKey, result] of Object.entries(state.resultsByQueryKey)) {
         if (!result.taskKeys.includes(entityKey)) {
@@ -644,16 +657,23 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
 
         // workspace_task_list_changed 的 meta 增量只说明任务内容/状态变化，
         // 不代表 pinned/archived 成员关系变化；因此只重排已经包含该任务的列表，不能把它从 pinned 区移走。
-        nextResultsByQueryKey[queryKey] = {
-          ...result,
-          taskKeys: sortTaskKeysByDescriptor({
-            taskKeys: result.taskKeys,
-            taskMetaByEntityKey: nextTaskMetaByEntityKey,
-            descriptor: result.descriptor,
-          }),
-        };
+        // 调用方可能刚 upsert 过实体；即使实体等价也必须检查尚未更新的列表顺序。
+        const taskKeys = sortTaskKeysByDescriptor({
+          taskKeys: result.taskKeys,
+          taskMetaByEntityKey: nextTaskMetaByEntityKey,
+          descriptor: result.descriptor,
+        });
+        if (areTaskKeysEqual(result.taskKeys, taskKeys)) continue;
+        if (nextResultsByQueryKey === state.resultsByQueryKey)
+          nextResultsByQueryKey = { ...state.resultsByQueryKey };
+        nextResultsByQueryKey[queryKey] = { ...result, taskKeys };
       }
 
+      if (
+        nextTaskMetaByEntityKey === state.taskMetaByEntityKey &&
+        nextResultsByQueryKey === state.resultsByQueryKey
+      )
+        return state;
       return {
         resultsByQueryKey: nextResultsByQueryKey,
         taskMetaByEntityKey: nextTaskMetaByEntityKey,
@@ -668,19 +688,24 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
       const mergedNextTask = existingTask
         ? mergeTaskListMembershipFields(existingTask, nextTask)
         : nextTask;
-      const nextTaskMetaByEntityKey = {
-        ...state.taskMetaByEntityKey,
-        [nextEntityKey]: mergedNextTask,
-      };
-      if (previousEntityKey !== nextEntityKey) {
-        delete nextTaskMetaByEntityKey[previousEntityKey];
+      let nextTaskMetaByEntityKey = state.taskMetaByEntityKey;
+      // syncTaskMetaToTaskCaches 已先 upsert；mutation 仍要算成员变化，但不必再复制等价实体。
+      if (
+        previousEntityKey !== nextEntityKey ||
+        !existingTask ||
+        !areCachedTaskListItemsEquivalent(existingTask, mergedNextTask)
+      ) {
+        nextTaskMetaByEntityKey = { ...state.taskMetaByEntityKey, [nextEntityKey]: mergedNextTask };
+        if (previousEntityKey !== nextEntityKey) delete nextTaskMetaByEntityKey[previousEntityKey];
       }
 
-      const nextResultsByQueryKey = { ...state.resultsByQueryKey };
+      let nextResultsByQueryKey = state.resultsByQueryKey;
       for (const [queryKey, result] of Object.entries(state.resultsByQueryKey)) {
         if (result.descriptor.search) {
           // 正文搜索结果由服务端 sqlite searchable_text 决定，前端缓存只有 task meta/title，
           // 不能用 title-only 规则判断增量列表成员资格；否则正文命中的会话会被本地缓存误判为不匹配。
+          if (nextResultsByQueryKey === state.resultsByQueryKey)
+            nextResultsByQueryKey = { ...state.resultsByQueryKey };
           nextResultsByQueryKey[queryKey] = {
             ...result,
             invalidationVersion: result.invalidationVersion + 1,
@@ -733,16 +758,33 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
           previousIncluded !== nextIncluded &&
           nextTotal > visibleTaskKeys.length;
 
+        const hasMore = nextTotal > visibleTaskKeys.length;
+        const stale = result.stale || shouldBackgroundRefresh;
+        if (
+          result.total === nextTotal &&
+          result.hasMore === hasMore &&
+          result.stale === stale &&
+          areTaskKeysEqual(result.taskKeys, visibleTaskKeys) &&
+          (!result.unreadTaskKeys || areTaskKeysEqual(result.unreadTaskKeys, nextUnreadTaskKeys))
+        )
+          continue;
+        if (nextResultsByQueryKey === state.resultsByQueryKey)
+          nextResultsByQueryKey = { ...state.resultsByQueryKey };
         nextResultsByQueryKey[queryKey] = {
           ...result,
           taskKeys: visibleTaskKeys,
           ...(result.unreadTaskKeys ? { unreadTaskKeys: nextUnreadTaskKeys } : {}),
           total: nextTotal,
-          hasMore: nextTotal > visibleTaskKeys.length,
-          stale: result.stale || shouldBackgroundRefresh,
+          hasMore,
+          stale,
         };
       }
 
+      if (
+        nextTaskMetaByEntityKey === state.taskMetaByEntityKey &&
+        nextResultsByQueryKey === state.resultsByQueryKey
+      )
+        return state;
       return {
         resultsByQueryKey: nextResultsByQueryKey,
         taskMetaByEntityKey: nextTaskMetaByEntityKey,

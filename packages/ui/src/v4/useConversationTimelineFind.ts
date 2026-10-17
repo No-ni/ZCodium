@@ -80,30 +80,35 @@ export function useConversationTimelineFind({
   const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const findStable = sessionPhase !== "running" && sessionPhase !== "prewarming";
   const unitFindCacheRef = useRef(
-    new Map<string, { source: ConversationFindMatch[]; loadedRowCount: number }>(),
+    new WeakMap<
+      ConversationTurnRenderUnit,
+      { source: ConversationFindMatch[]; loadedRowCount: number }
+    >(),
   );
   const unitFindCacheQueryRef = useRef("");
   const conversationFindIndex = useMemo(() => {
     const query = conversationFindQuery;
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    if (unitFindCacheQueryRef.current !== normalizedQuery) {
-      unitFindCacheRef.current.clear();
-      unitFindCacheQueryRef.current = normalizedQuery;
+    const queryKey = `${normalizedQuery}:${codeCommentCardsEnabled}`;
+    if (unitFindCacheQueryRef.current !== queryKey) {
+      unitFindCacheRef.current = new WeakMap();
+      unitFindCacheQueryRef.current = queryKey;
     }
     const matches: ConversationFindMatch[] = [];
     let loadedRowCount = 0;
     // streaming delta 只会改变当前 running turn；稳定 turn 的全文索引可复用，
     // 避免每个 token 都扫描整段历史，导致长会话 renderer 主线程被持续占满。
     renderUnits.forEach((unit, unitIndex) => {
-      const cacheKey = `${normalizedQuery}:${codeCommentCardsEnabled}:${unit.key}`;
-      const cached = !unit.isRunning ? unitFindCacheRef.current.get(cacheKey) : undefined;
+      // 同 ID 的快照可替换正文，字符串键会误复用旧匹配并留住已移出窗口的文本。
+      // 以不可变 unit 作弱键，既校验内容身份，也不延长历史 unit 的存活时间。
+      const cached = !unit.isRunning ? unitFindCacheRef.current.get(unit) : undefined;
       const unitIndexResult = cached
         ? { matches: cached.source, loadedRowCount: cached.loadedRowCount }
         : buildConversationFindIndex([unit], query, {
             projectAssistantCodeComments: codeCommentCardsEnabled,
           });
       if (!unit.isRunning && !cached) {
-        unitFindCacheRef.current.set(cacheKey, {
+        unitFindCacheRef.current.set(unit, {
           source: unitIndexResult.matches,
           loadedRowCount: unitIndexResult.loadedRowCount,
         });
@@ -123,6 +128,25 @@ export function useConversationTimelineFind({
           })
         : buildConversationFindIndex([], ""),
     [codeCommentCardsEnabled, findStable, renderUnits, searchResultHighlightRequest],
+  );
+  const searchResultMatch = useMemo(
+    () =>
+      searchResultHighlightRequest
+        ? resolveSearchResultHighlightMatch(searchResultFindIndex, searchResultHighlightRequest)
+        : null,
+    [searchResultFindIndex, searchResultHighlightRequest],
+  );
+  const searchResultSnippet = searchResultHighlightRequest?.snippet?.trim();
+  // resolver 优先返回包含片段的首项，否则才 fallback；检查返回项就能确定是否存在片段。
+  // 两个 effect 共用这个派生结果，避免补页与高亮各自按命中数反复规范化同一正文。
+  const searchResultSnippetFound = useMemo(
+    () =>
+      !searchResultSnippet ||
+      Boolean(
+        searchResultMatch &&
+        sourceTextContainsSnippet(searchResultMatch.sourceText, searchResultSnippet),
+      ),
+    [searchResultMatch, searchResultSnippet],
   );
   const [resolvedFindActiveIndex, setResolvedFindActiveIndex] = useState(-1);
   const findActiveKeyRef = useRef<ConversationFindMatchKey | null>(null);
@@ -256,9 +280,7 @@ export function useConversationTimelineFind({
     }
     const snippet = request.snippet?.trim();
     const shouldLoadMore = snippet
-      ? !searchResultFindIndex.matches.some((match) =>
-          sourceTextContainsSnippet(match.sourceText, snippet),
-        )
+      ? !searchResultSnippetFound
       : searchResultFindIndex.matchCount === 0;
     if (shouldLoadMore) {
       const attemptKey = `${request.requestId}:${rows[0]?.rowId ?? "none"}:${rows.length}`;
@@ -276,6 +298,7 @@ export function useConversationTimelineFind({
     rows,
     searchResultFindIndex,
     searchResultHighlightRequest,
+    searchResultSnippetFound,
   ]);
 
   useEffect(() => {
@@ -291,13 +314,9 @@ export function useConversationTimelineFind({
       return;
     }
 
-    const match = resolveSearchResultHighlightMatch(searchResultFindIndex, request);
+    const match = searchResultMatch;
     const snippet = request.snippet?.trim();
-    const snippetFound = snippet
-      ? searchResultFindIndex.matches.some((candidate) =>
-          sourceTextContainsSnippet(candidate.sourceText, snippet),
-        )
-      : true;
+    const snippetFound = searchResultSnippetFound;
     const canStillLoad = canLoadOlder && rows.length < FIND_AUTO_LOAD_ROW_LIMIT && !loadingOlder;
     if (snippet && !snippetFound && (canStillLoad || loadingOlder)) {
       return;
@@ -353,8 +372,9 @@ export function useConversationTimelineFind({
     rootRef,
     rows,
     scrollToUnit,
-    searchResultFindIndex,
     searchResultHighlightRequest,
+    searchResultMatch,
+    searchResultSnippetFound,
   ]);
 
   useEffect(() => {
