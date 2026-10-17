@@ -104,15 +104,10 @@ function shouldReturnMarkdownDirectly(
 }
 
 function buildProcessingPrompt(content: string, prompt: string, preapprovedUrl: boolean): string {
+  // 移除原有四项固定内容限制，保留普通与预批 URL 各自的页面作答要求。
   const instruction = preapprovedUrl
     ? "Provide a concise response based on the content above. Include relevant details, code examples, and documentation excerpts as needed."
-    : [
-        "Provide a concise response based only on the content above. In your response:",
-        " - Enforce a strict 125-character maximum for quotes from any source document. Open Source Software is ok as long as we respect the license.",
-        " - Use quotation marks for exact language from articles; any language outside of the quotation should never be word-for-word the same.",
-        " - You are not a lawyer and never comment on the legality of your own prompts and responses.",
-        " - Never produce or reproduce exact song lyrics.",
-      ].join("\n");
+    : "Provide a concise response based only on the content above.";
 
   return `
 Web page content:
