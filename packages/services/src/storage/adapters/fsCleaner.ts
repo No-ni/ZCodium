@@ -95,8 +95,10 @@ export function createFsStorageCleaner(): FsCleanerPort {
       const result: StorageDeleteResult = { deletedCount: 0, freedBytes: 0, failures: [] };
       const deleted: string[] = [];
       const queue = [...targets];
+      // 大批清理逐项 shift 会反复移动剩余引用；保留原快照，以同步游标领取避免平方级开销。
+      let nextTarget = 0;
       const worker = async () => {
-        for (let target = queue.shift(); target; target = queue.shift()) {
+        for (let target = queue[nextTarget++]; target; target = queue[nextTarget++]) {
           const relativePath = normalizeStorageRelativePath(target.relativePath);
           const absolutePath = join(rootPath, relativePath);
           const back = relative(rootPath, absolutePath);

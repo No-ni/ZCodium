@@ -40,12 +40,6 @@ const DEFAULT_TIMEOUT_KILL_GRACE_MS = 2_000;
 const DEFAULT_TIMEOUT_FORCE_KILL_GRACE_MS = 2_000;
 const WINDOWS_TASKKILL_TIMEOUT_MS = 2_000;
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 function forceKillChildProcess(child: ChildProcess, platform: NodeJS.Platform): void {
   if (platform === "win32" && typeof child.pid === "number") {
     const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
@@ -149,6 +143,8 @@ export function createGitCommandProvider(options?: {
             return;
           }
           settled = true;
+          // 修复：原 await wait 的宽限期无法取消，命令结束后仍持有输出和子进程引用。
+          // timer 始终指向当前阶段，close/error 可立即释放该阶段的等待。
           clearTimeout(timer);
           child.stdout?.off("data", appendStdoutChunk);
           child.stderr?.off("data", appendStderrChunk);
@@ -164,7 +160,7 @@ export function createGitCommandProvider(options?: {
           resolve(result);
         }
 
-        async function handleTimeout(): Promise<void> {
+        function handleTimeout(): void {
           if (settled) {
             return;
           }
@@ -172,7 +168,13 @@ export function createGitCommandProvider(options?: {
           timeoutElapsedMs = Date.now() - startedAt;
           child.kill();
 
-          await wait(timeoutKillGraceMs);
+          // kill 可能同步触发 error/close；结束后不能再挂入下一阶段计时器。
+          if (!settled) {
+            timer = setTimeout(handleForceKill, timeoutKillGraceMs);
+          }
+        }
+
+        function handleForceKill(): void {
           if (settled) {
             return;
           }
@@ -180,7 +182,12 @@ export function createGitCommandProvider(options?: {
           forceKillAttempted = true;
           forceKillChildProcess(child, platform);
 
-          await wait(timeoutForceKillGraceMs);
+          if (!settled) {
+            timer = setTimeout(handleOrphaned, timeoutForceKillGraceMs);
+          }
+        }
+
+        function handleOrphaned(): void {
           if (settled) {
             return;
           }
@@ -189,9 +196,7 @@ export function createGitCommandProvider(options?: {
           settle(buildResult(null, null));
         }
 
-        const timer = setTimeout(() => {
-          void handleTimeout();
-        }, timeoutMs);
+        let timer = setTimeout(handleTimeout, timeoutMs);
 
         const appendChunk = (chunk: Buffer, target: "stdout" | "stderr") => {
           if (outputTruncated) {

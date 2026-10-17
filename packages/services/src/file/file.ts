@@ -13,6 +13,8 @@ export interface WorkspaceFileSearchParams {
   rootPath: string;
   workspaceIdentity?: string;
   query: string;
+  /** 命令中心保留多词 AND、原索引顺序；缺省继续使用模糊匹配。 */
+  matchMode?: "fuzzy" | "terms";
   limit?: number;
   /** 无命中补扫：绕过尚未过期的文件索引。 */
   refresh?: boolean;

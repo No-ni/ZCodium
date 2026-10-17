@@ -27,12 +27,17 @@ const recordSchema = z
 const hash = (key: string) => createHash("sha256").update(key).digest("hex");
 const isMissing = (error: unknown) => (error as { code?: string })?.code === "ENOENT";
 
+interface NotificationRead {
+  started: boolean;
+  promise: Promise<void>;
+}
+
 export function createGenUiStateStorage(root: string): GenUiStateStorage {
   const log = createServiceLogger("gen-ui-state");
   const changes = new Emitter<GenUiStateChange>();
   const watchers = new Map<string, FSWatcher>();
   const queues = new Map<string, Promise<void>>();
-  const notifications = new Map<string, Promise<void>>();
+  const notifications = new Map<string, NotificationRead>();
   const lastPublished = new Map<string, string>();
   const targets = new Map<string, GenUiStateTarget>();
   let disposed = false;
@@ -60,16 +65,26 @@ export function createGenUiStateStorage(root: string): GenUiStateStorage {
   }
   function publish(file: string) {
     // watch 事件与写入 ACK 可以同时触发；串行读取防止较早快照迟到覆盖较新通知。
-    const next = (notifications.get(file) ?? Promise.resolve())
-      .catch(() => undefined)
-      .then(() => publishLatest(file));
+    const previous = notifications.get(file);
+    // 每条文件事件都排队会重复读取同一完整状态；尚未开始的读可共享，
+    // 已开始的读可能捕获旧内容，必须另排一次后续读，避免漏掉较新的持久化变更。
+    if (previous && !previous.started) return previous.promise;
+    const next: NotificationRead = {
+      started: false,
+      promise: (previous?.promise ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() => {
+          next.started = true;
+          return publishLatest(file);
+        }),
+    };
     notifications.set(file, next);
-    void next
+    void next.promise
       .finally(() => {
         if (notifications.get(file) === next) notifications.delete(file);
       })
       .catch(() => undefined);
-    return next;
+    return next.promise;
   }
   async function observe(target: GenUiStateTarget) {
     if (disposed) throw new Error("Gen UI state storage is closed");

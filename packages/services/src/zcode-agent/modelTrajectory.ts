@@ -106,14 +106,15 @@ export async function readModelTrajectory(
     return (asString(left.requestId) ?? "").localeCompare(asString(right.requestId) ?? "");
   });
 
-  const records = expandModelIODeltaRecords(rawRecords).map((record) => mapRecord(record));
+  const records = expandModelIODeltaRecords(rawRecords);
   const truncated = inputTruncated || records.length > safeLimit;
   const trimmedRecords = truncated ? records.slice(records.length - safeLimit) : records;
 
   return {
     taskId,
     available: true,
-    records: trimmedRecords,
+    // delta 必须先按完整历史展开；只映射返回窗口，避免给已丢弃的旧记录分配 messages/parts 和解析 tool 输出。
+    records: trimmedRecords.map((record) => mapRecord(record)),
     sourceFiles,
     truncated,
   };

@@ -2,6 +2,7 @@ import { execFile as nodeExecFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import os from "node:os";
+import { readLinuxProcEntries } from "./processResourceProcReader.js";
 import {
   formatZCodeAgentProcessName,
   type HostResourceUsageProcess,
@@ -225,26 +226,15 @@ export function createProcessResourceTableReader(
       } catch {
         return undefined;
       }
-      const rows = await Promise.all(
-        entries
-          .filter((entry) => /^\d+$/.test(entry))
-          .map(async (entry): Promise<ProcessResourceRow | undefined> => {
-            try {
-              signal?.throwIfAborted();
-              const [stat, status] = await Promise.all([
-                readText(`/proc/${entry}/stat`),
-                readText(`/proc/${entry}/status`),
-              ]);
-              const parsed = parseLinuxProcStat(stat);
-              if (!parsed) return undefined;
-              return { ...parsed, rssKb: parseLinuxVmRssKb(status) };
-            } catch {
-              // 进程在读取期间退出属正常现象，跳过即可。
-              return undefined;
-            }
-          }),
+      return readLinuxProcEntries(
+        entries,
+        readText,
+        (stat, status) => {
+          const parsed = parseLinuxProcStat(stat);
+          return parsed ? { ...parsed, rssKb: parseLinuxVmRssKb(status) } : undefined;
+        },
+        signal,
       );
-      return rows.filter((row): row is ProcessResourceRow => row !== undefined);
     };
   }
 
@@ -440,15 +430,26 @@ export function attributeHostProcessTree(
   const rows: HostResourceUsageProcess[] = [];
   const visited = new Set<number>([options.hostPid]);
   const visit = (pid: number, inheritedOwner: Owner | undefined): void => {
-    for (const childPid of childrenByParent.get(pid) ?? []) {
+    // 进程链可能比 JavaScript 调用栈深；显式 DFS 帧保留原先逐个子节点进入的
+    // 顺序、最近祖先归属和 visited 时机，避免递归溢出丢掉整轮资源快照。
+    const stack = [
+      { childPids: childrenByParent.get(pid) ?? [], nextIndex: 0, owner: inheritedOwner },
+    ];
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1]!;
+      if (frame.nextIndex === frame.childPids.length) {
+        stack.pop();
+        continue;
+      }
+      const childPid = frame.childPids[frame.nextIndex++]!;
       if (visited.has(childPid)) continue;
       visited.add(childPid);
       const sample = options.samples.get(childPid);
       if (!sample) continue;
       const rootOwner = ownerRoots.get(childPid);
-      const owner = rootOwner ?? inheritedOwner;
+      const owner = rootOwner ?? frame.owner;
       rows.push(ownerToRow(owner, sample, rootOwner !== undefined));
-      visit(childPid, owner);
+      stack.push({ childPids: childrenByParent.get(childPid) ?? [], nextIndex: 0, owner });
     }
   };
   visit(options.hostPid, undefined);

@@ -744,6 +744,12 @@ export function createZCodeAgentConnectionScope(
         withTrustedConnection(params, forwardedConnection(params)),
       );
     },
+    async conversationTurnDirectoryV4(params) {
+      assertReady();
+      return base.conversationTurnDirectoryV4(
+        withTrustedConnection(params, forwardedConnection(params)),
+      );
+    },
     async attachmentBeginV4(params) {
       assertReady();
       const forwarded = forwardedConnection(params);

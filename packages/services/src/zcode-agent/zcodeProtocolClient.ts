@@ -32,7 +32,7 @@ interface PendingRequest<T> {
   timeout: ReturnType<typeof setTimeout>;
   resumeTimeout: () => void;
   resolve: (value: T) => void;
-  reject: (error: Error) => void;
+  reject: (error: unknown) => void;
   resultSchema?: z.ZodType<T>;
   cleanupAbort?: () => void;
 }
@@ -72,6 +72,7 @@ export class ZCodeProtocolRequestTimeoutError extends Error {
 export class ZCodeProtocolClient implements IDisposable {
   readonly storageStartup: ZCodeStorageStartupGate;
   private readonly pending = new Map<string, PendingRequest<unknown>>();
+  private pendingOperations = 0;
   private readonly notificationEmitter = new Emitter<ZCodeProtocolNotification>();
   private readonly requestEmitter = new Emitter<ZCodeProtocolRequest>();
   private readonly requestTimeoutEmitter = new Emitter<ZCodeProtocolRequestTimeoutEvent>();
@@ -105,9 +106,8 @@ export class ZCodeProtocolClient implements IDisposable {
   }
 
   get pendingOperationRequestCount(): number {
-    let count = 0;
-    for (const pending of this.pending.values()) if (!pending.observation) count += 1;
-    return count;
+    // 批量响应时逐次扫描 pending 会形成平方级工作；计数只随原 Map 的登记/删除更新。
+    return this.pendingOperations;
   }
 
   constructor(
@@ -188,6 +188,7 @@ export class ZCodeProtocolClient implements IDisposable {
         cleanupAbort: () => options?.signal?.removeEventListener("abort", abortHandler),
       };
       this.pending.set(requestKey, pending as PendingRequest<unknown>);
+      if (!observation) this.pendingOperations += 1;
       if (options?.signal?.aborted) {
         abortHandler();
       } else {
@@ -202,20 +203,18 @@ export class ZCodeProtocolClient implements IDisposable {
     }
 
     try {
-      await this.transport.send({
-        id,
-        method,
-        params,
-        ...(options?.trace ? { trace: options.trace } : {}),
-      });
+      // 管道写回调可能因背压迟迟不结束，不能阻挡已经发生的取消、超时或响应。
+      // 立即交还响应 Promise；发送失败也走同一 pending 完成入口，忽略已完成请求的迟到错误。
+      void this.transport
+        .send({
+          id,
+          method,
+          params,
+          ...(options?.trace ? { trace: options.trace } : {}),
+        })
+        .catch((error: unknown) => this.rejectResponse(id, error));
     } catch (error) {
-      const pending = this.pending.get(requestKey);
-      if (pending) {
-        clearTimeout(pending.timeout);
-        pending.cleanupAbort?.();
-        this.deletePending(requestKey);
-      }
-      throw error;
+      this.rejectResponse(id, error);
     }
 
     return resultPromise;
@@ -340,7 +339,7 @@ export class ZCodeProtocolClient implements IDisposable {
     }
   }
 
-  private rejectResponse(id: ZCodeProtocolRequestId, error: Error): void {
+  private rejectResponse(id: ZCodeProtocolRequestId, error: unknown): void {
     const requestKey = String(id);
     const pending = this.pending.get(requestKey);
     if (!pending) {
@@ -360,6 +359,7 @@ export class ZCodeProtocolClient implements IDisposable {
       pending.reject(error);
     }
     this.pending.clear();
+    this.pendingOperations = 0;
     if (hadPending && !this.disposed) {
       this.pendingDrainedEmitter.fire();
     }
@@ -367,11 +367,15 @@ export class ZCodeProtocolClient implements IDisposable {
 
   private deletePending(requestKey: string): void {
     const pending = this.pending.get(requestKey);
-    if (!this.pending.delete(requestKey)) {
+    if (!pending) {
       return;
     }
-    if (!pending?.observation && this.pendingOperationRequestCount === 0 && !this.disposed) {
-      this.pendingDrainedEmitter.fire();
+    this.pending.delete(requestKey);
+    if (!pending.observation) {
+      this.pendingOperations -= 1;
+      if (this.pendingOperations === 0 && !this.disposed) {
+        this.pendingDrainedEmitter.fire();
+      }
     }
   }
 

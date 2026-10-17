@@ -631,12 +631,11 @@ export function buildConversationSharePublicProjection(input: {
   );
   const ids = buildIdMaps(retainedRows, input.selectedProductTurnIds);
   const rows = retainedRows.map((row, index) => projectRow(row, index, ids));
-  const artifacts = sourceArtifactRows.map((sourceRow) => {
-    const projected = rows.find(
-      (row): row is ArtifactRow =>
-        row.kind === "artifact" &&
-        row.artifactVersionId === ids.artifactIds.get(sourceRow.artifactVersionId),
-    );
+  // projectRow 一对一保持行序和类型；结果物子序列可按位置精确配对，
+  // 避免每个结果物反复从头扫描全部正文行，公开 ID 与清单顺序仍由原投影生成。
+  const projectedArtifactRows = rows.filter((row): row is ArtifactRow => row.kind === "artifact");
+  const artifacts = sourceArtifactRows.map((sourceRow, index) => {
+    const projected = projectedArtifactRows[index];
     if (!projected?.productTurnId) {
       throwProjectionError("invalid_conversation", "Projected artifact row is missing");
     }

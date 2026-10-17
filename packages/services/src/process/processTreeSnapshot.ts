@@ -1,5 +1,6 @@
 import { spawnSync, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { collectProcessDescendants } from "#src/process/processTreeTraversal.js";
 import type {
   ProcessIdentity,
   ProcessTreeSnapshot,
@@ -192,33 +193,6 @@ function refineProcessIdentities(identities: readonly ProcessIdentity[]): Proces
     .filter((identity): identity is ProcessIdentity => identity !== undefined);
 }
 
-function collectDescendantIdentitiesFromProcessList(
-  rootPid: number,
-  identities: readonly ProcessIdentity[],
-): ProcessIdentity[] {
-  const childrenByParentPid = new Map<number, ProcessIdentity[]>();
-  for (const identity of identities) {
-    const children = childrenByParentPid.get(identity.parentPid) ?? [];
-    children.push(identity);
-    childrenByParentPid.set(identity.parentPid, children);
-  }
-
-  const descendants: ProcessIdentity[] = [];
-  const seen = new Set<number>([rootPid]);
-  const visit = (pid: number) => {
-    for (const child of childrenByParentPid.get(pid) ?? []) {
-      if (seen.has(child.pid)) {
-        continue;
-      }
-      seen.add(child.pid);
-      descendants.push(child);
-      visit(child.pid);
-    }
-  };
-  visit(rootPid);
-  return descendants;
-}
-
 export function filterCurrentProcessIdentities(
   identities: readonly ProcessIdentity[],
   options: ProcessTreeTerminatorOptions,
@@ -255,7 +229,7 @@ export function captureProcessTreeSnapshot(
     // 延迟回收在 PID 复用后重新沿裸 root PID 认领无关进程树。
     return undefined;
   }
-  const descendantIdentities = collectDescendantIdentitiesFromProcessList(child.pid, processList);
+  const descendantIdentities = collectProcessDescendants(child.pid, processList);
   // POSIX detached root 是自己进程组的 leader；若它在 ps 扫描期间退出，
   // 后代会被 reparent，单靠 PPID 链会漏掉仍属于该 owned PGID 的进程。仅在
   // PGID === root PID 时合并同组成员，避免把普通 child 所在的宿主进程组纳入快照。
@@ -332,7 +306,7 @@ export function captureExitedRootDescendantsSnapshot(
     const createdAtMs = parseWindowsCreationTimeMs(identity.startTime);
     return createdAtMs !== undefined && createdAtMs >= startedAtMs && createdAtMs <= exitedAtMs;
   });
-  const identities = collectDescendantIdentitiesFromProcessList(rootPid, processList);
+  const identities = collectProcessDescendants(rootPid, processList);
   if (identities.length === 0) {
     return undefined;
   }

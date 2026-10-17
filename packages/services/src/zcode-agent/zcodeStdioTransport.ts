@@ -40,6 +40,7 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
   private readonly stderrCollector: AgentStderrCollector;
   private readonly stdoutDecoder = new StringDecoder("utf8");
   private stdoutBuffer = "";
+  private stdoutScanOffset = 0;
   private stdoutFlushed = false;
   private readersDisposed = false;
   private disposed = false;
@@ -222,6 +223,7 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
     this.stdoutBuffer += this.stdoutDecoder.end();
     const trailing = this.stdoutBuffer;
     this.stdoutBuffer = "";
+    this.stdoutScanOffset = 0;
     if (trailing.length > 0 && !this.closed) {
       this.handleStdoutFrame(trailing);
     }
@@ -229,16 +231,19 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
   };
 
   private drainStdoutFrames(): void {
-    let newlineIndex = this.stdoutBuffer.indexOf("\n");
+    // 长 JSON 帧分片抵达时，前缀已确认没有 LF；从旧末尾续扫，避免每个 chunk 重扫整帧。
+    let newlineIndex = this.stdoutBuffer.indexOf("\n", this.stdoutScanOffset);
     while (newlineIndex >= 0) {
       const frame = this.stdoutBuffer.slice(0, newlineIndex);
       this.stdoutBuffer = this.stdoutBuffer.slice(newlineIndex + 1);
+      this.stdoutScanOffset = 0;
       this.handleStdoutFrame(frame);
       if (this.closed) {
         return;
       }
       newlineIndex = this.stdoutBuffer.indexOf("\n");
     }
+    this.stdoutScanOffset = this.stdoutBuffer.length;
   }
 
   private handleStdoutFrame(frame: string): void {

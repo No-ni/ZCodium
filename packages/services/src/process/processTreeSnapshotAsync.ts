@@ -1,4 +1,5 @@
 import type { ChildProcess } from "node:child_process";
+import { collectProcessDescendants } from "#src/process/processTreeTraversal.js";
 import {
   captureExitedRootDescendantsSnapshot,
   captureProcessTreeSnapshot,
@@ -24,30 +25,6 @@ function parseWindowsCreationTimeMs(startTime: string): number | undefined {
   } catch {
     return undefined;
   }
-}
-
-function collectDescendants(
-  rootPid: number,
-  identities: readonly ProcessIdentity[],
-): ProcessIdentity[] {
-  const childrenByParentPid = new Map<number, ProcessIdentity[]>();
-  for (const identity of identities) {
-    const children = childrenByParentPid.get(identity.parentPid) ?? [];
-    children.push(identity);
-    childrenByParentPid.set(identity.parentPid, children);
-  }
-  const descendants: ProcessIdentity[] = [];
-  const seen = new Set<number>([rootPid]);
-  const visit = (pid: number) => {
-    for (const child of childrenByParentPid.get(pid) ?? []) {
-      if (seen.has(child.pid)) continue;
-      seen.add(child.pid);
-      descendants.push(child);
-      visit(child.pid);
-    }
-  };
-  visit(rootPid);
-  return descendants;
 }
 
 export async function filterCurrentProcessIdentitiesAsync(
@@ -86,7 +63,7 @@ export async function captureProcessTreeSnapshotAsync(
   // 调用方记录的可信退出上界恢复旧后代，绝不能把同 PID 的当前进程认作原 root。
   const identities =
     rootIdentity && !childExitedDuringQuery
-      ? [rootIdentity, ...collectDescendants(child.pid, processList)]
+      ? [rootIdentity, ...collectProcessDescendants(child.pid, processList)]
       : collectExitedRootDescendants(
           child.pid,
           processList,
@@ -121,7 +98,7 @@ function collectExitedRootDescendants(
     const createdAtMs = parseWindowsCreationTimeMs(identity.startTime);
     return createdAtMs !== undefined && createdAtMs >= startedAtMs && createdAtMs < exitedAtMs;
   });
-  return collectDescendants(rootPid, lifecycleCandidates);
+  return collectProcessDescendants(rootPid, lifecycleCandidates);
 }
 
 export async function captureExitedRootDescendantsSnapshotAsync(

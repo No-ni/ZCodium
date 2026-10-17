@@ -1,4 +1,5 @@
 import { resolveWorkspaceKey, type ZCodeComputerUseOperationEvent } from "@zcode/shared";
+import { BoundedEventIdOrder } from "./boundedEventIdOrder.js";
 
 export interface CuaOperationWorkspaceTarget {
   workspacePath: string;
@@ -70,9 +71,9 @@ export function createCuaOperationTurnTracker(options: {
   const computerUseScheduledCalls = new Set<string>();
   const activeTurns = new Map<string, ActiveTurnRecord>();
   const retiredTurnKeys = new Set<string>();
-  const retiredTurnKeyOrder: string[] = [];
+  const retiredTurnKeyOrder = new BoundedEventIdOrder(MAX_RETIRED_TURN_KEYS);
   const seenEventIds = new Set<string>();
-  const seenEventIdOrder: string[] = [];
+  const seenEventIdOrder = new BoundedEventIdOrder(MAX_SEEN_OPERATION_EVENT_IDS);
 
   const sessionKeyFor = (workspaceKey: string, sessionId: string) =>
     `${workspaceKey}\0${sessionId}`;
@@ -115,11 +116,8 @@ export function createCuaOperationTurnTracker(options: {
   function retireTurn(turnKey: string): void {
     if (retiredTurnKeys.has(turnKey)) return;
     retiredTurnKeys.add(turnKey);
-    retiredTurnKeyOrder.push(turnKey);
-    while (retiredTurnKeyOrder.length > MAX_RETIRED_TURN_KEYS) {
-      const removed = retiredTurnKeyOrder.shift();
-      if (removed) retiredTurnKeys.delete(removed);
-    }
+    const removed = retiredTurnKeyOrder.push(turnKey);
+    if (removed !== undefined) retiredTurnKeys.delete(removed);
   }
 
   function clearTurn(turnKey: string): void {
@@ -155,11 +153,8 @@ export function createCuaOperationTurnTracker(options: {
     const eventKey = `${workspaceKey}\0${event.eventId}`;
     if (seenEventIds.has(eventKey)) return;
     seenEventIds.add(eventKey);
-    seenEventIdOrder.push(eventKey);
-    while (seenEventIdOrder.length > MAX_SEEN_OPERATION_EVENT_IDS) {
-      const removed = seenEventIdOrder.shift();
-      if (removed) seenEventIds.delete(removed);
-    }
+    const removed = seenEventIdOrder.push(eventKey);
+    if (removed !== undefined) seenEventIds.delete(removed);
 
     const lastSeq = lastSeqBySession.get(sessionKey) ?? 0;
     if (event.sequenceNumber < lastSeq) {
@@ -264,16 +259,10 @@ export function createCuaOperationTurnTracker(options: {
     for (const key of computerUseScheduledCalls) {
       if (key.startsWith(workspacePrefix)) computerUseScheduledCalls.delete(key);
     }
-    for (let index = retiredTurnKeyOrder.length - 1; index >= 0; index -= 1) {
-      const key = retiredTurnKeyOrder[index];
-      if (!key?.startsWith(workspacePrefix)) continue;
-      retiredTurnKeyOrder.splice(index, 1);
+    for (const key of retiredTurnKeyOrder.removeWhere((key) => key.startsWith(workspacePrefix))) {
       retiredTurnKeys.delete(key);
     }
-    for (let index = seenEventIdOrder.length - 1; index >= 0; index -= 1) {
-      const key = seenEventIdOrder[index];
-      if (!key?.startsWith(workspacePrefix)) continue;
-      seenEventIdOrder.splice(index, 1);
+    for (const key of seenEventIdOrder.removeWhere((key) => key.startsWith(workspacePrefix))) {
       seenEventIds.delete(key);
     }
   }
@@ -284,9 +273,9 @@ export function createCuaOperationTurnTracker(options: {
     lastSeqBySession.clear();
     computerUseScheduledCalls.clear();
     retiredTurnKeys.clear();
-    retiredTurnKeyOrder.length = 0;
+    retiredTurnKeyOrder.clear();
     seenEventIds.clear();
-    seenEventIdOrder.length = 0;
+    seenEventIdOrder.clear();
   }
 
   return {

@@ -132,17 +132,23 @@ class TarStreamReader {
   }
 
   async skipExactly(byteCount: number): Promise<void> {
-    if (byteCount === 0) {
-      return;
+    let remaining = byteCount;
+    // 目录载荷和 padding 只需丢弃；整段 fill 会随声明长度积累所有解压块。
+    // 每次仅拉取当前缺少的分块，消费边界仍由 tar 声明的字节数决定。
+    while (remaining > 0) {
+      await this.fill(1);
+      if (this.bufferedBytes === 0) {
+        throw new Error("truncated skill sync archive");
+      }
+      const consumed = Math.min(remaining, this.bufferedBytes);
+      this.consume(consumed);
+      remaining -= consumed;
     }
-    await this.fill(byteCount);
-    if (this.bufferedBytes < byteCount) {
-      throw new Error("truncated skill sync archive");
-    }
-    this.consume(byteCount);
   }
 
   async drain(): Promise<void> {
+    this.chunks.length = 0;
+    this.bufferedBytes = 0;
     while (!this.done) {
       const next = await this.iterator.next();
       if (next.done) {
@@ -169,8 +175,9 @@ class TarStreamReader {
   private consume(byteCount: number, output?: Buffer): void {
     let remaining = byteCount;
     let outputOffset = 0;
+    let chunkIndex = 0;
     while (remaining > 0) {
-      const chunk = this.chunks[0];
+      const chunk = this.chunks[chunkIndex];
       if (!chunk) {
         throw new Error("truncated skill sync archive");
       }
@@ -180,12 +187,16 @@ class TarStreamReader {
         outputOffset += consumed;
       }
       if (consumed === chunk.length) {
-        this.chunks.shift();
+        chunkIndex += 1;
       } else {
-        this.chunks[0] = chunk.subarray(consumed);
+        this.chunks[chunkIndex] = chunk.subarray(consumed);
       }
       this.bufferedBytes -= consumed;
       remaining -= consumed;
+    }
+    // 大文件跨越很多解压块时，逐块 shift 会反复移动剩余引用；一次清除已消费前缀。
+    if (chunkIndex > 0) {
+      this.chunks.splice(0, chunkIndex);
     }
   }
 }

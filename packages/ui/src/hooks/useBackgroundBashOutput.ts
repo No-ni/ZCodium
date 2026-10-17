@@ -19,7 +19,7 @@ export function useBackgroundBashOutput(target: BackgroundBashOutputTarget, visi
   const [frozen, setFrozen] = useState<BackgroundBashOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  const inFlight = useRef<Promise<BackgroundBashOutputResult> | null>(null);
+  const inFlight = useRef<Promise<BackgroundBashOutputResult | undefined> | null>(null);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
 
   useEffect(() => {
@@ -38,6 +38,9 @@ export function useBackgroundBashOutput(target: BackgroundBashOutputTarget, visi
       if (disposed) return;
       const request = (async () => {
         await ensureAgentV4ConnectionHandshake(service);
+        // 共享握手可能晚于面板隐藏、卸载或换目标完成。它仍供其他消费者复用，
+        // 但旧 effect 不能因此继续读取输出；在 RPC 前复查原有取消状态。
+        if (disposed) return;
         return service.backgroundBashOutputV4({
           workspacePath,
           workspaceIdentity,
@@ -49,7 +52,7 @@ export function useBackgroundBashOutput(target: BackgroundBashOutputTarget, visi
       inFlight.current = request;
       try {
         const result = await request;
-        if (disposed) return;
+        if (disposed || !result) return;
         if (result.kind !== "output") {
           setError(result.kind);
           return;

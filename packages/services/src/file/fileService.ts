@@ -15,6 +15,7 @@ import { packWorkspaceFileEntries } from "@zcode/shared/workspaceFileEntriesCode
 import type { IFileService, WorkspaceFileSearchParams } from "./file.js";
 import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@zcode/shared/workspaceFileSearch";
 import { buildHostFileSearchCandidates, searchHostFileCandidates } from "./workspaceFileSearch.js";
+import { searchWorkspaceFileTerms } from "./workspaceFileTermSearch.js";
 import {
   defaultWorkspaceFileSearchFilter,
   type WorkspaceFileSearchFilter,
@@ -174,25 +175,22 @@ class FileExistenceCache {
   }
 }
 
-async function resolveReaddirEntryType(
+function resolveReaddirEntryType(
   entryPath: string,
   isDirectory: boolean,
   isSymbolicLink: boolean,
-): Promise<FileEntry["type"]> {
+): FileEntry["type"] | Promise<FileEntry["type"]> {
   if (isDirectory) {
     return "directory";
   }
   if (!isSymbolicLink) {
     return "file";
   }
-  try {
-    const targetStat = await stat(entryPath);
-    // Node 的 Dirent 对软链接目录只返回 isSymbolicLink，不会返回 isDirectory。
-    // 目录选择器只展示 directory 类型，远程 SSH 选目录时因此看不到指向目录的软链接；这里跟随目标重新分类。
-    return targetStat.isDirectory() ? "directory" : "file";
-  } catch {
-    return "file";
-  }
+  // Node 的 Dirent 对软链接目录只返回 isSymbolicLink，不会返回 isDirectory。
+  // 目录选择器只展示 directory 类型，远程 SSH 选目录时因此看不到指向目录的软链接；这里跟随目标重新分类。
+  return stat(entryPath)
+    .then((targetStat): FileEntry["type"] => (targetStat.isDirectory() ? "directory" : "file"))
+    .catch(() => "file" as const);
 }
 
 export interface CreateFileServiceOptions {
@@ -281,22 +279,37 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
     // 再判一次就会出现两个定义（对"嵌在对话根下的项目 workspace"误判、并写坏规则文件）。
     // 对话会话的调用方必须显式传对话根，见 docs/specs/conversation-session-workspace.md 规则 10。
     const rulesRoot = resolveWorkspaceFileSearchIgnoreRulesRoot(rootPath, ignoreRulesRoot);
-    const ignoreRules = await loadWorkspaceFileSearchIgnoreRules(rootPath, workspaceIgnoreLogger, {
-      ignoreRulesRoot: rulesRoot,
-    });
-    const cacheSignature = `${rootPath}\n${rulesRoot}\n${await statWorkspaceFileSearchIgnoreFingerprint(rulesRoot)}`;
+    const fingerprint = await statWorkspaceFileSearchIgnoreFingerprint(rulesRoot);
+    let cacheSignature = `${rootPath}\n${rulesRoot}\n${fingerprint}`;
     for (const [key, value] of workspaceFileListCache) {
       if (Date.now() - value.at >= WORKSPACE_FILE_LIST_CACHE_TTL_MS)
         workspaceFileListCache.delete(key);
     }
     const inFlight = workspaceFileListScanning.get(workspaceKey);
     // 刷新中的同作用域查询等待新索引，不能先命中旧缓存而遗漏刚创建的文件。
-    if (!refresh && inFlight?.signature === cacheSignature) return inFlight.promise;
+    if (!refresh && fingerprint !== "none" && inFlight?.signature === cacheSignature)
+      return inFlight.promise;
     const cached = workspaceFileListCache.get(workspaceKey);
-    if (!refresh && cached?.signature === cacheSignature) {
+    if (!refresh && fingerprint !== "none" && cached?.signature === cacheSignature) {
       workspaceFileListCache.delete(workspaceKey);
       workspaceFileListCache.set(workspaceKey, cached);
       return cached;
+    }
+    // 原先命中索引前也读取并解析规则，每次按键/分块都产生重复 IO。
+    // 命中只校验指纹；缺失/不可读的规则仍须加载以保留创建失败后的重试语义。
+    // 准备扫描后复核首次自动创建的指纹与并发扫描。
+    const ignoreRules = await loadWorkspaceFileSearchIgnoreRules(rootPath, workspaceIgnoreLogger, {
+      ignoreRulesRoot: rulesRoot,
+    });
+    cacheSignature = `${rootPath}\n${rulesRoot}\n${await statWorkspaceFileSearchIgnoreFingerprint(rulesRoot)}`;
+    const initializedFlight = workspaceFileListScanning.get(workspaceKey);
+    if (!refresh && initializedFlight?.signature === cacheSignature)
+      return initializedFlight.promise;
+    const initializedCache = workspaceFileListCache.get(workspaceKey);
+    if (!refresh && initializedCache?.signature === cacheSignature) {
+      workspaceFileListCache.delete(workspaceKey);
+      workspaceFileListCache.set(workspaceKey, initializedCache);
+      return initializedCache;
     }
     const scanning = (async () => {
       const entries: WorkspaceFileEntry[] = [];
@@ -319,11 +332,14 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
           if (relativePath === WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME) {
             continue;
           }
-          const type = await resolveReaddirEntryType(
+          const entryType = resolveReaddirEntryType(
             entryPath,
             entry.isDirectory(),
             entry.isSymbolicLink(),
           );
+          // 普通条目已由 Dirent 确定类型；逐项 await 会为大索引制造线性增长的 Promise/微任务。
+          // 只有符号链接需要异步 stat，其余沿原循环同步执行过滤与入队。
+          const type = typeof entryType === "string" ? entryType : await entryType;
           if (isWorkspaceFileSearchPathIgnored(ignoreRules, relativePath, type)) {
             continue;
           }
@@ -635,6 +651,9 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
         params.ignoreRulesRoot,
       );
       index.candidates ??= buildHostFileSearchCandidates(index.packed, params.rootPath);
+      if (params.matchMode === "terms") {
+        return searchWorkspaceFileTerms(await index.candidates, params.query, limit);
+      }
       return searchHostFileCandidates(await index.candidates, params.query, limit);
     },
     async listWorkspaceFilesLength(params: {

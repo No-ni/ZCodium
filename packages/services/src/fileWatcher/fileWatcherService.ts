@@ -16,8 +16,8 @@ interface WatcherInstance {
   /** 防抖定时器 */
   debounceTimer: ReturnType<typeof setTimeout> | null;
   /** 同一防抖窗口只含一个明确路径时才透传，避免过滤掉同批次里的目标文件事件 */
-  pendingChangedPaths: Set<string>;
-  hasUnknownChangedPath: boolean;
+  pendingChangedPath: string | undefined;
+  hasMultipleOrUnknownChangedPaths: boolean;
 }
 
 function resolveFileWatchChangedPath(
@@ -65,23 +65,30 @@ export function createFileWatcherService(options?: {
           const instance = watchers.get(id);
           if (!instance) return;
 
-          const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
-          if (changedPath) {
-            instance.pendingChangedPaths.add(changedPath);
-          } else {
-            instance.hasUnknownChangedPath = true;
+          // 协议只需要单一路径或目录级失效；旧 Set 在连续 checkout 时保留全部路径。
+          // 一旦出现第二个/未知路径，本窗口已确定要全刷，后续事件无需再解析或保存路径。
+          if (!instance.hasMultipleOrUnknownChangedPaths) {
+            const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
+            if (
+              !changedPath ||
+              (instance.pendingChangedPath && instance.pendingChangedPath !== changedPath)
+            ) {
+              instance.pendingChangedPath = undefined;
+              instance.hasMultipleOrUnknownChangedPaths = true;
+            } else {
+              instance.pendingChangedPath = changedPath;
+            }
           }
 
           // 防抖：连续变更只触发一次刷新
           if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
           instance.debounceTimer = setTimeout(() => {
             instance.debounceTimer = null;
-            const onlyChangedPath =
-              !instance.hasUnknownChangedPath && instance.pendingChangedPaths.size === 1
-                ? instance.pendingChangedPaths.values().next().value
-                : undefined;
-            instance.pendingChangedPaths.clear();
-            instance.hasUnknownChangedPath = false;
+            const onlyChangedPath = instance.hasMultipleOrUnknownChangedPaths
+              ? undefined
+              : instance.pendingChangedPath;
+            instance.pendingChangedPath = undefined;
+            instance.hasMultipleOrUnknownChangedPaths = false;
             instance.changeEmitter.fire({
               dirPath: instance.path,
               ...(onlyChangedPath ? { changedPath: onlyChangedPath } : {}),
@@ -113,8 +120,8 @@ export function createFileWatcherService(options?: {
         watcher: fsWatcher,
         changeEmitter,
         debounceTimer: null,
-        pendingChangedPaths: new Set(),
-        hasUnknownChangedPath: false,
+        pendingChangedPath: undefined,
+        hasMultipleOrUnknownChangedPaths: false,
       });
 
       return { id };

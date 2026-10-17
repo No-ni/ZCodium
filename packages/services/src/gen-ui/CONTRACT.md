@@ -21,3 +21,9 @@ execution machine; widget state stays on the desktop. Neither storage belongs in
 State storage is an injected adapter. Atomic file replacement and the existing cross-process file
 lock serialize full snapshots; notifications project durable state. Only modelContent is exported
 as untrusted next-turn context. Main owns native sandbox resources, not persisted state.
+
+Notification reads are serial per file and may share a read that has not started yet. Signals
+arriving during a read require a subsequent read, so later durable state cannot be missed. A state
+write waits for its corresponding notification read, not for the file to become idle. Files,
+workspace identities and sessions keep independent notification scheduling. These notifications
+are latest full-state projections, not a journal of filesystem events.

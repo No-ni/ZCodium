@@ -878,11 +878,16 @@ async function discoverSkills(params: {
   const diagnostics: SkillDiagnostic[] = [];
   const skills: SkillSummary[] = [];
   const seenSkillPaths = new Set<string>();
-  const userZcodeSkillNameKeys = params.includeUserSkills
-    ? await collectSkillNameKeysInRoot(getUserZcodeSkillRoot())
-    : new Set<string>();
   const scanRootPaths = await dedupeScanRootsByRealpath(roots.map((root) => root.rootPath));
   const rootByPath = new Map(roots.map((root) => [root.rootPath, root]));
+  const userZcodeSkillRoot = params.includeUserSkills ? getUserZcodeSkillRoot() : undefined;
+  // Bug 原因：桌面扫描先读用户 ZCode 技能建立 Agents 重名集合，主遍历又读取同一正文生成摘要。
+  // 修复依据：扫描根保留原顺序，ZCode 根在 Agents 根之前，可在唯一一次正文读取时登记名称。
+  const userZcodeSkillNameKeys =
+    userZcodeSkillRoot && !scanRootPaths.includes(userZcodeSkillRoot)
+      ? await collectSkillNameKeysInRoot(userZcodeSkillRoot)
+      : new Set<string>();
+  const declaredSkillNameByCanonicalPath = new Map<string, string>();
 
   for (const rootPath of scanRootPaths) {
     const root = rootByPath.get(rootPath);
@@ -895,6 +900,7 @@ async function discoverSkills(params: {
 
     const skillPaths = await collectSkillMarkdownPaths(root.rootPath, diagnostics);
     for (const skillPath of skillPaths) {
+      const isUserZcodeRoot = root.rootPath === userZcodeSkillRoot;
       if (
         await isUserAgentsSkillCoveredByZcode({
           skillPath,
@@ -906,6 +912,15 @@ async function discoverSkills(params: {
       }
       const canonicalSkillPath = await realpath(skillPath).catch(() => skillPath);
       if (seenSkillPaths.has(canonicalSkillPath)) {
+        if (isUserZcodeRoot) {
+          userZcodeSkillNameKeys.add(
+            // 物理正文可复用，目录名 fallback 却依赖访问路径；链接别名不能借用首次扫描的目录名。
+            normalizeSkillNameKey(
+              declaredSkillNameByCanonicalPath.get(canonicalSkillPath) ||
+                basename(dirname(skillPath)),
+            ),
+          );
+        }
         continue;
       }
       seenSkillPaths.add(canonicalSkillPath);
@@ -922,6 +937,10 @@ async function discoverSkills(params: {
           message: error instanceof Error ? error.message : `Failed to read skill: ${skillPath}`,
           path: skillPath,
         });
+        if (isUserZcodeRoot) {
+          const fallbackNameKey = normalizeSkillNameKey(basename(dirname(skillPath)));
+          userZcodeSkillNameKeys.add(fallbackNameKey);
+        }
         continue;
       }
       const parsed = readFrontmatter(markdown);
@@ -929,7 +948,7 @@ async function discoverSkills(params: {
 
       // name 校验只要求非空；大小写/下划线等是其它 skill 生态的合法显示名，不应产出噪音诊断。
       // 缺少 frontmatter 的手写 skill 不应显示不可操作的诊断；用目录名兜底，metadata 字段留空。
-      const rawName = parsed.hasFrontmatter ? parsed.name.trim() : skillFolderName;
+      const rawName = parsed.hasFrontmatter ? parsed.name.trim() : "";
       const resolvedName = rawName || skillFolderName;
       if (!resolvedName) {
         diagnostics.push({
@@ -939,6 +958,11 @@ async function discoverSkills(params: {
           path: skillPath,
         });
         continue;
+      }
+      const skillNameKey = normalizeSkillNameKey(resolvedName);
+      declaredSkillNameByCanonicalPath.set(canonicalSkillPath, rawName);
+      if (isUserZcodeRoot) {
+        userZcodeSkillNameKeys.add(skillNameKey);
       }
 
       const description = parsed.hasFrontmatter ? parsed.description.trim() : "";

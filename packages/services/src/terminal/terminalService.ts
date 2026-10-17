@@ -325,11 +325,18 @@ export function createTerminalService(dependencies: {
 }): ITerminalService {
   const terminals = new Map<string, TerminalInstance>();
   let nextId = 0;
+  let disposed = false;
   // 内存诊断计数器：客户端断连不回收 pty 时
   // 这里会只增不减。
   const memoryDiagnostics = registerMemoryDiagnosticsProvider("terminal", () => ({
     open: terminals.size,
   }));
+
+  function ensureActive(): void {
+    // Host 关闭时只回收当时已登记的 PTY；等待设置或模块加载的 create 若继续执行，
+    // 会在回收之后重新启动 shell。每个异步边界都检查同一服务终态，阻止迟到创建。
+    if (disposed) throw new Error("Terminal service is disposed");
+  }
 
   function getTerminal(id: string): TerminalInstance {
     const t = terminals.get(id);
@@ -359,6 +366,7 @@ export function createTerminalService(dependencies: {
       fontFamilySource: TerminalFontFamilySource;
       windowsPty?: TerminalWindowsPtyInfo;
     }> {
+      ensureActive();
       const id = String(nextId++);
       const shell = resolveTerminalShell();
       const cwd = resolveTerminalCwd(params.cwd);
@@ -367,11 +375,13 @@ export function createTerminalService(dependencies: {
         terminalFontFamily: undefined,
         terminalInheritSystemProfile: true,
       }));
+      ensureActive();
       const fontProfile = resolveTerminalFontProfile({
         settings: terminalProfileSettings,
         env: process.env,
       });
       const nodePty = await loadNodePtyModule();
+      ensureActive();
       ensureNodePtySpawnHelperExecutable();
       const dataEmitter = new Emitter<string>();
       const exitEmitter = new Emitter<number>();
@@ -433,6 +443,7 @@ export function createTerminalService(dependencies: {
     },
 
     disposeAll(): void {
+      disposed = true;
       memoryDiagnostics.dispose();
       // app 关闭时 host process 以前只会结束自身，terminal 里的子 shell 没有逐个显式 kill。
       // 这里补一个本地清理入口，让 host 在退出链路里能同步回收所有仍存活的终端进程。

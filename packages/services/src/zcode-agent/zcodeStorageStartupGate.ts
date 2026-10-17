@@ -12,9 +12,7 @@ const FIRST_STATUS_TIMEOUT_MS = 30_000;
 export class ZCodeStorageStartupGate {
   private current?: ZCodeStorageStartupState;
   private terminalError?: Error;
-  private pending?: Promise<void>;
-  private resolve?: () => void;
-  private reject?: (error: Error) => void;
+  private pending?: Set<(error?: Error) => void>;
   private timer?: ReturnType<typeof setTimeout>;
   private readonly changed = new Emitter<ZCodeStorageStartupState>();
   readonly onDidChange = this.changed.event;
@@ -50,7 +48,7 @@ export class ZCodeStorageStartupGate {
       return false;
     clearTimeout(this.timer);
     this.current = next;
-    if (next.phase === "ready") this.resolve?.();
+    if (next.phase === "ready") this.settlePending();
     else if (next.phase === "failed") this.fail(next.errorCode ?? "sql_failed");
     else this.ensurePending();
     this.changed.fire(next);
@@ -61,19 +59,26 @@ export class ZCodeStorageStartupGate {
     signal?.throwIfAborted();
     if (this.terminalError) throw this.terminalError;
     if (!this.pending || this.current?.phase === "ready") return;
-    if (!signal) return this.pending;
-    let abort!: () => void;
-    try {
-      await Promise.race([
-        this.pending,
-        new Promise<never>((_, reject) => {
-          abort = () => reject(signal.reason);
-          signal.addEventListener("abort", abort, { once: true });
-        }),
-      ]);
-    } finally {
-      signal.removeEventListener("abort", abort);
-    }
+    const pending = this.pending;
+    // Promise.race 无法移除共享 Promise 的 reaction，已取消原因会滞留到启动结束。
+    // 每个调用登记可移除条目；取消只释放自身，空集合仍表示门禁尚未 ready。
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        const removed = pending.delete(finish);
+        signal?.removeEventListener("abort", abort);
+        return removed;
+      };
+      const finish = (error?: Error) => {
+        if (!cleanup()) return;
+        if (error) reject(error);
+        else resolve();
+      };
+      const abort = () => {
+        if (cleanup()) reject(signal?.reason);
+      };
+      pending.add(finish);
+      signal?.addEventListener("abort", abort, { once: true });
+    });
   }
 
   dispose(): void {
@@ -84,13 +89,11 @@ export class ZCodeStorageStartupGate {
   }
 
   private ensurePending(): void {
-    if (this.pending) return;
-    this.pending = new Promise<void>((resolve, reject) => {
-      this.resolve = resolve;
-      this.reject = reject;
-    });
-    // 尚无业务调用时也可能先收到失败；仍保留 rejected promise 给之后的调用者。
-    void this.pending.catch(() => undefined);
+    this.pending ??= new Set();
+  }
+
+  private settlePending(error?: Error): void {
+    for (const finish of this.pending ?? []) finish(error);
   }
 
   private fail(code: DatabaseStartupErrorCode): void {
@@ -111,6 +114,6 @@ export class ZCodeStorageStartupGate {
       this.changed.fire(this.current);
     }
     this.terminalError = new Error(`SQLite startup failed: ${code}`);
-    this.reject?.(this.terminalError);
+    this.settlePending(this.terminalError);
   }
 }

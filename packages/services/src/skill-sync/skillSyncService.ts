@@ -26,6 +26,7 @@ import { checkRemoteSyncDirectoryWriteAccess } from "../remote-sync/remoteSyncWr
 
 const SKILL_FILE_NAME = "SKILL.md";
 const DEFAULT_MAX_ARCHIVE_BYTES = 20 * 1024 * 1024;
+const SKILL_SIZE_SCAN_IO_CONCURRENCY = 8;
 
 export function createSkillSyncService(options?: { maxArchiveBytes?: number }): ISkillSyncService {
   const maxArchiveBytes = options?.maxArchiveBytes ?? DEFAULT_MAX_ARCHIVE_BYTES;
@@ -315,47 +316,82 @@ function createCandidateId(skillDirectoryPath: string): string {
   return createHash("sha256").update(skillDirectoryPath).digest("hex");
 }
 
-async function computeRecursiveSize(
-  path: string,
-  visitedDirectories = new Set<string>(),
-): Promise<number> {
-  const pathStat = await lstat(path);
-  if (pathStat.isSymbolicLink()) {
-    const targetStat = await stat(path).catch(() => null);
-    if (!targetStat) {
-      return 0;
-    }
-    if (targetStat.isFile()) {
-      return targetStat.size;
-    }
-    if (targetStat.isDirectory()) {
-      return await computeDirectorySize(path, visitedDirectories);
-    }
-    return 0;
-  }
-  if (pathStat.isFile()) {
-    return pathStat.size;
-  }
-  if (!pathStat.isDirectory()) {
-    return 0;
-  }
-  return await computeDirectorySize(path, visitedDirectories);
-}
+async function computeRecursiveSize(rootPath: string): Promise<number> {
+  const pendingPaths: Array<string | undefined> = [rootPath];
+  const visitedDirectories = new Set<string>();
+  let nextPathIndex = 0;
+  let totalBytes = 0;
+  let hasError = false;
+  let firstError: unknown;
 
-async function computeDirectorySize(
-  path: string,
-  visitedDirectories: Set<string>,
-): Promise<number> {
-  const canonicalPath = await realpath(path).catch(() => path);
-  if (visitedDirectories.has(canonicalPath)) {
-    return 0;
+  async function visitPath(path: string): Promise<void> {
+    const pathStat = await lstat(path);
+    if (pathStat.isSymbolicLink()) {
+      const targetStat = await stat(path).catch(() => null);
+      if (!targetStat) return;
+      if (targetStat.isFile()) {
+        totalBytes += targetStat.size;
+        return;
+      }
+      if (!targetStat.isDirectory()) return;
+    } else if (pathStat.isFile()) {
+      totalBytes += pathStat.size;
+      return;
+    } else if (!pathStat.isDirectory()) {
+      return;
+    }
+
+    const canonicalPath = await realpath(path).catch(() => path);
+    if (visitedDirectories.has(canonicalPath)) return;
+    visitedDirectories.add(canonicalPath);
+    for (const child of await readdir(path, { withFileTypes: true })) {
+      pendingPaths.push(join(path, child.name));
+    }
   }
-  visitedDirectories.add(canonicalPath);
-  const children = await readdir(path, { withFileTypes: true });
-  const childSizes = await Promise.all(
-    children.map((child) => computeRecursiveSize(join(path, child.name), visitedDirectories)),
-  );
-  return childSizes.reduce((total, size) => total + size, 0);
+
+  return await new Promise<number>((resolve, reject) => {
+    let active = 0;
+    let settled = false;
+    const pump = () => {
+      // Bug 原因：逐层 Promise.all 会把宽目录全部子项同时提交，嵌套层数还会叠加在途 IO。
+      // 修复依据：一次遍历共用有界游标队列；消费后释放路径引用，出错时停止派发并等待在途 IO 排空。
+      while (
+        !hasError &&
+        active < SKILL_SIZE_SCAN_IO_CONCURRENCY &&
+        nextPathIndex < pendingPaths.length
+      ) {
+        const currentIndex = nextPathIndex++;
+        const path = pendingPaths[currentIndex];
+        pendingPaths[currentIndex] = undefined;
+        if (!path) continue;
+        if (nextPathIndex >= 1024 && nextPathIndex * 2 >= pendingPaths.length) {
+          pendingPaths.splice(0, nextPathIndex);
+          nextPathIndex = 0;
+        }
+        active += 1;
+        void visitPath(path)
+          .catch((error: unknown) => {
+            if (!hasError) {
+              hasError = true;
+              firstError = error;
+            }
+          })
+          .finally(() => {
+            active -= 1;
+            pump();
+          });
+      }
+
+      if (!settled && active === 0 && (hasError || nextPathIndex >= pendingPaths.length)) {
+        settled = true;
+        pendingPaths.length = 0;
+        if (hasError) reject(firstError);
+        else resolve(totalBytes);
+      }
+    };
+
+    pump();
+  });
 }
 
 async function collectSkillDirectoryPathByName(root: string): Promise<Map<string, string>> {

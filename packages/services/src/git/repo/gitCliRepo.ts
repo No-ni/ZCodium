@@ -1515,11 +1515,13 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
         });
         ensureGitCommandSucceeded("git status selected paths", scopedStatusResult);
 
+        // scoped status 按所选路径返回；对每条结果再用 includes 扫完整路径数组会形成 N² 比较。
+        const selectedRepoPaths = new Set(repoPaths);
         const cleanupRepoPaths = Array.from(
           new Set([
             ...repoPaths,
             ...parseStatusPorcelain(scopedStatusResult.stdout)
-              .entries.filter((entry) => repoPaths.includes(entry.path))
+              .entries.filter((entry) => selectedRepoPaths.has(entry.path))
               .map((entry) => entry.originalPath)
               .filter((path): path is string => Boolean(path)),
           ]),

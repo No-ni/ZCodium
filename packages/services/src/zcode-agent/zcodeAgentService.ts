@@ -16,6 +16,7 @@ import {
 /* oxlint-disable eslint(max-lines) -- ZCode Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
 import { randomUUID } from "node:crypto";
 import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
+import { BoundedEventIdOrder } from "./boundedEventIdOrder.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Emitter } from "@zcode/rpc";
@@ -420,9 +421,9 @@ function isClosedStdioTransportError(error: unknown): boolean {
 
 interface SessionEventSequenceState {
   assignedSeqByEventId: Map<string, number>;
-  assignedSeqEventIds: string[];
+  assignedSeqEventIds: BoundedEventIdOrder;
   liveEventIds: Set<string>;
-  liveEventIdOrder: string[];
+  liveEventIdOrder: BoundedEventIdOrder;
   lastAssignedSeq: number;
 }
 
@@ -739,18 +740,17 @@ function sessionEventKey(params: ZCodeAgentSessionTarget): string {
   return `${resolveWorkspaceKey(params)}\u0000${params.sessionId}`;
 }
 
-function rememberBoundedEventId(ids: Set<string>, order: string[], eventId: string): boolean {
+function rememberBoundedEventId(
+  ids: Set<string>,
+  order: BoundedEventIdOrder,
+  eventId: string,
+): boolean {
   if (ids.has(eventId)) {
     return false;
   }
   ids.add(eventId);
-  order.push(eventId);
-  while (order.length > MAX_TRACKED_SESSION_EVENT_IDS) {
-    const removed = order.shift();
-    if (removed) {
-      ids.delete(removed);
-    }
-  }
+  const removed = order.push(eventId);
+  if (removed !== undefined) ids.delete(removed);
   return true;
 }
 
@@ -1436,9 +1436,9 @@ export function createZCodeAgentService(
     }
     const created: SessionEventSequenceState = {
       assignedSeqByEventId: new Map<string, number>(),
-      assignedSeqEventIds: [],
+      assignedSeqEventIds: new BoundedEventIdOrder(MAX_TRACKED_SESSION_EVENT_IDS),
       liveEventIds: new Set<string>(),
-      liveEventIdOrder: [],
+      liveEventIdOrder: new BoundedEventIdOrder(MAX_TRACKED_SESSION_EVENT_IDS),
       lastAssignedSeq: 0,
     };
     sessionEventSequenceStates.set(key, created);
@@ -1463,13 +1463,8 @@ export function createZCodeAgentService(
     const nextSeq = state.lastAssignedSeq + 1;
     state.lastAssignedSeq = nextSeq;
     state.assignedSeqByEventId.set(event.eventId, nextSeq);
-    state.assignedSeqEventIds.push(event.eventId);
-    while (state.assignedSeqEventIds.length > MAX_TRACKED_SESSION_EVENT_IDS) {
-      const removed = state.assignedSeqEventIds.shift();
-      if (removed) {
-        state.assignedSeqByEventId.delete(removed);
-      }
-    }
+    const removed = state.assignedSeqEventIds.push(event.eventId);
+    if (removed !== undefined) state.assignedSeqByEventId.delete(removed);
     // 旧 agent live sink 会把 createSessionEvent 默认 seq=0 直接发给 app，
     // 而 replay/read 走 event store 后才补号。这里只做旧版本兼容；新 runtime 的顺序事实源仍是 event store。
     return { ...event, seq: nextSeq };
@@ -4325,7 +4320,7 @@ export function createZCodeAgentService(
         let subscriptionReady = false;
         const pendingLiveEvents: ZCodeAgentServiceEvent[] = [];
         const deliveredEventIds = new Set<string>();
-        const deliveredEventIdOrder: string[] = [];
+        const deliveredEventIdOrder = new BoundedEventIdOrder(MAX_TRACKED_SESSION_EVENT_IDS);
         const eventCoalescer =
           params.eventCoalescing?.mode === "background-summary"
             ? createBackgroundSessionEventCoalescer({
