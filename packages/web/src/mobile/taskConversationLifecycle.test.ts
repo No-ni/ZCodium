@@ -67,6 +67,7 @@ function harness(read = vi.fn<() => Promise<ZCodeMessageWithParts[]>>()) {
     return { dispose };
   });
   const lifecycle = new TaskConversationLifecycle(scope, {
+    prepare: vi.fn().mockResolvedValue(undefined),
     read,
     subscribe,
     onError,
@@ -164,17 +165,45 @@ describe("TaskConversationLifecycle", () => {
     const dispatch = vi.fn();
     const read = vi.fn();
     const lifecycle = new TaskConversationLifecycle(scope, {
+      prepare: vi.fn().mockResolvedValue(undefined),
       subscribe: () => subscription.promise,
       read,
       dispatch,
       onError: vi.fn(),
     });
     lifecycle.start();
+    await flush();
     lifecycle.dispose();
     subscription.resolve({ dispose });
     await flush();
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(read).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("冷任务先恢复再订阅和读取，切代后迟到恢复不建旧订阅", async () => {
+    const prepared = deferred<void>();
+    const prepare = vi.fn().mockReturnValueOnce(prepared.promise).mockResolvedValue(undefined);
+    const subscribe = vi.fn().mockResolvedValue({ dispose: vi.fn() });
+    const read = vi.fn().mockResolvedValue([]);
+    const lifecycle = new TaskConversationLifecycle(scope, {
+      prepare,
+      subscribe,
+      read,
+      dispatch: vi.fn(),
+      onError: vi.fn(),
+    });
+    lifecycle.start();
+    await flush();
+    expect(subscribe).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+    lifecycle.recoverBridge();
+    await flush();
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(1);
+    prepared.resolve();
+    await flush();
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    lifecycle.dispose();
   });
 });

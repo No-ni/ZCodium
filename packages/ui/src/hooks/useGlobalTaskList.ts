@@ -34,6 +34,7 @@ function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): ZCodeTaskList
 }
 
 export function useGlobalTaskList(params: {
+  enabled?: boolean;
   kind: ZCodeTaskListKind;
   workspaceTabs: WorkspaceTabState[];
   sortBy: "created" | "updated";
@@ -44,8 +45,11 @@ export function useGlobalTaskList(params: {
   const baseServices = useBaseWorkspaceServices();
   const controller = baseServices.windowControllerService;
   const controllerRegistry = useMemo(
-    () => (controller ? getWindowControllerTaskListRegistry(controller) : null),
-    [controller],
+    () =>
+      controller && params.enabled !== false
+        ? getWindowControllerTaskListRegistry(controller)
+        : null,
+    [controller, params.enabled],
   );
   const controllerRevision = useSyncExternalStore(
     controllerRegistry?.subscribe ?? subscribeToNothing,

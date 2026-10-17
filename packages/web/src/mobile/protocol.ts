@@ -317,6 +317,7 @@ export class MobileRemoteControlClient {
     const disposable = zcodeTaskService.onDynamicTaskEvent({
       workspacePath: params.workspacePath,
       ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+      ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
       taskId: params.taskId,
       deliveryKind: "replayable",
     })((event) => {
@@ -336,6 +337,20 @@ export class MobileRemoteControlClient {
     };
     this.taskStreamSubscriptions.add(subscription);
     return subscription;
+  }
+
+  /** 历史任务先通过既有 facade 恢复；已有运行 session 由 Host 复用，不能另建任务。 */
+  async prepareTask(params: TaskAccessParams): Promise<void> {
+    await this.ensureWorkspaceBridge(params);
+    const { zcodeTaskService } = this.createServiceAccessor(params);
+    await zcodeTaskService.resumeTask({
+      taskId: params.taskId,
+      workspacePath: params.workspacePath ?? "",
+      workspaceIdentity: params.workspaceIdentity,
+      remoteSessionId: params.remoteSessionId,
+    });
+    // 恢复期间切 workspace 或 remote session 后，不允许继续使用旧 scope 的服务。
+    this.createServiceAccessor(params);
   }
 
   /** 读一次 task 权威快照；先握手 bridge，避免服务调用挂起。 */
@@ -526,7 +541,8 @@ export class MobileRemoteControlClient {
     const descriptor = response.bridge;
     const scopeMatches =
       params.remoteSessionId === undefined
-        ? descriptor.kind === "local" && descriptor.remoteSessionId === undefined
+        ? (descriptor.kind === "local" || descriptor.kind === "conversation") &&
+          descriptor.remoteSessionId === undefined
         : descriptor.kind === "remote" && descriptor.remoteSessionId === params.remoteSessionId;
     if (!scopeMatches) throw new Error("workspace bridge scope mismatch");
   }

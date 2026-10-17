@@ -365,6 +365,8 @@ export interface IZCodeTaskService {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
+    /** 手机恢复复用当前 scope 的远端 session；delivery 由后续订阅选择。 */
+    remoteSessionId?: string;
     mode?: ZCodeTaskMode;
     model?: string;
     thoughtLevel?: string;
@@ -724,6 +726,7 @@ export interface IZCodeTaskService {
   onDynamicTaskEvent(params: {
     workspacePath: string;
     workspaceIdentity?: string;
+    remoteSessionId?: string;
     taskId: string;
     clientId?: string;
     deliveryKind?: "continuous" | "bot-channel-continuous" | "replayable" | "mixed";

@@ -27,12 +27,7 @@ import { ProviderIcon } from "@/BotsDialog/shared.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
 import { WebRemoteControlEndpointSection } from "@/WebRemoteControlEndpointSection.js";
 import { useWebRemoteControl } from "@/hooks/useWebRemoteControl.js";
-import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
-import type {
-  BotProvider,
-  WebRemoteControlFailureReason,
-  WebRemoteControlTaskSync,
-} from "@zcode/shared";
+import type { BotProvider, WebRemoteControlFailureReason } from "@zcode/shared";
 
 type RemoteControlBotProvider = Extract<
   BotProvider,
@@ -86,46 +81,11 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   // 两个标签页共用一个 ScrollArea，切页时按 key 重挂载把滚动位置复位到顶部，
   // 避免上一页的滚动深度带着下一页继续滚。
   const [activeTab, setActiveTab] = useState("qr");
-  const taskService = useZCodeTaskService(workspacePath, null, workspaceIdentity);
   const remote = useWebRemoteControl({
     open,
     workspacePath,
     workspaceIdentity,
     remoteSessionId,
-    loadSyncPayload: async () => {
-      const workspaceKey = workspaceIdentity?.trim() || workspacePath;
-      let tasks: WebRemoteControlTaskSync["tasks"] = [];
-      try {
-        const taskMetas = await taskService.listTasks({ workspacePath, workspaceIdentity });
-        tasks = taskMetas.map((task) => ({
-          workspaceKey,
-          taskId: task.taskId,
-          title: task.title,
-          displayStatus: task.status ?? "idle",
-          createdAt: task.createdAt,
-          updatedAt: task.updatedAt,
-          ...(typeof task.unreadAt === "number" ? { unreadAt: task.unreadAt } : {}),
-        }));
-      } catch (error) {
-        logger.warn("[WebRemoteControlDialog] 读取任务清单失败", {
-          workspacePath,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-      return {
-        workspaces: [
-          {
-            workspaceKey,
-            workspacePath,
-            ...(workspaceIdentity ? { workspaceIdentity } : {}),
-            ...(remoteSessionId ? { remoteSessionId } : {}),
-            // 远端 workspace 必须带 remoteSessionId，桌面 bridge 才能绑到对应 remote session host。
-            kind: remoteSessionId ? ("remote" as const) : ("local" as const),
-          },
-        ],
-        tasks,
-      };
-    },
   });
 
   const handleOpenBotEntry = (provider: RemoteControlBotProvider) => {

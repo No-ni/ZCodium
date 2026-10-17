@@ -56,6 +56,7 @@ import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useRootProviderSettingsSnapshot } from "@/root/useRootProviderSettingsSnapshot.js";
 import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
 import { useRootPlatformEffects } from "@/root/useRootPlatformEffects.js";
+import { useWebRemoteControlWindowSync } from "@/hooks/useWebRemoteControlWindowSync.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
 import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionStore.js";
 import type { RootProps } from "@/root/types.js";
@@ -421,6 +422,11 @@ function RootInner({
     persistSession: restoreSession,
     restorePersistedSession,
     buildPersistPatch: buildPersistedTabPatch,
+  });
+
+  useWebRemoteControlWindowSync({
+    enabled: Boolean(isDesktop && hasCompletedFullRestore),
+    workspaceTabs: windowWorkspaceTabs,
   });
 
   useEffect(() => {

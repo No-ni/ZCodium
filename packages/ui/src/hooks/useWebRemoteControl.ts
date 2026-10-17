@@ -6,12 +6,7 @@ import {
   isSameWebRemoteControlTarget,
 } from "@/lib/webRemoteControlTarget.js";
 import { usePlatform } from "./usePlatform.js";
-import type {
-  WebRemoteControlStatusSnapshot,
-  WebRemoteControlStatusState,
-  WebRemoteControlTaskSync,
-  WebRemoteControlWorkspaceSync,
-} from "@zcode/shared";
+import type { WebRemoteControlStatusSnapshot, WebRemoteControlStatusState } from "@zcode/shared";
 
 /**
  * 手机远控弹层状态机：开层即同步状态（idle/error 自动开启），状态推送 + 1s 轮询双通道，
@@ -35,11 +30,6 @@ export function useWebRemoteControl(params: {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
-  /** 开层期间周期性同步窗口内工作区/任务清单（弹层用 task service 提供）。 */
-  loadSyncPayload?: () => Promise<{
-    workspaces: WebRemoteControlWorkspaceSync["workspaces"];
-    tasks: WebRemoteControlTaskSync["tasks"];
-  } | null>;
 }): UseWebRemoteControlResult {
   const platform = usePlatform();
   const { intl } = useZCodeIntl();
@@ -125,38 +115,6 @@ export function useWebRemoteControl(params: {
     platform,
     intl,
   ]);
-
-  // 清单同步：远控运行期间每 5s 把当前窗口的工作区/任务推给桌面运行时，
-  // 移动端 bootstrap / workspace-list 才能看到「当前设备上的工作区和任务」。
-  useEffect(() => {
-    if (!params.open || !params.loadSyncPayload) return;
-    let cancelled = false;
-    const sync = async () => {
-      try {
-        const payload = await params.loadSyncPayload?.();
-        if (cancelled || !payload) return;
-        await platform.syncWebRemoteControlWorkspaces({
-          workspacePath: params.workspacePath,
-          workspaceIdentity: params.workspaceIdentity,
-          workspaces: payload.workspaces,
-        });
-        await platform.syncWebRemoteControlTasks({
-          workspacePath: params.workspacePath,
-          workspaceIdentity: params.workspaceIdentity,
-          tasks: payload.tasks,
-        });
-      } catch {
-        // 同步失败不影响弹层；下一周期重试。
-      }
-    };
-    void sync();
-    const timer = window.setInterval(() => void sync(), 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 开层期间按周期同步
-  }, [params.open, params.workspacePath, params.workspaceIdentity, platform]);
 
   useEffect(() => {
     if (!qrUrl) {

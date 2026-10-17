@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- ZCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { observeSessionDebug } from "./session-debug.js";
+import { mapMessageWithParts } from "./message-mapper.js";
 import {
   TASK_LIST_SESSION_TYPES,
   isTaskListSessionType,
@@ -2157,7 +2158,9 @@ export async function readMessages(context: ZCodeProtocolAgentServerContext, raw
     : -1;
   const messages = afterMessageIndex >= 0 ? allMessages.slice(afterMessageIndex + 1) : allMessages;
   return {
-    messages: params.limit ? messages.slice(-params.limit) : messages,
+    // 手机历史读取按协议 schema 校验；直接返回存储层 id/sessionID 会使非空历史全部失败。
+    // 分页仍以存储消息 ID 为准，完成活动分支投影与裁剪后再复用既有协议映射。
+    messages: (params.limit ? messages.slice(-params.limit) : messages).map(mapMessageWithParts),
   };
 }
 

@@ -7,6 +7,7 @@ import {
 import type { TaskStreamSubscription } from "./protocol.js";
 
 interface TaskConversationPorts {
+  prepare(): Promise<void>;
   subscribe(onEvent: (event: ZCodeStreamEvent) => void): Promise<TaskStreamSubscription>;
   read(): Promise<ZCodeMessageWithParts[]>;
   dispatch(action: ConversationAction): void;
@@ -58,6 +59,9 @@ export class TaskConversationLifecycle {
 
   private async subscribe(generation: number): Promise<void> {
     try {
+      // 历史任务未必常驻；先恢复同一个 session，再订阅和读消息，避免 Session is not active。
+      await this.ports.prepare();
+      if (!this.current(generation)) return;
       const subscription = await this.ports.subscribe((event) => {
         if (!this.current(generation)) return;
         this.accept(event, generation);

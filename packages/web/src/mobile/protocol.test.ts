@@ -72,7 +72,9 @@ class FakeWebSocket {
   }
   ready(
     open: BridgeOpen,
-    scope: { kind: "local" | "remote"; remoteSessionId?: string } = { kind: "local" },
+    scope: { kind: "local" | "remote" | "conversation"; remoteSessionId?: string } = {
+      kind: "local",
+    },
   ) {
     this.receive({
       zcode_type: "workspace-bridge-ready",
@@ -317,6 +319,7 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     const onError = vi.fn();
     let state = initialConversationState;
     lifecycle = new TaskConversationLifecycle(access, {
+      prepare: async () => {},
       subscribe: (listener) => c.subscribeTaskStream(access, listener),
       read: () => c.readTaskSnapshot(access),
       dispatch: (action) => {
@@ -386,6 +389,44 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
       reason: "rpc-transport-fault",
     });
     expect(await read).toBe("mobile bridge invalidated");
+  });
+
+  it("手机恢复同一任务保留远端 scope，随后以 replayable 模式订阅", async () => {
+    const { c, socket } = client();
+    const target = {
+      ...access,
+      workspaceIdentity: "fixture-identity",
+      remoteSessionId: "remote-A",
+    };
+    const preparing = c.prepareTask(target);
+    await flush();
+    const open = socket.opens()[0]!;
+    const desktop = host(socket, open.bridgeSessionId);
+    socket.ready(open, { kind: "remote", remoteSessionId: "remote-A" });
+    desktop.send([INITIALIZE]);
+    await flush();
+    const resume = requests(socket, open.bridgeSessionId)[0]!;
+    expect(resume.header[3]).toBe("resumeTask");
+    expect(resume.body).toEqual([
+      {
+        taskId: access.taskId,
+        workspacePath: access.workspacePath,
+        workspaceIdentity: "fixture-identity",
+        remoteSessionId: "remote-A",
+      },
+    ]);
+    desktop.send([SUCCESS, Number(resume.header[1])], {});
+    await preparing;
+    const subscription = await c.subscribeTaskStream(target, vi.fn());
+    const listen = requests(socket, open.bridgeSessionId).find(
+      (request) => request.header[0] === EVENT_LISTEN,
+    )!;
+    expect(listen.body).toMatchObject({
+      workspaceIdentity: "fixture-identity",
+      remoteSessionId: "remote-A",
+      deliveryKind: "replayable",
+    });
+    subscription.dispose();
   });
 
   it("deferred A/B/A 的实际 wire open 顺序串行，新桥序号重置且旧帧不进新 client", async () => {
@@ -517,6 +558,14 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     await flush();
     socket.ready(socket.opens()[0]!, scope);
     expect(await opening).toBe("workspace bridge scope mismatch");
+  });
+
+  it("本地对话工作区接受 conversation ready，不误判为远端 scope", async () => {
+    const { c, socket } = client();
+    const opening = c.ensureWorkspaceBridge({ workspaceKey: "conversation-workspace" });
+    await flush();
+    socket.ready(socket.opens()[0]!, { kind: "conversation" });
+    await opening;
   });
 
   it("手机按 open 身份过滤 ack/flow/分片，双向 ack 不串序号空间", async () => {

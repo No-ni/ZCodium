@@ -29,7 +29,7 @@ import type {
  * clientMode 固定 web-remote-replayable（与桌面 continuous 语义分离）。
  *
  * 实时更新走 Host replayable 事件流订阅（`onDynamicTaskEvent`），不再周期轮询：
- * 首次/恢复读取 `readSessionMessages` 作为快照屏障，在途事件使读取过期时由控制器补读。
+ * 首次/恢复先 resume 同一任务，再读取 `readSessionMessages` 作为快照屏障。
  */
 
 type View = { kind: "home" } | { kind: "task"; task: WebRemoteControlTaskRef };
@@ -136,41 +136,54 @@ export function MobileApp() {
   }, []);
 
   useEffect(() => {
-    if (connection !== "paired" || bootstrap) return;
+    // 重连时清单可能已变化；不能因为保留了上次 bootstrap 就跳过刷新。
+    if (connection !== "paired") return;
     void refreshBootstrap().catch((error) => reportError("[mobile] bootstrap 拉取失败", error));
-  }, [connection, bootstrap, refreshBootstrap, reportError]);
+  }, [connection, refreshBootstrap, reportError]);
+
+  const selectedTaskId = view.kind === "task" ? view.task.taskId : undefined;
+  const selectedWorkspaceKey = view.kind === "task" ? view.task.workspaceKey : undefined;
+  const selectedWorkspace = selectedWorkspaceKey
+    ? findWorkspace(bootstrap, selectedWorkspaceKey)
+    : undefined;
+  const selectedWorkspacePath = selectedWorkspace?.workspacePath;
+  const selectedWorkspaceIdentity = selectedWorkspace?.workspaceIdentity;
+  const selectedRemoteSessionId = selectedWorkspace?.remoteSessionId;
 
   // 任务视图订阅：进入任务即订阅 Host replayable 事件流；退出/换 workspace 释放旧订阅。
   // 断线重连（connection 重新变 paired）会重跑本 effect：重开 bridge + 重订阅 + 重读快照。
   useEffect(() => {
-    if (view.kind !== "task" || connection !== "paired") return;
+    if (
+      !selectedTaskId ||
+      !selectedWorkspaceKey ||
+      !selectedWorkspacePath ||
+      connection !== "paired"
+    )
+      return;
     const client = clientRef.current;
     if (!client) return;
-    const { workspaceKey, taskId } = view.task;
+    const workspaceKey = selectedWorkspaceKey;
+    const taskId = selectedTaskId;
     const scope: ConversationScope = { workspaceKey, taskId };
-    const workspace = findWorkspace(bootstrap, workspaceKey);
+    const access = {
+      workspaceKey,
+      taskId,
+      workspacePath: selectedWorkspacePath,
+      workspaceIdentity: selectedWorkspaceIdentity,
+      remoteSessionId: selectedRemoteSessionId,
+    };
     const lifecycle = new TaskConversationLifecycle(scope, {
-      subscribe: (onEvent) =>
-        client.subscribeTaskStream(
-          {
-            workspaceKey,
-            workspacePath: workspace?.workspacePath ?? "",
-            workspaceIdentity: workspace?.workspaceIdentity,
-            remoteSessionId: workspace?.remoteSessionId,
-            taskId,
-          },
-          onEvent,
-        ),
+      prepare: () => client.prepareTask(access),
+      subscribe: (onEvent) => client.subscribeTaskStream(access, onEvent),
       read: () =>
         client.readTaskSnapshot({
-          workspaceKey,
-          taskId,
-          workspacePath: workspace?.workspacePath ?? "",
-          workspaceIdentity: workspace?.workspaceIdentity,
-          remoteSessionId: workspace?.remoteSessionId,
+          ...access,
           limit: 100,
         }),
-      dispatch: dispatchConversation,
+      dispatch: (action) => {
+        dispatchConversation(action);
+        if (action.type === "applySnapshot") setNotice(null);
+      },
       onError: (error) => reportError("[mobile] 会话同步失败", error),
     });
     // 协议先作废 bridge，控制器再重订阅/补读；不依赖 flags 变化触发 React effect。
@@ -180,7 +193,16 @@ export function MobileApp() {
       lifecycle.dispose();
       onTransportDegradedRef.current = () => {};
     };
-  }, [view, bootstrap, connection, reportError]);
+    // 清单的标题/状态更新不能重建同 scope 的订阅，否则持续立快照屏障会丢掉实时输出。
+  }, [
+    selectedTaskId,
+    selectedWorkspaceKey,
+    selectedWorkspacePath,
+    selectedWorkspaceIdentity,
+    selectedRemoteSessionId,
+    connection,
+    reportError,
+  ]);
 
   const sendPrompt = useCallback(async () => {
     const client = clientRef.current;

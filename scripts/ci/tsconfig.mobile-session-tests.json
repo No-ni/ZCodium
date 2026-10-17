@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@zcode/bootstrap": ["../../apps/zcode-cli/packages/bootstrap/src/index.ts"],
+      "@zcode/contracts": ["../../apps/zcode-cli/packages/contracts/src/index.ts"],
+      "@zcode/contracts/browser-control": [
+        "../../apps/zcode-cli/packages/contracts/src/interfaces/browser-control.port.ts"
+      ],
+      "@zcode/contracts/*": [
+        "../../apps/zcode-cli/packages/contracts/src/*/index.ts",
+        "../../apps/zcode-cli/packages/contracts/src/*.ts"
+      ],
+      "@zcode/core": ["../../apps/zcode-cli/packages/core/src/index.ts"],
+      "@zcode/shared-types": ["../../apps/zcode-cli/packages/shared-types/src/index.ts"],
+      "@zcode/adapters": ["../../apps/zcode-cli/packages/adapters/src/index.ts"],
+      "@zcode/adapters/*": ["../../apps/zcode-cli/packages/adapters/src/*/index.ts"],
+      "@zcode/i18n": ["../../apps/zcode-cli/packages/i18n/src/index.ts"],
+      "@zcode/dynamic-workflow": ["../../apps/zcode-cli/packages/dynamic-workflow/src/index.ts"],
+      "@zcode/dynamic-workflow/projections": [
+        "../../apps/zcode-cli/packages/dynamic-workflow/src/projections.ts"
+      ],
+      "@zcode/dynamic-workflow-runtime": [
+        "../../apps/zcode-cli/packages/dynamic-workflow-runtime/src/index.ts"
+      ]
+    }
+  }
+}

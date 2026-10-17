@@ -17,6 +17,7 @@ import { safeParseLegacyTaskSessionFile } from "#src/session/legacyTaskSessionFi
 interface ImportedClaudeHistoryRepairTarget {
   workspacePath: string;
   workspaceIdentity?: string;
+  remoteSessionId?: string;
   taskId: string;
 }
 
@@ -36,6 +37,7 @@ interface ImportedClaudeSessionRepairTarget extends ImportedClaudeHistoryRepairT
 interface ImportedClaudeSessionRepairCreateParams {
   workspacePath: string;
   workspaceIdentity?: string;
+  remoteSessionId?: string;
   sessionId: string;
   mode: ZCodeSessionStateSnapshot["session"]["mode"];
   model: ZCodeSessionStateSnapshot["settings"]["model"]["current"];
@@ -204,6 +206,8 @@ export async function repairImportedClaudeSessionSnapshot<T>(params: {
   return params.createSession({
     workspacePath: params.target.workspacePath,
     workspaceIdentity: params.target.workspaceIdentity,
+    // Bug 原因：修复 helper 原先只转发 path/identity，会让远端空快照回填丢失 logical session scope。
+    ...(params.target.remoteSessionId ? { remoteSessionId: params.target.remoteSessionId } : {}),
     sessionId: params.target.taskId,
     mode: params.snapshot.session.mode,
     model: params.snapshot.settings.model.current,

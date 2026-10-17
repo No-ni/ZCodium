@@ -1073,6 +1073,7 @@ export function createZCodeTaskServiceAdapter(
     return options.zcodeAgentService.resumeSession({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
+      ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
       sessionId: params.taskId,
       // replayable 手机端恢复仍经 task adapter，但 stale model guard 在
       // session resume 内执行；这里带上当前 UI 模型，避免只保护 desktop continuous 主链路。
@@ -1180,6 +1181,8 @@ export function createZCodeTaskServiceAdapter(
       const restored = await options.zcodeAgentService.createSession({
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
+        // Bug 原因：missing-session 导入回退漏传远端 logical session，会退回 path/identity-only scope。
+        ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
         sessionId: params.taskId,
         sessionTraceId: history.traceId ?? createSessionTraceId(),
         persistence: "immediate",
@@ -2231,6 +2234,7 @@ export function createZCodeTaskServiceAdapter(
         taskId: params.taskId,
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
+        ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
         model,
         thoughtLevel,
         mcpServers: params.mcpServers,
@@ -3005,6 +3009,8 @@ export function createZCodeTaskServiceAdapter(
         taskId: params.taskId,
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
+        // 手机恢复后的订阅仍须保留 remote session，不能用 path-only target 覆盖恢复归属。
+        ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
       };
       rememberTaskTarget(target);
       return (listener) => {
@@ -3019,6 +3025,7 @@ export function createZCodeTaskServiceAdapter(
         const upstreamDisposable = options.zcodeAgentService.onDynamicSessionEvent({
           workspacePath: params.workspacePath,
           workspaceIdentity: params.workspaceIdentity,
+          ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
           sessionId: params.taskId,
           deliveryKind: toZCodeDeliveryKind(params.deliveryKind),
           includeSnapshot: params.deliveryKind === "replayable",

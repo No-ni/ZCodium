@@ -136,3 +136,120 @@ for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as cons
     }
   });
 }
+
+test("remote resume keeps remoteSessionId through missing and empty-session Claude repairs", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "zcode-import-remote-recovery-"));
+  setDataBaseDir(dir);
+  const remoteSessionId = "remote-import-recovery";
+  const meta = {
+    taskId: "claude-import-remote-example",
+    traceId: "import-trace-remote-example",
+    workspacePath: "/example/remote-workspace",
+    workspaceIdentity: "example-remote-workspace",
+    title: "Imported remote example",
+    mode: "build" as const,
+    provider: "glm" as const,
+    migrationSource: "claudeCode" as const,
+    createdAt: 1,
+    updatedAt: 2,
+  };
+  const legacy = parseLegacyTaskSessionFile({
+    meta,
+    messages: [
+      { id: "remote-old-user", role: "user", content: "Remote question", timestamp: 1 },
+      { id: "remote-old-assistant", role: "assistant", content: "Remote answer", timestamp: 2 },
+    ],
+    toolCalls: [],
+  });
+  const path = getLegacyTaskSessionSnapshotPath(
+    meta.workspacePath,
+    meta.taskId,
+    meta.workspaceIdentity,
+  );
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(legacy));
+  const taskIndexRepo = new TaskIndexRepo(join(dir, "tasks.sqlite"));
+  await taskIndexRepo.syncTaskMeta({ meta });
+  type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
+  type CreateInput = Parameters<Options["zcodeAgentService"]["createSession"]>[0];
+  const created: CreateInput[] = [];
+  let session: ZCodeSessionStateSnapshot | undefined;
+  let missingSession = true;
+  const disposable = () => ({ dispose() {} });
+  const service = createZCodeTaskServiceAdapter({
+    taskIndexRepo,
+    zcodeAgentService: {
+      async resumeSession(input) {
+        assert.equal(input.remoteSessionId, remoteSessionId);
+        if (missingSession || !session) throw new Error(`Session not found: ${meta.taskId}`);
+        return session;
+      },
+      async createSession(input: CreateInput) {
+        created.push(input);
+        session = zcodeSessionStateSnapshotSchema.parse({
+          protocol: { name: ZCODE_PROTOCOL_NAME, version: ZCODE_PROTOCOL_VERSION },
+          session: {
+            sessionId: input.sessionId,
+            workspace: {
+              workspacePath: meta.workspacePath,
+              workspaceIdentity: meta.workspaceIdentity,
+              workspaceKey: meta.workspaceIdentity,
+            },
+            sessionKind: "interactive",
+            title: meta.title,
+            mode: "build",
+            status: "idle",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          settings: {
+            model: { available: [] },
+            thoughtLevel: { enabled: false, available: [] },
+            mode: { current: "build" },
+          },
+          projection: {
+            sessionId: input.sessionId,
+            status: "idle",
+            mode: "build",
+            turnCount: 0,
+            totalTokenCount: 0,
+            contextUsed: 0,
+            contextWindow: 200000,
+            pendingPermissions: [],
+            activeToolCalls: [],
+            backgroundJobs: [],
+          },
+          runtime: { eventSeq: 0, stateRevision: 0, pendingRequestIds: [] },
+          messages: [],
+        });
+        return session;
+      },
+      disposeAll() {},
+    } as unknown as Options["zcodeAgentService"],
+    taskIndexSyncer: {
+      ensureSessionSubscription() {},
+      getWorkspaceEmitter() {
+        return { fire() {} };
+      },
+      onSessionTerminalEvent: disposable,
+      onSessionReadyEvent: disposable,
+      disposeAll() {},
+    } as unknown as Options["taskIndexSyncer"],
+  });
+  try {
+    // 首次覆盖 session missing 回退，第二次覆盖恢复成功但快照为空时的回填。
+    await service.resumeTask({ ...meta, remoteSessionId });
+    missingSession = false;
+    await service.resumeTask({ ...meta, remoteSessionId });
+    assert.equal(created.length, 2);
+    assert.deepEqual(
+      created.map((input) => input.remoteSessionId),
+      [remoteSessionId, remoteSessionId],
+    );
+  } finally {
+    service.disposeAll();
+    taskIndexRepo.close();
+    setDataBaseDir(null);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
