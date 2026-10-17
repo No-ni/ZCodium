@@ -107,8 +107,10 @@ function exposeWebSocket(
     scope ? new Map([[IZCodeAgentService.channelName, scope.service]]) : new Map(),
   );
   socket.onClose(() => {
-    void scope?.dispose();
     rawServer.dispose();
+    // 连接关闭同时终结 RPC 和协议，释放未完成帧及 socket 的协议监听。
+    protocol.dispose();
+    void scope?.dispose();
   });
 }
 

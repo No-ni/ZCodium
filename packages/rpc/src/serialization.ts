@@ -20,6 +20,10 @@ export interface IReader {
   read(bytes: number): VSBuffer;
 }
 
+interface IByteReader extends IReader {
+  readByte(): number;
+}
+
 export interface IWriter {
   write(buffer: VSBuffer): void;
 }
@@ -28,7 +32,7 @@ export interface IWriter {
  * BufferReader: 从一个 VSBuffer 中按顺序读取数据。
  * 内部维护一个 pos 游标。
  */
-export class BufferReader implements IReader {
+export class BufferReader implements IByteReader {
   private pos = 0;
 
   constructor(private buffer: VSBuffer) {}
@@ -37,6 +41,13 @@ export class BufferReader implements IReader {
     const result = this.buffer.slice(this.pos, this.pos + bytes);
     this.pos += result.byteLength;
     return result;
+  }
+
+  readByte(): number {
+    const value = this.buffer.buffer[this.pos];
+    if (value === undefined) return value;
+    this.pos += 1;
+    return value;
   }
 }
 
@@ -67,12 +78,19 @@ export class BufferWriter implements IWriter {
 function readIntVQL(reader: IReader): number {
   let value = 0;
   for (let n = 0; ; n += 7) {
-    const next = reader.read(1);
-    value |= (next.buffer[0] & 0b01111111) << n;
-    if (!(next.buffer[0] & 0b10000000)) {
+    const next = readByte(reader);
+    value |= (next & 0b01111111) << n;
+    if (!(next & 0b10000000)) {
       return value;
     }
   }
+}
+
+function readByte(reader: IReader): number {
+  if ("readByte" in reader && typeof reader.readByte === "function") {
+    return reader.readByte();
+  }
+  return reader.read(1).buffer[0];
 }
 
 const vqlZero = createOneByteBuffer(0);
@@ -180,7 +198,10 @@ export function serialize(writer: IWriter, data: any): void {
     // 对象字段里的 Uint8Array 之前会被 JSON.stringify 展开成 {"0":...}，
     // 远端 RPC 收到后不再是二进制，skill sync 这类归档传输会在解压阶段失败。
     // 这里保持 Object JSON fallback 的协议形态，只对嵌套 Uint8Array 加标记并在反序列化时恢复。
-    const buffer = VSBuffer.fromString(JSON.stringify(data, encodeRpcJsonValue));
+    const json = JSON.stringify(data, encodeRpcJsonValue);
+    // 根值被 JSON 忽略时不能写空 Object 帧：对端解析失败会让 RPC 一直等待。
+    if (json === undefined) throw new TypeError("RPC payload is not JSON serializable");
+    const buffer = VSBuffer.fromString(json);
     writer.write(BufferPresets.Object);
     writeInt32VQL(writer, buffer.byteLength);
     writer.write(buffer);
@@ -191,7 +212,8 @@ export function serialize(writer: IWriter, data: any): void {
  * 从 reader 反序列化数据
  */
 export function deserialize(reader: IReader): any {
-  const type = reader.read(1).readUInt8(0);
+  // RPC 的类型标签和 VQL 大量按字节读取；避免每次都通过 slice 分配一字节副本。
+  const type = readByte(reader);
 
   switch (type) {
     case DataType.Undefined:

@@ -241,8 +241,12 @@ export class CancellationTokenSource implements IDisposable {
 
   get token(): CancellationToken {
     if (!this._token) {
+      const isCancellationRequested = () => this._isCancelled;
       this._token = {
-        isCancellationRequested: false,
+        // 静态 false 无法反映 cancel，导致轮询调用方继续工作；直接读取 source 的唯一状态。
+        get isCancellationRequested() {
+          return isCancellationRequested();
+        },
         onCancellationRequested: this.emitter.event,
       };
     }

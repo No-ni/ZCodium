@@ -15,6 +15,7 @@
 
 import { VSBuffer } from "./buffer.js";
 import { Emitter, DisposableStore } from "./foundation.js";
+import { FifoQueue } from "./fifoQueue.js";
 import {
   ChunkStream,
   HEADER_SIZE,
@@ -63,10 +64,11 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   private socket: ISocket;
   private chunkStream = new ChunkStream();
   private disposables = new DisposableStore();
+  private disposed = false;
 
   // ACK 机制（队列有界化，条目携带入队时间用于宽限窗判定）
   private outgoingMsgId = 0;
-  private outgoingUnackMsg: UnackEntry[] = [];
+  private readonly outgoingUnackMsg = new FifoQueue<UnackEntry>();
   private incomingAckId = 0;
   private unackBytes = 0;
   private saturated = false;
@@ -108,6 +110,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   private bindSocket(): void {
     this.disposables.add(
       this.socket.onData((data) => {
+        if (this.disposed) return;
         this.chunkStream.acceptChunk(data);
         this.readMessages();
       }),
@@ -121,6 +124,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   }
 
   send(buffer: VSBuffer): void {
+    if (this.disposed) return;
     const msg = new ProtocolMessage(
       ProtocolMessageType.Regular,
       ++this.outgoingMsgId,
@@ -147,14 +151,23 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
    * 这就是为什么 Remote 模式断线恢复后不丢消息的原因。
    */
   replaceSocket(newSocket: ISocket): void {
+    if (this.disposed) {
+      newSocket.dispose();
+      return;
+    }
     this.disposables.dispose();
     this.disposables = new DisposableStore();
-    this.chunkStream = new ChunkStream();
+    this.chunkStream.clear();
     this.socket = newSocket;
     this.bindSocket();
 
     // 重放未确认的消息
-    for (const entry of this.outgoingUnackMsg) {
+    for (const entry of this.outgoingUnackMsg.toArray()) {
+      if (this.disposed) break;
+      // write 可同步收到 ACK；以当前队首排除已确认项，不能在重放中继续发送已释放帧。
+      const first = this.outgoingUnackMsg.peek();
+      if (!first) break;
+      if (entry.msg.id < first.msg.id) continue;
       this.writeMessage(entry.msg);
     }
   }
@@ -164,7 +177,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   }
 
   private readMessages(): void {
-    while (true) {
+    while (!this.disposed) {
       if (this.chunkStream.byteLength < HEADER_SIZE) {
         break;
       }
@@ -199,6 +212,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
 
       // 处理对方的 ACK：清除已确认的发送队列
       this.processAck(ack);
+      if (this.disposed) break;
 
       switch (type) {
         case ProtocolMessageType.Regular:
@@ -222,9 +236,11 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
 
   /** 根据对方的 ACK 号清除已确认的消息 */
   private processAck(ack: number): void {
-    while (this.outgoingUnackMsg.length > 0 && this.outgoingUnackMsg[0].msg.id <= ack) {
-      const entry = this.outgoingUnackMsg.shift()!;
+    let entry = this.outgoingUnackMsg.peek();
+    while (entry && entry.msg.id <= ack) {
+      this.outgoingUnackMsg.shift();
       this.unackBytes -= entry.msg.data.byteLength;
+      entry = this.outgoingUnackMsg.peek();
     }
     // 饱和后回落到低水位 → onDrained（边沿触发）。
     if (this.saturated && this.unackBytes <= this.saturationLowWaterMarkBytes) {
@@ -267,7 +283,7 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
         this._onSocketClose.fire();
       }
       // 最老未 ACK 消息超过宽限窗（对端锁屏/长期后台）→ 放弃会话。
-      const oldest = this.outgoingUnackMsg[0];
+      const oldest = this.outgoingUnackMsg.peek();
       if (oldest && Date.now() - oldest.queuedAt > this.replayBufferGraceMs) {
         this.abandonSession();
       }
@@ -279,6 +295,13 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    // 已断开的协议仍可能被旧服务代理持有；及时释放未完成输入和全部未确认载荷。
+    this.chunkStream.clear();
+    this.outgoingUnackMsg.clear();
+    this.unackBytes = 0;
+    this.saturated = false;
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
     }

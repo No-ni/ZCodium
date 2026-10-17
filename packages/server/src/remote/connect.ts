@@ -1,6 +1,6 @@
 import { safeLogArgs } from "@zcode/shared";
 import { createRemoteDiagnosticConsumer } from "./diagnosticStream.js";
-import { SocketProtocol, ChannelClient } from "@zcode/rpc";
+import { SocketProtocol, ChannelClient, type IDisposable } from "@zcode/rpc";
 import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "@zcode/client";
 import {
@@ -223,6 +223,8 @@ async function connectRemoteUnchecked(
   const services = new RemoteServiceAccess(client);
   let hasReportedRemoteClose = false;
   let hasStreamClosed = false;
+  let backendDisconnectDisposable: IDisposable | undefined;
+  let streamCloseDisposable: IDisposable | undefined;
   let resolveStreamClosed!: () => void;
   const streamClosed = new Promise<void>((resolve) => {
     resolveStreamClosed = resolve;
@@ -232,25 +234,14 @@ async function connectRemoteUnchecked(
       return;
     }
     hasReportedRemoteClose = true;
+    // 被动断线也由连接 owner 收口；不能依赖可选的 Host/UI 回调再次 dispose 才结束 RPC。
+    if (!disposalStarted) {
+      beginDisposal();
+      disposeBackend();
+    }
+    // 主动 disposeAndWait 已拥有回收顺序；其 EOF 不能抢先改走同步 backend.dispose。
     options?.onDidRemoteClose?.({ code });
   };
-
-  const backendDisconnectDisposable = backend.onDidDisconnect?.((event) => {
-    // SSH keepalive 发现半开连接时，远端 server stdio channel 未必立刻 close。
-    // 这里把 backend 断连并入同一条关闭上报链路，让 host/main/UI 复用既有 session-close 收口。
-    const errorMessage = event.error?.message;
-    log(
-      errorMessage
-        ? `remote backend disconnected: ${event.reason}: ${errorMessage}`
-        : `remote backend disconnected: ${event.reason}`,
-    );
-    reportRemoteClose(BACKEND_DISCONNECT_EXIT_CODE);
-  });
-  const streamCloseDisposable = stream.onClose((code) => {
-    hasStreamClosed = true;
-    resolveStreamClosed();
-    reportRemoteClose(code);
-  });
 
   let disposalStarted = false;
   let backendDisposed = false;
@@ -271,7 +262,7 @@ async function connectRemoteUnchecked(
       return;
     }
     backendDisposed = true;
-    streamCloseDisposable.dispose();
+    streamCloseDisposable?.dispose();
     backend.dispose();
   };
   const disposeBackendAndWait = async () => {
@@ -279,13 +270,35 @@ async function connectRemoteUnchecked(
       return;
     }
     backendDisposed = true;
-    streamCloseDisposable.dispose();
+    streamCloseDisposable?.dispose();
     if (backend.disposeAndWait) {
       await backend.disposeAndWait();
       return;
     }
     backend.dispose();
   };
+
+  backendDisconnectDisposable = backend.onDidDisconnect?.((event) => {
+    // SSH keepalive 发现半开连接时，远端 server stdio channel 未必立刻 close。
+    // backend 与 stream 复用唯一终结入口，不等待上层回调代为清理。
+    const errorMessage = event.error?.message;
+    log(
+      errorMessage
+        ? `remote backend disconnected: ${event.reason}: ${errorMessage}`
+        : `remote backend disconnected: ${event.reason}`,
+    );
+    reportRemoteClose(BACKEND_DISCONNECT_EXIT_CODE);
+  });
+  streamCloseDisposable = stream.onClose((code) => {
+    hasStreamClosed = true;
+    resolveStreamClosed();
+    reportRemoteClose(code);
+  });
+  // 事件注册也允许同步报告关闭；迟到返回的句柄不能重新挂到已终结连接上。
+  if (disposalStarted) {
+    backendDisconnectDisposable?.dispose();
+    streamCloseDisposable.dispose();
+  }
 
   return {
     services,

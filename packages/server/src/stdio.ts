@@ -80,6 +80,8 @@ export function createStdioServer(services: ServiceCollection) {
     // 先同步摘掉 protocol listener，保证从这一刻起不再接收新的 service RPC；
     // connection scope 的异步退订完成后再关闭底层 stdio。
     channelServer.dispose();
+    // 协议缓存与请求属于同一次连接，不能等异步 scope 结束后继续保留输入分片。
+    protocol.dispose();
     stopPromise = (async () => {
       try {
         await connectionScope?.dispose();

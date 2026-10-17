@@ -10,6 +10,7 @@
 
 import { VSBuffer } from "./buffer.js";
 import { Event, Emitter, IDisposable, DisposableStore } from "./foundation.js";
+import { FifoQueue } from "./fifoQueue.js";
 
 // ============================================================================
 // 核心传输接口
@@ -83,14 +84,16 @@ export interface ISocket extends IDisposable {
  * ChunkStream 把收到的碎片攒起来，按需读取指定字节数。
  */
 export class ChunkStream {
-  private chunks: VSBuffer[] = [];
+  private readonly chunks = new FifoQueue<VSBuffer>();
   private totalLength = 0;
+  private headOffset = 0;
 
   get byteLength(): number {
     return this.totalLength;
   }
 
   acceptChunk(chunk: VSBuffer): void {
+    if (chunk.byteLength === 0) return;
     this.chunks.push(chunk);
     this.totalLength += chunk.byteLength;
   }
@@ -108,20 +111,25 @@ export class ChunkStream {
       return null;
     }
 
-    if (this.chunks[0].byteLength >= byteCount) {
-      return this.chunks[0].slice(0, byteCount);
+    if (byteCount === 0) return VSBuffer.alloc(0);
+
+    const first = this.chunks.peek()!;
+    if (first.byteLength - this.headOffset >= byteCount) {
+      return first.slice(this.headOffset, this.headOffset + byteCount);
     }
 
     const result = VSBuffer.alloc(byteCount);
     let offset = 0;
-    for (const chunk of this.chunks) {
+    for (let i = 0; i < this.chunks.length; i++) {
       if (offset >= byteCount) {
         break;
       }
 
+      const chunk = this.chunks.at(i)!;
+      const start = i === 0 ? this.headOffset : 0;
       const remaining = byteCount - offset;
-      const copyLength = Math.min(chunk.byteLength, remaining);
-      result.set(copyLength === chunk.byteLength ? chunk : chunk.slice(0, copyLength), offset);
+      const copyLength = Math.min(chunk.byteLength - start, remaining);
+      result.set(chunk.buffer.subarray(start, start + copyLength), offset);
       offset += copyLength;
     }
 
@@ -130,10 +138,10 @@ export class ChunkStream {
 
   /** 丢弃前 byteCount 字节 */
   skip(byteCount: number): void {
-    const discarded = this.read(byteCount);
-    if (!discarded) {
+    if (this.totalLength < byteCount) {
       throw new Error(`ChunkStream.skip(${byteCount}) 超出可读范围`);
     }
+    this.consume(byteCount);
   }
 
   /** 读取 byteCount 字节，不够就返回 null */
@@ -142,37 +150,39 @@ export class ChunkStream {
       return null;
     }
 
-    if (this.chunks[0].byteLength === byteCount) {
-      const result = this.chunks.shift()!;
-      this.totalLength -= byteCount;
+    if (byteCount === 0) return VSBuffer.alloc(0);
+
+    if (this.headOffset === 0 && this.chunks.peek()!.byteLength === byteCount) {
+      const result = this.chunks.peek()!;
+      this.consume(byteCount);
       return result;
     }
 
-    if (this.chunks[0].byteLength > byteCount) {
-      const result = this.chunks[0].slice(0, byteCount);
-      this.chunks[0] = this.chunks[0].slice(byteCount);
-      this.totalLength -= byteCount;
-      return result;
-    }
-
-    // 需要跨多个 chunk 拼接
     const result = VSBuffer.alloc(byteCount);
+    this.consume(byteCount, result);
+    return result;
+  }
+
+  private consume(byteCount: number, result?: VSBuffer): void {
     let offset = 0;
     while (offset < byteCount) {
-      const chunk = this.chunks[0];
-      const needed = byteCount - offset;
-      if (chunk.byteLength <= needed) {
-        result.set(chunk, offset);
-        offset += chunk.byteLength;
+      const chunk = this.chunks.peek()!;
+      const length = Math.min(chunk.byteLength - this.headOffset, byteCount - offset);
+      result?.set(chunk.buffer.subarray(this.headOffset, this.headOffset + length), offset);
+      offset += length;
+      this.headOffset += length;
+      if (this.headOffset === chunk.byteLength) {
         this.chunks.shift();
-      } else {
-        result.set(chunk.slice(0, needed), offset);
-        this.chunks[0] = chunk.slice(needed);
-        offset += needed;
+        this.headOffset = 0;
       }
     }
     this.totalLength -= byteCount;
-    return result;
+  }
+
+  clear(): void {
+    this.chunks.clear();
+    this.totalLength = 0;
+    this.headOffset = 0;
   }
 }
 
@@ -239,10 +249,12 @@ export class SocketProtocol implements IMessagePassingProtocol {
 
   private readonly chunkStream = new ChunkStream();
   private readonly disposables = new DisposableStore();
+  private disposed = false;
 
   constructor(private socket: ISocket) {
     this.disposables.add(
       socket.onData((data) => {
+        if (this.disposed) return;
         this.chunkStream.acceptChunk(data);
         this.readMessages();
       }),
@@ -250,6 +262,7 @@ export class SocketProtocol implements IMessagePassingProtocol {
   }
 
   send(buffer: VSBuffer): void {
+    if (this.disposed) return;
     this.writeMessage(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
   }
 
@@ -258,7 +271,7 @@ export class SocketProtocol implements IMessagePassingProtocol {
   }
 
   private readMessages(): void {
-    while (true) {
+    while (!this.disposed) {
       const header = this.chunkStream.peek(HEADER_SIZE);
       if (!header) {
         break;
@@ -301,6 +314,10 @@ export class SocketProtocol implements IMessagePassingProtocol {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    // 断线时可能只收到大帧的一部分；终结连接必须主动解除未完成输入的引用。
+    this.chunkStream.clear();
     this.disposables.dispose();
     this._onMessage.dispose();
   }

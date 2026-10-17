@@ -120,8 +120,10 @@ function setupChannelServer(
   }
   services.exposeOnChannelServer(server, overrides);
   socket.onClose(() => {
-    void connectionScope?.dispose();
     rawServer.dispose();
+    // 连接 owner 必须同时释放协议，单独结束 server 不会清掉未收完整的大帧。
+    protocol.dispose();
+    void connectionScope?.dispose();
   });
 }
 

@@ -12,16 +12,22 @@ export function wrapStdioStream(stream: StdioStream): ISocket {
   const onData = new Emitter<VSBuffer>();
   const onClose = new Emitter<void>();
   const onEnd = new Emitter<void>();
+  let disposed = false;
 
-  stream.stdout.on("data", (chunk: Buffer) => {
+  const receive = (chunk: Buffer) => {
+    if (disposed) return;
     onData.fire(VSBuffer.wrap(new Uint8Array(chunk)));
-  });
+  };
 
-  stream.stdout.on("end", () => {
+  const end = () => {
+    if (disposed) return;
     onEnd.fire();
-  });
+  };
 
-  stream.onClose(() => {
+  stream.stdout.on("data", receive);
+  stream.stdout.on("end", end);
+  const closeSubscription = stream.onClose(() => {
+    if (disposed) return;
     onClose.fire();
     onEnd.fire();
   });
@@ -50,6 +56,16 @@ export function wrapStdioStream(stream: StdioStream): ISocket {
       });
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
+      // backend 可能仍在异步退出；仅 end stdin 会保留回调并继续复制迟到 stdout。
+      // 先释放本 owner 的监听与 emitter，再发送 EOF，防止同步重入或已排队 close 复活投递。
+      stream.stdout.removeListener("data", receive);
+      stream.stdout.removeListener("end", end);
+      closeSubscription.dispose();
+      onData.dispose();
+      onClose.dispose();
+      onEnd.dispose();
       stream.stdin.end();
     },
   };
