@@ -4,6 +4,10 @@ import { sha256 } from "@noble/hashes/sha256";
 import { RemoteServiceAccess } from "@zcode/client";
 import { ChannelClient, VSBuffer } from "@zcode/rpc";
 import {
+  createAgentConversationTransport,
+  type ConversationTransport,
+} from "@zcode/ui/conversation-client";
+import {
   WorkspaceBridgeLifecycle,
   type WorkspaceBridgeTarget,
 } from "./workspaceBridgeLifecycle.js";
@@ -161,14 +165,15 @@ export class MobileRemoteControlClient {
   /**
    * 网络切换 / 息屏回前台后立刻重连。
    *
-   * 只在确实断开（closed/error，且当前 socket 不处于 OPEN/CONNECTING）时动手：首屏 pageshow
+   * 只在确实断开（等待退避或 closed/error，且 socket 不处于 OPEN/CONNECTING）时动手：首屏 pageshow
    * 也会触发这个入口，那时正在连接中，强行重连反而会把刚建立的链路踢掉。
    */
   retryNow(): void {
     if (this.disposed || this.terminalFailure) return;
     const readyState = this.socket?.readyState;
     if (readyState === WebSocket.OPEN || readyState === WebSocket.CONNECTING) return;
-    if (this.state !== "closed" && this.state !== "error") return;
+    // 关闭后 UI 状态已转为 connecting；用客户端持有的退避定时器确认等待，避免恢复事件被误拦截。
+    if (this.reconnectTimer === null && this.state !== "closed" && this.state !== "error") return;
     if (this.reconnectTimer !== null) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -279,9 +284,8 @@ export class MobileRemoteControlClient {
       }
     }
     this.taskStreamSubscriptions.clear();
-    // connectViaProtocol 不暴露 dispose；使用公开 ChannelClient/RemoteServiceAccess，
-    // 拒绝旧在途 RPC，不能把已 Initialize 的旧 client 接到新桥。
-    this.channelClient?.dispose(new Error("mobile bridge invalidated"));
+    // ChannelClient 会把 dispose 原因透传到界面；不能让内部英文诊断标识泄露给用户。
+    this.channelClient?.dispose(new Error("连接已中断，请连接后重试"));
     this.channelClient = null;
     this.serviceAccessorInstance = null;
     this.onRpcMessage = null;
@@ -353,6 +357,17 @@ export class MobileRemoteControlClient {
     this.createServiceAccessor(params);
   }
 
+  /** 复用 Host 的原子会话投影；legacy 历史没有生成中的正文，不能作为实时恢复屏障。 */
+  async openTaskConversation(params: TaskStreamParams): Promise<ConversationTransport> {
+    await this.ensureWorkspaceBridge(params);
+    const { zcodeAgentService } = this.createServiceAccessor(params);
+    return createAgentConversationTransport(zcodeAgentService, {
+      workspacePath: params.workspacePath,
+      workspaceIdentity: params.workspaceIdentity,
+      remoteSessionId: params.remoteSessionId,
+    });
+  }
+
   /** 读一次 task 权威快照；先握手 bridge，避免服务调用挂起。 */
   async readTaskSnapshot(
     params: TaskAccessParams & { limit?: number },
@@ -403,6 +418,10 @@ export class MobileRemoteControlClient {
       return Promise.reject(
         new Error(`mobile connection terminated: ${this.terminalFailure.reason}`),
       );
+    }
+    // 断线时旧实现静默丢弃请求，随后等待 30 秒；未上行的请求应立即失败并保留草稿。
+    if (this.disposed || this.state !== "paired" || this.socket?.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error("手机尚未连接，请连接后重试"));
     }
     const { requestId } = payload;
     return new Promise((resolve, reject) => {
@@ -648,6 +667,16 @@ export class MobileRemoteControlClient {
       const pairStatus = frame.pair_status;
       if (pairStatus !== "matched" && pairStatus !== "waiting") return;
       if (type === "auth_ack") this.connectAttempt = 0;
+      if (pairStatus === "matched") {
+        // waiting 会暂停残片清扫；同 socket 恢复时也必须重启超时降级，否则静默缺片会永久占槽。
+        this.ensureAssemblySweepTimer();
+      }
+      if (pairStatus === "waiting" && this.state !== "waiting") {
+        // relay 设备断线时仍会保留配对记录；旧 bridge 已不可达，必须同步作废并结束 RPC。
+        this.bridge.invalidate();
+        this.clearAssemblySweepTimer();
+        this.failPending(new Error("手机尚未连接，请连接后重试"));
+      }
       this.setState(pairStatus === "matched" ? "paired" : "waiting");
       return;
     }
@@ -663,6 +692,7 @@ export class MobileRemoteControlClient {
       return;
     }
     if (type === "data") {
+      if (this.state !== "paired") return;
       const payload = frame.payload as WebRemoteControlAppPayload;
       if (payload.zcode_type === "rpc-frame" || payload.zcode_type === "rpc-frame-ack") {
         this.acceptRpcFrame(payload.frame);
@@ -714,7 +744,12 @@ export class MobileRemoteControlClient {
   }
 
   private send(frame: unknown): void {
-    if (!this.terminalFailure && this.socket?.readyState === WebSocket.OPEN) {
+    const isAppData = (frame as { type?: unknown } | null)?.type === "data";
+    if (
+      !this.terminalFailure &&
+      (!isAppData || this.state === "paired") &&
+      this.socket?.readyState === WebSocket.OPEN
+    ) {
       this.socket.send(JSON.stringify(frame));
     }
   }

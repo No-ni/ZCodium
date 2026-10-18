@@ -1,209 +1,393 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ZCodeMessageWithParts, ZCodeStreamEvent } from "@zcode/shared";
-import { conversationReducer, initialConversationState } from "./conversationReducer.js";
-import type { TaskStreamSubscription } from "./protocol.js";
+import {
+  conversationTopic,
+  conversationSnapshotSchema,
+  type ConversationSnapshot,
+  type ConversationTopicFrame,
+  type TopicFrameDeliveryKind,
+} from "@zcode/shared/zcode-protocol-v4";
+import {
+  type ConversationStoreState,
+  type ConversationTransport,
+} from "@zcode/ui/conversation-client";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
+
+const scope = {
+  workspaceKey: "workspace-a",
+  workspacePath: "/workspace/a",
+  workspaceIdentity: "workspace-a-id",
+  remoteSessionId: "remote-a",
+  taskId: "session-a",
+};
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  let reject!: (error: Error) => void;
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes;
-    reject = no;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve };
 }
 
-const scope = { workspaceKey: "workspace-a", taskId: "task-a" };
-const chunk: ZCodeStreamEvent = {
-  type: "agent_message_chunk",
-  taskId: scope.taskId,
-  traceId: "trace",
-  messageId: "m",
-  content: "delta",
-};
-const complete: ZCodeStreamEvent = {
-  type: "task_complete",
-  taskId: scope.taskId,
-  traceId: "trace",
-  stopReason: "complete",
-};
-const snapshotUpdated: ZCodeStreamEvent = {
-  type: "task_snapshot_updated",
-  taskId: scope.taskId,
-  traceId: "trace",
-  workspaceKey: scope.workspaceKey,
-  workspacePath: "/workspace/a",
-};
-
-function snapshot(text: string): ZCodeMessageWithParts[] {
-  return [
-    {
-      info: {
-        messageId: "m",
-        sessionId: scope.taskId,
-        role: "user",
-        time: { created: 1 },
-        agent: "test",
-      },
-      parts: [{ type: "text", text, messageId: "m", sessionId: scope.taskId, partId: "part" }],
+function snapshot(text: string, seq = 5): ConversationSnapshot {
+  return conversationSnapshotSchema.parse({
+    protocolVersion: 1,
+    sessionId: scope.taskId,
+    logEpoch: "epoch-1",
+    seq,
+    revision: 0,
+    meta: { title: "fixture", titleSource: "default" },
+    control: {
+      phase: "running",
+      sessionEnded: false,
+      canStop: true,
+      stopState: "idle",
+      stopTargetKind: "unknown",
+      activeWorks: [],
+      lastError: null,
+      apiRetry: null,
     },
-  ];
+    availability: {
+      fork: { allowed: true },
+      compact: { allowed: false, reasonCode: "idleCannotCompact" },
+      switchModelConfig: { allowed: true },
+      setFollowupMode: { allowed: true },
+      queueEdit: { allowed: true },
+      sendQueuedNow: { allowed: false, reasonCode: "sendQueuedNowRequiresRunning" },
+      pauseGoal: { allowed: false, reasonCode: "noGoalToPause" },
+      resumeGoal: { allowed: false, reasonCode: "noGoalToResume" },
+    },
+    inputRouting: { mode: "startNow" },
+    config: {
+      provider: "test",
+      model: "test",
+      thought: "",
+      thoughtLevels: [],
+      mode: "build",
+      followupMode: "queue",
+    },
+    modelTransition: null,
+    usage: {
+      contextWindow: null,
+      cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    },
+    queue: { items: [], autoDrain: true },
+    pendingInteractions: [],
+    pendingCommands: [],
+    backgroundWorks: [],
+    workspaceHookAdmission: null,
+    goal: null,
+    plan: null,
+    rows: {
+      window: [
+        {
+          rowId: 1,
+          turnId: "turn-1",
+          createdAt: 1,
+          createdAtSeq: 1,
+          kind: "userInput",
+          origin: "realUser",
+          text: "question",
+        },
+        {
+          rowId: 2,
+          turnId: "turn-1",
+          createdAt: 2,
+          createdAtSeq: 2,
+          kind: "assistantText",
+          state: "streaming",
+          text,
+        },
+      ],
+      totalCount: 2,
+      firstRowId: 1,
+    },
+  });
+}
+
+function snapshotFrame(
+  subscriptionId: string,
+  projection: ConversationSnapshot,
+): ConversationTopicFrame {
+  return {
+    topic: conversationTopic(scope.taskId),
+    subscriptionId,
+    fromSeq: 0,
+    toSeq: projection.seq,
+    sentAt: 1,
+    payload: { kind: "snapshot", snapshot: projection },
+  };
+}
+
+function deferredAck() {
+  return deferred<Awaited<ReturnType<ConversationTransport["subscribe"]>>>();
+}
+
+function transportFixture(options: { holdAck?: boolean; subscribeError?: Error } = {}) {
+  const listeners = new Set<Parameters<ConversationTransport["onFrame"]>[0]>();
+  const queued: { frame: ConversationTopicFrame; deliveryKind: TopicFrameDeliveryKind }[] = [];
+  const ack = deferredAck();
+  let subscriptionCount = 0;
+  let activated = false;
+  let subscriptionId = "";
+  const transport = {
+    subscribe: vi.fn(async () => {
+      subscriptionId = `sub-${++subscriptionCount}`;
+      if (options.subscribeError) throw options.subscribeError;
+      return options.holdAck
+        ? ack.promise
+        : {
+            ack: { subscriptionId, mode: "snapshot" as const, logEpoch: "epoch-1" },
+          };
+    }),
+    activate: vi.fn((activeSubscriptionId: string) => {
+      activated = true;
+      for (const item of queued.splice(0)) deliver(item.frame, item.deliveryKind);
+      expect(activeSubscriptionId).toBe(subscriptionId);
+    }),
+    unsubscribe: vi.fn(async () => {}),
+    resync: vi.fn(async (params) => ({
+      ack: {
+        subscriptionId: params.subscriptionId,
+        mode: params.forceSnapshot ? ("snapshot" as const) : ("resume" as const),
+        logEpoch: "epoch-1",
+      },
+    })),
+    rowsRange: vi.fn(async () => ({
+      rows: [],
+      atSeq: 0,
+      atRevision: 0,
+      atLogEpoch: "epoch-1",
+      hasMore: false,
+    })),
+    onFrame: (listener: Parameters<ConversationTransport["onFrame"]>[0]) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    onAssemblyFault: () => () => {},
+    onRuntimeRestart: () => () => {},
+  } as unknown as ConversationTransport;
+
+  function deliver(frame: ConversationTopicFrame, deliveryKind: TopicFrameDeliveryKind) {
+    for (const listener of listeners) listener(frame, { deliveryKind });
+  }
+
+  return {
+    transport,
+    get subscriptionId() {
+      return subscriptionId;
+    },
+    captureFrameCallbacks: () => [...listeners],
+    emit(frame: ConversationTopicFrame, deliveryKind: TopicFrameDeliveryKind = "online") {
+      if (!activated) queued.push({ frame, deliveryKind });
+      else deliver(frame, deliveryKind);
+    },
+    resolveAck() {
+      ack.resolve({
+        ack: { subscriptionId, mode: "snapshot", logEpoch: "epoch-1" },
+      });
+    },
+  };
 }
 
 async function flush() {
-  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  for (let index = 0; index < 20; index += 1) await Promise.resolve();
 }
 
-function harness(read = vi.fn<() => Promise<ZCodeMessageWithParts[]>>()) {
-  let state = initialConversationState;
-  const callbacks: ((event: ZCodeStreamEvent) => void)[] = [];
-  const disposals: ReturnType<typeof vi.fn>[] = [];
+function harness(options: {
+  transports: ReturnType<typeof transportFixture>[];
+  prepare?: () => Promise<void>;
+}) {
+  let openIndex = 0;
+  const states: ConversationStoreState[] = [];
   const onError = vi.fn();
-  const subscribe = vi.fn(async (callback: (event: ZCodeStreamEvent) => void) => {
-    callbacks.push(callback);
-    const dispose = vi.fn();
-    disposals.push(dispose);
-    return { dispose };
-  });
+  const prepare = options.prepare ?? vi.fn(async () => {});
   const lifecycle = new TaskConversationLifecycle(scope, {
-    prepare: vi.fn().mockResolvedValue(undefined),
-    read,
-    subscribe,
+    prepare,
+    open: vi.fn(async () => options.transports[openIndex++]!.transport),
+    onState: (state) => states.push(state),
     onError,
-    dispatch: (action) => {
-      state = conversationReducer(state, action);
-    },
   });
-  return { lifecycle, read, subscribe, callbacks, disposals, onError, state: () => state };
+  return { lifecycle, states, onError, prepare };
 }
 
-describe("TaskConversationLifecycle", () => {
-  it.each([complete, snapshotUpdated])(
-    "R → delta → $type → R resolve 串行补读，不拼缓冲 delta",
-    async (terminal) => {
-      const r = deferred<ZCodeMessageWithParts[]>();
-      const r2 = deferred<ZCodeMessageWithParts[]>();
-      const h = harness(vi.fn().mockReturnValueOnce(r.promise).mockReturnValueOnce(r2.promise));
-      h.lifecycle.start();
-      await flush();
-      expect(h.read).toHaveBeenCalledTimes(1);
-      h.callbacks[0]!(chunk);
-      h.callbacks[0]!(terminal);
-      expect(h.read).toHaveBeenCalledTimes(1);
-      r.resolve(snapshot("过期"));
-      await flush();
-      expect(h.read).toHaveBeenCalledTimes(2);
-      expect(h.state().messages).toEqual([]);
-      expect(h.state().awaitingSnapshot).toBe(true);
-      expect(h.state().needsResync).toBe(true);
-      r2.resolve(snapshot("权威delta"));
-      await flush();
-      expect(h.state().messages[0]?.text).toBe("权威delta");
-      expect(h.state().awaitingSnapshot).toBe(false);
-      expect(h.state().needsResync).toBe(false);
-      h.lifecycle.dispose();
-    },
-  );
-
-  it("只有 delta 也使在途 R 过期，稳定后无周期补读", async () => {
-    const r = deferred<ZCodeMessageWithParts[]>();
-    const h = harness(
-      vi.fn().mockReturnValueOnce(r.promise).mockResolvedValue(snapshot("权威delta")),
-    );
+describe("TaskConversationLifecycle V4 adapter", () => {
+  it("waits for the activated initial snapshot, then applies its prefix and only the next delta", async () => {
+    const fixture = transportFixture({ holdAck: true });
+    const h = harness({ transports: [fixture] });
     h.lifecycle.start();
     await flush();
-    h.callbacks[0]!(chunk);
-    r.resolve(snapshot("旧"));
+
+    const initial = snapshotFrame(fixture.subscriptionId, snapshot("generated prefix"));
+    fixture.emit(initial, "initial");
+    expect(h.lifecycle.ready).toBe(false);
+    expect(h.lifecycle.store?.getState().snapshot).toBeNull();
+
+    fixture.resolveAck();
     await flush();
-    expect(h.read).toHaveBeenCalledTimes(2);
-    h.callbacks[0]!(chunk);
-    expect(h.read).toHaveBeenCalledTimes(2);
-    expect(h.state().messages).toHaveLength(2);
+    expect(h.states).toContainEqual(
+      expect.objectContaining({ status: "connecting", snapshot: null }),
+    );
+    expect(h.lifecycle.ready).toBe(true);
+    expect(h.lifecycle.store?.getState().snapshot?.rows.window).toHaveLength(2);
+
+    fixture.emit({
+      topic: conversationTopic(scope.taskId),
+      subscriptionId: fixture.subscriptionId,
+      fromSeq: 5,
+      toSeq: 6,
+      sentAt: 2,
+      payload: {
+        kind: "deltas",
+        deltas: [{ op: "row.delta", rowId: 2, path: "text", append: " plus delta" }],
+      },
+    });
+    const rows = h.lifecycle.store?.getState().snapshot?.rows.window;
+    expect(rows).toHaveLength(2);
+    expect(rows?.[1]).toMatchObject({ text: "generated prefix plus delta" });
+    expect(h.onError).not.toHaveBeenCalled();
     h.lifecycle.dispose();
+    await flush();
   });
 
-  it("同 scope 恢复释放旧订阅，旧 R/旧事件不能解除新屏障", async () => {
-    const old = deferred<ZCodeMessageWithParts[]>();
-    const fresh = deferred<ZCodeMessageWithParts[]>();
-    const h = harness(vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise));
+  it("same-scope recovery keeps the displayed snapshot connecting and rejects old frames", async () => {
+    const first = transportFixture();
+    const second = transportFixture();
+    const h = harness({ transports: [first, second] });
     h.lifecycle.start();
     await flush();
+    first.emit(snapshotFrame(first.subscriptionId, snapshot("old visible")), "initial");
+    await flush();
+
+    const oldStore = h.lifecycle.store!;
+    const oldSnapshot = oldStore.getState().snapshot!;
+    const oldFrameCallback = first.captureFrameCallbacks()[0]!;
+    h.lifecycle.recoverBridge();
+    expect(h.states.at(-1)).toMatchObject({ status: "connecting", snapshot: oldSnapshot });
+    await flush();
+
+    const newStore = h.lifecycle.store!;
+    expect(newStore).not.toBe(oldStore);
+    expect(newStore.getState().snapshot).toBeNull();
+    expect(h.lifecycle.ready).toBe(false);
+
+    oldFrameCallback(snapshotFrame(first.subscriptionId, snapshot("stale old frame")), {
+      deliveryKind: "initial",
+    });
+    expect(newStore.getState().snapshot).toBeNull();
+
+    second.emit(snapshotFrame(second.subscriptionId, snapshot("new projection", 8)), "initial");
+    expect(h.lifecycle.store?.getState().snapshot?.rows.window[1]).toMatchObject({
+      text: "new projection",
+    });
+    expect(h.lifecycle.ready).toBe(true);
+    expect(h.onError).not.toHaveBeenCalled();
+    h.lifecycle.dispose();
+    await flush();
+    expect(first.transport.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(second.transport.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces recovery subscription failure while preserving the last visible snapshot", async () => {
+    const first = transportFixture();
+    const failedRecovery = transportFixture({ subscribeError: new Error("recovery denied") });
+    const h = harness({ transports: [first, failedRecovery] });
+    h.lifecycle.start();
+    await flush();
+    first.emit(snapshotFrame(first.subscriptionId, snapshot("old visible")), "initial");
+    await flush();
+    const oldSnapshot = h.lifecycle.store?.getState().snapshot;
+    expect(oldSnapshot).not.toBeNull();
+
+    h.lifecycle.recoverBridge();
+    expect(h.states.at(-1)).toMatchObject({ status: "connecting", snapshot: oldSnapshot });
+    await flush();
+
+    expect(h.states.at(-1)).toMatchObject({ status: "error", snapshot: oldSnapshot });
+    expect(h.onError).toHaveBeenCalledTimes(1);
+    expect(h.onError).toHaveBeenCalledWith(expect.objectContaining({ message: "recovery denied" }));
+    expect(h.lifecycle.ready).toBe(false);
+    h.lifecycle.dispose();
+    await flush();
+  });
+
+  it("surfaces a recovery prepare failure instead of leaving the preserved snapshot connecting", async () => {
+    const first = transportFixture();
+    const second = transportFixture();
+    const prepareError = new Error("bridge recovery denied");
+    let prepareCount = 0;
+    const h = harness({
+      transports: [first, second],
+      prepare: vi.fn(async () => {
+        prepareCount += 1;
+        if (prepareCount === 2) throw prepareError;
+      }),
+    });
+    h.lifecycle.start();
+    await flush();
+    first.emit(snapshotFrame(first.subscriptionId, snapshot("old visible")), "initial");
+    await flush();
+    const oldSnapshot = h.lifecycle.store?.getState().snapshot;
+
     h.lifecycle.recoverBridge();
     await flush();
-    expect(h.disposals[0]).toHaveBeenCalledTimes(1);
-    expect(h.subscribe).toHaveBeenCalledTimes(2);
-    expect(h.read).toHaveBeenCalledTimes(2);
-    h.callbacks[0]!(complete);
-    old.resolve(snapshot("旧读取"));
-    await flush();
-    expect(h.state().awaitingSnapshot).toBe(true);
-    fresh.resolve(snapshot("新读取"));
-    await flush();
-    expect(h.state().messages[0]?.text).toBe("新读取");
-    expect(h.read).toHaveBeenCalledTimes(2);
+
+    expect(h.states.at(-1)).toMatchObject({
+      status: "error",
+      snapshot: oldSnapshot,
+      lastError: "bridge recovery denied",
+    });
+    expect(h.onError).toHaveBeenCalledWith(prepareError);
+    expect(second.transport.subscribe).not.toHaveBeenCalled();
     h.lifecycle.dispose();
+    await flush();
   });
 
-  it("读取失败保留屏障，后续信号重试并报告错误", async () => {
-    const error = new Error("snapshot failed");
-    const h = harness(vi.fn().mockRejectedValueOnce(error).mockResolvedValue(snapshot("重试")));
+  it("surfaces an initial subscription failure as an error instead of a live empty session", async () => {
+    const failed = transportFixture({ subscribeError: new Error("initial denied") });
+    const h = harness({ transports: [failed] });
     h.lifecycle.start();
     await flush();
-    expect(h.onError).toHaveBeenCalledWith(error);
-    expect(h.state().awaitingSnapshot).toBe(true);
-    h.callbacks[0]!(complete);
-    await flush();
-    expect(h.read).toHaveBeenCalledTimes(2);
-    expect(h.state().messages[0]?.text).toBe("重试");
+
+    expect(h.states.at(-1)).toMatchObject({ status: "error", snapshot: null });
+    expect(h.onError).toHaveBeenCalledTimes(1);
+    expect(h.onError).toHaveBeenCalledWith(expect.objectContaining({ message: "initial denied" }));
+    expect(h.lifecycle.ready).toBe(false);
     h.lifecycle.dispose();
+    await flush();
   });
 
-  it("迟到订阅句柄被释放，dispose 后事件/读取不写投影", async () => {
-    const subscription = deferred<TaskStreamSubscription>();
-    const dispose = vi.fn();
-    const dispatch = vi.fn();
-    const read = vi.fn();
+  it("ignores an open result that arrives after its generation has been replaced", async () => {
+    const lateTransport = transportFixture();
+    const currentTransport = transportFixture();
+    const lateOpen = deferred<ConversationTransport>();
+    const states: ConversationStoreState[] = [];
+    let openCount = 0;
     const lifecycle = new TaskConversationLifecycle(scope, {
-      prepare: vi.fn().mockResolvedValue(undefined),
-      subscribe: () => subscription.promise,
-      read,
-      dispatch,
+      prepare: async () => {},
+      open: () =>
+        openCount++ === 0 ? lateOpen.promise : Promise.resolve(currentTransport.transport),
+      onState: (state) => states.push(state),
       onError: vi.fn(),
     });
-    lifecycle.start();
-    await flush();
-    lifecycle.dispose();
-    subscription.resolve({ dispose });
-    await flush();
-    expect(dispose).toHaveBeenCalledTimes(1);
-    expect(read).not.toHaveBeenCalled();
-    expect(dispatch).toHaveBeenCalledTimes(1);
-  });
 
-  it("冷任务先恢复再订阅和读取，切代后迟到恢复不建旧订阅", async () => {
-    const prepared = deferred<void>();
-    const prepare = vi.fn().mockReturnValueOnce(prepared.promise).mockResolvedValue(undefined);
-    const subscribe = vi.fn().mockResolvedValue({ dispose: vi.fn() });
-    const read = vi.fn().mockResolvedValue([]);
-    const lifecycle = new TaskConversationLifecycle(scope, {
-      prepare,
-      subscribe,
-      read,
-      dispatch: vi.fn(),
-      onError: vi.fn(),
-    });
     lifecycle.start();
     await flush();
-    expect(subscribe).not.toHaveBeenCalled();
-    expect(read).not.toHaveBeenCalled();
     lifecycle.recoverBridge();
     await flush();
-    expect(subscribe).toHaveBeenCalledTimes(1);
-    expect(read).toHaveBeenCalledTimes(1);
-    prepared.resolve();
+    const currentStore = lifecycle.store;
+    lateOpen.resolve(lateTransport.transport);
     await flush();
-    expect(subscribe).toHaveBeenCalledTimes(1);
+
+    expect(lifecycle.store).toBe(currentStore);
+    expect(lateTransport.transport.subscribe).not.toHaveBeenCalled();
+    expect(currentTransport.transport.subscribe).toHaveBeenCalledTimes(1);
+    currentTransport.emit(
+      snapshotFrame(currentTransport.subscriptionId, snapshot("current projection")),
+      "initial",
+    );
+    expect(states.at(-1)?.status).toBe("live");
+    expect(lifecycle.ready).toBe(true);
     lifecycle.dispose();
+    await flush();
   });
 });

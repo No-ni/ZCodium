@@ -1,121 +1,173 @@
-import type { ZCodeMessageWithParts, ZCodeStreamEvent } from "@zcode/shared";
 import {
-  conversationMessagesFromSnapshot,
-  type ConversationAction,
-  type ConversationScope,
-} from "./conversationReducer.js";
-import type { TaskStreamSubscription } from "./protocol.js";
+  SessionDataLayer,
+  type ConversationStoreState,
+  type ConversationTransport,
+  type SessionLease,
+} from "@zcode/ui/conversation-client";
+import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+
+export interface TaskConversationScope {
+  workspaceKey: string;
+  taskId: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
 
 interface TaskConversationPorts {
   prepare(): Promise<void>;
-  subscribe(onEvent: (event: ZCodeStreamEvent) => void): Promise<TaskStreamSubscription>;
-  read(): Promise<ZCodeMessageWithParts[]>;
-  dispatch(action: ConversationAction): void;
+  open(): Promise<ConversationTransport>;
+  onState(state: ConversationStoreState): void;
   onError(error: unknown): void;
 }
 
-/** 单一订阅/快照时序所有者；React 只创建/销毁并渲染 reducer 投影。 */
+/** 手机对既有 V4 projection 的生命周期适配；投影事实始终由 SessionDataLayer 持有。 */
 export class TaskConversationLifecycle {
   private generation = 0;
-  private eventVersion = 0;
-  private awaitingSnapshot = true;
-  private readingGeneration: number | null = null;
-  private subscription: TaskStreamSubscription | null = null;
-  private subscribed = false;
   private disposed = false;
+  private layer: SessionDataLayer | null = null;
+  private lease: SessionLease | null = null;
+  private transportValue: ConversationTransport | null = null;
+  private unsubscribeStore: (() => void) | null = null;
+  private displayedState: ConversationStoreState | null = null;
+  private displayedSnapshot: ConversationSnapshot | null = null;
+  private reportedStoreError: string | null = null;
 
   constructor(
-    private readonly scope: ConversationScope,
+    private readonly scope: TaskConversationScope,
     private readonly ports: TaskConversationPorts,
   ) {}
 
-  start(): void {
-    if (this.disposed) return;
-    const generation = ++this.generation;
-    this.subscription?.dispose();
-    this.subscription = null;
-    this.subscribed = false;
-    this.awaitingSnapshot = true;
-    this.eventVersion += 1;
-    this.ports.dispatch({ type: "beginScope", scope: this.scope });
-    void this.subscribe(generation);
+  get store(): SessionLease["store"] | null {
+    return this.lease?.store ?? null;
   }
 
-  /** 协议层已作废桥/accessor 后，再重开、重订、读快照；不能只改 reducer flags。 */
+  get transport(): ConversationTransport | null {
+    return this.transportValue;
+  }
+
+  get ready(): boolean {
+    const state = this.store?.getState();
+    return state?.status === "live" && state.snapshot !== null;
+  }
+
+  start(): void {
+    this.begin(false);
+  }
+
+  /** bridge generation 失效后重开同一 scope，显示旧内容直到新权威 snapshot 到达。 */
   recoverBridge(): void {
-    this.start();
+    this.begin(true);
   }
 
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
     this.generation += 1;
-    this.subscription?.dispose();
-    this.subscription = null;
+    this.releaseProjection();
+  }
+
+  private begin(preserveDisplayedSnapshot: boolean): void {
+    if (this.disposed) return;
+    const generation = ++this.generation;
+    const currentState = this.store?.getState() ?? this.displayedState;
+    if (preserveDisplayedSnapshot) {
+      if (currentState?.snapshot) this.displayedSnapshot = currentState.snapshot;
+      if (currentState) {
+        // 旧 snapshot 仅供 React 暂时显示；不传给新 layer 作为 resume base。
+        this.displayedState = {
+          ...currentState,
+          status: "connecting",
+          subscriptionId: null,
+          snapshot: this.displayedSnapshot,
+        };
+        this.ports.onState(this.displayedState);
+      }
+    } else {
+      this.displayedSnapshot = null;
+      this.displayedState = null;
+    }
+    this.releaseProjection();
+    void this.openProjection(generation);
+  }
+
+  private async openProjection(generation: number): Promise<void> {
+    try {
+      await this.ports.prepare();
+      if (!this.current(generation)) return;
+      const transport = await this.ports.open();
+      if (!this.current(generation)) return;
+
+      const layer = new SessionDataLayer({ transport });
+      const lease = layer.acquire(this.scope.taskId);
+      if (!this.current(generation)) {
+        lease.release();
+        layer.dispose();
+        return;
+      }
+
+      this.transportValue = transport;
+      this.layer = layer;
+      this.lease = lease;
+      this.unsubscribeStore = lease.store.subscribe(() => {
+        if (this.current(generation)) this.publishStoreState(lease.store.getState());
+      });
+      // acquire() starts connect immediately; subscribe first, then publish its current state.
+      this.publishStoreState(lease.store.getState());
+    } catch (error) {
+      if (!this.current(generation)) return;
+      const message = error instanceof Error ? error.message : String(error);
+      const currentState = this.store?.getState() ?? this.displayedState;
+      if (currentState) {
+        this.displayedState = {
+          ...currentState,
+          status: "error",
+          subscriptionId: null,
+          lastError: message,
+          snapshot: currentState.snapshot ?? this.displayedSnapshot,
+        };
+        this.ports.onState(this.displayedState);
+      }
+      this.ports.onError(error);
+    }
+  }
+
+  private publishStoreState(state: ConversationStoreState): void {
+    if (state.snapshot) this.displayedSnapshot = state.snapshot;
+    if (state.status === "error" && state.lastError) {
+      if (this.reportedStoreError !== state.lastError) {
+        this.reportedStoreError = state.lastError;
+        this.ports.onError(new Error(state.lastError));
+      }
+    } else {
+      this.reportedStoreError = null;
+    }
+    // ACK 可先把 store 标为 live。手机需等权威首帧；恢复时旧 snapshot 只用于显示。
+    const waitingForSnapshot = state.status === "live" && state.snapshot === null;
+    this.displayedState = waitingForSnapshot
+      ? {
+          ...state,
+          status: "connecting",
+          subscriptionId: null,
+          snapshot: this.displayedSnapshot,
+        }
+      : state.snapshot === null && this.displayedSnapshot !== null
+        ? { ...state, snapshot: this.displayedSnapshot }
+        : state;
+    this.ports.onState(this.displayedState);
   }
 
   private current(generation: number): boolean {
     return !this.disposed && generation === this.generation;
   }
 
-  private async subscribe(generation: number): Promise<void> {
-    try {
-      // 历史任务未必常驻；先恢复同一个 session，再订阅和读消息，避免 Session is not active。
-      await this.ports.prepare();
-      if (!this.current(generation)) return;
-      const subscription = await this.ports.subscribe((event) => {
-        if (!this.current(generation)) return;
-        this.accept(event, generation);
-      });
-      if (!this.current(generation)) {
-        subscription.dispose();
-        return;
-      }
-      this.subscription = subscription;
-      this.subscribed = true;
-      this.readSnapshot(generation);
-    } catch (error) {
-      if (this.current(generation)) this.ports.onError(error);
-    }
-  }
-
-  private accept(event: ZCodeStreamEvent, generation: number): void {
-    if (event.taskId !== this.scope.taskId) return;
-    const resync =
-      event.type === "task_snapshot_updated" ||
-      event.type === "task_complete" ||
-      event.type === "task_error";
-    if (resync || event.type === "agent_message_chunk") this.eventVersion += 1;
-    if (resync) this.awaitingSnapshot = true;
-    this.ports.dispatch({ type: "streamEvent", scope: this.scope, event });
-    if (this.awaitingSnapshot && this.subscribed) this.readSnapshot(generation);
-  }
-
-  private readSnapshot(generation: number): void {
-    if (this.readingGeneration === generation) return;
-    this.readingGeneration = generation;
-    void this.readUntilStable(generation);
-  }
-
-  private async readUntilStable(generation: number): Promise<void> {
-    try {
-      while (this.current(generation) && this.awaitingSnapshot) {
-        const version = this.eventVersion;
-        const messages = await this.ports.read();
-        if (!this.current(generation)) return;
-        // R 在途时 delta/终态/快照更新已发生，旧 R 不能清掉更晚屏障。
-        // 没有 sequence 水位不能拼接缓存 delta；必须权威补读，直到读取期间版本未变。
-        if (version !== this.eventVersion) continue;
-        this.awaitingSnapshot = false;
-        this.ports.dispatch({
-          type: "applySnapshot",
-          scope: this.scope,
-          messages: conversationMessagesFromSnapshot(messages),
-        });
-      }
-    } catch (error) {
-      if (this.current(generation)) this.ports.onError(error);
-    } finally {
-      if (this.readingGeneration === generation) this.readingGeneration = null;
-    }
+  private releaseProjection(): void {
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = null;
+    this.lease?.release();
+    this.lease = null;
+    this.layer?.dispose();
+    this.layer = null;
+    this.transportValue = null;
   }
 }

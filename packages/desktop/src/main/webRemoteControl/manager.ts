@@ -13,7 +13,8 @@ import type { ICredentialService, ISettingService } from "@zcode/services";
 import type { WebRemoteControlLogger } from "./logger.js";
 import { createNodeWebRemoteControlRelayAuthProvider } from "./authProvider.js";
 import { createWebRemoteControlRelayAuthStorageProvider } from "./authStorage.js";
-import { buildWebRemoteControlQrUrl } from "./qrUrl.js";
+import { buildWindowQrUrl } from "./qrUrl.js";
+import { deriveRelayHttpBase, isRelayWsUrl } from "./relayEndpointUrl.js";
 import { LanRemoteControlEndpoint } from "./lanEndpoint.js";
 import { createLanDeviceTransport } from "./deviceTransport.js";
 import {
@@ -37,30 +38,6 @@ import { openWorkspaceBridge } from "./bridgeController.js";
 
 interface ElectronUtilityProcessLike {
   postMessage(message: unknown, transfer?: unknown[]): void;
-}
-
-/** 用户自备端点必须是 ws/wss；http(s) 一律拒绝（避免把页面地址当 relay 用）。 */
-function isRelayWsUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "ws:" || url.protocol === "wss:";
-  } catch {
-    return false;
-  }
-}
-
-/** relay WS 地址 → 移动页 http(s) base（同 origin 托管）。 */
-function deriveRelayHttpBase(relayWsUrl: string): string {
-  try {
-    const url = new URL(relayWsUrl);
-    url.protocol = url.protocol === "wss:" ? "https:" : "http:";
-    url.pathname = "/";
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return relayWsUrl;
-  }
 }
 
 export interface WebRemoteControlTarget {
@@ -146,6 +123,8 @@ export function createWebRemoteControlManager(
 ): WebRemoteControlManager {
   const runtimes = new Map<number, WebRemoteControlRuntime>();
   const runtimesByDeviceSid = new Map<string, WebRemoteControlRuntime>();
+  // 在首次 await 前登记窗口操作身份；停止或后续启动使旧异步初始化失效，不能让它迟到复活。
+  const lifecycleRequests = new Map<number, symbol>();
   const authorizationStore = createStartAuthorizationStore();
   const authProvider = createNodeWebRemoteControlRelayAuthProvider();
   const authStorage = createWebRemoteControlRelayAuthStorageProvider({
@@ -172,7 +151,13 @@ export function createWebRemoteControlManager(
   }
 
   function emitStatus(runtime: WebRemoteControlRuntime): void {
+    if (runtimes.get(runtime.windowId) !== runtime) return;
     deps.onStatusChanged(runtime.windowId, buildStatusSnapshot(runtime));
+  }
+
+  function currentStatus(windowId: number): WebRemoteControlStatusSnapshot {
+    const runtime = runtimes.get(windowId);
+    return runtime ? buildStatusSnapshot(runtime) : { status: "idle" };
   }
 
   /** payloadRouter 上下文：统一出口，避免每个回调重复接线。 */
@@ -197,12 +182,13 @@ export function createWebRemoteControlManager(
   // ---- 生命周期 ----
 
   function disposeRuntime(runtime: WebRemoteControlRuntime, reason: string): void {
+    const isCurrentRuntime = runtimes.get(runtime.windowId) === runtime;
     clearGraceTimer(runtime);
     clearPendingOutbound(runtime);
     runtime.bridge?.dispose();
     runtime.bridge = undefined;
     runtime.transport.dispose();
-    runtimes.delete(runtime.windowId);
+    if (isCurrentRuntime) runtimes.delete(runtime.windowId);
     if (runtimesByDeviceSid.get(runtime.deviceSid) === runtime) {
       runtimesByDeviceSid.delete(runtime.deviceSid);
     }
@@ -211,7 +197,7 @@ export function createWebRemoteControlManager(
       session: runtime.deviceSid,
       reason,
     });
-    deps.onStatusChanged(runtime.windowId, { status: "idle" });
+    if (isCurrentRuntime) deps.onStatusChanged(runtime.windowId, { status: "idle" });
   }
 
   async function stopRuntime(windowId: number, reason: string): Promise<void> {
@@ -220,10 +206,32 @@ export function createWebRemoteControlManager(
     disposeRuntime(runtime, reason);
   }
 
-  async function start(windowId: number, target: WebRemoteControlTarget) {
+  async function runLifecycleRequest(
+    windowId: number,
+    run: (operation: symbol) => Promise<WebRemoteControlStatusSnapshot>,
+  ) {
+    const operation = Symbol();
+    lifecycleRequests.set(windowId, operation);
+    try {
+      return await run(operation);
+    } catch (error) {
+      // 配置读取或清档同样可能迟到失败；已失效操作不能把旧异常送回当前窗口覆盖新状态。
+      if (lifecycleRequests.get(windowId) !== operation) return currentStatus(windowId);
+      throw error;
+    }
+  }
+
+  function start(windowId: number, target: WebRemoteControlTarget) {
+    return runLifecycleRequest(windowId, (operation) => startRuntime(windowId, target, operation));
+  }
+
+  async function startRuntime(windowId: number, target: WebRemoteControlTarget, operation: symbol) {
+    const isCurrent = () => lifecycleRequests.get(windowId) === operation;
     const parsed = webRemoteControlStartRequestSchema.parse(target);
     await stopRuntime(windowId, "restart");
+    if (!isCurrent()) return currentStatus(windowId);
     const settings = await deps.settingService.get();
+    if (!isCurrent()) return currentStatus(windowId);
     const endpointMode = settings.webRemoteControlEndpointMode ?? "lan";
     if (endpointMode === "custom") {
       // 跨网端点由用户自备（自己的隧道 / 自托管 relay）；未配置地址直接失败，
@@ -234,14 +242,24 @@ export function createWebRemoteControlManager(
       }
     }
     const persisted = await authStorage.load();
+    if (!isCurrent()) return currentStatus(windowId);
+    // relay 的 device SID 只允许一个活动 device socket；复用会互踢并把手机路由到最后绑定的窗口。
+    // 凭据存储只有一个持久 SID，因此新窗口遇到其他 runtime 正在使用时必须重新注册。
+    const persistedSidOwnedByAnotherWindow =
+      persisted &&
+      [...runtimes.values()].some(
+        (activeRuntime) =>
+          activeRuntime.windowId !== windowId && activeRuntime.deviceSid === persisted.deviceSid,
+      );
     const auth:
       | { mode: "register"; passHash: string }
-      | { mode: "persisted"; deviceSid: string; passHash: string } = persisted
-      ? { mode: "persisted", deviceSid: persisted.deviceSid, passHash: persisted.passHash }
-      : {
-          mode: "register",
-          passHash: authProvider.createPassHash(authProvider.createPassword()),
-        };
+      | { mode: "persisted"; deviceSid: string; passHash: string } =
+      persisted && !persistedSidOwnedByAnotherWindow
+        ? { mode: "persisted", deviceSid: persisted.deviceSid, passHash: persisted.passHash }
+        : {
+            mode: "register",
+            passHash: authProvider.createPassHash(authProvider.createPassword()),
+          };
 
     const runtime: WebRemoteControlRuntime = {
       windowId,
@@ -270,8 +288,14 @@ export function createWebRemoteControlManager(
         ),
       onPayload: (payload) => void routeMobilePayload(payload, buildRouterContext(runtime)),
       onRegisteredAuth: (registered) => {
+        // 运行中凭据失效会重新注册；路由索引和二维码必须随同一份注册更新，避免扫码仍指向旧 SID。
+        if (runtimesByDeviceSid.get(runtime.deviceSid) === runtime) {
+          runtimesByDeviceSid.delete(runtime.deviceSid);
+        }
         runtime.deviceSid = registered.deviceSid;
+        runtime.passHash = registered.passHash;
         runtimesByDeviceSid.set(registered.deviceSid, runtime);
+        if (runtime.qrBaseUrl) runtime.qrUrl = buildWindowQrUrl(runtime, deps);
         void authStorage.save(registered);
         deps.logger.info("[web-remote-control] device registered", {
           windowId,
@@ -328,9 +352,12 @@ export function createWebRemoteControlManager(
     try {
       await transport.start();
     } catch (error) {
+      // 旧握手失败只能清理自己的 runtime，不能按 windowId 停掉后续已经成功的启动。
+      if (!isCurrent()) return currentStatus(windowId);
       await stopRuntime(windowId, "transport-start-failed");
       throw error;
     }
+    if (!isCurrent()) return currentStatus(windowId);
     if (endpointMode === "custom") {
       // 用户的 relay 同时托管移动页与 WS；QR 指向它的 http(s) base。
       runtime.qrBaseUrl = deriveRelayHttpBase(
@@ -341,7 +368,7 @@ export function createWebRemoteControlManager(
       runtime.qrBaseUrl = baseUrls.find((url) => !url.includes("127.0.0.1")) ?? baseUrls[0] ?? "";
     }
     if (runtime.deviceSid && runtime.deviceSid !== "pending") {
-      runtime.qrUrl = buildQrUrl(runtime);
+      runtime.qrUrl = buildWindowQrUrl(runtime, deps);
     }
     emitStatus(runtime);
     try {
@@ -353,27 +380,19 @@ export function createWebRemoteControlManager(
         },
       });
     } catch (error) {
+      if (!isCurrent()) return currentStatus(windowId);
       await stopRuntime(windowId, "startup-restore-persist-failed");
       throw error;
     }
-    return buildStatusSnapshot(runtime);
+    return currentStatus(windowId);
   }
 
-  function buildQrUrl(runtime: WebRemoteControlRuntime): string {
-    return buildWebRemoteControlQrUrl({
-      baseUrl: runtime.qrBaseUrl,
-      deviceSid: runtime.deviceSid,
-      passHash: runtime.passHash,
-      timestamp: Date.now(),
-      deviceMid: deps.deviceMid,
-      deviceName: deps.deviceName,
-      appVersion: deps.appVersion,
+  function resetPairing(windowId: number, target: WebRemoteControlTarget) {
+    return runLifecycleRequest(windowId, async (operation) => {
+      await authStorage.clear();
+      if (lifecycleRequests.get(windowId) !== operation) return currentStatus(windowId);
+      return startRuntime(windowId, target, operation);
     });
-  }
-
-  async function resetPairing(windowId: number, target: WebRemoteControlTarget) {
-    await authStorage.clear();
-    return start(windowId, target);
   }
 
   return {
@@ -386,7 +405,9 @@ export function createWebRemoteControlManager(
     },
     start,
     async stop(windowId) {
+      lifecycleRequests.delete(windowId);
       await stopRuntime(windowId, "manual-stop");
+      if (lifecycleRequests.has(windowId)) return;
       await deps.settingService
         .update({ webRemoteControlLastEnabledContext: undefined })
         .catch(() => undefined);
@@ -397,8 +418,7 @@ export function createWebRemoteControlManager(
       return resetPairing(windowId, target);
     },
     getStatus(windowId) {
-      const runtime = runtimes.get(windowId);
-      return runtime ? buildStatusSnapshot(runtime) : { status: "idle" };
+      return currentStatus(windowId);
     },
     syncWorkspaces(windowId, workspaces) {
       const runtime = runtimes.get(windowId);
@@ -423,6 +443,7 @@ export function createWebRemoteControlManager(
       pushWorkspaceListIfChanged(runtime, deps.logger);
     },
     async disposeWindow(windowId) {
+      lifecycleRequests.delete(windowId);
       await stopRuntime(windowId, "window-disposed");
     },
   };

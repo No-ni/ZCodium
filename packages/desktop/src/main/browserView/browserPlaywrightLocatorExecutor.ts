@@ -104,12 +104,12 @@ interface ScrollAlignment {
   inline: "center" | "end" | "nearest" | "start";
 }
 
-const POINTER_SCROLL_ALIGNMENTS: readonly ScrollAlignment[] = [
+const POINTER_SCROLL_ALIGNMENTS = [
   { block: "center", inline: "center" },
   { block: "end", inline: "end" },
   { block: "start", inline: "start" },
   { block: "nearest", inline: "nearest" },
-];
+] satisfies readonly [ScrollAlignment, ...ScrollAlignment[]];
 
 type ActionProbeExecution =
   | { kind: "done"; value: ActionProbe }
@@ -304,6 +304,11 @@ class IabPlaywrightLocatorSession {
       ].includes(action.operation);
       let probeExecution: ActionProbeExecution;
       try {
+        const scrollAlignment =
+          action.force === true
+            ? POINTER_SCROLL_ALIGNMENTS[0]
+            : (POINTER_SCROLL_ALIGNMENTS[pointerAttempt % POINTER_SCROLL_ALIGNMENTS.length] ??
+              POINTER_SCROLL_ALIGNMENTS[0]);
         probeExecution = await this.actionProbe(
           target,
           {
@@ -316,10 +321,7 @@ class IabPlaywrightLocatorSession {
             // force pointer action 仍等待稳定并滚动，但跳过 hit-target 校验。
             needsHitTarget: needsPointer && action.force !== true,
             needsStable: needsPointer,
-            scrollAlignment:
-              action.force === true
-                ? POINTER_SCROLL_ALIGNMENTS[0]
-                : POINTER_SCROLL_ALIGNMENTS[pointerAttempt % POINTER_SCROLL_ALIGNMENTS.length],
+            scrollAlignment,
           },
           remaining,
         );

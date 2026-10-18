@@ -6,15 +6,17 @@ import {
   encodeWebRemoteControlRpcFrames,
   WebRemoteControlRpcAssembler,
   WebRemoteControlRpcReplayBuffer,
+  WEB_REMOTE_CONTROL_RPC_LIMITS,
   type WebRemoteControlAppPayload,
   type ZCodeStreamEvent,
 } from "@zcode/shared";
+import { V4_WIRE_PROTOCOL_VERSION } from "@zcode/shared/zcode-protocol-v4";
+import { SessionDataLayer } from "@zcode/ui/conversation-client";
 import { MobileRemoteControlClient } from "./protocol.js";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
 import { conversationReducer, initialConversationState } from "./conversationReducer.js";
 
 // 与真实 Channel RPC 公共序列化格式一致；不 mock ChannelClient/RemoteServiceAccess。
-const PROMISE = 100;
 const EVENT_LISTEN = 102;
 const EVENT_DISPOSE = 103;
 const INITIALIZE = 200;
@@ -279,6 +281,25 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(4);
   });
 
+  it("网络恢复在退避期间立即重连，重复恢复事件与旧定时器不重复建连", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { c, socket } = client();
+    socket.close();
+    expect(c.getState()).toBe("connecting");
+    await vi.advanceTimersByTimeAsync(200);
+    c.retryNow();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    c.retryNow();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const next = FakeWebSocket.instances[1]!;
+    next.open();
+    next.wire({ type: "auth_ack", pair_status: "matched" });
+    c.retryNow();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(c.getState()).toBe("paired");
+  });
+
   it("Initialize 可先于 ready，replayable 订阅使用真实 RPC，重复物理 seq 只交付一次", async () => {
     const { c, socket } = client();
     let state = conversationReducer(initialConversationState, {
@@ -309,7 +330,7 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     (await subscription).dispose();
   });
 
-  it("degraded 作废旧 RPC，重新 open → Initialize → EventListen → read，不走旧 ready 快路径", async () => {
+  it("degraded 作废旧 RPC，重新发起 V4 hello/frame RPC", async () => {
     let lifecycle!: TaskConversationLifecycle;
     const { c, socket } = client(
       vi.fn((payload) => {
@@ -317,14 +338,10 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
       }),
     );
     const onError = vi.fn();
-    let state = initialConversationState;
     lifecycle = new TaskConversationLifecycle(access, {
       prepare: async () => {},
-      subscribe: (listener) => c.subscribeTaskStream(access, listener),
-      read: () => c.readTaskSnapshot(access),
-      dispatch: (action) => {
-        state = conversationReducer(state, action);
-      },
+      open: () => c.openTaskConversation(access),
+      onState: vi.fn(),
       onError,
     });
     lifecycle.start();
@@ -335,10 +352,9 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     socket.ready(first);
     await flush();
     const firstRequests = requests(socket, first.bridgeSessionId);
-    expect(firstRequests.map((r) => r.header[3])).toEqual([
-      "onDynamicTaskEvent",
-      "readSessionMessages",
-    ]);
+    expect(firstRequests.some((r) => r.header[3] === "helloConversationV4")).toBe(true);
+    expect(firstRequests.some((r) => r.header[3] === "onDynamicConversationFrame")).toBe(true);
+    expect(firstRequests.some((r) => r.header[3] === "subscribeConversationV4")).toBe(false);
     socket.receive({
       zcode_type: "bridge-degraded",
       bridgeSessionId: first.bridgeSessionId,
@@ -346,9 +362,8 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     });
     await flush();
     expect(socket.opens()).toHaveLength(2);
-    expect(state.awaitingSnapshot).toBe(true);
     const second = socket.opens()[1]!;
-    // 旧帧不许 Initialize 新 ChannelClient；无新 Initialize 时不发订阅/快照请求。
+    // 旧 bridge 的 Initialize 不可完成新通路；新 bridge 未初始化前没有 V4 RPC。
     oldHost.send([INITIALIZE]);
     socket.ready(second);
     await flush();
@@ -357,20 +372,197 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     newHost.send([INITIALIZE]);
     await flush();
     const secondRequests = requests(socket, second.bridgeSessionId);
-    expect(secondRequests.map((r) => r.header[3])).toEqual([
-      "onDynamicTaskEvent",
-      "readSessionMessages",
-    ]);
-    expect(secondRequests[0]?.seq).toBe(1);
-    expect(secondRequests[0]?.body).toMatchObject({ deliveryKind: "replayable" });
-    const read = secondRequests.find((r) => r.header[0] === PROMISE)!;
-    oldHost.send([SUCCESS, Number(read.header[1])], [{ invalid: "old" }]);
-    newHost.send([SUCCESS, Number(read.header[1])], []);
-    await flush();
-    expect(state.awaitingSnapshot).toBe(false);
-    expect(state.messages).toEqual([]);
+    expect(secondRequests.some((r) => r.header[3] === "helloConversationV4")).toBe(true);
+    expect(secondRequests.some((r) => r.header[3] === "onDynamicConversationFrame")).toBe(true);
+    expect(secondRequests.some((r) => r.header[3] === "subscribeConversationV4")).toBe(false);
+    expect(secondRequests.some((r) => r.header[3] === "readSessionMessages")).toBe(false);
     expect(onError).not.toHaveBeenCalled();
     lifecycle.dispose();
+  });
+
+  it("remote V4 open preserves path, identity, and remoteSessionId through hello and replayable subscribe", async () => {
+    const { c, socket } = client();
+    const target = {
+      ...access,
+      workspaceIdentity: "identity-A",
+      remoteSessionId: "remote-A",
+    };
+    const opening = c.openTaskConversation(target);
+    await flush();
+    const open = socket.opens()[0]!;
+    const desktop = host(socket, open.bridgeSessionId);
+    socket.ready(open, { kind: "remote", remoteSessionId: target.remoteSessionId });
+    desktop.send([INITIALIZE]);
+    const transport = await opening;
+    const layer = new SessionDataLayer({ transport, keepWarmMs: 0 });
+    const lease = layer.acquire(target.taskId);
+    await flush();
+
+    const helloRequest = requests(socket, open.bridgeSessionId).find(
+      (request) => request.header[3] === "helloConversationV4",
+    );
+    expect(helloRequest).toBeDefined();
+    desktop.send([SUCCESS, Number(helloRequest!.header[1])], {
+      kind: "hello",
+      protocolVersion: V4_WIRE_PROTOCOL_VERSION,
+      connectionId: "host-connection-A",
+      clientMode: "web-remote-replayable",
+      deliveryProfile: "replayable",
+      serverTime: 1,
+      capabilities: {
+        nativeDialogs: false,
+        localTerminal: false,
+        binaryFrames: false,
+        compression: "none",
+      },
+      auth: {},
+    });
+    await flush();
+
+    const handshakeRequests = requests(socket, open.bridgeSessionId);
+    const clientHello = handshakeRequests.find(
+      (request) => request.header[3] === "initializeConversationV4",
+    );
+    expect(
+      clientHello,
+      `V4 handshake requests: ${JSON.stringify(handshakeRequests)}`,
+    ).toBeDefined();
+    expect(clientHello!.body).toMatchObject([
+      { kind: "clientHello", clientKind: "web", protocolVersion: V4_WIRE_PROTOCOL_VERSION },
+    ]);
+    desktop.send([SUCCESS, Number(clientHello!.header[1])], {});
+    await flush();
+
+    const subscribe = requests(socket, open.bridgeSessionId).find(
+      (request) => request.header[3] === "subscribeConversationV4",
+    );
+    expect(subscribe?.body).toMatchObject([
+      {
+        workspacePath: target.workspacePath,
+        workspaceIdentity: target.workspaceIdentity,
+        remoteSessionId: target.remoteSessionId,
+        sessionId: target.taskId,
+      },
+    ]);
+
+    const eventListen = requests(socket, open.bridgeSessionId).find(
+      (request) =>
+        request.header[0] === EVENT_LISTEN && request.header[3] === "onDynamicConversationFrame",
+    );
+    expect(eventListen?.body).toMatchObject({
+      workspacePath: target.workspacePath,
+      workspaceIdentity: target.workspaceIdentity,
+      remoteSessionId: target.remoteSessionId,
+    });
+
+    desktop.send([SUCCESS, Number(subscribe!.header[1])], {
+      ack: { subscriptionId: "mobile-sub-A", mode: "snapshot", logEpoch: "epoch-A" },
+    });
+    await flush();
+    expect(lease.store.getState()).toMatchObject({
+      status: "live",
+      subscriptionId: "mobile-sub-A",
+      snapshot: null,
+    });
+
+    lease.release();
+    layer.dispose();
+  });
+
+  it("unpaired and closed clients reject V4 conversation open before sending RPC", async () => {
+    const { c, socket } = client();
+    socket.wire({ type: "pair_status_ack", pair_status: "waiting" });
+    await expect(c.openTaskConversation(access)).rejects.toThrow("手机尚未连接");
+    socket.wire({ type: "auth_ack", pair_status: "matched" });
+    socket.close();
+    await expect(c.openTaskConversation(access)).rejects.toThrow("手机尚未连接");
+    expect(socket.opens()).toHaveLength(0);
+  });
+
+  it("waiting 作废已有 bridge 并立即拒绝 pending RPC，matched 只恢复连接态不自动重放", async () => {
+    const { c, socket } = client();
+    const ready = c.ensureWorkspaceBridge({ workspaceKey: access.workspaceKey });
+    await flush();
+    const opened = socket.opens()[0]!;
+    socket.ready(opened);
+    await ready;
+    const desktop = host(socket, opened.bridgeSessionId);
+    desktop.send([INITIALIZE]);
+
+    let snapshotResult: string | undefined;
+    void c.readTaskSnapshot(access).then(
+      () => {
+        snapshotResult = "resolved";
+      },
+      (error: Error) => {
+        snapshotResult = error.message;
+      },
+    );
+    let requestResult: string | undefined;
+    void c.request({ zcode_type: "bootstrap-request", requestId: "pending-bootstrap" }).then(
+      () => {
+        requestResult = "resolved";
+      },
+      (error: Error) => {
+        requestResult = error.message;
+      },
+    );
+    await flush();
+    expect(
+      requests(socket, opened.bridgeSessionId).some((r) => r.header[3] === "readSessionMessages"),
+    ).toBe(true);
+    expect(socket.sent).toContainEqual({
+      zcode_type: "bootstrap-request",
+      requestId: "pending-bootstrap",
+    });
+
+    socket.wire({ type: "pair_status_ack", pair_status: "waiting" });
+    expect(c.getState()).toBe("waiting");
+    await flush();
+    expect(snapshotResult).toBe("连接已中断，请连接后重试");
+    expect(requestResult).toBe("手机尚未连接，请连接后重试");
+    await expect(
+      c.request({ zcode_type: "bootstrap-request", requestId: "after-waiting" }),
+    ).rejects.toThrow("手机尚未连接");
+    expect(socket.opens()).toHaveLength(1);
+
+    socket.wire({ type: "pair_status_ack", pair_status: "matched" });
+    expect(c.getState()).toBe("paired");
+    expect(socket.opens()).toHaveLength(1);
+    expect(socket.sent).not.toContainEqual({
+      zcode_type: "bootstrap-request",
+      requestId: "after-waiting",
+    });
+  });
+
+  it("waiting→matched 后重启唯一 sweep timer，静默残片超时仍降级", async () => {
+    const { c, socket, onPayload } = client();
+    socket.wire({ type: "pair_status_ack", pair_status: "waiting" });
+    socket.wire({ type: "pair_status_ack", pair_status: "matched" });
+
+    const ready = c.ensureWorkspaceBridge({ workspaceKey: access.workspaceKey });
+    await flush();
+    const opened = socket.opens()[0]!;
+    socket.ready(opened);
+    await ready;
+
+    const frames = encodeWebRemoteControlRpcFrames(
+      { partial: "x".repeat(1_100_000) },
+      { streamId: opened.bridgeSessionId, seq: 1 },
+    );
+    expect(frames.length).toBeGreaterThan(1);
+    socket.receive({ zcode_type: "rpc-frame", frame: frames[0]! });
+    await vi.advanceTimersByTimeAsync(
+      WEB_REMOTE_CONTROL_RPC_LIMITS.assemblyTimeoutMs +
+        WEB_REMOTE_CONTROL_RPC_LIMITS.assemblySweepIntervalMs,
+    );
+
+    expect(onPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zcode_type: "bridge-degraded",
+        reason: "buffer-timeout",
+      }),
+    );
   });
 
   it("Host Initialize 前的 bridge-degraded 会拒绝挂起快照读取", async () => {
@@ -388,7 +580,7 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
       bridgeSessionId: opened.bridgeSessionId,
       reason: "rpc-transport-fault",
     });
-    expect(await read).toBe("mobile bridge invalidated");
+    expect(await read).toBe("连接已中断，请连接后重试");
   });
 
   it("手机恢复同一任务保留远端 scope，随后以 replayable 模式订阅", async () => {
@@ -453,7 +645,7 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     socket.ready(b);
     await flush();
     expect(await readyB).toBe("workspace bridge superseded");
-    expect(await oldRead).toBe("mobile bridge invalidated");
+    expect(await oldRead).toBe("连接已中断，请连接后重试");
     expect(socket.opens().map((o) => o.workspaceKey)).toEqual(["A", "B", "A"]);
     const a2 = socket.opens()[2]!;
     lateB.send([INITIALIZE]);

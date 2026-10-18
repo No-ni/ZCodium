@@ -105,6 +105,7 @@ export async function assertMobileConversationLayout(page, longText) {
 export const longText = `多行正文第一行\n第二行\n${"long-path-without-spaces/".repeat(80)}`;
 
 export function createMobileMessages() {
+  // smoke 将 fixture 直接作为 readSessionMessages 返回值，消息必须符合 CLI 协议形状。
   const messages = [
     {
       info: {
@@ -133,8 +134,21 @@ export function createMobileMessages() {
         sessionId: "fixture-task",
         role: "assistant",
         time: { created: index + 2 },
+        parentMessageId: "fixture-user",
+        agent: "fixture",
+        path: { cwd: "/fixture", root: "/fixture" },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
       },
-      parts: [{ type: "text", text: index === 0 ? longText : `历史正文 ${index}` }],
+      parts: [
+        {
+          type: "text",
+          text: index === 0 ? longText : `历史正文 ${index}`,
+          messageId: `history-${index}`,
+          sessionId: "fixture-task",
+          partId: `history-part-${index}`,
+        },
+      ],
     })),
   );
   return messages;

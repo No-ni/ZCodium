@@ -51,6 +51,8 @@ import {
 interface AgentConversationTransportTarget {
   workspacePath: string;
   workspaceIdentity?: string;
+  /** Remote workspace shard identity used with its path for every V4 request. */
+  remoteSessionId?: string;
   /** Desktop 本地媒体协议 URL；Web/remote 不注入，因此保持分片读取。 */
   createLocalMediaPreviewUrl?: (path: string) => string;
 }
@@ -99,6 +101,7 @@ export function createAgentConversationTransport(
   const workspace = {
     workspacePath: target.workspacePath,
     ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+    ...(target.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
   };
   let calibrationFlight: Promise<void> | undefined;
   const calibrate = () => {

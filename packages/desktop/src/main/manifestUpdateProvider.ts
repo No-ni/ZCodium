@@ -88,7 +88,155 @@ function buildElectronManifestUrl(options: {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object";
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+type ManifestUpdateFileInfo = UpdateFileInfo & { sha2?: string };
+
+interface ManifestUpdateInfo extends UpdateInfo {
+  files: ManifestUpdateFileInfo[];
+  packages?: Record<string, PackageFileInfo> | null;
+  zcodeReleaseChannel: ElectronReleaseChannel;
+}
+
+function parseUpdateFileInfo(value: unknown): ManifestUpdateFileInfo | null {
+  if (!isRecord(value) || typeof value.url !== "string" || !value.url.trim()) return null;
+  const sha512 = typeof value.sha512 === "string" ? value.sha512 : "";
+  const sha2 = typeof value.sha2 === "string" ? value.sha2 : undefined;
+  if (!sha512 && !sha2) return null;
+  return {
+    url: value.url,
+    sha512,
+    ...(sha2 ? { sha2 } : {}),
+    ...(typeof value.size === "number" && Number.isFinite(value.size) ? { size: value.size } : {}),
+    ...(typeof value.blockMapSize === "number" && Number.isFinite(value.blockMapSize)
+      ? { blockMapSize: value.blockMapSize }
+      : {}),
+    ...(typeof value.isAdminRightsRequired === "boolean"
+      ? { isAdminRightsRequired: value.isAdminRightsRequired }
+      : {}),
+  };
+}
+
+function parsePackageFileInfo(value: unknown): PackageFileInfo | null {
+  if (
+    !isRecord(value) ||
+    typeof value.path !== "string" ||
+    !value.path.trim() ||
+    typeof value.sha512 !== "string" ||
+    !value.sha512
+  ) {
+    return null;
+  }
+  return {
+    path: value.path,
+    sha512: value.sha512,
+    ...(typeof value.size === "number" && Number.isFinite(value.size) ? { size: value.size } : {}),
+    ...(typeof value.blockMapSize === "number" && Number.isFinite(value.blockMapSize)
+      ? { blockMapSize: value.blockMapSize }
+      : {}),
+    ...(typeof value.isAdminRightsRequired === "boolean"
+      ? { isAdminRightsRequired: value.isAdminRightsRequired }
+      : {}),
+  };
+}
+
+export function parseManifestUpdateInfo(
+  value: unknown,
+  releaseChannel: ElectronReleaseChannel,
+): ManifestUpdateInfo {
+  // 外部 YAML 在这里收窄；后续 updater 代码只接收满足 UpdateInfo 的字段。
+  if (!isRecord(value) || typeof value.version !== "string" || !value.version.trim()) {
+    throw new Error("Invalid electron update manifest");
+  }
+
+  let files: ManifestUpdateFileInfo[];
+  if (Array.isArray(value.files) && value.files.length > 0) {
+    const parsedFiles = value.files.map(parseUpdateFileInfo);
+    if (parsedFiles.some((file) => file === null)) {
+      throw new Error("Invalid electron update manifest");
+    }
+    files = parsedFiles.filter((file): file is ManifestUpdateFileInfo => file !== null);
+  } else if (typeof value.path === "string" && value.path.trim()) {
+    const legacyFile = parseUpdateFileInfo({
+      url: value.path,
+      sha2: value.sha2,
+      sha512: value.sha512,
+    });
+    if (!legacyFile) throw new Error("Invalid electron update manifest");
+    files = [legacyFile];
+  } else {
+    throw new Error("Invalid electron update manifest");
+  }
+
+  const firstFile = files[0];
+  if (!firstFile) throw new Error("Invalid electron update manifest");
+  const path = typeof value.path === "string" && value.path.trim() ? value.path : firstFile.url;
+  const sha512 = typeof value.sha512 === "string" ? value.sha512 : firstFile.sha512;
+
+  let packages: Record<string, PackageFileInfo> | null | undefined;
+  if (value.packages === null) {
+    packages = null;
+  } else if (value.packages !== undefined) {
+    if (!isRecord(value.packages)) throw new Error("Invalid electron update manifest");
+    packages = {};
+    for (const [arch, packageValue] of Object.entries(value.packages)) {
+      const packageInfo = parsePackageFileInfo(packageValue);
+      if (!packageInfo) throw new Error("Invalid electron update manifest");
+      packages[arch] = packageInfo;
+    }
+  }
+
+  let releaseNotes: UpdateInfo["releaseNotes"];
+  if (value.releaseNotes === undefined || value.releaseNotes === null) {
+    releaseNotes = value.releaseNotes;
+  } else if (typeof value.releaseNotes === "string") {
+    releaseNotes = value.releaseNotes;
+  } else if (Array.isArray(value.releaseNotes)) {
+    const notes: Array<{ version: string; note: string | null }> = [];
+    for (const item of value.releaseNotes) {
+      if (
+        !isRecord(item) ||
+        typeof item.version !== "string" ||
+        !(typeof item.note === "string" || item.note === null)
+      ) {
+        throw new Error("Invalid electron update manifest");
+      }
+      notes.push({ version: item.version, note: item.note });
+    }
+    releaseNotes = notes;
+  } else {
+    throw new Error("Invalid electron update manifest");
+  }
+
+  if (
+    (value.releaseName !== undefined &&
+      value.releaseName !== null &&
+      typeof value.releaseName !== "string") ||
+    (value.stagingPercentage !== undefined &&
+      (typeof value.stagingPercentage !== "number" || !Number.isFinite(value.stagingPercentage))) ||
+    (value.minimumSystemVersion !== undefined && typeof value.minimumSystemVersion !== "string")
+  ) {
+    throw new Error("Invalid electron update manifest");
+  }
+
+  return {
+    version: value.version,
+    files,
+    path,
+    sha512,
+    releaseDate: typeof value.releaseDate === "string" ? value.releaseDate : "",
+    ...(value.releaseName !== undefined ? { releaseName: value.releaseName } : {}),
+    ...(releaseNotes !== undefined ? { releaseNotes } : {}),
+    ...(typeof value.stagingPercentage === "number"
+      ? { stagingPercentage: value.stagingPercentage }
+      : {}),
+    ...(typeof value.minimumSystemVersion === "string"
+      ? { minimumSystemVersion: value.minimumSystemVersion }
+      : {}),
+    ...(packages !== undefined ? { packages } : {}),
+    zcodeReleaseChannel: releaseChannel,
+  };
 }
 
 function readManifestFileList(updateInfo: UpdateInfo): UpdateFileInfo[] {
@@ -219,17 +367,11 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     }
 
     const parsed = parseYaml(raw);
-    if (!isRecord(parsed) || typeof parsed.version !== "string") {
+    try {
+      return parseManifestUpdateInfo(parsed, releaseChannel);
+    } catch {
       throw new Error(`Invalid electron update manifest: ${manifestUrl.toString()}`);
     }
-
-    return {
-      ...(parsed as UpdateInfo),
-      // preview/stable 切换时旧 manifest 请求可能晚于新请求返回。
-      // electron-updater 的 update-available 事件默认不带请求通道，main 进程无法识别过期结果；
-      // 这里把本次请求通道随 UpdateInfo 带回去，避免旧通道覆盖更新弹窗内容。
-      zcodeReleaseChannel: releaseChannel,
-    } as UpdateInfo;
   }
 
   override resolveFiles(updateInfo: UpdateInfo): ResolvedUpdateFileInfo[] {

@@ -58,8 +58,10 @@ export function createRelayDeviceTransport(
   let heartbeatTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
   let connectAttempt = 0;
-  let invalidPersistedRetryUsed = false;
-  let suppressNextCloseReconnect = false;
+  let persistedAuthRecoveryUsed = false;
+  let persistedAuthResetPending = false;
+  // AUTH_FAILED 会立即启动新连接；把计划关闭标记绑定到旧 socket，避免迟到事件污染新连接。
+  const suppressCloseReconnect = new WeakSet<WebSocket>();
 
   function setState(next: WebRemoteControlTransportState): void {
     if (state === next) return;
@@ -94,7 +96,7 @@ export function createRelayDeviceTransport(
   }
 
   function scheduleReconnect(delayMs: number): void {
-    if (disposed || reconnectTimer) return;
+    if (disposed || persistedAuthResetPending || reconnectTimer) return;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       if (!disposed) connect();
@@ -112,7 +114,7 @@ export function createRelayDeviceTransport(
   }
 
   function connect(): void {
-    if (disposed) return;
+    if (disposed || persistedAuthResetPending) return;
     stopHeartbeat();
     setState("connecting");
     const url = new URL(options.relayWsUrl);
@@ -164,7 +166,7 @@ export function createRelayDeviceTransport(
         options.logger.warn("[web-remote-control] invalid relay frame");
         return;
       }
-      void handleFrame(parsed.data);
+      void handleFrame(parsed.data, ws);
     });
 
     ws.on("error", (error) => {
@@ -174,13 +176,13 @@ export function createRelayDeviceTransport(
     });
 
     ws.on("close", () => {
-      if (ws !== socket) return;
-      stopHeartbeat();
-      if (disposed) return;
-      if (suppressNextCloseReconnect) {
-        suppressNextCloseReconnect = false;
+      if (ws !== socket) {
+        suppressCloseReconnect.delete(ws);
         return;
       }
+      stopHeartbeat();
+      if (disposed) return;
+      if (suppressCloseReconnect.delete(ws)) return;
       setState("error");
       scheduleReconnect(reconnectBackoff());
     });
@@ -202,7 +204,7 @@ export function createRelayDeviceTransport(
     });
   }
 
-  async function handleFrame(frame: unknown): Promise<void> {
+  async function handleFrame(frame: unknown, sourceSocket: WebSocket): Promise<void> {
     const parsed = webRemoteControlEndpointToClientFrameSchema.safeParse(frame);
     if (!parsed.success) return;
     const inbound = parsed.data as {
@@ -231,7 +233,12 @@ export function createRelayDeviceTransport(
         sendFrame({ type: "auth_response", device_sid: deviceSid, proof, client_ts: Date.now() });
         return;
       }
-      case "auth_ack":
+      case "auth_ack": {
+        // 只有鉴权成功才能为当前 SID 重新开放一轮失效恢复，避免注册失败时无限重试。
+        persistedAuthRecoveryUsed = false;
+        applyPairStatus(inbound.pair_status === "matched" ? "matched" : "waiting");
+        return;
+      }
       case "pair_status_ack": {
         applyPairStatus(inbound.pair_status === "matched" ? "matched" : "waiting");
         return;
@@ -247,7 +254,7 @@ export function createRelayDeviceTransport(
         return;
       }
       case "error": {
-        await handleRelayError(inbound.code, inbound.message);
+        await handleRelayError(sourceSocket, inbound.code, inbound.message);
         return;
       }
       default:
@@ -266,21 +273,40 @@ export function createRelayDeviceTransport(
   }
 
   async function handleRelayError(
+    sourceSocket: WebSocket,
     code: string | undefined,
     message: string | undefined,
   ): Promise<void> {
+    if (disposed || sourceSocket !== socket) return;
     if (code === "KICKED") {
       options.logger.warn("[web-remote-control] relay kicked device", { message });
-      socket?.close();
+      sourceSocket.close();
       return;
     }
-    if (code === "AUTH_FAILED" && auth.mode === "persisted" && !invalidPersistedRetryUsed) {
-      invalidPersistedRetryUsed = true;
-      await options.events.onInvalidPersistedAuth();
+    if (code === "AUTH_FAILED" && auth.mode === "persisted" && !persistedAuthRecoveryUsed) {
+      persistedAuthRecoveryUsed = true;
+      persistedAuthResetPending = true;
+      const invalidSocket = sourceSocket;
+      // 先隔离并关闭失效连接，不能让 close 处理器在持久化凭据清理期间重试旧 SID。
+      suppressCloseReconnect.add(invalidSocket);
+      stopHeartbeat();
+      invalidSocket.close();
+      try {
+        await options.events.onInvalidPersistedAuth();
+      } catch (error) {
+        persistedAuthResetPending = false;
+        if (disposed || socket !== invalidSocket) return;
+        options.events.onError(error instanceof Error ? error : new Error(String(error)));
+        setState("error");
+        return;
+      }
+      if (disposed || socket !== invalidSocket) {
+        persistedAuthResetPending = false;
+        return;
+      }
       auth = { mode: "register", passHash: auth.passHash };
       deviceSid = "";
-      suppressNextCloseReconnect = true;
-      socket?.close();
+      persistedAuthResetPending = false;
       scheduleReconnect(0);
       return;
     }

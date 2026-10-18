@@ -116,6 +116,19 @@ relay 只依赖 shared 契约子集，不 import 业务实现。
    暴露到公网。桌面无需改动，仅 QR 里的对外地址来自用户配置。
 3. **用户自托管 relay**：桌面 outbound 连用户填的 `wss://<用户域名>/ws`，按官方 wire 收发。
 
+### LAN 共享端点启动与窗口释放
+
+- manager 是 LAN endpoint 的唯一所有者；多个窗口的 device transport 共享同一个 endpoint，窗口停止只释放自己的 device handle，不停止其他窗口共用的监听端点。
+- endpoint 处于启动中的并发 `start()` 必须加入同一个启动操作，只能创建一组 HTTP/WS listener 和一个 pair 清扫计时器；成功后重复调用返回同一份 endpoint 信息，失败时清理已创建的 listener 并允许后续重试。
+- device transport 在 `await endpoint.start()` 期间被 dispose 后，启动完成不得再注册 device、写入凭据或留下无人持有的 pairing。已注册 handle 若在同步回调期间遇到 dispose，必须立即释放该 handle。
+- 事件顺序：
+  ```text
+  窗口 A transport.start ──┐
+                           ├─> manager-owned endpoint.start（共享单一 bind）──> 注册各自 sid
+  窗口 B transport.start ──┘
+  窗口 A dispose ──> 取消 A 尚未完成的注册 / 释放 A 的 handle；B 与共享 endpoint 保持可用
+  ```
+
 ### wire 帧（与官方兼容；「待验证」项见 §开放问题）
 
 ```text
@@ -136,8 +149,8 @@ server→client  error                {code, message}              # KICKED|AUTH
   `role` 桌面侧为 `device`，移动侧字符串**待验证**（实现为可配置，默认 `mobile`）。
 - `nonce` 一次性、TTL ≤ 60s；`device_sid` ≥128 bit 随机，不可枚举。
 - 握手连接带 `?mid=<deviceMid>` 与 `X-Device-ID` 头（对齐官方，便于端点侧限速）。
-- 心跳 10s±jitter；ack 看门狗可配（默认 3 周期）。桌面断链进宽限（默认 ~30s），
-  期内移动端保持、桌面重连续配为 `matched`，手机无感。
+- 心跳 10s±jitter；ack 看门狗可配（默认 3 周期）。桌面断链保留内存配对凭据，
+  但 matched 必须由两个当前已鉴权且 OPEN 的角色 socket 派生；手机收到 waiting 后禁发并释放旧 bridge，桌面重新鉴权后双方收到 matched 并恢复 attachment。
 - `error` 语义：`KICKED`（同 sid 第二个移动端接入 / 端点踢出）、`AUTH_FAILED`
   （hash 不符或 sid 失效，直接关闭不泄露存在性）、`INTERNAL`（端点过载或内部错误）、
   `WRONG_PARAM`（超限帧等，可配置为丢弃+通知或关闭）。
@@ -145,10 +158,35 @@ server→client  error                {code, message}              # KICKED|AUTH
   通知发送方，对应桌面 `bridge-degraded{reason:"rpc-transport-fault"}`。
 - 未配对（`waiting`）状态的 `data` 丢弃；端点不缓存、不补投——补投是两端语义。
 
+### 自托管 relay 鉴权与角色归属修复
+
+- relay registry 只拥有当前 socket 绑定、secret 与配对生命周期；challenge 属于发起握手的 socket，未完成 proof 不得获得 data/query/unregister 权限，也不能覆盖其他 socket 的 challenge。
+- data 与 pair_status_query 必须来自已完成鉴权且仍为该角色当前绑定的 socket；被替换连接即使 close 尚未完成也不能发送、续期或修改配对。auth_response 的 sid 必须匹配本连接 challenge。
+- 同一 socket 只执行一次鉴权，不允许再次 auth_init 切换 sid 或角色；重新鉴权使用新的连接。过期配对不能用旧 challenge 或迟到 data/query 续期，已经关闭中的 socket 不再处理新帧。
+- device_unregister 仅允许当前已鉴权 device socket 作废自己的 sid；未鉴权、mobile、跨 sid 和过时 device 一律拒绝，合法配对保持不变。
+- 当前 device 或 mobile 断开后向仍在线对端发送 waiting；设备恢复鉴权时向仍在线手机发送实际 matched 状态。relay 不保存业务请求、不重放离线 data。
+- 回归用真实 loopback WebSocket 运行 relay server：无 proof 的 data/query、未鉴权注销、mobile 注销、跨 sid 注销、被替换 socket、并发 challenge、device 断开/恢复、合法鉴权转发与合法注销。手机协议另外验证 waiting 立即结束旧 RPC 与禁发、matched 恢复，不修改 owner/lease 或 desktop-continuous 语义。
+- 持久化 deviceSid 收到 `AUTH_FAILED` 后转为重新注册时，计划关闭只属于触发重置的旧 socket；旧 socket 迟到的 close 事件不得把抑制标记遗留给新 socket。新 socket 之后发生真实断线仍必须调度重连。
+
 ### 桌面侧持久化 sid 失效的重注册（bug 修复）
 
 - `deviceSid` / `passHash` 落盘（settings / credential store），但配对表只在端点内存：
   桌面重启、「停止后重开」、TTL 清扫、其他窗口占用同一 sid 都会让持久化 sid 查不到。
+- 持久化 relay SID 收到当前 socket 的 `AUTH_FAILED` 时，Desktop relay device transport 是清档恢复流程的唯一状态所有者：
+  先抑制并关闭触发错误的 socket，再等待 `onInvalidPersistedAuth` 完成；等待期间禁止任何重连，不能用旧 SID 再鉴权，也不靠超时继续。
+  清档成功后且 transport 仍存活、该 socket 仍为当前连接，才切换到 register 并立即启动一次新连接。清档失败时报告错误并停止自动重试；
+  `dispose()` 或旧 socket 的迟到完成不得触发新连接、状态回写或清理新 socket。
+- 每个已被 relay 成功接受的持久化 SID 最多触发一轮清档/重注册；成功 `auth_ack` 后为当前 SID 重新开放一轮恢复额度。
+  `device_register_ack` 或 `pair_status_ack` 不重置额度，因此从未成功鉴权的新 SID 若再次 `AUTH_FAILED`，不会循环清档和注册。
+- AUTH_FAILED 清档事件顺序：
+  ```text
+  当前 relay socket ── AUTH_FAILED ──> transport 标记本 socket 不重连并关闭
+                                          │
+                                          └── await 清除持久 SID / 密钥
+                                               ├─ 成功且仍存活 ──> register 新 SID
+                                               ├─ 失败 ─────────> error，停止重试
+                                               └─ dispose/stale ─> 丢弃迟到完成
+  ```
 - 端点 `registerDevice` 对失效持久化 sid 只返回 `{ ok: false, reason: "invalid-persisted-auth" }`，
   不向运行时发 `error`；设备传输收到后清档（`onInvalidPersistedAuth`）并按 register
   流程重新注册，与 relay 传输对 `AUTH_FAILED` 的处理一致。

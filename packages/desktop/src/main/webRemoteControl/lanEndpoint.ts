@@ -98,6 +98,7 @@ export class LanRemoteControlEndpoint {
   private readonly staticHandler: ReturnType<typeof createMobileAppStaticHandler>;
   private readonly maxFrameBytes: number;
   private info: LanEndpointInfo | null = null;
+  private startPromise: Promise<LanEndpointInfo> | null = null;
   private pairSweepTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly options: LanEndpointOptions) {
@@ -123,45 +124,65 @@ export class LanRemoteControlEndpoint {
     }
   }
 
-  async start(): Promise<LanEndpointInfo> {
+  start(): Promise<LanEndpointInfo> {
+    if (this.info) return Promise.resolve(this.info);
+    if (this.startPromise) return this.startPromise;
+
+    // 多窗口共用同一端点；并发启动若各自 bind，会覆盖 servers 中的 listener 并遗留端口和计时器。
+    const starting = this.startEndpoint();
+    this.startPromise = starting;
+    void starting
+      .finally(() => {
+        if (this.startPromise === starting) this.startPromise = null;
+      })
+      .catch(() => undefined);
+    return starting;
+  }
+
+  private async startEndpoint(): Promise<LanEndpointInfo> {
     const requestedPort = this.options.port ?? 0;
     let boundPort = 0;
-    for (const address of this.collectBindAddresses()) {
-      const server = createServer((req, res) => this.handleHttp(req, res));
-      server.on("upgrade", (req, socket, head) => this.handleUpgrade(req, socket, head));
-      const bound = await new Promise<{ port: number } | null>((resolveListen) => {
-        server.once("error", () => resolveListen(null));
-        server.listen(boundPort || requestedPort, address, () => {
-          const info = server.address();
-          resolveListen(info && typeof info === "object" ? { port: info.port } : null);
+    try {
+      for (const address of this.collectBindAddresses()) {
+        const server = createServer((req, res) => this.handleHttp(req, res));
+        server.on("upgrade", (req, socket, head) => this.handleUpgrade(req, socket, head));
+        const bound = await new Promise<{ port: number } | null>((resolveListen) => {
+          server.once("error", () => resolveListen(null));
+          server.listen(boundPort || requestedPort, address, () => {
+            const info = server.address();
+            resolveListen(info && typeof info === "object" ? { port: info.port } : null);
+          });
         });
+        if (!bound) {
+          server.close();
+          continue;
+        }
+        if (boundPort === 0) {
+          boundPort = bound.port;
+        } else if (bound.port !== boundPort) {
+          server.close();
+          continue;
+        }
+        this.servers.set(address, server);
+      }
+      if (this.servers.size === 0 || boundPort === 0) {
+        throw new Error("Web remote control LAN endpoint failed to bind any address");
+      }
+      const baseUrls = [...this.servers.keys()].map(
+        (address) => `http://${address === "127.0.0.1" ? "127.0.0.1" : address}:${boundPort}/`,
+      );
+      baseUrls.sort((a, b) => (a.includes("127.0.0.1") ? -1 : b.includes("127.0.0.1") ? 1 : 0));
+      this.info = { port: boundPort, baseUrls };
+      this.pairSweepTimer = setInterval(() => this.sweepIdlePairs(), 60 * 60 * 1000);
+      this.options.logger.info("[web-remote-control] LAN endpoint listening", {
+        port: boundPort,
+        addresses: [...this.servers.keys()],
       });
-      if (!bound) {
-        server.close();
-        continue;
-      }
-      if (boundPort === 0) {
-        boundPort = bound.port;
-      } else if (bound.port !== boundPort) {
-        server.close();
-        continue;
-      }
-      this.servers.set(address, server);
+      return this.info;
+    } catch (error) {
+      await this.stop();
+      throw error;
     }
-    if (this.servers.size === 0 || boundPort === 0) {
-      throw new Error("Web remote control LAN endpoint failed to bind any address");
-    }
-    const baseUrls = [...this.servers.keys()].map(
-      (address) => `http://${address === "127.0.0.1" ? "127.0.0.1" : address}:${boundPort}/`,
-    );
-    baseUrls.sort((a, b) => (a.includes("127.0.0.1") ? -1 : b.includes("127.0.0.1") ? 1 : 0));
-    this.info = { port: boundPort, baseUrls };
-    this.pairSweepTimer = setInterval(() => this.sweepIdlePairs(), 60 * 60 * 1000);
-    this.options.logger.info("[web-remote-control] LAN endpoint listening", {
-      port: boundPort,
-      addresses: [...this.servers.keys()],
-    });
-    return this.info;
   }
 
   async stop(): Promise<void> {

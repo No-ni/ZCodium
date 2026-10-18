@@ -191,12 +191,11 @@ test("desktop configuration keeps mobile assets without bundling a Linux runtime
   }
 });
 
-test("CI schedules only Windows/macOS packages and no Linux remote producer", async () => {
+test("CI is manual-only and schedules Windows/macOS packages without a Linux remote producer", async () => {
   const desktop = parse(await readFile(resolve(root, ".github/workflows/desktop.yml"), "utf8"));
-  // 手动制：GitHub 会因 fork 的 Actions 用量停用 Workflows，禁止恢复 push 分支/PR 自动触发。
+  // GitHub 会因 fork 的 Actions 用量停用 Workflows；不允许 push（包括标签）或 PR 自动触发。
+  assert.deepEqual(Object.keys(desktop.on ?? {}).sort(), ["workflow_dispatch"]);
   assert.equal(desktop.on?.pull_request ?? null, null);
-  assert.equal(desktop.on?.push?.branches ?? null, null);
-  assert.deepEqual(desktop.on?.push?.tags, ["v*"]);
   assert.ok("workflow_dispatch" in (desktop.on ?? {}));
   // 独立的 macOS Desktop Build workflow 已删除，构建入口只此一个。
   await assert.rejects(readFile(resolve(root, ".github/workflows/macos.yml"), "utf8"), {
@@ -215,13 +214,10 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
     // 工作流中的比较、逻辑运算与 JSON 解析均兼容 JS；GitHub 语法另由 actionlint 校验。
     return runInNewContext(expression.slice(3, -2), context, { timeout: 1000 });
   };
-  for (const [event, refType, expected] of [
-    ["pull_request", "branch", ["arm64"]],
-    ["push", "branch", ["arm64"]],
-    ["push", "tag", ["arm64", "x64"]],
-    ["workflow_dispatch", "branch", ["arm64", "x64"]],
-    ["workflow_dispatch", "tag", ["arm64", "x64"]],
-  ]) {
+  const expectedMacArchitectures = ["arm64", "x64"];
+  assert.deepEqual(macBuild.strategy.matrix.arch, expectedMacArchitectures);
+  for (const refType of ["branch", "tag"]) {
+    const event = "workflow_dispatch";
     const context = {
       github: { event_name: event, ref_type: refType },
       fromJSON: JSON.parse,
@@ -229,9 +225,7 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
     };
     assert.equal(evaluate(macBuild.if, context), true, `${event}/${refType}`);
     assert.equal(evaluate(macBuild.if, { ...context, cancelled: () => true }), false);
-    const architectures = [...evaluate(macBuild.strategy.matrix.arch, context)];
-    assert.deepEqual(architectures, expected, `${event}/${refType}`);
-    for (const arch of architectures) {
+    for (const arch of expectedMacArchitectures) {
       const matrixContext = { ...context, matrix: { arch } };
       assert.equal(
         evaluate(macBuild["runs-on"], matrixContext),
@@ -250,31 +244,67 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
     }
   }
   for (const id of ["build", "build-macos"]) {
-    // checks 不生产打包输入；平台 job 可并行运行，但 Release 仍保留 checks 门禁。
+    // checks 不生产打包输入；手动运行的各平台 job 可并行上传当前 run 的 artifacts。
     assert.equal(desktop.jobs[id].needs, undefined, `${id} must run alongside checks`);
     const commands = desktop.jobs[id].steps.map((step) => step.run ?? "");
     assert.equal(commands.filter((command) => command.includes("pnpm build:bootstrap")).length, 1);
     assert.ok(commands.some((command) => command.includes("--skip-prepare --skip-build")));
   }
-  // checks 是 coverage 型门禁：打包只看是否被取消，不因 checks 失败被跳过；
-  // 草稿发布则必须等 checks 通过，且只在标签推送时进行。
+  // checks 是 coverage 型门禁：打包只看是否被取消，不因 checks 失败被跳过。
   for (const id of ["build", "build-macos"]) {
     const condition = String(desktop.jobs[id].if);
     assert.match(condition, /!cancelled\(\)/);
     assert.ok(!/needs\.checks\.result|success\(\)/.test(condition), id);
   }
-  const release = desktop.jobs.release;
-  assert.deepEqual([release.needs].flat().sort(), ["build", "build-macos", "checks"]);
-  assert.equal(release.if, "github.event_name == 'push' && github.ref_type == 'tag'");
+  assert.equal(
+    desktop.jobs.release,
+    undefined,
+    "manual artifact workflow must not publish Release",
+  );
 
   const checkSteps = desktop.jobs.checks.steps;
   const browserInstallIndex = checkSteps.findIndex(
     (step) => step.name === "Install browser for remote form checks",
   );
+  assert.ok(browserInstallIndex >= 0);
+  assert.match(checkSteps[browserInstallIndex].run, /\bchromium\b/);
+  assert.match(
+    checkSteps[browserInstallIndex].run,
+    /\bwebkit\b/,
+    "mobile browser checks require WebKit installed in CI",
+  );
+  const vitestStep = checkSteps.find((step) => step.name === "Vitest suites");
+  assert.ok(vitestStep);
+  assert.match(
+    vitestStep.run,
+    /pnpm vitest run --config packages\/ui\/vitest\.config\.ts packages\/relay\/src/,
+    "relay source regressions must run in CI without relying on a built dist",
+  );
+  const mobileVitestCommand = vitestStep.run
+    .split(/\r?\n/)
+    .find((command) => command.includes("packages/web/src/mobile"));
+  assert.match(
+    mobileVitestCommand ?? "",
+    /--config packages\/ui\/vitest\.config\.ts/,
+    "mobile tests import the UI conversation-client subpath and require the UI @ alias",
+  );
+  const mobileSmoke = await readFile(
+    resolve(root, "scripts/ci/web-remote-control-mobile-smoke.mjs"),
+    "utf8",
+  );
+  const webkitLaunch = mobileSmoke.slice(
+    mobileSmoke.indexOf("webkitBrowser = await webkit.launch"),
+    mobileSmoke.indexOf("const context = await webkitBrowser.newContext"),
+  );
+  const ciThrow = webkitLaunch.match(/if\s*\(process\.env\.CI\)\s*throw\s+error;/);
+  const localSkipIndex = webkitLaunch.indexOf("SKIP WebKit");
+  assert.ok(
+    ciThrow && localSkipIndex > ciThrow.index,
+    "missing WebKit must fail CI before the local-only skip fallback",
+  );
   const remoteBrowserChecks = checkSteps.findIndex(
     (step) => step.name === "Web remote-control browser checks",
   );
-  assert.ok(browserInstallIndex >= 0);
   assert.ok(remoteBrowserChecks > browserInstallIndex);
   assert.match(checkSteps[remoteBrowserChecks].run, /web-remote-control-window-sync-smoke\.mjs/);
   assert.match(checkSteps[remoteBrowserChecks].run, /web-remote-control-mobile-smoke\.mjs/);

@@ -11,14 +11,53 @@ type Done = (partial: Omit<BrowserCommandResult, "elapsedMs">) => BrowserCommand
 
 const POLL_INTERVAL_MS = 50;
 
+// main tsconfig 不加载 DOM lib；这些最小结构只描述序列化 evaluator 的页面侧对象。
+// 类型会擦除，evaluator 仍只通过 Chromium 页面里的 globalThis 访问 DOM。
+interface BrowserPageRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface BrowserPageElement {
+  id: string;
+  tagName: string;
+  outerHTML: string;
+  innerText?: string;
+  value?: string;
+  getAttribute(name: string): string | null;
+  matches(selector: string): boolean;
+  getBoundingClientRect(): BrowserPageRect;
+  remove(): void;
+}
+
+interface BrowserPageOverlayElement extends BrowserPageElement {
+  style: { cssText: string };
+  append(child: BrowserPageOverlayElement): void;
+}
+
+interface BrowserPageDocument {
+  elementsFromPoint(x: number, y: number): BrowserPageElement[];
+  getElementById(id: string): BrowserPageElement | null;
+  createElement(tagName: string): BrowserPageOverlayElement;
+  documentElement: { append(element: BrowserPageOverlayElement): void };
+}
+
+interface BrowserPageGlobal {
+  CSS?: { escape?(value: string): string };
+  document: BrowserPageDocument;
+}
+
 function serializeRuntimeCall(fn: (...args: any[]) => unknown, ...args: unknown[]): string {
   return `(${fn.toString()})(${args.map((arg) => JSON.stringify(arg)).join(",")})`;
 }
 
 function elementInfoRuntime(options: { x: number; y: number; includeNonInteractable?: boolean }) {
+  const page = globalThis as unknown as BrowserPageGlobal;
   const cssEscape = (value: string) =>
-    globalThis.CSS?.escape?.(value) ?? value.replace(/[^\w-]/g, "\\$&");
-  const candidatesFor = (element: Element) => {
+    page.CSS?.escape?.(value) ?? value.replace(/[^\w-]/g, "\\$&");
+  const candidatesFor = (element: BrowserPageElement) => {
     const values: string[] = [];
     if (element.id) values.push(`#${cssEscape(element.id)}`);
     const testId = element.getAttribute("data-testid");
@@ -28,7 +67,7 @@ function elementInfoRuntime(options: { x: number; y: number; includeNonInteracta
     values.push(element.tagName.toLowerCase());
     return [...new Set(values)];
   };
-  const role = (element: Element) =>
+  const role = (element: BrowserPageElement) =>
     element.getAttribute("role") ??
     (element.matches("button,input[type=button],input[type=submit]")
       ? "button"
@@ -37,16 +76,15 @@ function elementInfoRuntime(options: { x: number; y: number; includeNonInteracta
         : element.matches("input:not([type]),input[type=text],textarea")
           ? "textbox"
           : null);
-  const interactable = (element: Element) =>
+  const interactable = (element: BrowserPageElement) =>
     Boolean(role(element) || element.matches("input,select,textarea,[tabindex],[contenteditable]"));
-  return document
+  return page.document
     .elementsFromPoint(options.x, options.y)
     .filter((element) => options.includeNonInteractable || interactable(element))
     .map((element) => {
       const rect = element.getBoundingClientRect();
       const candidates = candidatesFor(element);
-      const visibleText =
-        (element as HTMLElement).innerText?.trim() || (element as HTMLInputElement).value || null;
+      const visibleText = element.innerText?.trim() || element.value || null;
       const ariaName = element.getAttribute("aria-label") || visibleText;
       return {
         tagName: element.tagName.toLowerCase(),
@@ -62,22 +100,23 @@ function elementInfoRuntime(options: { x: number; y: number; includeNonInteracta
 }
 
 function overlayRuntime(options: { x: number; y: number; remove?: boolean }): void {
+  const page = globalThis as unknown as BrowserPageGlobal;
   const id = "__zcode-playwright-element-screenshot-overlay";
-  document.getElementById(id)?.remove();
+  page.document.getElementById(id)?.remove();
   if (options.remove) return;
-  const root = document.createElement("div");
+  const root = page.document.createElement("div");
   root.id = id;
   root.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
-  for (const element of document.elementsFromPoint(options.x, options.y)) {
+  for (const element of page.document.elementsFromPoint(options.x, options.y)) {
     const rect = element.getBoundingClientRect();
-    const box = document.createElement("div");
+    const box = page.document.createElement("div");
     box.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px;border:2px solid #ff2d55;box-sizing:border-box`;
     root.append(box);
   }
-  const point = document.createElement("div");
+  const point = page.document.createElement("div");
   point.style.cssText = `position:absolute;left:${options.x - 4}px;top:${options.y - 4}px;width:8px;height:8px;border-radius:50%;background:#ff2d55`;
   root.append(point);
-  document.documentElement.append(root);
+  page.document.documentElement.append(root);
 }
 
 async function evaluateInPlaywrightIsolatedWorld(

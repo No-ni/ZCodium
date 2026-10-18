@@ -24,7 +24,7 @@
     "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",
     "release:dry": "pnpm run release --release-version",
     "sea": "pnpm --filter @zcode/cli sea",
-    "typecheck": "corepack pnpm --dir ../.. --fail-if-no-match --filter \"./packages/*\" --filter \"./tools/*\" -r run typecheck"
+    "typecheck": "corepack pnpm --filter @zcode/tui build && corepack pnpm --dir ../.. --fail-if-no-match --filter \"./packages/*\" --filter \"./tools/*\" -r run typecheck"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

@@ -51,6 +51,19 @@ describe("presentMobileConnection", () => {
     });
   });
 
+  it("keeps an INTERNAL 4001 close in retryable reconnect presentation", () => {
+    expect(
+      presentMobileConnection("connecting", {
+        reason: "INTERNAL",
+        closeCode: 4001,
+      }),
+    ).toMatchObject({
+      label: "正在重新连接",
+      description: "连接中断，正在尝试重新连接…",
+      terminal: false,
+    });
+  });
+
   it("maps close-only kicked/expired failures to terminal guidance", () => {
     expect(presentMobileConnection("error", { closeCode: 4002, reason: "kicked" })).toEqual(
       presentMobileConnection("error", { reason: "KICKED" }),

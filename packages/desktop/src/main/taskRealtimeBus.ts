@@ -591,7 +591,12 @@ export class TaskRealtimeBus {
     const coalesced: TaskStreamMirrorPublishOp[] = [];
     for (const op of ops) {
       const previous = coalesced[coalesced.length - 1];
-      if (this.canMergeTextChunk(previous, op)) {
+      // 类型谓词只收窄 previous；当前 op 也必须先确认是正文事件，才能安全读取 content。
+      if (
+        op.kind === "stream_event" &&
+        (op.event.type === "agent_message_chunk" || op.event.type === "agent_thought_chunk") &&
+        this.canMergeTextChunk(previous, op)
+      ) {
         coalesced[coalesced.length - 1] = {
           kind: "stream_event",
           event: {

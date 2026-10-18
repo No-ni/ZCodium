@@ -258,8 +258,14 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/command-center/CommandCenterDialog.tsx",
-    "void fetchWorkspaceFileEntriesPacked(fileService, fileSearchRoot, workspaceAbsPath)",
-    "Cmd+P 的索引按会话 cwd 扫描，规则根用工作区身份路径（第二参是搜索根，第三参是规则根）",
+    "useCommandCenterFileSearch({ enabled: searchFiles, rootPath: fileSearchRoot, workspaceIdentity, ignoreRulesRoot: workspaceAbsPath, query: searchQuery, })",
+    "Cmd+P 有界搜索按会话 cwd 扫描，规则根使用工作区身份路径",
+  ],
+  // 搜索已迁入 hook；旧断言仍要求被移除的全索引调用，误报 CI 失败。两段接线共同保护规则根。
+  [
+    "packages/ui/src/hooks/useCommandCenterFileSearch.ts",
+    '.searchWorkspaceFiles({ rootPath, workspaceIdentity, ignoreRulesRoot, query, limit: RESULT_LIMIT, matchMode: "terms", })',
+    "Cmd+P hook 必须把搜索根、身份和规则根一同传给既有服务",
   ],
   [
     "packages/ui/src/settings/WorkspaceFileSearchSection.tsx",

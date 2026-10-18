@@ -198,6 +198,10 @@ interface ManagedTab {
   restoredFromStore?: boolean;
 }
 
+function isTabClosed(tab: ManagedTab): boolean {
+  return tab.lifecycle === "closed";
+}
+
 interface PendingWaiter {
   resolve: (guest: GuestWebContents | null) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -1046,7 +1050,8 @@ export class BrowserGuestManager {
     }
 
     if (command.method === "list") {
-      const tabs = await Promise.all(this.ownedTabs(context).map((tab) => this.summary(tab)));
+      const summaries = await Promise.all(this.ownedTabs(context).map((tab) => this.summary(tab)));
+      const tabs = summaries.filter((tab): tab is BrowserTabSummary => tab !== undefined);
       return this.withMeta({ ok: true, tabs, elapsedMs: Date.now() - startedAt }, context);
     }
 
@@ -1179,10 +1184,12 @@ export class BrowserGuestManager {
       // 激活必须先原子更新 main selected 状态，再通知 origin renderer；renderer 仅在该 scope
       // 正处前台时展开对应 view，后台对话只能记录激活态，不能抢用户当前会话。
       this.selectTab(tab, true);
+      const summary = await this.summary(tab);
+      if (!summary) return this.closedTabSummaryResult(context, startedAt, tab);
       return this.withMeta(
         {
           ok: true,
-          tab: await this.summary(tab),
+          tab: summary,
           elapsedMs: Date.now() - startedAt,
         },
         context,
@@ -1206,10 +1213,12 @@ export class BrowserGuestManager {
         );
       }
       const tab = this.claimTab(candidate, context);
+      const summary = await this.summary(tab);
+      if (!summary) return this.closedTabSummaryResult(context, startedAt, tab);
       return this.withMeta(
         {
           ok: true,
-          tab: await this.summary(tab),
+          tab: summary,
           elapsedMs: Date.now() - startedAt,
         },
         context,
@@ -1251,10 +1260,12 @@ export class BrowserGuestManager {
         await this.closeTabDurably(tab);
         return this.withMeta(result, context, tab, "closed");
       }
+      const summary = await this.summary(tab);
+      if (!summary) return this.closedTabSummaryResult(context, startedAt, tab);
       return this.withMeta(
         {
           ok: true,
-          tab: await this.summary(tab),
+          tab: summary,
           elapsedMs: Date.now() - startedAt,
         },
         context,
@@ -1970,7 +1981,7 @@ export class BrowserGuestManager {
    */
   private isInFlightScreenshotAlive(tracked: InFlightScreenshot): boolean {
     const running = this.runningRequests.get(tracked.requestId);
-    return Boolean(running) && !running.controller.signal.aborted;
+    return running !== undefined && !running.controller.signal.aborted;
   }
 
   private createRecordingEntry(
@@ -2203,35 +2214,17 @@ export class BrowserGuestManager {
       if (!(await waitForDelay(action.durationMs, signal))) throw abortError();
       return;
     }
-    if (action.type === "click" || action.type === "type" || action.type === "waitFor") {
-      const locatorAction =
-        action.type === "click"
-          ? action.selector
-            ? {
-                name: "locator" as const,
-                selector: action.selector,
-                operation: action.doubleClick ? ("dblclick" as const) : ("click" as const),
-                ...(action.button ? { button: action.button } : {}),
-              }
-            : undefined
-          : action.type === "type"
-            ? {
-                name: "locator" as const,
-                selector: action.selector,
-                operation: "fill" as const,
-                value: action.text,
-              }
-            : {
-                name: "locator" as const,
-                selector: action.selector,
-                operation: "waitFor" as const,
-                state: action.state ?? "visible",
-              };
-      if (locatorAction) {
+    if (action.type === "click") {
+      if (action.selector) {
         const result = await executeIabPlaywrightLocator(
           view,
-          locatorAction,
-          action.type === "waitFor" ? (action.timeoutMs ?? 3_000) : 3_000,
+          {
+            name: "locator",
+            selector: action.selector,
+            operation: action.doubleClick ? "dblclick" : "click",
+            ...(action.button ? { button: action.button } : {}),
+          },
+          3_000,
           signal,
         );
         if (result.kind === "cancelled") throw abortError();
@@ -2251,6 +2244,32 @@ export class BrowserGuestManager {
       });
       pointer.x = action.x;
       pointer.y = action.y;
+      return;
+    }
+    if (action.type === "type" || action.type === "waitFor") {
+      const locatorAction =
+        action.type === "type"
+          ? {
+              name: "locator" as const,
+              selector: action.selector,
+              operation: "fill" as const,
+              value: action.text,
+            }
+          : {
+              name: "locator" as const,
+              selector: action.selector,
+              operation: "waitFor" as const,
+              state: action.state ?? "visible",
+            };
+      const result = await executeIabPlaywrightLocator(
+        view,
+        locatorAction,
+        action.type === "waitFor" ? (action.timeoutMs ?? 3_000) : 3_000,
+        signal,
+      );
+      if (result.kind === "cancelled") throw abortError();
+      if (result.kind === "timeout")
+        throw new Error(`recording action timed out: ${result.reason}`);
       return;
     }
     if (action.type === "hover") {
@@ -2645,7 +2664,8 @@ export class BrowserGuestManager {
       // 如果 destroyed/mismatch 已经发起过重绑，沿用该请求，避免同一 tab 重复创建 webview。
       if (!tab.rebindRequested) this.onOpenTabRequested?.(tab.tabId, tab.owner);
       // 某些测试/旧 renderer 会在 Ready 回调内同步 attach；不能在 attach 已成功后再注册 waiter。
-      if (tab.guest && !safeBool(() => tab.guest.isDestroyed(), true)) return tab.guest;
+      const attachedGuest = tab.guest;
+      if (attachedGuest && !safeBool(() => attachedGuest.isDestroyed(), true)) return attachedGuest;
       const guest = await this.waitForGuest(tab.tabId);
       if (guest && !safeBool(() => guest.isDestroyed(), true)) return guest;
       if (attempt === 0 && !tab.hasAttachedGuest && !tab.attachFailure) return null;
@@ -2789,21 +2809,47 @@ export class BrowserGuestManager {
     return this.ownedTabs(owner).at(-1)?.tabId;
   }
 
-  private async summary(tab: ManagedTab): Promise<BrowserTabSummary> {
+  private async summary(tab: ManagedTab): Promise<BrowserTabSummary | undefined> {
+    if (isTabClosed(tab)) return undefined;
     // guest 重绑恢复尚未完成时，替代 guest 仍可能报告 about:blank；各状态读取点
     // 都必须保留 logical cache，不能让临时 guest URL 覆盖后续恢复事实。
     if (tab.guest && !this.guestRecoveryFlights.has(tab.tabId)) {
       tab.cachedUrl = safeStr(() => tab.guest!.getURL(), tab.cachedUrl);
       tab.cachedTitle = safeStr(() => tab.guest!.getTitle(), tab.cachedTitle);
     }
+    const viewport = await this.readTabViewport(tab);
+    // viewport 读取可能跨异步边界；close 会移除 tab 和 guest，迟到摘要必须丢弃。
+    if (isTabClosed(tab) || this.tabs.get(tab.tabId) !== tab) return undefined;
     return {
       tabId: tab.tabId,
       url: tab.cachedUrl,
       title: tab.cachedTitle,
-      viewport: await this.readTabViewport(tab),
+      viewport,
       ...(this.effectiveActiveTabId(tab.owner) === tab.tabId ? { active: true } : {}),
-      ...(tab.lifecycle !== "active" ? { lifecycle: tab.lifecycle } : {}),
+      ...(tab.lifecycle !== "active" && tab.lifecycle !== "closed"
+        ? { lifecycle: tab.lifecycle }
+        : {}),
     };
+  }
+
+  private closedTabSummaryResult(
+    context: InternalExecutionContext,
+    startedAt: number,
+    tab: ManagedTab,
+  ): BrowserCommandResult {
+    return this.withMeta(
+      {
+        ok: false,
+        error: {
+          code: "backend_unavailable",
+          message: `browser tab '${tab.tabId}' closed before its summary was ready`,
+        },
+        elapsedMs: Date.now() - startedAt,
+      },
+      context,
+      tab,
+      "closed",
+    );
   }
 
   private async readTabViewport(tab: ManagedTab): Promise<BrowserViewportSize> {
@@ -3884,10 +3930,11 @@ export class BrowserGuestManager {
     tab: ManagedTab,
     guest: GuestWebContents,
   ): Promise<GuestWebContents | null> {
-    if (tab.lifecycle === "closed" || tab.guest !== guest) return null;
+    if (isTabClosed(tab) || tab.guest !== guest) return null;
     const restored = await this.restoreGuestState(tab, guest);
-    if (!restored || tab.lifecycle === "closed" || tab.guest !== guest) {
-      if (tab.lifecycle !== "closed" && tab.guest === guest) {
+    // await 期间 tab 可能被关闭；通过 helper 重读状态，避免控制流收窄掩盖 stale 检查。
+    if (!restored || isTabClosed(tab) || tab.guest !== guest) {
+      if (!isTabClosed(tab) && tab.guest === guest) {
         this.warn(`browser tab guest rebind restore failed tabId=${tab.tabId}`);
       }
       return null;

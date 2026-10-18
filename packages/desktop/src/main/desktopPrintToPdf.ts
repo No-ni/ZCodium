@@ -21,8 +21,9 @@ export function registerDesktopPrintToPdfIpcHandler(logger: {
         preferCSSPageSize: true,
         margins: { top: 0, bottom: 0, left: 0, right: 0 },
       });
-      // Buffer 可能是池化视图，切出独立 ArrayBuffer 再走 structured clone
-      const data = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      // Buffer 的底层缓冲可能是 SharedArrayBuffer；IPC 契约要求独立 ArrayBuffer。
+      const data = new ArrayBuffer(buffer.byteLength);
+      new Uint8Array(data).set(buffer);
       return { success: true, data };
     } catch (error) {
       logger.warn(

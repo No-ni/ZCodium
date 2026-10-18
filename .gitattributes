@@ -1,3 +1,7 @@
+# Windows core.autocrlf 会让格式器把未修改源码也判为失败；文本检出统一沿用仓库 LF。
+# 下方固定快照的 -text 规则仍按原始字节保存。
+* text=auto eol=lf
+
 # 保持脚本文件 LF 换行，避免 Windows CRLF 导致 shebang 解析失败
 *.mjs text eol=lf
 *.sh  text eol=lf

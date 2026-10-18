@@ -35,6 +35,7 @@ function guest(id: number) {
     getURL: () => "https://fixture.invalid/",
     getTitle: () => "Fixture",
     getZoomFactor: () => 1,
+    executeJavaScript: vi.fn(async (): Promise<unknown> => ({ width: 1280, height: 720 })),
     isCurrentlyAudible: () => false,
     isBeingCaptured: () => false,
     close: vi.fn(),
@@ -53,6 +54,14 @@ function manager(onOpen = vi.fn()) {
   const value = new BrowserGuestManager(undefined, undefined, undefined, onOpen);
   managers.push(value);
   return value;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 describe("BrowserGuestManager destroyed listener ownership", () => {
@@ -135,5 +144,38 @@ describe("BrowserGuestManager destroyed listener ownership", () => {
       removal.mockRestore();
       contents.destroy();
     }
+  });
+
+  it("drops a tab summary when the tab closes during viewport reading", async () => {
+    const owner = manager();
+    const contents = guest(1);
+    const viewport = deferred<unknown>();
+    contents.executeJavaScript = vi.fn(() => viewport.promise);
+    expect(
+      owner.attachGuest("tab:fixture", 1, {
+        windowId: 1,
+        workspaceKey: "workspace:fixture",
+        sessionId: "session:fixture",
+      }).ok,
+    ).toBe(true);
+
+    const context = {
+      requestId: "list:fixture",
+      browserId: "unclaimed-iab",
+      browserGeneration: 0,
+      windowId: 1,
+      workspaceKey: "workspace:fixture",
+      sessionId: "session:fixture",
+      clientMode: "desktop-continuous" as const,
+    };
+    const listing = owner.execute(context, { method: "list" });
+    expect(contents.executeJavaScript).toHaveBeenCalledOnce();
+    await owner.execute(
+      { ...context, requestId: "close:fixture" },
+      { method: "closeSession", closeTabs: true },
+    );
+    viewport.resolve({ width: 1280, height: 720 });
+
+    await expect(listing).resolves.toMatchObject({ ok: true, tabs: [] });
   });
 });

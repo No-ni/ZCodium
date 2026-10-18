@@ -17,10 +17,14 @@ export interface RelayPairEntry {
   passHash: string;
   device?: WebSocket;
   mobile?: WebSocket;
-  nonce?: { value: string; role: "device" | "mobile"; expiresAt: number };
-  pairStatus: "waiting" | "matched";
   lastSeenAt: number;
   refreshAt: number;
+}
+
+export interface RelayAuthChallenge {
+  value: string;
+  role: "device" | "mobile";
+  expiresAt: number;
 }
 
 export type RelayLogger = {
@@ -63,7 +67,6 @@ export class RelayPairingRegistry {
     this.pairs.set(deviceSid, {
       deviceSid,
       passHash,
-      pairStatus: "waiting",
       lastSeenAt: now,
       refreshAt: now + this.options.pairTtlMs,
     });
@@ -71,21 +74,30 @@ export class RelayPairingRegistry {
     return deviceSid;
   }
 
-  issueChallenge(entry: RelayPairEntry, role: "device" | "mobile"): string {
-    const nonce = randomBytes(16).toString("base64url");
-    entry.nonce = { value: nonce, role, expiresAt: Date.now() + NONCE_TTL_MS };
-    return nonce;
+  issueChallenge(role: "device" | "mobile"): RelayAuthChallenge {
+    return {
+      value: randomBytes(16).toString("base64url"),
+      role,
+      expiresAt: Date.now() + NONCE_TTL_MS,
+    };
   }
 
   /** 校验 proof = HMAC-SHA256(passHash, `${nonce}|${role}|${deviceSid}`)。 */
-  verifyProof(entry: RelayPairEntry, role: "device" | "mobile", proof: string): boolean {
-    const nonce = entry.nonce;
-    if (!nonce || nonce.role !== role || nonce.expiresAt <= Date.now()) {
+  verifyProof(
+    entry: RelayPairEntry,
+    challenge: RelayAuthChallenge,
+    role: "device" | "mobile",
+    proof: string,
+  ): boolean {
+    if (
+      this.lookup(entry.deviceSid) !== entry ||
+      challenge.role !== role ||
+      challenge.expiresAt <= Date.now()
+    ) {
       return false;
     }
-    entry.nonce = undefined;
     const expected = createHmac("sha256", entry.passHash)
-      .update(`${nonce.value}|${role}|${entry.deviceSid}`)
+      .update(`${challenge.value}|${role}|${entry.deviceSid}`)
       .digest("base64url");
     const a = Buffer.from(expected);
     const b = Buffer.from(proof);
@@ -111,7 +123,6 @@ export class RelayPairingRegistry {
       this.sendQuietly(previous, { type: "error", code: "KICKED", message: "kicked" });
       this.closeQuietly(previous, 4002, "kicked");
     }
-    entry.pairStatus = "matched";
   }
 
   unbind(entry: RelayPairEntry, socket: WebSocket): "device" | "mobile" | null {
@@ -121,7 +132,6 @@ export class RelayPairingRegistry {
     }
     if (entry.mobile === socket) {
       entry.mobile = undefined;
-      entry.pairStatus = "waiting";
       return "mobile";
     }
     return null;
@@ -137,9 +147,24 @@ export class RelayPairingRegistry {
     return entry;
   }
 
+  isCurrentBinding(entry: RelayPairEntry, role: "device" | "mobile", socket: WebSocket): boolean {
+    return (
+      this.lookup(entry.deviceSid) === entry &&
+      socket.readyState === socket.OPEN &&
+      (role === "device" ? entry.device : entry.mobile) === socket
+    );
+  }
+
   /** data 帧转发：仅 matched 且对端在线时投递。 */
-  forward(from: "device" | "mobile", entry: RelayPairEntry, payload: unknown): boolean {
-    if (entry.pairStatus !== "matched") return false;
+  forward(
+    from: "device" | "mobile",
+    entry: RelayPairEntry,
+    socket: WebSocket,
+    payload: unknown,
+  ): boolean {
+    if (!this.isCurrentBinding(entry, from, socket) || this.pairStatusOf(entry) !== "matched") {
+      return false;
+    }
     const target = from === "device" ? entry.mobile : entry.device;
     if (!target || target.readyState !== target.OPEN) return false;
     const serialized = JSON.stringify({ type: "data", payload });
@@ -157,7 +182,11 @@ export class RelayPairingRegistry {
 
   /** 心跳/查询：返回当前 pair_status。 */
   pairStatusOf(entry: RelayPairEntry): "waiting" | "matched" {
-    return entry.pairStatus;
+    return this.lookup(entry.deviceSid) === entry &&
+      this.isOpen(entry.device) &&
+      this.isOpen(entry.mobile)
+      ? "matched"
+      : "waiting";
   }
 
   touch(entry: RelayPairEntry): void {
@@ -202,6 +231,10 @@ export class RelayPairingRegistry {
     } catch {
       // 对端已断开：忽略
     }
+  }
+
+  private isOpen(socket: WebSocket | undefined): socket is WebSocket {
+    return Boolean(socket && socket.readyState === socket.OPEN);
   }
 
   private closeQuietly(socket: WebSocket | undefined, code: number, reason: string): void {

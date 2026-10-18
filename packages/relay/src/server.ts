@@ -92,14 +92,26 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
   };
 
   async function attachClient(ws: WebSocket, ip: string): Promise<void> {
-    let entry: ReturnType<RelayPairingRegistry["lookup"]> | undefined;
-    let role: "device" | "mobile" | undefined;
+    let pendingAuth:
+      | {
+          entry: NonNullable<ReturnType<RelayPairingRegistry["lookup"]>>;
+          role: "device" | "mobile";
+          challenge: ReturnType<RelayPairingRegistry["issueChallenge"]>;
+        }
+      | undefined;
+    let authenticated:
+      | {
+          entry: NonNullable<ReturnType<RelayPairingRegistry["lookup"]>>;
+          role: "device" | "mobile";
+        }
+      | undefined;
     if (!options.rateLimiter.allowConnect(ip)) {
       ws.close(4008, "rate-limited");
       return;
     }
 
     ws.on("message", (raw) => {
+      if (ws.readyState !== ws.OPEN) return;
       if (!options.rateLimiter.allowFrame(ip)) {
         ws.close(4008, "rate-limited");
         return;
@@ -135,11 +147,13 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
     });
 
     ws.on("close", () => {
-      if (!entry) return;
-      const unbound = registry.unbind(entry, ws);
-      if (unbound === "mobile" && entry.device) {
-        // 通知桌面：手机已离开，回到 waiting。
-        send(entry.device, { type: "pair_status_ack", pair_status: "waiting" });
+      if (!authenticated) return;
+      const { entry, role: boundRole } = authenticated;
+      if (!registry.unbind(entry, ws)) return;
+      const peer = boundRole === "device" ? entry.mobile : entry.device;
+      // matched 只由当前 OPEN 绑定推导；设备断线也必须通知手机释放旧 bridge。
+      if (peer) {
+        send(peer, { type: "pair_status_ack", pair_status: registry.pairStatusOf(entry) });
       }
     });
     ws.on("error", () => ws.close(1011, "internal"));
@@ -162,6 +176,11 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
           return;
         }
         case "auth_init": {
+          // 一个 socket 只允许一个握手；否则它可在旧角色仍绑定时切 sid/角色。
+          if (pendingAuth || authenticated) {
+            fail(socket, "AUTH_FAILED");
+            return;
+          }
           const frameRole = frame.role === "mobile" ? "mobile" : "device";
           const deviceSid = String(frame.device_sid ?? "");
           const candidate = registry.lookup(deviceSid);
@@ -169,65 +188,91 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
             fail(socket, "AUTH_FAILED");
             return;
           }
-          entry = candidate;
-          role = frameRole;
-          const nonce = registry.issueChallenge(entry, frameRole);
-          send(socket, { type: "auth_challenge", nonce });
+          const challenge = registry.issueChallenge(frameRole);
+          pendingAuth = { entry: candidate, role: frameRole, challenge };
+          send(socket, { type: "auth_challenge", nonce: challenge.value });
           return;
         }
         case "auth_response": {
-          if (!entry || !role) {
+          const attempt = pendingAuth;
+          pendingAuth = undefined;
+          if (
+            !attempt ||
+            String(frame.device_sid ?? "") !== attempt.entry.deviceSid ||
+            !registry.verifyProof(
+              attempt.entry,
+              attempt.challenge,
+              attempt.role,
+              String(frame.proof ?? ""),
+            )
+          ) {
             fail(socket, "AUTH_FAILED");
             return;
           }
-          if (!registry.verifyProof(entry, role, String(frame.proof ?? ""))) {
-            fail(socket, "AUTH_FAILED");
-            return;
-          }
-          registry.bindRole(entry, role, socket);
-          entry.pairStatus = role === "mobile" ? "matched" : entry.pairStatus;
+          const { entry, role: boundRole } = attempt;
+          registry.bindRole(entry, boundRole, socket);
+          authenticated = { entry, role: boundRole };
+          const pairStatus = registry.pairStatusOf(entry);
           send(socket, {
             type: "auth_ack",
-            pair_status: registry.pairStatusOf(entry),
+            pair_status: pairStatus,
           });
-          if (role === "mobile" && entry.device) {
-            send(entry.device, { type: "pair_status_ack", pair_status: "matched" });
+          const peer = boundRole === "device" ? entry.mobile : entry.device;
+          if (peer) {
+            send(peer, { type: "pair_status_ack", pair_status: pairStatus });
           }
           options.logger.info("relay: authenticated", {
-            role,
+            role: boundRole,
             clientIp,
             deviceSidSuffix: entry.deviceSid.slice(-6),
-            pairStatus: registry.pairStatusOf(entry),
+            pairStatus,
           });
           return;
         }
         case "pair_status_query": {
-          if (!entry) {
+          if (
+            !authenticated ||
+            String(frame.device_sid ?? "") !== authenticated.entry.deviceSid ||
+            !registry.isCurrentBinding(authenticated.entry, authenticated.role, socket)
+          ) {
             fail(socket, "AUTH_FAILED");
             return;
           }
+          const { entry } = authenticated;
           registry.touch(entry);
           send(socket, { type: "pair_status_ack", pair_status: registry.pairStatusOf(entry) });
           return;
         }
         case "data": {
-          if (!entry || !role) {
+          if (
+            !authenticated ||
+            !registry.isCurrentBinding(authenticated.entry, authenticated.role, socket)
+          ) {
             fail(socket, "AUTH_FAILED");
             return;
           }
+          const { entry, role: boundRole } = authenticated;
           registry.touch(entry);
-          registry.forward(role, entry, frame.payload);
+          registry.forward(boundRole, entry, socket, frame.payload);
           return;
         }
         case "device_unregister": {
-          // 桌面刷新配对/销毁：立即作废该 sid 的全部配对关系。
-          const target = registry.lookup(String(frame.device_sid ?? ""));
-          if (target) {
-            registry.drop(target);
-            options.logger.info("relay: device unregistered", {
-              deviceSidSuffix: target.deviceSid.slice(-6),
-            });
+          // 只有绑定该 sid 的桌面可作废配对；未鉴权和手机不能注销其他设备。
+          if (
+            !authenticated ||
+            authenticated.role !== "device" ||
+            String(frame.device_sid ?? "") !== authenticated.entry.deviceSid ||
+            !registry.isCurrentBinding(authenticated.entry, "device", socket)
+          ) {
+            fail(socket, "AUTH_FAILED");
+            return;
           }
+          const { entry } = authenticated;
+          authenticated = undefined;
+          registry.drop(entry);
+          options.logger.info("relay: device unregistered", {
+            deviceSidSuffix: entry.deviceSid.slice(-6),
+          });
           return;
         }
         default:
@@ -237,8 +282,8 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
   }
 }
 
-function send(ws: WebSocket, frame: unknown): void {
-  if (ws.readyState !== ws.OPEN) return;
+function send(ws: WebSocket | undefined, frame: unknown): void {
+  if (!ws || ws.readyState !== ws.OPEN) return;
   ws.send(JSON.stringify(frame));
 }
 

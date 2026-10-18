@@ -2,10 +2,12 @@ import type {
   BrowserViewportSize,
   BrowserViewScreenshotSurfacePreparePayload,
   BrowserViewScreenshotSurfaceReleasePayload,
-  BrowserViewSurfaceScaleMode,
 } from "@zcode/shared";
 
 const VIEWPORT_TOLERANCE_PX = 1;
+type BrowserViewSurfaceScaleMode = NonNullable<
+  BrowserViewScreenshotSurfacePreparePayload["surfaceScaleMode"]
+>;
 
 export interface BrowserScreenshotActivityLease {
   readonly invalidated?: AbortSignal;

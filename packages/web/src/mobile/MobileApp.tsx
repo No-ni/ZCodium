@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- 移动端首页与会话共享连接态，避免拆分状态投影所有权。 */
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MobileRemoteControlClient,
   readPairingParamsFromLocation,
@@ -10,10 +10,13 @@ import {
   type MobileConnectionSnapshot,
 } from "./connectionPresentation.js";
 import {
-  conversationReducer,
-  initialConversationState,
-  type ConversationScope,
-} from "./conversationReducer.js";
+  createCommandEnvelope,
+  pendingCommandRegistry,
+  type ConversationStoreState,
+  type ConversationTransport,
+} from "@zcode/ui/conversation-client";
+import type { CommandEnvelope, ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
 import { logger } from "../../../ui/src/logger.js";
 import type {
@@ -23,14 +26,29 @@ import type {
   WebRemoteControlWorkspaceRef,
 } from "@zcode/shared";
 
-/**
- * 移动端远控应用：mobileHome（工作区/任务列表） + mobileShell（任务会话）。
- * 会话内容经 rpc 桥读桌面 Host；发送走 IZCodeTaskService.sendPrompt，
- * clientMode 固定 web-remote-replayable（与桌面 continuous 语义分离）。
- *
- * 实时更新走 Host replayable 事件流订阅（`onDynamicTaskEvent`），不再周期轮询：
- * 首次/恢复先 resume 同一任务，再读取 `readSessionMessages` 作为快照屏障。
- */
+/** 手机复用已有 Host 的 replayable V4 会话投影，不另建运行时或已接受输入队列。 */
+interface PendingSubmission {
+  scope: string;
+  accessKey: string;
+  revision: number;
+  text: string;
+  envelope: CommandEnvelope;
+}
+
+interface DraftEntry {
+  scope: string;
+  text: string;
+  revision: number;
+}
+
+function hasSubmittedInput(snapshot: ConversationSnapshot, commandId: string): boolean {
+  return (
+    snapshot.queue.items.some((item) => item.sourceCommandId === commandId) ||
+    snapshot.rows.window.some(
+      (row) => row.kind === "userInput" && row.sourceCommandId === commandId,
+    )
+  );
+}
 
 type View = { kind: "home" } | { kind: "task"; task: WebRemoteControlTaskRef };
 
@@ -60,11 +78,24 @@ export function MobileApp() {
   const [organize, setOrganize] = useState<"timeline" | "workspace">("timeline");
   const [sortBy, setSortBy] = useState<"created" | "updated">("updated");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [conversation, dispatchConversation] = useReducer(
-    conversationReducer,
-    initialConversationState,
-  );
-  const [draft, setDraft] = useState("");
+  const [conversationView, setConversationView] = useState<{
+    scope: string;
+    accessKey: string;
+    state: ConversationStoreState;
+  } | null>(null);
+  const lifecycleRef = useRef<TaskConversationLifecycle | null>(null);
+  const lifecycleAccessRef = useRef<string | null>(null);
+  // 单槽会被另一个任务的编辑/发送覆盖；按完整目标保存草稿与原 commandId 对账线索。
+  const [drafts, setDrafts] = useState<Map<string, DraftEntry>>(() => new Map());
+  const draftRevision = useRef(0);
+  const pendingSubmissions = useRef(new Map<string, PendingSubmission>());
+  // 门禁属于具体提交，旧 ACK/查询只能释放自己的门禁，不能解开更新提交。
+  const inFlightSubmission = useRef<PendingSubmission | null>(null);
+  const [sending, setSending] = useState(false);
+  const currentScope =
+    view.kind === "task" ? JSON.stringify([view.task.workspaceKey, view.task.taskId]) : "home";
+  const scopeRef = useRef(currentScope);
+  scopeRef.current = currentScope;
   const [notice, setNotice] = useState<string | null>(null);
   // 传输降级回调由「订阅 effect」注册：`onPayload` 在 client 构造时绑定，
   // 之后通过 ref 把 bridge-degraded 路由到当前 task 的完整桥恢复。
@@ -149,51 +180,177 @@ export function MobileApp() {
   const selectedWorkspacePath = selectedWorkspace?.workspacePath;
   const selectedWorkspaceIdentity = selectedWorkspace?.workspaceIdentity;
   const selectedRemoteSessionId = selectedWorkspace?.remoteSessionId;
+  const accessKey = JSON.stringify([
+    selectedWorkspaceKey,
+    selectedTaskId,
+    selectedWorkspacePath,
+    selectedWorkspaceIdentity,
+    selectedRemoteSessionId,
+  ]);
+  const draftState = drafts.get(accessKey);
+  const draft = draftState?.scope === currentScope ? draftState.text : "";
+  const conversation =
+    conversationView?.scope === currentScope && conversationView.accessKey === accessKey
+      ? conversationView.state
+      : null;
 
-  // 任务视图订阅：进入任务即订阅 Host replayable 事件流；退出/换 workspace 释放旧订阅。
-  // 断线重连（connection 重新变 paired）会重跑本 effect：重开 bridge + 重订阅 + 重读快照。
+  const confirmSubmission = useCallback((pending: PendingSubmission) => {
+    if (pendingSubmissions.current.get(pending.accessKey) !== pending) return;
+    pendingSubmissions.current.delete(pending.accessKey);
+    if (inFlightSubmission.current === pending) {
+      inFlightSubmission.current = null;
+      setSending(false);
+    }
+    if (scopeRef.current === pending.scope && lifecycleAccessRef.current === pending.accessKey) {
+      setNotice(null);
+    }
+    // ACK 可在离开任务后到达；按草稿自己的完整目标与版本清除，避免返回后重复发送已接受输入。
+    const revision = ++draftRevision.current;
+    setDrafts((previous) => {
+      const current = previous.get(pending.accessKey);
+      if (current?.scope !== pending.scope || current.revision !== pending.revision)
+        return previous;
+      const next = new Map(previous);
+      next.set(pending.accessKey, { ...current, text: "", revision });
+      return next;
+    });
+  }, []);
+
+  const reconcileSubmission = useCallback(
+    async (transport: ConversationTransport, scope: string, targetKey: string) => {
+      const pending = pendingSubmissions.current.get(targetKey);
+      if (
+        !pending ||
+        pending.scope !== scope ||
+        pending.accessKey !== targetKey ||
+        inFlightSubmission.current
+      )
+        return;
+      const result = await transport.queryCommands({
+        commands: [
+          {
+            sessionId: pending.envelope.sessionId,
+            commandId: pending.envelope.commandId,
+          },
+        ],
+      });
+      const ack = result.results.find(
+        (item) =>
+          item.key.sessionId === pending.envelope.sessionId &&
+          item.key.commandId === pending.envelope.commandId,
+      )?.result;
+      // 查询可比手动重试更晚返回，不能用旧查询的拒绝结果清掉新一轮提交或改写其提示。
+      if (pendingSubmissions.current.get(targetKey) !== pending) return;
+      pendingCommandRegistry.applyQuery(result);
+      if (!ack || ack === "unknown") return;
+      if (ack.status === "failed" && ack.reasonCode === "fault.command.queryUnavailable") {
+        // 查询暂不可用不是命令拒绝；保留原 envelope，等用户手动重试时复用 commandId。
+        if (scopeRef.current === scope && lifecycleAccessRef.current === pending.accessKey) {
+          setNotice("发送结果待确认，草稿已保留。点击发送可使用原提交重试。");
+        }
+        return;
+      }
+      if (ack.status === "accepted" || ack.status === "duplicate") {
+        if (scopeRef.current === scope && lifecycleAccessRef.current === pending.accessKey) {
+          lifecycleRef.current?.store?.expectAcceptedInputProjection(pending.envelope.commandId);
+        }
+        confirmSubmission(pending);
+      } else if (pendingSubmissions.current.get(targetKey) === pending) {
+        if (scopeRef.current === scope && lifecycleAccessRef.current === pending.accessKey) {
+          lifecycleRef.current?.store?.settleCommand(pending.envelope.commandId);
+        }
+        pendingSubmissions.current.delete(targetKey);
+        if (scopeRef.current === scope && lifecycleAccessRef.current === pending.accessKey) {
+          const message = ack.message?.trim();
+          setNotice(
+            message && !message.startsWith("fault.")
+              ? `${message}，草稿已保留`
+              : "消息未发送，草稿已保留",
+          );
+        }
+      }
+    },
+    [confirmSubmission],
+  );
+
   useEffect(() => {
     if (
       !selectedTaskId ||
       !selectedWorkspaceKey ||
       !selectedWorkspacePath ||
       connection !== "paired"
-    )
+    ) {
+      setConversationView((previous) =>
+        previous
+          ? {
+              ...previous,
+              state: { ...previous.state, status: "connecting" },
+            }
+          : null,
+      );
       return;
+    }
     const client = clientRef.current;
     if (!client) return;
-    const workspaceKey = selectedWorkspaceKey;
-    const taskId = selectedTaskId;
-    const scope: ConversationScope = { workspaceKey, taskId };
+    const scope = JSON.stringify([selectedWorkspaceKey, selectedTaskId]);
     const access = {
-      workspaceKey,
-      taskId,
+      workspaceKey: selectedWorkspaceKey,
+      taskId: selectedTaskId,
       workspacePath: selectedWorkspacePath,
       workspaceIdentity: selectedWorkspaceIdentity,
       remoteSessionId: selectedRemoteSessionId,
     };
-    const lifecycle = new TaskConversationLifecycle(scope, {
+    let wasReady = false;
+    const lifecycle = new TaskConversationLifecycle(access, {
       prepare: () => client.prepareTask(access),
-      subscribe: (onEvent) => client.subscribeTaskStream(access, onEvent),
-      read: () =>
-        client.readTaskSnapshot({
-          ...access,
-          limit: 100,
-        }),
-      dispatch: (action) => {
-        dispatchConversation(action);
-        if (action.type === "applySnapshot") setNotice(null);
+      open: () => client.openTaskConversation(access),
+      onState: (state) => {
+        // Socket 重连会重建 lifecycle；保留同目标旧正文用于阅读，首帧前仍禁发，不把旧水位喂回 store。
+        setConversationView((previous) => ({
+          scope,
+          accessKey,
+          state:
+            !state.snapshot && previous?.accessKey === accessKey
+              ? {
+                  ...state,
+                  status: state.status === "live" ? "connecting" : state.status,
+                  snapshot: previous.state.snapshot,
+                }
+              : state,
+        }));
+        if (state.snapshot) {
+          pendingCommandRegistry.reconcileSnapshot(state.snapshot);
+          const pending = pendingSubmissions.current.get(accessKey);
+          if (
+            pending?.scope === scope &&
+            hasSubmittedInput(state.snapshot, pending.envelope.commandId)
+          ) {
+            confirmSubmission(pending);
+          }
+        }
+        const ready = state.status === "live" && state.snapshot !== null;
+        if (ready && !wasReady) {
+          setNotice(null);
+          if (lifecycle.transport) {
+            void reconcileSubmission(lifecycle.transport, scope, accessKey).catch(() => {});
+          }
+        }
+        wasReady = ready;
       },
       onError: (error) => reportError("[mobile] 会话同步失败", error),
     });
-    // 协议先作废 bridge，控制器再重订阅/补读；不依赖 flags 变化触发 React effect。
+    lifecycleRef.current = lifecycle;
+    lifecycleAccessRef.current = accessKey;
     onTransportDegradedRef.current = () => lifecycle.recoverBridge();
     lifecycle.start();
     return () => {
       lifecycle.dispose();
+      if (lifecycleRef.current === lifecycle) {
+        lifecycleRef.current = null;
+        lifecycleAccessRef.current = null;
+      }
       onTransportDegradedRef.current = () => {};
     };
-    // 清单的标题/状态更新不能重建同 scope 的订阅，否则持续立快照屏障会丢掉实时输出。
   }, [
     selectedTaskId,
     selectedWorkspaceKey,
@@ -202,32 +359,136 @@ export function MobileApp() {
     selectedRemoteSessionId,
     connection,
     reportError,
+    confirmSubmission,
+    reconcileSubmission,
+    accessKey,
   ]);
 
   const sendPrompt = useCallback(async () => {
-    const client = clientRef.current;
+    const lifecycle = lifecycleRef.current;
+    const state = lifecycle?.store?.getState();
+    const transport = lifecycle?.transport;
     const content = draft.trim();
-    if (!client || view.kind !== "task" || !content) return;
-    const { workspaceKey, taskId } = view.task;
-    const workspace = findWorkspace(bootstrap, workspaceKey);
-    setDraft("");
-    dispatchConversation({
-      type: "appendOptimisticUserMessage",
-      scope: { workspaceKey, taskId },
-      id: `local-${Date.now()}`,
-      text: content,
+    if (
+      connection !== "paired" ||
+      lifecycleAccessRef.current !== accessKey ||
+      !transport ||
+      state?.status !== "live" ||
+      !state.snapshot ||
+      view.kind !== "task" ||
+      !content ||
+      inFlightSubmission.current
+    )
+      return;
+    const scope = JSON.stringify([view.task.workspaceKey, view.task.taskId]);
+    const prior = pendingSubmissions.current.get(accessKey);
+    const revision = draftState?.revision ?? 0;
+    // ACK 丢失后手动重试沿用 commandId，由 CommandInbox 幂等裁决，绝不自动重放。
+    const pending =
+      prior?.scope === scope && prior.text === content
+        ? { ...prior, revision }
+        : {
+            scope,
+            accessKey,
+            revision,
+            text: content,
+            envelope: createCommandEnvelope({
+              type: "sendText",
+              sessionId: view.task.taskId,
+              payload: {
+                text: content,
+                modelSelection: state.snapshot.config.modelSelection,
+                mode: submissionModeSchema.safeParse(state.snapshot.config.mode).data,
+                planEnabled: state.snapshot.config.planEnabled,
+              },
+            }),
+          };
+    pendingSubmissions.current.set(accessKey, pending);
+    inFlightSubmission.current = pending;
+    setNotice(null);
+    pendingCommandRegistry.record(pending.envelope, {
+      workspace: {
+        workspacePath: selectedWorkspacePath ?? "",
+        workspaceIdentity: selectedWorkspaceIdentity,
+      },
     });
+    setSending(true);
+    lifecycle.store?.markCommandPending({
+      commandId: pending.envelope.commandId,
+      type: "sendText",
+      issuedAt: pending.envelope.issuedAt,
+    });
+    let shouldReconcile = false;
     try {
-      await client.sendTaskPrompt({
-        workspaceKey,
-        taskId,
-        content,
-        remoteSessionId: workspace?.remoteSessionId,
-      });
+      const ack = await transport.sendCommand(pending.envelope);
+      if (pendingSubmissions.current.get(accessKey) !== pending) return;
+      pendingCommandRegistry.applyAck(pending.envelope, ack);
+      if (ack.status === "accepted" || ack.status === "duplicate") {
+        lifecycle.store?.expectAcceptedInputProjection(pending.envelope.commandId);
+        confirmSubmission(pending);
+      } else {
+        lifecycle.store?.settleCommand(pending.envelope.commandId);
+        if (pendingSubmissions.current.get(accessKey) !== pending) return;
+        pendingSubmissions.current.delete(accessKey);
+        if (scopeRef.current === scope && lifecycleAccessRef.current === pending.accessKey)
+          setNotice(ack.message ?? "消息未发送，草稿已保留");
+      }
     } catch (error) {
-      reportError("[mobile] 发送消息失败", error);
+      if (pendingSubmissions.current.get(accessKey) !== pending) return;
+      if (scopeRef.current === scope && lifecycleAccessRef.current === pending.accessKey)
+        reportError("[mobile] 发送消息失败，草稿已保留", error);
+      shouldReconcile = true;
+    } finally {
+      if (inFlightSubmission.current === pending) {
+        inFlightSubmission.current = null;
+        setSending(false);
+        if (shouldReconcile) {
+          const current = lifecycleRef.current;
+          if (
+            lifecycleAccessRef.current === pending.accessKey &&
+            current?.transport &&
+            current.store?.getState().snapshot
+          ) {
+            void reconcileSubmission(current.transport, scope, pending.accessKey).catch(() => {});
+          }
+        }
+      }
     }
-  }, [draft, view, bootstrap, reportError]);
+  }, [
+    draft,
+    draftState?.revision,
+    view,
+    connection,
+    accessKey,
+    selectedWorkspacePath,
+    selectedWorkspaceIdentity,
+    reportError,
+    confirmSubmission,
+    reconcileSubmission,
+  ]);
+
+  const messages = useMemo(
+    () =>
+      (conversation?.snapshot?.rows.window ?? []).flatMap((row) =>
+        row.kind === "userInput" || row.kind === "assistantText"
+          ? [
+              {
+                id: String(row.rowId),
+                role: row.kind === "userInput" ? "user" : "assistant",
+                text: row.text,
+              },
+            ]
+          : [],
+      ),
+    [conversation?.snapshot],
+  );
+  const conversationReady =
+    connection === "paired" &&
+    conversation?.status === "live" &&
+    conversation.snapshot !== null &&
+    conversationView?.accessKey === accessKey;
+  // 发送确认在途只限制再次发送；只读历史分页仍可复用已就绪的会话。
+  const canSend = conversationReady && !inFlightSubmission.current;
 
   const groupedWorkspaces = useMemo(() => {
     const workspaces = bootstrap?.workspaces ?? [];
@@ -263,28 +524,53 @@ export function MobileApp() {
         connectionDetail={connectionSnapshot.detail}
         title={`任务会话`}
         onBack={() => setView({ kind: "home" })}
+        onRefresh={() => lifecycleRef.current?.recoverBridge()}
         notice={notice}
         composer={
           <div className="flex min-w-0 gap-2">
             <input
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                const revision = ++draftRevision.current;
+                setDrafts((previous) => {
+                  const next = new Map(previous);
+                  next.set(accessKey, {
+                    scope: currentScope,
+                    text: event.target.value,
+                    revision,
+                  });
+                  return next;
+                });
+              }}
               placeholder="发送消息"
               className="h-10 min-w-0 flex-1 rounded-lg border border-input-border bg-surface px-3 text-mobile-input-safe text-foreground"
             />
             <button
               type="button"
               className="h-10 shrink-0 rounded-lg bg-primary px-4 text-ui-base font-medium text-primary-foreground disabled:opacity-50"
-              disabled={!draft.trim()}
+              disabled={!draft.trim() || !canSend}
               onClick={() => void sendPrompt()}
             >
-              发送
+              {sending ? "确认中" : "发送"}
             </button>
           </div>
         }
       >
         <div className="flex min-w-0 flex-col gap-3">
-          {conversation.messages.map((message) => (
+          {conversation?.snapshot &&
+          conversation.snapshot.rows.firstRowId !== null &&
+          (conversation.snapshot.rows.window[0]?.rowId ?? 0) >
+            conversation.snapshot.rows.firstRowId ? (
+            <button
+              type="button"
+              className="self-center text-ui-caption text-primary disabled:opacity-50"
+              disabled={!conversationReady || conversation.loadingOlder}
+              onClick={() => void lifecycleRef.current?.store?.loadOlder()}
+            >
+              {conversation.loadingOlder ? "正在加载…" : "加载更早消息"}
+            </button>
+          ) : null}
+          {messages.map((message) => (
             <div
               key={message.id}
               className={
@@ -296,8 +582,24 @@ export function MobileApp() {
               {message.text}
             </div>
           ))}
-          {conversation.messages.length === 0 ? (
-            <p className="text-center text-ui-base text-foreground-subtle">暂无消息</p>
+          {conversation?.status === "connecting" && conversation.snapshot ? (
+            <p role="status" className="text-center text-ui-caption text-foreground-subtle">
+              正在同步会话…
+            </p>
+          ) : null}
+          {conversation?.snapshot?.queue.items.map((item) => (
+            <div
+              key={item.queueItemId}
+              className="min-w-0 max-w-[85%] self-end whitespace-pre-wrap rounded-2xl border border-input-border px-3 py-2 text-ui-base text-foreground [overflow-wrap:anywhere]"
+            >
+              <span className="text-ui-caption text-foreground-subtle">排队中</span>
+              <p>{item.text}</p>
+            </div>
+          ))}
+          {messages.length === 0 && !conversation?.snapshot?.queue.items.length ? (
+            <p className="text-center text-ui-base text-foreground-subtle">
+              {conversation?.snapshot ? "暂无消息" : "正在同步会话…"}
+            </p>
           ) : null}
         </div>
       </Shell>

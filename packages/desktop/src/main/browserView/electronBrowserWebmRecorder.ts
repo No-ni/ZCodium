@@ -373,12 +373,10 @@ export async function createElectronBrowserWebmRecorder(
     if (!closed) fail(recorderError(`recorder renderer exited: ${details.reason ?? "unknown"}`));
   };
   recorderWindow.webContents.on("render-process-gone", onRendererGone);
-  const onConsoleMessage = (
-    _event: unknown,
-    details: { level?: string; message?: string },
-  ): void => {
+  // Electron 将 console 字段放在首个 Event 上；第二个参数是旧接口的数字 level。
+  const onConsoleMessage = (details: { level: string; message: string }): void => {
     debug?.(
-      `[browser-recording] recorder console level=${details.level ?? "unknown"} message=${details.message ?? ""}`,
+      `[browser-recording] recorder console level=${details.level} message=${details.message}`,
     );
   };
   recorderWindow.webContents.on("console-message", onConsoleMessage);

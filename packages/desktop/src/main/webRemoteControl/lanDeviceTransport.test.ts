@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Server } from "node:http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WEB_REMOTE_CONTROL_RPC_LIMITS } from "@zcode/shared";
 import { WebSocket } from "ws";
 import {
@@ -57,6 +58,30 @@ function createRecorder(): Recorder {
     },
   };
   return recorder;
+}
+
+async function hasListeningHttpEndpoint(port: number): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/healthz`, {
+      signal: AbortSignal.timeout(250),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function closeTestServersOnPorts(ports: ReadonlySet<number>): Promise<void> {
+  const getHandles = (process as NodeJS.Process & { _getActiveHandles(): unknown[] })
+    ._getActiveHandles;
+  for (const handle of getHandles.call(process)) {
+    if (!(handle instanceof Server) || !handle.listening) continue;
+    const address = handle.address();
+    if (!address || typeof address === "string" || !ports.has(address.port)) continue;
+    handle.closeAllConnections();
+    await new Promise<void>((resolve) => handle.close(() => resolve()));
+  }
 }
 
 /** 手机侧完整握手：auth_init → auth_challenge → auth_response → auth_ack。 */
@@ -226,5 +251,172 @@ describe("createLanDeviceTransport", () => {
     mobile.socket.close();
     firstTransport.dispose();
     secondTransport.dispose();
+  });
+});
+
+describe("LAN endpoint startup lifecycle", () => {
+  it("并发窗口启动共用一次 bind，停止后没有遗留监听", async () => {
+    const sharedEndpoint = new LanRemoteControlEndpoint({
+      logger,
+      deviceMid: "test-mid",
+      deviceName: "test-device",
+      appVersion: "0.0.0-test",
+      handleMobilePayload: () => undefined,
+      maxPhysicalFrameBytes: WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+    });
+    // 单地址让每次意外 bind 都占据不同 loopback 端口，便于检查 stop 是否关闭所有真实 listener。
+    (sharedEndpoint as unknown as { collectBindAddresses(): string[] }).collectBindAddresses =
+      () => ["127.0.0.1"];
+    const originalStart = sharedEndpoint.start.bind(sharedEndpoint);
+    const startPromises: Array<ReturnType<typeof sharedEndpoint.start>> = [];
+    sharedEndpoint.start = () => {
+      const pending = originalStart();
+      startPromises.push(pending);
+      return pending;
+    };
+    const ports = new Set<number>();
+    const first = createRecorder();
+    const second = createRecorder();
+    const makeTransport = (recorder: Recorder) =>
+      createLanDeviceTransport({
+        logger,
+        deviceMid: "test-mid",
+        deviceName: "test-device",
+        appVersion: "0.0.0-test",
+        events: recorder.events,
+        handleMobilePayload: () => undefined,
+        maxPhysicalFrameBytes: WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+        endpoint: sharedEndpoint,
+        auth: {
+          mode: "register",
+          passHash: createHash("sha256").update(randomBytes(24)).digest("base64url"),
+        },
+      });
+    const firstTransport = makeTransport(first);
+    const secondTransport = makeTransport(second);
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      await Promise.all([firstTransport.start(), secondTransport.start()]);
+      const infos = await Promise.all(startPromises);
+      for (const info of infos) ports.add(info.port);
+      await sharedEndpoint.stop();
+      const stillListening = await Promise.all([...ports].map(hasListeningHttpEndpoint));
+
+      expect({ distinctPorts: ports.size, stillListening }).toEqual({
+        distinctPorts: 1,
+        stillListening: [false],
+      });
+      expect(first.registered).toHaveLength(1);
+      expect(second.registered).toHaveLength(1);
+    } finally {
+      firstTransport.dispose();
+      secondTransport.dispose();
+      await sharedEndpoint.stop();
+      await closeTestServersOnPorts(ports);
+      vi.useRealTimers();
+    }
+  });
+
+  it("transport 在 endpoint 启动完成前 dispose 后不留下 pairing", async () => {
+    const endpoint = new LanRemoteControlEndpoint({
+      logger,
+      deviceMid: "test-mid",
+      deviceName: "test-device",
+      appVersion: "0.0.0-test",
+      handleMobilePayload: () => undefined,
+      maxPhysicalFrameBytes: WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+    });
+    let releaseStart!: () => void;
+    let signalBound!: () => void;
+    const startGate = new Promise<void>((resolve) => {
+      releaseStart = resolve;
+    });
+    const bound = new Promise<void>((resolve) => {
+      signalBound = resolve;
+    });
+    const originalStart = endpoint.start.bind(endpoint);
+    endpoint.start = async () => {
+      const info = await originalStart();
+      signalBound();
+      await startGate;
+      return info;
+    };
+    const recorder = createRecorder();
+    const transport = createLanDeviceTransport({
+      logger,
+      deviceMid: "test-mid",
+      deviceName: "test-device",
+      appVersion: "0.0.0-test",
+      events: recorder.events,
+      handleMobilePayload: () => undefined,
+      maxPhysicalFrameBytes: WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+      endpoint,
+      auth: {
+        mode: "register",
+        passHash: createHash("sha256").update(randomBytes(24)).digest("base64url"),
+      },
+    });
+
+    const starting = transport.start();
+    try {
+      await bound;
+      transport.dispose();
+      releaseStart();
+      await starting;
+
+      const health = await fetch(new URL("healthz", endpoint.baseUrls[0]));
+      const status = (await health.json()) as { pairs: number };
+      expect(status.pairs).toBe(0);
+      expect(recorder.registered).toHaveLength(0);
+    } finally {
+      releaseStart();
+      transport.dispose();
+      await endpoint.stop();
+    }
+  });
+
+  it("注册回调内同步 dispose 会释放刚创建的 handle", async () => {
+    const endpoint = new LanRemoteControlEndpoint({
+      logger,
+      deviceMid: "test-mid",
+      deviceName: "test-device",
+      appVersion: "0.0.0-test",
+      handleMobilePayload: () => undefined,
+      maxPhysicalFrameBytes: WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+    });
+    await endpoint.start();
+    const recorder = createRecorder();
+    let transport: ReturnType<typeof createLanDeviceTransport> | undefined;
+    const events: WebRemoteControlDeviceTransportEvents = {
+      ...recorder.events,
+      onStateChange: (state) => {
+        recorder.states.push(state);
+        if (state === "registering") transport?.dispose();
+      },
+    };
+    transport = createLanDeviceTransport({
+      logger,
+      deviceMid: "test-mid",
+      deviceName: "test-device",
+      appVersion: "0.0.0-test",
+      events,
+      handleMobilePayload: () => undefined,
+      maxPhysicalFrameBytes: WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes,
+      endpoint,
+      auth: {
+        mode: "register",
+        passHash: createHash("sha256").update(randomBytes(24)).digest("base64url"),
+      },
+    });
+
+    try {
+      await transport.start();
+      const health = await fetch(new URL("healthz", endpoint.baseUrls[0]));
+      const status = (await health.json()) as { pairs: number };
+      expect(status.pairs).toBe(0);
+    } finally {
+      transport.dispose();
+      await endpoint.stop();
+    }
   });
 });

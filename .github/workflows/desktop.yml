@@ -1,19 +1,16 @@
 name: Desktop CI
 
-# 仅 tag 发布与手动运行触发：GitHub 会因 fork 的 Actions 用量自动停用整个仓库的
-# Workflows（2026-10-09 曾触发），日常推送不再自动构建。同步上游时不得恢复
-# push 分支 / pull_request 自动触发。
+# 仅手动运行触发：GitHub 会因 fork 的 Actions 用量自动停用整个仓库的
+# Workflows（2026-10-09 曾触发），push 分支、push 标签与 PR 均不自动构建。
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   HUSKY: "0"
@@ -59,12 +56,16 @@ jobs:
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         # 这批测试用 vitest，覆盖远控分片/重传/ack、MCP Apps 契约、adapter 出站响应等回归场景；
         # 此前 CI 只跑了 scripts/ci 与包级 node:test，这些套件一直没进门禁。
-        # workspace 包的 exports 指向 src，套件不依赖构建产物，因此放在构建步骤之后、Release tests 之前。
+        # workspace 包的 exports 指向 src，套件不依赖构建产物，因此放在构建步骤之后、release-script tests 之前。
         # UI 留白套件依赖 @ alias 与 SSR JSX，单独使用受控配置；任一命令失败即门禁失败。
         run: |
-          pnpm vitest run packages/shared/src/webRemoteControl packages/shared/src/mcp-apps packages/ui/src/lib/webRemoteControlTarget.test.ts packages/desktop/src/main/webRemoteControl/servicePipe.test.ts apps/zcode-cli/packages/adapters/src/network packages/web/src/mobile packages/shared/src/zcode-protocol-v4
+          pnpm vitest run packages/shared/src/webRemoteControl packages/shared/src/mcp-apps packages/shared/src/task-realtime-validation.test.ts packages/ui/src/lib/webRemoteControlTarget.test.ts packages/desktop/src/main/webRemoteControl/servicePipe.test.ts packages/desktop/src/main/webRemoteControl/hostBridge.test.ts packages/desktop/src/main/webRemoteControl/relayTransport.test.ts packages/desktop/src/main/webRemoteControl/lanDeviceTransport.test.ts packages/desktop/src/main/webRemoteControl/manager.test.ts apps/zcode-cli/packages/adapters/src/network packages/shared/src/zcode-protocol-v4
           pnpm vitest run --config packages/ui/vitest.holes.config.ts
           pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/conversationRowSharing.test.ts packages/ui/test/conversationProjectionStore.rowSharing.test.ts
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/web/src/mobile
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/desktop/src/main/manifestUpdateProvider.test.ts
+          # Relay tests exercise the service source over loopback and do not need a relay dist build.
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/relay/src
           pnpm vitest run --config packages/ui/vitest.config.ts \
             packages/services/src/gen-ui/adapters/files.test.ts \
             packages/ui/src/app-shell/useWorkflowRunPaneSettingsScope.test.ts \
@@ -108,9 +109,10 @@ jobs:
           node scripts/ci/bundled-plugin-marketplace-protocol-smoke.mjs
           node scripts/ci/tui-model-setup-smoke.mjs
       - name: Install browser for remote form checks
-        run: pnpm exec playwright-core install --with-deps chromium
+        run: pnpm exec playwright-core install --with-deps chromium webkit
       - name: Web remote-control browser checks
         run: |
+          pnpm --filter @zcode/bootstrap exec node --import tsx --test --test-isolation=none test/web-remote-v4-stream.test.ts test/web-remote-command-inbox.test.ts test/active-session-resume.test.ts
           node scripts/ci/web-remote-control-window-sync-smoke.mjs
           node scripts/ci/web-remote-control-mobile-smoke.mjs
       - name: Storage scan lifecycle browser checks
@@ -172,7 +174,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
-    # checks 与平台打包没有产物依赖，从同一 ref 并行开始；Release 仍单独要求 checks 成功。
+    # checks 与平台打包没有产物依赖，从同一 ref 并行开始；本工作流只上传 Actions artifacts。
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
@@ -231,13 +233,13 @@ jobs:
 
   build-macos:
     name: Build (mac ${{ matrix.arch }})
-    # 本仓库只在标签推送与手动运行时触发，因此每次都产出 arm64 与 x64 两个 DMG。
-    # checks 与 macOS 打包并行；Release 仍单独要求 checks 成功。
+    # 本仓库只在手动运行时触发，因此每次都产出 arm64 与 x64 两个 DMG。
+    # checks 与 macOS 打包并行；本工作流只上传 Actions artifacts。
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["arm64", "x64"]' || '["arm64"]') }}
+        arch: ["arm64", "x64"]
     # arm64 与 x64 各自用原生 runner，避免交叉打包混入错误架构的原生库。
     runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 120
@@ -267,39 +269,3 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
-
-  release:
-    name: Draft release
-    if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: [checks, build, build-macos]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-workspace
-        with:
-          install-dependencies: "false"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-win-x64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-win-arm64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-mac-arm64
-          path: dist/release-assets
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: desktop-mac-x64
-          path: dist/release-assets
-      - name: Verify assets and create or update draft
-        run: node scripts/ci/desktop-release.mjs publish
-        env:
-          GH_TOKEN: ${{ github.token }}

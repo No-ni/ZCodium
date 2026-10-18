@@ -1,7 +1,8 @@
 /* eslint-disable max-lines -- Chrome helper、CDP 传输和 Electron 目标写入必须共享同一套敏感数据边界。 */
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { cp, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import type { Readable } from "node:stream";
 import { dirname, isAbsolute, join, relative, sep as pathSeparator } from "node:path";
 import { BrowserWindow } from "electron";
 import type { Session, WebContents } from "electron";
@@ -13,6 +14,7 @@ import type { LinuxChromePasswordStore } from "./chromeInstallationCandidates.js
 const MAX_LOCAL_STORAGE_ORIGINS = 1_000;
 const MAX_LOCAL_STORAGE_BYTES = 128 * 1024 * 1024;
 const CDP_TIMEOUT_MS = 15_000;
+type ChromeHelperProcess = ChildProcessByStdio<null, Readable, Readable>;
 const CHROME_HELPER_TEMP_CLEANUP_MAX_RETRIES = 5;
 const CHROME_HELPER_TEMP_CLEANUP_RETRY_DELAY_MS = 100;
 const BLANK_DOCUMENT_BODY = Buffer.from("<!doctype html><meta charset=utf-8>").toString("base64");
@@ -328,7 +330,7 @@ async function navigateToStorageOrigin(transport: CdpTransport, origin: string):
   }
 }
 
-async function waitForChromeDebuggerUrl(child: ChildProcessWithoutNullStreams): Promise<string> {
+async function waitForChromeDebuggerUrl(child: ChromeHelperProcess): Promise<string> {
   return withTimeout(
     new Promise<string>((resolve, reject) => {
       let stderr = "";
@@ -379,7 +381,7 @@ async function findChromePageTarget(browserDebuggerUrl: string): Promise<string>
   throw new Error("chrome_helper_page_missing");
 }
 
-async function stopChromeHelper(child: ChildProcessWithoutNullStreams): Promise<void> {
+async function stopChromeHelper(child: ChromeHelperProcess): Promise<void> {
   if (child.exitCode !== null) return;
   const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
   child.kill();

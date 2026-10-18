@@ -10,6 +10,7 @@ import {
   PlatformChannels,
   rendererLogPayloadSchema,
   stringArraySchema,
+  type AppSettings,
   type DesktopCommandId,
   type ApplicationIconRequest,
   type Locale,
@@ -19,7 +20,7 @@ import {
   type SaveCliMcpToUserDirectoryRequest,
   type CreateTempTextAttachmentRequest,
   type UpdateStatePayload,
-  type WindowControlsOverlayReadyPayload,
+  type PlatformChannelMap,
 } from "@zcode/shared";
 import { getInstalledEditors } from "./editors.js";
 import { getApplicationIcon } from "./applicationIcons.js";
@@ -84,7 +85,7 @@ export function registerPlatformIpcHandlers(options: {
     autoDownloadAndInstallUpdates: boolean;
   }>;
   setAutoDownloadAndInstallUpdates: (enabled: boolean) => Promise<void>;
-  syncAppSettings: (patch: unknown) => void;
+  syncAppSettings: (patch: Partial<AppSettings>) => void;
   /** 快捷键设置页录制态开关：true 时 main 重建菜单摘除可配置 accelerator */
   setShortcutRecordingActive?: (active: boolean, ownerWebContentsId?: number | null) => void;
   /** 桌面端设备标识符（基于 userData 路径的 SHA-256） */
@@ -258,7 +259,10 @@ export function registerPlatformIpcHandlers(options: {
   });
   ipcMain.on(
     PlatformChannels.WindowControlsOverlayReady,
-    (event, payload: WindowControlsOverlayReadyPayload) => {
+    (
+      event,
+      payload: PlatformChannelMap[typeof PlatformChannels.WindowControlsOverlayReady]["request"],
+    ) => {
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
       if (!senderWindow || !Number.isFinite(payload.zoomLevel)) {
         return;
@@ -280,7 +284,12 @@ export function registerPlatformIpcHandlers(options: {
       return;
     }
 
-    options.syncAppSettings(result.data);
+    const { providerFamilyDomain, ...patch } = result.data;
+    options.syncAppSettings({
+      ...patch,
+      // 设置清除 Provider family 时用空串表达；main 即时回调只处理有值的业务字段。
+      ...(providerFamilyDomain ? { providerFamilyDomain } : {}),
+    });
   });
 
   // 快捷键录制态：renderer 设置页进入/退出录制时通知。macOS 系统菜单会先于 renderer

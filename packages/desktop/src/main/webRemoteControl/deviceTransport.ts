@@ -74,15 +74,25 @@ export function createLanDeviceTransport(
       options.events.onStateChange("waiting_terminal");
     },
   };
+  const retainDevice = (handle: LanEndpointDeviceHandle): void => {
+    if (disposed) {
+      handle.dispose();
+      return;
+    }
+    device = handle;
+  };
   return {
     baseUrls: () => endpoint.baseUrls,
     async start() {
+      if (disposed) return;
       if (!endpoint.isRunning) {
         await endpoint.start();
       }
+      // endpoint bind 期间窗口可能已停止；迟到注册会留下无人持有的 pairing，直到 TTL 清扫。
+      if (disposed) return;
       const registration = endpoint.registerDevice(options.auth, handlers);
       if (registration.ok) {
-        device = registration.handle;
+        retainDevice(registration.handle);
         return;
       }
       // 持久化 sid 已失效（端点重启 / 停止后重开 / TTL 清扫 / 其他窗口占用同一 sid）：
@@ -102,7 +112,7 @@ export function createLanDeviceTransport(
         handlers,
       );
       if (reregistered.ok) {
-        device = reregistered.handle;
+        retainDevice(reregistered.handle);
       }
     },
     sendPayload(payload) {

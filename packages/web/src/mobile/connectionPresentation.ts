@@ -45,6 +45,14 @@ export function presentMobileConnection(
   // 终止错误帧可能丢失；关闭码必须呈现同样的互踢/过期语义，不能误报为可重试网络异常。
   if (detail?.closeCode === 4002) return TERMINAL_PRESENTATIONS.KICKED!;
   if (detail?.closeCode === 4003) return TERMINAL_PRESENTATIONS.AUTH_FAILED!;
+  if (detail?.closeCode === 4001 && detail.reason === "INTERNAL") {
+    // 协议层会对 INTERNAL + 4001 退避重连；这里不能把临时 relay 错误显示成终止拒绝。
+    return {
+      label: "正在重新连接",
+      description: "连接中断，正在尝试重新连接…",
+      terminal: false,
+    };
+  }
   if (detail?.closeCode === 4001) {
     return {
       label: "连接已终止",

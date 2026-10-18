@@ -88,7 +88,9 @@ test(
       server = started.server;
       const baseUrl = started.baseUrl.replace(/\/$/, "");
       browser = await chromium.launchPersistentContext(join(temporary, "browser-profile"), {
-        channel: process.platform === "win32" ? "msedge" : "chrome",
+        ...(process.env.ZCODE_TEST_CHROMIUM_EXECUTABLE
+          ? { executablePath: process.env.ZCODE_TEST_CHROMIUM_EXECUTABLE }
+          : { channel: process.platform === "win32" ? "msedge" : "chrome" }),
         headless: true,
         viewport: { width: 1280, height: 900 },
       });
@@ -225,7 +227,11 @@ test(
         );
         await page.setViewportSize({ width: 390, height: 720 });
         await settle(page, 24);
-        assert.ok((await metrics(page)).gap <= 2, "narrow viewport remains pinned");
+        const narrowMetrics = await metrics(page);
+        assert.ok(
+          narrowMetrics.gap <= 2,
+          `narrow viewport remains pinned: ${JSON.stringify(narrowMetrics)}`,
+        );
         await page.setViewportSize({ width: 1280, height: 900 });
         await settle(page, 24);
         await change(page, "reset", 40);

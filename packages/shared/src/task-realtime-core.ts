@@ -12,6 +12,7 @@ import { zcodePermissionResponseSchema } from "./zcode-protocol-legacy-types.js"
 // 决策 schema、错误分类 schema），二者无语义交集，均保留。
 import { workspaceHookReviewDecisionSchema } from "./zcode-protocol-v4/workspace-hook-review.js";
 import { errorAttributionSchema } from "./zcode-protocol-v4/snapshot.js";
+import { taskStreamMirrorableEventSchema } from "./task-stream-event-schema.js";
 
 const nonEmptyString = z.string().trim().min(1);
 const zcodeTaskModeRealtimeValues = [
@@ -211,13 +212,6 @@ const zcodePromptAttachmentSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
-const taskStreamMirrorableEventSchema = z
-  .object({
-    type: nonEmptyString,
-    taskId: nonEmptyString,
-    traceId: nonEmptyString,
-  })
-  .passthrough();
 const taskStreamMirrorUserMessagePublishOpSchema = z
   .object({
     kind: z.literal("user_message"),

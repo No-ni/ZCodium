@@ -40,10 +40,10 @@ desktop-continuous 与 web-remote-replayable 都消费既有 rows 投影；协�
 
 ## 验收与验证
 
-使用真实 Timeline/TurnGroup/Markdown、模拟 rows、独立浏览器和临时 Vite cache；禁止调用 Agent/模型、读写用户业务数据或打包。先在旧实现验证可见轮的 DOM 身份回归失败，再实施修复。
+使用真实 Timeline/TurnGroup/Markdown、模拟 rows、独立浏览器和临时 Vite cache；浏览器可由 `ZCODE_TEST_CHROMIUM_EXECUTABLE` 指定，以便复核不同 Chromium 构建；禁止调用 Agent/模型、读写用户业务数据或打包。先在旧实现验证可见轮的 DOM 身份回归失败，再实施修复。
 
 1. running → completedSuccess / interrupted / error 时，同一可见 turn wrapper、用户 query 和没有语义迁移的正文根保持身份；MutationObserver 不出现整轮移除。没有 action 的流式过程正文升为最终答复，或 Markdown streaming/static 解析变化，仍允许既有内部结构更新；进入 static 后再开始下一轮，围栏折行状态和真实选区 Range 不重置。
-2. streaming 增长、终态布局变化时 following 吸底；用户上滚（包括 scroll event 未入账）保持阅读位置。
+2. streaming 增长、终态布局变化及视口尺寸变化时，若 Timeline 仍处于 following，则保持吸底（测试误差不超过 2px）；用户上滚（包括 scroll event 未入账）后则保持阅读位置，不被后续输出或 resize 抢回。
 3. 长历史挂载数量有界，滚动离开/返回的合法卸载重挂仍有效；前插保持锚点，query 跳转和 find DOM Range 正确。
 4. 宽/窄视口、headerSlot、composer dock、代码折行/选择不受布局调整破坏。
 5. logEpoch、session 切换、rewind 清除旧身份，不串用本地展示状态。

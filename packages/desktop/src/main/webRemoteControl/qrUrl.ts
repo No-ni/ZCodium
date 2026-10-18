@@ -36,3 +36,19 @@ export function buildWebRemoteControlQrUrl(params: WebRemoteControlQrUrlParams):
   }
   return url.toString();
 }
+
+/** 由窗口当前注册信息派生二维码，初次启动和运行中重注册使用同一构造路径。 */
+export function buildWindowQrUrl(
+  runtime: { qrBaseUrl: string; deviceSid: string; passHash: string },
+  device: { deviceMid: string; deviceName: string; appVersion: string },
+): string {
+  return buildWebRemoteControlQrUrl({
+    baseUrl: runtime.qrBaseUrl,
+    deviceSid: runtime.deviceSid,
+    passHash: runtime.passHash,
+    timestamp: Date.now(),
+    deviceMid: device.deviceMid,
+    deviceName: device.deviceName,
+    appVersion: device.appVersion,
+  });
+}

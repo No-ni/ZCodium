@@ -504,6 +504,9 @@ persistedPath})`：`resolveConversationSessionWorkspaceForResume` 没有给出�
   「哪个 workspace 是对话根」的唯一所有者是下发标记的 Host 与铸造目录的 CLI，服务层再判一次
   就会出现两个定义（对"嵌在对话根下的项目 workspace"误判、把规则文件写到错误位置），
   而且调用方显式传错值时也救不回来。传参责任在调用方（UI 四处：文件树 / 提及 / Cmd+P / 设置页）。
+  Cmd+P 现通过 `useCommandCenterFileSearch` 发起有界搜索：组件传执行目录为 `rootPath`、
+  工作区身份路径为 `ignoreRulesRoot`，hook 将两者原样交给 `searchWorkspaceFiles`。
+  接线测试同时钉住组件和 hook 两段，不再要求已移除的全索引下载调用。
 - CLI 中的三个根由 `core/src/runtime/helpers/workspace-scope.ts` 的两个读取器表达（调用方不再各自写
   `config.workspacePath ?? workspaceRoot` 这类回落）：
   - `workspaceScopeRootOf(runtime)` = 工作区键路径：项目身份（projectID）、项目记忆根、持久化 agent
