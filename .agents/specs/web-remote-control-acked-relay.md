@@ -174,6 +174,23 @@
 
 - **topic resource relay**：协议面大资源通道（`TOPIC_RESOURCE_RELAY_*` + 4 个 schema）+ `zcodeEndpoint.ts` 的 relay 地址解析，需要先定 gateway 侧所有者与 UI 消费方。
 
+## 默认物理计量的重复编码修复（2026-10）
+
+- 默认分片搜索不能为每个二分候选重新 base64 编码大消息。默认 relay 外壳计量时，先序列化最坏索引/片数帧的空 `dataBase64` 信封，再按候选字节数 `n` 使用精确 base64 长度 `4 * ceil(n / 3)` 计量；默认 base64 字符均为无需 JSON 转义的 ASCII。
+- 空壳必须保留真实 `streamId`、`seq`、checksum 与消息长度，按实际 UTF-8 JSON 字节数计量，不使用固定开销常量。
+- 提供 `measurePhysicalFrameBytes` 的调用方仍对每个完整候选帧调用回调，以保留自定义外壳和内容相关计量语义。最终生成的每片仍实际计量，超限继续 fail closed。
+- 优化只改变默认搜索的候选计量成本，不改 wire 字段、CRC32、identity、ack、重放、分片顺序或接收侧装配语义。
+
+```text
+逻辑消息 → UTF-8 JSON + CRC32
+         → 单帧探测（实际编码）
+         → 默认：空壳一次 + base64 长度公式搜索
+           自定义：完整候选逐次调用 measure
+         → 最终分片实际编码与物理计量 → 原有 ack/replay 链路
+```
+
+验收：默认大消息只进行一次单帧探测编码及每片一次最终编码；三种 base64 padding、需 JSON 转义的 Unicode streamId 和最大合法 seq 下，默认帧与完整序列化计量参考结果逐帧一致；自定义计量仍能基于完整 payload 和额外外壳开销改变片长；超限帧仍 fail closed。
+
 ## 不做什么
 
 - 不实现 `TOPIC_RESOURCE_RELAY_CHANNEL` 那套协议面大资源通道（`read`/`cancel`/`relayChunk`/

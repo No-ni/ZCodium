@@ -1,14 +1,14 @@
 import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
 
@@ -30,96 +30,105 @@ export function stripSourceMappingUrlComments(source) {
   return source.replace(SOURCE_MAPPING_URL_LINE_RE, "").replace(SOURCE_MAPPING_URL_BLOCK_RE, "");
 }
 
-function walkFiles(rootDir, visitor) {
-  if (!existsSync(rootDir)) {
-    return;
+async function walkFiles(rootDir, visitor) {
+  let entries;
+  try {
+    entries = await readdir(rootDir, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
   }
-
-  for (const entry of readdirSync(rootDir)) {
-    const entryPath = resolve(rootDir, entry);
-    const stat = statSync(entryPath);
-    if (stat.isDirectory()) {
-      walkFiles(entryPath, visitor);
-      continue;
-    }
-    if (stat.isFile()) {
-      visitor(entryPath);
-    }
+  for (const entry of entries) {
+    const entryPath = resolve(rootDir, entry.name);
+    // 跟随资源内链接，保持原 statSync 遍历的清理范围。
+    const info = entry.isSymbolicLink() ? await stat(entryPath) : entry;
+    if (info.isDirectory()) await walkFiles(entryPath, visitor);
+    else if (info.isFile()) await visitor(entryPath);
   }
 }
 
-export function stripSourceMappingUrlCommentsInDirectory(rootDir) {
+export async function stripSourceMappingUrlCommentsInDirectory(rootDir) {
   const summary = { filesChanged: 0, referencesRemoved: 0 };
-  walkFiles(rootDir, (filePath) => {
+  await walkFiles(rootDir, async (filePath) => {
     if (
       !SOURCEMAP_REFERENCE_EXTENSIONS.has(extname(filePath)) ||
       PINNED_GEN_UI_VENDOR_DIRECTORIES.some((directory) => filePath.includes(directory))
     ) {
       return;
     }
-    const source = readFileSync(filePath, "utf8");
-    const lineReferenceCount = source.match(SOURCE_MAPPING_URL_LINE_RE)?.length ?? 0;
-    const blockReferenceCount = source.match(SOURCE_MAPPING_URL_BLOCK_RE)?.length ?? 0;
-    const referencesRemoved = lineReferenceCount + blockReferenceCount;
+    const source = await readFile(filePath, "utf8");
+    const referencesRemoved =
+      (source.match(SOURCE_MAPPING_URL_LINE_RE)?.length ?? 0) +
+      (source.match(SOURCE_MAPPING_URL_BLOCK_RE)?.length ?? 0);
     if (referencesRemoved === 0) {
       return;
     }
 
-    writeFileSync(filePath, stripSourceMappingUrlComments(source));
-    summary.filesChanged += 1;
+    await writeFile(filePath, stripSourceMappingUrlComments(source));
+    summary.filesChanged++;
     summary.referencesRemoved += referencesRemoved;
   });
   return summary;
 }
 
-export function removeSourceMapFilesInDirectory(rootDir) {
+export async function removeSourceMapFilesInDirectory(rootDir) {
   const summary = { filesRemoved: 0 };
-  walkFiles(rootDir, (filePath) => {
-    if (extname(filePath) !== ".map") {
-      return;
-    }
-
-    unlinkSync(filePath);
-    summary.filesRemoved += 1;
+  await walkFiles(rootDir, async (filePath) => {
+    if (extname(filePath) !== ".map") return;
+    await unlink(filePath);
+    summary.filesRemoved++;
   });
   return summary;
+}
+
+async function pathExists(path) {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 export async function cleanupPackagedSourcemaps({
   appAsarPath,
   resourcesDir,
   runAsarCommand,
-  runTimedSync,
   runTimedAsync,
   replaceAppAsarFromStaging,
+  prepareStaging = async () => false,
   logger = console,
 }) {
-  if (existsSync(appAsarPath)) {
-    mkdirSync(tmpdir(), { recursive: true });
-    const stagingDir = mkdtempSync(resolve(tmpdir(), "zcode-app-asar-sourcemap-"));
+  if (await pathExists(appAsarPath)) {
+    await mkdir(tmpdir(), { recursive: true });
+    const stagingDir = await mkdtemp(resolve(tmpdir(), "zcodium-app-asar-finalize-"));
     try {
-      runTimedSync("afterPack:sourcemap-cleanup:asar-extract", () =>
+      await runTimedAsync("afterPack:asar-finalize:extract", () =>
         runAsarCommand(["extract", appAsarPath, stagingDir]),
       );
-      const stripSummary = stripSourceMappingUrlCommentsInDirectory(stagingDir);
-      const mapSummary = removeSourceMapFilesInDirectory(stagingDir);
-      if (stripSummary.referencesRemoved > 0 || mapSummary.filesRemoved > 0) {
+      // 依赖注入与 sourcemap 清理此前分别解包和重写整个 archive；合并后仅提交一次候选包。
+      const prepared = await prepareStaging(stagingDir);
+      const stripSummary = await stripSourceMappingUrlCommentsInDirectory(stagingDir);
+      const mapSummary = await removeSourceMapFilesInDirectory(stagingDir);
+      const changed = prepared || stripSummary.referencesRemoved > 0 || mapSummary.filesRemoved > 0;
+      if (changed) {
         logger.log(
           `[afterPack] stripped sourceMappingURL references=${stripSummary.referencesRemoved} files=${stripSummary.filesChanged} maps=${mapSummary.filesRemoved}`,
         );
-        await runTimedAsync("afterPack:sourcemap-cleanup:asar-pack", () =>
+        await runTimedAsync("afterPack:asar-finalize:pack", () =>
           replaceAppAsarFromStaging({ sourceDir: stagingDir, appAsarPath }),
         );
       } else {
-        logger.log("[afterPack] app.asar sourcemap cleanup found no references");
+        logger.log("[afterPack] app.asar finalization found no changes");
       }
     } finally {
-      rmSync(stagingDir, { force: true, recursive: true });
+      await rm(stagingDir, { force: true, recursive: true });
     }
   }
 
-  const stripSummary = stripSourceMappingUrlCommentsInDirectory(resourcesDir);
-  const mapSummary = removeSourceMapFilesInDirectory(resourcesDir);
+  const stripSummary = await stripSourceMappingUrlCommentsInDirectory(resourcesDir);
+  const mapSummary = await removeSourceMapFilesInDirectory(resourcesDir);
   logger.log(
     `[afterPack] resources sourcemap cleanup references=${stripSummary.referencesRemoved} files=${stripSummary.filesChanged} maps=${mapSummary.filesRemoved}`,
   );

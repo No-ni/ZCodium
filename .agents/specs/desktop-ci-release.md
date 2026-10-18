@@ -3,7 +3,7 @@
 ## 范围与产品规则
 
 - 桌面构建矩阵仅覆盖 Windows x64/arm64、macOS arm64/x64；Windows arm64 在 x64 runner 上交叉打包，其他目标使用 GitHub 托管的原生 runner。
-- 手动运行和 `v*` 标签推送均执行检查、Windows 打包与 macOS arm64 打包；macOS x64 只在标签推送时构建（手动运行构建 arm64）。Ubuntu 只用于检查与草稿资产上传，不构建 Linux 安装包或远端运行资源。
+- 手动运行和 `v*` 标签推送均执行检查、Windows x64/arm64 打包与 macOS arm64/x64 打包。Ubuntu 只用于检查与草稿资产上传，不构建 Linux 安装包或远端运行资源。
 - 构建工作流仅 `desktop.yml` 一个：只在手动运行和 `v*` 标签推送时执行（2026-10-09 起，GitHub 会因 fork 的 Actions 用量停用 Workflows），上传 `desktop-*` 产物，不创建 Release；历史上独立的 `macos.yml`/`zcodium-macos-arm64` 已删除。
 - Windows 沿用 NSIS exe；macOS 只发 dmg，打包目标、产物收集与发布校验必须一致，不要求或上传 zip。四个目标的架构名均为 x64 或 arm64。
 - Linux 目标在桌面打包入口和资产收集入口明确拒绝；发布校验只要求四个 Windows/macOS 安装包，Linux 文件作为额外资产阻断发布。
@@ -18,17 +18,16 @@
 
 ## 所有者、接口与事件顺序
 
-GitHub Actions 工作流拥有调度和权限；现有 `bundle:desktop` 拥有构建、运行时依赖验证与体积审计；发布脚本只拥有产物筛选、校验和及草稿上传，不复制业务状态。
+GitHub Actions 工作流拥有调度和权限；现有 `bundle:desktop` 拥有构建、运行时依赖验证与体积审计；发布脚本只拥有产物筛选、校验和及草稿上传，不复制业务状态。`packages/server` 的常规 build 仍负责 HTTP 与 server remote bundle；本 fork 没有独立 remote artifact producer，因此不能跳过 `build:remote`。
 
 ```mermaid
 flowchart TD
   A[手动 / 标签] --> B[版本与依赖检查]
   B --> C[类型检查 / Lint / 架构检查 / 发布脚本测试]
-  C --> F[Windows x64 原生构建]
-  C --> G[Windows arm64 交叉构建]
-  C --> H[macOS arm64 原生构建]
-  C --> M{手动 / 标签}
-  M -->|是| X[macOS x64 原生构建]
+  A --> F[Windows x64 原生构建]
+  A --> G[Windows arm64 交叉构建]
+  A --> H[macOS arm64 原生构建]
+  A --> X[macOS x64 原生构建]
   F --> I[当前 run 的已验证产物]
   G --> I
   H --> I
@@ -41,8 +40,8 @@ flowchart TD
 - 检查与构建仅 `contents: read`；仅标签发布 job 拥有 `contents: write`，token 只在上传步骤注入。
 - checkout 不保留凭据；不使用 pull_request_target，不使用 PR 输入拼接 shell 命令。
 - 手动运行与标签推送仅上传 Actions artifacts；构建阶段显式禁止 electron-builder 自动发布。
-- macOS 构建复用同一 job 与打包入口，由触发事件选择架构矩阵；普通 PR/main 只选择 arm64，手动/标签选择 arm64 与 x64。每个架构只使用对应的原生 runner，不交叉打包。
-- Checks 结束后，即使检查失败也执行未取消的打包任务，以独立暴露构建错误；当前 run 被取消时不继续打包。自动产出安装包不等于自动安装，仍由用户选择何时覆盖本地应用。
+- macOS 构建复用同一 job 与打包入口，由触发事件选择架构矩阵；手动/标签均选择 arm64 与 x64。每个架构只使用对应的原生 runner，不交叉打包。
+- Checks 与各平台打包从同一 ref 并行开始，二者无数据依赖；即使检查失败，未取消的打包任务仍独立暴露构建错误。Release 仍等待 checks 与所有必需平台构建成功；当前 run 被取消时不继续打包。自动产出安装包不等于自动安装，仍由用户选择何时覆盖本地应用。
 - 同一 ref 的普通构建允许取消旧运行；标签发布串行且不取消在途运行。
 - 发布仅消费当前 run 的固定 artifact。任何平台缺失、错误版本、空文件或额外文件均拒绝上传。
 - SHA256SUMS 由最终下载后的文件生成。重跑仅可更新同标签草稿；已公开 Release 拒绝覆盖。
@@ -50,7 +49,7 @@ flowchart TD
 
 ## 验收场景
 
-1. 手动运行即可获得 Windows 与 macOS arm64 构建；不触发 macOS x64 构建或发布。push/PR 不再触发任何构建（fork Actions 用量停用纪律）。
+1. 手动运行即可获得 Windows 与 macOS x64/arm64 构建；不创建 Release。push/PR 不再触发任何构建（fork Actions 用量停用纪律）。
 2. 各平台独立产生所有预期安装包，并通过已有 app.asar 运行时依赖校验。
 3. 手动运行与合法标签推送选择完整的 Windows/macOS 四架构矩阵；标签上下文的手动运行仍不创建 Release。
 4. 合法标签、全平台构建与检查全部成功后，只生成草稿及 SHA256SUMS；维护者仍须手动发布。
@@ -94,3 +93,12 @@ Checks 中的诊断回归直接读取受检源码，不依赖 CLI package 的 `d
 ## 构建阶段避免重复准备
 
 `bundle:desktop` 显式执行 `prepare:runtime-assets` 后调用 `build:no-runtime-assets`。只有 `--skip-prepare` 且未跳过构建时调用完整 `build`，由它负责准备。保留现有 Windows/macOS 目标、本机 Agent 与原生资源校验，不恢复 Linux 资源步骤。回归覆盖普通、skip-prepare、skip-build 及同时跳过两阶段的调用顺序，不执行真实打包。
+
+## CI 关键路径与 asar 最终化
+
+- `checks` 与 Windows/macOS 平台打包没有数据依赖，工作流由同一 ref 并行启动。打包 job 只因 run 被取消而跳过；标签 Release 继续依赖 checks 与全部必需构建成功。
+- 平台 job 依次准备本机 runtime、执行一次 `build:bootstrap`，再通过 `bundle:desktop --skip-prepare --skip-build` 打包。此处不得再次运行 workspace build。
+- `packages/server` 保留默认 `build` 和直接 `build:remote` 的完整源码构建。本 fork 删除了 Linux/远端资源 producer 和对应 artifact，不引入依赖该 producer 的 `ZCODE_SKIP_REMOTE_ASSETS` 快捷分支，也不把历史 dist 文件当作可复用输入。
+- 打包后 app.asar 的依赖注入与 sourcemap 清理共用一个 staging 事务：最多 extract 一次；先注入缺失的 runtime 依赖，再清理其中所有 sourcemap 注释与 `.map` 文件；仅发生实际变更时 pack 一次。无变更保留原 archive 字节。
+- candidate archive/native sidecar 替换、目标平台 `node-pty` unpack、其他平台 native 拒绝规则、resources/unpacked/extraResources 清理和最终运行时依赖校验继续有效。staging 或候选 pack 失败时不替换原 archive/sidecar，并清理临时目录。
+- workflow 测试断言 checks 与平台打包没有 needs 依赖、Release 保留成功门禁；asar fixture 覆盖注入与清理合并、零重打包、native unpack 和失败时保留原产物。脚本测试不执行 Windows/macOS 安装包构建。

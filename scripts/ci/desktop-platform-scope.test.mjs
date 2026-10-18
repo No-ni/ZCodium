@@ -43,8 +43,8 @@ test("packaged Gen UI snapshots retain their hashes after sourcemap cleanup", as
     await mkdir(resolve(directory, "out/main"), { recursive: true });
     await writeFile(ordinaryJs, 'console.log("fixture");\n//# sourceMappingURL=index.js.map\n');
     await writeFile(`${ordinaryJs}.map`, "{}");
-    stripSourceMappingUrlCommentsInDirectory(directory);
-    removeSourceMapFilesInDirectory(directory);
+    await stripSourceMappingUrlCommentsInDirectory(directory);
+    await removeSourceMapFilesInDirectory(directory);
     for (const copy of copies) {
       for (const [file, expected] of files) {
         const bytes = await readFile(resolve(directory, copy, file));
@@ -249,6 +249,13 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
       }
     }
   }
+  for (const id of ["build", "build-macos"]) {
+    // checks 不生产打包输入；平台 job 可并行运行，但 Release 仍保留 checks 门禁。
+    assert.equal(desktop.jobs[id].needs, undefined, `${id} must run alongside checks`);
+    const commands = desktop.jobs[id].steps.map((step) => step.run ?? "");
+    assert.equal(commands.filter((command) => command.includes("pnpm build:bootstrap")).length, 1);
+    assert.ok(commands.some((command) => command.includes("--skip-prepare --skip-build")));
+  }
   // checks 是 coverage 型门禁：打包只看是否被取消，不因 checks 失败被跳过；
   // 草稿发布则必须等 checks 通过，且只在标签推送时进行。
   for (const id of ["build", "build-macos"]) {
@@ -259,4 +266,16 @@ test("CI schedules only Windows/macOS packages and no Linux remote producer", as
   const release = desktop.jobs.release;
   assert.deepEqual([release.needs].flat().sort(), ["build", "build-macos", "checks"]);
   assert.equal(release.if, "github.event_name == 'push' && github.ref_type == 'tag'");
+
+  const checkSteps = desktop.jobs.checks.steps;
+  const browserInstallIndex = checkSteps.findIndex(
+    (step) => step.name === "Install browser for remote form checks",
+  );
+  const remoteBrowserChecks = checkSteps.findIndex(
+    (step) => step.name === "Web remote-control browser checks",
+  );
+  assert.ok(browserInstallIndex >= 0);
+  assert.ok(remoteBrowserChecks > browserInstallIndex);
+  assert.match(checkSteps[remoteBrowserChecks].run, /web-remote-control-window-sync-smoke\.mjs/);
+  assert.match(checkSteps[remoteBrowserChecks].run, /web-remote-control-mobile-smoke\.mjs/);
 });

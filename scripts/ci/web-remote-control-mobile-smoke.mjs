@@ -1,11 +1,22 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 import { tsImport } from "tsx/esm/api";
+import { build as buildWeb } from "vite";
+import {
+  captureMobile,
+  createMobileMessages,
+  longText,
+  assertScrollable,
+  swipeUp,
+  scrollToLast,
+  assertMobileConversationLayout,
+  assertViewScrollIsolation,
+} from "./fixtures/mobile-remote-layout.mjs";
 
 const { ChannelServer, Emitter, ProxyChannel, VSBuffer } = await tsImport(
   "../../packages/rpc/src/index.ts",
@@ -23,6 +34,7 @@ const mobileDir = resolve(temp, "mobile");
 const endpointBundle = resolve(temp, "endpoint.mjs");
 const endpointSource = resolve(root, "packages/desktop/src/main/webRemoteControl/lanEndpoint.ts");
 const originalMobileDir = process.env.ZCODE_WEB_REMOTE_MOBILE_DIR;
+const evidenceDir = process.env.ZCODE_MOBILE_EVIDENCE_DIR;
 let browser;
 let endpoint;
 let host;
@@ -31,36 +43,20 @@ let taskActive = false;
 let resumes = 0;
 let bootstrapRequests = 0;
 let prompt;
-const messages = [
-  {
-    info: {
-      messageId: "fixture-user",
-      sessionId: "fixture-task",
-      role: "user",
-      agent: "fixture",
-      time: { created: 1 },
-    },
-    parts: [
-      {
-        type: "text",
-        text: "历史测试消息",
-        messageId: "fixture-user",
-        sessionId: "fixture-task",
-        partId: "fixture-part",
-      },
-    ],
-  },
-];
+const messages = createMobileMessages();
 try {
-  const browserBundle = await build({
-    entryPoints: [resolve(root, "packages/web/src/mobile/main.tsx")],
-    bundle: true,
-    write: false,
-    platform: "browser",
-    format: "esm",
-    jsx: "automatic",
-    loader: { ".css": "empty" },
-    define: { "process.env.NODE_ENV": '"production"', "import.meta.env": "{}" },
+  // 原 fixture 丢弃 CSS，漏掉 body 禁滚动和手机专用 utility 未生成的问题。
+  // 使用产品 Vite 配置生成真实 mobile 入口（含 Tailwind），只把测试产物放临时目录。
+  await buildWeb({
+    root: resolve(root, "packages/web"),
+    configFile: resolve(root, "packages/web/vite.config.ts"),
+    logLevel: "error",
+    build: {
+      outDir: mobileDir,
+      emptyOutDir: true,
+      sourcemap: false,
+      rollupOptions: { input: resolve(root, "packages/web/mobile.html") },
+    },
   });
   await build({
     entryPoints: [endpointSource],
@@ -70,16 +66,7 @@ try {
     format: "esm",
     external: ["ws"],
   });
-  await mkdir(mobileDir, { recursive: true });
   process.env.ZCODE_WEB_REMOTE_MOBILE_DIR = mobileDir;
-  await writeFile(
-    resolve(mobileDir, "mobile.html"),
-    (await readFile(resolve(root, "packages/web/mobile.html"), "utf8")).replace(
-      "/src/mobile/main.tsx",
-      "/mobile.js",
-    ),
-  );
-  await writeFile(resolve(mobileDir, "mobile.js"), browserBundle.outputFiles[0].contents);
   const { LanRemoteControlEndpoint } = await import(pathToFileURL(endpointBundle).href);
   const endpointEvents = [];
   endpoint = new LanRemoteControlEndpoint({
@@ -115,6 +102,12 @@ try {
                 displayStatus: "running",
                 pinned: true,
               },
+              ...Array.from({ length: 160 }, (_, index) => ({
+                workspaceKey: "fixture-workspace",
+                taskId: `other-task-${index}`,
+                title: `任务列表 ${index}`,
+                displayStatus: "completed",
+              })),
             ],
           },
         });
@@ -229,7 +222,10 @@ try {
     executablePath: process.env.ZCODE_TEST_CHROMIUM_EXECUTABLE || undefined,
     args: ["--no-proxy-server", "--host-resolver-rules=MAP mobile.fixture.test 127.0.0.1"],
   });
-  const context = await browser.newContext({ ...devicesForMobile() });
+  const context = await browser.newContext({
+    ...devicesForMobile(),
+    ...(evidenceDir ? { recordVideo: { dir: resolve(evidenceDir, "videos") } } : {}),
+  });
   await context.addInitScript(() => {
     window.__mobileWsCount = 0;
     const NativeWebSocket = window.WebSocket;
@@ -260,7 +256,13 @@ try {
     });
     throw error;
   }
-  await first.getByText("1 个工作区 · 1 个任务").waitFor();
+  await first.getByText("1 个工作区 · 161 个任务").waitFor();
+  await captureMobile(first, "home", evidenceDir);
+  await assertScrollable(first, "长任务首页必须拥有受视口约束的滚动区域");
+  await swipeUp(first);
+  assert.ok(await first.getByRole("main").evaluate((node) => node.scrollTop > 0), "触摸应滚动首页");
+  await scrollToLast(first, "任务列表 159");
+  await captureMobile(first, "home-scrolled", evidenceDir);
   assert.ok(
     endpointEvents.includes("bootstrap-request"),
     "real mobile client must request bootstrap",
@@ -289,6 +291,9 @@ try {
   await second.getByText("已连接到当前桌面窗口").waitFor();
   await second.getByRole("button", { name: /运行中的置顶任务/ }).click();
   await second.getByText("历史测试消息", { exact: true }).waitFor();
+  await captureMobile(second, "conversation", evidenceDir);
+  await assertMobileConversationLayout(second, longText);
+  await captureMobile(second, "conversation-scrolled", evidenceDir);
   const initialResumes = resumes;
   device.sendPayload({
     zcode_type: "workspace-list-updated",
@@ -363,6 +368,7 @@ try {
     0,
     "successful task entry and recovery must not leave red errors",
   );
+  await assertViewScrollIsolation(second);
   assert.deepEqual(
     await first.evaluate(() => ({ secure: isSecureContext, subtle: Boolean(crypto.subtle) })),
     { secure: false, subtle: false },
@@ -373,7 +379,7 @@ try {
     "mobile pages must not emit uncaught browser errors",
   );
   console.log(
-    "PASS Chromium mobile + LAN + real Channel RPC: pairing, task entry/cold resume/history, live delta, stable list updates, prompt, offline recovery/bootstrap; bad hash and duplicate page terminate",
+    "PASS Chromium mobile + real CSS + LAN + Channel RPC: touch scrolling, long messages, narrow/landscape layout, pairing, cold history, live delta, prompt, offline recovery; bad hash and duplicate page terminate",
   );
   console.log("Rerun: node scripts/ci/web-remote-control-mobile-smoke.mjs");
 } finally {

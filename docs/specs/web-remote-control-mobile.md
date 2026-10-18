@@ -75,7 +75,34 @@ sequenceDiagram
 
 新增验收：最后一个 workspace 关闭后，Main 收到带当前远控状态 snapshot scope 的空 `workspaces` 与 `tasks`，且不依赖已关闭 workspace 或独立的最后 scope 缓存；非空用户/助手消息及工具 part 通过消息 schema；afterMessageId 与 limit 保真；冷历史恢复后可读、已有运行任务不重建；legacy Claude session 缺失和恢复快照缺失两条导入修复路径的 `session/create` 都保留传入的 `remoteSessionId`；恢复后的订阅使用 replayable，`sendTaskPrompt` 仍保留 client mode；置顶与其他 workspace 的运行任务可见；清单状态更新不打断流；浏览器中进入任务、收增量、发消息、断线重连后恢复历史且无红字；Windows ESM 测试入口使用 file URL。
 
-## 验证入口
+## 手机页面滚动与正文布局（2026-10-18）
+
+### 产品规则、所有者与边界
+
+- 手机首页和会话页使用明确的动态视口布局：Shell 拥有视口尺寸，main 是唯一纵向滚动区域，标题、连接提示和输入栏参与正常 flex 布局。输入栏不能覆盖消息；长列表、长会话都能通过触摸滑动浏览。
+- `mobile-root` 铺满动态视口并约束溢出；手机样式入口显式声明手机 TSX 的 Tailwind 扫描范围，不能依赖桌面 UI 恰好使用相同类名。共享桌面 `body/#root` 的滚动规则不改。
+- 消息正文保留换行，连续路径、URL 和代码字符串在气泡内换行；气泡和输入框允许缩小，不能撑宽整个手机页面。手机输入使用 `text-mobile-input-safe`，避免 iOS 聚焦自动放大。
+- 首页与不同会话各自重建滚动容器，从顶部开始；同一会话的增量、清单更新和重连不因视图重绘而清空滚动位置，不能把首页的偏移带进会话或反过来。
+- 布局只派生当前连接和会话视图，不创建新的业务状态、Host、Agent、队列或持久化入口。手机继续由同一 Host 提供 `web-remote-replayable` 快照/增量；桌面 `desktop-continuous` 语义保持既有契约。
+
+```text
+已有 Host → replayable 快照 / 增量 → conversationReducer（视图投影）
+                                       → Shell 动态视口
+                                         ├ 标题 / 连接提示
+                                         ├ main 唯一滚动区 → 列表 / 消息
+                                         └ 输入栏（正常布局）→ 原 sendPrompt
+桌面 continuous → 原桌面布局及消费路径
+```
+
+### 验收场景
+
+1. 使用真实生产 CSS 和手机入口，通过真实 LAN 配对与 Channel RPC，160 条以上任务首页可触摸滑动到末项，标题仍在视口内。
+2. 长会话包含多行消息与连续长字符串：正文不丢换行，页面无横向溢出，可触摸滑动到末条消息；输入栏、发送按钮仍在视口内且不遮住正文。
+3. 窄屏与横屏、缩小可用高度后，main 重新分配空间且仍可滚动，输入字体不少于 16px；同一页面在已滚动的会话和首页之间切换时，新的视图从顶部开始。
+4. 保留原配对拒绝、重复页面互踢、冷恢复、增量、发送及断线重连用例；断线恢复后读取权威历史，无浏览器未捕获错误。
+5. 浏览器验收必须编译真实 CSS；仅移除 CSS 的 esbuild fixture 不能证明视觉和滚动通过。可按环境变量将测试截图保存为审查证据，固定时长只用于测试手势采样，不用于产品同步。
+
+## 既有验证记录
 
 - 使用 `mise.toml` 指定的 Node 24.14.0。`corepack pnpm typecheck`、`corepack pnpm lint`、`corepack pnpm architecture:check --changed` 通过，架构新增及基线违规均为 0。
 - 11 个 Vitest 文件共 110 项通过：手机目录、共享 RPC transport、桌面 service pipe/LAN transport、清单投影与目标复用、桌面 conversation projection。

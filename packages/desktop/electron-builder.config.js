@@ -1,15 +1,7 @@
 /* eslint-disable max-lines -- Electron Builder config keeps related packaging hooks together so build order stays explicit. */
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { readdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { runCommand, runCommandAndReadStdout } from "../../scripts/spawn-command.mjs";
@@ -236,6 +228,20 @@ function runAsarCommand(args) {
   });
 }
 
+function runAsarCommandAsync(args) {
+  return new Promise((resolveCommand, rejectCommand) => {
+    execFile(
+      process.execPath,
+      [asarCliPath, ...args],
+      { cwd: import.meta.dirname, env: process.env, maxBuffer: commandStdoutMaxBuffer },
+      (error) => {
+        if (error) rejectCommand(error);
+        else resolveCommand();
+      },
+    );
+  });
+}
+
 function runAsarCommandAndReadStdout(args) {
   return runCommandAndReadStdout(process.execPath, [asarCliPath, ...args], {
     cwd: import.meta.dirname,
@@ -359,7 +365,7 @@ function resolveMissingRuntimeModules(appAsarPath) {
   });
 }
 
-async function injectHoistedRuntimeModulesIntoAsar(context) {
+async function finalizePackagedAppAsar(context) {
   const appAsarPath = resolveAppAsarPath(context);
   if (!existsSync(appAsarPath)) {
     throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
@@ -368,31 +374,17 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
   const missingRuntimeModules = runTimedSync("afterPack:scan-missing-runtime-modules", () =>
     resolveMissingRuntimeModules(appAsarPath),
   );
-  if (missingRuntimeModules.length === 0) {
-    // 之前 afterPack 每次都完整 extract/pack app.asar，即使运行时依赖已经齐全也会重复重写。
-    // 这会把每次打包固定拉长十几秒到几十秒。先做缺失扫描，只有真的缺包才执行重写流程。
-    console.log("[afterPack] runtime modules already complete, skip app.asar rewrite");
-    return;
-  }
   console.log(`[afterPack] missing runtime modules count=${missingRuntimeModules.length}`);
-
-  // CI 会把 TMPDIR 指到项目内 .tmp，GitLab get_sources/clean 可能在脚本启动前清掉该目录。
-  // afterPack 里重写 app.asar 同样依赖 mkdtempSync，必须自己兜底创建父目录，避免后续签名阶段只看到 .app 消失。
-  mkdirSync(tmpdir(), { recursive: true });
-  const stagingDir = mkdtempSync(resolve(tmpdir(), "zcode-app-asar-"));
-  try {
-    runTimedSync("afterPack:asar-extract", () =>
-      runAsarCommand(["extract", appAsarPath, stagingDir]),
-    );
-
-    const stagingNodeModulesDir = resolve(stagingDir, "node_modules");
-    mkdirSync(stagingNodeModulesDir, { recursive: true });
-
-    runTimedSync("afterPack:copy-runtime-modules", () => {
-      for (const runtimeModule of missingRuntimeModules) {
-        const { moduleName, sourceModulePath } = runtimeModule;
-        const targetModulePath = resolve(stagingNodeModulesDir, moduleName);
-
+  await cleanupPackagedSourcemaps({
+    appAsarPath: resolveAppAsarPath(context),
+    resourcesDir: resolvePackagedResourcesDir(context),
+    runAsarCommand: runAsarCommandAsync,
+    runTimedAsync,
+    prepareStaging: async (stagingDir) => {
+      if (missingRuntimeModules.length === 0) return false;
+      const stagingNodeModulesDir = resolve(stagingDir, "node_modules");
+      await mkdir(stagingNodeModulesDir, { recursive: true });
+      for (const { moduleName, sourceModulePath } of missingRuntimeModules) {
         if (!sourceModulePath) {
           throw new Error(
             `未找到运行时依赖 ${moduleName}，已搜索: ${runtimeModuleLookupRoots
@@ -400,43 +392,13 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
               .join(", ")}`,
           );
         }
-
-        // pnpm hoisted 布局下，electron-builder 可能把主包打进 app.asar，
-        // 却漏掉它解析时还要去根 node_modules 找的运行时依赖。
-        // 之前 require-in-the-middle 漏过 module-details-from-path，这次 @fiahfy/icns 又漏了 pngjs，
-        // 最终都会在已安装应用里触发 Cannot find module 并让主进程启动直接崩溃。
-        // 这里按 package.json 递归补齐依赖闭包，避免每次只补一个缺失包、上线后再暴露下一个子依赖。
-        // 只靠 package.json 显式依赖、本包 node_modules 镜像、files include 都没让它稳定进 asar，
-        // 所以在 afterPack 阶段直接重写 app.asar，先把这些运行时包补进去，再交给后续签名和出包。
-        mkdirSync(dirname(targetModulePath), { recursive: true });
-        rmSync(targetModulePath, { force: true, recursive: true });
-        cpSync(sourceModulePath, targetModulePath, { recursive: true });
+        const targetModulePath = resolve(stagingNodeModulesDir, moduleName);
+        await mkdir(dirname(targetModulePath), { recursive: true });
+        await rm(targetModulePath, { force: true, recursive: true });
+        await cp(sourceModulePath, targetModulePath, { recursive: true });
       }
-    });
-
-    await runTimedAsync("afterPack:asar-pack", () =>
-      replaceAppAsarFromStaging({
-        sourceDir: stagingDir,
-        appAsarPath,
-        targetPlatformKey: targetPlatform.key,
-        runAsarCommand,
-      }),
-    );
-  } finally {
-    rmSync(stagingDir, { force: true, recursive: true });
-  }
-}
-
-async function stripPackagedSourcemapReferences(context) {
-  // electron-builder 的 files 规则能排除 .map 文件，但无法删除 JS/CSS 末尾
-  // 指向 sourcemap 的注释；afterPack 注入运行时依赖后也可能重新带入第三方 sourceMappingURL。
-  // 这里统一清理 app.asar 与 unpacked/extraResources，保证最终发布包不暴露 sourcemap 路径入口。
-  await cleanupPackagedSourcemaps({
-    appAsarPath: resolveAppAsarPath(context),
-    resourcesDir: resolvePackagedResourcesDir(context),
-    runAsarCommand,
-    runTimedSync,
-    runTimedAsync,
+      return true;
+    },
     replaceAppAsarFromStaging: ({ sourceDir, appAsarPath }) =>
       replaceAppAsarFromStaging({
         sourceDir,
@@ -574,12 +536,8 @@ export default {
             configuredTargetPlatform: targetPlatform,
           })
         : null;
-    await runTimedAsync("afterPack:injectHoistedRuntimeModulesIntoAsar", () =>
-      injectHoistedRuntimeModulesIntoAsar(context),
-    );
-    await runTimedAsync("afterPack:stripPackagedSourcemapReferences", () =>
-      stripPackagedSourcemapReferences(context),
-    );
+    // 注入依赖和清理 map 都会遍历归档，只用同一个 staging 事务提交结果。
+    await runTimedAsync("afterPack:finalizePackagedAsar", () => finalizePackagedAppAsar(context));
     runTimedSync("afterPack:assertPackagedNativeResourcePolicy", () =>
       assertPackagedNativeResourcePolicy(context),
     );

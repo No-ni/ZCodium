@@ -1,0 +1,13 @@
+@import "@zcode/ui/styles.css";
+
+/* 手机入口不在共享 UI 的扫描目录内，必须显式生成自己的布局 utility。 */
+@source "./**/*.{ts,tsx}";
+
+/* 共享 body 禁止页面滚动；约束手机挂载点，由 Shell 内的 main 独占滚动。 */
+#mobile-root {
+  width: 100%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}

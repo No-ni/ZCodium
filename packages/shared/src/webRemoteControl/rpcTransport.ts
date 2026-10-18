@@ -277,20 +277,30 @@ export function encodeWebRemoteControlRpcFrames(
   }
 
   // 二分片长。索引位数按最坏情况（片数 = 逻辑字节数）计量，实际帧只会更小。
+  const shell = buildMessageFrame({
+    options,
+    checksum,
+    messageBytes: bytes.byteLength,
+    fragmentIndex: bytes.byteLength - 1,
+    fragmentCount: bytes.byteLength,
+    dataBase64: "",
+  });
+  // 重复编码二分候选会阻塞手机远控；默认 base64 是无需 JSON 转义的 ASCII，长度可精确计算。
+  // 空壳按真实 identity、序号和校验字段序列化；自定义计量仍接收完整候选，最终分片仍实际计量。
+  const shellBytes = options.measurePhysicalFrameBytes ? undefined : measure(shell);
   let low = 1;
   let high = bytes.byteLength;
   let chunkBytes = 0;
   while (low <= high) {
     const candidate = Math.floor((low + high) / 2);
-    const shell = buildMessageFrame({
-      options,
-      checksum,
-      messageBytes: bytes.byteLength,
-      fragmentIndex: bytes.byteLength - 1,
-      fragmentCount: bytes.byteLength,
-      dataBase64: encodeWireBytesBase64(bytes.subarray(0, candidate)),
-    });
-    if (measure(shell) <= WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes) {
+    const candidateBytes =
+      shellBytes === undefined
+        ? measure({
+            ...shell,
+            dataBase64: encodeWireBytesBase64(bytes.subarray(0, candidate)),
+          })
+        : shellBytes + 4 * Math.ceil(candidate / 3);
+    if (candidateBytes <= WEB_REMOTE_CONTROL_RPC_LIMITS.maxPhysicalFrameBytes) {
       chunkBytes = candidate;
       low = candidate + 1;
     } else {

@@ -254,23 +254,43 @@ export function MobileApp() {
     );
   }
 
+  // React 会复用同位置的 Shell；按视图 scope 换 key，避免首页与会话继承彼此的滚动偏移。
   if (view.kind === "task") {
     return (
       <Shell
+        key={JSON.stringify([view.task.workspaceKey, view.task.taskId])}
         connection={connection}
         connectionDetail={connectionSnapshot.detail}
         title={`任务会话`}
         onBack={() => setView({ kind: "home" })}
         notice={notice}
+        composer={
+          <div className="flex min-w-0 gap-2">
+            <input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="发送消息"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-input-border bg-surface px-3 text-mobile-input-safe text-foreground"
+            />
+            <button
+              type="button"
+              className="h-10 shrink-0 rounded-lg bg-primary px-4 text-ui-base font-medium text-primary-foreground disabled:opacity-50"
+              disabled={!draft.trim()}
+              onClick={() => void sendPrompt()}
+            >
+              发送
+            </button>
+          </div>
+        }
       >
-        <div className="flex flex-col gap-3 pb-24">
+        <div className="flex min-w-0 flex-col gap-3">
           {conversation.messages.map((message) => (
             <div
               key={message.id}
               className={
                 message.role === "user"
-                  ? "self-end max-w-[85%] rounded-2xl bg-primary px-3 py-2 text-ui-base text-primary-foreground"
-                  : "self-start max-w-[85%] rounded-2xl bg-surface px-3 py-2 text-ui-base text-foreground"
+                  ? "min-w-0 max-w-[85%] self-end whitespace-pre-wrap rounded-2xl bg-primary px-3 py-2 text-ui-base text-primary-foreground [overflow-wrap:anywhere]"
+                  : "min-w-0 max-w-[85%] self-start whitespace-pre-wrap rounded-2xl bg-surface px-3 py-2 text-ui-base text-foreground [overflow-wrap:anywhere]"
               }
             >
               {message.text}
@@ -280,30 +300,13 @@ export function MobileApp() {
             <p className="text-center text-ui-base text-foreground-subtle">暂无消息</p>
           ) : null}
         </div>
-        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card p-3">
-          <div className="flex gap-2">
-            <input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="发送消息"
-              className="h-10 flex-1 rounded-lg border border-input-border bg-surface px-3 text-ui-base text-foreground"
-            />
-            <button
-              type="button"
-              className="h-10 rounded-lg bg-primary px-4 text-ui-base font-medium text-primary-foreground disabled:opacity-50"
-              disabled={!draft.trim()}
-              onClick={() => void sendPrompt()}
-            >
-              发送
-            </button>
-          </div>
-        </div>
       </Shell>
     );
   }
 
   return (
     <Shell
+      key="home"
       connection={connection}
       connectionDetail={connectionSnapshot.detail}
       onRefresh={() =>
@@ -422,14 +425,17 @@ function Shell(props: {
   notice?: string | null;
   onBack?: () => void;
   onRefresh?: () => void;
+  composer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const connectionPresentation = props.connection
     ? presentMobileConnection(props.connection, props.connectionDetail)
     : null;
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-card px-3 py-2">
+    // 原先只有 min-height，body 又被共享样式禁滚动，长列表/会话会越过视口且无法触摸下滑。
+    // Shell 约束高度，main 唯一滚动；输入栏参与布局，避免 fixed 遮住正文。
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background pt-[env(safe-area-inset-top)] text-foreground">
+      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-card px-3 py-2">
         {props.onBack ? (
           <button type="button" className="text-ui-base text-primary" onClick={props.onBack}>
             返回任务首页
@@ -446,7 +452,7 @@ function Shell(props: {
       </header>
       {connectionPresentation && props.connection !== "paired" ? (
         <div
-          className={`px-3 py-1 text-center text-ui-xs ${connectionPresentation.terminal ? "text-destructive" : "text-foreground-subtle"}`}
+          className={`shrink-0 px-3 py-1 text-center text-ui-xs ${connectionPresentation.terminal ? "text-destructive" : "text-foreground-subtle"}`}
           role="status"
         >
           <p className="font-medium">{connectionPresentation.label}</p>
@@ -454,9 +460,16 @@ function Shell(props: {
         </div>
       ) : null}
       {props.notice ? (
-        <p className="px-3 py-1 text-center text-ui-xs text-destructive">{props.notice}</p>
+        <p className="shrink-0 px-3 py-1 text-center text-ui-xs text-destructive">{props.notice}</p>
       ) : null}
-      <main className="flex flex-col gap-4 p-3">{props.children}</main>
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3">
+        <div className="flex min-w-0 flex-col gap-4">{props.children}</div>
+      </main>
+      {props.composer ? (
+        <footer className="shrink-0 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {props.composer}
+        </footer>
+      ) : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { installDocumentHiddenMotionPause } from "@zcode/ui/document-hidden-motion-pause";
 import { MobileApp } from "./MobileApp.js";
-import "@zcode/ui/styles.css";
+import "./mobile.css";
 
 const disposeDocumentHiddenMotionPause = installDocumentHiddenMotionPause();
 import.meta.hot?.dispose(disposeDocumentHiddenMotionPause);

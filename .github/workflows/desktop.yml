@@ -109,6 +109,10 @@ jobs:
           node scripts/ci/tui-model-setup-smoke.mjs
       - name: Install browser for remote form checks
         run: pnpm exec playwright-core install --with-deps chromium
+      - name: Web remote-control browser checks
+        run: |
+          node scripts/ci/web-remote-control-window-sync-smoke.mjs
+          node scripts/ci/web-remote-control-mobile-smoke.mjs
       - name: Storage scan lifecycle browser checks
         run: node scripts/ci/storage-scan-lifecycle-smoke.mjs
       - name: Install isolated Computer Use test desktop
@@ -168,10 +172,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
-    needs: checks
-    # checks 失败时仍然打包。Coverage 型检查与打包是两类独立缺陷：
-    # 若用默认的「needs 全部成功才运行」，checks 一红，打包就被整体跳过，
-    # 于是「源码检查通过但产物根本构不出来」这类问题会一直潜伏到发版才爆。
+    # checks 与平台打包没有产物依赖，从同一 ref 并行开始；Release 仍单独要求 checks 成功。
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
@@ -231,9 +232,8 @@ jobs:
   build-macos:
     name: Build (mac ${{ matrix.arch }})
     # 本仓库只在标签推送与手动运行时触发，因此每次都产出 arm64 与 x64 两个 DMG。
-    # checks 失败时仍然打包（理由同 build job）。
+    # checks 与 macOS 打包并行；Release 仍单独要求 checks 成功。
     if: ${{ !cancelled() }}
-    needs: checks
     strategy:
       fail-fast: false
       matrix:
