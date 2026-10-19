@@ -1,16 +1,27 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { networkInterfaces } from "node:os";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { WebSocketServer, type WebSocket } from "ws";
-import {
-  webRemoteControlAppPayloadSchema,
-  webRemoteControlClientToEndpointFrameSchema,
-  type WebRemoteControlAppPayload,
-  type WebRemoteControlEndpointToClientFrame,
-  type WebRemoteControlPairStatus,
+import { randomBytes } from "node:crypto";
+import { WebSocketServer, WebSocket } from "ws";
+import type {
+  WebRemoteControlAppPayload,
+  WebRemoteControlEndpointToClientFrame,
 } from "@zcode/shared";
-import type { WebRemoteControlLogger } from "./logger.js";
+import { attachLanMobileSocket } from "./lanMobileSocket.js";
+import type {
+  PairEntry,
+  LanEndpointOptions,
+  LanEndpointDeviceHandle,
+  LanEndpointDeviceHandlers,
+  LanEndpointDeviceRegistration,
+} from "./lanEndpointTypes.js";
 import { createMobileAppStaticHandler } from "./mobileAppAssets.js";
+export type {
+  WebRemoteControlEndpointDeviceState,
+  LanEndpointOptions,
+  LanEndpointDeviceHandle,
+  LanEndpointDeviceHandlers,
+  LanEndpointDeviceRegistration,
+} from "./lanEndpointTypes.js";
 
 /**
  * LAN 直连带端（默认传输）：桌面自身承担「设备注册 / 配对 / 转发」。
@@ -23,68 +34,6 @@ import { createMobileAppStaticHandler } from "./mobileAppAssets.js";
 const WS_PATH = "/ws";
 const PAIR_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 
-export type WebRemoteControlEndpointDeviceState =
-  | "connecting"
-  | "registering"
-  | "authenticating"
-  | "waiting_terminal"
-  | "paired"
-  | "error";
-
-export interface LanEndpointDeviceHandlers {
-  onStateChange(state: WebRemoteControlEndpointDeviceState): void;
-  onPayload(payload: WebRemoteControlAppPayload): void;
-  onRegisteredAuth(auth: { deviceSid: string; passHash: string }): void;
-  onError(error: Error): void;
-  onMobileDisconnected(): void;
-}
-
-/**
- * 设备注册结果。持久化 sid 失效时端点只报告、不置 error：配对表只在端点内存里，
- * 桌面重启或「停止后重开」必然查不到旧 sid，由调用方清档后转注册流程重新配对
- * （与 relay 传输对 AUTH_FAILED 的处理一致）。若在此处置 error，运行时会被打成
- * error 态，快照不带 qrUrl，UI 一直停在「正在准备二维码」，只能靠用户手动刷新。
- */
-export type LanEndpointDeviceRegistration =
-  | { ok: true; handle: LanEndpointDeviceHandle }
-  | { ok: false; reason: "invalid-persisted-auth" };
-
-export interface LanEndpointDeviceHandle {
-  readonly deviceSid: string;
-  sendPayload(payload: WebRemoteControlAppPayload): boolean;
-  dispose(): void;
-}
-
-export interface LanEndpointOptions {
-  logger: WebRemoteControlLogger;
-  deviceMid: string;
-  deviceName: string;
-  appVersion: string;
-  /**
-   * 移动端 payload 的目的地。带 deviceSid：端点可能同时服务多个窗口的配对，
-   * manager 据此路由到对应运行时。
-   */
-  handleMobilePayload(deviceSid: string, payload: WebRemoteControlAppPayload): void;
-  maxPhysicalFrameBytes: number;
-  /** 0 = 随机端口；显式端口便于用户配防火墙。 */
-  port?: number;
-}
-
-interface DeviceSide {
-  handle: LanEndpointDeviceHandle;
-  handlers: LanEndpointDeviceHandlers;
-}
-
-interface PairEntry {
-  deviceSid: string;
-  passHash: string;
-  device?: DeviceSide;
-  mobile?: WebSocket;
-  mobileNonce?: string;
-  pairStatus: WebRemoteControlPairStatus;
-  lastSeenAt: number;
-}
-
 interface LanEndpointInfo {
   port: number;
   /** 可达 base URL：loopback 在前（同机调试），LAN 地址是给手机的 QR 目标。 */
@@ -93,17 +42,20 @@ interface LanEndpointInfo {
 
 export class LanRemoteControlEndpoint {
   private readonly servers = new Map<string, Server>();
-  private readonly wss = new WebSocketServer({ noServer: true });
+  private readonly wss: WebSocketServer;
   private readonly pairs = new Map<string, PairEntry>();
   private readonly staticHandler: ReturnType<typeof createMobileAppStaticHandler>;
   private readonly maxFrameBytes: number;
   private info: LanEndpointInfo | null = null;
   private startPromise: Promise<LanEndpointInfo> | null = null;
+  private stopPromise: Promise<void> | null = null;
   private pairSweepTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly options: LanEndpointOptions) {
     this.staticHandler = createMobileAppStaticHandler({ logger: options.logger });
     this.maxFrameBytes = options.maxPhysicalFrameBytes;
+    // message 回调只在完整消息到齐后触发；接收器必须在分片累计超限时就拒绝继续分配。
+    this.wss = new WebSocketServer({ noServer: true, maxPayload: this.maxFrameBytes });
   }
 
   get baseUrls(): string[] {
@@ -119,12 +71,17 @@ export class LanRemoteControlEndpoint {
     const entry = this.pairs.get(deviceSid);
     if (!entry) return;
     entry.device = undefined;
-    if (!entry.mobile) {
+    // 设备释放后旧 Host bridge 已不可用；先通知手机禁发，复用 SID 时再通知 matched。
+    entry.pairStatus = "waiting";
+    if (entry.mobile?.readyState === WebSocket.OPEN) {
+      entry.mobile.send(JSON.stringify({ type: "pair_status_ack", pair_status: "waiting" }));
+    } else {
       this.pairs.delete(deviceSid);
     }
   }
 
   start(): Promise<LanEndpointInfo> {
+    if (this.stopPromise) return this.stopPromise.then(() => this.start());
     if (this.info) return Promise.resolve(this.info);
     if (this.startPromise) return this.startPromise;
 
@@ -180,24 +137,44 @@ export class LanRemoteControlEndpoint {
       });
       return this.info;
     } catch (error) {
-      await this.stop();
+      await this.closeEndpoint();
       throw error;
     }
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise;
+    // bind 回调仍会登记 listener；先等它结束再清理，避免 stop 返回后旧 start 复活端点。
+    const stopping = (async () => {
+      await this.startPromise?.catch(() => undefined);
+      await this.closeEndpoint();
+    })();
+    this.stopPromise = stopping;
+    void stopping
+      .finally(() => {
+        if (this.stopPromise === stopping) this.stopPromise = null;
+      })
+      .catch(() => undefined);
+    return stopping;
+  }
+
+  private async closeEndpoint(): Promise<void> {
     if (this.pairSweepTimer) {
       clearInterval(this.pairSweepTimer);
       this.pairSweepTimer = null;
     }
     for (const entry of this.pairs.values()) {
-      entry.mobile?.close(1001, "endpoint-stopped");
+      // close 回调不再重复通知同一配对；wss 持有包括未鉴权在内的全部 socket。
+      entry.mobile = undefined;
       entry.device?.handlers.onMobileDisconnected();
     }
     this.pairs.clear();
-    for (const server of this.servers.values()) {
-      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
-    }
+    for (const client of this.wss.clients) client.close(1001, "endpoint-stopped");
+    await Promise.all(
+      [...this.servers.values()].map(
+        (server) => new Promise<void>((resolveClose) => server.close(() => resolveClose())),
+      ),
+    );
     this.servers.clear();
     this.info = null;
   }
@@ -210,11 +187,18 @@ export class LanRemoteControlEndpoint {
     handlers: LanEndpointDeviceHandlers,
   ): LanEndpointDeviceRegistration {
     // device handle 的发送必须落到配对中的手机 socket；空桩会让桌面出站全部静默丢弃。
-    const makeHandle = (sid: string): LanEndpointDeviceHandle => ({
-      deviceSid: sid,
-      sendPayload: (payload) => this.deliverToMobile(sid, payload),
-      dispose: () => this.releaseDevice(sid),
-    });
+    const makeHandle = (sid: string): LanEndpointDeviceHandle => {
+      const handle: LanEndpointDeviceHandle = {
+        deviceSid: sid,
+        sendPayload: (payload) =>
+          this.pairs.get(sid)?.device?.handle === handle && this.deliverToMobile(sid, payload),
+        dispose: () => {
+          // 同 SID 可注册新 handle；迟到的旧 dispose 不能摘掉新设备。
+          if (this.pairs.get(sid)?.device?.handle === handle) this.releaseDevice(sid);
+        },
+      };
+      return handle;
+    };
 
     if (auth.mode === "persisted") {
       const existing = this.pairs.get(auth.deviceSid);
@@ -224,7 +208,14 @@ export class LanRemoteControlEndpoint {
         return { ok: false, reason: "invalid-persisted-auth" };
       }
       existing.device = { handle: makeHandle(existing.deviceSid), handlers };
-      this.enterWaitingTerminal(existing);
+      existing.pairStatus = existing.mobile?.readyState === WebSocket.OPEN ? "matched" : "waiting";
+      existing.lastSeenAt = Date.now();
+      handlers.onStateChange(existing.pairStatus === "matched" ? "paired" : "waiting_terminal");
+      if (existing.mobile?.readyState === WebSocket.OPEN) {
+        existing.mobile.send(
+          JSON.stringify({ type: "pair_status_ack", pair_status: existing.pairStatus }),
+        );
+      }
       return { ok: true, handle: existing.device.handle };
     }
     const deviceSid = randomBytes(16).toString("base64url");
@@ -260,132 +251,27 @@ export class LanRemoteControlEndpoint {
   }
 
   private handleUpgrade(req: IncomingMessage, socket: unknown, head: unknown): void {
+    // 关闭多个 listener 期间不再接纳新 socket，避免错过本轮 WebSocket 清理。
+    if (this.stopPromise) {
+      (socket as { destroy(): void }).destroy();
+      return;
+    }
+    // upgrade 事件中的 URL 解析异常不能逃逸到 Electron Main。
+    if (!URL.canParse(req.url ?? "/", "http://localhost")) {
+      (socket as { destroy(): void }).destroy();
+      return;
+    }
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname !== WS_PATH) {
       (socket as { destroy(): void }).destroy();
       return;
     }
     this.wss.handleUpgrade(req, socket as never, head as never, (ws: WebSocket) => {
-      void this.attachMobileSocket(ws);
-    });
-  }
-
-  private async attachMobileSocket(ws: WebSocket): Promise<void> {
-    let entry: PairEntry | null = null;
-    const send = (frame: WebRemoteControlEndpointToClientFrame): void => {
-      ws.send(JSON.stringify(frame));
-    };
-    const fail = (code: "AUTH_FAILED" | "WRONG_PARAM" | "INTERNAL", message?: string): void => {
-      send({ type: "error", code, message });
-      ws.close(4001, code);
-    };
-
-    ws.on("message", (raw) => {
-      const text = typeof raw === "string" ? raw : raw.toString();
-      if (Buffer.byteLength(text) > this.maxFrameBytes) {
-        this.options.logger.warn("[web-remote-control] oversize mobile frame dropped", {
-          bytes: Buffer.byteLength(text),
-          maxBytes: this.maxFrameBytes,
-        });
-        fail("WRONG_PARAM", "frame too large");
-        return;
-      }
-      let parsed: ReturnType<typeof webRemoteControlClientToEndpointFrameSchema.safeParse>;
-      try {
-        parsed = webRemoteControlClientToEndpointFrameSchema.safeParse(JSON.parse(text));
-      } catch {
-        fail("WRONG_PARAM", "invalid json");
-        return;
-      }
-      if (!parsed.success) {
-        fail("WRONG_PARAM", "invalid frame");
-        return;
-      }
-      const frame = parsed.data;
-      switch (frame.type) {
-        case "auth_init": {
-          if (frame.role !== "mobile") {
-            fail("AUTH_FAILED");
-            return;
-          }
-          const candidate = this.pairs.get(frame.device_sid);
-          if (!candidate) {
-            fail("AUTH_FAILED");
-            return;
-          }
-          entry = candidate;
-          entry.mobileNonce = randomBytes(16).toString("base64url");
-          send({ type: "auth_challenge", nonce: entry.mobileNonce });
-          return;
-        }
-        case "auth_response": {
-          if (!entry || !entry.mobileNonce) {
-            fail("AUTH_FAILED");
-            return;
-          }
-          const expected = calculateProof(
-            entry.passHash,
-            entry.mobileNonce,
-            "mobile",
-            entry.deviceSid,
-          );
-          if (!safeEqual(expected, frame.proof)) {
-            entry.mobileNonce = undefined;
-            fail("AUTH_FAILED");
-            return;
-          }
-          entry.mobileNonce = undefined;
-          if (entry.mobile && entry.mobile !== ws) {
-            // 单页面互踢：先给旧连接发 error{KICKED}（桌面/移动端据此映射
-            // session-conflict），再关闭；只关不发会让旧页面静默掉线。
-            const stale = entry.mobile;
-            stale.send(JSON.stringify({ type: "error", code: "KICKED", message: "kicked" }));
-            stale.close(4002, "kicked");
-          }
-          entry.mobile = ws;
-          entry.pairStatus = "matched";
-          entry.lastSeenAt = Date.now();
-          entry.device?.handlers.onStateChange("paired");
-          send({ type: "auth_ack", pair_status: "matched" });
-          return;
-        }
-        case "pair_status_query": {
-          if (!entry || this.pairs.get(frame.device_sid) !== entry) {
-            fail("AUTH_FAILED");
-            return;
-          }
-          entry.lastSeenAt = Date.now();
-          send({ type: "pair_status_ack", pair_status: entry.pairStatus });
-          return;
-        }
-        case "data": {
-          if (!entry || entry.mobile !== ws) {
-            fail("AUTH_FAILED");
-            return;
-          }
-          entry.lastSeenAt = Date.now();
-          const payload = webRemoteControlAppPayloadSchema.safeParse(frame.payload);
-          if (!payload.success) {
-            this.options.logger.warn("[web-remote-control] invalid app payload dropped");
-            return;
-          }
-          this.options.handleMobilePayload(entry.deviceSid, payload.data);
-          return;
-        }
-        default:
-          fail("WRONG_PARAM");
-      }
-    });
-
-    ws.on("close", () => {
-      if (!entry || entry.mobile !== ws) return;
-      entry.mobile = undefined;
-      entry.pairStatus = "waiting";
-      entry.device?.handlers.onMobileDisconnected();
-    });
-    ws.on("error", (error) => {
-      this.options.logger.warn("[web-remote-control] mobile socket error", {
-        message: error.message,
+      attachLanMobileSocket(ws, {
+        pairs: this.pairs,
+        logger: this.options.logger,
+        maxFrameBytes: this.maxFrameBytes,
+        handleMobilePayload: this.options.handleMobilePayload,
       });
     });
   }
@@ -394,7 +280,7 @@ export class LanRemoteControlEndpoint {
   deliverToMobile(deviceSid: string, payload: WebRemoteControlAppPayload): boolean {
     const entry = this.pairs.get(deviceSid);
     const mobile = entry?.mobile;
-    if (!entry || !mobile) {
+    if (!entry?.device || entry.pairStatus !== "matched" || mobile?.readyState !== WebSocket.OPEN) {
       return false;
     }
     const frame: WebRemoteControlEndpointToClientFrame = { type: "data", payload };
@@ -412,6 +298,11 @@ export class LanRemoteControlEndpoint {
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
+    if (!URL.canParse(req.url ?? "/", "http://localhost")) {
+      res.writeHead(400);
+      res.end("Bad request");
+      return;
+    }
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname === "/healthz") {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
@@ -445,15 +336,4 @@ export class LanRemoteControlEndpoint {
       });
     }
   }
-}
-
-function calculateProof(passHash: string, nonce: string, role: string, deviceSid: string): string {
-  return createHmac("sha256", passHash).update(`${nonce}|${role}|${deviceSid}`).digest("base64url");
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const bufferA = Buffer.from(a);
-  const bufferB = Buffer.from(b);
-  if (bufferA.length !== bufferB.length) return false;
-  return timingSafeEqual(bufferA, bufferB);
 }

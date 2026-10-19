@@ -22,8 +22,12 @@ const { ChannelServer, Emitter, ProxyChannel, VSBuffer } = await tsImport(
   "../../packages/rpc/src/index.ts",
   import.meta.url,
 );
-const { ServiceChannels, encodeWebRemoteControlRpcFrames, WebRemoteControlRpcAssembler } =
-  await tsImport("../../packages/shared/src/index.ts", import.meta.url);
+const {
+  ServiceChannels,
+  encodeWebRemoteControlRpcFrames,
+  WebRemoteControlRpcAssembler,
+  webRemoteControlAppPayloadSchema,
+} = await tsImport("../../packages/shared/src/index.ts", import.meta.url);
 
 // 真实 mobile entry + 真实 LAN endpoint：浏览器自行计算 proof 并与 endpoint 完成握手。
 const root = resolve(import.meta.dirname, "../..");
@@ -218,7 +222,11 @@ try {
           bridgeSessionId: streamId,
           bridge: {
             bridgeSessionId: streamId,
-            ...target,
+            workspaceKey: target.workspaceKey,
+            workspacePath: target.workspacePath,
+            workspaceIdentity: target.workspaceIdentity,
+            remoteSessionId: target.remoteSessionId,
+            kind: target.kind,
             entryKind: "task",
           },
         });
@@ -245,7 +253,16 @@ try {
     },
   );
   assert.equal(registration.ok, true);
-  const device = registration.handle;
+  const validateHandle = (handle) => {
+    const send = handle.sendPayload;
+    // 正常 fixture 信封也必须满足生产 schema；异常注入单独通过原始 socket 发送。
+    handle.sendPayload = (payload) => send(webRemoteControlAppPayloadSchema.parse(payload));
+    return handle;
+  };
+  let device = validateHandle(registration.handle);
+  const replaceDevice = (handle) => {
+    device = validateHandle(handle);
+  };
   const info = await endpoint.start();
   browser = await chromium.launch({
     channel: "chromium",
@@ -264,6 +281,7 @@ try {
       constructor(...args) {
         window.__mobileWsCount++;
         super(...args);
+        window.__mobileSocket = this;
       }
     };
   });
@@ -347,11 +365,14 @@ try {
   await loadOlderUntil(second, "历史测试消息");
   await captureMobile(second, "conversation", evidenceDir);
   await assertV4MobileLayout(second, longText, generatedText);
+  await assertMalformedInbound(second, endpoint, device, evidenceDir);
+  await assertBatchedPairRecovery(second, fixture, evidenceDir);
   await captureMobile(second, "conversation-scrolled", evidenceDir);
   const initialResumes = resumes;
   device.sendPayload({
     zcode_type: "workspace-list-updated",
     result: {
+      activeWorkspaceKey: "fixture-workspace",
       workspaces: [
         {
           workspaceKey: "fixture-workspace",
@@ -509,7 +530,14 @@ try {
   );
   await assertProjectionBeforeAck(second, device, fixture, evidenceDir);
   await assertQueryUnavailableRetry(second, fixture, evidenceDir);
-  await assertWaitingRecovery(second, endpoint, device, fixture, evidenceDir);
+  device = await assertWaitingRecovery(
+    second,
+    endpoint,
+    device,
+    fixture,
+    evidenceDir,
+    replaceDevice,
+  );
   await assertCrossTargetDrafts(second, device, fixture, remoteFixture, evidenceDir);
   await assertRemoteSessionIsolation(second, device, fixture, remoteFixture, evidenceDir);
   assert.deepEqual(
@@ -525,7 +553,16 @@ try {
     "PASS Chromium mobile + production dual-entry Vite build + real CSS/LAN/Channel RPC: initial V4 prefix, streaming delta, paging, gated send, delayed/lost ACK, draft preservation, reconnect projection, pairing, layout; bad hash and duplicate page terminate",
   );
   await context.close();
-  await runWebKitChecks({ endpoint, device, url, fixture, evidenceDir, pageErrors, generatedText });
+  await runWebKitChecks({
+    endpoint,
+    device,
+    replaceDevice,
+    url,
+    fixture,
+    evidenceDir,
+    pageErrors,
+    generatedText,
+  });
   console.log("Rerun: node scripts/ci/web-remote-control-mobile-smoke.mjs");
 } finally {
   try {
@@ -725,6 +762,7 @@ async function assertViewScrollIsolationV4(page, tailText, expectedDraft) {
 async function runWebKitChecks({
   endpoint,
   device,
+  replaceDevice,
   url,
   fixture,
   evidenceDir,
@@ -758,6 +796,7 @@ async function runWebKitChecks({
       constructor(...args) {
         window.__mobileWsCount++;
         super(...args);
+        window.__mobileSocket = this;
       }
     };
   });
@@ -808,6 +847,8 @@ async function runWebKitChecks({
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByPlaceholder("发送消息").fill("WebKit 断线草稿");
+  await assertMalformedInbound(page, endpoint, device, evidenceDir, "webkit-");
+  await assertBatchedPairRecovery(page, fixture, evidenceDir, "webkit-");
   const wsBefore = await page.evaluate(() => window.__mobileWsCount);
   const bootstrapBefore = bootstrapRequests;
   const mobile = endpoint.pairs.get(device.deviceSid)?.mobile;
@@ -838,7 +879,15 @@ async function runWebKitChecks({
   assert.equal(await page.getByPlaceholder("发送消息").inputValue(), "WebKit 断线草稿");
   await assertProjectionBeforeAck(page, device, fixture, evidenceDir, "webkit-");
   await assertQueryUnavailableRetry(page, fixture, evidenceDir, "webkit-");
-  await assertWaitingRecovery(page, endpoint, device, fixture, evidenceDir, "webkit-");
+  device = await assertWaitingRecovery(
+    page,
+    endpoint,
+    device,
+    fixture,
+    evidenceDir,
+    replaceDevice,
+    "webkit-",
+  );
   await assertCrossTargetDrafts(page, device, fixture, remoteFixture, evidenceDir, "webkit-");
   await assertRemoteSessionIsolation(page, device, fixture, remoteFixture, evidenceDir, "webkit-");
   assert.deepEqual(
@@ -850,6 +899,73 @@ async function runWebKitChecks({
   await context.close();
   console.log(
     "PASS WebKit mobile layout + non-CDP reconnect: narrow/landscape bounds, V4 snapshot and draft restoration",
+  );
+}
+
+async function assertBatchedPairRecovery(page, fixture, evidenceDir, prefix = "") {
+  const draft = await page.getByPlaceholder("发送消息").inputValue();
+  const resumesBefore = resumes;
+  const bootstrapBefore = bootstrapRequests;
+  const sentBefore = fixture.sentCommandIds().length;
+  const snapshotGate = fixture.gateInitial();
+  host?.dispose();
+  host = undefined;
+  // 同一个事件批次模拟 relay 替换：React 可以合并中间 waiting，但协议已释放旧 client。
+  await page.evaluate(() => {
+    for (const pair_status of ["waiting", "matched"]) {
+      window.__mobileSocket.dispatchEvent(
+        new MessageEvent("message", {
+          data: JSON.stringify({ type: "pair_status_ack", pair_status }),
+        }),
+      );
+    }
+  });
+  await withTimeout(
+    waitForCondition(() => resumes > resumesBefore && bootstrapRequests > bootstrapBefore),
+    10000,
+    "batched waiting/matched did not restore bootstrap and conversation",
+  );
+  await withTimeout(snapshotGate.entered, 10000, "recovery did not request a new snapshot");
+  assert.equal(
+    await page.getByRole("button", { name: "发送", exact: true }).isDisabled(),
+    true,
+    "old snapshot must not enable sending before the new snapshot arrives",
+  );
+  snapshotGate.release();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll("button")].some(
+      (button) => button.textContent?.trim() === "发送" && !button.disabled,
+    ),
+  );
+  assert.equal(await page.getByPlaceholder("发送消息").inputValue(), draft);
+  assert.equal(fixture.sentCommandIds().length, sentBefore, "recovery must not resubmit drafts");
+  await captureMobile(page, `${prefix}batched-pair-recovered`, evidenceDir);
+  console.log(`PASS ${prefix}batched waiting/matched restores snapshot and keeps draft`);
+}
+
+async function assertMalformedInbound(page, endpoint, device, evidenceDir, prefix = "") {
+  const socket = endpoint.pairs.get(device.deviceSid)?.mobile;
+  assert.ok(socket, "malformed inbound test needs the current authenticated socket");
+  const draft = await page.getByPlaceholder("发送消息").inputValue();
+  for (const frame of [
+    null,
+    { type: "data", payload: null },
+    { type: "data", payload: 1 },
+    { type: "data", payload: { zcode_type: "workspace-list-updated", result: null } },
+  ]) {
+    socket.send(JSON.stringify(frame));
+  }
+  // 合法 marker 与坏帧在同一 socket 保序到达，避免仅等待固定时长造成假通过。
+  const marker = `${prefix}异常帧后的有效响应`;
+  device.sendPayload({ zcode_type: "app-error", reason: marker });
+  await page.getByText(marker, { exact: true }).waitFor();
+  assert.equal(await page.getByPlaceholder("发送消息").inputValue(), draft);
+  assert.equal(await page.getByRole("button", { name: "发送", exact: true }).isEnabled(), true);
+  device.sendPayload({ zcode_type: "app-error", reason: "" });
+  await page.getByText(marker, { exact: true }).waitFor({ state: "hidden" });
+  await captureMobile(page, `${prefix}malformed-inbound-rejected`, evidenceDir);
+  console.log(
+    `PASS ${prefix}malformed wire/app payloads rejected, valid response and draft preserved`,
   );
 }
 
@@ -962,7 +1078,15 @@ async function assertQueryUnavailableRetry(page, fixture, evidenceDir, evidenceP
   );
 }
 
-async function assertWaitingRecovery(page, endpoint, device, fixture, evidenceDir, prefix = "") {
+async function assertWaitingRecovery(
+  page,
+  endpoint,
+  device,
+  fixture,
+  evidenceDir,
+  replaceDevice,
+  prefix = "",
+) {
   const composer = page.getByPlaceholder("发送消息");
   const text = "桌面等待后沿用原提交重试";
   const sentBefore = fixture.sentCommandIds().length;
@@ -973,10 +1097,11 @@ async function assertWaitingRecovery(page, endpoint, device, fixture, evidenceDi
   await page.getByRole("button", { name: "发送", exact: true }).click();
   const { envelope } = await withTimeout(hold.accepted, 10000, "waiting command not admitted");
   fixture.makeQueryUnavailable(envelope.commandId);
-  const mobile = endpoint.pairs.get(device.deviceSid)?.mobile;
-  assert.ok(mobile, "paired mobile socket must exist before waiting injection");
-  // LAN device 在进程内，没有独立 socket；注入 relay 控制帧验收手机 UI，真实断开由 relay WS 测试覆盖。
-  mobile.send(JSON.stringify({ type: "pair_status_ack", pair_status: "waiting" }));
+  const pair = endpoint.pairs.get(device.deviceSid);
+  assert.ok(pair?.mobile && pair.device, "paired LAN device must exist before release");
+  const handlers = pair.device.handlers;
+  // 直接释放并复用生产 LAN handle，验证端点确实发出 waiting/matched，而不靠手工注入帧。
+  device.dispose();
   await page.getByText("手机已连接，正在等待桌面端确认配对。", { exact: true }).waitFor();
   const send = page.getByRole("button", { name: "发送", exact: true });
   await send.waitFor({ state: "visible", timeout: 3000 });
@@ -989,7 +1114,13 @@ async function assertWaitingRecovery(page, endpoint, device, fixture, evidenceDi
   hold.release({ reject: true });
   const bootstrapBefore = bootstrapRequests;
   const resumesBefore = resumes;
-  mobile.send(JSON.stringify({ type: "pair_status_ack", pair_status: "matched" }));
+  const restored = endpoint.registerDevice(
+    { mode: "persisted", deviceSid: device.deviceSid, passHash: pair.passHash },
+    handlers,
+  );
+  assert.equal(restored.ok, true);
+  // Host/Bootstrap fixture 的出站也必须使用新 handle，避免测试自身继续发送到已释放设备。
+  replaceDevice(restored.handle);
   await page
     .getByText("发送结果待确认，草稿已保留。点击发送可使用原提交重试。", { exact: true })
     .waitFor({ timeout: 10000 });
@@ -1008,8 +1139,9 @@ async function assertWaitingRecovery(page, endpoint, device, fixture, evidenceDi
   fixture.suppressFrames(false);
   await captureMobile(page, `${prefix}device-matched-recovered`, evidenceDir);
   console.log(
-    "PASS waiting/matched UI: pending RPC failed, draft retained, attachment restored, same-ID retry",
+    "PASS real LAN release/rebind UI: pending RPC failed, draft retained, attachment restored, same-ID retry",
   );
+  return restored.handle;
 }
 
 async function assertCrossTargetDrafts(page, device, local, remote, evidenceDir, prefix = "") {
@@ -1029,6 +1161,7 @@ async function assertCrossTargetDrafts(page, device, local, remote, evidenceDir,
   device.sendPayload({
     zcode_type: "workspace-list-updated",
     result: {
+      activeWorkspaceKey: "fixture-workspace",
       workspaces: [
         {
           workspaceKey: "fixture-workspace",
@@ -1128,6 +1261,7 @@ async function assertRemoteSessionIsolation(page, device, local, remote, evidenc
     device.sendPayload({
       zcode_type: "workspace-list-updated",
       result: {
+        activeWorkspaceKey: "fixture-workspace",
         workspaces: [
           {
             workspaceKey: "fixture-workspace",

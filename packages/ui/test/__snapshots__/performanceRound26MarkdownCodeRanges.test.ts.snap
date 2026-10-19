@@ -1,0 +1,630 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Markdown code-range equivalent optimization > preserves complete pre-change comment projections including streaming tails 1`] = `
+[
+  {
+    "comments": [],
+    "visibleText": "",
+  },
+  {
+    "comments": [],
+    "visibleText": "",
+  },
+  {
+    "comments": [],
+    "visibleText": "普通正文 😀 without code",
+  },
+  {
+    "comments": [],
+    "visibleText": "普通正文 😀 without code",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`inline\` and \`\`long \` inline\`\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`inline\` and \`\`long \` inline\`\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`unclosed",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`unclosed",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a\`\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a\`\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`\`a\`\`\` after \`b\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`\`a\`\`\` after \`b\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`\`\`\`a
+\`\`\`
+b
+\`\`\`
+c\`\`\`\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`\`\`\`a
+\`\`\`
+b
+\`\`\`
+c\`\`\`\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a
+\`\`\`
+b
+\`\`\`
+c\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a
+\`\`\`
+b
+\`\`\`
+c\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`\`a
+~~~
+\`b
+~~~
+c\`\` after \`d\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`\`a
+~~~
+\`b
+~~~
+c\`\` after \`d\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a
+~~~
+\`b
+~~~
+c\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a
+~~~
+\`b
+~~~
+c\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`ts
+const t = \`value\`;
+\`\`\`
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`ts
+const t = \`value\`;
+\`\`\`
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "~~~ts
+const t = \`value\`;
+~~~
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "~~~ts
+const t = \`value\`;
+~~~
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`ts
+\`\`\`suffix
+\`still inside\`
+\`\`\`
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`ts
+\`\`\`suffix
+\`still inside\`
+\`\`\`
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`bad\`info
+text \`code\`
+",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`bad\`info
+text \`code\`
+",
+  },
+  {
+    "comments": [],
+    "visibleText": "  ~~~~md
+~~~
+\`\`\`
+~~~~
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "  ~~~~md
+~~~
+\`\`\`
+~~~~
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "    \`\`\`md
+\`indented\`
+    \`\`\`
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "    \`\`\`md
+\`indented\`
+    \`\`\`
+\`outside\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`md
+未闭合 \`fence\` 😀",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`md
+未闭合 \`fence\` 😀",
+  },
+  {
+    "comments": [],
+    "visibleText": "~~~md
+未闭合 \`fence\` 😀",
+  },
+  {
+    "comments": [],
+    "visibleText": "~~~md
+未闭合 \`fence\` 😀",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`
+a
+\`\`\`
+~~~
+b
+~~~
+",
+  },
+  {
+    "comments": [],
+    "visibleText": "\`\`\`
+a
+\`\`\`
+~~~
+b
+~~~
+",
+  },
+  {
+    "comments": [],
+    "visibleText": "<PRE class="example">\`a\`
+\`\`\`
+b
+\`\`\`
+</PRE > \`c\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<PRE class="example">\`a\`
+\`\`\`
+b
+\`\`\`
+</PRE > \`c\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<code>\`a</code>\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<code>\`a</code>\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<pre>one<code>two</code></pre> \`three\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<pre>one<code>two</code></pre> \`three\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<code>unclosed \`a\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<code>unclosed \`a\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<code>a</code><pre>b</pre>\`c\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "<code>a</code><pre>b</pre>\`c\`",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a
+~~~
+b
+~~~
+c\` after",
+  },
+  {
+    "comments": [],
+    "visibleText": "before \`a
+~~~
+b
+~~~
+c\` after",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 210,
+        "sourceStart": 134,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "\`\`\`md
+::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}
+::zcode-file-citation{path="/work/report.pdf"}
+\`\`\`
+::zcode-file-citation{path="/work/report.pdf"}",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 210,
+        "sourceStart": 134,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "\`\`\`md
+::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}
+::zcode-file-citation{path="/work/report.pdf"}
+\`\`\`
+::zcode-file-citation{path="/work/report.pdf"}",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 156,
+        "sourceStart": 80,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "正文
+",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 156,
+        "sourceStart": 80,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "正文
+",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 83,
+        "sourceStart": 7,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "before   after",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 83,
+        "sourceStart": 7,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "before   after",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "::code-comment{title="未完成",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "::code-comment",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "::zcode-file-cit",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 76,
+        "sourceStart": 0,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 155,
+        "sourceStart": 79,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "\`::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}\`
+",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 155,
+        "sourceStart": 79,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "\`::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}\`
+",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 164,
+        "sourceStart": 88,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "<pre>::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}</pre>
+",
+  },
+  {
+    "comments": [
+      {
+        "body": "保留原文",
+        "endLine": 2,
+        "file": "src/test.ts",
+        "priority": 1,
+        "sourceEnd": 164,
+        "sourceStart": 88,
+        "startLine": 2,
+        "title": "检查",
+      },
+    ],
+    "visibleText": "<pre>::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}</pre>
+",
+  },
+  {
+    "comments": [],
+    "visibleText": "~~~
+::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}
+~~~
+::code-comment{title="未完成",
+  },
+  {
+    "comments": [],
+    "visibleText": "~~~
+::code-comment{title="检查" body="保留原文" file="src/test.ts" start=2 priority=1}
+~~~
+",
+  },
+  {
+    "comments": [
+      {
+        "body": "y",
+        "file": "C:\\work\\test.ts",
+        "sourceEnd": 82,
+        "sourceStart": 0,
+        "title": "x",
+      },
+    ],
+    "visibleText": "",
+  },
+  {
+    "comments": [
+      {
+        "body": "y",
+        "file": "C:\\work\\test.ts",
+        "sourceEnd": 82,
+        "sourceStart": 0,
+        "title": "x",
+      },
+    ],
+    "visibleText": "",
+  },
+  {
+    "comments": [],
+    "visibleText": "::code-comment{title="x" body="y"}
+ordinary text",
+  },
+  {
+    "comments": [],
+    "visibleText": "::code-comment{title="x" body="y"}
+ordinary text",
+  },
+]
+`;

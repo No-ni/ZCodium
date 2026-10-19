@@ -256,10 +256,30 @@ export function findMarkdownCodeRanges(content: string): AssistantTextRange[] {
     ranges.push([start, start + (match[0]?.length ?? 0)]);
   }
 
-  const isFenced = (index: number) =>
-    fencedRanges.some(([start, end]) => index >= start && index < end);
-  for (let index = 0; index < content.length; index += 1) {
-    if (content[index] !== "`" || isFenced(index)) continue;
+  // 围栏已按起点排序且不重叠；闭合候选可能跨过多个围栏，二分查询避免每次全表扫描。
+  const isFenced = (index: number) => {
+    let low = 0;
+    let high = fencedRanges.length - 1;
+    while (low <= high) {
+      const middle = (low + high) >>> 1;
+      const [start, end] = fencedRanges[middle]!;
+      if (index < start) high = middle - 1;
+      else if (index >= end) low = middle + 1;
+      else return true;
+    }
+    return false;
+  };
+  let fenceIndex = 0;
+  for (let index = content.indexOf("`"); index !== -1; index = content.indexOf("`", index + 1)) {
+    // 行内扫描只向前推进，已知围栏整段跳过；跨围栏的旧行内匹配也要推进游标。
+    while (fenceIndex < fencedRanges.length && index >= fencedRanges[fenceIndex]![1]) {
+      fenceIndex += 1;
+    }
+    const fencedRange = fencedRanges[fenceIndex];
+    if (fencedRange && index >= fencedRange[0]) {
+      index = fencedRange[1] - 1;
+      continue;
+    }
     let markerLength = 1;
     while (content[index + markerLength] === "`") markerLength += 1;
     const marker = "`".repeat(markerLength);

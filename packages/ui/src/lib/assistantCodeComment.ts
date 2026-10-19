@@ -4,6 +4,7 @@ import {
   findMarkdownCodeRanges,
   findUnclosedAssistantDirectiveStart,
   overlapsAssistantTextRanges,
+  type AssistantTextRange,
 } from "@/lib/assistantDirectiveParser.js";
 import {
   resolveAssistantRawFilePath,
@@ -59,8 +60,10 @@ function parsePriority(value: string | undefined): AssistantCodeCommentPriority 
   return Number.parseInt(value, 10) as AssistantCodeCommentPriority;
 }
 
-function extractAssistantCodeComments(content: string): AssistantCodeComment[] {
-  const protectedRanges = findMarkdownCodeRanges(content);
+function extractAssistantCodeComments(
+  content: string,
+  protectedRanges: readonly AssistantTextRange[],
+): AssistantCodeComment[] {
   return extractAssistantDirectives(content, CODE_COMMENT_DIRECTIVE_NAME).flatMap((directive) => {
     if (
       !directive.parameters ||
@@ -126,11 +129,12 @@ export function projectAssistantCodeComments(
   content: string,
   options: { streaming: boolean },
 ): AssistantCodeCommentProjection {
-  const comments = extractAssistantCodeComments(content);
+  // 完整评论和流式尾部来自同一份原文，共用本次解析结果，避免流式更新时重复扫描。
+  const protectedRanges = findMarkdownCodeRanges(content);
+  const comments = extractAssistantCodeComments(content, protectedRanges);
   const replacements = comments.map((comment) => replacementForComment(content, comment));
 
   if (options.streaming) {
-    const protectedRanges = findMarkdownCodeRanges(content);
     const unclosedStart = findUnclosedAssistantDirectiveStart(
       content,
       CODE_COMMENT_DIRECTIVE_NAME,
@@ -192,7 +196,7 @@ export function buildAssistantCodeCommentCards(
   options: AssistantCodeCommentCardOptions = {},
 ): AssistantCodeCommentCard[] {
   const { displayRootPath, ...resolveOptions } = options;
-  return extractAssistantCodeComments(content)
+  return extractAssistantCodeComments(content, findMarkdownCodeRanges(content))
     .flatMap((comment) => {
       const path = resolveAssistantRawFilePath(workspacePath, comment.file, resolveOptions);
       // 展示路径优先相对解析基准（模型写路径的基准），落不到再相对展示根：

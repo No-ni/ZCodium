@@ -219,7 +219,7 @@ describe("createLanDeviceTransport", () => {
     expect(second.invalidPersistedAuth.calls).toBe(0);
     expect(second.registered).toHaveLength(0);
     expect(second.errors).toHaveLength(0);
-    expect(second.states).toContain("waiting_terminal");
+    expect(second.states).toContain("paired");
 
     mobile.socket.close();
     secondTransport.dispose();

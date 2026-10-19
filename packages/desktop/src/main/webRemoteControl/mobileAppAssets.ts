@@ -79,11 +79,17 @@ export function createMobileAppStaticHandler(params: { logger: WebRemoteControlL
       };
     }
     // SPA：未命中文件时回退 mobile.html（深链 /remote/task/xxx 不 404）。
-    const candidates = [
-      resolveStaticFilePath(root, urlPath),
-      mobileDir ? resolveStaticFilePath(mobileDir, urlPath) : null,
-      mobileHtmlPath,
-    ].filter((value): value is string => Boolean(value));
+    let candidates: string[];
+    try {
+      candidates = [
+        resolveStaticFilePath(root, urlPath),
+        mobileDir ? resolveStaticFilePath(mobileDir, urlPath) : null,
+        mobileHtmlPath,
+      ].filter((value): value is string => Boolean(value));
+    } catch {
+      // 非法百分号编码会让 decodeURIComponent 抛错；应拒绝请求，不能成为 Main 的未处理异常。
+      return { status: 400, body: "Bad request", contentType: "text/plain; charset=utf-8" };
+    }
     for (const candidate of candidates) {
       try {
         const body = await readFile(candidate);

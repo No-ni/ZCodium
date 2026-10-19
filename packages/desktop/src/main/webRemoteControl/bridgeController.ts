@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import type {
   WebRemoteControlBridgeDescriptor,
   WebRemoteControlFailureReason,
+  WebRemoteControlWorkspaceRef,
 } from "@zcode/shared";
 import type { WebRemoteControlLogger } from "./logger.js";
 import type { WebRemoteControlRuntime } from "./runtime.js";
@@ -26,6 +27,34 @@ export type BridgeOpenResult =
   | { ok: true; bridge: WebRemoteControlBridgeDescriptor }
   | { ok: false; reason: WebRemoteControlFailureReason; error: string };
 
+/** 清单变化只撤销受影响的 attachment；标签、任务状态等展示字段不参与 scope 判定。 */
+export function closeChangedWorkspaceBridge(
+  runtime: WebRemoteControlRuntime,
+  previous: WebRemoteControlWorkspaceRef | undefined,
+): string | undefined {
+  const bridge = runtime.bridge;
+  if (!bridge) return;
+  const current = runtime.workspaces.find((item) => item.workspaceKey === bridge.workspaceKey);
+  if (
+    previous &&
+    current &&
+    previous.workspacePath === current.workspacePath &&
+    (previous.workspaceIdentity?.trim() || "") === (current.workspaceIdentity?.trim() || "") &&
+    previous.remoteSessionId === current.remoteSessionId &&
+    previous.kind === current.kind &&
+    !(
+      current.kind === "remote" &&
+      current.connectionState !== undefined &&
+      current.connectionState !== "connected"
+    )
+  )
+    return;
+  // open 时的校验不能覆盖后续关工作区/远端换代；先摘掉单槽再释放，阻止旧帧继续访问 Host。
+  runtime.bridge = undefined;
+  bridge.dispose();
+  return bridge.bridgeSessionId;
+}
+
 export function openWorkspaceBridge(
   runtime: WebRemoteControlRuntime,
   request: BridgeOpenRequest,
@@ -49,6 +78,10 @@ export function openWorkspaceBridge(
     );
   }
   if (target.kind === "remote") {
+    // 清单中的 connected 不能替代完整远端身份；缺 session 时 attachment helper 会选择 local scope。
+    if (!target.remoteSessionId?.trim() || !target.workspaceIdentity?.trim()) {
+      return fail("invalidMobileConnection", "远程工作区身份尚未就绪，请先在桌面端重连。");
+    }
     // 权威态优先取同步时已覆盖的值；缺失时走修因路径重新解析桌面 remote session 路由表，
     // 既不放行也不默认断开。仍拿不到才 fail-closed，避免用超时/默认值掩盖同步问题。
     const authoritativeConnectionState =

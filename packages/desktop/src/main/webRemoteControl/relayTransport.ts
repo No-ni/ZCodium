@@ -121,6 +121,8 @@ export function createRelayDeviceTransport(
     url.searchParams.set("mid", options.deviceMid);
     const ws = new WebSocket(url.toString(), {
       perMessageDeflate: true,
+      // 接收器在消息未完成时也执行上限，避免只在 message 回调里检查已分配的大载荷。
+      maxPayload: options.maxPhysicalFrameBytes,
       headers: { "X-Device-ID": options.deviceMid },
     });
     socket = ws;
@@ -175,7 +177,7 @@ export function createRelayDeviceTransport(
       options.events.onError(error);
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code) => {
       if (ws !== socket) {
         suppressCloseReconnect.delete(ws);
         return;
@@ -183,6 +185,10 @@ export function createRelayDeviceTransport(
       stopHeartbeat();
       if (disposed) return;
       if (suppressCloseReconnect.delete(ws)) return;
+      if (code === 4002) {
+        terminateReplacedSocket(ws);
+        return;
+      }
       setState("error");
       scheduleReconnect(reconnectBackoff());
     });
@@ -228,14 +234,33 @@ export function createRelayDeviceTransport(
       case "auth_challenge": {
         const nonce = (inbound as { nonce?: string }).nonce ?? "";
         if (auth.mode !== "persisted") return;
+        const challengedAuth = auth;
+        const challengedSid = deviceSid;
         // proof = HMAC-SHA256(passHash, `${nonce}|device|${deviceSid}`)（与 authProvider 同公式）
-        const proof = await calculateProof(auth.passHash, nonce, "device", deviceSid);
-        sendFrame({ type: "auth_response", device_sid: deviceSid, proof, client_ts: Date.now() });
+        const proof = await calculateProof(challengedAuth.passHash, nonce, "device", challengedSid);
+        // crypto 异步加载期间可断线/清档/换 socket；旧 nonce 的 proof 不能通过 sendFrame 发给新连接。
+        if (
+          disposed ||
+          sourceSocket !== socket ||
+          sourceSocket.readyState !== WebSocket.OPEN ||
+          persistedAuthResetPending ||
+          auth !== challengedAuth ||
+          deviceSid !== challengedSid
+        )
+          return;
+        sendFrame({
+          type: "auth_response",
+          device_sid: challengedSid,
+          proof,
+          client_ts: Date.now(),
+        });
         return;
       }
       case "auth_ack": {
         // 只有鉴权成功才能为当前 SID 重新开放一轮失效恢复，避免注册失败时无限重试。
         persistedAuthRecoveryUsed = false;
+        // 成功握手代表本轮恢复完成，后续独立断线应从基础退避开始。
+        connectAttempt = 0;
         applyPairStatus(inbound.pair_status === "matched" ? "matched" : "waiting");
         return;
       }
@@ -272,6 +297,17 @@ export function createRelayDeviceTransport(
     scheduleHeartbeat();
   }
 
+  function terminateReplacedSocket(sourceSocket: WebSocket): void {
+    // 同 SID 已被另一设备接管；自动重连会反复互踢。先隔离旧 socket，迟到 ACK 也不能复活它。
+    stopHeartbeat();
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    socket = null;
+    setState("error");
+    options.events.onError(new Error("远控设备连接已被替换，请重新开启远程控制。"));
+    sourceSocket.close();
+  }
+
   async function handleRelayError(
     sourceSocket: WebSocket,
     code: string | undefined,
@@ -279,8 +315,7 @@ export function createRelayDeviceTransport(
   ): Promise<void> {
     if (disposed || sourceSocket !== socket) return;
     if (code === "KICKED") {
-      options.logger.warn("[web-remote-control] relay kicked device", { message });
-      sourceSocket.close();
+      terminateReplacedSocket(sourceSocket);
       return;
     }
     if (code === "AUTH_FAILED" && auth.mode === "persisted" && !persistedAuthRecoveryUsed) {

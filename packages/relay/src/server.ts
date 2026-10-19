@@ -56,12 +56,17 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
     allowConnect: options.rateLimiter.allowConnect,
     allowFrame: options.rateLimiter.allowFrame,
   });
-  const wss = new WebSocketServer({ noServer: true });
+  // 应用层 message 检查发生在整条消息装配后；接收器先限制未完成分片的累计字节。
+  const wss = new WebSocketServer({ noServer: true, maxPayload: options.maxPhysicalFrameBytes });
   const sweep = setInterval(() => registry.sweepExpired(), 60 * 60 * 1000);
   sweep.unref?.();
 
   const server: Server = createServer((req, res) => handleHttp(req, res, options, registry));
   server.on("upgrade", (req, socket, head) => {
+    if (!URL.canParse(req.url ?? "/", "http://localhost")) {
+      socket.destroy();
+      return;
+    }
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname !== options.path) {
       socket.destroy();
@@ -210,6 +215,12 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
             return;
           }
           const { entry, role: boundRole } = attempt;
+          const previous = boundRole === "device" ? entry.device : entry.mobile;
+          const peer = boundRole === "device" ? entry.mobile : entry.device;
+          if (previous && previous !== socket) {
+            // 旧连接可能仍显示 OPEN（网络切换/半开连接）；只发 matched 会让对端沿用已失效的桥。
+            send(peer, { type: "pair_status_ack", pair_status: "waiting" });
+          }
           registry.bindRole(entry, boundRole, socket);
           authenticated = { entry, role: boundRole };
           const pairStatus = registry.pairStatusOf(entry);
@@ -217,7 +228,6 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
             type: "auth_ack",
             pair_status: pairStatus,
           });
-          const peer = boundRole === "device" ? entry.mobile : entry.device;
           if (peer) {
             send(peer, { type: "pair_status_ack", pair_status: pairStatus });
           }
@@ -298,7 +308,17 @@ async function handleHttp(
   options: RelayServerOptions,
   registry: RelayPairingRegistry,
 ): Promise<void> {
-  const url = new URL(req.url ?? "/", "http://localhost");
+  let url: URL;
+  let pathname: string;
+  try {
+    url = new URL(req.url ?? "/", "http://localhost");
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    // 请求参数错误必须变成 400；async HTTP handler 的拒绝会成为进程未处理异常。
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("Bad request\n");
+    return;
+  }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ status: "ok", ...registry.stats() }));
@@ -312,9 +332,8 @@ async function handleHttp(
     return;
   }
   const root = resolve(options.mobileDir);
-  const [rawPath = "/"] = url.pathname.split("?");
-  const relative = rawPath === "/" ? "/mobile.html" : rawPath;
-  const target = resolve(join(root, normalize(decodeURIComponent(relative))));
+  const relative = pathname === "/" ? "/mobile.html" : pathname;
+  const target = resolve(join(root, normalize(relative)));
   if (!target.startsWith(root)) {
     res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
     res.end("Forbidden\n");

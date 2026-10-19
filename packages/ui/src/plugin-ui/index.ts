@@ -19,7 +19,7 @@ export {
   getPluginUiDisclosureVersion,
   subscribePluginUiDisclosure,
 } from "./app/pluginUiDisclosureStore.js";
-export { setPluginUiInstanceDerivation } from "./app/pluginUiInstanceStore.js";
+export { usePublishPluginUiInstanceDerivation } from "./adapters/usePublishPluginUiInstanceDerivation.js";
 export {
   buildPromptWithPluginUiContexts,
   parsePromptPluginUiContexts,

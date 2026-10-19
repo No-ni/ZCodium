@@ -80,6 +80,37 @@ describe("createRelayDeviceTransport reconnect lifecycle", () => {
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   });
 
+  it("真实 WS 收到 device-replaced 关闭码后不抢回 SID", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const states: string[] = [];
+    const errors: Error[] = [];
+    transport = createRelayDeviceTransport({
+      logger,
+      relayWsUrl: `ws://127.0.0.1:${port}/ws`,
+      deviceMid: "review-mid",
+      deviceName: "review-device",
+      appVersion: "0.0.0-test",
+      maxPhysicalFrameBytes: 1024 * 1024,
+      auth: { mode: "persisted", deviceSid: "stale-sid", passHash: "pass-hash" },
+      events: {
+        onStateChange: (state) => states.push(state),
+        onPayload() {},
+        onRegisteredAuth() {},
+        onError: (error) => errors.push(error),
+        async onInvalidPersistedAuth() {},
+      },
+    });
+    await transport.start();
+    connections[1]!.socket.close(4002, "device-replaced");
+    await waitFor(() => errors.length > 0, "replacement reported");
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(connections).toHaveLength(2);
+    expect(states.at(-1)).toBe("error");
+    expect(transport.sendPayload({ zcode_type: "bootstrap-request", requestId: "replaced" })).toBe(
+      false,
+    );
+  });
+
   it("does not let a delayed stale close suppress reconnect of the replacement socket", async () => {
     const states: string[] = [];
     transport = createRelayDeviceTransport({

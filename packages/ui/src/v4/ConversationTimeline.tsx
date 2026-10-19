@@ -39,7 +39,7 @@ import {
   deriveLogicalUiInstances,
   getPluginUiDisclosureVersion,
   getPluginUiManualPin,
-  setPluginUiInstanceDerivation,
+  usePublishPluginUiInstanceDerivation,
   subscribePluginUiDisclosure,
   type PluginUiRowPinResolver,
 } from "@/plugin-ui/index.js";
@@ -425,9 +425,7 @@ function ConversationTimelineImpl({
   const renderCache = useMemo(() => new ConversationTurnRenderCache(), [sessionKey]);
   // 插件卡片展示模型——同资源替代 + 最近三回合自动展开 + 手动固定；推导结果发布给卡片自己读。
   const pluginUiDerivation = useMemo(() => deriveLogicalUiInstances(rows), [rows]);
-  useEffect(() => {
-    setPluginUiInstanceDerivation(sessionKey, pluginUiDerivation);
-  }, [pluginUiDerivation, sessionKey]);
+  usePublishPluginUiInstanceDerivation(sessionKey, pluginUiDerivation);
   const pluginUiDisclosureVersion = useSyncExternalStore(
     subscribePluginUiDisclosure,
     getPluginUiDisclosureVersion,

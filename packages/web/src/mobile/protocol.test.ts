@@ -12,7 +12,7 @@ import {
 } from "@zcode/shared";
 import { V4_WIRE_PROTOCOL_VERSION } from "@zcode/shared/zcode-protocol-v4";
 import { SessionDataLayer } from "@zcode/ui/conversation-client";
-import { MobileRemoteControlClient } from "./protocol.js";
+import { MobileRemoteControlClient, readPairingParamsFromLocation } from "./protocol.js";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
 import { conversationReducer, initialConversationState } from "./conversationReducer.js";
 
@@ -175,6 +175,133 @@ afterEach(() => {
 });
 
 describe("MobileRemoteControlClient fake WebSocket", () => {
+  it("损坏的 wire 和应用载荷不进入 UI，后续有效请求仍能完成", async () => {
+    const { c, socket, onPayload } = client();
+    const request = c.request({ zcode_type: "workspace-list-request", requestId: "valid-request" });
+    for (const frame of [
+      null,
+      [],
+      { type: "data", payload: null },
+      { type: "data", payload: 1 },
+      { type: "data", payload: { zcode_type: "workspace-list-updated", result: null } },
+      {
+        type: "data",
+        payload: {
+          zcode_type: "workspace-list-response",
+          requestId: "valid-request",
+          success: true,
+        },
+      },
+    ]) {
+      socket.wire(frame);
+    }
+    await flush();
+    expect(onPayload).not.toHaveBeenCalled();
+    socket.receive({
+      zcode_type: "workspace-list-response",
+      requestId: "valid-request",
+      success: true,
+      result: { workspaces: [], tasks: [], activeWorkspaceKey: "A" },
+    });
+    expect(await request).toMatchObject({ result: { workspaces: [], tasks: [] } });
+  });
+
+  it("RPC 内层字节损坏时立即降级并释放等待 Initialize 的调用", async () => {
+    const { c, socket, onPayload } = client();
+    const request = c.readTaskSnapshot(access).catch((error: Error) => error.message);
+    await flush();
+    const open = socket.opens()[0]!;
+    socket.ready(open);
+    await flush();
+    for (const frame of encodeWebRemoteControlRpcFrames(
+      { __zcodeBytes: "%%%" },
+      { streamId: open.bridgeSessionId, seq: 1 },
+    )) {
+      socket.receive({ zcode_type: "rpc-frame", frame });
+    }
+    await flush();
+    expect(onPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ zcode_type: "bridge-degraded" }),
+    );
+    expect(await request).toEqual(expect.any(String));
+  });
+
+  it("损坏的当前 RPC 帧仍触发降级，旧 stream 的坏帧不影响当前 open", async () => {
+    const { c, socket, onPayload } = client();
+    const opening = c.ensureWorkspaceBridge(access).catch((error: Error) => error.message);
+    await flush();
+    socket.wire({
+      type: "data",
+      payload: { zcode_type: "rpc-frame", frame: { streamId: "old-stream" } },
+    });
+    expect(onPayload).not.toHaveBeenCalled();
+    socket.wire({
+      type: "data",
+      payload: { zcode_type: "rpc-frame", frame: { streamId: socket.opens()[0]!.bridgeSessionId } },
+    });
+    await flush();
+    expect(onPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ zcode_type: "bridge-degraded" }),
+    );
+    expect(await opening).toEqual(expect.any(String));
+  });
+
+  it("ready 前降级立即释放 open 请求并重开，不等待请求超时", async () => {
+    const { c, socket } = client();
+    const bootstrap = c
+      .request({ zcode_type: "bootstrap-request", requestId: "parallel-bootstrap" })
+      .catch((error: Error) => error.message);
+    const first = c.ensureWorkspaceBridge(access).catch((error: Error) => error.message);
+    await flush();
+    const oldOpen = socket.opens()[0]!;
+    socket.receive({
+      zcode_type: "bridge-degraded",
+      bridgeSessionId: oldOpen.bridgeSessionId,
+      reason: "rpc-transport-fault",
+    });
+    const recovered = c.ensureWorkspaceBridge(access).catch((error: Error) => error.message);
+    await flush();
+    expect(socket.opens()).toHaveLength(2);
+    socket.ready(oldOpen);
+    socket.ready(socket.opens()[1]!);
+    expect(await first).toBe("连接已中断，请连接后重试");
+    expect(await recovered).toBeUndefined();
+    socket.receive({
+      zcode_type: "bootstrap-response",
+      requestId: "parallel-bootstrap",
+      success: true,
+      result: {
+        windowControlSessionId: "window",
+        desktopAppVersion: "test",
+        workspaces: [],
+        tasks: [],
+      },
+    });
+    expect(await bootstrap).toMatchObject({ zcode_type: "bootstrap-response" });
+  });
+
+  it.each([
+    ["", "wss://relay.example/ws"],
+    ["/remote/socket?route=phone", "wss://relay.example/remote/socket?route=phone"],
+  ])("二维码 WS 路径解析：%s", (path, expected) => {
+    vi.stubGlobal(
+      "location",
+      new URL(`https://relay.example/?sid=test&hash=test&wsPath=${encodeURIComponent(path)}`),
+    );
+    expect(readPairingParamsFromLocation().wsUrl).toBe(expected);
+  });
+
+  it.each(["//other.example/ws", "https://other.example/ws", "/\\other.example/ws"])(
+    "拒绝跨源 WS 路径：%s",
+    (path) => {
+      vi.stubGlobal(
+        "location",
+        new URL(`https://relay.example/?sid=test&hash=test&wsPath=${encodeURIComponent(path)}`),
+      );
+      expect(() => readPairingParamsFromLocation()).toThrow("路径");
+    },
+  );
+
   it("无 crypto.subtle 时仍使用 UTF-8 HMAC-SHA256（含长 key）并与 Node 一致", async () => {
     vi.stubGlobal("crypto", {});
     const params = {
@@ -638,13 +765,14 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     await flush();
     const b = socket.opens()[1]!;
     const readyA2 = c.ensureWorkspaceBridge({ workspaceKey: "A" });
+    void readyA2.catch(() => {});
     await flush();
-    expect(socket.opens().map((o) => o.workspaceKey)).toEqual(["A", "B"]);
+    expect(socket.opens().map((o) => o.workspaceKey)).toEqual(["A", "B", "A"]);
     const lateB = host(socket, b.bridgeSessionId);
     // Host attach 异步：生产 ready 不保证 Initialize 已发送，不能预先见过 B 身份。
     socket.ready(b);
     await flush();
-    expect(await readyB).toBe("workspace bridge superseded");
+    expect(await readyB).toBe("连接已中断，请连接后重试");
     expect(await oldRead).toBe("连接已中断，请连接后重试");
     expect(socket.opens().map((o) => o.workspaceKey)).toEqual(["A", "B", "A"]);
     const a2 = socket.opens()[2]!;

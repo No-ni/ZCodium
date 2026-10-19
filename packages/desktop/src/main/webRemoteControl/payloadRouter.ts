@@ -6,6 +6,7 @@ import type {
 import type { WebRemoteControlLogger } from "./logger.js";
 import type { WebRemoteControlRelayAuthStorageProvider } from "./authStorage.js";
 import type { WebRemoteControlRuntime } from "./runtime.js";
+import { sendAppPayload } from "./outboundBuffer.js";
 
 /**
  * 移动端 → 桌面的应用信封路由。桌面是唯一业务所有者：清单、视图态、bridge 调度
@@ -204,4 +205,26 @@ export function buildWorkspaceListResult(runtime: WebRemoteControlRuntime) {
     activeWorkspaceKey: activeWorkspaceKey(runtime),
     activeTaskId: runtime.mobileViewState?.activeTaskId ?? runtime.initialTaskId,
   };
+}
+
+/**
+ * 清单变化时主动推给手机。
+ *
+ * 手机配对/重连时拉全量 bootstrap；连接期间的清单变化仍须推送，尤其是远端更换
+ * remoteSessionId 后不能继续访问旧 session。未配对时由后续 bootstrap 拉取，避免占满缓冲。
+ */
+export function pushWorkspaceListIfChanged(
+  runtime: WebRemoteControlRuntime,
+  logger: WebRemoteControlLogger,
+): void {
+  const result = buildWorkspaceListResult(runtime);
+  const signature = JSON.stringify(result);
+  if (runtime.lastWorkspaceListSignature === signature) return;
+  runtime.lastWorkspaceListSignature = signature;
+  if (!runtime.mobileConnected) return;
+  sendAppPayload(
+    runtime,
+    { zcode_type: "workspace-list-updated", result } as WebRemoteControlAppPayload,
+    logger,
+  );
 }

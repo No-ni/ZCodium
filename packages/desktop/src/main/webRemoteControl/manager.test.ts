@@ -1,16 +1,35 @@
 import { createHmac } from "node:crypto";
 import { createServer } from "node:http";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AppSettings,
   WebRemoteControlStatusSnapshot,
   WebRemoteControlWorkspaceRef,
 } from "@zcode/shared";
-import { webRemoteControlClientToEndpointFrameSchema } from "@zcode/shared";
+import { HostMessageTypes, webRemoteControlClientToEndpointFrameSchema } from "@zcode/shared";
 import type { ICredentialService, ISettingService } from "@zcode/services";
 import { WebSocket, WebSocketServer } from "ws";
 import { createWebRemoteControlManager } from "./manager.js";
 import type { WebRemoteControlLogger } from "./logger.js";
+import { LanRemoteControlEndpoint } from "./lanEndpoint.js";
+
+vi.mock("electron", async () => {
+  const { EventEmitter } = await import("node:events");
+  class Port extends EventEmitter {
+    start() {}
+    postMessage() {}
+    close() {
+      this.emit("close");
+    }
+  }
+  return {
+    BrowserWindow: { fromId: (id: number) => ({ webContents: { id } }) },
+    MessageChannelMain: class {
+      port1 = new Port();
+      port2 = new Port();
+    },
+  };
+});
 
 const PASS_HASH_CREDENTIAL_KEY = "web-remote-control:external-relay:pass_hash";
 
@@ -55,7 +74,10 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
   let beforeAuthAck: Promise<void> | undefined;
   let beforeSettingsUpdate: ((patch: Partial<AppSettings>) => Promise<void>) | undefined;
   let beforeCredentialDelete: (() => Promise<void>) | undefined;
+  let beforeCredentialSave: (() => Promise<void>) | undefined;
   let statuses: Array<{ windowId: number; snapshot: WebRemoteControlStatusSnapshot }>;
+  let lanEndpoints: Set<LanRemoteControlEndpoint>;
+  let hostMessages: Array<Record<string, unknown>>;
 
   beforeEach(async () => {
     settings = {
@@ -72,7 +94,17 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
     beforeAuthAck = undefined;
     beforeSettingsUpdate = undefined;
     beforeCredentialDelete = undefined;
+    beforeCredentialSave = undefined;
     statuses = [];
+    lanEndpoints = new Set();
+    hostMessages = [];
+    const startEndpoint = LanRemoteControlEndpoint.prototype.start;
+    vi.spyOn(LanRemoteControlEndpoint.prototype, "start").mockImplementation(
+      function (this: LanRemoteControlEndpoint) {
+        lanEndpoints.add(this);
+        return startEndpoint.call(this);
+      },
+    );
 
     httpServer = createServer();
     relay = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -212,6 +244,7 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
         return credentials.get(key) ?? null;
       },
       async save(key, value) {
+        await beforeCredentialSave?.();
         credentials.set(key, value);
       },
       async delete(key) {
@@ -229,8 +262,10 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
       onStatusChanged: (windowId, snapshot) => statuses.push({ windowId, snapshot }),
       handlePlatformRequest: async () => undefined,
       reconnectWorkspace: async () => undefined,
-      // bootstrap 与 routing 不调用 Electron host process。
-      resolveHostProcess: () => undefined,
+      // 真实 manager/bridge 调度，Host 进程与 Electron 端口使用受控 fixture。
+      resolveHostProcess: () => ({
+        postMessage: (message) => hostMessages.push(message as Record<string, unknown>),
+      }),
     });
   });
 
@@ -240,8 +275,32 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
     }
     for (const connection of mobileConnections) connection.socket.terminate();
     for (const client of relay.clients) client.terminate();
+    for (const endpoint of lanEndpoints) await endpoint.stop();
+    vi.restoreAllMocks();
     await new Promise<void>((resolve) => relay.close(() => resolve()));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+  });
+
+  it("凭据保存失败被处理并脱敏，当前内存配对仍可 bootstrap", async () => {
+    const warning = vi.spyOn(logger, "warn");
+    beforeCredentialSave = async () => {
+      throw new Error("synthetic-private-storage-detail");
+    };
+    const status = await startWindow(57, "C:/workspace/save-failure");
+    await waitFor(
+      () =>
+        warning.mock.calls.find(
+          ([message]) => typeof message === "string" && message.includes("auth persistence failed"),
+        ),
+      "handled persistence failure",
+    );
+    const qr = new URL(status.qrUrl!);
+    const mobile = await connectMobile(status.sessionId!, qr.searchParams.get("hash")!);
+    expect((await requestBootstrap(mobile, "after-save-failure")).result).toMatchObject({
+      windowControlSessionId: status.sessionId,
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("synthetic-private-storage-detail");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(qr.searchParams.get("hash")!);
   });
 
   it("keeps each active window's SID, bootstrap routing, and stop isolated", async () => {
@@ -282,6 +341,195 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
     expect((await requestBootstrap(mobileA, "bootstrap-a-after-stop-b")).result).toMatchObject({
       workspaces: [expect.objectContaining({ workspaceKey: "window-a" })],
     });
+  });
+
+  it.each(["lan-disconnect", "lan-replace", "relay-disconnect", "relay-error"])(
+    "detaches the old Host immediately on transport loss: %s",
+    async (scenario) => {
+      const lan = scenario.startsWith("lan");
+      settings.webRemoteControlEndpointMode = lan ? "lan" : "custom";
+      const status = await startWindow(55, "C:/workspace/loss");
+      manager.syncWorkspaces(55, [workspace("loss")]);
+      const qr = new URL(status.qrUrl!);
+      const mobileUrl = lan ? `ws://127.0.0.1:${qr.port}/ws` : undefined;
+      const mobile = await connectMobile(
+        status.sessionId!,
+        qr.searchParams.get("hash")!,
+        mobileUrl,
+      );
+      mobile.socket.send(
+        JSON.stringify({
+          type: "data",
+          payload: {
+            zcode_type: "workspace-bridge-open",
+            requestId: "open-loss",
+            bridgeSessionId: "loss-bridge",
+            workspaceKey: "loss",
+          },
+        }),
+      );
+      await waitFor(
+        () => hostMessages.find((message) => message.type === HostMessageTypes.AttachServicePort),
+        "Host attach",
+      );
+      if (scenario === "lan-replace") {
+        const replacement = await connectMobile(
+          status.sessionId!,
+          qr.searchParams.get("hash")!,
+          mobileUrl,
+        );
+        await requestBootstrap(replacement, "replacement-bootstrap");
+      } else if (scenario === "relay-error") {
+        pairs.get(status.sessionId!)!.device!.terminate();
+      } else {
+        mobile.socket.terminate();
+      }
+      await waitFor(
+        () => hostMessages.find((message) => message.type === HostMessageTypes.DetachServicePort),
+        "Host detach before grace expires",
+      );
+      expect(
+        hostMessages.filter((message) => message.type === HostMessageTypes.DetachServicePort),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("restores LAN bootstrap routing when restarting a paired persistent SID", async () => {
+    settings.webRemoteControlEndpointMode = "lan";
+    const initial = await startWindow(51, "C:/workspace/lan-restart");
+    const qr = new URL(initial.qrUrl!);
+    const mobile = await connectMobile(
+      initial.sessionId!,
+      qr.searchParams.get("hash")!,
+      `ws://127.0.0.1:${qr.port}/ws`,
+    );
+    await waitFor(
+      () => settings.webRemoteControlExternalRelayDevice?.deviceSid === initial.sessionId,
+      "LAN credentials persisted",
+    );
+    await requestBootstrap(mobile, "before-restart");
+    await manager.stop(51);
+    const restored = await startWindow(51, "C:/workspace/lan-restart");
+    expect(restored.sessionId).toBe(initial.sessionId);
+    manager.syncWorkspaces(51, [workspace("lan-restart")]);
+    expect((await requestBootstrap(mobile, "after-restart")).result).toMatchObject({
+      workspaces: [expect.objectContaining({ workspaceKey: "lan-restart" })],
+    });
+  });
+
+  it("carries the configured relay WS path and query in the QR URL", async () => {
+    relay.options.path = "/remote/socket";
+    settings.webRemoteControlCustomEndpointUrl = `ws://127.0.0.1:${port}/remote/socket?route=phone`;
+    const status = await startWindow(52, "C:/workspace/custom-ws-path");
+    const qr = new URL(status.qrUrl!);
+    expect(qr.searchParams.get("wsPath")).toBe("/remote/socket?route=phone");
+    const mobileUrl = new URL(qr.searchParams.get("wsPath")!, `ws://${qr.host}`).toString();
+    const mobile = await connectMobile(status.sessionId!, qr.searchParams.get("hash")!, mobileUrl);
+    expect((await requestBootstrap(mobile, "custom-ws-path")).result).toMatchObject({
+      windowControlSessionId: status.sessionId,
+    });
+  });
+
+  it.each([
+    { remoteSessionId: undefined, workspaceIdentity: "remote-identity" },
+    { remoteSessionId: " ", workspaceIdentity: "remote-identity" },
+    { remoteSessionId: "remote-session", workspaceIdentity: undefined },
+    { remoteSessionId: "remote-session", workspaceIdentity: " " },
+  ])("rejects incomplete remote scopes before creating any Host attachment: %j", async (scope) => {
+    const status = await startWindow(54, "C:/workspace/remote-scope");
+    manager.syncWorkspaces(54, [
+      { ...workspace("remote-scope"), kind: "remote", connectionState: "connected", ...scope },
+    ]);
+    const mobile = await connectMobile(status.sessionId!);
+    mobile.socket.send(
+      JSON.stringify({
+        type: "data",
+        payload: {
+          zcode_type: "workspace-bridge-open",
+          requestId: "invalid-remote-scope",
+          bridgeSessionId: "invalid-scope-bridge",
+          workspaceKey: "remote-scope",
+        },
+      }),
+    );
+    const response = await waitFor(
+      () =>
+        mobile.frames.find(
+          (frame) =>
+            (frame.payload as { requestId?: string } | undefined)?.requestId ===
+            "invalid-remote-scope",
+        ),
+      "scope response",
+    );
+    expect(response.payload).toMatchObject({
+      zcode_type: "workspace-bridge-error",
+      reason: "invalidMobileConnection",
+    });
+    expect(hostMessages).toHaveLength(0);
+  });
+
+  it.each([
+    "removed",
+    "removed-local",
+    "path",
+    "identity",
+    "remote-session",
+    "kind",
+    "disconnected",
+  ])("releases the attached workspace bridge after scope change: %s", async (change) => {
+    const status = await startWindow(53, "C:/workspace/bridge-scope");
+    const original: WebRemoteControlWorkspaceRef = {
+      ...workspace("bridge-scope"),
+      workspaceIdentity: "scope-identity",
+      remoteSessionId: "remote-a",
+      kind: "remote",
+      connectionState: "connected",
+    };
+    if (change === "removed-local") {
+      original.kind = "local";
+      original.workspaceIdentity = undefined;
+      original.remoteSessionId = undefined;
+    }
+    manager.syncWorkspaces(53, [original]);
+    const mobile = await connectMobile(status.sessionId!);
+    mobile.socket.send(
+      JSON.stringify({
+        type: "data",
+        payload: {
+          zcode_type: "workspace-bridge-open",
+          requestId: "scope-open",
+          bridgeSessionId: "scope-bridge",
+          workspaceKey: original.workspaceKey,
+        },
+      }),
+    );
+    await waitFor(
+      () => hostMessages.find((message) => message.type === HostMessageTypes.AttachServicePort),
+      "Host attachment",
+    );
+    manager.syncWorkspaces(53, [{ ...original, label: "renamed" }]);
+    expect(
+      hostMessages.some((message) => message.type === HostMessageTypes.DetachServicePort),
+    ).toBe(false);
+    const changed = { ...original };
+    if (change === "path") changed.workspacePath = "C:/workspace/replaced";
+    if (change === "identity") changed.workspaceIdentity = "other-identity";
+    if (change === "remote-session") changed.remoteSessionId = "remote-b";
+    if (change === "kind") changed.kind = "local";
+    if (change === "disconnected") changed.connectionState = "disconnected";
+    manager.syncWorkspaces(53, change.startsWith("removed") ? [] : [changed]);
+    expect(hostMessages).toContainEqual(
+      expect.objectContaining({ type: HostMessageTypes.DetachServicePort }),
+    );
+    await waitFor(
+      () =>
+        mobile.frames.find(
+          (frame) =>
+            (frame.payload as Record<string, unknown> | undefined)?.zcode_type ===
+            "bridge-degraded",
+        ),
+      "bridge invalidation notification",
+    );
   });
 
   it("assigns one fresh SID when two windows start from the same persisted pair", async () => {
@@ -494,11 +742,16 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
     return snapshot;
   }
 
-  async function connectMobile(deviceSid: string, qrPassHash?: string): Promise<MobileConnection> {
+  async function connectMobile(
+    deviceSid: string,
+    qrPassHash?: string,
+    wsUrl = `ws://127.0.0.1:${port}/ws`,
+  ): Promise<MobileConnection> {
     const pair = pairs.get(deviceSid);
-    if (!pair) throw new Error(`Missing relay pairing ${deviceSid}`);
+    const passHash = qrPassHash ?? pair?.passHash;
+    if (!passHash) throw new Error(`Missing relay pairing ${deviceSid}`);
     const connection: MobileConnection = {
-      socket: new WebSocket(`ws://127.0.0.1:${port}/ws`),
+      socket: new WebSocket(wsUrl),
       frames: [],
     };
     mobileConnections.push(connection);
@@ -515,7 +768,7 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
       }),
     );
     const challenge = await waitForFrame(connection, "auth_challenge");
-    const proof = createHmac("sha256", qrPassHash ?? pair.passHash)
+    const proof = createHmac("sha256", passHash)
       .update(`${String(challenge.nonce)}|mobile|${deviceSid}`)
       .digest("base64url");
     connection.socket.send(

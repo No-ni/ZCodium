@@ -1,5 +1,108 @@
 # 手机远程控制
 
+## 第四轮端点停止与凭据一致性复核（2026-10-19）
+
+- LAN endpoint 持有全部已升级 socket，停止时关闭包括未发 auth_init、challenge 进行中和已配对在内的所有连接；清除配对后旧 close 不得重复通知设备。stop 必须等待正在进行的 bind 收尾再释放 listener，不能完成后被迟到的 start 复活；stop 期间的新 start 等清理完成后再启动，失败后的清理不能等待自身。
+- 单一 auth storage provider 持有现有持久 SID/hash 对的读写顺序。load/save/clear/rotate 按调用顺序串行执行完整操作，避免两个窗口把 SID 与其他窗口的 hash 拼在一起，或 load 把半写入记录误判为损坏。沿用现有 settings 与 credential key，不新增每窗口持久副本；不声称支持跨进程事务。
+- save 部分失败时尽力清除不完整配对并向调用方拒绝，后续操作仍可执行。manager 处理后台 save 的拒绝并记脱敏日志；当前内存配对可继续使用，不能因凭据写盘失败产生未处理拒绝。日志不输出原始存储异常文本或凭据。
+- relay 桌面 socket 收到 KICKED 或关闭码 4002 时终止该 transport 的自动重连，不能抢回已被新 device 接管的 SID。停止心跳与重连定时器，忽略该 socket 的迟到帧，保留错误状态；普通网络故障仍退避恢复，失效 SID 仍按既有 AUTH_FAILED 清档注册路径恢复。
+
+```mermaid
+sequenceDiagram
+    participant W as 桌面窗口
+    participant A as auth storage 顺序 owner
+    participant S as settings / credential store
+    participant E as LAN endpoint owner
+    participant R as relay transport owner
+    W->>A: save(A)、save(B)、load()
+    A->>S: 完成 SID/hash A → 完成 SID/hash B
+    S-->>A: 同一注册的 B 凭据
+    A-->>W: load 返回 B
+    W->>E: start bind → stop
+    E->>E: 等 bind 收尾 → 关闭全部 socket/listener
+    R->>R: KICKED / 4002 → 停止自动重连并隔离旧 socket
+```
+
+验收：真实 LAN 未鉴权/challenge socket 在 stop 后关闭，stop/start 重叠后没有迟到 listener，显式重启仍可配对；控制 IO gate 验证并发保存、写入期间读取/清档、部分写入失败和失败后重试；manager 写盘失败不产生未处理拒绝且仍可 bootstrap；fake clock 验证被踢后心跳/重连停止、旧 ACK 不复活，真实 relay 复用 SID 的旧 transport 不抢回新绑定。Host/CommandInbox 与 desktop-continuous/web-remote-replayable 边界不变。
+
+## 第三轮连接换代与清理复核（2026-10-19）
+
+- Main 收到 transport 的 waiting/error/重新连接状态时，同步摘除并释放当前 Host attachment，清除旧连接出站缓冲。30 秒宽限只影响桌面连接状态展示，不能延长旧 attachment、订阅或 RPC 的生命周期；会话与已接受命令仍由 Host/CLI 持有。
+- LAN 手机绑定替换、relay 任一角色绑定替换时，先向保留的另一端通知断开/waiting，再发布新绑定的 matched。旧 socket 的迟到 close 不得再次断开新绑定；普通 matched 心跳不触发换代。
+- 手机切换目标时，bridge owner 在释放旧 client 的同时拒绝该桥尚未完成的 open；后续 open 仍沿原串行队列和同一有序 socket 发送，不等待旧 ready 的 30 秒超时。普通 bootstrap 请求不被换桥取消，迟到旧 ready/RPC 不进入新桥。
+- 同一 socket 快速 waiting → matched 时，手机重拉 bootstrap 并恢复当前会话，即使 UI 批量渲染合并中间 waiting；由现有连接 snapshot 表达状态事件，不增加业务队列或重复会话状态。
+
+```mermaid
+sequenceDiagram
+    participant E as LAN / relay 配对 owner
+    participant M as Main attachment owner
+    participant P as 手机 socket / bridge owner
+    participant H as 已有 Host / CLI
+    E->>M: 手机断开或被替换 → waiting
+    M->>M: 摘除旧 bridge、清空传输缓冲
+    M->>H: DetachServicePort（业务会话继续）
+    E->>P: 桌面连接替换 → waiting → matched
+    P->>P: 作废旧桥及 open，保留草稿
+    P->>M: bootstrap → 串行 open 新桥
+    M->>H: AttachServicePort（web-remote-replayable）
+    H-->>P: Initialize → 原子快照 + 增量
+```
+
+验收：真实 LAN/relay socket 断开或替换后，无需等待宽限期即可观察旧 Host detach；另一窗口 attachment 不受影响。relay 双向替换均先 waiting 后 matched，旧 close 后仍可转发。手机 A → B → A 在 B 不返回 ready 时立即发送最后的 A open；普通请求保留，旧帧隔离。浏览器验证同一事件批次 waiting/matched 后重建订阅，草稿保留且无自动业务重投；桌面 continuous 与手机 replayable 共用业务 owner 的回归继续通过。
+
+## 第二轮异常边界复核（2026-10-19）
+
+- LAN 与自托管 relay 的 HTTP/WS 入口负责校验请求 URL。损坏的百分号编码返回 HTTP 400，非法 upgrade URL 直接关闭连接；异常请求不能造成未处理异常或影响后续配对。静态资源目录与深链回退语义保持不变。
+- 物理帧上限同时配置在 WebSocket 接收器：在分片总字节数超限时立即关闭 1009，不等最后一片、JSON 解析或业务鉴权；LAN、relay server 和桌面 relay client 均使用原有配置值。手机使用共享 wire/schema 校验入站信封和应用载荷，损坏消息不得进入视图或解除挂起请求；已装配 RPC 的字节解码失败按已有 bridge-degraded 恢复。
+- Host attachment 的本地 MessagePort 由 Main 持有。Attach 发送失败时关闭尚未移交的两个端口；Detach 时 Host 已退出也必须关闭本地端口，并保持 dispose 幂等，不能阻止窗口停止或新 attachment 创建。
+- 标记为 remote 的工作区即使清单写着 connected，也必须同时具有非空 remoteSessionId 与 workspaceIdentity 才能创建 attachment；缺失或空白值不能落到 local scope。损坏的当前 RPC 传输帧沿用 assembler 的降级语义，不能因外层 schema 拒绝而静默挂起；旧 stream 的坏帧仍忽略。
+- Relay challenge 的 proof 只允许发送给发起本次 challenge 的 socket 和 SID。异步计算完成后若连接已经关闭、替换、清档或停止，丢弃旧结果；成功鉴权重置退避次数。
+- 本轮不增加业务状态所有者，不改变 CommandInbox admission、desktop-continuous 或 web-remote-replayable 的交付边界。
+
+```mermaid
+sequenceDiagram
+    participant P as 手机 / relay socket
+    participant M as Main 传输与 attachment owner
+    participant H as 已有 Host
+    P->>M: 受物理大小与 schema 约束的消息
+    M->>H: AttachServicePort（replayable）
+    H--xM: Host 退出 / postMessage 失败
+    M->>M: 幂等释放本地端口，继续窗口清理
+    P->>M: 新连接的 challenge
+    M->>M: proof 完成后核对 socket、SID 与生命周期
+    M-->>P: 仅当前连接收到 proof
+```
+
+验收：真实 HTTP 请求损坏编码后仍可读取健康状态和手机页；真实 WS 未完成的大消息分片立即触发 1009；手机收到 null、错误类型和不完整载荷不抛未处理异常，随后有效响应仍正常交付；RPC 字节损坏使旧桥失效；受控 Host 退出验证端口释放和幂等；旧 relay challenge 完成不能写入新 socket。
+
+## LAN 配对隔离与自定义端点修复（2026-10-19）
+
+- LAN endpoint 是配对绑定的唯一所有者；每条手机 socket 单独持有一次性鉴权 challenge，有效期 60 秒。并发扫码不能覆盖另一条 socket 的 nonce；proof 必须匹配本 socket 的 SID、nonce 和仍有效的配对记录。单 socket 不允许重复握手或切换 SID；未鉴权、已被替换、过期的 socket 不得查询或转发数据。
+- 沿用既有 LAN 配对复用规则：桌面释放 handle 而手机仍在线时保留配对，立即通知 waiting；复用同 SID 注册后，按实际手机连接状态通知 matched。waiting 期间不转发应用数据；重复 dispose 旧 handle 不得释放后续注册的 handle。手机继续由已有 waiting/matched 路径释放桥、保留草稿、重拉 bootstrap 和恢复 replayable 会话，不重投业务命令。
+- Manager 从持久 SID 启动时必须在 transport 启动前恢复 SID → 当前窗口 runtime 路由；已有 LAN 配对复用没有新注册回调，不能依靠新注册事件才建立路由。恢复后 bootstrap 必须仍可到达该窗口。
+- 自定义 relay 的 WS pathname 和 query 由桌面配置拥有，二维码通过 `wsPath` 携带同源相对路径；手机按当前页面协议和 origin 构造 WS URL。旧二维码缺少该参数时仍使用 `/ws`；拒绝跨源路径，不将配对凭据转发到任意 URL。
+- 手机 bridge 在 ready 响应前降级时，必须立即拒绝该桥挂起的 open 请求、释放串行握手位置；不能等 30 秒超时才启动下一次恢复。普通 bootstrap 等请求不因换桥被取消，迟到旧 ready 不能成为当前桥。
+- 窗口工作区清单移除当前目标、修改其路径/identity/remote session/kind 或确认远端断开时，Main 立即释放当前 Host attachment 并通知手机该桥失效。仅标签或任务状态更新不释放桥；校验沿用当前清单，不复制新的 scope 所有者。
+- 这些修复不改变 Host、CommandInbox、workspace identity 或两种 delivery profile 的所有权。
+
+```mermaid
+sequenceDiagram
+    participant A as 手机 socket A
+    participant B as 手机 socket B
+    participant L as LAN 配对 owner
+    participant D as 桌面设备 handle
+    A->>L: auth_init（A 独立 nonce）
+    B->>L: auth_init（B 独立 nonce）
+    A->>L: A proof → matched
+    B->>L: B proof → matched，替换 A
+    D->>L: 释放旧 handle
+    L-->>B: waiting → 作废 bridge，保留草稿
+    D->>L: 同 SID 重新注册
+    L-->>B: matched → bootstrap → 新 bridge → replayable snapshot
+```
+
+验收：真实 loopback WS 交错发送两次 challenge/proof，两次均正确鉴权且仅后者持有绑定；重复握手、SID 不一致、过期 challenge 与未鉴权查询被拒绝；释放/复用 LAN handle 产生 waiting/matched，离线数据不交付，旧 handle 再次释放不影响新连接；自定义 WS 路径和 query 经真实 manager 二维码与手机解析保真，默认 `/ws` 保持兼容；fake socket 验证 ready 前降级无需推进时钟便开始新 open；浏览器验证真实 LAN 释放/恢复后的禁发、草稿保留与新快照恢复。
+
 ## 所有者与连接路径
 
 - 手机配对客户端拥有 WebSocket、鉴权状态、RPC 序号/分片缓冲与 bridge 代际；桌面 Main 拥有窗口级远控运行时及当前 bridge；Host 持有会话和服务状态。

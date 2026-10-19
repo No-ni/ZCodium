@@ -60,12 +60,24 @@ jobs:
         # UI 留白套件依赖 @ alias 与 SSR JSX，单独使用受控配置；任一命令失败即门禁失败。
         run: |
           pnpm vitest run packages/shared/src/webRemoteControl packages/shared/src/mcp-apps packages/shared/src/task-realtime-validation.test.ts packages/ui/src/lib/webRemoteControlTarget.test.ts packages/desktop/src/main/webRemoteControl/servicePipe.test.ts packages/desktop/src/main/webRemoteControl/hostBridge.test.ts packages/desktop/src/main/webRemoteControl/relayTransport.test.ts packages/desktop/src/main/webRemoteControl/lanDeviceTransport.test.ts packages/desktop/src/main/webRemoteControl/manager.test.ts apps/zcode-cli/packages/adapters/src/network packages/shared/src/zcode-protocol-v4
+          pnpm vitest run packages/desktop/src/main/webRemoteControl/lanEndpoint.test.ts packages/desktop/src/main/webRemoteControl/mobileAppAssets.test.ts packages/desktop/src/main/webRemoteControl/relayTransport.lifecycle.test.ts packages/desktop/src/main/webRemoteControl/authStorage.test.ts
           pnpm vitest run --config packages/ui/vitest.holes.config.ts
           pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/conversationRowSharing.test.ts packages/ui/test/conversationProjectionStore.rowSharing.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts packages/web/src/mobile
           pnpm vitest run --config packages/ui/vitest.config.ts packages/desktop/src/main/manifestUpdateProvider.test.ts
           # Relay tests exercise the service source over loopback and do not need a relay dist build.
           pnpm vitest run --config packages/ui/vitest.config.ts packages/relay/src
+          pnpm vitest run --config packages/ui/vitest.config.ts \
+            packages/services/test/botRemoteBridgeLifecycle.test.ts \
+            packages/services/test/botRemoteRuntimeServices.test.ts \
+            packages/services/test/botRemotePeerClose.test.ts \
+            packages/services/test/botRemoteRequestTimers.test.ts \
+            packages/services/test/botRuntimeRefreshShutdown.test.ts \
+            packages/services/test/botsShutdownAdmission.test.ts \
+            packages/services/test/feishuAbortWaitCleanup.test.ts \
+            packages/ui/src/plugin-ui \
+            packages/desktop/src/main/taskRealtimeSize.test.ts \
+            packages/ui/test/performanceRound26MarkdownCodeRanges.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts \
             packages/services/src/gen-ui/adapters/files.test.ts \
             packages/ui/src/app-shell/useWorkflowRunPaneSettingsScope.test.ts \

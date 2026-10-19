@@ -72,7 +72,7 @@ export function createTelegramChannelRuntime(deps: TelegramChannelRuntimeDeps) {
   }
 
   async function syncCommands(bot: BotConfig): Promise<void> {
-    if (deps.runBackgroundTasks === false) {
+    if (deps.runBackgroundTasks === false || refreshQueue.closed) {
       // 修复原因：desktop-attached 远端不拥有 Telegram runtime；
       // 删除或禁用 bot 时也不能为了清命令访问第三方 API。
       return;
@@ -331,6 +331,8 @@ export function createTelegramChannelRuntime(deps: TelegramChannelRuntimeDeps) {
     // Bugfix: polling 游标和微信 buf 会写入 bot-state.v3.json。
     // 启动轮询前必须先完成旧 state 迁移，否则迁移写回可能覆盖刚更新的第三方游标。
     await deps.ensureBotStorageMigrated();
+    // 迁移可能晚于 dispose 完成；恢复后先验证代际，不能再启动配置读取。
+    if (!isLatest()) return;
     const currentConfig = config ?? (await deps.readConfig());
     if (!isLatest()) {
       return;
@@ -403,7 +405,7 @@ export function createTelegramChannelRuntime(deps: TelegramChannelRuntimeDeps) {
   }
 
   async function dispose(): Promise<void> {
-    refreshQueue.invalidate();
+    refreshQueue.dispose();
     const activeRuntimes = [...runtimes.values()];
     for (const runtime of activeRuntimes) {
       runtime.controller.abort();

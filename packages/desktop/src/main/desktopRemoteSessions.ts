@@ -858,9 +858,11 @@ export function createRemoteWorkspaceSessionManager(options: {
     if (pending) return pending;
     const reconnect = createRemoteWorkspaceSession(win, params.target, params.requestId, params);
     reconnectsByWorkspaceKey.set(key, reconnect);
-    void reconnect.finally(() => {
+    const cleanup = () => {
       if (reconnectsByWorkspaceKey.get(key) === reconnect) reconnectsByWorkspaceKey.delete(key);
-    });
+    };
+    // finally 会派生一个同样 reject 的无人等待 Promise；两条完成路径都消费清理结果，原错误仍交给调用方。
+    void reconnect.then(cleanup, cleanup);
     return reconnect;
   }
 

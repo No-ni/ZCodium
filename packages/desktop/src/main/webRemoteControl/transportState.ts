@@ -1,6 +1,7 @@
 import type { WebRemoteControlStatusSnapshot } from "@zcode/shared";
 import type { WebRemoteControlRuntime } from "./runtime.js";
 import { buildStatusSnapshot } from "./runtime.js";
+import { clearPendingOutbound } from "./outboundBuffer.js";
 
 /**
  * 传输态 → 用户态映射与手机断链宽限。
@@ -39,6 +40,13 @@ export function mapTransportState(
   emitStatus: (runtime: WebRemoteControlRuntime) => void,
   onPaired: (runtime: WebRemoteControlRuntime) => void,
 ): void {
+  if (state !== "paired") {
+    // 30 秒宽限只保留状态展示；连接已丢失时旧 Host 订阅和缓存不能跨手机绑定继续存活。
+    const bridge = runtime.bridge;
+    runtime.bridge = undefined;
+    bridge?.dispose();
+    clearPendingOutbound(runtime);
+  }
   switch (state) {
     case "connecting":
     case "registering":

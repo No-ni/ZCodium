@@ -12,10 +12,13 @@ export function isRelayWsUrl(value: string): boolean {
 export function deriveRelayHttpBase(relayWsUrl: string): string {
   try {
     const url = new URL(relayWsUrl);
+    const wsPath = `${url.pathname}${url.search}`;
     url.protocol = url.protocol === "wss:" ? "https:" : "http:";
     url.pathname = "/";
     url.search = "";
     url.hash = "";
+    // 手机页与 relay 同源，但 WS 不一定挂在 /ws；二维码必须保留用户配置的路径及查询参数。
+    if (wsPath !== "/ws") url.searchParams.set("wsPath", wsPath);
     return url.toString();
   } catch {
     return relayWsUrl;

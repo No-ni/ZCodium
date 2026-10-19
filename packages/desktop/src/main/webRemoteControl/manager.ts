@@ -23,11 +23,11 @@ import {
   type WebRemoteControlDeviceTransportEvents,
 } from "./relayTransport.js";
 import { buildStatusSnapshot, type WebRemoteControlRuntime } from "./runtime.js";
-import { buildWorkspaceListResult, routeMobilePayload } from "./payloadRouter.js";
+import { pushWorkspaceListIfChanged, routeMobilePayload } from "./payloadRouter.js";
 import { clearPendingOutbound, flushPendingOutbound, sendAppPayload } from "./outboundBuffer.js";
 import { clearGraceTimer, mapTransportState } from "./transportState.js";
 import { createStartAuthorizationStore, type StartAuthorization } from "./authorization.js";
-import { openWorkspaceBridge } from "./bridgeController.js";
+import { closeChangedWorkspaceBridge, openWorkspaceBridge } from "./bridgeController.js";
 
 /**
  * Web Remote Control 桌面运行时：按窗口一份，持有配对、传输与 Host bridge。
@@ -93,29 +93,6 @@ export interface WebRemoteControlManager {
   syncWorkspaces(windowId: number, workspaces: WebRemoteControlWorkspaceRef[]): void;
   syncTasks(windowId: number, tasks: WebRemoteControlTaskRef[]): void;
   disposeWindow(windowId: number): Promise<void>;
-}
-
-/**
- * 清单变化时主动推给手机。
- *
- * 手机只在配对时拉一次 bootstrap；远端工作区重连会换 `remoteSessionId`，不推送的话手机端会一直
- * 拿着旧 identity 去请求（服务调用打到已经失效的 session 上）。未配对时不推，避免占满出站缓冲——
- * 配对那一刻的 bootstrap 会拉全量。
- */
-function pushWorkspaceListIfChanged(
-  runtime: WebRemoteControlRuntime,
-  logger: WebRemoteControlLogger,
-): void {
-  const result = buildWorkspaceListResult(runtime);
-  const signature = JSON.stringify(result);
-  if (runtime.lastWorkspaceListSignature === signature) return;
-  runtime.lastWorkspaceListSignature = signature;
-  if (!runtime.mobileConnected) return;
-  sendAppPayload(
-    runtime,
-    { zcode_type: "workspace-list-updated", result } as WebRemoteControlAppPayload,
-    logger,
-  );
 }
 
 export function createWebRemoteControlManager(
@@ -296,7 +273,12 @@ export function createWebRemoteControlManager(
         runtime.passHash = registered.passHash;
         runtimesByDeviceSid.set(registered.deviceSid, runtime);
         if (runtime.qrBaseUrl) runtime.qrUrl = buildWindowQrUrl(runtime, deps);
-        void authStorage.save(registered);
+        // 后台持久化失败不能成为未处理拒绝；当前内存配对仍可用，日志不携带存储异常或 hash。
+        void authStorage
+          .save(registered)
+          .catch(() =>
+            deps.logger.warn("[web-remote-control] auth persistence failed", { windowId }),
+          );
         deps.logger.info("[web-remote-control] device registered", {
           windowId,
           transport: endpointMode,
@@ -310,9 +292,7 @@ export function createWebRemoteControlManager(
           message: error.message,
         });
       },
-      onInvalidPersistedAuth: async () => {
-        await authStorage.clear();
-      },
+      onInvalidPersistedAuth: () => authStorage.clear(),
     };
     let lanTransport: ReturnType<typeof createLanDeviceTransport> | null = null;
     const transport: WebRemoteControlDeviceTransport =
@@ -348,6 +328,8 @@ export function createWebRemoteControlManager(
     }
     runtime.transport = transport;
     runtimes.set(windowId, runtime);
+    // LAN 复用已有配对时没有新注册回调；必须在启动前恢复 SID 路由，否则手机 bootstrap 被静默丢弃。
+    if (auth.mode === "persisted") runtimesByDeviceSid.set(auth.deviceSid, runtime);
     emitStatus(runtime);
     try {
       await transport.start();
@@ -423,6 +405,9 @@ export function createWebRemoteControlManager(
     syncWorkspaces(windowId, workspaces) {
       const runtime = runtimes.get(windowId);
       if (!runtime) return;
+      const previous = runtime.workspaces.find(
+        (item) => item.workspaceKey === runtime.bridge?.workspaceKey,
+      );
       runtime.workspaces = workspaces.map((workspace) => {
         // 带 remoteSessionId 的条目连接态归桌面裁定；UI 传来的值不作为事实。
         // deps 未注入时不覆盖，也不写假值（保持原始条目）。
@@ -434,7 +419,18 @@ export function createWebRemoteControlManager(
           connectionState: deps.resolveRemoteWorkspaceConnectionState(workspace.remoteSessionId),
         };
       });
+      const closedBridgeId = closeChangedWorkspaceBridge(runtime, previous);
       pushWorkspaceListIfChanged(runtime, deps.logger);
+      if (closedBridgeId)
+        sendAppPayload(
+          runtime,
+          {
+            zcode_type: "bridge-degraded",
+            bridgeSessionId: closedBridgeId,
+            reason: "workspace-scope-changed",
+          },
+          deps.logger,
+        );
     },
     syncTasks(windowId, tasks) {
       const runtime = runtimes.get(windowId);

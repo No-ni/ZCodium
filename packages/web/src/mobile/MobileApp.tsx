@@ -168,9 +168,10 @@ export function MobileApp() {
 
   useEffect(() => {
     // 重连时清单可能已变化；不能因为保留了上次 bootstrap 就跳过刷新。
-    if (connection !== "paired") return;
+    // waiting → paired 可能被 React 合并；snapshot 仍代表新连接事件，不能只比较最终 state 字符串。
+    if (connectionSnapshot.state !== "paired") return;
     void refreshBootstrap().catch((error) => reportError("[mobile] bootstrap 拉取失败", error));
-  }, [connection, refreshBootstrap, reportError]);
+  }, [connectionSnapshot, refreshBootstrap, reportError]);
 
   const selectedTaskId = view.kind === "task" ? view.task.taskId : undefined;
   const selectedWorkspaceKey = view.kind === "task" ? view.task.workspaceKey : undefined;
@@ -278,7 +279,7 @@ export function MobileApp() {
       !selectedTaskId ||
       !selectedWorkspaceKey ||
       !selectedWorkspacePath ||
-      connection !== "paired"
+      connectionSnapshot.state !== "paired"
     ) {
       setConversationView((previous) =>
         previous
@@ -357,7 +358,7 @@ export function MobileApp() {
     selectedWorkspacePath,
     selectedWorkspaceIdentity,
     selectedRemoteSessionId,
-    connection,
+    connectionSnapshot,
     reportError,
     confirmSubmission,
     reconcileSubmission,

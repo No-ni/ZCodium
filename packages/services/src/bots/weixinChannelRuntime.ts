@@ -253,6 +253,8 @@ export function createWeixinChannelRuntime(deps: WeixinChannelRuntimeDeps) {
     isLatest: () => boolean,
   ): Promise<void> {
     await deps.ensureBotStorageMigrated();
+    // 迁移可能晚于 dispose 完成；恢复后先验证代际，不能再启动配置读取。
+    if (!isLatest()) return;
     const currentConfig = config ?? (await deps.readConfig());
     if (!isLatest()) {
       return;
@@ -320,7 +322,7 @@ export function createWeixinChannelRuntime(deps: WeixinChannelRuntimeDeps) {
   }
 
   async function dispose(): Promise<void> {
-    refreshQueue.invalidate();
+    refreshQueue.dispose();
     const activeRuntimes = [...runtimes.values()];
     for (const runtime of activeRuntimes) {
       runtime.controller.abort();

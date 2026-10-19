@@ -152,10 +152,16 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
         });
         // Bugfix：首次 ready 不是长连接生命周期终点。SDK 重连耗尽必须进入 catch，
         // 才能更新错误状态、关闭 client、释放跨窗口锁并进入外层恢复循环。
-        await Promise.race([
-          waitForAbort(signal),
-          client.terminated,
-        ]);
+        const abortWait = new AbortController();
+        try {
+          await Promise.race([
+            waitForAbort(AbortSignal.any([signal, abortWait.signal])),
+            client.terminated,
+          ]);
+        } finally {
+          // SDK 先终结时原 abort 等待会跨重连滞留；只取消本次等待，不中止共享 runtime。
+          abortWait.abort();
+        }
       } catch (error) {
         if (signal.aborted) {
           return;
@@ -253,6 +259,8 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
     isLatest: () => boolean,
   ): Promise<void> {
     await deps.ensureBotStorageMigrated();
+    // 迁移可能晚于 dispose 完成；恢复后先验证代际，不能再启动配置读取。
+    if (!isLatest()) return;
     const currentConfig = config ?? (await deps.readConfig());
     if (!isLatest()) {
       return;
@@ -328,7 +336,7 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
   }
 
   async function dispose(): Promise<void> {
-    refreshQueue.invalidate();
+    refreshQueue.dispose();
     const activeRuntimes = [...runtimes.values()];
     for (const runtime of activeRuntimes) {
       runtime.controller.abort();

@@ -131,6 +131,18 @@ async function authenticate(
 }
 
 describe("relay server socket authentication", () => {
+  it("rejects oversized unfinished WebSocket fragments before authentication", async () => {
+    const peer = connect();
+    await new Promise<void>((resolve) => peer.socket.once("open", resolve));
+    const closed = new Promise<number>((resolve) => peer.socket.once("close", resolve));
+    peer.socket.send(Buffer.alloc(2_000_001), { fin: false });
+    const code = await Promise.race([
+      closed,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+    ]);
+    expect(code).toBe(1009);
+  });
+
   it("rejects data and status queries before the socket proves its challenge", async () => {
     const { sid } = await registerDevice("hash-A");
 
@@ -299,6 +311,32 @@ describe("relay server socket authentication", () => {
     });
   });
 
+  it.each(["device", "mobile"] as const)(
+    "replacement of %s notifies peer waiting then matched",
+    async (role) => {
+      const { peer: device, sid } = await registerDevice("hash-A");
+      const mobile = connect();
+      await new Promise<void>((resolve) => mobile.socket.once("open", resolve));
+      await authenticate(mobile, sid, "hash-A", "mobile");
+      await device.next("pair_status_ack");
+      const peer = role === "device" ? mobile : device;
+      const old = role === "device" ? device : mobile;
+      const closed = new Promise<void>((resolve) => old.socket.once("close", () => resolve()));
+      const replacement = connect();
+      await new Promise<void>((resolve) => replacement.socket.once("open", resolve));
+      await authenticate(replacement, sid, "hash-A", role);
+      expect(await peer.next("pair_status_ack")).toMatchObject({ pair_status: "waiting" });
+      expect(await peer.next("pair_status_ack")).toMatchObject({ pair_status: "matched" });
+      await closed;
+      peer.send({ type: "pair_status_query", device_sid: sid, client_ts: Date.now() });
+      expect(await peer.next("pair_status_ack")).toMatchObject({ pair_status: "matched" });
+      peer.send({ type: "data", payload: { zcode_type: "current-binding" } });
+      expect(await replacement.next("data")).toMatchObject({
+        payload: { zcode_type: "current-binding" },
+      });
+    },
+  );
+
   it("closing a replaced device socket does not mark the replacement offline", async () => {
     const { peer: oldDevice, sid } = await registerDevice("hash-A");
     const mobile = connect();
@@ -310,6 +348,8 @@ describe("relay server socket authentication", () => {
     expect(await authenticate(newDevice, sid, "hash-A", "device")).toMatchObject({
       pair_status: "matched",
     });
+    expect(await mobile.next("pair_status_ack")).toMatchObject({ pair_status: "waiting" });
+    expect(await mobile.next("pair_status_ack")).toMatchObject({ pair_status: "matched" });
     await new Promise<void>((resolve) => oldDevice.socket.once("close", () => resolve()));
 
     mobile.send({ type: "pair_status_query", device_sid: sid, client_ts: Date.now() });

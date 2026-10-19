@@ -18,6 +18,8 @@ Renderer 模块，层序 `domain → app → adapters → components`；公开�
 
 组件只经 hooks/服务端口访问外部能力；controller 不导入适配器，domain 只做纯计算。侧栏 tab、composer 上下文仍由既有 UI owner 持有，不与页面状态重复写入。
 
+Timeline 经 `usePublishPluginUiInstanceDerivation` 持有会话裁决发布者；正文更新复用句柄，换会话/卸载释放。store 只保留活发布者的派生数据，同会话多个视图按最后发布结果读取，释放后回退其他活发布者，最后一个释放删除会话。虚拟卡片与侧栏/沙箱的生命周期独立，不因裁决清理回收保活页面。
+
 `preferredDisplayMode: fullscreen` 每次实际工具调用只消费一次；记录归既有侧栏内存，按 workspace/session/plugin/server/resource/toolCall 隔离，随其窗口缓存保留与淘汰。工具行重挂不能重新触发打开并覆盖收起偏好；已显示在侧栏时也消费该调用。手动打开、页面请求以及新工具调用仍走原入口。
 
 - Sampling 使用官方 oncreatesamplingmessage；只有可操作任务声明 sampling:{}。请求携带完整实例凭证，SDK signal 经显式 cancel 到 Agent；controller 将采样计入 busy，切展示位置不取消/重发。结果不进入主聊天；内容扩展和进度仍 pending。

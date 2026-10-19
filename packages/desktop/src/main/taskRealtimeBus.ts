@@ -71,7 +71,8 @@ interface PendingStreamBatch {
   nextBatchSeq: number;
   nextOpSeq: number;
   pendingOps: TaskStreamMirrorPublishOp[];
-  replay: TaskStreamMirrorBatchEvent[];
+  replay: Array<{ event: TaskStreamMirrorBatchEvent; serializedLength: number }>;
+  replayLength: number;
   replayUnavailable: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   replayInitializedHostIds: Set<string>;
@@ -442,6 +443,7 @@ export class TaskRealtimeBus {
       nextOpSeq: 1,
       pendingOps: [],
       replay: [],
+      replayLength: 0,
       replayUnavailable: false,
       timer: null,
       replayInitializedHostIds: new Set<string>(),
@@ -503,14 +505,15 @@ export class TaskRealtimeBus {
         (op) => op.kind === "stream_event" && this.isTerminalEventType(op.event.type),
       ),
     };
-    if (JSON.stringify(event).length > STREAM_MIRROR_MAX_BATCH_BYTES) {
+    const serializedLength = JSON.stringify(event).length;
+    if (serializedLength > STREAM_MIRROR_MAX_BATCH_BYTES) {
       // 单次 mirror batch 过大时，RPC/base64/JSON 会在链路上多次复制，导致 host 堆内存打满。
       // owner 仍依赖 mirror seq 流渲染主动发送端，所以这里对 owner 做小批次分片；observer
       // 不消费正文流，只收到 snapshot invalidation/remoteGenerating 状态。
       this.deliverOversizedStreamBatchFallback(batch, event);
       return;
     }
-    this.rememberReplayBatch(batch, event);
+    this.rememberReplayBatch(batch, event, serializedLength);
     this.deliverStreamBatch(batch, event);
 
     if (event.terminal) {
@@ -527,6 +530,7 @@ export class TaskRealtimeBus {
     // 这里只给 owner 发送连续小批次；observer 和 late subscriber 统一走快照补齐，避免大 payload 扩散。
     batch.replayUnavailable = true;
     batch.replay = [];
+    batch.replayLength = 0;
     for (const chunk of this.splitOversizedBatchForOwner(batch, event)) {
       this.deliverStreamBatchToHost(batch.ownerHostId, batch, chunk, "relay_owner");
     }
@@ -548,6 +552,8 @@ export class TaskRealtimeBus {
   ): TaskStreamMirrorBatchEvent[] {
     const chunks: TaskStreamMirrorBatchEvent[] = [];
     let pendingOps: TaskStreamMirrorOp[] = [];
+    let pendingOpLength = 0;
+    let pendingTerminal = false;
 
     const createChunk = (
       ops: TaskStreamMirrorOp[],
@@ -570,18 +576,29 @@ export class TaskRealtimeBus {
       }
       chunks.push(createChunk(pendingOps, batch.nextBatchSeq++));
       pendingOps = [];
+      pendingOpLength = 0;
+      pendingTerminal = false;
     };
 
     for (const op of event.ops) {
-      const candidate = [...pendingOps, op];
-      const candidateChunk = createChunk(candidate, batch.nextBatchSeq);
-      if (
-        pendingOps.length > 0 &&
-        JSON.stringify(candidateChunk).length > STREAM_MIRROR_MAX_BATCH_BYTES
-      ) {
-        flushPending();
+      const opLength = JSON.stringify(op).length;
+      const terminal = op.kind === "stream_event" && this.isTerminalEventType(op.event.type);
+      if (pendingOps.length > 0) {
+        // 旧实现为每个候选复制、序列化整个前缀。空 ops 信封加各 op 长度和逗号
+        // 与原 JSON 字符长度严格相等；seq 位数、转义和 terminal 都按实际值计算。
+        const envelope = {
+          ...createChunk([], batch.nextBatchSeq),
+          fromSeq: pendingOps[0]!.seq,
+          toSeq: op.seq,
+          terminal: pendingTerminal || terminal,
+        };
+        const candidateLength =
+          JSON.stringify(envelope).length + pendingOpLength + opLength + pendingOps.length;
+        if (candidateLength > STREAM_MIRROR_MAX_BATCH_BYTES) flushPending();
       }
       pendingOps.push(op);
+      pendingOpLength += opLength;
+      pendingTerminal ||= terminal;
     }
     flushPending();
     return chunks;
@@ -731,20 +748,22 @@ export class TaskRealtimeBus {
     });
   }
 
-  private rememberReplayBatch(batch: PendingStreamBatch, event: TaskStreamMirrorBatchEvent): void {
+  private rememberReplayBatch(
+    batch: PendingStreamBatch,
+    event: TaskStreamMirrorBatchEvent,
+    serializedLength: number,
+  ): void {
     // 无上限 replay 在长任务中会线性占用主进程内存。
     // 这里恢复批次数+字节数双阈值，超限后由 replayVisibleRunsToHost 触发 stream_mirror_gap 并走快照补齐。
-    batch.replay.push(event);
+    // 已发布事件不再修改，复用 size gate 的精确长度，避免每次 flush 重编码整个窗口。
+    batch.replay.push({ event, serializedLength });
+    batch.replayLength += serializedLength;
     while (batch.replay.length > STREAM_MIRROR_MAX_REPLAY_BATCHES) {
-      batch.replay.shift();
+      batch.replayLength -= batch.replay.shift()!.serializedLength;
     }
-    while (this.replayBytes(batch.replay) > STREAM_MIRROR_MAX_REPLAY_BYTES) {
-      batch.replay.shift();
+    while (batch.replayLength > STREAM_MIRROR_MAX_REPLAY_BYTES) {
+      batch.replayLength -= batch.replay.shift()!.serializedLength;
     }
-  }
-
-  private replayBytes(replay: TaskStreamMirrorBatchEvent[]): number {
-    return replay.reduce((total, replayEvent) => total + JSON.stringify(replayEvent).length, 0);
   }
 
   private replayVisibleRunsToHost(hostId: string, workspaceKeys: Iterable<string>): void {
@@ -762,7 +781,11 @@ export class TaskRealtimeBus {
         continue;
       }
       batch.replayInitializedHostIds.add(replayKey);
-      if (batch.replayUnavailable || batch.replay.length === 0 || batch.replay[0]?.fromSeq !== 1) {
+      if (
+        batch.replayUnavailable ||
+        batch.replay.length === 0 ||
+        batch.replay[0]?.event.fromSeq !== 1
+      ) {
         this.deliverSnapshotInvalidation(
           this.batchToLeaseLike(batch),
           batch.ownerHostId,
@@ -772,7 +795,7 @@ export class TaskRealtimeBus {
         );
         continue;
       }
-      for (const event of batch.replay) {
+      for (const { event } of batch.replay) {
         host.child.postMessage({
           type: HostMessageTypes.TaskRealtimeDeliver,
           event: { ...event, originHostId: batch.ownerHostId, deliveryPurpose: "observer" },
@@ -826,7 +849,7 @@ export class TaskRealtimeBus {
   private getReplaySnapshotWatermark(batch: PendingStreamBatch): TaskStreamWatermark {
     return {
       runId: batch.runId,
-      opSeq: batch.replay.at(-1)?.toSeq ?? Math.max(batch.nextOpSeq - 1, 0),
+      opSeq: batch.replay.at(-1)?.event.toSeq ?? Math.max(batch.nextOpSeq - 1, 0),
     };
   }
 

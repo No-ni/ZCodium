@@ -10,10 +10,7 @@ import {
   setPluginUiManualPin,
   subscribePluginUiDisclosure,
 } from "@/plugin-ui/app/pluginUiDisclosureStore.js";
-import {
-  getPluginUiRowDisposition,
-  subscribePluginUiInstances,
-} from "@/plugin-ui/app/pluginUiInstanceStore.js";
+import { usePluginUiRowDisposition } from "./usePluginUiRowDisposition.js";
 import {
   claimPluginUiSurface,
   getPluginUiSurface,
@@ -98,11 +95,7 @@ export function usePluginUiToolCallModel(
     [presentation, toolCall],
   );
   // 4b-1：时间线推导的展示裁决（被替代 / 强制常驻）与用户手动固定状态。
-  const disposition = useSyncExternalStore(
-    subscribePluginUiInstances,
-    () => getPluginUiRowDisposition(sessionId, toolCall.toolId),
-    () => undefined,
-  );
+  const disposition = usePluginUiRowDisposition(sessionId, toolCall.toolId);
   const manualPin = useSyncExternalStore(
     subscribePluginUiDisclosure,
     () => getPluginUiManualPin(sessionId, toolCall.toolId),

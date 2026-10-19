@@ -38,20 +38,25 @@ export function assertBotCallbackSucceeded(
 
 export function createLatestRuntimeRefreshQueue() {
   let generation = 0;
+  let closed = false;
   let queue: Promise<void> = Promise.resolve();
 
   return {
+    get closed() { return closed; },
     enqueue(reconcile: (isLatest: () => boolean) => Promise<void>): Promise<void> {
+      if (closed) return Promise.resolve();
       const currentGeneration = ++generation;
       const result = queue
         .catch(() => undefined)
-        .then(() => reconcile(() => currentGeneration === generation));
+        .then(() => closed ? undefined : reconcile(() => !closed && currentGeneration === generation));
       // Bugfix: 配置保存会连续触发 fire-and-forget refresh。串行队列既要让后一轮等待
       // 前一轮释放连接，又不能因前一轮失败永久阻断后续最新配置。
       queue = result.catch(() => undefined);
       return result;
     },
-    invalidate(): void {
+    dispose(): void {
+      // 保存配置可能晚于 service 关闭完成；终态必须拒绝后续 admission，而非只让旧代失效。
+      closed = true;
       generation += 1;
     },
   };

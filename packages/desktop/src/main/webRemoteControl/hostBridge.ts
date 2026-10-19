@@ -74,32 +74,47 @@ export function attachWorkspaceHostPort(params: {
     : { kind: "local" };
   const attachmentId = randomUUID();
   const { port1, port2 } = new MessageChannelMain();
-  hostProcess.postMessage(
-    {
-      type: HostMessageTypes.AttachServicePort,
-      requestId: randomUUID(),
-      attachmentId,
-      // 手机链路必须是 replayable：与桌面 continuous 语义分离（AGENTS.md 硬约束）。
-      clientMode: "web-remote-replayable",
-      scope,
-    },
-    [port2],
-  );
+  try {
+    hostProcess.postMessage(
+      {
+        type: HostMessageTypes.AttachServicePort,
+        requestId: randomUUID(),
+        attachmentId,
+        // 手机链路必须是 replayable：与桌面 continuous 语义分离（AGENTS.md 硬约束）。
+        clientMode: "web-remote-replayable",
+        scope,
+      },
+      [port2],
+    );
+  } catch (error) {
+    // Host 可能在查找后退出；移交失败时两个端口仍由 Main 持有，必须一并关闭。
+    port1.close();
+    port2.close();
+    throw error;
+  }
   params.logger.info("[web-remote-control] attached window host port", {
     windowId: params.windowId,
     attachmentId,
     workspacePath: params.workspacePath,
     remoteSessionId: params.remoteSessionId ?? "none",
   });
+  let disposed = false;
   return {
     attachmentId,
     port: port1,
     dispose() {
-      hostProcess.postMessage({
-        type: HostMessageTypes.DetachServicePort,
-        attachmentId,
-      });
-      port1.close();
+      if (disposed) return;
+      disposed = true;
+      try {
+        hostProcess.postMessage({ type: HostMessageTypes.DetachServicePort, attachmentId });
+      } catch {
+        // Host 已退出时 detach 无法送达；本地清理仍须完成，不能打断窗口停止/换桥。
+        params.logger.warn("[web-remote-control] host unavailable during attachment detach", {
+          attachmentId,
+        });
+      } finally {
+        port1.close();
+      }
     },
   };
 }

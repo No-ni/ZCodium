@@ -13,6 +13,9 @@ import {
 } from "./workspaceBridgeLifecycle.js";
 import {
   encodeWebRemoteControlRpcFrames,
+  webRemoteControlAppPayloadSchema,
+  webRemoteControlEndpointToClientFrameSchema,
+  type WebRemoteControlEndpointToClientFrame,
   generateTraceId,
   parseWebRemoteControlRpcAckFrame,
   type WebRemoteControlAppPayload,
@@ -86,6 +89,7 @@ interface PendingRequest {
   resolve(payload: WebRemoteControlAppPayload): void;
   reject(error: Error): void;
   timer: number;
+  bridgeSessionId?: string;
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -276,6 +280,13 @@ export class MobileRemoteControlClient {
    * 保证旧订阅回调（迟到事件）无法写进新会话。
    */
   private releaseBridge(): void {
+    // 切目标与降级都释放旧 open；否则旧 ready 丢失会堵住串行队列直到 30 秒超时。
+    for (const [requestId, pending] of this.pending) {
+      if (pending.bridgeSessionId !== this.rpcStreamId) continue;
+      window.clearTimeout(pending.timer);
+      this.pending.delete(requestId);
+      pending.reject(new Error("连接已中断，请连接后重试"));
+    }
     for (const subscription of this.taskStreamSubscriptions) {
       try {
         subscription.dispose();
@@ -429,7 +440,14 @@ export class MobileRemoteControlClient {
         this.pending.delete(requestId);
         reject(new Error(`web remote control request timed out: ${payload.zcode_type}`));
       }, REQUEST_TIMEOUT_MS);
-      this.pending.set(requestId, { resolve, reject, timer });
+      this.pending.set(requestId, {
+        resolve,
+        reject,
+        timer,
+        ...(payload.zcode_type === "workspace-bridge-open"
+          ? { bridgeSessionId: payload.bridgeSessionId }
+          : {}),
+      });
       this.send({ type: "data", payload });
     });
   }
@@ -464,7 +482,17 @@ export class MobileRemoteControlClient {
     for (const event of events) {
       if (event.kind === "message") {
         const generation = this.bridge.version;
-        this.onRpcMessage?.(decodeRpcMessage(event.message));
+        try {
+          this.onRpcMessage?.(decodeRpcMessage(event.message));
+        } catch {
+          // 外层分片校验通过不代表内层 RPC 字节合法；解码失败必须结束旧桥而非悬挂服务请求。
+          this.notifyBridgeDegraded({
+            zcode_type: "bridge-degraded",
+            bridgeSessionId: this.rpcStreamId,
+            reason: "rpc-transport-fault",
+          });
+          return;
+        }
         // 回调可能同步切桥；旧消息返回后不能再污染新世代的 ack 调度器。
         if (!this.bridge.isCurrent(generation)) return;
         // 不逐条立即 ack：交给批量调度，deadline 保证最后一个一定发出。
@@ -643,9 +671,13 @@ export class MobileRemoteControlClient {
   }
 
   private async handleMessage(raw: unknown, socket: WebSocket): Promise<void> {
-    let frame: Record<string, unknown>;
+    let frame: WebRemoteControlEndpointToClientFrame;
     try {
-      frame = JSON.parse(typeof raw === "string" ? raw : String(raw)) as Record<string, unknown>;
+      const parsed = webRemoteControlEndpointToClientFrameSchema.safeParse(
+        JSON.parse(typeof raw === "string" ? raw : String(raw)),
+      );
+      if (!parsed.success) return;
+      frame = parsed.data;
     } catch {
       return;
     }
@@ -693,7 +725,28 @@ export class MobileRemoteControlClient {
     }
     if (type === "data") {
       if (this.state !== "paired") return;
-      const payload = frame.payload as WebRemoteControlAppPayload;
+      // relay 只透传业务载荷；手机必须复用共享 schema，不能把 null/残缺响应交给 UI 或 pending。
+      const parsed = webRemoteControlAppPayloadSchema.safeParse(frame.payload);
+      if (!parsed.success) {
+        const invalid = frame.payload as {
+          zcode_type?: unknown;
+          frame?: { streamId?: unknown };
+        } | null;
+        // 当前流的坏帧必须降级；纯丢弃会使等待 Initialize/RPC 的请求永久悬挂。旧流仍忽略。
+        if (
+          this.channelClient &&
+          (invalid?.zcode_type === "rpc-frame" || invalid?.zcode_type === "rpc-frame-ack") &&
+          invalid.frame?.streamId === this.rpcStreamId
+        ) {
+          this.notifyBridgeDegraded({
+            zcode_type: "bridge-degraded",
+            bridgeSessionId: this.rpcStreamId,
+            reason: "rpc-transport-fault",
+          });
+        }
+        return;
+      }
+      const payload = parsed.data;
       if (payload.zcode_type === "rpc-frame" || payload.zcode_type === "rpc-frame-ack") {
         this.acceptRpcFrame(payload.frame);
         return;
@@ -734,9 +787,9 @@ export class MobileRemoteControlClient {
       this.reconnectTimer = null;
     }
     // 终止时释放旧 bridge/RPC 请求；保留客户端终态，禁止 close、迟到帧或外部重试复活。
+    this.failPending(new Error(reason));
     this.bridge.invalidate();
     this.clearAssemblySweepTimer();
-    this.failPending(new Error(reason));
     const detail = { reason, ...(closeCode === undefined ? {} : { closeCode }) };
     if (this.state === "error") this.events.onStateChange("error", detail);
     else this.setState("error", detail);
@@ -781,12 +834,25 @@ export function readPairingParamsFromLocation(): MobilePairingParams & { wsUrl: 
     throw new Error("远程控制链接缺少配对参数");
   }
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const base = `${protocol}//${window.location.host}`;
+  const wsPath = params.get("wsPath") || "/ws";
+  const wsUrl = new URL(wsPath, base);
+  // 二维码只允许指定本源 WS 路径，不能借参数把配对 proof 发到另一台服务器。
+  if (
+    !wsPath.startsWith("/") ||
+    wsPath.startsWith("//") ||
+    wsPath.includes("\\") ||
+    wsUrl.origin !== new URL(base).origin ||
+    wsUrl.hash
+  ) {
+    throw new Error("远程控制链接的 WebSocket 路径无效");
+  }
   return {
     deviceSid,
     passHash,
     deviceMid: params.get("mid") ?? undefined,
     deviceName: params.get("name") ?? undefined,
     appVersion: params.get("app_version") ?? undefined,
-    wsUrl: `${protocol}//${window.location.host}/ws`,
+    wsUrl: wsUrl.toString(),
   };
 }

@@ -298,6 +298,8 @@ interface BotRemoteWorkspaceReconnectResult {
 }
 
 interface BotRemoteWorkspaceService {
+  /** 本地 Bot service 独占此桥接，关闭时释放其等待与 RPC；不关闭远端 Host。 */
+  dispose?(): void;
   isConnected(target: BotRemoteWorkspaceTarget): Promise<boolean>;
   ensureConnected(target: BotRemoteWorkspaceTarget): Promise<BotRemoteWorkspaceReconnectResult>;
   getZCodeTaskService?(target: BotRemoteWorkspaceTarget): Promise<IZCodeTaskService | null>;
@@ -6333,6 +6335,8 @@ export function createBotsService(
       if (shutdownPromise) {
         return shutdownPromise;
       }
+      // bridge 未注册成独立服务；必须随 Bot 一起关闭，否则 Host 回收不会触达其 pending 请求。
+      deps.remoteWorkspaceService?.dispose?.();
       memoryDiagnostics.dispose();
       for (const controller of streamingCardRequestControllers) {
         controller.abort(new Error("Bot service disposed."));
