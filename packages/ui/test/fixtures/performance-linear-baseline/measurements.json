@@ -1,0 +1,230 @@
+{
+  "node": "24.14.0",
+  "platform": "win32",
+  "sampling": "Four warmups, fifteen alternating before/after samples; median; no timing assertions.",
+  "scope": "Synthetic local computation only; original source snapshots share the same dependencies. Not an application-wide CPU or memory benchmark.",
+  "reports": {
+    "preChange": [
+      {
+        "name": "tool scheduling 50 independent",
+        "beforeMs": 0.06890000000021246,
+        "afterMs": 0.0646999999999025,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 50 chain",
+        "beforeMs": 0.07890000000043074,
+        "afterMs": 0.0716999999995096,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 500 independent",
+        "beforeMs": 3.256899999999405,
+        "afterMs": 3.5144000000000233,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 500 chain",
+        "beforeMs": 3.4871000000002823,
+        "afterMs": 3.7313999999996668,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 1500 independent",
+        "beforeMs": 28.167200000000776,
+        "afterMs": 30.131000000000313,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 1500 chain",
+        "beforeMs": 30.014899999999216,
+        "afterMs": 32.82290000000012,
+        "samples": 15
+      },
+      {
+        "name": "Host realtime 20000 unique IDs / window 1000",
+        "beforeMs": 39.59619999999995,
+        "afterMs": 40.29059999999981,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 8 diffs",
+        "beforeMs": 0.05060000000003129,
+        "afterMs": 0.05060000000003129,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 500 diffs",
+        "beforeMs": 4.201099999999997,
+        "afterMs": 4.651900000000069,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 2000 diffs",
+        "beforeMs": 17.592799999999897,
+        "afterMs": 24.191499999999905,
+        "samples": 15
+      },
+      {
+        "name": "background coalescing 500 events / 95 keys",
+        "beforeMs": 0.40589999999997417,
+        "afterMs": 0.40440000000000964,
+        "samples": 15
+      },
+      {
+        "name": "background coalescing 20000 events / 95 keys",
+        "beforeMs": 10.366499999999974,
+        "afterMs": 14.454200000000014,
+        "samples": 15
+      }
+    ],
+    "isolated": [
+      {
+        "name": "tool scheduling 50 independent",
+        "beforeMs": 0.07290000000011787,
+        "afterMs": 0.0419000000001688,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 50 chain",
+        "beforeMs": 0.07580000000007203,
+        "afterMs": 0.035899999999855936,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 500 independent",
+        "beforeMs": 3.26070000000027,
+        "afterMs": 0.2417000000000371,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 500 chain",
+        "beforeMs": 3.8724999999999454,
+        "afterMs": 0.45699999999987995,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 1500 independent",
+        "beforeMs": 27.984199999999873,
+        "afterMs": 0.6532000000006519,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 1500 chain",
+        "beforeMs": 29.977200000000266,
+        "afterMs": 1.0532000000002881,
+        "samples": 15
+      },
+      {
+        "name": "Host realtime 20000 unique IDs / window 1000",
+        "beforeMs": 39.33200000000011,
+        "afterMs": 37.825599999999895,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 8 diffs",
+        "beforeMs": 0.05029999999987922,
+        "afterMs": 0.051099999999905776,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 500 diffs",
+        "beforeMs": 4.17859999999996,
+        "afterMs": 3.203800000000001,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 2000 diffs",
+        "beforeMs": 17.703899999999976,
+        "afterMs": 11.817000000000007,
+        "samples": 15
+      },
+      {
+        "name": "background coalescing 500 events / 95 keys",
+        "beforeMs": 0.3654000000000224,
+        "afterMs": 0.2197999999999638,
+        "samples": 15
+      },
+      {
+        "name": "background coalescing 20000 events / 95 keys",
+        "beforeMs": 10.358499999999935,
+        "afterMs": 7.591000000000008,
+        "samples": 15
+      }
+    ],
+    "regression": [
+      {
+        "name": "Host realtime 20000 unique IDs / window 1000",
+        "beforeMs": 39.69780000000014,
+        "afterMs": 37.721900000000005,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 50 independent",
+        "beforeMs": 0.09159999999997126,
+        "afterMs": 0.04240000000004329,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 50 chain",
+        "beforeMs": 0.07240000000001601,
+        "afterMs": 0.03449999999997999,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 500 independent",
+        "beforeMs": 3.2424000000000888,
+        "afterMs": 0.2520000000001801,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 500 chain",
+        "beforeMs": 3.512500000000273,
+        "afterMs": 0.3648000000002867,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 1500 independent",
+        "beforeMs": 29.15139999999974,
+        "afterMs": 0.6464000000000851,
+        "samples": 15
+      },
+      {
+        "name": "tool scheduling 1500 chain",
+        "beforeMs": 30.299200000000383,
+        "afterMs": 0.9466000000002168,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 8 diffs",
+        "beforeMs": 0.05890000000022155,
+        "afterMs": 0.05760000000009313,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 500 diffs",
+        "beforeMs": 3.935699999999997,
+        "afterMs": 3.0834000000002106,
+        "samples": 15
+      },
+      {
+        "name": "file summaries 2000 diffs",
+        "beforeMs": 16.437400000000025,
+        "afterMs": 11.587999999999965,
+        "samples": 15
+      },
+      {
+        "name": "background coalescing 500 events / 95 keys",
+        "beforeMs": 0.3652000000000726,
+        "afterMs": 0.21299999999996544,
+        "samples": 15
+      },
+      {
+        "name": "background coalescing 20000 events / 95 keys",
+        "beforeMs": 10.074100000000044,
+        "afterMs": 7.592200000000048,
+        "samples": 15
+      }
+    ]
+  }
+}

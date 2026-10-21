@@ -137,9 +137,12 @@ export function readRawToolCallFileSummaries(
   const { directChanges, rawInputChanges, rawOutputChanges } = readRawToolCallChanges(raw);
 
   const orderedPaths = new Set<string>();
+  const diffByPath = new Map<string, (typeof rawDiffs)[number]>();
   for (const diff of rawDiffs) {
     if (diff.path) {
       orderedPaths.add(diff.path);
+      // 旧 find 取同路径的首个 diff；批量索引不能让后续重复项覆盖它。
+      if (!diffByPath.has(diff.path)) diffByPath.set(diff.path, diff);
     }
   }
   if (directChanges) {
@@ -160,7 +163,7 @@ export function readRawToolCallFileSummaries(
 
   const summaries: RawToolCallFileSummary[] = [];
   for (const path of orderedPaths) {
-    const diff = rawDiffs.find((item) => item.path === path);
+    const diff = diffByPath.get(path);
     const change = rawOutputChanges?.[path] ?? rawInputChanges?.[path] ?? directChanges?.[path];
     const changeType =
       isPlainRecord(change) && typeof change.type === "string" ? change.type : undefined;

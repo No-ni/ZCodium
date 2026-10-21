@@ -69,6 +69,7 @@ function createTaskRealtimeBridge(params: {
   const seenEventIds = new Set<string>();
   const seenEventOrder: string[] = [];
   const seenEventLimit = Math.max(1, params.seenEventLimit ?? DEFAULT_SEEN_EVENT_LIMIT);
+  let seenEventCursor = 0;
   let disposed = false;
 
   const rememberEventId = (eventId: string): boolean => {
@@ -77,13 +78,13 @@ function createTaskRealtimeBridge(params: {
     }
 
     seenEventIds.add(eventId);
-    seenEventOrder.push(eventId);
-
-    while (seenEventOrder.length > seenEventLimit) {
-      const removed = seenEventOrder.shift();
-      if (removed) {
-        seenEventIds.delete(removed);
-      }
+    if (seenEventOrder.length + 1 > seenEventLimit) {
+      // 满窗口的每个事件原先都 shift 其余 ID；环形槽只替换最早项，重复 ID 仍不续期。
+      seenEventIds.delete(seenEventOrder[seenEventCursor]!);
+      seenEventOrder[seenEventCursor] = eventId;
+      seenEventCursor = (seenEventCursor + 1) % seenEventOrder.length;
+    } else {
+      seenEventOrder.push(eventId);
     }
 
     return true;
@@ -256,6 +257,7 @@ function createTaskRealtimeBridge(params: {
       ownerCommandListeners.clear();
       seenEventIds.clear();
       seenEventOrder.length = 0;
+      seenEventCursor = 0;
       params.parentPort.off("message", onMessage);
     },
   };

@@ -67,6 +67,7 @@ jobs:
           pnpm vitest run --config packages/ui/vitest.config.ts packages/desktop/src/main/manifestUpdateProvider.test.ts
           # Relay tests exercise the service source over loopback and do not need a relay dist build.
           pnpm vitest run --config packages/ui/vitest.config.ts packages/relay/src
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/performanceLinearScheduler.test.ts packages/ui/test/performanceLinearFileSummaries.test.ts packages/ui/test/performanceLinearCoalescer.test.ts packages/ui/test/performanceLinearRealtimeBridge.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts \
             packages/services/test/botRemoteBridgeLifecycle.test.ts \
             packages/services/test/botRemoteRuntimeServices.test.ts \

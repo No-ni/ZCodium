@@ -12,11 +12,6 @@ const COALESCIBLE_MODEL_STREAMING_KINDS = new Set([
 
 type SessionServiceEvent = Extract<ZCodeAgentServiceEvent, { type: "session.event" }>;
 
-interface PendingBackgroundSessionEvent {
-  key: string;
-  event: SessionServiceEvent;
-}
-
 interface BackgroundSessionEventCoalescer {
   accept(event: ZCodeAgentServiceEvent): void;
   flush(): void;
@@ -109,7 +104,7 @@ export function createBackgroundSessionEventCoalescer(params: {
 }): BackgroundSessionEventCoalescer {
   const flushDelayMs = params.flushDelayMs ?? DEFAULT_BACKGROUND_SESSION_EVENT_COALESCE_MS;
   const maxItems = params.maxItems ?? DEFAULT_BACKGROUND_SESSION_EVENT_MAX_ITEMS;
-  let pendingEvents: PendingBackgroundSessionEvent[] = [];
+  let pendingEvents = new Map<string, SessionServiceEvent>();
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
 
@@ -122,14 +117,15 @@ export function createBackgroundSessionEventCoalescer(params: {
   }
 
   function flushPending(): void {
-    if (pendingEvents.length === 0) {
+    if (pendingEvents.size === 0) {
       clearFlushTimer();
       return;
     }
-    const events = pendingEvents.map((item) => item.event);
-    pendingEvents = [];
+    const events = pendingEvents;
+    // emit 可以同步重入 accept；先移交旧批，不能清空消费者刚写入的新批。
+    pendingEvents = new Map();
     clearFlushTimer();
-    for (const event of events) {
+    for (const event of events.values()) {
       params.emit(event);
     }
   }
@@ -156,17 +152,18 @@ export function createBackgroundSessionEventCoalescer(params: {
       return;
     }
 
-    const existing = pendingEvents.find((item) => item.key === key);
-    if (existing) {
-      existing.event = {
-        type: "session.event",
-        event: mergeBackgroundSessionEvents(existing.event.event, event.event),
-      };
-    } else {
-      pendingEvents.push({ key, event });
-    }
+    const existing = pendingEvents.get(key);
+    pendingEvents.set(
+      key,
+      existing
+        ? {
+            type: "session.event",
+            event: mergeBackgroundSessionEvents(existing.event, event.event),
+          }
+        : event,
+    );
 
-    if (pendingEvents.length >= maxItems || flushDelayMs <= 0) {
+    if (pendingEvents.size >= maxItems || flushDelayMs <= 0) {
       flushPending();
       return;
     }
