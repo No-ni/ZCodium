@@ -354,7 +354,12 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     if (entriesByKey.get(entry.key) === entry) {
       entriesByKey.delete(entry.key);
     }
-    entry.disposePromise = Promise.resolve(entry.handle?.dispose()).then(() => undefined);
+    // 退休 entry 不等于释放尚未产生的 handle；空连接不能缓存完成结果吞掉迟到资源。
+    const handle = entry.handle;
+    if (!handle) return;
+    entry.disposePromise = Promise.resolve()
+      .then(() => handle.dispose())
+      .then(() => undefined);
     return entry.disposePromise;
   }
 
