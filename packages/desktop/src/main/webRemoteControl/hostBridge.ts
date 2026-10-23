@@ -293,7 +293,7 @@ export function openWebRemoteControlHostBridge(params: OpenHostBridgeParams): Op
       // nudge（gap / buffer-timeout）驱动，见 handleAssemblyEvents。
       const ack = parseWebRemoteControlRpcAckFrame(frame);
       if (ack) {
-        replayBuffer.acknowledge(ack.ackSeq);
+        replayBuffer.acknowledge(ack.ackSeq, false);
         return;
       }
       // 装配状态的唯一所有者在这里：单槽、只装期望的 seq，装配成功才 ack（批量调度）。

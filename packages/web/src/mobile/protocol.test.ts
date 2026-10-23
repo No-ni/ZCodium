@@ -926,7 +926,7 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
       zcode_type: "rpc-frame",
       frame: { streamId: open.bridgeSessionId, kind: "ack", seq: 1, ackSeq: 1 },
     });
-    expect(acknowledge).toHaveBeenCalledExactlyOnceWith(1);
+    expect(acknowledge).toHaveBeenCalledExactlyOnceWith(1, false);
     await vi.advanceTimersByTimeAsync(10);
     expect(
       socket.sent.filter((p) => p.zcode_type === "rpc-frame" && p.frame.kind === "ack"),

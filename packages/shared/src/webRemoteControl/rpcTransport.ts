@@ -706,11 +706,12 @@ export class WebRemoteControlRpcReplayBuffer {
    * 对端 ack：推进已确认前缀并返回 `(ackSeq, lastSentSeq]` 的待重传帧。
    * ack 超过 `lastSentSeq` 属非法输入，不推进（调用方决定是否降级）。
    */
-  acknowledge(ackSeq: number): WebRemoteControlRpcMessageFrame[] {
+  acknowledge(ackSeq: number, includeReplay = true): WebRemoteControlRpcMessageFrame[] {
     if (ackSeq > this.lastSent) return [];
     if (ackSeq > this.acknowledged) this.acknowledged = ackSeq;
     this.releaseAcknowledgedPrefix();
-    return this.replayUnacknowledged();
+    // 正常 ACK 只消费释放副作用；false 跳过尾窗复制，默认返回契约与显式重放不变。
+    return includeReplay ? this.replayUnacknowledged() : [];
   }
 
   /** gap / 超时故障：返回窗口内全部待重传帧（扁平、保序、同 seq 同片）。 */

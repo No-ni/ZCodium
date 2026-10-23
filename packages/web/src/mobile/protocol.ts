@@ -471,7 +471,7 @@ export class MobileRemoteControlClient {
     // nudge（gap / buffer-timeout）驱动，见 handleRpcAssemblyEvents。
     const ack = parseWebRemoteControlRpcAckFrame(frame);
     if (ack) {
-      this.rpcReplayBuffer.acknowledge(ack.ackSeq);
+      this.rpcReplayBuffer.acknowledge(ack.ackSeq, false);
       return;
     }
     this.handleRpcAssemblyEvents(this.rpcAssembler.push(frame));
