@@ -11,7 +11,6 @@ import type {
   TraceContext,
 } from "@zcode/contracts";
 import { modelMessageContentBlockToText, modelMessageContentToText } from "@zcode/contracts";
-import { groupByAssistantStartedRounds } from "./rounds.js";
 
 const EMPTY_TOOL_CALL_INPUT_JSON = "{}";
 
@@ -67,11 +66,15 @@ export function getMessagesToSummarize(
 }
 
 export function hasEnoughMessagesToCompact(messages: readonly CompactModelMessage[]): boolean {
-  const messagesToSummarize = getMessagesToSummarize(messages);
-  return (
-    groupMessagesByCompactRound(messagesToSummarize).length >= 2 &&
-    messagesToSummarize.some((message) => message.role === "assistant")
-  );
+  let hasBodyMessage = false;
+  let hasEnoughRounds = false;
+  // 准备度只需轮次布尔值，避免复制整段历史；仍检查全部前缀，保留内容错误的传播。
+  messages.forEach((message) => {
+    if (isContextPrefixMessage(message)) return;
+    if (message.role === "assistant" && hasBodyMessage) hasEnoughRounds = true;
+    hasBodyMessage = true;
+  });
+  return hasEnoughRounds;
 }
 
 export function buildManualCompactBoundary(
@@ -143,10 +146,6 @@ function isContextPrefixMessage<T extends CompactModelMessage>(message: T): bool
     (message.role === "user" &&
       modelMessageContentToText(message.content).trimStart().startsWith("<system-reminder>"))
   );
-}
-
-function groupMessagesByCompactRound<T extends CompactModelMessage>(messages: readonly T[]): T[][] {
-  return groupByAssistantStartedRounds(messages, (message) => message.role);
 }
 
 export function getUsageTotalTokens(usage?: TokenUsageLike): number {
