@@ -89,13 +89,18 @@ export class BrowserTabRecoveryStore {
   }
 
   async getShell(tabId: string): Promise<BrowserTabShellRecord | null> {
-    const snapshot = await this.readSnapshot();
-    return snapshot.shells.find((record) => record.tabId === tabId) ?? null;
+    await this.mutationQueue;
+    const snapshot = await this.ensureLoaded();
+    const record = snapshot.shells.find((candidate) => candidate.tabId === tabId);
+    return record ? { ...record } : null;
   }
 
   async getPageState(tabId: string): Promise<BrowserTabPageStateRecord | null> {
-    const snapshot = await this.readSnapshot();
-    return snapshot.pageStates.find((record) => record.tabId === tabId) ?? null;
+    await this.mutationQueue;
+    const snapshot = await this.ensureLoaded();
+    const record = snapshot.pageStates.find((candidate) => candidate.tabId === tabId);
+    // 旧窄查询会复制所有 tab 的历史；只复制命中记录，保留返回 record/entries 的隔离边界。
+    return record ? { ...record, entries: record.entries.map((entry) => ({ ...entry })) } : null;
   }
 
   async listShells(scope: {
@@ -103,7 +108,8 @@ export class BrowserTabRecoveryStore {
     remoteSessionId?: string;
     sessionId?: string;
   }): Promise<BrowserTabShellRecord[]> {
-    const snapshot = await this.readSnapshot();
+    await this.mutationQueue;
+    const snapshot = await this.ensureLoaded();
     return snapshot.shells
       .filter(
         (record) =>
@@ -111,6 +117,7 @@ export class BrowserTabRecoveryStore {
           (record.remoteSessionId ?? "") === (scope.remoteSessionId ?? "") &&
           (scope.sessionId === undefined || record.sessionId === scope.sessionId),
       )
+      .map((record) => ({ ...record }))
       .sort(
         (left, right) => left.openedAt - right.openedAt || left.tabId.localeCompare(right.tabId),
       );
