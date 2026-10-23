@@ -27,17 +27,8 @@ import type {
   SettingsSyncTaskImportResult,
 } from "@zcode/shared";
 import { withFileLock } from "@zcode/shared/node";
-import {
-  copyFile,
-  cp,
-  link,
-  lstat,
-  mkdir,
-  readFile,
-  readdir,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { atomicWriteText } from "#src/fs/atomicFileUtils.js";
+import { copyFile, cp, link, lstat, mkdir, readFile, readdir, symlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -994,9 +985,13 @@ async function collectExistingCommandNameKeys(rootPath: string): Promise<Set<str
 async function readJsonFileOrEmpty(filePath: string): Promise<Record<string, unknown>> {
   try {
     const parsed = JSON.parse(await readFile(filePath, "utf-8")) as unknown;
-    return isRecord(parsed) ? parsed : {};
-  } catch {
-    return {};
+    if (!isRecord(parsed)) throw new Error("ZCode config must contain a JSON object");
+    return parsed;
+  } catch (error) {
+    // 只有文件缺席表示空配置；坏 JSON 与读取失败必须阻止导入覆盖已有用户字段。
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")
+      return {};
+    throw error;
   }
 }
 
@@ -1114,19 +1109,23 @@ async function addMcpServerToZcodeConfig(
   filePath: string,
   name: string,
   config: McpServerConfig,
-): Promise<void> {
-  const parsed = await readJsonFileOrEmpty(filePath);
-  const currentMcp = isRecord(parsed.mcp) ? parsed.mcp : {};
-  const servers = readZcodeMcpServers(parsed);
-  await writeJsonFile(filePath, {
-    ...parsed,
-    mcp: {
-      ...currentMcp,
-      servers: {
-        ...servers,
-        [name]: config,
-      },
-    },
+): Promise<"imported" | "skipped"> {
+  // 来源判重在锁外；目标必须锁内重读并复查，避免导入成功后被并发 writer 的旧快照覆盖。
+  return withFileLock(filePath, async () => {
+    const parsed = await readJsonFileOrEmpty(filePath);
+    const currentMcp = isRecord(parsed.mcp) ? parsed.mcp : {};
+    const servers = readZcodeMcpServers(parsed);
+    if (
+      Object.keys(servers).some(
+        (existing) => normalizeMcpServerNameKey(existing) === normalizeMcpServerNameKey(name),
+      )
+    )
+      return "skipped";
+    await writeJsonFile(filePath, {
+      ...parsed,
+      mcp: { ...currentMcp, servers: { ...servers, [name]: config } },
+    });
+    return "imported";
   });
 }
 
@@ -1137,8 +1136,11 @@ function readStringArray(value: unknown): string[] {
 }
 
 async function writeJsonFile(filePath: string, value: Record<string, unknown>): Promise<void> {
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
+  // CLI 配置可含鉴权信息；原地写保留 0600，改为原子替换后必须让临时文件同样私有。
+  await atomicWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`, {
+    useFileLock: false,
+    mode: 0o600,
+  });
 }
 
 async function addPluginDirToConfig(filePath: string, pluginPath: string): Promise<void> {
@@ -2151,7 +2153,22 @@ async function importMcpServersForAgent(
       continue;
     }
     try {
-      await addMcpServerToZcodeConfig(selectedConfigPath, candidate.name, candidate.config);
+      const status = await addMcpServerToZcodeConfig(
+        selectedConfigPath,
+        candidate.name,
+        candidate.config,
+      );
+      if (status === "skipped") {
+        skippedCount += 1;
+        mcpServerResults.push({
+          name: candidate.name,
+          path: candidate.sourcePath,
+          sourceScope: candidate.sourceRootScope,
+          status,
+          skipReason: "sameNameExists",
+        });
+        continue;
+      }
       importedCount += 1;
       const existingNameKeys = existingNameKeysByTargetScope.get(selectedTargetScope);
       if (existingNameKeys) {

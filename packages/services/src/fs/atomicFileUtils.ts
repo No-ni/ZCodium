@@ -17,6 +17,7 @@ interface AtomicWriteTextOptions {
   lockMaxWaitMs?: number;
   tempFileStaleMs?: number;
   useFileLock?: boolean;
+  mode?: number;
   beforeRename?: () => void | Promise<void>;
   runRename?: (renameFile: () => Promise<void>) => Promise<void>;
 }
@@ -136,7 +137,8 @@ export async function atomicWriteText(
       options?.tempFileStaleMs ?? DEFAULT_TEMP_FILE_STALE_MS,
     );
     maybeThrowInjectedFsFault({ operation: "writeFile", path: tempFile });
-    await writeFile(tempFile, content, "utf-8");
+    // 原子替换会继承临时文件权限而非原文件；私有配置须在创建时指定 mode，缺省仍沿用系统默认。
+    await writeFile(tempFile, content, { encoding: "utf-8", mode: options?.mode });
     await options?.beforeRename?.();
     // Windows Defender、索引服务或另一个窗口可能短暂占用目标 JSON，
     // 导致原子替换 rename 抛 EPERM/EBUSY/EACCES。这里只对这类临时锁做短暂重试，
