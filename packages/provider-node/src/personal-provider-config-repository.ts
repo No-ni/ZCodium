@@ -115,8 +115,11 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
     if (file === null && !this.#importLegacy) return snapshotFromUpdate(emptyUpdate());
     if (file !== null) {
       const update = decodeProviderConfigFile(file.value);
-      if (JSON.stringify(file.value) === JSON.stringify(encodeProviderConfigFile(update))) {
-        return snapshotFromUpdate(update);
+      const originalContent = JSON.stringify(file.value);
+      const content = JSON.stringify(encodeProviderConfigFile(update));
+      if (originalContent === content) {
+        // 规范比较已生成同一份快照字节，复用它计算 revision，避免重复编码和校验。
+        return snapshotFromUpdate(update, content);
       }
     }
     // 导入和规范化仍会写盘。拿锁后必须重读，不能用加锁前的旧内容覆盖其他 writer。
@@ -259,8 +262,10 @@ function emptyUpdate(): ProviderConfigLayerUpdate {
   });
 }
 
-function snapshotFromUpdate(update: ProviderConfigLayerUpdate): ProviderConfigLayerSnapshot {
-  const content = JSON.stringify(encodeProviderConfigFile(update));
+function snapshotFromUpdate(
+  update: ProviderConfigLayerUpdate,
+  content = JSON.stringify(encodeProviderConfigFile(update)),
+): ProviderConfigLayerSnapshot {
   return Object.freeze({
     revision: createHash("sha256").update(content).digest("hex"),
     providers: update.providers,
