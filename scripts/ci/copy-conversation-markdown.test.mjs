@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 import { marked } from "marked";
+import { fileURLToPath } from "node:url";
 
 const uiImport = {
   parentURL: import.meta.url,
-  tsconfig: new URL("../../packages/ui/tsconfig.json", import.meta.url).pathname,
+  // URL.pathname 在 Windows 带 /C:/ 前缀；传给 tsx 必须先转换成真实文件路径。
+  tsconfig: fileURLToPath(new URL("../../packages/ui/tsconfig.json", import.meta.url)),
 };
 
 const { formatConversationMarkdown } = await tsImport(

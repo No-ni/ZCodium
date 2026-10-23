@@ -35,7 +35,8 @@ describe("workflow fill files — actual disk IO", () => {
   it("data root uses repository data directory name and environment override", () => {
     assert.equal(
       path.dirname(resolveWorkflowFillFilesRoot({ ZCODE_DATA_BASE_DIR: "/data" }, "/home")),
-      path.join("/data", ZCODE_USER_DATA_DIR_NAME),
+      // 生产入口 resolve 成绝对数据根，Windows 根相对 /data 会补充当前盘符。
+      path.join(path.resolve("/data"), ZCODE_USER_DATA_DIR_NAME),
     );
   });
   it("writes exact bytes, concurrent reuse and edited file is never overwritten", async () =>

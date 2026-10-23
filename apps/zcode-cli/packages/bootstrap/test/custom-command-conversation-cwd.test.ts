@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { it } from "node:test";
@@ -26,7 +26,8 @@ it("discovers a workspace slash command but executes its shell expansion in the 
       skipUserConfig: true,
       executionPort,
     });
-    assert.ok(prompt?.includes(cwd));
+    // Node process.cwd 返回 Windows 真实大小写；临时目录 TEMP/Temp 的词法差异不代表 cwd 错误。
+    assert.ok(prompt?.includes(await realpath(cwd)));
     assert.equal(await readFile(join(cwd, "report.txt"), "utf8"), "report");
     await assert.rejects(readFile(join(root, "report.txt")), { code: "ENOENT" });
   } finally {

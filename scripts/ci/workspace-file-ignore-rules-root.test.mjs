@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test, { after } from "node:test";
 import { tsImport } from "tsx/esm/api";
 
@@ -98,11 +98,17 @@ async function withConversationLayout(fn) {
 }
 
 test("规则根缺省等于搜索根，归一化与今天逐位一致", () => {
-  assert.equal(resolveWorkspaceFileSearchIgnoreRulesRoot("/root/project"), "/root/project");
-  assert.equal(resolveWorkspaceFileSearchIgnoreRulesRoot("/root/project", "   "), "/root/project");
+  assert.equal(
+    resolveWorkspaceFileSearchIgnoreRulesRoot("/root/project"),
+    resolve("/root/project"),
+  );
+  assert.equal(
+    resolveWorkspaceFileSearchIgnoreRulesRoot("/root/project", "   "),
+    resolve("/root/project"),
+  );
   assert.equal(
     resolveWorkspaceFileSearchIgnoreRulesRoot("/root/project", "/root/default/"),
-    "/root/default",
+    resolve("/root/default"),
   );
 });
 

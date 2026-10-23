@@ -253,14 +253,14 @@ test("日期目录用本地日期；恢复按持久化名字复用，不按当�
     sessionId: SESSION_ID,
     createdAtMs: created,
   });
-  assert.equal(plan.directory, join("/root/default", "2026-10-11", "a1b2c3d4"));
+  assert.equal(plan.directory, resolve("/root/default", "2026-10-11", "a1b2c3d4"));
   const resumed = planConversationSessionWorkspace({
     conversationRoot: "/root/default",
     sessionId: SESSION_ID,
     createdAtMs: new Date(2026, 9, 12, 0, 5, 0).getTime(),
     existingName: "a1b2c3d4",
   });
-  assert.equal(resumed.directory, join("/root/default", "2026-10-12", "a1b2c3d4"));
+  assert.equal(resumed.directory, resolve("/root/default", "2026-10-12", "a1b2c3d4"));
 });
 
 test("只有未带 identity 且路径等于对话根的 workspace 才启用独立目录", () => {
@@ -767,6 +767,8 @@ test("裸 CLI/TUI 恢复的目录重建：缺失补建、坏占位拒绝，普�
       },
     });
     const logger = createRecordingLogger();
+    // chmod 的目录权限语义只适用于非 root 的 POSIX；Windows 无法用 mode 位制造 EACCES。
+    if (process.platform === "win32" || process.getuid?.() === 0) return;
     // mkdir 自身失败（classify 判可用、mkdir 才暴露）：日期目录无写权限 ⇒ EACCES。
     await mkdir(dateDir, { recursive: true });
     await chmod(dateDir, 0o000);
@@ -940,7 +942,7 @@ test("恢复边界：复用持久化 path，日期不按当前时间重算", () 
     sessionId: SESSION_ID,
     workspacePath: "/root/default",
   });
-  assert.equal(resumed?.directory, persistedPath);
+  assert.equal(resumed?.directory, resolve(persistedPath));
   assert.equal(resumed?.backfilled, false);
 });
 
@@ -987,7 +989,7 @@ test("恢复边界：存量会话（path 仍是对话根 / 缺 path）补发，�
     sessionId: SESSION_ID,
     workspacePath: "/root/default",
   });
-  assert.equal(stock?.directory, join("/root/default", "2026-09-03", "a1b2c3d4"));
+  assert.equal(stock?.directory, resolve("/root/default", "2026-09-03", "a1b2c3d4"));
   assert.equal(stock?.backfilled, true);
   // 旧记录只有 directory、没有 path：同样按存量补发，且不能被当成「已有执行 cwd」。
   const legacy = resolveConversationSessionWorkspaceForResume({
@@ -998,7 +1000,7 @@ test("恢复边界：存量会话（path 仍是对话根 / 缺 path）补发，�
     sessionId: SESSION_ID,
     workspacePath: "/root/default",
   });
-  assert.equal(legacy?.directory, join("/root/default", "2026-09-03", "a1b2c3d4"));
+  assert.equal(legacy?.directory, resolve("/root/default", "2026-09-03", "a1b2c3d4"));
   assert.equal(legacy?.backfilled, true);
 });
 
@@ -1107,7 +1109,7 @@ test("派生会话：父会话执行 cwd 存在时继承同一个目录，缺席
   const parentExecutionWorkspacePath = "/root/default/2026-10-11/a1b2c3d4";
   assert.equal(
     resolveConversationSessionWorkspaceInherited(parentExecutionWorkspacePath),
-    parentExecutionWorkspacePath,
+    resolve(parentExecutionWorkspacePath),
   );
   // 存量父会话（尚未补发）没有内存事实：返回 undefined，由调用方走持久化行判定，
   // 不允许在这里按会话 id 另造一个目录。
@@ -1356,9 +1358,9 @@ test("补发读回拿不到 path 时同样不回收目录（失败分支一致�
  *   目录建到对话根之外（词法说在根内，回收与清扫都不认）。见 E2E A10/A11。
  */
 test("兜底裁决：规则适用时不得沿用已被拒的持久化路径，规则不适用时按它回落", () => {
-  const root = "/home/dev/.zcodium/workspace/default";
-  const sessionDir = `${root}/2026-10-11/a1b2c3d4`;
-  const projectDir = "/home/dev/projects/demo";
+  const root = resolve("/home/dev/.zcodium/workspace/default");
+  const sessionDir = join(root, "2026-10-11", "a1b2c3d4");
+  const projectDir = resolve("/home/dev/projects/demo");
 
   // 规则适用（有标记且路径等于对话根）+ 行里就是本规则的会话目录 ⇒ 不沿用（降级由调用方写回）。
   assert.equal(
@@ -1413,10 +1415,10 @@ test("兜底裁决：规则适用时不得沿用已被拒的持久化路径，�
   assert.equal(
     resolvePersistedConversationExecutionFallback({
       conversationRoot: undefined,
-      persistedPath: `${projectDir}/2026-10-11/a1b2c3d4`,
+      persistedPath: join(projectDir, "2026-10-11", "a1b2c3d4"),
       workspacePath: projectDir,
     }),
-    `${projectDir}/2026-10-11/a1b2c3d4`,
+    join(projectDir, "2026-10-11", "a1b2c3d4"),
   );
   assert.equal(
     resolvePersistedConversationExecutionFallback({
@@ -2551,13 +2553,23 @@ test("启动清扫：未注入标记零 IO（不查会话库），有标记但�
 
     // 上面两次「不排清扫」都没有消耗那一次机会：补上端口后同一进程仍能排清扫
     // （这正是「不置标志」的意义——接线缺陷被修好后不必重启进程）。
+    // 后台清扫仍会读取/删除夹具；调度成功不代表完成，必须在临时根 teardown 前等待真实完成日志。
+    const completed = Promise.withResolvers();
     assert.equal(
       scheduleConversationSessionEmptySweep({
         env: { ZCODE_CONVERSATION_WORKSPACE_ROOT: root },
         sessionPathSource: createFakeSessionPathSource(),
+        logger: {
+          debug: (message) => {
+            if (message === "conversation session empty sweep completed") completed.resolve();
+          },
+          warn: (message) => completed.reject(new Error(message)),
+        },
       }),
       true,
     );
+    await completed.promise;
+    await assertMissing(staleDir);
     // 复位，保证本用例不会因为自身顺序给后面的用例留下已消耗的标志。
     resetConversationSessionEmptySweepScheduleForTests();
   });

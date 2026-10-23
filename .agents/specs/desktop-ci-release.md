@@ -60,6 +60,16 @@ flowchart TD
 
 ## 检查阶段的源码测试
 
+远端握手/关闭事件、服务端 ACK 字节交接与启动期 EOF、窗口远程连接退休及工作流沙箱关闭边界的 Vitest 回归进入 Checks。MCP 配置 admission、缓存身份/执行 cwd 隔离与失败资源回收，以及 Git 服务 proxy 换代的单测同样进入现有 Vitest 门禁；Git 换代、关闭面板的在途扩展读取和 StrictMode 重放浏览器场景由现有发布脚本测试入口执行。测试入口必须使用文件 URL 与平台路径转换，不能用 URL.pathname 当 Windows 文件路径；路径断言区分原始字符串与 JSON 转义，比较真实 cwd 时使用 realpath。POSIX mode 只在支持该权限语义的平台断言；SQLite fixture 在删除目录前关闭数据库。共享状态门禁校验测试实际执行且不少于既有 42 项，允许新增回归增加条数，不因精确计数过期而误报。更新请求 fixture 使用 Windows 目标及含有效文件校验值的 manifest，与当前更新契约一致。
+
+源码市场回归只使用合成 catalog 与内存 fetch。测试夹具在调用当前 `NodeWebFetchHttpClientAdapter` 前隔离 `ZCODE_HTTP_PROXY`、`ZCODE_NO_PROXY`、`ZCODE_AGENT_CA_CERT` 与 `ZCODE_TOOL_ENV_PASSTHROUGH_JSON`，结束后按原始存在性恢复，不能让宿主自定义代理/CA绕过测试 fetch 并触碰外网。新增回归注入不可连接的合成代理，再验证原市场规则测试仍全部使用模拟请求；不修改生产代理优先级、不重试网络失败。
+
+会话 workspace 的进程 E2E 必须将 adapters 与 dynamic-workflow-runtime 公开入口也映射到源码，避免新 bootstrap 搭配旧 dist 时漏测资源生命周期修复。Windows 夹具同时隔离 HOME 与 USERPROFILE。排入后台清扫的目录夹具必须等待真实清扫完成，再复位调度标志和删除临时根；不能仅以调度返回 true 作为资源完成边界，也不能靠 sleep 或删除重试掩盖清扫与 teardown 的竞争。
+
+模拟活会话目录被外部替换的场景仅关闭外围 MCP 功能，保留真实 CLI/runtime/协议/数据库；Windows 不允许删除仍是外部进程 cwd 的目录，这个系统限制不能作为路径守卫失败。空目录关闭回收的 A6/A6b 保持真实 MCP，以检验资源回收本身。
+
+浏览器性能回归的每个 Vite server 只扫描当前夹具：显式指定 `optimizeDeps.entries`，或使用 `noDiscovery: true` 仅预构建声明的依赖。禁用 HMR 的聊天夹具在首个导航前完成当前入口的依赖优化，不能依赖优化器发现新依赖后的页面重载修复过期模块 URL。依赖缓存在独立临时目录中生成，避免自动扫描整个仓库及不同 alias 配置共享缓存。测试拥有 server/browser/cache 的生命周期，按 browser → server → 临时缓存顺序释放，任一关闭失败也必须继续清理后续资源；原交互断言、加载边界与超时限制保持。配置回归逐个检查现有 Vite 浏览器夹具，不允许新增漏配扫描范围或共享缓存的入口。MCP pool 租约回收回归也进入 Checks，覆盖专属进程关闭与 workspace 共享引用。真实 Adapter 启动关闭、stdio sibling probe 收尾、关后 admission、迟到 SDK 拒绝与正常共享连接调用通过 `startup-close.test.ts` / `connection-close.test.ts` 直接测试生产接缝；隔离子进程不安装未处理拒绝兜底。客户端 `performHandshake` 到 RPC 的 `remoteHandshakeHandoff.test.ts` 使用真实流和首次公开业务响应，覆盖 ACK 同步/nextTick 数据、失败/EOF/取消和 single-flight backend 回收。
+
 Checks 中的诊断回归直接读取受检源码，不依赖 CLI package 的 `dist`、历史 bundle 或本地增量构建缓存。诊断测试入口共用独立 tsconfig，将需要的 `@zcode/contracts` 公共入口解析到契约源码，并保留 UI 的 `@/*` 源码别名；静态与测试执行时的动态导入使用同一配置。不修改生产 package exports，也不为测试加载整个 CLI 构建流程。
 
 验收：隐藏全部 CLI workspace 构建输出后，使用与 CI 相同的 `node --test --test-isolation=none scripts/ci/*.test.mjs` 执行，必须实际加载全部诊断子用例；导入失败不能算作未执行的成功测试。

@@ -62,7 +62,7 @@ test("update manifest requests select platform/channel without a device query or
     {
       provider: "custom",
       endpointOrigin: "https://updates.example",
-      releasePlatform: "linux-x86_64",
+      releasePlatform: "windows-x86_64",
       releaseChannel: "stable",
       deviceMid: "obsolete-device-value",
     },
@@ -72,11 +72,12 @@ test("update manifest requests select platform/channel without a device query or
   let request;
   provider.httpRequest = async (url, headers) => {
     request = { url, headers: new Headers(headers) };
-    return "version: 1.2.3\nfiles: []\n";
+    // 当前 manifest 必须至少包含一个有校验值的文件；空 files 已是无效输入。
+    return "version: 1.2.3\nfiles:\n  - url: desktop.exe\n    sha512: fixture-checksum\n";
   };
   assert.equal((await provider.getLatestVersion()).version, "1.2.3");
   assert.deepEqual([...request.url.searchParams.keys()].sort(), ["channel", "platform"]);
-  assert.equal(request.url.searchParams.get("platform"), "linux-x86_64");
+  assert.equal(request.url.searchParams.get("platform"), "windows-x86_64");
   assert.equal(request.headers.has("x-device-mid"), false);
   assert.equal(request.headers.get("x-release-channel"), "1");
 });

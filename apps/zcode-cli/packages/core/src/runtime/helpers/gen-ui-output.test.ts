@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createGenUiService } from "../../../../../../../packages/services/src/gen-ui/node.js";
 import { buildDesktopContextSection } from "../../context/sections/desktop.js";
@@ -41,7 +41,8 @@ describe("Host-owned Gen UI output", () => {
       await mkdir(executionWorkspacePath);
       await ensureGenUiOutputDirectory(runtime);
       const directory = resolveGenUiOutputDirectory(runtime)!;
-      expect(directory.startsWith(`${outputRoot}/`)).toBe(true);
+      // 输出目录使用宿主 path.join；Windows 分隔符同样属于正确的全局输出边界。
+      expect(directory.startsWith(`${outputRoot}${sep}`)).toBe(true);
       const path = join(directory, "chart.html");
       await writeFile(path, "<div>Actor</div>");
       expect(

@@ -117,7 +117,8 @@ test("standalone CLI points to packaged config while managed CLI retains Host pa
     sea: { isSea: () => false },
   });
   // macOS 的 /var 是 /private/var 软链接；入口解析后的真实路径仍指向同一配置。
-  assert.equal(env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE, await realpath(local));
+  // Windows 的 parent realpath 与 file realpath 可保留不同大小写，核对实际指向同一配置。
+  assert.equal(await realpath(env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE), await realpath(local));
   assert.equal(env.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE, undefined);
   const managed = {
     ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: file,

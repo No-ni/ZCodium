@@ -74,7 +74,8 @@ describe("readApprovedPlanFileReferenceEntry 的计划文件读取根", () => {
 
     expect(readPaths).toEqual([planFilePath(SESSION_DIR), planFilePath(CONVERSATION_ROOT)]);
     // 提醒里的路径必须是真正读到内容的那一个：模型据此继续编辑计划文件。
-    expect(JSON.stringify(entry)).toContain(planFilePath(CONVERSATION_ROOT));
+    // JSON 会转义 Windows 反斜杠，路径断言应比较提醒原文。
+    expect(entry?.content).toContain(planFilePath(CONVERSATION_ROOT));
     expect(JSON.stringify(entry)).toContain("老计划");
   });
 

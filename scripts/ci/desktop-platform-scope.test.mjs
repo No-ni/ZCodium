@@ -280,6 +280,24 @@ test("CI is manual-only and schedules Windows/macOS packages without a Linux rem
     /pnpm vitest run --config packages\/ui\/vitest\.config\.ts packages\/relay\/src/,
     "relay source regressions must run in CI without relying on a built dist",
   );
+  assert.match(
+    vitestStep.run,
+    /packages\/desktop\/src\/host\/windowRemoteConnectionRegistry\.test\.ts/,
+    "window-scoped remote transport retirement must stay in CI",
+  );
+  for (const file of [
+    "packages/server/test/stdioAck.test.ts",
+    "packages/server/test/stdioProcessLifecycle.test.ts",
+    "packages/server/test/stdioTransportStartup.test.ts",
+    "packages/rpc/test/byteQueues.test.ts",
+    "apps/zcode-cli/packages/adapters/src/mcp/pool-admission.test.ts",
+    "apps/zcode-cli/packages/adapters/src/mcp/startup-close.test.ts",
+    "apps/zcode-cli/packages/adapters/src/mcp/connection-close.test.ts",
+    "packages/server/test/remoteHandshakeHandoff.test.ts",
+    "packages/ui/src/hooks/useGitRepository.test.ts",
+  ]) {
+    assert.ok(vitestStep.run.includes(file), `${file} must stay in the Vitest CI gate`);
+  }
   const mobileVitestCommand = vitestStep.run
     .split(/\r?\n/)
     .find((command) => command.includes("packages/web/src/mobile"));

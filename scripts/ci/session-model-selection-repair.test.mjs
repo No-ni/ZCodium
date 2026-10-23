@@ -27,9 +27,13 @@ const SESSION_ID = "sess_fixture";
 
 async function openFixtureDb(t) {
   const directory = await mkdtemp(join(tmpdir(), "zcodium-model-selection-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
   const dbPath = join(directory, "db.sqlite");
   const db = new DatabaseSync(dbPath);
+  t.after(async () => {
+    // Windows 不允许删除仍被 SQLite 持有的库/WAL 文件；先关闭真实 fixture 连接。
+    db.close();
+    await rm(directory, { recursive: true, force: true });
+  });
   runSqliteSessionMigrations(db, dbPath);
   db.prepare(
     "insert into session (id, project_id, slug, directory, title, version, time_created, time_updated) values (?, 'proj', 'slug', '/tmp/x', 't', '0', 1, 1)",

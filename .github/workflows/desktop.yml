@@ -67,6 +67,7 @@ jobs:
           pnpm vitest run --config packages/ui/vitest.config.ts packages/desktop/src/main/manifestUpdateProvider.test.ts
           # Relay tests exercise the service source over loopback and do not need a relay dist build.
           pnpm vitest run --config packages/ui/vitest.config.ts packages/relay/src
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/server/test/remoteHandshake.test.ts packages/server/test/remoteHandshakeHandoff.test.ts packages/server/test/remoteCloseEvent.test.ts packages/server/test/stdioAck.test.ts packages/server/test/stdioProcessLifecycle.test.ts packages/server/test/stdioTransportStartup.test.ts packages/rpc/test/byteQueues.test.ts apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness.test.ts apps/zcode-cli/packages/adapters/src/mcp/appConnections.test.ts apps/zcode-cli/packages/adapters/src/mcp/pool-admission.test.ts apps/zcode-cli/packages/adapters/src/mcp/startup-close.test.ts apps/zcode-cli/packages/adapters/src/mcp/connection-close.test.ts packages/desktop/src/host/windowRemoteConnectionRegistry.test.ts packages/ui/src/hooks/useGitRepository.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/performanceLinearScheduler.test.ts packages/ui/test/performanceLinearFileSummaries.test.ts packages/ui/test/performanceLinearCoalescer.test.ts packages/ui/test/performanceLinearRealtimeBridge.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts \
             packages/services/test/botRemoteBridgeLifecycle.test.ts \
