@@ -384,5 +384,6 @@ export interface McpPort {
   ): Promise<void>;
   /** 删除 subscriberKey 以 prefix 开头的全部登记（会话关闭）；返回真正向 server 退订的 uri 数。 */
   unsubscribeResourcesBySubscriber?(subscriberKeyPrefix: string): Promise<number>;
+  /** 永久停止本 owner 的连接 admission；重复调用等待同一次所属资源回收，不关闭其他活跃 owner 的连接。 */
   close(): Promise<void>;
 }

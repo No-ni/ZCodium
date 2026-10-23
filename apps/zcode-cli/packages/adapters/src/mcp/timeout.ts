@@ -35,12 +35,15 @@ export function waitWithinMcpDeadline<T>(
   timeoutMessage: string,
   signal?: AbortSignal,
 ): Promise<T> {
-  return withTimeout(
-    promise,
-    remainingMcpDeadlineMs(deadline, timeoutMessage),
-    timeoutMessage,
-    signal,
-  );
+  let remainingMs: number;
+  try {
+    remainingMs = remainingMcpDeadlineMs(deadline, timeoutMessage);
+  } catch (error) {
+    // 实参已启动；预算同步拒绝前也要观察迟到错误，不能把 owner 的收尾拒绝留成 unhandled。
+    void promise.catch(() => undefined);
+    throw error;
+  }
+  return withTimeout(promise, remainingMs, timeoutMessage, signal);
 }
 
 export function withTimeout<T>(
@@ -50,13 +53,6 @@ export function withTimeout<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   return new Promise((resolvePromise, rejectPromise) => {
-    if (signal?.aborted) {
-      rejectPromise(
-        signal.reason instanceof Error ? signal.reason : new Error("Operation aborted"),
-      );
-      return;
-    }
-
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
@@ -95,5 +91,7 @@ export function withTimeout<T>(
         rejectPromise(error);
       },
     );
+    // 实参 Promise 已经启动；即使 waiter 先取消，也必须观察其迟到拒绝。
+    if (signal?.aborted) abortHandler();
   });
 }
