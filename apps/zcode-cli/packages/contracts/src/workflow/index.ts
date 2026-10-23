@@ -605,8 +605,13 @@ export function deriveWorkflowSchedulerState(graph: WorkflowGraph): WorkflowSche
   }
 
   for (const edge of graph.edges) {
-    incomingById.set(edge.to, [...(incomingById.get(edge.to) ?? []), edge.from]);
-    outgoingById.set(edge.from, [...(outgoingById.get(edge.from) ?? []), edge.to]);
+    // 邻接数组只属于本次派生，逐边复制前缀会产生平方开销；追加保留原顺序和最终去重。
+    const incoming = incomingById.get(edge.to) ?? [];
+    incoming.push(edge.from);
+    incomingById.set(edge.to, incoming);
+    const outgoing = outgoingById.get(edge.from) ?? [];
+    outgoing.push(edge.to);
+    outgoingById.set(edge.from, outgoing);
   }
 
   const collections = graph.collections ?? [];
