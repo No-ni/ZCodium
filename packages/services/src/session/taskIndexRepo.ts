@@ -79,6 +79,9 @@ interface TaskIndexRow {
   meta_json: string;
 }
 
+// 元数据读取不消费正文或 unread 写入水印，避免只读列表把每条至多 20 万字正文搬进 JS。
+type TaskMetadataRow = Omit<TaskIndexRow, "searchable_text" | "last_unread_at">;
+
 interface TaskGroupRow {
   group_id: string;
   title: string;
@@ -187,7 +190,7 @@ function shouldPreserveNewerTerminalStatus(
   return existingMeta.updatedAt > incomingMeta.updatedAt;
 }
 
-function resolveTaskIndexRowWorkspaceIdentity(row: TaskIndexRow): string | undefined {
+function resolveTaskIndexRowWorkspaceIdentity(row: TaskMetadataRow): string | undefined {
   const columnIdentity = row.workspace_identity?.trim();
   if (columnIdentity === row.workspace_key) {
     return columnIdentity;
@@ -202,7 +205,7 @@ function resolveTaskIndexRowWorkspaceIdentity(row: TaskIndexRow): string | undef
   return undefined;
 }
 
-function rowToMeta(row: TaskIndexRow): ZCodeTaskMeta {
+function rowToMeta(row: TaskMetadataRow): ZCodeTaskMeta {
   const workspaceIdentity = resolveTaskIndexRowWorkspaceIdentity(row);
   try {
     const parsed = zcodeTaskMetaSchema.safeParse(JSON.parse(row.meta_json));
@@ -1670,7 +1673,6 @@ export class TaskIndexRepo {
           archived,
           deleted,
           title_overridden,
-          searchable_text,
           meta_json
         FROM tasks
         WHERE (@workspace_key IS NULL OR workspace_key = @workspace_key)
@@ -1687,7 +1689,7 @@ export class TaskIndexRepo {
         provider: params.provider ?? null,
         pinned: typeof params.pinned === "boolean" ? (params.pinned ? 1 : 0) : null,
         archived: typeof params.archived === "boolean" ? (params.archived ? 1 : 0) : null,
-      }) as unknown as TaskIndexRow[];
+      }) as unknown as TaskMetadataRow[];
     return rows.map(rowToMeta);
   }
 
@@ -1752,14 +1754,13 @@ export class TaskIndexRepo {
           archived,
           deleted,
           title_overridden,
-          searchable_text,
           meta_json
         FROM tasks
         WHERE cron_automation_id = @automation_id
           AND deleted = 0
         ORDER BY created_at DESC, task_id DESC`,
       )
-      .all({ automation_id: automationId }) as unknown as TaskIndexRow[];
+      .all({ automation_id: automationId }) as unknown as TaskMetadataRow[];
     return rows.map(rowToMeta);
   }
 
@@ -1811,6 +1812,7 @@ export class TaskIndexRepo {
       params.sortBy === "created"
         ? "created_at DESC, updated_at DESC, task_id DESC"
         : "updated_at DESC, created_at DESC, task_id DESC";
+    // 无搜索时摘要会直接短路；投影空字符串保留 mapper 形状，避免取出未消费的长正文。
     const rows = this.getDatabase()
       .prepare(
         `SELECT
@@ -1834,7 +1836,7 @@ export class TaskIndexRepo {
           archived,
           deleted,
           title_overridden,
-          searchable_text,
+          ${normalizedSearchLike ? "searchable_text" : "'' AS searchable_text"},
           meta_json
         FROM tasks
         WHERE ${whereClause}

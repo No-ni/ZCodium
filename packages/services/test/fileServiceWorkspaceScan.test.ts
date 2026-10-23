@@ -26,3 +26,32 @@ test("workspace index drains all directories discovered after the root scan", as
     await rm(rootPath, { recursive: true, force: true });
   }
 });
+
+test("public readdir preserves hidden filtering, directory-first ordering and empty reads", async () => {
+  const rootPath = await mkdtemp(join(tmpdir(), "zcode-directory-read-"));
+  try {
+    for (const name of ["z-dir", ".hidden-dir", "a-dir"]) await mkdir(join(rootPath, name));
+    for (const name of ["z.txt", ".hidden.txt", "a.txt"])
+      await writeFile(join(rootPath, name), name);
+    const service = createFileService();
+    const expected = (names: string[]) =>
+      names.map((name) => ({
+        name,
+        path: join(rootPath, name),
+        type: name.endsWith("dir") ? "directory" : "file",
+        isSymbolicLink: false,
+      }));
+    assert.deepEqual(
+      await service.readdir({ path: rootPath }),
+      expected(["a-dir", "z-dir", "a.txt", "z.txt"]),
+    );
+    assert.deepEqual(
+      await service.readdir({ path: rootPath, includeHidden: true }),
+      expected([".hidden-dir", "a-dir", "z-dir", ".hidden.txt", "a.txt", "z.txt"]),
+    );
+    assert.deepEqual(await service.readdir({ path: join(rootPath, "a-dir") }), []);
+    await assert.rejects(service.readdir({ path: join(rootPath, "missing") }), { code: "ENOENT" });
+  } finally {
+    await rm(rootPath, { recursive: true, force: true });
+  }
+});

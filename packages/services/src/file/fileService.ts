@@ -418,23 +418,35 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
   return {
     async readdir(params: { path: string; includeHidden?: boolean }): Promise<FileEntry[]> {
       const entries = await readdir(params.path, { withFileTypes: true });
-      const visibleEntries = await Promise.all(
-        entries
-          .filter((e) => {
-            // 修复：workspace 文件树需要展示 .gitignore/.env/.github 等项目文件，
-            // 但目录选择器等旧调用仍应默认隐藏 dotfiles，避免突然增加噪音。
-            return params.includeHidden === true || !e.name.startsWith(".");
-          })
-          .map(async (e) => {
-            const entryPath = join(params.path, e.name);
-            return {
-              name: e.name,
-              path: entryPath,
-              type: await resolveReaddirEntryType(entryPath, e.isDirectory(), e.isSymbolicLink()),
-              isSymbolicLink: e.isSymbolicLink(),
-            };
-          }),
-      );
+      const visibleEntries: FileEntry[] = [];
+      const pendingTypes: Promise<void>[] = [];
+      for (const entry of entries) {
+        // workspace 文件树展示 dotfiles；目录选择器等旧调用仍默认隐藏。
+        if (params.includeHidden !== true && entry.name.startsWith(".")) continue;
+        const entryPath = join(params.path, entry.name);
+        const entryType = resolveReaddirEntryType(
+          entryPath,
+          entry.isDirectory(),
+          entry.isSymbolicLink(),
+        );
+        const item: FileEntry = {
+          name: entry.name,
+          path: entryPath,
+          type: "file",
+          isSymbolicLink: entry.isSymbolicLink(),
+        };
+        visibleEntries.push(item);
+        // 普通 Dirent 已同步确定类型，逐项 async/await 会为大目录产生线性 Promise 开销。
+        // 链接 stat 仍按原顺序在首次等待前全部启动，等待完成后才排序和返回。
+        if (typeof entryType === "string") item.type = entryType;
+        else
+          pendingTypes.push(
+            entryType.then((type) => {
+              item.type = type;
+            }),
+          );
+      }
+      if (pendingTypes.length > 0) await Promise.all(pendingTypes);
       return visibleEntries.sort((a, b) => {
         if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
         return a.name.localeCompare(b.name);
