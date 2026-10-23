@@ -42,8 +42,10 @@ export class NodeZCodeBuiltinProviderConfigSource implements ProviderSource<Prov
     this.#assertNotDisposed();
     this.#ensureWatcher();
     const release = await this.#readRelease();
-    this.#observedSignature ??= signatureOf(release);
-    return snapshotFromRelease(release, this.#sourceKey);
+    // 同一次读取的内容签名可复用，但显式读取不能提前推进 watcher 的已观察版本。
+    const signature = signatureOf(release);
+    this.#observedSignature ??= signature;
+    return snapshotFromRelease(release, this.#sourceKey, signature);
   }
 
   async #readRelease(): Promise<ZCodeBuiltinRelease> {
@@ -108,9 +110,10 @@ export function createNodeZCodeBuiltinProviderConfigSource(
 function snapshotFromRelease(
   release: ZCodeBuiltinRelease,
   sourceKey: string,
+  signature: string,
 ): ProviderConfigLayerSnapshot {
   return Object.freeze({
-    revision: `zcode-builtin:${release.revision}:${sourceKey}:${signatureOf(release)}`,
+    revision: `zcode-builtin:${release.revision}:${sourceKey}:${signature}`,
     providers: release.config.providers,
     providerTemplates: release.config.providerTemplates,
     models: release.config.modelConfigRules,

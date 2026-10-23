@@ -643,8 +643,14 @@ function normalizeId(label: string, value: string): string {
 }
 
 function uniqueInOrder<T extends string>(values: readonly T[]): T[] {
+  // 成员名单必须保留首次出现顺序；Set 避免保存时反复扫描已收集的模型。
+  const seen = new Set<T>();
   const result: T[] = [];
-  for (const value of values) if (!result.includes(value)) result.push(value);
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
   return result;
 }
 
