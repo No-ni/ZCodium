@@ -48,13 +48,13 @@ function looksLikeJson(value: string): boolean {
   }
 }
 
-function isCompactResult(value: string): boolean {
+function isCompactResult(value: string, isJson: boolean): boolean {
   const trimmed = value.trim();
   return (
     trimmed.length > 0 &&
     trimmed.length <= COMPACT_RESULT_MAX_LENGTH &&
     !trimmed.includes("\n") &&
-    !looksLikeJson(trimmed)
+    !isJson
   );
 }
 
@@ -200,8 +200,10 @@ export function McpToolCallBlock(context: ToolCallBlockRenderContext) {
       </span>
     ) : undefined;
   const handleLoadFullToolCallFields = context.onLoadFullToolCallFields;
-  const renderContent = useCallback(
-    () => (
+  const renderContent = useCallback(() => {
+    // 同次展开曾为紧凑布局和两个代码属性重复解析全文；分类只在可见结果分支执行。
+    const resultIsJson = !visibleError && Boolean(resultText) && looksLikeJson(resultText!);
+    return (
       // MCP 详情之前先展示 description 和参数，用户展开后仍像 API 调试器。
       // 参考 BUA，把结果作为一级内容；调用元数据收进透明的二级折叠区。
       <div className="mb-2 space-y-3 py-1" data-testid="mcp-expanded-content">
@@ -215,7 +217,7 @@ export function McpToolCallBlock(context: ToolCallBlockRenderContext) {
               {visibleError}
             </p>
           </section>
-        ) : resultText && isCompactResult(resultText) ? (
+        ) : resultText && isCompactResult(resultText, resultIsJson) ? (
           <p
             className="break-words rounded-xl border border-border bg-card px-3 py-2 text-ui-base text-foreground-subtle"
             data-testid="mcp-result-surface"
@@ -231,8 +233,8 @@ export function McpToolCallBlock(context: ToolCallBlockRenderContext) {
               appTheme={context.theme}
               className="bg-card"
               code={resultText}
-              enableSyntaxHighlighting={looksLikeJson(resultText)}
-              language={looksLikeJson(resultText) ? "json" : "log"}
+              enableSyntaxHighlighting={resultIsJson}
+              language={resultIsJson ? "json" : "log"}
               renderMermaid={false}
               style={COLLAPSIBLE_CODE_LAYOUT_STYLE}
               wrapLongLines
@@ -314,24 +316,23 @@ export function McpToolCallBlock(context: ToolCallBlockRenderContext) {
           }
         />
       </div>
-    ),
-    [
-      callDetailsLabel,
-      copyResultLabel,
-      context,
-      descriptionLabel,
-      handleLoadFullToolCallFields,
-      hasCallDetails,
-      hasPrimaryResult,
-      parametersLabel,
-      presentation?.description,
-      resultLabel,
-      resultText,
-      toolCall,
-      visibleError,
-      wrapLinesLabel,
-    ],
-  );
+    );
+  }, [
+    callDetailsLabel,
+    copyResultLabel,
+    context,
+    descriptionLabel,
+    handleLoadFullToolCallFields,
+    hasCallDetails,
+    hasPrimaryResult,
+    parametersLabel,
+    presentation?.description,
+    resultLabel,
+    resultText,
+    toolCall,
+    visibleError,
+    wrapLinesLabel,
+  ]);
 
   if (!presentation) return null;
 
