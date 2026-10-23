@@ -250,15 +250,27 @@ export class SocketProtocol implements IMessagePassingProtocol {
   private readonly chunkStream = new ChunkStream();
   private readonly disposables = new DisposableStore();
   private disposed = false;
+  private messagesActive: boolean;
 
-  constructor(private socket: ISocket) {
+  constructor(
+    private socket: ISocket,
+    options: { deferMessages?: boolean } = {},
+  ) {
+    this.messagesActive = !options.deferMessages;
     this.disposables.add(
       socket.onData((data) => {
         if (this.disposed) return;
         this.chunkStream.acceptChunk(data);
-        this.readMessages();
+        if (this.messagesActive) this.readMessages();
       }),
     );
+  }
+
+  activate(): void {
+    if (this.disposed || this.messagesActive) return;
+    // stdio 初始化仍要消费底层输入以观察 EOF，但服务 ready 前只能由同一缓冲保留未分派字节。
+    this.messagesActive = true;
+    this.readMessages();
   }
 
   send(buffer: VSBuffer): void {

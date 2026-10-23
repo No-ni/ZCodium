@@ -15,10 +15,16 @@ export function createCloseEventController(): CloseEventController {
     // 如果事件只做“在线分发”不做补发，waitForClose 会永远等不到，表现为连接卡住。
     // 这里对晚订阅者补发最后一次 close code，避免竞态丢事件。
     if (closed) {
+      let disposed = false;
       queueMicrotask(() => {
-        listener(closeCode);
+        // 晚订阅的补发已排入微任务；取消订阅必须同样阻止迟到回调进入已释放的连接。
+        if (!disposed) listener(closeCode);
       });
-      return { dispose() {} };
+      return {
+        dispose() {
+          disposed = true;
+        },
+      };
     }
 
     return emitter.event(listener);

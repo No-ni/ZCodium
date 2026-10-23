@@ -1,6 +1,6 @@
 import { safeLogArgs } from "@zcode/shared";
 import { createRemoteDiagnosticConsumer } from "./diagnosticStream.js";
-import { SocketProtocol, ChannelClient, type IDisposable } from "@zcode/rpc";
+import { SocketProtocol, ChannelClient, type IDisposable, type ISocket } from "@zcode/rpc";
 import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "@zcode/client";
 import {
@@ -98,6 +98,12 @@ function throwIfRemoteConnectAborted(signal: AbortSignal | undefined): void {
   }
 }
 
+interface RemoteBackendOwner {
+  dispose(): void;
+  disposeAndWait(): Promise<void>;
+  readonly disposed: boolean;
+}
+
 /**
  * Connect to a remote zcode server via an IRemoteBackend.
  *
@@ -105,8 +111,8 @@ function throwIfRemoteConnectAborted(signal: AbortSignal | undefined): void {
  * 1. detect() → { platform, arch }
  * 2. Deploy if needed (upload node + server bundle + node-pty)
  * 3. exec server command
- * 4. Handshake (read hello, send ack)
- * 5. Wrap stdio → ISocket → SocketProtocol → ChannelClient → RemoteServiceAccess
+ * 4. Handshake (read hello, pause at its boundary, send ack)
+ * 5. Bind lifecycle and stdio → ISocket → SocketProtocol → ChannelClient, then resume
  */
 export async function connectRemote(
   backend: IRemoteBackend,
@@ -114,34 +120,41 @@ export async function connectRemote(
 ): Promise<RemoteConnection> {
   const signal = options?.signal;
   let backendDisposed = false;
-  const disposeBackendOnce = () => {
-    if (backendDisposed) {
-      return;
-    }
-    backendDisposed = true;
-    backend.dispose();
+  const backendOwner: RemoteBackendOwner = {
+    get disposed() {
+      return backendDisposed;
+    },
+    dispose() {
+      if (backendDisposed) return;
+      backendDisposed = true;
+      backend.dispose();
+    },
+    async disposeAndWait() {
+      if (backendDisposed) return;
+      backendDisposed = true;
+      if (backend.disposeAndWait) await backend.disposeAndWait();
+      else backend.dispose();
+    },
   };
   if (signal?.aborted) {
-    disposeBackendOnce();
+    backendOwner.dispose();
     throw createRemoteConnectAbortError(signal);
   }
 
   let removeAbortListener: () => void = () => undefined;
   try {
-    const connecting = connectRemoteUnchecked(backend, options);
-    if (!signal) {
-      return await connecting;
-    }
+    const connecting = connectRemoteUnchecked(backend, options, backendOwner);
+    if (!signal) return await connecting;
     const aborted = new Promise<never>((_resolve, reject) => {
       const onAbort = () => {
-        // 窗口 Host 合并后不能再通过杀独立 SSH Host 进程来取消连接；如果这里只
-        // 结束 logical waiter，detect/deploy/upload 会继续占用旧凭据和连接。连接初始化尚未
-        // 对外发布，可以安全释放它独占的 backend，并让调用方立即结束等待。
-        disposeBackendOnce();
+        // 初始化取消与成功后的连接释放必须共用一个 backend owner；否则迟到连接
+        // 再 dispose 会重复回收同一进程/连接。握手同时观察 signal，立即释放临时 reader。
+        backendOwner.dispose();
         reject(createRemoteConnectAbortError(signal));
       };
       signal.addEventListener("abort", onAbort, { once: true });
       removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+      if (signal.aborted) onAbort();
     });
     const guardedConnecting = connecting.then((connection) => {
       if (signal.aborted) {
@@ -152,8 +165,8 @@ export async function connectRemote(
     });
     return await Promise.race([guardedConnecting, aborted]);
   } catch (error) {
-    // detect/deploy/handshake 任一步失败时尚未返回 RemoteConnection，调用方无从 dispose backend。
-    disposeBackendOnce();
+    // detect/deploy/handshake 任一步失败时尚未返回 RemoteConnection，调用方无从回收 backend。
+    backendOwner.dispose();
     throw error;
   } finally {
     removeAbortListener();
@@ -162,7 +175,8 @@ export async function connectRemote(
 
 async function connectRemoteUnchecked(
   backend: IRemoteBackend,
-  options?: ConnectOptions,
+  options: ConnectOptions | undefined,
+  backendOwner: RemoteBackendOwner,
 ): Promise<RemoteConnection> {
   const clientId = options?.clientId ?? `desktop-${Date.now()}`;
 
@@ -196,145 +210,185 @@ async function connectRemoteUnchecked(
   throwIfRemoteConnectAborted(options?.signal);
   log("remote server exec started");
 
-  // Forward stderr for debugging
-  stream.stderr.on(
-    "data",
-    createRemoteDiagnosticConsumer((args) => {
-      console.log("[remote diagnostic]", ...args);
-    }),
-  );
-
-  // 4. Handshake
-  log("performing handshake...");
-  const { hello, remaining } = await performHandshake(stream, clientId, options?.handshakeTimeout);
-  throwIfRemoteConnectAborted(options?.signal);
-  log("handshake done, server version:", hello.version);
-
-  // 5. Wrap into RPC channel
-  // If there's remaining data from handshake, push it back to the stream
-  // so it gets picked up by wrapStdioStream's data listener
-  if (remaining && remaining.length > 0) {
-    (stream.stdout as NodeJS.ReadableStream & { unshift(chunk: Buffer): void }).unshift(remaining);
-  }
-
-  const socket = wrapStdioStream(stream);
-  const protocol = new SocketProtocol(socket);
-  const client = new ChannelClient(protocol);
-  const services = new RemoteServiceAccess(client);
+  // Forward stderr for debugging; this listener belongs to the connection, not the backend.
+  const diagnosticConsumer = createRemoteDiagnosticConsumer((args) => {
+    console.log("[remote diagnostic]", ...args);
+  });
+  const stdout = stream.stdout as NodeJS.ReadableStream & {
+    unshift(chunk: Buffer): void;
+    destroyed?: boolean;
+    readableEnded?: boolean;
+    errored?: Error | null;
+  };
+  let socket: ISocket | undefined;
+  let protocol: SocketProtocol | undefined;
+  let client: ChannelClient | undefined;
   let hasReportedRemoteClose = false;
   let hasStreamClosed = false;
+  let disposalStarted = false;
+  let published = false;
   let backendDisconnectDisposable: IDisposable | undefined;
   let streamCloseDisposable: IDisposable | undefined;
+  let disposeAndWaitInFlight: Promise<void> | null = null;
   let resolveStreamClosed!: () => void;
   const streamClosed = new Promise<void>((resolve) => {
     resolveStreamClosed = resolve;
   });
+  const signal = options?.signal;
+  const releaseCloseObservers = () => {
+    streamCloseDisposable?.dispose();
+    streamCloseDisposable = undefined;
+    stdout.removeListener("end", onStdoutEnd);
+    stdout.removeListener("close", onStdoutEnd);
+    stdout.removeListener("error", onStdoutError);
+  };
+  const beginDisposal = () => {
+    if (disposalStarted) return;
+    disposalStarted = true;
+    signal?.removeEventListener("abort", onAbort);
+    backendDisconnectDisposable?.dispose();
+    backendDisconnectDisposable = undefined;
+    stream.stderr.removeListener("data", diagnosticConsumer);
+    client?.dispose();
+    protocol?.dispose();
+    // 初始化关闭/取消后不能恢复无人消费的 flowing 输入；终态先就绪再 end stdin。
+    if (!published) stdout.pause();
+    socket?.dispose();
+  };
+  const disposeBackend = () => {
+    releaseCloseObservers();
+    backendOwner.dispose();
+  };
+  const disposeBackendAndWait = async () => {
+    releaseCloseObservers();
+    await backendOwner.disposeAndWait();
+  };
   const reportRemoteClose = (code: number) => {
-    if (hasReportedRemoteClose) {
-      return;
-    }
+    if (hasReportedRemoteClose) return;
     hasReportedRemoteClose = true;
-    // 被动断线也由连接 owner 收口；不能依赖可选的 Host/UI 回调再次 dispose 才结束 RPC。
+    // 被动断线也由同一连接 owner 收口；主动 disposeAndWait 的 EOF 不能抢 backend 回收顺序。
     if (!disposalStarted) {
       beginDisposal();
       disposeBackend();
     }
-    // 主动 disposeAndWait 已拥有回收顺序；其 EOF 不能抢先改走同步 backend.dispose。
     options?.onDidRemoteClose?.({ code });
   };
-
-  let disposalStarted = false;
-  let backendDisposed = false;
-  let disposeAndWaitInFlight: Promise<void> | null = null;
-  const beginDisposal = () => {
-    if (disposalStarted) {
-      return;
-    }
-    disposalStarted = true;
-    backendDisconnectDisposable?.dispose();
-    client.dispose();
-    protocol.dispose();
-    // stdin.end 必须在任何 await 之前同步触发，让远端 stdio server 立即收到 EOF。
-    socket.dispose();
-  };
-  const disposeBackend = () => {
-    if (backendDisposed) {
-      return;
-    }
-    backendDisposed = true;
-    streamCloseDisposable?.dispose();
-    backend.dispose();
-  };
-  const disposeBackendAndWait = async () => {
-    if (backendDisposed) {
-      return;
-    }
-    backendDisposed = true;
-    streamCloseDisposable?.dispose();
-    if (backend.disposeAndWait) {
-      await backend.disposeAndWait();
-      return;
-    }
-    backend.dispose();
-  };
-
-  backendDisconnectDisposable = backend.onDidDisconnect?.((event) => {
-    // SSH keepalive 发现半开连接时，远端 server stdio channel 未必立刻 close。
-    // backend 与 stream 复用唯一终结入口，不等待上层回调代为清理。
-    const errorMessage = event.error?.message;
-    log(
-      errorMessage
-        ? `remote backend disconnected: ${event.reason}: ${errorMessage}`
-        : `remote backend disconnected: ${event.reason}`,
-    );
-    reportRemoteClose(BACKEND_DISCONNECT_EXIT_CODE);
-  });
-  streamCloseDisposable = stream.onClose((code) => {
+  const onStreamClose = (code: number) => {
     hasStreamClosed = true;
     resolveStreamClosed();
     reportRemoteClose(code);
-  });
-  // 事件注册也允许同步报告关闭；迟到返回的句柄不能重新挂到已终结连接上。
-  if (disposalStarted) {
-    backendDisconnectDisposable?.dispose();
-    streamCloseDisposable.dispose();
-  }
-
-  return {
-    services,
-    client,
-    dispose() {
-      beginDisposal();
-      disposeBackend();
-    },
-    disposeAndWait(disposeOptions) {
-      if (disposeAndWaitInFlight) {
-        return disposeAndWaitInFlight;
-      }
-      beginDisposal();
-      if (backendDisposed || hasStreamClosed) {
-        disposeBackend();
-        return Promise.resolve();
-      }
-
-      const timeoutMs = Math.max(disposeOptions?.timeoutMs ?? 5_000, 0);
-      disposeAndWaitInFlight = (async () => {
-        let timeout: ReturnType<typeof setTimeout> | undefined;
-        const deadline = new Promise<"timed-out">((resolve) => {
-          timeout = setTimeout(() => resolve("timed-out"), timeoutMs);
-        });
-        const result = await Promise.race([streamClosed.then(() => "closed" as const), deadline]);
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        if (result === "timed-out") {
-          log(`remote stdio close timed out after ${timeoutMs}ms`);
-        }
-        await disposeBackendAndWait();
-      })();
-      return disposeAndWaitInFlight;
-    },
   };
+  const onStdoutEnd = () => onStreamClose(BACKEND_DISCONNECT_EXIT_CODE);
+  const onStdoutError = () => onStdoutEnd();
+  const onAbort = () => {
+    beginDisposal();
+    disposeBackend();
+  };
+  const checkHandoff = () => {
+    throwIfRemoteConnectAborted(signal);
+    if (disposalStarted) throw new Error("Remote stream closed during RPC handoff");
+  };
+
+  try {
+    // pause 只保全字节，不会延迟 nextTick error/close；连接 owner 必须在 ACK
+    // callback 清掉握手监听之前就连续观察终态，不能在 await continuation 才补 listener。
+    stdout.on("error", onStdoutError);
+    checkHandoff();
+    stdout.on("end", onStdoutEnd);
+    checkHandoff();
+    stdout.on("close", onStdoutEnd);
+    checkHandoff();
+    stream.stderr.on("data", diagnosticConsumer);
+    // 4. Handshake owns all input until it pauses the validated hello boundary.
+    log("performing handshake...");
+    const { hello, remaining } = await performHandshake(
+      stream,
+      clientId,
+      options?.handshakeTimeout,
+      signal,
+    );
+    checkHandoff();
+    log("handshake done, server version:", hello.version);
+
+    // 5. 注册可同步补发关闭，迟到返回的句柄由同一终态释放；
+    // 不能先构造 socket 再补生命周期监听。
+    streamCloseDisposable = stream.onClose(onStreamClose);
+    if (disposalStarted) releaseCloseObservers();
+    checkHandoff();
+    backendDisconnectDisposable = backend.onDidDisconnect?.((event) => {
+      const message = event.error?.message;
+      log(`remote backend disconnected: ${event.reason}${message ? `: ${message}` : ""}`);
+      reportRemoteClose(BACKEND_DISCONNECT_EXIT_CODE);
+    });
+    if (disposalStarted) backendDisconnectDisposable?.dispose();
+    checkHandoff();
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+    checkHandoff();
+    if (stdout.errored || stdout.destroyed || stdout.readableEnded) onStdoutEnd();
+    checkHandoff();
+    if (remaining?.length) stdout.unshift(remaining);
+    checkHandoff();
+
+    socket = wrapStdioStream(stream);
+    if (disposalStarted) socket.dispose();
+    checkHandoff();
+    // 同步绑定/恢复也可产生输入，只复用协议原有 ChunkStream，不建临时 reader 或缓存。
+    protocol = new SocketProtocol(socket, { deferMessages: true });
+    if (disposalStarted) protocol.dispose();
+    checkHandoff();
+    client = new ChannelClient(protocol);
+    if (disposalStarted) client.dispose();
+    checkHandoff();
+    const services = new RemoteServiceAccess(client);
+    checkHandoff();
+    stdout.resume();
+    if (disposalStarted) stdout.pause();
+    checkHandoff();
+    protocol.activate();
+    checkHandoff();
+    signal?.removeEventListener("abort", onAbort);
+    published = true;
+
+    return {
+      services,
+      client,
+      dispose() {
+        beginDisposal();
+        disposeBackend();
+      },
+      disposeAndWait(disposeOptions) {
+        if (disposeAndWaitInFlight) return disposeAndWaitInFlight;
+        beginDisposal();
+        // stdin.end 可同步补发 close；该 EOF 只满足等待条件，不能把已拥有的
+        // 优雅回收降为 backend.dispose 并提前返回，仍必须等待同一 backend owner。
+        if (backendOwner.disposed) {
+          disposeBackend();
+          return Promise.resolve();
+        }
+        if (hasStreamClosed) {
+          disposeAndWaitInFlight = disposeBackendAndWait();
+          return disposeAndWaitInFlight;
+        }
+        const timeoutMs = Math.max(disposeOptions?.timeoutMs ?? 5_000, 0);
+        disposeAndWaitInFlight = (async () => {
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          const deadline = new Promise<"timed-out">((resolve) => {
+            timeout = setTimeout(() => resolve("timed-out"), timeoutMs);
+          });
+          const result = await Promise.race([streamClosed.then(() => "closed" as const), deadline]);
+          if (timeout) clearTimeout(timeout);
+          if (result === "timed-out") log(`remote stdio close timed out after ${timeoutMs}ms`);
+          await disposeBackendAndWait();
+        })();
+        return disposeAndWaitInFlight;
+      },
+    };
+  } catch (error) {
+    beginDisposal();
+    releaseCloseObservers();
+    throw error;
+  }
 }
 
 async function resolveRemoteRuntimeNetwork(
