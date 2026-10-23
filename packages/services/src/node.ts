@@ -572,12 +572,13 @@ export function shouldEnableDefaultCuaProductHelper(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): boolean {
-  // CUA 已随正式版默认开启（isZCodeCuaInternalFeatureEnabled 默认 ON，仅显式 0/false/off 关闭；2026-08 注释更正——旧注释称默认关闭已过期）。显式开启后 macOS 使用既有产品 Helper，Windows 使用安装包内 runtime；
-  // 两端都保持按需启动。关闭时不创建 host、不探测资源、不产生子进程或权限提示。
+  // 正式版已由内置 node_repl 使用 cua-driver，不再携带旧 tools/cua-helper。
+  // 旧 Helper 仅用于 Windows 显式开发目录；把功能开关当作 Helper 开关会在正常启动时
+  // 解析不存在的安装包资源，macOS 还会误入 Windows 分支。原生 CUA 的插件入口独立门控。
   const env = options.env ?? process.env;
   if (!isZCodeCuaInternalFeatureEnabled(env)) return false;
   const platform = options.platform ?? process.platform;
-  return platform === "darwin" || platform === "win32";
+  return platform === "win32" && Boolean(env.ZCODE_CUA_DEV_ROOT?.trim());
 }
 
 /**
@@ -817,7 +818,7 @@ export function createDefaultCuaProductHelper(
   const logger = createServiceLogger("cua-product-helper");
   // macOS 的闭源 `ZCode Computer Use.app` 已整体拆除：权限走 cua-driver
   // （@zcode/zcode-cua/permissions），输入/观测走 cua-driver 原生 SDK。
-  // 这里只剩 Windows 自研 Helper host 一条分支。
+  // 这里只保留显式开发目录启用的 Windows 自研 Helper host。
   const host: ManagedCuaProductHelperHost = createWindowsCuaHelperHost({
     resolveRuntime:
       options.resolveWindowsRuntime ??
