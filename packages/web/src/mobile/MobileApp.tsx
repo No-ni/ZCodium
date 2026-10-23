@@ -18,6 +18,7 @@ import {
 import type { CommandEnvelope, ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
 import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
+import { groupMobileTasks } from "./taskGrouping.js";
 import { logger } from "../../../ui/src/logger.js";
 import type {
   WebRemoteControlBootstrapResult,
@@ -491,20 +492,10 @@ export function MobileApp() {
   // 发送确认在途只限制再次发送；只读历史分页仍可复用已就绪的会话。
   const canSend = conversationReady && !inFlightSubmission.current;
 
-  const groupedWorkspaces = useMemo(() => {
-    const workspaces = bootstrap?.workspaces ?? [];
-    const tasks = bootstrap?.tasks ?? [];
-    const sorted = [...tasks].sort((a, b) => {
-      if (sortBy === "updated") return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
-      return (b.createdAt ?? 0) - (a.createdAt ?? 0);
-    });
-    if (organize === "timeline") return [{ key: "timeline", label: null, tasks: sorted }];
-    return workspaces.map((workspace) => ({
-      key: workspace.workspaceKey,
-      label: workspace.label ?? workspace.workspacePath,
-      tasks: sorted.filter((task) => task.workspaceKey === workspace.workspaceKey),
-    }));
-  }, [bootstrap, organize, sortBy]);
+  const groupedWorkspaces = useMemo(
+    () => groupMobileTasks(bootstrap?.workspaces ?? [], bootstrap?.tasks ?? [], organize, sortBy),
+    [bootstrap, organize, sortBy],
+  );
 
   if (paramsError) {
     return (
