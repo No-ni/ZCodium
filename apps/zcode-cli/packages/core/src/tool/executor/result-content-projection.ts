@@ -239,23 +239,52 @@ function budgetedTextFromStructuredContent(content: ModelMessageContentBlock[]):
     .join("\n\n");
 }
 
+const UTF8_MAX_BYTES_PER_CODE_UNIT = 3;
+const UTF8_SINGLE_BYTE_MAX_CODE_UNIT = 0x7f;
+const UTF8_TWO_BYTE_MAX_CODE_UNIT = 0x7ff;
+const HIGH_SURROGATE_START = 0xd800;
+const HIGH_SURROGATE_END = 0xdbff;
+const LOW_SURROGATE_START = 0xdc00;
+const LOW_SURROGATE_END = 0xdfff;
+
 function fitStringToBytes(value: string, maxBytes: number, direction: "head" | "tail"): string {
   if (maxBytes <= 0) return "";
-  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+  if (value.length * UTF8_MAX_BYTES_PER_CODE_UNIT <= maxBytes) return value;
+  // 文本长度本身受预算约束时保留原生快路，避免可容纳的 ASCII 退化为逐码元扫描。
+  if (value.length <= maxBytes && Buffer.byteLength(value, "utf8") <= maxBytes) return value;
 
-  const chars = Array.from(value);
-  let low = 0;
-  let high = chars.length;
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    const candidate =
-      direction === "tail"
-        ? chars.slice(chars.length - mid).join("")
-        : chars.slice(0, mid).join("");
-    if (Buffer.byteLength(candidate, "utf8") <= maxBytes) low = mid;
-    else high = mid - 1;
+  const fromTail = direction === "tail";
+  let cursor = fromTail ? value.length : 0;
+  let bytes = 0;
+  while (fromTail ? cursor > 0 : cursor < value.length) {
+    const codeUnit = value.charCodeAt(fromTail ? cursor - 1 : cursor);
+    let codeUnits = 1;
+    let codePointBytes =
+      codeUnit <= UTF8_SINGLE_BYTE_MAX_CODE_UNIT
+        ? 1
+        : codeUnit <= UTF8_TWO_BYTE_MAX_CODE_UNIT
+          ? 2
+          : UTF8_MAX_BYTES_PER_CODE_UNIT;
+    // 合法代理对不可拆开；孤立代理项计 3 字节但保留原码元，不能经 UTF-8 解码替换。
+    const possiblePair = fromTail
+      ? codeUnit >= LOW_SURROGATE_START && codeUnit <= LOW_SURROGATE_END && cursor > 1
+      : codeUnit >= HIGH_SURROGATE_START &&
+        codeUnit <= HIGH_SURROGATE_END &&
+        cursor + 1 < value.length;
+    if (possiblePair) {
+      const adjacent = value.charCodeAt(fromTail ? cursor - 2 : cursor + 1);
+      const paired = fromTail
+        ? adjacent >= HIGH_SURROGATE_START && adjacent <= HIGH_SURROGATE_END
+        : adjacent >= LOW_SURROGATE_START && adjacent <= LOW_SURROGATE_END;
+      if (paired) {
+        codeUnits = 2;
+        codePointBytes = 4;
+      }
+    }
+    // 沿用 <=：正小数不取整，NaN 也自然保留旧实现的空结果。
+    if (!(bytes + codePointBytes <= maxBytes)) break;
+    bytes += codePointBytes;
+    cursor += fromTail ? -codeUnits : codeUnits;
   }
-  return direction === "tail"
-    ? chars.slice(chars.length - low).join("")
-    : chars.slice(0, low).join("");
+  return fromTail ? value.slice(cursor) : value.slice(0, cursor);
 }

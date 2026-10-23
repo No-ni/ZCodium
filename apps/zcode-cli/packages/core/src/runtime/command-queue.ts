@@ -190,15 +190,19 @@ export function createRuntimeCommandQueue(): RuntimeCommandQueue {
         return Object.freeze(command ? [command] : []);
       }
 
-      const batch = commands.filter(
-        (command) => command.mode === "task-notification" && command.priority === selected.priority,
-      );
-      for (let commandIndex = commands.length - 1; commandIndex >= 0; commandIndex -= 1) {
-        const command = commands[commandIndex];
-        if (command?.mode === "task-notification" && command.priority === selected.priority) {
-          commands.splice(commandIndex, 1);
+      const batch: RuntimeCommand[] = [];
+      let writeIndex = 0;
+      // 批次和剩余项都保留原引用及顺序；压缩在同一同步步完成，不改变 admission 或 lease。
+      for (let commandIndex = 0; commandIndex < commands.length; commandIndex += 1) {
+        const command = commands[commandIndex]!;
+        if (command.mode === "task-notification" && command.priority === selected.priority) {
+          batch.push(command);
+        } else {
+          commands[writeIndex] = command;
+          writeIndex += 1;
         }
       }
+      commands.length = writeIndex;
       return Object.freeze(batch);
     },
 
