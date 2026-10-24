@@ -841,6 +841,7 @@ export function InlineEditableProviderCard({
           providerName={getProviderFormLabel(provider)}
           providerEnabled={provider.enabled}
           providerAccess={provider.config.access}
+          apiFormat={apiFormat}
           models={models}
           onTestModel={onTestModel ? handleTestModel : undefined}
           onFetchModels={

@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { appUsageSnapshotSchema } from "@zcode/shared";
-import { UsageStatsSection } from "../../../packages/ui/src/settings/UsageStatsSection.js";
+import { AppUsagePanel } from "../../../packages/ui/src/settings/usage-stats/AppUsagePanel.js";
 import { ServiceProvider } from "../../../packages/ui/src/hooks/useServices.js";
 import { ZCodeIntlProvider } from "../../../packages/ui/src/i18n/IntlProvider.js";
 import { TooltipProvider } from "../../../packages/ui/src/components/ui/tooltip.js";
@@ -108,7 +108,7 @@ createRoot(document.getElementById("root")).render(
     <ZCodeIntlProvider initialLocale={locale}>
       <TooltipProvider>
         <main className="min-h-screen bg-background text-foreground p-4">
-          <UsageStatsSection />
+          <AppUsagePanel />
         </main>
       </TooltipProvider>
     </ZCodeIntlProvider>

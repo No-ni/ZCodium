@@ -9,31 +9,19 @@ import {
   type ModelMessageContent,
   type ModelMessageContentBlock,
   type Model,
+  type ModelInputMessage as ContractModelInputMessage,
+  type ModelToolCall,
   type ModelReasoningContentBlock,
   type TokenUsageInfo,
 } from "@zcode/contracts";
 import { SYSTEM_REMINDER_SOURCES, type SystemReminderSource } from "../system-reminder/source.js";
 
 // Tool call from model (simple type, no brand)
-export interface ToolCallInput {
-  id: string;
-  name: string;
-  input: unknown;
-}
+export type ToolCallInput = ModelToolCall;
 
 export type ReasoningContentInput = ModelReasoningContentBlock;
 
-export interface ModelInputMessage {
-  role: "system" | "user" | "assistant" | "tool";
-  content: ModelMessageContent;
-  cacheControl?: ModelCacheControl;
-  toolCalls?: ToolCallInput[];
-  toolCallId?: string;
-  toolName?: string;
-  isError?: boolean;
-  providerId?: Model["providerId"];
-  modelId?: Model["modelId"];
-}
+export type ModelInputMessage = ContractModelInputMessage;
 
 export type RuntimeMessageSource =
   | SystemReminderSource
@@ -183,26 +171,8 @@ export class MessageHistoryImpl implements MessageHistory {
     model?: Pick<Model, "providerId" | "modelId">,
     tokens?: TokenUsageInfo,
   ): void {
-    const reasoningBlocks = reasoning?.map((block) => cloneReasoningBlock(block)) ?? [];
-    this.entries.push({
-      message: {
-        role: "assistant",
-        content:
-          reasoningBlocks.length > 0
-            ? [
-                ...reasoningBlocks,
-                ...(content.length > 0 ? [{ type: "text" as const, text: content }] : []),
-              ]
-            : content,
-        toolCalls: toolCalls?.map((tc) => ({
-          id: tc.id,
-          name: tc.name,
-          input: tc.input,
-        })),
-        ...(model ? { providerId: model.providerId, modelId: model.modelId } : {}),
-      },
-      ...(tokens ? { tokens: cloneTokenUsageInfo(tokens) } : {}),
-    });
+    // 与 live request 同一路径构造，避免 cold hydration 二次拷贝时丢掉工具原生签名。
+    this.entries.push(createRuntimeAssistantEntry(content, toolCalls, reasoning, model, tokens));
     this.cacheStats.totalMessages = this.entries.length;
   }
 
@@ -369,6 +339,13 @@ export function createRuntimeAssistantEntry(
         id: toolCall.id,
         name: toolCall.name,
         input: toolCall.input,
+        ...(toolCall.providerExecuted === undefined
+          ? {}
+          : { providerExecuted: toolCall.providerExecuted }),
+        // 历史是唯一 owner，真实工具签名随调用原样保留，不能塞进 reasoning 的签名字段。
+        ...(toolCall.providerOptions
+          ? { providerOptions: structuredClone(toolCall.providerOptions) }
+          : {}),
       })),
       ...(model ? { providerId: model.providerId, modelId: model.modelId } : {}),
     },
@@ -485,7 +462,15 @@ export function cloneModelInputMessage(message: ModelInputMessage): ModelInputMe
     content: cloneModelMessageContent(message.content),
   };
   if (message.cacheControl) next.cacheControl = { ...message.cacheControl };
-  if (message.toolCalls) next.toolCalls = message.toolCalls.map((toolCall) => ({ ...toolCall }));
+  if (message.toolCalls) {
+    // 可写快照曾与 canonical history 共享嵌套签名；隔离元数据，避免请求侧改动污染真实回放。
+    next.toolCalls = message.toolCalls.map((toolCall) => ({
+      ...toolCall,
+      ...(toolCall.providerOptions
+        ? { providerOptions: structuredClone(toolCall.providerOptions) }
+        : {}),
+    }));
+  }
   if (message.toolCallId) next.toolCallId = message.toolCallId;
   // 空字符串是可恢复调用的 provider 原始名称，不能在 request-local clone 时按 falsy 丢失。
   if (message.toolName !== undefined) next.toolName = message.toolName;

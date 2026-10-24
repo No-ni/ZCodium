@@ -5,7 +5,8 @@ import { readApiJson } from "../providers/api/apiJson.js";
 export type ProviderModelCatalogApiType =
   | "anthropic-messages"
   | "openai-chat-completions"
-  | "openai-responses";
+  | "openai-responses"
+  | "google-generative-ai";
 
 export type ProviderModelCatalogErrorCode =
   | "provider-unavailable"
@@ -22,9 +23,31 @@ export interface ProviderModelCatalogRequest {
   readonly headers?: Readonly<Record<string, string>> | null;
 }
 
+/**
+ * 目录里携带的可信元数据。
+ *
+ * 只映射端点**显式返回**的字段，绝不从模型名或产品系列推断能力——
+ * 猜错会让用户按错误的上限裁剪上下文，或把不支持的功能误发出去。
+ */
+export interface ProviderModelCatalogMetadata {
+  /** 输入上限，对应 properties.contextWindow。 */
+  readonly contextWindow?: number;
+  /** 输出上限，对应 optionSpecs.maxOutputTokens.max。 */
+  readonly maxOutputTokens?: number;
+  /** 人类可读名称，仅用于选择器展示，不参与身份判定。 */
+  readonly displayName?: string;
+  /** 端点声明支持的方法（如 generateContent）；不推断，缺省即未知。 */
+  readonly supportedGenerationMethods?: readonly string[];
+}
+
 export interface ProviderModelCatalogSuccess {
   readonly success: true;
   readonly modelIds: readonly string[];
+  /**
+   * 与 modelIds 同键的元数据。缺失的键表示端点没有给出可映射字段，
+   * 调用方必须退回既有规则匹配，不能当成"零能力"。
+   */
+  readonly metadata?: Readonly<Record<string, ProviderModelCatalogMetadata>>;
   /** primary=首选端点直接成功；fallback=首选失败后换路径重试成功。 */
   readonly source: "primary" | "fallback";
 }
@@ -52,6 +75,11 @@ interface ProviderModelCatalogAttempt {
 const DEFAULT_TIMEOUT_MS = 15_000;
 /** 目录异常放大时保护 UI 与后续逐条添加，不追求穷尽。 */
 const MAX_MODEL_IDS = 1000;
+/**
+ * Gemini 目录需要显式页大小：官方 models.list 默认 50 条且带 nextPageToken，
+ * 不指定会静默截断（实测 63 个模型只回 50 个）。
+ */
+const GEMINI_MODELS_PATH = "/models?pageSize=1000";
 const ANTHROPIC_VERSION = "2023-06-01";
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -66,23 +94,100 @@ export function buildProviderModelCatalogAttempts(
   request: ProviderModelCatalogRequest,
 ): readonly [ProviderModelCatalogAttempt, ProviderModelCatalogAttempt] {
   const base = normalizeBaseUrl(request.baseUrl);
+  // Gemini 原生目录只认 x-goog-api-key；发送 Bearer 或 x-api-key 会被判为未鉴权。
   const authHeaders: Record<string, string> =
     request.apiType === "anthropic-messages"
       ? { "x-api-key": request.apiKey, "anthropic-version": ANTHROPIC_VERSION }
-      : { Authorization: `Bearer ${request.apiKey}` };
+      : request.apiType === "google-generative-ai"
+        ? { "x-goog-api-key": request.apiKey }
+        : { Authorization: `Bearer ${request.apiKey}` };
   // 自定义 headers 同名覆盖内置鉴权头：网关把密钥放在自定义头时不能让内置头把它顶掉。
   const headers = { ...authHeaders, ...request.headers };
-  const paths: readonly [string, string] =
-    request.apiType === "anthropic-messages"
-      ? ["/v1/models", "/models"]
-      : ["/models", "/v1/models"];
+  const paths: readonly [string, string] = resolveCatalogPaths(request.apiType, base);
   return [
     { url: `${base}${paths[0]}`, headers },
     { url: `${base}${paths[1]}`, headers },
   ];
 }
 
-function collectModelIds(payload: unknown): string[] {
+/**
+ * 候选路径按 api.type 决定。
+ *
+ * Gemini 的版本段通常在 baseUrl 里（.../v1beta），此时再拼一次会得到
+ * /v1beta/v1beta/models；带版本段时主备同路径即可——重试同一路径仍能覆盖
+ * 瞬时失败，不会制造一个必然 404 的假 fallback。
+ */
+function resolveCatalogPaths(
+  apiType: ProviderModelCatalogApiType,
+  base: string,
+): readonly [string, string] {
+  if (apiType === "anthropic-messages") {
+    return ["/v1/models", "/models"];
+  }
+  if (apiType === "google-generative-ai") {
+    // Gemini 的 models.list 默认只回 50 条并给 nextPageToken：不显式要满一页会静默丢模型
+    // （实测官方端点 63 个模型只拿到 50 个）。目录是只读展示，取满一页即可。
+    const hasVersionSegment = /\/v\d+(?:alpha|beta)?\d*$/i.test(base);
+    return hasVersionSegment
+      ? [GEMINI_MODELS_PATH, GEMINI_MODELS_PATH]
+      : [GEMINI_MODELS_PATH, `/v1beta${GEMINI_MODELS_PATH}`];
+  }
+  return ["/models", "/v1/models"];
+}
+
+function readPositiveInt(value: unknown): number | undefined {
+  // token 上限必须为正整数；先 floor 会把 0.5 变成零上限并污染真实保存配置。
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+function readStringList(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.filter((item): item is string => typeof item === "string" && item.length > 0);
+  return items.length > 0 ? items : undefined;
+}
+
+/**
+ * 只读端点显式字段。OpenAI/Anthropic 的目录响应没有 token 上限字段，
+ * 因此这里对它们自然返回 undefined，行为保持不变。
+ */
+function readCatalogMetadata(entry: unknown): ProviderModelCatalogMetadata | undefined {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return undefined;
+  const record = entry as {
+    displayName?: unknown;
+    inputTokenLimit?: unknown;
+    outputTokenLimit?: unknown;
+    supportedGenerationMethods?: unknown;
+  };
+  const contextWindow = readPositiveInt(record.inputTokenLimit);
+  const maxOutputTokens = readPositiveInt(record.outputTokenLimit);
+  const displayName =
+    typeof record.displayName === "string" && record.displayName.trim().length > 0
+      ? record.displayName.trim()
+      : undefined;
+  const supportedGenerationMethods = readStringList(record.supportedGenerationMethods);
+  if (
+    contextWindow === undefined &&
+    maxOutputTokens === undefined &&
+    displayName === undefined &&
+    supportedGenerationMethods === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    ...(contextWindow === undefined ? {} : { contextWindow }),
+    ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
+    ...(displayName === undefined ? {} : { displayName }),
+    ...(supportedGenerationMethods === undefined ? {} : { supportedGenerationMethods }),
+  };
+}
+
+function collectCatalog(
+  payload: unknown,
+  apiType: ProviderModelCatalogApiType,
+): {
+  modelIds: string[];
+  metadata: Record<string, ProviderModelCatalogMetadata>;
+} {
   const entries = (() => {
     if (Array.isArray(payload)) return payload;
     if (payload && typeof payload === "object") {
@@ -93,15 +198,22 @@ function collectModelIds(payload: unknown): string[] {
     return [];
   })();
   const modelIds: string[] = [];
+  const metadata: Record<string, ProviderModelCatalogMetadata> = {};
+  const isGoogle = apiType === "google-generative-ai";
   for (const entry of entries) {
-    const modelId = typeof entry === "string" ? entry : (entry as { id?: unknown })?.id;
-    if (typeof modelId !== "string") continue;
-    const trimmed = modelId.trim();
+    // Google 的 name/models 前缀是原生协议规则；其它协议的 models/ 可能是真实 ID，不能改写。
+    const record = entry as { id?: unknown; name?: unknown } | null;
+    const rawId =
+      typeof entry === "string" ? entry : (record?.id ?? (isGoogle ? record?.name : undefined));
+    if (typeof rawId !== "string") continue;
+    const trimmed = isGoogle ? rawId.trim().replace(/^models\//, "") : rawId.trim();
     if (!trimmed || modelIds.includes(trimmed)) continue;
     modelIds.push(trimmed);
+    const entryMetadata = isGoogle ? readCatalogMetadata(entry) : undefined;
+    if (entryMetadata) metadata[trimmed] = entryMetadata;
     if (modelIds.length >= MAX_MODEL_IDS) break;
   }
-  return modelIds;
+  return { modelIds, metadata };
 }
 
 /** 空目录按失败处理：错误路径常常返回 200 + 空 data，必须让 fallback 有机会。 */
@@ -136,7 +248,7 @@ export async function fetchProviderModelCatalog(options: {
     };
     try {
       const payload = await readApiJson<unknown>(options.apiClient, attempt.url, init);
-      const modelIds = collectModelIds(payload);
+      const { modelIds, metadata } = collectCatalog(payload, options.request.apiType);
       if (!isUsableCatalog(modelIds)) {
         if (!firstFailure) {
           firstFailure = {
@@ -146,7 +258,12 @@ export async function fetchProviderModelCatalog(options: {
         }
         continue;
       }
-      return { success: true, modelIds, source: index === 0 ? "primary" : "fallback" };
+      return {
+        success: true,
+        modelIds,
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+        source: index === 0 ? "primary" : "fallback",
+      };
     } catch (error) {
       if (!firstFailure) {
         firstFailure = {

@@ -114,6 +114,46 @@ describe("remote handshake byte and listener ownership", () => {
     }
   });
 
+  it.each(["before-hello", "pending-ACK"])(
+    "stdin close %s rejects without waiting for the ACK callback or command-close",
+    async (stage) => {
+      vi.useRealTimers();
+      const f = fixture();
+      let acknowledge: ((error?: Error | null) => void) | undefined;
+      const stdin = new Writable({
+        write(_chunk, _encoding, callback) {
+          acknowledge = callback;
+        },
+      });
+      const otherClose = vi.fn();
+      stdin.on("close", otherClose);
+      f.stream.stdin = stdin;
+      const handshake = performHandshake(f.stream, "fixture-client").catch(
+        (error: unknown) => error,
+      );
+      try {
+        if (stage === "pending-ACK") f.stdout.write(helloBytes);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        stdin.destroy();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const outcome = await Promise.race([handshake, Promise.resolve("pending")]);
+        expect(outcome).toBeInstanceOf(Error);
+        expect(String(outcome)).toContain("Stream closed before handshake completed");
+        expect(stdin.listeners("close")).toEqual([otherClose]);
+        expect(stdin.listenerCount("error")).toBe(0);
+        expect(f.stdout.listenerCount("data")).toBe(0);
+        acknowledge?.();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(await handshake).toBe(outcome);
+      } finally {
+        f.close.fire(1);
+        acknowledge?.();
+        stdin.destroy();
+        f.dispose();
+      }
+    },
+  );
+
   it.each(["synchronous", "nextTick"])(
     "%s ACK reentry preserves later bytes in the paused Readable until the next owner resumes",
     async (timing) => {

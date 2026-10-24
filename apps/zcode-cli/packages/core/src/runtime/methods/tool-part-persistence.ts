@@ -35,6 +35,7 @@ export async function persistPendingToolPart(
     input: Record<string, unknown>;
     partID: PartId;
     toolCall: ToolCall;
+    providerOptions?: Record<string, unknown>;
     traceContext: TraceContext;
     metadata?: CompletedToolPartMetadata;
     model: Model;
@@ -63,6 +64,8 @@ export async function persistPendingToolPart(
       metadata: {
         ...projected.metadata,
         ...options.metadata,
+        // pending 是第一个 durable writer；Stop 后也必须能恢复真实 Gemini 调用签名。
+        ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       },
       state: {
         status: "pending",

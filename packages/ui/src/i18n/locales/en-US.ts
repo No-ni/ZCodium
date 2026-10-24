@@ -1753,11 +1753,11 @@ const enUS: Record<string, string> = {
     "We are establishing the {method} connection. You can follow the live setup progress here.",
   "webRemoteControl.trigger": "Mobile remote control",
   "webRemoteControl.title": "Mobile remote control",
-  "webRemoteControl.description": "Control ZCode workspaces through chat bots.",
-  "webRemoteControl.tab.qr": "Scan to connect",
-  "webRemoteControl.tab.bots": "Bot channels",
-  "webRemoteControl.botChannel.title": "Use a bot channel",
-  "webRemoteControl.botChannel.description": "Connect a chat bot for longer-running mobile access.",
+  "webRemoteControl.description":
+    "Scan from your phone to access a workspace, or control it through a bot channel.",
+  "webRemoteControl.botChannel.title": "Bot channels",
+  "webRemoteControl.botChannel.description":
+    "Connect through Weixin, Feishu, Lark, Telegram, or an AstrBot bridge.",
   "webRemoteControl.botChannel.weixin.title": "Weixin",
   "webRemoteControl.botChannel.weixin.description": "Open this workspace from Weixin chat.",
   "webRemoteControl.botChannel.feishu.title": "Feishu",
@@ -2894,6 +2894,9 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.apiFormat": "API format",
   "settings.modelProvider.apiFormat.chatCompletions": "Chat completions (/v1/chat/completions)",
   "settings.modelProvider.apiFormat.responses": "Responses (/responses)",
+  "settings.modelProvider.apiFormat.title.googleGenerativeAi": "Google Gemini Native",
+  "settings.modelProvider.modelCatalog.mayNotBeSupported":
+    "Some Gemini native endpoints do not provide a model catalog. If fetching fails, add model IDs manually.",
   "settings.modelProvider.apiFormat.anthropicMessages":
     "Anthropic messages (/anthropic/v1/messages)",
   "settings.modelProvider.apiFormat.short.chatCompletions": "Chat",
@@ -3640,6 +3643,23 @@ const enUS: Record<string, string> = {
   "settings.usage.range.30d": "Last 30 days",
   "settings.usage.appUsageRangeTitle": "Time range",
   "settings.usage.refresh": "Refresh",
+  "settings.usage.codingPlanQuota.title": "Personal Coding Plan quota",
+  "settings.usage.codingPlanQuota.description":
+    "Query the first available personal Coding Plan key on this Host. Quota data is not saved.",
+  "settings.usage.codingPlanQuota.noProvider":
+    "Configure a personal Coding Plan API key in model settings.",
+  "settings.usage.codingPlanQuota.apiKeyRequired": "Enter your personal Coding Plan API key first.",
+  "settings.usage.codingPlanQuota.unsupportedProvider":
+    "This connection does not support personal plan quota queries.",
+  "settings.usage.codingPlanQuota.error":
+    "Could not fetch quota. Retry; any previous successful result is retained.",
+  "settings.usage.codingPlanQuota.empty": "No quota information available.",
+  "settings.usage.codingPlanQuota.fetchedAt": "Updated at {time}",
+  "settings.usage.codingPlanQuota.windowLimit": "5-hour quota",
+  "settings.usage.codingPlanQuota.tokenLimit": "Token quota",
+  "settings.usage.codingPlanQuota.genericLimit": "Plan quota",
+  "settings.usage.codingPlanQuota.remainingValue": "{value} remaining",
+  "settings.usage.codingPlanQuota.nextReset": "Next reset {time}",
   "settings.usage.loadingTitle": "Computing usage",
   "settings.usage.appUsageLoadingDescription":
     "Reading local app session history, so it can take a moment.",

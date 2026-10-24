@@ -103,12 +103,19 @@ export function deriveLogicalUiInstances(
     for (const toolCallId of superseded) supersededIds[toolCallId] = true;
     instances.push({ key, activeToolCallId: active.toolCallId, supersededToolCallIds: superseded });
     for (const row of group) {
-      byToolCallId[row.toolCallId] = {
-        key,
-        superseded: supersededIds[row.toolCallId] === true,
-        autoExpand: recentTurnIds[row.turnId] === true,
-        forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
-      };
+      // toolCallId 是协议字符串；普通赋值会触发 __proto__ setter、丢掉自有裁决。
+      // 显式数据属性保留既有普通对象输出和重复 ID 的最后写入规则，不改变原型。
+      Object.defineProperty(byToolCallId, row.toolCallId, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: {
+          key,
+          superseded: supersededIds[row.toolCallId] === true,
+          autoExpand: recentTurnIds[row.turnId] === true,
+          forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
+        },
+      });
     }
   }
   return { instances, byToolCallId };

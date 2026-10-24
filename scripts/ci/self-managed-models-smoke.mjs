@@ -53,6 +53,16 @@ const server = createServer((request, response) => {
 });
 server.listen(0, "127.0.0.1");
 await once(server, "listening");
+if (process.argv.includes("--serve")) {
+  console.log(
+    `Model settings fixture http://127.0.0.1:${server.address().port}/?mode=native-catalog&locale=zh-CN`,
+  );
+  console.log(
+    "Modes: native-catalog, create-failure, read-failure, retired-target, legacy-api; locale=en-US|zh-CN; theme=dark|light",
+  );
+  await once(server, "close");
+  process.exit(0);
+}
 let browser;
 try {
   browser = await chromium.launch({
@@ -240,6 +250,134 @@ try {
       assert.equal(await base.inputValue(), "https://keep-selection.example.invalid/v1");
       assert.equal(await page.getByText(/Internal fixture/).count(), 0);
     }
+  for (const locale of ["zh-CN", "en-US"])
+    for (const width of [390, 1280]) {
+      const zh = locale === "zh-CN";
+      await page.setViewportSize({ width, height: 950 });
+      await page.goto(
+        `http://127.0.0.1:${server.address().port}/?mode=native-catalog&locale=${locale}&theme=${width === 1280 ? "dark" : "light"}`,
+      );
+      const format = page.getByTestId("model-provider-api-format-trigger");
+      await format.waitFor();
+      await format.click();
+      const nativeOption = page.getByTestId("model-provider-api-format-item-google-generative-ai");
+      await nativeOption.waitFor();
+      assert.match(
+        await nativeOption.innerText(),
+        zh ? /Google Gemini 原生/ : /Google Gemini Native/,
+      );
+      await nativeOption.click();
+      await page.waitForFunction(() =>
+        window.modelFixture.saves.some((save) => save.config.api?.type === "google-generative-ai"),
+      );
+      assert.match(await format.innerText(), /generateContent/);
+      const fetchModels = page.getByTestId("model-provider-fetch-models-button");
+      assert.equal(
+        await fetchModels.isDisabled(),
+        false,
+        "native format must not pre-disable catalog queries",
+      );
+      await fetchModels.click();
+      const catalog = page.getByRole("dialog");
+      const withLimits = catalog.getByRole("checkbox", {
+        name: "gemini-fixture-with-limits",
+        exact: true,
+      });
+      const withoutLimits = catalog.getByRole("checkbox", {
+        name: "gemini-fixture-without-limits",
+        exact: true,
+      });
+      await withLimits.waitFor();
+      await catalog.getByRole("note").waitFor();
+      await withLimits.check();
+      await withoutLimits.check();
+      await catalog
+        .getByRole("button", { name: zh ? "添加所选（2）" : "Add selected (2)", exact: true })
+        .click();
+      await catalog.waitFor({ state: "hidden" });
+      const additions = await page.evaluate(() => window.modelFixture.additions);
+      assert.equal(additions.length, 2);
+      const withMetadata = additions.find(
+        (addition) => addition.modelId === "gemini-fixture-with-limits",
+      );
+      assert.deepEqual(withMetadata, {
+        providerId: "legacy:manual",
+        modelId: "gemini-fixture-with-limits",
+        config: {
+          properties: { contextWindow: 1048576 },
+          optionSpecs: { maxOutputTokens: { max: 65536 } },
+        },
+      });
+      assert.deepEqual(
+        additions.find((addition) => addition.modelId === "gemini-fixture-without-limits").config,
+        {},
+        "missing metadata must not fabricate limits",
+      );
+      assert.deepEqual(await page.evaluate(() => window.modelFixture.catalogRequests[0]), {
+        input: { workspacePath: "/fixture/local", providerId: "legacy:manual" },
+        apiType: "google-generative-ai",
+      });
+      const row = page.getByTestId("model-provider-model-input-0").locator("../..");
+      await row.getByTitle(zh ? "编辑模型配置" : "Edit model settings", { exact: true }).click();
+      const edit = page.getByRole("dialog");
+      const context = edit.getByLabel(zh ? "上下文窗口" : "Context window", { exact: true });
+      const output = edit.getByLabel(zh ? "最大输出 Token" : "Max output tokens", { exact: true });
+      await context.waitFor();
+      assert.equal(await context.inputValue(), "1048576");
+      assert.equal(await output.inputValue(), "65536");
+      await context.fill("32000");
+      await output.fill("4096");
+      await edit.getByRole("button", { name: zh ? "保存" : "Save", exact: true }).click();
+      await edit.waitFor({ state: "hidden" });
+      assert.deepEqual(
+        await page.evaluate(() => {
+          const saved = window.modelFixture.draftSaves.at(-1);
+          return {
+            modelId: saved.nextModelId,
+            limits: {
+              context: saved.personalConfig.properties.contextWindow,
+              output: saved.personalConfig.optionSpecs.maxOutputTokens.max,
+            },
+            freshRevision: saved.basedOnRevision === saved.serverRevisionAtSave,
+          };
+        }),
+        {
+          modelId: "gemini-fixture-with-limits",
+          limits: { context: 32000, output: 4096 },
+          freshRevision: true,
+        },
+      );
+      await fetchModels.click();
+      await withLimits.waitFor();
+      assert.equal(
+        await withLimits.isDisabled(),
+        true,
+        "refetch marks saved models added instead of overwriting manual limits",
+      );
+      await page.keyboard.press("Escape");
+      await catalog.waitFor({ state: "hidden" });
+      await row.getByTitle(zh ? "编辑模型配置" : "Edit model settings", { exact: true }).click();
+      await context.waitFor();
+      assert.equal(await context.inputValue(), "32000");
+      assert.equal(await output.inputValue(), "4096");
+      await edit.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click();
+      await edit.waitFor({ state: "hidden" });
+      await page.evaluate(() => {
+        window.modelFixture.nativeCatalogFailure = true;
+      });
+      await fetchModels.click();
+      await catalog.getByRole("alert").waitFor();
+      await catalog.getByRole("note").waitFor();
+      assert.equal(await withLimits.count(), 0);
+      await page.keyboard.press("Escape");
+      await catalog.waitFor({ state: "hidden" });
+      assert.equal(
+        await page.getByTestId("model-provider-add-model-button").isDisabled(),
+        false,
+        "manual add remains available after unsupported catalog",
+      );
+      assert.equal(await page.evaluate(() => window.modelFixture.additions.length), 2);
+    }
   for (const mode of ["read-failure", "retired-target"]) {
     await page.goto(`http://127.0.0.1:${server.address().port}/?mode=${mode}`);
     await page.getByRole("alert").waitFor();
@@ -259,7 +397,7 @@ try {
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
   console.log(
-    "Model settings walkthrough passed: actual editor, empty-state templates, create/retry, API address/key persistence, model addition/connectivity/catalog, model config edit save with revision check, refresh failure/retry, delete cancel/failure/retry/success, double creation guard, navigation while creating, quiet autosave and failure recovery, old target and read failure, zh/en narrow/wide, no account service or external requests.",
+    "Model settings walkthrough passed: Gemini Native format/catalog metadata persistence and manual overrides, unsupported-catalog guidance, actual editor, empty-state templates, create/retry, API address/key persistence, model addition/connectivity/catalog, model config edit save with revision check, refresh failure/retry, delete cancel/failure/retry/success, double creation guard, navigation while creating, quiet autosave and failure recovery, old target and read failure, zh/en narrow/wide, no account service or external requests.",
   );
 } finally {
   await browser?.close();

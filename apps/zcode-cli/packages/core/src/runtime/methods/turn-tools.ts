@@ -53,6 +53,7 @@ export async function executeToolCallsForModelStep(
     throw new Error("Model-backed tool execution requires the loop Model");
   }
   const modelSelection = { providerId: model.providerId, modelId: model.modelId };
+  const modelToolCallById = new Map(options.toolCalls.map((call) => [call.id, call]));
   const coreToolCalls: ToolCall[] = options.toolCalls.map((tc) => ({
     id: tc.id as ToolCallId,
     // Model step admission 已完成类型/ID 校验；这里保留可恢复的原始空白名称，
@@ -89,6 +90,7 @@ export async function executeToolCallsForModelStep(
           input: streamed.input,
           partID: streamed.partID,
           toolCall,
+          providerOptions: modelToolCallById.get(toolCall.id)?.providerOptions,
           traceContext: options.modelTraceContext,
           model,
           metadata: mcpToolPartMetadata(this.registry.getMetadata(toolCall.name)?.mcpPresentation),
@@ -123,6 +125,7 @@ export async function executeToolCallsForModelStep(
       input: normalizedInput,
       partID,
       toolCall,
+      providerOptions: modelToolCallById.get(toolCall.id)?.providerOptions,
       traceContext: options.modelTraceContext,
       model,
       metadata: mcpToolPartMetadata(this.registry.getMetadata(toolCall.name)?.mcpPresentation),
@@ -199,7 +202,12 @@ export async function executeToolCallsForModelStep(
               callID: toolCall.id,
               declarationIndex: persisted.declarationIndex,
               tool: projectedToolName.toolName,
-              metadata: projectedToolName.metadata,
+              metadata: {
+                ...projectedToolName.metadata,
+                ...(modelToolCallById.get(toolCall.id)?.providerOptions
+                  ? { providerOptions: modelToolCallById.get(toolCall.id)!.providerOptions }
+                  : {}),
+              },
               state: {
                 status: "running",
                 input: persisted.input,
@@ -303,7 +311,12 @@ export async function executeToolCallsForModelStep(
           callID: result.toolCallId,
           declarationIndex: persisted.declarationIndex,
           tool: projectedResultToolName.toolName,
-          metadata: projectedResultToolName.metadata,
+          metadata: {
+            ...projectedResultToolName.metadata,
+            ...(modelToolCallById.get(result.toolCallId)?.providerOptions
+              ? { providerOptions: modelToolCallById.get(result.toolCallId)!.providerOptions }
+              : {}),
+          },
           state: result.success
             ? {
                 status: "completed",

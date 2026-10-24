@@ -1,4 +1,5 @@
 import React from "react";
+import { isTuiQuitInput } from "./app-input.js";
 import type { ModelSelection } from "@zcode/shared";
 import type { SessionEvent, TurnId } from "@zcode/contracts";
 import { submitDuringActiveTurn, submitIdleTurn } from "./app-submit.js";
@@ -35,12 +36,54 @@ export function useSubmitValue(input: {
   setSlashSelection: React.Dispatch<React.SetStateAction<SlashSelectionState | undefined>>;
   setStatus: (status: string) => void;
   setStatusDetails: React.Dispatch<React.SetStateAction<string[]>>;
+  getDraftValue(): string;
+  isExitRequested(): boolean;
+  requestExit(): void;
+  quitSummary: string;
   turnRef: React.MutableRefObject<AbortController | undefined>;
 }): (submittedValue: string, options?: SubmitValueOptions) => Promise<void> {
+  const submissionRevisionRef = React.useRef(0);
   return React.useCallback(
     async (submittedValue: string, options: SubmitValueOptions = {}) => {
-      const text = input.resolveSubmittedText(submittedValue).trim();
+      if (input.isExitRequested()) return;
+      const revision = ++submissionRevisionRef.current;
+      const hasAttachments = input.draftAttachmentsRef.current.length > 0;
+      const multiline = /[\r\n]/.test(submittedValue);
+      // 原文必须先识别，不能进入模型、历史或 accepted queue；多行/附件不受旧补全折叠影响。
+      if (isTuiQuitInput(submittedValue, hasAttachments)) {
+        input.requestExit();
+        return;
+      }
+      const resolvedText = input.resolveSubmittedText(submittedValue).trim();
+      const text =
+        resolvedText.toLowerCase() === "/quit" && (hasAttachments || multiline)
+          ? submittedValue
+          : resolvedText;
+      if (!multiline && isTuiQuitInput(text, hasAttachments)) {
+        input.requestExit();
+        return;
+      }
       const modelSelection = input.resolveSubmittedModel?.(submittedValue);
+      if (text.toLowerCase() === "/help quit" && !hasAttachments && !multiline) {
+        input.setDraftValue("");
+        input.setStatus(`/quit — ${input.quitSummary}`);
+        return;
+      }
+      const applyResult: typeof input.applyResult = (result, preserveTurnState) => {
+        if (input.isExitRequested()) return;
+        input.applyResult(
+          text.toLowerCase() === "/help" && !hasAttachments
+            ? { ...result, response: `${result.response}\n/quit — ${input.quitSummary}` }
+            : result,
+          preserveTurnState,
+        );
+      };
+      const setDraftValue = (value: string) => {
+        // rejected sendInput 的迟到回写只能恢复自己的空草稿，不能覆盖后续编辑或退出。
+        if (input.isExitRequested() || revision !== submissionRevisionRef.current) return;
+        if (value && input.getDraftValue()) return;
+        input.setDraftValue(value);
+      };
       if (!text) {
         input.setStatus(input.emptyPromptStatus);
         return;
@@ -49,13 +92,13 @@ export function useSubmitValue(input: {
       if (input.busy) {
         await submitDuringActiveTurn({
           activeTurnId: input.activeTurnId,
-          applyResult: input.applyResult,
+          applyResult,
           applySessionEvent: input.applySessionEvent,
           draftAttachments: input.draftAttachmentsRef.current,
           messageInsertIndex: input.messageInsertIndex,
           options: input.options,
           requestPermission: input.requestPermission,
-          setDraftValue: input.setDraftValue,
+          setDraftValue,
           setLastError: input.setLastError,
           setMessages: input.setMessages,
           setQueuedInputs: input.setQueuedInputs,
@@ -68,14 +111,14 @@ export function useSubmitValue(input: {
       }
 
       await submitIdleTurn({
-        applyResult: input.applyResult,
+        applyResult,
         applySessionEvent: input.applySessionEvent,
         draftAttachments: input.draftAttachmentsRef.current,
         options: input.options,
         requestPermission: input.requestPermission,
         setBusy: input.setBusy,
         setDraftAttachments: input.setDraftAttachments,
-        setDraftValue: input.setDraftValue,
+        setDraftValue,
         setLastError: input.setLastError,
         setLiveModelText: input.setLiveModelText,
         setMessages: input.setMessages,

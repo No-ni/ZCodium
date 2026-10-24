@@ -2,13 +2,13 @@ import type { ModelUsageSummary, TodoItem, TurnId } from "@zcode/contracts";
 import { getZCodeCopy } from "@zcode/i18n";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { AppView } from "./app-view.js";
-import type { PromptInputEditor } from "./app-input-pane.js";
+import { syncTextareaValue, type PromptInputEditor } from "./app-input-pane.js";
+import { useLocalQuit } from "./app-quit.js";
 import { selectionCopyStatus, type SelectionCopyResult } from "./app-copy.js";
 import { useClipboardImagePaste } from "./app-clipboard-image.js";
 import { useFileMentionController } from "./app-file-mentions.js";
 import { useTuiKeyboardControls } from "./app-keyboard.js";
 import { useTuiModeSwitcher } from "./app-mode.js";
-import { createTuiPermissionRequester } from "./app-permission.js";
 import { appendAgentResult } from "./app-submit.js";
 import { useSubmitValue } from "./app-submit-controller.js";
 import { filterSlashCommands, reconcileSlashSelection } from "./app-input.js";
@@ -18,9 +18,8 @@ import { useModeCommandController } from "./app-mode-command.js";
 import { useModelCommandController } from "./app-model-command.js";
 import { useSidebarController } from "./app-sidebar-layout.js";
 import { createSelectionState } from "./app-selection-state.js";
-import { resolveComposerSubmittedText } from "./app-submit-resolver.js";
+import { useComposerSubmittedText } from "./app-submit-resolver.js";
 import type {
-  ApprovalPrompt,
   CacheStats,
   ContextUsage,
   DraftAttachment,
@@ -93,7 +92,6 @@ export function TuiApp({
     createSelectionState(initialResult?.selection),
   );
   const [slashSelection, setSlashSelection] = useState<SlashSelectionState | undefined>();
-  const [approvalQueue, setApprovalQueue] = useState<ApprovalPrompt[]>([]);
   const [inputCursorToEndVersion, setInputCursorToEndVersion] = useState(0);
   // dwf 运行态镜像：共享 reducer 逐事件维护 + 冷启动一次性补种，无第二时钟。
   const workflowRuns = useTuiWorkflowRuns({ copy: copy.tui, options, setMessages });
@@ -112,7 +110,16 @@ export function TuiApp({
   const modifiedFileToolCallIdsRef = useRef(new Set<string>());
   const toolNamesByIdRef = useRef(new Map<string, string>());
 
-  const slashCommands = options.slashCommands ?? [];
+  const localQuit = useLocalQuit({
+    locale,
+    commands: options.slashCommands,
+    getDraft: () => inputEditorRef.current?.plainText ?? draftRef.current,
+    hasAttachments: () => draftAttachmentsRef.current.length > 0,
+    turnRef: abortControllerRef,
+    onExit,
+    setStatus,
+  });
+  const { approvalQueue, setApprovalQueue, isExitRequested, slashCommands } = localQuit;
   const [effortOptions, setEffortOptions] = useState<NonNullable<TuiOptions["effortOptions"]>>(
     () => initialResult?.effortOptions ?? options.effortOptions ?? [],
   );
@@ -133,7 +140,11 @@ export function TuiApp({
 
   const setDraftValue = useCallback(
     (value: string) => {
+      if (isExitRequested()) return;
       draftRef.current = value;
+      // 原生 buffer 清空必须先于下一批按键；等待 layout effect 会把 /quit 拼回旧 prompt。
+      if (value.length === 0 && inputEditorRef.current)
+        syncTextareaValue(inputEditorRef.current, value);
       setDraftState(value);
       setDraftAttachments((current) =>
         current.filter((attachment) => value.includes(attachment.placeholder)),
@@ -163,7 +174,7 @@ export function TuiApp({
           : reconcileSlashSelection(value, slashCommands),
       );
     },
-    [effortCommand, modeCommand, modelCommand, setDraftAttachments, slashCommands],
+    [effortCommand, isExitRequested, modeCommand, modelCommand, setDraftAttachments, slashCommands],
   );
 
   const applyResult = useTuiApplyResult({
@@ -220,27 +231,13 @@ export function TuiApp({
     workspaceDirectory: options.workspaceDirectory,
   });
 
-  const requestPermission = useMemo(
-    () => createTuiPermissionRequester({ setApprovalQueue, setStatus }),
-    [],
-  );
-
-  const resolveSubmittedText = useCallback(
-    (submittedValue: string) => {
-      const modelOption = modelCommand.selectedOption(submittedValue);
-      const effortOption = modelOption ? undefined : effortCommand.selectedOption(submittedValue);
-      return resolveComposerSubmittedText({
-        effortOption,
-        modeOption:
-          modelOption || effortOption ? undefined : modeCommand.selectedOption(submittedValue),
-        modelOption,
-        slashCommands: filteredSlashCommands,
-        slashSelection,
-        submittedValue,
-      });
-    },
-    [effortCommand, filteredSlashCommands, modeCommand, modelCommand, slashSelection],
-  );
+  const resolveSubmittedText = useComposerSubmittedText({
+    modelCommand,
+    effortCommand,
+    modeCommand,
+    filteredSlashCommands,
+    slashSelection,
+  });
 
   const submitValue = useSubmitValue({
     activeTurnId,
@@ -251,7 +248,6 @@ export function TuiApp({
     emptyPromptStatus: copy.tui.input.typePrompt,
     messageInsertIndex: messages.length,
     options,
-    requestPermission,
     resolveSubmittedText,
     resolveSubmittedModel: (value) => modelCommand.selectedOption(value)?.ref,
     setBusy,
@@ -266,6 +262,8 @@ export function TuiApp({
     setStatus,
     setStatusDetails,
     turnRef: abortControllerRef,
+    ...localQuit,
+    getDraftValue: () => inputEditorRef.current?.plainText ?? draftRef.current,
   });
 
   const pasteClipboardImage = useClipboardImagePaste({
@@ -330,7 +328,8 @@ export function TuiApp({
   useTuiKeyboardControls({
     readOnlyView: subagents.selected ? { back: subagents.back } : undefined,
     abortControllerRef,
-    approvalQueue,
+    ...localQuit,
+    localQuit,
     busy,
     copyCurrentSelection,
     effortSelection: effortCommand.selection,
@@ -339,7 +338,7 @@ export function TuiApp({
     filteredModeOptions: modeCommand.filteredOptions,
     filteredModelOptions: modelCommand.filteredOptions,
     handleFileMentionKey: fileMentions.handleKey,
-    onExit,
+    onExit: localQuit.requestExit,
     pasteClipboardImage,
     recallNextInput,
     recallPreviousInput,

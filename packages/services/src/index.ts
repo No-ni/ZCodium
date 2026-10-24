@@ -7,6 +7,7 @@ export {
   type ModelSelectionView,
   type ModelSelectionViewInput,
   type ListProviderModelsInput,
+  type ProviderModelCatalogMetadata,
   type ProviderModelCatalogResult,
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
@@ -215,6 +216,7 @@ export { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 
 // UsageStats service — IUsageStatsService is both a type (interface) and value (descriptor)
 export { IUsageStatsService } from "./usage-stats/usageStats.js";
+export type { CodingPlanQuotaContext, CodingPlanQuotaSnapshot } from "./usage-stats/usageStats.js";
 
 // Storage（资源管理器「存储」tab）：数据类型在 @zcode/shared；这里只导出服务接口与卷分组纯函数
 export type { IStorageService } from "./storage/contract.js";

@@ -307,6 +307,8 @@ export interface ModelToolCall {
   name: string;
   input: unknown;
   providerExecuted?: boolean;
+  /** Provider 原生调用元数据（如 Gemini thoughtSignature），随同一调用持久化与回放。 */
+  providerOptions?: Record<string, unknown>;
 }
 
 export type AttachmentKind = "local_file" | "resource" | "inline";
@@ -924,7 +926,21 @@ export const modelInputMessageJsonSchema = {
         scope: { enum: ["global", "org"] },
       },
     },
-    toolCalls: { type: "array" },
+    toolCalls: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name", "input"],
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          input: {},
+          providerExecuted: { type: "boolean" },
+          providerOptions: { type: "object" },
+        },
+      },
+    },
     toolCallId: { type: "string" },
     toolName: { type: "string" },
     isError: { type: "boolean" },

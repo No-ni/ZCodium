@@ -15,7 +15,7 @@ import type {
 import type { ModelConnectivityResult } from "@zcode/shared";
 import type { ProviderApiType } from "@zcode/provider";
 import { isApiKeyAccess } from "@zcode/provider";
-import type { ProviderModelCatalogResult } from "@zcode/services";
+import type { ProviderModelCatalogMetadata, ProviderModelCatalogResult } from "@zcode/services";
 import {
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
   TID_MODEL_PROVIDER_BASE_URL_INPUT,
@@ -66,6 +66,7 @@ import {
   markCatalogItemsAdded,
   resolveModelCatalogItems,
   summarizeCatalogAddResults,
+  withCatalogMetadata,
   type ProviderModelCatalogItem,
 } from "@/settings/model-provider-section/providerModelCatalogSelection.js";
 
@@ -368,6 +369,7 @@ export function ProviderModelsSection({
   providerName,
   providerEnabled = true,
   providerAccess,
+  apiFormat,
   models,
   onTestModel,
   onModelCommit,
@@ -382,6 +384,7 @@ export function ProviderModelsSection({
   providerName?: string;
   providerEnabled?: boolean;
   providerAccess?: ProviderConfigObject["access"];
+  apiFormat?: ProviderApiType;
   models: ProviderSettingsFormModel[];
   onTestModel?: (model: string) => Promise<ModelConnectivityResult>;
   onModelCommit: (
@@ -417,6 +420,13 @@ export function ProviderModelsSection({
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogMetadata, setCatalogMetadata] = useState<
+    Readonly<Record<string, ProviderModelCatalogMetadata>>
+  >({});
+  const catalogHint =
+    apiFormat === "google-generative-ai"
+      ? intl.formatMessage({ id: "settings.modelProvider.modelCatalog.mayNotBeSupported" })
+      : null;
   const [catalogItems, setCatalogItems] = useState<readonly ProviderModelCatalogItem[]>([]);
   const catalogRequestRef = useRef(0);
   const existingModelIds = useMemo(() => models.map((model) => model.modelId), [models]);
@@ -447,13 +457,16 @@ export function ProviderModelsSection({
       if (requestId !== catalogRequestRef.current) return;
       if (result.success) {
         setCatalogItems(resolveModelCatalogItems(result.modelIds, existingModelIds));
+        setCatalogMetadata(result.metadata ?? {});
         return;
       }
       setCatalogItems([]);
+      setCatalogMetadata({});
       setCatalogError(resolveCatalogFailureMessage(result));
     } catch (error) {
       if (requestId !== catalogRequestRef.current) return;
       setCatalogItems([]);
+      setCatalogMetadata({});
       setCatalogError(error instanceof Error ? error.message : String(error));
     } finally {
       if (requestId === catalogRequestRef.current) {
@@ -473,7 +486,11 @@ export function ProviderModelsSection({
       // 并发会把同一 Provider 的保存队列竞争暴露给用户。
       for (const modelId of modelIds) {
         try {
-          await onAddModel({ ...createEmptyModel(), modelId });
+          await onAddModel({
+            ...createEmptyModel(),
+            modelId,
+            ...withCatalogMetadata(catalogMetadata[modelId]),
+          });
           results.push(true);
           addedModelIds.push(modelId);
         } catch (error) {
@@ -497,7 +514,7 @@ export function ProviderModelsSection({
       }
       setCatalogDialogOpen(false);
     },
-    [intl, onAddModel, providerId],
+    [catalogMetadata, intl, onAddModel, providerId],
   );
 
   const resolveAddModelConfig = useCallback(
@@ -614,6 +631,7 @@ export function ProviderModelsSection({
         items={catalogItems}
         loading={catalogLoading}
         saving={catalogSaving}
+        hintMessage={catalogHint}
         errorMessage={catalogError}
         onOpenChange={setCatalogDialogOpen}
         onConfirm={(modelIds) => confirmCatalogSelection(modelIds)}

@@ -257,6 +257,7 @@ async function executeDuringStream(
     model: options.model,
     partID,
     toolCall,
+    providerOptions: options.toolCall.providerOptions,
     traceContext: options.traceContext,
   });
   await emitStreamingToolLedgerUpdate(runtime, state.events, options.traceContext, {
@@ -300,6 +301,9 @@ async function executeDuringStream(
           callID: toolCall.id,
           declarationIndex: options.declarationIndex,
           tool: toolCall.name,
+          metadata: options.toolCall.providerOptions
+            ? { providerOptions: options.toolCall.providerOptions }
+            : undefined,
           state: {
             status: "running",
             input,

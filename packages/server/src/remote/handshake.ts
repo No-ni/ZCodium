@@ -154,8 +154,10 @@ export function performHandshake(
                 if (pendingWriteError) {
                   // 正常失败 callback 后 Node 才发布 error；取消已清理时也由同一
                   // ACK owner 临时接住配对事件，不恢复 reader 或 timer。
-                  if (settled) stdin.on("error", onStdinError);
-                  stdin.on("close", onStdinClose);
+                  if (settled) {
+                    stdin.on("error", onStdinError);
+                    stdin.on("close", onStdinClose);
+                  }
                 }
                 if (settled) cleanup();
                 else fail(error);
@@ -197,6 +199,8 @@ export function performHandshake(
     }, timeoutMs);
     try {
       stream.stdin.on("error", onStdinError);
+      // stdin 可独立关闭且 ACK callback 仍未归还，必须立即拒绝，不能等命令关闭或超时。
+      if (!settled) stdin.on("close", onStdinClose);
       if (!settled) stdout.on("error", onStdoutError);
       if (!settled) stdout.on("end", onStdoutEnd);
       if (!settled) stdout.on("close", onStdoutEnd);

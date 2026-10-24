@@ -69,6 +69,7 @@ jobs:
           pnpm vitest run --config packages/ui/vitest.config.ts packages/relay/src
           pnpm vitest run --config packages/ui/vitest.config.ts packages/server/test/remoteHandshake.test.ts packages/server/test/remoteHandshakeHandoff.test.ts packages/server/test/remoteCloseEvent.test.ts packages/server/test/stdioAck.test.ts packages/server/test/stdioProcessLifecycle.test.ts packages/server/test/stdioTransportStartup.test.ts packages/rpc/test/byteQueues.test.ts apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness.test.ts apps/zcode-cli/packages/adapters/src/mcp/appConnections.test.ts apps/zcode-cli/packages/adapters/src/mcp/pool-admission.test.ts apps/zcode-cli/packages/adapters/src/mcp/startup-close.test.ts apps/zcode-cli/packages/adapters/src/mcp/connection-close.test.ts packages/desktop/src/host/windowRemoteConnectionRegistry.test.ts packages/ui/src/hooks/useGitRepository.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/performanceLinearScheduler.test.ts packages/ui/test/performanceLinearFileSummaries.test.ts packages/ui/test/performanceLinearCoalescer.test.ts packages/ui/test/performanceLinearRealtimeBridge.test.ts
+          pnpm vitest run --config packages/ui/vitest.config.ts packages/ui/test/performanceRound10PluginInstances.test.ts packages/desktop/scripts/remoteWorkspaceSessionServices.test.ts
           pnpm vitest run --config packages/ui/vitest.config.ts \
             packages/services/test/botRemoteBridgeLifecycle.test.ts \
             packages/services/test/botRemoteRuntimeServices.test.ts \
@@ -109,6 +110,12 @@ jobs:
             apps/zcode-cli/packages/core/src/runtime/helpers/gen-ui-output.test.ts \
             apps/zcode-cli/packages/core/src/runtime/methods/session-persistence-concurrency.test.ts \
             packages/shared/src/node/genUiPaths.test.ts
+      - name: Native Gemini provider checks
+        if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
+        run: node --import tsx --test --test-isolation=none packages/services/test/providerModelCatalog.test.ts packages/services/test/googleCatalogPersistence.test.ts apps/zcode-cli/packages/adapters/test/google-generative-ai.test.ts apps/zcode-cli/packages/adapters/test/google-provider-options.test.ts
+      - name: Terminal local quit checks
+        if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
+        run: node --import tsx --test --test-concurrency=1 apps/zcode-cli/packages/tui/test/local-quit.test.ts
       - name: Release tests
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
@@ -129,6 +136,8 @@ jobs:
           pnpm --filter @zcode/bootstrap exec node --import tsx --test --test-isolation=none test/web-remote-v4-stream.test.ts test/web-remote-command-inbox.test.ts test/active-session-resume.test.ts
           node scripts/ci/web-remote-control-window-sync-smoke.mjs
           node scripts/ci/web-remote-control-mobile-smoke.mjs
+          node scripts/ci/web-remote-control-dialog-smoke.mjs
+          node scripts/ci/coding-plan-quota-smoke.mjs
       - name: Storage scan lifecycle browser checks
         run: node scripts/ci/storage-scan-lifecycle-smoke.mjs
       - name: Install isolated Computer Use test desktop

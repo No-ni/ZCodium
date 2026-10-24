@@ -30,6 +30,7 @@ export function createGenerateTextOptions(input: {
       apiFormat: resolveProviderApiFormat(providerOptions),
       providerOptions,
       providerKind: input.resolved.providerKind,
+      modelId: input.resolved.modelId,
       inputFormat: input.resolved.properties?.inputFormat,
     }),
     tools: toAiSdkTools(input.request.tools, {
@@ -76,6 +77,7 @@ export function createStreamTextOptions(input: {
       apiFormat: resolveProviderApiFormat(providerOptions),
       providerOptions,
       providerKind: input.resolved.providerKind,
+      modelId: input.resolved.modelId,
       inputFormat: input.resolved.properties?.inputFormat,
     }),
     tools: toAiSdkTools(input.request.tools, {

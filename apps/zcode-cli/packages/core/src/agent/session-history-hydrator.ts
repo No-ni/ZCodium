@@ -144,6 +144,10 @@ export async function hydrateMessageHistoryFromSession(input: {
           id: part.callID,
           input: part.state.input,
           name: providerToolNameFromPart(part),
+          // 真实调用签名保存在工具 part metadata，冷恢复后不能退化为无签名调用。
+          ...(isRecord(part.metadata?.providerOptions)
+            ? { providerOptions: part.metadata.providerOptions }
+            : {}),
         }),
       ),
       reasoning,

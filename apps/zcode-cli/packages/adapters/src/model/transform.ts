@@ -27,7 +27,8 @@ import { normalizeOpenAiCompatibleSystemMessages } from "./system-message-compat
 export interface AiSdkMessageTransformOptions {
   apiFormat?: string;
   providerOptions?: Record<string, unknown>;
-  providerKind?: "openai" | "anthropic" | "openai-compatible" | "gateway" | "custom";
+  providerKind?: "openai" | "anthropic" | "openai-compatible" | "google" | "gateway" | "custom";
+  modelId?: string;
   stripMedia?: boolean;
   inputFormat?: ModelInputFormat;
 }
@@ -265,6 +266,25 @@ function toAiSdkAssistantContent(
   toolCalls: ModelInputMessage["toolCalls"],
   options: AiSdkAssistantTransformOptions,
 ): AiSdkAssistantContent {
+  if (
+    options.providerKind === "google" &&
+    options.modelId &&
+    /(^|\/)gemini-/i.test(options.modelId) &&
+    !/(^|\/)gemini-(?:[12](?:[.-]|$)|pro(?:-vision)?$|robotics-er-1\.5(?:[.-]|$))/i.test(
+      options.modelId,
+    )
+  ) {
+    // 旧历史可恢复但不能伪造签名；Gemini 3+ 缺签名时 SDK 会注入跳过验证哨兵，
+    // 在边界明确拒绝比隐式绕过 provider 校验更安全。多调用轮只需第一个 client call 的签名。
+    const firstClientCall = toolCalls?.find((call) => call.providerExecuted !== true);
+    const googleOptions = objectRecord(firstClientCall?.providerOptions?.google);
+    if (firstClientCall && !googleOptions.thoughtSignature) {
+      throw new AiSdkModelAdapterError(
+        ModelErrorCode.InvalidModelRequest,
+        "Gemini tool-call history is missing its thought signature. Start a new session instead of replaying unsigned tool calls.",
+      );
+    }
+  }
   const toolCallParts =
     toolCalls?.map(
       (toolCall): AiSdkAssistantContentPart => ({
@@ -272,6 +292,9 @@ function toAiSdkAssistantContent(
         toolCallId: toolCall.id,
         toolName: projectToolNameForProvider(toolCall.name, options),
         input: toolCall.input,
+        ...(toolCall.providerOptions
+          ? { providerOptions: toolCall.providerOptions as AiSdkProviderOptions }
+          : {}),
       }),
     ) ?? [];
 

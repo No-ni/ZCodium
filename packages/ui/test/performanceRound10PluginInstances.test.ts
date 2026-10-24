@@ -124,6 +124,33 @@ describe("plugin UI instance derivation work", () => {
 });
 
 describe("plugin UI instance derivation compatibility", () => {
+  it("preserves an own __proto__ call disposition without changing the output prototype", () => {
+    const rows = freeze([
+      toolRow(1, { toolCallId: "__proto__" }),
+      toolRow(2, { toolCallId: "__proto__", ui: { showInline: true } }),
+      toolRow(3),
+    ]);
+    for (const row of rows) expect(conversationRowSchema.safeParse(row).success).toBe(true);
+    const result = deriveLogicalUiInstances(rows);
+    expect(Object.getPrototypeOf(result.byToolCallId)).toBe(Object.prototype);
+    expect(Object.hasOwn(result.byToolCallId, "__proto__")).toBe(true);
+    expect(Object.keys(result.byToolCallId)).toEqual(["__proto__", "round10:call-3"]);
+    expect(Object.getOwnPropertyDescriptor(result.byToolCallId, "__proto__")).toEqual({
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: {
+        key: result.instances[0]!.key,
+        superseded: true,
+        autoExpand: true,
+        forcedInline: true,
+      },
+    });
+    expect(
+      deriveLogicalUiInstances([toolRow(4, { toolCallId: "__proto__" })]).byToolCallId["__proto__"],
+    ).toMatchObject({ superseded: false, forcedInline: false });
+  });
+
   it("preserves full original outputs for mixed rows, scopes, duplicates and slice options", () => {
     const repeated = toolRow(18, { turnId: "old", ui: { showInline: true } });
     const rows = freeze([

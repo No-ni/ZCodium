@@ -92,7 +92,7 @@ sequenceDiagram
 
 1. hello 与含任意 0..255 字节的 RPC 数据粘包时，remaining 与原始 RPC 完全相等。
 2. UTF-8 hello 跨字节边界分片、banner 与 hello 混合时正确解析，只发送一次 ack。
-3. 同步关闭、非法 hello、ack 写入抛错及超时立即或按既定超时拒绝，清理所有临时订阅与计时器；不删除其他 owner 的监听器。
+3. 同步关闭、非法 hello、ack 写入抛错及超时立即或按既定超时拒绝，清理所有临时订阅与计时器；不删除其他 owner 的监听器。真实 Writable 在 hello 前或 ACK callback pending 时无错误 `destroy()`，即使 backend 没有命令关闭事件、write callback 尚未归还，也应由既有握手 owner 观察 stdin close 并立即拒绝；迟到 callback 不能成功交接。close 监听只注册一次，失败 callback 重新接管配对 error 时也不得重复注册。
 4. 已关闭命令的晚订阅在微任务补发前 dispose 后不再触发；有效晚订阅仍得到原退出码。
 
 5. 服务端 ACK 粘真实二进制 RPC，后缀字节与 frame length 完全保真；ACK UTF-8 逐字节分片正确解析，成功后 stdin 暂停，后续 reader 恢复后原序接收后缀和后来输入。

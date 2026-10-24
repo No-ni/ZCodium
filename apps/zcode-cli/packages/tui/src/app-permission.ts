@@ -86,7 +86,10 @@ export function createTuiPermissionRequester(input: {
         reject(error);
       };
       const abortHandler = () => {
-        input.setApprovalQueue((current) => current.filter((item) => item !== approval));
+        // 编辑会克隆 approval；resolve 是请求的稳定句柄，取消不能留下克隆 UI。
+        input.setApprovalQueue((current) =>
+          current.filter((item) => item.resolve !== approval.resolve),
+        );
         fail(new Error("Permission request cancelled"));
       };
 

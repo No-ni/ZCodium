@@ -4,6 +4,7 @@ import { useKeyboard } from "@mbears/opentui-react";
 import { useCallback, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { handleApprovalKey } from "./app-approval.js";
+import { handleLocalQuitKey } from "./app-quit.js";
 import { handleSelectionKey } from "./app-input.js";
 import {
   CTRL_C_EXIT_PROMPT,
@@ -56,7 +57,10 @@ export {
 type UseTuiKeyboardControlsOptions = {
   readOnlyView?: { back(): void };
   abortControllerRef: MutableRefObject<AbortController | undefined>;
-  approvalQueue: ApprovalPrompt[];
+  localQuit: Pick<
+    ReturnType<typeof import("./app-quit.js").useLocalQuit>,
+    "getCurrentApproval" | "isExitRequested" | "tryQuit" | "quitSummary"
+  >;
   busy: boolean;
   copyCurrentSelection: () => boolean;
   draftValue: string;
@@ -95,7 +99,7 @@ type UseTuiKeyboardControlsOptions = {
 export function useTuiKeyboardControls({
   readOnlyView,
   abortControllerRef,
-  approvalQueue,
+  localQuit,
   busy,
   copyCurrentSelection,
   draftValue,
@@ -131,27 +135,38 @@ export function useTuiKeyboardControls({
   toggleSidebarSection,
 }: UseTuiKeyboardControlsOptions): void {
   const ctrlCExitGuardRef = useRef<CtrlCExitGuard>(createCtrlCExitGuard());
+  const pendingQuitRef = useRef<string | undefined>(undefined);
   const sidebarShortcutRef = useRef<SidebarShortcutState>(createSidebarShortcutState());
 
+  const localQuitKeyOptions = {
+    readOnly: Boolean(readOnlyView),
+    ...localQuit,
+    buffer: pendingQuitRef,
+    hint: localQuit.quitSummary,
+    setStatus,
+  };
   useKeyboard(
     useCallback(
       (key: KeyEvent) => {
         if (key.eventType === "release") return;
+        if (handleLocalQuitKey({ ...localQuitKeyOptions, key })) {
+          consumeKey(key);
+          return;
+        }
 
+        const handleSidebarKey = () =>
+          handleSidebarShortcutKey({
+            consumeKey,
+            key,
+            nowMs: Date.now(),
+            setStatus,
+            shortcutState: sidebarShortcutRef.current,
+            toggleSidebar,
+            toggleSidebarSection,
+          });
         if (readOnlyView) {
           resetCtrlCExitGuard(ctrlCExitGuardRef.current);
-          if (
-            handleSidebarShortcutKey({
-              consumeKey,
-              key,
-              nowMs: Date.now(),
-              setStatus,
-              shortcutState: sidebarShortcutRef.current,
-              toggleSidebar,
-              toggleSidebarSection,
-            })
-          )
-            return;
+          if (handleSidebarKey()) return;
           if (key.name === "escape") {
             consumeKey(key);
             readOnlyView.back();
@@ -166,7 +181,7 @@ export function useTuiKeyboardControls({
           return;
         }
 
-        const approval = approvalQueue[0];
+        const approval = localQuit.getCurrentApproval();
         if (approval) {
           resetCtrlCExitGuard(ctrlCExitGuardRef.current);
           consumeKey(key);
@@ -183,17 +198,7 @@ export function useTuiKeyboardControls({
           return;
         }
 
-        if (
-          handleSidebarShortcutKey({
-            consumeKey,
-            key,
-            nowMs: Date.now(),
-            setStatus,
-            shortcutState: sidebarShortcutRef.current,
-            toggleSidebar,
-            toggleSidebarSection,
-          })
-        ) {
+        if (handleSidebarKey()) {
           resetCtrlCExitGuard(ctrlCExitGuardRef.current);
           return;
         }
@@ -378,7 +383,7 @@ export function useTuiKeyboardControls({
       [
         readOnlyView,
         abortControllerRef,
-        approvalQueue,
+        localQuit,
         workflowExpansion,
         busy,
         copyCurrentSelection,
