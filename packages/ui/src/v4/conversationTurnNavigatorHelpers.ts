@@ -101,56 +101,101 @@ export function resolveConversationTurnNavigatorHydrationRetryDelayMs(
 const DEFAULT_MAX_PREVIEW_CHARS = 220;
 const DEFAULT_MAX_PREVIEW_PARAGRAPHS = 2;
 
-function normalizePreviewParagraphs(text: string, maxParagraphs: number): string[] {
-  return text
-    .trim()
-    .split(/\n\s*\n/u)
-    .map((paragraph) => paragraph.replace(/\s+/gu, " ").trim())
-    .filter(Boolean)
-    .slice(0, Math.max(1, maxParagraphs));
-}
-
-function truncatePreview(text: string, maxChars: number): string {
-  const normalizedMaxChars = Math.max(8, maxChars);
-  if (text.length <= normalizedMaxChars) {
-    return text;
-  }
-  return `${text.slice(0, normalizedMaxChars - 3).trimEnd()}...`;
-}
-
 function buildPreviewText({
   texts,
   fallback,
   maxPreviewChars,
   maxPreviewParagraphs,
 }: {
-  texts: readonly string[];
+  texts: Iterable<string>;
   fallback: string;
   maxPreviewChars: number;
   maxPreviewParagraphs: number;
 }): string {
-  const paragraphs = normalizePreviewParagraphs(texts.join("\n\n"), maxPreviewParagraphs);
-  if (paragraphs.length === 0) {
-    return fallback;
+  // 原 slice 会取整，NaN 则没有段落；保留旧数值选项与 UTF-16 截断规则。
+  const paragraphLimit = Math.trunc(Math.max(1, maxPreviewParagraphs));
+  if (!paragraphLimit) return fallback;
+  const charLimit = Math.max(8, maxPreviewChars);
+  const result: string[] = [];
+  let length = 0;
+  let paragraphs = 0;
+  let pendingWhitespace = false;
+  let pendingNewlines = 0;
+  let firstSource = true;
+  // 全文 join/split 曾随流式尾部重建反复扫描长正文；只读取能确定摘要的前缀。
+  // 空白等下一处正文才提交，避免把末尾空白误当作超长内容而添加省略号。
+  for (const text of texts) {
+    if (!firstSource) {
+      pendingWhitespace = true;
+      pendingNewlines = 2;
+    }
+    firstSource = false;
+    for (let index = 0; index < text.length; index++) {
+      const code = text.charCodeAt(index);
+      const whitespace =
+        code === 32 || (code >= 9 && code <= 13) || (code > 127 && /\s/u.test(text[index]!));
+      if (whitespace) {
+        pendingWhitespace = true;
+        if (code === 10) pendingNewlines = Math.min(2, pendingNewlines + 1);
+        continue;
+      }
+      if (paragraphs === 0) {
+        paragraphs = 1;
+      } else if (pendingWhitespace) {
+        if (pendingNewlines >= 2) {
+          if (paragraphs >= paragraphLimit) return result.join("");
+          paragraphs++;
+          result.push("\n");
+        } else {
+          result.push(" ");
+        }
+        length++;
+      }
+      pendingWhitespace = false;
+      pendingNewlines = 0;
+      result.push(text[index]!);
+      length++;
+      if (Number.isNaN(charLimit) || length > charLimit) {
+        return `${result
+          .join("")
+          .slice(0, charLimit - 3)
+          .trimEnd()}...`;
+      }
+    }
   }
-  return truncatePreview(paragraphs.join("\n"), maxPreviewChars);
+  return paragraphs === 0 ? fallback : result.join("");
+}
+
+function buildRowsPreview(
+  rows: readonly { text: string }[],
+  fallback: string,
+  options: Required<BuildConversationTurnNavigatorItemsOptions>,
+  cache?: ConversationTurnNavigatorCache,
+): string {
+  const create = (texts: Iterable<string>) => buildPreviewText({ texts, fallback, ...options });
+  if (cache) return cache.preview(rows, fallback, options, create);
+  function* texts() {
+    for (const row of rows) yield row.text;
+  }
+  return create(texts());
 }
 
 function buildAssistantPreview(
   unit: ConversationTurnRenderUnit,
   options: Required<BuildConversationTurnNavigatorItemsOptions>,
+  cache?: ConversationTurnNavigatorCache,
 ): {
   assistantPreview: string;
   assistantPreviewKind: ConversationTurnNavigatorAssistantPreviewKind;
 } {
   if (unit.assistantTextRows.length > 0) {
     return {
-      assistantPreview: buildPreviewText({
-        texts: unit.assistantTextRows.map((row) => row.text),
-        fallback: options.assistantEmptyPreview,
-        maxPreviewChars: options.maxPreviewChars,
-        maxPreviewParagraphs: options.maxPreviewParagraphs,
-      }),
+      assistantPreview: buildRowsPreview(
+        unit.assistantTextRows,
+        options.assistantEmptyPreview,
+        options,
+        cache,
+      ),
       assistantPreviewKind: "text",
     };
   }
@@ -180,7 +225,7 @@ export function buildConversationTurnNavigatorItems(
   };
 
   return units.flatMap((unit, unitIndex) => {
-    const build = () => buildUnitNavigatorItems(unit, unitIndex, resolvedOptions);
+    const build = () => buildUnitNavigatorItems(unit, unitIndex, resolvedOptions, cache);
     return cache?.materialize(unit, unitIndex, resolvedOptions, build) ?? build();
   });
 }
@@ -189,6 +234,7 @@ function buildUnitNavigatorItems(
   unit: ConversationTurnRenderUnit,
   unitIndex: number,
   resolvedOptions: Required<BuildConversationTurnNavigatorItemsOptions>,
+  cache?: ConversationTurnNavigatorCache,
 ): ConversationTurnNavigatorItem[] {
   // provider/store 的物理 role=user 还包含 background/goal/mailbox
   // 等系统上下文；目录代表用户主动 query，只能使用投影明确裁决的 realUser。
@@ -199,7 +245,11 @@ function buildUnitNavigatorItems(
 
   // 导航项按 query 拆分，但 hover 的 assistant 摘要保持旧产品语义：
   // 取所属 product turn 的文本结果，不在 renderer 猜测 guide 回复分段。
-  const { assistantPreview, assistantPreviewKind } = buildAssistantPreview(unit, resolvedOptions);
+  const { assistantPreview, assistantPreviewKind } = buildAssistantPreview(
+    unit,
+    resolvedOptions,
+    cache,
+  );
   return realUserInputs.map((row, queryIndex) => ({
     // 不能以 product turn 为目录粒度，并把同一 turn 的 steer query
     // 全部拼进一个 preview。目录真正导航的是用户可见 query，必须用稳定 row
@@ -208,12 +258,12 @@ function buildUnitNavigatorItems(
     turnId: unit.turnId,
     unitIndex,
     rowId: row.rowId,
-    userPreview: buildPreviewText({
-      texts: [row.text],
-      fallback: resolvedOptions.userFallbackPreview,
-      maxPreviewChars: resolvedOptions.maxPreviewChars,
-      maxPreviewParagraphs: resolvedOptions.maxPreviewParagraphs,
-    }),
+    userPreview: buildRowsPreview(
+      [row],
+      resolvedOptions.userFallbackPreview,
+      resolvedOptions,
+      cache,
+    ),
     assistantPreview,
     assistantPreviewKind,
     // 同一 running product turn 可能已有多个已结束 guide segment；只有最后一条

@@ -33,6 +33,38 @@ sequenceDiagram
 - 用真实 Store 初始快照与 online 帧验证行共享、尾行更新、未知行 no-op、rewind 后追加；对 10000 行窗口计数 rowId 读取，定位随对数增长，不再全窗扫描。
 - 执行会话目标测试与浏览器导航回归；根 typecheck/lint/架构由主工作项统一执行。无提交、推送或构建。
 
+## 上游导航摘要增量（d988d893）
+
+### 产品规则、接口与唯一所有者
+
+- 只更新 `conversationTurnNavigatorHelpers.ts` 与既有 `ConversationTurnNavigatorCache`，不修改 Timeline、回合 render cache、协议、目录服务或 i18n。`3a96acf3` 的整套回合缓存不吸收：fork 已按完整行引用、header、phase、位置与插件裁决失效，实时秒计时继续使用既有 live anchor。
+- 保留 `buildConversationTurnNavigatorItems(units, options, cache?)` 接口、每个 realUser query 一个目录项、同 turn 共用助手摘要、仅最后 query 强调 running，以及 entityId/rowId 导航目标。synthetic/timelineOnly 不生成目录项。
+- 摘要严格等价于旧 `join("\n\n") → trim → 段落 split → 空白归一 → filter → slice → join("\n") → UTF-16 truncate`。文字、Markdown 围栏、Unicode 空白、跨行逻辑分隔符、末尾空白、空文本 fallback、NaN/Infinity/小数选项均不改变；有助手空白行时 kind 仍为 text，不切换为 running。
+- 扫描器按需读取正文，只消费能够确定字符截断或段落上限的前缀；尚未遇到后续非空白字符前，不提交待定空白或宣称发生截断。连续长空白和无穷字符上限仍可能需要读完整正文，不能宣称所有输入都有常数上界。
+- 既有 Navigator 实例仍是唯一派生缓存 owner。原 unit 弱键 item cache 保留；同一 owner 增加按首个不可变 body row 弱键保存的摘要，记录实际消费的行引用前缀及是否耗尽来源。没有第二个 PreviewCache、turnId 强引用 Map 或跨会话事实缓存。
+- 新 unit/新 body 数组若消费前缀的引用和摘要选项未变，直接复用正文摘要；耗尽来源的摘要必须校验行数，追加内容要重算。已在前缀确定的摘要无需读取／比较无关尾行。用户行、有效前缀替换／重排、locale/fallback 或长度／段数变化均失效。weak key 不延长已关闭会话或移除行的寿命。
+- 缓存丢失仅重算，输入和既有输出不修改。助手 kind、running 状态、query 位置与索引仍从本次 unit 生成，不由 body cache 保存或裁决。
+
+```mermaid
+sequenceDiagram
+    participant Owner as 既有 Runtime/投影事实 owner
+    participant Unit as 既有 render unit/cache
+    participant Nav as Navigator 唯一派生缓存 owner
+    Owner-->>Unit: 不可变 rows / 既有状态与时钟锚点
+    Unit-->>Nav: 当前 unit、body 行引用、选项
+    Nav->>Nav: unit 命中直接复用 items
+    Nav->>Nav: 否则只校验已消费 body 前缀；未命中按需扫描
+    Nav-->>Nav: 当前 query 目标、索引、kind/running + 等价摘要
+```
+
+### 先测试后实现的验收
+
+1. 用独立旧算法 oracle 对照完整 items，覆盖 UTF-16/围栏/Unicode 空白/逻辑行边界、非常规数值选项、guide、synthetic、empty/running/text 与冻结输入。
+2. 长正文首行已足够时，后续 assistant.text guard getter 不得访问；计数实际字符读取及全文 split/replace 工作，不使用毫秒阈值。
+3. 重建 unit／数组、仅修改无关尾部正文或仅推进 live clock 时，已缓存用户与助手前缀 getter 读取为 0；通过数组索引 Proxy 证明命中校验随已消费前缀而非整个 body 行数增长。
+4. 有效前缀替换／重排、完整来源后追加、状态变化、语言／选项变化、分页／删除／同 ID 新会话及不同缓存实例保持旧算法结果。
+5. 执行真实 UI Vitest 配置下的目标测试、相关导航与回合计时回归，以及根 typecheck/lint/架构检查。纯计算等价优化不改变交互，不新增或移植 E2E/CI/基准脚本；不宣称 Electron 整机加速。
+
 ## 第一轮 review
 
 目录 review 确认两处相邻的失效问题，纳入第三项修复：

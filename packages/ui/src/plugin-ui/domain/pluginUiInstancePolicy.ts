@@ -56,6 +56,10 @@ export function deriveLogicalUiInstances(
   rows: readonly ConversationRow[],
   options: { autoExpandTurns?: number } = {},
 ): PluginUiInstanceDerivation {
+  const pluginRows = rows.filter(isPluginUiToolRow);
+  // 普通流式正文也会触发派生；没有候选插件时回合目录无用途，先返回避免读全量 turnId。
+  if (pluginRows.length === 0) return { instances: [], byToolCallId: {} };
+
   // 流式更新会重复派生全部历史；用调用内成员索引避免逐行 includes 回扫已见回合。
   const seenTurns: Record<string, true | undefined> = Object.create(null);
   const turnOrder: string[] = [];
@@ -70,8 +74,7 @@ export function deriveLogicalUiInstances(
   for (const turnId of recentTurns) recentTurnIds[turnId] = true;
   const groupKeys: string[] = [];
   const groups: Record<string, ToolCallRow[]> = {};
-  for (const row of rows) {
-    if (!isPluginUiToolRow(row)) continue;
+  for (const row of pluginRows) {
     const display = row.display;
     if (display?.kind !== "mcp_tool" || !display.ui) continue;
     const logical = resolvePluginUiLogicalScope(display.ui, {

@@ -90,6 +90,49 @@ function countMembershipReads(derive: () => PluginUiInstanceDerivation) {
 }
 
 describe("plugin UI instance derivation work", () => {
+  it("skips turn directories and body reads entirely when no plugin candidate exists", () => {
+    let kindReads = 0;
+    let displayReads = 0;
+    const rows = Array.from({ length: 2_000 }, (_, index) => {
+      const base = textRow(index);
+      return {
+        ...base,
+        get kind() {
+          kindReads++;
+          return index % 2 ? ("assistantText" as const) : ("toolCall" as const);
+        },
+        get display() {
+          displayReads++;
+          return undefined;
+        },
+        get turnId() {
+          throw new Error("no-plugin turn directory is unnecessary");
+        },
+        get text() {
+          throw new Error("plugin policy must not inspect body");
+        },
+      } as ConversationRow;
+    });
+    const result = deriveLogicalUiInstances(rows);
+    expect(result).toEqual({ instances: [], byToolCallId: {} });
+    expect(kindReads).toBe(rows.length);
+    expect(displayReads).toBe(rows.length / 2);
+    expect(deriveLogicalUiInstances([])).not.toBe(result);
+  });
+
+  it("only groups plugin candidates while all ordinary turns still control auto-expand", () => {
+    let kindReads = 0;
+    const ordinary = Array.from({ length: 2_000 }, (_, index) => ({
+      ...textRow(index + 2),
+      get kind() {
+        kindReads++;
+        return "assistantText" as const;
+      },
+    }));
+    const result = deriveLogicalUiInstances([toolRow(1, { turnId: "old" }), ...ordinary]);
+    expect(result.byToolCallId["round10:call-1"]?.autoExpand).toBe(false);
+    expect(kindReads).toBe(ordinary.length);
+  });
   it("does not repeatedly scan prior turns in a long conversation without plugin cards", () => {
     const rows = Array.from({ length: 2_000 }, (_, index) => textRow(index));
     const measured = countMembershipReads(() => deriveLogicalUiInstances(rows));
