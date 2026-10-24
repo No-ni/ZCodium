@@ -390,7 +390,76 @@ nodes:
     codeSeeds:
       - file: apps/zcode-cli/packages/core/src/runtime/methods/turn-model.ts
         symbol: applySubmissionExecutionState
+  - id: capability.personal-coding-plan-quota
+    kind: capability
+    label: Personal Coding Plan remaining quota
+    aliases: [个人套餐额度, Coding Plan quota, remaining quota]
+    codeSeeds:
+      - file: packages/services/src/usage-stats/usageStatsService.ts
+        symbol: createUsageStatsService
+      - file: packages/ui/src/hooks/useCodingPlanQuota.ts
+        symbol: useCodingPlanQuota
+    invariants:
+      - The Host owns credentials and issues opaque context IDs; no credential enters quota RPC payloads.
+      - Changing credentials or Host invalidates the prior snapshot and late requests.
+      - Queries do not poll or persist quota and do not replace local usage statistics.
+  - id: surface.personal-coding-plan-quota
+    kind: ui-surface
+    label: Usage settings personal quota panel
+    codeSeeds:
+      - file: packages/ui/src/settings/usage-stats/CodingPlanQuotaPanel.tsx
+        symbol: CodingPlanQuotaPanel
+  - id: capability.native-gemini-provider
+    kind: capability
+    label: Native Gemini provider and model catalog
+    aliases: [Gemini 原生, google-generative-ai, Google native protocol]
+    codeSeeds:
+      - file: packages/services/src/model-provider/providerModelCatalog.ts
+        symbol: fetchProviderModelCatalog
+      - file: packages/ui/src/settings/model-provider-section/providerModelCatalogSelection.ts
+        symbol: withCatalogMetadata
+    invariants:
+      - Explicit catalog token limits use the existing personal model save path; manual overrides remain authoritative.
+      - Tool thought signatures stay attached to their tool call through existing history and persistence.
+      - OpenCode preset limits apply only to the exact OpenCode native endpoints.
+  - id: surface.remote-control-dialog
+    kind: ui-surface
+    label: Responsive QR and Bot remote-control dialog
+    aliases: [远控弹窗, 双栏, remote control dialog]
+    codeSeeds:
+      - file: packages/ui/src/WebRemoteControlDialog.tsx
+        symbol: WebRemoteControlDialog
+    invariants:
+      - The dialog owns only presentation and Bot entry drafts, not task synchronization or attachment state.
+      - Desktop continuous and mobile replayable delivery retain their existing owners.
+      - Header remains outside the body ScrollArea; opening Bot settings closes the outer dialog.
+  - id: capability.terminal-local-quit
+    kind: capability
+    label: Local terminal graceful quit
+    aliases: [/quit, 终端退出, graceful terminal exit]
+    codeSeeds:
+      - file: apps/zcode-cli/packages/tui/src/app-quit.ts
+        symbol: useLocalQuit
+    invariants:
+      - Local quit is intercepted before business admission and never clears accepted runtime commands.
+      - Exit sets a terminal local state before cancellation and approval rejection.
 edges:
+  - from: capability.personal-coding-plan-quota
+    to: surface.personal-coding-plan-quota
+    type: renders-in
+    rank: must-inspect
+  - from: surface.remote-control-dialog
+    to: boundary.desktop-continuous
+    type: preserves-delivery
+    rank: invariant-only
+  - from: surface.remote-control-dialog
+    to: boundary.web-remote-replayable
+    type: preserves-delivery
+    rank: invariant-only
+  - from: capability.terminal-local-quit
+    to: service.conversation-command-inbox
+    type: bypasses-business-admission
+    rank: invariant-only
   - from: capability.task-auto-archive
     to: state.task-archive-index
     type: commits-archive-membership
