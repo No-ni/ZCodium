@@ -73,6 +73,7 @@ export async function createWebRemoteControl(
     logger,
     resolveWindowId,
     resolveWindow,
+    resolveHostProcess: options.resolveHostProcess,
   });
 
   async function handlePlatformRequest(

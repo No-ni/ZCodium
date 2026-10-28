@@ -7,6 +7,7 @@ export {
   type ModelSelectionView,
   type ModelSelectionViewInput,
   type ListProviderModelsInput,
+  type ProviderModelCatalogMetadata,
   type ProviderModelCatalogResult,
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
@@ -18,6 +19,7 @@ export {
   registerMemoryDiagnosticsProvider,
 } from "./memoryDiagnostics.js";
 
+export { ISourceServerManagementService } from "./source-server-management/sourceServerManagement.js";
 // Accessor
 export type { IServiceAccessor } from "./accessor.js";
 export {
@@ -117,6 +119,13 @@ export type {
 export type { ZCodeTaskListItem } from "./session/zcodeTaskListTypes.js";
 
 export { IWindowControllerService } from "./window-controller/windowController.js";
+export {
+  IWindowProjectService,
+  IWindowRemoteProjectService,
+  IWindowProjectChangesService,
+  createWindowProjectDirectoryRuntime,
+} from "./window-project-directory/index.js";
+export type { WindowProjectDirectoryServices } from "./window-project-directory/contract.js";
 export type {
   WindowHostControllerFrame,
   WindowHostControllerMutation,
@@ -215,6 +224,7 @@ export { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 
 // UsageStats service — IUsageStatsService is both a type (interface) and value (descriptor)
 export { IUsageStatsService } from "./usage-stats/usageStats.js";
+export type { CodingPlanQuotaContext, CodingPlanQuotaSnapshot } from "./usage-stats/usageStats.js";
 
 // Storage（资源管理器「存储」tab）：数据类型在 @zcode/shared；这里只导出服务接口与卷分组纯函数
 export type { IStorageService } from "./storage/contract.js";

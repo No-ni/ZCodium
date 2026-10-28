@@ -1,3 +1,4 @@
+import type { ToolSearchExecutionContext } from "@zcode/contracts";
 import { createPartId, traceContextToLogContext, TurnMachineImpl } from "../deps.js";
 import type {
   MessageId,
@@ -46,6 +47,7 @@ export async function executeToolCallsForModelStep(
     result: RuntimeModelTextResult;
     streamedToolResults?: StreamedToolExecutionResult[];
     toolCalls: ModelToolCall[];
+    toolSearch?: ToolSearchExecutionContext;
   },
 ): Promise<"continue" | "break"> {
   const model = state.model;
@@ -53,12 +55,14 @@ export async function executeToolCallsForModelStep(
     throw new Error("Model-backed tool execution requires the loop Model");
   }
   const modelSelection = { providerId: model.providerId, modelId: model.modelId };
+  const modelToolCallById = new Map(options.toolCalls.map((call) => [call.id, call]));
   const coreToolCalls: ToolCall[] = options.toolCalls.map((tc) => ({
     id: tc.id as ToolCallId,
     // Model step admission 已完成类型/ID 校验；这里保留可恢复的原始空白名称，
     // 让 executor 强制走 registry miss，而不是把 storage 占位值当成真实工具。
     name: tc.name,
     input: tc.input,
+    ...(tc.modelCallWrapper ? { modelCallWrapper: tc.modelCallWrapper } : {}),
   }));
   const streamedResultsById = new Map(
     (options.streamedToolResults ?? []).map((entry) => [entry.toolCallId, entry]),
@@ -89,6 +93,7 @@ export async function executeToolCallsForModelStep(
           input: streamed.input,
           partID: streamed.partID,
           toolCall,
+          providerOptions: modelToolCallById.get(toolCall.id)?.providerOptions,
           traceContext: options.modelTraceContext,
           model,
           metadata: mcpToolPartMetadata(this.registry.getMetadata(toolCall.name)?.mcpPresentation),
@@ -123,6 +128,7 @@ export async function executeToolCallsForModelStep(
       input: normalizedInput,
       partID,
       toolCall,
+      providerOptions: modelToolCallById.get(toolCall.id)?.providerOptions,
       traceContext: options.modelTraceContext,
       model,
       metadata: mcpToolPartMetadata(this.registry.getMetadata(toolCall.name)?.mcpPresentation),
@@ -175,6 +181,7 @@ export async function executeToolCallsForModelStep(
     });
     const execution = await this.executeTools(pendingToolCalls, pendingSchedule, {
       automationTurn: isAutomationMutationRestrictedTurn(state),
+      toolSearch: options.toolSearch,
       signal: state.turnAbortSignal,
       traceContext: options.modelTraceContext,
       subagentModelOverride: state.subagentModelOverride,
@@ -199,7 +206,15 @@ export async function executeToolCallsForModelStep(
               callID: toolCall.id,
               declarationIndex: persisted.declarationIndex,
               tool: projectedToolName.toolName,
-              metadata: projectedToolName.metadata,
+              metadata: {
+                ...projectedToolName.metadata,
+                ...(toolCall.modelCallWrapper
+                  ? { modelCallWrapper: toolCall.modelCallWrapper }
+                  : {}),
+                ...(modelToolCallById.get(toolCall.id)?.providerOptions
+                  ? { providerOptions: modelToolCallById.get(toolCall.id)!.providerOptions }
+                  : {}),
+              },
               state: {
                 status: "running",
                 input: persisted.input,
@@ -303,7 +318,15 @@ export async function executeToolCallsForModelStep(
           callID: result.toolCallId,
           declarationIndex: persisted.declarationIndex,
           tool: projectedResultToolName.toolName,
-          metadata: projectedResultToolName.metadata,
+          metadata: {
+            ...projectedResultToolName.metadata,
+            ...(modelToolCallById.get(result.toolCallId)?.modelCallWrapper
+              ? { modelCallWrapper: modelToolCallById.get(result.toolCallId)!.modelCallWrapper }
+              : {}),
+            ...(modelToolCallById.get(result.toolCallId)?.providerOptions
+              ? { providerOptions: modelToolCallById.get(result.toolCallId)!.providerOptions }
+              : {}),
+          },
           state: result.success
             ? {
                 status: "completed",

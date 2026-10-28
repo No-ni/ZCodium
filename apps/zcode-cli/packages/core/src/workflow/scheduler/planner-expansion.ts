@@ -5,6 +5,7 @@ import {
   type WorkflowGraphPlannerNode,
   type WorkflowRunSnapshot,
 } from "@zcode/contracts";
+import { createWorkflowEdgeCycleCheck } from "../edge-cycle-check.js";
 import {
   collectionFrontier,
   collectionNodeIdsForGraph,
@@ -131,7 +132,8 @@ function validateNewEdges(
     ...addedNodes.map((node) => node.id),
   ]);
   const existingEdgeIds = new Set(graph.edges.map(edgeId));
-  const pendingEdges = [...graph.edges];
+  // 逐边重建邻接表会重复扫描整图；调用内仅纳入已通过校验的边，保留首错顺序。
+  let cycleCheck: ReturnType<typeof createWorkflowEdgeCycleCheck> | undefined;
   for (const edge of addedEdges) {
     if (edge.from === edge.to) {
       throw new Error(`Planner returned a self-loop edge: ${edge.from} -> ${edge.to}`);
@@ -146,33 +148,11 @@ function validateNewEdges(
     if (existingEdgeIds.has(id)) {
       throw new Error(`Planner returned duplicate workflow edge: ${id}`);
     }
-    if (wouldFormCycle(pendingEdges, edge)) {
+    cycleCheck ??= createWorkflowEdgeCycleCheck(graph.edges);
+    if (cycleCheck.wouldFormCycle(edge)) {
       throw new Error(`Planner returned an edge that would create a cycle: ${id}`);
     }
     existingEdgeIds.add(id);
-    pendingEdges.push(edge);
+    cycleCheck.accept(edge);
   }
-}
-
-function wouldFormCycle(
-  edges: readonly WorkflowGraphRecordEdge[],
-  newEdge: WorkflowGraphRecordEdge,
-): boolean {
-  const outgoing = new Map<string, string[]>();
-  for (const edge of edges) {
-    const list = outgoing.get(edge.from) ?? [];
-    list.push(edge.to);
-    outgoing.set(edge.from, list);
-  }
-
-  const visited = new Set<string>();
-  const queue: string[] = [newEdge.to];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (current === newEdge.from) return true;
-    if (visited.has(current)) continue;
-    visited.add(current);
-    queue.push(...(outgoing.get(current) ?? []));
-  }
-  return false;
 }

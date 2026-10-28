@@ -175,6 +175,156 @@ afterEach(() => {
 });
 
 describe("MobileRemoteControlClient fake WebSocket", () => {
+  it("window directory capability uses the pre-open RPC reader and preserves early Initialize", async () => {
+    const { c, socket } = client();
+    let finished = false;
+    const opening = c.ensureWorkspaceBridge(access).then(() => {
+      finished = true;
+    });
+    await flush();
+    const open = socket.opens()[0]!;
+    const source = host(socket, open.bridgeSessionId);
+    source.send([INITIALIZE]);
+    socket.receive({
+      zcode_type: "workspace-bridge-ready",
+      requestId: open.requestId,
+      bridgeSessionId: open.bridgeSessionId,
+      bridge: {
+        bridgeSessionId: open.bridgeSessionId,
+        workspaceKey: open.workspaceKey,
+        workspacePath: "/workspace",
+        kind: "local",
+        entryKind: "task",
+        capabilities: { windowProjectDirectory: { version: 1 } },
+      },
+    });
+    await flush();
+    expect(finished).toBe(false);
+    const capability = requests(socket, open.bridgeSessionId).find(
+      (request) =>
+        request.header[2] === "window-project-changes" && request.header[3] === "getCapabilities",
+    );
+    expect(capability).toBeDefined();
+    source.send([SUCCESS, Number(capability!.header[1])], { version: 1 });
+    await opening;
+    const reading = c.readWindowProjectDirectory(access);
+    await flush();
+    const read = requests(socket, open.bridgeSessionId).find(
+      (request) => request.header[2] === "window-project" && request.header[3] === "readDirectory",
+    );
+    expect(read?.seq).toBeGreaterThan(capability!.seq);
+    const directory = {
+      version: 1,
+      generation: 4,
+      workspaces: [{ workspaceKey: "/workspace", workspacePath: "/workspace", kind: "local" }],
+    };
+    source.send([SUCCESS, Number(read!.header[1])], directory);
+    expect(await reading).toEqual(directory);
+  });
+
+  it("an advertised but missing window directory fails bridge readiness instead of falling back", async () => {
+    const { c, socket } = client();
+    const opening = c.ensureWorkspaceBridge(access).catch((error: Error) => error.message);
+    await flush();
+    const open = socket.opens()[0]!;
+    const source = host(socket, open.bridgeSessionId);
+    source.send([INITIALIZE]);
+    socket.receive({
+      zcode_type: "workspace-bridge-ready",
+      requestId: open.requestId,
+      bridgeSessionId: open.bridgeSessionId,
+      bridge: {
+        bridgeSessionId: open.bridgeSessionId,
+        workspaceKey: open.workspaceKey,
+        workspacePath: "/workspace",
+        kind: "local",
+        entryKind: "task",
+        capabilities: { windowProjectDirectory: { version: 1 } },
+      },
+    });
+    await flush();
+    const capability = requests(socket, open.bridgeSessionId).find(
+      (request) => request.header[2] === "window-project-changes",
+    );
+    expect(capability).toBeDefined();
+    source.send([202, Number(capability!.header[1])], {
+      name: "Error",
+      message: "Unknown channel",
+      stack: [],
+    });
+    expect(await opening).toEqual(expect.any(String));
+    expect(
+      requests(socket, open.bridgeSessionId).some((request) => request.header[2] === "setting"),
+    ).toBe(false);
+  });
+
+  it("unsupported window directory versions fail before any directory RPC", async () => {
+    const { c, socket } = client();
+    const opening = c.ensureWorkspaceBridge(access).catch((error: Error) => error.message);
+    await flush();
+    const open = socket.opens()[0]!;
+    socket.receive({
+      zcode_type: "workspace-bridge-ready",
+      requestId: open.requestId,
+      bridgeSessionId: open.bridgeSessionId,
+      bridge: {
+        bridgeSessionId: open.bridgeSessionId,
+        workspaceKey: open.workspaceKey,
+        workspacePath: "/workspace",
+        kind: "local",
+        entryKind: "task",
+        capabilities: { windowProjectDirectory: { version: 2 } },
+      },
+    });
+    expect(await opening).toMatch(/directory|capability/i);
+    expect(requests(socket, open.bridgeSessionId)).toEqual([]);
+  });
+
+  it("legacy Hosts leave optional window directory absent", async () => {
+    const { c, socket } = client();
+    const opening = c.ensureWorkspaceBridge(access);
+    await flush();
+    socket.ready(socket.opens()[0]!);
+    await opening;
+    expect(await c.readWindowProjectDirectory(access)).toBeNull();
+  });
+
+  it("changing bridge during a directory capability request rejects the old generation", async () => {
+    const { c, socket } = client();
+    const first = c.ensureWorkspaceBridge(access).catch((error: Error) => error.message);
+    await flush();
+    const open = socket.opens()[0]!;
+    const source = host(socket, open.bridgeSessionId);
+    source.send([INITIALIZE]);
+    socket.receive({
+      zcode_type: "workspace-bridge-ready",
+      requestId: open.requestId,
+      bridgeSessionId: open.bridgeSessionId,
+      bridge: {
+        bridgeSessionId: open.bridgeSessionId,
+        workspaceKey: open.workspaceKey,
+        workspacePath: "/workspace",
+        kind: "local",
+        entryKind: "task",
+        capabilities: { windowProjectDirectory: { version: 1 } },
+      },
+    });
+    await flush();
+    const capability = requests(socket, open.bridgeSessionId).find(
+      (request) => request.header[2] === "window-project-changes",
+    );
+    expect(capability).toBeDefined();
+    const second = c.ensureWorkspaceBridge({ workspaceKey: "B" });
+    await flush();
+    expect(await first).toEqual(expect.any(String));
+    const nextOpen = socket.opens().at(-1)!;
+    expect(nextOpen.workspaceKey).toBe("B");
+    source.send([SUCCESS, Number(capability!.header[1])], { version: 1 });
+    socket.ready(nextOpen);
+    await second;
+    expect(await c.readWindowProjectDirectory({ workspaceKey: "B" })).toBeNull();
+  });
+
   it("损坏的 wire 和应用载荷不进入 UI，后续有效请求仍能完成", async () => {
     const { c, socket, onPayload } = client();
     const request = c.request({ zcode_type: "workspace-list-request", requestId: "valid-request" });
@@ -926,7 +1076,7 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
       zcode_type: "rpc-frame",
       frame: { streamId: open.bridgeSessionId, kind: "ack", seq: 1, ackSeq: 1 },
     });
-    expect(acknowledge).toHaveBeenCalledExactlyOnceWith(1);
+    expect(acknowledge).toHaveBeenCalledExactlyOnceWith(1, false);
     await vi.advanceTimersByTimeAsync(10);
     expect(
       socket.sent.filter((p) => p.zcode_type === "rpc-frame" && p.frame.kind === "ack"),

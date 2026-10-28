@@ -95,7 +95,10 @@ interface DraftConfigControl {
     expectedSelection?: ModelSelection,
   ) => () => void;
   handleDraftSelectModel: (modelProvider: string, model: string) => void;
-  handleDraftSelectThought: (thought: string) => void;
+  handleDraftSelectThought: (
+    thought: string,
+    modelContext: { provider: string; model: string },
+  ) => void;
   handleDraftSwitchMode: (mode: string) => void;
 }
 
@@ -150,6 +153,8 @@ export function useDraftConfigControl(params: {
   );
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
+  const modelSelectionViewRef = useRef(modelSelectionView);
+  modelSelectionViewRef.current = modelSelectionView;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
   if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null : sessionConfig != null)) {
     const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
@@ -430,31 +435,35 @@ export function useDraftConfigControl(params: {
   );
 
   const handleDraftSelectThought = useCallback(
-    (thought: string) => {
-      updateDraftConfig((current) => {
-        const providerId = current.modelSelection?.providerId ?? current.provider?.trim();
-        const modelId = current.modelSelection?.modelId ?? current.model?.trim();
-        if (!providerId || !modelId) return { ...current, thought };
-        const reasoningLevel = thought.trim();
-        return {
-          ...current,
-          modelSelection: {
-            providerId,
-            modelId,
-            ...(reasoningLevel
-              ? {
-                  options: {
-                    ...current.modelSelection?.options,
-                    reasoningLevel,
-                  },
-                }
-              : {}),
-          },
-          thought,
-        };
-      });
+    (thought: string, modelContext: { provider: string; model: string }) => {
+      const reasoningLevel = thought.trim();
+      const view = modelSelectionViewRef.current;
+      const selection = draftConfigRef.current.modelSelection;
+      // 旧菜单事件曾把 A 的档位写到 B；只允许当前 scope、模型和最新 ready 能力共同接纳。
+      if (
+        !view ||
+        !reasoningLevel ||
+        stateRef.current.scopeKey !== scopeKey ||
+        !selection ||
+        selection.providerId !== modelContext.provider ||
+        selection.modelId !== modelContext.model ||
+        selection.options?.reasoningLevel === reasoningLevel
+      )
+        return;
+      const model = view.providers
+        .find((candidate) => candidate.providerId === selection.providerId)
+        ?.models.find((candidate) => candidate.modelId === selection.modelId);
+      if (!model?.config.optionSpecs.reasoningLevel?.values.includes(reasoningLevel)) return;
+      updateDraftConfig((current) => ({
+        ...current,
+        modelSelection: {
+          ...selection,
+          options: { ...selection.options, reasoningLevel },
+        },
+        thought: reasoningLevel,
+      }));
     },
-    [updateDraftConfig],
+    [scopeKey, updateDraftConfig],
   );
 
   const handleDraftSwitchMode = useCallback(

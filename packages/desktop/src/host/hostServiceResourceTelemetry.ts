@@ -15,6 +15,11 @@ interface RegisterHostServiceResourceTelemetryOptions {
   telemetrySupported?: boolean;
   /** Host 已哈希的运行环境身份，仅透传给 main 的资源分组，不进入 ARMS。 */
   environmentKey?: string;
+  /**
+   * 是否启动周期资源采样（Agent/MCP 资源样本、Bash 慢命令、MCP 生命周期遥测）。
+   * SafeDiagnostic 转发不受此开关影响；默认 true 保持显式调用方原有行为。
+   */
+  resourceSamplingEnabled?: boolean;
   onError?(error: unknown): void;
 }
 
@@ -57,41 +62,44 @@ export function registerHostServiceResourceTelemetry(
   }
   const registrations: IDisposable[] = [];
   try {
+    // 安全诊断只是本地日志转发，不属于资源采样；即使采样关闭也必须保留。
     registrations.push(
       agentService.onDynamicDiagnostic()((record) =>
         options.postMessage({ type: HostResponseTypes.SafeDiagnostic, record }),
       ),
     );
-    registrations.push(
-      registerHostAgentResourceTelemetry({
-        agentService,
-        postMessage: options.postMessage,
-        runtimeSurface: options.runtimeSurface,
-        environmentKey: options.environmentKey,
-      }),
-    );
-    registrations.push(
-      registerHostMcpTelemetry({
-        agentService,
-        postMessage: options.postMessage,
-        runtimeSurface: options.runtimeSurface,
-      }),
-    );
-    registrations.push(
-      registerHostMcpResourceTelemetry({
-        agentService,
-        postMessage: options.postMessage,
-        runtimeSurface: options.runtimeSurface,
-        environmentKey: options.environmentKey,
-      }),
-    );
-    registrations.push(
-      registerHostToolExecResourceTelemetry({
-        agentService,
-        postMessage: options.postMessage,
-        runtimeSurface: options.runtimeSurface,
-      }),
-    );
+    if (options.resourceSamplingEnabled !== false) {
+      registrations.push(
+        registerHostAgentResourceTelemetry({
+          agentService,
+          postMessage: options.postMessage,
+          runtimeSurface: options.runtimeSurface,
+          environmentKey: options.environmentKey,
+        }),
+      );
+      registrations.push(
+        registerHostMcpTelemetry({
+          agentService,
+          postMessage: options.postMessage,
+          runtimeSurface: options.runtimeSurface,
+        }),
+      );
+      registrations.push(
+        registerHostMcpResourceTelemetry({
+          agentService,
+          postMessage: options.postMessage,
+          runtimeSurface: options.runtimeSurface,
+          environmentKey: options.environmentKey,
+        }),
+      );
+      registrations.push(
+        registerHostToolExecResourceTelemetry({
+          agentService,
+          postMessage: options.postMessage,
+          runtimeSurface: options.runtimeSurface,
+        }),
+      );
+    }
   } catch (error) {
     // 遥测订阅失败不能改变 Host 服务初始化或远程连接结果，也不能留下半条链路。
     disposeAll(registrations);

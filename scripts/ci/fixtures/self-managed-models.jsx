@@ -33,7 +33,7 @@ const account = {
 };
 let revision = 1;
 const providers = [account];
-if (params.get("mode") === "legacy-api") {
+if (params.get("mode") === "legacy-api" || params.get("mode") === "native-catalog") {
   const config = {
     ...structuredClone(template.config),
     group: "zai-family",
@@ -64,6 +64,9 @@ window.modelFixture = {
   deleteCount: 0,
   tests: [],
   draftSaves: [],
+  additions: [],
+  catalogRequests: [],
+  nativeCatalogFailure: false,
   failRefresh: false,
   holdCreate: false,
 };
@@ -146,12 +149,20 @@ const service = {
     );
     return view();
   },
-  async resolveModelConfig() {
+  async resolveModelConfig(input) {
     fixture.calls.push("resolveModelConfig");
-    return { inheritedConfig: modelDefaults, effectiveConfig: modelDefaults, issues: [] };
+    const model = providers
+      .find((provider) => provider.providerId === input.providerId)
+      ?.models.find((model) => model.modelId === input.modelId);
+    return {
+      inheritedConfig: modelDefaults,
+      effectiveConfig: model?.effectiveConfig ?? modelDefaults,
+      issues: [],
+    };
   },
   async addPersonalModel(id, modelId, config) {
     fixture.calls.push("addPersonalModel");
+    fixture.additions.push(structuredClone({ providerId: id, modelId, config }));
     const provider = providers.find((p) => p.providerId === id);
     provider.models.push({
       kind: "candidate",
@@ -189,6 +200,26 @@ const service = {
   },
   async listProviderModels(input) {
     fixture.calls.push(["listProviderModels", input]);
+    const apiType = providers.find((provider) => provider.providerId === input.providerId)
+      ?.effectiveConfig.api?.type;
+    fixture.catalogRequests.push(structuredClone({ input, apiType }));
+    if (apiType === "google-generative-ai") {
+      if (fixture.nativeCatalogFailure)
+        return { success: false, error: { code: "request-failed", message: "request failed" } };
+      return {
+        success: true,
+        source: "primary",
+        modelIds: ["gemini-fixture-with-limits", "gemini-fixture-without-limits"],
+        metadata: {
+          "gemini-fixture-with-limits": {
+            contextWindow: 1048576,
+            maxOutputTokens: 65536,
+            displayName: "Fixture Gemini",
+            supportedGenerationMethods: ["generateContent", "countTokens"],
+          },
+        },
+      };
+    }
     return { success: true, modelIds: ["fixture-model", "catalog-model"], source: "primary" };
   },
 };

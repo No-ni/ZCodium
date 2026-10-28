@@ -32,7 +32,8 @@ test("SSH 信任记录与 Main/Host MCP 迁移回归", async (t) => {
     { cwd: root, env, timeout: 60_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
   );
   // CI 的 vitest 输出带 ANSI 颜色码（本地 NO_COLOR/TERM=dumb 时不带），
-  // 直接匹配「Tests 42 passed」会只在 CI 上误报失败；先剥离控制序列再断言。
-  assert.match(stripVTControlCharacters(result.stdout), /Tests\s+42 passed/);
-  t.diagnostic("42 tests executed");
+  // 先剥离控制序列；精确条数会因新增回归误报，保留最低覆盖数并由子进程失败码收口。
+  const tests = Number(/Tests\s+(\d+) passed/.exec(stripVTControlCharacters(result.stdout))?.[1]);
+  assert.ok(tests >= 42, "共享状态回归至少执行原有 42 项测试");
+  t.diagnostic(`${tests} tests executed`);
 });

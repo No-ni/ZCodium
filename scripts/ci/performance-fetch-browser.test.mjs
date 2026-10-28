@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
@@ -11,25 +13,30 @@ test(
   { timeout: 60_000 },
   async () => {
     const root = fileURLToPath(new URL("../../", import.meta.url));
-    const server = await createServer({
-      configFile: false,
-      root,
-      plugins: [react()],
-      resolve: {
-        alias: [
-          {
-            find: "@/hooks/useWorkspaceServices.js",
-            replacement: resolve(root, "packages/ui/test/performance-fetch-services.ts"),
-          },
-          { find: "@", replacement: resolve(root, "packages/ui/src") },
-        ],
-        dedupe: ["react", "react-dom"],
-      },
-      server: { host: "127.0.0.1", port: 0 },
-      logLevel: "error",
-    });
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "zcodium-performance-fetch-"));
+    let server;
     let browser;
     try {
+      server = await createServer({
+        configFile: false,
+        root,
+        // useWorkspaceServices 的夹具 alias 不能污染其他 server 的依赖缓存。
+        cacheDir: join(temporaryRoot, "vite-cache"),
+        optimizeDeps: { entries: [resolve(root, "packages/ui/test/performance-fetch.html")] },
+        plugins: [react()],
+        resolve: {
+          alias: [
+            {
+              find: "@/hooks/useWorkspaceServices.js",
+              replacement: resolve(root, "packages/ui/test/performance-fetch-services.ts"),
+            },
+            { find: "@", replacement: resolve(root, "packages/ui/src") },
+          ],
+          dedupe: ["react", "react-dom"],
+        },
+        server: { host: "127.0.0.1", port: 0 },
+        logLevel: "error",
+      });
       await server.listen();
       browser = await chromium.launch({
         channel: process.platform === "win32" ? "msedge" : "chrome",
@@ -78,8 +85,15 @@ test(
       assert.equal(await page.evaluate(() => window.fileFetchFixture.pending().length), 7);
       assert.deepEqual(errors, []);
     } finally {
-      await browser?.close();
-      await server.close();
+      try {
+        await browser?.close();
+      } finally {
+        try {
+          await server?.close();
+        } finally {
+          await rm(temporaryRoot, { recursive: true, force: true });
+        }
+      }
     }
   },
 );

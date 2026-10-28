@@ -36,21 +36,7 @@ function loadEnvFiles(): Record<string, string> {
   if (process.env.ZCODE_ENV) vars.ZCODE_ENV = process.env.ZCODE_ENV;
   if (process.env.ZCODE_BASE_URL) vars.ZCODE_BASE_URL = process.env.ZCODE_BASE_URL;
   if (process.env.VITE_ZCODE_BASE_URL) vars.VITE_ZCODE_BASE_URL = process.env.VITE_ZCODE_BASE_URL;
-  // OAuth origin/client_id 由 host runtime 读取；这里保留覆盖入口，方便开发构建时观察统一 env 来源。
-  if (process.env.ZAI_OAUTH_CLIENT_ID) vars.ZAI_OAUTH_CLIENT_ID = process.env.ZAI_OAUTH_CLIENT_ID;
-  if (process.env.ZAI_OAUTH_ORIGIN) vars.ZAI_OAUTH_ORIGIN = process.env.ZAI_OAUTH_ORIGIN;
-  if (process.env.ZAI_BUSINESS_BASE_URL) {
-    vars.ZAI_BUSINESS_BASE_URL = process.env.ZAI_BUSINESS_BASE_URL;
-  }
-  if (process.env.ZAI_BUSINESS_LOGIN_URL) {
-    vars.ZAI_BUSINESS_LOGIN_URL = process.env.ZAI_BUSINESS_LOGIN_URL;
-  }
-  if (process.env.VITE_ZAI_OAUTH_CLIENT_ID) {
-    vars.VITE_ZAI_OAUTH_CLIENT_ID = process.env.VITE_ZAI_OAUTH_CLIENT_ID;
-  }
-  if (process.env.VITE_ZAI_OAUTH_ORIGIN) {
-    vars.VITE_ZAI_OAUTH_ORIGIN = process.env.VITE_ZAI_OAUTH_ORIGIN;
-  }
+  // 官方 ZAI OAuth / 业务地址不再参与构建注入；只保留用户自有 endpoint。
   return {
     ...vars,
     ...Object.fromEntries(
@@ -108,8 +94,6 @@ function createSharedDefines() {
     // ZCodium 自有更新源。留空表示不检查更新：上游 manifest 分发的是官方 ZCode 安装包，
     // 沿用会把本仓库构建的客户端覆盖成上游版本。详见 .agents/specs/update-source-ownership.md。
     __ZCODIUM_UPDATE_ORIGIN__: JSON.stringify(process.env.ZCODIUM_UPDATE_ORIGIN?.trim() ?? ""),
-    // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
-    __ZCODE_CDN_BASE_URL__: JSON.stringify(env.ZCODE_CDN_BASE_URL?.trim() || ""),
   };
 }
 

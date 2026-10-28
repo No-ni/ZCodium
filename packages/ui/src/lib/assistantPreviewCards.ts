@@ -195,13 +195,26 @@ function findMatchingChangedFilePath(
   return index.uniqueLeaf.get(cleanedRaw) ?? null;
 }
 
-function getWebsiteTitleFromMarkdownLink(content: string, url: string): string | null {
-  for (const match of content.matchAll(MARKDOWN_LINK_RE)) {
-    const label = match[1] ? cleanMarkdownLinkTitle(match[1]) : null;
-    const href = match[2] ? normalizeTrailingUrlText(normalizeMarkdownHref(match[2])) : "";
-    if (label && href === url && !/^https?:\/\//i.test(label)) return label;
-  }
-  return null;
+function createWebsiteTitleLookup(content: string): (url: string) => string | null {
+  const titles = new Map<string, string>();
+  const links = content.matchAll(MARKDOWN_LINK_RE);
+  let exhausted = false;
+  return (url) => {
+    const knownTitle = titles.get(url);
+    if (knownTitle !== undefined) return knownTitle;
+    if (exhausted) return null;
+    // 多 URL 共用单向扫描和首个有效标题；按需停在命中处，保留单 URL 的提前停止。
+    for (let next = links.next(); !next.done; next = links.next()) {
+      const match = next.value;
+      const label = match[1] ? cleanMarkdownLinkTitle(match[1]) : null;
+      const href = match[2] ? normalizeTrailingUrlText(normalizeMarkdownHref(match[2])) : "";
+      if (!label || /^https?:\/\//i.test(label)) continue;
+      if (!titles.has(href)) titles.set(href, label);
+      if (href === url) return titles.get(href)!;
+    }
+    exhausted = true;
+    return null;
+  };
 }
 
 function getWebsiteFallbackTitle(url: string): string {
@@ -297,6 +310,7 @@ export function buildAssistantPreviewCardsFromReferences(
     );
   const positionedCards: PositionedCard[] = [];
   let hasLocalHttpPreview = false;
+  let websiteTitleLookup: ((url: string) => string | null) | undefined;
 
   for (const match of content.matchAll(LOCALHOST_URL_RE)) {
     const url = normalizeTrailingUrlText(match[0] ?? "");
@@ -315,7 +329,8 @@ export function buildAssistantPreviewCardsFromReferences(
         title:
           filePath !== null
             ? getPathLeaf(filePath)
-            : (getWebsiteTitleFromMarkdownLink(content, url) ?? getWebsiteFallbackTitle(url)),
+            : ((websiteTitleLookup ??= createWebsiteTitleLookup(content))(url) ??
+              getWebsiteFallbackTitle(url)),
         subtitleId: "chat.previewCards.website",
         url,
         ...(filePath ? { filePath } : {}),

@@ -1,10 +1,11 @@
 // ============================================================
 // Dynamic Workflow 灰度：服务端 feature key 的取值域与客户端快照
 // ============================================================
-// 服务端 `/api/v1/client/configs` 下发 `data.configs.dynamicWorkflow.mode`。
+// 历史实现由服务端 `/api/v1/client/configs` 下发 `data.configs.dynamicWorkflow.mode`；
+// 本仓已切断该官方控制面，只保留本地环境变量覆盖与默认关闭。
 
 // 这里只放三端（Host services、Desktop main、UI）共用的取值域、归一化与快照形状；
-// 读取远端、覆盖与下发都在各自的 owner 里，不在 shared 层发请求。
+// 不在 shared 层发请求。
 
 export const DYNAMIC_WORKFLOW_MODES = ["disabled", "onDemand", "alwaysOn"] as const;
 export type DynamicWorkflowMode = (typeof DYNAMIC_WORKFLOW_MODES)[number];

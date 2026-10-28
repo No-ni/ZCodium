@@ -110,7 +110,8 @@ export function listDisposingHostProcesses(): ElectronUtilityProcess[] {
 
 export function loadWindow(
   win: BrowserWindow,
-  page: "index" | "login" = "index",
+  // 官方登录页已移除，窗口只加载主界面。
+  _page: "index" = "index",
   bootstrap?: WindowBootstrapOptions,
 ): Promise<void> {
   const query = Object.fromEntries(
@@ -127,24 +128,22 @@ export function loadWindow(
     }).filter((entry): entry is [string, string] => entry[1] != null),
   );
 
-  if (page === "index") {
-    const partial = getMainLaunchPartialMarks();
-    query[LAUNCH_MARKS_QUERY_KEY] = serializeLaunchMarks({
-      ...partial,
-      loadUrl: Date.now(), // T3
-    });
-  }
+  const partial = getMainLaunchPartialMarks();
+  query[LAUNCH_MARKS_QUERY_KEY] = serializeLaunchMarks({
+    ...partial,
+    loadUrl: Date.now(), // T3
+  });
 
   // 生产包不能信任继承环境中的开发服务器地址，否则会被本机开发会话劫持为空白页。
   if (!app.isPackaged && process.env["ELECTRON_RENDERER_URL"]) {
     const base = process.env["ELECTRON_RENDERER_URL"];
-    const url = new URL(page === "login" ? `${base}/login.html` : base);
+    const url = new URL(base);
     for (const [key, value] of Object.entries(query)) {
       url.searchParams.set(key, value);
     }
     return win.loadURL(url.toString());
   } else {
-    return win.loadFile(join(import.meta.dirname, `../renderer/${page}.html`), {
+    return win.loadFile(join(import.meta.dirname, `../renderer/index.html`), {
       query,
     });
   }
@@ -254,8 +253,9 @@ export function spawnHostProcess(
       ...buildHostE2ECoverageEnv(),
       ZCODE_PROCESS_LABEL: label,
       // macOS-only: the Computer Use Helper launcher runs inside this forked host utilityProcess, whose
-      // code-signing identity is a nested Electron helper (NOT dev.zcode.app). Publish THIS (main
-      // Electron) process's pid — which IS dev.zcode.app — so helperLauncher passes it as
+      // code-signing identity is a nested Electron helper (NOT this app's main bundle id). Publish THIS
+      // (main Electron) process's pid — which carries the app bundle identity
+      // (`dev.zcodium.app` or its development variant) — so helperLauncher passes it as
       // `--launcher-pid` and the Helper's signature/peer verification succeeds instead of
       // health-timing out. Env-name mirror of services' LAUNCHER_PID_ENV. Not set on
       // Windows/Linux (CUA is macOS-only; nothing reads it there) to keep the host env pristine.
@@ -268,9 +268,6 @@ export function spawnHostProcess(
   );
   dependencies.logger.info(`[spawnHostProcess] host module path: ${hostModulePath}`);
   dependencies.logger.info(`[spawnHostProcess] glm binary path: ${glmBinaryPath ?? "<not found>"}`);
-  dependencies.logger.info(
-    `[spawnHostProcess] BIGMODEL_OAUTH_APP_SECRET source: ${process.env.BIGMODEL_OAUTH_APP_SECRET ? "process" : dependencies.hostProcessLocalEnv.BIGMODEL_OAUTH_APP_SECRET ? "dotenv" : "fallback"}`,
-  );
 
   // 远程连接与本地服务共享 window Host，进程级 stdout 没有请求身份。
   // 连接进度改由 HostResponseTypes.RemoteWorkspaceConnectionLog 按 requestId 上报。

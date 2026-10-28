@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
  * CUA 的输出策略：参考按需取用，宿主不主动推。
@@ -36,7 +36,8 @@ async function makeGlobals() {
       },
     },
   };
-  const mod = (await import(pluginScript)) as {
+  // Windows 的 C:\\ 路径会被 ESM 当成 c: 协议；动态导入须使用文件 URL。
+  const mod = (await import(pathToFileURL(pluginScript).href)) as {
     setupComputerUseRuntime(input: { globals: Record<string, unknown> }): Promise<unknown>;
   };
   await mod.setupComputerUseRuntime({ globals });

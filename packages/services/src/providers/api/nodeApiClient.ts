@@ -1,8 +1,6 @@
 import {
   ApiError,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   normalizeZCodeEndpointOrigin,
-  rewriteZCodeEndpointUrl,
   type ApiClient,
   type ApiRequestInit,
 } from "@zcode/shared";
@@ -13,7 +11,8 @@ const log = createServiceLogger("node-api-client");
 
 interface NodeApiClientOptions {
   fetchImpl?: typeof fetch;
-  resolveZCodeEndpointOrigin?: () => Promise<string> | string;
+  /** 用户显式配置的 ZCode endpoint；未配置时返回 undefined，不内置官方默认值。 */
+  resolveZCodeEndpointOrigin?: () => Promise<string | undefined> | string | undefined;
 }
 
 function resolveMethod(init?: ApiRequestInit): string {
@@ -41,7 +40,10 @@ function isRequestForEndpoint(input: string | URL, endpointOrigin: string): bool
 
 export class NodeApiClient implements ApiClient {
   private readonly fetchImpl?: typeof fetch;
-  private readonly resolveZCodeEndpointOrigin?: () => Promise<string> | string;
+  private readonly resolveZCodeEndpointOrigin?: () =>
+    | Promise<string | undefined>
+    | string
+    | undefined;
 
   constructor(options: NodeApiClientOptions = {}) {
     this.fetchImpl = options.fetchImpl;
@@ -49,11 +51,15 @@ export class NodeApiClient implements ApiClient {
   }
 
   async request(input: string | URL, init?: ApiRequestInit): Promise<Response> {
-    const endpointOrigin = this.resolveZCodeEndpointOrigin
+    const resolvedEndpointOrigin = this.resolveZCodeEndpointOrigin
       ? await this.resolveZCodeEndpointOrigin()
       : undefined;
-    const activeEndpointOrigin = endpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN;
-    const requestInput = rewriteZCodeEndpointUrl(input, activeEndpointOrigin);
+    // 只有显式注入了 endpoint 才做端点判定和调试头；没有配置时保持调用方的原始 URL，
+    // 既不重写到官方地址，也不影响 Provider 的绝对 URL 请求。
+    const endpointOrigin = resolvedEndpointOrigin?.trim()
+      ? normalizeZCodeEndpointOrigin(resolvedEndpointOrigin)
+      : undefined;
+    const requestInput = input;
     const url = resolveUrl(requestInput);
     const method = resolveMethod(init);
     const timeoutMs = init?.timeoutMs;
@@ -79,7 +85,7 @@ export class NodeApiClient implements ApiClient {
       const fetchImpl = this.fetchImpl ?? globalThis.fetch;
       // 来源头曾在这里读取设备身份和系统信息；只保留调用方明确提供的头与每请求 ID。
       const requestHeaders = withRequestIdHeader(init?.headers);
-      if (isRequestForEndpoint(requestInput, activeEndpointOrigin)) {
+      if (endpointOrigin && isRequestForEndpoint(requestInput, endpointOrigin)) {
         // 调试说明：这里只记录 header key，避免 Authorization / token 等敏感值落盘。
         log.debug(undefined, "zcode endpoint request headers prepared", {
           headerKeys: readHeaderKeys(requestHeaders),

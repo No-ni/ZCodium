@@ -72,9 +72,15 @@ function setup() {
 }
 
 const { ProxyChannel } = await tsImport("../../packages/rpc/src/proxy-channel.ts", import.meta.url);
-test("retired quota, monitor and entitlement RPCs are absent without account or network dependencies", () => {
+test("retired account quota, monitor and entitlement RPCs remain absent alongside personal Key quota", () => {
   const { service } = setup();
-  assert.deepEqual(Object.keys(service), ["getAppUsageSnapshot"]);
+  // 个人 Key 查询是独立 Host 能力；不能用旧的单方法清单误判为官方账号额度恢复。
+  assert.deepEqual(Object.keys(service).sort(), [
+    "getAppUsageSnapshot",
+    "getCodingPlanQuota",
+    "getCodingPlanQuotaContext",
+    "onDidChangeCodingPlanQuotaContext",
+  ]);
   const channel = ProxyChannel.fromService(service);
   for (const method of [
     "getSnapshot",

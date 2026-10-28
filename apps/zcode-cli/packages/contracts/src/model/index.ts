@@ -9,6 +9,8 @@ import type {
   ToolPermissionSpec,
   ToolResultBudget,
 } from "../tools/contract.js";
+import type { ModelToolReferenceContentBlock } from "../tools/tool-search.js";
+import type { ModelCallWrapper } from "../tools/deferred-tool-call.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import type {
   ModelApiCallObservation,
@@ -220,6 +222,7 @@ export interface ModelRequestCompletedStatusEvent extends ModelNetworkStatusBase
 
 export interface ModelRequestFailedStatusEvent extends ModelNetworkStatusBase {
   type: "model_request_failed";
+  usage?: ModelUsage;
   durationMs?: number;
   reason: ModelFailureReason;
   retryable: boolean;
@@ -307,6 +310,10 @@ export interface ModelToolCall {
   name: string;
   input: unknown;
   providerExecuted?: boolean;
+  /** Provider 原生调用元数据（如 Gemini thoughtSignature），随同一调用持久化与回放。 */
+  providerOptions?: Record<string, unknown>;
+  /** Canonical target/input 保持真实工具；请求副本按 marker 还原 Local wrapper。 */
+  modelCallWrapper?: ModelCallWrapper;
 }
 
 export type AttachmentKind = "local_file" | "resource" | "inline";
@@ -372,7 +379,8 @@ export type ModelMessageContentBlock =
   | ModelImageContentBlock
   | ModelVideoContentBlock
   | ModelFileContentBlock
-  | ModelResourceLinkContentBlock;
+  | ModelResourceLinkContentBlock
+  | ModelToolReferenceContentBlock;
 
 export type ModelMessageContent = string | ModelMessageContentBlock[];
 
@@ -419,6 +427,8 @@ export function modelMessageContentBlockToText(block: ModelMessageContentBlock):
       );
     case "resource_link":
       return `[Resource: ${block.title ?? block.name ?? block.uri}]`;
+    case "tool_reference":
+      return `[Tool reference: ${block.toolName}]`;
   }
 }
 
@@ -452,6 +462,7 @@ export interface ModelToolContract {
   outputSchema?: JsonSchema;
   /** 见 ToolContractDeclaration.strict：严格模式的资格声明，adapter 按 provider/model 落地。 */
   strict?: boolean;
+  deferLoading?: boolean;
   readOnly?: boolean;
   destructive?: boolean;
   concurrentSafe?: boolean;
@@ -619,6 +630,7 @@ export interface ModelRequestSettings {
 export interface ModelTextRequest extends ModelRequestSettings {
   messages: ModelInputMessage[];
   tools?: ModelToolContract[];
+  toolSearchEnabled?: boolean;
   toolChoice?: ModelToolChoice;
   responseJsonSchema?: JsonSchema;
   providerOptions?: Record<string, unknown>;
@@ -894,6 +906,15 @@ const modelMessageContentBlockJsonSchema = {
         title: { type: "string" },
       },
     },
+    {
+      type: "object",
+      required: ["type", "toolName"],
+      additionalProperties: false,
+      properties: {
+        type: { enum: ["tool_reference"] },
+        toolName: { type: "string", minLength: 1 },
+      },
+    },
   ],
 } satisfies JsonSchema;
 
@@ -924,7 +945,22 @@ export const modelInputMessageJsonSchema = {
         scope: { enum: ["global", "org"] },
       },
     },
-    toolCalls: { type: "array" },
+    toolCalls: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name", "input"],
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          input: {},
+          providerExecuted: { type: "boolean" },
+          providerOptions: { type: "object" },
+          modelCallWrapper: { enum: ["DeferredToolCall"] },
+        },
+      },
+    },
     toolCallId: { type: "string" },
     toolName: { type: "string" },
     isError: { type: "boolean" },
@@ -955,6 +991,7 @@ export const modelTextRequestJsonSchema = {
   properties: {
     messages: { type: "array", items: modelInputMessageJsonSchema },
     tools: { type: "array" },
+    toolSearchEnabled: { type: "boolean" },
     toolChoice: modelToolChoiceJsonSchema,
     temperature: { type: "number" },
     maxOutputTokens: { type: "number" },

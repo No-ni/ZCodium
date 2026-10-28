@@ -1,6 +1,8 @@
 import type { LanguageModelUsage } from "ai";
 import type { Logger, ModelUsage } from "@zcode/contracts";
 import { ModelFailureReason as ModelFailureReasonValue } from "@zcode/contracts";
+import { isSuspiciousModelCompletion } from "./model-completion-policy.js";
+export { createEmptyContextExceededError, isZeroOutputModelCompletion } from "./model-completion-policy.js";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import type { AiSdkGenerateTextResult } from "./runner-runtime.js";
 import { normalizeUsage } from "./runner-normalization.js";
@@ -67,7 +69,7 @@ export function recordStreamChunkDiagnostic(diagnostics: StreamDiagnostics, chun
 
   if (chunkType === "finish") {
     diagnostics.finishReason = stringProperty(record, "finishReason") ?? diagnostics.finishReason;
-    diagnostics.rawFinishReason = record.rawFinishReason;
+    diagnostics.rawFinishReason = record.rawFinishReason ?? asRecord(record.providerMetadata).rawFinishReason;
     diagnostics.lastFinishChunk = chunk;
     diagnostics.usage = normalizeUsage(
       (record.totalUsage ?? record.usage) as Partial<LanguageModelUsage> | undefined,
@@ -250,59 +252,6 @@ export function isSuspiciousStreamDiagnostics(diagnostics: StreamDiagnostics): b
     toolCallCount: diagnostics.toolCallCount,
     usage: diagnostics.usage,
   });
-}
-
-export function isZeroOutputModelCompletion(input: {
-  finishReason?: string;
-  reasoningLength: number;
-  textLength: number;
-  toolCallCount: number;
-  usage?: ModelUsage;
-}): boolean {
-  return (
-    input.finishReason !== undefined &&
-    input.reasoningLength === 0 &&
-    isSuspiciousModelCompletion({
-      finishReason: input.finishReason,
-      textLength: input.textLength,
-      toolCallCount: input.toolCallCount,
-      usage: input.usage,
-    })
-  );
-}
-
-function isSuspiciousModelCompletion(input: {
-  finishReason?: string;
-  textLength: number;
-  toolCallCount: number;
-  usage?: ModelUsage;
-}): boolean {
-  return (
-    input.textLength === 0 &&
-    input.toolCallCount === 0 &&
-    isNonStopFinish(input.finishReason) &&
-    isZeroUsage(input.usage)
-  );
-}
-
-function isNonStopFinish(finishReason?: string): boolean {
-  const normalized = finishReason?.trim().toLowerCase();
-  return normalized !== "stop" && normalized !== "tool-calls" && normalized !== "tool_calls";
-}
-
-function isZeroUsage(usage?: ModelUsage): boolean {
-  if (!usage) return true;
-  const serverToolUse =
-    (usage.serverToolUse?.webSearchRequests ?? 0) + (usage.serverToolUse?.webFetchRequests ?? 0);
-  if (serverToolUse > 0) return false;
-  const total =
-    usage.totalTokens ??
-    (usage.inputTokens ?? 0) +
-      (usage.outputTokens ?? 0) +
-      (usage.cacheReadTokens ?? 0) +
-      (usage.cacheWriteTokens ?? 0) +
-      (usage.reasoningTokens ?? 0);
-  return total === 0;
 }
 
 function safeChunkType(value: unknown): string {

@@ -61,6 +61,7 @@ interface ZCodeProtocolNdjsonConnectionOptions {
 
 export class ZCodeProtocolNdjsonConnection {
   private buffer = "";
+  private searchedPrefixLength = 0;
   private processing: Promise<void> = Promise.resolve();
   private lastQueuedMessageStarted: Promise<void> = Promise.resolve();
   private readonly closedPromise: Promise<void>;
@@ -104,15 +105,18 @@ export class ZCodeProtocolNdjsonConnection {
   private readonly onData = (chunk: Buffer | string): void => {
     if (this.terminal || this.draining) return;
     this.buffer += typeof chunk === "string" ? chunk : chunk.toString("utf8");
-    let newlineIndex = this.buffer.indexOf("\n");
+    // 长行分片不重搜已确认无 LF 的前缀；截行后先归零，避免同步重入跳过剩余行。
+    let newlineIndex = this.buffer.indexOf("\n", this.searchedPrefixLength);
     while (newlineIndex >= 0) {
       const line = this.buffer.slice(0, newlineIndex).trim();
       this.buffer = this.buffer.slice(newlineIndex + 1);
+      this.searchedPrefixLength = 0;
       if (line.length > 0) {
         this.dispatchLine(line);
       }
-      newlineIndex = this.buffer.indexOf("\n");
+      newlineIndex = this.buffer.indexOf("\n", this.searchedPrefixLength);
     }
+    this.searchedPrefixLength = this.buffer.length;
   };
 
   private readonly onClose = (): void => {

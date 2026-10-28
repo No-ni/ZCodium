@@ -93,28 +93,31 @@ const V4_CONVERSATION_SUBSCRIBE_METHOD = "v4/conversation/subscribe";
 
 test("A20/规则8：常驻父会话叶目录被占位后 fork 降级落盘且不跟随链接", async () => {
   for (const kind of ["file", "symlink"]) {
-    await withCliProcess({ label: `a20-${kind}`, injectConversationRoot: true }, async (cli) => {
-      const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
-      const seedRow = await cli.waitForSessionRow(sessionId);
-      const read = await cli.request(SESSION_READ_METHOD, { sessionId });
-      assert.equal(read.error, undefined);
-      const messageId = read.result?.messages?.[0]?.info?.messageId;
-      assert.ok(messageId, "导入的父会话必须有可分叉的消息");
-      await rm(seedRow.path, { recursive: true });
-      const outside = join(cli.root, "outside");
-      await mkdir(outside);
-      if (kind === "file") await writeFile(seedRow.path, "user-owned");
-      else await symlink(outside, seedRow.path, "dir");
-      const fork = await cli.request(SESSION_FORK_METHOD, {
-        sessionId,
-        target: { kind: "message", messageId },
-      });
-      assert.equal(fork.error, undefined, `fork 不得因占位失败: ${JSON.stringify(fork.error)}`);
-      assert.equal(cli.readSessionRow(fork.result?.forkedSessionId)?.path, cli.conversationRoot);
-      assert.deepEqual(await readdir(outside), [], "fork 不得跟随链接铸造目录");
-      if (kind === "file") assert.equal(await readFile(seedRow.path, "utf8"), "user-owned");
-      else assert.equal((await lstat(seedRow.path)).isSymbolicLink(), true);
-    });
+    await withCliProcess(
+      { label: `a20-${kind}`, injectConversationRoot: true, mcpEnabled: false },
+      async (cli) => {
+        const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+        const seedRow = await cli.waitForSessionRow(sessionId);
+        const read = await cli.request(SESSION_READ_METHOD, { sessionId });
+        assert.equal(read.error, undefined);
+        const messageId = read.result?.messages?.[0]?.info?.messageId;
+        assert.ok(messageId, "导入的父会话必须有可分叉的消息");
+        await rm(seedRow.path, { recursive: true });
+        const outside = join(cli.root, "outside");
+        await mkdir(outside);
+        if (kind === "file") await writeFile(seedRow.path, "user-owned");
+        else await symlink(outside, seedRow.path, "dir");
+        const fork = await cli.request(SESSION_FORK_METHOD, {
+          sessionId,
+          target: { kind: "message", messageId },
+        });
+        assert.equal(fork.error, undefined, `fork 不得因占位失败: ${JSON.stringify(fork.error)}`);
+        assert.equal(cli.readSessionRow(fork.result?.forkedSessionId)?.path, cli.conversationRoot);
+        assert.deepEqual(await readdir(outside), [], "fork 不得跟随链接铸造目录");
+        if (kind === "file") assert.equal(await readFile(seedRow.path, "utf8"), "user-owned");
+        else assert.equal((await lstat(seedRow.path)).isSymbolicLink(), true);
+      },
+    );
   }
 });
 
@@ -589,19 +592,32 @@ function assertCliSourcePresent() {
   throw new Error(`CLI 源码入口缺失：${relativeShape(REPO_ROOT, sourceEntry)}`);
 }
 
-async function startCliProcess({ label, injectConversationRoot, root: existingRoot }) {
+async function startCliProcess({
+  label,
+  injectConversationRoot,
+  root: existingRoot,
+  mcpEnabled = true,
+}) {
   assertCliSourcePresent();
   const root = existingRoot ?? (await mkdtemp(join(tmpdir(), `zcodium-conversation-ws-${label}-`)));
   createdTempRoots.add(root);
   const conversationRoot = join(root, ".zcodium", "workspace", "default");
   // 真实 Host 也是先 ensureConversationWorkspace() 建好对话根再 spawn。
   await mkdir(conversationRoot, { recursive: true });
+  if (!mcpEnabled) {
+    // Windows 不允许外部替换存活子进程的 cwd；占位守卫夹具关闭外围 MCP，A6/A6b 仍使用真实 MCP。
+    const configDir = join(root, ".zcodium", "cli");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(join(configDir, "config.json"), JSON.stringify({ features: { mcp: false } }));
+  }
   const sessionDbPath = join(root, "session-db", "db.sqlite");
 
   const env = {
     ...process.env,
     // HOME 与数据根都重定向到临时目录：见文件头「安全边界」。
     HOME: root,
+    // Windows homedir() 使用 USERPROFILE；仅改 HOME 会加载真实用户插件并破坏夹具隔离。
+    USERPROFILE: root,
     [DATA_BASE_DIR_ENV]: root,
     [SESSION_DB_PATH_ENV]: sessionDbPath,
     TSX_TSCONFIG_PATH: join(
@@ -640,6 +656,7 @@ async function runBareResumePrompt({
   const env = {
     ...process.env,
     HOME: root,
+    USERPROFILE: root,
     [DATA_BASE_DIR_ENV]: root,
     [SESSION_DB_PATH_ENV]: sessionDbPath,
     [CONVERSATION_WORKSPACE_ROOT_ENV]: conversationRoot,
@@ -1634,43 +1651,46 @@ test("A11/验收15：日期目录是符号链接时冷恢复不跟随链接、�
  * 规则 8 的判据必须在**两条**创建支路上都成立：被拒的复用要退回 `cwd = workspacePath` 并落盘。
  */
 test("A12/验收15：日期目录是普通文件时导入创建（带 sessionId 重放）降级，不报 ENOTDIR", async () => {
-  await withCliProcess({ label: "a12", injectConversationRoot: true }, async (cli) => {
-    const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
-    const seedRow = await cli.waitForSessionRow(sessionId);
-    const dateDir = join(cli.conversationRoot, localDateDirName(seedRow.time_created));
-    assert.equal(
-      seedRow.path,
-      join(dateDir, sessionDirName(sessionId)),
-      `前置条件：会话目录必须落在会话创建日的日期目录下，实际行: ${formatRow(cli.root, seedRow)}`,
-    );
+  await withCliProcess(
+    { label: "a12", injectConversationRoot: true, mcpEnabled: false },
+    async (cli) => {
+      const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+      const seedRow = await cli.waitForSessionRow(sessionId);
+      const dateDir = join(cli.conversationRoot, localDateDirName(seedRow.time_created));
+      assert.equal(
+        seedRow.path,
+        join(dateDir, sessionDirName(sessionId)),
+        `前置条件：会话目录必须落在会话创建日的日期目录下，实际行: ${formatRow(cli.root, seedRow)}`,
+      );
 
-    // 破坏日期目录：删掉会话目录，再把日期目录换成一个普通文件。
-    await rm(seedRow.path, { recursive: true, force: true });
-    await rm(dateDir, { recursive: true, force: true });
-    await writeFile(dateDir, "not a directory\n", "utf8");
+      // 破坏日期目录：删掉会话目录，再把日期目录换成一个普通文件。
+      await rm(seedRow.path, { recursive: true, force: true });
+      await rm(dateDir, { recursive: true, force: true });
+      await writeFile(dateDir, "not a directory\n", "utf8");
 
-    const again = await cli.createPersistedSession({
-      sessionId,
-      workspacePath: cli.conversationRoot,
-    });
-    assert.equal(again, sessionId);
+      const again = await cli.createPersistedSession({
+        sessionId,
+        workspacePath: cli.conversationRoot,
+      });
+      assert.equal(again, sessionId);
 
-    const rowAfter = cli.readSessionRow(sessionId);
-    assert.equal(
-      rowAfter?.directory,
-      cli.conversationRoot,
-      `工作区键路径不得漂移，实际行: ${formatRow(cli.root, rowAfter)}`,
-    );
-    assert.equal(
-      rowAfter?.path,
-      cli.conversationRoot,
-      `被拒的复用必须落盘为工作区键路径（core 冷恢复只认它），实际行: ${formatRow(
-        cli.root,
-        rowAfter,
-      )}`,
-    );
-    assert.equal((await stat(dateDir)).isFile(), true, "用户放在该位置的普通文件不得被改动");
-  });
+      const rowAfter = cli.readSessionRow(sessionId);
+      assert.equal(
+        rowAfter?.directory,
+        cli.conversationRoot,
+        `工作区键路径不得漂移，实际行: ${formatRow(cli.root, rowAfter)}`,
+      );
+      assert.equal(
+        rowAfter?.path,
+        cli.conversationRoot,
+        `被拒的复用必须落盘为工作区键路径（core 冷恢复只认它），实际行: ${formatRow(
+          cli.root,
+          rowAfter,
+        )}`,
+      );
+      assert.equal((await stat(dateDir)).isFile(), true, "用户放在该位置的普通文件不得被改动");
+    },
+  );
 });
 
 /**
@@ -1681,32 +1701,35 @@ test("A12/验收15：日期目录是普通文件时导入创建（带 sessionId 
  * 中间链接 ⇒ 目录永远不被回收。
  */
 test("A13/验收15：日期目录是符号链接时导入创建不跟随链接、不越界建目录", async () => {
-  await withCliProcess({ label: "a13", injectConversationRoot: true }, async (cli) => {
-    const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
-    const seedRow = await cli.waitForSessionRow(sessionId);
-    const dateDir = join(cli.conversationRoot, localDateDirName(seedRow.time_created));
-    const outside = join(cli.root, "outside-" + localDateDirName(seedRow.time_created));
-    await mkdir(outside, { recursive: true });
+  await withCliProcess(
+    { label: "a13", injectConversationRoot: true, mcpEnabled: false },
+    async (cli) => {
+      const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+      const seedRow = await cli.waitForSessionRow(sessionId);
+      const dateDir = join(cli.conversationRoot, localDateDirName(seedRow.time_created));
+      const outside = join(cli.root, "outside-" + localDateDirName(seedRow.time_created));
+      await mkdir(outside, { recursive: true });
 
-    await rm(seedRow.path, { recursive: true, force: true });
-    await rm(dateDir, { recursive: true, force: true });
-    await symlink(outside, dateDir, "dir");
+      await rm(seedRow.path, { recursive: true, force: true });
+      await rm(dateDir, { recursive: true, force: true });
+      await symlink(outside, dateDir, "dir");
 
-    const again = await cli.createPersistedSession({
-      sessionId,
-      workspacePath: cli.conversationRoot,
-    });
-    assert.equal(again, sessionId);
+      const again = await cli.createPersistedSession({
+        sessionId,
+        workspacePath: cli.conversationRoot,
+      });
+      assert.equal(again, sessionId);
 
-    const rowAfter = cli.readSessionRow(sessionId);
-    assert.equal(
-      rowAfter?.path,
-      cli.conversationRoot,
-      `降级必须落盘为工作区键路径，实际行: ${formatRow(cli.root, rowAfter)}`,
-    );
-    assert.deepEqual(await readdir(outside), [], "不得跟随日期目录链接把会话目录建到对话根之外");
-    assert.equal((await lstat(dateDir)).isSymbolicLink(), true, "占位链接不得被改动");
-  });
+      const rowAfter = cli.readSessionRow(sessionId);
+      assert.equal(
+        rowAfter?.path,
+        cli.conversationRoot,
+        `降级必须落盘为工作区键路径，实际行: ${formatRow(cli.root, rowAfter)}`,
+      );
+      assert.deepEqual(await readdir(outside), [], "不得跟随日期目录链接把会话目录建到对话根之外");
+      assert.equal((await lstat(dateDir)).isSymbolicLink(), true, "占位链接不得被改动");
+    },
+  );
 });
 
 /**
@@ -1889,47 +1912,57 @@ test("A22/规则45：别名下在册 cwd 及派生目录在存在或缺失时都
 });
 
 test("A16/规则20：草稿目录被清扫后首发重建并保持相对写入 cwd", async () => {
-  await withCliProcess({ label: "a16", injectConversationRoot: true }, async (cli) => {
-    const draft = await cli.createSession({ workspaceId: cli.conversationRoot });
-    assert.equal(draft.ack.status, "accepted", `createSession ACK: ${JSON.stringify(draft.ack)}`);
-    const dateDirs = await readDateDirectories(cli.conversationRoot);
-    assert.equal(dateDirs.length, 1, `草稿应只有一个日期目录: ${JSON.stringify(dateDirs)}`);
-    const executionPath = join(cli.conversationRoot, dateDirs[0], sessionDirName(draft.sessionId));
-    assert.equal(await pathExists(executionPath), true, "草稿创建时必须分配独立 cwd");
+  await withCliProcess(
+    { label: "a16", injectConversationRoot: true, mcpEnabled: false },
+    async (cli) => {
+      const draft = await cli.createSession({ workspaceId: cli.conversationRoot });
+      assert.equal(draft.ack.status, "accepted", `createSession ACK: ${JSON.stringify(draft.ack)}`);
+      const dateDirs = await readDateDirectories(cli.conversationRoot);
+      assert.equal(dateDirs.length, 1, `草稿应只有一个日期目录: ${JSON.stringify(dateDirs)}`);
+      const executionPath = join(
+        cli.conversationRoot,
+        dateDirs[0],
+        sessionDirName(draft.sessionId),
+      );
+      assert.equal(await pathExists(executionPath), true, "草稿创建时必须分配独立 cwd");
 
-    // 等价于启动清扫回收尚未持久化的草稿叶目录；首条真实输入必须先复核并重建它。
-    await rm(executionPath, { recursive: true, force: true });
-    const ack = await cli.command({
-      ...createCommandEnvelope("sendText", {
-        text: "queue after draft workspace cleanup",
-        requestedDelivery: "queue",
-        modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
-        modelExecution: { selectionScope: "execution" },
-      }),
-      sessionId: draft.sessionId,
-    });
-    assert.equal(ack.status, "accepted", `first send ACK: ${JSON.stringify(ack)}`);
+      // 等价于启动清扫回收尚未持久化的草稿叶目录；首条真实输入必须先复核并重建它。
+      await rm(executionPath, { recursive: true, force: true });
+      const ack = await cli.command({
+        ...createCommandEnvelope("sendText", {
+          text: "queue after draft workspace cleanup",
+          requestedDelivery: "queue",
+          modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
+          modelExecution: { selectionScope: "execution" },
+        }),
+        sessionId: draft.sessionId,
+      });
+      assert.equal(ack.status, "accepted", `first send ACK: ${JSON.stringify(ack)}`);
 
-    const row = await cli.waitForSessionRow(draft.sessionId);
-    assert.equal(row.path, executionPath, "首发持久化的 cwd 不得漂移到对话根");
-    assert.equal(await pathExists(executionPath), true, "首发准入必须重建被清扫的 cwd");
-    const snapshot = await cli.readSessionSnapshot(draft.sessionId);
-    assert.equal(
-      snapshot.error,
-      undefined,
-      `session/read error: ${JSON.stringify(snapshot.error)}`,
-    );
-    assert.equal(snapshot.snapshot?.session?.executionWorkspacePath, executionPath);
+      const row = await cli.waitForSessionRow(draft.sessionId);
+      assert.equal(row.path, executionPath, "首发持久化的 cwd 不得漂移到对话根");
+      assert.equal(await pathExists(executionPath), true, "首发准入必须重建被清扫的 cwd");
+      const snapshot = await cli.readSessionSnapshot(draft.sessionId);
+      assert.equal(
+        snapshot.error,
+        undefined,
+        `session/read error: ${JSON.stringify(snapshot.error)}`,
+      );
+      assert.equal(snapshot.snapshot?.session?.executionWorkspacePath, executionPath);
 
-    const write = spawnSync(
-      process.execPath,
-      ["-e", "require('node:fs').writeFileSync('relative-admission-probe.txt', 'ok')"],
-      { cwd: executionPath, encoding: "utf8", timeout: 10_000 },
-    );
-    assert.equal(write.error, undefined, `relative write process error: ${write.error}`);
-    assert.equal(write.status, 0, `relative write failed: ${write.stderr}`);
-    assert.equal(await readFile(join(executionPath, "relative-admission-probe.txt"), "utf8"), "ok");
-  });
+      const write = spawnSync(
+        process.execPath,
+        ["-e", "require('node:fs').writeFileSync('relative-admission-probe.txt', 'ok')"],
+        { cwd: executionPath, encoding: "utf8", timeout: 10_000 },
+      );
+      assert.equal(write.error, undefined, `relative write process error: ${write.error}`);
+      assert.equal(write.status, 0, `relative write failed: ${write.stderr}`);
+      assert.equal(
+        await readFile(join(executionPath, "relative-admission-probe.txt"), "utf8"),
+        "ok",
+      );
+    },
+  );
 });
 
 test("A17/规则20：坏日期目录降级后拒绝发送且不写入对话根", async () => {
@@ -1975,33 +2008,36 @@ test("A17/规则20：坏日期目录降级后拒绝发送且不写入对话根",
 });
 
 test("A18/规则20：会话叶目录被占位时拒绝发送且不降级写根", async () => {
-  await withCliProcess({ label: "a18", injectConversationRoot: true }, async (cli) => {
-    const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
-    const row = await cli.waitForSessionRow(sessionId);
-    await rm(row.path, { recursive: true, force: true });
-    await writeFile(row.path, "leaf placeholder must remain\n", "utf8");
-    const sentinel = join(cli.conversationRoot, "root-sentinel.txt");
-    await writeFile(sentinel, "unchanged\n", "utf8");
+  await withCliProcess(
+    { label: "a18", injectConversationRoot: true, mcpEnabled: false },
+    async (cli) => {
+      const sessionId = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+      const row = await cli.waitForSessionRow(sessionId);
+      await rm(row.path, { recursive: true, force: true });
+      await writeFile(row.path, "leaf placeholder must remain\n", "utf8");
+      const sentinel = join(cli.conversationRoot, "root-sentinel.txt");
+      await writeFile(sentinel, "unchanged\n", "utf8");
 
-    const ack = await cli.command({
-      ...createCommandEnvelope("sendText", {
-        text: "must not execute from an occupied session cwd",
-        requestedDelivery: "queue",
-        modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
-        modelExecution: { selectionScope: "execution" },
-      }),
-      sessionId,
-    });
-    assert.equal(ack.status, "failed", `unsafe send must be rejected: ${JSON.stringify(ack)}`);
-    assert.equal(ack.reasonCode, "guard.conversationSessionWorkspaceUnavailable");
-    assert.equal(await readFile(row.path, "utf8"), "leaf placeholder must remain\n");
-    assert.equal(await readFile(sentinel, "utf8"), "unchanged\n");
-    assert.equal(
-      cli.readSessionRow(sessionId)?.path,
-      row.path,
-      "failed admission must not rewrite cwd",
-    );
-  });
+      const ack = await cli.command({
+        ...createCommandEnvelope("sendText", {
+          text: "must not execute from an occupied session cwd",
+          requestedDelivery: "queue",
+          modelSelection: { providerId: "fixture-api", modelId: "fixture-model" },
+          modelExecution: { selectionScope: "execution" },
+        }),
+        sessionId,
+      });
+      assert.equal(ack.status, "failed", `unsafe send must be rejected: ${JSON.stringify(ack)}`);
+      assert.equal(ack.reasonCode, "guard.conversationSessionWorkspaceUnavailable");
+      assert.equal(await readFile(row.path, "utf8"), "leaf placeholder must remain\n");
+      assert.equal(await readFile(sentinel, "utf8"), "unchanged\n");
+      assert.equal(
+        cli.readSessionRow(sessionId)?.path,
+        row.path,
+        "failed admission must not rewrite cwd",
+      );
+    },
+  );
 });
 
 test(

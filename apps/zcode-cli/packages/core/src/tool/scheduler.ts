@@ -106,17 +106,26 @@ export class ToolScheduler {
     const result: ToolScheduleItem[] = [];
     const remaining = new Map(items.map((item) => [item.toolCallId, item]));
     const inDegree = new Map<string, number>();
+    const dependents = new Map<ToolCallId, ToolCallId[]>();
 
     for (const item of items) {
       inDegree.set(item.toolCallId, item.dependencies.length);
+    }
+    // 原算法每次出队都遍历 remaining；反向索引沿同一 Map 顺序建立，保留重复 ID 的覆盖语义。
+    for (const [toolId, item] of remaining) {
+      for (const dependency of new Set(item.dependencies)) {
+        const tools = dependents.get(dependency);
+        if (tools) tools.push(toolId);
+        else dependents.set(dependency, [toolId]);
+      }
     }
 
     const queue = items
       .filter((item) => item.dependencies.length === 0)
       .map((item) => item.toolCallId);
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const current = queue[cursor]!;
       const item = remaining.get(current);
 
       if (!item) continue;
@@ -124,13 +133,12 @@ export class ToolScheduler {
       result.push(item);
       remaining.delete(current);
 
-      for (const [toolId, depItem] of remaining) {
-        if (depItem.dependencies.includes(current)) {
-          const newDegree = (inDegree.get(toolId) ?? 0) - 1;
-          inDegree.set(toolId, newDegree);
-          if (newDegree === 0) {
-            queue.push(toolId);
-          }
+      for (const toolId of dependents.get(current) ?? []) {
+        if (!remaining.has(toolId)) continue;
+        const newDegree = (inDegree.get(toolId) ?? 0) - 1;
+        inDegree.set(toolId, newDegree);
+        if (newDegree === 0) {
+          queue.push(toolId);
         }
       }
     }
@@ -158,10 +166,10 @@ export class ToolScheduler {
     const byLevel = new Map<number, ToolScheduleItem[]>();
 
     for (const item of items) {
-      const dependencyLevel =
-        item.dependencies.length === 0
-          ? -1
-          : Math.max(...item.dependencies.map((dep) => levels.get(dep) ?? 0));
+      let dependencyLevel = -1;
+      for (const dependency of item.dependencies) {
+        dependencyLevel = Math.max(dependencyLevel, levels.get(dependency) ?? 0);
+      }
       const level = dependencyLevel + 1;
       levels.set(item.toolCallId, level);
       const levelItems = byLevel.get(level) ?? [];

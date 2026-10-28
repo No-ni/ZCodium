@@ -144,6 +144,8 @@ export function toModelStreamEvent(chunk: TextStreamPart<ToolSet>): ModelStreamE
           // Final tool-call 的 name/input 由 assembler 统一校验和归一化。
           name: chunk.toolName,
           providerExecuted: chunk.providerExecuted,
+          // Gemini 工具签名属于 final call；入站丢失会使保存后的续轮只能依赖 SDK 哨兵。
+          providerOptions: isRecord(chunk.providerMetadata) ? chunk.providerMetadata : undefined,
           // 执行参数只取 AI SDK final tool-call，避免从展示用 delta 猜测输入，
           // 也避免 stream 多次解析并重复告警。
           input: chunk.input,
@@ -186,6 +188,7 @@ export function normalizeToolCalls(
       input?: unknown;
       args?: unknown;
       providerExecuted?: boolean;
+      providerMetadata?: unknown;
     };
     const id = value.toolCallId ?? value.id ?? crypto.randomUUID();
     const name = normalizeModelToolName(value.toolName ?? value.name, {
@@ -199,6 +202,7 @@ export function normalizeToolCalls(
       id,
       name,
       providerExecuted: value.providerExecuted,
+      providerOptions: isRecord(value.providerMetadata) ? value.providerMetadata : undefined,
       // 上游会把 JSON "null" 转成原生 null；显式 null 不能被
       // nullish fallback 擦成旧版 args，否则 runtime 与 provider-visible input 漂移。
       input: normalizeModelToolInput(value.input !== undefined ? value.input : value.args, {

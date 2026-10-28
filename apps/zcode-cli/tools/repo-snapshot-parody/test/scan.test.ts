@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { resolve } from "node:path";
 import {
   decideBeforeSample,
   decideAfterSample,
@@ -84,7 +85,11 @@ test("排除疑似秘密文件名", () => {
 
 test("非 .git 的超大文件被排除", () => {
   assert.deepEqual(
-    decideBeforeSample({ relativePath: "big.bin", sizeBytes: 1024 * 1024 + 1, isSymbolicLink: false }),
+    decideBeforeSample({
+      relativePath: "big.bin",
+      sizeBytes: 1024 * 1024 + 1,
+      isSymbolicLink: false,
+    }),
     { include: false, reason: "large-file" },
   );
   assert.equal(
@@ -114,7 +119,8 @@ test(".git/config 不在秘密名单内——复刻原版的这个漏洞", () =>
 
 test("workspace key 用规范化绝对路径，目录名用哈希", () => {
   const key = workspaceKeyOf("/tmp/../tmp/demo");
-  assert.equal(key, "/tmp/demo");
+  // workspace key 契约是宿主绝对路径，不能把 POSIX 字符串固定为 Windows 预期。
+  assert.equal(key, resolve("/tmp/demo"));
   const hash = workspaceKeyHash(key);
   assert.match(hash, /^[0-9a-f]{12}$/u);
   assert.equal(hash, workspaceKeyHash(key), "同路径必须得到同目录名");

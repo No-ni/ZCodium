@@ -3,7 +3,6 @@
 import { resolve } from "node:path";
 import type {
   ConfigPort,
-  HookConfigSource,
   LoggerFactory,
   McpServerConfig,
   RuntimeConfig,
@@ -15,6 +14,7 @@ import {
   DefaultRuntimeConfig,
   createWorkspaceHookBundleSnapshot,
 } from "@zcode/contracts";
+import { resolveSourcePersistenceRoots, assertSourceUserConfigPathAllowed } from "./source-persistence.js";
 import {
   buildWorkspaceHookBundleSnapshot,
   resolveWorkspaceHookRuntimeRoot,
@@ -24,6 +24,7 @@ import { createConfigPort } from "./index.js";
 import { loadFileConfig, getDefaultConfigPath, type LoadedConfig } from "./file-config.adapter.js";
 import { parseEnvConfig } from "./env-config.adapter.js";
 import { mergeConfigs, createPrioritizedConfig } from "./config-merger.js";
+import { withHookConfigSource } from "./config-hook-source.js";
 import { createNodeLoggerFactory } from "../logging/index.js";
 import {
   loadProjectConfigFile,
@@ -127,15 +128,26 @@ export interface PluginConfigSources {
  * 5. CLI overrides
  */
 export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
+  const sourceRoots = resolveSourcePersistenceRoots(options.env ?? process.env);
+  if (sourceRoots) {
+    assertSourceUserConfigPathAllowed(options.userConfigPath, sourceRoots);
+  }
   // 1. System defaults
   const configs: ReturnType<typeof createPrioritizedConfig>[] = [
     createPrioritizedConfig(DefaultRuntimeConfig, ConfigScope.System),
   ];
 
   // 2. User config file
+  // Source 分支默认 user config 是 Source 拥有的 cliConfigFile，不是 Desktop bootstrap home；
+  // skipUserConfig 仅跳过读取，显式非法路径已在上面先行拒绝。
   const userConfigResult: LoadedConfig = options.skipUserConfig
-    ? { config: {}, diagnostics: [], path: getDefaultConfigPath(), loaded: false }
-    : loadFileConfig(options.userConfigPath);
+    ? {
+        config: {},
+        diagnostics: [],
+        path: sourceRoots?.cliConfigFile ?? getDefaultConfigPath(),
+        loaded: false,
+      }
+    : loadFileConfig(options.userConfigPath ?? sourceRoots?.cliConfigFile);
 
   if (userConfigResult.loaded) {
     configs.push(
@@ -230,6 +242,18 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
   // Project Hook events stay outside this executable merge. The snapshot above is the only
   // Phase 1 side-channel and cannot be consumed by configured-runner.
   const merged = mergeConfigs(...configs);
+
+  // Source persistence 固定（最后覆盖）：storage.dir 与 sessionDbPath 属于 Source 根
+  // owner，default/user/project/env/CLI 各层的同名覆盖不能逃出 Source 数据根。
+  // 非 persistence 字段（hooks、ui、permission 等）保持普通优先级。
+  if (sourceRoots) {
+    merged.storage = {
+      ...merged.storage,
+      dir: sourceRoots.storageDir,
+      sessionDbPath: sourceRoots.sessionDatabasePath,
+    };
+  }
+
   const pluginConfigSources = resolvePluginConfigSources({
     projectConfig: projectConfigResult.config,
     projectPath: projectConfigResult.path,
@@ -333,32 +357,13 @@ function resolvePluginConfigSources(input: {
   };
 }
 
-function withHookConfigSource(
-  config: RuntimeConfigPatch,
-  source: HookConfigSource,
-): RuntimeConfigPatch {
-  if (!config.hooks?.events) return config;
-  return {
-    ...config,
-    hooks: {
-      ...config.hooks,
-      events: Object.fromEntries(
-        Object.entries(config.hooks.events).map(([eventName, matchers]) => [
-          eventName,
-          matchers?.map((matcher) => ({
-            ...matcher,
-            hooks: matcher.hooks.map((hook) => ({ ...hook, source: hook.source ?? source })),
-          })),
-        ]),
-      ) as NonNullable<RuntimeConfigPatch["hooks"]>["events"],
-    },
-  };
-}
-
 export function resolveWorkspaceStorageDir(input: {
   env?: Record<string, string | undefined>;
   workingDirectory: string;
 }): string {
+  const sourceRoots = resolveSourcePersistenceRoots(input.env ?? process.env);
+  // Source 分支：与 createConfig 相同，Source 根拥有 storage.dir，env/project 不能改写。
+  if (sourceRoots) return sourceRoots.storageDir;
   const baseStorageDir = createConfig({ env: input.env }).config.storage.dir;
   const projectConfig = loadProjectConfigs(input.workingDirectory);
   let projectStorageDir: string | undefined;

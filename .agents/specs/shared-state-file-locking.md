@@ -124,3 +124,49 @@ Main（mcpUserDirectory）与 Host（mcpSyncService）的迁移均适用：锁�
 - 命令改名在锁内读取旧路径的最新 override 并迁往新路径；并发启用或禁用均须保留。
 - MCP 导入执行 D2 的锁内同名复查。测试经公开服务入口，用真实文件锁制造等待窗口，再由并发写入方提交最新值。
 - Main/Host 的 MCP 手动 upsert/delete 只向持锁写入路径传递目标名称及本次配置；服务器表在锁内读取、迁移并修改，不接受锁外派生的整表。并发新增、编辑和开关更新均保留，删除只移除目标条目。
+
+## Windows 技能路径开关的一致性
+
+`skillsService` 的读取与写入必须使用相同的路径归一化规则（反斜杠转正斜杠）。修改目标开关时在文件锁内删除所有归一化后等于目标的旧 key，再按规范 key 写入禁用 override；启用则删除 override。否则旧 Windows 反斜杠 key 仍被读取为禁用，出现开关保存成功但技能无法启用，或者旧 key 覆盖新值。
+
+验收沿用 `sharedConfigMutations.test.ts` 的真实服务和文件锁：原始 Windows key、正斜杠 key 与两种 key 同时存在时，启用均删除目标 override，禁用只留一个规范 key；其他技能及并发更新字段保持锁内最新值。文件内容仍是唯一事实，接口与默认启用语义不变。
+
+## fork 补强：设置导入与技能保存的完整事务
+
+设置同步的 MCP 导入与其他配置 writer 共用目标文件锁。外部扫描和候选判重在锁外；锁内重新读取目标并按归一化名称复查，增量写入只合并本次条目。锁等待期间新建同名 server 时保留最新值，公开导入结果返回 `skipped` / `sameNameExists`，不得误报 imported。Plugin 与 MCP 的既有配置写助手均在调用方锁内使用 `atomicWriteText(..., { useFileLock: false })`，不嵌套取锁。
+
+技能展示仍可沿用既有损坏配置降级；修改开关的锁内最终读取只允许 ENOENT 视为空配置。损坏 JSON、非对象根与权限/其他 IO 错误必须拒绝写入；设置同步的目标配置读取遵守相同 fail-closed 规则，外部来源解析语义不变。技能开关同样使用既有原子文本写助手；临时写入或 rename 失败不得截断目标文件，原始配置字节与 provider/MCP 字段保持，失败临时文件清理。
+
+```mermaid
+sequenceDiagram
+    participant S as 配置字段业务服务
+    participant L as 既有文件锁
+    participant F as config.json（唯一事实）
+    S->>S: 锁外扫描来源 / 构造增量
+    S->>L: withFileLock(config)
+    L->>F: 严格读取最新配置
+    S->>S: 复查同名条目并合并增量
+    alt 同名已存在
+        S-->>S: skipped，不写文件
+    else 允许写入
+        S->>F: 原子临时写入并替换（不重入锁）
+        F-->>S: 成功或原文件未变的真实失败
+    end
+    L-->>S: 释放锁
+```
+
+验收：经公开 settings-sync importSelected，用真实锁制造并发更新与同名碰撞，结果统计与最终文件一致；技能临时写入部分成功后 ENOSPC、目标 rename 失败、坏 JSON/数组根/权限错误均保持原始字节且无临时残留，重试后仍保留无关配置。类型、Lint、架构与定向回归必须实际执行。
+
+## 私有配置原子替换的文件权限
+
+CLI 配置的正常 writer 使用 `0600` 创建文件；旧技能与设置导入 writer 原地写入时会保留已有权限。改用临时文件替换后，未指定 mode 的新文件在 POSIX 常见 `umask 022` 下变成 `0644`，使配置中的鉴权头、OAuth secret 或插件选项对其他本机用户可读。这是原子写改动引入的权限回归，不修改配置事实或字段归属。
+
+- 技能开关与设置导入的 JSON 配置仍只走既有锁内 `atomicWriteText`，明确传入 `mode: 0o600` 与 `useFileLock: false`。临时文件在创建时即为私有，rename 后正式文件保持私有；不在替换后另加 chmod、写入路径或权限修补状态。
+- `atomicWriteText` 仅增加可选的创建 mode；未传入时保持通用文件 writer 原有默认权限语义，不改变其他业务调用。目录权限、锁、重试、ENOENT、严格读取、失败保留原始字节与临时文件清理均不变。
+
+```text
+私有配置服务 → 原文件锁 → 严格读/合并 → writeFile(temp, mode=0600) → 原 rename → 释放锁
+通用文件服务 → 原 atomicWriteText（mode 缺省仍按原系统默认权限）
+```
+
+验收在 `sharedConfigMutations.test.ts` 经公开技能开关、插件导入与设置 MCP 导入，使用真实临时目录并记录生产 helper 的实际 `fs.writeFile` mode，Windows 也必须断言 `0o600`；POSIX 额外 stat 正式文件确认 `0600`。通用 helper 不传 mode 的路径保持缺省语义，原有部分写入/rename 失败与坏 JSON 回归继续通过，不触及用户配置。

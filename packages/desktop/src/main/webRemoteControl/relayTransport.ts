@@ -3,6 +3,7 @@ import {
   webRemoteControlAppPayloadSchema,
   webRemoteControlEndpointToClientFrameSchema,
   type WebRemoteControlAppPayload,
+  type WebRemoteControlEndpointToClientFrame,
   type WebRemoteControlTransportState,
 } from "@zcode/shared";
 import type { WebRemoteControlLogger } from "./logger.js";
@@ -210,17 +211,11 @@ export function createRelayDeviceTransport(
     });
   }
 
-  async function handleFrame(frame: unknown, sourceSocket: WebSocket): Promise<void> {
-    const parsed = webRemoteControlEndpointToClientFrameSchema.safeParse(frame);
-    if (!parsed.success) return;
-    const inbound = parsed.data as {
-      type: string;
-      device_sid?: string;
-      pair_status?: string;
-      payload?: unknown;
-      code?: string;
-      message?: string;
-    };
+  // 唯一入口已完成 wire 外壳校验；应用 payload 仍在配对门禁后单独校验。
+  async function handleFrame(
+    inbound: WebRemoteControlEndpointToClientFrame,
+    sourceSocket: WebSocket,
+  ): Promise<void> {
     switch (inbound.type) {
       case "device_register_ack": {
         if (auth.mode !== "register") return;

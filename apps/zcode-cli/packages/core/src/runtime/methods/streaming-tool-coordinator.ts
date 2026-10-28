@@ -1,3 +1,5 @@
+import type { ToolSearchExecutionContext } from "@zcode/contracts";
+import { resolveDeferredToolCall } from "../../tool/deferred-call.js";
 import { TurnMachineImpl, createPartId } from "../deps.js";
 import type {
   MessageId,
@@ -57,6 +59,7 @@ export function createStreamingToolCoordinator(
     assistantMessageId: MessageId;
     model: Model;
     traceContext: TraceContext;
+    toolSearch?: ToolSearchExecutionContext;
   },
 ): StreamingToolCoordinator {
   const abortController = new AbortController();
@@ -72,7 +75,11 @@ export function createStreamingToolCoordinator(
     accept(toolCall) {
       // model.ts 已完成 runtime admission。这里必须保留空名原值，使正常 finish
       // 走 end-of-stream registry miss，同时让 finish 前断流保留 synthetic interrupted error。
-      const normalizedToolCall = { ...toolCall };
+      const normalizedToolCall = resolveDeferredToolCall(
+        { ...toolCall },
+        options.toolSearch,
+        runtime.registry,
+      ).call;
       if (normalizedToolCall.providerExecuted) return;
       acceptedToolCalls.set(normalizedToolCall.id, normalizedToolCall);
       if (!shouldExecuteToolDuringStream(runtime, normalizedToolCall)) return;
@@ -84,6 +91,7 @@ export function createStreamingToolCoordinator(
         declarationIndex: acceptedToolCalls.size - 1,
         model: options.model,
         toolCall: normalizedToolCall,
+        toolSearch: options.toolSearch,
         traceContext: options.traceContext,
       }).catch(async (error) => {
         runtime.logger?.warn("Streaming tool execution fell back to end-of-stream execution", {
@@ -204,6 +212,7 @@ export function createStreamingToolCoordinator(
         },
         streamedToolResults,
         toolCalls,
+        toolSearch: options.toolSearch,
       });
       await emitStreamRecoveryRetryEvents(runtime, state, recoveryEventOptions, {
         ...recoveryAttempt,
@@ -227,6 +236,7 @@ async function executeDuringStream(
     declarationIndex: number;
     model: Model;
     toolCall: ModelToolCall;
+    toolSearch?: ToolSearchExecutionContext;
     traceContext: TraceContext;
   },
 ): Promise<StreamedToolExecutionResult | undefined> {
@@ -241,6 +251,9 @@ async function executeDuringStream(
     id: options.toolCall.id as ToolCallId,
     input: options.toolCall.input,
     name: toolName,
+    ...(options.toolCall.modelCallWrapper
+      ? { modelCallWrapper: options.toolCall.modelCallWrapper }
+      : {}),
   };
   const partID = createPartId();
   const input = toRecordInput(toolCall.input);
@@ -257,6 +270,7 @@ async function executeDuringStream(
     model: options.model,
     partID,
     toolCall,
+    providerOptions: options.toolCall.providerOptions,
     traceContext: options.traceContext,
   });
   await emitStreamingToolLedgerUpdate(runtime, state.events, options.traceContext, {
@@ -287,6 +301,7 @@ async function executeDuringStream(
     subagentModelOverride: state.subagentModelOverride,
     model: state.model,
     automationTurn: isAutomationMutationRestrictedTurn(state),
+    toolSearch: options.toolSearch,
     signal: options.abortSignal,
     traceContext: options.traceContext,
     onBatchStart: async () => {
@@ -300,6 +315,14 @@ async function executeDuringStream(
           callID: toolCall.id,
           declarationIndex: options.declarationIndex,
           tool: toolCall.name,
+          metadata: {
+            ...(options.toolCall.modelCallWrapper
+              ? { modelCallWrapper: options.toolCall.modelCallWrapper }
+              : {}),
+            ...(options.toolCall.providerOptions
+              ? { providerOptions: options.toolCall.providerOptions }
+              : {}),
+          },
           state: {
             status: "running",
             input,

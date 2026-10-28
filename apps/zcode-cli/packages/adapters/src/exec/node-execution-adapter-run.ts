@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { BashFileOutput } from "./bash-file-output.js";
 import { readCapturedCwd } from "./cwd-capture.js";
 import { defaultCwdDialect } from "./execution-command.js";
-import { NodeExecutionAdapterProcess } from "./node-execution-adapter-process.js";
+import { NodeExecutionAdapterOutputPreparation } from "./node-execution-adapter-output-preparation.js";
 import { resolveLegacyExecutionOutputEncoding } from "./outputEncoding.js";
 import {
   DEFAULT_TIMEOUT_MS,
@@ -23,7 +23,7 @@ import type {
   ExecutionShellDialect,
 } from "@zcode/contracts";
 
-export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
+export class NodeExecutionAdapterRun extends NodeExecutionAdapterOutputPreparation {
   async run(
     request: ExecutionRequest,
     options: ExecutionRunOptions = {},
@@ -33,6 +33,15 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
     let requestStop: (reason: StopReason) => void = () => undefined;
     let outputLimitExceeded = false;
     const internalOptions = options as InternalExecutionRunOptions;
+    let preparedOutput = internalOptions.preparedBashOutput;
+    if (!preparedOutput && this.usesBashTempOutput(request)) {
+      const preparation = await this.prepareBashOutput(request, options);
+      if ("result" in preparation) {
+        this.emitResult(options, preparation.result);
+        return preparation.result;
+      }
+      preparedOutput = preparation.prepared;
+    }
     const aggregatePersistedBudget = internalOptions.sharePersistedOutputLimitAcrossStreams
       ? {
           bytes: 0,
@@ -41,10 +50,14 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       : undefined;
 
     if (this.closePromise) {
+      await preparedOutput?.file.discard();
+      preparedOutput?.releasePreparation();
       return this.createStoppedResult(startedAt, "cancelled", "Execution adapter is shutting down");
     }
 
     if (options.signal?.aborted) {
+      await preparedOutput?.file.discard();
+      preparedOutput?.releasePreparation();
       return this.createStoppedResult(startedAt, "cancelled", "Execution cancelled before spawn");
     }
 
@@ -65,19 +78,18 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
             }
           }
         : undefined;
-    const legacyOutputEncoding = resolveLegacyExecutionOutputEncoding({
+    const legacyOutputEncoding = preparedOutput?.legacyOutputEncoding ?? resolveLegacyExecutionOutputEncoding({
       platform: this.platform,
       processEnv: this.processEnv,
     });
-    // 任务记录单独解析会重复同步执行 Windows chcp；复用执行时的编码值。
     internalOptions.onOutputEncodingResolved?.(legacyOutputEncoding);
-    const file = useBashMergedOutput
+    const file = preparedOutput?.file ?? (useBashMergedOutput
       ? new BashFileOutput(
           this.outputPathForRequest(request, "stdout")!,
           this.platform,
           legacyOutputEncoding,
         )
-      : undefined;
+      : undefined);
     const stdout = file
       ? undefined
       : this.createOutputCollector(
@@ -167,6 +179,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
     };
 
     const executionId = this.registerActiveExecution(requestStop);
+    preparedOutput?.releasePreparation();
     const abortHandler = () => {
       const reason = abortSignalReason(options.signal);
       requestStop(reason === "output_limit" ? "output_limit" : "cancelled");
@@ -184,11 +197,12 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
 
       const stoppedAfterCommandPreparation = stoppedBeforeSpawn();
       if (stoppedAfterCommandPreparation) {
+        if (preparedOutput) await file?.discard();
         return stoppedAfterCommandPreparation;
       }
 
       if (file) {
-        await file.prepare();
+        if (!preparedOutput) await file.prepare();
         const stoppedAfterOutputPreparation = stoppedBeforeSpawn();
         if (stoppedAfterOutputPreparation) {
           await file.discard();

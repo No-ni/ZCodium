@@ -8,7 +8,7 @@
 - 全部行（含没有插件卡片的回合）按首次出现顺序建立 turnOrder。最近回合继续使用原 `slice(-(autoExpandTurns ?? 3))`，保留零、负值、小数、NaN 和 Infinity 的既有转换语义。
 - 分组仍使用原 `resolvePluginUiLogicalScope`，保留 plugin/server/resource/surface/widgetSessionId/权限范围隔离、首组顺序及组内行顺序。默认按 toolCallId 独立的调用不能合并。
 - active 仍为最后一次成功且非 isError 的行；无成功时为最后一行。superseded 数组仍只含其他成功行并保留顺序、重复 ID 及重复对象的原身份比较语义。running/error/cancelled/isError 不替代成功结果；同 ID 的原成员判断也保持一致。
-- 回合、最近回合和 superseded 成员查询改用仅活于本次调用的无原型字符串索引，避免随数组长度重复扫描；输出数组和普通对象的形状不变。特殊字符串键不得碰撞对象原型。输入不可修改，后续调用必须重新从本次 rows/选项派生。
+- 回合、最近回合和 superseded 成员查询改用仅活于本次调用的无原型字符串索引，避免随数组长度重复扫描；输出数组和普通对象的形状不变。特殊字符串键不得碰撞对象原型；`byToolCallId` 对 `__proto__` 也必须建立可枚举、可写、可配置的自有属性，不得触发原型 setter 或丢失该行裁决。输入不可修改，后续调用必须重新从本次 rows/选项派生。
 - 没有沙箱生命周期、手动固定、失败展示资格、owner/lease、identity、协议或 Desktop continuous / mobile replayable 变化；没有新增交互规则。
 
 ## 事件顺序
@@ -34,6 +34,13 @@ sequenceDiagram
 2. 使用原算法生成完整输出黄金快照，覆盖混合行/状态、首次回合顺序与交错回合、默认与非常规选项、显式 surface、widget 权限隔离、独立调用、重复 ID/对象、特殊字符串 ID 与无插件/空输入。
 3. 冻结输入及选项，核对完整输出和成员裁决；替换 rows、改变状态、撤回旧行或追加新回合后重新派生，不能保留旧结果。
 4. 运行目标 Vitest 与现有 plugin-ui 相关回归，定点格式/lint/架构检查；根 typecheck/lint 由主任务统一执行。纯计算等价优化不增加交互 E2E；工作量和微基准不宣称 Electron 整机加速。
+
+## 上游无插件快速返回增量（32ad025b）
+
+- fork 已包含线性回合去重、recentTurns 与 superseded 成员索引，本次不重复替换这些算法。仅先筛出既有 `isPluginUiToolRow` 定义的候选行：没有候选时返回新的同形空结果，不读取任何 turnId，不建立全部回合目录；有候选时仍按全部 rows 的首见回合顺序裁决，并只对候选执行既有分组。
+- 判定仍是 `toolCall + mcp_tool + ui !== undefined`；无效／空 ui 仍由既有后续门禁排除，不重定义资格。返回值不复用可变全局 EMPTY 对象，保持调用间独立。
+- domain 保持纯函数、调用内数组／无原型索引和既有公开契约；不新增 cache、IO、状态 owner、插件发布路径或沙箱生命周期。原事件顺序、手动固定、错误门禁、替代插件与所有 `slice` 数值选项语义保持。
+- 先补 guard getter 工作量测试：2,000 行无插件混合投影只读取一次必要的 kind/display/ui，不触碰 turnId/text；原代码应失败。另用访问计数验证候选路径不对普通行执行第二遍插件判定，并与原完整黄金快照及替换／撤回／状态回归合跑。不用耗时阈值或重复宣称此前线性收益。
 
 ## 实施与验证
 

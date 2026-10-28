@@ -1,0 +1,26 @@
+{
+  "revision": "62f10852",
+  "provenance": "Unmodified working-tree source captured before the linear-hotpath changes.",
+  "sources": [
+    {
+      "name": "scheduler.ts.txt",
+      "file": "apps/zcode-cli/packages/core/src/tool/scheduler.ts",
+      "sha256": "7702231f79a88c35c91094cbb98abde7cf07bc4151d0a5b4b7817cb408f9edd2"
+    },
+    {
+      "name": "file-summaries.ts.txt",
+      "file": "packages/ui/src/ToolCallBlocks/fileSummaries.ts",
+      "sha256": "42d6a0c776c936ea2f81aa595c303f5cde18a81d1af7ef39a15584049d88541d"
+    },
+    {
+      "name": "coalescer.ts.txt",
+      "file": "packages/services/src/zcode-agent/zcodeSessionEventCoalescer.ts",
+      "sha256": "de3002e35cc9764e94d87a5ac860a505e2e4046567994466b812410ba1aa7a60"
+    },
+    {
+      "name": "task-realtime-bridge.ts.txt",
+      "file": "packages/desktop/src/host/taskRealtimeBridge.ts",
+      "sha256": "ce12959922bd6cfc70558226013f5285cc0dec1a6ff1ec6e679e714d2b3eecdc"
+    }
+  ]
+}

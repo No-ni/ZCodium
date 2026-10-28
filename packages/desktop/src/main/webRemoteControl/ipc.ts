@@ -5,6 +5,8 @@ import {
   webRemoteControlStartRequestSchema,
   webRemoteControlTaskSyncSchema,
   webRemoteControlWorkspaceSyncSchema,
+  HostMessageTypes,
+  windowProjectDirectorySnapshotSchema,
 } from "@zcode/shared";
 import type { WebRemoteControlLogger } from "./logger.js";
 import type { WebRemoteControlManager } from "./manager.js";
@@ -27,12 +29,14 @@ export interface RegisterWebRemoteControlIpcOptions {
   logger: WebRemoteControlLogger;
   resolveWindowId(sender: WebContents): number | undefined;
   resolveWindow(windowId: number): BrowserWindow | undefined;
+  resolveHostProcess?(webContentsId: number): { postMessage(message: unknown): void } | undefined;
 }
 
 export function registerWebRemoteControlIpcHandlers(options: RegisterWebRemoteControlIpcOptions) {
   const { logger } = options;
   const manager = () => options.getManager();
   const pendingReconnects = new Map<string, PendingReconnect>();
+  const projectionGenerations = new Map<number, { host: object; generation: number }>();
 
   ipcMain.handle(PlatformChannels.StartWebRemoteControl, async (event, payload: unknown) => {
     const windowId = options.resolveWindowId(event.sender);
@@ -69,7 +73,19 @@ export function registerWebRemoteControlIpcHandlers(options: RegisterWebRemoteCo
     const windowId = options.resolveWindowId(event.sender);
     if (windowId === undefined) return;
     const parsed = webRemoteControlWorkspaceSyncSchema.parse(payload);
+    const host = options.resolveHostProcess?.(event.sender.id);
+    const previous = projectionGenerations.get(windowId);
+    const generation = previous && previous.host === host ? previous.generation + 1 : 1;
+    const projection = windowProjectDirectorySnapshotSchema.parse({
+      version: 1,
+      generation,
+      workspaces: parsed.workspaces.map(({ lastConnectionError: _error, ...entry }) => entry),
+    });
     manager().syncWorkspaces(windowId, parsed.workspaces);
+    if (host) {
+      host.postMessage({ type: HostMessageTypes.WindowProjectDirectoryProjection, projection });
+      projectionGenerations.set(windowId, { host, generation });
+    }
   });
 
   ipcMain.handle(PlatformChannels.SyncWebRemoteControlTasks, (event, payload: unknown) => {
@@ -128,6 +144,7 @@ export function registerWebRemoteControlIpcHandlers(options: RegisterWebRemoteCo
         clearTimeout(pending.timer);
       }
       pendingReconnects.clear();
+      projectionGenerations.clear();
     },
   };
 }

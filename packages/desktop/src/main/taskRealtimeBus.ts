@@ -125,7 +125,8 @@ export class TaskRealtimeBus {
   private readonly seenEventLimit: number;
   private readonly hosts = new Map<string, RegisteredRealtimeHost>();
   private readonly seenEventIds = new Set<string>();
-  private readonly seenEventOrder: string[] = [];
+  private seenEventOrder: Array<string | undefined> = [];
+  private seenEventHead = 0;
   private readonly leases = new Map<string, TaskRunLease>();
   private readonly streamBatches = new Map<string, PendingStreamBatch>();
   private readonly pendingOwnerCommands = new Map<string, PendingOwnerCommandRoute>();
@@ -1081,11 +1082,20 @@ export class TaskRealtimeBus {
     this.seenEventIds.add(eventId);
     this.seenEventOrder.push(eventId);
 
-    while (this.seenEventOrder.length > this.seenEventLimit) {
-      const removed = this.seenEventOrder.shift();
-      if (removed) {
-        this.seenEventIds.delete(removed);
+    // 重复 ID 不续期；游标淘汰保持原容量比较，消费后立即释放引用。
+    while (this.seenEventOrder.length - this.seenEventHead > this.seenEventLimit) {
+      if (this.seenEventHead < this.seenEventOrder.length) {
+        const removed = this.seenEventOrder[this.seenEventHead];
+        this.seenEventOrder[this.seenEventHead++] = undefined;
+        if (removed) this.seenEventIds.delete(removed);
       }
+    }
+    if (this.seenEventHead === this.seenEventOrder.length) {
+      this.seenEventOrder.length = 0;
+      this.seenEventHead = 0;
+    } else if (this.seenEventHead >= 1024 && this.seenEventHead * 2 >= this.seenEventOrder.length) {
+      this.seenEventOrder = this.seenEventOrder.slice(this.seenEventHead);
+      this.seenEventHead = 0;
     }
 
     return true;

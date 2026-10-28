@@ -116,7 +116,8 @@ function resolveApproval(
 ): void {
   approval.cleanup();
   approval.resolve(createApprovalResult(approval.request, decision));
-  setApprovalQueue((current) => current.filter((item) => item !== approval));
+  // 同批选择更新会克隆对象，移除请求必须按稳定 resolve 句柄匹配。
+  setApprovalQueue((current) => current.filter((item) => item.resolve !== approval.resolve));
   setStatus(`Permission ${approvalStatusLabel(decision)} for ${approval.request.toolName}.`);
 }
 

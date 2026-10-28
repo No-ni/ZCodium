@@ -14,6 +14,7 @@ import type { McpProcessTracker } from "@zcode/adapters";
 import type { WorkspaceHookPolicyProvider } from "@zcode/core";
 import {
   zcodeProtocolErrorCodes,
+  type AppToolSearchMode,
   type ZCodeAutomationBotDeliveryTarget,
   type ZCodeDeliveryKind,
   type ModelSelection,
@@ -142,6 +143,7 @@ export interface ZCodeProtocolAgentServerContext {
   logger?: Logger;
   appRuntimePreferences: {
     askUserQuestionAutoResolutionEnabled: boolean;
+    toolSearchMode?: AppToolSearchMode;
     /**
      * host 同步的动态工作流灰度门。
      * 缺省 false（fail-closed）：不认识该方法的旧 Host 或还没来得及同步的启动窗口里，

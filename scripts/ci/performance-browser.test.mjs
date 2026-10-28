@@ -1,7 +1,9 @@
 // 真实浏览器交互回归，使用受控 Host 夹具；不启动用户 Agent、不读取用户数据库。
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
@@ -12,16 +14,24 @@ test(
   { timeout: 60_000 },
   async () => {
     const root = fileURLToPath(new URL("../../", import.meta.url));
-    const server = await createServer({
-      configFile: false,
-      root,
-      plugins: [react()],
-      resolve: { alias: { "@": resolve(root, "packages/ui/src") }, dedupe: ["react", "react-dom"] },
-      server: { host: "127.0.0.1", port: 0 },
-      logLevel: "error",
-    });
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "zcodium-performance-ui-"));
+    let server;
     let browser;
     try {
+      server = await createServer({
+        configFile: false,
+        root,
+        // 全套检查中扫描整个仓库和共享缓存会拖住导航；每个 server 只准备自己的夹具依赖。
+        cacheDir: join(temporaryRoot, "vite-cache"),
+        optimizeDeps: { entries: [resolve(root, "packages/ui/test/performance-browser.html")] },
+        plugins: [react()],
+        resolve: {
+          alias: { "@": resolve(root, "packages/ui/src") },
+          dedupe: ["react", "react-dom"],
+        },
+        server: { host: "127.0.0.1", port: 0 },
+        logLevel: "error",
+      });
       await server.listen();
       browser = await chromium.launch({
         channel: process.platform === "win32" ? "msedge" : "chrome",
@@ -117,8 +127,15 @@ test(
       );
       assert.deepEqual(failures, []);
     } finally {
-      await browser?.close();
-      await server.close();
+      try {
+        await browser?.close();
+      } finally {
+        try {
+          await server?.close();
+        } finally {
+          await rm(temporaryRoot, { recursive: true, force: true });
+        }
+      }
     }
   },
 );
@@ -128,25 +145,31 @@ test(
   { timeout: 60_000 },
   async () => {
     const root = fileURLToPath(new URL("../../", import.meta.url));
-    const server = await createServer({
-      configFile: false,
-      root,
-      plugins: [react()],
-      resolve: {
-        alias: [
-          { find: "@", replacement: resolve(root, "packages/ui/src") },
-          {
-            find: /^docx-preview$/,
-            replacement: resolve(root, "packages/ui/test/frontend-preview-renderer.ts"),
-          },
-        ],
-        dedupe: ["react", "react-dom"],
-      },
-      server: { host: "127.0.0.1", port: 0 },
-      logLevel: "error",
-    });
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "zcodium-performance-docx-"));
+    let server;
     let browser;
     try {
+      server = await createServer({
+        configFile: false,
+        root,
+        cacheDir: join(temporaryRoot, "vite-cache"),
+        optimizeDeps: {
+          entries: [resolve(root, "packages/ui/test/frontend-preview-fixture.html")],
+        },
+        plugins: [react()],
+        resolve: {
+          alias: [
+            { find: "@", replacement: resolve(root, "packages/ui/src") },
+            {
+              find: /^docx-preview$/,
+              replacement: resolve(root, "packages/ui/test/frontend-preview-renderer.ts"),
+            },
+          ],
+          dedupe: ["react", "react-dom"],
+        },
+        server: { host: "127.0.0.1", port: 0 },
+        logLevel: "error",
+      });
       await server.listen();
       browser = await chromium.launch({
         channel: process.platform === "win32" ? "msedge" : "chrome",
@@ -217,8 +240,15 @@ test(
       assert.equal(await page.locator("#docx-container").textContent(), "");
       assert.deepEqual(failures, []);
     } finally {
-      await browser?.close();
-      await server.close();
+      try {
+        await browser?.close();
+      } finally {
+        try {
+          await server?.close();
+        } finally {
+          await rm(temporaryRoot, { recursive: true, force: true });
+        }
+      }
     }
   },
 );

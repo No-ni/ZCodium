@@ -76,7 +76,10 @@ test("扫描后文件变小会报错而不是产出损坏包", async (t) => {
   await writeFile(source, "x".repeat(100));
 
   await assert.rejects(
-    writeTarGz([{ path: "shrink.txt", absolutePath: source, sizeBytes: 999 }], join(dir, "o.tar.gz")),
+    writeTarGz(
+      [{ path: "shrink.txt", absolutePath: source, sizeBytes: 999 }],
+      join(dir, "o.tar.gz"),
+    ),
     /扫描后发生变化/u,
   );
 });
@@ -123,7 +126,8 @@ test("本地密钥对：密文只有本地私钥解得开", async (t) => {
 
   // 私钥文件权限 0600
   const mode = (await stat(join(keysDir, "rsa-private.pem"))).mode & 0o777;
-  assert.equal(mode, 0o600);
+  // Windows 不实现 POSIX mode 位；密文与私钥解密边界在所有平台继续验证。
+  if (process.platform !== "win32") assert.equal(mode, 0o600);
 
   const restored = join(dir, "restored.tar.gz");
   await decryptArchive({

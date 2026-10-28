@@ -37,6 +37,38 @@ sequenceDiagram
 3. 用 artifact Map values 迭代计数证明 32 citations × 256 names 的旧重复扫描失败，预算为 256；用原实现完整黄金输出核对唯一/同名歧义、大小写/空白、Windows/POSIX 路径、未知/缺 path、代码保护、图片降级及多次调用。
 4. 执行目标 Vitest、现有相关回归、定点格式/lint/架构；根 typecheck/lint 由主任务统一执行。纯派生等价优化没有新的交互或布局，不新增 E2E 流程。计数描述受控工作量，不宣称 Electron 整机加速百分比。
 
+## 后续复查：非局部分享态的派生门禁
+
+当前 `SessionPane` 在每次流式 rows 更新时，无条件构建分享 render units、导航摘要和 product-turn 索引；即使局部分享尚未开启，也会重新拼接、分段和归一化全部已加载历史正文。Timeline 已有的缓存不覆盖这条独立分享派生链。
+
+- 只在 `shareActive`（当前 draft 的 `scope === "partial"`）为真时读取分享 rows。非局部分享态使用稳定的无输入来源，不构建 render units，不读取历史正文，也不建立全窗 product-turn 索引。
+- 不以面板可见性或 selection stage 门禁：首次点击分享后既有入口立即切到 timeline 视图，但仍须默认全选；configuration 阶段和暂时收起面板仍需完整候选、总数和实时选择同步。
+- 分享 Store 继续唯一拥有选择草稿；保留 `setScope`、`syncAvailableTurns`、全选/取消、预检、分页补齐、发布和退出清理的原顺序。不新增缓存，不修改 Timeline、通知、协议、身份或 mobile。
+- 开启后的派生仍调用原函数、原选项、原 rows，输出逐值相等；关闭后不更新可选项 Store，重新开启从最新 rows 计算并沿用每次进入默认全选规则。原面板与 Dock 的退出动画保留最后已渲染子树，不修改它们的挂载路径。
+
+```text
+权威 snapshot → SessionPane
+                 ├ shareActive=false → 稳定空输入 → 不扫描分享历史
+                 └ shareActive=true  → 原分享派生 → 原 syncAvailableTurns → 原选择 Store
+```
+
+验收采用现有 `packages/ui/vitest.config.ts`。测试通过 TypeScript AST 提取当前 SessionPane 的实际分享派生声明，调用真实 helper 和真实选择 Store，不维护第二套优化算法。先在旧实现运行：非分享态的 1,000 历史轮次应因正文/rowId 读取超预算失败；实现后关闭态读取为零。开启态对照原函数完整输出，并覆盖首次 timeline 视图、选择/全选、configuration、流式追加与终态、关闭/重新开启、同 ID 替换及 session 切换。浏览器夹具复用同一实际派生声明与生产分享入口/面板，通过官方 browser 工具验证交互；夹具不冒充完整 SessionPane/真实 Host E2E。
+
+### 后续门禁验证结果
+
+- 旧生产声明的关闭态预算先红：1,000 历史轮次、3 次 rows 数组更新，`rowId` 读取 66,000 次，`assistant.text` 读取 3,000 次；门禁后两者均为 0。计数只代表分享派生链，不是整个 SessionPane 的 CPU 时间或端到端收益。
+- 当前声明 + 真实 helper/选择 Store 的 5 项回归通过；另含 `Object.is` 依赖缓存运行器，验证关闭态不同 rows 保持全部派生引用，以及关闭→重开从最新 rows 重算。与原 render cache、navigator、分享指纹、projection 回归合跑 5 文件、40 项通过。
+- 定点格式/lint 与 `git diff --check` 通过；修改后架构 0/0/0。根 typecheck/lint 由协调方统一执行并报告通过。
+- 官方 IAB 可发现并创建测试页，`tabs.list` 返回其 URL/title/id；下一次按协议 `tabs.get(id)` 报 `Browser tab ... is unavailable`，未完成浏览器交互，未改用 shell 浏览器绕过。保留 `performance-share-inactive.serve.ts`、HTML/TSX 可复现夹具（实际派生声明由 AST 注入）；自建 Vite 服务已停止，专属临时 cache 已删除。浏览器覆盖不记为通过，完整 Host/Electron 分享 E2E 未运行。
+
+### 最终复查：独立夹具的根上下文
+
+官方浏览器后续可以恢复标签页，但分享夹具启动出现确定的 `Tooltip must be used within TooltipProvider`：真实应用由 Root 提供共享 TooltipProvider，独立夹具遗漏了该根上下文。只在夹具根复用现有 `TooltipProvider`，不修改 ConversationShareMenu、ControlHintTooltip 或 SessionPane，不为每个提示建立独立 Provider。先补直接加载真实 TSX 夹具、捕获其实际根节点并执行 SSR 的回归；缺少 Provider 时应红测，补齐后必须渲染真实分享入口和关闭态状态。再由官方浏览器验证默认 timeline 全选、selection/configuration、流式更新、终态、关闭和重开；浏览器指针或键盘失败与页面事件验证分别记录，不把合成夹具当作完整 Host/Electron E2E。
+
+- 真实 TSX 夹具的 SSR 回归先复现缺少 Provider 的相同异常，补齐共享根后 6/6 通过；新测试和夹具额外严格类型检查 0 个目标诊断。
+- 官方 IAB 实际渲染生产分享入口与选择面板、当前 AST 注入的派生声明。首次分享进入 timeline 并默认选中已完成轮次，运行中轮次禁选；全选/取消、selection/configuration、流式候选变化、完成后重新可选、再次点击退出与从最新 rows 重开均符合现有规则。关闭态重置工作计数后两次 rows 更新的 rowReads/textReads 均为 0，重开重新计算并默认全选。页面 error/rejection 观察为空。
+- 本宿主高层指针点击超时、Enter 没有产生可确认状态变化；组件事件通过官方浏览器中已观察且唯一的 locator 页面 click 完成。这是实际 React/Store/派生的受控组件回归，不报告真实指针或完整键盘 E2E 已通过。测试页、自建 loopback server 与专属缓存按自身生命周期清理，不操作现用 Host/Agent。
+
 ## 实施与验证
 
 - 固定 Node 24.14.0 下先仅提取原 `map` 为批量 helper，生产算法尚未优化时目标回归 2 失败 / 5 通过：预检 ID getter 实读 65,536 次，正文名称 iterator 实读 8,192 次，同时生成两份原始输出黄金快照。

@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const execute = promisify(execFile);
-const cli = new URL("../src/cli.ts", import.meta.url).pathname;
+// URL.pathname 不是 Windows 文件路径，execFile 需要去掉文件 URL 的编码和盘符前缀。
+const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 
 test("offline derive converts only an explicitly supplied existing trajectory", async () => {
   const directory = await mkdtemp(join(tmpdir(), "zcodium-offline-trajectory-"));

@@ -1,9 +1,62 @@
 {
   "schemaVersion": 1,
-  "revision": 30,
+  "revision": 32,
   "config": {
     "providerConfigRules": {
       "templateRules": [
+        {
+          "templateId": "opencode-go-google",
+          "templateNameMap": {
+            "zh-CN": "OpenCode Go (Google)",
+            "en-US": "OpenCode Go (Google)"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://opencode.ai/auth"
+            },
+            "api": {
+              "type": "google-generative-ai",
+              "baseUrl": "https://opencode.ai/inference/go/google/v1beta"
+            },
+            "builtinModelIds": ["gemini-4-argon-contributor"],
+            "logo": {
+              "type": "builtin",
+              "key": "opencode"
+            }
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "templateNameMap": {
+            "zh-CN": "OpenCode Zen (Google)",
+            "en-US": "OpenCode Zen (Google)"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://opencode.ai/auth"
+            },
+            "api": {
+              "type": "google-generative-ai",
+              "baseUrl": "https://opencode.ai/inference/google/v1beta"
+            },
+            "builtinModelIds": [
+              "gemini-4-argon",
+              "gemini-3.8-flash",
+              "gemini-3.7-flash",
+              "gemini-3.6-flash",
+              "gemini-3.5-flash",
+              "gemini-3.5-flash-lite",
+              "gemini-3.1-pro",
+              "gemini-3-flash"
+            ],
+            "logo": {
+              "type": "builtin",
+              "key": "opencode"
+            }
+          }
+        },
         {
           "templateId": "zai-api",
           "templateNameMap": {
@@ -300,8 +353,8 @@
         {
           "templateId": "xiaomi-mimo",
           "templateNameMap": {
-            "zh-CN": "Xiaomi MiMo",
-            "en-US": "Xiaomi MiMo"
+            "zh-CN": "Xiaomi MiMo API",
+            "en-US": "Xiaomi MiMo API"
           },
           "config": {
             "access": {
@@ -312,7 +365,29 @@
               "type": "anthropic-messages",
               "baseUrl": "https://api.xiaomimimo.com/anthropic"
             },
-            "builtinModelIds": ["mimo-v2.5-pro", "mimo-v2.5"],
+            "builtinModelIds": ["mimo-v2.6-pro", "mimo-v2.6-flash", "mimo-v2.5-pro", "mimo-v2.5"],
+            "logo": {
+              "type": "builtin",
+              "key": "xiaomi-mimo"
+            }
+          }
+        },
+        {
+          "templateId": "xiaomi-mimo-token-plan",
+          "templateNameMap": {
+            "zh-CN": "Xiaomi MiMo Token Plan",
+            "en-US": "Xiaomi MiMo Token Plan"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://platform.xiaomimimo.com/"
+            },
+            "api": {
+              "type": "anthropic-messages",
+              "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic"
+            },
+            "builtinModelIds": ["mimo-v2.6-pro", "mimo-v2.6-flash"],
             "logo": {
               "type": "builtin",
               "key": "xiaomi-mimo"
@@ -688,178 +763,7 @@
           }
         }
       ],
-      "providerRules": [
-        {
-          "providerId": "account:zai-individual-coding-plan",
-          "providerName": "Z.AI Individual Coding Plan",
-          "config": {
-            "group": "zai-family",
-            "builtinModelIds": ["GLM-5.3", "GLM-5.3-Flash"],
-            "access": {
-              "type": "zhipu-account",
-              "mode": "individual-coding-plan",
-              "accountType": "zai"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://api.z.ai/api/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "zai"
-            }
-          }
-        },
-        {
-          "providerId": "account:zai-team-coding-plan",
-          "providerName": "Z.AI Team Coding Plan",
-          "config": {
-            "group": "zai-family",
-            "builtinModelIds": ["GLM-5.3", "GLM-5.3-Flash"],
-            "access": {
-              "type": "zhipu-account",
-              "mode": "team-coding-plan",
-              "accountType": "zai"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://api.z.ai/api/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "zai"
-            }
-          }
-        },
-        {
-          "providerId": "account:zai-start-plan",
-          "providerName": "Start Plan",
-          "config": {
-            "group": "zai-family",
-            "builtinModelIds": ["GLM-5.3-Flash", "GLM-5.2", "GLM-5-Turbo"],
-            "access": {
-              "type": "zhipu-account",
-              "mode": "start-plan",
-              "accountType": "zai"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://zcode.z.ai/api/v1/zcode-plan/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "start-plan"
-            }
-          }
-        },
-        {
-          "providerId": "account:bigmodel-individual-coding-plan",
-          "providerName": "BigModel Individual Coding Plan",
-          "config": {
-            "group": "bigmodel-family",
-            "builtinModelIds": ["GLM-5.3", "GLM-5.3-Flash"],
-            "access": {
-              "type": "zhipu-account",
-              "mode": "individual-coding-plan",
-              "accountType": "bigmodel"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://open.bigmodel.cn/api/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "bigmodel"
-            }
-          }
-        },
-        {
-          "providerId": "account:bigmodel-team-coding-plan",
-          "providerName": "BigModel Team Coding Plan",
-          "config": {
-            "group": "bigmodel-family",
-            "builtinModelIds": ["GLM-5.3", "GLM-5.3-Flash"],
-            "access": {
-              "type": "zhipu-account",
-              "mode": "team-coding-plan",
-              "accountType": "bigmodel"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://open.bigmodel.cn/api/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "bigmodel"
-            }
-          }
-        },
-        {
-          "providerId": "account:bigmodel-start-plan",
-          "providerName": "Start Plan",
-          "config": {
-            "group": "bigmodel-family",
-            "builtinModelIds": ["GLM-5.3-Flash", "GLM-5.2", "GLM-5-Turbo"],
-            "access": {
-              "type": "zhipu-account",
-              "mode": "start-plan",
-              "accountType": "bigmodel"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://zcode.z.ai/api/v1/zcode-plan/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "start-plan"
-            }
-          }
-        },
-        {
-          "providerId": "account:zai-offpeak-idle-plan",
-          "providerName": "Z.AI Idle plan",
-          "config": {
-            "group": "zai-family",
-            "builtinModelIds": ["GLM-5.3", "GLM-5.3-Flash"],
-            "visibility": "hidden",
-            "access": {
-              "type": "zhipu-account",
-              "mode": "off-peak",
-              "accountType": "zai"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://zcode.z.ai/api/v1/off-peak/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "zai"
-            }
-          }
-        },
-        {
-          "providerId": "account:bigmodel-offpeak-idle-plan",
-          "providerName": "BigModel Idle plan",
-          "config": {
-            "group": "bigmodel-family",
-            "builtinModelIds": ["GLM-5.3", "GLM-5.3-Flash"],
-            "visibility": "hidden",
-            "access": {
-              "type": "zhipu-account",
-              "mode": "off-peak",
-              "accountType": "bigmodel"
-            },
-            "api": {
-              "type": "anthropic-messages",
-              "baseUrl": "https://zcode.z.ai/api/v1/off-peak/anthropic"
-            },
-            "logo": {
-              "type": "builtin",
-              "key": "bigmodel"
-            }
-          }
-        }
-      ]
+      "providerRules": []
     },
     "modelConfigRules": {
       "modelRules": [
@@ -2385,6 +2289,27 @@
           }
         },
         {
+          "modelMatch": ".*mimo-v2\\.6-(?:pro|flash)(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": true,
+                "supportsAudio": true
+              }
+            },
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": ["disabled", "enabled"]
+              },
+              "maxOutputTokens": {
+                "max": 131072
+              }
+            }
+          }
+        },
+        {
           "modelMatch": ".*mimo-v2\\.5(?:[.\\-:/\\[].*)?",
           "config": {
             "properties": {
@@ -2482,6 +2407,27 @@
         }
       ],
       "modelApiRules": [
+        {
+          "modelMatch": ".*",
+          "apiTypeMatch": "google-generative-ai",
+          "config": {
+            "properties": {
+              "supportsToolCall": true,
+              "supportsJsonSchemaOutput": true,
+              "supportsNativeWebSearch": true,
+              "supportsMidConversationSystem": false
+            },
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": ["disabled", "enabled"],
+                "map": "reasoningLevel == \"disabled\"\n  ? {}\n  : {\n      \"generationConfig\": {\n        \"thinkingConfig\": {\n          \"thinkingLevel\": \"high\",\n          \"includeThoughts\": true\n        }\n      }\n    }"
+              },
+              "maxOutputTokens": {
+                "map": "{'generationConfig': {'maxOutputTokens': maxOutputTokens}}"
+              }
+            }
+          }
+        },
         {
           "modelMatch": ".*claude-(?:opus-(?:4[.-]8|5)|(?:fable|mythos)-5(?:[.-]1)?)(?:[.\\-:/\\[].*)?",
           "apiTypeMatch": "anthropic-messages",
@@ -3075,6 +3021,17 @@
           }
         },
         {
+          "modelMatch": ".*mimo-v2\\.6-(?:pro|flash)(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "anthropic-messages",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "map": "{\n  \"thinking\": {\n    \"type\": reasoningLevel == \"enabled\" ? \"enabled\" : \"disabled\"\n  }\n}"
+              }
+            }
+          }
+        },
+        {
           "modelMatch": ".*mimo-v2\\.5(?:[.\\-:/\\[].*)?",
           "apiTypeMatch": "anthropic-messages",
           "config": {
@@ -3285,6 +3242,231 @@
         }
       ],
       "providerSiteRules": [
+        {
+          "modelMatch": ".*gemini-4-argon-contributor(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 32768
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-4-argon(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 32768
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3\\.5-flash-lite(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3\\.8-flash(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3\\.7-flash(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3\\.6-flash(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3\\.5-flash(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3\\.1-pro(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gemini-3-flash(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "google-generative-ai",
+          "baseUrlMatch": "^https://opencode\\.ai/inference/(?:go/)?google/v1beta/?$",
+          "config": {
+            "properties": {
+              "contextWindow": 1048576,
+              "inputFormat": {
+                "supportsText": true,
+                "supportsImage": true,
+                "supportsVideo": false,
+                "supportsAudio": false,
+                "supportsPdf": false
+              },
+              "outputFormat": {
+                "supportsText": true
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 65536
+              }
+            }
+          }
+        },
         {
           "modelMatch": "glm-5\\.3-flash",
           "apiTypeMatch": "openai-chat-completions",
@@ -4315,6 +4497,69 @@
       ],
       "templateModelRules": [
         {
+          "templateId": "opencode-go-google",
+          "modelId": "gemini-4-argon-contributor",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-4-argon",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3.8-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3.7-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3.6-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3.5-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3.5-flash-lite",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3.1-pro",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "opencode-zen-google",
+          "modelId": "gemini-3-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
           "templateId": "opencode-go-chat",
           "modelId": "glm-5.3-flash",
           "config": {
@@ -4739,6 +4984,34 @@
           "templateId": "qwen-alibaba-model-studio-intl",
           "config": {
             "enabled": false
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-pro",
+          "templateId": "xiaomi-mimo",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-flash",
+          "templateId": "xiaomi-mimo",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-pro",
+          "templateId": "xiaomi-mimo-token-plan",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-flash",
+          "templateId": "xiaomi-mimo-token-plan",
+          "config": {
+            "enabled": true
           }
         },
         {
@@ -6023,190 +6296,7 @@
           }
         }
       ],
-      "builtinProviderModelRules": [
-        {
-          "providerId": "account:zai-individual-coding-plan",
-          "modelId": "GLM-5.3",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-individual-coding-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-individual-coding-plan",
-          "modelId": "GLM-5.2",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-individual-coding-plan",
-          "modelId": "GLM-5-Turbo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-team-coding-plan",
-          "modelId": "GLM-5.3",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-team-coding-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-team-coding-plan",
-          "modelId": "GLM-5.2",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-team-coding-plan",
-          "modelId": "GLM-5-Turbo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-start-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-start-plan",
-          "modelId": "GLM-5.2",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-start-plan",
-          "modelId": "GLM-5-Turbo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-individual-coding-plan",
-          "modelId": "GLM-5.3",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-individual-coding-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-individual-coding-plan",
-          "modelId": "GLM-5.2",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-individual-coding-plan",
-          "modelId": "GLM-5-Turbo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-team-coding-plan",
-          "modelId": "GLM-5.3",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-team-coding-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-team-coding-plan",
-          "modelId": "GLM-5.2",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-team-coding-plan",
-          "modelId": "GLM-5-Turbo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-start-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-start-plan",
-          "modelId": "GLM-5.2",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-start-plan",
-          "modelId": "GLM-5-Turbo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-offpeak-idle-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:zai-offpeak-idle-plan",
-          "modelId": "GLM-5.3",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-offpeak-idle-plan",
-          "modelId": "GLM-5.3-Flash",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "providerId": "account:bigmodel-offpeak-idle-plan",
-          "modelId": "GLM-5.3",
-          "config": {
-            "enabled": true
-          }
-        }
-      ]
+      "builtinProviderModelRules": []
     }
   }
 }

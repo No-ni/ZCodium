@@ -18,19 +18,23 @@ DOCX_SKILL_DIR="$(cd "$_ENV_CHECK_DIR/.." && pwd)"
 export DOCX_SKILL_DIR
 
 if [ "$(uname -s)" = "Darwin" ]; then
-    FONT_DIR="${HOME}/Library/Fonts"
+    FONT_DIRS=("$HOME/Library/Fonts" "/Library/Fonts" "/System/Library/Fonts")
 else
-    FONT_DIR="/usr/share/fonts"
+    FONT_DIRS=("$HOME/.local/share/fonts" "$HOME/.fonts" "/usr/local/share/fonts" "/usr/share/fonts")
 fi
+FONT_DIR=""
+for dir in "${FONT_DIRS[@]}"; do
+    if [ -d "$dir" ]; then FONT_DIR="$dir"; break; fi
+done
 export FONT_DIR
 
 check "node"        command -v node
 check "python3"     command -v python3
 check "defusedxml"  python3 -c "import defusedxml"
 
-# Font check
-if command -v fc-list &>/dev/null; then
-    fc-list :lang=zh 2>/dev/null | grep -qi "noto\|simhei\|wenquanyi" || { $QUIET || echo "MISSING: CJK fonts"; FAIL=1; }
+# 缺字体只提示任务前检查，不把字体名称清单当必装依赖，也不触发自动安装。
+if command -v fc-list &>/dev/null && [ -z "$(fc-list :lang=zh 2>/dev/null)" ]; then
+    $QUIET || echo "WARNING: No CJK font detected; verify the font needed by the actual task."
 fi
 
 # ── ON-DEMAND but NOT substitutable: .doc→.docx / DOCX→PDF / visual check (LibreOffice/soffice) ──

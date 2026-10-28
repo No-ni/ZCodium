@@ -76,6 +76,185 @@ test("anthropic attempts use /v1/models first with version headers", () => {
   assert.equal(attempts[0]?.headers.Authorization, undefined);
 });
 
+test("google attempts use x-goog-api-key and avoid duplicating the version segment", () => {
+  const versioned = buildProviderModelCatalogAttempts({
+    apiType: "google-generative-ai",
+    baseUrl: "https://opencode.ai/inference/google/v1beta/",
+    apiKey: "key-google",
+  });
+  // baseUrl 已带 /v1beta；再拼一次会得到 /v1beta/v1beta/models。
+  assert.deepEqual(
+    versioned.map((attempt) => attempt.url),
+    [
+      "https://opencode.ai/inference/google/v1beta/models?pageSize=1000",
+      "https://opencode.ai/inference/google/v1beta/models?pageSize=1000",
+    ],
+  );
+  assert.equal(versioned[0]?.headers["x-goog-api-key"], "key-google");
+  // Gemini 只认 x-goog-api-key；Bearer 与 x-api-key 都应缺席。
+  assert.equal(versioned[0]?.headers.Authorization, undefined);
+  assert.equal(versioned[0]?.headers["x-api-key"], undefined);
+
+  const bare = buildProviderModelCatalogAttempts({
+    apiType: "google-generative-ai",
+    baseUrl: "https://generativelanguage.googleapis.com",
+    apiKey: "key-google",
+  });
+  assert.deepEqual(
+    bare.map((attempt) => attempt.url),
+    [
+      "https://generativelanguage.googleapis.com/models?pageSize=1000",
+      "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000",
+    ],
+  );
+});
+
+// 官方 models.list 默认只回 50 条并给 nextPageToken，不显式要满页会静默丢模型。
+// 实测官方端点 63 个模型，默认页大小只能拿到 50 个。
+test("google catalog requests a full page so models are not silently dropped", () => {
+  for (const baseUrl of [
+    "https://generativelanguage.googleapis.com/v1beta",
+    "https://generativelanguage.googleapis.com",
+  ]) {
+    const attempts = buildProviderModelCatalogAttempts({
+      apiType: "google-generative-ai",
+      baseUrl,
+      apiKey: "k",
+    });
+    for (const attempt of attempts) {
+      assert.match(
+        attempt.url,
+        /[?&]pageSize=\d+/,
+        `Gemini 目录必须显式请求页大小，否则超过 50 个模型会被静默截断：${attempt.url}`,
+      );
+    }
+  }
+});
+
+test("google catalog strips the models/ prefix from native names", async () => {
+  const result = await fetchProviderModelCatalog({
+    apiClient: {
+      async request() {
+        return new Response(
+          JSON.stringify({
+            models: [
+              { name: "models/gemini-4-argon" },
+              { name: "models/gemini-3.1-pro" },
+              { name: "gemini-3-flash" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    },
+    request: { apiType: "google-generative-ai", baseUrl: "https://x.example/v1beta", apiKey: "k" },
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(result.modelIds, ["gemini-4-argon", "gemini-3.1-pro", "gemini-3-flash"]);
+});
+
+test("google catalog maps only explicitly returned limits into metadata", async () => {
+  const result = await fetchProviderModelCatalog({
+    apiClient: {
+      async request() {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                name: "models/gemini-4-argon",
+                displayName: "Gemini 4 Argon",
+                inputTokenLimit: 1048576,
+                outputTokenLimit: 65536,
+                supportedGenerationMethods: ["generateContent", "countTokens"],
+              },
+              // 只有 id：元数据必须缺席，不能补零或推断。
+              { name: "models/gemini-3-flash" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    },
+    request: { apiType: "google-generative-ai", baseUrl: "https://x.example/v1beta", apiKey: "k" },
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(result.modelIds, ["gemini-4-argon", "gemini-3-flash"]);
+  assert.deepEqual(result.metadata?.["gemini-4-argon"], {
+    contextWindow: 1048576,
+    maxOutputTokens: 65536,
+    displayName: "Gemini 4 Argon",
+    supportedGenerationMethods: ["generateContent", "countTokens"],
+  });
+  // 端点没给字段时整条缺席，调用方据此退回既有规则匹配。
+  assert.equal(result.metadata?.["gemini-3-flash"], undefined);
+});
+
+test("google catalog rejects fractional token limits instead of persisting zero or rounded guesses", async () => {
+  for (const limit of [0.5, 1.5, 0, -1]) {
+    const result = await fetchProviderModelCatalog({
+      apiClient: {
+        request: async () =>
+          jsonResponse({
+            models: [
+              { name: "models/gemini-test", inputTokenLimit: limit, outputTokenLimit: limit },
+            ],
+          }),
+      },
+      request: {
+        apiType: "google-generative-ai",
+        baseUrl: "https://x.example/v1beta",
+        apiKey: "k",
+      },
+    });
+    assert.ok(result.success);
+    assert.equal(result.metadata, undefined);
+  }
+});
+
+test("catalogs without token limits stay metadata-free", async () => {
+  const result = await fetchProviderModelCatalog({
+    apiClient: {
+      async request() {
+        return new Response(JSON.stringify({ data: [{ id: "gpt-x" }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    },
+    request: { apiType: "openai-chat-completions", baseUrl: "https://x.example", apiKey: "k" },
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(result.modelIds, ["gpt-x"]);
+  assert.equal(result.metadata, undefined);
+});
+
+test("Google catalog normalization does not rewrite OpenAI or Anthropic model identity", async () => {
+  for (const apiType of [
+    "openai-chat-completions",
+    "openai-responses",
+    "anthropic-messages",
+  ] as const) {
+    const result = await fetchProviderModelCatalog({
+      apiClient: {
+        request: async () =>
+          jsonResponse({
+            data: [
+              { id: "models/custom-model", displayName: "Custom", inputTokenLimit: 1234 },
+              { name: "models/not-an-id", outputTokenLimit: 5678 },
+              "models/string-model",
+            ],
+          }),
+      },
+      request: { apiType, baseUrl: "https://provider.example", apiKey: "mock-key" },
+    });
+    assert.deepEqual(result, {
+      success: true,
+      modelIds: ["models/custom-model", "models/string-model"],
+      source: "primary",
+    });
+  }
+});
+
 test("custom provider headers override built-in auth headers", () => {
   const attempts = buildProviderModelCatalogAttempts({
     apiType: "openai-chat-completions",

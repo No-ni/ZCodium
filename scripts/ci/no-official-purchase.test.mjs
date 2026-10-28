@@ -77,7 +77,7 @@ test("local App Usage still reads Agent statistics without any account or paymen
   assert.deepEqual(requests, [{ range: "week", timeZone: "UTC" }]);
 });
 
-test("remaining workflow configuration has no account dependency and preserves snapshot semantics", async (t) => {
+test("remaining workflow configuration is local-only and never contacts official config", async (t) => {
   const key = "ZCODE_DYNAMIC_WORKFLOW_MODE";
   const previous = process.env[key];
   delete process.env[key];
@@ -85,57 +85,38 @@ test("remaining workflow configuration has no account dependency and preserves s
     if (previous === undefined) delete process.env[key];
     else process.env[key] = previous;
   });
-  let requests = 0;
-  let mode = "onDemand";
-  let fail = false;
-  const apiClient = {
-    async request(input, init) {
-      requests++;
-      assert.equal(new URL(input).pathname, "/api/v1/client/configs");
-      assert.equal(init.method, "GET");
-      assert.equal(init.headers, undefined);
-      assert.equal(init.body, undefined);
-      if (fail) throw new Error("Fixture request failed");
-      return Response.json({ data: { configs: { dynamicWorkflow: { mode } } } });
-    },
+  const forbidden = () => {
+    throw new Error("Official IO must not occur");
   };
+  // 任何 apiClient / credentialService 访问都会抛错：默认路径不得发起请求或读取账号。
   const service = createCodingPlanSubscriptionService({
-    apiClient,
-    get credentialService() {
-      throw new Error("Workflow must not acquire account credentials");
-    },
+    apiClient: new Proxy({}, { get: () => forbidden }),
+    credentialService: new Proxy({}, { get: () => forbidden }),
   });
-  const [a, b] = await Promise.all([
-    service.getDynamicWorkflowClientConfig(),
-    service.getDynamicWorkflowClientConfig(),
-  ]);
-  assert.deepEqual(a, { mode: "onDemand", enabled: true, source: "remote" });
-  assert.deepEqual(b, a);
-  assert.equal(requests, 1);
-  mode = "disabled";
-  assert.deepEqual(await service.getDynamicWorkflowClientConfig(), a);
-  assert.equal(requests, 1);
+
+  // 未设置 env 时默认 disabled，且 forceRefresh 也不会触发远端读取。
+  assert.deepEqual(await service.getDynamicWorkflowClientConfig(), {
+    mode: "disabled",
+    enabled: false,
+    source: "default",
+  });
   assert.deepEqual(await service.getDynamicWorkflowClientConfig({ forceRefresh: true }), {
     mode: "disabled",
     enabled: false,
-    source: "remote",
+    source: "default",
   });
+
+  // 只有显式 env 覆盖才开启，source 固定为 override。
   process.env[key] = "alwaysOn";
   assert.deepEqual(await service.getDynamicWorkflowClientConfig(), {
     mode: "alwaysOn",
     enabled: true,
     source: "override",
   });
-  assert.equal(requests, 2);
-  delete process.env[key];
-  fail = true;
+  process.env[key] = "onDemand";
   assert.deepEqual(await service.getDynamicWorkflowClientConfig({ forceRefresh: true }), {
-    mode: "disabled",
-    enabled: false,
-    source: "default",
+    mode: "onDemand",
+    enabled: true,
+    source: "override",
   });
-  fail = false;
-  mode = "alwaysOn";
-  assert.equal((await service.getDynamicWorkflowClientConfig()).enabled, true);
-  assert.equal(requests, 4);
 });

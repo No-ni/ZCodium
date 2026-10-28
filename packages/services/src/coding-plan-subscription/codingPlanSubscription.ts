@@ -4,8 +4,9 @@ import { createServiceDescriptor } from "../descriptors.js";
 
 export interface ICodingPlanSubscriptionService {
   /**
-   * 动态工作流灰度快照：远端 `configs.dynamicWorkflow.mode`
-   * 与本地覆盖折叠后的结果；forceRefresh 绕过 1h 快照缓存。请求失败 fail-closed（disabled/default）。
+   * 动态工作流开关快照：只由本地 env（`ZCODE_DYNAMIC_WORKFLOW_MODE`）决定，
+   * 未设置时默认 disabled（source=default）。官方 client config/rollout 已移除。
+   * `forceRefresh` 仅为接口兼容保留，本地判定没有缓存需要失效。
    */
   getDynamicWorkflowClientConfig(options?: {
     forceRefresh?: boolean;

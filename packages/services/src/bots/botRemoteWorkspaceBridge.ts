@@ -385,6 +385,7 @@ export function createBotRemoteWorkspaceService(params: {
               (settings) => ({
                 askUserQuestionAutoResolutionEnabled:
                   settings.askUserQuestionAutoResolutionEnabled !== false,
+                toolSearchMode: settings.toolSearchMode ?? "off",
               }),
             );
         await waitWhileOpen(

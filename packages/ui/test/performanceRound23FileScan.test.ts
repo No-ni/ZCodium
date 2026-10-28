@@ -77,6 +77,100 @@ async function countScanPromises(files: number) {
   }
 }
 
+async function countReaddirPromises(files: number) {
+  tree.set(
+    rootPath,
+    Array.from({ length: files }, (_, index) => entry(`file-${String(index).padStart(5, "0")}.ts`)),
+  );
+  let promises = 0;
+  const hook = createHook({
+    init(_id, type) {
+      if (type === "PROMISE") promises += 1;
+    },
+  });
+  hook.enable();
+  try {
+    const entries = await createFileService().readdir({ path: rootPath });
+    return { entries, promises };
+  } finally {
+    hook.disable();
+  }
+}
+
+describe("public directory entry classification", () => {
+  it("bounds ordinary-entry Promise creation while returning every file unchanged", async () => {
+    const small = await countReaddirPromises(100);
+    const large = await countReaddirPromises(10_000);
+    expect(small.entries).toHaveLength(100);
+    expect(large.entries).toEqual(
+      Array.from({ length: 10_000 }, (_, index) => {
+        const name = `file-${String(index).padStart(5, "0")}.ts`;
+        return { name, path: join(rootPath, name), type: "file", isSymbolicLink: false };
+      }),
+    );
+    expect(io.stat).not.toHaveBeenCalled();
+    expect(io.readdir).toHaveBeenCalledTimes(2);
+    expect(
+      large.promises - small.promises,
+      `Promise counts: small=${small.promises}, large=${large.promises}`,
+    ).toBeLessThan(128);
+    expect(large.promises).toBeLessThan(128);
+  });
+
+  it("starts all visible link stats before awaiting and keeps types after reversed completion", async () => {
+    const names = ["linked-a", "linked-b", "linked-denied"];
+    const gates = names.map(() =>
+      Promise.withResolvers<{ mtimeMs: number; size: number; isDirectory(): boolean }>(),
+    );
+    tree.set(
+      rootPath,
+      Object.freeze([
+        entry(names[0], "symlink"),
+        entry("plain.ts"),
+        entry("dir", "directory"),
+        entry(names[1], "symlink"),
+        entry(names[2], "symlink"),
+        entry(".hidden-link", "symlink"),
+      ]) as unknown as Dirent[],
+    );
+    io.stat.mockImplementation(
+      (path) => gates[names.indexOf(path.slice(rootPath.length + 1))]!.promise,
+    );
+    let settled = false;
+    const pending = createFileService()
+      .readdir({ path: rootPath })
+      .then((entries) => {
+        settled = true;
+        return entries;
+      });
+    await Promise.resolve();
+    expect(io.stat.mock.calls.map(([path]) => path)).toEqual(
+      names.map((name) => join(rootPath, name)),
+    );
+    gates[1]!.resolve({ mtimeMs: 1, size: 0, isDirectory: () => true });
+    gates[2]!.reject(Object.assign(new Error("synthetic denied target"), { code: "EACCES" }));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    gates[0]!.resolve({ mtimeMs: 1, size: 0, isDirectory: () => false });
+    expect(
+      (await pending).map(({ name, type, isSymbolicLink }) => [name, type, isSymbolicLink]),
+    ).toEqual([
+      ["dir", "directory", false],
+      ["linked-b", "directory", true],
+      ["linked-a", "file", true],
+      ["linked-denied", "file", true],
+      ["plain.ts", "file", false],
+    ]);
+  });
+
+  it("propagates a directory read failure without starting any target stat", async () => {
+    const failure = Object.assign(new Error("synthetic directory failure"), { code: "EIO" });
+    io.readdir.mockRejectedValueOnce(failure);
+    await expect(createFileService().readdir({ path: rootPath })).rejects.toBe(failure);
+    expect(io.stat).not.toHaveBeenCalled();
+  });
+});
+
 describe("workspace index entry classification", () => {
   it("keeps Promise creation independent of ordinary file count without dropping entries", async () => {
     const small = await countScanPromises(100);

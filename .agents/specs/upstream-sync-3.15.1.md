@@ -1,5 +1,7 @@
 # 上游 3.15.1 同步（Upstream Sync 3.15.1）
 
+> 历史阶段记录，非当前同步指令。本文的 scoped-diff-only、不 merge、Rust 重写和 `.zcodium-exp` 等规则已被 [当前维护模型](../../docs/specs/maintenance-model.md) 取代；保留当时证据与工作记录，不据此执行。当前只从官方核验 tag/commit merge，不 rebase，不同步第三方 fork。
+
 决策记录 + 工作清单。**本文只记录计划与依据，不引入实现。** 执行时按「工作项」逐条推进，每项独立可回滚。
 
 - 上游仓库：`zai-org/ZCode`
@@ -25,7 +27,7 @@ git fetch upstream main
 git diff --stat 29628c9 upstream/main -- <关注的路径>
 ```
 
-每出一个上游版本跑一次同样形式的命令。这是本 spec 允许的唯一同步方式——不做 rebase、不做 merge。
+历史阶段曾仅用 scoped diff 拣选、不 merge；该同步政策已退休。当前 scoped diff 仅是审查工具，实际同步按维护模型 merge 官方核验 refs。
 
 ## 上游这次发布的体量
 
@@ -331,7 +333,7 @@ CI 守护（会红，必须一起处理）：
 
 ## 不做什么（Non-goals）
 
-- 不做 `git merge` / `git rebase` 上游——上游是代码倾倒，合并只会制造无意义的冲突
+- 历史阶段排除 `git merge` / `git rebase` 的约束已退休；当前采用官方核验 refs 的 merge，仍不 rebase。
 - 不换 `packages/zcode-cua/**`（占位包）
 - 不 vendor 那 23 份 macOS/Windows CUA 文档
 - 不放宽 CUA 的 subagent 限制（只放开 Browser Use，见工作项 5）

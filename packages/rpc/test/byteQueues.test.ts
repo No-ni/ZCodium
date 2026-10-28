@@ -222,6 +222,55 @@ describe("byte queue complexity across calls", () => {
   );
 });
 
+describe("deferred SocketProtocol activation", () => {
+  it("keeps complete and partial frames in the existing stream until one activation", () => {
+    const source = socket();
+    const protocol = new SocketProtocol(source.value, { deferMessages: true });
+    cleanups.push(() => protocol.dispose());
+    const first = frame(ProtocolMessageType.Regular, 0, 0, VSBuffer.fromString("first"));
+    const second = frame(ProtocolMessageType.Regular, 0, 0, VSBuffer.fromString("second"));
+    source.data.fire(VSBuffer.concat([first, second.slice(0, 15)]));
+    const received: string[] = [];
+    protocol.onMessage((body) => received.push(body.toString()));
+    expect(received).toEqual([]);
+    protocol.activate();
+    protocol.activate();
+    expect(received).toEqual(["first"]);
+    source.data.fire(second.slice(15));
+    expect(received).toEqual(["first", "second"]);
+    expect((protocol as unknown as { chunkStream: ChunkStream }).chunkStream.byteLength).toBe(0);
+  });
+
+  it("clears deferred bytes on dispose and cannot reactivate or accept late data", () => {
+    const source = socket();
+    const protocol = new SocketProtocol(source.value, { deferMessages: true });
+    const received: string[] = [];
+    protocol.onMessage((body) => received.push(body.toString()));
+    const input = frame(ProtocolMessageType.Regular, 0, 0, VSBuffer.fromString("late"));
+    source.data.fire(input);
+    const stream = (protocol as unknown as { chunkStream: ChunkStream }).chunkStream;
+    expect(stream.byteLength).toBe(input.byteLength);
+    protocol.dispose();
+    protocol.activate();
+    source.data.fire(input);
+    expect(received).toEqual([]);
+    expect(stream.byteLength).toBe(0);
+    expect(retainedBuffers(stream)).toEqual([]);
+  });
+
+  it("continues immediate delivery without the opt-in activation boundary", () => {
+    const source = socket();
+    const protocol = new SocketProtocol(source.value);
+    cleanups.push(() => protocol.dispose());
+    const received: string[] = [];
+    protocol.onMessage((body) => received.push(body.toString()));
+    source.data.fire(frame(ProtocolMessageType.Regular, 0, 0, VSBuffer.fromString("default")));
+    expect(received).toEqual(["default"]);
+    protocol.activate();
+    expect(received).toEqual(["default"]);
+  });
+});
+
 describe("protocol queue ownership on disposal", () => {
   it("clears a partially consumed stream and permits reuse without the old byte offset", () => {
     const stream = new ChunkStream();

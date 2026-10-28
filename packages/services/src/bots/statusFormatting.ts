@@ -89,7 +89,10 @@ export function readLatestAssistantTurnChangeSummary(snapshot: ZCodeSessionFile 
 
   // Bugfix: meta.changeSummary 是任务级聚合摘要，会把历史轮次合并进第三方消息。
   // 第三方完成回复只应该展示本轮 assistant 对应 turnIndex 的文件变更。
-  const summary = buildPerTurnChangeSummaries(snapshot.fileChanges).get(latestAssistantTurnIndex) ?? null;
+  // 这里只使用目标轮次，先筛选可避免对无关历史文件做 LCS；重复 turn 的覆盖仍由原函数处理。
+  const summary = buildPerTurnChangeSummaries(
+    snapshot.fileChanges.filter((turn) => turn.turnIndex === latestAssistantTurnIndex),
+  ).get(latestAssistantTurnIndex) ?? null;
   return summary && summary.fileCount > 0 && summary.files.length > 0 ? summary : null;
 }
 

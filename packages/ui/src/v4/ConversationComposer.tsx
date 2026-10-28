@@ -86,6 +86,7 @@ import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
@@ -383,6 +384,8 @@ interface ConversationComposerProps {
   contextHeader?: ReactNode;
   /** 居中草稿布局（旧 shouldUseCenteredDraftChatLayout）：收窄 max-w-2xl、去 sticky。 */
   centered?: boolean;
+  floating?: boolean;
+  workingDurationMs?: number;
   /**
    * v4 bottom dock 阻塞交互 id。存在时 composer 只隐藏不卸载，保留草稿、附件与编辑器实例。
    */
@@ -500,6 +503,8 @@ function ConversationComposerImpl({
 
   contextHeader,
   centered = false,
+  floating = false,
+  workingDurationMs,
   blockingRequestId = null,
   disabled = false,
   autoFocusEnabled = true,
@@ -1553,13 +1558,17 @@ function ConversationComposerImpl({
 
   // 动态 placeholder（旧 chatViewPlaceholder 语义）：无历史 → newTask；
   // 有历史空闲 → followUpAsk；有历史处理中 → followUpQueue。
-  const placeholder = intl.formatMessage({
-    id: resolveChatPlaceholderKey({
-      hasHistoryMessages: (snapshot?.rows.totalCount ?? 0) > 0,
-      isTaskProcessing: canStop,
-      compactNewTask: false,
-    }),
-  });
+  const workDurationLabel =
+    floating && canStop ? formatConversationWorkDuration(workingDurationMs, intl, locale) : null;
+  const placeholder = workDurationLabel
+    ? intl.formatMessage({ id: "chat.history.workingFor" }, { duration: workDurationLabel })
+    : intl.formatMessage({
+        id: resolveChatPlaceholderKey({
+          hasHistoryMessages: (snapshot?.rows.totalCount ?? 0) > 0,
+          isTaskProcessing: canStop,
+          compactNewTask: false,
+        }),
+      });
   const sendTooltipTitle = intl.formatMessage({
     id: mode === "enqueue" ? "chat.queue.enqueue" : "chat.send",
   });
@@ -2179,6 +2188,7 @@ function ConversationComposerImpl({
           </div>
         ) : null}
         <ChatPromptEditor
+          layout={floating ? "inline" : "stacked"}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
           fileSearchRootPath={fileSearchRootPath}

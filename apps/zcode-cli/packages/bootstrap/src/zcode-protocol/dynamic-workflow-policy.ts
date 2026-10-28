@@ -2,9 +2,9 @@ import { zcodeWorkspaceUpdateDynamicWorkflowPolicyParamsSchema } from "@zcode/sh
 import { parseParams, type ZCodeProtocolAgentServerContext } from "./server-types.js";
 
 /**
- * 动态工作流灰度门。判定权在 Host：
- * 它读 `/client/configs` 的 `dynamicWorkflow.mode`，CLI 只缓存结论，从不读 feature key
- * 或本地覆盖环境变量。CLI 进程按 workspace 隔离，
+ * 动态工作流开关。判定权在 Host：
+ * 它只读本地 `ZCODE_DYNAMIC_WORKFLOW_MODE`（未设置即 disabled），不再请求官方 client config；
+ * CLI 只缓存结论，从不读 feature key 或环境变量。CLI 进程按 workspace 隔离，
  * 缓存一份即可；createRecord 对 legacy create/resume、v4 createSession 与 v4 冷恢复
  * （subscribe → resumePersistedSession，没有 host 参数通道）统一读取。
  * 只影响之后创建/恢复的 record；已活跃 record 的工具面不回收（灰度中途翻转策略一致）。

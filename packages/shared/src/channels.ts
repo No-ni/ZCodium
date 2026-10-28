@@ -86,6 +86,10 @@ export const ServiceChannels = {
   ZCodeTask: "zcode-task",
   /** 窗口 Host 聚合 workspace/task 投影与列表写路由 */
   WindowController: "window-controller",
+  SourceServerManagement: "source-server-management",
+  WindowProject: "window-project",
+  WindowRemoteProjects: "window-remote-projects",
+  WindowProjectChanges: "window-project-changes",
   /** ZCode Protocol agent 服务 */
   ZCodeAgent: "zcode-agent",
   /** ZCode session 应用服务 */
@@ -437,17 +441,8 @@ export interface EmbeddedBrowserWheelBoundaryPayload {
 }
 
 // ============================================================================
-// Coding Plan WebView 频道 —— 官网页 preload ↔ App renderer
+// 插件 UI 沙箱频道
 // ============================================================================
-
-/**
- * Electron `<webview>`（partition=persist:zcode-coding-plan）的 `sendToHost` / `ipc-message` 频道。
- * 官网页通过 preload 注入的 window.zcodeBridge 调用，不经过 main process。
- */
-export const CodingPlanWebviewChannels = {
-  /** 官网页购买成功后通知 App 刷新 entitlements 并关闭 webview。 */
-  PurchaseComplete: "zcode:coding-plan-purchase-complete",
-} as const;
 
 /**
  * 插件 UI 沙箱 guest（partition=plugin-sandbox:<id>）的 main → guest preload 频道。
@@ -457,28 +452,6 @@ export const PluginSandboxChannels = {
   /** main → guest：{ sandboxId, initId, names } + port1[]，shell 据此建立宿主端口 */
   Init: "zcode:plugin-sandbox-init",
 } as const;
-
-/** 购买完成回传 payload。provider 与官网 CodingPlanProvider / auth-ready 事件 detail.provider 同构。 */
-export interface CodingPlanPurchaseCompletePayload {
-  provider: "zai" | "bigmodel";
-  /** 客户端时间戳，用于 App 侧去重/日志，不参与判等。 */
-  timestamp: number;
-}
-
-/**
- * 官网页 window.__zcodeLang__ 的取值，与 App IntlProvider 的 Locale 一致。
- * App locale 变化时通过 executeJavaScript 重写此变量并派发 lang-change 事件。
- */
-export type CodingPlanWebviewLocale = "zh-CN" | "en-US";
-
-/**
- * 官网页 lang-change 事件 detail。App 用 executeJavaScript 在 main world 派发
- * `zcode-coding-plan-lang-change` CustomEvent，website 侧（zcodeBridge.onLangChange 或
- * 直接 window.addEventListener）订阅后切换 copy。
- */
-export interface CodingPlanWebviewLangChangeDetail {
-  locale: CodingPlanWebviewLocale;
-}
 
 // ============================================================================
 // 内部传输频道 —— 框架级别的通信
@@ -511,6 +484,7 @@ export const ZCODE_RPC_HOST_CAPABILITY_HEADER = "x-zcode-rpc-host-capability";
 /** main → host process 的初始化消息类型 */
 export const HostMessageTypes = {
   DatabaseStartupControl: "database-startup-control",
+  WindowProjectDirectoryProjection: "window-project-directory-projection",
   /** 初始化本地服务 */
   InitLocal: "init-local",
   /** main → window Host：在当前窗口建立一个远程 logical session */
@@ -575,6 +549,8 @@ export const HostResponseTypes = {
   RemoteWorkspaceConnected: "remote-workspace-connected",
   /** window Host → main：远程 logical session 建立失败 */
   RemoteWorkspaceConnectFailed: "remote-workspace-connect-failed",
+  RemoteWorkspaceContextBindReady: "remote-workspace-context-bind-ready",
+  RemoteWorkspaceContextBindFailed: "remote-workspace-context-bind-failed",
   /** window Host → main：已连接的远程 logical session 关闭 */
   RemoteWorkspaceClosed: "remote-workspace-closed",
   /** host 进程日志上报 */
@@ -797,7 +773,7 @@ export interface PlatformChannelMap {
     response: void;
   };
   [PlatformChannels.SyncWindowUnreadCount]: {
-    request: number;
+    request: import("./windowUnread.js").WindowUnreadProjection;
     response: void;
   };
   [PlatformChannels.SyncAppSettings]: {

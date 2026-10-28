@@ -53,34 +53,18 @@ export function wrapStdio(): ISocket {
   };
 }
 
-export function createStdioServer(services: ServiceCollection) {
-  const socket = wrapStdio();
-  const protocol = new SocketProtocol(socket);
-  const channelServer = new ChannelServer(protocol, "stdio");
-  const agentService = services.getOptional(IZCodeAgentService);
-  const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(agentService, {
-        connectionId: `server-stdio-${randomUUID()}`,
-        clientMode: "desktop-continuous",
-        role: "trusted-host-relay",
-      })
-    : undefined;
-  services.exposeOnChannelServer(
-    channelServer,
-    connectionScope
-      ? new Map([[IZCodeAgentService.channelName, connectionScope.service]])
-      : new Map(),
-  );
+export function createStdioTransport(socket: ISocket = wrapStdio()) {
+  const protocol = new SocketProtocol(socket, { deferMessages: true });
+  let channelServer: ChannelServer | undefined;
+  let connectionScope: ReturnType<typeof createZCodeAgentConnectionScope> | undefined;
+  let stopped = false;
+  let ready = false;
   let stopPromise: Promise<void> | undefined;
   const stop = (): Promise<void> => {
-    if (stopPromise) {
-      return stopPromise;
-    }
-
-    // 先同步摘掉 protocol listener，保证从这一刻起不再接收新的 service RPC；
-    // connection scope 的异步退订完成后再关闭底层 stdio。
-    channelServer.dispose();
-    // 协议缓存与请求属于同一次连接，不能等异步 scope 结束后继续保留输入分片。
+    if (stopPromise) return stopPromise;
+    stopped = true;
+    // 先同步摘掉 protocol listener，保证从这一刻起不再接收新的 service RPC。
+    channelServer?.dispose();
     protocol.dispose();
     stopPromise = (async () => {
       try {
@@ -94,5 +78,41 @@ export function createStdioServer(services: ServiceCollection) {
   socket.onClose(() => {
     void stop();
   });
-  return { stop };
+  return {
+    attachServices(services: ServiceCollection): void {
+      if (stopped) throw new Error("stdio transport is closed");
+      if (channelServer) throw new Error("stdio services are already attached");
+      // 初始化前只缓存原始帧，不创建业务请求或 unknown-channel timer。
+      channelServer = new ChannelServer(protocol, "stdio", undefined, true);
+      const agentService = services.getOptional(IZCodeAgentService);
+      connectionScope = agentService
+        ? createZCodeAgentConnectionScope(agentService, {
+            connectionId: `server-stdio-${randomUUID()}`,
+            clientMode: "desktop-continuous",
+            role: "trusted-host-relay",
+          })
+        : undefined;
+      services.exposeOnChannelServer(
+        channelServer,
+        connectionScope
+          ? new Map([[IZCodeAgentService.channelName, connectionScope.service]])
+          : new Map(),
+      );
+    },
+    ready(): void {
+      if (stopped || ready) return;
+      if (!channelServer) throw new Error("stdio services are not attached");
+      ready = true;
+      channelServer.ready();
+      protocol.activate();
+    },
+    stop,
+  };
+}
+
+export function createStdioServer(services: ServiceCollection) {
+  const transport = createStdioTransport();
+  transport.attachServices(services);
+  transport.ready();
+  return { stop: transport.stop };
 }

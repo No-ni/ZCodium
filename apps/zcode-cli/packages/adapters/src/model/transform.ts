@@ -25,9 +25,11 @@ import { dataUrlToDataContent, unsupportedInputMediaText } from "./media-transfo
 import { normalizeOpenAiCompatibleSystemMessages } from "./system-message-compat.js";
 
 export interface AiSdkMessageTransformOptions {
+  toolSearchEnabled?: boolean;
   apiFormat?: string;
   providerOptions?: Record<string, unknown>;
-  providerKind?: "openai" | "anthropic" | "openai-compatible" | "gateway" | "custom";
+  providerKind?: "openai" | "anthropic" | "openai-compatible" | "google" | "gateway" | "custom";
+  modelId?: string;
   stripMedia?: boolean;
   inputFormat?: ModelInputFormat;
 }
@@ -168,6 +170,19 @@ function toAiSdkToolResultOutput(
 
   if (typeof content === "string") return { type: "text", value: content };
 
+  const hasToolReferences = content.some((block) => block.type === "tool_reference");
+  if (hasToolReferences) {
+    const value = content.flatMap((block) => {
+      if (block.type !== "tool_reference" && (textifyStructuredContent || options.stripMedia)) {
+        const text = modelMessageContentToText([block]);
+        return text ? [{ type: "text" as const, text }] : [];
+      }
+      return contentBlockToAiSdkToolResultParts(block, options);
+    });
+    return value.length
+      ? { type: "content", value }
+      : { type: "text", value: modelMessageContentToText(content) };
+  }
   if (textifyStructuredContent) {
     return { type: "text", value: toStructuredToolResultText(content, options) };
   }
@@ -257,6 +272,16 @@ function contentBlockToAiSdkToolResultParts(
 
     case "resource_link":
       return [{ type: "text", text: modelMessageContentToText([block]) }];
+    case "tool_reference":
+      // Native-only custom content经SDK编码为真实tool_reference；stripMedia不能剥掉它。
+      return options.toolSearchEnabled && options.providerKind === "anthropic"
+        ? [
+            {
+              type: "custom",
+              providerOptions: { anthropic: { type: "tool-reference", toolName: block.toolName } },
+            },
+          ]
+        : [{ type: "text", text: modelMessageContentToText([block]) }];
   }
 }
 
@@ -265,6 +290,25 @@ function toAiSdkAssistantContent(
   toolCalls: ModelInputMessage["toolCalls"],
   options: AiSdkAssistantTransformOptions,
 ): AiSdkAssistantContent {
+  if (
+    options.providerKind === "google" &&
+    options.modelId &&
+    /(^|\/)gemini-/i.test(options.modelId) &&
+    !/(^|\/)gemini-(?:[12](?:[.-]|$)|pro(?:-vision)?$|robotics-er-1\.5(?:[.-]|$))/i.test(
+      options.modelId,
+    )
+  ) {
+    // 旧历史可恢复但不能伪造签名；Gemini 3+ 缺签名时 SDK 会注入跳过验证哨兵，
+    // 在边界明确拒绝比隐式绕过 provider 校验更安全。多调用轮只需第一个 client call 的签名。
+    const firstClientCall = toolCalls?.find((call) => call.providerExecuted !== true);
+    const googleOptions = objectRecord(firstClientCall?.providerOptions?.google);
+    if (firstClientCall && !googleOptions.thoughtSignature) {
+      throw new AiSdkModelAdapterError(
+        ModelErrorCode.InvalidModelRequest,
+        "Gemini tool-call history is missing its thought signature. Start a new session instead of replaying unsigned tool calls.",
+      );
+    }
+  }
   const toolCallParts =
     toolCalls?.map(
       (toolCall): AiSdkAssistantContentPart => ({
@@ -272,6 +316,9 @@ function toAiSdkAssistantContent(
         toolCallId: toolCall.id,
         toolName: projectToolNameForProvider(toolCall.name, options),
         input: toolCall.input,
+        ...(toolCall.providerOptions
+          ? { providerOptions: toolCall.providerOptions as AiSdkProviderOptions }
+          : {}),
       }),
     ) ?? [];
 
@@ -324,6 +371,7 @@ function contentBlockToAiSdkAssistantParts(
 
     case "image":
     case "video":
+    case "tool_reference":
     case "file":
     case "resource_link": {
       const text = modelMessageContentToText([block]);
@@ -491,6 +539,7 @@ function contentBlockToAiSdkUserParts(
       return [{ type: "text", text: modelMessageContentToText([block]) }];
     }
 
+    case "tool_reference":
     case "resource_link":
       return [{ type: "text", text: modelMessageContentToText([block]) }];
   }

@@ -15,7 +15,10 @@ import {
   getAppConfigDir as resolveAppConfigDir,
   getConversationWorkspaceDir,
   getTasksIndexDatabasePath,
+  setDataBaseDir,
 } from "./paths.js";
+import { resolveSourceDataRoots } from "@zcode/shared/node";
+import { createSourceAgentCommandResolver } from "./runtime-tools/sourceAgentCommand.js";
 import { createTaskAutoArchiveMaintenance } from "./session/taskAutoArchiveMaintenance.js";
 import type {
   TaskAutoArchiveMaintenance,
@@ -285,7 +288,7 @@ import { createObservableSettingService } from "./setting/observableSettingServi
 import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
 import { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
-import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
+import { resolveDefaultZCodeAgentCommand, type ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
 import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPresentationSurface.js";
 import { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
 import { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
@@ -572,12 +575,13 @@ export function shouldEnableDefaultCuaProductHelper(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): boolean {
-  // CUA 已随正式版默认开启（isZCodeCuaInternalFeatureEnabled 默认 ON，仅显式 0/false/off 关闭；2026-08 注释更正——旧注释称默认关闭已过期）。显式开启后 macOS 使用既有产品 Helper，Windows 使用安装包内 runtime；
-  // 两端都保持按需启动。关闭时不创建 host、不探测资源、不产生子进程或权限提示。
+  // 正式版已由内置 node_repl 使用 cua-driver，不再携带旧 tools/cua-helper。
+  // 旧 Helper 仅用于 Windows 显式开发目录；把功能开关当作 Helper 开关会在正常启动时
+  // 解析不存在的安装包资源，macOS 还会误入 Windows 分支。原生 CUA 的插件入口独立门控。
   const env = options.env ?? process.env;
   if (!isZCodeCuaInternalFeatureEnabled(env)) return false;
   const platform = options.platform ?? process.platform;
-  return platform === "darwin" || platform === "win32";
+  return platform === "win32" && Boolean(env.ZCODE_CUA_DEV_ROOT?.trim());
 }
 
 /**
@@ -647,7 +651,7 @@ export function createDynamicCuaProductMcpServerResolver(options: {
       // 委托到底层真实 resolver（由 ICuaPermissionService.restartHelper 经此调用）。
       const resolver = await options.getResolver();
       if (!resolver) {
-        throw new Error("ZCode Computer Use is not enabled (plugin off or not product mode).");
+        throw new Error("ZCodium Computer Use is not enabled (plugin off or not product mode).");
       }
       await resolver.restart();
     },
@@ -655,7 +659,7 @@ export function createDynamicCuaProductMcpServerResolver(options: {
       // 授权完成后的 restart 必须保留 session id，才能复用底层的幂等与时序保障。
       const resolver = await options.getResolver();
       if (!resolver) {
-        throw new Error("ZCode Computer Use is not enabled (plugin off or not product mode).");
+        throw new Error("ZCodium Computer Use is not enabled (plugin off or not product mode).");
       }
       await resolver.restartAfterPermissionGrant(onboardingSessionId);
     },
@@ -817,7 +821,7 @@ export function createDefaultCuaProductHelper(
   const logger = createServiceLogger("cua-product-helper");
   // macOS 的闭源 `ZCode Computer Use.app` 已整体拆除：权限走 cua-driver
   // （@zcode/zcode-cua/permissions），输入/观测走 cua-driver 原生 SDK。
-  // 这里只剩 Windows 自研 Helper host 一条分支。
+  // 这里只保留显式开发目录启用的 Windows 自研 Helper host。
   const host: ManagedCuaProductHelperHost = createWindowsCuaHelperHost({
     resolveRuntime:
       options.resolveWindowsRuntime ??
@@ -1058,6 +1062,7 @@ export function createLocalServices(options: {
     trigger: Exclude<ProviderProvisioningTrigger, "environment-online">,
   ) => void;
   serviceAuthorityMode?: ServiceAuthorityMode;
+  sourceServerRoot?: string;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
   agentRuntimeContext?: {
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -1093,6 +1098,11 @@ export function createLocalServices(options: {
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
 }): ServiceCollection {
+  const sourceRoots = options.serviceAuthorityMode === "standalone-server"
+    ? resolveSourceDataRoots(options.sourceServerRoot ?? process.env.ZCODE_SERVER_ROOT ?? "") : undefined;
+  if (sourceRoots && options.settingService) throw new Error("Source settings authority is fixed");
+  // Source 根必须先于 CA、Provider、任务维护等初始化固定，不能先按继承 HOME 建库再切换。
+  if (sourceRoots) setDataBaseDir(sourceRoots.dataBaseDir);
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
   // GUI 启动的 desktop、SSH/WSL/Docker 拉起的 remote server 往往拿不到用户 login shell 里的 PATH，
@@ -1119,20 +1129,16 @@ export function createLocalServices(options: {
   }
 
   const settingService = createObservableSettingService(
-    options?.settingService ?? createSettingService(),
+    sourceRoots ? createSettingService({ settingsFilePath: sourceRoots.settingsFile, fixedDataBaseDir: sourceRoots.dataBaseDir })
+      : options?.settingService ?? createSettingService(),
   );
   const resolveCurrentZCodeEndpointOrigin = async () =>
     resolveRuntimeZCodeEndpointOrigin(process.env, {
       overrideOrigin: (await settingService.get()).zcodeEndpointOrigin,
     });
-  let invalidatePluginUiAccounts: (() => void) | undefined;
-  // 插件 UI 账号上下文与主进程共用同一份凭据存储；provider / user_info 变化即失效绑定。
-  const credentialService = createCredentialService({
-    onDidMutate: ({ key }) => {
-      if (key === "oauth:active_provider" || /^oauth:[^:]+:user_info$/.test(key))
-        invalidatePluginUiAccounts?.();
-    },
-  });
+  // 凭据服务仍供 Provider / Bot / 账号存储使用；官方账号绑定（oauth:active_provider /
+  // oauth:<provider>:user_info）已随官方云服务移除，不再据此失效插件 UI 绑定。
+  const credentialService = createCredentialService();
   const broadcastService = createBroadcastService(options?.parentPort ?? null);
   const gitCheckpointService = createGitCheckpointService();
   const hostApiNetworkTransport =
@@ -1222,17 +1228,14 @@ export function createLocalServices(options: {
   const pluginSyncService = createPluginSyncService();
   const pluginUiAccounts = createPluginUiAccountBindings({
     async readAccount() {
-      const provider = await credentialService.load("oauth:active_provider");
-      const rawProfile = provider
-        ? await credentialService.load(`oauth:${provider}:user_info`)
-        : null;
-      const profile = rawProfile ? (JSON.parse(rawProfile) as { id?: string }) : null;
-      return [provider, profile?.id ?? null];
+      // 账号上下文以前来自官方 OAuth 凭据（oauth:active_provider / oauth:<provider>:user_info）。
+      // 官方账号体系已移除，这里改用固定本地 scope：插件 UI 仍按唯一键隔离实例，
+      // 但不再依赖任何官方账号信息，也不再因账号切换而失效绑定。
+      return ["local", null];
     },
     open: (params) => zcodeAgentService.openMcpUiInstance(params),
     close: (params) => zcodeAgentService.closeMcpUiInstance(params),
   });
-  invalidatePluginUiAccounts = () => pluginUiAccounts.invalidate();
   const pluginUiBridgeService = createPluginUiBridgeService({
     openInstance: (params) => pluginUiAccounts.open(params),
     closeInstance: (params) => pluginUiAccounts.close(params),
@@ -1364,7 +1367,7 @@ export function createLocalServices(options: {
       if (!shouldUseCuaPermissionService({ cuaEnabled: isCuaEnabledForContext(context) })) {
         return {
           available: false,
-          reason: "ZCode Computer Use is not enabled (plugin off or not product mode).",
+          reason: "ZCodium Computer Use is not enabled (plugin off or not product mode).",
         };
       }
       try {
@@ -1389,7 +1392,7 @@ export function createLocalServices(options: {
       return { ok: true };
     },
   };
-  const codingPlanSubscriptionService = createCodingPlanSubscriptionService({ apiClient });
+  const codingPlanSubscriptionService = createCodingPlanSubscriptionService();
   const zcodeAgentService = createZCodeAgentService({
     ...(modelSelectionReadinessSource ? { modelSelectionReadinessSource } : {}),
     authorizeLocalMediaPreviewPath: options?.authorizeLocalMediaPreviewPath,
@@ -1398,7 +1401,14 @@ export function createLocalServices(options: {
     // 是它自己那些 workspace 的唯一裁决者，灰度开启时远程 workspace 同样提供工作流。
     resolveDynamicWorkflowClientConfig: () =>
       codingPlanSubscriptionService.getDynamicWorkflowClientConfig(),
-    commandResolver: options?.zcodeAgentCommandResolver,
+    commandResolver: sourceRoots ? createSourceAgentCommandResolver({
+      roots: sourceRoots,
+      resolver: options.zcodeAgentCommandResolver ?? resolveDefaultZCodeAgentCommand,
+      resolveProviderPaths: async () => ({
+        zcodeBuiltinFilePath: await providerConfigRuntime.resolveZCodeBuiltinFilePath(),
+        personalFilePath: join(sourceRoots.providerConfigRoot, PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+      }),
+    }) : options?.zcodeAgentCommandResolver,
     presentationSurface: resolveZCodeAgentPresentationSurface({
       runtimeSurface: options?.agentRuntimeContext?.runtimeSurface,
       serviceAuthorityMode: options?.serviceAuthorityMode,
@@ -1519,6 +1529,7 @@ export function createLocalServices(options: {
             return {
               askUserQuestionAutoResolutionEnabled:
                 settings.askUserQuestionAutoResolutionEnabled !== false,
+              toolSearchMode: settings.toolSearchMode ?? "off",
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
               memoryEnabled: settings.memoryEnabled === true,
               modelContextBudgetStrategy,
@@ -1656,7 +1667,14 @@ export function createLocalServices(options: {
       }),
     )
     .register(IFileWatcherService, createFileWatcherService())
-    .register(IUsageStatsService, createUsageStatsService({ zcodeAgentService }))
+    .register(
+      IUsageStatsService,
+      createUsageStatsService({
+        zcodeAgentService,
+        apiClient,
+        providerSettingsService: providerRuntime.providerSettings,
+      }),
+    )
     .register(ICodingPlanSubscriptionService, codingPlanSubscriptionService)
     .register(IClientConfigService, createClientConfigService())
     .register(IClientScenesService, createClientScenesService())

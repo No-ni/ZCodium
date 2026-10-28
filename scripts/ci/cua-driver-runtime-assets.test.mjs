@@ -7,7 +7,10 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 import { stageCuaDriverRuntime } from "../cua-driver-runtime-assets.mjs";
-import { cuaRuntimeRequiredPaths } from "../../packages/shared/src/builtinPluginAssets.ts";
+import {
+  cuaNativePackage,
+  cuaRuntimeRequiredPaths,
+} from "../../packages/shared/src/builtinPluginAssets.ts";
 
 const run = promisify(execFile);
 const sourceModules = resolve("node_modules");
@@ -40,7 +43,10 @@ test("isolated SDK loads its real Linux native libraries without workspace depen
 
 test("cross staging replaces Linux assets with only the Windows target and preserves notices", async (t) => {
   const root = await fixture(t);
-  await stageCuaDriverRuntime(root, { platform: "linux", arch: "x64" });
+  // 这里只需要上次目标的残留目录，不应要求 Windows runner 安装或下载 Linux 原生包。
+  const stale = join(root, "dist/mcp/node_modules/@trycua/cua-driver-linux-x64-gnu");
+  await mkdir(stale, { recursive: true });
+  await writeFile(join(stale, "stale.txt"), "fixture");
   await stageCuaDriverRuntime(root, { platform: "win32", arch: "x64" });
   const modules = join(root, "dist/mcp/node_modules");
   assert.deepEqual((await readdir(join(modules, "@trycua"))).sort(), [
@@ -72,20 +78,20 @@ test("missing dependencies, mismatched native versions and unsupported targets f
   );
   for (const name of [
     "@trycua/cua-driver",
-    "@trycua/cua-driver-linux-x64-gnu",
+    cuaNativePackage(process.platform, process.arch),
     "@ubjs/core",
     "@ubjs/node",
   ]) {
     await cp(join(sourceModules, name), join(input, name), { recursive: true, dereference: true });
   }
-  const manifest = join(input, "@trycua/cua-driver-linux-x64-gnu/package.json");
+  const manifest = join(input, cuaNativePackage(process.platform, process.arch), "package.json");
   const original = JSON.parse(await readFile(manifest, "utf8"));
   await writeFile(manifest, JSON.stringify({ ...original, version: "0.0.0" }));
   await assert.rejects(
     stageCuaDriverRuntime(join(root, "output"), {
       sourceModules: input,
-      platform: "linux",
-      arch: "x64",
+      platform: process.platform,
+      arch: process.arch,
     }),
     /version mismatch/,
   );

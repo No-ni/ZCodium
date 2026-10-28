@@ -11,6 +11,56 @@ interface HookStringProjection {
   truncated: boolean;
 }
 
+const TOOL_REFERENCE_TEXT_TRUNCATION_MARKER = "[Tool result text truncated by resultBudget]";
+
+export function projectToolReferenceContent(
+  modelContent: ModelMessageContent,
+  maxTextBytes: number,
+  direction: "head" | "tail",
+):
+  | Pick<ToolResultSerialization, "modelContent" | "content" | "returnedBytes" | "truncated">
+  | undefined {
+  if (
+    !Array.isArray(modelContent) ||
+    !modelContent.some((block) => block.type === "tool_reference") ||
+    !modelContent.every((block) => block.type === "text" || block.type === "tool_reference")
+  )
+    return undefined;
+
+  // 引用是发现事实与 Native wire，不是展示文本。通用预算只裁文本，不截引用、不改变块顺序。
+  const truncated = Buffer.byteLength(joinTextBlocks(modelContent), "utf8") > maxTextBytes;
+  let projected: ModelMessageContentBlock[] = modelContent;
+  if (truncated) {
+    const marker = fitStringToBytes(TOOL_REFERENCE_TEXT_TRUNCATION_MARKER, maxTextBytes, "head");
+    let remainingBytes = maxTextBytes - Buffer.byteLength(marker, "utf8");
+    let hasText = marker.length > 0;
+    const ordered = direction === "tail" ? [...modelContent].reverse() : modelContent;
+    projected = ordered.flatMap((block): ModelMessageContentBlock[] => {
+      if (block.type !== "text") return [block];
+      const text = fitStringToBytes(
+        block.text,
+        Math.max(0, remainingBytes - (hasText ? 2 : 0)),
+        direction,
+      );
+      if (text.length > 0) {
+        remainingBytes -= Buffer.byteLength(text, "utf8") + (hasText ? 2 : 0);
+        hasText = true;
+      }
+      if (text.length < block.text.length) remainingBytes = 0;
+      return text ? [{ ...block, text }] : [];
+    });
+    if (direction === "tail") projected.reverse();
+    if (marker) projected.push({ type: "text", text: marker });
+  }
+  const content = stringifyModelContentForSerialization(projected);
+  return {
+    modelContent: projected,
+    content,
+    returnedBytes: Buffer.byteLength(content, "utf8"),
+    truncated,
+  };
+}
+
 const OFFICIAL_CUA_TEXT_TRUNCATION_MARKER =
   "[Official CUA text truncated by resultBudget. Re-observe with detail=compact or a narrower window before relying on omitted state.]";
 
@@ -239,23 +289,52 @@ function budgetedTextFromStructuredContent(content: ModelMessageContentBlock[]):
     .join("\n\n");
 }
 
+const UTF8_MAX_BYTES_PER_CODE_UNIT = 3;
+const UTF8_SINGLE_BYTE_MAX_CODE_UNIT = 0x7f;
+const UTF8_TWO_BYTE_MAX_CODE_UNIT = 0x7ff;
+const HIGH_SURROGATE_START = 0xd800;
+const HIGH_SURROGATE_END = 0xdbff;
+const LOW_SURROGATE_START = 0xdc00;
+const LOW_SURROGATE_END = 0xdfff;
+
 function fitStringToBytes(value: string, maxBytes: number, direction: "head" | "tail"): string {
   if (maxBytes <= 0) return "";
-  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+  if (value.length * UTF8_MAX_BYTES_PER_CODE_UNIT <= maxBytes) return value;
+  // 文本长度本身受预算约束时保留原生快路，避免可容纳的 ASCII 退化为逐码元扫描。
+  if (value.length <= maxBytes && Buffer.byteLength(value, "utf8") <= maxBytes) return value;
 
-  const chars = Array.from(value);
-  let low = 0;
-  let high = chars.length;
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    const candidate =
-      direction === "tail"
-        ? chars.slice(chars.length - mid).join("")
-        : chars.slice(0, mid).join("");
-    if (Buffer.byteLength(candidate, "utf8") <= maxBytes) low = mid;
-    else high = mid - 1;
+  const fromTail = direction === "tail";
+  let cursor = fromTail ? value.length : 0;
+  let bytes = 0;
+  while (fromTail ? cursor > 0 : cursor < value.length) {
+    const codeUnit = value.charCodeAt(fromTail ? cursor - 1 : cursor);
+    let codeUnits = 1;
+    let codePointBytes =
+      codeUnit <= UTF8_SINGLE_BYTE_MAX_CODE_UNIT
+        ? 1
+        : codeUnit <= UTF8_TWO_BYTE_MAX_CODE_UNIT
+          ? 2
+          : UTF8_MAX_BYTES_PER_CODE_UNIT;
+    // 合法代理对不可拆开；孤立代理项计 3 字节但保留原码元，不能经 UTF-8 解码替换。
+    const possiblePair = fromTail
+      ? codeUnit >= LOW_SURROGATE_START && codeUnit <= LOW_SURROGATE_END && cursor > 1
+      : codeUnit >= HIGH_SURROGATE_START &&
+        codeUnit <= HIGH_SURROGATE_END &&
+        cursor + 1 < value.length;
+    if (possiblePair) {
+      const adjacent = value.charCodeAt(fromTail ? cursor - 2 : cursor + 1);
+      const paired = fromTail
+        ? adjacent >= HIGH_SURROGATE_START && adjacent <= HIGH_SURROGATE_END
+        : adjacent >= LOW_SURROGATE_START && adjacent <= LOW_SURROGATE_END;
+      if (paired) {
+        codeUnits = 2;
+        codePointBytes = 4;
+      }
+    }
+    // 沿用 <=：正小数不取整，NaN 也自然保留旧实现的空结果。
+    if (!(bytes + codePointBytes <= maxBytes)) break;
+    bytes += codePointBytes;
+    cursor += fromTail ? -codeUnits : codeUnits;
   }
-  return direction === "tail"
-    ? chars.slice(chars.length - low).join("")
-    : chars.slice(0, low).join("");
+  return fromTail ? value.slice(cursor) : value.slice(0, cursor);
 }

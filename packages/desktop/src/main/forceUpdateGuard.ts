@@ -1,9 +1,8 @@
 import {
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   ZCODE_VERSION,
   ZCODIUM_UPDATE_ORIGIN,
-  buildZCodeEndpointUrls,
   getForceUpdateMinimalVersionFromConfig,
+  normalizeZCodeEndpointOrigin,
   resolveForceUpdateRequirement,
   type ForceUpdateRequirement,
   type Locale,
@@ -12,6 +11,7 @@ import { requestForceAutoUpdate, type ForceAutoUpdateState } from "./autoUpdater
 import { showForceUpdatePrompt } from "./forceUpdatePrompt.js";
 
 const ZCODE_CLIENT_CONFIG_API_PATH = "/api/v1/client/configs";
+const ZCODIUM_RELEASES_URL = "https://github.com/No-ni/ZCodium/releases";
 const FORCE_UPDATE_CONFIG_REQUEST_TIMEOUT_MS = 10_000;
 const FORCE_UPDATE_CONFIG_MAX_RESPONSE_BYTES = 1024 * 1024;
 
@@ -37,7 +37,6 @@ interface ForceUpdateGuardResult {
 interface ForceUpdateGuardOptions {
   locale: Locale;
   logger: ForceUpdateGuardLogger;
-  endpointOrigin?: string;
   fetchRemoteConfig?: () => Promise<unknown>;
   requestAutoUpdate?: (
     onStateChange?: (state: ForceAutoUpdateState) => void,
@@ -45,11 +44,10 @@ interface ForceUpdateGuardOptions {
   onBlocked?: (requirement: ForceUpdateRequirement) => void;
 }
 
-function resolveForceUpdateClientConfigUrl(
-  endpointOrigin = ZCODIUM_UPDATE_ORIGIN || DEFAULT_ZCODE_ENDPOINT_ORIGIN,
-): string {
+function resolveForceUpdateClientConfigUrl(): string {
+  // 只允许自有更新源：未配置时调用方在 maybeBlockStartupForForceUpdate 提前放行。
   const url = new URL(
-    `${buildZCodeEndpointUrls(endpointOrigin).origin}${ZCODE_CLIENT_CONFIG_API_PATH}`,
+    `${normalizeZCodeEndpointOrigin(ZCODIUM_UPDATE_ORIGIN)}${ZCODE_CLIENT_CONFIG_API_PATH}`,
   );
   url.searchParams.set("app_version", ZCODE_VERSION);
   url.searchParams.set("platform", `${process.platform}-${process.arch}`);
@@ -69,13 +67,12 @@ function getForceUpdateMinimalVersionFromClientConfig(config: unknown): string |
   };
   if (typeof envelope.code === "number" && envelope.code !== 0) {
     // /client/configs 与服务层一样只有 code=0 才可信，避免错误 envelope 携带旧 data 时误触发启动强更。
-    throw new Error(`ZCode client config failed: ${envelope.code}`);
+    throw new Error(`ZCodium client config failed: ${envelope.code}`);
   }
   return getForceUpdateMinimalVersionFromConfig(envelope.data?.configs);
 }
 
 async function fetchRemoteForceUpdateConfig(
-  endpointOrigin?: string,
   fetchRemoteConfig?: () => Promise<unknown>,
 ): Promise<unknown> {
   if (fetchRemoteConfig) {
@@ -114,7 +111,7 @@ async function fetchRemoteForceUpdateConfig(
     }, FORCE_UPDATE_CONFIG_REQUEST_TIMEOUT_MS);
     timer.unref?.();
 
-    request = net.request(resolveForceUpdateClientConfigUrl(endpointOrigin));
+    request = net.request(resolveForceUpdateClientConfigUrl());
     request.on("response", (response) => {
       const statusCode = response.statusCode ?? 0;
       if (statusCode < 200 || statusCode >= 300) {
@@ -152,7 +149,6 @@ async function fetchRemoteForceUpdateConfig(
 
 async function resolveDesktopForceUpdateRequirement(options: {
   logger: ForceUpdateGuardLogger;
-  endpointOrigin?: string;
   fetchRemoteConfig?: () => Promise<unknown>;
 }): Promise<ForceUpdateRequirement | null> {
   const resolveFromConfig = (config: unknown) =>
@@ -167,10 +163,7 @@ async function resolveDesktopForceUpdateRequirement(options: {
     });
 
   try {
-    const remoteConfig = await fetchRemoteForceUpdateConfig(
-      options.endpointOrigin,
-      options.fetchRemoteConfig,
-    );
+    const remoteConfig = await fetchRemoteForceUpdateConfig(options.fetchRemoteConfig);
     const remoteRequirement = resolveFromConfig(remoteConfig);
     if (remoteRequirement) {
       return remoteRequirement;
@@ -184,12 +177,9 @@ async function resolveDesktopForceUpdateRequirement(options: {
   return null;
 }
 
-function resolveForceUpdateDownloadUrl(
-  locale: Locale,
-  endpointOrigin = DEFAULT_ZCODE_ENDPOINT_ORIGIN,
-): string {
-  const origin = buildZCodeEndpointUrls(endpointOrigin).origin;
-  return locale === "zh-CN" ? `${origin}/cn` : `${origin}/en`;
+function resolveForceUpdateDownloadUrl(): string {
+  // 人工升级入口指向本仓 releases，不依赖官方下载页。
+  return ZCODIUM_RELEASES_URL;
 }
 
 function formatForceUpdateDialogText(
@@ -198,7 +188,7 @@ function formatForceUpdateDialogText(
 ): ForceUpdateDialogText {
   if (locale === "zh-CN") {
     return {
-      title: "需要升级 ZCode",
+      title: "需要升级 ZCodium",
       message: "当前版本无法继续使用",
       detail: `当前版本：v${requirement.currentVersion}\n最低可用版本：v${requirement.minimalVersion}`,
       autoUpdateButton: "自动升级",
@@ -208,7 +198,7 @@ function formatForceUpdateDialogText(
   }
 
   return {
-    title: "Update ZCode",
+    title: "Update ZCodium",
     message: "The current version can no longer be used",
     detail: `Current version: v${requirement.currentVersion}\nMinimum supported version: v${requirement.minimalVersion}`,
     autoUpdateButton: "Auto update",
@@ -220,8 +210,8 @@ function formatForceUpdateDialogText(
 export async function maybeBlockStartupForForceUpdate(
   options: ForceUpdateGuardOptions,
 ): Promise<ForceUpdateGuardResult> {
-  // 强制升级门禁的 minimalVersion 来自上游 /api/v1/client/configs，属于上游对客户端的控制面。
-  // ZCodium 未配置自有更新源时不读上游配置：否则上游可以单方面阻止本仓库构建的客户端启动。
+  // 强制升级门禁的 minimalVersion 来自自有更新源的 /api/v1/client/configs 兼容响应。
+  // ZCodium 未配置自有更新源时不读远端配置：否则上游可以单方面阻止本仓库构建的客户端启动。
   if (!ZCODIUM_UPDATE_ORIGIN) {
     options.logger.info(
       "[force-update] 未配置自有更新源（ZCODIUM_UPDATE_ORIGIN），跳过远端强制升级检查",
@@ -229,10 +219,7 @@ export async function maybeBlockStartupForForceUpdate(
     return { blocked: false };
   }
 
-  const requirement = await resolveDesktopForceUpdateRequirement({
-    ...options,
-    endpointOrigin: options.endpointOrigin,
-  });
+  const requirement = await resolveDesktopForceUpdateRequirement(options);
   if (!requirement) {
     return { blocked: false };
   }
@@ -255,7 +242,7 @@ export async function maybeBlockStartupForForceUpdate(
   }
 
   if (action === "manual") {
-    const url = resolveForceUpdateDownloadUrl(options.locale, options.endpointOrigin);
+    const url = resolveForceUpdateDownloadUrl();
     options.logger.info(`[force-update] 用户选择手动升级：${url}`);
     await shell.openExternal(url);
   }

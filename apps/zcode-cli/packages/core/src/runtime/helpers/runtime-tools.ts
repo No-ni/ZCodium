@@ -51,6 +51,8 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
   registerBuiltInTools(runtime.registry, {
     bashTimeoutPolicy: runtime.config.bashTimeoutPolicy,
     includeSkill: Boolean(runtime.skillPort),
+    includeToolSearch:
+      runtime.config.toolSearch?.mode !== undefined && runtime.config.toolSearch.mode !== "off",
     includeAgent: Boolean(runtime.subagentPort),
     includeSendMessage: runtime.subagentPort?.sendMessage !== undefined,
     includeRespondToCoordinator:

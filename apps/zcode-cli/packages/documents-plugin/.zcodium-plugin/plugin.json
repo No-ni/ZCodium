@@ -1,15 +1,41 @@
 {
   "name": "documents",
-  "version": "0.1.8",
-  "description": "DOCX document production skills, published as an official ZCode plugin.",
+  "version": "0.1.9",
+  "description": "DOCX document production skills, published as an official ZCode plugin. Includes a read-only workspace viewer for shared reading, search, references and captures.",
   "description_i18n": {
-    "en": "Word document production skills for DOCX: create, edit, format, review, and comment.",
-    "zh-CN": "面向 DOCX 的 Word 文档制作技能：创建、编辑、排版、审阅与批注。"
+    "en": "Word document production skills for DOCX: create, edit, format, review, and comment. Read together in a read-only workspace panel with anchor references, search, highlights and captures.",
+    "zh-CN": "面向 DOCX 的 Word 文档制作技能：创建、编辑、排版、审阅与批注。 支持工作区只读共同阅读、锚点引用、搜索、高亮与截图。"
   },
   "author": {
     "name": "ZCodium"
   },
   "license": "Apache-2.0",
   "skills": "skills",
-  "agents": "agents"
+  "agents": "agents",
+  "mcpServers": {
+    "documents": {
+      "cwd": "${ZCODE_PROJECT_DIR}",
+      "command": "node",
+      "type": "stdio",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"],
+      "env": {
+        "ZCODE_WORKSPACE_ROOT": "${ZCODE_PROJECT_DIR}"
+      }
+    }
+  },
+  "ui": {
+    "surfaces": [
+      {
+        "server": "documents",
+        "title": {
+          "zh-CN": "Word 文档",
+          "en-US": "Documents"
+        },
+        "availability": "session",
+        "icon": "file-text",
+        "resourceUri": "ui://documents/panel.html",
+        "id": "documents"
+      }
+    ]
+  }
 }

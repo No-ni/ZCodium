@@ -1,6 +1,8 @@
 import { getDatabaseStartupPortPayload } from "./databaseStartupRelay.js";
 import { randomUUID } from "node:crypto";
-import { app, BrowserWindow, Menu, MessageChannelMain } from "electron";
+import { app, BrowserWindow, Menu, MessageChannelMain, nativeImage } from "electron";
+import { release } from "node:os";
+import { syncWindowsDesktopTrayUnread } from "./desktopTray.js";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import { HostMessageTypes, InternalChannels, PlatformChannels, type Locale } from "@zcode/shared";
 import { createBrowserWindow } from "./desktopWindowChrome.js";
@@ -9,8 +11,11 @@ import type { StartupWorkspaceWarmupTarget } from "./startupWorkspace.js";
 import { handleDarwinWindowCloseRequest } from "./desktopDarwinCloseBehavior.js";
 import {
   parseWindowUnreadCount,
+  parseWindowUnreadProjection,
   sumWindowUnreadCounts,
-  syncAppUnreadBadge,
+  syncUnreadBadgeForPlatform,
+  applyTaskbarOverlayToWindows,
+  renderTaskbarStatusDotPixels,
 } from "./unreadBadge.js";
 import { attachDesktopWindowSizePersistence, type DesktopWindowSize } from "./desktopWindowSize.js";
 import {
@@ -292,25 +297,55 @@ export function focusWorkspaceInExistingWindow(
   return { activated: false };
 }
 
-export function syncApplicationUnreadBadge(windowUnreadCountMap: Map<number, number>) {
-  syncAppUnreadBadge({
+let windowsBadgeImage: ReturnType<typeof nativeImage.createEmpty> | undefined;
+
+function taskbarBadgeImage() {
+  if (windowsBadgeImage) return windowsBadgeImage;
+  const build = Number(release().split(".")[2]);
+  const layout = build >= 22000 ? "windows-11" : "windows-10";
+  const image = nativeImage.createEmpty();
+  for (const scaleFactor of [1, 2] as const) {
+    const size = 16 * scaleFactor;
+    const representation = nativeImage.createFromBitmap(
+      Buffer.from(renderTaskbarStatusDotPixels(scaleFactor, layout)),
+      { width: size, height: size, scaleFactor },
+    );
+    image.addRepresentation({ scaleFactor, buffer: representation.toPNG() });
+  }
+  windowsBadgeImage = image;
+  return image;
+}
+
+export function syncApplicationUnreadBadge(
+  windowUnreadCountMap: Map<number, import("@zcode/shared").WindowUnreadProjection>,
+) {
+  const totalUnreadCount = sumWindowUnreadCounts(windowUnreadCountMap);
+  syncUnreadBadgeForPlatform({
     platform: process.platform,
-    totalUnreadCount: sumWindowUnreadCounts(windowUnreadCountMap),
+    totalUnreadCount,
     setBadgeCount: (count) => {
       app.setBadgeCount(count);
     },
+    applyOverlay: (label) =>
+      applyTaskbarOverlayToWindows({
+        label,
+        windows: BrowserWindow.getAllWindows() as never,
+        badgeImageForLabel: taskbarBadgeImage,
+      }),
   });
+  syncWindowsDesktopTrayUnread(totalUnreadCount);
 }
 
 export function handleWindowUnreadCountSync(
   win: BrowserWindow | null,
   payload: unknown,
-  windowUnreadCountMap: Map<number, number>,
+  windowUnreadCountMap: Map<number, import("@zcode/shared").WindowUnreadProjection>,
   logger: { warn: (...args: unknown[]) => void },
 ) {
+  const projection = parseWindowUnreadProjection(payload);
   const unreadCount = parseWindowUnreadCount(payload);
-  if (unreadCount == null) {
-    logger.warn("[sync-window-unread-count] invalid payload:", payload);
+  if (unreadCount == null || projection == null) {
+    logger.warn("[sync-window-unread-count] invalid payload");
     return false;
   }
 
@@ -321,7 +356,7 @@ export function handleWindowUnreadCountSync(
   if (unreadCount === 0) {
     windowUnreadCountMap.delete(win.id);
   } else {
-    windowUnreadCountMap.set(win.id, unreadCount);
+    windowUnreadCountMap.set(win.id, projection);
   }
   syncApplicationUnreadBadge(windowUnreadCountMap);
   return true;

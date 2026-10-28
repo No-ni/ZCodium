@@ -74,7 +74,7 @@ export function resolveChatErrorBannerDisplayMessage(
   }
 
   // 数字错误码由用户选择的模型供应商定义，不能全局套用官方账号/套餐含义。
-  // 闲时票据尚有独立运行时入口，暂保留其既有错误提示。
+  // 3102 只作为历史闲时票据错误的展示映射保留，不影响其它供应商的同号业务错误。
   if (resolveOffPeakTicketExpiredBusinessCode(error.code, error.message)) {
     return intl.formatMessage({ id: "zcode.error.providerBusiness.3102" });
   }

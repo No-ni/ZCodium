@@ -18,6 +18,9 @@ import {
 } from "@zcode/contracts";
 import type { ToolEntry } from "../types.js";
 import type { AgentProfile } from "../../subagent/profile.js";
+import { toolSearchToolEntry } from "./tool-search.js";
+import { deferredToolCallEntry } from "./deferred-tool-call.js";
+import { withBuiltInToolSearchMetadata } from "../search/built-in-policy.js";
 import { readToolEntry } from "./read.js";
 import { writeToolEntry } from "./write.js";
 import { editToolEntry } from "./edit.js";
@@ -74,6 +77,8 @@ import { createToolRuleNameSet } from "../tool-visibility.js";
 // 统一隐藏 Glob/Grep，并通过 Bash find/grep 接管搜索。
 
 export const builtInTools: ToolEntry[] = [
+  toolSearchToolEntry,
+  deferredToolCallEntry,
   readToolEntry,
   writeToolEntry,
   editToolEntry,
@@ -159,6 +164,8 @@ const DYNAMIC_WORKFLOW_TOOL_NAMES: ReadonlySet<string> = new Set([
 interface RegisterBuiltInToolsOptions {
   bashTimeoutPolicy?: BashTimeoutPolicy;
   includeSkill?: boolean;
+  /** ToolSearch缺省Off；显式开启后才注册两个控制入口。 */
+  includeToolSearch?: boolean;
   includeAgent?: boolean;
   includeSendMessage?: boolean;
   includeRespondToCoordinator?: boolean;
@@ -200,6 +207,11 @@ export function registerBuiltInTools(
   const disallowedTools = createToolRuleNameSet(options.disallowedTools);
 
   for (const entry of builtInTools) {
+    if (
+      (entry.metadata.name === "ToolSearch" || entry.metadata.name === "DeferredToolCall") &&
+      options.includeToolSearch !== true
+    )
+      continue;
     if (
       options.embeddedSearchEnabled === true &&
       (entry.metadata.name === "Glob" || entry.metadata.name === "Grep")
@@ -254,9 +266,12 @@ export function registerBuiltInTools(
     if (entry.metadata.name === "js" && options.includeNodeRepl !== true) {
       continue;
     }
-    registry.register(resolveBuiltInToolEntryForBranch(entry, options), {
-      silentDuplicateWarning: options.silentDuplicateWarnings,
-    });
+    registry.register(
+      withBuiltInToolSearchMetadata(resolveBuiltInToolEntryForBranch(entry, options)),
+      {
+        silentDuplicateWarning: options.silentDuplicateWarnings,
+      },
+    );
   }
 }
 

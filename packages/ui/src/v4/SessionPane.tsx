@@ -43,6 +43,8 @@ import type {
   V4ConversationFileChangesResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
+import { useConversationPanePresentation } from "@/side-pane-full-view/index.js";
+import type { ConversationLatestTurnSummary } from "@/v4/conversationTimelineLiveTail.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
 import { buildGenUiModelContext } from "@zcode/shared/gen-ui";
 import {
@@ -646,9 +648,12 @@ export function SessionPane({
     enabled: shareSelectionPanelVisible,
     onDismiss: dismissShareSelectionPanel,
   });
+  // 未开启分享时仍重建摘要会逐帧扫描全部历史；只按局部分享资格门禁，
+  // 首次打开的 timeline 视图和 configuration 阶段仍需原候选与默认全选。
+  const shareRows = shareActive ? snapshot?.rows.window : undefined;
   const shareRenderUnits = useMemo(
-    () => buildConversationTurnRenderUnits(snapshot?.rows.window ?? []),
-    [snapshot?.rows.window],
+    () => buildConversationTurnRenderUnits(shareRows ?? []),
+    [shareRows],
   );
   const shareItems = useMemo(
     () =>
@@ -752,7 +757,7 @@ export function SessionPane({
     ],
   );
   const eligibleShareProductTurnIds = useMemo(() => {
-    const rowsById = new Map((snapshot?.rows.window ?? []).map((row) => [row.rowId, row]));
+    const rowsById = new Map((shareRows ?? []).map((row) => [row.rowId, row]));
     const seen = new Set<string>();
     return eligibleShareItems.flatMap((item) => {
       const productTurnId = rowsById.get(item.rowId)?.productTurnId;
@@ -760,7 +765,7 @@ export function SessionPane({
       seen.add(productTurnId);
       return [productTurnId];
     });
-  }, [eligibleShareItems, snapshot?.rows.window]);
+  }, [eligibleShareItems, shareRows]);
   const sharePreflightCacheRef = useRef(new Map<string, ConversationShareTurnPreflightResult>());
   // 传输类失败会被按 turn 缓存成阻断项，仅靠选择变化无法再次触发 RPC；
   // 重试 token 变化时清缓存并重新发起，避免一次网络抖动把用户卡死在选择阶段。
@@ -3374,8 +3379,8 @@ export function SessionPane({
   );
 
   const handleSelectThought = useCallback(
-    (thought: string, _modelContext: { provider: string; model: string }) => {
-      handleDraftSelectThought(thought);
+    (thought: string, modelContext: { provider: string; model: string }) => {
+      handleDraftSelectThought(thought, modelContext);
     },
     [handleDraftSelectThought],
   );
@@ -3646,6 +3651,26 @@ export function SessionPane({
     !isDraft && (lease === null || sessionLeaseReady) && snapshot?.sessionId === sessionId
       ? snapshot
       : null;
+  const panePresentation = useConversationPanePresentation();
+  const isFloatingPresentation = panePresentation.presentation === "floating";
+  const floatingOwnerKey = JSON.stringify([workspaceKey, paneId, sessionId ?? "__draft__", timelineSnapshot?.logEpoch ?? ""]);
+  const floatingOwnerRef = useRef(floatingOwnerKey);
+  floatingOwnerRef.current = floatingOwnerKey;
+  const [floatingLatestTurn, setFloatingLatestTurn] = useState<{ ownerKey: string; summary: ConversationLatestTurnSummary } | null>(null);
+  const handleLatestTurnSummaryChange = useCallback((summary: ConversationLatestTurnSummary) => {
+    if (floatingOwnerRef.current === floatingOwnerKey) setFloatingLatestTurn({ ownerKey: floatingOwnerKey, summary });
+  }, [floatingOwnerKey]);
+  const floatingSummary = isFloatingPresentation && floatingLatestTurn?.ownerKey === floatingOwnerKey ? floatingLatestTurn.summary : null;
+  const reportFloatingStatus = panePresentation.reportFloatingStatus;
+  useEffect(() => {
+    if (!isFloatingPresentation || !focused) return;
+    reportFloatingStatus({
+      ownerKey: floatingOwnerKey,
+      running: timelineSnapshot?.control.canStop === true,
+      blockingInteractionId: timelineSnapshot ? blockingInteractionId : null,
+      latestTurn: floatingSummary,
+    });
+  }, [blockingInteractionId, floatingOwnerKey, floatingSummary, focused, isFloatingPresentation, reportFloatingStatus, timelineSnapshot?.control.canStop, timelineSnapshot !== null]);
   const shareHandoverContext =
     snapshot?.sharedContextImport && "contextId" in snapshot.sharedContextImport
       ? snapshot.sharedContextImport
@@ -4243,8 +4268,10 @@ export function SessionPane({
       submissionReady={composerSubmissionReady}
       updateComposerContent={updateComposerContent}
       createSubmissionFromComposer={createSubmissionFromComposer}
-      contextHeader={isDraft ? draftComposerHeader : undefined}
-      centered={isDraft}
+      contextHeader={isDraft && !isFloatingPresentation ? draftComposerHeader : undefined}
+      centered={isDraft && !isFloatingPresentation}
+      floating={isFloatingPresentation}
+      workingDurationMs={floatingSummary?.running ? floatingSummary.workDurationMs : undefined}
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
@@ -4393,7 +4420,7 @@ export function SessionPane({
       ) : null}
       {composerNode}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
-      {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
+      {isDraft && !isFloatingPresentation && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
           className={isOfficeMode ? "mt-4" : "mt-6"}
           proactive={isOfficeMode}
@@ -4623,6 +4650,9 @@ export function SessionPane({
               onLoadThroughRow={handleLoadThroughRow}
               turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
               bottomDock={conversationBottomDock}
+              floatingComposerDock={isFloatingPresentation}
+              onComposerDockHeightChange={isFloatingPresentation && focused ? panePresentation.reportComposerDockHeight : undefined}
+              onLatestTurnSummaryChange={isFloatingPresentation && focused ? handleLatestTurnSummaryChange : undefined}
               hideTurnNavigator={shareActive && shareInSelectionStage}
               backgroundScrollLocked={resolveConversationShareBackgroundScrollLocked({
                 partialShareActive: shareActive,
@@ -4657,7 +4687,7 @@ export function SessionPane({
                   </div>
                 ) : null
               }
-              centerEmptyStateWithDock={isDraft}
+              centerEmptyStateWithDock={isDraft && !isFloatingPresentation}
               summaryPanelLayout={statusPanelLayout}
               conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
               conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}

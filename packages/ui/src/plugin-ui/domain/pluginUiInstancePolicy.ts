@@ -56,6 +56,10 @@ export function deriveLogicalUiInstances(
   rows: readonly ConversationRow[],
   options: { autoExpandTurns?: number } = {},
 ): PluginUiInstanceDerivation {
+  const pluginRows = rows.filter(isPluginUiToolRow);
+  // 普通流式正文也会触发派生；没有候选插件时回合目录无用途，先返回避免读全量 turnId。
+  if (pluginRows.length === 0) return { instances: [], byToolCallId: {} };
+
   // 流式更新会重复派生全部历史；用调用内成员索引避免逐行 includes 回扫已见回合。
   const seenTurns: Record<string, true | undefined> = Object.create(null);
   const turnOrder: string[] = [];
@@ -70,8 +74,7 @@ export function deriveLogicalUiInstances(
   for (const turnId of recentTurns) recentTurnIds[turnId] = true;
   const groupKeys: string[] = [];
   const groups: Record<string, ToolCallRow[]> = {};
-  for (const row of rows) {
-    if (!isPluginUiToolRow(row)) continue;
+  for (const row of pluginRows) {
     const display = row.display;
     if (display?.kind !== "mcp_tool" || !display.ui) continue;
     const logical = resolvePluginUiLogicalScope(display.ui, {
@@ -103,12 +106,19 @@ export function deriveLogicalUiInstances(
     for (const toolCallId of superseded) supersededIds[toolCallId] = true;
     instances.push({ key, activeToolCallId: active.toolCallId, supersededToolCallIds: superseded });
     for (const row of group) {
-      byToolCallId[row.toolCallId] = {
-        key,
-        superseded: supersededIds[row.toolCallId] === true,
-        autoExpand: recentTurnIds[row.turnId] === true,
-        forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
-      };
+      // toolCallId 是协议字符串；普通赋值会触发 __proto__ setter、丢掉自有裁决。
+      // 显式数据属性保留既有普通对象输出和重复 ID 的最后写入规则，不改变原型。
+      Object.defineProperty(byToolCallId, row.toolCallId, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: {
+          key,
+          superseded: supersededIds[row.toolCallId] === true,
+          autoExpand: recentTurnIds[row.turnId] === true,
+          forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
+        },
+      });
     }
   }
   return { instances, byToolCallId };

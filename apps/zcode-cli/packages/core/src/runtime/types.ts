@@ -1,4 +1,8 @@
-import type { RuntimeInputPresentation } from "@zcode/contracts";
+import type {
+  RuntimeInputPresentation,
+  ToolSearchMode,
+  ToolSearchExecutionContext,
+} from "@zcode/contracts";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
 import { PermissionService, ToolScheduler } from "./deps.js";
 import type {
@@ -124,6 +128,8 @@ export interface AgentRuntimeConfig {
   planEnabled?: boolean;
   modelStreaming?: "off" | "on";
   streamingToolExecution?: "off" | "readOnly";
+  /** 实验默认关闭；模式只影响请求曝光，不新增授权系统。 */
+  toolSearch?: { mode?: ToolSearchMode };
   /** Session 创建时固定；缺省使用共享的模型上下文预算默认策略。 */
   modelContextBudgetStrategy?: "legacy" | "preflight-v1";
   maxTurns?: number;
@@ -704,6 +710,7 @@ export interface PermissionDecisionResult {
 }
 
 export interface ExecuteToolsOptions {
+  toolSearch?: ToolSearchExecutionContext;
   automationTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;
@@ -790,6 +797,8 @@ export interface ProviderContextUsageSnapshot {
 }
 
 export interface RunModelTextRequestOptions {
+  toolSearch?: ToolSearchExecutionContext;
+  toolSearchEnabled?: boolean;
   abortSignal?: AbortSignal;
   assistantMessageId: MessageId;
   events: SessionEvent[];

@@ -1,6 +1,8 @@
 /* eslint-disable max-lines -- 所有 transport 生命周期共享同一个 registry 状态机，必须原子演进。 */
+import { Emitter } from "@zcode/rpc";
 import {
   buildSshRemoteHostKey,
+  buildServerRemoteWorkspaceIdentity,
   stripRemoteTargetSecrets,
   type RemoteTarget,
   type WindowHostAttachmentScope,
@@ -20,6 +22,10 @@ export interface WindowRemoteConnectionCloseEvent {
 export interface WindowRemoteConnectionHandle<TServices, TCapabilities = never> {
   services: TServices;
   capabilities?: TCapabilities;
+  sourceServerId?: string;
+  configurationMode?: "target" | "mirror-personal";
+  assertProviderProvisioningAllowed?(): Promise<void>;
+  inspectWorkspace?(context: RemoteWorkspaceContext, signal: AbortSignal): Promise<void>;
   dispose(): void | Promise<void>;
   onDidClose?(listener: (event: WindowRemoteConnectionCloseEvent) => void): { dispose(): void };
 }
@@ -41,6 +47,9 @@ interface WindowRemoteLogicalSessionSnapshot {
   generation: number;
   state: WindowRemoteConnectionState;
   sourceAvailability: "online" | "offline";
+  workspaceReadyState: "pending" | "ready" | "failed";
+  sourceServerId?: string;
+  configurationMode?: "target" | "mirror-personal";
 }
 
 class WindowRemoteConnectCancelledError extends Error {
@@ -101,6 +110,10 @@ interface LogicalSession<TServices, TCapabilities> {
   workspaceGeneration?: number;
   workspaceReady: Promise<void>;
   workspaceReadyState: "pending" | "ready" | "failed";
+  workspacePreparation?: {
+    controller: AbortController;
+    cancel(): void;
+  };
   cancelled: boolean;
   rejectCancellation: (error: WindowRemoteConnectCancelledError) => void;
   cancellation: Promise<never>;
@@ -134,6 +147,13 @@ function toSessionSnapshot<TServices, TCapabilities>(
     generation: session.generation,
     state: session.state,
     sourceAvailability: session.sourceAvailability,
+    workspaceReadyState: session.workspaceReadyState,
+    ...(session.entry.handle?.sourceServerId
+      ? {
+          sourceServerId: session.entry.handle.sourceServerId,
+          configurationMode: session.entry.handle.configurationMode ?? "target",
+        }
+      : {}),
   };
 }
 
@@ -147,6 +167,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   onWorkspaceReleaseError?: (context: RemoteWorkspaceContext, error: unknown) => void;
   wslIdleTtlMs?: number;
 }) {
+  const changes = new Emitter<void>();
   const entriesByKey = new Map<string, ConnectionEntry<TServices, TCapabilities>>();
   const sessionsById = new Map<string, LogicalSession<TServices, TCapabilities>>();
   const pendingSessionsByRequestId = new Map<string, LogicalSession<TServices, TCapabilities>>();
@@ -242,7 +263,12 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     workspaceGeneration?: number;
   }): Promise<void> | undefined {
     const { entry, workspaceKey, workspaceGeneration } = params;
-    if (entry.target.kind !== "wsl" || !workspaceKey || !workspaceGeneration) {
+    if (
+      entry.handle?.sourceServerId ||
+      entry.target.kind !== "wsl" ||
+      !workspaceKey ||
+      !workspaceGeneration
+    ) {
       return undefined;
     }
     if (hasOtherWorkspaceOwner(entry, workspaceKey, params.remoteSessionId)) {
@@ -259,10 +285,81 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     return startWorkspaceRelease(entry, workspaceKey, state, workspaceGeneration);
   }
 
+  function prepareSourceWorkspace(
+    session: LogicalSession<TServices, TCapabilities>,
+  ): Promise<void> {
+    session.workspacePreparation?.cancel();
+    const entry = session.entry;
+    const handle = entry.handle;
+    const generation = session.generation;
+    const context = {
+      workspacePath: session.workspacePath!,
+      ...(session.workspaceIdentity ? { workspaceIdentity: session.workspaceIdentity } : {}),
+    };
+    const controller = new AbortController();
+    let rejectCancelled!: (error: WindowRemoteConnectCancelledError) => void;
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      rejectCancelled = reject;
+    });
+    const preparation = {
+      controller,
+      cancel() {
+        if (controller.signal.aborted) return;
+        controller.abort();
+        rejectCancelled(new WindowRemoteConnectCancelledError());
+      },
+    };
+    session.workspacePreparation = preparation;
+    session.workspaceReadyState = "pending";
+    const isCurrent = () =>
+      !disposed &&
+      !session.cancelled &&
+      sessionsById.get(session.remoteSessionId) === session &&
+      session.generation === generation &&
+      session.workspacePreparation === preparation &&
+      entry.handle === handle &&
+      entry.state === "online" &&
+      !entry.disposed &&
+      !controller.signal.aborted;
+    const inspecting = Promise.resolve().then(async () => {
+      if (!isCurrent()) throw new WindowRemoteConnectCancelledError();
+      if (!handle?.inspectWorkspace)
+        throw new Error("Source 工作区只读检查能力不可用，禁止发布 workspace ready");
+      await handle.inspectWorkspace(context, controller.signal);
+      if (!isCurrent()) throw new WindowRemoteConnectCancelledError();
+    });
+    // 每次 bind 捕获独立代际；旧异步检查完成不得将新 scope 标为 ready 或 failed。
+    const ready = Promise.race([inspecting, cancelled])
+      .then(() => {
+        if (!isCurrent()) throw new WindowRemoteConnectCancelledError();
+        session.workspaceReadyState = "ready";
+        changes.fire();
+      })
+      .catch((error) => {
+        if (isCurrent()) {
+          session.workspaceReadyState = "failed";
+          changes.fire();
+        }
+        throw error;
+      })
+      .finally(() => {
+        if (session.workspacePreparation === preparation) session.workspacePreparation = undefined;
+      });
+    session.workspaceReady = ready;
+    return ready;
+  }
+
   function prepareWorkspaceRuntime(
     session: LogicalSession<TServices, TCapabilities>,
   ): Promise<void> {
-    if (session.entry.target.kind !== "wsl" || !session.workspacePath || !session.workspaceKey) {
+    if (session.entry.handle?.sourceServerId && session.workspacePath && session.workspaceKey)
+      return prepareSourceWorkspace(session);
+    if (
+      session.entry.handle?.sourceServerId ||
+      session.entry.target.kind !== "wsl" ||
+      !session.workspacePath ||
+      !session.workspaceKey
+    ) {
       session.workspaceReadyState = "ready";
       session.workspaceReady = Promise.resolve();
       return session.workspaceReady;
@@ -354,7 +451,12 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     if (entriesByKey.get(entry.key) === entry) {
       entriesByKey.delete(entry.key);
     }
-    entry.disposePromise = Promise.resolve(entry.handle?.dispose()).then(() => undefined);
+    // 退休 entry 不等于释放尚未产生的 handle；空连接不能缓存完成结果吞掉迟到资源。
+    const handle = entry.handle;
+    if (!handle) return;
+    entry.disposePromise = Promise.resolve()
+      .then(() => handle.dispose())
+      .then(() => undefined);
     return entry.disposePromise;
   }
 
@@ -377,8 +479,10 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       }
       session.state = "disconnected";
       session.sourceAvailability = "offline";
+      session.workspacePreparation?.cancel();
       options.onSessionClosed?.({ remoteSessionId, ...event });
     }
+    changes.fire();
   }
 
   function createEntry(params: {
@@ -517,21 +621,36 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     }
     sessionsById.set(remoteSessionId, session);
     pendingSessionsByRequestId.set(params.requestId, session);
+    changes.fire();
 
     try {
       await Promise.race([entry.ready, cancellation]);
+      if (entry.handle?.sourceServerId && session.workspacePath) {
+        session.workspaceIdentity = buildServerRemoteWorkspaceIdentity({
+          serverId: entry.handle.sourceServerId,
+          workspacePath: session.workspacePath,
+        });
+        session.workspaceKey = session.workspaceIdentity;
+      }
       await Promise.race([prepareWorkspaceRuntime(session), cancellation]);
       if (session.cancelled || !sessionsById.has(remoteSessionId)) {
         throw new WindowRemoteConnectCancelledError();
       }
       session.state = "online";
       session.sourceAvailability = "online";
+      changes.fire();
       return {
         remoteSessionId,
         target: stripRemoteTargetSecrets(params.target),
         ...(session.workspacePath ? { workspacePath: session.workspacePath } : {}),
         ...(session.workspaceIdentity ? { workspaceIdentity: session.workspaceIdentity } : {}),
         generation: session.generation,
+        ...(entry.handle?.sourceServerId
+          ? {
+              sourceServerId: entry.handle.sourceServerId,
+              configurationMode: entry.handle.configurationMode ?? "target",
+            }
+          : {}),
       };
     } catch (error) {
       if (sessionsById.get(remoteSessionId) === session) {
@@ -557,6 +676,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       return;
     }
     session.cancelled = true;
+    session.workspacePreparation?.cancel();
     pendingSessionsByRequestId.delete(requestId);
     sessionsById.delete(session.remoteSessionId);
     session.entry.sessions.delete(session.remoteSessionId);
@@ -568,6 +688,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     });
     void workspaceRelease?.catch(() => undefined);
     session.rejectCancellation(new WindowRemoteConnectCancelledError());
+    changes.fire();
     if (session.entry.sessions.size === 0) {
       if (session.entry.target.kind === "ssh" && session.entry.state === "connecting") {
         // 最后一个 waiter 取消后，旧 entry 仍以 connecting 留在复用表；立即重连会
@@ -606,16 +727,24 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       workspaceGeneration: session.workspaceGeneration,
     };
     session.workspacePath = params.workspacePath;
-    session.workspaceIdentity = params.workspaceIdentity;
+    session.workspaceIdentity = session.entry.handle?.sourceServerId
+      ? buildServerRemoteWorkspaceIdentity({
+          serverId: session.entry.handle.sourceServerId,
+          workspacePath: params.workspacePath,
+        })
+      : params.workspaceIdentity;
     session.generation += 1;
-    session.workspaceKey = params.workspaceIdentity.trim() || params.workspacePath;
+    session.workspaceKey = session.workspaceIdentity.trim() || params.workspacePath;
     session.entry.workspaceKeys.add(session.workspaceKey);
     const ready = prepareWorkspaceRuntime(session);
+    changes.fire();
     if (previousOwnership.workspaceKey !== session.workspaceKey) {
       const release = requestWorkspaceRelease(previousOwnership);
       void release?.catch(() => undefined);
     }
-    return ready;
+    return ready.then(() => {
+      changes.fire();
+    });
   }
 
   function resolveScopedHandle(
@@ -647,6 +776,23 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     return session.entry.handle;
   }
 
+  async function assertProviderProvisioningAllowed(
+    scope: WindowHostAttachmentScope,
+  ): Promise<void> {
+    const handle = resolveScopedHandle(scope);
+    if (!handle.sourceServerId) return;
+    if (
+      handle.configurationMode !== "mirror-personal" ||
+      !handle.assertProviderProvisioningAllowed
+    ) {
+      throw new Error("Source Profile provisioning authorization is unavailable");
+    }
+    await handle.assertProviderProvisioningAllowed();
+    // Profile 验证跨 await，旧 logical session/handle 不能借新连接的服务继续发送 Key。
+    if (resolveScopedHandle(scope) !== handle)
+      throw new Error("Source provisioning authorization is retired");
+  }
+
   function resolveScopedServices(scope: WindowHostAttachmentScope): TServices {
     return resolveScopedHandle(scope).services;
   }
@@ -660,9 +806,13 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     if (!session) {
       return;
     }
+    session.workspacePreparation?.cancel();
+    if (pendingSessionsByRequestId.get(session.requestId) === session)
+      session.rejectCancellation(new WindowRemoteConnectCancelledError());
     sessionsById.delete(remoteSessionId);
     pendingSessionsByRequestId.delete(session.requestId);
     session.entry.sessions.delete(remoteSessionId);
+    changes.fire();
     const workspaceRelease = requestWorkspaceRelease({
       entry: session.entry,
       remoteSessionId,
@@ -684,9 +834,11 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   }
 
   return {
+    onDidChange: changes.event,
     connect,
     cancelConnect,
     bindWorkspaceContext,
+    assertProviderProvisioningAllowed,
     resolveScopedServices,
     resolveScopedCapabilities,
     getSession(remoteSessionId: string): WindowRemoteLogicalSessionSnapshot | null {
@@ -706,7 +858,10 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
           session.workspaceIdentity === params.workspaceIdentity,
       );
       const onlineMatches = matches.filter(
-        (session) => session.state === "online" && session.sourceAvailability === "online",
+        (session) =>
+          session.state === "online" &&
+          session.sourceAvailability === "online" &&
+          session.workspaceReadyState === "ready",
       );
       if (onlineMatches.length > 1 || (onlineMatches.length === 0 && matches.length > 1)) {
         throw new Error(
@@ -771,11 +926,13 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
         cancelConnect(requestId);
       }
       const entries = new Set(Array.from(sessionsById.values(), (session) => session.entry));
+      for (const session of sessionsById.values()) session.workspacePreparation?.cancel();
       for (const entry of entriesByKey.values()) {
         entries.add(entry);
       }
       sessionsById.clear();
       pendingSessionsByRequestId.clear();
+      changes.dispose();
       disposePromise = Promise.all(Array.from(entries, disposeEntry)).then(() => undefined);
       return disposePromise;
     },

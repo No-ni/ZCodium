@@ -4,7 +4,7 @@ ZCodium 默认不向外部发送诊断。官方上报 SDK、专有事件上传�
 
 ## 本地排障
 
-诊断保留启动和数据库阶段、进程退出与错误分类、请求/工具/首字延迟、重试与停顿、CPU/内存和缓存计数。调用关联使用本次运行的随机诊断标识，记录顺序及父子关系。生产环境保留低频事件，高频细节遵守 debug 门控。
+诊断保留启动和数据库阶段、进程退出与错误分类、请求/工具/首字延迟、重试与停顿、缓存计数。安全本地日志默认可用；后台 CPU/内存与网络采样另由 `ZCODE_LOCAL_RESOURCE_MONITORING=1` 显式开启，资源管理器的按需检查保持独立。调用关联使用本次运行的随机诊断标识，记录顺序及父子关系。生产环境保留低频事件，高频细节遵守 debug 门控。
 
 日志不保存提示词、对话或文件内容、命令参数、凭据、账号、真实工作区路径、完整 URL、原始错误文本及内存 dump。错误保留固定分类、系统错误码和应用代码位置。无法从安全信息定位的问题，需要用户主动提供最小复现材料。
 
@@ -19,7 +19,7 @@ ZCodium 默认不向外部发送诊断。官方上报 SDK、专有事件上传�
 
 通用地址会追加 `/v1/logs`。仅设置 OTEL 地址或旧上报变量不会启用导出。没有默认接收地址；停用开关并重启后不创建导出队列、定时器或网络请求。
 
-例如，已运行本机 Collector 时，Linux 开发启动可使用：
+例如，已运行本机 Collector 时，macOS 开发启动可使用：
 
 ```bash
 ZCODE_DIAGNOSTICS_EXPORT_ENABLED=1 \
@@ -27,7 +27,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 \
 pnpm dev:desktop
 ```
 
-Windows PowerShell：
+Windows PowerShell 7（`pwsh`）：
 
 ```powershell
 $env:ZCODE_DIAGNOSTICS_EXPORT_ENABLED = "1"

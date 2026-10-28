@@ -1,15 +1,5 @@
 /* eslint-disable max-lines -- skill 发现 + 校验 + 状态 + 通用目录管理在同一服务里聚合，分层后跳转成本更高 */
-import {
-  access,
-  appendFile,
-  cp,
-  mkdir,
-  realpath,
-  rm,
-  readFile,
-  readdir,
-  writeFile,
-} from "node:fs/promises";
+import { access, appendFile, cp, mkdir, realpath, rm, readFile, readdir } from "node:fs/promises";
 import { existsSync, type Dirent } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
@@ -32,6 +22,7 @@ import {
   ZCODE_WORKSPACE_CONFIG_DIR_NAME,
 } from "@zcode/shared";
 import { withFileLock } from "@zcode/shared/node";
+import { atomicWriteText } from "#src/fs/atomicFileUtils.js";
 import type { ISkillsService } from "./skills.js";
 import { SKILL_FILE_NAME, walkSkillMarkdownPaths } from "./skillDiscoveryWalk.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
@@ -535,12 +526,19 @@ function normalizeSkillConfigPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
 
-async function readCliConfigFile(): Promise<Record<string, unknown>> {
+async function readCliConfigFile(strict = false): Promise<Record<string, unknown>> {
   try {
     const raw = await readFile(SKILL_CLI_CONFIG_FILE, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
-    return isObjectRecord(parsed) ? parsed : {};
-  } catch {
+    if (!isObjectRecord(parsed)) throw new Error("CLI config must contain a JSON object");
+    return parsed;
+  } catch (error) {
+    // 展示可降级；修改配置不能把损坏文件或权限错误当空对象，覆盖 provider / MCP 字段。
+    if (
+      strict &&
+      !(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")
+    )
+      throw error;
     return {};
   }
 }
@@ -569,7 +567,7 @@ async function writeSkillEnabledMap(next: Record<string, boolean>): Promise<void
   // 共同写入；修复前锁外读、锁外写会用旧快照覆盖其他写入方刚写入的字段。
   // 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
   await withFileLock(SKILL_CLI_CONFIG_FILE, async () => {
-    const config = await readCliConfigFile();
+    const config = await readCliConfigFile(true);
     const skillsConfig = isObjectRecord(config.skills) ? config.skills : {};
     for (const [path, enable] of Object.entries(next).sort(([left], [right]) =>
       left.localeCompare(right),
@@ -577,6 +575,12 @@ async function writeSkillEnabledMap(next: Record<string, boolean>): Promise<void
       // 技能开关之前分散在 workspace/provider/context 状态文件，导致同一技能在不同入口表现不一致。
       // 现在只按 SKILL.md 路径写入 CLI config 的 skills 字段，避免额外迁移或旧文件副作用。
       const normalizedPath = normalizeSkillConfigPath(path);
+      // Windows 存量 key 使用反斜杠；读取时归一化、写入只删正斜杠 key 会使旧禁用态复活。
+      // 锁内只清理本目标的等价 key，再写唯一规范值，保留其他技能与并发字段。
+      for (const existingPath of Object.keys(skillsConfig)) {
+        if (normalizeSkillConfigPath(existingPath) === normalizedPath)
+          delete skillsConfig[existingPath];
+      }
       if (enable) {
         // 开启态是默认值，不应落盘成 `{ enable: true }`；删除 override 才能跟随插件/默认配置变化。
         delete skillsConfig[normalizedPath];
@@ -589,8 +593,12 @@ async function writeSkillEnabledMap(next: Record<string, boolean>): Promise<void
     } else {
       delete config.skills;
     }
-    await mkdir(SKILL_CLI_SETTINGS_DIR, { recursive: true });
-    await writeFile(SKILL_CLI_CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    // 直接写正式文件会在 ENOSPC 等失败时留下半份配置；锁内原子替换且不重入同一文件锁。
+    // 替换会丢失原文件的 0600；临时文件必须先私有，避免保存开关暴露同文件中的鉴权字段。
+    await atomicWriteText(SKILL_CLI_CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, {
+      useFileLock: false,
+      mode: 0o600,
+    });
   });
 }
 

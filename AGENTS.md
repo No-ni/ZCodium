@@ -2,13 +2,28 @@
 
 - 桌面仅构建 Windows/macOS：Windows 产 exe，macOS 只产 dmg；不构建、下载或嵌入 Linux 安装包及远端运行资源，同步上游时不得恢复这条依赖。
 - 默认在 GitHub 构建，只有用户明确要求才在本机打包；构建前确认目标分支已推送，不借构建绕过用户的「不推送」要求。
-- 改动只推送到自己的 fork（`origin = No-ni/ZCodium`）；同步上游用 merge，默认不提 PR、不开 issue；提交文案用中文，提交前先展示给用户。
+- 改动只推送到自己的 fork（`origin = No-ni/ZCodium`）；只同步官方 `upstream = zai-org/ZCode`，用 merge，不 merge 第三方 fork；默认不提 PR、不开 issue；提交文案用中文，提交前先展示给用户。
 - 构建只由用户明确要求时手动触发（`gh workflow run desktop.yml`）：GitHub 会因 fork 的 Actions 用量停用 Workflows，push/PR 不再自动构建，唯一工作流是 `desktop.yml`（独立的 `macos.yml` 已删除）。产物按目标设备与架构取用：本机 mac 装新版只下载 `desktop-mac-arm64` 产物；Windows 机器装机按架构（`desktop-win-x64` / `desktop-win-arm64`）给对应 Actions 产物直达链接、由用户在目标机自行下载，不经手中转；直接覆盖 ZCodium，不做备份，旧 `ZCodium.app.bak-*` 可直接删除。
-- 同步上游保留 ZCodium 身份、`.zcodium` 业务数据目录和自有更新源边界；未配置自有更新源时不回退到官方更新源。
+- 同步官方上游时保留 ZCodium 身份、`.zcodium` 业务数据目录、自有更新源和去遥测/去官方云依赖的审计边界；未配置自有更新源时不回退到官方更新源。
 - 本机 pnpm 使用 `corepack pnpm`；正式版构建从准备阶段起设置 `ZCODE_ENV=production`，避免生成 Preview 混合身份包。
 - 构建产物一律不备份，用完即清；本机不长期存放 artifact。
 
-这里只记长期规则；提交号、构建状态和产物编号等现查，不写入本文件。
+这里记长期规则与维护模型；具体提交号、构建状态和产物编号现查，不写入本文件。
+
+## 维护模型：官方源码 + 本仓审计
+
+- 唯一代码上游是 `zai-org/ZCode`（remote `upstream`）。只 merge 官方 tag/commit；不再跟踪 `axiom-desu/ZCodium`，也不要把它作为同步对象。
+- `ZCodium-project/ZCodium`（remote `reference`）只作为审计原则和实现方式的参考，不 merge；文件可能同名但实现不同，判断差异以当前源码、入口和运行时行为为准。
+- `origin = No-ni/ZCodium` 是唯一推送目标。产品内新链接指向 `origin` 或本仓文档；历史 CHANGELOG 与历史 spec 中的旧上游链接只作为记录，不改写。
+- 版本沿用官方 `3.x.y`，表示本次吸收的官方基线；本仓自身修复不单独改版本号，需要发行时由用户确认。不采用 `ZCodium-project` 的 `1.y.z` 版本线。
+- 每次同步按 [docs/specs/maintenance-model.md](docs/specs/maintenance-model.md) 执行：fetch 官方 → 建同步分支 → merge（不 rebase）→ 按审计边界解决冲突 → 跑检查清单 → 记录基线/吸收项/剥离项/未同步项 → 按用户要求推送或构建。
+- 审计边界（每次同步必须守住）：
+  - 不引入官方遥测/监控/崩溃采集/资源或网络采样上报/UI 埋点；安全本地技术日志可用，后台采样与对外导出分别默认关闭。导出仅在显式开启并配置用户自建接收端时启用，不回退官方地址。
+  - 不依赖官方账号、登录、OAuth、购买、套餐、额度、分享、上传、官方 MCP 凭证、官方插件市场自动拉取、官方 client config/rollout、官方 relay、官方更新源。
+  - 不恢复已删除的遥测/云服务模块来让测试变绿；官方重新引入时保留本仓删除并做最小适配。
+  - 不向官方平台自动上传仓库快照、对话、文件或诊断；用户选择的模型 API、远程操作和显式自建 OTLP 导出遵守各自数据边界。数据根保持 `.zcodium`，旧数据迁移由用户决策；未配置自有更新源时不检查更新、不回退官方。
+- 同步记录和欠账清单写在 `docs/specs/maintenance-model.md`；未执行的验证、未同步的模块和已知限制必须如实标注，不把确定性测试写成真机/全量验收。
+- 审计守卫见 `scripts/ci/audit-boundaries.test.mjs`；清理记录、保留例外和实际验证边界统一查维护 spec，不把阶段性扫描写成永久“无遗漏”。用户自带 Key 的 Provider API/额度、普通 MCP OAuth、历史 ID/迁移、只读历史轨迹和 fail-closed schema 可按既有契约保留；文档字体只检查本地，不默认下载官方资源。
 
 ## 核心原则
 
@@ -16,6 +31,7 @@
 - 以当前检出的源码、`package.json` 和架构策略为准。说明中只保留当前仓库提供的功能、命令和文件；删除功能时同步清理指令和技能中的引用。
 - 定位问题时，未明确要求修改代码就先调查原因。结合源码、日志和运行时证据，区分已确认原因与待验证假设。
 - 保留与任务无关的本地改动，不自行恢复已移除的模块或内部依赖。
+- 本机修改、测试数据、缓存和验证日志只能写入当前获准的项目工作树；不得写入、迁移或清理项目外文件，不使用真实用户目录、真实 `.zcodium` 或系统临时目录作为测试目标。测试启动前审查路径及子进程环境，拒绝链接/重解析点越界；不能证明写入范围的测试不执行。不得递归清理用户数据或历史临时目录，也不得擅自恢复已丢失的数据。
 
 ## 命令与仓库结构
 
@@ -88,7 +104,7 @@
 
 - UI 使用 `packages/ui/src/logger.ts`，不直接使用 `console.log` 或 `window.zcode?.log`。
 - Agent/session/runtime 相关服务日志使用 `createServiceLogger(scope)`（`packages/services/src/logger/serviceLogger.ts`）。
-- `debug` 用于协议原始数据、流式 chunk 和逐条工具更新等高频诊断，生产环境不落盘。
+- `debug` 用于协议、流式与逐条工具更新的安全结构/数字指标等高频诊断，生产环境不落盘；任何级别均不记录原文内容、配置、真实路径、凭据、完整 URL 或原始错误文本，服务必须在自身出口净化。
 - `info` 用于进程和会话生命周期、权限结果、一次性初始化等生产可用事件。
 - `warn` 用于可恢复异常；`error` 用于崩溃、握手失败、鉴权丢失等不可恢复错误。
 - 不在日志、示例或提交中写入凭据、真实用户数据和内部服务地址。

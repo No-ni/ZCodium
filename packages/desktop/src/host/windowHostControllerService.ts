@@ -504,18 +504,26 @@ export function createWindowHostControllerRuntime(options: {
                 ],
                 limit: undefined,
               });
+              // 原逐项 getTasks 会反复排序全表；响应返回后建立局部索引，保留最新投影和精确 source 边界。
+              const projectedByTaskId = new Map<string, WindowHostControllerTaskRow>();
+              if (result.items.length) {
+                const remoteSessionId =
+                  source.scope.kind === "remote" ? source.scope.remoteSessionId : undefined;
+                for (const row of projection.getTasks()) {
+                  if (
+                    row.address.workspacePath === source.scope.workspacePath &&
+                    row.address.workspaceIdentity ===
+                      (source.scope.workspaceIdentity || undefined) &&
+                    row.address.remoteSessionId === remoteSessionId &&
+                    !projectedByTaskId.has(row.address.taskId)
+                  ) {
+                    projectedByTaskId.set(row.address.taskId, row);
+                  }
+                }
+              }
               return result.items.map((item) => {
                 const normalized = normalizeTaskMeta(item, source.scope);
-                const projected = projection
-                  .getTasks()
-                  .find(
-                    (row) =>
-                      row.address.taskId === normalized.taskId &&
-                      row.address.workspacePath === normalized.workspacePath &&
-                      row.address.workspaceIdentity === normalized.workspaceIdentity &&
-                      row.address.remoteSessionId ===
-                        (source.scope.kind === "remote" ? source.scope.remoteSessionId : undefined),
-                  );
+                const projected = projectedByTaskId.get(normalized.taskId);
                 return {
                   ...(projected?.meta ?? normalized),
                   ...(source.scope.kind === "remote"

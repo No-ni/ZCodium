@@ -193,22 +193,23 @@ export function buildGenUiStateKey(target: GenUiStateTarget): string {
   return JSON.stringify([buildGenUiScopeKey(target), target.path]);
 }
 export function buildGenUiModelContext(entries: readonly GenUiStateEntry[]): string {
-  const selected: Array<{ path: string; state: unknown }> = [];
+  const selected: string[] = [];
+  const encoder = new TextEncoder();
+  let selectedBytes = 2;
   for (const entry of [...entries]
     .sort((a, b) => a.path.localeCompare(b.path))
     .slice(0, GEN_UI_STATE_MAX_ENTRIES)) {
     const parsed = genUiWidgetStateSchema.safeParse(entry.state);
     if (!parsed.success || parsed.data.modelContent === null) continue;
-    const next = { path: entry.path, state: parsed.data.modelContent };
-    if (
-      new TextEncoder().encode(JSON.stringify([...selected, next])).length >
-      GEN_UI_CONTEXT_MAX_BYTES
-    )
-      break;
+    const next = JSON.stringify({ path: entry.path, state: parsed.data.modelContent });
+    // 原实现反复编码整个前缀；方括号和逗号按 UTF-8 精确累加，预算仍在转义 `<` 前检查。
+    const nextBytes = encoder.encode(next).length + (selected.length ? 1 : 0);
+    if (selectedBytes + nextBytes > GEN_UI_CONTEXT_MAX_BYTES) break;
     selected.push(next);
+    selectedBytes += nextBytes;
   }
   return selected.length
-    ? `<untrusted_gen_ui_state>\n${JSON.stringify(selected).replaceAll("<", "\\u003c")}\n</untrusted_gen_ui_state>`
+    ? `<untrusted_gen_ui_state>\n[${selected.join(",").replaceAll("<", "\\u003c")}]\n</untrusted_gen_ui_state>`
     : "";
 }
 export function stripGenUiModelContext(content: string): string {

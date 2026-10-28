@@ -40,7 +40,6 @@ import {
   createSettingService,
   createCredentialService,
   createBroadcastService,
-  createNodeApiClient,
   createHostApiNetworkTransport,
   registerHostApiNetworkTransportForDispose,
   createSettingsSyncService,
@@ -68,6 +67,7 @@ const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences
 export function createRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
   connectionServices: IServiceAccessor;
+  standaloneSource?: boolean;
   sourceServices?: ServiceCollection;
   parentPort: Parameters<typeof createBroadcastService>[0];
   createReportingRemoteZCodeTaskService: <T extends object>(service: T) => T;
@@ -79,6 +79,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
   };
 }): ServiceCollection {
   assertLegacyRemoteWorkspaceRpcContract(params.connectionServices);
+  if (params.standaloneSource) return createStandaloneSourceServices(params);
   const localSettingService = createSettingService();
   const localCredentialService = createCredentialService();
   const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
@@ -89,13 +90,9 @@ export function createRemoteWorkspaceServiceCollection(params: {
       caCertPath: settings.httpProxyCaCertPath,
     };
   });
-  const localApiClient = createNodeApiClient({
-    fetchImpl: hostApiNetworkTransport.fetch,
-  });
   const localBroadcastService = createBroadcastService(params.parentPort);
-  const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService({
-    apiClient: localApiClient,
-  });
+  // 动态工作流开关只做本地判定，远端 Host 不再读取官方 client config。
+  const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService();
   const conversationShareService = new ConversationShareService({
     zcodeAgentService: params.connectionServices.zcodeAgentService,
     artifactSource: createRemoteConversationShareArtifactSource(
@@ -175,6 +172,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
             preferences: {
               askUserQuestionAutoResolutionEnabled:
                 settings.askUserQuestionAutoResolutionEnabled !== false,
+              toolSearchMode: settings.toolSearchMode ?? "off",
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
               memoryEnabled: settings.memoryEnabled === true,
               modelContextBudgetStrategy,
@@ -280,5 +278,54 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService);
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
+  return services;
+}
+
+function createStandaloneSourceServices(
+  params: Parameters<typeof createRemoteWorkspaceServiceCollection>[0],
+): ServiceCollection {
+  const remote = params.connectionServices;
+  const services = new ServiceCollection()
+    .register(IFileService, remote.fileService)
+    .register(IGitService, remote.gitService)
+    .register(IGitCheckpointService, remote.gitCheckpointService)
+    .register(ISystemService, remote.systemService)
+    .register(ITerminalService, remote.terminalService)
+    .register(ISettingService, params.sourceServices?.get(ISettingService) ?? remote.settingService)
+    .register(IBroadcastService, createBroadcastService(params.parentPort))
+    .register(
+      IZCodeTaskService,
+      params.createRemotePromptAttachmentTaskService(
+        params.createReportingRemoteZCodeTaskService(remote.zcodeTaskService),
+      ),
+    )
+    .register(IZCodeAgentService, remote.zcodeAgentService)
+    .register(
+      IZCodeSessionService,
+      params.createRemotePromptAttachmentSessionService(remote.zcodeSessionService),
+    )
+    .register(IFileWatcherService, remote.fileWatcherService)
+    .register(IModelSelectionService, remote.modelSelectionService)
+    .register(IProviderSettingsService, remote.providerSettingsService)
+    .register(IUsageStatsService, remote.usageStatsService)
+    .register(ICodingPlanSubscriptionService, createCodingPlanSubscriptionService())
+    .register(IClientConfigService, params.clientConfigService)
+    .register(ISkillsService, remote.skillsService)
+    .register(ISkillSyncService, remote.skillSyncService)
+    .register(IMcpSyncService, remote.mcpSyncService)
+    .register(IPluginSyncService, remote.pluginSyncService)
+    .register(IPluginsService, remote.pluginsService)
+    .register(IPluginManagementService, remote.pluginManagementService)
+    .register(ICommandsService, remote.commandsService)
+    .register(ISubagentsService, remote.subagentsService)
+    .register(IHooksService, remote.hooksService)
+    .register(IMemoryService, remote.memoryService)
+    .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService);
+  if (params.sourceServices)
+    services.register(ICredentialService, params.sourceServices.get(ICredentialService));
+  registerRemoteProviderProvisioningExecutor(
+    services,
+    createRemoteProviderProvisioningExecutorFromWorkspace(params),
+  );
   return services;
 }

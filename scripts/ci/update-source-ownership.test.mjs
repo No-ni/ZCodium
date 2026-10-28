@@ -13,7 +13,6 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const UPDATE_PATH_SOURCES = [
   "packages/desktop/src/main/autoUpdater.ts",
   "packages/desktop/src/main/forceUpdateGuard.ts",
-  "packages/desktop/src/main/index.ts",
 ];
 
 test("自动更新与强制升级门禁以自有更新源为准，缺失时跳过而非回退上游", async () => {
@@ -34,6 +33,36 @@ test("自动更新与强制升级门禁以自有更新源为准，缺失时跳�
     guard,
     /if \(!ZCODIUM_UPDATE_ORIGIN\) \{/,
     "forceUpdateGuard 缺少未配置自有更新源时的放行",
+  );
+});
+
+test("更新与门禁路径不再保留任何官方 endpoint fallback", async () => {
+  for (const relative of [
+    ...UPDATE_PATH_SOURCES,
+    "packages/desktop/src/main/manifestUpdateProvider.ts",
+    "packages/desktop/src/main/index.ts",
+  ]) {
+    const source = await readFile(join(root, relative), "utf8");
+    assert.ok(
+      !source.includes("DEFAULT_ZCODE_ENDPOINT_ORIGIN"),
+      `${relative} 仍引用官方默认 origin`,
+    );
+    assert.ok(!source.includes("zcode.z.ai"), `${relative} 仍写入官方域名`);
+    assert.ok(
+      !source.includes("resolveRuntimeZCodeEndpointOrigin"),
+      `${relative} 仍把用户 endpoint 当作更新源 fallback`,
+    );
+  }
+
+  // manifest provider 的 endpointOrigin 必填：不再有官方默认值。
+  const provider = await readFile(
+    join(root, "packages/desktop/src/main/manifestUpdateProvider.ts"),
+    "utf8",
+  );
+  assert.match(
+    provider,
+    /endpointOrigin: string;/,
+    "manifest provider 的 endpointOrigin 必须是必填字段",
   );
 });
 

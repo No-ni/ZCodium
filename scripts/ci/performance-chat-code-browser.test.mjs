@@ -102,6 +102,33 @@ test(
         configFile: false,
         root,
         cacheDir,
+        // HMR 关闭时不能靠重载恢复过期依赖 URL；显式依赖在 listen 前完成，不再动态重建。
+        optimizeDeps: {
+          noDiscovery: true,
+          include: [
+            "react",
+            "react-dom",
+            "react-dom/client",
+            "react/jsx-runtime",
+            "react/jsx-dev-runtime",
+            "@pierre/diffs",
+            "@pierre/diffs/react",
+            "@streamdown/cjk",
+            "@streamdown/code",
+            "@streamdown/math",
+            "@streamdown/mermaid",
+            "class-variance-authority",
+            "clsx",
+            "lucide-react",
+            "radix-ui",
+            "remark-cjk-friendly-gfm-strikethrough",
+            "@zcode/ui > shiki",
+            "streamdown",
+            "tailwind-merge",
+            "zod",
+            "@zcode/ui > zustand",
+          ],
+        },
         plugins: [react(), tailwindcss()],
         resolve: {
           alias: { "@": uiSource },
@@ -757,11 +784,25 @@ test(
       console.log(`performance-chat-code ${JSON.stringify(report)}`);
       assert.deepEqual(blockedRequests, []);
       assert.deepEqual(pageErrors, []);
+    } catch (error) {
+      console.error(
+        `performance-chat-code-failure ${JSON.stringify({ pageErrors, blockedRequests })}`,
+      );
+      throw error;
     } finally {
-      await context?.close();
-      await browser?.close();
-      await server?.close();
-      await rm(cacheDir, { recursive: true, force: true });
+      try {
+        await context?.close();
+      } finally {
+        try {
+          await browser?.close();
+        } finally {
+          try {
+            await server?.close();
+          } finally {
+            await rm(cacheDir, { recursive: true, force: true });
+          }
+        }
+      }
     }
   },
 );

@@ -57,6 +57,44 @@
 
 不新增第二条写入路径：runtime 不缓存窗口列表、坐标、剪贴板。
 
+## Desktop 默认启动与旧 Windows Helper 边界
+
+- Windows/macOS 正常启动不创建旧 CUA product Helper，也不探测
+  `resources/tools/cua-helper`。CUA 功能开关和内置插件仍控制模型入口；关闭旧 Helper
+  不得关闭 `node_repl` 的 `ZCODE_CUA_DRIVER_EMBEDDED=1` 原生链路。
+- 旧 Windows Helper 仅在 `win32`、CUA 功能开启且 `ZCODE_CUA_DEV_ROOT.trim()` 非空时
+  允许创建。macOS 即使设置该变量也不创建 Windows Helper。未设置、空串、纯空白或
+  仅设置 `ZCODE_CUA_PRODUCT_HELPER=1` / `ZCODE_CUA_DEV_MODE=1` 都不恢复旧产品路径。
+- `packages/services/src/node.ts` 是旧 Helper 装配与生命周期的唯一所有者；复用既有
+  desktop-local authority、workspace identity、注入 resolver 和 dispose 边界。
+  `shouldEnableDefaultCuaProductHelper` 只判断平台和显式开发配置，路径与产物校验仍由
+  `resolveWindowsCuaRuntime` 在首次使用时执行；开发目录无效必须透传结构化错误，
+  不得静默改用已移除的安装包 Helper。
+- Windows 原生驱动由共享 `node_repl` host 按既有 admission 创建，继续走
+  `createPlatformComputerUseRuntime`。本次不修改观察、输入、session 的状态所有者。
+
+```mermaid
+flowchart TD
+  Services[Desktop local services 装配] --> Gate{Windows 且功能开启\n且显式 ZCODE_CUA_DEV_ROOT?}
+  Gate -->|否| Native[内置 node_repl 按插件 admission\n创建原生 cua-driver runtime]
+  Gate -->|是| Lazy[services 持有旧 Helper 懒解析宿主]
+  Lazy --> Use[首次 start 或 checkHealth]
+  Use --> Validate[resolveWindowsCuaRuntime 校验开发目录]
+  Validate -->|有效| Helper[创建并启动旧开发 Helper]
+  Validate -->|无效| Error[透传结构化错误并保留一次诊断]
+```
+
+验收：
+
+1. Windows/macOS 默认配置、显式产品开关和纯空白开发目录均不创建旧 Helper，
+   不调用 runtime resolver 或 host factory。
+2. Windows 显式开发目录保留懒解析；首次使用才解析和创建，后续使用复用同一宿主，
+   dispose 继续停止该宿主。
+3. 显式功能关闭、macOS/Linux 配置开发目录均不启用旧 Windows Helper。
+4. 开发目录校验失败仍拒绝首次使用，不创建 host、不探测替代产品资源。
+5. 内置 Windows computer-use 插件仍向共享 node_repl host 注入 embedded driver；
+   browser-only 与禁用 computer-use 场景不注入 CUA。
+
 ## 平台输入：推荐 + 兼容两层（Wayland / Linux）
 
 - **推荐路径始终是 cua-driver 原生**，覆盖 Ubuntu 24.04+ / GNOME 45+（官方台账含 GNOME 46）。

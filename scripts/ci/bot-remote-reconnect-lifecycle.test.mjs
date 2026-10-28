@@ -115,7 +115,7 @@ async function checkReconnectLifecycle() {
     );
     assert.equal(messages.at(-1).type, "cancel-remote-workspace-connect");
     failed("cancelled", "synthetic cancellation");
-    assert.equal((await cancelResult).message, "synthetic cancellation");
+    assert.match((await cancelResult).message, /远程连接已取消/);
     await nextTurn();
 
     const exited = reconnect("exited");

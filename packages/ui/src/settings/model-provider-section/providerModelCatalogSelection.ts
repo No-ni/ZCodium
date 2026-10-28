@@ -1,3 +1,27 @@
+import type { ModelConfigObject } from "@zcode/provider";
+import type { ProviderModelCatalogMetadata } from "@zcode/services";
+
+/**
+ * 目录上限必须写入真实保存参数 personalConfig：仅写展示 config 会被卡片保存入口丢弃。
+ * 只保留端点显式返回的两个叶子，不把推荐能力或展示名称物化成用户覆盖。
+ */
+export function withCatalogMetadata(metadata: ProviderModelCatalogMetadata | undefined): {
+  personalConfig?: ModelConfigObject;
+  config?: ModelConfigObject;
+} {
+  if (!metadata || (metadata.contextWindow === undefined && metadata.maxOutputTokens === undefined))
+    return {};
+  const personalConfig: ModelConfigObject = {
+    ...(metadata.contextWindow === undefined
+      ? {}
+      : { properties: { contextWindow: metadata.contextWindow } }),
+    ...(metadata.maxOutputTokens === undefined
+      ? {}
+      : { optionSpecs: { maxOutputTokens: { max: metadata.maxOutputTokens } } }),
+  };
+  return { personalConfig, config: personalConfig };
+}
+
 /** 模型目录弹窗的候选行：已添加的模型只读，未添加的可勾选。 */
 export interface ProviderModelCatalogItem {
   readonly modelId: string;

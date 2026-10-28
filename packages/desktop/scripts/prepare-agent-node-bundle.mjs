@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {
   BUILTIN_PLUGIN_ASSETS,
+  BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
   BUILTIN_PLUGIN_TOP_LEVEL_PATHS,
 } from "@zcode/shared/builtin-plugin-assets";
 
@@ -15,11 +16,11 @@ import {
 //
 // 此入口只准备本机 Agent；本 fork 不随桌面包构建 Linux 远端运行资源。
 
-import { cpSync, existsSync, mkdirSync } from "node:fs";
-import { access, cp, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { access, cp, mkdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { validateBuiltinPluginAssets } from "../../../scripts/builtin-plugin-assets.mjs";
 import { stageCuaDriverRuntime } from "../../../scripts/cua-driver-runtime-assets.mjs";
@@ -118,30 +119,36 @@ function buildCliBundle() {
   }
 }
 
-function buildOfficialPluginRuntimes() {
-  for (const plugin of officialPluginPackages) {
+export async function buildOfficialPluginRuntimes({
+  root = repoRoot,
+  plugins = officialPluginPackages,
+  bootstrap = isBootstrapWithRemote,
+  run = runCommand,
+} = {}) {
+  for (const plugin of plugins) {
     if (!plugin.requiresRuntime) continue;
     console.log(`[prepare:agent-bundle] building ${plugin.packageName} runtime ...`);
-    if (isBootstrapWithRemote) {
-      buildOfficialPluginRuntimeForBootstrap(plugin);
-      assertOfficialPluginRuntime(plugin);
-      continue;
-    }
-
-    runCommand(
-      "pnpm",
-      ["--dir", resolve(repoRoot, "apps/zcode-cli"), "--filter", plugin.packageName, "build"],
-      {
-        cwd: repoRoot,
+    if (plugin.runtimeBuildScript === BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT) {
+      // Office 无本地 tsconfig，且旧 dist 不代表当前源码；两种 prepare 都只跑真实共享 build。
+      await run(process.execPath, [plugin.runtimeBuildScript], {
+        cwd: resolve(root, plugin.relativePath),
         env: pnpmRunEnv,
-      },
-    );
-    assertOfficialPluginRuntime(plugin);
+      });
+    } else if (bootstrap) {
+      buildOfficialPluginRuntimeForBootstrap(plugin, root, run);
+    } else {
+      await run(
+        "pnpm",
+        ["--dir", resolve(root, "apps/zcode-cli"), "--filter", plugin.packageName, "build"],
+        { cwd: root, env: pnpmRunEnv },
+      );
+    }
+    await assertOfficialPluginRuntime(plugin, root);
   }
 }
 
-function buildOfficialPluginRuntimeForBootstrap(plugin) {
-  const pluginRoot = resolve(repoRoot, plugin.relativePath);
+function buildOfficialPluginRuntimeForBootstrap(plugin, root, run) {
+  const pluginRoot = resolve(root, plugin.relativePath);
   const hasCompleteRuntime = plugin.requiredRuntimePaths.every((relativePath) =>
     existsSync(resolve(pluginRoot, ...relativePath.split("/"))),
   );
@@ -157,21 +164,25 @@ function buildOfficialPluginRuntimeForBootstrap(plugin) {
   // 这里仅在 bootstrap 开关下用当前 Node 直接执行等价 tsc + build-mcp，不改变插件自身 build 脚本。
   // browser-use 的 server 与 browser-client 是同一发布对；即使旧 server.js 存在也必须重建，
   // 否则会把旧 server 与当前 client（或缺失 client）一起 stage 到桌面安装包。
-  runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
+  run(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
     cwd: pluginRoot,
     env: process.env,
   });
-  runCommand(process.execPath, [plugin.runtimeBuildScript], {
+  run(process.execPath, [plugin.runtimeBuildScript], {
     cwd: pluginRoot,
     env: process.env,
   });
 }
 
-function assertOfficialPluginRuntime(plugin) {
-  const pluginRoot = resolve(repoRoot, plugin.relativePath);
+async function assertOfficialPluginRuntime(plugin, root = repoRoot) {
+  const pluginRoot = resolve(root, plugin.relativePath);
   for (const relativePath of plugin.requiredRuntimePaths) {
     const runtimePath = resolve(pluginRoot, ...relativePath.split("/"));
-    if (!existsSync(runtimePath)) {
+    const entry = await stat(runtimePath).catch((error) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    if (!entry?.isFile()) {
       throw new Error(`[prepare:agent-bundle] missing official plugin runtime: ${runtimePath}`);
     }
   }
@@ -183,20 +194,29 @@ function stageBundle() {
   stageAgentBundle({ repoRoot, platformKey });
 }
 
-async function stageOfficialPlugins() {
-  for (const plugin of officialPluginPackages) {
-    const sourceRoot = resolve(repoRoot, plugin.relativePath);
-    const manifestPath = resolve(sourceRoot, ".zcodium-plugin", "plugin.json");
-    if (!existsSync(manifestPath)) {
-      throw new Error(`[prepare:agent-bundle] missing official plugin manifest: ${manifestPath}`);
-    }
-
-    const targetRoot = resolve(glmDir, plugin.stagedPath);
-    mkdirSync(targetRoot, { recursive: true });
+export async function stageOfficialPlugins(
+  targetGlmDir = glmDir,
+  { root = repoRoot, plugins = officialPluginPackages } = {},
+) {
+  for (const plugin of plugins) {
+    const sourceRoot = resolve(root, plugin.relativePath);
+    await access(resolve(sourceRoot, ".zcodium-plugin", "plugin.json"));
+    // 缺件必须在复制前失败，不能由目标旧文件掩盖损坏的 Office 源产物。
+    await assertOfficialPluginRuntime(plugin, root);
+    const targetRoot = resolve(targetGlmDir, plugin.stagedPath);
+    await mkdir(targetRoot, { recursive: true });
     for (const entryName of includedOfficialPluginTopLevelPaths) {
       const sourcePath = resolve(sourceRoot, entryName);
       if (!existsSync(sourcePath)) continue;
-      cpSync(sourcePath, resolve(targetRoot, entryName), {
+      const targetPath = resolve(targetRoot, entryName);
+      if (
+        entryName === "dist" &&
+        plugin.runtimeBuildScript === BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT
+      ) {
+        // 完整 dist 是一个发布单元；先清旧树再递归复制，移除过期 worker/font/许可残留。
+        await rm(targetPath, { recursive: true, force: true });
+      }
+      await cp(sourcePath, targetPath, {
         recursive: true,
         filter: shouldCopyOfficialPluginAsset,
       });
@@ -206,7 +226,11 @@ async function stageOfficialPlugins() {
     }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {
       const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
-      if (!existsSync(stagedAssetPath)) {
+      const entry = await stat(stagedAssetPath).catch((error) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      });
+      if (!entry?.isFile()) {
         throw new Error(
           `[prepare:agent-bundle] missing staged official plugin seed asset: ${stagedAssetPath}`,
         );
@@ -214,7 +238,9 @@ async function stageOfficialPlugins() {
     }
     console.log(`[prepare:agent-bundle] staged official plugin ${plugin.stagedPath}`);
   }
-  await validateBuiltinPluginAssets(resolve(glmDir, "packages"), { platform, arch });
+  if (plugins === officialPluginPackages) {
+    await validateBuiltinPluginAssets(resolve(targetGlmDir, "packages"), { platform, arch });
+  }
 }
 
 async function stageBundledSkillPack() {
@@ -241,8 +267,11 @@ async function stageBundledSkillPack() {
 // 让 Electron Node 运行 zcode.cjs 时复用同一套 filesystem seed 逻辑。
 // browser-use runtime 的声明生成依赖 @zcode/core/dist。CI 干净检出没有该产物，
 // 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
-buildCliBundle();
-buildOfficialPluginRuntimes();
-stageBundle();
-await stageOfficialPlugins();
-await stageBundledSkillPack();
+const entryHref = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;
+if (entryHref === import.meta.url) {
+  buildCliBundle();
+  await buildOfficialPluginRuntimes();
+  stageBundle();
+  await stageOfficialPlugins();
+  await stageBundledSkillPack();
+}

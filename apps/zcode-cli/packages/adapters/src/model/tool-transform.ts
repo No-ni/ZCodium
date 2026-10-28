@@ -3,15 +3,17 @@
 // ============================================================
 
 import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { ModelErrorCode, type JsonSchema, type ModelToolContract } from "@zcode/contracts";
 import { AiSdkModelAdapterError } from "./errors.js";
 import { isAnthropicFirstPartyModelId, toStrictToolSchema } from "./strict-tool-schema.js";
 
 export interface AiSdkToolTransformOptions {
+  toolSearchEnabled?: boolean;
   requiresMfjsToolSchema?: boolean;
   supportsNativeWebSearch?: boolean;
-  providerKind?: "openai" | "anthropic" | "openai-compatible" | "gateway" | "custom";
+  providerKind?: "openai" | "anthropic" | "openai-compatible" | "google" | "gateway" | "custom";
 
   /** 本次请求的模型 id，仅用于首方 strict 资格判定；缺席即不启用 strict。 */
   modelId?: string;
@@ -43,7 +45,7 @@ export function toAiSdkTools(
       ),
       ...(strictSchema === undefined ? {} : { strict: true }),
       needsApproval: contract.needsApproval,
-      ...providerOptionsForClientTool(options),
+      ...providerOptionsForClientTool(options, contract),
     };
 
     if (!contract.execute) {
@@ -222,7 +224,10 @@ function asPlainRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function providerOptionsForClientTool(options: AiSdkToolTransformOptions): {
+function providerOptionsForClientTool(
+  options: AiSdkToolTransformOptions,
+  contract: ModelToolContract,
+): {
   providerOptions?: Record<string, Record<string, boolean>>;
 } {
   if (options.providerKind !== "anthropic") {
@@ -237,6 +242,7 @@ function providerOptionsForClientTool(options: AiSdkToolTransformOptions): {
     providerOptions: {
       anthropic: {
         eagerInputStreaming: false,
+        ...(options.toolSearchEnabled && contract.deferLoading ? { deferLoading: true } : {}),
       },
     },
   };
@@ -268,6 +274,23 @@ function toAiSdkProviderNativeTool(
         allowedDomains,
         blockedDomains,
       }) as ToolSet[string];
+
+    case "google":
+      if (!options.supportsNativeWebSearch) {
+        throw new AiSdkModelAdapterError(
+          ModelErrorCode.InvalidModelRequest,
+          "Effective Model Config does not support provider-native WebSearch",
+        );
+      }
+      // 过去只声明 Gemini capability 却无编码分支，原生搜索会在请求前被拒绝。
+      // Google grounding 没有 Anthropic 的次数/域名过滤参数，不伪造该约束。
+      if (allowedDomains || blockedDomains) {
+        throw new AiSdkModelAdapterError(
+          ModelErrorCode.InvalidModelRequest,
+          "Google native WebSearch does not support domain filters",
+        );
+      }
+      return google.tools.googleSearch({}) as ToolSet[string];
 
     default:
       throw new AiSdkModelAdapterError(

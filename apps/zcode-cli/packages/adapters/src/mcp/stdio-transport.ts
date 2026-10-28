@@ -3,6 +3,7 @@ import {
   type StdioServerParameters,
 } from "@modelcontextprotocol/client/stdio";
 import type { ChildProcess } from "node:child_process";
+import { Readable } from "node:stream";
 import { terminateMcpStdioProcessTree } from "./process-tree.js";
 import {
   attachProcessToWindowsJobObject,
@@ -26,18 +27,20 @@ interface ProcessTreeStdioClientTransportOptions {
 }
 
 /**
- * SDK 2.0 会为 stdio 版本探测创建一次性兄弟进程，但其私有回收钩子只终止直接子进程。
- * launcher/watchdog 派生的后代会因此变成孤儿；在同一个钩子里先回收整棵进程树，再让
- * SDK 清理 pipe 和读取缓冲区。原型上必须直接拥有 `_dispose`，SDK 才会把该 transport
- * 识别为可安全克隆的探测 transport。
+ * SDK 2.0 的探测 sibling 与正式连接共用同一启动、进程树和 pipe 回收入口。
+ * 原型必须直接拥有 `_dispose`，SDK 才能按相同参数克隆安全的探测 transport。
  */
 export class ProcessTreeStdioClientTransport extends StdioClientTransport {
   private childProcess?: ChildProcess;
+  private childClosed?: Promise<void>;
   private lastProcessExit?: StdioProcessExitInfo;
   private readonly windowsJobObjectFactory: (
     pid: number,
   ) => Promise<WindowsJobObjectController | undefined>;
   private windowsJobObject?: WindowsJobObjectController;
+  private closed = false;
+  private starting?: Promise<void>;
+  private closing?: Promise<void>;
 
   constructor(server: StdioServerParameters, options: ProcessTreeStdioClientTransportOptions = {}) {
     super(server);
@@ -62,36 +65,74 @@ export class ProcessTreeStdioClientTransport extends StdioClientTransport {
     }
   }
 
-  override async start(): Promise<void> {
-    const startedAt = Date.now();
-    await super.start();
-    const child = (this as unknown as { _process?: ChildProcess })._process;
-    if (!child) return;
-    this.childProcess = child;
-    const recordExit = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
-      this.lastProcessExit ??= {
-        exitCode,
-        exitedAt: Date.now(),
-        signal,
-        startedAt,
-      };
-    };
-    if (child.exitCode !== null || child.signalCode !== null) {
-      recordExit(child.exitCode, child.signalCode);
-      return;
-    }
-    child.once("exit", recordExit);
+  override start(): Promise<void> {
+    if (this.closed) return Promise.reject(new Error("MCP stdio transport is closed"));
+    if (this.starting) return Promise.reject(new Error("MCP stdio transport already started"));
+    this.starting = this.startProcess();
+    return this.starting;
+  }
 
-    // staging 曾把 Job Object 接管和退出观测各自合入成两个同名 start()，导致 CLI
-    // 构建直接报 Duplicate function implementation；这里合并两个职责，保留 Windows
-    // 进程树托管和跨平台退出记录。
-    if (process.platform !== "win32" || this.pid == null) return;
-    try {
-      this.windowsJobObject = await this.windowsJobObjectFactory(this.pid);
-    } catch {
-      // 原生托管不可用时保留 taskkill 回退，不能让 MCP 建连因可选能力失败。
-      this.windowsJobObject = undefined;
+  private async startProcess(): Promise<void> {
+    const startedAt = Date.now();
+    const spawned = super.start();
+    // SDK close 会先清掉 _process；必须在 spawn 的 await 前捕获 child 与真实 close 边界。
+    const child = (this as unknown as { _process?: ChildProcess })._process;
+    if (child) {
+      this.childProcess = child;
+      this.childClosed = new Promise((resolve) => child.once("close", () => resolve()));
+      const recordExit = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
+        this.lastProcessExit ??= {
+          exitCode,
+          exitedAt: Date.now(),
+          signal,
+          startedAt,
+        };
+      };
+      if (child.exitCode !== null || child.signalCode !== null) {
+        recordExit(child.exitCode, child.signalCode);
+      } else {
+        child.once("exit", recordExit);
+      }
     }
+    await spawned;
+    if (
+      child?.pid != null &&
+      child.exitCode === null &&
+      child.signalCode === null &&
+      process.platform === "win32"
+    ) {
+      try {
+        this.windowsJobObject = await this.windowsJobObjectFactory(child.pid);
+      } catch {
+        // 原生托管不可用时保留 taskkill 回退，不能让 MCP 建连因可选能力失败。
+        this.windowsJobObject = undefined;
+      }
+    }
+    if (this.closed) throw new Error("MCP stdio transport is closed");
+  }
+
+  override close(): Promise<void> {
+    if (this.closing) return this.closing;
+    this.closed = true;
+    this.closing = Promise.resolve().then(async () => {
+      // 启动途中 close 曾先返回，迟到 Job Object 与 SDK continuation 随后又占住 cwd。
+      await this.starting?.catch(() => undefined);
+      const pid = this.childProcess?.pid;
+      await this.terminateWindowsJobObject();
+      if (typeof pid === "number" && Number.isInteger(pid) && pid > 0) {
+        try {
+          await terminateMcpStdioProcessTree(pid);
+        } catch {
+          // 保留 SDK 原有信号升级回退，并继续释放 pipe。
+        }
+      }
+      if (sdkDispose) await sdkDispose.call(this);
+      else await super.close();
+      await this.childClosed;
+      const stderr = this.stderr;
+      if (stderr instanceof Readable) stderr.destroy();
+    });
+    return this.closing;
   }
 
   get processExit(): StdioProcessExitInfo | undefined {
@@ -109,21 +150,7 @@ export class ProcessTreeStdioClientTransport extends StdioClientTransport {
 
 Object.defineProperty(ProcessTreeStdioClientTransport.prototype, "_dispose", {
   configurable: true,
-  async value(this: ProcessTreeStdioClientTransport): Promise<void> {
-    const pid = this.pid;
-    await this.terminateWindowsJobObject();
-    if (typeof pid === "number" && Number.isInteger(pid) && pid > 0) {
-      try {
-        await terminateMcpStdioProcessTree(pid);
-      } catch {
-        // SDK 的探测回收本来就是 best effort；仍需继续释放 pipe，避免协商永久卡住。
-      }
-    }
-
-    if (sdkDispose) {
-      await sdkDispose.call(this);
-      return;
-    }
-    await this.close();
+  value(this: ProcessTreeStdioClientTransport): Promise<void> {
+    return this.close();
   },
 });

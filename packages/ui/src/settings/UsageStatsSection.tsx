@@ -1,6 +1,13 @@
 import { AppUsagePanel } from "@/settings/usage-stats/AppUsagePanel.js";
+import { CodingPlanQuotaPanel } from "@/settings/usage-stats/CodingPlanQuotaPanel.js";
 
 export function UsageStatsSection() {
-  // 使用统计由 Agent 本地记录提供，不再等待或查询官方套餐来源。
-  return <AppUsagePanel />;
+  return (
+    <div className="space-y-6">
+      <AppUsagePanel />
+      <div className="border-t border-border pt-5">
+        <CodingPlanQuotaPanel />
+      </div>
+    </div>
+  );
 }

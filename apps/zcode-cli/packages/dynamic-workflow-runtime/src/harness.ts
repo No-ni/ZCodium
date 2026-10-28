@@ -348,6 +348,10 @@ function bridge(deps: BridgeDeps): Promise<RunSettlement> {
   let reader: Interface | undefined;
 
   return new Promise<RunSettlement>((resolve) => {
+    let resolveChildClosed!: () => void;
+    const childClosed = new Promise<void>((closed) => {
+      resolveChildClosed = closed;
+    });
     const finalize = (settlement: RunSettlement): void => {
       if (finalized) return;
       finalized = true;
@@ -355,7 +359,9 @@ function bridge(deps: BridgeDeps): Promise<RunSettlement> {
       if (signal !== undefined) signal.removeEventListener("abort", onAbort);
       reader?.close();
       if (child.exitCode === null && child.signalCode === null) child.kill();
-      resolve(settlement);
+      // kill 只是发出终止请求；Windows 在子进程 close 前仍锁住 cwd，不能提前释放 residency。
+      // 业务终态仍归引擎，harness 只等自己拥有的进程与 stdio 关闭后交付同一结果。
+      void childClosed.then(() => resolve(settlement));
     };
 
     // 终结失败（脚本抛错 / 子进程崩溃 / 超时 / 协议损坏）都是 run 失败：交给引擎的公有 fail()，
@@ -373,6 +379,20 @@ function bridge(deps: BridgeDeps): Promise<RunSettlement> {
         new WorkflowError("Interrupted", message, cause === undefined ? undefined : { cause }),
       );
     };
+
+    // 先注册生命周期监听，再处理已取消信号；否则提前返回会漏掉 spawn error / close。
+    child.on("error", (error) => {
+      interruptRun(`Could not start the workflow sandbox process: ${error.message}`, error);
+    });
+    child.once("close", (code, sig) => {
+      resolveChildClosed();
+      if (finalized) return;
+      const reason =
+        stderr.trim().length > 0
+          ? stderr.trim()
+          : `The workflow sandbox process exited (code=${code}, signal=${sig}) before completing`;
+      interruptRun(reason);
+    });
 
     // abort 是唯一的"真取消"：走 engine.stop(initiator)，结算 stopped。initiator 经
     // `AbortController.abort(reason)` 过来：字面 "model"、amend 路径的
@@ -443,20 +463,6 @@ function bridge(deps: BridgeDeps): Promise<RunSettlement> {
         return;
       }
       handleChildMessage(message, { engine, actorMap, child, failRun });
-    });
-
-    child.on("error", (error) => {
-      interruptRun(`Could not start the workflow sandbox process: ${error.message}`, error);
-    });
-
-    child.on("close", (code, sig) => {
-      if (finalized) return;
-      // 子进程退出但引擎未结算：崩溃/被杀而无 complete。以 stderr 归因。
-      const reason =
-        stderr.trim().length > 0
-          ? stderr.trim()
-          : `The workflow sandbox process exited (code=${code}, signal=${sig}) before completing`;
-      interruptRun(reason);
     });
   });
 }

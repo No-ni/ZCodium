@@ -4,6 +4,8 @@ import type { McpToolUiDescriptor } from "@zcode/shared/mcp-apps";
 // ============================================================
 
 import type {
+  ModelCallWrapper,
+  ToolSearchExecutionContext,
   AutomationPort,
   BrowserControlPort,
   CoordinatorResponsePort,
@@ -76,6 +78,9 @@ export interface ToolMetadata {
   riskLevel: RiskLevel;
   needsApproval: boolean;
   providerVisible?: boolean;
+  shouldDefer?: boolean;
+  alwaysLoad?: boolean;
+  searchHint?: string;
   /**
    * 声明该工具是“成功即终止 turn”的终态工具：一旦返回成功结果，executor 就在该结果上挂
    * turnControl 终止当前 turn。这是工具的内在能力声明（像 concurrentSafe/destructive），
@@ -192,6 +197,7 @@ export interface ToolExecutionContext {
   memoryRoot?: string;
   runtimeScope?: ToolRuntimeScope;
   providerVisibleToolNames?: readonly string[];
+  toolSearch?: ToolSearchExecutionContext;
   sessionId: SessionId;
   turnId?: TurnId;
 }
@@ -477,6 +483,7 @@ export interface ExecutableToolCall {
   id: string;
   name: string;
   input: unknown;
+  modelCallWrapper?: ModelCallWrapper;
 }
 
 // -----------------------------------------------

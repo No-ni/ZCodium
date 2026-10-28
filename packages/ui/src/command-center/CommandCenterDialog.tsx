@@ -447,7 +447,9 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     () => (open && !hasSearchQuery ? currentWorkspaceTabs : []),
     [currentWorkspaceTabs, hasSearchQuery, open],
   );
+  // 关闭态空 scope 仍会接收 Controller 通知；使用原 enabled 门禁解除隐藏列表订阅。
   const taskList = useGlobalTaskList({
+    enabled: open,
     kind: "active",
     workspaceTabs: searchWorkspaceTabs,
     sortBy: "updated",
@@ -456,6 +458,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     collapsedLimit: COMMAND_CENTER_TASK_RESULT_LIMIT,
   });
   const recentTaskList = useGlobalTaskList({
+    enabled: open,
     kind: "active",
     workspaceTabs: recentTaskWorkspaceTabs,
     sortBy: "updated",

@@ -2,6 +2,7 @@ import { Output, jsonSchema } from "ai";
 import type { ModelToolChoice } from "@zcode/contracts";
 import type { EnvRecord } from "./model-execution.js";
 import { toAiSdkMessages } from "./transform.js";
+import { toolSearchHeaders } from "./tool-search.js";
 import { toAiSdkTools } from "./tool-transform.js";
 import type {
   AiSdkGenerateTextOptions,
@@ -28,11 +29,14 @@ export function createGenerateTextOptions(input: {
     model: input.resolved.model,
     messages: toAiSdkMessages(input.request.messages, {
       apiFormat: resolveProviderApiFormat(providerOptions),
+      toolSearchEnabled: input.request.toolSearchEnabled,
       providerOptions,
       providerKind: input.resolved.providerKind,
+      modelId: input.resolved.modelId,
       inputFormat: input.resolved.properties?.inputFormat,
     }),
     tools: toAiSdkTools(input.request.tools, {
+      toolSearchEnabled: input.request.toolSearchEnabled,
       providerKind: input.resolved.providerKind,
       modelId: input.resolved.modelId,
       requiresMfjsToolSchema: input.resolved.properties.requiresMfjsToolSchema,
@@ -52,7 +56,7 @@ export function createGenerateTextOptions(input: {
     providerOptions: requestProviderOptions,
     abortSignal: input.request.abortSignal,
     // 会话/请求/trace 标识只用于本地执行，不能自动作为归因头发送给模型服务。
-    headers: input.resolved.headers,
+    headers: toolSearchHeaders(input.resolved.headers, input.request.toolSearchEnabled),
     // ZCode owns system-message construction in core/context. Keep AI SDK from
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,
@@ -74,11 +78,14 @@ export function createStreamTextOptions(input: {
     model: input.resolved.model,
     messages: toAiSdkMessages(input.request.messages, {
       apiFormat: resolveProviderApiFormat(providerOptions),
+      toolSearchEnabled: input.request.toolSearchEnabled,
       providerOptions,
       providerKind: input.resolved.providerKind,
+      modelId: input.resolved.modelId,
       inputFormat: input.resolved.properties?.inputFormat,
     }),
     tools: toAiSdkTools(input.request.tools, {
+      toolSearchEnabled: input.request.toolSearchEnabled,
       providerKind: input.resolved.providerKind,
       modelId: input.resolved.modelId,
       requiresMfjsToolSchema: input.resolved.properties.requiresMfjsToolSchema,
@@ -94,7 +101,7 @@ export function createStreamTextOptions(input: {
     seed: input.request.seed,
     providerOptions: requestProviderOptions,
     abortSignal: input.request.abortSignal,
-    headers: input.resolved.headers,
+    headers: toolSearchHeaders(input.resolved.headers, input.request.toolSearchEnabled),
     // ZCode owns system-message construction in core/context. Keep AI SDK from
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,

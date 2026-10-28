@@ -1,4 +1,5 @@
 import type {
+  ToolSearchExecutionContext,
   AutomationPort,
   BackgroundResultOriginMeta,
   BrowserControlPort,
@@ -178,6 +179,8 @@ export interface ToolExecutor {
 }
 
 export interface ToolExecuteOptions {
+  /** 本次 model step 的完整可用目录快照，不作为授权系统。 */
+  toolSearch?: ToolSearchExecutionContext;
   automationTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;

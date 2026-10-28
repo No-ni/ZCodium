@@ -4,11 +4,11 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 import { build } from "esbuild";
 
-// Guard the actual entrypoint: local Usage must not restore account discovery on mount.
-test("settings and local usage hooks have no official quota query dependencies", async () => {
+// 本地统计面板独立于个人 Key 额度，不因 Usage 页的合法额度入口恢复账号发现。
+test("local usage panel and hooks have no account or quota query dependencies", async () => {
   for (const path of [
     "packages/ui/src/SettingsPage.tsx",
-    "packages/ui/src/settings/UsageStatsSection.tsx",
+    "packages/ui/src/settings/usage-stats/AppUsagePanel.tsx",
     "packages/ui/src/hooks/useUsageStats.ts",
   ]) {
     const text = await readFile(path, "utf8");

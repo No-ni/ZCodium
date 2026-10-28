@@ -4,7 +4,7 @@ metadata:
   author: Z.AI
   version: "1.1"
 description: "Complete DOCX document creation, editing, and analysis capabilities with support for revisions, comments, formatting preservation, and text extraction. Also handles Word format conversion: legacy .doc → .docx, DOCX → PDF, DOCX → images (PNG/JPG) for visual review or previews, and DOCX → Markdown/plain text extraction. Use for creating new documents, modifying content, handling revisions, adding comments, other professional Word document tasks, or when the user asks to convert, export, or render a Word document to another format (e.g. 'Word转PDF', 'doc转docx', 'export this docx as PDF/images')."
-license: Proprietary. LICENSE.txt has complete terms
+license: Apache-2.0. LICENSE.txt has complete terms
 ---
 
 # DOCX Creation, Editing, and Analysis

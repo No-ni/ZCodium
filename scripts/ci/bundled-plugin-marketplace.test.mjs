@@ -15,10 +15,25 @@ const bundled = await tsImport(
 );
 const official = "zcode-plugins-official";
 const json = (path, value) => writeFile(path, JSON.stringify(value));
+const networkEnvKeys = [
+  "ZCODE_HTTP_PROXY",
+  "ZCODE_NO_PROXY",
+  "ZCODE_AGENT_CA_CERT",
+  "ZCODE_TOOL_ENV_PASSTHROUGH_JSON",
+];
 async function fixture(t) {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcodium-marketplace-"));
   t.after(() => rm(storageRoot, { recursive: true, force: true }));
   const requests = [];
+  // 自定义代理/CA 会走 Node HTTP 而非模拟 fetch；夹具先隔离环境，避免触碰宿主网络。
+  const networkEnv = new Map(networkEnvKeys.map((key) => [key, process.env[key]]));
+  for (const key of networkEnvKeys) delete process.env[key];
+  t.after(() => {
+    for (const [key, value] of networkEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
   const fetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     requests.push(String(url));
@@ -36,6 +51,40 @@ async function fixture(t) {
     });
   return { storageRoot, requests, directory, seed };
 }
+
+test("marketplace network fixture ignores inherited proxy and custom CA without changing them", async (t) => {
+  const saved = new Map(networkEnvKeys.map((key) => [key, process.env[key]]));
+  t.after(() => {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  process.env.ZCODE_HTTP_PROXY = "http://127.0.0.1:1";
+  process.env.ZCODE_NO_PROXY = "fixture.invalid";
+  process.env.ZCODE_AGENT_CA_CERT = join(tmpdir(), "fixture-missing-ca.pem");
+  process.env.ZCODE_TOOL_ENV_PASSTHROUGH_JSON = JSON.stringify({
+    HTTPS_PROXY: "http://127.0.0.1:1",
+  });
+  const injected = new Map(networkEnvKeys.map((key) => [key, process.env[key]]));
+  // after 钩子按登记顺序执行；隔离到子用例，避免父恢复后又被夹具重挂合成环境。
+  await t.test(
+    "uses the mocked transport and restores the enclosing environment",
+    async (scope) => {
+      const f = await fixture(scope);
+      const source = { source: "url", url: "https://self-managed.invalid/catalog.json" };
+      globalThis.fetch = async (url) => {
+        f.requests.push(String(url));
+        return new Response(JSON.stringify({ name: "isolated-fixture", plugins: [] }), {
+          headers: { "content-type": "application/json" },
+        });
+      };
+      await marketplace.addMarketplace({ storageRoot: f.storageRoot, source });
+      assert.deepEqual(f.requests, [source.url]);
+    },
+  );
+  for (const [key, value] of injected) assert.equal(process.env[key], value);
+});
 
 test("bundled catalog overrides neither seed nor identity with historical CDN data", async (t) => {
   const { storageRoot, requests, directory, seed } = await fixture(t);

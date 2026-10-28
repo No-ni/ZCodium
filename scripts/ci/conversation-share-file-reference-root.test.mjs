@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join as nativeJoin } from "node:path";
 import { tsImport } from "tsx/esm/api";
 // 本地 artifactSource 从集成夹具取（与 ConversationShareService 同一次 tsImport 的模块图，
 // 见 fixtures/conversation-share-service.mjs 的装载判据）。
 import { createLocalConversationShareArtifactSource } from "./fixtures/conversation-share-service.mjs";
+
+// shared 的引用解析契约统一输出正斜杠；夹具路径采用同样形式，真实 IO 仍由宿主 path.join 构造。
+const join = (...parts) => nativeJoin(...parts).replaceAll("\\", "/");
 
 const { buildConversationPreviewArtifactCandidates, extractConversationPreviewFileReferences } =
   await tsImport("../../packages/shared/src/conversation-preview-artifacts.ts", import.meta.url);

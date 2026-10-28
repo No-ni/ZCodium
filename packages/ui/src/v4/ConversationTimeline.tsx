@@ -48,7 +48,12 @@ import type { AssistantFeedbackHandler } from "@/v4/ConversationRowView.js";
 import { ConversationTurnNavigator } from "@/v4/ConversationTurnNavigator.js";
 import { syncConversationShareSelectionPanelLayout } from "@/v4/conversationShareSelectionPanelLayout.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
-import { splitConversationTimelineLiveTail } from "@/v4/conversationTimelineLiveTail.js";
+import {
+  splitConversationTimelineLiveTail,
+  resolveConversationLatestTurnSummary,
+  isSameConversationLatestTurnSummary,
+  type ConversationLatestTurnSummary,
+} from "@/v4/conversationTimelineLiveTail.js";
 import {
   getConversationContentWidthClassName,
   getConversationStatusPanelOffsetClassName,
@@ -316,6 +321,9 @@ interface ConversationTimelineProps {
   centerEmptyStateWithDock?: boolean;
   /** 窄屏/粗指针视口保留紧凑居中布局，不复用桌面草稿安全间距。 */
   compactEmptyStateWithDock?: boolean;
+  floatingComposerDock?: boolean;
+  onComposerDockHeightChange?: (heightPx: number) => void;
+  onLatestTurnSummaryChange?: (summary: ConversationLatestTurnSummary) => void;
   /** 右侧状态面板对消息列的布局模式；auto 由 conversation container query 裁决。 */
   summaryPanelLayout?: "none" | "auto" | "inline";
   conversationFindQuery?: string;
@@ -382,6 +390,9 @@ function ConversationTimelineImpl({
   headerSlot,
   centerEmptyStateWithDock = false,
   compactEmptyStateWithDock = false,
+  floatingComposerDock = false,
+  onComposerDockHeightChange,
+  onLatestTurnSummaryChange,
   summaryPanelLayout = "none",
   conversationFindQuery = "",
   conversationFindActiveIndex = -1,
@@ -449,6 +460,31 @@ function ConversationTimelineImpl({
       }),
     [renderCache, pluginUiPinResolver, rows, sessionPhase],
   );
+  const latestTurnSummary = useMemo(
+    () => resolveConversationLatestTurnSummary(renderUnits),
+    [renderUnits],
+  );
+  const lastReportedTurnRef = useRef<{
+    callback: (summary: ConversationLatestTurnSummary) => void;
+    summary: ConversationLatestTurnSummary;
+  } | null>(null);
+  useEffect(() => {
+    if (!onLatestTurnSummaryChange) {
+      lastReportedTurnRef.current = null;
+      return;
+    }
+    const last = lastReportedTurnRef.current;
+    if (
+      last?.callback === onLatestTurnSummaryChange &&
+      isSameConversationLatestTurnSummary(last.summary, latestTurnSummary)
+    )
+      return;
+    lastReportedTurnRef.current = {
+      callback: onLatestTurnSummaryChange,
+      summary: latestTurnSummary,
+    };
+    onLatestTurnSummaryChange(latestTurnSummary);
+  }, [latestTurnSummary, onLatestTurnSummaryChange]);
   const { virtualizedUnits, liveUnit, liveUnitIndex } = useMemo(
     () => splitConversationTimelineLiveTail(renderUnits),
     [renderUnits],
@@ -464,7 +500,8 @@ function ConversationTimelineImpl({
   );
   const turnNavigatorQueryRowIdsRef = useRef(turnNavigatorQueryRowIds);
   turnNavigatorQueryRowIdsRef.current = turnNavigatorQueryRowIds;
-  const centeredEmptyLayout = centerEmptyStateWithDock && renderUnits.length === 0;
+  const centeredEmptyLayout =
+    !floatingComposerDock && centerEmptyStateWithDock && renderUnits.length === 0;
   const responsiveCenteredEmptyLayout = centeredEmptyLayout && !compactEmptyStateWithDock;
   // 高频值经 ref 供稳定回调读取（不进依赖数组）。
   const rowsRef = useRef(rows);
@@ -539,6 +576,9 @@ function ConversationTimelineImpl({
   const [turnNavigatorHydrationRetryRevision, setTurnNavigatorHydrationRetryRevision] = useState(0);
   const timelineRootRef = useRef<HTMLDivElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
+  const floatingComposerDockRef = useRef(floatingComposerDock);
+  floatingComposerDockRef.current = floatingComposerDock;
+  const hasBottomDock = Boolean(bottomDock);
   const shareSelectionPanelLayoutRef = useRef<{
     centerYPx: number;
     maxHeightPx: number;
@@ -904,13 +944,14 @@ function ConversationTimelineImpl({
     if (!messageLayer) return;
 
     if (
+      floatingComposerDockRef.current ||
       isAtBottom({
         scrollTop: element.scrollTop,
         viewportHeight: element.clientHeight,
         contentHeight: element.scrollHeight,
       })
     ) {
-      // 贴底时消息已经位于正常文档流末尾，不会经过 sticky composer；
+      // 浮窗 dock 在视口外，继续遮罩会裁掉末条消息；普通 sticky 视图仍沿用离底遮罩。
       // 继续保留 mask 会无意义地淡出最后一条消息，只有离底滚动时才需要遮罩。
       messageLayer.style.maskImage = "none";
       messageLayer.style.webkitMaskImage = "none";
@@ -935,6 +976,25 @@ function ConversationTimelineImpl({
     messageLayer.style.maskSize = `100% ${viewportHeight}px`;
     messageLayer.style.webkitMaskSize = `100% ${viewportHeight}px`;
   }, []);
+
+  useLayoutEffect(() => {
+    const root = timelineRootRef.current;
+    const dock = composerDockRef.current;
+    if (!floatingComposerDock || !root || !dock) return;
+    const sync = () => {
+      const height = dock.getBoundingClientRect().height;
+      root.style.setProperty("--v4-floating-composer-dock-height", `${height}px`);
+      onComposerDockHeightChange?.(height);
+    };
+    sync();
+    if (scrollRef.current) syncMessageLayerMask(scrollRef.current);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(dock);
+    return () => {
+      observer?.disconnect();
+      root.style.removeProperty("--v4-floating-composer-dock-height");
+    };
+  }, [floatingComposerDock, hasBottomDock, onComposerDockHeightChange, syncMessageLayerMask]);
 
   const syncTurnNavigatorViewport = useCallback(
     (element: HTMLDivElement) => {
@@ -1819,6 +1879,8 @@ function ConversationTimelineImpl({
           // 分享选择面板展开时改为 overflow-hidden：scrollTop 与 scrollbar-gutter 都保持不变，
           // 但原生滚动条、滚轮和键盘翻页都不再能移动背景，勾选目标不会漂走。
           backgroundScrollLocked && "!overflow-y-hidden",
+          floatingComposerDock &&
+            "mb-[calc(var(--v4-floating-composer-dock-height,0px)+12px)] pb-4",
           // Conversation turn map 覆盖 timeline 左侧 48px；表格增强滚动如果仍按
           // 普通 16px 边距借位，会有 32px 落到 turn map 下方，必须把完整占用计入左边界。
           Math.max(turnNavigatorQueryRowIds.size, turnDirectory?.length ?? 0) >= 2 &&
@@ -1967,11 +2029,13 @@ function ConversationTimelineImpl({
                 // sticky dock 是 z-20 的全宽透明层，过去会盖住 z-10 rail
                 // 在 composer 左侧留白内的按钮。外壳不接事件，只让实际内容列恢复命中。
                 "pointer-events-none z-20 flex w-full justify-center",
-                responsiveCenteredEmptyLayout
-                  ? "mt-3 shrink-0"
-                  : centeredEmptyLayout
-                    ? "shrink-0"
-                    : "sticky bottom-0",
+                floatingComposerDock
+                  ? "absolute inset-x-0 bottom-0"
+                  : responsiveCenteredEmptyLayout
+                    ? "mt-3 shrink-0"
+                    : centeredEmptyLayout
+                      ? "shrink-0"
+                      : "sticky bottom-0",
               )}
             >
               <div
@@ -1981,7 +2045,7 @@ function ConversationTimelineImpl({
                   // ≥1280px 面板让位时降级为只过渡 transform，避免大范围跳变叠加位移抖动。
                   "pointer-events-auto relative z-10 w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out @min-[1280px]/conversation:transition-[transform]",
                   contentWidthClassName,
-                  !centeredEmptyLayout && "px-4 pb-4",
+                  !centeredEmptyLayout && !floatingComposerDock && "px-4 pb-4",
                   !centeredEmptyLayout && summaryPanelInlineOffsetClassName,
                 )}
               >

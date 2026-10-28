@@ -28,6 +28,20 @@ export {
   printableKey,
 } from "./app-selection-keyboard.js";
 
+export function isTuiQuitInput(draft: string, hasAttachments = false): boolean {
+  return !hasAttachments && !/[\r\n]/.test(draft) && draft.trim().toLowerCase() === "/quit";
+}
+
+export function tuiSlashCommands(
+  commands: readonly SlashCommand[] | undefined,
+  summary: string,
+): readonly SlashCommand[] {
+  return [
+    ...(commands ?? []).filter((command) => command.name.toLowerCase() !== "quit"),
+    { name: "quit", summary, usage: "/quit" },
+  ];
+}
+
 export function filterSlashCommands(
   draft: string,
   commands: readonly SlashCommand[],

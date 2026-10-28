@@ -208,10 +208,15 @@ export function collectionFrontier(
   graph: WorkflowGraph,
   collection: WorkflowGraphCollection,
 ): number {
-  return collectionNodeIdsForGraph(collection, graph).filter((nodeId) => {
-    const status = nodeById(graph, nodeId)?.status;
-    return status === "pending" || status === "active";
-  }).length;
+  const remaining = new Set(collectionNodeIdsForGraph(collection, graph));
+  let frontier = 0;
+  // 逐成员 find 会重扫全图；删除已命中 id 保留原首次重复节点语义，只扫描一次。
+  for (const node of graph.nodes) {
+    if (remaining.size === 0) break;
+    if (!remaining.delete(node.id)) continue;
+    if (node.status === "pending" || node.status === "active") frontier++;
+  }
+  return frontier;
 }
 
 export function nodeById(graph: WorkflowGraph, nodeId: string): WorkflowGraphNode | undefined {
