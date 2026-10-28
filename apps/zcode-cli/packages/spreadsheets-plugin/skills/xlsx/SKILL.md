@@ -4,7 +4,7 @@ metadata:
   author: Z.AI
   version: "1.1"
 description: "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file; create a new spreadsheet from scratch or from other data sources; analyze data and output results as an Excel file with charts; convert between tabular file formats (CSV/TSV/JSON/PDF-table → XLSX, or XLSX → CSV/JSON); clean, merge, pivot, or transform tabular data. Trigger especially when the user references a spreadsheet file by name or path, says 'make a table/report/model', mentions Excel/CSV/数据分析/报表/汇总, asks to convert or export a spreadsheet (e.g. 'csv转excel', 'json转表格', 'export as CSV'), or wants data visualization inside a spreadsheet."
-license: Proprietary. LICENSE.txt has complete terms
+license: Apache-2.0. LICENSE.txt has complete terms
 ---
 
 # XLSX — Scene-Driven Spreadsheet Workbench
@@ -30,7 +30,7 @@ This auto-detects and exports `XLSX_SKILL_DIR` and `FONT_DIR`. No manual variabl
 | Variable | Auto-set by env_check.sh | Description |
 |----------|--------------------------|-------------|
 | `XLSX_SKILL_DIR` | skill root directory | Parent of this file |
-| `FONT_DIR` | macOS: `~/Library/Fonts`, Linux: `/usr/share/fonts` | Font base directory |
+| `FONT_DIR` | First existing user/system font directory for the detected platform | Local font directory; may be empty when none exists |
 
 > **Local-font-first.** Inspect fonts available in the user's local environment and prefer a suitable
 > installed font. Use bundled or downloaded fonts only as fallbacks; do not install fonts without the

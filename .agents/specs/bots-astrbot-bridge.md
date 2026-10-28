@@ -1,5 +1,9 @@
 # 机器人 AstrBot 桥接协议 v2（Bots ↔ AstrBot Bridge）
 
+## 产品文档入口（2026-10-25）
+
+设置卡的插件按钮通过现有 `IPlatformService.openExternal` 打开本仓 `docs/astrbot-bridge.md`，不直接链接历史 fork。文档如实列出外部 AstrBot connector 来源及第三方安装边界，不虚构本仓维护的插件仓库，不自动安装或拉取。仅链接目标变化；BotsService、鉴权、绑定、序列与重放协议不变。验收检查按钮仍走现有回调与平台接口、链接归属本仓、外部来源明确标注。
+
 ## 背景
 
 官方 3.14.1 安装包内置 `bots`（Telegram/Feishu/Lark/WeCom 各一套 adapter）。

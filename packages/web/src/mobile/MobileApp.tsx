@@ -609,7 +609,7 @@ export function MobileApp() {
       notice={notice}
     >
       <section className="space-y-1">
-        <h1 className="text-ui-lg font-medium text-foreground">ZCode 远程控制</h1>
+        <h1 className="text-ui-lg font-medium text-foreground">ZCodium 远程控制</h1>
         <p className="text-ui-base/relaxed text-foreground-subtle">
           本次连接可以查看当前设备上已打开的项目、任务和会话；二维码失效后需要回到桌面端重新连接。
         </p>
@@ -736,7 +736,7 @@ function Shell(props: {
           </button>
         ) : null}
         <span className="min-w-0 flex-1 truncate text-ui-base font-medium">
-          {props.title ?? "ZCode 远程控制"}
+          {props.title ?? "ZCodium 远程控制"}
         </span>
         {props.onRefresh ? (
           <button type="button" className="text-ui-xs text-primary" onClick={props.onRefresh}>

@@ -132,7 +132,6 @@ export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
 export * from "./onboardingRecord.js";
 export * from "./remoteResourcePackages.js";
-export * from "./plan-identity.js";
 export {
   BROWSER_SCREENSHOT_SURFACE_PREPARE_TIMEOUT_MS,
   BROWSER_VIEW_RESTORE_BOOTSTRAP_URL,
@@ -264,7 +263,6 @@ export * from "./workspaceSessionRestore.js";
 export * from "./skill-scan-policy.js";
 export * from "./browser-use/index.js";
 
-export * from "./coding-plan-reset.js";
 export {
   parseSubagentMarkdownSelection,
   formatSubagentMarkdownModel,

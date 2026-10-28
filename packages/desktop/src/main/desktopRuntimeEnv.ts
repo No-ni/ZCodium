@@ -9,17 +9,16 @@ import {
   ZCODE_APP_VERSION_ENV,
   ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
   ZCODE_ENV,
+  ZCODE_LOCAL_RESOURCE_MONITORING_ENV,
   ZCODE_PRODUCT_FLAVOR,
   ZCODE_RUNTIME_ENV_KEY,
   ZCODE_VERSION,
   buildZCodeToolEnvPassthroughEnv,
+  isLocalResourceMonitoringEnabled,
   normalizeDynamicWorkflowMode,
   pickProductEndpointEnv,
   readProductEndpointEnv,
   resolveRuntimeZCodeEndpointOrigin,
-  resolveZaiBusinessBaseUrl,
-  resolveZaiOAuthClientId,
-  resolveZaiOAuthOrigin,
   sanitizeZCodeRuntimeEnv,
   type ZCodeRuntimeEnv,
 } from "@zcode/shared";
@@ -49,7 +48,7 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
-// e2e 运行的是生产构建，默认会和本机正式版 ZCode 共用 app name / userData，
+// e2e 运行的是生产构建，默认会和本机正式版 ZCodium 共用 app name / userData，
 // 触发 Electron 单实例锁后只激活已有窗口，Chromedriver 无法接管测试进程。
 // 这里允许测试显式隔离运行时身份，正常桌面/远控路径保持原来的默认值。
 // 应用名取构建期产品身份（desktop-product-identity.mjs），与安装包身份同源：
@@ -63,7 +62,7 @@ export const runtimeApplicationName =
 // 改名前的 Electron 用户数据目录名，只用于一次性迁移。
 const LEGACY_RUNTIME_APPLICATION_NAME = "ZCode";
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
-// e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ZCodeProject。
+// e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 home 目录。
 export const runtimeHomePath = readRuntimeEnvOverride("ZCODE_DESKTOP_HOME_DIR");
 // Chromedriver 管理 Electron 时会注入临时 userData；e2e 默认路径模式下导入期不能提前读取 appData。
 export const shouldUseElectronDefaultUserDataPath = isTruthyRuntimeEnvOverride(
@@ -206,7 +205,7 @@ export function loadHostProcessEnvFromLocalFiles(): Record<string, string> {
     ...(workspaceRoot
       ? [resolve(workspaceRoot, ".env"), resolve(workspaceRoot, ".env.local")]
       : []),
-    // 开发态 host process 不经过 Vite，自行加载相同的 .env 文件以保持 OAuth 配置一致。
+    // 开发态 host process 不经过 Vite，自行加载相同的 .env 文件以保持 endpoint 配置一致。
     ...(workspaceRoot && isLocalDevelopmentRuntime
       ? [
           resolve(workspaceRoot, ".env.development"),
@@ -274,14 +273,13 @@ function applySelectedZCodeEnvLinks(env: Record<string, string>): Record<string,
     ...env,
     ZCODE_ENV,
   };
+  const resolvedBaseUrl = env.ZCODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv);
 
   return {
     ...pickProductEndpointEnv(endpointEnv),
     ...env,
-    ZCODE_BASE_URL: env.ZCODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv),
-    ZAI_OAUTH_ORIGIN: env.ZAI_OAUTH_ORIGIN ?? resolveZaiOAuthOrigin(endpointEnv),
-    ZAI_BUSINESS_BASE_URL: env.ZAI_BUSINESS_BASE_URL ?? resolveZaiBusinessBaseUrl(endpointEnv),
-    ZAI_OAUTH_CLIENT_ID: env.ZAI_OAUTH_CLIENT_ID ?? resolveZaiOAuthClientId(endpointEnv),
+    // 只传播用户显式配置的 endpoint；没有配置时不写入官方默认地址。
+    ...(resolvedBaseUrl ? { ZCODE_BASE_URL: resolvedBaseUrl } : {}),
   };
 }
 
@@ -471,12 +469,17 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     // 这里显式下发 ZCODE_RUNTIME_ENV，并在继承环境里清掉 NODE_ENV，避免 host/agent/Bash 被污染。
     [ZCODE_RUNTIME_ENV_KEY]: resolveHostProcessNodeEnv(),
     // 显式注入编译期产品身份，保证主进程与 host 的身份语义一致；地址独立解析。
-    // inheritedEnv 从 .env 通用变量补齐 ZCode/ZAI 链接，未覆盖时统一使用线上默认值。
+    // inheritedEnv 只透传用户显式配置的 ZCode endpoint；没有配置时不写入任何官方默认值。
     ZCODE_ENV,
     // Preview 与生产版共享任务、配置和凭据，但不同版本的 Helper 不能互相覆盖或触发降级保护。
     // 只隔离 computer-use 下的运行组件，不改写 ZCODE_HOME / ZCODE_DATA_BASE_DIR 业务数据根。
     // Dynamic Workflow 灰度的本地覆盖：Main 决策后写入，production 包为空对象（继承值已在上面删除）。
     ...dynamicWorkflowModeHostEnv,
+    // 本地资源采样开关会被 sanitize 从通用子进程 env 中剔除（避免泄漏给 tools）；
+    // 这里只对 host / scheduler 这两个由 main 管理的诊断进程显式下发。
+    ...(isLocalResourceMonitoringEnabled(rawInheritedEnv)
+      ? { [ZCODE_LOCAL_RESOURCE_MONITORING_ENV]: "1" }
+      : {}),
     // 模型请求默认 header 由 agent 进程构造，过去只继承 shell env 导致桌面启动时拿不到 app 版本。
     // 这里从 main 进程显式下发，agent 子进程继承 host env 后即可稳定写入请求 header。
     [ZCODE_APP_VERSION_ENV]: ZCODE_VERSION,

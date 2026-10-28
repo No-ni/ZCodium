@@ -2,8 +2,10 @@ import { access, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promis
 import { dirname, join } from "node:path";
 
 export const DEV_ELECTRON_PROTOCOL_SCHEME = "zcode";
-export const DEV_ELECTRON_APP_NAME = "ZCode Dev";
-export const DEV_ELECTRON_APP_BUNDLE_ID = "dev.zcode.app.development";
+export const DEV_ELECTRON_APP_NAME = "ZCodium Dev";
+export const DEV_ELECTRON_APP_BUNDLE_ID = "dev.zcodium.app.development";
+// 旧开发副本同样注册了 zcode://，保留会让 LaunchServices 在两个 bundle 之间随机选择。
+const LEGACY_DEV_ELECTRON_APP_NAMES = ["ZCode Dev"];
 // 副本布局版本，见 prepareDevElectronAppBundle 中的指纹说明。
 export const DEV_ELECTRON_BUNDLE_FORMAT = 2;
 
@@ -60,6 +62,10 @@ export async function prepareDevElectronAppBundle({
 }) {
   const appPath = resolveDevElectronAppBundlePath({ runtimeRoot, electronVersion, arch });
   const infoPlistPath = join(appPath, "Contents", "Info.plist");
+  // 只清理本工具在固定 runtime 目录生成的旧名字副本，不动 node_modules 或用户数据。
+  for (const legacyName of LEGACY_DEV_ELECTRON_APP_NAMES) {
+    await rm(join(dirname(appPath), `${legacyName}.app`), { recursive: true, force: true });
+  }
   const sourceExecutablePath = join(electronAppPath, "Contents", "MacOS", "Electron");
   const existingExecutablePath = join(appPath, "Contents", "MacOS", "Electron");
   // 源二进制的身份指纹，写在 .app 外面：放进 Contents 会污染 bundle 结构。

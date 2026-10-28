@@ -60,7 +60,7 @@ export interface OfficialPluginDefinition {
   version: string;
 }
 
-const ZCODIUM_AUTHOR = { name: "ZCodium", url: "https://github.com/axiom-desu/ZCodium" } as const;
+const ZCODIUM_AUTHOR = { name: "ZCodium", url: "https://github.com/No-ni/ZCodium" } as const;
 const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
 // superpowers 内容版权归上游作者，listing 的 author 必须写真名而不是 Z.ai。
 const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obra" } as const;
@@ -190,10 +190,10 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       // seed 注册与发行清单一致，资源完整性仍由 requiredSeedPaths 严格校验。
       // version 与各自 package.json / plugin.json 逐字一致：三处不一致会让官方 seed
       // 继续加载旧缓存目录（见上方 browser-use 的同类注释）。
-      ["presentations", "pptx", "Presentations", "演示文档", "0.1.8"],
-      ["documents", "docx", "Documents", "Word 文档", "0.1.8"],
-      ["pdf", "pdf", "PDF", "PDF 文档", "0.2.0"],
-      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.1.8"],
+      ["presentations", "pptx", "Presentations", "演示文档", "0.1.9"],
+      ["documents", "docx", "Documents", "Word 文档", "0.1.9"],
+      ["pdf", "pdf", "PDF", "PDF 文档", "0.2.1"],
+      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.1.9"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName, version]): OfficialPluginDefinition => ({

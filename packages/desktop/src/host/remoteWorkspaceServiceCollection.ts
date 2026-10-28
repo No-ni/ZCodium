@@ -40,7 +40,6 @@ import {
   createSettingService,
   createCredentialService,
   createBroadcastService,
-  createNodeApiClient,
   createHostApiNetworkTransport,
   registerHostApiNetworkTransportForDispose,
   createSettingsSyncService,
@@ -89,13 +88,9 @@ export function createRemoteWorkspaceServiceCollection(params: {
       caCertPath: settings.httpProxyCaCertPath,
     };
   });
-  const localApiClient = createNodeApiClient({
-    fetchImpl: hostApiNetworkTransport.fetch,
-  });
   const localBroadcastService = createBroadcastService(params.parentPort);
-  const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService({
-    apiClient: localApiClient,
-  });
+  // 动态工作流开关只做本地判定，远端 Host 不再读取官方 client config。
+  const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService();
   const conversationShareService = new ConversationShareService({
     zcodeAgentService: params.connectionServices.zcodeAgentService,
     artifactSource: createRemoteConversationShareArtifactSource(

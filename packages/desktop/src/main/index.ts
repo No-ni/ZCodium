@@ -82,10 +82,8 @@ import {
   PlatformChannels,
   ZCODE_ENV,
   ZCODE_PRODUCT_FLAVOR,
-  ZCODIUM_UPDATE_ORIGIN,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
-  resolveZCodeEndpointOrigin,
+  isLocalResourceMonitoringEnabled,
   type UpdateStatePayload,
 } from "@zcode/shared";
 import { logger, flushDesktopLogs } from "./logger.js";
@@ -211,7 +209,7 @@ registerLocalMediaPreviewScheme(protocol, [PLUGIN_SANDBOX_PRIVILEGED_SCHEME]);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
 
 // e2e 由 Chromedriver 管理远程调试端口；如果这里继续固定到 9229，
-// 会和开发态已打开的 ZCode Dev 抢端口，导致 WebDriver session 创建前白屏超时。
+// 会和开发态已打开的 ZCodium Dev 抢端口，导致 WebDriver session 创建前白屏超时。
 // 仅本地开发运行默认开启远程调试端口，并允许 e2e 通过环境变量交给 Chromedriver 接管。
 if (!app.isPackaged && process.env.ZCODE_DISABLE_FIXED_REMOTE_DEBUGGING_PORT !== "1") {
   app.commandLine.appendSwitch("remote-debugging-port", "9229");
@@ -621,13 +619,6 @@ const UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT = 224;
 const UPDATE_STATUS_WINDOW_READY_HEIGHT = UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT - 54;
 const UPDATE_STATUS_WINDOW_TRAFFIC_LIGHT_POSITION = { x: 10, y: 10 } as const;
 const mainSettingService = createSettingService();
-async function resolveCurrentZCodeEndpointOrigin() {
-  return resolveZCodeEndpointOrigin({
-    env: ZCODE_ENV,
-    envBaseOrigin: resolveZCodeEndpointEnvBaseOrigin(hostProcessLocalEnv),
-    overrideOrigin: (await mainSettingService.get()).zcodeEndpointOrigin,
-  });
-}
 app.on("browser-window-focus", () => {
   rebuildMenu();
 });
@@ -1175,17 +1166,6 @@ async function executeDesktopCommandForApp(
   });
 }
 
-async function resolveZCodeEndpointSelection(): Promise<"production" | "test" | "custom"> {
-  if (ZCODE_ENV === "production") {
-    return "production";
-  }
-  const origin = await resolveCurrentZCodeEndpointOrigin();
-  if (origin === DEFAULT_ZCODE_ENDPOINT_ORIGIN) {
-    return "production";
-  }
-  return "custom";
-}
-
 async function handleZCodeEndpointChanged() {
   rebuildMenu();
 }
@@ -1225,21 +1205,18 @@ function resetShortcutRecordingForWebContents(webContentsId: number) {
 }
 
 function rebuildMenu() {
-  void Promise.all([resolveZCodeEndpointSelection(), mainSettingService.get()]).then(
-    ([zcodeEndpointSelection, settings]) => {
-      rebuildApplicationMenu({
-        currentApplicationLocale,
-        zcodeEndpointSelection,
-        executeDesktopCommand: executeDesktopCommandForApp,
-        currentZoomLevel: resolveFocusedDesktopZoomLevel(),
-        // 菜单 accelerator 跟随用户快捷键设置（shortcutBindings 用户覆盖）
-        shortcutBindings: settings.shortcutBindings,
-        // 快捷键录制态：摘掉可配置 accelerator，防止录制 menu 通道命令时按键直接触发原命令
-        // （macOS 系统菜单先于 renderer 吃掉按键，renderer 侧 preventDefault 拦不住）。
-        disableShortcutAccelerators: shortcutRecordingActive,
-      });
-    },
-  );
+  void mainSettingService.get().then((settings) => {
+    rebuildApplicationMenu({
+      currentApplicationLocale,
+      executeDesktopCommand: executeDesktopCommandForApp,
+      currentZoomLevel: resolveFocusedDesktopZoomLevel(),
+      // 菜单 accelerator 跟随用户快捷键设置（shortcutBindings 用户覆盖）
+      shortcutBindings: settings.shortcutBindings,
+      // 快捷键录制态：摘掉可配置 accelerator，防止录制 menu 通道命令时按键直接触发原命令
+      // （macOS 系统菜单先于 renderer 吃掉按键，renderer 侧 preventDefault 拦不住）。
+      disableShortcutAccelerators: shortcutRecordingActive,
+    });
+  });
   updateWindowsDesktopTrayMenu();
 }
 
@@ -1839,7 +1816,6 @@ app.whenReady().then(async () => {
     },
     settingService: mainSettingService,
     locale: currentApplicationLocale,
-    resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
     updateFeedSource: resolveUpdateFeedSourceFromStartupConfig({
       argv: process.argv,
       env: process.env,
@@ -1998,9 +1974,13 @@ app.whenReady().then(async () => {
     listSSHConfigAliases,
   });
   registerDesktopStabilityMonitors(logger);
-  registerDesktopResourceTelemetry(logger);
-  registerDesktopNetworkTelemetry();
-  registerRendererHeapSampleIpc();
+  // 本地资源/网络采样默认关闭，仅显式设置 ZCODE_LOCAL_RESOURCE_MONITORING=1 时启用。
+  // 生命周期诊断（stability monitors）属于本地诊断，不受该开关影响。
+  if (isLocalResourceMonitoringEnabled()) {
+    registerDesktopResourceTelemetry(logger);
+    registerDesktopNetworkTelemetry();
+    registerRendererHeapSampleIpc();
+  }
 
   // 本地未打包 dev 构建（app.isPackaged === false）必须跳过远端强制升级 gate。
   // 原因：force-update gate 只看 ZCODE_ENV === "production"，但 dev 构建（如 dev:desktop:cua
@@ -2014,9 +1994,7 @@ app.whenReady().then(async () => {
       ? await maybeBlockStartupForForceUpdate({
           locale: currentApplicationLocale,
           logger,
-          // 门禁只允许读自有更新源：上游地址下发的 minimalVersion 不是本仓库的控制面。
-          // maybeBlockStartupForForceUpdate 在未配置时直接放行，这里保持同一判定来源。
-          endpointOrigin: ZCODIUM_UPDATE_ORIGIN || (await resolveCurrentZCodeEndpointOrigin()),
+          // 门禁只读自有更新源；未配置时 maybeBlockStartupForForceUpdate 直接放行。
           onBlocked: () => {
             forceUpdateMainWindowCreationBlocked = true;
           },

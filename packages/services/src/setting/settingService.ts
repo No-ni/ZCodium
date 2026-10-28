@@ -2,17 +2,11 @@ import { access, readFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { AppSettings } from "@zcode/shared";
-import {
-  ZCODE_USER_DATA_DIR_NAME,
-  appSettingsPatchSchema,
-  appSettingsSchema,
-  formatLogPrefix,
-  formatZodError,
-} from "@zcode/shared";
+import { ZCODE_USER_DATA_DIR_NAME, appSettingsPatchSchema, appSettingsSchema } from "@zcode/shared";
 import type { ISettingService } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
 import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";
-import { isEffectiveDevelopmentNodeEnv } from "../runtime-tools/nodeEnv.js";
+import { createServiceLogger } from "../logger/serviceLogger.js";
 import { maybeThrowInjectedFsFault } from "../fs/fsFaultInjection.js";
 import { atomicWriteText } from "../fs/atomicFileUtils.js";
 import { withFileLock } from "@zcode/shared/node";
@@ -29,15 +23,7 @@ const DEFAULT_PROJECT_NAME = "ZCodeProject";
 const SETTINGS_PARSE_RETRY_DELAY_MS = 300;
 const SETTINGS_PARSE_RETRY_COUNT = 3;
 
-const log = (...args: unknown[]) =>
-  console.log(formatLogPrefix("settingService", process.pid), ...args);
-const debugLog = (...args: unknown[]) => {
-  // NODE_ENV 来自用户 shell 时会误导服务层 debug 开关；统一使用 ZCODE_RUNTIME_ENV。
-  if (!isEffectiveDevelopmentNodeEnv()) {
-    return;
-  }
-  console.debug(formatLogPrefix("settingService", process.pid), ...args);
-};
+const logger = createServiceLogger("settingService");
 
 function resolveUserHomeDir() {
   // 独立桌面 Dev 实例已设置自己的 home，设置服务却仍写真实 HOME，
@@ -66,14 +52,14 @@ function buildCorruptSettingsBackupPath(settingsFile: string): string {
   return `${settingsFile}.corrupt-${timestamp}`;
 }
 
-async function quarantineCorruptSettingsFile(settingsFile: string, error: unknown): Promise<void> {
+async function quarantineCorruptSettingsFile(settingsFile: string): Promise<void> {
   const backupPath = buildCorruptSettingsBackupPath(settingsFile);
   try {
     // 用户手动编辑或远端磁盘异常可能把 setting.json 写成非 JSON（例如 ":wq"）。
     // 如果只返回默认值不隔离坏文件，每次启动都会重复解析失败；这里保留备份后让后续 update 重建合法配置。
     maybeThrowInjectedFsFault({ operation: "rename", path: settingsFile });
     await rename(settingsFile, backupPath);
-    log("invalid settings json backed up:", backupPath, "error:", error);
+    logger.warn(undefined, "invalid settings json quarantined");
   } catch (renameError) {
     if (
       renameError &&
@@ -83,10 +69,10 @@ async function quarantineCorruptSettingsFile(settingsFile: string, error: unknow
     ) {
       // 启动时多个服务可能同时读取同一个坏 setting.json。
       // 第一个读取已经完成隔离后，后续读取再 rename 会遇到 ENOENT；这是并发下的预期结果，不应当按备份失败刷错误日志。
-      log("invalid settings json already quarantined by another reader, returning defaults");
+      logger.debug(undefined, "invalid settings json already quarantined");
       return;
     }
-    log("invalid settings json backup failed, returning defaults. error:", renameError);
+    logger.warn(undefined, "settings quarantine failed, returning defaults", renameError);
   }
 }
 
@@ -113,15 +99,13 @@ interface ReadSettingsResult {
 async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
   const settingsFile = getSettingsFile();
   try {
-    // settingService.get() 会被 UI 和远程会话高频调用。
-    // 之前每次读取都把完整配置写入生产日志，导致日志暴涨且暴露路径/配置细节；普通读取只保留开发态 debug。
-    debugLog("reading settings from:", settingsFile);
+    // 纯 HTTP 宿主没有全局 console 净化，必须在服务出口过滤；debug 也不能输出配置或路径。
+    logger.debug(undefined, "reading settings");
     const raw = await readFile(settingsFile, "utf-8");
     let rawValue: unknown;
     try {
       rawValue = JSON.parse(raw);
-    } catch (parseError) {
-      let lastParseError: unknown = parseError;
+    } catch {
       // setting.json 可能正被另一次 update 覆盖写入，读者会短暂读到半截 JSON。
       // 先做短重试，只有连续失败才按坏文件隔离，避免把正常会话配置误清成默认值。
       for (let retryAttempt = 1; retryAttempt <= SETTINGS_PARSE_RETRY_COUNT; retryAttempt += 1) {
@@ -129,12 +113,12 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
         try {
           rawValue = JSON.parse(await readFile(settingsFile, "utf-8"));
           break;
-        } catch (retryParseError) {
-          lastParseError = retryParseError;
+        } catch {
+          // 连续重试后才隔离；解析错误可能携带配置原文，不能进入日志。
         }
       }
       if (rawValue === undefined) {
-        await quarantineCorruptSettingsFile(settingsFile, lastParseError);
+        await quarantineCorruptSettingsFile(settingsFile);
         return {
           settings: defaultSettings(),
           needsMigrationPersist: false,
@@ -143,16 +127,13 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
     }
     const result = appSettingsSchema.safeParse(migrateLegacyAccountConnectionSettings(rawValue));
     if (!result.success) {
-      log(
-        "read failed schema validation, returning defaults. error:",
-        formatZodError(result.error),
-      );
+      logger.warn(undefined, "settings schema validation failed, returning defaults");
       return {
         settings: defaultSettings(),
         needsMigrationPersist: false,
       };
     }
-    debugLog("read result:", JSON.stringify(result.data));
+    logger.debug(undefined, "settings read completed");
     return {
       settings: result.data,
       needsMigrationPersist: shouldPersistSettingsMigrations(rawValue),
@@ -164,7 +145,7 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
       "code" in err &&
       (err as { code?: string }).code === "ENOENT"
     ) {
-      debugLog("settings file missing, using defaults");
+      logger.debug(undefined, "settings file missing, using defaults");
       return {
         settings: defaultSettings(),
         needsMigrationPersist: false,
@@ -172,7 +153,7 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
     }
 
     // 文件解析失败等异常兜底返回默认值
-    log("read failed, returning defaults. error:", err);
+    logger.warn(undefined, "settings read failed, returning defaults", err);
     return {
       settings: defaultSettings(),
       needsMigrationPersist: false,
@@ -195,7 +176,7 @@ async function writeSettings(
   const settingsFile = getSettingsFile();
   // Windows 下测试只改了 HOME，模块顶层常量如果在导入时就把 homedir() 固化，
   // 后续读写仍会串到真实用户目录。这里改成每次按当前环境解析配置路径，保证本地和测试都稳定。
-  log("writing settings to:", settingsFile, JSON.stringify(settings));
+  logger.debug(undefined, "writing settings");
   maybeThrowInjectedFsFault({ operation: "mkdir", path: settingsDir });
   await mkdir(settingsDir, { recursive: true });
   if (!shouldCommit()) return;
@@ -224,7 +205,7 @@ async function writeSettings(
         await renameFile();
       }),
   });
-  log("write done");
+  logger.info(undefined, "settings write completed");
 }
 
 export function createSettingService(): ISettingService {
@@ -344,9 +325,9 @@ export function createSettingService(): ISettingService {
       }
 
       if (currentBaseDir !== targetBaseDir) {
-        log("copying data directory from", currentBaseDir, "to", targetBaseDir);
+        logger.info(undefined, "copying data directory");
         await copyDataDirectory(currentBaseDir, targetBaseDir);
-        log("data directory copy done");
+        logger.info(undefined, "data directory copy done");
       }
 
       await this.update({ dataBaseDir: newDir });
@@ -363,7 +344,7 @@ export function createSettingService(): ISettingService {
         maybeThrowInjectedFsFault({ operation: "mkdir", path });
         await mkdir(path, { recursive: true });
       } catch (error) {
-        log("ensureDefaultProject failed:", error);
+        logger.error(undefined, "ensureDefaultProject failed", error);
         throw error;
       }
 

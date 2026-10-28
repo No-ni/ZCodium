@@ -7,7 +7,6 @@
     "./conversation-client": "./src/conversation-client.ts",
     "./useTheme": "./src/useTheme.ts",
     "./conversation-share-readonly": "./src/v4/ConversationShareReadonlyTimeline.tsx",
-    "./oauth-provider-icon": "./src/lib/oauthProviderIcon.tsx",
     "./message": "./src/components/ai-elements/message.tsx",
     "./e2e-store-bridge": "./src/lib/e2eStoreBridgeBootstrap.ts",
     "./document-hidden-motion-pause": "./src/lib/documentHiddenMotionPause.ts",

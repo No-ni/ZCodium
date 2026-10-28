@@ -51,14 +51,8 @@ test("retired idle configuration RPC is absent and never consults official crede
     "../../packages/rpc/src/proxy-channel.ts",
     import.meta.url,
   );
-  const forbidden = () => {
-    throw new Error("Official network and credentials forbidden");
-  };
-  const service = createCodingPlanSubscriptionService({
-    apiClient: { request: forbidden },
-    credentialService: { load: forbidden },
-    resolveOffPeakModelSelectionView: forbidden,
-  });
+  // 该服务不再接收任何依赖：没有 apiClient / credentialService 可供官方凭据或网络访问。
+  const service = createCodingPlanSubscriptionService();
   assert.equal("getOffPeakClientConfig" in service, false);
   assert.throws(
     () => ProxyChannel.fromService(service).call(undefined, "getOffPeakClientConfig", [{}]),

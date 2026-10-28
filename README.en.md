@@ -12,67 +12,72 @@
   <em>— Liang Wenfeng, CEO of DeepSeek</em>
 </p>
 
-ZCodium is a community fork of ZCode. Upstream ZCode is an AI coding workspace with desktop, browser, and terminal interfaces; this repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+ZCodium is an independent audit fork of ZCode. Upstream ZCode is an AI coding workspace with desktop, browser, and terminal interfaces; this repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code. Code updates are absorbed only from the official open-source repository [zai-org/ZCode](https://github.com/zai-org/ZCode), while keeping the "no telemetry, no dependency on official cloud services" audit boundary. See [docs/specs/maintenance-model.md](docs/specs/maintenance-model.md) for the maintenance rules.
 
 ## What this repository is
 
-Upstream was forced to open-source ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
+Upstream was forced to open-source ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks only the official source and **evaluates installer-only local capabilities under its product, privacy and licensing boundaries**. It does not restore official telemetry, accounts, purchases or cloud services, and does not promise complete feature parity.
 
 Backfilling methods include supplying the missing built-in plugins and skills, locating feature gaps by diffing i18n keys, and aligning interaction flows with the protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
 
-[Another ZCodium](https://github.com/ZCodium-project/ZCodium)
+[Another ZCodium (audit reference, not a merge source)](https://github.com/ZCodium-project/ZCodium)
 
 [Shh... don't let the user know what we are doing](apps/zcode-cli/tools/repo-snapshot-parody/README.md)
 
 ### Capability delta versus the official package
 
-Verified against the **official 3.14.3 installer** (`ZCode-3.14.3-win-x64.exe`, `appVersion: 3.14.3`, built 2026-09-22). Method: pull the locale table from `out/renderer/assets/IntlProvider-*.js` inside the installer's `resources/app.asar`, then diff its keys against [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/). Content upstream newly open-sourced in 3.14.3 is already reflected in the table below; nothing here is left as "to be re-verified".
+Verified against the **official 3.14.3 installer** (`ZCode-3.14.3-win-x64.exe`, `appVersion: 3.14.3`, built 2026-09-22). Method: pull the locale table from `out/renderer/assets/IntlProvider-*.js` inside the installer's `resources/app.asar`, then diff its keys against [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/). This is a historical audit baseline, with some notes updated for later work; it is not a complete acceptance review of the current 3.15.1 tree. Locale key counts are not feature counts.
 
 **Backfilled**:
 
 - Ten built-in plugins and skills: documents, pdf, presentations, spreadsheets, skill-creator, plugin-creator, image-search, restore-legacy-sessions, zcode-guide, zcode-cua. Open-source commit `44b25ed46c` removed their sources while the official package still ships them. Scope: [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md), [.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md), and [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md).
 - The Computer Use model-visible surface: `apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`, skill, and docs. The native runtime (koffi/sharp, roughly 20 MiB) is not published with the package, matching upstream's `runtimeTopLevelPaths: []`.
 
-**Not yet backfilled** (258 keys total):
+**Historical locale categories** (258 keys at the time; later implementations and intentionally excluded cloud features are retained below, not a current gap total):
 
-| Area               | Gap     | Notes                                                                        |
-| ------------------ | ------- | ---------------------------------------------------------------------------- |
-| `webRemoteControl` | 89 keys | Phone remote control of the desktop; only the botChannel picker shell exists |
-| `manualClaimPlan`  | 53 keys | Benefit claiming and captcha flow                                            |
-| `mode`             | 38 keys | Session mode extensions                                                      |
-| `settings`         | 26 keys | Includes Claude model slot mapping and multi-protocol endpoint templates     |
-| `server`           | 12 keys | Server entry                                                                 |
-| `appHeader`        | 8 keys  | Provider configuration entry                                                 |
-| `marketingTouch`   | 7 keys  | Benefit touchpoints                                                          |
-| `taskList`         | 6 keys  | Codex / Claude new-task flows                                                |
-| `chat`             | 5 keys  | agent switching                                                              |
-| `rewards`          | 5 keys  | Benefits menu                                                                |
-| `onboarding`       | 4 keys  | agent settings step                                                          |
-| Other              | 5 keys  | `remote`, `zcode`, `titleBar`                                                |
+| Area               | Gap     | Notes                                                                                           |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------- |
+| `webRemoteControl` | Closed  | Phone remote control uses the existing desktop Host; LAN pairing and optional self-hosted relay |
+| `manualClaimPlan`  | 53 keys | Official benefits/captcha; intentionally excluded                                               |
+| `mode`             | 38 keys | Session mode extensions                                                                         |
+| `settings`         | 26 keys | Includes Claude model slot mapping and multi-protocol endpoint templates                        |
+| `server`           | 12 keys | Server entry                                                                                    |
+| `appHeader`        | 8 keys  | Provider configuration entry                                                                    |
+| `marketingTouch`   | 7 keys  | Official benefit touchpoints; intentionally excluded                                            |
+| `taskList`         | 6 keys  | Codex / Claude new-task flows                                                                   |
+| `chat`             | 5 keys  | agent switching                                                                                 |
+| `rewards`          | 5 keys  | Official benefits menu; intentionally excluded                                                  |
+| `onboarding`       | 4 keys  | agent settings step                                                                             |
+| Other              | 5 keys  | `remote`, `zcode`, `titleBar`                                                                   |
 
-`bots` is closed: all 259 of its keys were open-sourced by upstream in 3.14.3 and entered this repository with the merge, leaving a gap of 0. For `webRemoteControl`, only the channel-selection layer came in (15 keys, plus 2 in-house AstrBot keys); the remote-control feature itself is still missing, making it the largest remaining gap. In the other direction, 33 keys exist only in this repository and not in the official package — mostly the AstrBot bridge and the `.zcodium` namespace.
+The historical `bots` gap closed after the 3.14.3 merge. Phone remote control was implemented later: LAN pairing connects to the existing desktop Host, with an optional user-hosted relay (see [.agents/specs/web-remote-control.md](.agents/specs/web-remote-control.md)). Official benefit claiming is intentionally excluded, not backfill debt. The historical reverse difference contained 33 in-house keys; current totals are not recomputed here.
 
 **Deliberately not backfilled**:
 
 - Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
 - Official telemetry collection and reporting. ZCodium retains privacy-filtered local diagnostics, with external export disabled by default. Users can explicitly configure their own OTLP collector. See [diagnostics](DIAGNOSTICS.md).
+- Official accounts, login/OAuth, purchases, plans, benefit claiming, marketing, sharing/upload services, client config/rollout, official relay and update sources. Historical identifiers and database migrations remain readable without restoring account execution.
 
 ### Backfill routes
 
 **Landed**:
 
-- **`bots`: official implementation plus the AstrBot bridge, side by side.** Upstream 3.14.3 open-sourced the official `bots` stack (four platform adapters and the platform-selection GUI), which is now merged in this repository. The in-house [AstrBot](https://github.com/AstrBotDevs/AstrBot) bridge is no longer a service parallel to the official `BotsService`; it has been folded into the official `BotsService` as a single transport provider (`BotProviderAdapter`, with the channel fixed to `astrbot`) and wired into both the official Bots GUI and the phone remote-control entry. AstrBot owns the platform adapters while this repository maintains only the bridge contract (wire protocol v2). [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin), see [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md).
+- **`bots`: official implementation plus the AstrBot bridge, side by side.** Upstream 3.14.3 open-sourced the official `bots` stack (four platform adapters and the platform-selection GUI), which is now merged in this repository. The in-house [AstrBot](https://github.com/AstrBotDevs/AstrBot) bridge is no longer a service parallel to the official `BotsService`; it has been folded into the official `BotsService` as a single transport provider (`BotProviderAdapter`, with the channel fixed to `astrbot`) and wired into both the official Bots GUI and the phone remote-control entry. AstrBot owns the platform adapters while this repository maintains only the bridge contract (wire protocol v2). Connector setup and its independent third-party source are documented in [AstrBot bridge](docs/astrbot-bridge.md); see [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md).
 - **Computer Use runtime**: the native execution layer is not built in-house. It reuses `@trycua/cua-driver` from the open-source [`trycua/cua`](https://github.com/trycua/cua) project (MIT, Rust, macOS / Windows / Linux), with the adapter in [packages/zcode-cua/](packages/zcode-cua/). The client is injected by the upper layer, and the runtime stays fail-closed without one. Older GNOME / Wayland gets a separate physical-input compatibility layer. Capability mapping and gaps, the adapter contract, and per-platform mechanisms are covered in [.agents/specs/computer-use-capabilities.md](.agents/specs/computer-use-capabilities.md), [.agents/specs/computer-use-runtime.md](.agents/specs/computer-use-runtime.md), and [.agents/specs/computer-use-platform-architecture.md](.agents/specs/computer-use-platform-architecture.md) respectively.
 
-**Settled but not yet implemented**:
+**User-configured capability**:
 
-- **image-search defaults to a local backend**: changed to `http://127.0.0.1:8787`, see [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md). No local image-search backend ships in this repository yet; you deploy your own.
+- **image-search has no default server**: configure the full `imageSearchMcpUrl` (local or user-hosted remote MCP) and optional authorization header. The plugin is disabled by default and stays silent until configured. No backend or official credential injection ships here. See [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md).
 
 ### Relationship to upstream
 
-This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode). Upstream updates are merged first, then the capability delta is re-verified; backfills are split into per-feature commits so each can be reviewed and accepted independently. Licensing and third-party attribution are covered in [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
+This repository tracks **only the official** [zai-org/ZCode](https://github.com/zai-org/ZCode); it does not track any third-party fork. [ZCodium-project/ZCodium](https://github.com/ZCodium-project/ZCodium) is a read-only reference for audit principles and implementation approaches, never a merge source.
 
-**Standing rule**: when upstream ships a feature without releasing the corresponding source, this repository implements an equivalent version itself and open-sources it directly — no waiting, no asking, no holding back. The test is "is it in the installer", not "what upstream says". That work lands as per-feature commits, with the scope, the reasoning behind each decision, and anything left unverified recorded under [.agents/specs/](.agents/specs/).
+Every sync follows the same order: fetch the official tag, create a sync branch, merge (never rebase), resolve conflicts under the audit boundary, run the checklist, and record the official baseline, absorbed items, stripped items, unsynced items, and validation scope. The full process and the debt list are in [docs/specs/maintenance-model.md](docs/specs/maintenance-model.md).
+
+**Audit boundary**: no official telemetry, monitoring, crash collection, resource/network sampling uploads, or UI analytics; no dependency on official accounts, purchases, plans, sharing, uploads, automatic official marketplace fetches, official client config/rollout, official relay, or the official update source. Users bring their own API keys or custom providers; safe local logs remain available; background sampling and external export are separately disabled by default. Export requires an explicit enable flag and a user-owned collector. When upstream reintroduces a removed telemetry/cloud module, keep this fork's removal and add a minimal adaptation instead of restoring the module to make tests green.
+
+**Backfill rule**: assess only local capabilities compatible with this fork's product and audit boundaries. Installer, source and runtime evidence identify differences; installer presence alone does not authorize restoring telemetry, accounts, benefits or cloud services. Define the spec, license and acceptance first; do not promise full-product parity. That work lands as per-feature commits, with the scope, the reasoning behind each decision, and anything left unverified recorded under [.agents/specs/](.agents/specs/). Licensing and third-party attribution are covered in [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
 
 | Interface                    | Purpose                                                                                   | Development command            |
 | ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
@@ -91,7 +96,7 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 
 The release version comes from the root [package.json](package.json). Release tags must be exactly `v<version>`; `node scripts/ci/desktop-release.mjs check-version` validates this match. Installer names use the separate ZCodium product identity: `ZCodium-<version>-<platform>-<arch>.<ext>`. The fork does not require a `-modified` suffix.
 
-Desktop CI builds Windows installers and a macOS arm64 DMG on ordinary pushes. macOS x64 is included for tags and manual runs. This fork does not distribute Linux installers or Linux remote runtime assets; phone remote control remains available.
+Desktop CI runs only through explicitly requested manual `workflow_dispatch`, producing Windows x64/arm64 exe and macOS arm64/x64 DMG artifacts. Branch pushes, tag pushes and pull requests do not trigger it. This fork does not distribute Linux installers or Linux remote runtime assets; phone remote control remains available.
 
 ## Setup
 
@@ -128,7 +133,7 @@ pnpm dev:desktop:test
 
 `pnpm dev:desktop` defaults to `pnpm dev:desktop:prod` and uses production service configuration. The startup script prepares local runtime assets, builds the desktop Agent, then starts Electron and source watchers.
 
-Set `ZCODE_DATA_BASE_DIR` to use a separate development data directory. For example, on macOS / Linux:
+Set `ZCODE_DATA_BASE_DIR` to use a separate development data directory. For example, on macOS:
 
 ```bash
 ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
@@ -145,7 +150,7 @@ pnpm dev:web
 ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
 ```
 
-This starts both the Web development server (default: `http://localhost:5173`) and the backend (default: `http://localhost:3030`). Open the Web development server in your browser. `/ws` and general `/api` requests are proxied to the local backend; `/api/v1/oauth/token` is proxied separately to the configured product service.
+This starts both the Web development server (default: `http://localhost:5173`) and the backend (default: `http://localhost:3030`). Open the Web development server in your browser. `/ws` and `/api` requests are proxied to the local backend; there is no official account token proxy.
 
 After changing Agent source code, run `pnpm --filter @zcode/cli... build` and restart the service. To validate the complete distribution, extract and run it as described under Packaging → ZCode CLI distribution below.
 
@@ -210,17 +215,19 @@ Runtime variables can be set explicitly in the environment of the startup comman
 
 ## Packaging
 
-### Automated builds and releases
+### Manual GitHub builds
 
-[Desktop CI](.github/workflows/desktop.yml) checks pull requests, pushes to main, manual runs, and version tags, then builds Windows x64/arm64. macOS arm64/x64 builds run only for manual runs and version tags. Windows produces exe installers and macOS produces DMG installers. No Linux installer or remote runtime is built. Download artifacts from Actions within 14 days.
+[Desktop CI](.github/workflows/desktop.yml) is the only workflow and responds only to manual `workflow_dispatch`. Branch pushes, tag pushes and pull requests do not trigger it. Checks and Windows x64/arm64 plus macOS arm64/x64 builds run in parallel from the same ref. Artifacts are `desktop-win-x64`, `desktop-win-arm64`, `desktop-mac-arm64` and `desktop-mac-x64`, retained for 14 days. Windows produces exe and macOS only DMG; no Linux installer or remote runtime is built.
 
-Pushing `v<package.json.version>` creates a **draft Release** with both platforms and `SHA256SUMS` after all checks and builds pass. Prerelease versions such as `-rc.1` are accepted; build metadata is not. Maintainers test and publish the draft manually. Reruns can replace draft assets but cannot overwrite a published release. Manual workflow runs only produce artifacts.
+The workflow only uploads Actions artifacts; it does not create or update GitHub Releases. Build only when explicitly requested and verify the target branch is already pushed; do not use a build to bypass a no-push instruction. A manual tag run must still match `v<package.json.version>`. release-it defaults to no push; version changes, commits, tags, pushes and publication each need authorization, and explicit pushes target only `origin`.
 
 The workflow uses the built-in `GITHUB_TOKEN` and needs no additional service credentials or signing certificates. Installers are unsigned. In-app updates and standalone remote runtime assets are outside this workflow. See the [CI/CD spec](.agents/specs/desktop-ci-release.md).
 
-Third-party notices are generated by [scripts/generate-third-party-notices.mjs](scripts/generate-third-party-notices.mjs) from the manifests, source copies, and license texts under [third-party/](third-party/); the output is [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), shipped with each distribution. CLI distribution assembly and verification live in [scripts/zcode-distribution/](scripts/zcode-distribution/).
+Third-party notices are generated by `node scripts/licenses.mjs notices` from the production dependency graph and source/native-component license records under [third-party/](third-party/); the output is [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), shipped with each distribution. CLI distribution assembly and verification live in [scripts/zcode-distribution/](scripts/zcode-distribution/).
 
 ### Desktop
+
+Prefer GitHub builds. Run these local packaging commands only when explicitly requested, with `ZCODE_ENV=production` set from asset preparation onward.
 
 ```bash
 pnpm bundle:desktop

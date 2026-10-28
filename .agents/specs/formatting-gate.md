@@ -28,7 +28,7 @@
 
 ### 2. 与上游逐字节对齐的文件（保持不格式化）
 
-本仓库是 `zai-org/ZCode` 的 fork，同步上游靠 scoped diff（见 `upstream-sync-3.15.1.md`）。**若格式化上游继承来的文件，它们会永久偏离上游**，每次上游改动都要在 diff 里手工过滤格式化噪声。
+本仓库按 [当前维护模型](../../docs/specs/maintenance-model.md) merge 官方核验的 tag/commit，不 rebase。scoped diff 仅用于审查影响，不是替代 merge 的同步方式。已明确登记的逐字节继承文件避免纯格式噪声，以降低后续合并审查成本；旧 `upstream-sync-3.15.1.md` 只作历史记录。
 
 因此这批文件**显式逐条列出**在 `ignorePatterns` 中，不格式化：
 

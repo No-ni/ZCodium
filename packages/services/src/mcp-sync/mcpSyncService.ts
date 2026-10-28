@@ -22,6 +22,9 @@ import type {
 } from "@zcode/shared";
 import type { IMcpSyncService } from "./mcpSync.js";
 import { checkRemoteSyncDirectoryWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
+import { createServiceLogger } from "../logger/serviceLogger.js";
+
+const logger = createServiceLogger("mcp-sync");
 
 type McpConfigKeyName = "mcp.servers" | "mcpServers";
 
@@ -534,7 +537,8 @@ async function readServerMapWithLegacyMigration(
       return freshMigration.servers;
     });
   } catch (error) {
-    console.warn("[mcp-sync] legacy enable migration failed:", filePath, formatErrorMessage(error));
+    // 迁移失败也可能携带路径和凭据；服务自身净化，不能依赖宿主 console 包装。
+    logger.warn(undefined, "legacy enable migration failed", error);
   }
   return migration.servers;
 }

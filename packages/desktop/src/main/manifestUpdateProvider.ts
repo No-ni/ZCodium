@@ -1,10 +1,6 @@
 import { posix } from "node:path";
 import type { CustomPublishOptions, PackageFileInfo } from "builder-util-runtime";
-import {
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
-  normalizeZCodeEndpointOrigin,
-  type ElectronReleaseChannel,
-} from "@zcode/shared";
+import { normalizeZCodeEndpointOrigin, type ElectronReleaseChannel } from "@zcode/shared";
 import {
   Provider,
   AppImageUpdater,
@@ -24,11 +20,11 @@ const ELECTRON_MANIFEST_API_PATH = "/api/v1/releases/electron/manifest";
 const MANIFEST_ACCEPT_HEADER = "application/x-yaml,text/yaml,text/plain,*/*";
 
 interface ManifestUpdateProviderOptions extends CustomPublishOptions {
-  endpointOrigin?: string;
+  /** 自有更新源 origin，必填；不再回退官方地址。 */
+  endpointOrigin: string;
   manifestUrl?: string;
   releasePlatform?: string;
   releaseChannel?: ElectronReleaseChannel;
-  resolveEndpointOrigin?: () => string | Promise<string>;
   resolveReleaseChannel?: () => ElectronReleaseChannel | Promise<ElectronReleaseChannel>;
 }
 
@@ -325,20 +321,24 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
   private readonly options: ManifestUpdateProviderOptions;
   private readonly releasePlatform: string;
   private readonly linuxExtensions: readonly string[] | null;
-  private resolveBaseUrl = new URL(DEFAULT_ZCODE_ENDPOINT_ORIGIN);
+  private resolveBaseUrl: URL;
 
   constructor(
-    options: ManifestUpdateProviderOptions,
+    // 构造签名必须与 electron-updater 的 CustomPublishOptions 兼容（setFeedURL 只认这个形状）；
+    // endpointOrigin 在 ManifestUpdateProviderOptions 里是必填字段，构造时做运行时校验。
+    options: CustomPublishOptions,
     updater: AppUpdater,
     runtimeOptions: ProviderRuntimeOptions,
   ) {
     super(runtimeOptions);
-    this.options = options;
+    const providerOptions = options as ManifestUpdateProviderOptions;
+    if (!providerOptions.endpointOrigin?.trim()) {
+      throw new Error("ManifestUpdateProvider requires an explicit endpointOrigin");
+    }
+    this.options = providerOptions;
     this.linuxExtensions = getLinuxUpdateExtensions(updater);
-    this.releasePlatform = options.releasePlatform?.trim() || getElectronReleasePlatform();
-    this.resolveBaseUrl = new URL(
-      normalizeZCodeEndpointOrigin(options.endpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN),
-    );
+    this.releasePlatform = providerOptions.releasePlatform?.trim() || getElectronReleasePlatform();
+    this.resolveBaseUrl = new URL(normalizeZCodeEndpointOrigin(providerOptions.endpointOrigin));
   }
 
   override get isUseMultipleRangeRequest(): boolean {
@@ -346,7 +346,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
   }
 
   override async getLatestVersion(): Promise<UpdateInfo> {
-    const endpointOrigin = await this.resolveEndpointOrigin();
+    const endpointOrigin = normalizeZCodeEndpointOrigin(this.options.endpointOrigin);
     const releaseChannel = await this.resolveReleaseChannel();
     const manifestUrl = buildElectronManifestUrl({
       endpointOrigin,
@@ -376,14 +376,6 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
 
   override resolveFiles(updateInfo: UpdateInfo): ResolvedUpdateFileInfo[] {
     return resolveManifestFiles(updateInfo, this.resolveBaseUrl, this.linuxExtensions);
-  }
-
-  private async resolveEndpointOrigin(): Promise<string> {
-    const resolved =
-      (await this.options.resolveEndpointOrigin?.()) ??
-      this.options.endpointOrigin ??
-      DEFAULT_ZCODE_ENDPOINT_ORIGIN;
-    return normalizeZCodeEndpointOrigin(resolved);
   }
 
   private async resolveReleaseChannel(): Promise<ElectronReleaseChannel> {

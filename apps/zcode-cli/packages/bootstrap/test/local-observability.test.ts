@@ -241,6 +241,13 @@ test("question input has no analytics metadata field", () => {
 
 test("protocol maintenance retains pruning and local logs with safe resource samples", (context) => {
   context.mock.timers.enable({ apis: ["setInterval"] });
+  // 本地资源采样默认关闭；本用例验证采样开启时的安全样本与本地日志。
+  const previousMonitoring = process.env.ZCODE_LOCAL_RESOURCE_MONITORING;
+  process.env.ZCODE_LOCAL_RESOURCE_MONITORING = "1";
+  context.after(() => {
+    if (previousMonitoring === undefined) delete process.env.ZCODE_LOCAL_RESOURCE_MONITORING;
+    else process.env.ZCODE_LOCAL_RESOURCE_MONITORING = previousMonitoring;
+  });
   // fake timer 不推进 hrtime；CI 执行不足 0.5ms 时会被采样器视为零间隔，必须同步两种时钟。
   let monotonicTimeNs = 0n;
   context.mock.method(process.hrtime, "bigint", () => monotonicTimeNs);

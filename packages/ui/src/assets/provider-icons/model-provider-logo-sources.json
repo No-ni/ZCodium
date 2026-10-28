@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-09-02",
+  "reviewedAt": "2026-10-24",
   "logos": [
     {
       "brand": "OpenRouter",
@@ -22,22 +22,9 @@
       "normalization": "Official 300x300 square SVG downloads, unchanged. Decoded logoLightSquareSvg / logoDarkSquareSvg from brand page asset index-CmefrukV.js. Retrieved 2026-09-07."
     },
     {
-      "brand": "Start Plan",
-      "file": "model-provider-start-plan.png",
-      "providerIds": ["account:zai-start-plan", "account:bigmodel-start-plan"],
-      "sourceUrl": "user-provided:icon_512.png",
-      "sourceOwner": "User-provided asset",
-      "normalization": "Byte-for-byte copy of the user-provided 128x128 RGBA PNG on 2026-09-17. Shared by both Start Plans in light and dark themes."
-    },
-    {
       "brand": "Z.AI",
       "file": "model-provider-zai-app.png",
-      "providerIds": [
-        "zai-api",
-        "account:zai-individual-coding-plan",
-        "account:zai-team-coding-plan",
-        "account:zai-offpeak-idle-plan"
-      ],
+      "providerIds": ["zai-api"],
       "sourceUrl": "repository:packages/desktop/build/icons/128x128.png",
       "sourceOwner": "Z.AI",
       "normalization": "Byte-for-byte copy of the existing 128x128 ZCode application PNG. No extra Dock padding, redraw, inversion or added outline."
@@ -45,12 +32,7 @@
     {
       "brand": "BigModel",
       "file": "logo-bigmodel.svg",
-      "providerIds": [
-        "bigmodel-api",
-        "account:bigmodel-individual-coding-plan",
-        "account:bigmodel-team-coding-plan",
-        "account:bigmodel-offpeak-idle-plan"
-      ],
+      "providerIds": ["bigmodel-api"],
       "sourceUrl": "repository-existing:logo-bigmodel.svg",
       "sourceOwner": "BigModel",
       "normalization": "Reuse the repository's original transparent 16x16 blue gradient BigModel vector without modification."

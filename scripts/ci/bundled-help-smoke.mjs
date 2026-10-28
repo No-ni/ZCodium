@@ -53,9 +53,9 @@ try {
     english: await window.help.resolveWebCommunityUrl("en-US"),
     chinese: await window.help.resolveWebCommunityUrl("zh-CN"),
   }));
-  assert.equal(help.english, "https://github.com/axiom-desu/ZCodium");
+  assert.equal(help.english, "https://github.com/No-ni/ZCodium");
   assert.equal(help.chinese, help.english);
-  assert.equal(help.config.feedback_url, "https://github.com/axiom-desu/ZCodium/issues/new");
+  assert.equal(help.config.feedback_url, "https://github.com/No-ni/ZCodium/issues/new");
   assert.deepEqual(requests, []);
   assert.deepEqual(errors, []);
   console.log(

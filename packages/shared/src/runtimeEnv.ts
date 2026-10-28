@@ -10,6 +10,11 @@ export const ZCODE_AGENT_CA_CERT_ENV_KEY = "ZCODE_AGENT_CA_CERT";
 export const ZCODE_TOOL_ENV_PASSTHROUGH_ENV_KEY = "ZCODE_TOOL_ENV_PASSTHROUGH_JSON";
 /** 本地桌面呈现提示开关；0 关闭，未设置时由 Host 类型决定。 */
 export const ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV = "ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED";
+/**
+ * 本地资源/网络采样总开关。只有显式设为 "1" 才启用 desktop main / host / scheduler
+ * 与 CLI 进程的后台资源采样；默认关闭。采样结果只落本地诊断日志，不上报远端。
+ */
+export const ZCODE_LOCAL_RESOURCE_MONITORING_ENV = "ZCODE_LOCAL_RESOURCE_MONITORING";
 export const ZCODE_CUA_PRODUCT_HELPER_ENV_KEY = "ZCODE_CUA_PRODUCT_HELPER";
 export const ZCODE_CUA_BROKER_SOCKET_ENV_KEY = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
 /** Shared node_repl host marker; unlike the broker bearer values it is not a secret. */
@@ -25,6 +30,11 @@ export const ZCODE_CUA_DEV_MODE_ENV_KEY = "ZCODE_CUA_DEV_MODE";
 export type ZCodeRuntimeEnv = "development" | "production" | "test";
 
 type EnvRecord = Record<string, string | undefined>;
+
+/** 本地资源/网络采样是否启用：只认显式 "1"，默认关闭。 */
+export function isLocalResourceMonitoringEnabled(env: EnvRecord = process.env): boolean {
+  return env[ZCODE_LOCAL_RESOURCE_MONITORING_ENV]?.trim() === "1";
+}
 
 export function isCuaDevModeRequested(env: EnvRecord = process.env): boolean {
   const explicit = env[ZCODE_CUA_DEV_MODE_ENV_KEY]?.trim().toLowerCase();
@@ -54,6 +64,8 @@ const SANITIZED_RUNTIME_ENV_KEYS = [
   "REQUESTS_CA_BUNDLE",
   "CURL_CA_BUNDLE",
   "GIT_SSL_CAINFO",
+  // 采样开关只属于宿主诊断，不透传给 agent / MCP / Bash 等工具子进程。
+  ZCODE_LOCAL_RESOURCE_MONITORING_ENV,
   ZCODE_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY,
   ZCODE_REMOTE_HTTP_PROXY_ENV_KEY,
   ZCODE_REMOTE_NO_PROXY_ENV_KEY,
@@ -76,6 +88,8 @@ const NON_TOOL_PASSTHROUGH_RUNTIME_ENV_KEYS = [
   "NODE_ENV",
   "ELECTRON_RUN_AS_NODE",
   "NODE_NO_WARNINGS",
+  // 采样开关只控制宿主诊断，不应经 passthrough 恢复到 Bash/tool 子进程。
+  ZCODE_LOCAL_RESOURCE_MONITORING_ENV,
   // CUA broker 凭据不得经 tool-env-passthrough 恢复到 Bash/tool 子进程（否则等于绕过上面的剔除）。
   ZCODE_CUA_BROKER_SOCKET_ENV_KEY,
   "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER",

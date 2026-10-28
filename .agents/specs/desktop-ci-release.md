@@ -12,7 +12,7 @@
 - 依赖安装使用 frozen lockfile。Node 从 mise.toml、pnpm 从 package.json 读取；同步已有依赖遗漏的锁文件项，不升级业务依赖。
 - 工具链读取器显式解析 mise.toml 的 tools 表，只接受固定版本，并验证 pnpm 与 packageManager 一致；缺失或不一致时在安装前失败。
 - 构建只使用当前源码与仓库已有资源，不读取 references/，不需要官方账号、服务凭据、私有镜像或签名证书。
-- 本 PR 不迁移技能、不新增 CUA 原生实现、不配置应用内自动更新；现有账号及遥测代码的全面移除另行实施。
+- 本 spec 的构建边界与账号/遥测审计分别维护；当前已清理的官方能力和保留例外查 `docs/specs/maintenance-model.md`，不得依据历史待办恢复。
 
 ## 所有者、接口与事件顺序
 

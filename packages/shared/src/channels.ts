@@ -437,17 +437,8 @@ export interface EmbeddedBrowserWheelBoundaryPayload {
 }
 
 // ============================================================================
-// Coding Plan WebView 频道 —— 官网页 preload ↔ App renderer
+// 插件 UI 沙箱频道
 // ============================================================================
-
-/**
- * Electron `<webview>`（partition=persist:zcode-coding-plan）的 `sendToHost` / `ipc-message` 频道。
- * 官网页通过 preload 注入的 window.zcodeBridge 调用，不经过 main process。
- */
-export const CodingPlanWebviewChannels = {
-  /** 官网页购买成功后通知 App 刷新 entitlements 并关闭 webview。 */
-  PurchaseComplete: "zcode:coding-plan-purchase-complete",
-} as const;
 
 /**
  * 插件 UI 沙箱 guest（partition=plugin-sandbox:<id>）的 main → guest preload 频道。
@@ -457,28 +448,6 @@ export const PluginSandboxChannels = {
   /** main → guest：{ sandboxId, initId, names } + port1[]，shell 据此建立宿主端口 */
   Init: "zcode:plugin-sandbox-init",
 } as const;
-
-/** 购买完成回传 payload。provider 与官网 CodingPlanProvider / auth-ready 事件 detail.provider 同构。 */
-export interface CodingPlanPurchaseCompletePayload {
-  provider: "zai" | "bigmodel";
-  /** 客户端时间戳，用于 App 侧去重/日志，不参与判等。 */
-  timestamp: number;
-}
-
-/**
- * 官网页 window.__zcodeLang__ 的取值，与 App IntlProvider 的 Locale 一致。
- * App locale 变化时通过 executeJavaScript 重写此变量并派发 lang-change 事件。
- */
-export type CodingPlanWebviewLocale = "zh-CN" | "en-US";
-
-/**
- * 官网页 lang-change 事件 detail。App 用 executeJavaScript 在 main world 派发
- * `zcode-coding-plan-lang-change` CustomEvent，website 侧（zcodeBridge.onLangChange 或
- * 直接 window.addEventListener）订阅后切换 copy。
- */
-export interface CodingPlanWebviewLangChangeDetail {
-  locale: CodingPlanWebviewLocale;
-}
 
 // ============================================================================
 // 内部传输频道 —— 框架级别的通信

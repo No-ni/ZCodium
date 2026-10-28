@@ -1,9 +1,9 @@
 # image-search 后端指向本地
 
 > [!NOTE]
-> **本规格仍然有效，只是不再是 backfill 阶段的记录。**
-> 上游 3.15.1 同步把其余插件换成了上游版本，但 image-search 未换：上游那版指向官方搜图服务并用 ZCode JWT 鉴权，本仓库仍按本文只连用户自己配置的本地端点，能力现在仍在用。
-> 相关决策依据见 [`upstream-sync-3.15.1.md`](./upstream-sync-3.15.1.md)。
+> **当前规则：用户显式配置完整 MCP URL，无默认服务。**
+> 当前 manifest 使用必填 `imageSearchMcpUrl` 和可选 `authorizationHeader`；默认不启用该插件，未配置时静默不连接。用户可以选择本地或自建远程 MCP，普通 OAuth/手动 headers 遵守通用 MCP 契约；不注入官方 JWT，不依赖官方凭据或 origin 信任白名单。
+> 以下 loopback 8787、`imageSearchBaseUrl`、`zcode_official` 与信任环境变量是已退休的历史实现，不是当前配置指令。验收见 `scripts/ci/mcp-self-managed.test.mjs` 的真实插件解析与精确 URL 连接用例；本仓不提供搜图后端。维护边界见 [维护模型](../../docs/specs/maintenance-model.md)。
 
 ## 背景
 

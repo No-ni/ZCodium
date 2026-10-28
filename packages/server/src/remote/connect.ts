@@ -59,9 +59,6 @@ const REMOTE_RUNTIME_ENV_KEYS = [
   "ZCODE_ENV",
   "ZCODE_BASE_URL",
   "ZCODE_ENDPOINT_ORIGIN",
-  "ZAI_OAUTH_ORIGIN",
-  "ZAI_BUSINESS_BASE_URL",
-  "ZAI_OAUTH_CLIENT_ID",
   // 由 Desktop Main 计算并下发；远端 server 只消费，不重新计算。
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
   // 同上：本地覆盖由 Desktop Main 按构建档位写定（buildHostProcessEnv），

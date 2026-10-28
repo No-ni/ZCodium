@@ -89,8 +89,16 @@ for (const standalone of [true, false]) {
       .resolution.resolvedProviders.filter(
         (provider) => provider.config.access?.type === "zhipu-account",
       );
-    assert.ok(accounts.length > 0);
-    assert.ok(accounts.every((provider) => provider.models.every((model) => !model.executable)));
+    assert.equal(accounts.length, 0, "builtin config must not declare account providers");
+    assert.ok(
+      registry
+        .getSnapshot()
+        .resolution.resolvedProviders.some(
+          (provider) =>
+            provider.providerId === "fixture-api" && provider.config.access?.type === "api-key",
+        ),
+      "BYO API key provider remains available",
+    );
     assert.equal(owner.providerRuntimeHeadersPort, undefined);
     assert.equal(owner.syncAccountProviderConfig, undefined);
     assert.equal(owner.accountSource, undefined);

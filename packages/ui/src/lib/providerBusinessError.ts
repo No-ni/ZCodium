@@ -5,10 +5,10 @@ export const SUSPICIOUS_EMPTY_MODEL_RESULT_MESSAGE =
   "Model returned no text, no tool calls, and no usage before completing the turn.";
 
 /**
- * 闲时票据不可用（上游 3102：票据失效或过期）。
- * 适配层会把该业务码包成 `off-peak-ticket-expired: <上游原文>` 落到 turn 错误里，
- * 外层 code 被压成 PROVIDER_BUSINESS_ERROR 等包装码时靠稳定标记兜底，
- * 否则横幅会把 "off peak ticket is invaliad or expired" 原文直接怼给用户。
+ * 历史闲时票据错误（上游 3102：票据失效或过期）。
+ * 旧适配层会把该业务码包成 `off-peak-ticket-expired: <上游原文>` 落到 turn 错误里，
+ * 也可能直接把 3102 作为 code 保留。闲时任务运行时已移除，这里只保留历史错误的
+ * 本地化展示，避免横幅把上游原文直接怼给用户。
  */
 export function resolveOffPeakTicketExpiredBusinessCode(
   code: string | undefined,

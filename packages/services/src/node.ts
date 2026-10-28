@@ -648,7 +648,7 @@ export function createDynamicCuaProductMcpServerResolver(options: {
       // 委托到底层真实 resolver（由 ICuaPermissionService.restartHelper 经此调用）。
       const resolver = await options.getResolver();
       if (!resolver) {
-        throw new Error("ZCode Computer Use is not enabled (plugin off or not product mode).");
+        throw new Error("ZCodium Computer Use is not enabled (plugin off or not product mode).");
       }
       await resolver.restart();
     },
@@ -656,7 +656,7 @@ export function createDynamicCuaProductMcpServerResolver(options: {
       // 授权完成后的 restart 必须保留 session id，才能复用底层的幂等与时序保障。
       const resolver = await options.getResolver();
       if (!resolver) {
-        throw new Error("ZCode Computer Use is not enabled (plugin off or not product mode).");
+        throw new Error("ZCodium Computer Use is not enabled (plugin off or not product mode).");
       }
       await resolver.restartAfterPermissionGrant(onboardingSessionId);
     },
@@ -1126,14 +1126,9 @@ export function createLocalServices(options: {
     resolveRuntimeZCodeEndpointOrigin(process.env, {
       overrideOrigin: (await settingService.get()).zcodeEndpointOrigin,
     });
-  let invalidatePluginUiAccounts: (() => void) | undefined;
-  // 插件 UI 账号上下文与主进程共用同一份凭据存储；provider / user_info 变化即失效绑定。
-  const credentialService = createCredentialService({
-    onDidMutate: ({ key }) => {
-      if (key === "oauth:active_provider" || /^oauth:[^:]+:user_info$/.test(key))
-        invalidatePluginUiAccounts?.();
-    },
-  });
+  // 凭据服务仍供 Provider / Bot / 账号存储使用；官方账号绑定（oauth:active_provider /
+  // oauth:<provider>:user_info）已随官方云服务移除，不再据此失效插件 UI 绑定。
+  const credentialService = createCredentialService();
   const broadcastService = createBroadcastService(options?.parentPort ?? null);
   const gitCheckpointService = createGitCheckpointService();
   const hostApiNetworkTransport =
@@ -1223,17 +1218,14 @@ export function createLocalServices(options: {
   const pluginSyncService = createPluginSyncService();
   const pluginUiAccounts = createPluginUiAccountBindings({
     async readAccount() {
-      const provider = await credentialService.load("oauth:active_provider");
-      const rawProfile = provider
-        ? await credentialService.load(`oauth:${provider}:user_info`)
-        : null;
-      const profile = rawProfile ? (JSON.parse(rawProfile) as { id?: string }) : null;
-      return [provider, profile?.id ?? null];
+      // 账号上下文以前来自官方 OAuth 凭据（oauth:active_provider / oauth:<provider>:user_info）。
+      // 官方账号体系已移除，这里改用固定本地 scope：插件 UI 仍按唯一键隔离实例，
+      // 但不再依赖任何官方账号信息，也不再因账号切换而失效绑定。
+      return ["local", null];
     },
     open: (params) => zcodeAgentService.openMcpUiInstance(params),
     close: (params) => zcodeAgentService.closeMcpUiInstance(params),
   });
-  invalidatePluginUiAccounts = () => pluginUiAccounts.invalidate();
   const pluginUiBridgeService = createPluginUiBridgeService({
     openInstance: (params) => pluginUiAccounts.open(params),
     closeInstance: (params) => pluginUiAccounts.close(params),
@@ -1365,7 +1357,7 @@ export function createLocalServices(options: {
       if (!shouldUseCuaPermissionService({ cuaEnabled: isCuaEnabledForContext(context) })) {
         return {
           available: false,
-          reason: "ZCode Computer Use is not enabled (plugin off or not product mode).",
+          reason: "ZCodium Computer Use is not enabled (plugin off or not product mode).",
         };
       }
       try {
@@ -1390,7 +1382,7 @@ export function createLocalServices(options: {
       return { ok: true };
     },
   };
-  const codingPlanSubscriptionService = createCodingPlanSubscriptionService({ apiClient });
+  const codingPlanSubscriptionService = createCodingPlanSubscriptionService();
   const zcodeAgentService = createZCodeAgentService({
     ...(modelSelectionReadinessSource ? { modelSelectionReadinessSource } : {}),
     authorizeLocalMediaPreviewPath: options?.authorizeLocalMediaPreviewPath,

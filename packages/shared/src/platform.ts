@@ -513,12 +513,9 @@ export const DesktopCommandIds = {
   ToggleDevTools: "toggleDevTools",
   OpenResourceManager: "openResourceManager",
   ToggleZCodeStdioTapDevProxy: "toggleZCodeStdioTapDevProxy",
-  SetZCodeEndpointProduction: "setZCodeEndpointProduction",
-  SetZCodeEndpointTest: "setZCodeEndpointTest",
   SetZCodeEndpointCustom: "setZCodeEndpointCustom",
   ResetZCodeEndpoint: "resetZCodeEndpoint",
   ClearAllData: "clearAllData",
-  ClearCodingPlanWebviewStorage: "clearCodingPlanWebviewStorage",
   GetCuaOsSupport: "getCuaOsSupport",
 } as const;
 

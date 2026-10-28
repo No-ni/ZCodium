@@ -269,95 +269,31 @@ else
 fi
 echo ""
 
-# ── Step 2i: Font Installation (from CDN) ──
-echo "--- [9/10] Font Installation ---"
-FONT_CDN_BASE="https://z-cdn.chatglm.cn/office-skill/fonts"
-FONT_LIST="$SCRIPT_DIR/font_list.txt"
-
+# ── Local Font Verification ──
+echo "--- Local Fonts (no automatic download or installation) ---"
 if [ "$PLATFORM" = "mac" ]; then
-    USER_FONT_DIR="$HOME/Library/Fonts"
+    FONT_DIRS=("$HOME/Library/Fonts" "/Library/Fonts" "/System/Library/Fonts")
 else
-    USER_FONT_DIR="$HOME/.local/share/fonts"
+    FONT_DIRS=("$HOME/.local/share/fonts" "$HOME/.fonts" "/usr/local/share/fonts" "/usr/share/fonts")
 fi
-mkdir -p "$USER_FONT_DIR"
-
-MARKER="$USER_FONT_DIR/.office-skill-fonts-installed"
-if [ -f "$MARKER" ]; then
-    ok "Fonts already installed (marker found). To re-install, delete $MARKER"
-else
-    if [ ! -f "$FONT_LIST" ]; then
-        fail "Font list not found: $FONT_LIST"
-        ERRORS=$((ERRORS + 1))
-    else
-        TOTAL=$(wc -l < "$FONT_LIST" | tr -d ' ')
-        INSTALLED=0
-        SKIPPED=0
-        FAILED=0
-        info "Downloading $TOTAL fonts from CDN..."
-        
-        while IFS= read -r rel_path || [ -n "$rel_path" ]; do
-            [ -z "$rel_path" ] && continue
-            fname="$(basename "$rel_path")"
-            
-            if [ -f "$USER_FONT_DIR/$fname" ]; then
-                SKIPPED=$((SKIPPED + 1))
-                continue
-            fi
-            
-            # URL-encode special chars (brackets)
-            encoded=$(echo "$rel_path" | sed 's/\[/%5B/g; s/\]/%5D/g; s/ /%20/g')
-            url="$FONT_CDN_BASE/$encoded"
-            
-            if curl -fSL --connect-timeout 15 --retry 2 -o "$USER_FONT_DIR/$fname" "$url" 2>/dev/null; then
-                INSTALLED=$((INSTALLED + 1))
-            else
-                warn "Failed to download: $rel_path"
-                FAILED=$((FAILED + 1))
-                rm -f "$USER_FONT_DIR/$fname" 2>/dev/null
-            fi
-        done < "$FONT_LIST"
-        
-        if [ "$PLATFORM" = "linux" ] && [ $INSTALLED -gt 0 ]; then
-            fc-cache -f "$USER_FONT_DIR" 2>/dev/null
-        fi
-        
-        if [ $FAILED -eq 0 ]; then
-            touch "$MARKER"
-            ok "Fonts: $INSTALLED newly installed, $SKIPPED already present (target: $USER_FONT_DIR)"
-        else
-            warn "Fonts: $INSTALLED installed, $SKIPPED skipped, $FAILED failed (marker not written, will retry next run)"
-            ERRORS=$((ERRORS + 1))
-        fi
-    fi
-fi
-
-# Set FONT_DIR to user font directory (fonts are now installed there)
-FONT_DIR="$USER_FONT_DIR"
-export FONT_DIR
-echo ""
-
-# ── Step 2j: CJK Font Verification ──
-echo "--- [10/10] CJK Font Verification ---"
+FONT_DIR=""
 CJK_FOUND=false
-
-if [ "$PLATFORM" = "mac" ]; then
-    if [ -f "$HOME/Library/Fonts/NotoSansSC[wght].ttf" ] || fc-list :lang=zh 2>/dev/null | head -1 | grep -q .; then
-        ok "CJK fonts available (Noto Sans SC or system)"
+for dir in "${FONT_DIRS[@]}"; do
+    [ -d "$dir" ] || continue
+    if [ -z "$FONT_DIR" ]; then FONT_DIR="$dir"; fi
+    if [ -n "$(find "$dir" -type f \( -iname 'NotoSansSC*' -o -iname 'NotoSerifSC*' -o -iname 'Noto*CJK*' -o -iname 'PingFang*' -o -iname 'Songti*' -o -iname '*Heiti*' -o -iname '*WenQuanYi*' -o -iname 'wqy*' \) -print -quit 2>/dev/null || true)" ]; then
         CJK_FOUND=true
     fi
-    if [ -f "$HOME/Library/Fonts/NotoSansSC[wght].ttf" ]; then
-        ok "Noto Sans SC (user fonts)"
-        CJK_FOUND=true
-    fi
-elif [ "$PLATFORM" = "linux" ]; then
-    if fc-list :lang=zh 2>/dev/null | head -1 | grep -q .; then
-        ok "CJK fonts available (fc-list)"
-        CJK_FOUND=true
-    fi
+done
+if command -v fc-list >/dev/null 2>&1 && [ -n "$(fc-list :lang=zh 2>/dev/null || true)" ]; then
+    CJK_FOUND=true
 fi
-
-if [ "$CJK_FOUND" = false ]; then
-    warn "No CJK font detected — fonts were downloaded and copied; rebuild font cache if needed"
+export FONT_DIR
+info "Using existing local fonts: $FONT_DIR"
+if [ "$CJK_FOUND" = true ]; then
+    ok "CJK fonts available (local/system)"
+else
+    warn "No CJK font detected. Choose an existing suitable font or obtain one from a trusted source with user approval."
 fi
 echo ""
 
@@ -369,5 +305,5 @@ else
     echo "  $ERRORS issue(s) found. Fix them above."
 fi
 echo "  PDF_SKILL_DIR=$PDF_SKILL_DIR"
-echo "  FONT_DIR=$FONT_DIR (user font directory)"
+echo "  FONT_DIR=$FONT_DIR (existing local font directory)"
 echo "============================================"

@@ -76,6 +76,7 @@ import {
   formatZodError,
   buildRemoteWorkspaceIdentity,
   buildRemoteEnvironmentKey,
+  isLocalResourceMonitoringEnabled,
   isRemoteWorkspaceIdentity,
   resolveWorkspaceKey,
   formatModelPickerValue,
@@ -664,15 +665,21 @@ async function dispatchManualAutomationRun(params: {
 // Node warning 不是远端连接失败，改成结构化 warn，避免默认 stderr 被误染成 error。
 process.on("warning", (warning) => logger.warn(`${warning.name}: ${warning.message}`));
 
-registerHostNetworkTelemetry(parentPort);
+// 本地资源/网络采样默认关闭；SafeDiagnostic 转发不受该开关影响。
+const localResourceMonitoringEnabled = isLocalResourceMonitoringEnabled();
+if (localResourceMonitoringEnabled) {
+  registerHostNetworkTelemetry(parentPort);
+}
 // Host 进程自身的 60 秒采样：一次读数两个出口——门控后写本地
 // `[memory]` 行，同一次读数换算成 HostResourceSample 经 parentPort 送 main 作 heap 来源。
-// services 计数器由各 service 工厂自注册。
-const hostSelfResourceTelemetry = startHostSelfResourceTelemetry({
-  logger,
-  collectCounters: collectServiceMemoryDiagnostics,
-  postMessage: parentPort ? (message) => parentPort.postMessage(message) : undefined,
-});
+// services 计数器由各 service 工厂自注册。默认关闭。
+const hostSelfResourceTelemetry = localResourceMonitoringEnabled
+  ? startHostSelfResourceTelemetry({
+      logger,
+      collectCounters: collectServiceMemoryDiagnostics,
+      postMessage: parentPort ? (message) => parentPort.postMessage(message) : undefined,
+    })
+  : null;
 
 const runtimeProcessLifecycleReporter = {
   onSpawn(event) {
@@ -1328,6 +1335,8 @@ async function createWindowRemoteConnectionHandle(params: {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "remote",
+    // SafeDiagnostic 仍转发；只有周期资源采样受本地开关控制。
+    resourceSamplingEnabled: localResourceMonitoringEnabled,
     environmentKey: resolveResourceTelemetryEnvironmentKey(params.target),
     onError: (error) => logger.warn("remote resource telemetry subscription failed", error),
   });
@@ -1473,6 +1482,7 @@ function wireLocalResourceTelemetry(services: ServiceCollection): void {
     services,
     postMessage: (message) => parentPort?.postMessage(message),
     runtimeSurface: "local",
+    resourceSamplingEnabled: localResourceMonitoringEnabled,
     onError: (error) => logger.warn("local resource telemetry subscription failed", error),
   });
 }
@@ -1891,7 +1901,7 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
 
     pluginSandboxRegistrationBridge.dispose();
     stopHostNetworkTelemetry();
-    hostSelfResourceTelemetry.stop();
+    hostSelfResourceTelemetry?.stop();
     disposeLocalResourceTelemetry();
     disposeAttachedServicePorts();
     windowHostControllerRuntime.dispose();

@@ -71,10 +71,10 @@ test("Desktop packaged/development and Web help use the same bundled links witho
     expected,
   );
   assert.deepEqual(await resolveWebHelpConfig(), expected);
-  assert.equal(expected.feedback_url, "https://github.com/axiom-desu/ZCodium/issues/new");
+  assert.equal(expected.feedback_url, "https://github.com/No-ni/ZCodium/issues/new");
   assert.equal(expected.feedback_use_external_form, true);
   for (const locale of ["en-US", "zh-CN"]) {
-    assert.equal(await resolveWebCommunityUrl(locale), "https://github.com/axiom-desu/ZCodium");
+    assert.equal(await resolveWebCommunityUrl(locale), "https://github.com/No-ni/ZCodium");
   }
   await writeFile(join(resources, "config/default.json"), "malformed");
   await assert.rejects(

@@ -28,8 +28,10 @@ async function walk(dir) {
       await walk(path);
       continue;
     }
+    // Windows 的 resolve() 使用反斜杠；路径分隔符归一后再匹配 /src/。
+    const normalizedPath = path.replaceAll("\\", "/");
     if (
-      !path.includes("/src/") ||
+      !normalizedPath.includes("/src/") ||
       !/\.(ts|tsx|js|mjs)$/.test(path) ||
       /\.test\.|\.spec\.|\.d\.ts$|diagnosticLogCatalog/.test(path)
     )

@@ -2,12 +2,17 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import type { Locale } from "@zcode/shared";
 
-const MENU_KEY_NAME = "ZCode.OpenInZCode";
+const MENU_KEY_NAME = "ZCodium.OpenInZCodium";
+const LEGACY_MENU_KEY_NAME = "ZCode.OpenInZCode";
 const DIRECTORY_MENU_KEY = `HKCU\\Software\\Classes\\Directory\\shell\\${MENU_KEY_NAME}`;
 const DRIVE_MENU_KEY = `HKCU\\Software\\Classes\\Drive\\shell\\${MENU_KEY_NAME}`;
+const LEGACY_MENU_KEYS = [
+  `HKCU\\Software\\Classes\\Directory\\shell\\${LEGACY_MENU_KEY_NAME}`,
+  `HKCU\\Software\\Classes\\Drive\\shell\\${LEGACY_MENU_KEY_NAME}`,
+];
 const MENU_LABELS: Record<Locale, string> = {
-  "zh-CN": "在ZCode中打开",
-  "en-US": "Open in ZCode",
+  "zh-CN": "在ZCodium中打开",
+  "en-US": "Open in ZCodium",
 };
 
 type Logger = {
@@ -75,6 +80,19 @@ function runRegAdd(args: readonly string[]): Promise<void> {
   });
 }
 
+/** 旧键可能不存在或被系统策略锁定；清理失败不影响新菜单安装。 */
+function runRegDelete(args: readonly string[]): Promise<void> {
+  return new Promise((resolvePromise) => {
+    const child = spawn("reg.exe", ["delete", ...args, "/f"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+
+    child.on("error", () => resolvePromise());
+    child.on("exit", () => resolvePromise());
+  });
+}
+
 export async function installWindowsOpenFolderContextMenu(options: {
   platform: NodeJS.Platform;
   executablePath: string;
@@ -99,6 +117,8 @@ export async function installWindowsOpenFolderContextMenu(options: {
 
   try {
     await Promise.all(operations.map((operation) => runRegAdd(operation.args)));
+    // 旧版本的 “在ZCode中打开” 指向同一个可执行文件；清掉旧键避免右键菜单出现两项。
+    await Promise.all(LEGACY_MENU_KEYS.map((menuKey) => runRegDelete([menuKey])));
 
     options.logger.info("[open-folder] Windows Explorer 右键菜单已安装或更新", {
       executablePath: options.executablePath,

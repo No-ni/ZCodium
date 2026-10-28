@@ -47,7 +47,7 @@ Run the platform-appropriate setup script:
 | Python pkg | openpyxl | Read/write .xlsx files |
 | Python pkg | XlsxWriter | High-performance .xlsx creation |
 | On demand (not substitutable) | LibreOffice | recalc, .xlsx-to-PDF, .csv-to-.xlsx — install it; do not swap in local Excel/WPS |
-| Font | CJK fonts (pre-installed in /usr/share/fonts) | Chinese text in spreadsheets |
+| Font | Existing local CJK fonts | Chinese text in spreadsheets |
 
 ### Manual Install by Platform
 
@@ -114,54 +114,21 @@ Alternative Windows package managers:
 
 ---
 
-## Step 3: Font Verification
+## Step 3: Local Font Verification
 
-Fonts are pre-installed in the system font directory `/usr/share/fonts/`.
+Use existing local fonts first. Setup does not download, install, register fonts, create an installation marker, or require every entry in the historical `font_list.txt` catalog. The catalog is a name reference only, not a mandatory resource source.
 
-- **Font base**: `/usr/share/fonts/`
-- **Font list**: `env_setup/font_list.txt` (78 fonts, one relative path per line)
-- The setup script reads `font_list.txt` and verifies each font exists under `/usr/share/fonts/`
+| Platform | Existing directories checked |
+|----------|------------------------------|
+| Windows | `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, `%WINDIR%\Fonts` |
+| macOS | `~/Library/Fonts`, `/Library/Fonts`, `/System/Library/Fonts` |
+| Linux (standalone CLI) | `~/.local/share/fonts`, `~/.fonts`, `/usr/local/share/fonts`, `/usr/share/fonts`, available fontconfig |
 
-### Font Directory Structure (78 fonts)
+The scripts recognize common installed CJK fonts such as Noto, Microsoft YaHei/SimSun and PingFang/Songti. Missing CJK fonts produce a warning, not an attempt to install a complete catalog. Choose an installed font suitable for the actual language and renderer. If none is available, explain the missing glyph requirement and obtain the user's approval before installing from a user-selected trusted source; check that font's license. For ReportLab, prefer a compatible static TrueType font.
 
-| Directory | Count | Description |
-|-----------|-------|-------------|
-| `truetype/lxgw-wenkai/` | 6 | LXGW WenKai — Chinese handwriting style |
-| `truetype/noto-serif-sc/` | 9 | Noto Serif SC — Chinese serif (variable + 8 static weights) |
-| `chinese/` | 14 | Noto Sans SC, Sarasa Mono SC, Liberation fallbacks |
-| `dejavu/` | 8 | DejaVu Sans/Serif/Mono — Latin/symbol fallback |
-| `emoji/` | 1 | Noto Color Emoji |
-| `english/` | 12 | Tinos, Carlito, Calibri |
-| `freefont/` | 12 | FreeSans/FreeSerif/FreeMono — open-source fallback |
-| `liberation/` | 12 | Liberation Sans/Serif/Mono — MS-metric-compatible |
-| `libreoffice/` | 1 | OpenSymbol |
-| `noto/` | 1 | Noto Color Emoji (duplicate) |
-| `wqy/` | 1 | WenQuanYi Zen Hei — CJK fallback |
-| *(root)* | 1 | Japanese Gothic |
+The POSIX script exports `FONT_DIR`; Windows exports `XLSX_FONTS_DIR`. These point to the first existing local directory above, or remain empty when no directory exists. The renderer can still resolve other installed system fonts. This check does not prove that a particular generated document has no missing glyphs: render and verify the deliverable using its existing acceptance process.
 
-### Verify Fonts Manually
-
-Check if a font exists:
-
-```bash
-ls /usr/share/fonts/truetype/chinese/NotoSansSC\[wght\].ttf
-```
-
-Verify all fonts in the list:
-
-```bash
-while read f; do
-    [ -f "$f" ] && echo "OK: $f" || echo "MISSING: $f"
-done < env_setup/font_list.txt
-```
-
-### Post-Setup Variable
-
-`FONT_DIR` is set to the system font directory:
-
-| Value | Path |
-|-------|------|
-| `FONT_DIR` | `/usr/share/fonts` |
+Linux skill support does not add a Linux Desktop build or embedded Linux runtime resource to this fork.
 
 ---
 

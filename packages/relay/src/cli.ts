@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   logger.info("relay: ready", {
     port: handle.port,
     mobileDir: mobileDir ?? "none",
-    docs: "https://github.com/axiom-desu/ZCodium/blob/main/.agents/specs/web-remote-control.md",
+    docs: "https://github.com/No-ni/ZCodium/blob/main/.agents/specs/web-remote-control.md",
   });
 
   const shutdown = async (signal: string) => {

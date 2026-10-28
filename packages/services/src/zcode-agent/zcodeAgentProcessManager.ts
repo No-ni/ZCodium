@@ -17,6 +17,8 @@ import {
   ZCODE_AGENT_RUNTIME,
   ZCODE_AGENT_PROVIDER,
   ZCODE_RUNTIME_ENV_KEY,
+  ZCODE_LOCAL_RESOURCE_MONITORING_ENV,
+  isLocalResourceMonitoringEnabled,
   resolveWorkspaceKey,
   resolveZCodeRuntimeEnv,
   sanitizeZCodeRuntimeEnv,
@@ -987,6 +989,11 @@ export class ZCodeAgentProcessManager {
       detached: shouldSpawnInDetachedProcessGroup(),
       env: {
         ...sanitizeZCodeRuntimeEnv(process.env),
+        // 采样开关默认被 sanitize 剔除，避免泄漏给工具子进程；只对由 Host 管理的 Agent
+        // 进程显式重新下发，保证桌面内 CLI 的采样行为与 Host/Main 一致。
+        ...(isLocalResourceMonitoringEnabled(process.env)
+          ? { [ZCODE_LOCAL_RESOURCE_MONITORING_ENV]: "1" }
+          : {}),
         [ZCODE_RUNTIME_ENV_KEY]: runtimeEnv,
         ...spawnEnv,
         ...effectiveCommand.env,
