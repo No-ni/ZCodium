@@ -46,7 +46,9 @@
 
 - 原树有效 161 路径已提交为 `23050742b41c3abd7ade16f161c11b4e0891b6a7`（收口官方依赖审计与本地诊断、字体维护修复），仍未推送。
 - 吸收树已建立 `sync/official-3.16.2-integration`，初始 HEAD 为 `18cc72ce`。提交前复核原提交的 126 路径字节相同、8 个删除保留、27 路径为吸收后的有意扩展，未发现原成果丢失或官方依赖复活；这是路径/源码保全，不是全量行为等价证明。
-- 最后候选 695 路径与旧清单完全一致（321 修改、8 删除、366 新文件）；中央项目内 `final-inventory-mHN8zx` 有界复核未发现敏感文件、路径链接或额外未知二进制。Office 五份二进制均为生成脚本对应的合成 fixture，许可原件保留。缓存、日志、dist、数据库/sidecar 不进入候选。最终提交、合并及主线复核在完成后另记，不能将尚未完成的步骤写成通过。
+- 最后候选 695 路径与旧清单完全一致（321 修改、8 删除、366 新文件）；中央项目内 `final-inventory-mHN8zx` 有界复核未发现敏感文件、路径链接或额外未知二进制。Office 五份二进制均为生成脚本对应的合成 fixture，许可原件保留。缓存、日志、dist、数据库/sidecar 不进入候选。695 路径已精确提交为 `417ddfb935f2c2aaca92f58e4afe19aac65b20e2`（择项吸收官方3.16.2并收口Source、Office与交互回归），没有全树 add、没有推送。
+- 性能分支普通 merge 吸收分支为 `a548ab2e`，父提交是 `23050742` / `417ddfb9`。实际8项冲突逐文件核对：四插件description、handoff/maintenance历史文档、字体/日志测试；选已证超集的吸收版本，不整树覆盖。合并后的整棵源码树与 `417ddfb9` 完全一致，两个提交均保留在祖先链。
+- 本地 main 普通 merge 性能分支为 `8a81d55f`（将性能优化与官方择项吸收成果合入主线），父提交为旧main `62f10852` / `a548ab2e`，整树仍与验收版本一致。原工作目录检出main；吸收树随后检出performance并快进到同一main提交，利用既有完整依赖复验，不安装/下载、不改产品版本。本文后续验收记录为仅文档提交，并再次快进主线与性能分支。
 - 精确暂存后，完整 `git diff --cached --check` 仅对 `cjk.pdf` / `paper.pdf` 的 PDF 格式空格报尾随空白（现有 `astextplain` 属性使 Git 将 PDF 当文本）；未改格式属性或 PDF 字节。两份 staged blob 与磁盘逐字节相同、hash 不变，其余693路径的空白检查通过。此结果不写成完整检查 exit0。
 
 ### 已核准的实际验证
@@ -70,6 +72,16 @@ Windows Node `24.18.0` / pnpm `10.33.2`；仓库 pin `24.14.0`，未切换工具
 | Office                                         | 正常包级pnpm test为20文件/89通过，唯一写白名单为fresh sandbox（`office-vitest-1jaxjv`）；实际四格式源码编译/分发6（`source-tests-bw0vUW`）、模拟seed1通过；无SEA/安装/GUI产品验收                                                                       |
 
 最终 Source/SQLite 组证据为 `verify-source-PiNkal`、`verify-fixtures-358oYE`；CLI 四区及 Office 字体15/日志2/审计9的详细证据见各分区 spec。成功、预期失败与首轮失败的日志均保留，不删除以美化结果。
+
+### 合并后主线复核
+
+验证提交为 `8a81d55fb215a49506f376638d4a6f98b93ba108`，与 `417ddfb9` 的 tree 完全相同。下列均为合并后再次实际执行，不只沿用分区口述；后续仅文档记录不改变该产品源码。
+
+- **实际 main 工作目录** `C:\vibecoding\zcodium`：`verify-gates-axYvHY` 的根 typecheck、lint、fmt、changed architecture、CLI registry全部exit0；lint3319文件0/0、format3850文件。CLI lint仍exit1（79 errors/55 warnings），整组gates因此exit1。无已跟踪源码/依赖安装改动。
+- **同一main提交的完整依赖工作树** `C:\vibecoding\zcodium-adopt-3.16.2`：`verify-gates-T1Z0G9` 同结果；`verify-cli-types-zZeLS4` CLI typecheck exit0；`main-architecture-XSxvUj` 全模块而非仅changed检查0 violations/baseline/new。原树没有新增Office package的安装链接，Office/GUI等在已有依赖的这棵同提交树运行，不新增依赖或改pin。
+- UI/store/registry再次11文件/56叶子通过（`adoption-ui-units-4VR5jm`）；Office正常薄入口再次20文件/89通过（`office-vitest-XFGPWp`）；两个真实UI场景再次2/2通过（`full-view-acceptance-wRhNLa` / `model-menu-acceptance-NeM1CU`），页面错误、失败请求、外域尝试和次级错误数组均空。浏览器只使用自有合成窗口/profile，退出已完成。
+- 实际main工作目录的审计9、no-purchase3、字体15、服务日志2再次29/29通过（`source-tests-PXsbKA`），包含已解决冲突的两个测试文件；Source两根wrapper再次2/2、实际child alias92/admission25全部通过（`source-tests-aMXoA5` / `source-tests-pzXi5V`）。不冒充已完成真实历史迁移。
+- 未推送、未触发Actions/安装包/发行；`origin/main`仍为`62f10852`、`origin/perf/linear-hotpaths`仍为`18cc72ce`。官方只读快照保持`3c5b2276`且无改动。主线无未提交有效源码，只保留原来两个未知shell残留，不删除、不提交。
 
 ### 本轮安全偏离
 
