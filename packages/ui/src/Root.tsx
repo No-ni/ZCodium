@@ -33,7 +33,7 @@ import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/root/LazySettingsPage.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
 
-import { countAllUnreadTasks } from "@/lib/unreadTaskCount.js";
+import { useWindowUnreadSnapshot } from "@/hooks/useWindowUnreadSnapshot.js";
 import {
   shouldBlockRootRender,
   shouldShowRootStartupLoading,
@@ -41,7 +41,6 @@ import {
 } from "@/lib/rootStartupGate.js";
 import { StoreProvider, useZCodeStore } from "@/store/StoreProvider.js";
 import { setMcpStorePlatform } from "@/store/mcpStore.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { TabStoreProvider, useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { isSettingsTab, isWorkspaceTab } from "@/store/tabStore.js";
 import { logger } from "@/logger.js";
@@ -210,7 +209,7 @@ function RootInner({
         );
         if (!parsed.success) {
           logger.warn("[settings] 丢弃无效的运行时偏好广播", {
-            issues: parsed.error.issues,
+            issueCount: parsed.error.issues.length,
           });
           return;
         }
@@ -259,11 +258,16 @@ function RootInner({
       .syncAppRuntimePreferences({
         askUserQuestionAutoResolutionEnabled:
           appSettings.askUserQuestionAutoResolutionEnabled !== false,
+        toolSearchMode: appSettings.toolSearchMode ?? "off",
       })
       .catch((error) => {
         logger.warn("[settings] 初始化运行时偏好失败", error);
       });
-  }, [appSettings?.askUserQuestionAutoResolutionEnabled, services.zcodeAgentService]);
+  }, [
+    appSettings?.askUserQuestionAutoResolutionEnabled,
+    appSettings?.toolSearchMode,
+    services.zcodeAgentService,
+  ]);
 
   const tabs = useTabStore((state) => state.tabs);
   const windowWorkspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
@@ -306,9 +310,8 @@ function RootInner({
     }
     return activeTab.workspacePath;
   });
-  const totalUnreadTaskCount = useZCodeSessionStore((state) =>
-    countAllUnreadTasks(state.workspaces),
-  );
+  const unreadSnapshot = useWindowUnreadSnapshot();
+  const totalUnreadTaskCount = unreadSnapshot.count;
   const addTab = useTabStore((state) => state.addTab);
   const activateTabByPath = useTabStore((state) => state.activateTabByPath);
   const tabStoreApi = useTabStoreApi();
@@ -521,6 +524,7 @@ function RootInner({
     reconnectingRemoteWorkspaceKeys,
     remoteWorkspaceErrorByWorkspaceKey,
     totalUnreadTaskCount,
+    unreadSnapshot,
     hasCompletedFullTabRestore: hasCompletedFullRestore,
     intl,
   });

@@ -20,7 +20,7 @@ modules:
   - id: session
     roots: [packages/services/src/session]
     managed: false
-    requires: [shared]
+    requires: [shared, sqlite-migrations]
     publicEntrypoints: [packages/services/src/session/contract.ts]
     owner: conversation
   - id: storage
@@ -61,6 +61,70 @@ modules:
   - id: zcode-cli
     roots: [apps/zcode-cli]
     managed: false
+    requires: [shared, sqlite-migrations]
+
+  - id: side-pane-full-view
+    roots: [packages/ui/src/side-pane-full-view]
+    managed: true
+    requires: [shared, ui]
+    publicEntrypoints:
+      [
+        packages/ui/src/side-pane-full-view/contract.ts,
+        packages/ui/src/side-pane-full-view/index.ts,
+      ]
+    layers: { domain: domain, app: app, adapters: adapters, ui: components }
+    layerOrder: [domain, app, adapters, ui]
+    owner: conversation
+
+  - id: source-server-protocol
+    roots: [packages/shared/src/source-server]
+    managed: true
+    requires: [shared]
+    publicEntrypoints:
+      [packages/shared/src/source-server/contract.ts, packages/shared/src/source-server/index.ts]
+    layers: { domain: "." }
+    owner: remote-workspace
+
+  - id: window-project-directory
+    roots: [packages/services/src/window-project-directory]
+    managed: true
+    requires: [shared, rpc, services]
+    publicEntrypoints:
+      [
+        packages/services/src/window-project-directory/contract.ts,
+        packages/services/src/window-project-directory/index.ts,
+      ]
+    layers: { domain: domain, app: app }
+    layerOrder: [domain, app]
+    owner: remote-workspace
+
+  - id: source-server-workspace
+    roots: [packages/services/src/source-server-workspace]
+    managed: true
+    requires: [shared, sqlite-migrations]
+    publicEntrypoints:
+      [
+        packages/services/src/source-server-workspace/contract.ts,
+        packages/services/src/source-server-workspace/inspection-contract.ts,
+        packages/services/src/source-server-workspace/index.ts,
+        packages/services/src/source-server-workspace/node.ts,
+      ]
+    layers: { domain: domain, app: app, adapters: adapters }
+    layerOrder: [domain, app, adapters]
+    owner: remote-workspace
+
+  - id: sqlite-migrations
+    roots: [packages/shared/src/sqlite-migrations]
+    managed: true
+    requires: []
+    publicEntrypoints:
+      [
+        packages/shared/src/sqlite-migrations/contract.ts,
+        packages/shared/src/sqlite-migrations/index.ts,
+      ]
+    layers: { domain: domain, adapters: adapters }
+    layerOrder: [domain, adapters]
+    owner: conversation
 
   - id: gen-ui-protocol
     roots: [packages/shared/src/gen-ui]
@@ -96,6 +160,19 @@ modules:
     layers: { domain: domain, app: app, adapters: adapters, ui: components }
     layerOrder: [domain, app, adapters, ui]
     owner: conversation
+
+  # Office 独立插件包沿固定官方边界登记；公共构建调度不引入宿主业务状态。
+  - id: office-runtime
+    roots: [apps/zcode-cli/packages/office-runtime]
+    managed: true
+    requires: []
+    publicEntrypoints:
+      [
+        apps/zcode-cli/packages/office-runtime/index.ts,
+        apps/zcode-cli/packages/office-runtime/contract.ts,
+      ]
+    layers: { app: "." }
+    owner: plugin
 
   # 插件 UI（MCP Apps 沙箱）：模块边界见各模块 CONTRACT.md。
   - id: mcp-apps-protocol

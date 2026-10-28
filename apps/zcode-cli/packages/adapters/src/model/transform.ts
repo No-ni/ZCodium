@@ -25,6 +25,7 @@ import { dataUrlToDataContent, unsupportedInputMediaText } from "./media-transfo
 import { normalizeOpenAiCompatibleSystemMessages } from "./system-message-compat.js";
 
 export interface AiSdkMessageTransformOptions {
+  toolSearchEnabled?: boolean;
   apiFormat?: string;
   providerOptions?: Record<string, unknown>;
   providerKind?: "openai" | "anthropic" | "openai-compatible" | "google" | "gateway" | "custom";
@@ -169,6 +170,19 @@ function toAiSdkToolResultOutput(
 
   if (typeof content === "string") return { type: "text", value: content };
 
+  const hasToolReferences = content.some((block) => block.type === "tool_reference");
+  if (hasToolReferences) {
+    const value = content.flatMap((block) => {
+      if (block.type !== "tool_reference" && (textifyStructuredContent || options.stripMedia)) {
+        const text = modelMessageContentToText([block]);
+        return text ? [{ type: "text" as const, text }] : [];
+      }
+      return contentBlockToAiSdkToolResultParts(block, options);
+    });
+    return value.length
+      ? { type: "content", value }
+      : { type: "text", value: modelMessageContentToText(content) };
+  }
   if (textifyStructuredContent) {
     return { type: "text", value: toStructuredToolResultText(content, options) };
   }
@@ -258,6 +272,16 @@ function contentBlockToAiSdkToolResultParts(
 
     case "resource_link":
       return [{ type: "text", text: modelMessageContentToText([block]) }];
+    case "tool_reference":
+      // Native-only custom content经SDK编码为真实tool_reference；stripMedia不能剥掉它。
+      return options.toolSearchEnabled && options.providerKind === "anthropic"
+        ? [
+            {
+              type: "custom",
+              providerOptions: { anthropic: { type: "tool-reference", toolName: block.toolName } },
+            },
+          ]
+        : [{ type: "text", text: modelMessageContentToText([block]) }];
   }
 }
 
@@ -347,6 +371,7 @@ function contentBlockToAiSdkAssistantParts(
 
     case "image":
     case "video":
+    case "tool_reference":
     case "file":
     case "resource_link": {
       const text = modelMessageContentToText([block]);
@@ -514,6 +539,7 @@ function contentBlockToAiSdkUserParts(
       return [{ type: "text", text: modelMessageContentToText([block]) }];
     }
 
+    case "tool_reference":
     case "resource_link":
       return [{ type: "text", text: modelMessageContentToText([block]) }];
   }

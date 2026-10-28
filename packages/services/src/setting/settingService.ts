@@ -1,5 +1,5 @@
 import { access, readFile, mkdir, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import type { AppSettings } from "@zcode/shared";
 import { ZCODE_USER_DATA_DIR_NAME, appSettingsPatchSchema, appSettingsSchema } from "@zcode/shared";
@@ -96,8 +96,7 @@ interface ReadSettingsResult {
   needsMigrationPersist: boolean;
 }
 
-async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
-  const settingsFile = getSettingsFile();
+async function readSettingsWithMeta(settingsFile = getSettingsFile()): Promise<ReadSettingsResult> {
   try {
     // 纯 HTTP 宿主没有全局 console 净化，必须在服务出口过滤；debug 也不能输出配置或路径。
     logger.debug(undefined, "reading settings");
@@ -161,8 +160,8 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
   }
 }
 
-async function readSettings(): Promise<AppSettings> {
-  return (await readSettingsWithMeta()).settings;
+async function readSettings(settingsFile = getSettingsFile()): Promise<AppSettings> {
+  return (await readSettingsWithMeta(settingsFile)).settings;
 }
 
 async function writeSettings(
@@ -171,9 +170,9 @@ async function writeSettings(
   runExclusiveCommit: (commit: () => Promise<void>) => Promise<void> = (commit) => commit(),
   enterCommitPhase: () => void = () => undefined,
   commitAccountSelection = false,
+  settingsFile = getSettingsFile(),
 ): Promise<void> {
-  const settingsDir = getSettingsDir();
-  const settingsFile = getSettingsFile();
+  const settingsDir = dirname(settingsFile);
   // Windows 下测试只改了 HOME，模块顶层常量如果在导入时就把 homedir() 固化，
   // 后续读写仍会串到真实用户目录。这里改成每次按当前环境解析配置路径，保证本地和测试都稳定。
   logger.debug(undefined, "writing settings");
@@ -208,7 +207,30 @@ async function writeSettings(
   logger.info(undefined, "settings write completed");
 }
 
-export function createSettingService(): ISettingService {
+export interface SettingServiceOptions {
+  settingsFilePath?: string;
+  fixedDataBaseDir?: string;
+}
+
+export function createSettingService(input: SettingServiceOptions = {}): ISettingService {
+  const options = { ...input };
+  if (
+    options.settingsFilePath !== undefined &&
+    (!isAbsolute(options.settingsFilePath) || options.settingsFilePath.includes("\0"))
+  )
+    throw new Error("Invalid settings file path");
+  if (
+    options.fixedDataBaseDir !== undefined &&
+    (!options.settingsFilePath ||
+      !isAbsolute(options.fixedDataBaseDir) ||
+      options.fixedDataBaseDir.includes("\0"))
+  )
+    throw new Error("Invalid fixed settings data root");
+  const resolveSettingsFile = () => options.settingsFilePath ?? getSettingsFile();
+  const projectSettings = (settings: AppSettings): AppSettings =>
+    options.fixedDataBaseDir === undefined
+      ? settings
+      : { ...settings, dataBaseDir: options.fixedDataBaseDir };
   let updateQueue = Promise.resolve();
   let commitQueue = Promise.resolve();
   let writeQueueGeneration = 0;
@@ -229,7 +251,7 @@ export function createSettingService(): ISettingService {
       // rename，两个进程会各自读到旧快照再整文件写回，后写的一方抹掉前者刚保存的字段。
       // 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
       // 进程内仍走原有 updateQueue 串行，锁只负责跨进程。
-      return withFileLock(getSettingsFile(), () =>
+      return withFileLock(resolveSettingsFile(), () =>
         withSettingsWriteQueueTimeout(
           (enterCommitPhase) => runUpdate(shouldCommit, enterCommitPhase),
           () => {
@@ -253,29 +275,39 @@ export function createSettingService(): ISettingService {
       // 设置切换后可能立即创建或冷恢复 Session；读取若越过已入队写入，
       // runtime 会固定旧开关值。先等待现有写队列，保证启动偏好读取到已提交的选择。
       await updateQueue;
-      const result = await readSettingsWithMeta();
+      const result = await readSettingsWithMeta(resolveSettingsFile());
       if (!result.needsMigrationPersist) {
-        return result.settings;
+        return projectSettings(result.settings);
       }
 
       await enqueueSettingsWrite(async (shouldCommit, enterCommitPhase) => {
-        const latest = await readSettingsWithMeta();
+        const latest = await readSettingsWithMeta(resolveSettingsFile());
         if (!latest.needsMigrationPersist) {
           return;
         }
 
         // 初始化原因：旧版设置可能已把无法区分来源的默认值落盘；升级后按 schema 统一迁移一次。
         // 迁移写盘必须进入 updateQueue，并在队列内重读最新文件，避免覆盖并发保存的其他设置。
-        await writeSettings(latest.settings, shouldCommit, runSettingsCommit, enterCommitPhase);
+        await writeSettings(
+          projectSettings(latest.settings),
+          shouldCommit,
+          runSettingsCommit,
+          enterCommitPhase,
+          false,
+          resolveSettingsFile(),
+        );
       });
 
-      return readSettings();
+      return projectSettings(await readSettings(resolveSettingsFile()));
     },
 
     async update(patch: Partial<AppSettings>, expectedAccountSettings): Promise<void> {
+      // Source 根是启动 authority，不是偏好；原先普通 update 可绕过迁移入口改写根，入队前拒绝。
+      if (options.fixedDataBaseDir !== undefined && Object.hasOwn(patch, "dataBaseDir"))
+        throw new Error("SOURCE_DATA_BASE_DIR_FIXED");
       const runUpdate = async (shouldCommit: () => boolean, enterCommitPhase: () => void) => {
         const validatedPatch = appSettingsPatchSchema.parse(normalizeSettingsPatch(patch));
-        const current = await readSettings();
+        const current = projectSettings(await readSettings(resolveSettingsFile()));
         if (expectedAccountSettings) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。
           const expected = appSettingsPatchSchema.parse(expectedAccountSettings);
@@ -306,6 +338,7 @@ export function createSettingService(): ISettingService {
           runSettingsCommit,
           enterCommitPhase,
           Object.hasOwn(patch, "providerFamilyConnectionSelections"),
+          resolveSettingsFile(),
         );
       };
 
@@ -313,6 +346,7 @@ export function createSettingService(): ISettingService {
     },
 
     async updateDataBaseDir(newDir: string | undefined): Promise<void> {
+      if (options.fixedDataBaseDir !== undefined) throw new Error("SOURCE_DATA_BASE_DIR_FIXED");
       const currentBaseDir = getDataBaseDir();
       const targetBaseDir = newDir?.trim() || homedir();
       const validation = validateDataBaseDirTarget(targetBaseDir);

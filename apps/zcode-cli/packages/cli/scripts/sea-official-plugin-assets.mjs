@@ -1,3 +1,7 @@
+import {
+  BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
+  BUILTIN_PLUGIN_ASSETS,
+} from "@zcode/shared/builtin-plugin-assets";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -76,6 +80,27 @@ export const officialSeaPlugins = [
     // 导致发布产物不 seed browser-use，进而无法装配宿主 node_repl MCP。
     version: "0.5.1",
   },
+  ...[
+    { name: "documents", directory: "documents-plugin", version: "0.1.9" },
+    { name: "spreadsheets", directory: "spreadsheets-plugin", version: "0.1.9" },
+    { name: "presentations", directory: "presentations-plugin", version: "0.1.9" },
+    { name: "pdf", directory: "pdf-plugin", version: "0.2.1" },
+  ].map(({ name, directory, version }) => {
+    const plugin = BUILTIN_PLUGIN_ASSETS.find((asset) => asset.directory === directory);
+    if (!plugin || plugin.runtimeBuildScript !== BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT) {
+      throw new Error(`Missing shared Office asset contract: ${directory}`);
+    }
+    return {
+      marketplace: "zcode-plugins-official",
+      name,
+      packageName: plugin.packageName,
+      requiresRuntime: true,
+      requiredSeedPaths: plugin.requiredSeedPaths,
+      requiredRuntimePaths: plugin.requiredRuntimePaths,
+      rootPath: join("packages", directory),
+      version,
+    };
+  }),
 ];
 
 export const collectSeaOfficialPluginAssets = async ({

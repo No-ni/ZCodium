@@ -19,6 +19,7 @@ export {
   registerMemoryDiagnosticsProvider,
 } from "./memoryDiagnostics.js";
 
+export { ISourceServerManagementService } from "./source-server-management/sourceServerManagement.js";
 // Accessor
 export type { IServiceAccessor } from "./accessor.js";
 export {
@@ -118,6 +119,13 @@ export type {
 export type { ZCodeTaskListItem } from "./session/zcodeTaskListTypes.js";
 
 export { IWindowControllerService } from "./window-controller/windowController.js";
+export {
+  IWindowProjectService,
+  IWindowRemoteProjectService,
+  IWindowProjectChangesService,
+  createWindowProjectDirectoryRuntime,
+} from "./window-project-directory/index.js";
+export type { WindowProjectDirectoryServices } from "./window-project-directory/contract.js";
 export type {
   WindowHostControllerFrame,
   WindowHostControllerMutation,

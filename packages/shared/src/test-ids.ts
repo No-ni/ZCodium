@@ -17,6 +17,36 @@ export const TID_THEME_TOGGLE = "theme-toggle";
 /** 终端显隐切换按钮 */
 export const TID_TERMINAL_TOGGLE = "terminal-toggle";
 export const TID_SIDE_PANE_TOGGLE = "side-pane-toggle";
+/** 面板完整视图开关 */
+export const TID_SIDE_PANE_FULL_VIEW_TOGGLE = "side-pane-full-view-toggle";
+/** 完整视图固定对话标签 */
+export const TID_SIDE_PANE_FULL_VIEW_CONVERSATION_TAB = "side-pane-full-view-conversation-tab";
+/** 完整视图唯一对话宿主 */
+export const TID_SIDE_PANE_FULL_VIEW_HOST = "side-pane-full-view-host";
+/** 浮窗抽屉 */
+export const TID_SIDE_PANE_FULL_VIEW_DRAWER = "side-pane-full-view-drawer";
+/** 浮窗操作栏 */
+export const TID_SIDE_PANE_FULL_VIEW_HEADER = "side-pane-full-view-header";
+/** 浮窗展开消息开关 */
+export const TID_SIDE_PANE_FULL_VIEW_EXPAND = "side-pane-full-view-expand";
+/** 浮窗最小化按钮 */
+export const TID_SIDE_PANE_FULL_VIEW_MINIMIZE = "side-pane-full-view-minimize";
+/** 浮窗拖动和菜单柄 */
+export const TID_SIDE_PANE_FULL_VIEW_HANDLE = "side-pane-full-view-handle";
+/** 浮窗运行状态 */
+export const TID_SIDE_PANE_FULL_VIEW_RUNNING = "side-pane-full-view-running";
+/** 浮窗最小化恢复圆钮 */
+export const TID_SIDE_PANE_FULL_VIEW_BUBBLE = "side-pane-full-view-bubble";
+/** 浮窗完整对话菜单项 */
+export const TID_SIDE_PANE_FULL_VIEW_MENU_OPEN_CONVERSATION =
+  "side-pane-full-view-menu-open-conversation";
+/** 浮窗最小化菜单项 */
+export const TID_SIDE_PANE_FULL_VIEW_MENU_MINIMIZE = "side-pane-full-view-menu-minimize";
+/** 浮窗新回答气泡 */
+export const TID_SIDE_PANE_FULL_VIEW_ANSWER_BUBBLE = "side-pane-full-view-answer-bubble";
+/** 浮窗回答气泡关闭按钮 */
+export const TID_SIDE_PANE_FULL_VIEW_ANSWER_BUBBLE_CLOSE =
+  "side-pane-full-view-answer-bubble-close";
 /** 终端面板关闭按钮 */
 export const TID_TERMINAL_CLOSE_BUTTON = "terminal-close-button";
 /** 浏览器显隐切换按钮 */

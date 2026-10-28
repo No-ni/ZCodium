@@ -14,11 +14,14 @@
 // 这里是治理器里**唯一**会碰时钟与定时器的地方：控制器只收 `now`；冷却到期要唤醒等待者，
 // 所以需要一个 setTimeout（可注入，unref）。
 
-import type {
-  ModelNetworkStatusEvent,
-  ModelRequestAdmission,
-  ModelRequestAdmissionTicket,
-  ModelRequestTarget,
+import { resolveWorkflowModelFailurePolicy } from "@zcode/adapters/model";
+import {
+  ModelErrorCode,
+  type ModelNetworkStatusEvent,
+  type ModelRequestFailedStatusEvent,
+  type ModelRequestAdmission,
+  type ModelRequestAdmissionTicket,
+  type ModelRequestTarget,
 } from "@zcode/contracts";
 import {
   ConcurrencyController,
@@ -214,9 +217,12 @@ function createWorkflowConcurrencyGovernor(
           case "model_request_failed":
             // retryable:true 的 failed 紧随一条 retry_scheduled——那条才是信号。
             if (event.retryable) return;
-            // 不可重试的限流：
-            // 主对话 / 工具侧撞上 3008 这类被分类器判终止的 429，仍是一次字面意义上的并发信号——
-            // 只当「链结束」会让 cap 从未因它降过。配额码也走这一支：多减一次半，run 随即停下，无害。
+            // 配额 Retry-After 表示额度窗口，而非并发冷却；否则用户恢复额度后仍无法准入。
+            // 与 runner/driver 共用停止策略，只结算尝试，真正并发拒绝仍按限流处理。
+            if (isWorkflowStopFailure(event)) {
+              settle((at) => bucket.controller.ended(at));
+              return;
+            }
             if (event.reason === "rate_limited") {
               settle((at) =>
                 bucket.controller.throttled(at, epoch, "rate_limited", event.retryAfterMs),
@@ -344,6 +350,17 @@ function createWorkflowConcurrencyGovernor(
       return buckets.get(key)?.controller.snapshot();
     },
   };
+}
+
+function isWorkflowStopFailure(event: ModelRequestFailedStatusEvent): boolean {
+  return resolveWorkflowModelFailurePolicy(
+    {
+      code: event.errorCode ?? ModelErrorCode.ModelRequestFailed,
+      reason: event.reason,
+      retryable: event.retryable,
+    },
+    event.providerErrorCode,
+  ).decision === "stop";
 }
 
 function abortedError(signal: AbortSignal): Error {

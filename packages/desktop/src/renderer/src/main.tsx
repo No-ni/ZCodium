@@ -220,6 +220,7 @@ function registerRemoteWorkspaceServicePort(params: RemoteWorkspaceServicePortRe
   registerRemoteWorkspaceSession({
     sessionId: params.sessionId,
     target: params.target,
+    sourceServerId: params.sourceServerId,
     services,
     dispose: (reason) =>
       remoteConnection.dispose(reason ?? createRemoteWorkspaceDisconnectedError()),
@@ -294,7 +295,10 @@ function handleServicePortMessage(event: MessageEvent): void {
 
 function initializeBusinessRoot(port: MessagePort): void {
   appInitialized = true;
-  const services = connectViaMessagePort(port);
+  const services = connectViaMessagePort(port, {
+    sourceServerManagementService: true,
+    windowProjectDirectory: true,
+  });
   baseServicesForRemoteSessions = services;
   registerBaseWorkspaceServices(services);
   flushPendingRemoteWorkspaceServicePorts();

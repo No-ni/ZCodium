@@ -15,7 +15,13 @@
         "@zcode/core#build",
         "@zcode/adapters#build",
         "@zcode/bootstrap#build",
-        "@zcode/i18n#build"
+        "@zcode/i18n#build",
+        "@zcode/node-repl-host#build",
+        "@zcode/browser-use-plugin#build",
+        "@zcode/documents-plugin#build",
+        "@zcode/spreadsheets-plugin#build",
+        "@zcode/presentations-plugin#build",
+        "@zcode/pdf-plugin#build"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -77,6 +83,31 @@
       "outputs": ["dist/**"],
       "cache": true,
       "env": ["ZCODE_ENV", "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE", "NODE_ENV"]
+    },
+    "@zcode/office-runtime#build": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false
+    },
+    "@zcode/documents-plugin#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "cache": false
+    },
+    "@zcode/spreadsheets-plugin#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "cache": false
+    },
+    "@zcode/presentations-plugin#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "cache": false
+    },
+    "@zcode/pdf-plugin#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "cache": false
     },
     "@zcode/node-repl-host#build": {
       "dependsOn": ["^build"],

@@ -13,6 +13,7 @@ import {
 } from "react";
 import type {
   AppSettings,
+  AppToolSearchMode,
   IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
   Locale,
@@ -47,6 +48,11 @@ import {
 const ModelProviderSection = lazy(() =>
   import("@/settings/ModelProviderSection.js").then((module) => ({
     default: module.ModelProviderSection,
+  })),
+);
+const SourceServerSettingsSection = lazy(() =>
+  import("@/settings/SourceServerSettingsSection.js").then((module) => ({
+    default: module.SourceServerSettingsSection,
   })),
 );
 const UsageStatsSection = lazy(() =>
@@ -324,6 +330,7 @@ export function SettingsPage({
   }, [sharedSettings?.recentProjects, workspaceTabs]);
   const memoryEnabled = sharedSettings?.memoryEnabled === true;
   const nativeSearchEnhancementsEnabled = sharedSettings?.nativeSearchEnhancementsEnabled !== false;
+  const toolSearchMode = sharedSettings?.toolSearchMode ?? "off";
   const askUserQuestionAutoResolutionEnabled =
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
   const [dataBaseDir, setDataBaseDir] = useState("");
@@ -472,6 +479,12 @@ export function SettingsPage({
   const handleNativeSearchEnhancementsEnabledChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ nativeSearchEnhancementsEnabled: enabled });
+    },
+    [updateSharedSettings],
+  );
+  const handleToolSearchModeChange = useCallback(
+    async (mode: AppToolSearchMode) => {
+      await updateSharedSettings({ toolSearchMode: mode });
     },
     [updateSharedSettings],
   );
@@ -1001,6 +1014,8 @@ export function SettingsPage({
                               integratedTerminalShell={integratedTerminalShell}
                               integratedTerminalShellOptions={integratedTerminalShellOptions}
                               nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
+                              toolSearchMode={toolSearchMode}
+                              onToolSearchModeChange={handleToolSearchModeChange}
                               httpProxy={httpProxy}
                               httpProxyNoProxy={httpProxyNoProxy}
                               httpProxyCaCertPath={httpProxyCaCertPath}
@@ -1080,6 +1095,10 @@ export function SettingsPage({
                             />
                           ) : activeSection === "shortcuts" ? (
                             <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
+                          ) : activeSection === "sourceServers" ? (
+                            <ServiceProvider services={localHostServices}>
+                              <SourceServerSettingsSection />
+                            </ServiceProvider>
                           ) : activeSection === "modelProvider" ? (
                             <ServiceProvider services={localHostServices}>
                               {/* 模型配置属于本机全局事实源；激活远端 workspace 时也不能注入远端 Host。 */}

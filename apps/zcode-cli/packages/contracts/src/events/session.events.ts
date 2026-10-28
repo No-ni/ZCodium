@@ -1208,6 +1208,12 @@ export function createModelUsageSummaryFromEvents(
   const usages: ModelUsage[] = [];
 
   for (const event of events) {
+    if (event.type === SessionEventType.ModelNetworkStatus) {
+      const status = event.payload as Partial<ModelNetworkStatusPayload>;
+      // 失败尝试不会产生 ModelComplete；只吸收其明确用量，不重复计算成功网络终态。
+      if (status.type === "model_request_failed" && status.usage) usages.push(status.usage);
+      continue;
+    }
     if (event.type !== SessionEventType.ModelComplete) continue;
     const payload = event.payload as Partial<ModelCompletePayload>;
     if (payload.usage) {

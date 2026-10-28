@@ -37,6 +37,7 @@ import {
   type AiSdkModelTextRequest,
   type ResolvedAiSdkModel,
 } from "./runner-runtime.js";
+import { resolveToolSearchCapability } from "./tool-search.js";
 import { createModel, type ModelExecutionRequest } from "./model.js";
 
 export type { AiSdkModelRetryOptions } from "./retry-policy.js";
@@ -117,6 +118,7 @@ export class AiSdkModelAdapter {
       return {
         messages: request.messages,
         tools: request.tools,
+        toolSearchEnabled: request.toolSearchEnabled,
         responseJsonSchema: request.responseJsonSchema,
         abortSignal: request.abortSignal,
         maxOutputTokens: request.options.maxOutputTokens,
@@ -152,6 +154,9 @@ export class AiSdkModelAdapter {
       modelId: resolved.modelId,
       displayName: options.displayName,
       properties,
+      requestCapabilities: {
+        toolSearch: resolveToolSearchCapability(options.providerConfig.api.type),
+      },
       optionSpecs: {
         maxOutputTokens: optionSpecs.maxOutputTokens,
         reasoningLevel: optionSpecs.reasoningLevel,

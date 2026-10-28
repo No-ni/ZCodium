@@ -21,6 +21,9 @@ import {
   todoReminderRuntimeMetadata,
 } from "../../agent/message-history.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { buildToolExposure, buildToolSearchAnnouncement } from "../../tool/search/exposure.js";
+import { persistRuntimeReminderMessage } from "./compact-persistence.js";
+import { refreshRuntimeToolSearchControls } from "../helpers/tool-search-controls.js";
 import { runModelBackedTurnStep } from "./turn-model-step.js";
 import {
   AUTOMATION_MUTATION_TOOL_NAMES,
@@ -107,6 +110,7 @@ export async function runRegularTurnLoop(
     finishMcp();
     throwIfTurnAborted(state.turnAbortSignal);
     const finishTools = beginLocalTurnPreparation(state.turnTraceContext, "tools");
+    refreshRuntimeToolSearchControls(this);
     const turnDisallowedTools = buildTurnDisallowedTools(state);
     // automation 派发到已 active 会话或重试恢复时，入口 metadata 可能没有带到
     // loop state；但 queryId 仍是 automation-*。provider 请求边界必须按 queryId 再硬过滤
@@ -167,24 +171,51 @@ export async function runRegularTurnLoop(
     }
     // （2026-09-12）：原"回合开始注入 plugin_ui_state reminder"已删除，插件给模型的信息
     // 一律走 ui/update-model-context。
-    const providerEntries = [...state.turnRequestState.entries];
-    const requestEntries = providerEntries;
-    // provider-visible user ordering projection 会改变最终 latest user 落点，
-    // cache-control 必须在 projection 后统一设置，避免 raw synthetic entry 抢占缓存锚点。
-    const providerProjection = buildRuntimeProviderRequestMessages(this, {
+    const toolSearchMode = this.config.toolSearch?.mode;
+    const announcement = buildToolSearchAnnouncement({
+      model: state.model,
+      mode: toolSearchMode,
+      tools,
+      registry: this.registry,
+      entries: state.turnRequestState.entries,
+    });
+    if (announcement) {
+      // 公告先落原提醒路径，再提交 canonical/request history，续写与冷恢复不重复生成。
+      await persistRuntimeReminderMessage.call(
+        this,
+        announcement,
+        Date.now(),
+        state.turnTraceContext,
+        state.model,
+      );
+      commitTurnRequestEntries(this, state.turnRequestState, [announcement]);
+    }
+    const requestEntries = [...state.turnRequestState.entries];
+    const exposure = buildToolExposure({
+      model: state.model,
+      mode: toolSearchMode,
+      tools,
+      registry: this.registry,
       entries: requestEntries,
+    });
+    // provider-visible user ordering projection 会改变最终 latest user 落点，
+    // cache-control 必须在 ToolSearch 与 ordering projection 后统一设置；请求副本不回写历史。
+    const providerProjection = buildRuntimeProviderRequestMessages(this, {
+      entries: exposure.entries,
       applyCacheControl: true,
       model: state.model,
+      toolSearchProjected: true,
     });
     const { messages } = providerProjection;
-    const recordableEntries = filterOutputTokenContinuationEntries(requestEntries);
+    const recordableEntries = filterOutputTokenContinuationEntries(exposure.entries);
     const recordableProjection =
-      recordableEntries === requestEntries
+      recordableEntries === exposure.entries
         ? providerProjection
         : buildRuntimeProviderRequestMessages(this, {
             entries: recordableEntries,
             applyCacheControl: true,
             model: state.model,
+            toolSearchProjected: true,
           });
     state.turnMachine = new TurnMachineImpl(
       state.turnMachine.startModelRequest(
@@ -211,7 +242,9 @@ export async function runRegularTurnLoop(
       sourceEntries: providerProjection.sourceEntries,
       requestEntries,
       recordedMessages: recordableProjection.messages,
-      tools,
+      tools: exposure.tools,
+      toolSearch: exposure.context,
+      toolSearchEnabled: exposure.enabled && exposure.context.mode === "native",
     });
 
     if (result === "break") {

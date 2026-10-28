@@ -1,3 +1,4 @@
+import type { BashFileOutput } from "./bash-file-output.js";
 import type { SpawnOptions } from "node:child_process";
 import type { ZCodeToolExecResource } from "@zcode/shared";
 import type { NetworkEgressEnvPolicy } from "../network/subprocess-env.js";
@@ -32,7 +33,14 @@ export interface ExecutionOutputPaths {
   stdoutPersistedOutputPath?: string;
 }
 
+export interface PreparedBashOutput {
+  file: BashFileOutput;
+  legacyOutputEncoding: string | null;
+  releasePreparation: () => void;
+}
+
 export interface InternalExecutionRunOptions extends ExecutionRunOptions {
+  preparedBashOutput?: PreparedBashOutput;
   onOutputEncodingResolved?: (encoding: string | null) => void;
   /** Bash 移交时停止前台预览并重启文件 watchdog；不复制进程或输出。 */
   bashLifecycle?: {
@@ -74,6 +82,7 @@ export interface ActiveExecutionRecord {
 export interface NodeExecutionAdapterOptions {
   onToolExecResource?: (sample: ZCodeToolExecResource) => void;
   outputRootDir?: string;
+  bashOutputTempDir?: string;
   maxPersistedOutputBytes?: number;
   network?: NetworkEgressEnvPolicy;
   platform?: NodeJS.Platform;

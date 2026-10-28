@@ -192,6 +192,7 @@ export function openWorkspaceBridge(
       remoteSessionId: target.remoteSessionId,
       kind: target.kind,
       entryKind: request.taskId ? "task" : "home",
+      capabilities: { windowProjectDirectory: { version: 1 } },
     },
   };
 }

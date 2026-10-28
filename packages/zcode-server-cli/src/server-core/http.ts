@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { hostname } from "node:os";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
@@ -18,11 +18,13 @@ import {
   IZCodeAgentService,
   ServiceCollection,
 } from "@zcode/services";
+import { ISourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace";
 import { createServiceLogger } from "@zcode/services/node";
 import {
   SERVER_REMOTE_PROTOCOL_VERSION,
   ZCODE_RPC_HOST_CAPABILITY_HEADER,
   ZCODE_VERSION,
+  ZCODE_COMPATIBILITY_MANIFEST,
   type ServerRemoteInfo,
 } from "@zcode/shared";
 import { createHostCapabilityStore, type HostCapabilityStore } from "./hostCapability.js";
@@ -120,6 +122,8 @@ export async function createCoreHttpServer(
     host?: string;
     port?: number;
     serverId?: string;
+    ingressToken?: string;
+    providerProvisioningV2?: boolean;
     hostCapabilityStore?: HostCapabilityStore;
   } = {},
 ): Promise<CoreHttpServer> {
@@ -132,15 +136,33 @@ export async function createCoreHttpServer(
       `Non-loopback host ${host} requires authentication before the server can listen`,
     );
   }
+  const token = options.ingressToken;
+  if (token !== undefined && !/^[a-f0-9]{64}$/.test(token))
+    throw new Error("Invalid Source ingress token");
+  if (token)
+    app.use("*", async (context, next) => {
+      const supplied = context.req.header("authorization")?.replace(/^Bearer /, "") ?? "";
+      const actual = Buffer.from(supplied);
+      const expected = Buffer.from(token);
+      if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
+        return context.json({ error: "Unauthorized" }, 401);
+      await next();
+    });
   const info: ServerRemoteInfo = {
     serverId: options.serverId ?? hostname() ?? "zcode-server",
     version: ZCODE_VERSION,
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
-    authRequired: false,
+    authRequired: Boolean(token),
+    compatibility: ZCODE_COMPATIBILITY_MANIFEST,
     workspaces: [],
     capabilities: {
       desktopContinuous: true,
       websocketRpc: true,
+      sourceServer: true,
+      ...(services.getOptional(ISourceWorkspaceInspectionService)
+        ? { sourceWorkspaceInspectionV1: true as const }
+        : {}),
+      ...(options.providerProvisioningV2 ? { providerProvisioningV2: true as const } : {}),
     },
   };
   // 裸 Set 无法落实 expiresAt，未消费的 capability 会一直有效并持续累积。

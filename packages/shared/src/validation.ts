@@ -1,3 +1,4 @@
+import { hostWindowProjectDirectoryProjectionSchema } from "./window-project-directory.js";
 import { DiagnosticRecordSchema } from "./diagnostics.js";
 import { z } from "zod";
 import { databaseStartupControlSchema, databaseStartupStateSchema } from "./database-startup.js";
@@ -157,6 +158,8 @@ export const windowHostRemoteWorkspaceDescriptorSchema = z
     workspacePath: nonEmptyStringSchema.optional(),
     workspaceIdentity: nonEmptyStringSchema.optional(),
     generation: z.number().int().positive(),
+    sourceServerId: nonEmptyStringSchema.optional(),
+    configurationMode: z.enum(["target", "mirror-personal"]).optional(),
   })
   .strict();
 export type WindowHostRemoteWorkspaceDescriptor = z.infer<
@@ -203,6 +206,10 @@ export const hostBindRemoteWorkspaceContextMessageSchema = z
     workspaceIdentity: nonEmptyStringSchema,
   })
   .strict();
+
+export type HostBindRemoteWorkspaceContextMessage = z.infer<
+  typeof hostBindRemoteWorkspaceContextMessageSchema
+>;
 
 export const hostDisposeRemoteWorkspaceSessionMessageSchema = z
   .object({
@@ -432,6 +439,7 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-control"), control: databaseStartupControlSchema })
     .strict(),
+  hostWindowProjectDirectoryProjectionSchema,
   hostResourceUsageSnapshotRequestMessageSchema,
   z
     .object({ type: z.literal("resource-usage-snapshot-cancel"), requestId: nonEmptyStringSchema })
@@ -487,6 +495,31 @@ export const hostRemoteWorkspaceConnectFailedResponseSchema = z
     error: nonEmptyStringSchema,
   })
   .strict();
+
+export const hostRemoteWorkspaceContextBindReadyResponseSchema = z
+  .object({
+    type: z.literal("remote-workspace-context-bind-ready"),
+    requestId: nonEmptyStringSchema,
+    remoteSessionId: nonEmptyStringSchema,
+    workspacePath: nonEmptyStringSchema,
+    workspaceIdentity: nonEmptyStringSchema,
+    generation: z.number().int().positive(),
+  })
+  .strict();
+export type HostRemoteWorkspaceContextBindReadyResponse = z.infer<
+  typeof hostRemoteWorkspaceContextBindReadyResponseSchema
+>;
+export const hostRemoteWorkspaceContextBindFailedResponseSchema = z
+  .object({
+    type: z.literal("remote-workspace-context-bind-failed"),
+    requestId: nonEmptyStringSchema,
+    remoteSessionId: nonEmptyStringSchema,
+    error: nonEmptyStringSchema,
+  })
+  .strict();
+export type HostRemoteWorkspaceContextBindFailedResponse = z.infer<
+  typeof hostRemoteWorkspaceContextBindFailedResponseSchema
+>;
 
 export const hostRemoteWorkspaceClosedResponseSchema = z
   .object({
@@ -959,6 +992,8 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostRemoteWorkspaceConnectionLogResponseSchema,
   hostRemoteWorkspaceConnectedResponseSchema,
   hostRemoteWorkspaceConnectFailedResponseSchema,
+  hostRemoteWorkspaceContextBindReadyResponseSchema,
+  hostRemoteWorkspaceContextBindFailedResponseSchema,
   hostRemoteWorkspaceClosedResponseSchema,
   hostLogResponseSchema,
   hostAgentProcessSpawnedResponseSchema,

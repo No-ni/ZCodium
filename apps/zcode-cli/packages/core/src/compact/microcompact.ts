@@ -250,8 +250,13 @@ function hasMediaToolResultContent(content: ModelMessageContent): boolean {
   if (!Array.isArray(content)) return false;
   return content.some((block) => {
     if (!block || typeof block !== "object" || !("type" in block)) return false;
-    // video 与 image/file 同为受保护媒体：Read 视频结果漏判会被 microcompact 清掉。
-    return block.type === "image" || block.type === "video" || block.type === "file";
+    // 媒体与 ToolSearch 引用是结构化恢复事实，不能在自定义 compactableTools 下被清成文本。
+    return (
+      block.type === "image" ||
+      block.type === "video" ||
+      block.type === "file" ||
+      block.type === "tool_reference"
+    );
   });
 }
 

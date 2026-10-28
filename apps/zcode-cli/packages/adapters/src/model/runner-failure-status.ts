@@ -1,9 +1,11 @@
 import {
   ModelFailureReason,
+  type ModelUsage,
   type ModelApiErrorPhase,
   type ModelFailureExceptionKind,
 } from "@zcode/contracts";
 import { APICallError } from "ai";
+import { AiSdkModelAdapterError } from "./errors.js";
 import {
   findProviderBusinessError,
   inspectProviderFailure,
@@ -92,8 +94,10 @@ export function modelFailureStatusFields(
   providerErrorMessage?: string;
   providerRequestId?: string;
   retryAfterMs?: number;
+  usage?: ModelUsage;
 } {
   return {
+    ...(error instanceof AiSdkModelAdapterError && error.usage ? { usage: error.usage } : {}),
     errorCode: failure.code,
     errorPhase,
     exceptionType: exceptionType(error),

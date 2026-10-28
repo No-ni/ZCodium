@@ -241,7 +241,6 @@ export class SqliteSessionStore
     const startupLockTimeoutMs =
       options.startupLockTimeoutMs ?? DEFAULT_SQLITE_STARTUP_LOCK_TIMEOUT_MS;
     try {
-      ensureParentDir(this.dbPath);
       maybeThrowStorageFsFault({ operation: "sqliteOpen", path: this.dbPath });
       // 多个本地或远程 Agent 会共享同一个 session DB；timeout 必须在执行首条
       // PRAGMA 前生效，否则并发启动会在 migration prelude 直接抛 database is locked。
@@ -273,8 +272,18 @@ export class SqliteSessionStore
     options: SqliteSessionStoreOptions = {},
     migrationOptions: AsyncSqliteMigrationOptions = {},
   ): Promise<SqliteSessionStore> {
+    migrationOptions.signal?.throwIfAborted();
+    const dbPath = options.dbPath ?? getDefaultSessionDbPath();
+    try {
+      await ensureParentDir(dbPath, migrationOptions.signal);
+    } catch (error) {
+      migrationOptions.signal?.throwIfAborted();
+      throw new SqliteSessionMigrationError("Failed to prepare SQLite session database directory", {
+        cause: error, dbPath, kind: "open_failed",
+      });
+    }
     // 未迁移的实例只保留在这个工厂内部；所有 Repo/业务只可能拿到 COMMIT 后的连接。
-    const store = new SqliteSessionStore(options, deferredStartup);
+    const store = new SqliteSessionStore({ ...options, dbPath }, deferredStartup);
     try {
       await runSqliteSessionMigrationsAsync(store.db, store.dbPath, migrationOptions);
       return store;
@@ -1015,8 +1024,10 @@ export function createSqliteSessionStore(
 
 export function openStartupSqliteSessionStore(
   options: SqliteSessionStoreOptions = {},
-): SqliteSessionStore {
-  return new SqliteSessionStore(options);
+  migrationOptions: AsyncSqliteMigrationOptions = {},
+): Promise<SqliteSessionStore> {
+  // 同步构造只验收已准备账本，不能创建 Source 首次库或处理取消；公开启动入口复用唯一异步 owner。
+  return SqliteSessionStore.openStartup(options, migrationOptions);
 }
 
 export { getDefaultSessionDbPath };

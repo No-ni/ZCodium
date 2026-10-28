@@ -10,6 +10,7 @@ import { AiSdkModelAdapterError } from "./errors.js";
 import { isAnthropicFirstPartyModelId, toStrictToolSchema } from "./strict-tool-schema.js";
 
 export interface AiSdkToolTransformOptions {
+  toolSearchEnabled?: boolean;
   requiresMfjsToolSchema?: boolean;
   supportsNativeWebSearch?: boolean;
   providerKind?: "openai" | "anthropic" | "openai-compatible" | "google" | "gateway" | "custom";
@@ -44,7 +45,7 @@ export function toAiSdkTools(
       ),
       ...(strictSchema === undefined ? {} : { strict: true }),
       needsApproval: contract.needsApproval,
-      ...providerOptionsForClientTool(options),
+      ...providerOptionsForClientTool(options, contract),
     };
 
     if (!contract.execute) {
@@ -223,7 +224,10 @@ function asPlainRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function providerOptionsForClientTool(options: AiSdkToolTransformOptions): {
+function providerOptionsForClientTool(
+  options: AiSdkToolTransformOptions,
+  contract: ModelToolContract,
+): {
   providerOptions?: Record<string, Record<string, boolean>>;
 } {
   if (options.providerKind !== "anthropic") {
@@ -238,6 +242,7 @@ function providerOptionsForClientTool(options: AiSdkToolTransformOptions): {
     providerOptions: {
       anthropic: {
         eagerInputStreaming: false,
+        ...(options.toolSearchEnabled && contract.deferLoading ? { deferLoading: true } : {}),
       },
     },
   };

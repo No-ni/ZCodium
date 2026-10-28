@@ -1,6 +1,10 @@
 import type { V4ConversationTurnDirectoryResult } from "@zcode/shared/zcode-protocol-v4";
 import type { SessionActivity } from "@zcode/shared/zcode-protocol-v4";
-import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@zcode/shared";
+import type {
+  AppToolSearchMode,
+  BackgroundBashOutputResult,
+  SessionDebugSnapshot,
+} from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
@@ -576,6 +580,7 @@ export type ZCodeAgentServiceEvent =
 
 export interface ZCodeAgentAppRuntimePreferences {
   askUserQuestionAutoResolutionEnabled: boolean;
+  toolSearchMode?: AppToolSearchMode;
 }
 
 export interface ZCodeAgentLocalRuntimeChildProcesses {

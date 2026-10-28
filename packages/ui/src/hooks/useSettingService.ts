@@ -194,11 +194,16 @@ export function useSettings() {
       await measureOperation("settings", () => settingService.update(patch));
       platform.syncAppSettings?.(patch);
       await refresh();
-      if (typeof patch.askUserQuestionAutoResolutionEnabled === "boolean") {
+      if (
+        typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
+        patch.toolSearchMode !== undefined
+      ) {
+        // 单飞 refresh 可能仍返回保存前快照；运行时同步必须重新读取设置 owner，不能重置另一项偏好。
+        const committedSettings = await settingService.get();
         const preferences = {
           askUserQuestionAutoResolutionEnabled:
-            patch.askUserQuestionAutoResolutionEnabled ??
-            settingsStore.snapshot.settings?.askUserQuestionAutoResolutionEnabled !== false,
+            committedSettings.askUserQuestionAutoResolutionEnabled !== false,
+          toolSearchMode: committedSettings.toolSearchMode ?? "off",
         };
         const syncResults = await Promise.allSettled([
           zcodeAgentService.syncAppRuntimePreferences(preferences),
@@ -216,15 +221,7 @@ export function useSettings() {
         }
       }
     },
-    [
-      botsService,
-      broadcastService,
-      settingService,
-      settingsStore,
-      zcodeAgentService,
-      platform,
-      refresh,
-    ],
+    [botsService, broadcastService, settingService, zcodeAgentService, platform, refresh],
   );
 
   return {

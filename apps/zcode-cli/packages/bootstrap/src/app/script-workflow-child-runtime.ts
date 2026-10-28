@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createNodeContextSourceAdapter } from "@zcode/adapters/context";
 import { createNodeExecutionAdapter } from "@zcode/adapters/exec";
@@ -127,6 +128,8 @@ export function createScriptWorkflowAgentRuntime(input: {
     input.childSessionId,
     {
       ...inheritedConfig,
+      // 创建可能晚于设置更新；mode 只读父 runtime 当前事实，不复用装配时的旧配置对象或发现历史。
+      toolSearch: { mode: input.deps.runtime.getToolSearchMode() },
       ...(systemPrompt === undefined ? {} : { systemPrompt }),
       agentName: input.request.opts?.agentType ?? "zcode-workflow",
       maxTurns: input.request.opts?.maxTurns ?? input.deps.runtimeConfig.maxTurns,
@@ -212,6 +215,7 @@ function createRuntimeDeps(
           caCertFile: deps.configResult.config.network.caCertFile,
         },
         outputRootDir: join(deps.storageRoot, "cli", "exec"),
+        bashOutputTempDir: tmpdir(),
         processEnv: deps.appOptions.env ?? process.env,
       }),
     fileSystemPort: deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),

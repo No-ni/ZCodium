@@ -1,4 +1,5 @@
 import type { GitChangeSourceId } from "@zcode/shared";
+import type { SidePaneFullViewState } from "@/side-pane-full-view/contract.js";
 import {
   normalizeWorkspaceSidePaneState,
   type WorkspaceSidePaneState,
@@ -9,6 +10,7 @@ interface TaskSidePaneMemoryState {
   isSidePaneCollapsed: boolean;
   /** 对话级展开/收起偏好；tabs 本身仍按 workspace 复用。 */
   sidePaneCollapsedByOwner: Record<string, boolean>;
+  sidePaneFullViewByOwner: Record<string, SidePaneFullViewState>;
   /** 工具调用的自动打开已消费记录；不随消息行卸载清空。 */
   pluginUiAutoOpenKeys: ReadonlySet<string>;
   activeGitSourceId: GitChangeSourceId;
@@ -21,6 +23,7 @@ const DEFAULT_TASK_SIDE_PANE_MEMORY_STATE: TaskSidePaneMemoryState = {
   sidePaneState: null,
   isSidePaneCollapsed: true,
   sidePaneCollapsedByOwner: {},
+  sidePaneFullViewByOwner: {},
   pluginUiAutoOpenKeys: new Set(),
   activeGitSourceId: "unstaged",
   browserUrls: {},
@@ -143,6 +146,30 @@ export function saveTaskSidePaneCollapsedPreference(
       [ownerKey]: isSidePaneCollapsed,
     },
   });
+}
+
+export function peekTaskSidePaneFullView(
+  key: string | null,
+  ownerId: string | null,
+): SidePaneFullViewState | null {
+  return key
+    ? (taskSidePaneMemory.get(key)?.sidePaneFullViewByOwner?.[
+        ownerId ?? DRAFT_SIDE_PANE_OWNER_KEY
+      ] ?? null)
+    : null;
+}
+
+export function saveTaskSidePaneFullView(
+  key: string | null,
+  ownerId: string | null,
+  value: SidePaneFullViewState | null,
+): void {
+  if (!key) return;
+  const byOwner = { ...readTaskSidePaneMemoryState(key).sidePaneFullViewByOwner };
+  const owner = ownerId ?? DRAFT_SIDE_PANE_OWNER_KEY;
+  if (value) byOwner[owner] = Object.freeze({ ...value });
+  else delete byOwner[owner];
+  saveTaskSidePaneMemoryState(key, { sidePaneFullViewByOwner: byOwner });
 }
 
 export function claimPluginUiSidePaneAutoOpen(

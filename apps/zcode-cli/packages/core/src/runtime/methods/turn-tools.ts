@@ -1,3 +1,4 @@
+import type { ToolSearchExecutionContext } from "@zcode/contracts";
 import { createPartId, traceContextToLogContext, TurnMachineImpl } from "../deps.js";
 import type {
   MessageId,
@@ -46,6 +47,7 @@ export async function executeToolCallsForModelStep(
     result: RuntimeModelTextResult;
     streamedToolResults?: StreamedToolExecutionResult[];
     toolCalls: ModelToolCall[];
+    toolSearch?: ToolSearchExecutionContext;
   },
 ): Promise<"continue" | "break"> {
   const model = state.model;
@@ -60,6 +62,7 @@ export async function executeToolCallsForModelStep(
     // 让 executor 强制走 registry miss，而不是把 storage 占位值当成真实工具。
     name: tc.name,
     input: tc.input,
+    ...(tc.modelCallWrapper ? { modelCallWrapper: tc.modelCallWrapper } : {}),
   }));
   const streamedResultsById = new Map(
     (options.streamedToolResults ?? []).map((entry) => [entry.toolCallId, entry]),
@@ -178,6 +181,7 @@ export async function executeToolCallsForModelStep(
     });
     const execution = await this.executeTools(pendingToolCalls, pendingSchedule, {
       automationTurn: isAutomationMutationRestrictedTurn(state),
+      toolSearch: options.toolSearch,
       signal: state.turnAbortSignal,
       traceContext: options.modelTraceContext,
       subagentModelOverride: state.subagentModelOverride,
@@ -204,6 +208,9 @@ export async function executeToolCallsForModelStep(
               tool: projectedToolName.toolName,
               metadata: {
                 ...projectedToolName.metadata,
+                ...(toolCall.modelCallWrapper
+                  ? { modelCallWrapper: toolCall.modelCallWrapper }
+                  : {}),
                 ...(modelToolCallById.get(toolCall.id)?.providerOptions
                   ? { providerOptions: modelToolCallById.get(toolCall.id)!.providerOptions }
                   : {}),
@@ -313,6 +320,9 @@ export async function executeToolCallsForModelStep(
           tool: projectedResultToolName.toolName,
           metadata: {
             ...projectedResultToolName.metadata,
+            ...(modelToolCallById.get(result.toolCallId)?.modelCallWrapper
+              ? { modelCallWrapper: modelToolCallById.get(result.toolCallId)!.modelCallWrapper }
+              : {}),
             ...(modelToolCallById.get(result.toolCallId)?.providerOptions
               ? { providerOptions: modelToolCallById.get(result.toolCallId)!.providerOptions }
               : {}),

@@ -63,7 +63,7 @@ test("retired idle configuration RPC is absent and never consults official crede
 });
 
 test("database startup preserves retired queue rows without resuming or rewriting them", async (t) => {
-  const { runTasksDatabaseMigrations } = await tsImport(
+  const { runTasksDatabaseMigrationsAsync } = await tsImport(
     "../../packages/services/src/session/tasksDatabase/migrations.ts",
     import.meta.url,
   );
@@ -76,7 +76,7 @@ test("database startup preserves retired queue rows without resuming or rewritin
   const path = join(dir, "tasks.sqlite");
   const db = new DatabaseSync(path);
   try {
-    runTasksDatabaseMigrations(db);
+    await runTasksDatabaseMigrationsAsync(db, { backupDirectories: [join(dir, "backups")] });
     const insert = db.prepare(
       "INSERT INTO off_peak_tasks (off_peak_task_id, prompt, permission_mode, workspace_key, workspace_path, status, queued_at, created_at, updated_at) VALUES (?, 'Historical instructions', 'build', '/fixture', '/fixture', ?, 1, 1, 1)",
     );

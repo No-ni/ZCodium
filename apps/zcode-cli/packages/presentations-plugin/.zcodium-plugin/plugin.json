@@ -1,15 +1,41 @@
 {
   "name": "presentations",
   "version": "0.1.9",
-  "description": "PPTX presentation production skills, published as an official ZCode plugin.",
+  "description": "PPTX presentation production skills, published as an official ZCode plugin. Includes a read-only workspace viewer for shared reading, search, references and captures.",
   "description_i18n": {
-    "en": "Presentation production skills for PPTX, with a visual acceptance reviewer agent.",
-    "zh-CN": "面向 PPTX 的演示文稿制作技能，并提供视觉验收评审 Agent。"
+    "en": "Presentation production skills for PPTX, with a visual acceptance reviewer agent. Read together in a read-only workspace panel with anchor references, search, highlights and captures.",
+    "zh-CN": "面向 PPTX 的演示文稿制作技能，并提供视觉验收评审 Agent。 支持工作区只读共同阅读、锚点引用、搜索、高亮与截图。"
   },
   "author": {
     "name": "ZCodium"
   },
   "license": "Apache-2.0",
   "skills": "skills",
-  "agents": "agents"
+  "agents": "agents",
+  "mcpServers": {
+    "presentations": {
+      "cwd": "${ZCODE_PROJECT_DIR}",
+      "command": "node",
+      "type": "stdio",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"],
+      "env": {
+        "ZCODE_WORKSPACE_ROOT": "${ZCODE_PROJECT_DIR}"
+      }
+    }
+  },
+  "ui": {
+    "surfaces": [
+      {
+        "server": "presentations",
+        "title": {
+          "zh-CN": "演示文稿",
+          "en-US": "Presentations"
+        },
+        "availability": "session",
+        "icon": "file-text",
+        "resourceUri": "ui://presentations/panel.html",
+        "id": "presentations"
+      }
+    ]
+  }
 }

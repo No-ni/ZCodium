@@ -5,6 +5,8 @@ import {
   toolCallListWorkflowRunsDisplaySchema,
   toolCallResumeWorkflowRunDisplaySchema,
   toolCallSavedWorkflowListDisplaySchema,
+  toolCallToolSearchDisplaySchema,
+  type ToolCallToolSearchDisplay,
   type ToolCallEvalWorkflowSnippetDisplay,
   type ToolCallGetWorkflowRunDisplay,
   type ToolCallListModelsDisplay,
@@ -75,6 +77,7 @@ export type ToolResultDisplay =
   | ToolCallEvalWorkflowSnippetDisplay
   | ToolCallSavedWorkflowListDisplay
   | ToolCallListModelsDisplay
+  | ToolCallToolSearchDisplay
   | ToolCallResumeWorkflowRunDisplay;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -90,6 +93,7 @@ const WORKFLOW_DISPLAY_PARSERS_BY_KIND: Record<
   string,
   (value: Record<string, unknown>) => ToolResultDisplay | undefined
 > = {
+  tool_search: (value) => parseWorkflowDisplay(toolCallToolSearchDisplaySchema, value),
   get_workflow_run: (value) => parseWorkflowDisplay(toolCallGetWorkflowRunDisplaySchema, value),
   list_workflow_runs: (value) => parseWorkflowDisplay(toolCallListWorkflowRunsDisplaySchema, value),
   eval_workflow_snippet: (value) =>

@@ -353,8 +353,8 @@
         {
           "templateId": "xiaomi-mimo",
           "templateNameMap": {
-            "zh-CN": "Xiaomi MiMo",
-            "en-US": "Xiaomi MiMo"
+            "zh-CN": "Xiaomi MiMo API",
+            "en-US": "Xiaomi MiMo API"
           },
           "config": {
             "access": {
@@ -365,7 +365,29 @@
               "type": "anthropic-messages",
               "baseUrl": "https://api.xiaomimimo.com/anthropic"
             },
-            "builtinModelIds": ["mimo-v2.5-pro", "mimo-v2.5"],
+            "builtinModelIds": ["mimo-v2.6-pro", "mimo-v2.6-flash", "mimo-v2.5-pro", "mimo-v2.5"],
+            "logo": {
+              "type": "builtin",
+              "key": "xiaomi-mimo"
+            }
+          }
+        },
+        {
+          "templateId": "xiaomi-mimo-token-plan",
+          "templateNameMap": {
+            "zh-CN": "Xiaomi MiMo Token Plan",
+            "en-US": "Xiaomi MiMo Token Plan"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://platform.xiaomimimo.com/"
+            },
+            "api": {
+              "type": "anthropic-messages",
+              "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic"
+            },
+            "builtinModelIds": ["mimo-v2.6-pro", "mimo-v2.6-flash"],
             "logo": {
               "type": "builtin",
               "key": "xiaomi-mimo"
@@ -2267,6 +2289,27 @@
           }
         },
         {
+          "modelMatch": ".*mimo-v2\\.6-(?:pro|flash)(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": true,
+                "supportsAudio": true
+              }
+            },
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": ["disabled", "enabled"]
+              },
+              "maxOutputTokens": {
+                "max": 131072
+              }
+            }
+          }
+        },
+        {
           "modelMatch": ".*mimo-v2\\.5(?:[.\\-:/\\[].*)?",
           "config": {
             "properties": {
@@ -2973,6 +3016,17 @@
             "optionSpecs": {
               "reasoningLevel": {
                 "map": "{\"enable_thinking\": reasoningLevel == \"enabled\"}"
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*mimo-v2\\.6-(?:pro|flash)(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "anthropic-messages",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "map": "{\n  \"thinking\": {\n    \"type\": reasoningLevel == \"enabled\" ? \"enabled\" : \"disabled\"\n  }\n}"
               }
             }
           }
@@ -4930,6 +4984,34 @@
           "templateId": "qwen-alibaba-model-studio-intl",
           "config": {
             "enabled": false
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-pro",
+          "templateId": "xiaomi-mimo",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-flash",
+          "templateId": "xiaomi-mimo",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-pro",
+          "templateId": "xiaomi-mimo-token-plan",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-flash",
+          "templateId": "xiaomi-mimo-token-plan",
+          "config": {
+            "enabled": true
           }
         },
         {

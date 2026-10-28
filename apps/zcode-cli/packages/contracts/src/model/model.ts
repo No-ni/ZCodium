@@ -7,6 +7,7 @@ import type {
   ModelTextResult,
   ModelToolContract,
 } from "./index.js";
+import type { ModelRequestCapabilities } from "../tools/tool-search.js";
 import { modelSelectionSchema, type ModelSelection } from "@zcode/shared/model-selection";
 import type { ModelPropertiesData, ModelOptionSpecsData } from "@zcode/shared/model-config";
 
@@ -31,6 +32,8 @@ export interface ModelOptions {
 export interface ModelRequest {
   messages: ModelInputMessage[];
   tools?: ModelToolContract[];
+  /** 仅当前请求的 Native wire 开关；辅助无工具请求不继承此值。 */
+  toolSearchEnabled?: boolean;
   responseJsonSchema?: JsonSchema;
   options?: ModelOptions;
   abortSignal?: AbortSignal;
@@ -48,6 +51,7 @@ export interface Model {
   readonly properties: ModelProperties;
   readonly optionSpecs: ModelOptionSpecs;
   readonly options: ModelOptions;
+  readonly requestCapabilities?: ModelRequestCapabilities;
 
   bind(options?: ModelOptions): Model;
   generateText(request: ModelRequest): Promise<ModelResult>;

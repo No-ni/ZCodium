@@ -15,7 +15,10 @@ import {
   getAppConfigDir as resolveAppConfigDir,
   getConversationWorkspaceDir,
   getTasksIndexDatabasePath,
+  setDataBaseDir,
 } from "./paths.js";
+import { resolveSourceDataRoots } from "@zcode/shared/node";
+import { createSourceAgentCommandResolver } from "./runtime-tools/sourceAgentCommand.js";
 import { createTaskAutoArchiveMaintenance } from "./session/taskAutoArchiveMaintenance.js";
 import type {
   TaskAutoArchiveMaintenance,
@@ -285,7 +288,7 @@ import { createObservableSettingService } from "./setting/observableSettingServi
 import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
 import { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
-import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
+import { resolveDefaultZCodeAgentCommand, type ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
 import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPresentationSurface.js";
 import { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
 import { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
@@ -1059,6 +1062,7 @@ export function createLocalServices(options: {
     trigger: Exclude<ProviderProvisioningTrigger, "environment-online">,
   ) => void;
   serviceAuthorityMode?: ServiceAuthorityMode;
+  sourceServerRoot?: string;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
   agentRuntimeContext?: {
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -1094,6 +1098,11 @@ export function createLocalServices(options: {
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
 }): ServiceCollection {
+  const sourceRoots = options.serviceAuthorityMode === "standalone-server"
+    ? resolveSourceDataRoots(options.sourceServerRoot ?? process.env.ZCODE_SERVER_ROOT ?? "") : undefined;
+  if (sourceRoots && options.settingService) throw new Error("Source settings authority is fixed");
+  // Source 根必须先于 CA、Provider、任务维护等初始化固定，不能先按继承 HOME 建库再切换。
+  if (sourceRoots) setDataBaseDir(sourceRoots.dataBaseDir);
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
   // GUI 启动的 desktop、SSH/WSL/Docker 拉起的 remote server 往往拿不到用户 login shell 里的 PATH，
@@ -1120,7 +1129,8 @@ export function createLocalServices(options: {
   }
 
   const settingService = createObservableSettingService(
-    options?.settingService ?? createSettingService(),
+    sourceRoots ? createSettingService({ settingsFilePath: sourceRoots.settingsFile, fixedDataBaseDir: sourceRoots.dataBaseDir })
+      : options?.settingService ?? createSettingService(),
   );
   const resolveCurrentZCodeEndpointOrigin = async () =>
     resolveRuntimeZCodeEndpointOrigin(process.env, {
@@ -1391,7 +1401,14 @@ export function createLocalServices(options: {
     // 是它自己那些 workspace 的唯一裁决者，灰度开启时远程 workspace 同样提供工作流。
     resolveDynamicWorkflowClientConfig: () =>
       codingPlanSubscriptionService.getDynamicWorkflowClientConfig(),
-    commandResolver: options?.zcodeAgentCommandResolver,
+    commandResolver: sourceRoots ? createSourceAgentCommandResolver({
+      roots: sourceRoots,
+      resolver: options.zcodeAgentCommandResolver ?? resolveDefaultZCodeAgentCommand,
+      resolveProviderPaths: async () => ({
+        zcodeBuiltinFilePath: await providerConfigRuntime.resolveZCodeBuiltinFilePath(),
+        personalFilePath: join(sourceRoots.providerConfigRoot, PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+      }),
+    }) : options?.zcodeAgentCommandResolver,
     presentationSurface: resolveZCodeAgentPresentationSurface({
       runtimeSurface: options?.agentRuntimeContext?.runtimeSurface,
       serviceAuthorityMode: options?.serviceAuthorityMode,
@@ -1512,6 +1529,7 @@ export function createLocalServices(options: {
             return {
               askUserQuestionAutoResolutionEnabled:
                 settings.askUserQuestionAutoResolutionEnabled !== false,
+              toolSearchMode: settings.toolSearchMode ?? "off",
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
               memoryEnabled: settings.memoryEnabled === true,
               modelContextBudgetStrategy,

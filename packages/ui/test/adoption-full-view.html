@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZCodium full view fixture</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      const reportFailure = (error) => {
+        const message = document.createElement("pre");
+        message.setAttribute("role", "alert");
+        message.textContent = `Fixture failed: ${String(error?.stack ?? error?.message ?? error)}`;
+        document.getElementById("root").replaceChildren(message);
+      };
+      window.addEventListener("error", (event) => reportFailure(event.error ?? event.message));
+      window.addEventListener("unhandledrejection", (event) => reportFailure(event.reason));
+      import("./adoption-full-view.fixture.tsx").catch(reportFailure);
+    </script>
+  </body>
+</html>

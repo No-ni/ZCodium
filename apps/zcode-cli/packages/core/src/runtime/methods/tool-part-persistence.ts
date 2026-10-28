@@ -64,6 +64,9 @@ export async function persistPendingToolPart(
       metadata: {
         ...projected.metadata,
         ...options.metadata,
+        ...(options.toolCall.modelCallWrapper
+          ? { modelCallWrapper: options.toolCall.modelCallWrapper }
+          : {}),
         // pending 是第一个 durable writer；Stop 后也必须能恢复真实 Gemini 调用签名。
         ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       },

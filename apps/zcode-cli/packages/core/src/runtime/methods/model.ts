@@ -1,4 +1,5 @@
 import { beginLocalTurnPreparation } from "@zcode/contracts";
+import { resolveRuntimeModelToolCalls } from "../helpers/tool-search-calls.js";
 import { runWithModelInvocationContext, traceContextToLogContext } from "../deps.js";
 import type { ModelReasoningContentBlock, ModelToolCall, ModelUsage, ToolCallId } from "../deps.js";
 import {
@@ -119,6 +120,7 @@ export async function runModelTextRequest(
   const modelRequest = {
     messages: projectedOptions.messages,
     tools: projectedOptions.tools,
+    toolSearchEnabled: projectedOptions.toolSearchEnabled,
     abortSignal: projectedOptions.abortSignal,
     ...(projectedOptions.maxOutputTokens !== undefined
       ? { options: { maxOutputTokens: projectedOptions.maxOutputTokens } }
@@ -151,7 +153,11 @@ export async function runModelTextRequest(
     return {
       ...result,
       ...(contextUsageBreakdown.length > 0 ? { contextUsageBreakdown } : {}),
-      toolCalls: normalizedToolCalls,
+      toolCalls: resolveRuntimeModelToolCalls(
+        this,
+        normalizedToolCalls ?? [],
+        projectedOptions.toolSearch,
+      ),
     };
   }
 
@@ -376,13 +382,18 @@ export async function runModelTextRequest(
         }
 
         case "tool_call": {
-          const [toolCall] =
-            normalizeModelToolCallsForRuntime([event.toolCall], {
-              logger: this.logger,
-              model: executionModelSelection,
-              source: "streamText",
-              traceContext: options.traceContext,
-            }) ?? [];
+          const normalizedToolCalls = normalizeModelToolCallsForRuntime([event.toolCall], {
+            logger: this.logger,
+            model: executionModelSelection,
+            source: "streamText",
+            traceContext: options.traceContext,
+          });
+          // 参数 delta 原样投递；完整调用已知后才解包，产品事件/调度/落库使用同一真实目标。
+          const [toolCall] = resolveRuntimeModelToolCalls(
+            this,
+            normalizedToolCalls ?? [],
+            projectedOptions.toolSearch,
+          );
           if (!toolCall) {
             break;
           }

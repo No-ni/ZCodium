@@ -1,4 +1,5 @@
-import { beginLocalTurnPreparation } from "@zcode/contracts";
+import { beginLocalTurnPreparation, type ToolSearchExecutionContext } from "@zcode/contracts";
+import { resolveRuntimeModelToolCalls } from "../helpers/tool-search-calls.js";
 import {
   CompactTrigger,
   CoreErrorType,
@@ -96,6 +97,8 @@ export async function runModelBackedTurnStep(
     recordedMessages: RunModelTextRequestOptions["messages"];
     requestEntries: readonly RuntimeMessageEntry[];
     tools: ModelToolContract[];
+    toolSearch?: ToolSearchExecutionContext;
+    toolSearchEnabled?: boolean;
   },
 ): Promise<ModelStepResult> {
   const assistantMessageId = createMessageId();
@@ -113,6 +116,8 @@ async function runModelBackedTurnStepImpl(
     recordedMessages: RunModelTextRequestOptions["messages"];
     requestEntries: readonly RuntimeMessageEntry[];
     tools: ModelToolContract[];
+    toolSearch?: ToolSearchExecutionContext;
+    toolSearchEnabled?: boolean;
   },
   assistantMessageId: MessageId,
 ): Promise<ModelStepResult> {
@@ -182,6 +187,7 @@ async function runModelBackedTurnStepImpl(
     assistantMessageId,
     model,
     traceContext: modelTraceContext,
+    toolSearch: options.toolSearch,
   });
   const networkEventStartIndex = state.events.length;
   let latestStreamSnapshot: RuntimeModelStreamSnapshot = { reasoning: [], text: "" };
@@ -230,6 +236,8 @@ async function runModelBackedTurnStepImpl(
       onStreamToolCall: (toolCall) => streamingToolCoordinator.accept(toolCall),
       streamRecovery: streamRecoveryRequest,
       tools: options.tools,
+      toolSearch: options.toolSearch,
+      toolSearchEnabled: options.toolSearchEnabled,
       traceContext: modelTraceContext,
     });
     throwIfTurnAborted(state.turnAbortSignal);
@@ -421,7 +429,12 @@ async function runModelBackedTurnStepImpl(
     this.messageHistory.setCacheHit(result.usage.cacheReadTokens);
   }
 
-  let toolCalls = this.extractToolCallsFromResult(result);
+  let toolCalls = resolveRuntimeModelToolCalls(
+    this,
+    this.extractToolCallsFromResult(result),
+    options.toolSearch,
+  );
+  result = { ...result, toolCalls };
   const providerToolCallCount = toolCalls.length;
   const localTerminalResponse = state.automationCreateLimitReached === true;
   if (state.automationCreateLimitReached && toolCalls.length > 0) {
@@ -699,6 +712,7 @@ async function runModelBackedTurnStepImpl(
     modelTraceContext,
     result,
     toolCalls: executableToolCalls,
+    toolSearch: options.toolSearch,
     streamedToolResults,
   });
   return toolStepResult;

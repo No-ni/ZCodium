@@ -11,7 +11,8 @@ function fitComposerToolbar(root: HTMLElement) {
   delete root.dataset.composerProviderCompact;
   for (const control of controls) delete control.dataset.composerCompact;
   const trailing = root.querySelector<HTMLElement>("[data-composer-trailing-actions]");
-  const gap = Number.parseFloat(getComputedStyle(root).columnGap) || 12;
+  const controlsRoot = root.querySelector<HTMLElement>("[data-composer-controls]") ?? root;
+  const gap = Number.parseFloat(getComputedStyle(controlsRoot).columnGap) || 12;
   const overflow = () =>
     Math.max(
       0,
@@ -20,7 +21,7 @@ function fitComposerToolbar(root: HTMLElement) {
         ? content.getBoundingClientRect().width +
             trailing.getBoundingClientRect().width +
             gap -
-            root.getBoundingClientRect().width
+            controlsRoot.getBoundingClientRect().width
         : 0,
     );
   // 前四档依次收起 Computer、mode、Plan、think 文字，不能合并裁决。
@@ -44,6 +45,16 @@ function fitComposerToolbar(root: HTMLElement) {
   root.dataset.composerModelIcon = "true";
 }
 
+const createComposerToolbarProbe = (root: HTMLElement): HTMLElement => {
+  // 完整输入壳含 Lexical 与附件；测量副本只能包含纯工具栏控件，不能复制输入节点或草稿。
+  const probe = root.cloneNode(false) as HTMLElement;
+  for (const controls of root.querySelectorAll<HTMLElement>(
+    "[data-composer-action-menu], [data-composer-controls]",
+  ))
+    probe.append(controls.cloneNode(true));
+  return probe;
+};
+
 export function useComposerToolbarFit() {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -52,7 +63,7 @@ export function useComposerToolbarFit() {
     const update = () => {
       if (!root.parentElement || root.getBoundingClientRect().width <= 0) return;
       // 在不可见副本上尝试展开，避免真实按钮测量时来回移动、丢失 hover 或关闭 Tooltip。
-      const probe = root.cloneNode(true) as HTMLElement;
+      const probe = createComposerToolbarProbe(root);
       probe.setAttribute("aria-hidden", "true");
       probe.inert = true;
       Object.assign(probe.style, {
@@ -86,14 +97,18 @@ export function useComposerToolbarFit() {
       resize?.disconnect();
       resize?.observe(root);
       for (const element of root.querySelectorAll<HTMLElement>(
-        "[data-composer-leading-actions], [data-composer-leading-content], [data-composer-trailing-actions]",
+        "[data-composer-layout], [data-composer-action-menu], [data-composer-input], [data-composer-controls], [data-composer-leading-actions], [data-composer-leading-content], [data-composer-trailing-actions]",
       ))
         resize?.observe(element);
       update();
     };
-    // 不观察布局属性自身，防止写 data-composer-compact 引起递归测量。
+    // 布局属性只观察外壳枚举；不观察 compact 输出或编辑器原文，避免递归测量与逐字克隆控件。
     const mutations = new MutationObserver(observe);
-    mutations.observe(root, { childList: true, subtree: true, characterData: true });
+    mutations.observe(root, { attributes: true, attributeFilter: ["data-composer-layout"] });
+    for (const controls of root.querySelectorAll<HTMLElement>(
+      "[data-composer-action-menu], [data-composer-controls]",
+    ))
+      mutations.observe(controls, { childList: true, subtree: true, characterData: true });
     observe();
     return () => {
       resize?.disconnect();

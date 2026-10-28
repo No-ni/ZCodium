@@ -35,6 +35,16 @@ export function cuaRuntimeRequiredPaths(platform: string, arch: string): string[
   ];
 }
 
+/** 与 office-runtime/contract.ts 的五项最小输出一致；分发仍递归复制完整 dist。 */
+export const BUILTIN_OFFICE_PLUGIN_RUNTIME_PATHS = [
+  "dist/server.mjs",
+  "dist/ui/assets.json",
+  "dist/ui/panel.html",
+  "dist/LICENSE",
+  "dist/THIRD_PARTY_NOTICES.txt",
+] as const;
+export const BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT = "../office-runtime/scripts/build.mjs";
+
 /** Immutable asset contract shared by bootstrap, desktop staging and remote deployment. */
 export const BUILTIN_PLUGIN_SEED_PATHS = {
   "browser-use-plugin": [
@@ -99,11 +109,15 @@ export const BUILTIN_PLUGIN_SEED_PATHS = {
     "skills/visualize/assets/standalone-shell.js",
   ],
   "presentations-plugin": [
+    ...BUILTIN_OFFICE_PLUGIN_RUNTIME_PATHS,
+    "skills/pptx-viewer/SKILL.md",
     "agents/visual-judge.md",
     "skills/pptx/LICENSE.txt",
     "skills/pptx/SKILL.md",
   ],
   "documents-plugin": [
+    ...BUILTIN_OFFICE_PLUGIN_RUNTIME_PATHS,
+    "skills/docx-viewer/SKILL.md",
     "agents/visual-judge.md",
     "skills/docx/LICENSE.txt",
     "skills/docx/SKILL.md",
@@ -148,6 +162,8 @@ export const BUILTIN_PLUGIN_SEED_PATHS = {
     "skills/docx/setup.sh",
   ],
   "pdf-plugin": [
+    ...BUILTIN_OFFICE_PLUGIN_RUNTIME_PATHS,
+    "skills/pdf-viewer/SKILL.md",
     "agents/visual-judge.md",
     "skills/pdf/LICENSE.txt",
     "skills/pdf/SKILL.md",
@@ -191,6 +207,8 @@ export const BUILTIN_PLUGIN_SEED_PATHS = {
     "skills/pdf/typesetting/typography.md",
   ],
   "spreadsheets-plugin": [
+    ...BUILTIN_OFFICE_PLUGIN_RUNTIME_PATHS,
+    "skills/xlsx-viewer/SKILL.md",
     "agents/visual-judge.md",
     "skills/xlsx/LICENSE.txt",
     "skills/xlsx/SKILL.md",
@@ -268,17 +286,19 @@ export interface BuiltinPluginAsset {
 /**
  * 打包期生成运行时用的脚本（相对插件根目录），`requiresRuntime` 以此为唯一依据。
  *
- * 为什么需要这张表：`bootstrap:with-remote` 的等价构建路径会在插件目录里先跑 `tsc`，
- * 再 `node <runtimeBuildScript>`；脚本名必须真实存在。node-repl-host 与 browser-use
- * 用 `scripts/build.mjs`，而 android / ios emulator 两个插件的打包脚本叫
- * `scripts/build-mcp.mjs`（esbuild 把 `src/mcp/server.ts` 打成自包含的 `dist/mcp/server.js`）。
- * 不加这两个插件的话，它们的 seed 清单里的 `dist/mcp/server.js` 永远不会被构建。
+ * 为什么需要这张表：普通与 bootstrap prepare 必须执行插件声明的真实脚本。
+ * node-repl-host/browser-use 用 scripts/build.mjs，android/ios 用 scripts/build-mcp.mjs。
+ * Office 四插件没有本地 tsconfig；仅执行共享 build，不可先 tsc 或凭旧 dist 跳过构建。
  */
 const RUNTIME_BUILD_SCRIPTS: Partial<Record<keyof typeof BUILTIN_PLUGIN_SEED_PATHS, string>> = {
   "browser-use-plugin": "scripts/build.mjs",
   "node-repl-host": "scripts/build.mjs",
   "android-emulator-plugin": "scripts/build-mcp.mjs",
   "ios-simulator-plugin": "scripts/build-mcp.mjs",
+  "documents-plugin": BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
+  "spreadsheets-plugin": BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
+  "presentations-plugin": BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
+  "pdf-plugin": BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
 };
 
 export const BUILTIN_PLUGIN_ASSETS: readonly BuiltinPluginAsset[] = (

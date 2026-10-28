@@ -6,7 +6,7 @@ import {
   updateConfig,
   setExecutionState,
 } from "./config.js";
-import { getMode, getPlanEnabled } from "./config.js";
+import { getMode, getPlanEnabled, getToolSearchMode } from "./config.js";
 import { getSessionModelSelection, setSessionModelSelection } from "./config.js";
 import { getExecutionWorkspacePath, getProjectId, getWorkingDirectory } from "./config.js";
 import { setWorkingDirectory } from "./config.js";
@@ -205,6 +205,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.initializeSessionShellEnvironmentIfNeeded = initializeSessionShellEnvironmentIfNeeded;
   proto.getSessionShellSelection = getSessionShellSelection;
   proto.getMode = getMode;
+  proto.getToolSearchMode = getToolSearchMode;
   proto.getPlanEnabled = getPlanEnabled;
   proto.getSessionModelSelection = getSessionModelSelection;
   proto.setSessionModelSelection = setSessionModelSelection;

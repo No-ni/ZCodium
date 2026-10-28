@@ -18,6 +18,7 @@ import {
 } from "./runner-normalization.js";
 import {
   getGenerateTextResultMetadata,
+  createEmptyContextExceededError,
   isZeroOutputModelCompletion,
   logGenerateTextDiagnostics,
 } from "./runner-diagnostics.js";
@@ -197,10 +198,20 @@ export async function runGenerateText(input: {
         (total, block) => total + block.text.length,
         0,
       );
+      const rawFinishReason = result.rawFinishReason ?? result.providerMetadata?.rawFinishReason;
+      const contextError = createEmptyContextExceededError({
+        finishReason: result.finishReason,
+        rawFinishReason,
+        hasAssistantContent: text.length > 0 || reasoningLength > 0,
+        toolCallCount: toolCalls?.length ?? 0,
+        usage,
+      });
+      if (contextError) throw contextError;
       if (
         input.request.preserveProviderStreamBoundaries !== true &&
         isZeroOutputModelCompletion({
           finishReason: result.finishReason,
+          rawFinishReason,
           reasoningLength,
           textLength: text.length,
           toolCallCount: toolCalls?.length ?? 0,

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { format } from "node:util";
 import { tsImport } from "tsx/esm/api";
+import { createProjectTestFixture } from "./project-test-sandbox.mjs";
 
 function captureConsole(t) {
   const lines = [];
@@ -25,8 +25,8 @@ function setEnv(t, key, value) {
 }
 
 test("unwrapped settings service preserves preferences without logging private data", async (t) => {
-  const dir = await fs.mkdtemp(join(tmpdir(), "private-settings-fixture-"));
-  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  // 项目内 fresh 合成样本：不写系统临时目录、不做整根递归清理，净化断言只依赖目录内容。
+  const dir = await createProjectTestFixture("private-settings-fixture");
   setEnv(t, "ZCODE_DESKTOP_HOME_DIR", dir);
   setEnv(t, "ZCODE_RUNTIME_ENV", "development");
   const lines = captureConsole(t);
@@ -68,8 +68,7 @@ test("unwrapped settings service preserves preferences without logging private d
 });
 
 test("MCP migration failure keeps safe diagnostics and the offline migration result", async (t) => {
-  const dir = await fs.mkdtemp(join(tmpdir(), "private-mcp-fixture-"));
-  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const dir = await createProjectTestFixture("private-mcp-fixture");
   setEnv(t, "HOME", dir);
   const lines = captureConsole(t);
   const file = join(dir, ".zcodium", "cli", "config.json");

@@ -17,6 +17,7 @@ export function AnimatedTerminalPanel({
   executionWorkspacePathReady,
   openWorkspaceKeys,
   isVisible,
+  presentationHidden = false,
   isWindowsDesktop,
   frameClassName = "rounded-xl border border-border",
   panelRef,
@@ -32,6 +33,7 @@ export function AnimatedTerminalPanel({
   executionWorkspacePathReady: boolean;
   openWorkspaceKeys?: string[];
   isVisible: boolean;
+  presentationHidden?: boolean;
   isWindowsDesktop?: boolean;
   frameClassName?: string;
   panelRef: RefObject<PanelImperativeHandle | null>;
@@ -42,7 +44,8 @@ export function AnimatedTerminalPanel({
   const [hasRenderedTerminal, setHasRenderedTerminal] = useState(isVisible);
   const [isTerminalPanelResizing, setIsTerminalPanelResizing] = useState(false);
   const isDragCollapsible = !isVisible;
-  const isResizeDisabled = !isVisible;
+  const isPresentationVisible = isVisible && !presentationHidden;
+  const isResizeDisabled = !isPresentationVisible;
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
 
   const finishTerminalPanelResize = useCallback(() => {
@@ -51,7 +54,7 @@ export function AnimatedTerminalPanel({
 
   const handleTerminalPanelResizeStart = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isVisible || (event.pointerType === "mouse" && event.button !== 0)) {
+      if (!isPresentationVisible || (event.pointerType === "mouse" && event.button !== 0)) {
         return;
       }
 
@@ -59,7 +62,7 @@ export function AnimatedTerminalPanel({
       // 显式标记拖拽窗口，让 TerminalSession 在拖拽中低频 resize，松手后再 flush 最终尺寸。
       setIsTerminalPanelResizing(true);
     },
-    [isVisible],
+    [isPresentationVisible],
   );
 
   useEffect(() => {
@@ -72,10 +75,10 @@ export function AnimatedTerminalPanel({
   }, [isVisible]);
 
   useEffect(() => {
-    if (!isVisible) {
+    if (!isPresentationVisible) {
       setIsTerminalPanelResizing(false);
     }
-  }, [isVisible]);
+  }, [isPresentationVisible]);
 
   useEffect(() => {
     if (!isTerminalPanelResizing) {
@@ -96,6 +99,8 @@ export function AnimatedTerminalPanel({
     <>
       {isVisible ? (
         <ResizableHandle
+          disabled={presentationHidden}
+          style={presentationHidden ? { visibility: "hidden" } : undefined}
           data-workspace-terminal-resize-handle="true"
           className={cn(
             "aria-[orientation=horizontal]:h-1 aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:mx-0 aria-[orientation=horizontal]:translate-y-0 aria-[orientation=horizontal]:[mask-image:none] aria-[orientation=horizontal]:[-webkit-mask-image:none] hover:bg-transparent data-[separator=hover]:bg-transparent data-[separator=active]:bg-transparent focus-visible:bg-transparent after:pointer-events-none after:absolute after:rounded-full after:bg-foreground-subtlest/50 after:opacity-0 after:transition-opacity after:content-[''] after:inset-x-[var(--workspace-panel-radius,var(--radius-xl))] after:h-0.5 hover:after:opacity-100 data-[separator=hover]:after:opacity-100 data-[separator=active]:after:opacity-100 focus-visible:after:opacity-100",
@@ -122,15 +127,17 @@ export function AnimatedTerminalPanel({
         disabled={isResizeDisabled}
         className={cn(
           "transition-opacity duration-200 ease-out",
-          isVisible ? "opacity-100" : "pointer-events-none opacity-0",
+          isPresentationVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
+        aria-hidden={!isPresentationVisible}
+        inert={!isPresentationVisible}
       >
         <div
           data-workspace-terminal-frame="true"
           className={cn("h-full overflow-hidden bg-background", frameClassName)}
         >
           {hasRenderedTerminal ? (
-            <div aria-hidden={!isVisible} className="h-full">
+            <div aria-hidden={!isPresentationVisible} className="h-full">
               {/* terminal 首次展开前不渲染，避免无意义初始化；
                   首次展开后保持挂载，收起时只隐藏不卸载，这样下一次展开就能直接复用现有会话。 */}
               <ScopedErrorBoundary
@@ -147,7 +154,7 @@ export function AnimatedTerminalPanel({
                   terminalWorkspaceKey={terminalWorkspaceKey}
                   executionWorkspacePathReady={executionWorkspacePathReady}
                   openWorkspaceKeys={openWorkspaceKeys}
-                  isVisible={isVisible}
+                  isVisible={isPresentationVisible}
                   isPanelResizing={isTerminalPanelResizing}
                   isWindowsDesktop={isWindowsDesktop}
                   onClose={onClose}

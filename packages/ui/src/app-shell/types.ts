@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import type { SidePaneFullViewController } from "@/side-pane-full-view/contract.js";
 import type {
   ZCodeProvider,
   SessionCreateSource,
@@ -140,6 +141,8 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   goBackShortcutLabel: string;
   goForwardShortcutLabel: string;
   toggleSidePaneShortcutLabel: string;
+  toggleSidePaneFullViewShortcutLabel: string;
+  sidePaneFullView?: SidePaneFullViewController;
   canGoBack: boolean;
   canGoForward: boolean;
   canTaskNavBack: boolean;

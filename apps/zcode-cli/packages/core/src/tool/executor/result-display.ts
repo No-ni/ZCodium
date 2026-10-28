@@ -24,6 +24,7 @@ import { countPatchLines } from "../diff.js";
 import { boundDisplayText } from "./display-text.js";
 import { createCreateWorkflowDisplay } from "./create-workflow-display.js";
 import { createWorkflowObservationDisplay } from "./workflow-observation-display.js";
+import { createToolSearchDisplay } from "./tool-search-display.js";
 
 // 拆到 create-workflow-display.ts 后保持既有导出面（handlers/create-workflow.ts 仍从这里 import）。
 export { createCreateWorkflowDisplay } from "./create-workflow-display.js";
@@ -195,6 +196,9 @@ export function createToolResultDisplay(
 
   const workflowObservation = createWorkflowObservationDisplay(toolName, output);
   if (workflowObservation) return workflowObservation;
+
+  const toolSearch = createToolSearchDisplay(toolName, output);
+  if (toolSearch) return toolSearch;
 
   if (options?.mcp) {
     // 结果级构造：官方 MCP 的不可用标识只能从本次结果里读，因此把 output 一起传进去。

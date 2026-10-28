@@ -344,6 +344,7 @@ export function extractToolCallsFromResult(
           input: tc.input,
           providerExecuted: tc.providerExecuted,
           ...(tc.providerOptions ? { providerOptions: tc.providerOptions } : {}),
+          ...(tc.modelCallWrapper ? { modelCallWrapper: tc.modelCallWrapper } : {}),
         });
       }
     }
@@ -359,6 +360,7 @@ export function extractToolCallsFromResult(
           input: tc.input,
           providerExecuted: tc.providerExecuted,
           ...(tc.providerOptions ? { providerOptions: tc.providerOptions } : {}),
+          ...(tc.modelCallWrapper ? { modelCallWrapper: tc.modelCallWrapper } : {}),
         });
       }
     }

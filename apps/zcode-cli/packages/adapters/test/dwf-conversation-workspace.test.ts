@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { it } from "node:test";
-import { runSqliteSessionMigrations } from "../src/storage/session-store/migration-runner.js";
+import { runSqliteSessionMigrationsAsync } from "../src/storage/session-store/migration-runner.js";
 import { createDwfJournalStore } from "../src/storage/session-store/repositories/dwf-journal.js";
 import { listRuns } from "../src/storage/session-store/repositories/dwf-journal-introspection.js";
 
-it("lists independent conversation runs by their persisted parent workspace without changing execution cwd", () => {
+it("lists independent conversation runs by their persisted parent workspace without changing execution cwd", async () => {
   const db = new DatabaseSync(":memory:");
   try {
-    runSqliteSessionMigrations(db, ":memory:");
+    // 原 sync 函数按 official-3.16.2 迁移改造已是 ready 只读验收，空内存 fixture 必须走异步启动迁移准备 schema。
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     const root = "/workspace/default";
     const journal = createDwfJournalStore(db);
     for (const [id, directory, cwd, name, status, updated] of [

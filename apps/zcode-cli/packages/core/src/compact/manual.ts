@@ -43,6 +43,7 @@ export interface BuildManualCompactBoundaryInput {
   postCompactTokenCount?: number;
   preservedSegment?: CompactPreservedSegment;
   preCompactTokenCount: number;
+  preCompactDiscoveredTools?: readonly string[];
   summarizedMessageCount: number;
   summaryMessageId: MessageId;
   traceContext: TraceContext;
@@ -87,6 +88,9 @@ export function buildManualCompactBoundary(
     compactReason: input.compactReason,
     summarySource: "model",
     preCompactTokenCount: input.preCompactTokenCount,
+    ...(input.preCompactDiscoveredTools?.length
+      ? { preCompactDiscoveredTools: [...input.preCompactDiscoveredTools] }
+      : {}),
     postCompactTokenCount: input.postCompactTokenCount,
     truePostCompactTokenCount: input.truePostCompactTokenCount,
     autoCompactThreshold: input.autoCompactThreshold,

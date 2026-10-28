@@ -3,6 +3,8 @@
 // ============================================================
 
 import {
+  type ToolSearchAnnouncement,
+  type CompactBoundaryPayload,
   type RuntimeInputPresentation,
   modelMessageContentToText,
   type ModelCacheControl,
@@ -32,6 +34,8 @@ export type RuntimeMessageSource =
 export interface RuntimeMessageMetadata {
   source: RuntimeMessageSource;
   inputPresentation?: RuntimeInputPresentation;
+  toolSearchAnnouncement?: ToolSearchAnnouncement;
+  compactBoundary?: Pick<CompactBoundaryPayload, "boundaryId" | "preCompactDiscoveredTools">;
 }
 
 export interface RuntimeMessageMessageEntry {
@@ -339,6 +343,7 @@ export function createRuntimeAssistantEntry(
         id: toolCall.id,
         name: toolCall.name,
         input: toolCall.input,
+        ...(toolCall.modelCallWrapper ? { modelCallWrapper: toolCall.modelCallWrapper } : {}),
         ...(toolCall.providerExecuted === undefined
           ? {}
           : { providerExecuted: toolCall.providerExecuted }),
@@ -428,7 +433,17 @@ function cloneTokenUsageInfo(tokens: TokenUsageInfo): TokenUsageInfo {
 function cloneRuntimeMessageMetadata(
   metadata: RuntimeMessageMetadata | undefined,
 ): RuntimeMessageMetadata | undefined {
-  return metadata ? { ...metadata } : undefined;
+  return metadata
+    ? {
+        ...metadata,
+        ...(metadata.toolSearchAnnouncement
+          ? { toolSearchAnnouncement: structuredClone(metadata.toolSearchAnnouncement) }
+          : {}),
+        ...(metadata.compactBoundary
+          ? { compactBoundary: structuredClone(metadata.compactBoundary) }
+          : {}),
+      }
+    : undefined;
 }
 
 function messageFromEntryInput(input: ModelInputMessage | RuntimeMessageEntry): ModelInputMessage {

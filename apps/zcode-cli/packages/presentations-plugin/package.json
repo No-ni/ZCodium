@@ -3,6 +3,23 @@
   "name": "@zcode/presentations-plugin",
   "version": "0.1.9",
   "private": true,
+  "description": "PPTX production skills and a read-only shared PowerPoint viewer panel.",
   "license": "Apache-2.0",
-  "description": "PPTX presentation production skills, published as an official ZCode plugin."
+  "scripts": {
+    "build": "node ../office-runtime/scripts/build.mjs",
+    "smoke": "node ../office-runtime/scripts/smoke.mjs",
+    "fixture": "node ../office-runtime/scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "@zcode/office-runtime": "workspace:*"
+  },
+  "office": {
+    "title": {
+      "en": "Presentations",
+      "zh-CN": "演示文稿"
+    },
+    "kinds": [
+      "pptx"
+    ]
+  }
 }

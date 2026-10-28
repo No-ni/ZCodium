@@ -11,6 +11,7 @@ import {
   type ModelId,
   type ModelProviderId,
   type ModelRequest,
+  type ModelRequestCapabilities,
   type ModelResult,
 } from "@zcode/contracts";
 
@@ -30,6 +31,7 @@ export interface CreateModelOptions {
   properties: ModelPropertiesInput;
   optionSpecs: ModelOptionSpecs;
   options?: ModelOptions;
+  requestCapabilities?: ModelRequestCapabilities;
   executor: ModelExecutor;
 }
 
@@ -44,6 +46,7 @@ class ExecutableModel implements Model {
   readonly properties: ModelProperties;
   readonly optionSpecs: ModelOptionSpecs;
   readonly options: ModelOptions;
+  readonly requestCapabilities?: ModelRequestCapabilities;
   private readonly executor: ModelExecutor;
 
   constructor(input: CreateModelOptions) {
@@ -53,6 +56,14 @@ class ExecutableModel implements Model {
     this.properties = Object.freeze({ ...input.properties });
     this.optionSpecs = freezeOptionSpecs(input.optionSpecs);
     this.options = Object.freeze(validatePartialOptions(this.optionSpecs, input.options ?? {}));
+    this.requestCapabilities = input.requestCapabilities
+      ? Object.freeze({
+          ...input.requestCapabilities,
+          ...(input.requestCapabilities.toolSearch
+            ? { toolSearch: Object.freeze({ ...input.requestCapabilities.toolSearch }) }
+            : {}),
+        })
+      : undefined;
     this.executor = input.executor;
   }
 
@@ -65,6 +76,7 @@ class ExecutableModel implements Model {
       properties: this.properties,
       optionSpecs: this.optionSpecs,
       options: { ...this.options, ...options },
+      requestCapabilities: this.requestCapabilities,
       executor: this.executor,
     });
   }
@@ -80,10 +92,16 @@ class ExecutableModel implements Model {
 
   private prepareRequest(request: ModelRequest): ModelExecutionRequest {
     validateRequestProperties(this.properties, request);
+    // Native 必须在真实 wire capability 上显式启用；无工具辅助请求不能继承 beta 开关。
+    const toolSearchEnabled = request.toolSearchEnabled === true && Boolean(request.tools?.length);
+    if (toolSearchEnabled && !this.requestCapabilities?.toolSearch?.protocolSupported) {
+      throw invalidRequest("Native ToolSearch requires a supported Anthropic Messages wire");
+    }
     const requestOptions = request.options ?? {};
     return {
       messages: request.messages,
       tools: request.tools,
+      toolSearchEnabled,
       responseJsonSchema: request.responseJsonSchema,
       abortSignal: request.abortSignal,
       options: {

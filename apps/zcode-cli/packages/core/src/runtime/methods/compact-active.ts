@@ -16,7 +16,8 @@ import {
   createCompactBoundaryId,
   getUsageTotalTokens,
 } from "../deps.js";
-import type { SessionEvent, TraceContext } from "../deps.js";
+import type { SessionEvent, TraceContext, ModelToolContract } from "../deps.js";
+import { collectDiscoveredTools, compactDiscoveryMetadata } from "../../tool/search/history.js";
 import { resolveModelRequestSessionTypeFromTaskType } from "./model-request-session-type.js";
 import {
   defaultCompactPhaseForTrigger,
@@ -70,7 +71,6 @@ import {
 } from "./turn-output-token-continuation.js";
 
 const AUTO_COMPACT_MAX_ATTEMPTS = 3;
-const COMPACT_TOOL_KEEP_MAX_COUNT = 100;
 
 export async function compactActiveConversation(
   this: AgentRuntimeInternal,
@@ -205,13 +205,8 @@ async function compactActiveConversationImpl(
     turnTraceContext,
     events,
   );
-  // 止血原因：massive MCP 工具会把 compact summary request 的 provider context 撑爆。
-  // ToolSearch/deferred tools 完成前，仅在工具数超过阈值时让 compact summary 保持无工具。
-  await this.initializeMcp(turnTraceContext);
-  throwIfTurnAborted(options.abortSignal);
-  const runtimeCompactTools = this.getTools(compactModel);
-  const compactTools =
-    runtimeCompactTools.length > COMPACT_TOOL_KEEP_MAX_COUNT ? [] : runtimeCompactTools;
+  // compact 只产 summary，任何目录大小都不允许工具调用；不为摘要初始化额外 MCP。
+  const compactTools: ModelToolContract[] = [];
 
   while (true) {
     try {
@@ -471,6 +466,12 @@ async function compactActiveConversationImpl(
       events.push(modelCompleteEvent);
 
       const summaryMessageId = createMessageId();
+      const boundaryId = createCompactBoundaryId();
+      const preCompactDiscoveredTools = [...collectDiscoveredTools(activeEntries)].sort();
+      const summaryDiscoveryMetadata = compactDiscoveryMetadata({
+        boundaryId,
+        preCompactDiscoveredTools,
+      });
       const summaryMessageContent = buildCompactSummaryMessage(persistedSummary, {
         suppressFollowup: true,
       });
@@ -491,7 +492,10 @@ async function compactActiveConversationImpl(
             role: "user",
             content: summaryMessageContent,
           },
-          metadata: legacySyntheticRuntimeMetadata(),
+          metadata: {
+            ...legacySyntheticRuntimeMetadata(),
+            compactBoundary: summaryDiscoveryMetadata,
+          },
         },
         {
           postCompactReminderEntries,
@@ -503,7 +507,8 @@ async function compactActiveConversationImpl(
       });
       const providerPostCompactTokenCount = getUsageTotalTokens(result.usage);
       const compactBoundary = buildManualCompactBoundary({
-        boundaryId: createCompactBoundaryId(),
+        boundaryId,
+        preCompactDiscoveredTools,
         autoCompactThreshold: options.autoCompactThreshold,
         compactReason,
         customInstructions,

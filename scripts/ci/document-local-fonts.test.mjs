@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { createProjectTestFixture } from "./project-test-sandbox.mjs";
 
 const plugins = [
   ["documents", "docx"],
@@ -39,9 +39,9 @@ for (const [plugin, skill] of plugins) {
   test(
     `${skill} PowerShell checks system CJK without writing or downloading`,
     { skip: process.platform !== "win32" },
-    async (t) => {
-      const dir = await mkdtemp(join(tmpdir(), "font-check-fixture-"));
-      t.after(() => rm(dir, { recursive: true, force: true }));
+    async () => {
+      // 项目内 fresh 合成样本，不写系统临时目录，也不整根递归清理（保留供事后核对）。
+      const dir = await createProjectTestFixture(`office-font-check-${skill}`);
       const source = await readFile(new URL("setup_windows.ps1", root), "utf8");
       const body = source.slice(
         source.indexOf("# ── Local Font Verification"),
@@ -71,9 +71,8 @@ for (const [plugin, skill] of plugins) {
     },
   );
 
-  test(`${skill} quick check tolerates missing fonts without installation`, async (t) => {
-    const dir = await mkdtemp(join(tmpdir(), "font-quick-fixture-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+  test(`${skill} quick check tolerates missing fonts without installation`, async () => {
+    const dir = await createProjectTestFixture(`office-font-quick-${skill}`);
     const source = await readFile(new URL("env_check.sh", root), "utf8");
     const body = source
       .replaceAll('"/Library/Fonts"', '"/missing-font-fixture"')
@@ -93,9 +92,8 @@ for (const [plugin, skill] of plugins) {
     execFileSync(bash, ["-n", posix(fileURLToPath(new URL("env_check.sh", root)))]);
   });
 
-  test(`${skill} Bash checks macOS and Linux local fonts without installing`, async (t) => {
-    const dir = await mkdtemp(join(tmpdir(), "font-posix-fixture-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+  test(`${skill} Bash checks macOS and Linux local fonts without installing`, async () => {
+    const dir = await createProjectTestFixture(`office-font-posix-${skill}`);
     const source = await readFile(new URL("setup_mac_linux.sh", root), "utf8");
     const body = source.slice(
       source.indexOf("# ── Local Font Verification"),

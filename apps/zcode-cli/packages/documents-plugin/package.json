@@ -3,6 +3,23 @@
   "name": "@zcode/documents-plugin",
   "version": "0.1.9",
   "private": true,
+  "description": "DOCX production skills and a read-only shared Word viewer panel.",
   "license": "Apache-2.0",
-  "description": "DOCX document production skills, published as an official ZCode plugin."
+  "scripts": {
+    "build": "node ../office-runtime/scripts/build.mjs",
+    "smoke": "node ../office-runtime/scripts/smoke.mjs",
+    "fixture": "node ../office-runtime/scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "@zcode/office-runtime": "workspace:*"
+  },
+  "office": {
+    "title": {
+      "en": "Documents",
+      "zh-CN": "Word 文档"
+    },
+    "kinds": [
+      "docx"
+    ]
+  }
 }

@@ -30,6 +30,7 @@ import type {
   TurnId,
 } from "../deps.js";
 import { cloneModelSelection } from "../model-selection.js";
+import { refreshRuntimeToolSearchControls } from "../helpers/tool-search-controls.js";
 import { createRuntimeModel } from "./runtime-model.js";
 import {
   buildUserContentFromTurn,
@@ -354,6 +355,7 @@ export function finishActiveTurn(
 ): void {
   if (activeTurn !== undefined && this.activeTurn === activeTurn) {
     this.activeTurn = undefined;
+    refreshRuntimeToolSearchControls(this);
   }
 }
 

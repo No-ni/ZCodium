@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const FIG_VERSION = "2.692.3";
@@ -200,7 +200,8 @@ async function hashBuildFiles(directory) {
   const files = await listFiles(directory);
   const hash = createHash("sha256");
   for (const filePath of files) {
-    const relativePath = filePath.slice(directory.length + 1);
+    // 原生分隔符曾让同一 Fig 内容在 Windows 算出不同 source hash；统一编码，保持生成物字节校验。
+    const relativePath = filePath.slice(directory.length + 1).split(sep).join("/");
     hash.update(relativePath);
     hash.update("\0");
     hash.update(await readFile(filePath));

@@ -86,6 +86,10 @@ export const ServiceChannels = {
   ZCodeTask: "zcode-task",
   /** 窗口 Host 聚合 workspace/task 投影与列表写路由 */
   WindowController: "window-controller",
+  SourceServerManagement: "source-server-management",
+  WindowProject: "window-project",
+  WindowRemoteProjects: "window-remote-projects",
+  WindowProjectChanges: "window-project-changes",
   /** ZCode Protocol agent 服务 */
   ZCodeAgent: "zcode-agent",
   /** ZCode session 应用服务 */
@@ -480,6 +484,7 @@ export const ZCODE_RPC_HOST_CAPABILITY_HEADER = "x-zcode-rpc-host-capability";
 /** main → host process 的初始化消息类型 */
 export const HostMessageTypes = {
   DatabaseStartupControl: "database-startup-control",
+  WindowProjectDirectoryProjection: "window-project-directory-projection",
   /** 初始化本地服务 */
   InitLocal: "init-local",
   /** main → window Host：在当前窗口建立一个远程 logical session */
@@ -544,6 +549,8 @@ export const HostResponseTypes = {
   RemoteWorkspaceConnected: "remote-workspace-connected",
   /** window Host → main：远程 logical session 建立失败 */
   RemoteWorkspaceConnectFailed: "remote-workspace-connect-failed",
+  RemoteWorkspaceContextBindReady: "remote-workspace-context-bind-ready",
+  RemoteWorkspaceContextBindFailed: "remote-workspace-context-bind-failed",
   /** window Host → main：已连接的远程 logical session 关闭 */
   RemoteWorkspaceClosed: "remote-workspace-closed",
   /** host 进程日志上报 */
@@ -766,7 +773,7 @@ export interface PlatformChannelMap {
     response: void;
   };
   [PlatformChannels.SyncWindowUnreadCount]: {
-    request: number;
+    request: import("./windowUnread.js").WindowUnreadProjection;
     response: void;
   };
   [PlatformChannels.SyncAppSettings]: {

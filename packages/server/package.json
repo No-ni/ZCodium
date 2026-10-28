@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./stdio": "./src/stdio.ts",
     "./remote": "./src/remote/index.ts",
+    "./source-server": "./src/source-server/index.ts",
     "./remote/*.js": "./src/remote/*.ts"
   },
   "scripts": {

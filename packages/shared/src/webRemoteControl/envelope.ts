@@ -104,6 +104,12 @@ export const webRemoteControlBridgeDescriptorSchema = z
     remoteSessionId: z.string().optional(),
     kind: webRemoteControlWorkspaceKindSchema,
     entryKind: z.enum(["home", "task"]),
+    capabilities: z
+      .object({
+        windowProjectDirectory: z.object({ version: z.number().int().positive() }).strict(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type WebRemoteControlBridgeDescriptor = z.infer<

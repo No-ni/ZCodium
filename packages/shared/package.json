@@ -25,7 +25,9 @@
     "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts",
     "./builtin-plugin-assets": "./src/builtinPluginAssets.ts",
     "./bundled-remote-assets": "./src/bundledRemoteAssets.ts",
-    "./gen-ui": "./src/gen-ui/index.ts"
+    "./gen-ui": "./src/gen-ui/index.ts",
+    "./sqlite-migrations": "./src/sqlite-migrations/index.ts",
+    "./source-server": "./src/source-server/index.ts"
   },
   "scripts": {
     "lint": "oxlint",
