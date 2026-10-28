@@ -13,6 +13,7 @@ import {
   isOneShotAutomation,
 } from "@zcode/services/node";
 import {
+  isLocalResourceMonitoringEnabled,
   resolveWorkspaceKey,
   type ZCodeAutomation,
   type ZCodeAutomationTrigger,
@@ -324,9 +325,12 @@ async function main(): Promise<void> {
   requestTick();
   pollTimer = setInterval(requestTick, POLL_INTERVAL_MS);
   // 资源遥测：60 秒自采一次 CPU / 内存发给 main（heap 只有本进程读得到）。
-  resourceTelemetry = startSchedulerResourceTelemetry({
-    postMessage: (message) => parentPort?.postMessage(message),
-  });
+  // 默认关闭，只有 ZCODE_LOCAL_RESOURCE_MONITORING=1 时启动。
+  resourceTelemetry = isLocalResourceMonitoringEnabled()
+    ? startSchedulerResourceTelemetry({
+        postMessage: (message) => parentPort?.postMessage(message),
+      })
+    : null;
 }
 
 void main().catch((error) => {

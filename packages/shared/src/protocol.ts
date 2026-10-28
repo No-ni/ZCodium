@@ -4,6 +4,7 @@ import type { ProviderFamilyConnectionSelectionSettings } from "./provider-famil
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
 import type { ModelSelection } from "./model-selection.js";
+import type { AppToolSearchMode } from "./tool-search.js";
 
 // ── Domain types ──
 
@@ -233,6 +234,7 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
+  sourceServerDirectory?: import("./source-server/index.js").SourceServerDirectorySnapshot;
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
   locale: Locale; // 界面语言
   /**
@@ -305,6 +307,8 @@ export interface AppSettings {
   zcodeInteractionBehavior?: ZCodeInteractionBehavior;
   /** Agent 提问五分钟无人回答时是否允许自动继续；缺失按开启兼容旧配置。 */
   askUserQuestionAutoResolutionEnabled?: boolean;
+  /** 实验性工具搜索偏好；缺失默认关闭，不改变工具审批。 */
+  toolSearchMode?: AppToolSearchMode;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   /** 设置页中每个 Provider Family 当前唯一的结构化连接选择。 */
   providerFamilyConnectionSelections?: ProviderFamilyConnectionSelectionSettings;

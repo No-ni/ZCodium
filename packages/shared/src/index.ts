@@ -78,6 +78,7 @@ export {
   normalizeZCodeEnv,
   normalizeZCodeProductFlavor,
 } from "./env.js";
+export * from "./windowUnread.js";
 export * from "./errors.js";
 export type { SessionCreateSource } from "./sessionCreateSource.js";
 export { resolveSafeEndpointHostname } from "./endpointHostname.js";
@@ -114,6 +115,8 @@ export * from "./dynamic-workflow-feature.js";
 export * from "./markdown-artifact-images.js";
 export * from "./serviceAuthority.js";
 export * from "./server-remote.js";
+export * from "./source-server/index.js";
+export * from "./window-project-directory.js";
 
 export interface ICredentialStore {
   get(key: string): Promise<string | null>;
@@ -132,7 +135,6 @@ export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
 export * from "./onboardingRecord.js";
 export * from "./remoteResourcePackages.js";
-export * from "./plan-identity.js";
 export {
   BROWSER_SCREENSHOT_SURFACE_PREPARE_TIMEOUT_MS,
   BROWSER_VIEW_RESTORE_BOOTSTRAP_URL,
@@ -236,6 +238,7 @@ export * from "./subagents-types.js";
 export * from "./settings-source.js";
 export * from "./settings-errors.js";
 export * from "./app-runtime-preferences.js";
+export * from "./tool-search.js";
 export * from "./command-types.js";
 export * from "./plugin-marketplaces.js";
 export * from "./lineChangeStat.js";
@@ -264,7 +267,6 @@ export * from "./workspaceSessionRestore.js";
 export * from "./skill-scan-policy.js";
 export * from "./browser-use/index.js";
 
-export * from "./coding-plan-reset.js";
 export {
   parseSubagentMarkdownSelection,
   formatSubagentMarkdownModel,

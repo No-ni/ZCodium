@@ -30,6 +30,9 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { applyRuntimeExecutionState } from "../execution-state.js";
 
+import { refreshRuntimeToolSearchControls } from "../helpers/tool-search-controls.js";
+import type { ToolSearchMode } from "@zcode/contracts";
+import { resolveToolSearchMode } from "../../tool/search/exposure.js";
 import { orderProviderVisibleToolContracts } from "../../tool/provider-visible-order.js";
 import { projectToolModelContract } from "../../tool/model-contract.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
@@ -50,7 +53,10 @@ export async function setExecutionState(
 
 export function updateConfig(
   this: AgentRuntimeInternal,
-  patch: Pick<AgentRuntimeConfig, "mode" | "planEnabled" | "language" | "outputStyle">,
+  patch: Pick<
+    AgentRuntimeConfig,
+    "mode" | "planEnabled" | "language" | "outputStyle" | "toolSearch"
+  >,
 ): void {
   if (patch.mode !== undefined || patch.planEnabled !== undefined) {
     const previous = resolveExecutionState(this.config);
@@ -58,6 +64,11 @@ export function updateConfig(
     Object.assign(this.config, next);
     if (previous.planEnabled !== next.planEnabled)
       this.needsPlanModeExitReminder = !next.planEnabled;
+  }
+  if ("toolSearch" in patch) {
+    this.config.toolSearch = patch.toolSearch ? { ...patch.toolSearch } : { mode: "off" };
+    // 当前请求已捕获目录；Off 只隐藏下一请求，不能立即删入口使在飞 ToolSearch 失败。
+    refreshRuntimeToolSearchControls(this, { preserveActiveRequest: true });
   }
   if (patch.language !== undefined) {
     this.config.language = patch.language;
@@ -88,6 +99,10 @@ export function getSessionShellSelection(
 
 export function getMode(this: AgentRuntimeInternal): CollaborationMode {
   return this.config.mode ?? "build";
+}
+
+export function getToolSearchMode(this: AgentRuntimeInternal): ToolSearchMode {
+  return this.config.toolSearch?.mode ?? "off";
 }
 
 export function getPlanEnabled(this: AgentRuntimeInternal): boolean {
@@ -153,6 +168,13 @@ export function getTools(this: AgentRuntimeInternal, model?: Model): ModelToolCo
     this.cachedTools = filterRuntimeVisibleTools.call(this, this.registry.toContracts());
   }
   return this.cachedTools
+    .filter(
+      (tool) =>
+        (tool.name !== "ToolSearch" && tool.name !== "DeferredToolCall") ||
+        (this.config.toolSearch?.mode !== undefined &&
+          this.config.toolSearch.mode !== "off" &&
+          (!model || resolveToolSearchMode(model, this.config.toolSearch.mode) !== "off")),
+    )
     .filter((tool) => tool.name !== "WebSearch" || shouldExposeWebSearch.call(this, model))
     .map((tool) =>
       projectToolModelContract(tool, this.registry.get(tool.name), {

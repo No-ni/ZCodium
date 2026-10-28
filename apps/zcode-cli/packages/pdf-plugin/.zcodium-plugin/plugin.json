@@ -1,15 +1,41 @@
 {
   "name": "pdf",
-  "version": "0.2.0",
-  "description": "PDF document production skills, published as an official ZCode plugin.",
+  "version": "0.2.1",
+  "description": "PDF document production skills, published as an official ZCode plugin. Includes a read-only workspace viewer for shared reading, search, references and captures.",
   "description_i18n": {
-    "en": "PDF production skills: typeset and render reports, resumes, posters, and covers to PDF.",
-    "zh-CN": "PDF 制作技能：报告、简历、海报、封面的排版与渲染输出。"
+    "en": "PDF production skills: typeset and render reports, resumes, posters, and covers to PDF. Read together in a read-only workspace panel with anchor references, search, highlights and captures.",
+    "zh-CN": "PDF 制作技能：报告、简历、海报、封面的排版与渲染输出。 支持工作区只读共同阅读、锚点引用、搜索、高亮与截图。"
   },
   "author": {
     "name": "ZCodium"
   },
   "license": "Apache-2.0",
   "skills": "skills",
-  "agents": "agents"
+  "agents": "agents",
+  "mcpServers": {
+    "pdf": {
+      "cwd": "${ZCODE_PROJECT_DIR}",
+      "command": "node",
+      "type": "stdio",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"],
+      "env": {
+        "ZCODE_WORKSPACE_ROOT": "${ZCODE_PROJECT_DIR}"
+      }
+    }
+  },
+  "ui": {
+    "surfaces": [
+      {
+        "server": "pdf",
+        "title": {
+          "zh-CN": "PDF",
+          "en-US": "PDF"
+        },
+        "availability": "session",
+        "icon": "file-text",
+        "resourceUri": "ui://pdf/panel.html",
+        "id": "pdf"
+      }
+    ]
+  }
 }

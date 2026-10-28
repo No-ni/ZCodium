@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { IPlatformService, RemoteWorkspaceSessionEntry } from "@zcode/shared";
-import { stripRemoteTargetSecrets } from "@zcode/shared";
+import { buildServerRemoteWorkspaceIdentity, stripRemoteTargetSecrets } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import { toast } from "@/components/ui/toast.js";
 import {
@@ -13,6 +13,7 @@ import { logger } from "@/logger.js";
 import {
   bindRemoteWorkspaceIdentity,
   bindRemoteWorkspacePath,
+  getRemoteWorkspaceSession,
 } from "@/store/remoteWorkspaceSessionStore.js";
 import { refreshRemotePinnedTasksForSession } from "@/store/remotePinnedTaskStore.js";
 import { refreshRemoteTimelineTasksForSession } from "@/store/remoteTimelineTaskStore.js";
@@ -143,10 +144,13 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
       sessionId,
       sessionEntry.workspacePath,
     );
-    resolvedWorkspaceIdentity = buildRemoteWorkspaceIdentity(
-      resolvedWorkspacePath,
-      reconnectTarget,
-    );
+    const sourceServerId = getRemoteWorkspaceSession(sessionId)?.sourceServerId;
+    resolvedWorkspaceIdentity = sourceServerId
+      ? buildServerRemoteWorkspaceIdentity({
+          serverId: sourceServerId,
+          workspacePath: resolvedWorkspacePath,
+        })
+      : buildRemoteWorkspaceIdentity(resolvedWorkspacePath, reconnectTarget);
 
     if (
       resolvedWorkspacePath !== sessionEntry.workspacePath ||

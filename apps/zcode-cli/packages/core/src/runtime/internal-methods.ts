@@ -34,7 +34,11 @@ import type {
   ContextBuilder,
   ExecutionShellSelection,
 } from "./deps.js";
-import type { BackgroundResultOriginMeta, ContextUsageBreakdownItem } from "@zcode/contracts";
+import type {
+  BackgroundResultOriginMeta,
+  ContextUsageBreakdownItem,
+  ToolSearchMode,
+} from "@zcode/contracts";
 import type { RuntimeCommand, RuntimeCommandId } from "./command-queue.js";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
 import type {
@@ -66,13 +70,17 @@ import type {
 
 export interface AgentRuntimeCoreMethods {
   updateConfig(
-    patch: Pick<AgentRuntimeConfig, "mode" | "planEnabled" | "language" | "outputStyle">,
+    patch: Pick<
+      AgentRuntimeConfig,
+      "mode" | "planEnabled" | "language" | "outputStyle" | "toolSearch"
+    >,
   ): void;
   initializeSessionShellEnvironmentIfNeeded(
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;
   getSessionShellSelection(): ExecutionShellSelection | undefined;
   getMode(): CollaborationMode;
+  getToolSearchMode(): ToolSearchMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;
   setExecutionState(

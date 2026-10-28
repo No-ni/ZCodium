@@ -1,0 +1,3 @@
+# Source Server protocol
+
+Pure strict DTOs for saved Source/Profile records, compatibility and safe connection state. Profile records contain Credential Store keys, never password/token values. Installation identity comes from an authenticated handshake; routes and window handles are not identities. A Source record may have no preferred Profile after its route is removed; that does not delete the Source or select another route. Identity confirmation names the exact previously displayed installation and Profile generation. This module performs no IO or automatic migration/deployment. Directory and connection owners live in Window Host; daemon lifecycle belongs to Server CLI.

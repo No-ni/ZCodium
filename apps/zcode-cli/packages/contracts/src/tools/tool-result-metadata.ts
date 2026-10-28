@@ -23,6 +23,7 @@ import {
   resumeWorkflowRunToolResultDisplayPayloadSchema,
   savedWorkflowListToolResultDisplayPayloadSchema,
 } from "./workflow-observation-display.js";
+import { toolSearchToolResultDisplayPayloadSchema } from "./tool-search.js";
 
 export const COMPLETED_TOOL_PART_METADATA_SCHEMA_VERSION = 1;
 export const TASK_OUTPUT_DISPLAY_MAX_STATUS_CHARS = 64;
@@ -290,6 +291,7 @@ export const toolResultDisplayPayloadSchema = z.discriminatedUnion("kind", [
   localAgentMessageToolResultDisplayPayloadSchema,
   taskStopToolResultDisplayPayloadSchema,
   taskOutputToolResultDisplayPayloadSchema,
+  toolSearchToolResultDisplayPayloadSchema,
   respondToCoordinatorToolResultDisplayPayloadSchema,
   cuaToolResultDisplayPayloadSchema,
   nodeReplImageToolResultDisplayPayloadSchema,

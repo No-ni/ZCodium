@@ -6,6 +6,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { BindCodePanel } from "./ProviderSettingsCard.js";
+import { ASTRBOT_BRIDGE_DOCS_URL } from "@/lib/productDocs.js";
 import type { BindCodeState } from "./shared.js";
 
 /**
@@ -14,7 +15,7 @@ import type { BindCodeState } from "./shared.js";
  * 这里只负责展示桥接运行时文件 + 插件入口，并复用官方绑定/解绑流程。
  */
 const ASTRBOT_BRIDGE_RUNTIME_FILE = ".zcodium/v2/bots-bridge.runtime.v2.json";
-export const ASTRBOT_PLUGIN_URL = "https://github.com/axiom-desu/astrbot-zcodium-plugin";
+export const ASTRBOT_PLUGIN_URL = ASTRBOT_BRIDGE_DOCS_URL;
 
 export function AstrBotSettingsCard({
   bot,

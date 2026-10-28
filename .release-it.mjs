@@ -6,10 +6,11 @@ import {
 
 export default {
   git: {
-    commitMessage: "chore: release v${version}",
+    commitMessage: "chore: 发布 v${version}",
     tagName: "v${version}",
-    tagAnnotation: "Release v${version}",
-    push: true,
+    tagAnnotation: "发布 v${version}",
+    push: false,
+    pushRepo: "origin",
   },
   github: {
     release: false,

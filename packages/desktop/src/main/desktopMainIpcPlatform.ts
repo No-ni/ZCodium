@@ -68,7 +68,7 @@ export function registerPlatformIpcHandlers(options: {
     extra?: { skipWindowId?: number },
   ) => { activated: boolean; winId?: number };
   windowWorkspaceMap: Map<number, Set<string>>;
-  windowUnreadCountMap: Map<number, number>;
+  windowUnreadCountMap: Map<number, import("@zcode/shared").WindowUnreadProjection>;
   currentApplicationLocale: () => Locale;
   executeDesktopCommand: (
     command: DesktopCommandId,

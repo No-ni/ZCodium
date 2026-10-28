@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { it } from "node:test";
 import { createDwfJournalStore } from "../src/storage/session-store/repositories/dwf-journal.js";
-import { runSqliteSessionMigrations } from "../src/storage/session-store/migration-runner.js";
+import { runSqliteSessionMigrationsAsync } from "../src/storage/session-store/migration-runner.js";
 
-it("real SQLite trigger failure rolls back script/hash and event; nested transaction succeeds once", () => {
+it("real SQLite trigger failure rolls back script/hash and event; nested transaction succeeds once", async () => {
   const db = new DatabaseSync(":memory:");
   try {
-    runSqliteSessionMigrations(db, ":memory:");
+    // 原 sync 函数按 official-3.16.2 迁移改造已是 ready 只读验收，空内存 fixture 必须走异步启动迁移准备 schema。
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     const journal = createDwfJournalStore(db);
     journal.createRun({
       runId: "run-1",

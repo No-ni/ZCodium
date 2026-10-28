@@ -2,9 +2,9 @@
 
 ## 背景与问题
 
-ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/autoUpdater.ts` 在运行时通过
-服务端 manifest provider 检查更新，默认 origin 为 `DEFAULT_ZCODE_ENDPOINT_ORIGIN`
-（`packages/shared/src/zcodeEndpoint.ts`，值 `https://zcode.z.ai`）。
+ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/autoUpdater.ts` 原实现在运行时通过
+服务端 manifest provider 检查更新，默认 origin 为上游常量 `DEFAULT_ZCODE_ENDPOINT_ORIGIN`
+（值 `https://zcode.z.ai`）。本仓已删除该常量与对应回退。
 
 这带来三个不属于本仓库所有者的能力：
 
@@ -28,9 +28,9 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/auto
 ## 所有者与接口
 
 - 更新源地址：构建期注入，单一来源。新增构建期常量 `__ZCODIUM_UPDATE_ORIGIN__`，
-  与既有 `__ZCODE_CDN_BASE_URL__` 同层（`packages/desktop/tsup.config.ts` /
-  `packages/desktop/vite.config.ts` 的 `createSharedDefines`），在
-  `packages/shared/src/env.ts` 声明并导出 `ZCODIUM_UPDATE_ORIGIN`。
+  在 `packages/desktop/tsup.config.ts` / `packages/desktop/vite.config.ts` 的
+  `createSharedDefines` 中声明，并在 `packages/shared/src/env.ts` 声明导出
+  `ZCODIUM_UPDATE_ORIGIN`。
 - 读取方：`packages/desktop/src/main/autoUpdater.ts` 的 `applyManifestUpdateProvider` 与
   `forceUpdateGuard.ts`，两者都只读该常量。
 - 空值语义：`ZCODIUM_UPDATE_ORIGIN` 为空串时，`initAutoUpdater` 收到 `enabled: false`

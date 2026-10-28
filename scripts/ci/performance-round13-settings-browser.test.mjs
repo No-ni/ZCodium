@@ -72,7 +72,8 @@ test(
       const fixtureResponse = await fetch(fixtureUrl, { signal: AbortSignal.timeout(10_000) });
       t.diagnostic(`fixture HTTP ${fixtureResponse.status}`);
       assert.equal(fixtureResponse.status, 200);
-      await page.goto(fixtureUrl, { waitUntil: "domcontentloaded" });
+      // 首次 Vite 预构建在整库并行跑测试时可能超过 Playwright 默认的 30s。
+      await page.goto(fixtureUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
       await page.waitForFunction(() => Boolean(window.performanceRound13Settings));
 
       const mount = async (name, serviceId, platformId, strictMode = false) =>

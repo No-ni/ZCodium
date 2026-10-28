@@ -41,6 +41,8 @@ import type { IWindowControllerService } from "./window-controller/windowControl
 import type { IOnboardingRecordService } from "./onboarding/onboardingRecord.js";
 import type { IConversationShareService } from "./conversation-share/conversationShare.js";
 
+import type { WindowProjectDirectoryServices } from "./window-project-directory/contract.js";
+import type { ISourceServerManagementService } from "./source-server-management/sourceServerManagement.js";
 /** UI 层消费的统一服务接口 */
 export interface IServiceAccessor {
   readonly fileService: IFileService;
@@ -57,6 +59,8 @@ export interface IServiceAccessor {
   readonly zcodeTaskService: IZCodeTaskService;
   /** 窗口 Host 聚合面；旧 server wire 或测试 double 可暂不提供。 */
   readonly windowControllerService?: IWindowControllerService;
+  readonly sourceServerManagementService?: ISourceServerManagementService;
+  readonly windowProjectDirectory?: WindowProjectDirectoryServices;
   readonly zcodeAgentService: IZCodeAgentService;
   readonly zcodeSessionService: IZCodeSessionService;
   // CUA 是 opt-in 内测特性：local macOS host 提供，远端 等 host 没有。可选避免连锁必填。

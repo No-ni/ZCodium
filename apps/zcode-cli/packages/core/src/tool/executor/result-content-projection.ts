@@ -11,6 +11,56 @@ interface HookStringProjection {
   truncated: boolean;
 }
 
+const TOOL_REFERENCE_TEXT_TRUNCATION_MARKER = "[Tool result text truncated by resultBudget]";
+
+export function projectToolReferenceContent(
+  modelContent: ModelMessageContent,
+  maxTextBytes: number,
+  direction: "head" | "tail",
+):
+  | Pick<ToolResultSerialization, "modelContent" | "content" | "returnedBytes" | "truncated">
+  | undefined {
+  if (
+    !Array.isArray(modelContent) ||
+    !modelContent.some((block) => block.type === "tool_reference") ||
+    !modelContent.every((block) => block.type === "text" || block.type === "tool_reference")
+  )
+    return undefined;
+
+  // 引用是发现事实与 Native wire，不是展示文本。通用预算只裁文本，不截引用、不改变块顺序。
+  const truncated = Buffer.byteLength(joinTextBlocks(modelContent), "utf8") > maxTextBytes;
+  let projected: ModelMessageContentBlock[] = modelContent;
+  if (truncated) {
+    const marker = fitStringToBytes(TOOL_REFERENCE_TEXT_TRUNCATION_MARKER, maxTextBytes, "head");
+    let remainingBytes = maxTextBytes - Buffer.byteLength(marker, "utf8");
+    let hasText = marker.length > 0;
+    const ordered = direction === "tail" ? [...modelContent].reverse() : modelContent;
+    projected = ordered.flatMap((block): ModelMessageContentBlock[] => {
+      if (block.type !== "text") return [block];
+      const text = fitStringToBytes(
+        block.text,
+        Math.max(0, remainingBytes - (hasText ? 2 : 0)),
+        direction,
+      );
+      if (text.length > 0) {
+        remainingBytes -= Buffer.byteLength(text, "utf8") + (hasText ? 2 : 0);
+        hasText = true;
+      }
+      if (text.length < block.text.length) remainingBytes = 0;
+      return text ? [{ ...block, text }] : [];
+    });
+    if (direction === "tail") projected.reverse();
+    if (marker) projected.push({ type: "text", text: marker });
+  }
+  const content = stringifyModelContentForSerialization(projected);
+  return {
+    modelContent: projected,
+    content,
+    returnedBytes: Buffer.byteLength(content, "utf8"),
+    truncated,
+  };
+}
+
 const OFFICIAL_CUA_TEXT_TRUNCATION_MARKER =
   "[Official CUA text truncated by resultBudget. Re-observe with detail=compact or a narrower window before relying on omitted state.]";
 

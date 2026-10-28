@@ -2,10 +2,9 @@ import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
+import { resolveSourceDataRoots, type SourceDataRoots } from "@zcode/shared/node";
 
-export interface ServerLayout {
-  readonly dataBaseDir: string;
-  readonly serverRoot: string;
+export interface ServerLayout extends SourceDataRoots {
   readonly releasesDir: string;
   readonly runDir: string;
   readonly currentFile: string;
@@ -27,11 +26,11 @@ function getDefaultServerDataRoot(): string {
 }
 
 export function resolveServerLayout(serverRoot = getDefaultServerDataRoot()): ServerLayout {
-  const root = resolve(serverRoot);
+  const dataRoots = resolveSourceDataRoots(serverRoot);
+  const root = dataRoots.serverRoot;
   const runDir = join(root, "run");
   return {
-    dataBaseDir: inferDataBaseDir(root),
-    serverRoot: root,
+    ...dataRoots,
     releasesDir: join(root, "releases"),
     runDir,
     currentFile: join(root, "current.json"),
@@ -78,15 +77,6 @@ export async function resolveCanonicalServerLayout(
   return resolveServerLayout(await resolveCanonicalServerRoot(serverRoot));
 }
 
-function inferDataBaseDir(serverRoot: string): string {
-  const parent = dirname(serverRoot);
-  if (basename(serverRoot) === "server" && basename(parent) === ZCODE_USER_DATA_DIR_NAME) {
-    return dirname(parent);
-  }
-  // 非标准的显式 server root 仍保持隔离，不向其父目录扩散 Agent/SQLite 数据。
-  return serverRoot;
-}
-
 export function stablePathId(pathValue: string): string {
   // Path is only used as a local endpoint name.  A short deterministic id avoids leaking
   // the full home path into a named pipe or service descriptor.
@@ -130,9 +120,5 @@ export function validateUninstallTarget(
 }
 
 function assertServerDataRoot(serverRoot: string): string {
-  const resolved = resolve(serverRoot);
-  if (!isAbsolute(resolved) || resolved === dirname(resolved)) {
-    throw new Error("Invalid server data root");
-  }
-  return resolved;
+  return resolveSourceDataRoots(serverRoot).serverRoot;
 }

@@ -513,12 +513,9 @@ export const DesktopCommandIds = {
   ToggleDevTools: "toggleDevTools",
   OpenResourceManager: "openResourceManager",
   ToggleZCodeStdioTapDevProxy: "toggleZCodeStdioTapDevProxy",
-  SetZCodeEndpointProduction: "setZCodeEndpointProduction",
-  SetZCodeEndpointTest: "setZCodeEndpointTest",
   SetZCodeEndpointCustom: "setZCodeEndpointCustom",
   ResetZCodeEndpoint: "resetZCodeEndpoint",
   ClearAllData: "clearAllData",
-  ClearCodingPlanWebviewStorage: "clearCodingPlanWebviewStorage",
   GetCuaOsSupport: "getCuaOsSupport",
 } as const;
 
@@ -758,7 +755,7 @@ export interface IPlatformService {
   syncWindowTabs(paths: string[]): void;
 
   /** 同步当前窗口的未读 task 数给宿主环境，用于 Dock / 任务栏徽标聚合 */
-  syncWindowUnreadCount(count: number): void;
+  syncWindowUnreadCount(projection: import("./windowUnread.js").WindowUnreadProjection): void;
   /** 当前窗口 active task 变化；Main 只在该窗口前台时发布全局 PiP focus。 */
   syncActiveTaskSession(sessionId: string | null): void;
 

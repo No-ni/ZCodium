@@ -7,8 +7,10 @@ import type {
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { logger } from "@/logger.js";
 
+export type ModelSelectionCatalog = Pick<ModelSelectionView, "revision" | "providers">;
+
 export type ModelSelectionState =
-  | { status: "loading" }
+  | { status: "loading"; catalog?: ModelSelectionCatalog }
   | { status: "ready"; view: ModelSelectionView }
   | { status: "unavailable"; reason: "remote-waiting" | "missing-target" }
   | { status: "error"; error: Error };
@@ -42,10 +44,31 @@ function initialState(
   service: IModelSelectionService | null,
   enabled: boolean,
   unavailableReason: "remote-waiting" | "missing-target",
+  catalog?: ModelSelectionCatalog,
 ): ModelSelectionState {
   return enabled && service
-    ? { status: "loading" }
+    ? { status: "loading", ...(catalog ? { catalog } : {}) }
     : { status: "unavailable", reason: unavailableReason };
+}
+
+function retainedCatalog(
+  previous: OwnedModelSelectionState,
+  service: IModelSelectionService | null,
+  enabled: boolean,
+  unavailableReason: "remote-waiting" | "missing-target",
+): ModelSelectionCatalog | undefined {
+  if (
+    previous.service !== service ||
+    previous.enabled !== enabled ||
+    previous.unavailableReason !== unavailableReason
+  )
+    return undefined;
+  // 同 Host 换输入只保留静态目录，不能让旧 effectiveSelection 冒充新输入的解析结果。
+  if (previous.state.status === "ready") {
+    const { revision, providers } = previous.state.view;
+    return { revision, providers };
+  }
+  return previous.state.status === "loading" ? previous.state.catalog : undefined;
 }
 
 /** 订阅明确 Host Service；返回状态在同一次 render 即绑定新 owner，不暴露旧 Host View。 */
@@ -77,12 +100,18 @@ export function useModelSelectionServiceView(
     owned.unavailableReason === unavailableReason;
   const visibleState = ownerMatches
     ? owned.state
-    : initialState(normalizedService, enabled, unavailableReason);
+    : initialState(
+        normalizedService,
+        enabled,
+        unavailableReason,
+        retainedCatalog(owned, normalizedService, enabled, unavailableReason),
+      );
 
   useEffect(() => {
     generationRef.current += 1;
     const generation = generationRef.current;
     const previous = ownedRef.current;
+    const catalog = retainedCatalog(previous, normalizedService, enabled, unavailableReason);
     const retainedReady =
       previous.service === normalizedService &&
       previous.enabled === enabled &&
@@ -96,11 +125,11 @@ export function useModelSelectionServiceView(
       enabled,
       unavailableReason,
       inputKey,
-      state: retainedReady ?? initialState(normalizedService, enabled, unavailableReason),
+      state: retainedReady ?? initialState(normalizedService, enabled, unavailableReason, catalog),
     });
     if (!enabled || !normalizedService) return;
 
-    let latestRevision = retainedReady?.view.revision ?? -1;
+    let latestRevision = retainedReady?.view.revision ?? catalog?.revision ?? -1;
     let hasReadyView = retainedReady !== null;
     let requestId = 0;
     let retryCount = 0;

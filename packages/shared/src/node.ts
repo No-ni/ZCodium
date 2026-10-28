@@ -5,6 +5,11 @@
  */
 export { acquireFileLock } from "./node/atomicFileLock.js";
 export {
+  resolveSourceDataRoots,
+  createSourcePersistenceEnv,
+  type SourceDataRoots,
+} from "./node/sourceDataRoots.js";
+export {
   GEN_UI_OUTPUT_ROOT_ENV,
   GEN_UI_OUTPUT_DIRECTORY,
   getGenUiOutputDirectory,

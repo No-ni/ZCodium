@@ -1,6 +1,15 @@
 import { databaseMigrationIdSchema, type DatabaseMigrationFacts } from "@zcode/shared";
+import {
+  inspectMigrations,
+  migrate,
+  type MigrationOptions,
+  type MigrationResult,
+  type SqliteMigration,
+} from "@zcode/shared/sqlite-migrations";
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { dirname, join } from "node:path";
+import { assertTasksDatabaseSchema } from "#src/session/tasksDatabase/schema-guard.js";
 import {
   AUTOMATION_SCHEMA,
   OFF_PEAK_SCHEMA,
@@ -66,75 +75,105 @@ const definitions = [
   },
 ] as const;
 
-export function runTasksDatabaseMigrations(
+const touchedTables: Record<(typeof definitions)[number]["id"], readonly string[]> = {
+  "0001_adopt_task_schema": [
+    "tasks",
+    "task_groups",
+    "task_group_members",
+    "task_group_view_node_orders",
+    "task_group_workspace_bootstraps",
+    "automations",
+    "automation_runs",
+    "off_peak_tasks",
+  ],
+  "0002_provider_selection": ["automations"],
+  "0003_official_glm_selection": ["automations"],
+};
+
+// 只适配合同，不改变已发布 JSON/SQL/apply：前三条历史账本 checksum 和 id 原样保留。
+export const TASKS_DATABASE_MIGRATIONS: readonly SqliteMigration[] = definitions.map(
+  (definition) => ({
+    id: definition.id,
+    appVersion: "3.15.1",
+    sql:
+      definition.id === "0003_official_glm_selection" ? OFFICIAL_GLM_SELECTION_MIGRATION_SQL : "",
+    checksum: createHash("sha256").update(JSON.stringify(definition.checksumInput)).digest("hex"),
+    touchedTables: touchedTables[definition.id],
+    apply:
+      definition.id === "0001_adopt_task_schema"
+        ? adoptSchema
+        : definition.id === "0002_provider_selection"
+          ? importLegacyAutomationSelections
+          : undefined,
+  }),
+);
+
+export interface TasksMigrationOptions {
+  transactionOpen?: boolean;
+  migration?: DatabaseMigrationFacts;
+  backupDirectories?: readonly string[];
+  signal?: AbortSignal;
+  lockWaitTimeoutMs?: number;
+  onWaitingForLock?: () => void | Promise<void>;
+  onProgress?: (
+    phase: "migrating" | "committing",
+    migration: DatabaseMigrationFacts,
+  ) => void | Promise<void>;
+}
+
+/** Host startup 是唯一执行入口；通用 runner 是唯一事务 owner。 */
+export async function runTasksDatabaseMigrationsAsync(
   db: DatabaseSync,
-  options: {
-    transactionOpen?: boolean;
-    migration?: DatabaseMigrationFacts;
-    onProgress?: (phase: "migrating" | "committing", migration: DatabaseMigrationFacts) => void;
-  } = {},
-): void {
-  if (!options.transactionOpen) db.exec("BEGIN IMMEDIATE");
+  options: TasksMigrationOptions = {},
+): Promise<MigrationResult> {
   const migrationFacts: DatabaseMigrationFacts = options.migration ?? {
-    kind: "none",
+    kind: inspectTasksMigrationKind(db),
     executedCount: 0,
     committedCount: 0,
   };
-  let currentMigrationId: string | undefined;
-  try {
-    if (!options.migration) migrationFacts.kind = inspectTasksMigrationKind(db);
-    db.exec(`CREATE TABLE IF NOT EXISTS tasks_schema_migration (
-      id TEXT PRIMARY KEY, checksum TEXT NOT NULL, time_applied INTEGER NOT NULL
-    )`);
-    // 锁内、版本 SQL 之前采集；空账本是 none，异常编号不作为遥测原文发送。
-    const baseline = db
-      .prepare("SELECT id FROM tasks_schema_migration ORDER BY id DESC LIMIT 1")
-      .get();
-    migrationFacts.lastAppliedMigrationId = baseline
-      ? databaseMigrationIdSchema.safeParse(baseline.id).data
-      : null;
-    for (const migration of definitions) {
-      currentMigrationId = migration.id;
-      const checksum = createHash("sha256")
-        .update(JSON.stringify(migration.checksumInput))
-        .digest("hex");
-      const applied = db
-        .prepare("SELECT checksum FROM tasks_schema_migration WHERE id=?")
-        .get(migration.id);
-      if (applied) {
-        if (applied.checksum !== checksum)
-          throw Object.assign(
-            new Error(`Task database migration checksum mismatch: ${migration.id}`),
-            { kind: "checksum_mismatch" },
-          );
-        continue;
-      }
-      if (migrationFacts.kind === "none") migrationFacts.kind = "upgrade";
-      options.onProgress?.("migrating", { ...migrationFacts });
-      if (migration.id === "0001_adopt_task_schema") adoptSchema(db);
-      else if (migration.id === "0002_provider_selection") importLegacyAutomationSelections(db);
-      else db.exec(OFFICIAL_GLM_SELECTION_MIGRATION_SQL);
+  const path = db
+    .prepare("PRAGMA database_list")
+    .all()
+    .find((row) => row.name === "main")?.file;
+  const backupDirectories =
+    options.backupDirectories ??
+    (typeof path === "string" && path ? [join(dirname(path), "backup")] : []);
+  const runnerOptions: MigrationOptions = {
+    database: "tasks-index",
+    journalTable: "tasks_schema_migration",
+    backupDirectories,
+    transactionOpen: options.transactionOpen,
+    signal: options.signal,
+    lockWaitTimeoutMs: options.lockWaitTimeoutMs,
+    onWaitingForLock: options.onWaitingForLock,
+    onLocked: (inspection) => {
+      migrationFacts.kind = inspection.kind;
+      migrationFacts.lastAppliedMigrationId =
+        inspection.lastAppliedMigrationId === null
+          ? null
+          : databaseMigrationIdSchema.parse(inspection.lastAppliedMigrationId);
+    },
+    onBeforeApply: () => options.onProgress?.("migrating", { ...migrationFacts }),
+    onApplied: () => {
       migrationFacts.executedCount++;
-      db.prepare("INSERT INTO tasks_schema_migration VALUES(?,?,?)").run(
-        migration.id,
-        checksum,
-        Date.now(),
-      );
-    }
-    options.onProgress?.("committing", { ...migrationFacts });
-    db.exec("COMMIT");
-    migrationFacts.committedCount = migrationFacts.executedCount;
-  } catch (error) {
-    // 回滚也可能因 IO 失败，不能覆盖真正导致迁移失败的异常。
-    try {
-      if (db.isTransaction) db.exec("ROLLBACK");
-    } catch {
-      /* 调用方关闭连接恢复。 */
-    }
-    if (error && typeof error === "object" && currentMigrationId)
-      Object.assign(error, { migrationId: currentMigrationId });
-    throw error;
-  }
+    },
+    onCommitting: async () => {
+      assertTasksDatabaseSchema(db);
+      await options.onProgress?.("committing", { ...migrationFacts });
+    },
+  };
+  const result = await migrate(db, TASKS_DATABASE_MIGRATIONS, runnerOptions);
+  migrationFacts.committedCount = migrationFacts.executedCount;
+  return result;
+}
+
+/** 旧 Repo 调用只校验，不能在 ensureReady/getter 另起无备份的同步迁移。 */
+export function runTasksDatabaseMigrations(db: DatabaseSync): void {
+  if (!areTasksDatabaseMigrationsApplied(db))
+    throw Object.assign(
+      new Error("Task storage must be prepared by the asynchronous startup owner"),
+      { kind: "sql_failed" },
+    );
 }
 
 function adoptSchema(db: DatabaseSync): void {
@@ -158,54 +197,17 @@ function adoptSchema(db: DatabaseSync): void {
 
 /** 交接只复用已完成初始化；每个新连接仍按冻结账本确认，替换/清空文件不能假 ready。 */
 export function areTasksDatabaseMigrationsApplied(db: DatabaseSync): boolean {
-  if (
-    !db
-      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks_schema_migration'")
-      .get()
-  )
-    return false;
-  for (const migration of definitions) {
-    const row = db
-      .prepare("SELECT checksum FROM tasks_schema_migration WHERE id=?")
-      .get(migration.id);
-    if (!row) return false;
-    const expected = createHash("sha256")
-      .update(JSON.stringify(migration.checksumInput))
-      .digest("hex");
-    if (row.checksum !== expected)
-      throw Object.assign(new Error(`Task database migration checksum mismatch: ${migration.id}`), {
-        kind: "checksum_mismatch",
-      });
-  }
+  const inspection = inspectMigrations(db, TASKS_DATABASE_MIGRATIONS, {
+    journalTable: "tasks_schema_migration",
+  });
+  if (inspection.pending.length) return false;
+  assertTasksDatabaseSchema(db);
   return true;
 }
 
 /** 只读账本的展示预检，不授权执行；迁移 runner 拿锁后仍复查每一项。 */
 export function inspectTasksMigrationKind(db: DatabaseSync): DatabaseMigrationFacts["kind"] {
-  const hasLedger = db
-    .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks_schema_migration'")
-    .get();
-  let pending = false;
-  for (const migration of definitions) {
-    const row = hasLedger
-      ? db.prepare("SELECT checksum FROM tasks_schema_migration WHERE id=?").get(migration.id)
-      : undefined;
-    if (!row) pending = true;
-    else if (
-      row.checksum !==
-      createHash("sha256").update(JSON.stringify(migration.checksumInput)).digest("hex")
-    )
-      throw Object.assign(new Error(`Task database migration checksum mismatch: ${migration.id}`), {
-        kind: "checksum_mismatch",
-        migrationId: migration.id,
-      });
-  }
-  if (!pending) return "none";
-  return db
-    .prepare(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT IN ('tasks_schema_migration', 'sqlite_sequence') LIMIT 1",
-    )
-    .get()
-    ? "upgrade"
-    : "initialize";
+  return inspectMigrations(db, TASKS_DATABASE_MIGRATIONS, {
+    journalTable: "tasks_schema_migration",
+  }).kind;
 }

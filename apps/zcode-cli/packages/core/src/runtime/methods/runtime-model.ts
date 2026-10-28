@@ -60,6 +60,7 @@ export function withModelInvocationContext(
     properties: model.properties,
     optionSpecs: model.optionSpecs,
     options: model.options,
+    requestCapabilities: model.requestCapabilities,
     bind(options) {
       return withModelInvocationContext(model.bind(options), createContext);
     },

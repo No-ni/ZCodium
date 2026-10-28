@@ -116,7 +116,7 @@ declare global {
       /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程 */
       syncWindowTabs(paths: string[]): void;
       /** 同步当前窗口的未读 task 数到 main 进程 */
-      syncWindowUnreadCount(count: number): void;
+      syncWindowUnreadCount(projection: import("@zcode/shared").WindowUnreadProjection): void;
       syncActiveTaskSession(sessionId: string | null): void;
       /** 同步需要 main 进程即时感知的应用设置 */
       syncAppSettings?(patch: Partial<AppSettings>): void;

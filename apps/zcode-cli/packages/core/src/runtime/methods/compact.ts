@@ -39,6 +39,7 @@ import type {
 } from "./turn-loop-state.js";
 import { recordTurnUsageFact } from "./usage-observability.js";
 import { findLatestCommittedAssistantUsage } from "./turn-model-step-usage.js";
+import { buildToolExposure } from "../../tool/search/exposure.js";
 
 export async function executeManualCompact(
   this: AgentRuntimeInternal,
@@ -198,9 +199,16 @@ export async function autoCompactIfNeeded(
   };
   const activeEntries = context.turnRequestState.entries;
   const activeProjection = buildRuntimeProviderRequestMessages(this, {
-    entries: activeEntries,
+    entries: buildToolExposure({
+      model: context.model,
+      mode: this.config.toolSearch?.mode,
+      registry: this.registry,
+      tools: this.getTools(context.model),
+      entries: activeEntries,
+    }).entries,
     applyCacheControl: false,
     model: context.model,
+    toolSearchProjected: true,
   });
   const { messages: activeMessages, sourceEntries } = activeProjection;
   const tokenOverride = buildProviderUsageTokenOverride(activeMessages, sourceEntries);
@@ -366,9 +374,16 @@ export async function reactiveCompactAfterContextExceeded(
 
   const activeEntries = context.activeEntries ?? context.turnRequestState.entries;
   const activeProjection = buildRuntimeProviderRequestMessages(this, {
-    entries: activeEntries,
+    entries: buildToolExposure({
+      model: context.model,
+      mode: this.config.toolSearch?.mode,
+      registry: this.registry,
+      tools: this.getTools(context.model),
+      entries: activeEntries,
+    }).entries,
     applyCacheControl: false,
     model: context.model,
+    toolSearchProjected: true,
   });
   const { messages: activeMessages } = activeProjection;
   if (!hasEnoughMessagesToCompact(activeMessages)) {

@@ -15,10 +15,11 @@ import type { RemoteTarget } from "./remoteTarget.js";
 /** Agent 子进程沿用 Host 的 workspace identity，不能按同路径合并远端环境。 */
 export const ZCODE_WORKSPACE_IDENTITY_ENV = "ZCODE_WORKSPACE_IDENTITY";
 
-export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker";
+export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker" | "server";
 
 export interface ParsedRemoteWorkspaceIdentity {
   kind: RemoteWorkspaceIdentityKind;
+  serverId?: string;
   /** 远端真实路径（posix 归一形态）。 */
   workspacePath: string;
 }
@@ -30,10 +31,11 @@ const AUTHORITY_SEGMENTS: Record<RemoteWorkspaceIdentityKind, number> = {
   ssh: 3,
   wsl: 1,
   docker: 1,
+  server: 1,
 };
 
 function isRemoteWorkspaceIdentityKind(value: string): value is RemoteWorkspaceIdentityKind {
-  return value === "ssh" || value === "wsl" || value === "docker";
+  return value === "ssh" || value === "wsl" || value === "docker" || value === "server";
 }
 
 function normalizeWorkspacePathForIdentity(workspacePath: string): string {
@@ -61,6 +63,16 @@ export function buildRemoteWorkspaceIdentity(workspacePath: string, target: Remo
     case "docker":
       return `remote:docker:${target.container}:${normalizedPath}`;
   }
+}
+
+/** Source 身份只来自已鉴权的安装握手，不由连接地址推导。 */
+export function buildServerRemoteWorkspaceIdentity(input: {
+  serverId: string;
+  workspacePath: string;
+}): string {
+  const serverId = input.serverId.trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(serverId)) throw new Error("Invalid Source Server identity");
+  return `remote:server:${serverId}:${normalizeWorkspacePathForIdentity(input.workspacePath)}`;
 }
 
 /**
@@ -106,6 +118,11 @@ export function parseRemoteWorkspaceIdentity(
   const workspacePath = rest.slice(cursor);
   if (!workspacePath.startsWith("/")) {
     return null;
+  }
+  if (kind === "server") {
+    const serverId = rest.slice(kindEnd + 1, cursor - 1);
+    if (!/^[A-Za-z0-9_-]+$/.test(serverId)) return null;
+    return { kind, serverId, workspacePath };
   }
   return { kind, workspacePath };
 }

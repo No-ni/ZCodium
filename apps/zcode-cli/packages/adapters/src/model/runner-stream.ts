@@ -27,6 +27,7 @@ import {
 } from "./stream-idle-timeout.js";
 import {
   createStreamDiagnostics,
+  createEmptyContextExceededError,
   isZeroOutputModelCompletion,
   isSuspiciousStreamDiagnostics,
   logIgnoredStreamChunk,
@@ -341,6 +342,7 @@ export async function* runStreamText(input: {
           input.request.preserveProviderStreamBoundaries !== true &&
           isZeroOutputModelCompletion({
             finishReason: diagnostics.finishReason,
+            rawFinishReason: diagnostics.rawFinishReason,
             reasoningLength: diagnostics.reasoningDeltaChars,
             textLength: diagnostics.textDeltaChars,
             toolCallCount: diagnostics.toolCallCount,
@@ -901,6 +903,15 @@ async function handleStreamChunk(input: {
       providerBusinessFinishError,
     );
   }
+  const contextError = createEmptyContextExceededError({
+    finishReason: input.diagnostics.finishReason,
+    rawFinishReason: input.diagnostics.rawFinishReason,
+    hasAssistantContent: input.diagnostics.textDeltaChars > 0 || input.diagnostics.reasoningDeltaChars > 0,
+    toolCallCount: input.diagnostics.toolCallCount,
+    usage: input.diagnostics.usage,
+  });
+  // finish 是成功提交边界，必须先把明确空超窗沿既有错误链结算，不能先给 Core 发成功。
+  if (contextError) return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, contextError);
   const event = toModelStreamEvent(input.chunk);
   if (event?.type === "error") {
     return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, event.error);

@@ -5,6 +5,7 @@ export interface RemoteWorkspaceServicePortRegistration {
   port: MessagePort;
   sessionId: string;
   target: RemoteTarget;
+  sourceServerId?: string;
 }
 
 export function parseRemoteWorkspaceServicePortMessage(
@@ -23,7 +24,9 @@ export function parseRemoteWorkspaceServicePortMessage(
   const sessionId = typeof event.data.sessionId === "string" ? event.data.sessionId : null;
   const target = "target" in event.data ? (event.data.target as RemoteTarget | null) : null;
   if (!port || !attachmentId || !sessionId || !target) return null;
-  return { attachmentId, port, sessionId, target };
+  const sourceServerId =
+    typeof event.data.sourceServerId === "string" ? event.data.sourceServerId : undefined;
+  return { attachmentId, port, sessionId, target, ...(sourceServerId ? { sourceServerId } : {}) };
 }
 
 export function notifyRemoteWorkspaceServicePortReady(

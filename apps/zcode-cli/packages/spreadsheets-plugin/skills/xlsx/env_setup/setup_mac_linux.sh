@@ -173,57 +173,31 @@ else
 fi
 echo ""
 
-# ── Step 2e: Font Verification (local /usr/share/fonts/) ──
-echo "--- [5/6] Font Verification ---"
-FONT_BASE="/usr/share/fonts"
-FONT_LIST="$SCRIPT_DIR/font_list.txt"
-
-if [ ! -f "$FONT_LIST" ]; then
-    fail "Font list not found: $FONT_LIST"
-    ERRORS=$((ERRORS + 1))
+# ── Local Font Verification ──
+echo "--- Local Fonts (no automatic download or installation) ---"
+if [ "$PLATFORM" = "mac" ]; then
+    FONT_DIRS=("$HOME/Library/Fonts" "/Library/Fonts" "/System/Library/Fonts")
 else
-    TOTAL=$(wc -l < "$FONT_LIST" | tr -d ' ')
-    FOUND=0
-    MISSING=0
-    info "Verifying $TOTAL fonts in $FONT_BASE ..."
-
-    while IFS= read -r rel_path || [ -n "$rel_path" ]; do
-        [ -z "$rel_path" ] && continue
-        if [ -f "$rel_path" ]; then
-            FOUND=$((FOUND + 1))
-        else
-            warn "Missing font: $rel_path"
-            MISSING=$((MISSING + 1))
-        fi
-    done < "$FONT_LIST"
-
-    if [ $MISSING -eq 0 ]; then
-        ok "All $FOUND fonts found in $FONT_BASE"
-    else
-        warn "Fonts: $FOUND found, $MISSING missing in $FONT_BASE"
-        ERRORS=$((ERRORS + 1))
-    fi
+    FONT_DIRS=("$HOME/.local/share/fonts" "$HOME/.fonts" "/usr/local/share/fonts" "/usr/share/fonts")
 fi
-
-# Set FONT_DIR to system font directory
-FONT_DIR="$FONT_BASE"
-export FONT_DIR
-echo ""
-
-# ── Step 2f: CJK Font Verification ──
-echo "--- [6/6] CJK Font Verification ---"
+FONT_DIR=""
 CJK_FOUND=false
-
-if [ -f "$FONT_BASE/truetype/chinese/NotoSansSC[wght].ttf" ]; then
-    ok "Noto Sans SC found in $FONT_BASE"
-    CJK_FOUND=true
-elif fc-list :lang=zh 2>/dev/null | head -1 | grep -q .; then
-    ok "CJK fonts available (fc-list)"
+for dir in "${FONT_DIRS[@]}"; do
+    [ -d "$dir" ] || continue
+    if [ -z "$FONT_DIR" ]; then FONT_DIR="$dir"; fi
+    if [ -n "$(find "$dir" -type f \( -iname 'NotoSansSC*' -o -iname 'NotoSerifSC*' -o -iname 'Noto*CJK*' -o -iname 'PingFang*' -o -iname 'Songti*' -o -iname '*Heiti*' -o -iname '*WenQuanYi*' -o -iname 'wqy*' \) -print -quit 2>/dev/null || true)" ]; then
+        CJK_FOUND=true
+    fi
+done
+if command -v fc-list >/dev/null 2>&1 && [ -n "$(fc-list :lang=zh 2>/dev/null || true)" ]; then
     CJK_FOUND=true
 fi
-
-if [ "$CJK_FOUND" = false ]; then
-    warn "No CJK font detected in $FONT_BASE — ensure fonts are pre-installed"
+export FONT_DIR
+info "Using existing local fonts: $FONT_DIR"
+if [ "$CJK_FOUND" = true ]; then
+    ok "CJK fonts available (local/system)"
+else
+    warn "No CJK font detected. Choose an existing suitable font or obtain one from a trusted source with user approval."
 fi
 echo ""
 

@@ -310,7 +310,8 @@ function compactModelStream(
 function cleanRequest(request: CompactSummaryModelRequest) {
   return {
     messages: request.messages,
-    tools: request.tools,
+    tools: [],
+    toolSearchEnabled: false,
     abortSignal: request.abortSignal,
     ...(request.maxOutputTokens !== undefined
       ? { options: { maxOutputTokens: request.maxOutputTokens } }

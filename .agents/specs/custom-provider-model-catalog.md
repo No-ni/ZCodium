@@ -4,7 +4,7 @@
 
 API Key 型自定义 Provider 支持从 provider 自己的接口直接读取模型目录，省去手抄 modelId：
 
-- 入口只在自定义 Provider 详情卡的模型列表旁，且仅当 `access.type` 为 api-key 族（`api-key` / `zhipu-coding-plan-api-key`）时出现；账号型（`zhipu-account`）Provider 不开放，其模型由权益接口决定。
+- 入口只在自定义 Provider 详情卡的模型列表旁，且仅当 `access.type` 为 api-key 族（`api-key` / `zhipu-coding-plan-api-key`）时出现；账号型 Provider（`zhipu-account`）已随官方账号链路移除，运行时 fail-closed，不开放模型目录拉取。
 - Provider 必须已创建并保存。获取前先 flush 当前卡片草稿（与连通性测试同一顺序），未保存的 baseUrl / API Key 不参与请求。
 - 端点按 `api.type` 选择，不做路径补全猜测：OpenAI 兼容（`openai-chat-completions` / `openai-responses`）首选 `{baseUrl}/models`，Anthropic（`anthropic-messages`）首选 `{baseUrl}/v1/models`。首选失败（非 2xx、网络错误、非法 JSON、空目录）才 fallback 到同一 base 的另一种路径；fallback 成功时结果标记 `fallback`。两次都失败返回首选错误，UI 提示失败并保留手动添加。
 - 请求使用 provider 配置里的 `api.baseUrl`、`access.apiKey` 与 `api.headers`；自定义 headers 同名时覆盖内置鉴权头。凭据不出现在日志与错误文案里。

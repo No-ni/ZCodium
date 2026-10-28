@@ -1,15 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { Locale } from "@zcode/shared";
 
-const WORKFLOW_NAME = "Open in ZCode.workflow";
-const WORKFLOW_BUNDLE_ID = "dev.zcode.app.finder-open-workflow";
+const WORKFLOW_NAME = "Open in ZCodium.workflow";
+const WORKFLOW_BUNDLE_ID = "dev.zcodium.app.finder-open-workflow";
+const LEGACY_WORKFLOW_NAME = "Open in ZCode.workflow";
+const LEGACY_WORKFLOW_BUNDLE_ID = "dev.zcode.app.finder-open-workflow";
 const WORKFLOW_VERSION = "5";
 const SERVICES_MENU_LABELS: Record<Locale, string> = {
-  "zh-CN": "在ZCode中打开",
-  "en-US": "Open in ZCode",
+  "zh-CN": "在ZCodium中打开",
+  "en-US": "Open in ZCodium",
 };
 
 const workflowScript = `first=""
@@ -245,6 +247,29 @@ function refreshMacServicesIndex(): void {
   child.unref();
 }
 
+/**
+ * 旧版本以 “Open in ZCode.workflow” 安装同名服务；不清掉会和新服务一起出现在
+ * Finder 右键菜单里。只删除 Info.plist 带旧 bundle id 的目录，避免误删用户自建
+ * 的同名 Automator workflow。
+ */
+function removeLegacyWorkflow(servicesDir: string): boolean {
+  const legacyWorkflowDir = join(servicesDir, LEGACY_WORKFLOW_NAME);
+  const legacyInfoPlistPath = join(legacyWorkflowDir, "Contents", "Info.plist");
+  if (!existsSync(legacyInfoPlistPath)) {
+    return false;
+  }
+  try {
+    const legacyInfoPlist = readFileSync(legacyInfoPlistPath, "utf8");
+    if (!legacyInfoPlist.includes(LEGACY_WORKFLOW_BUNDLE_ID)) {
+      return false;
+    }
+    rmSync(legacyWorkflowDir, { recursive: true, force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function installFinderOpenFolderWorkflow(options: {
   platform: NodeJS.Platform;
   locale: Locale;
@@ -277,8 +302,9 @@ export function installFinderOpenFolderWorkflow(options: {
       resourcesDocumentWorkflowPath,
       workflowContent,
     );
+    const legacyWorkflowRemoved = removeLegacyWorkflow(servicesDir);
 
-    if (infoChanged || workflowChanged || resourcesWorkflowChanged) {
+    if (infoChanged || workflowChanged || resourcesWorkflowChanged || legacyWorkflowRemoved) {
       // Finder 系统服务展示名来自 workflow 的 Info.plist。
       // 语言切换后必须重写 plist 并刷新 Services 索引，否则系统菜单会继续显示旧语言。
       (options.refreshServicesIndex ?? refreshMacServicesIndex)();

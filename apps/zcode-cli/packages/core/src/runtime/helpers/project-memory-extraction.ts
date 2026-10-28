@@ -22,6 +22,7 @@ import {
 } from "./project-memory-agent.js";
 import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
 import { workspaceScopeRootOf } from "./workspace-scope.js";
+import { isToolSearchControlName } from "./tool-search-controls.js";
 
 const EXTRACTION_MAX_TURNS = 5;
 const EXTRACTION_DRAIN_TIMEOUT_MS = 60_000;
@@ -100,7 +101,10 @@ export function scheduleProjectMemoryExtraction(
                 modelCall: { operation: "project_memory_extract" },
                 traceContext: input.traceContext,
               })),
-              tools: runtime.getTools(resolvedModel).map((tool) => ({ ...tool })),
+              tools: runtime
+                .getTools(resolvedModel)
+                .filter((tool) => !isToolSearchControlName(tool.name))
+                .map((tool) => ({ ...tool })),
             }
           : {}),
         boundaryMessageId: snapshotBoundaryMessageId,

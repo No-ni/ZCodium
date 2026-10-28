@@ -344,8 +344,8 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 同步当前窗口里 Web 远程控制允许切换的 workspace */
   /** 同步当前窗口里 Web 远程控制可展示的 task 快照 */
   /** 同步当前窗口的未读 task 数到 main 进程 */
-  syncWindowUnreadCount: (count: number) =>
-    ipcRenderer.send(PlatformChannels.SyncWindowUnreadCount, count),
+  syncWindowUnreadCount: (projection: import("@zcode/shared").WindowUnreadProjection) =>
+    ipcRenderer.send(PlatformChannels.SyncWindowUnreadCount, projection),
   syncActiveTaskSession: (sessionId: string | null) =>
     ipcRenderer.send(PlatformChannels.SyncActiveTaskSession, sessionId),
   /** 同步需要 main 进程即时感知的应用设置 */

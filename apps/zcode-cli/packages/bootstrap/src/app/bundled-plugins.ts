@@ -143,6 +143,7 @@ function seedBundledOfficialPlugins(input: {
           if (isSeedCurrent(targetRoot, plugin)) {
             cleanupLegacySeedBackup(targetRoot, retryBudget);
             const manifestWritten = tryWriteOfficialPluginRuntimeManifest({
+              sourceManifestContents: readSeedRuntimeManifest(source, plugin),
               pluginName: plugin.definition.name,
               retryBudget,
               rootPath: targetRoot,
@@ -174,6 +175,7 @@ function seedBundledOfficialPlugins(input: {
             );
             replaceSeedRoot(temporaryRoot, targetRoot, plugin, retryBudget);
             writeOfficialPluginRuntimeManifest({
+              sourceManifestContents: readSeedRuntimeManifest(source, plugin),
               pluginName: plugin.definition.name,
               retryBudget,
               rootPath: targetRoot,
@@ -218,6 +220,7 @@ function seedBundledOfficialPlugins(input: {
 }
 
 function tryWriteOfficialPluginRuntimeManifest(input: {
+  sourceManifestContents: string;
   pluginName: string;
   retryBudget: OfficialPluginCacheRetryBudget;
   rootPath: string;
@@ -399,6 +402,19 @@ function readSeedFileBytes(
       `${SEA_PLUGIN_ASSET_PREFIX}${OFFICIAL_PLUGIN_MARKETPLACE}/${plugin.definition.name}/${plugin.definition.version}/${file.path}`,
     ),
   );
+}
+
+/** 原 seed manifest 是入口事实源，已重写缓存只能用于字节相等检查。 */
+function readSeedRuntimeManifest(
+  source: OfficialPluginSeedSource,
+  plugin: OfficialPluginSeedPluginSource,
+): string {
+  const file = plugin.files.find((item) => item.path === ".zcodium-plugin/plugin.json");
+  if (!file) throw new Error("Bundled plugin runtime manifest is unavailable.");
+  const bytes = readSeedFileBytes(source, plugin, file);
+  if (hashBytes(bytes) !== file.sha256)
+    throw new Error("Bundled plugin runtime manifest hash mismatch.");
+  return bytes.toString("utf8");
 }
 
 function writeOfficialMarketplace(storageRoot: string, source: OfficialPluginSeedSource): void {

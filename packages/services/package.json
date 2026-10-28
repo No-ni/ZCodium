@@ -6,6 +6,9 @@
     "#src/*": "./src/*"
   },
   "exports": {
+    "./window-project-directory": "./src/window-project-directory/index.ts",
+    "./source-server-workspace": "./src/source-server-workspace/index.ts",
+    "./source-server-workspace/node": "./src/source-server-workspace/node.ts",
     "./storage-startup": "./src/storage-startup.ts",
     ".": "./src/index.ts",
     "./cua-permission-broker": "./src/cua-permission-broker/index.ts",

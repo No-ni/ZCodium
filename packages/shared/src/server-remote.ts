@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { compatibilityManifestSchema } from "./source-server/index.js";
 
 export const SERVER_REMOTE_PROTOCOL_VERSION = 1;
 
@@ -14,10 +15,14 @@ export const serverRemoteInfoSchema = z.object({
   version: z.string(),
   protocolVersion: z.literal(SERVER_REMOTE_PROTOCOL_VERSION),
   authRequired: z.boolean(),
+  compatibility: compatibilityManifestSchema.optional(),
   workspaces: z.array(serverRemoteWorkspaceInfoSchema),
   capabilities: z.object({
     desktopContinuous: z.literal(true),
     websocketRpc: z.literal(true),
+    sourceServer: z.literal(true).optional(),
+    providerProvisioningV2: z.literal(true).optional(),
+    sourceWorkspaceInspectionV1: z.literal(true).optional(),
     // 旧 Server 缺少新增 dynamic event，必须先声明能力再订阅，避免异常打进对端读循环。
   }),
 });

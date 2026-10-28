@@ -76,6 +76,7 @@ export function ChatPromptEditor({
   promptHistory,
   className,
   shellClassName,
+  layout = "stacked",
   compactPlaceholder = false,
   onChange,
   onSubmit,
@@ -137,6 +138,7 @@ export function ChatPromptEditor({
   promptHistory?: readonly string[];
   className?: string;
   shellClassName?: string;
+  layout?: "stacked" | "inline";
   compactPlaceholder?: boolean;
   onChange?: (value: string) => void;
   // 适配：返回 false 表示业务层拒绝/延迟本次提交，Lexical 不自行 reset（草稿保留）。
@@ -354,11 +356,14 @@ export function ChatPromptEditor({
         />
       )}
       <div
+        ref={toolbarRef}
+        data-composer-layout={layout}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-input-border bg-input p-3 transition-colors hover:border-input-border-hover focus-within:!border-input-border-focused focus-within:bg-input-focused",
+          "group/toolbar relative flex flex-row flex-wrap gap-x-3 gap-y-3 overflow-hidden rounded-2xl border border-input-border bg-input p-3 transition-colors hover:border-input-border-hover focus-within:!border-input-border-focused focus-within:bg-input-focused",
+          layout === "inline" && "items-end gap-x-2 gap-y-2 p-2 [&_[contenteditable]]:min-h-5",
           (isWorkspaceFileDropActive || isExternalFileDropActive) &&
             "border-brand bg-input-focused ring-1 ring-brand/30",
           shellClassName,
@@ -373,56 +378,79 @@ export function ChatPromptEditor({
           </div>
         ) : null}
 
-        {topContent}
-        <LexicalChatInput
-          placeholder={placeholder}
-          disabled={disabled}
-          submitDisabled={submitDisabled}
-          allowSubmitWhenEmpty={allowSubmitWhenEmpty}
-          enterSubmits={enterSubmits}
-          onSubmit={handleEditorSubmit}
-          onModifiedSubmit={onModifiedSubmit}
-          onChange={handleTextChange}
-          onFocus={onFocus}
-          triggerPanelContainer={resolvedTriggerPanelContainer}
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-          fileSearchRootPath={fileSearchRootPath}
-          // 文件候选的插入形态也跟同一个来源事实：解析根未被会话事实证明时投绝对路径。
-          fileReferenceRootResolved={fileReferenceRootResolved}
-          taskId={taskId}
-          skillCatalogSessionId={skillCatalogSessionId}
-          inputTestId={inputTestId}
-          editorApiRef={resolvedInputApiRef}
-          promptHistory={promptHistory}
-          compactPlaceholder={compactPlaceholder}
-          onWhiteboardMentionSelected={onWhiteboardMentionSelected}
-          onPaste={onPaste}
-          excludedSlashCommandNames={excludedSlashCommandNames}
-          appSlashCommands={appSlashCommands}
-          enableMentionPanel={enableMentionPanel}
-        />
-        <div ref={toolbarRef} className="group/toolbar flex items-end gap-3">
+        <div className={cn("order-1 basis-full", !topContent && "hidden")}>{topContent}</div>
+        <div
+          data-composer-action-menu=""
+          className={cn(
+            "flex shrink-0 items-center gap-1",
+            layout === "inline" ? "order-2" : "order-3",
+            !hasActionMenu && "hidden",
+          )}
+        >
+          {hasActionMenu ? (
+            <ChatPromptActionMenu
+              actionMenuTitle={actionMenuTitle}
+              excludedSlashCommandNames={excludedSlashCommandNames}
+              attachmentAction={attachmentAction}
+              disabled={disabled}
+              disabledReason={disabledReason}
+              inputApiRef={resolvedInputApiRef}
+              workspacePath={workspacePath}
+              workspaceIdentity={workspaceIdentity}
+              fileSearchRootPath={fileSearchRootPath}
+              fileReferenceRootResolved={fileReferenceRootResolved}
+              sessionId={taskId}
+              container={resolvedTriggerPanelContainer}
+              showPlugins={enableMentionPanel !== false}
+            />
+          ) : null}
+        </div>
+        <div
+          data-composer-input=""
+          className={cn(
+            "min-w-0",
+            layout === "inline" ? "order-3 min-w-[40%] flex-1" : "order-2 basis-full",
+          )}
+        >
+          <LexicalChatInput
+            placeholder={placeholder}
+            disabled={disabled}
+            submitDisabled={submitDisabled}
+            allowSubmitWhenEmpty={allowSubmitWhenEmpty}
+            enterSubmits={enterSubmits}
+            onSubmit={handleEditorSubmit}
+            onModifiedSubmit={onModifiedSubmit}
+            onChange={handleTextChange}
+            onFocus={onFocus}
+            triggerPanelContainer={resolvedTriggerPanelContainer}
+            workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            fileSearchRootPath={fileSearchRootPath}
+            // 文件候选的插入形态也跟同一个来源事实：解析根未被会话事实证明时投绝对路径。
+            fileReferenceRootResolved={fileReferenceRootResolved}
+            taskId={taskId}
+            skillCatalogSessionId={skillCatalogSessionId}
+            inputTestId={inputTestId}
+            editorApiRef={resolvedInputApiRef}
+            promptHistory={promptHistory}
+            compactPlaceholder={compactPlaceholder}
+            onWhiteboardMentionSelected={onWhiteboardMentionSelected}
+            onPaste={onPaste}
+            excludedSlashCommandNames={excludedSlashCommandNames}
+            appSlashCommands={appSlashCommands}
+            enableMentionPanel={enableMentionPanel}
+          />
+        </div>
+        <div
+          className={cn(
+            "order-4 flex min-w-0 items-end gap-3",
+            layout === "inline" ? "shrink-0 gap-1.5" : "flex-1",
+          )}
+          style={layout === "inline" ? { maxWidth: "calc(60% - 48px)" } : undefined}
+          data-composer-controls=""
+        >
           <div className="flex min-w-0 flex-1 items-center" data-composer-leading-actions>
             <div className="flex shrink-0 items-center gap-1" data-composer-leading-content>
-              {hasActionMenu ? (
-                <ChatPromptActionMenu
-                  actionMenuTitle={actionMenuTitle}
-                  excludedSlashCommandNames={excludedSlashCommandNames}
-                  attachmentAction={attachmentAction}
-                  disabled={disabled}
-                  disabledReason={disabledReason}
-                  inputApiRef={resolvedInputApiRef}
-                  workspacePath={workspacePath}
-                  workspaceIdentity={workspaceIdentity}
-                  fileSearchRootPath={fileSearchRootPath}
-                  fileReferenceRootResolved={fileReferenceRootResolved}
-                  sessionId={taskId}
-                  container={resolvedTriggerPanelContainer}
-                  showPlugins={enableMentionPanel !== false}
-                />
-              ) : null}
-              {/* 权限/模式选择曾作为 leadingActions 先于动作菜单渲染，导致常驻顺序与产品规范相反。*/}
               {leadingActions}
               {onModeSwitchContainerChange ? (
                 <span ref={onModeSwitchContainerChange} className="flex shrink-0 items-center" />

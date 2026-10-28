@@ -2,19 +2,26 @@ import {
   createLocalServices,
   disposeServiceResourcesAndWait,
   materializeZCodeBuiltinProviderConfig,
-  getAppConfigDir,
   ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
 } from "@zcode/services/node";
+import { join } from "node:path";
+import { ISourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace";
+import { createNodeSourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace/node";
 import { IZCodeAgentService } from "@zcode/services";
 import { ZCODE_VERSION } from "@zcode/shared";
 import { createCoreHttpServer } from "./http.js";
 import { installParentDisconnectHandler } from "./parentDisconnect.js";
 import { resolveCoreServerId } from "./serverIdentity.js";
 import { createTaskActivityTracker } from "./taskActivityTracker.js";
+import { ensureIngressToken } from "../runtime/ingressToken.js";
+import { resolveServerLayout } from "../runtime/paths.js";
 
 declare const __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
 
 export async function runServerCore(generation: number): Promise<void> {
+  const sourceLayout = resolveServerLayout(process.env.ZCODE_SERVER_ROOT ?? "");
+  const sourceServerId = await resolveCoreServerId(sourceLayout.serverRoot);
+  if (!sourceServerId) throw new Error("Source installation identity is unavailable");
   let shutdown: ((reason: string) => Promise<void>) | undefined;
   let parentDisconnected = false;
   let disposeParentDisconnectHandler = (): void => undefined;
@@ -28,7 +35,7 @@ export async function runServerCore(generation: number): Promise<void> {
     ? explicitZCodeBuiltinProviderConfigFilePath
     : typeof __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__ === "string"
       ? await materializeZCodeBuiltinProviderConfig({
-          environmentConfigRoot: getAppConfigDir(),
+          environmentConfigRoot: sourceLayout.configRoot,
           content: __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__,
         })
       : undefined;
@@ -40,9 +47,26 @@ export async function runServerCore(generation: number): Promise<void> {
   const services = createLocalServices({
     zcodeBuiltinProviderConfigFilePath,
     serviceAuthorityMode: "standalone-server",
+    sourceServerRoot: sourceLayout.serverRoot,
+    providerProvisioningTargetEnabled: true,
   });
+  // 安装身份和真实根与 HTTP 握手共用；检查只阻断旧介质，不开库、迁移或伪造停写证明。
+  services.register(
+    ISourceWorkspaceInspectionService,
+    createNodeSourceWorkspaceInspectionService({
+      sourceServerId,
+      dataRoot: sourceLayout.dataRoot,
+      taskDatabasePath: sourceLayout.taskDatabasePath,
+      sessionDatabasePath: sourceLayout.sessionDatabasePath,
+      configHashRoots: [join(sourceLayout.configRoot, "sessions")],
+    }),
+  );
   const taskActivityTracker = createTaskActivityTracker(services.getOptional(IZCodeAgentService));
-  const http = await createCoreHttpServer(services, { serverId: await resolveCoreServerId() });
+  const http = await createCoreHttpServer(services, {
+    serverId: sourceServerId,
+    ingressToken: await ensureIngressToken(sourceLayout.runDir),
+    providerProvisioningV2: true,
+  });
   const send = (message: unknown): Promise<void> => {
     if (typeof process.send !== "function" || process.connected === false) return Promise.resolve();
     return new Promise((resolve) => {

@@ -2917,7 +2917,8 @@ export class ProductProjection {
             ...(payload.assistantResponseId
               ? { assistantResponseId: payload.assistantResponseId }
               : {}),
-            toolName: existing.toolName || payload.toolName || "",
+            // 流式起点只是 wire 预览；完整调用已在 Runtime 解包，必须用权威 target 替换 wrapper 名称。
+            toolName: payload.toolName ?? existing.toolName,
             inputText,
             input: payload.input,
           },
@@ -2971,6 +2972,8 @@ export class ProductProjection {
             ...(payload.assistantMessageId
               ? { assistantResponseId: String(payload.assistantMessageId) }
               : {}),
+            // scheduled 也可能是首个完整事实；真实工具名与输入一起收敛，不能保留 DeferredToolCall 预览。
+            toolName: payload.toolName,
             inputText,
             input: payload.input,
             ...(cuaApp ? { cuaApp } : {}),
@@ -5514,6 +5517,8 @@ function toProtocolToolCallDisplay(
     case "task_output":
     case "respond_to_coordinator":
     case "mcp_tool":
+    // ToolSearch 的有界成功卡与 output.display 共用契约，live 与恢复路径不得丢掉 row.display。
+    case "tool_search":
     case "create_workflow":
     // 观察类工作流工具的五个 display kind——shared 侧 toolCallDisplaySchema 已同步加
     // 成员，这里放行后 UI 才能在 row.display 上拿到结构化载荷。

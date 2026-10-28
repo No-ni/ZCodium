@@ -1,4 +1,4 @@
-# Maintainer contract: docs/skills/feature-boundary-graph.md
+# Maintainer guidance: .agents/skills/feature-boundary-planner/SKILL.md
 # Search aliases and IDs first; read only the relevant nodes and one-hop relationships.
 schemaVersion: 1
 graphId: zcode-feature-relationships
@@ -374,10 +374,13 @@ nodes:
     kind: state-owner
     label: Renderer model intent for the next submission
     codeSeeds:
-      - file: packages/ui/src/v4/SessionPane.tsx
-        symbol: handleSelectModel
-      - file: packages/ui/src/v4/SessionPane.tsx
+      - file: packages/ui/src/v4/composer/useDraftConfigControl.ts
+        symbol: useDraftConfigControl
+      - file: packages/ui/src/v4/composer/composerSubmissionConfig.ts
         symbol: createComposerSubmissionConfig
+    invariants:
+      - Late effort callbacks must match both the current model and composer scope before writing.
+      - Submission freezes the selected tuple; later menu edits affect only later submissions.
   - id: service.conversation-submission
     kind: service
     label: CLI sendText submission handling
@@ -443,7 +446,361 @@ nodes:
     invariants:
       - Local quit is intercepted before business admission and never clears accepted runtime commands.
       - Exit sets a terminal local state before cancellation and approval rejection.
+  - id: surface.composer-model-effort-menu
+    kind: ui-surface
+    label: Combined composer model and effort menu
+    aliases: [统一模型菜单, 思考档位, model effort menu, reasoning slider]
+    codeSeeds:
+      - file: packages/ui/src/chat-input-toolbar/ComposerModelMenu.tsx
+        symbol: ComposerModelMenu
+    invariants:
+      - The menu is a controlled projection of the existing next-submission draft owner.
+      - Pending target reads keep controls mounted but disable selection; no local fallback is allowed.
+  - id: capability.source-server
+    kind: capability
+    label: Authenticated Source Server connection management
+    aliases: [Source Server, 常驻 daemon, Source Profile, 连接管理]
+    codeSeeds:
+      - file: packages/desktop/src/host/sourceServerConnectionManager.ts
+        symbol: SourceServerConnectionManager
+    invariants:
+      - A verified Source identity is distinct from its connection profile and logical session route.
+      - Only user-deployed compatible servers are connected; this seed does not imply Linux resource deployment.
+  - id: persistence.source-server-directory
+    kind: persistence
+    label: Source and connection profile directory
+    codeSeeds:
+      - file: packages/desktop/src/host/sourceServerDirectory.ts
+        symbol: SourceServerDirectory
+    invariants:
+      - Settings own records and generations; the credential service alone stores passwords.
+      - Identity changes require explicit confirmation and retire obsolete connection generations.
+  - id: state.source-server-connection
+    kind: state-owner
+    label: Window Host physical Source connection and flight owner
+    codeSeeds:
+      - file: packages/desktop/src/host/sourceServerConnectionManager.ts
+        symbol: SourceServerConnectionManager
+    invariants:
+      - Cancellation by one attachment cannot terminate a shared flight with other waiters.
+      - Main forwards preparation barriers and attachments, not task or session business state.
+  - id: persistence.source-data-roots
+    kind: persistence
+    label: Source-owned settings, provider, tasks and CLI persistence roots
+    aliases: [Source 数据根, standalone persistence, server root]
+    codeSeeds:
+      - file: packages/shared/src/node/sourceDataRoots.ts
+        symbol: resolveSourceDataRoots
+      - file: packages/shared/src/node/sourceDataRoots.ts
+        symbol: createSourcePersistenceEnv
+    invariants:
+      - One selected Source root fixes settings, provider, tasks, CLI config, storage and session database paths.
+      - Source persistence values override inherited aliases without rewriting HOME or reading Desktop data.
+  - id: service.source-workspace-inspection
+    kind: service
+    label: Production Source history presence-only admission guard
+    aliases: [Source 历史阻断, history-present, Source inspection]
+    codeSeeds:
+      - file: packages/services/src/source-server-workspace/node.ts
+        symbol: createNodeSourceWorkspaceInspectionService
+    invariants:
+      - Any potential history medium in the Source root blocks admission; presence does not prove key ownership.
+      - Existing media also block reattachment after first use; this is not completed history migration support.
+  - id: capability.workspace-alias-migration-framework
+    kind: capability
+    label: Explicit workspace alias migration framework
+    aliases: [旧身份迁移框架, alias preview, alias confirm, workspace alias restore]
+    codeSeeds:
+      - file: packages/services/src/source-server-workspace/node.ts
+        symbol: createNodeSourceServerWorkspaceService
+      - file: packages/services/src/source-server-workspace/contract.ts
+        symbol: SourceServerWorkspaceService
+    invariants:
+      - Preview and confirmation are separate from execute, retry and restore; durable phases own recovery.
+      - Production lacks a full-data-root stopped-writer lease, native committed snapshot and migration UI wiring.
+  - id: boundary.workspace-committed-snapshot
+    kind: delivery-boundary
+    label: Committed database snapshot proof boundary
+    aliases: [WAL 零写, snapshot-unproven, committed snapshot]
+    codeSeeds:
+      - file: packages/services/src/source-server-workspace/node.ts
+        symbol: createNodeCommittedSnapshotPort
+      - file: packages/services/src/source-server-workspace/contract.ts
+        symbol: WorkspaceCommittedSnapshotPort
+    invariants:
+      - Without native whole-capture consistency proof the Node port rejects and never invokes the consumer.
+      - Opening original WAL or SHM through SQLite is not a zero-write inspection.
+  - id: capability.sqlite-startup-migrations
+    kind: capability
+    label: Async SQLite startup migration, backup and restore infrastructure
+    aliases: [数据库迁移, SQLite startup, checksum, schema guard]
+    codeSeeds:
+      - file: packages/shared/src/sqlite-migrations/index.ts
+        symbol: migrate
+      - file: packages/shared/src/sqlite-migrations/index.ts
+        symbol: restore
+      - file: apps/zcode-cli/packages/adapters/src/storage/session-store/sqlite-session-store.ts
+        symbol: openStartupSqliteSessionStore
+    invariants:
+      - Host and CLI each use one async startup owner; synchronous constructors only validate ready ledgers.
+      - Published Host JSON and CLI SQL checksums stay frozen; backup failures block migration writes.
+      - Restore requires stopped writers and verified identity, schema, rows, hashes and ledger.
+  - id: capability.window-project-directory
+    kind: capability
+    label: Optional window project directory shared with mobile attachment
+    aliases: [窗口项目目录, 手机项目目录, window directory]
+    codeSeeds:
+      - file: packages/services/src/window-project-directory/app/windowProjectDirectory.ts
+        symbol: createWindowProjectDirectoryRuntime
+      - file: packages/web/src/mobile/windowProjectDirectory.ts
+        symbol: MobileWindowProjectDirectory
+    invariants:
+      - The directory accepts newer window projections and never manufactures task membership or another Agent.
+      - Optional capability preparation reuses the existing reader, acknowledgement sequence and attachment.
+  - id: capability.side-pane-full-view
+    kind: capability
+    label: Desktop side pane full view with one conversation host
+    aliases: [侧栏完整视图, 浮动输入, 全屏面板, floating composer]
+    codeSeeds:
+      - file: packages/ui/src/side-pane-full-view/app/useSidePaneFullView.ts
+        symbol: useSidePaneFullView
+      - file: packages/ui/src/side-pane-full-view/components/ConversationHost.tsx
+        symbol: SidePaneFullViewConversationHost
+    invariants:
+      - Full view reuses the same SessionPane, composer and Lexical DOM rather than copying or reparenting them.
+      - Floating presentation and preferences never replace runtime ownership or mobile delivery semantics.
+  - id: capability.office-common-reading
+    kind: capability
+    label: Read-only DOCX, XLSX, PPTX and PDF common reading
+    aliases: [文档共同阅读, office viewer, 文档锚点, MCP Apps]
+    codeSeeds:
+      - file: apps/zcode-cli/packages/office-runtime/src/app/documents.ts
+        symbol: createDocumentOwner
+    invariants:
+      - One document owner provides parsing, revisions, bounded handles and view reports to tools and the panel.
+      - Files are read-only and workspace-scoped; anchors, resource limits, CSP and local fonts keep existing boundaries.
+  - id: capability.tool-search
+    kind: capability
+    label: Experimental deferred tool discovery and exposure
+    aliases: [ToolSearch, 按需工具发现, deferred tools, Native Local Off]
+    codeSeeds:
+      - file: apps/zcode-cli/packages/core/src/tool/search/exposure.ts
+        symbol: buildToolExposure
+      - file: apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts
+        symbol: toolSearchToolEntry
+      - file: packages/ui/src/settings/ToolSearchSetting.tsx
+        symbol: ToolSearchSetting
+    invariants:
+      - ToolSearch defaults to Off; Native requires the supported wire and Local requires tool calls.
+      - Discovery is not authorization; execution keeps the original executor, hooks and permissions.
+  - id: capability.workflow-stop-admission
+    kind: capability
+    label: Workflow model stop errors without quota cooldown
+    aliases: [工作流额度停止, workflow stop, quota recovery]
+    codeSeeds:
+      - file: apps/zcode-cli/packages/adapters/src/model/workflow-model-failure-policy.ts
+        symbol: resolveWorkflowModelFailurePolicy
+    invariants:
+      - Quota and authentication stop errors end the request without a rate-limit cooldown.
+      - True concurrency throttling still uses the existing governor admission owner.
+  - id: capability.model-completion-classification
+    kind: capability
+    label: Shared zero-output model completion classification
+    aliases: [空响应, context exceeded finish, 模型结束原因]
+    codeSeeds:
+      - file: apps/zcode-cli/packages/adapters/src/model/model-completion-policy.ts
+        symbol: createEmptyContextExceededError
+    invariants:
+      - Streaming and generated completions share one classification contract while retaining partial output and usage.
+  - id: boundary.bash-output-preparation
+    kind: delivery-boundary
+    label: Execution output path preparation before process launch
+    aliases: [Bash 输出隔离, bashOutputTempDir]
+    codeSeeds:
+      - file: apps/zcode-cli/packages/adapters/src/exec/node-execution-adapter-output-preparation.ts
+        symbol: NodeExecutionAdapterOutputPreparation
+    invariants:
+      - Output paths are published before launch and filesystem fallback does not swallow logic failures.
+  - id: surface.windows-unread-overlay
+    kind: ui-surface
+    label: Windows unread taskbar overlay and tray projection
+    aliases: [Windows 未读, taskbar badge, 任务栏提示]
+    codeSeeds:
+      - file: packages/desktop/src/main/unreadBadge.ts
+        symbol: syncUnreadBadgeForPlatform
+      - file: packages/desktop/src/main/unreadBadge.ts
+        symbol: applyTaskbarOverlayToWindows
+    invariants:
+      - Main projects deduplicated unread task identity and clears zero counts without owning task business state.
+  - id: boundary.source-rebind-admission
+    kind: delivery-boundary
+    label: Remote workspace rebind ready and failed barrier
+    aliases: [Source rebind, bind-ready, 工作区接纳屏障]
+    codeSeeds:
+      - file: packages/desktop/src/main/desktopRemoteSessions.ts
+        symbol: createRemoteWorkspaceSessionManager
+    invariants:
+      - A pending bind settles only for its current route generation and Host outcome.
+      - Preparation never replaces the Source runtime, owner lease or accepted command queue.
+  - id: persistence.bundled-model-catalog
+    kind: persistence
+    label: Local bundled model templates and public option maps
+    aliases: [MiMo v2.6, 随包模型目录, model catalog]
+    codeSeeds:
+      - file: packages/provider-node/src/zcode-builtin-provider-config-source.ts
+        symbol: NodeZCodeBuiltinProviderConfigSource
+    invariants:
+      - Personal overrides remain authoritative and templates require a user-provided API Key.
+      - Catalog data is not evidence that any remote model or protocol was tested live.
+  - id: boundary.office-runtime-distribution
+    kind: delivery-boundary
+    label: Shared Office runtime build and required asset distribution
+    aliases: [Office 分发, viewer assets, Office dev build]
+    codeSeeds:
+      - file: packages/shared/src/builtinPluginAssets.ts
+        symbol: BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT
+      - file: packages/desktop/scripts/prepare-agent-node-bundle.mjs
+        symbol: buildOfficialPluginRuntimes
+      - file: scripts/build-desktop-agent-cli.mjs
+        symbol: buildOfficeDevPluginRuntimes
+    invariants:
+      - Desktop, development, prebuild and SEA consumers use the same four-plugin asset contract.
+      - Stale dist presence never replaces a current-source build or required viewer asset validation.
+  - id: boundary.project-only-validation
+    kind: delivery-boundary
+    label: Project-owned verification home temp data and cache authority
+    aliases: [项目内测试, 项目外禁止写入, project sandbox]
+    codeSeeds:
+      - file: scripts/ci/project-test-sandbox.mjs
+        symbol: createProjectTestSandbox
+      - file: scripts/ci/source-test-runner.mjs
+        symbol: runSourceTests
+    invariants:
+      - Verification binds a fresh in-project home, temp, data and cache before loading business modules.
+      - Project paths and junctions are validated and test run roots are retained without recursive cleanup.
+      - Node write permissions complement reviewed command boundaries and are not a complete native system sandbox.
 edges:
+  - from: capability.workflow-stop-admission
+    to: capability.conversation-runtime
+    type: preserves-runtime-stop-recovery
+    rank: must-inspect
+  - from: capability.model-completion-classification
+    to: capability.conversation-runtime
+    type: supplies-model-step-failure
+    rank: must-inspect
+  - from: boundary.bash-output-preparation
+    to: capability.conversation-runtime
+    type: prepares-execution-output
+    rank: must-inspect
+  - from: surface.windows-unread-overlay
+    to: capability.conversation-runtime
+    type: projects-unread-task-identities
+    rank: should-inspect
+  - from: boundary.source-rebind-admission
+    to: state.source-server-connection
+    type: waits-for-current-host-preparation
+    rank: must-inspect
+  - from: persistence.bundled-model-catalog
+    to: capability.model-selection
+    type: supplies-public-model-options
+    rank: must-inspect
+  - from: capability.office-common-reading
+    to: boundary.office-runtime-distribution
+    type: requires-viewer-runtime-assets
+    rank: must-inspect
+  - from: boundary.project-only-validation
+    to: persistence.source-data-roots
+    type: isolates-regression-fixtures
+    rank: evidence-only
+  - from: surface.conversation-model-control
+    to: surface.composer-model-effort-menu
+    type: renders-combined-model-effort
+    rank: must-inspect
+    condition: Only Composer enables the combined menu inside ModelConfigSelect; other consumers keep legacy selection.
+  - from: surface.composer-model-effort-menu
+    to: state.composer-submission-intent
+    type: edits-controlled-draft
+    rank: must-inspect
+  - from: surface.composer-model-effort-menu
+    to: state.renderer-model-selection-read
+    type: gates-on-current-target
+    rank: must-inspect
+  - from: capability.source-server
+    to: persistence.source-server-directory
+    type: persists-profiles-through
+    rank: must-inspect
+  - from: capability.source-server
+    to: state.source-server-connection
+    type: connects-through
+    rank: must-inspect
+  - from: capability.source-server
+    to: persistence.source-data-roots
+    type: isolates-source-storage-by
+    rank: must-inspect
+  - from: capability.source-server
+    to: service.source-workspace-inspection
+    type: admits-workspace-through
+    rank: must-inspect
+    condition: Production wiring is presence-only and blocks every Source with potential history media.
+  - from: capability.source-server
+    to: boundary.workspace-key
+    type: preserves-identity-isolation
+    rank: must-inspect
+  - from: capability.source-server
+    to: capability.personal-coding-plan-quota
+    type: resolves-target-authority
+    rank: should-inspect
+    condition: Quota and model configuration come from the prepared target Source; no Controller credential fallback.
+  - from: persistence.source-data-roots
+    to: capability.sqlite-startup-migrations
+    type: supplies-startup-database-paths
+    rank: must-inspect
+  - from: service.source-workspace-inspection
+    to: capability.workspace-alias-migration-framework
+    type: cannot-substitute-for-migration
+    rank: invariant-only
+  - from: capability.workspace-alias-migration-framework
+    to: boundary.workspace-committed-snapshot
+    type: requires-trusted-snapshot
+    rank: must-inspect
+  - from: capability.workspace-alias-migration-framework
+    to: persistence.source-data-roots
+    type: requires-full-root-writer-lease
+    rank: must-inspect
+    condition: Both complete databases and every declared configuration writer must be stopped by a real owner lease.
+  - from: capability.workspace-alias-migration-framework
+    to: capability.sqlite-startup-migrations
+    type: preserves-frozen-ledgers
+    rank: invariant-only
+  - from: capability.window-project-directory
+    to: capability.source-server
+    type: projects-connected-source-state
+    rank: should-inspect
+  - from: capability.window-project-directory
+    to: boundary.web-remote-replayable
+    type: preserves-mobile-recovery
+    rank: invariant-only
+  - from: capability.window-project-directory
+    to: service.zcode-agent-connection-scope
+    type: reuses-window-attachment
+    rank: must-inspect
+  - from: capability.side-pane-full-view
+    to: capability.conversation-runtime
+    type: reuses-single-conversation-host
+    rank: must-inspect
+  - from: capability.side-pane-full-view
+    to: boundary.desktop-continuous
+    type: preserves-live-delivery
+    rank: invariant-only
+  - from: capability.office-common-reading
+    to: capability.side-pane-full-view
+    type: may-use-panel-presentation
+    rank: conditional
+    condition: Desktop document panels can use full view without changing the document or conversation owner.
+  - from: capability.tool-search
+    to: capability.conversation-runtime
+    type: projects-tools-for-model-step
+    rank: must-inspect
   - from: capability.personal-coding-plan-quota
     to: surface.personal-coding-plan-quota
     type: renders-in

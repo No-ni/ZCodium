@@ -184,82 +184,27 @@ if ($PyCmd) {
 }
 Write-Host ""
 
-# ── Step 2e: Font Installation (from CDN) ──
-Write-Host "--- [5/6] Font Installation ---"
-$FontCdnBase = "https://z-cdn.chatglm.cn/office-skill/fonts"
-$FontList = Join-Path $ScriptDir "font_list.txt"
-
-$UserFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
-if (-not (Test-Path $UserFontDir)) { New-Item -ItemType Directory -Path $UserFontDir -Force | Out-Null }
-
-$Marker = Join-Path $UserFontDir ".office-skill-fonts-installed"
-if (Test-Path $Marker) {
-    Write-Ok "Fonts already installed (marker found). To re-install, delete $Marker"
-} else {
-    if (-not (Test-Path $FontList)) {
-        Write-Fail "Font list not found: $FontList"
-        $Errors++
-    } else {
-        $lines = Get-Content $FontList | Where-Object { $_.Trim() -ne "" }
-        $Total = $lines.Count
-        $Installed = 0; $Skipped = 0; $Failed = 0
-        Write-Info "Downloading $Total fonts from CDN..."
-        
-        foreach ($relPath in $lines) {
-            $fname = Split-Path $relPath -Leaf
-            $dest = Join-Path $UserFontDir $fname
-            
-            if (Test-Path $dest) {
-                $Skipped++
-                continue
-            }
-            
-            $encoded = $relPath -replace '\[','%5B' -replace '\]','%5D' -replace ' ','%20'
-            $url = "$FontCdnBase/$encoded"
-            
-            try {
-                Invoke-WebRequest -Uri $url -OutFile $dest -TimeoutSec 30 -ErrorAction Stop
-                $regPath = "HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
-                $null = New-ItemProperty -Path $regPath -Name $fname -Value $dest -PropertyType String -Force -ErrorAction SilentlyContinue
-                $Installed++
-            } catch {
-                Write-Warn "Failed to download: $relPath"
-                $Failed++
-                Remove-Item $dest -Force -ErrorAction SilentlyContinue
-            }
-        }
-        
-        if ($Failed -eq 0) {
-            New-Item -ItemType File -Path $Marker -Force | Out-Null
-            Write-Ok "Fonts: $Installed newly installed, $Skipped already present (target: $UserFontDir)"
-        } else {
-            Write-Warn "Fonts: $Installed installed, $Skipped skipped, $Failed failed (marker not written, will retry next run)"
-            $Errors++
-        }
-    }
-}
-
-# Set DOCX_FONTS_DIR to user font directory (fonts are now installed there)
-$DOCX_FONTS_DIR = $UserFontDir
-$env:DOCX_FONTS_DIR = $DOCX_FONTS_DIR
-Write-Host ""
-
-# ── Step 2f: CJK Font Verification ──
-Write-Host "--- [6/6] CJK Font Verification ---"
-$CjkFound = $false
+# ── Local Font Verification ──
+Write-Host "--- Local Fonts (no automatic download or installation) ---"
 $FontsDir = Join-Path $env:WINDIR "Fonts"
-$UserFontDir2 = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
-$CjkFonts = @("NotoSansSC[wght].ttf", "NotoSerifSC-Regular.ttf")
-foreach ($f in $CjkFonts) {
-    if ((Test-Path (Join-Path $FontsDir $f)) -or (Test-Path (Join-Path $UserFontDir2 $f))) {
-        Write-Ok "CJK font found: $f"
+$UserFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+$FontDirs = @($UserFontDir, $FontsDir) | Where-Object { Test-Path -LiteralPath $_ -PathType Container }
+$DOCX_FONTS_DIR = $FontDirs | Select-Object -First 1
+$env:DOCX_FONTS_DIR = $DOCX_FONTS_DIR
+Write-Info "Using existing local fonts: $DOCX_FONTS_DIR"
+$CjkFound = $false
+foreach ($dir in $FontDirs) {
+    $font = Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^(Noto(Sans|Serif)(SC|CJK).*|msyh.*|simsun.*|simhei.*|Deng.*)\.(ttf|ttc|otf)$' } |
+        Select-Object -First 1
+    if ($font) {
+        Write-Ok "CJK font found: $($font.Name)"
         $CjkFound = $true
         break
     }
 }
-
 if (-not $CjkFound) {
-    Write-Warn "No CJK font verified yet - fonts were just installed, restart may be needed"
+    Write-Warn "No CJK font detected. Choose an existing suitable font or obtain one from a trusted source with user approval."
 }
 Write-Host ""
 
@@ -271,5 +216,5 @@ if ($Errors -eq 0) {
     Write-Host "  $Errors issue(s) found. Fix them above."
 }
 Write-Host "  DOCX_SKILL_DIR=$DOCX_SKILL_DIR"
-Write-Host "  DOCX_FONTS_DIR=$DOCX_FONTS_DIR (user font directory)"
+Write-Host "  DOCX_FONTS_DIR=$DOCX_FONTS_DIR (existing local font directory)"
 Write-Host "============================================"

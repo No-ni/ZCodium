@@ -10,6 +10,7 @@ import { useAppPanels } from "@/hooks/useAppPanels.js";
 import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
+import { useSidePaneFullView } from "@/side-pane-full-view/index.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
@@ -133,6 +134,7 @@ export function App({
   const goForwardShortcutLabel = useShortcutCommandLabel("navigateForward");
   const toggleTerminalShortcutLabel = useShortcutCommandLabel("toggleTerminal");
   const toggleSidePaneShortcutLabel = useShortcutCommandLabel("toggleSidePane");
+  const toggleSidePaneFullViewShortcutLabel = useShortcutCommandLabel("toggleSidePaneFullView");
   const openWorkspaceShortcutLabel = useShortcutCommandLabel("openWorkspace");
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
@@ -625,12 +627,28 @@ export function App({
       );
     };
   }, [handleCloseSidePaneTab, isSidePaneCollapsed, isWorkspaceVisible, sidePaneState]);
+  const sidePaneFullView = useSidePaneFullView({
+    workspacePath: workspaceAbsPath,
+    workspaceIdentity,
+    ownerId: sidePaneOwnerId,
+    isSidePaneOpen,
+    enabled: isDesktop === true,
+  });
+  const handleToggleSidePaneFullView = useCallback(() => {
+    if (isDesktop !== true) return;
+    if (!isSidePaneOpen) {
+      setIsSidePaneCollapsed(false);
+      sidePaneFullView.enter();
+    } else sidePaneFullView.toggle();
+  }, [isDesktop, isSidePaneOpen, setIsSidePaneCollapsed, sidePaneFullView]);
   const handleToggleSidePane = useCallback(() => {
+    // 显式关闭先清当前 owner 的完整视图，不等待下一次 effect 才退出浮窗。
+    if (isSidePaneOpen) sidePaneFullView.exit();
     // 交互说明：toggle panel 只改变右侧容器显隐，不隐式创建或切换任何 tab。
     // 之前无 tab 时会按 diff/browser 兜底自动开内容，导致用户只是想打开 side pane
     // 却得到一个新 Browser 或 Review。现在空内容统一交给 Open tab 空态承接。
     handleToggleSidePaneCollapse();
-  }, [handleToggleSidePaneCollapse]);
+  }, [handleToggleSidePaneCollapse, isSidePaneOpen, sidePaneFullView]);
   const runVisibleWorkspaceCommand = useCallback(
     (run: () => void) => {
       runWorkspaceVisibleCommand({
@@ -1040,6 +1058,9 @@ export function App({
     // ⌥⌘B 与 header 最右侧按钮共用同一条 toggle 入口，
     // 避免快捷键和按钮行为漂移；空面板的展示统一由 Open tab 空态承接。
     toggleSidePane: () => runVisibleWorkspaceCommand(handleToggleSidePane),
+    toggleSidePaneFullView: isDesktop
+      ? () => runVisibleWorkspaceCommand(handleToggleSidePaneFullView)
+      : null,
     previousConversation: handleSelectPreviousConversation,
     nextConversation: handleSelectNextConversation,
     navigateBack: canPrimaryNavigationBack
@@ -1249,6 +1270,8 @@ export function App({
           goBackShortcutLabel={goBackShortcutLabel}
           goForwardShortcutLabel={goForwardShortcutLabel}
           toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
+          toggleSidePaneFullViewShortcutLabel={toggleSidePaneFullViewShortcutLabel}
+          sidePaneFullView={isDesktop ? sidePaneFullView : undefined}
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           canTaskNavBack={canTaskNavBack}

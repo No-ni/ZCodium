@@ -1,6 +1,9 @@
 import { v4ConversationTurnDirectoryResultSchema } from "@zcode/shared/zcode-protocol-v4";
 import type { ZCodeAgentConversationTurnDirectoryParams } from "./zcodeAgent.js";
-import { assertNoRetiredIdleExecution } from "@zcode/shared";
+import {
+  appRuntimePreferencesChangedBroadcastPayloadSchema,
+  assertNoRetiredIdleExecution,
+} from "@zcode/shared";
 import { zcodeMcpUiSamplingResultSchema } from "@zcode/shared";
 import { MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS } from "@zcode/shared/mcp-apps";
 import {
@@ -1137,6 +1140,7 @@ export function createZCodeAgentService(
             preferences: {
               askUserQuestionAutoResolutionEnabled:
                 params.preferences.askUserQuestionAutoResolutionEnabled,
+              toolSearchMode: params.preferences.toolSearchMode ?? "off",
             },
           },
           zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
@@ -2693,9 +2697,8 @@ export function createZCodeAgentService(
     },
 
     async syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void> {
-      const normalizedPreferences: ZCodeAgentAppRuntimePreferences = {
-        ...preferences,
-      };
+      const normalizedPreferences: ZCodeAgentAppRuntimePreferences =
+        appRuntimePreferencesChangedBroadcastPayloadSchema.parse(preferences);
       latestAppRuntimePreferences = normalizedPreferences;
       const activeClients = [...activeClientsByWorkspaceKey.values()];
       await Promise.all(

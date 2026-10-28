@@ -44,7 +44,7 @@ export function useWebRemoteControlWindowSync(params: {
     };
   }, [params.enabled, platform]);
 
-  const workspaces = params.enabled && running ? params.workspaceTabs : EMPTY_WORKSPACES;
+  const workspaces = params.enabled ? params.workspaceTabs : EMPTY_WORKSPACES;
   // active 包含所有未归档任务及置顶项，沿用侧栏共享 Controller 订阅和查询缓存。
   const { items, loading } = useGlobalTaskList({
     enabled: params.enabled && running,
@@ -61,7 +61,7 @@ export function useWebRemoteControlWindowSync(params: {
   );
 
   useEffect(() => {
-    if (!params.enabled || !running || loading || !sessionId) return;
+    if (!params.enabled) return;
     const target =
       payload.workspaces[0] ??
       params.workspaceTabs[0] ??
@@ -83,7 +83,7 @@ export function useWebRemoteControlWindowSync(params: {
           workspaceIdentity: target.workspaceIdentity,
         };
         await platform.syncWebRemoteControlWorkspaces({ ...scope, workspaces: payload.workspaces });
-        if (cancelled) return;
+        if (cancelled || !running || loading || !sessionId) return;
         await platform.syncWebRemoteControlTasks({ ...scope, tasks: payload.tasks });
       })
       .catch((error) => {

@@ -41,6 +41,11 @@ import {
 import { compactActiveSessionMessages, isActiveCompactionBoundaryPart } from "./compact-session.js";
 import { filePartToContentBlock, projectPersistedToolMediaContent } from "./file-part-hydration.js";
 import { selectToolPartsForHistory } from "./tool-part-order.js";
+import {
+  restoredModelCallWrapper,
+  restoredToolSearchContent,
+  restoredToolSearchMetadata,
+} from "../tool/search/persistence.js";
 
 const INTERRUPTED_TOOL_RESULT = "[Tool execution was interrupted before resume]";
 
@@ -109,15 +114,29 @@ export async function hydrateMessageHistoryFromSession(input: {
 
       const entries = await userEntriesFromParts(parts, input.artifactStore);
       if (entries.length === 0) continue;
+      const compactPart = parts.find((part) => part.type === "compaction" && part.compactBoundary);
+      const discoveryMetadata = restoredToolSearchMetadata({
+        compactBoundary:
+          compactPart?.type === "compaction" && compactPart.compactBoundary
+            ? {
+                boundaryId: compactPart.compactBoundary.boundaryId,
+                preCompactDiscoveredTools: compactPart.compactBoundary.preCompactDiscoveredTools,
+              }
+            : undefined,
+      });
       const presentation = runtimeInputMetadata(
         (message.info.metadata as Record<string, unknown> | undefined)?.inputPresentation,
       );
       input.history.addEntries(
-        presentation
-          ? entries.map((entry) =>
-              entry.kind === "attachment" ? entry : { ...entry, metadata: presentation },
-            )
-          : entries,
+        entries.map((entry) => ({
+          ...entry,
+          metadata: {
+            ...(presentation && entry.kind !== "attachment"
+              ? presentation
+              : (entry.metadata ?? legacySyntheticRuntimeMetadata())),
+            ...discoveryMetadata,
+          },
+        })),
       );
       appliedMessageCount++;
       continue;
@@ -147,6 +166,9 @@ export async function hydrateMessageHistoryFromSession(input: {
           // 真实调用签名保存在工具 part metadata，冷恢复后不能退化为无签名调用。
           ...(isRecord(part.metadata?.providerOptions)
             ? { providerOptions: part.metadata.providerOptions }
+            : {}),
+          ...(restoredModelCallWrapper(part.metadata)
+            ? { modelCallWrapper: restoredModelCallWrapper(part.metadata) }
             : {}),
         }),
       ),
@@ -179,7 +201,9 @@ export async function hydrateMessageHistoryFromSession(input: {
                 attachmentBlocks,
               )
             : undefined;
-        const content = projectedMediaContent ?? part.state.output;
+        // 只有成功且严格校验的 ToolSearch 引用是发现事实；错误/损坏 metadata 保留旧文本。
+        const content =
+          restoredToolSearchContent(part) ?? projectedMediaContent ?? part.state.output;
         input.history.addToolResult(part.callID, providerToolName, content, true);
         continue;
       }
@@ -545,13 +569,16 @@ function runtimeMessageMetadataFromPartMetadata(
     return realUserRuntimeMetadata();
   }
   if (source === "legacy_synthetic") {
-    return legacySyntheticRuntimeMetadata();
+    return { ...legacySyntheticRuntimeMetadata(), ...restoredToolSearchMetadata(runtimeMessage) };
   }
   if (source === "todo_reminder") {
     return todoReminderRuntimeMetadata();
   }
   if (isKnownSystemReminderSource(source)) {
-    return systemReminderRuntimeMetadata(source);
+    return {
+      ...systemReminderRuntimeMetadata(source),
+      ...restoredToolSearchMetadata(runtimeMessage),
+    };
   }
 
   return undefined;

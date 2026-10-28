@@ -1,11 +1,13 @@
 # 上游能力对账（扩大范围）
 
+> 历史审计记录，不是当前基线或维护清单。下面的键数、工作项与结论只描述当时样本；原先把本地同名 fork tag 当官方基线的说明不可靠。重新审计必须核验官方 refs，按 [维护模型](../../docs/specs/maintenance-model.md) 执行，不能直接使用 `refs/tags/v3.14.3`。
+
 > 本文是 [upstream-i18n-parity.md](upstream-i18n-parity.md) 的**范围扩展版**。
 > 上一份只对了一个维度——`packages/ui/src/i18n/locales/zh-CN.ts` 与官方安装包语言表的键差集。README 的
 > 「与官方包的能力差异」声明的补全手段有三类：**内置插件与技能、i18n 键、协议与设置 schema 交互链路**。
 > 本文把后两类补齐，并加入文件级清单核对。
 
-基准：上游 `v3.14.3`（`c90e702`，本地 tag 可用），底稿为官方 3.14.3 安装包。
+历史样本：当时标记为 `v3.14.3`（`c90e702`），底稿为官方 3.14.3 安装包。该本地标签不代表已核验官方提交；本节结论不扩展为当前源码全量对等。
 
 ## 范围与方法
 
@@ -19,12 +21,12 @@
 | 插件清单         | `apps/zcode-cli/packages/` 目录差集                                                                                                  | 查过                    |
 | 技能清单         | `apps/zcode-cli/packages/bundled-skills/*/SKILL.md` 差集                                                                             | 查过                    |
 
-上游 tag 已在本地可用，可在不联网的情况下复现：
+重新复核时使用独立官方标签命名空间（不覆盖历史 fork 标签），输出目录须自行选择空目录：
 
 ```bash
-git fetch --tags upstream
-git branch -f upstream-3143 v3.14.3
-git archive upstream-3143 packages | tar -x -C /tmp/up2   # 或 apps / scripts / config / patches / harness
+git ls-remote --tags upstream
+git fetch --no-tags upstream "refs/heads/main:refs/remotes/upstream/main" "refs/tags/*:refs/upstream-tags/*"
+git archive refs/upstream-tags/v3.14.3 packages | tar -x -C <empty-output-directory>
 ```
 
 ## 各维度结论
@@ -95,7 +97,7 @@ let msg = messages[id] ?? id;
 ## 待办
 
 - ~~决定 `settings.memory.viewer.disabled` 补中文还是删除~~ 已补中文（2026-10-03）。
-- 上游升级到 3.14.4+ 时需重跑本文各维度：tag `v3.14.4` 已在本地，注意本仓库当前仍基于 3.14.3。
+- 历史升级待办已过期；当前官方基线与未验证范围查维护记录，不根据本地同名标签推断官方版本。
 - W6「任务菜单前往配置」已出 spec：[provider-config-menu-entry.md](provider-config-menu-entry.md)。
   核对方法：全量解包官方 `app.asar`（27057 文件）后查键引用，`appHeader` 域 8 个键中仅
   `goToProviderConfig` 被代码引用，其余 7 个是上游死键。

@@ -24,6 +24,7 @@ import type {
   SyncSubagentSessionTabsRequest,
 } from "@/lib/workspaceSidePane.js";
 import { logger } from "@/logger.js";
+import { useConversationPanePresentation } from "@/side-pane-full-view/index.js";
 import {
   effectiveFocusedPaneId,
   MAX_WORKBENCH_PANES,
@@ -251,7 +252,9 @@ export function V4WorkspaceChatArea({
   }, [layout]);
 
   const paneCount = layout.leaves.length;
-  const showFocusIndicator = paneCount > 1;
+  const { presentation } = useConversationPanePresentation();
+  const soloPaneId = presentation === "floating" ? focusedPaneId : null;
+  const showFocusIndicator = paneCount > 1 && !soloPaneId;
   const canSplit = paneCount < MAX_WORKBENCH_PANES;
 
   const shellScope = useMemo<PaneWorkspaceScope>(
@@ -565,6 +568,8 @@ export function V4WorkspaceChatArea({
           key={leaf.paneId}
           paneId={leaf.paneId}
           rect={leaf.rect}
+          solo={soloPaneId === leaf.paneId}
+          hidden={soloPaneId !== null && soloPaneId !== leaf.paneId}
           // Settings 只把 workspace 设为 inert，Pane 之前仍保留 focused=true，
           // 会在隐藏状态提前消费 Plugin 试用的一次性预填。可见性并入 focus 后，
           // 请求只会由返回 workspace 后真正可交互的 Composer 消费。
@@ -587,18 +592,20 @@ export function V4WorkspaceChatArea({
           onDropSession={handleDropSession}
         />
       ))}
-      {layout.dividers.map((divider) => (
-        <WorkbenchSplitDivider
-          key={divider.splitId}
-          containerRef={containerRef}
-          splitId={divider.splitId}
-          direction={divider.direction}
-          ratio={divider.ratio}
-          regionFraction={divider.regionFraction}
-          style={dividerStyle(divider)}
-          onCommitRatio={handleCommitSplitRatio}
-        />
-      ))}
+      {soloPaneId === null
+        ? layout.dividers.map((divider) => (
+            <WorkbenchSplitDivider
+              key={divider.splitId}
+              containerRef={containerRef}
+              splitId={divider.splitId}
+              direction={divider.direction}
+              ratio={divider.ratio}
+              regionFraction={divider.regionFraction}
+              style={dividerStyle(divider)}
+              onCommitRatio={handleCommitSplitRatio}
+            />
+          ))
+        : null}
     </div>
   );
 }

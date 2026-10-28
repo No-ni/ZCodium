@@ -84,6 +84,7 @@ interface ChatPaneShellProps {
   onDrop?: (event: DragEvent<HTMLDivElement>) => void;
   children: ReactNode;
   restoredUnvalidated?: boolean;
+  hidden?: boolean;
 }
 
 const DROP_PREVIEW_STYLE: CSSProperties = {
@@ -126,10 +127,11 @@ const ChatPaneShell = memo(function ChatPaneShell({
   onDrop,
   children,
   restoredUnvalidated = false,
+  hidden = false,
 }: ChatPaneShellProps) {
   const handleFocusRequest = useCallback(() => {
-    onFocusRequest(paneId);
-  }, [onFocusRequest, paneId]);
+    if (!hidden) onFocusRequest(paneId);
+  }, [hidden, onFocusRequest, paneId]);
 
   return (
     <div
@@ -138,6 +140,8 @@ const ChatPaneShell = memo(function ChatPaneShell({
       data-pane-id={paneId}
       data-focused={focused ? "true" : "false"}
       data-restored-unvalidated={restoredUnvalidated ? "true" : "false"}
+      aria-hidden={hidden || undefined}
+      inert={hidden}
       onPointerDownCapture={handleFocusRequest}
       onFocusCapture={handleFocusRequest}
       onDragOver={onDragOver}
@@ -310,6 +314,8 @@ export interface WorkbenchShellBinding {
 interface WorkbenchLeafPaneProps {
   paneId: string;
   rect: RectExpr;
+  solo?: boolean;
+  hidden?: boolean;
   focused: boolean;
   showFocusIndicator: boolean;
   canSplit: boolean;
@@ -345,6 +351,8 @@ function workspaceBadgeFor(scope: PaneWorkspaceScope): PaneWorkspaceBadge {
 export function WorkbenchLeafPane({
   paneId,
   rect,
+  solo = false,
+  hidden = false,
   focused,
   showFocusIndicator,
   canSplit,
@@ -385,7 +393,15 @@ export function WorkbenchLeafPane({
     shell.remoteSessionId,
   ]);
 
-  const style = useMemo(() => rectStyle(rect), [rect]);
+  const style = useMemo(
+    () =>
+      hidden
+        ? { ...rectStyle(rect), visibility: "hidden" as const, pointerEvents: "none" as const }
+        : solo
+          ? { left: 0, top: 0, width: "100%", height: "100%" }
+          : rectStyle(rect),
+    [hidden, rect, solo],
+  );
 
   const handleSplitRight = useCallback(() => {
     onSplit?.(paneId, "row", scope);
@@ -497,7 +513,7 @@ export function WorkbenchLeafPane({
   }, []);
   useEffect(() => {
     const element = pointerDropTargetRef.current;
-    if (!element || !onDropSession || !canSplit) {
+    if (!element || hidden || !onDropSession || !canSplit) {
       return undefined;
     }
     return registerWorkbenchPointerDropTarget(element, {
@@ -505,7 +521,7 @@ export function WorkbenchLeafPane({
       onPreview: setDropSide,
       onDrop: (side, payload) => onDropSession(paneId, side, payload),
     });
-  }, [canDropSession, canSplit, onDropSession, paneId]);
+  }, [canDropSession, canSplit, hidden, onDropSession, paneId]);
 
   if (!isPrimary && !binding) {
     // sanitize/迁移保证非 primary 叶子必有绑定；此处是转移瞬间的防御渲染。
@@ -532,6 +548,7 @@ export function WorkbenchLeafPane({
       paneId={paneId}
       focused={focused}
       showFocusIndicator={showFocusIndicator}
+      hidden={hidden}
       onFocusRequest={onFocusRequest}
       style={style}
       dropSide={dropSide}

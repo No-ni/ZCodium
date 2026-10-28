@@ -31,38 +31,67 @@ export class ProviderProvisioningEnvironmentCoordinator {
   } {
     const lane = this.#lanes.get(environmentKey) ?? createLane();
     const wasOffline = lane.registrations.size === 0;
-    lane.registrations.set(registrationId, { id: registrationId, execute });
+    const registration = { id: registrationId, execute };
+    lane.registrations.set(registrationId, registration);
     this.#lanes.set(environmentKey, lane);
     if (wasOffline) {
       lane.generation += 1;
       lane.trigger = "environment-online";
     }
-    const initialSync = this.#startDrain(lane);
+    const initialSync = this.#startDrain(environmentKey, lane);
     return {
       initialSync,
       dispose: () => {
+        // 同 ID 可以换代；旧连接的清理只能退休自己的注册对象。
+        if (lane.registrations.get(registrationId) !== registration) return;
         lane.registrations.delete(registrationId);
+        this.#retireOfflineLane(environmentKey, lane);
       },
     };
   }
 
   requestAll(trigger: Exclude<ProviderProvisioningTrigger, "environment-online">): Promise<void> {
     const drains: Promise<void>[] = [];
-    for (const lane of this.#lanes.values()) {
+    for (const [environmentKey, lane] of this.#lanes) {
+      if (lane.registrations.size === 0) continue;
       lane.generation += 1;
       lane.trigger = trigger;
-      if (lane.registrations.size > 0) drains.push(this.#startDrain(lane));
+      drains.push(this.#startDrain(environmentKey, lane));
     }
     return Promise.all(drains).then(() => undefined);
   }
 
-  #startDrain(lane: EnvironmentLane): Promise<void> {
+  #startDrain(environmentKey: string, lane: EnvironmentLane): Promise<void> {
     if (lane.drain) return lane.drain;
-    const operation = this.#drain(lane).finally(() => {
-      if (lane.drain === operation) lane.drain = null;
-    });
-    lane.drain = operation;
-    return operation;
+    if (lane.completedGeneration >= lane.generation || lane.registrations.size === 0) {
+      return Promise.resolve();
+    }
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    // execute 的同步部分也可能发出新触发，必须先登记 flight，不能并行执行同一 Environment。
+    lane.drain = promise;
+    const failed = (error: unknown) => {
+      lane.drain = null;
+      this.#retireOfflineLane(environmentKey, lane);
+      reject(error);
+    };
+    const completed = () => {
+      if (lane.completedGeneration < lane.generation && lane.registrations.size > 0) {
+        void this.#drain(lane).then(completed, failed);
+        return;
+      }
+      lane.drain = null;
+      this.#retireOfflineLane(environmentKey, lane);
+      resolve();
+    };
+    void this.#drain(lane).then(completed, failed);
+    return promise;
+  }
+
+  #retireOfflineLane(environmentKey: string, lane: EnvironmentLane): void {
+    // 未结算 apply 仍占串行通道；结算后空 lane 不再保留离线代际。
+    if (!lane.drain && lane.registrations.size === 0 && this.#lanes.get(environmentKey) === lane) {
+      this.#lanes.delete(environmentKey);
+    }
   }
 
   async #drain(lane: EnvironmentLane): Promise<void> {
@@ -73,15 +102,18 @@ export class ProviderProvisioningEnvironmentCoordinator {
       if (!registration) return;
       try {
         await registration.execute(trigger);
-        lane.completedGeneration = targetGeneration;
+        // 迟到成功不能替新 Host 完成屏障，新注册必须从当前 Host 重新执行。
+        if (lane.registrations.get(registration.id) === registration) {
+          lane.completedGeneration = targetGeneration;
+        }
       } catch (error) {
-        // 执行 Host 退出时，其注册会先被移除；同一 Environment 仍有其它 Host
-        // 就立即接管当前代际。普通远端失败不自动重试，等待下一次正式触发。
-        if (!lane.registrations.has(registration.id) && lane.registrations.size > 0) continue;
+        if (lane.registrations.get(registration.id) !== registration) continue;
+        if (trigger === "environment-online") {
+          // 首次失败不是完成事实；失败执行者退出调度，后续显式连接重新执行。
+          lane.registrations.delete(registration.id);
+          throw error;
+        }
         lane.completedGeneration = targetGeneration;
-        // 首次同步是 Remote Workspace 发布屏障，不能把失败吞成已就绪；
-        // 已连接后的同步由执行端降级为 warning，不会进入这里。
-        if (trigger === "environment-online") throw error;
       }
     }
   }

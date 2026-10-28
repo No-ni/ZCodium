@@ -1,4 +1,5 @@
 // import { GripHorizontal, GripVertical } from "lucide-react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { cn } from "@/components/lib/utils.js";
 import {
   Group,
@@ -6,6 +7,8 @@ import {
   Separator,
   useDefaultLayout,
   type GroupProps,
+  type GroupImperativeHandle,
+  type Layout,
   type PanelProps,
   type SeparatorProps,
 } from "react-resizable-panels";
@@ -23,26 +26,86 @@ function ResizablePanelGroup({
   className,
   layoutId,
   panelIds,
+  suspendLayoutPersistence = false,
+  groupRef: groupRefProp,
   ...props
 }: Omit<GroupProps, "defaultLayout" | "onLayoutChange" | "onLayoutChanged"> & {
   /** 持久化 key，对应 useDefaultLayout 的 id */
   layoutId: string;
   /** 条件渲染面板时需要传当前可见面板的 id 列表 */
   panelIds?: string[];
+  /** 临时完整视图只影响展示，不得保存被缩窄后的比例。 */
+  suspendLayoutPersistence?: boolean;
 }) {
+  const layoutIdentity = JSON.stringify([layoutId, panelIds ?? null]);
+  const identityRef = useRef(layoutIdentity);
+  const previousSuspendedRef = useRef(suspendLayoutPersistence);
+  const suspendedRef = useRef(suspendLayoutPersistence);
+  const groupRef = useRef<GroupImperativeHandle | null>(null);
+  const normalLayoutRef = useRef<Layout | undefined>(undefined);
+  if (identityRef.current !== layoutIdentity) {
+    identityRef.current = layoutIdentity;
+    normalLayoutRef.current = undefined;
+    previousSuspendedRef.current = suspendLayoutPersistence;
+  }
+  // 子 Group 的 layout effect 早于父恢复；退出这一 commit 仍暂停，不能把临时尺寸认作普通布局。
+  suspendedRef.current = suspendLayoutPersistence || previousSuspendedRef.current;
+  const storage = useMemo(
+    () => ({
+      getItem: (key: string) => localStorage.getItem(key),
+      setItem: (key: string, value: string) => {
+        // 库内 debounce 可能已排队；写出口同时校验暂停与布局身份，旧回调不能覆盖新布局。
+        if (!suspendedRef.current && identityRef.current === layoutIdentity)
+          localStorage.setItem(key, value);
+      },
+    }),
+    [layoutIdentity],
+  );
   const { defaultLayout, onLayoutChange } = useDefaultLayout({
     id: layoutId,
     panelIds,
+    storage,
   });
+  if (!normalLayoutRef.current && defaultLayout) normalLayoutRef.current = defaultLayout;
+  const setGroupRef = useCallback(
+    (value: GroupImperativeHandle | null) => {
+      groupRef.current = value;
+      if (typeof groupRefProp === "function") {
+        const cleanup = groupRefProp(value);
+        if (typeof cleanup === "function")
+          return () => {
+            groupRef.current = null;
+            cleanup();
+          };
+      } else if (groupRefProp) groupRefProp.current = value;
+    },
+    [groupRefProp],
+  );
+  useLayoutEffect(() => {
+    const previous = previousSuspendedRef.current;
+    previousSuspendedRef.current = suspendLayoutPersistence;
+    if (!suspendLayoutPersistence && previous && normalLayoutRef.current)
+      groupRef.current?.setLayout(normalLayoutRef.current);
+    suspendedRef.current = suspendLayoutPersistence;
+  }, [layoutIdentity, suspendLayoutPersistence]);
+  const handleLayoutChange = useCallback(
+    (layout: Layout) => {
+      if (suspendedRef.current || identityRef.current !== layoutIdentity) return;
+      normalLayoutRef.current = layout;
+      onLayoutChange(layout);
+    },
+    [layoutIdentity, onLayoutChange],
+  );
 
   return (
     <Group
+      groupRef={setGroupRef}
       className={cn("flex h-full w-full", className)}
       defaultLayout={defaultLayout}
       // onLayoutChanged 会在每次布局变化后立刻写 localStorage。
       // 窗口 resize 时 PanelGroup 会连续产生成百上千次 layout 更新，必须走库内置
       // debounce 的 onLayoutChange，避免同步持久化放大主线程压力。
-      onLayoutChange={onLayoutChange}
+      onLayoutChange={handleLayoutChange}
       {...props}
     />
   );

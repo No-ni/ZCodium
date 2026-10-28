@@ -11,6 +11,16 @@ import { TID_APP_HEADER } from "@zcode/shared";
 import { sidePaneTerminalSessionRegistry } from "@/terminal/sidePaneTerminalSessionRegistry.js";
 import { V4WorkspaceChatArea } from "@/v4/V4WorkspaceChatArea.js";
 import {
+  SidePaneFullViewConversationHost,
+  readFloatingAnchorPreference,
+  writeFloatingAnchorPreference,
+} from "@/side-pane-full-view/index.js";
+import type {
+  FloatingAnchor,
+  SidePaneFullViewFloating,
+  SidePaneFullViewHostMode,
+} from "@/side-pane-full-view/contract.js";
+import {
   V4SplitPaneEntryProvider,
   type V4SplitPaneSessionTarget,
 } from "@/v4/splitPaneEntryContext.js";
@@ -45,6 +55,7 @@ import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadc
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
 import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
 import { WorkspaceHeader } from "@/WorkspaceHeader.js";
+import { resolveWorkspaceHeaderLeadingInset } from "@/lib/workspaceHeaderLeadingInset.js";
 import { WorkspaceSidebar, type SidebarFileTreeOpenRequest } from "@/WorkspaceSidebar.js";
 import { AnimatedSidePanePanel } from "@/app-shell/AnimatedSidePanePanel.js";
 import {
@@ -238,6 +249,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   goBackShortcutLabel,
   goForwardShortcutLabel,
   toggleSidePaneShortcutLabel,
+  toggleSidePaneFullViewShortcutLabel,
+  sidePaneFullView,
   canGoBack,
   canGoForward,
   canTaskNavBack,
@@ -432,6 +445,33 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       (entry) => Boolean(entry.workspaceKey) && !retained.has(entry.workspaceKey),
     );
   }, [openWorkspaceKeys]);
+  const activeFullView =
+    workspaceMainView === "chat" && isDesktop ? (sidePaneFullView?.fullView ?? null) : null;
+  const isFullView = activeFullView !== null;
+  const fullViewMode: SidePaneFullViewHostMode = !activeFullView
+    ? "normal"
+    : activeFullView.surface === "conversation"
+      ? "conversation"
+      : "floating";
+  const isFloatingFullView = fullViewMode === "floating";
+  const isFullViewRef = useRef(isFullView);
+  isFullViewRef.current = isFullView;
+  const [fullViewSlotElement, setFullViewSlotElement] = useState<HTMLDivElement | null>(null);
+  const [floatingAnchor, setFloatingAnchor] = useState<FloatingAnchor>(
+    readFloatingAnchorPreference,
+  );
+  const handleFloatingAnchorChange = useCallback((anchor: FloatingAnchor) => {
+    setFloatingAnchor(anchor);
+    writeFloatingAnchorPreference(anchor);
+  }, []);
+  const handleFullViewFloatingChange = useCallback(
+    (floating: SidePaneFullViewFloating) => sidePaneFullView?.setFloating(floating),
+    [sidePaneFullView],
+  );
+  const handleOpenFullViewConversation = useCallback(
+    () => sidePaneFullView?.setSurface("conversation"),
+    [sidePaneFullView],
+  );
   const isSidebarPanelVisible = isSidebarVisible;
   const {
     panelRef: terminalPanelRef,
@@ -487,6 +527,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       conversationPanelElementRef.current?.getBoundingClientRect().width ?? null;
 
     const collapseSidebarIfStillNarrow = () => {
+      if (isFullViewRef.current) return;
       const widthPx = readConversationWidthPx();
       if (widthPx === null) {
         return;
@@ -509,6 +550,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     };
 
     const runAutoCollapseForWindowResize = () => {
+      if (isFullViewRef.current) return;
       const widthPx = readConversationWidthPx();
       if (widthPx === null) {
         return;
@@ -1521,6 +1563,36 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       isVisible={isSidePaneVisible}
       onCloseSidePane={handleToggleSidePane}
       toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
+      fullViewToggle={
+        isDesktop && sidePaneFullView
+          ? {
+              active: isFullView,
+              onToggle: sidePaneFullView.toggle,
+              shortcutLabel: toggleSidePaneFullViewShortcutLabel,
+            }
+          : undefined
+      }
+      fullView={
+        activeFullView && sidePaneFullView
+          ? {
+              surface: activeFullView.surface,
+              conversationTitle:
+                activeTaskTitle?.trim() || intl.formatMessage({ id: "taskList.untitled" }),
+              leadingInsetClassName: resolveWorkspaceHeaderLeadingInset({
+                isSidebarVisible,
+                isMacDesktop,
+                isMacFullscreen,
+                hasUpdateReady:
+                  updateReadyVersion !== null ||
+                  updateState?.kind === "update-available" ||
+                  updateState?.kind === "download-progress" ||
+                  updateState?.kind === "update-downloaded",
+              }),
+              onSelectSurface: sidePaneFullView.setSurface,
+            }
+          : null
+      }
+      fullViewSlotRef={setFullViewSlotElement}
       sidePaneState={sidePaneState}
       recentClosedSidePaneTabs={recentClosedSidePaneTabs}
       isBrowserOpen={isBrowserOpen}
@@ -1601,7 +1673,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
 
   return (
     <DesktopWindowFrame
-      title={`ZCode / ${getPathLeaf(workspaceAbsPath)}`}
+      title={`ZCodium / ${getPathLeaf(workspaceAbsPath)}`}
       showHeader
       isDesktop={isDesktop}
       isMacDesktop={isMacDesktop}
@@ -1738,293 +1810,315 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           <ResizablePanelGroup
             layoutId="workspace-body-layout"
             panelIds={WORKSPACE_BODY_PANEL_IDS}
-            className="min-h-0 flex-1"
+            suspendLayoutPersistence={isFullView}
+            disabled={isFullView}
+            className={cn("min-h-0 flex-1", isFullView && "relative")}
           >
             <ResizablePanel
               id="conversation-column"
               minSize="35%"
               defaultSize={isSidePaneVisible ? "52%" : undefined}
             >
-              <ResizablePanelGroup
-                orientation="vertical"
-                layoutId="workspace-conversation-column-layout"
-                panelIds={WORKSPACE_CONVERSATION_PANEL_IDS}
-                className="h-full min-h-0"
+              <SidePaneFullViewConversationHost
+                mode={fullViewMode}
+                floating={activeFullView?.floating ?? "collapsed"}
+                anchor={floatingAnchor}
+                scopeKey={JSON.stringify([workspaceKey, sidePaneOwnerId])}
+                slotElement={fullViewSlotElement}
+                onFloatingChange={handleFullViewFloatingChange}
+                onAnchorChange={handleFloatingAnchorChange}
+                onOpenConversation={handleOpenFullViewConversation}
               >
-                <ResizablePanel
-                  id="conversation"
-                  elementRef={conversationPanelElementRef}
-                  minSize="35%"
+                <ResizablePanelGroup
+                  orientation="vertical"
+                  layoutId="workspace-conversation-column-layout"
+                  panelIds={WORKSPACE_CONVERSATION_PANEL_IDS}
+                  suspendLayoutPersistence={isFullView}
+                  disabled={isFloatingFullView}
+                  className="relative h-full min-h-0"
                 >
-                  <section
-                    data-workspace-conversation-frame="true"
-                    className={cn(
-                      "relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background",
-                      isSidePaneVisible
-                        ? "rounded-[var(--workspace-panel-radius)] border border-border"
-                        : resolveWorkspaceShellWindowChromeClass({
-                            isMacDesktop,
-                            isWindowsDesktop,
-                            isLinuxDesktop,
-                            macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
-                            isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
-                            supportsNativeRoundedCorners:
-                              desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
-                          }),
-                      isTerminalVisible && "rounded-b-[var(--workspace-panel-radius)] border-b",
-                    )}
+                  <ResizablePanel
+                    id="conversation"
+                    elementRef={conversationPanelElementRef}
+                    minSize="35%"
+                    style={
+                      isFloatingFullView ? { position: "absolute", inset: 0, zIndex: 1 } : undefined
+                    }
                   >
-                    {shouldRenderWorkspaceHeader ? (
-                      <ScopedErrorBoundary
-                        scope="workspace-header"
-                        resetKeys={workspaceOnlyResetKeys}
-                        variant="compact"
-                        className="border-b"
-                      >
-                        <WorkspaceHeader
-                          reserveWindowControls={!isSidePaneVisible}
-                          variant={activeTaskId === null ? "draft" : "task"}
-                          draftDropTargetController={
-                            activeTaskId === null ? draftHeaderDropTargetController : undefined
-                          }
-                          readOnlyReason={workspaceReadOnlyReason}
-                          workspaceAbsPath={workspaceAbsPath}
-                          sessionWorkspacePath={sessionWorkspacePath}
-                          remoteSessionId={workspaceRemoteSessionId}
-                          workspaceIdentity={workspaceIdentity}
-                          remoteTarget={workspaceRemoteTarget}
-                          localWorkspacePath={workspaceLocalPathForRemoteMcpSync}
-                          projectName={projectName}
-                          activeTaskTitle={activeTaskTitle}
-                          activeTaskChangeSummary={activeTaskChangeSummary}
-                          hasUpdateReady={hasUpdateStatusButton}
-                          activeTaskId={activeTaskId}
-                          activeTraceId={activeTraceId}
-                          activeSessionId={activeSessionId}
-                          activeTaskProvider={activeTaskProvider}
-                          resolvedActiveTaskMeta={resolvedActiveTaskMeta}
-                          sessionLogPath={taskSessionFile.path}
-                          nativeSessionLogProvider={taskNativeSessionLogFile.provider}
-                          nativeSessionLogPath={taskNativeSessionLogFile.path}
-                          nativeSessionLogExists={taskNativeSessionLogFile.exists}
-                          nativeSessionLogLoading={taskNativeSessionLogFile.loading}
-                          workspaceHeaderState={workspaceShellZCodeState}
-                          gitSummary={gitState.summary}
-                          gitDirtyFileCount={gitDirtyFileCount}
-                          isMacDesktop={isMacDesktop}
-                          isMacFullscreen={isMacFullscreen}
-                          isWindowsDesktop={isWindowsDesktop}
-                          windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
-                          isDesktop={isDesktop}
-                          isSidebarVisible={isSidebarVisible}
-                          isTerminalOpen={isTerminalOpen}
-                          isSidePaneOpen={isSidePaneOpen}
-                          onRefreshGit={handleRefreshGit}
-                          onToggleTerminal={handleToggleTerminal}
-                          onToggleBrowser={handleToggleBrowser}
-                          onToggleSidePane={handleToggleSidePane}
-                          toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
-                          onReloadSession={handleReloadSession}
-                          reloadSessionDisabled={workspaceSessionActionDisabled}
-                          reloadSessionPending={reloadSessionPending}
-                          onCreateTask={handleCreateTaskInChat}
-                          onOpenWorkspace={onOpenWorkspace}
-                          allowOpenWorkspace={allowOpenWorkspace}
-                        />
-                      </ScopedErrorBoundary>
-                    ) : null}
-                    <div className="min-h-0 flex-1 overflow-hidden">
-                      {workspaceMainView === "automations" ? (
-                        <main
-                          id={AUTOMATIONS_TOAST_ANCHOR_ID}
-                          className="flex h-full min-h-0 flex-1 flex-col bg-background"
+                    <section
+                      data-workspace-conversation-frame="true"
+                      className={cn(
+                        "relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background",
+                        isSidePaneVisible
+                          ? "rounded-[var(--workspace-panel-radius)] border border-border"
+                          : resolveWorkspaceShellWindowChromeClass({
+                              isMacDesktop,
+                              isWindowsDesktop,
+                              isLinuxDesktop,
+                              macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
+                              isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
+                              supportsNativeRoundedCorners:
+                                desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
+                            }),
+                        isTerminalVisible && "rounded-b-[var(--workspace-panel-radius)] border-b",
+                        isFullView && "rounded-none border-0",
+                      )}
+                    >
+                      {shouldRenderWorkspaceHeader && !isFullView ? (
+                        <ScopedErrorBoundary
+                          scope="workspace-header"
+                          resetKeys={workspaceOnlyResetKeys}
+                          variant="compact"
+                          className="border-b"
                         >
-                          <AutomationsMainBreadcrumbFrame
-                            isDesktop={Boolean(isDesktop)}
-                            sectionLabel={intl.formatMessage({
-                              id: "settings.automations.title",
-                            })}
-                            ariaLabel={intl.formatMessage({
-                              id: "automations.breadcrumbLabel",
-                            })}
+                          <WorkspaceHeader
+                            reserveWindowControls={!isSidePaneVisible}
+                            variant={activeTaskId === null ? "draft" : "task"}
+                            draftDropTargetController={
+                              activeTaskId === null ? draftHeaderDropTargetController : undefined
+                            }
+                            readOnlyReason={workspaceReadOnlyReason}
+                            workspaceAbsPath={workspaceAbsPath}
+                            sessionWorkspacePath={sessionWorkspacePath}
+                            remoteSessionId={workspaceRemoteSessionId}
+                            workspaceIdentity={workspaceIdentity}
+                            remoteTarget={workspaceRemoteTarget}
+                            localWorkspacePath={workspaceLocalPathForRemoteMcpSync}
+                            projectName={projectName}
+                            activeTaskTitle={activeTaskTitle}
+                            activeTaskChangeSummary={activeTaskChangeSummary}
+                            hasUpdateReady={hasUpdateStatusButton}
+                            activeTaskId={activeTaskId}
+                            activeTraceId={activeTraceId}
+                            activeSessionId={activeSessionId}
+                            activeTaskProvider={activeTaskProvider}
+                            resolvedActiveTaskMeta={resolvedActiveTaskMeta}
+                            sessionLogPath={taskSessionFile.path}
+                            nativeSessionLogProvider={taskNativeSessionLogFile.provider}
+                            nativeSessionLogPath={taskNativeSessionLogFile.path}
+                            nativeSessionLogExists={taskNativeSessionLogFile.exists}
+                            nativeSessionLogLoading={taskNativeSessionLogFile.loading}
+                            workspaceHeaderState={workspaceShellZCodeState}
+                            gitSummary={gitState.summary}
+                            gitDirtyFileCount={gitDirtyFileCount}
+                            isMacDesktop={isMacDesktop}
+                            isMacFullscreen={isMacFullscreen}
+                            isWindowsDesktop={isWindowsDesktop}
+                            windowsWindowControlsRightPaddingPx={
+                              windowsWindowControlsRightPaddingPx
+                            }
+                            isDesktop={isDesktop}
+                            isSidebarVisible={isSidebarVisible}
+                            isTerminalOpen={isTerminalOpen}
+                            isSidePaneOpen={isSidePaneOpen}
+                            onRefreshGit={handleRefreshGit}
+                            onToggleTerminal={handleToggleTerminal}
+                            onToggleBrowser={handleToggleBrowser}
+                            onToggleSidePane={handleToggleSidePane}
+                            toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
+                            onReloadSession={handleReloadSession}
+                            reloadSessionDisabled={workspaceSessionActionDisabled}
+                            reloadSessionPending={reloadSessionPending}
+                            onCreateTask={handleCreateTaskInChat}
+                            onOpenWorkspace={onOpenWorkspace}
+                            allowOpenWorkspace={allowOpenWorkspace}
+                          />
+                        </ScopedErrorBoundary>
+                      ) : null}
+                      <div className="min-h-0 flex-1 overflow-hidden">
+                        {workspaceMainView === "automations" ? (
+                          <main
+                            id={AUTOMATIONS_TOAST_ANCHOR_ID}
+                            className="flex h-full min-h-0 flex-1 flex-col bg-background"
                           >
-                            <div
-                              // 不同 Automations tab 的内容高度不同，滚动条出现/消失会改变
-                              // mx-auto 内容列的可用宽度，造成整页左右弹动；预留稳定槽位保持居中基准不变。
-                              className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+                            <AutomationsMainBreadcrumbFrame
+                              isDesktop={Boolean(isDesktop)}
+                              sectionLabel={intl.formatMessage({
+                                id: "settings.automations.title",
+                              })}
+                              ariaLabel={intl.formatMessage({
+                                id: "automations.breadcrumbLabel",
+                              })}
                             >
-                              <ScopedErrorBoundary
-                                scope="automations-main"
-                                resetKeys={workspaceOnlyResetKeys}
-                                variant="panel"
-                                className="min-h-full"
+                              <div
+                                // 不同 Automations tab 的内容高度不同，滚动条出现/消失会改变
+                                // mx-auto 内容列的可用宽度，造成整页左右弹动；预留稳定槽位保持居中基准不变。
+                                className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
                               >
-                                <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4 md:px-6 md:py-6">
-                                  <AutomationsSection
+                                <ScopedErrorBoundary
+                                  scope="automations-main"
+                                  resetKeys={workspaceOnlyResetKeys}
+                                  variant="panel"
+                                  className="min-h-full"
+                                >
+                                  <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4 md:px-6 md:py-6">
+                                    <AutomationsSection
+                                      workspacePath={workspaceAbsPath}
+                                      workspaceIdentity={workspaceIdentity}
+                                      onCreateViaChat={handleCreateAutomationInChat}
+                                      onNavigateToLaunchedRun={handleNavigateToLaunchedRun}
+                                      onOpenWorkflowRun={handleOpenSavedWorkflowRun}
+                                      onOpenWorkflowArtifact={handleOpenSavedWorkflowArtifact}
+                                      openAutomationId={openAutomationId}
+                                      openAutomationTab={openAutomationTab}
+                                      onOpenAutomationConsumed={onOpenAutomationConsumed}
+                                      onOpenSession={({
+                                        sessionId,
+                                        workspacePath,
+                                        workspaceIdentity,
+                                      }) =>
+                                        handleSelectTaskInChat(
+                                          workspacePath,
+                                          sessionId,
+                                          workspaceIdentity,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </ScopedErrorBoundary>
+                              </div>
+                            </AutomationsMainBreadcrumbFrame>
+                          </main>
+                        ) : workspaceMainView === "plugin-store" ? (
+                          <main className="flex h-full min-h-0 flex-1 flex-col bg-background">
+                            <AutomationsMainBreadcrumbFrame
+                              isDesktop={Boolean(isDesktop)}
+                              sectionLabel={intl.formatMessage({
+                                id: "workspace.openPluginsSettings",
+                              })}
+                              ariaLabel={intl.formatMessage({
+                                id: "settings.breadcrumbLabel",
+                              })}
+                            >
+                              <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+                                <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-4 md:px-6 md:py-6">
+                                  <PluginStorePage
+                                    key={`plugin-store:${pluginStoreOpenVersion}`}
                                     workspacePath={workspaceAbsPath}
                                     workspaceIdentity={workspaceIdentity}
-                                    onCreateViaChat={handleCreateAutomationInChat}
-                                    onNavigateToLaunchedRun={handleNavigateToLaunchedRun}
-                                    onOpenWorkflowRun={handleOpenSavedWorkflowRun}
-                                    onOpenWorkflowArtifact={handleOpenSavedWorkflowArtifact}
-                                    openAutomationId={openAutomationId}
-                                    openAutomationTab={openAutomationTab}
-                                    onOpenAutomationConsumed={onOpenAutomationConsumed}
-                                    onOpenSession={({
-                                      sessionId,
-                                      workspacePath,
-                                      workspaceIdentity,
-                                    }) =>
-                                      handleSelectTaskInChat(
-                                        workspacePath,
-                                        sessionId,
-                                        workspaceIdentity,
-                                      )
-                                    }
+                                    onCreateTask={handleCreateTaskInChat}
+                                    onManageInstalled={handleManageInstalledPlugins}
                                   />
                                 </div>
-                              </ScopedErrorBoundary>
-                            </div>
-                          </AutomationsMainBreadcrumbFrame>
-                        </main>
-                      ) : workspaceMainView === "plugin-store" ? (
-                        <main className="flex h-full min-h-0 flex-1 flex-col bg-background">
-                          <AutomationsMainBreadcrumbFrame
-                            isDesktop={Boolean(isDesktop)}
-                            sectionLabel={intl.formatMessage({
-                              id: "workspace.openPluginsSettings",
-                            })}
-                            ariaLabel={intl.formatMessage({
-                              id: "settings.breadcrumbLabel",
-                            })}
-                          >
-                            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-                              <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-4 md:px-6 md:py-6">
-                                <PluginStorePage
-                                  key={`plugin-store:${pluginStoreOpenVersion}`}
-                                  workspacePath={workspaceAbsPath}
-                                  workspaceIdentity={workspaceIdentity}
-                                  onCreateTask={handleCreateTaskInChat}
-                                  onManageInstalled={handleManageInstalledPlugins}
-                                />
                               </div>
-                            </div>
-                          </AutomationsMainBreadcrumbFrame>
-                        </main>
-                      ) : (
-                        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-                          {renderChatFindDialog()}
-                          <ScopedErrorBoundary
-                            scope="workspace-chat"
-                            resetKeys={workspaceDraftResetKeys}
-                            variant="panel"
-                            className="h-full"
-                          >
-                            {/* pane 绑定必须用原始选择态 activeTaskId，
+                            </AutomationsMainBreadcrumbFrame>
+                          </main>
+                        ) : (
+                          <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+                            {renderChatFindDialog()}
+                            <ScopedErrorBoundary
+                              scope="workspace-chat"
+                              resetKeys={workspaceDraftResetKeys}
+                              variant="panel"
+                              className="h-full"
+                            >
+                              {/* pane 绑定必须用原始选择态 activeTaskId，
                                   不能用 meta 派生的 activeSessionId——v4 createSession 刚建的会话
                                   不在 taskListCache/optimistic 缓存里，meta 解析为 null 会让 pane
                                   永远停在 draft。v4 语义下 sessionId ≡ taskId，meta 只服务 Header 显示。
                                   桌面主区升级为分屏宿主（Layout/Focus 两层）；primary pane
                                   绑定语义与 testid 契约（paneId=workspace-main）不变。 */}
-                            <V4WorkspaceChatArea
-                              readOnly={Boolean(workspaceReadOnlyReason)}
-                              foregroundEnabled={isWorkspaceVisible}
-                              workspacePath={workspaceAbsPath}
-                              workspaceIdentity={workspaceIdentity}
-                              isDesktop={isDesktop === true}
-                              remoteSessionId={workspaceRemoteSessionId}
-                              sessionId={activeTaskId}
-                              primaryDraftScopeToken={primaryDraftScopeToken}
-                              activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
-                              provider={activeTaskProvider ?? undefined}
-                              onSessionCreated={handleV4SessionCreated}
-                              onSessionDeleted={handleV4SessionDeleted}
-                              onPrimaryDraftEffectiveSessionBindingChange={
-                                onPrimaryDraftEffectiveSessionBindingChange
-                              }
-                              draftComposerHeader={draftComposerHeader}
-                              onPrimaryDraftDropTargetControllerChange={
-                                setDraftHeaderDropTargetController
-                              }
-                              gitSummary={gitState.summary}
-                              gitDirtyFileCount={gitDirtyFileCount}
-                              activeTaskChangeSummary={activeTaskChangeSummary}
-                              gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
-                              gitWorktreeChangeSummary={gitWorktreeChangeSummary}
-                              summaryPanelVariantOverride={summaryPanelVariantOverride}
-                              onSummaryPanelVariantOverrideChange={
-                                onSummaryPanelVariantOverrideChange
-                              }
-                              onRefreshGit={handleRefreshGit}
-                              onOpenGitReview={handleOpenGitReview}
-                              onPaneActiveSessionChange={handlePaneActiveSessionChange}
-                              onOpenBrowserUrl={handleOpenBrowserUrl}
-                              onOpenAutomationsMain={handleOpenAutomations}
-                              onOpenCodeViewer={handleOpenCodeViewer}
-                              onAutoOpenAssistantPptx={
-                                isDesktop ? handleAutoOpenAssistantPptx : undefined
-                              }
-                              onOpenBackgroundBash={handleOpenBackgroundBash}
-                              onOpenSubagentSession={handleOpenSubagentSession}
-                              onOpenSubagentDirectory={handleOpenSubagentDirectory}
-                              onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
-                              onOpenSelectionSideChat={handleOpenSelectionSideChat}
-                              onOpenPlanDetail={handleOpenPlanDetail}
-                              onOpenWorkflowRun={handleOpenWorkflowRun}
-                              onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
-                              onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
-                              onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
-                              onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
-                              onOpenFileLink={handleOpenMarkdownFileLink}
-                              conversationFindQuery={conversationFindQuery}
-                              conversationFindActiveIndex={conversationFindActiveIndex}
-                              conversationFindNavigationRequestId={
-                                conversationFindNavigationRequestId
-                              }
-                              onConversationFindMatchStateChange={
-                                onConversationFindMatchStateChange
-                              }
-                              searchResultHighlightRequest={activeSearchResultHighlightRequest}
-                              onSearchResultHighlightDone={onSearchResultHighlightDone}
-                            />
-                          </ScopedErrorBoundary>
-                        </main>
+                              <V4WorkspaceChatArea
+                                readOnly={Boolean(workspaceReadOnlyReason)}
+                                foregroundEnabled={isWorkspaceVisible}
+                                workspacePath={workspaceAbsPath}
+                                workspaceIdentity={workspaceIdentity}
+                                isDesktop={isDesktop === true}
+                                remoteSessionId={workspaceRemoteSessionId}
+                                sessionId={activeTaskId}
+                                primaryDraftScopeToken={primaryDraftScopeToken}
+                                activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
+                                provider={activeTaskProvider ?? undefined}
+                                onSessionCreated={handleV4SessionCreated}
+                                onSessionDeleted={handleV4SessionDeleted}
+                                onPrimaryDraftEffectiveSessionBindingChange={
+                                  onPrimaryDraftEffectiveSessionBindingChange
+                                }
+                                draftComposerHeader={draftComposerHeader}
+                                onPrimaryDraftDropTargetControllerChange={
+                                  setDraftHeaderDropTargetController
+                                }
+                                gitSummary={gitState.summary}
+                                gitDirtyFileCount={gitDirtyFileCount}
+                                activeTaskChangeSummary={activeTaskChangeSummary}
+                                gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
+                                gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+                                summaryPanelVariantOverride={summaryPanelVariantOverride}
+                                onSummaryPanelVariantOverrideChange={
+                                  onSummaryPanelVariantOverrideChange
+                                }
+                                onRefreshGit={handleRefreshGit}
+                                onOpenGitReview={handleOpenGitReview}
+                                onPaneActiveSessionChange={handlePaneActiveSessionChange}
+                                onOpenBrowserUrl={handleOpenBrowserUrl}
+                                onOpenAutomationsMain={handleOpenAutomations}
+                                onOpenCodeViewer={handleOpenCodeViewer}
+                                onAutoOpenAssistantPptx={
+                                  isDesktop ? handleAutoOpenAssistantPptx : undefined
+                                }
+                                onOpenBackgroundBash={handleOpenBackgroundBash}
+                                onOpenSubagentSession={handleOpenSubagentSession}
+                                onOpenSubagentDirectory={handleOpenSubagentDirectory}
+                                onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
+                                onOpenSelectionSideChat={handleOpenSelectionSideChat}
+                                onOpenPlanDetail={handleOpenPlanDetail}
+                                onOpenWorkflowRun={handleOpenWorkflowRun}
+                                onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
+                                onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
+                                onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+                                onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
+                                onOpenFileLink={handleOpenMarkdownFileLink}
+                                conversationFindQuery={conversationFindQuery}
+                                conversationFindActiveIndex={conversationFindActiveIndex}
+                                conversationFindNavigationRequestId={
+                                  conversationFindNavigationRequestId
+                                }
+                                onConversationFindMatchStateChange={
+                                  onConversationFindMatchStateChange
+                                }
+                                searchResultHighlightRequest={activeSearchResultHighlightRequest}
+                                onSearchResultHighlightDone={onSearchResultHighlightDone}
+                              />
+                            </ScopedErrorBoundary>
+                          </main>
+                        )}
+                      </div>
+                    </section>
+                  </ResizablePanel>
+                  {workspaceMainView !== "automations" && workspaceMainView !== "plugin-store" ? (
+                    <AnimatedTerminalPanel
+                      frameClassName={cn(
+                        isSidePaneVisible
+                          ? "rounded-[var(--workspace-panel-radius)] border border-border"
+                          : resolveWorkspaceShellWindowChromeClass({
+                              isMacDesktop,
+                              isWindowsDesktop,
+                              isLinuxDesktop,
+                              macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
+                              isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
+                              supportsNativeRoundedCorners:
+                                desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
+                            }),
+                        "rounded-t-[var(--workspace-panel-radius)] border-t",
                       )}
-                    </div>
-                  </section>
-                </ResizablePanel>
-                {workspaceMainView !== "automations" && workspaceMainView !== "plugin-store" ? (
-                  <AnimatedTerminalPanel
-                    frameClassName={cn(
-                      isSidePaneVisible
-                        ? "rounded-[var(--workspace-panel-radius)] border border-border"
-                        : resolveWorkspaceShellWindowChromeClass({
-                            isMacDesktop,
-                            isWindowsDesktop,
-                            isLinuxDesktop,
-                            macOSMajorVersion: desktopWindowChromeState?.macOSMajorVersion,
-                            isWindowsMaximized: desktopWindowChromeState?.isMaximized ?? false,
-                            supportsNativeRoundedCorners:
-                              desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
-                          }),
-                      "rounded-t-[var(--workspace-panel-radius)] border-t",
-                    )}
-                    services={services}
-                    workspaceAbsPath={workspaceAbsPath}
-                    workspaceIdentity={workspaceIdentity}
-                    cwd={terminalExecutionWorkspacePath}
-                    terminalWorkspaceKey={terminalWorkspaceKey}
-                    executionWorkspacePathReady={terminalExecutionPathReady}
-                    openWorkspaceKeys={openWorkspaceKeys}
-                    isVisible={isTerminalVisible}
-                    isWindowsDesktop={isWindowsDesktop}
-                    panelRef={terminalPanelRef}
-                    panelElementRef={terminalPanelElementRef}
-                    onClose={() => setIsTerminalOpen(false)}
-                    onOpenBrowserUrl={handleOpenBrowserUrl}
-                  />
-                ) : null}
-              </ResizablePanelGroup>
+                      services={services}
+                      workspaceAbsPath={workspaceAbsPath}
+                      workspaceIdentity={workspaceIdentity}
+                      cwd={terminalExecutionWorkspacePath}
+                      terminalWorkspaceKey={terminalWorkspaceKey}
+                      executionWorkspacePathReady={terminalExecutionPathReady}
+                      openWorkspaceKeys={openWorkspaceKeys}
+                      isVisible={isTerminalVisible}
+                      presentationHidden={isFloatingFullView}
+                      isWindowsDesktop={isWindowsDesktop}
+                      panelRef={terminalPanelRef}
+                      panelElementRef={terminalPanelElementRef}
+                      onClose={() => setIsTerminalOpen(false)}
+                      onOpenBrowserUrl={handleOpenBrowserUrl}
+                    />
+                  ) : null}
+                </ResizablePanelGroup>
+              </SidePaneFullViewConversationHost>
             </ResizablePanel>
             {/* Browser Guest Host 必须与主视图路由解耦，避免 automations/plugin
                     切换时卸载 Guest；截图请求期间由上层临时展开真实面板承载可合成的 WebContents。 */}

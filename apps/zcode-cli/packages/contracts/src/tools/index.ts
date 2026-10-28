@@ -55,6 +55,8 @@ export * from "./escalate.js";
 export * from "./resolve-workflow-question.js";
 export * from "./workflow-observation-display.js";
 export * from "./tool-result-metadata.js";
+export * from "./tool-search.js";
+export * from "./deferred-tool-call.js";
 export * from "./performance.js";
 
 // Shared types (only once to avoid duplicates)

@@ -228,7 +228,6 @@ export function ModelProviderSection({
       description={intl.formatMessage({ id: "settings.modelProviderDescription" })}
       refreshLabel={intl.formatMessage({ id: "settings.modelProvider.refresh" })}
       loadingLabel={intl.formatMessage({ id: "common.loading" })}
-      presetLoading={false}
       customLoading={loading || refreshing}
       onRefresh={() => void refreshProviders()}
       addProviderLabel={intl.formatMessage({ id: "settings.modelProvider.addProviderAction" })}

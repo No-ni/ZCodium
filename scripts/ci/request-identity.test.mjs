@@ -10,21 +10,18 @@ const { ManifestUpdateProvider } = await tsImport(
   "../../packages/desktop/src/main/manifestUpdateProvider.ts",
   import.meta.url,
 );
-const { DEFAULT_ZCODE_ENDPOINT_ORIGIN } = await tsImport(
-  "../../packages/shared/src/zcodeEndpoint.ts",
-  import.meta.url,
-);
 
 test("API requests preserve explicit headers without adding device or environment fingerprints", async () => {
   const calls = [];
   const client = new NodeApiClient({
+    // 只有显式注入 endpoint 时才记录端点判定；URL 不会被重写。
     resolveZCodeEndpointOrigin: () => "https://endpoint.example",
     fetchImpl: async (input, init) => {
       calls.push({ url: String(input), headers: new Headers(init.headers) });
       return new Response("ok");
     },
   });
-  await client.request(`${DEFAULT_ZCODE_ENDPOINT_ORIGIN}/api/v1/example`, {
+  await client.request("https://endpoint.example/api/v1/example", {
     headers: { Authorization: "Bearer fixture-token", "X-Custom": "user-value" },
   });
   await client.request("https://model.example/v1/models", {
@@ -37,6 +34,22 @@ test("API requests preserve explicit headers without adding device or environmen
   assert.equal(calls[1].headers.get("api-key"), "fixture-key");
   assert.ok(calls[0].headers.get("x-request-id"));
   assert.notEqual(calls[0].headers.get("x-request-id"), calls[1].headers.get("x-request-id"));
+});
+
+test("no endpoint injection leaves request URLs untouched", async () => {
+  const calls = [];
+  const client = new NodeApiClient({
+    fetchImpl: async (input) => {
+      calls.push(String(input));
+      return new Response("ok");
+    },
+  });
+  await client.request("https://unconfigured.example/api/v1/example");
+  await client.request("https://model.example/v1/models");
+  assert.deepEqual(calls, [
+    "https://unconfigured.example/api/v1/example",
+    "https://model.example/v1/models",
+  ]);
 });
 
 test("explicit request IDs and cancellation still obey the existing API contract", async () => {
@@ -55,6 +68,18 @@ test("explicit request IDs and cancellation still obey the existing API contract
   controller.abort();
   await assert.rejects(client.request("https://model.example", { signal: controller.signal }));
   assert.equal(calls, 1);
+});
+
+test("manifest provider requires an explicit endpoint origin and never falls back", () => {
+  assert.throws(
+    () =>
+      new ManifestUpdateProvider(
+        { provider: "custom" },
+        {},
+        { executor: {}, isUseMultipleRangeRequest: false },
+      ),
+    /explicit endpointOrigin/,
+  );
 });
 
 test("update manifest requests select platform/channel without a device query or header", async () => {

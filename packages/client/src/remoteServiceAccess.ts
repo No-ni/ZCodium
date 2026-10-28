@@ -41,6 +41,11 @@ import {
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   IWindowControllerService,
+  ISourceServerManagementService,
+  IWindowProjectService,
+  IWindowRemoteProjectService,
+  IWindowProjectChangesService,
+  type WindowProjectDirectoryServices,
   type IServiceAccessor,
 } from "@zcode/services";
 
@@ -51,6 +56,8 @@ import {
  */
 export class RemoteServiceAccess implements IServiceAccessor {
   readonly fileService: IFileService;
+  readonly sourceServerManagementService?: ISourceServerManagementService;
+  windowProjectDirectory?: WindowProjectDirectoryServices;
   readonly mediaPreviewService: IMediaPreviewService;
   readonly gitService: IGitService;
   readonly gitCheckpointService: IGitCheckpointService;
@@ -95,7 +102,31 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly settingsSyncService: ISettingsSyncService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 
-  constructor(channelClient: IChannelClient) {
+  attachWindowProjectDirectory(channelClient: IChannelClient): WindowProjectDirectoryServices {
+    this.windowProjectDirectory ??= {
+      projectService: ProxyChannel.toService<IWindowProjectService>(
+        channelClient.getChannel(IWindowProjectService.channelName),
+      ),
+      remoteProjectService: ProxyChannel.toService<IWindowRemoteProjectService>(
+        channelClient.getChannel(IWindowRemoteProjectService.channelName),
+      ),
+      changesService: ProxyChannel.toService<IWindowProjectChangesService>(
+        channelClient.getChannel(IWindowProjectChangesService.channelName),
+      ),
+    };
+    return this.windowProjectDirectory;
+  }
+
+  constructor(
+    channelClient: IChannelClient,
+    options: { sourceServerManagementService?: boolean; windowProjectDirectory?: boolean } = {},
+  ) {
+    if (options.windowProjectDirectory) this.attachWindowProjectDirectory(channelClient);
+    if (options.sourceServerManagementService) {
+      this.sourceServerManagementService = ProxyChannel.toService<ISourceServerManagementService>(
+        channelClient.getChannel(ISourceServerManagementService.channelName),
+      );
+    }
     this.fileService = ProxyChannel.toService<IFileService>(
       channelClient.getChannel(IFileService.channelName),
     );

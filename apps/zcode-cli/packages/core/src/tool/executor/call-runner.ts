@@ -11,6 +11,7 @@ import {
   OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION,
   attestOfficialCuaFrameContent,
 } from "@zcode/zcode-cua/frame-contract";
+import { resolveDeferredToolCall } from "../deferred-call.js";
 import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
 import { hasOfficialCuaFrameAuthority } from "../../mcp/image-normalization.js";
 import {
@@ -86,6 +87,13 @@ async function executeToolCallImpl(
     getCurrentTraceContext() ??
     deps.traceContext ??
     createRootTraceContext({ sessionId: deps.sessionId, turnId: deps.turnId });
+  const deferredResolution = resolveDeferredToolCall(toolCall, options?.toolSearch, deps.registry);
+  if (deferredResolution.error) {
+    const result = createErrorResult(toolCall, deferredResolution.error);
+    await emitToolCallError(deps, toolCall.id, parentTraceContext, deps.turnId, result.error);
+    return result;
+  }
+  toolCall = deferredResolution.call;
   const emptyToolName = isEmptyToolName(toolCall.name);
   const registeredEntry = emptyToolName ? undefined : deps.registry.get(toolCall.name);
   const model = options?.model ?? deps.model;
@@ -428,6 +436,7 @@ async function executeToolCallImpl(
         providerVisibleToolNames: deps.registry
           .list()
           .filter((name) => deps.registry.getMetadata(name)?.providerVisible !== false),
+        toolSearch: options?.toolSearch,
         sessionId: deps.sessionId,
         turnId,
       };

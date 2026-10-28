@@ -8,7 +8,12 @@ import type {
   RemoteSessionClosedEvent,
   RemoteWorkspaceSessionEntry,
 } from "@zcode/shared";
-import { buildSshRemoteHostKey, createUuid, stripRemoteTargetSecrets } from "@zcode/shared";
+import {
+  buildServerRemoteWorkspaceIdentity,
+  buildSshRemoteHostKey,
+  createUuid,
+  stripRemoteTargetSecrets,
+} from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import {
   bindRemoteWorkspaceIdentity,
@@ -536,7 +541,12 @@ async function selectRemoteWorkspaceProjectFromDialog({
   }
 
   const canonicalPath = await resolveRemoteWorkspaceCanonicalPath(sessionId, path);
-  const workspaceIdentity = buildRemoteWorkspaceIdentity(canonicalPath, remoteTarget);
+  const workspaceIdentity = remoteSession.sourceServerId
+    ? buildServerRemoteWorkspaceIdentity({
+        serverId: remoteSession.sourceServerId,
+        workspacePath: canonicalPath,
+      })
+    : buildRemoteWorkspaceIdentity(canonicalPath, remoteTarget);
   const existingWorkspaceTab = getWorkspaceTabs().find(
     (tab): tab is import("@/store/tabStore.js").WorkspaceTabState =>
       isWorkspaceTab(tab) &&

@@ -39,7 +39,7 @@ Rust 引擎或上游 tests 快照整包。CLI 使用已有 node:test，shared/UI
 
 ### 本轮验收结果（2026-10-16）
 
-- 上游远端主线仍为 `axiom-desu/ZCodium@68355622`、`zai-org/ZCode@aac47556`，本轮不另做全量同步。
+- 本轮验收时的上游基线为 `axiom-desu/ZCodium@68355622`、`zai-org/ZCode@aac47556`；此后维护模型已改为只同步官方 `zai-org/ZCode`，本轮不另做全量同步。
 - 新 CI 源码入口执行 33 项回归，覆盖真实沙箱启动、未知模型零副作用、两次串行补全、提交失败、冻结绑定与冷恢复；全通过。
 - dynamic-workflow 包级 32 项测试与 UI 留白 21 项测试全通过；完整 CI 脚本为 498 通过、1 按既有条件跳过、0 失败。
 - 根类型检查及 CLI contracts/core/bootstrap/runtime 的源码映射类型检查通过；架构 0 违规，根 lint 0 错误。CLI 改动文件额外 lint 仅有既存 create-app.ts max-lines 问题（基线 1173 行、本轮 1175 行），其余通过。

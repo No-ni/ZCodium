@@ -4,6 +4,7 @@ import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, isAbsolute, join } from "node:path";
 import { ZCODE_VERSION } from "@zcode/shared";
+import { createSourcePersistenceEnv } from "@zcode/shared/node";
 import {
   controlRequestSchema,
   createStoppedServerStatus,
@@ -80,6 +81,15 @@ export async function runServerCli(
   const json = argv.includes("--json");
   try {
     const parsed = parseServerCliArguments(argv);
+    if (parsed.argv[0] === "server" && parsed.argv[1] === "proxy-stdio") {
+      const { proxyServerStdio } = await import("./runtime/proxyStdio.js");
+      await proxyServerStdio(
+        await resolveCanonicalServerLayout(parsed.layout.serverRoot),
+        process.stdin,
+        process.stdout,
+      );
+      return 0;
+    }
     const command = parsed.argv[0];
     if (!command) {
       return await (io.legacyDelegate?.(parsed.argv) ?? delegateLegacyCli(parsed.argv, io));
@@ -201,11 +211,7 @@ async function runServe(
         {
           detached: true,
           stdio: "ignore",
-          env: {
-            ...process.env,
-            ZCODE_DATA_BASE_DIR: layout.dataBaseDir,
-            ZCODE_SERVER_ROOT: layout.serverRoot,
-          },
+          env: createSourcePersistenceEnv(layout.serverRoot, process.env),
         },
       );
       child.unref();
@@ -252,21 +258,17 @@ async function runServe(
         const runtimeNode = runtimeRoot
           ? join(runtimeRoot, process.platform === "win32" ? "node.exe" : "node")
           : process.execPath;
-        const inheritedEnv = {
-          ...process.env,
-          ZCODE_DATA_BASE_DIR: layout.dataBaseDir,
-          ZCODE_SERVER_ROOT: layout.serverRoot,
-        };
+        const inheritedEnv = createSourcePersistenceEnv(layout.serverRoot, process.env);
         const releaseWiring = runtimeRoot
           ? createReleaseAgentWiring(runtimeRoot, runtimeNode, inheritedEnv)
           : runtimeOptions.bundledAgentWiring;
         return fork(corePath, [String(generation)], {
           execPath: runtimeNode,
-          env: {
+          env: createSourcePersistenceEnv(layout.serverRoot, {
             ...inheritedEnv,
             ...releaseWiring,
             ...(runtimeRoot ? { ZCODE_SERVER_RUNTIME_ROOT: runtimeRoot } : {}),
-          },
+          }),
           stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
       },

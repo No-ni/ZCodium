@@ -51,14 +51,8 @@ test("retired idle configuration RPC is absent and never consults official crede
     "../../packages/rpc/src/proxy-channel.ts",
     import.meta.url,
   );
-  const forbidden = () => {
-    throw new Error("Official network and credentials forbidden");
-  };
-  const service = createCodingPlanSubscriptionService({
-    apiClient: { request: forbidden },
-    credentialService: { load: forbidden },
-    resolveOffPeakModelSelectionView: forbidden,
-  });
+  // 该服务不再接收任何依赖：没有 apiClient / credentialService 可供官方凭据或网络访问。
+  const service = createCodingPlanSubscriptionService();
   assert.equal("getOffPeakClientConfig" in service, false);
   assert.throws(
     () => ProxyChannel.fromService(service).call(undefined, "getOffPeakClientConfig", [{}]),
@@ -69,7 +63,7 @@ test("retired idle configuration RPC is absent and never consults official crede
 });
 
 test("database startup preserves retired queue rows without resuming or rewriting them", async (t) => {
-  const { runTasksDatabaseMigrations } = await tsImport(
+  const { runTasksDatabaseMigrationsAsync } = await tsImport(
     "../../packages/services/src/session/tasksDatabase/migrations.ts",
     import.meta.url,
   );
@@ -82,7 +76,7 @@ test("database startup preserves retired queue rows without resuming or rewritin
   const path = join(dir, "tasks.sqlite");
   const db = new DatabaseSync(path);
   try {
-    runTasksDatabaseMigrations(db);
+    await runTasksDatabaseMigrationsAsync(db, { backupDirectories: [join(dir, "backups")] });
     const insert = db.prepare(
       "INSERT INTO off_peak_tasks (off_peak_task_id, prompt, permission_mode, workspace_key, workspace_path, status, queued_at, created_at, updated_at) VALUES (?, 'Historical instructions', 'build', '/fixture', '/fixture', ?, 1, 1, 1)",
     );

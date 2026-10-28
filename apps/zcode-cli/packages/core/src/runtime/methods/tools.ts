@@ -70,6 +70,7 @@ export async function executeTools(
     id: tc.id,
     name: tc.name,
     input: tc.input,
+    ...(tc.modelCallWrapper ? { modelCallWrapper: tc.modelCallWrapper } : {}),
   }));
   const traceContext = options?.traceContext ?? getCurrentTraceContext() ?? this.rootTraceContext;
   const events: SessionEvent[] = [];
@@ -81,6 +82,7 @@ export async function executeTools(
 
   const generator = this.executor.executeSchedule(executableCalls, schedule, {
     automationTurn: options?.automationTurn,
+    toolSearch: options?.toolSearch,
     signal: options?.signal,
     traceContext,
     subagentModelOverride: options?.subagentModelOverride,

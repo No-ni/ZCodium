@@ -28,10 +28,13 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
       throw new Error("Execution adapter is shutting down");
     }
 
+    const preparation = this.usesBashTempOutput(request)
+      ? await this.prepareBashOutput(request, options)
+      : undefined;
     const taskId = `exec_${crypto.randomUUID()}`;
     const controller = new AbortController();
     const startedAt = new Date();
-    const outputPaths = this.outputPathsForRequest(request);
+    const outputPaths = preparation && "result" in preparation ? {} : this.outputPathsForRequest(request);
     const runRequest =
       request.captureCwdAfterSuccess === true
         ? { ...request, captureCwdAfterSuccess: undefined }
@@ -57,8 +60,10 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
       record.externalAbort = externalAbort;
     }
 
-    void this.run(runRequest, {
+    if (preparation && "result" in preparation) this.emitResult(options, preparation.result);
+    const running = preparation && "result" in preparation ? Promise.resolve(preparation.result) : this.run(runRequest, {
       ...options,
+      preparedBashOutput: preparation && "prepared" in preparation ? preparation.prepared : undefined,
       signal: controller.signal,
       onOutputEncodingResolved: (encoding) => {
         record.legacyOutputEncoding = encoding;
@@ -71,7 +76,8 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
         this.updateBackgroundTaskRecordFromEvent(record, event);
         return options.onEvent?.(event);
       },
-    } as InternalExecutionRunOptions).then(
+    } as InternalExecutionRunOptions);
+    void running.then(
       (result) => {
         this.finalizeBackgroundTaskRecord(record, result);
         if (record.externalAbort) {
@@ -130,6 +136,13 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
         persistOutput: "always",
       },
     };
+    const preparation = this.usesBashTempOutput(runRequest)
+      ? await this.prepareBashOutput(runRequest, options)
+      : undefined;
+    if (preparation && "result" in preparation) {
+      this.emitResult(options, preparation.result);
+      return { kind: "foreground", result: preparation.result };
+    }
     const outputPaths = this.outputPathsForRequest(runRequest);
     if (!isBashMergedOutputRequest(runRequest)) {
       await this.ensureBackgroundOutputFiles(outputPaths);
@@ -223,6 +236,7 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
 
     const backgroundRunOptions: InternalExecutionRunOptions = {
       ...options,
+      preparedBashOutput: preparation?.prepared,
       signal: controller.signal,
       onOutputEncodingResolved: (encoding) => {
         record.legacyOutputEncoding = encoding;

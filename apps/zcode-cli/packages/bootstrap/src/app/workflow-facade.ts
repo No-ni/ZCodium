@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createNodeContextSourceAdapter } from "@zcode/adapters/context";
 import { createNodeExecutionAdapter } from "@zcode/adapters/exec";
@@ -288,6 +289,8 @@ function createWorkflowChildRuntime(
     options.childSessionId,
     {
       ...deps.runtimeConfig,
+      // 子会话在实际构造时读取当前父 mode；装配快照不再拥有 ToolSearch 偏好，也不复制发现事实。
+      toolSearch: { mode: deps.runtime.getToolSearchMode() },
       agentName: options.workflowKind === "expert" ? "zcode-expert" : "zcode-workflow",
       mode: "yolo",
       modelSelection: deps.runtime.getSessionModelSelection(),
@@ -310,6 +313,7 @@ function createWorkflowChildRuntime(
             caCertFile: deps.configResult.config.network.caCertFile,
           },
           outputRootDir: join(deps.storageRoot, "cli", "exec"),
+          bashOutputTempDir: tmpdir(),
           processEnv: deps.appOptions.env ?? process.env,
         }),
       fileSystemPort: deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),

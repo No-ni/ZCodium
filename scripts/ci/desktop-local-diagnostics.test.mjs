@@ -7,6 +7,25 @@ const load = (path) =>
     import.meta.url,
   );
 
+test("local resource monitoring is opt-in and never reaches tool subprocess passthrough", async () => {
+  const {
+    isLocalResourceMonitoringEnabled,
+    shouldCaptureZCodeToolEnvPassthroughKey,
+    ZCODE_LOCAL_RESOURCE_MONITORING_ENV,
+  } = await tsImport("../../packages/shared/src/runtimeEnv.ts", import.meta.url);
+  assert.equal(isLocalResourceMonitoringEnabled({}), false);
+  assert.equal(
+    isLocalResourceMonitoringEnabled({ [ZCODE_LOCAL_RESOURCE_MONITORING_ENV]: "1" }),
+    true,
+  );
+  // 只有精确的 "1" 开启；true/yes 等宽松写法不会意外打开后台采样。
+  assert.equal(
+    isLocalResourceMonitoringEnabled({ [ZCODE_LOCAL_RESOURCE_MONITORING_ENV]: "true" }),
+    false,
+  );
+  assert.equal(shouldCaptureZCodeToolEnvPassthroughKey(ZCODE_LOCAL_RESOURCE_MONITORING_ENV), false);
+});
+
 test("database startup diagnostics retain terminal duration without identity or paths", async () => {
   const { createDatabaseStartupDiagnostics } = await load("databaseStartupTelemetry");
   const records = [];

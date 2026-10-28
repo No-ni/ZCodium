@@ -2,12 +2,10 @@
 import type { ISettingService } from "@zcode/services";
 import {
   DEFAULT_LOCALE,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   desktopMenuMessageIds,
   formatDesktopMenuMessage,
   getDesktopMenuMessage,
   PlatformChannels,
-  resolveRuntimeZCodeEndpointOrigin,
   ZCODE_VERSION,
   ZCODIUM_UPDATE_ORIGIN,
   type ElectronReleaseChannel,
@@ -182,7 +180,6 @@ interface InitAutoUpdaterOptions {
   settingService?: SettingServiceLike;
   locale?: Locale;
   updateFeedSource?: RuntimeUpdateFeedSource;
-  resolveEndpointOrigin?: () => string | Promise<string>;
 }
 
 let quitAndInstallInFlight = false;
@@ -823,18 +820,12 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
   resolveAutoUpdater().setFeedURL({
     provider: "custom",
     updateProvider: ManifestUpdateProvider,
-    // 上游 DEFAULT_ZCODE_ENDPOINT_ORIGIN 的 manifest 分发官方 ZCode 安装包（appId dev.zcode.app），
-    // 与本仓库构建的 ZCodium 不是同一个应用，沿用会把自己的客户端更新成上游版本。
-    // 默认 origin 必须是自有更新源；未配置时调用方不会走到这里（见 initAutoUpdater 的提前返回）。
-    endpointOrigin: ZCODIUM_UPDATE_ORIGIN || DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+    // 更新源只允许自有 origin：上游 manifest 分发官方 ZCode 安装包（appId dev.zcode.app），
+    // 与本仓库构建的 ZCodium 不是同一个应用。未配置时 initAutoUpdater 已提前返回，
+    // 这里不再保留任何官方 endpoint 或调用方 endpoint 的 fallback。
+    endpointOrigin: ZCODIUM_UPDATE_ORIGIN,
     ...(manifestUrl ? { manifestUrl } : {}),
     releasePlatform: getElectronReleasePlatform(),
-    // 自有更新源优先于调用方的端点解析：resolveCurrentZCodeEndpointOrigin 读的是
-    // ZCODE_BASE_URL / settings.zcodeEndpointOrigin，其缺省值是上游地址，不能让它决定更新源。
-    resolveEndpointOrigin: () =>
-      ZCODIUM_UPDATE_ORIGIN ||
-      options.resolveEndpointOrigin?.() ||
-      resolveRuntimeZCodeEndpointOrigin(process.env),
     resolveReleaseChannel: async () => {
       availableUpdateChannel = await resolveUpdateReleaseChannel(options.settingService);
       return availableUpdateChannel;

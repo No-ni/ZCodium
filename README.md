@@ -12,62 +12,62 @@
   <em>—— 梁文锋，深度求索 CEO</em>
 </p>
 
-ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent；本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+ZCodium 是 ZCode 的独立审计分支。上游 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent；本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。代码更新只从官方开源仓库 [zai-org/ZCode](https://github.com/zai-org/ZCode) 吸收，并保留“去遥测、不依赖官方云服务”的审计边界；维护规则见 [docs/specs/maintenance-model.md](docs/specs/maintenance-model.md)。
 
 ## 这个仓库是什么
 
-上游在 2026-09 被迫将 ZCode 客户端开源，但开源出来的源码与他们实际发布的安装包并不等价：发布包里带有一批开源代码中没有的功能。ZCodium 的做法是**跟进上游官方仓库，同时把这些"只在发布包里存在"的功能以各种方式补全**，让自建的源码能够构建出与官方包能力对等的产物。
+上游在 2026-09 被迫将 ZCode 客户端开源，但开源出来的源码与他们实际发布的安装包并不等价：发布包里带有一批开源代码中没有的功能。ZCodium 的做法是**跟进上游官方仓库，在不恢复官方遥测、账号、购买和云服务的前提下，把仅存在于发布包中的本地功能补全**，让自建的源码能够构建出与官方包本地能力对等的产物。
 
 补全手段包括：补齐缺失的内置插件与技能、比对 i18n 键定位功能缺口、按协议与设置 schema 对齐交互链路。所有补全都记录在 [.agents/specs/](.agents/specs/) 下的 spec 中，包含范围、状态所有者、接口契约与验收场景。
 
-[另外一个ZCodium](https://github.com/ZCodium-project/ZCodium)
+[另一个 ZCodium（审计参考，不作为合并来源）](https://github.com/ZCodium-project/ZCodium)
 
 [嘘... 别让用户发现我们在干什么](apps/zcode-cli/tools/repo-snapshot-parody/README.md)
 
 ### 与官方包的能力差异
 
-以下按**官方 3.14.3 安装包**核对（`ZCode-3.14.3-win-x64.exe`，`appVersion: 3.14.3`，构建于 2026-09-22）。核对方法：从安装包取出 `resources/app.asar` 内 `out/renderer/assets/IntlProvider-*.js` 的语言表，与 [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/) 做键差集。上游随 3.14.3 新开源的内容已计入下表，不再是“待核对”状态。
+以下是基于**官方 3.14.3 安装包**的历史核对底稿（`ZCode-3.14.3-win-x64.exe`，`appVersion: 3.14.3`，构建于 2026-09-22）。核对方法：从安装包取出 `resources/app.asar` 内 `out/renderer/assets/IntlProvider-*.js` 的语言表，与 [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/) 做键差集。下表保留当时的分类，部分说明已按后续实现更新；不是当前 3.15.1 的完整能力验收，也不把语言键数量等同于功能数量。
 
 **已补全**：
 
 - 内置插件与技能：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide、zcode-cua。安装包只分发源码资源完整且明确注册的插件；范围见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)、[.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md) 与 [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md)。
 - Computer Use 的模型可见面：`apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
-**尚未补全**（共 258 键）：
+**历史语言表分类**（当时统计 258 键；下表含后续已实现项及有意不补的官方账号/权益/营销项，不作为当前缺口总数）：
 
 | 领域                   | 缺口  | 说明                                                     |
 | ---------------------- | ----- | -------------------------------------------------------- |
 | ~~`webRemoteControl`~~ | 0 键  | 手机远控桌面已补齐（LAN 直连 + 用户自托管 relay）        |
-| `manualClaimPlan`      | 53 键 | 权益领取与验证码流程                                     |
+| `manualClaimPlan`      | 53 键 | 官方权益领取与验证码流程；按审计边界不补全               |
 | `mode`                 | 38 键 | 会话模式扩展                                             |
 | `settings`             | 26 键 | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 端点模板 |
 | `server`               | 12 键 | Server 入口                                              |
 | `appHeader`            | 8 键  | Provider 配置入口                                        |
-| `marketingTouch`       | 7 键  | 权益触达                                                 |
+| `marketingTouch`       | 7 键  | 官方权益触达；按审计边界不补全                           |
 | `taskList`             | 6 键  | Codex / Claude 新建任务                                  |
 | `chat`                 | 5 键  | agent 切换                                               |
-| `rewards`              | 5 键  | 权益菜单                                                 |
+| `rewards`              | 5 键  | 官方权益菜单；按审计边界不补全                           |
 | `onboarding`           | 4 键  | agent 设置步骤                                           |
 | 其他                   | 5 键  | `remote`、`zcode`、`titleBar`                            |
 
-`bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 的 89 键已由本仓库补齐（2026-09-29，spec 见 `.agents/specs/web-remote-control.md`）：默认同网扫码直连，桥接桌面已有 Host；用户自托管 relay（跨网）为可选后续。当前最大缺口为 `manualClaimPlan`。反向还有 33 个键是本仓库特有、官方包没有的，主要来自 AstrBot 桥接与 `.zcodium` 命名空间。
+`bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 的 89 键已由本仓库补齐（2026-09-29，spec 见 `.agents/specs/web-remote-control.md`）：默认同网扫码直连，桥接桌面已有 Host；用户自托管 relay（跨网）为可选后续。`manualClaimPlan` 按审计边界不实现，不列为待补债务。历史反向差集中的 33 个本仓特有键主要来自 AstrBot 桥接与 `.zcodium` 命名空间；当前键数未在本段重新统计。
 
 **有意不补全**：
 
 - 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
 - 官方遥测采集与上报。ZCodium 保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。详见[诊断说明](DIAGNOSTICS.md)。
+- 官方账号、登录、OAuth、购买、套餐、权益领取、营销触达、官方分享/上传、官方 client config/rollout、官方 relay 与官方更新源。源码中保留历史 Provider ID 和数据库迁移用于读取旧数据，运行时不恢复账号执行能力。
 
 ### 补全路线
 
 **已落地**：
 
-- **`bots`：官方实现 + AstrBot 桥接并存。** 上游 3.14.3 已开源官方 `bots`
+- **`bots`：Bots 服务 + AstrBot 桥接并存。** 上游 3.14.3 已开源 `bots`
   （四套平台 adapter 与“接哪个平台”的设置 GUI），本仓库已并入。自研的
-  [AstrBot](https://github.com/AstrBotDevs/AstrBot) 桥接不再是与官方 `BotsService`
-  并行的独立服务，而是收敛为官方 `BotsService` 的一个传输 provider
-  （`BotProviderAdapter`，channel 固定为 `astrbot`），已在官方 Bots GUI 与手机远控入口接入；
-  平台适配由 AstrBot 承担，本仓库只维护桥接契约（wire 协议 v2）。
-  [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin)，
+  [AstrBot](https://github.com/AstrBotDevs/AstrBot) 桥接不再是与 Bots 服务
+  并行的独立服务，而是收敛为 `BotsService` 的一个传输 provider
+  （`BotProviderAdapter`，channel 固定为 `astrbot`），已在 Bots 设置界面与手机远控入口接入；
+  平台适配由 AstrBot 承担，本仓库只维护桥接契约（wire 协议 v2）；AstrBot 侧需安装支持该协议的插件。
   见 [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md)。
 - **Computer Use 运行时**：原生执行层不自研，复用开源项目
   [`trycua/cua`](https://github.com/trycua/cua) 的 `@trycua/cua-driver`
@@ -78,17 +78,19 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
   [.agents/specs/computer-use-runtime.md](.agents/specs/computer-use-runtime.md) 与
   [.agents/specs/computer-use-platform-architecture.md](.agents/specs/computer-use-platform-architecture.md)。
 
-**已确定，尚未动工**：
+**用户自配置能力**：
 
-- **image-search 默认指向本地**：已改为 `http://127.0.0.1:8787`，见
-  [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md)；
-  仓库内暂无本地搜图后端，需要自行部署。
+- **image-search 无默认服务**：用户显式配置完整 `imageSearchMcpUrl`（本地或自建远程 MCP）及可选认证头，插件默认不启用，未配置时不连接。本仓不提供搜图后端，也不注入官方凭据。见 [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md)。
 
 ### 与上游的关系
 
-本仓库跟踪上游 [zai-org/ZCode](https://github.com/zai-org/ZCode)。上游更新时先合并，再重新核对能力差异；补全内容按功能拆成独立提交，方便逐项审查与取舍。许可证与第三方版权归属见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)。
+本仓库**只跟踪官方** [zai-org/ZCode](https://github.com/zai-org/ZCode)，不跟踪任何第三方 fork。[ZCodium-project/ZCodium](https://github.com/ZCodium-project/ZCodium) 只作为审计原则和实现方式的只读参考，不作为合并来源。
 
-**既定规则**：上游发布新功能但不随开源仓库放出对应源码时，本仓库自行补齐等价实现并开源，不等待、不申请、不保留。判断依据是「安装包里有没有」，不是「上游说了什么」。补全内容按功能单独提交，并在 [.agents/specs/](.agents/specs/) 下记录实现范围、决策依据与未验证部分。
+每次同步的固定顺序是：拉取官方 tag → 建同步分支 → merge（不 rebase）→ 按审计边界解决冲突 → 执行检查清单 → 记录官方基线、吸收项、剥离项、未同步项和验证范围。完整流程与欠账清单见 [docs/specs/maintenance-model.md](docs/specs/maintenance-model.md)。
+
+**审计边界**：不引入官方遥测/监控/崩溃采集/资源或网络采样上报/UI 埋点；不依赖官方账号、购买、套餐、分享、上传、官方插件市场自动拉取、官方 client config/rollout、官方 relay 或官方更新源。用户使用自己的 API Key 或自定义 Provider；安全本地日志可用；后台采样与对外诊断导出分别默认关闭，导出仅在用户显式开启并配置自建接收端时启用。官方重新引入已删除的遥测/云服务时，保留本仓删除并做最小适配，不通过恢复模块来让测试变绿。
+
+**补全规则**：只评估符合本仓产品与审计边界的本地能力；安装包、源码和运行时证据用于定位差异，不因安装包包含某功能就恢复官方遥测、账号、权益或云服务。等价实现先明确 spec、许可和验收，不承诺全产品无差异。补全内容按功能单独提交，并在 [.agents/specs/](.agents/specs/) 下记录实现范围、决策依据与未验证部分。许可证与第三方版权归属见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)。
 
 | 入口                 | 用途                                                           | 开发命令                       |
 | -------------------- | -------------------------------------------------------------- | ------------------------------ |
@@ -108,7 +110,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 发行版本以根目录 [package.json](package.json) 为准。发布标签必须严格匹配 `v<version>`，由 `node scripts/ci/desktop-release.mjs check-version` 校验。安装包通过独立的 ZCodium 产品身份区分，文件名为 `ZCodium-<version>-<platform>-<arch>.<ext>`，不要求添加 `-modified` 后缀。
 
-Desktop CI 仅在版本标签推送和手动运行时构建；手动运行产出 Windows 安装包和 macOS arm64 DMG，标签推送额外构建 macOS x64。本 fork 不分发 Linux 安装包或 Linux 远端运行资源，手机远控继续提供。
+Desktop CI 仅在用户明确要求的手动 `workflow_dispatch` 时构建；每次运行产出 Windows x64/arm64 exe 和 macOS arm64/x64 DMG，push 分支、push 标签和 PR 均不触发。本 fork 不分发 Linux 安装包或 Linux 远端运行资源，手机远控继续提供。
 
 ## 初始化
 
@@ -145,7 +147,7 @@ pnpm dev:desktop:test
 
 `pnpm dev:desktop` 默认等同于 `pnpm dev:desktop:prod`，使用生产服务配置。启动脚本会准备本地运行资源、构建桌面 Agent，再启动 Electron 和源码监听。
 
-需要独立开发数据目录时，可设置 `ZCODE_DATA_BASE_DIR`。例如在 macOS / Linux 中：
+需要独立开发数据目录时，可设置 `ZCODE_DATA_BASE_DIR`。例如在 macOS 中：
 
 ```bash
 ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
@@ -174,7 +176,7 @@ pnpm dev:web
 ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
 ```
 
-该命令同时启动 Web 开发服务器（默认 `http://localhost:5173`）和后端（默认 `http://localhost:3030`）；浏览器访问前者。`/ws` 和一般 `/api` 请求代理到本地后端，`/api/v1/oauth/token` 单独代理到当前配置的产品服务。
+该命令同时启动 Web 开发服务器（默认 `http://localhost:5173`）和后端（默认 `http://localhost:3030`）；浏览器访问前者。`/ws` 和 `/api` 请求均代理到本地后端，不存在官方账号 token 代理。
 
 Agent 源码修改后，执行 `pnpm --filter @zcode/cli... build` 并重启服务。需要验证完整发行包时，按下方“ZCode 命令行版”打包章节解压运行。
 
@@ -239,17 +241,19 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 ## 打包
 
-### 自动构建与发布
+### 手动 GitHub 构建
 
-[Desktop CI](.github/workflows/desktop.yml) 仅在版本标签推送和手动运行时触发（不做 push/PR 自动构建，避免 fork 的 Actions 用量触发 GitHub 停用）；手动运行检查代码并构建 Windows x64/arm64 与 macOS arm64，标签推送额外构建 macOS x64。Windows 产物为 exe，macOS 只产 dmg；可从 Actions 页面下载，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。这是仓库唯一的构建工作流。
+[Desktop CI](.github/workflows/desktop.yml) 是唯一工作流，只响应手动 `workflow_dispatch`；push 分支、push 标签和 PR 均不触发。检查与 Windows x64/arm64、macOS arm64/x64 打包从同一 ref 并行运行。Windows 产 exe，macOS 只产 dmg；Actions 产物分别为 `desktop-win-x64`、`desktop-win-arm64`、`desktop-mac-arm64`、`desktop-mac-x64`，保留 14 天。不构建 Linux 安装包或 Linux 远端运行资源。
 
-推送 `v<package.json.version>` 标签会在全部检查和全平台构建成功后创建**草稿 Release**，附安装包和 `SHA256SUMS`。版本允许预发布标识（如 `-rc.1`），不接受 build metadata。维护者测试后手动公开发布；重新运行可补传草稿资产，不会覆盖已公开版本。手动运行工作流只生成构建产物。
+工作流只生成 Actions 产物，不创建或更新 GitHub Release。构建只在用户明确要求时执行，先确认目标分支已推送；未获推送授权时不得借构建推送。手动从 tag 运行仍须满足 `v<package.json.version>` 校验。release-it 默认不 push；版本、commit、tag、push 与发布分别需要授权，显式 push 只发往 `origin`。
 
 流程使用仓库自带的 `GITHUB_TOKEN`，无需额外服务凭据或签名证书。安装包未签名；应用内更新和独立远程运行资源不由此流程发布。规则见 [CI/CD spec](.agents/specs/desktop-ci-release.md)。
 
-第三方声明由 [scripts/generate-third-party-notices.mjs](scripts/generate-third-party-notices.mjs) 依据 [third-party/](third-party/) 下的清单、源码副本与许可证文本生成，产物为随发行物分发的 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；命令行发行包的组装与校验见 [scripts/zcode-distribution/](scripts/zcode-distribution/)。
+第三方声明由 `node scripts/licenses.mjs notices` 依据工作区生产依赖图与 [third-party/](third-party/) 下的来源、原生组件及许可证文本生成，产物为随发行物分发的 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；命令行发行包的组装与校验见 [scripts/zcode-distribution/](scripts/zcode-distribution/)。
 
 ### 桌面版
+
+默认使用 GitHub 构建；以下本机打包命令只在用户明确要求时执行，从准备阶段起设置 `ZCODE_ENV=production`。
 
 ```bash
 pnpm bundle:desktop
@@ -262,10 +266,10 @@ pnpm bundle:desktop -- --help
 
 默认目标为 macOS arm64，默认输出目录为 `packages/desktop/dist/`。`--os` 仅支持 `mac`、`win`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具和配置。
 
-安装：双击打开产物 DMG，将 ZCode 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
+安装：双击打开产物 DMG，将 ZCodium 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
 
 ```bash
-sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
+sudo xattr -rd com.apple.quarantine /Applications/ZCodium.app
 ```
 
 ### ZCode 命令行版

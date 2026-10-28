@@ -18,6 +18,7 @@ import {
 import type { CommandEnvelope, ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
 import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
+import { mergeMobileWindowDirectory } from "./windowDirectoryPresentation.js";
 import { groupMobileTasks } from "./taskGrouping.js";
 import { logger } from "../../../ui/src/logger.js";
 import type {
@@ -98,6 +99,7 @@ export function MobileApp() {
   const scopeRef = useRef(currentScope);
   scopeRef.current = currentScope;
   const [notice, setNotice] = useState<string | null>(null);
+  const [directoryBridgeRevision, setDirectoryBridgeRevision] = useState(0);
   // 传输降级回调由「订阅 effect」注册：`onPayload` 在 client 构造时绑定，
   // 之后通过 ref 把 bridge-degraded 路由到当前 task 的完整桥恢复。
   const onTransportDegradedRef = useRef<() => void>(() => {});
@@ -141,7 +143,11 @@ export function MobileApp() {
               : current,
           );
         }
-        if (payload.zcode_type === "bridge-degraded") onTransportDegradedRef.current();
+        if (payload.zcode_type === "bridge-degraded") {
+          // 换桥会释放目录 RPC 订阅；恢复同一 scope 时也必须重订阅，不能沿用旧句柄。
+          setDirectoryBridgeRevision((revision) => revision + 1);
+          onTransportDegradedRef.current();
+        }
         if (payload.zcode_type === "app-error") setNotice(payload.error ?? payload.reason);
       },
     });
@@ -173,6 +179,65 @@ export function MobileApp() {
     if (connectionSnapshot.state !== "paired") return;
     void refreshBootstrap().catch((error) => reportError("[mobile] bootstrap 拉取失败", error));
   }, [connectionSnapshot, refreshBootstrap, reportError]);
+
+  const directoryTarget =
+    view.kind === "task"
+      ? bootstrap?.workspaces.find((workspace) => workspace.workspaceKey === view.task.workspaceKey)
+      : bootstrap?.workspaces.find(
+          (workspace) => workspace.kind !== "remote" || workspace.connectionState === "connected",
+        );
+  const directoryWorkspaceKey = directoryTarget?.workspaceKey;
+  const directoryRemoteSessionId = directoryTarget?.remoteSessionId;
+  useEffect(() => {
+    if (connection !== "paired" || !directoryWorkspaceKey) return;
+    const client = clientRef.current;
+    if (!client) return;
+    const target = {
+      workspaceKey: directoryWorkspaceKey,
+      remoteSessionId: directoryRemoteSessionId,
+    };
+    let active = true;
+    let subscription: { dispose(): void } | undefined;
+    let request = 0;
+    const refresh = async () => {
+      const sequence = ++request;
+      try {
+        const directory = await client.readWindowProjectDirectory(target);
+        if (!active || sequence !== request || !directory || clientRef.current !== client) return;
+        setBootstrap((current) =>
+          current ? mergeMobileWindowDirectory(current, directory) : current,
+        );
+      } catch (error) {
+        if (active && sequence === request) reportError("[mobile] 窗口目录读取失败", error);
+      }
+    };
+    void client
+      .subscribeWindowProjectDirectory(target, () => {
+        void refresh();
+      })
+      .then((attached) => {
+        if (!active) {
+          attached.dispose();
+          return;
+        }
+        subscription = attached;
+        void refresh();
+      })
+      .catch((error) => {
+        if (active) reportError("[mobile] 窗口目录订阅失败", error);
+      });
+    return () => {
+      active = false;
+      subscription?.dispose();
+    };
+  }, [
+    connection,
+    connectionSnapshot,
+    directoryBridgeRevision,
+    directoryRemoteSessionId,
+    directoryWorkspaceKey,
+    reportError,
+  ]);
 
   const selectedTaskId = view.kind === "task" ? view.task.taskId : undefined;
   const selectedWorkspaceKey = view.kind === "task" ? view.task.workspaceKey : undefined;
@@ -609,7 +674,7 @@ export function MobileApp() {
       notice={notice}
     >
       <section className="space-y-1">
-        <h1 className="text-ui-lg font-medium text-foreground">ZCode 远程控制</h1>
+        <h1 className="text-ui-lg font-medium text-foreground">ZCodium 远程控制</h1>
         <p className="text-ui-base/relaxed text-foreground-subtle">
           本次连接可以查看当前设备上已打开的项目、任务和会话；二维码失效后需要回到桌面端重新连接。
         </p>
@@ -736,7 +801,7 @@ function Shell(props: {
           </button>
         ) : null}
         <span className="min-w-0 flex-1 truncate text-ui-base font-medium">
-          {props.title ?? "ZCode 远程控制"}
+          {props.title ?? "ZCodium 远程控制"}
         </span>
         {props.onRefresh ? (
           <button type="button" className="text-ui-xs text-primary" onClick={props.onRefresh}>

@@ -25,8 +25,8 @@ const logger = createServiceLogger("model-trajectory");
  * 解析 ~/.zcodium/cli/{debug,rollout} 下的 model-io JSONL，按 sessionId 还原某个 task 的模型调用轨迹。
  *
  * 设计说明：
- * - model-io 由 adapters/model/runner-debug.ts 落盘；一个 session 一个
- *   `model-io-<sanitizedSessionId>.jsonl`。
+ * 只读历史 model-io 文件；自动 recorder 已删除，当前运行不会因读取轨迹而恢复录制。
+ * 历史文件使用 `model-io-<sanitizedSessionId>.jsonl` 命名。
  * - ZCode Agent 把 taskId 当作 sessionId（见 zcodeTaskServiceAdapter），所以这里只读取
  *   该 session 的单文件，并按 `record.sessionId === taskId` 精确匹配。
  */

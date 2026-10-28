@@ -48,7 +48,7 @@ Run the platform-appropriate setup script:
 | Runtime | Python 3 + pip | Post-processing scripts |
 | Python pkg | defusedxml | Safe XML parsing for validation |
 | On demand (not substitutable) | LibreOffice | `.doc`→`.docx`, DOCX→PDF, visual verification — install it; do not swap in local Word/WPS/Pages |
-| Font | CJK fonts (from CDN) | Chinese text in documents |
+| Font | Existing local CJK fonts | Chinese text in documents |
 
 ### Manual Install by Platform
 
@@ -89,71 +89,21 @@ Alternative Windows package managers:
 
 ---
 
-## Step 3: Font Installation
+## Step 3: Local Font Verification
 
-Fonts are downloaded individually from CDN on first setup.
+Use existing local fonts first. Setup does not download, install, register fonts, create an installation marker, or require every entry in the historical `font_list.txt` catalog. The catalog is a name reference only, not a mandatory resource source.
 
-- **CDN base**: `https://z-cdn.chatglm.cn/office-skill/fonts/`
-- **Font list**: `env_setup/font_list.txt` (78 fonts, one relative path per line)
-- **Marker file**: `.office-skill-fonts-installed` in the user font directory prevents re-download
-- Special characters in filenames (e.g., `[`, `]`) are URL-encoded automatically by the setup script
+| Platform | Existing directories checked |
+|----------|------------------------------|
+| Windows | `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, `%WINDIR%\Fonts` |
+| macOS | `~/Library/Fonts`, `/Library/Fonts`, `/System/Library/Fonts` |
+| Linux (standalone CLI) | `~/.local/share/fonts`, `~/.fonts`, `/usr/local/share/fonts`, `/usr/share/fonts`, available fontconfig |
 
-The setup scripts read `font_list.txt`, check which fonts are already installed, and download only the missing ones. Each font is saved flat (filename only) to the user font directory.
+The scripts recognize common installed CJK fonts such as Noto, Microsoft YaHei/SimSun and PingFang/Songti. Missing CJK fonts produce a warning, not an attempt to install a complete catalog. Choose an installed font suitable for the actual language and renderer. If none is available, explain the missing glyph requirement and obtain the user's approval before installing from a user-selected trusted source; check that font's license. For ReportLab, prefer a compatible static TrueType font.
 
-### CDN Directory Structure (78 fonts)
+The POSIX script exports `FONT_DIR`; Windows exports `DOCX_FONTS_DIR`. These point to the first existing local directory above, or remain empty when no directory exists. The renderer can still resolve other installed system fonts. This check does not prove that a particular generated document has no missing glyphs: render and verify the deliverable using its existing acceptance process.
 
-| Directory | Count | Description |
-|-----------|-------|-------------|
-| `truetype/lxgw-wenkai/` | 6 | LXGW WenKai — Chinese handwriting style |
-| `truetype/noto-serif-sc/` | 9 | Noto Serif SC — Chinese serif (variable + 8 static weights) |
-| `chinese/` | 14 | Noto Sans SC, Sarasa Mono SC, Liberation fallbacks |
-| `dejavu/` | 8 | DejaVu Sans/Serif/Mono — Latin/symbol fallback |
-| `emoji/` | 1 | Noto Color Emoji |
-| `english/` | 12 | Tinos, Carlito, Calibri |
-| `freefont/` | 12 | FreeSans/FreeSerif/FreeMono — open-source fallback |
-| `liberation/` | 12 | Liberation Sans/Serif/Mono — MS-metric-compatible |
-| `libreoffice/` | 1 | OpenSymbol |
-| `noto/` | 1 | Noto Color Emoji (duplicate) |
-| `wqy/` | 1 | WenQuanYi Zen Hei — CJK fallback |
-| *(root)* | 1 | Japanese Gothic |
-
-### Install Targets by Platform
-
-| Platform | User Font Directory |
-|----------|-------------------|
-| macOS | `~/Library/Fonts/` |
-| Linux | `~/.local/share/fonts/` (then run `fc-cache -f`) |
-| Windows | `%LOCALAPPDATA%\Microsoft\Windows\Fonts` (per-user, no admin) |
-
-### Manual Font Installation
-
-If CDN is unreachable, download fonts manually. Example:
-
-```bash
-# Download a single font
-curl -fSLO "https://z-cdn.chatglm.cn/office-skill/fonts/chinese/NotoSansSC%5Bwght%5D.ttf"
-# Copy to user font dir
-cp "NotoSansSC[wght].ttf" ~/Library/Fonts/   # macOS
-```
-
-Or download all fonts listed in `font_list.txt`:
-
-```bash
-while read f; do
-    encoded=$(echo "$f" | sed 's/\[/%5B/g; s/\]/%5D/g')
-    curl -fSLO "https://z-cdn.chatglm.cn/office-skill/fonts/$encoded"
-done < env_setup/font_list.txt
-```
-
-### Post-Install Variable
-
-After font installation, `FONT_DIR` points to the user font directory:
-
-| Platform | FONT_DIR |
-|----------|----------------|
-| macOS | `~/Library/Fonts` |
-| Linux | `~/.local/share/fonts` |
-| Windows | `%LOCALAPPDATA%\Microsoft\Windows\Fonts` |
+Linux skill support does not add a Linux Desktop build or embedded Linux runtime resource to this fork.
 
 ---
 

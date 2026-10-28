@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- 手机配对协议客户端：鉴权/信封收发/装配重传都在同一条 WebSocket 生命周期里，拆分会让序号、缓冲与定时器所有者分叉（与 rpcTransport.ts 同一口径）。 */
+import { MobileWindowProjectDirectory } from "./windowProjectDirectory.js";
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha256";
 import { RemoteServiceAccess } from "@zcode/client";
@@ -148,6 +149,7 @@ export class MobileRemoteControlClient {
   /** 当前 socket/bridge 生命周期内的任务事件流订阅；换代际时统一释放。 */
   private taskStreamSubscriptions = new Set<{ generation: number; dispose(): void }>();
   private serviceAccessorInstance: RemoteServiceAccess | null = null;
+  private readonly windowDirectory = new MobileWindowProjectDirectory();
   private onRpcMessage: ((data: unknown) => void) | null = null;
   private disposed = false;
   private reconnectTimer: number | null = null;
@@ -299,6 +301,7 @@ export class MobileRemoteControlClient {
     this.channelClient?.dispose(new Error("连接已中断，请连接后重试"));
     this.channelClient = null;
     this.serviceAccessorInstance = null;
+    this.windowDirectory.clear();
     this.onRpcMessage = null;
     this.rpcAssembler = new WebRemoteControlRpcAssembler();
     this.rpcReplayBuffer.clear();
@@ -415,6 +418,36 @@ export class MobileRemoteControlClient {
       clientMode: "web-remote-replayable",
       remoteSessionId: params.remoteSessionId,
     });
+  }
+
+  async readWindowProjectDirectory(params: WorkspaceBridgeTarget) {
+    await this.ensureWorkspaceBridge(params);
+    const generation = this.bridge.version;
+    return this.windowDirectory.read(() => {
+      this.bridge.assertCurrent(generation);
+      if (!this.bridge.isReady(params)) throw new Error("workspace bridge superseded");
+    });
+  }
+
+  async subscribeWindowProjectDirectory(
+    params: WorkspaceBridgeTarget,
+    listener: () => void,
+  ): Promise<{ dispose(): void }> {
+    await this.ensureWorkspaceBridge(params);
+    const generation = this.bridge.version;
+    const subscription = this.windowDirectory.listen(
+      listener,
+      () => this.bridge.isCurrent(generation) && this.bridge.isReady(params),
+    );
+    const retained = {
+      generation,
+      dispose: () => {
+        subscription.dispose();
+        this.taskStreamSubscriptions.delete(retained);
+      },
+    };
+    this.taskStreamSubscriptions.add(retained);
+    return retained;
   }
 
   getState(): MobileConnectionState {
@@ -592,6 +625,16 @@ export class MobileRemoteControlClient {
           descriptor.remoteSessionId === undefined
         : descriptor.kind === "remote" && descriptor.remoteSessionId === params.remoteSessionId;
     if (!scopeMatches) throw new Error("workspace bridge scope mismatch");
+    const client = this.channelClient;
+    const accessor = this.serviceAccessorInstance;
+    if (!client || !accessor) throw new Error("workspace bridge superseded");
+    await this.windowDirectory.prepare(
+      accessor,
+      client,
+      descriptor.capabilities?.windowProjectDirectory.version,
+      () => this.bridge.assertCurrent(generation),
+    );
+    this.bridge.assertCurrent(generation);
   }
 
   /**

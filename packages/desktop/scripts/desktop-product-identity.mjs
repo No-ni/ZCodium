@@ -52,7 +52,7 @@ export function isPreviewIdentityRequested(env = process.env) {
 
 /**
  * 产品身份（flavor）与后端环境（`ZCODE_ENV`）是两个轴：
- * - `ZCODE_ENV=test` 一律是 Preview，测试后端不能顶着正式 `ZCode` 身份覆盖用户的正式安装；
+ * - `ZCODE_ENV=test` 一律是 Preview，测试后端不能顶着正式 `ZCodium` 身份覆盖用户的正式安装；
  * - `ZCODE_ENV=production` 默认是正式身份，显式 `ZCODE_PREVIEW_IDENTITY=1` 时改用 Preview 身份。
  * 未知 `ZCODE_ENV` 继续按 test 处理，和共享层 normalizeZCodeEnv 的 fail-safe 默认值一致。
  */
@@ -79,12 +79,12 @@ export function resolveDesktopArtifactSuffix(env = process.env) {
  * 返回 Windows Shell 使用的 AppUserModelId。
  *
  * 打包态必须复用 electron-builder 的 appId，否则快捷方式里的 AUMID、开始菜单索引
- * 和运行中的 Electron 进程会被 Windows 视为三个不同的应用。开发态继续保留旧身份，
- * 避免本地调试快捷方式和正式/Preview 安装包互相污染。
+ * 和运行中的 Electron 进程会被 Windows 视为三个不同的应用。开发态使用本仓自己的
+ * development 身份，避免本地调试快捷方式和正式/Preview 安装包互相污染。
  */
 export function resolveWindowsAppUserModelIdForFlavor(flavor, runtime = { isPackaged: true }) {
   if (runtime.isPackaged === false) {
-    return "cn.aminer.zcode";
+    return "dev.zcodium.app.development";
   }
   return desktopProductIdentities[flavor === "preview" ? "preview" : "production"].appId;
 }

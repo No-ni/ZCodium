@@ -57,8 +57,7 @@ test("Host startup and repeated settings refresh read local facts without an acc
   const accounts = snapshot.resolution.resolvedProviders.filter(
     (provider) => provider.config.access?.type === "zhipu-account",
   );
-  assert.ok(accounts.length > 0, "fixture contains legacy builtin account entries");
-  assert.ok(accounts.every((provider) => provider.models.every((model) => !model.executable)));
+  assert.equal(accounts.length, 0, "builtin config must not declare account providers");
 });
 
 test("personal model creation, invalid edits, recovery and deletion stay usable without login", async (t) => {

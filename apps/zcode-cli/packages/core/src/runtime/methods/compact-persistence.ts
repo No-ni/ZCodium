@@ -1,4 +1,5 @@
 import { createModelId, createModelProviderId } from "@zcode/contracts";
+import { compactDiscoveryMetadata } from "../../tool/search/history.js";
 import {
   CompactTrigger,
   CompactTimelineDisplay,
@@ -341,6 +342,12 @@ export async function persistCompactSummary(
         type: "text",
         text: content,
         synthetic: true,
+        metadata: {
+          runtimeMessage: {
+            source: "legacy_synthetic",
+            compactBoundary: compactDiscoveryMetadata(compactBoundary),
+          },
+        },
         time: {
           start: created,
           end: created,
@@ -366,7 +373,7 @@ export async function persistCompactSummary(
     );
     for (const entry of options?.postCompactReminderEntries ?? []) {
       if (!isRuntimeAttachmentEntry(entry)) continue;
-      const reminderMessageId = await persistCompactReminderMessage.call(
+      const reminderMessageId = await persistRuntimeReminderMessage.call(
         this,
         entry,
         created,
@@ -381,7 +388,8 @@ export async function persistCompactSummary(
   }
 }
 
-async function persistCompactReminderMessage(
+// 普通目录公告与 compact reminder 共用原有 durable writer，不另建提醒持久化 owner。
+export async function persistRuntimeReminderMessage(
   this: AgentRuntimeInternal,
   entry: RuntimeMessageEntry,
   created: number,

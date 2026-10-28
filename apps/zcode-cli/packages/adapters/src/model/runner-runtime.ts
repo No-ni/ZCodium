@@ -16,6 +16,7 @@ export interface AiSdkModelRuntime {
 }
 
 export interface AiSdkModelTextRequest extends ModelTextRequest {
+  toolSearchEnabled?: boolean;
   abortSignal?: AbortSignal;
   traceContext?: TraceContext;
   // adapter 测试和开发态常直接使用源文件；这里显式接住 core recovery 透传的 SSE idle timeout 递增序号。

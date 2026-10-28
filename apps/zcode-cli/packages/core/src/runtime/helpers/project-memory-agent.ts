@@ -14,6 +14,7 @@ import { getSessionShellSelectionFromConfig } from "../methods/session-shell-env
 import { buildRuntimeProviderRequestMessages } from "./runtime-provider-request-messages.js";
 import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
 import { workspaceLevelRootOf } from "./workspace-scope.js";
+import { isToolSearchControlName } from "./tool-search-controls.js";
 
 export interface ProjectMemoryAgentContext {
   memoryRoot: string;
@@ -62,7 +63,10 @@ export function captureProjectMemoryAgentContext(
     model,
     operation: input.operation,
     readFileState: new Map(runtime.readFileState),
-    tools: runtime.getTools(model).map((tool) => ({ ...tool })),
+    tools: runtime
+      .getTools(model)
+      .filter((tool) => !isToolSearchControlName(tool.name))
+      .map((tool) => ({ ...tool })),
     traceContext: input.traceContext,
     workingDirectory: runtime.workingDirectory,
     workspaceRoot: runtime.workspaceRoot,

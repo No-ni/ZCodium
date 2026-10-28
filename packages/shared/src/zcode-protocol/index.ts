@@ -33,11 +33,17 @@ import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { completeModelPropertiesDataSchema } from "../model-config.js";
 import { modelExecutionSchema } from "../model-execution.js";
 import { modelSelectionSchema } from "../model-selection.js";
+import { appToolSearchModeSchema } from "../tool-search.js";
 import { APP_USAGE_RANGES, appUsageSnapshotSchema } from "../usage-stats.js";
 import { errorAttributionSchema } from "../zcode-protocol-v4/snapshot.js";
 // 后台详情共享精简的只读响应 schema，不携带命令或计时元数据。
 export * from "../background-bash-output.js";
 export * from "../process-diagnostic.js";
+export {
+  hostWindowProjectDirectoryProjectionSchema,
+  windowProjectDirectorySnapshotSchema,
+  windowProjectDirectoryCapabilitySchema,
+} from "../window-project-directory.js";
 // browser-use 命令/结果契约单一来源：agent 构造、协议校验和 main executor 共用同一 schema。
 import {
   browserBackendListResultSchema,
@@ -1910,6 +1916,7 @@ export const zcodeSessionRuntimePreferencesResultSchema = z
     nativeSearchEnhancementsEnabled: z.boolean(),
     memoryEnabled: z.boolean().default(false),
     askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
+    toolSearchMode: appToolSearchModeSchema.default("off"),
     integratedTerminalShell: integratedTerminalShellSelectionSchema.optional(),
     // 兼容旧 Host：缺少字段时在协议解析边界使用当前默认策略。
     modelContextBudgetStrategy: zcodeModelContextBudgetStrategySchema.default(
@@ -2363,6 +2370,7 @@ export type ZCodeProviderTestModelConnectivityResult = z.infer<
 export const zcodeInteractionPreferencesSchema = z
   .object({
     askUserQuestionAutoResolutionEnabled: z.boolean(),
+    toolSearchMode: appToolSearchModeSchema.default("off"),
   })
   .strict();
 export type ZCodeInteractionPreferences = z.infer<typeof zcodeInteractionPreferencesSchema>;
@@ -2381,6 +2389,7 @@ export const zcodeWorkspaceUpdateInteractionPreferencesResultSchema = z
   .object({
     workspace: zcodeWorkspaceRefSchema,
     askUserQuestionAutoResolutionEnabled: z.boolean(),
+    toolSearchMode: appToolSearchModeSchema.default("off"),
     snoozedInteractionCount: z.number().int().nonnegative(),
   })
   .strict();

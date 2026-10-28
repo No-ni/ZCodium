@@ -396,7 +396,7 @@ export function ProviderModelsSection({
   onModelEnabledChange?: (modelId: string, enabled: boolean) => void | Promise<void>;
   onAddModel: (model: ProviderSettingsFormModel) => void | Promise<void>;
   onReorderModelIds?: (modelIds: string[]) => void;
-  /** 仅 API Key 型 Provider 装配；账号型模型的来源是权益接口，不读 /models。 */
+  /** 仅 API Key 型 Provider 装配；模型目录直接读取 /models。 */
   onFetchModels?: () => Promise<ProviderModelCatalogResult>;
   settingsRevision?: number;
 }) {

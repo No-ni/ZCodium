@@ -118,7 +118,10 @@ test("scheduler retains scheduled/manual dispatch, settlement and shutdown witho
       "./manualClaimRelease.js": manualRelease,
       "./offPeakDispatchSettlement.js": { settleOffPeakDispatchResult: forbidden },
       "./schedulerResourceTelemetry.js": {
-        startSchedulerResourceTelemetry: () => ({ stop: () => calls.push(["diagnostics-stop"]) }),
+        startSchedulerResourceTelemetry: () => {
+          calls.push(["diagnostics-start"]);
+          return { stop: () => calls.push(["diagnostics-stop"]) };
+        },
       },
     },
     {
@@ -211,9 +214,67 @@ test("scheduler retains scheduled/manual dispatch, settlement and shutdown witho
   receive({ data: { type: "scheduler-dispose" } });
   await flush();
   assert.ok(calls.some(([name, id]) => name === "release" && id === "pending"));
-  assert.ok(calls.some(([name]) => name === "diagnostics-stop"));
+  // 本地资源采样默认关闭：未显式开启时不创建也不停止诊断计时器。
+  assert.ok(calls.every(([name]) => name !== "diagnostics-start"));
+  assert.ok(calls.every(([name]) => name !== "diagnostics-stop"));
   assert.deepEqual(calls.slice(-2), [["close"], ["exit", 0]]);
   assert.ok(sent.every((m) => !m.type.startsWith("offpeak")));
+});
+
+test("scheduler starts resource sampling only when the local switch is enabled", async () => {
+  const calls = [];
+  let receive;
+  await load(
+    "packages/desktop/src/scheduler/index.ts",
+    {
+      // 采样开关默认读取真实 process.env；这里显式替换为开启态，验证 opt-in 分支。
+      "@zcode/shared": { ...shared, isLocalResourceMonitoringEnabled: () => true },
+      "@zcode/services/node": {
+        AutomationRepo: class {
+          async ensureReady() {
+            calls.push(["ready"]);
+          }
+          async claimDue() {
+            return [];
+          }
+          async claimManualRuns() {
+            return [];
+          }
+          close() {
+            calls.push(["close"]);
+          }
+        },
+        computeAutomationNextRunAt: () => null,
+        isOneShotAutomation: () => false,
+      },
+      "./manualClaimRelease.js": manualRelease,
+      "./schedulerResourceTelemetry.js": {
+        startSchedulerResourceTelemetry: () => {
+          calls.push(["diagnostics-start"]);
+          return { stop: () => calls.push(["diagnostics-stop"]) };
+        },
+      },
+    },
+    {
+      process: {
+        parentPort: {
+          on(_event, listener) {
+            receive = listener;
+          },
+          postMessage() {},
+        },
+        exit: (code) => calls.push(["exit", code]),
+      },
+      setInterval: () => 1,
+      clearInterval() {},
+    },
+  );
+  await flush();
+  assert.ok(calls.some(([name]) => name === "diagnostics-start"));
+  receive({ data: { type: "scheduler-dispose" } });
+  await flush();
+  assert.ok(calls.some(([name]) => name === "diagnostics-stop"));
+  assert.deepEqual(calls.slice(-2), [["close"], ["exit", 0]]);
 });
 
 test("Main ignores retired idle dispatch and keeps cron routing, wake and shutdown rejection", async () => {
