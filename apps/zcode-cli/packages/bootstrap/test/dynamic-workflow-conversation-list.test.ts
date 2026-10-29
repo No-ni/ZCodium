@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { it } from "node:test";
-import { runSqliteSessionMigrations } from "../../adapters/src/storage/session-store/migration-runner.js";
+import { runSqliteSessionMigrationsAsync } from "../../adapters/src/storage/session-store/migration-runner.js";
 import { createDwfJournalStore } from "../../adapters/src/storage/session-store/repositories/dwf-journal.js";
 import { createRunIntrospectionMethods } from "../src/app/dynamic-workflow-run-introspection.js";
 import type { RunRegistryEntry } from "../src/app/dynamic-workflow-run-observation.js";
@@ -12,7 +12,8 @@ import type { ToolExecutionContext } from "../../core/src/tool/types.js";
 it("lists sibling conversation runs through the model tool even after Bash changes cwd", async () => {
   const db = new DatabaseSync(":memory:");
   try {
-    runSqliteSessionMigrations(db, ":memory:");
+    // 同步入口只校验账本；内存夹具也必须先等待唯一异步迁移链。
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     const journal = createDwfJournalStore(db);
     const root = "/workspace/default";
     for (const [id, directory, cwd] of [
@@ -69,7 +70,8 @@ it("lists sibling conversation runs through the model tool even after Bash chang
 it("keeps a newly submitted independent-directory run visible before its journal row exists", async () => {
   const db = new DatabaseSync(":memory:");
   try {
-    runSqliteSessionMigrations(db, ":memory:");
+    // 同步入口只校验账本；内存夹具也必须先等待唯一异步迁移链。
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     const journal = createDwfJournalStore(db);
     const entry: RunRegistryEntry = {
       controller: new AbortController(),

@@ -24,6 +24,9 @@ jobs:
     name: Checks
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # sandbox 会重绑 HOME/cache；安装与浏览器检查必须共用项目内的只读执行文件目录。
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.run-logs/project-only-validation/playwright-browsers
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -92,6 +95,7 @@ jobs:
             packages/ui/src/lib/workspaceFileLinkHost.test.ts \
             packages/ui/src/hooks/useWorkspaceOpenInEditorTarget.test.ts \
             packages/ui/src/hooks/useWorkspaceServicesScope.test.ts \
+            packages/ui/src/hooks/useGlobalTaskList.test.ts \
             packages/ui/src/terminal/terminalPanelState.test.ts \
             packages/ui/src/lib/markdownFileLink.test.ts \
             packages/ui/src/components/ai-elements/markdown-image-scope.test.ts \

@@ -100,12 +100,15 @@ describe("Bot bridge closed contract", () => {
     f.reply(kinds[2][1]);
     await flush();
     expect(ready).toBe(false);
-    await f.service.syncAppRuntimePreferences({ askUserQuestionAutoResolutionEnabled: false });
+    await f.service.syncAppRuntimePreferences({
+      askUserQuestionAutoResolutionEnabled: false,
+      toolSearchMode: "auto",
+    });
     gate.resolve();
     expect(await result).toBe(f.runtime.zcodeTaskService);
     expect(f.runtime.zcodeAgentService.syncAppRuntimePreferences.mock.calls).toEqual([
-      [{ askUserQuestionAutoResolutionEnabled: true }],
-      [{ askUserQuestionAutoResolutionEnabled: false }],
+      [{ askUserQuestionAutoResolutionEnabled: true, toolSearchMode: "off" }],
+      [{ askUserQuestionAutoResolutionEnabled: false, toolSearchMode: "auto" }],
     ]);
     expect(await f.service.getZCodeTaskService(target)).toBe(f.runtime.zcodeTaskService);
     expect(f.port.postMessage).toHaveBeenCalledOnce();

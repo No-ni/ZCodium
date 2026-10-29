@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appSettingsSchema, type ZCodeTaskMeta } from "@zcode/shared";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
+import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
 import { createTaskAutoArchiveMaintenance } from "../src/session/taskAutoArchiveMaintenance.js";
 import { createObservableSettingService } from "../src/setting/observableSettingService.js";
 import { createBroadcastService } from "../src/broadcast/broadcastService.js";
@@ -263,6 +264,8 @@ test("real SQLite preserves all exclusion conditions, identity, update time and 
     ...patch,
   });
   try {
+    // Repo 只校验迁移账本；多连接夹具写入前也必须等待唯一异步启动 owner。
+    await prepareTasksIndexStorage(path, () => {});
     for (const entry of [
       { meta: meta("eligible") },
       { meta: meta("boundary", { updatedAt: now - 7 * 86400000 }) },
@@ -309,7 +312,8 @@ test("real SQLite preserves all exclusion conditions, identity, update time and 
 
 test("task adapter grouped reads are pure; Host maintenance commits before desktop notification and mobile recovery reads", async () => {
   const dir = await mkdtemp(join(tmpdir(), "zcodium-archive-adapter-"));
-  const repo = new TaskIndexRepo(join(dir, "tasks.sqlite"));
+  const path = join(dir, "tasks.sqlite");
+  const repo = new TaskIndexRepo(path);
   const agent = { disposeAll() {} } as IZCodeAgentService;
   const syncer = createZCodeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
   const taskService = createZCodeTaskServiceAdapter({
@@ -327,6 +331,8 @@ test("task adapter grouped reads are pure; Host maintenance commits before deskt
   });
   const f = fixture({ taskService });
   try {
+    // 纯读与归档通知测试复用已准备库，不能以旧同步迁移旁路初始化。
+    await prepareTasksIndexStorage(path, () => {});
     await repo.syncTaskMeta({
       meta: {
         taskId: "old",

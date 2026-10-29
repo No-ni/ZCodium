@@ -204,6 +204,11 @@ export const resolveBuildAliases = ({
     rootDirectory,
     "../../packages/shared/src/builtinPluginAssets.ts",
   ),
+  // 迁移 runner 是值导入，必须先精确解析，避免通用 alias 将子路径拼到 index.ts 后。
+  "@zcode/shared/sqlite-migrations": resolve(
+    rootDirectory,
+    "../../packages/shared/src/sqlite-migrations/index.ts",
+  ),
   "@zcode/shared": resolve(rootDirectory, "../../packages/shared/src/index.ts"),
   "@zcode/core": resolve(cliDirectory, "../core/dist/index.js"),
 });

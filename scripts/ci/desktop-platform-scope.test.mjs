@@ -263,6 +263,11 @@ test("CI is manual-only and schedules Windows/macOS packages without a Linux rem
   );
 
   const checkSteps = desktop.jobs.checks.steps;
+  assert.equal(
+    desktop.jobs.checks.env.PLAYWRIGHT_BROWSERS_PATH,
+    "${{ github.workspace }}/.run-logs/project-only-validation/playwright-browsers",
+    "browser install and sandboxed smoke must share the project-owned executable directory",
+  );
   const browserInstallIndex = checkSteps.findIndex(
     (step) => step.name === "Install browser for remote form checks",
   );
@@ -275,6 +280,11 @@ test("CI is manual-only and schedules Windows/macOS packages without a Linux rem
   );
   const vitestStep = checkSteps.find((step) => step.name === "Vitest suites");
   assert.ok(vitestStep);
+  assert.match(
+    vitestStep.run,
+    /packages\/ui\/src\/hooks\/useGlobalTaskList\.test\.ts/,
+    "the disabled task-list lifecycle regression must stay in CI",
+  );
   assert.match(
     vitestStep.run,
     /pnpm vitest run --config packages\/ui\/vitest\.config\.ts packages\/relay\/src/,

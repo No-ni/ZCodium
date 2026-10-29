@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { it } from "node:test";
 import { zcodeWorkflowsRunsResultSchema } from "@zcode/shared";
-import { runSqliteSessionMigrations } from "../../adapters/src/storage/session-store/migration-runner.js";
+import { runSqliteSessionMigrationsAsync } from "../../adapters/src/storage/session-store/migration-runner.js";
 import { createDwfJournalStore } from "../../adapters/src/storage/session-store/repositories/dwf-journal.js";
 import { listSavedWorkflowRunsOp } from "../src/zcode-protocol/saved-workflows.js";
 import type { ZCodeProtocolAgentServerContext } from "../src/zcode-protocol/server-types.js";
@@ -10,7 +10,8 @@ import type { ZCodeProtocolAgentServerContext } from "../src/zcode-protocol/serv
 it("projects the parent workspace for global workflow history while retaining the execution cwd", async () => {
   const db = new DatabaseSync(":memory:");
   try {
-    runSqliteSessionMigrations(db, ":memory:");
+    // 同步入口只校验账本；内存夹具也必须先等待唯一异步迁移链。
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     const journal = createDwfJournalStore(db);
     const cwd = "/workspace/default/2026-10-13/aaaaaaaa";
     journal.createRun({

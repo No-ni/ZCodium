@@ -34,11 +34,13 @@ test("model selection retains Composer source identity and existing custom provi
       complete = resolve;
     });
     const source = { provider: "fixture-source", model: "old-model" };
+    // 回调只读取 Composer 的目录状态；夹具也必须提供 ready 门禁依赖。
     const callback = await loadComponentCallback(toolbar, "handleModelValueChange", {
       decodeCustomModelValue: () => ({ providerId: "fixture-api", modelName: "new-model" }),
       effectiveConfig: source,
       logger: { debug() {}, warn() {} },
       draftMode: true,
+      modelSelectionState: { status: "ready" },
       modelSelectionView: {
         providers: [{ providerId: "fixture-api", config: { access: { type: "api-key" } } }],
       },
@@ -61,5 +63,43 @@ test("model selection retains Composer source identity and existing custom provi
       assert.deepEqual(pending, [true, false]);
       assert.deepEqual(selections, []);
     } else assert.deepEqual(selections, [["fixture-api", "new-model", source]]);
+  }
+});
+
+// 目录未就绪时不得提交选择或触发恢复；验证回调本身，不依赖 UI 控件的禁用态。
+test("model selection gates non-ready states without side effects", async () => {
+  for (const modelSelectionState of [
+    { status: "loading" },
+    { status: "error", error: new Error("Fixture catalog failure") },
+    { status: "unavailable", reason: "remote-waiting" },
+  ]) {
+    const selections = [],
+      recoveries = [],
+      pending = [];
+    const callback = await loadComponentCallback(toolbar, "handleModelValueChange", {
+      decodeCustomModelValue: () => ({ providerId: "fixture-api", modelName: "new-model" }),
+      effectiveConfig: { provider: "fixture-source", model: "old-model" },
+      logger: { debug() {}, warn() {} },
+      draftMode: true,
+      modelSelectionState,
+      modelSelectionView: {
+        providers: [{ providerId: "fixture-api", config: { access: { type: "api-key" } } }],
+      },
+      isApiKeyAccess: (access) => access?.type === "api-key",
+      configOptionsError: new Error("Fixture unavailable config"),
+      onRecoverCustomModelSelection: () => {
+        recoveries.push(1);
+      },
+      onSelectModel: () => {
+        selections.push(1);
+      },
+      setRecoveryPending: () => {
+        pending.push(1);
+      },
+    });
+    callback("fixture-selection");
+    assert.deepEqual(selections, []);
+    assert.deepEqual(recoveries, []);
+    assert.deepEqual(pending, []);
   }
 });

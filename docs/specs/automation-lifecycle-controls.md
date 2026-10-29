@@ -3,6 +3,7 @@
 ## 产品规则与所有者
 
 - AutomationRepo 是持久化启用状态、生命周期、定时执行次数的唯一所有者；AutomationService 负责编辑规则，scheduler 只认领和结算派发。
+- tasks-index 初始化由 `prepareTasksIndexStorage` 这个异步启动 owner 完成，Repo 只检查已完成迁移；真实 SQLite 测试夹具必须先等待准备，不能依赖 Repo 恢复旧同步迁移。
 - 用户暂停后，已经发出的本次派发可以完成，但成功回执不能恢复后续调度。达到次数或截止时间上限时仍进入 completed。
 - 只修改截止时间不能解除已经耗尽的执行次数上限。只修改次数也不能解除截止时间限制；两个约束同时成立才允许恢复。
 - 保留现有 workspace identity 隔离、manual run 计数语义和 claim/runId 边界；不新增状态库或调度路径。

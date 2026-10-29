@@ -44,12 +44,11 @@ export function useGlobalTaskList(params: {
 }) {
   const baseServices = useBaseWorkspaceServices();
   const controller = baseServices.windowControllerService;
+  // 单一禁用门禁：自动加载、手动 refresh 与 revision 重读共用，未启用时不产生任何查询副作用。
+  const disabled = params.enabled === false;
   const controllerRegistry = useMemo(
-    () =>
-      controller && params.enabled !== false
-        ? getWindowControllerTaskListRegistry(controller)
-        : null,
-    [controller, params.enabled],
+    () => (controller && !disabled ? getWindowControllerTaskListRegistry(controller) : null),
+    [controller, disabled],
   );
   const controllerRevision = useSyncExternalStore(
     controllerRegistry?.subscribe ?? subscribeToNothing,
@@ -110,7 +109,7 @@ export function useGlobalTaskList(params: {
   const itemsRef = useRef<GlobalTaskListItem[]>(items);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(workspaceScopes.length > 0);
+  const [loading, setLoading] = useState(disabled ? false : workspaceScopes.length > 0);
   const requestSerialRef = useRef(0);
   const manualRefreshSerialRef = useRef(0);
 
@@ -141,6 +140,12 @@ export function useGlobalTaskList(params: {
         itemsRef.current = [];
         setTotal(0);
         setHasMore(false);
+        setLoading(false);
+        return;
+      }
+      if (disabled) {
+        // 禁用且 scope 非空：保留最后可信列表、停 loading，但不订阅、不查询；
+        // registry 为 null 只是门禁结果，不能误报 channel 缺失。
         setLoading(false);
         return;
       }
@@ -181,7 +186,7 @@ export function useGlobalTaskList(params: {
         }
       }
     },
-    [controllerRegistry, params.kind, query, queryKey, workspaceScopes],
+    [controllerRegistry, disabled, params.kind, query, queryKey, workspaceScopes],
   );
 
   const refresh = useCallback(async () => {
@@ -203,6 +208,11 @@ export function useGlobalTaskList(params: {
       taskListVersionSignature,
       workspaceSourceGenerationSignature,
     });
+    return () => {
+      // 禁用、查询/scope 换代与卸载都使在途请求序号作废：
+      // 迟到的成功/失败不再匹配序号，不得写入派生结果或错误日志。
+      requestSerialRef.current += 1;
+    };
   }, [controllerRevision, load, taskListVersionSignature, workspaceSourceGenerationSignature]);
 
   const hasRemoteScope = params.workspaceTabs.some((tab) => Boolean(tab.workspaceIdentity));

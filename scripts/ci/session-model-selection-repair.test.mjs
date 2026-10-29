@@ -10,7 +10,8 @@ const { saveSessionEntry, sessionEntries } = await tsImport(
   "../../apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/session-entries.ts",
   import.meta.url,
 );
-const { runSqliteSessionMigrations } = await tsImport(
+// 同步入口只校验 ready 账本；夹具建库也必须等待唯一异步迁移 owner。
+const { runSqliteSessionMigrationsAsync } = await tsImport(
   "../../apps/zcode-cli/packages/adapters/src/storage/session-store/migration-runner.ts",
   import.meta.url,
 );
@@ -34,7 +35,7 @@ async function openFixtureDb(t) {
     db.close();
     await rm(directory, { recursive: true, force: true });
   });
-  runSqliteSessionMigrations(db, dbPath);
+  await runSqliteSessionMigrationsAsync(db, dbPath);
   db.prepare(
     "insert into session (id, project_id, slug, directory, title, version, time_created, time_updated) values (?, 'proj', 'slug', '/tmp/x', 't', '0', 1, 1)",
   ).run(SESSION_ID);

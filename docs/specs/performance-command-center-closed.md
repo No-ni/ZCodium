@@ -42,6 +42,10 @@ sequenceDiagram
 - 宽屏/390px、键盘选择、主题基本交互保留；无布局修改。合成任务必须满足当前共享 `ZCodeTaskMeta`，包括数值时间和合法 `ZCodeTaskMode`；测试文件排除在根 UI 工程之外时另做限定严格类型检查，不用类型断言掩盖任务字段错误。
 - 使用固定 Node 24.14.0 运行可用验证及官方浏览器；根 typecheck/lint、格式和架构由主流程统一复检，不调整测试超时或产品节流。
 
+## 后续禁用态契约修复
+
+原实施只接入 Dialog 的 `enabled: open`，上述记录保留其当时边界。main 复核确认窗口远控空闲时仍会将非空 workspace scope 传给已禁用的同一 hook；后续修复统一 `useGlobalTaskList` 的自动 load、manual refresh 与在途结果失效，不把禁用态当作 Host channel 缺失。共享 registry、打开态参数、其他消费者及远控 delivery 语义保持。规格与回归场景见 [main 构建与禁用态回归修复](main-release-gates-fixes.md)。
+
 ## 实施记录
 
 - 生产只在两个既有调用中增加 `enabled: open` 和一条隐藏约束说明，+3 / -0；不修改 hook、registry 或 Controller。

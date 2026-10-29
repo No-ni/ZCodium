@@ -13,6 +13,7 @@
 - 等待范围包括 settings/credential IO、三类 Main 回包、runtime getView/preferences 初始化和已有 runtime 的 preferences 同步。关闭时立即拒绝这些本地等待，不要求底层不可取消 IO 完成；保留 rejection handler，迟到结果不得触发下一阶段、更新 connected/cache 或发起新 IPC。
 - 已返回的 runtime services 在 bridge 存活期间继续可用。桥接拥有其创建的每个 adapter（包括并发初始化产生的多个实例）；初始化失败立即释放，关闭释放其余实例。adapter 的 dispose 幂等。这里不合并请求或改变并发初始化结果。
 - 正常时 settings/credential 顺序、5s/60s deadline 起点、status fallback、identity 优先匹配、preferences revision 重试和先就绪后缓存保持。无持久化、权限、owner/lease、跨 Host 路由、stale run 或 desktop-continuous/web-remote-replayable 变更。
+- 初始 preferences 由当前 settings 派生，包含 `askUserQuestionAutoResolutionEnabled` 和默认 `toolSearchMode: "off"`；等待期间的更新必须带着最新字段通过原 revision 循环同步后才缓存 runtime。回归断言覆盖完整偏好，而不是省略新增字段。
 
 ```mermaid
 sequenceDiagram

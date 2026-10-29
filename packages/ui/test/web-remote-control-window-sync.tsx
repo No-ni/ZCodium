@@ -15,10 +15,15 @@ const statusEvents = new Emitter<WebRemoteControlStatusSnapshot>();
 const controllerEvents = new Emitter();
 const writes: { kind: string; payload: unknown }[] = [];
 const subscriptions: string[] = [];
+// 活跃订阅是 stop cleanup 的可观察边界；历史订阅计数不能证明当前已解除。
+const activeSubscriptions = new Set<string>();
 let status: WebRemoteControlStatusSnapshot = { status: "idle" };
-let tasks = [
+let tasks: WindowHostControllerTaskListItem[] = [
   {
     taskId: "pinned",
+    traceId: "fixture-pinned",
+    mode: "build",
+    sourceAvailability: "online",
     title: "置顶运行任务",
     workspacePath: "/fixture-a",
     status: "completed",
@@ -28,14 +33,25 @@ let tasks = [
   },
   {
     taskId: "other",
+    traceId: "fixture-other",
+    mode: "build",
+    sourceAvailability: "online",
     title: "另一个项目任务",
     workspacePath: "/fixture-b",
     liveStatus: "running",
     createdAt: 1,
     updatedAt: 3,
   },
-] as WindowHostControllerTaskListItem[];
+];
 let seq = 0;
+// listCalls 记录 Controller 列表查询次数；blocked 模拟 Host 响应滞后，便于观察迟到结果。
+const listCalls: string[] = [];
+let blocked = false;
+const pendingLists: ((value: {
+  items: WindowHostControllerTaskListItem[];
+  total: number;
+  hasMore: boolean;
+}) => void)[] = [];
 const platform = {
   getWebRemoteControlStatus: async () => status,
   onWebRemoteControlStatusChanged: (listener: (value: WebRemoteControlStatusSnapshot) => void) => {
@@ -54,14 +70,25 @@ const services = {
     async listTaskList(query: { kind: string }) {
       if (query.kind !== "active")
         throw new Error("mobile requires active query including pinned tasks");
+      listCalls.push(query.kind);
+      if (blocked) {
+        return new Promise<{
+          items: WindowHostControllerTaskListItem[];
+          total: number;
+          hasMore: boolean;
+        }>((resolve) => pendingLists.push(resolve));
+      }
       return { items: tasks, total: tasks.length, hasMore: false };
     },
     onDynamicControllerFrame: () => controllerEvents.event,
     async subscribeControllerV4({ topic }: { topic: string }) {
       subscriptions.push(topic);
+      activeSubscriptions.add(topic);
       return { ack: { subscriptionId: topic } };
     },
-    async unsubscribeControllerV4() {},
+    async unsubscribeControllerV4({ subscriptionId }: { subscriptionId: string }) {
+      activeSubscriptions.delete(subscriptionId);
+    },
   },
 } as unknown as IServiceAccessor;
 
@@ -77,6 +104,39 @@ function Fixture() {
       __windowSyncFixture: {
         writes,
         subscriptions,
+        activeSubscriptions,
+        listCalls,
+        block(on: boolean) {
+          blocked = on;
+        },
+        // lateTitle 用可区分的“迟到结果”释放被阻塞的 in-flight 请求，验证禁用后门生效。
+        release(lateTitle?: string) {
+          const payload: {
+            items: WindowHostControllerTaskListItem[];
+            total: number;
+            hasMore: boolean;
+          } = lateTitle
+            ? {
+                items: [
+                  {
+                    taskId: "late",
+                    traceId: "fixture-late",
+                    mode: "build",
+                    sourceAvailability: "online",
+                    title: lateTitle,
+                    workspacePath: "/fixture-a",
+                    status: "completed",
+                    liveStatus: "running",
+                    createdAt: 1,
+                    updatedAt: 99,
+                  },
+                ],
+                total: 1,
+                hasMore: false,
+              }
+            : { items: tasks, total: tasks.length, hasMore: false };
+          for (const resolve of pendingLists.splice(0)) resolve(payload);
+        },
         start() {
           status = {
             status: "active",

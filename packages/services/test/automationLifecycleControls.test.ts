@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 import { AutomationRepo } from "../src/session/automationRepo.js";
 import { AutomationService } from "../src/session/automationService.js";
+import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
 
 async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "zcodium-automation-controls-"));
@@ -18,6 +19,8 @@ async function fixture(t: TestContext) {
     assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
     await rm(directory, { recursive: true, force: true });
   });
+  // Repo 只校验迁移账本；夹具也必须经过唯一异步启动 owner。
+  await prepareTasksIndexStorage(path, () => {});
   const now = Date.now();
   const create = (recurring = true, maxRuns?: number, endAt?: number) =>
     repo.create(
