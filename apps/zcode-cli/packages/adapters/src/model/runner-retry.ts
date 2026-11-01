@@ -69,12 +69,25 @@ export async function sleep(delayMs: number, abortSignal?: AbortSignal): Promise
       return;
     }
 
-    const timeout = setTimeout(resolve, delayMs);
+    // 根因：退避正常睡满时，旧实现只让 setTimeout(resolve) 直接结束，不为已注册的 abort
+    // 监听调用 removeEventListener；{once:true} 只在 abort 真实触发时自移除。同一轮 turn 的
+    // 每个 model step 复用同一个 AbortSignal（core turn-model-step 传 state.turnAbortSignal），
+    // 每次重试退避都会在该 signal 上永久残留一个持有已触发 Timer 与已 settle Promise 的闭包，
+    // 轮内单调累积，且与本包 stream-idle-timeout.ts、mcp/oauth-interactive.ts 的监听生命周期不一致。
+    // 修复：timer 与 abort 监听同归本次调用持有，正常结束与拒绝路径都先解除监听再 settle；
+    // 不改变退避时长、createAbortError 与 signal.reason 语义。
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const onAbort = () => {
-      clearTimeout(timeout);
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
       reject(createAbortError(abortSignal));
     };
     abortSignal?.addEventListener("abort", onAbort, { once: true });
+    timeout = setTimeout(() => {
+      abortSignal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
   });
 }
 

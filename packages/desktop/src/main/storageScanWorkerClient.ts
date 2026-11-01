@@ -1,5 +1,5 @@
 /**
- * ScanRunnerPort 的 Worker 实现：每次扫描起一个 worker_threads，主线程只接收节流后的快��。
+ * ScanRunnerPort 的 Worker 实现：每次扫描起一个 worker_threads，主线程只接收节流后的快照。
  * 取消时先发 abort 让 Worker 收敛，随后无论如何 terminate，保证 main 不会残留遍历线程。
  */
 import { Worker } from "node:worker_threads";
@@ -24,6 +24,11 @@ export function createStorageScanWorkerRunner(
   return {
     run: ({ roots, signal, onProgress }) =>
       new Promise<StorageScanProgress>((resolve, reject) => {
+        // 预取消请求不再创建线程或克隆根目录，避免无效扫描消耗启动资源。
+        if (signal.aborted) {
+          reject(abortError());
+          return;
+        }
         const workerData: StorageScanWorkerData = { roots, progressIntervalMs };
         const worker = new Worker(workerUrl, { workerData });
         let settled = false;
@@ -59,9 +64,14 @@ export function createStorageScanWorkerRunner(
         });
         worker.once("error", (error) => finish(() => reject(error)));
         worker.once("exit", (code) => {
-          if (code !== 0) {
-            finish(() => reject(new Error(`storage scan worker exited with code ${code}`)));
-          }
+          // 成功只能由 done 确认；无终态消息的零码退出也必须收敛，否则扫描会永久 pending。
+          finish(() =>
+            reject(
+              signal.aborted
+                ? abortError()
+                : new Error(`storage scan worker exited with code ${code}`),
+            ),
+          );
         });
         if (signal.aborted) {
           finish(() => reject(abortError()));

@@ -31,10 +31,6 @@ function hasBlockingActiveSnapshotRuntime(snapshot: ZCodeSessionStateSnapshot): 
   );
 }
 
-function hasActiveSnapshotRuntime(snapshot: ZCodeSessionStateSnapshot): boolean {
-  return hasBlockingActiveSnapshotRuntime(snapshot);
-}
-
 function isToolCallContinuationFinish(finish: string | undefined): boolean {
   const normalized = finish?.trim().toLowerCase().replace(/_/g, "-");
   return normalized === "tool-calls";
@@ -65,14 +61,16 @@ export function deriveZCodeTaskStatusFromSessionSnapshot(
   if (status === "error" || status === "completed") {
     return status;
   }
-  if (hasCompletedVisibleAssistantTurn(snapshot) && !hasBlockingActiveSnapshotRuntime(snapshot)) {
+  // session 状态为非终态时，阻塞 runtime 已经决定 running；先短路可避免
+  // 为排除 completed 收口而扫描全部可见历史。error/completed 的既有优先级不变。
+  if (hasBlockingActiveSnapshotRuntime(snapshot)) {
+    return status ?? "running";
+  }
+  if (hasCompletedVisibleAssistantTurn(snapshot)) {
     // desktop continuous 的 session/read 依赖 runtime projection。
     // 旧投影有可能只 replay 到 model_streaming finish，漏掉 turn_complete，导致 currentTurnId
     // 短暂或长期残留。此时持久化 assistant 已有 completed 时间，比 stale currentTurnId 更权威。
     return "completed";
-  }
-  if (hasActiveSnapshotRuntime(snapshot)) {
-    return status ?? "running";
   }
   return status;
 }

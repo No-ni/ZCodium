@@ -397,25 +397,56 @@ export function filterWorkspaceFileTreeRows(params: {
   }
 
   const matchedPathSet = new Set(matchedRows.map((row) => row.path));
-  const matchedDirectoryPaths = matchedRows
-    .filter((row) => row.type === "directory")
-    .map((row) => row.path);
+  // 修复：旧实现的后两轮判断是平方级——每个未命中目录行都要线性扫描全部命中行
+  // （matchedRows.some(isWorkspaceFilePathInside)），每个未命中行还要线性扫描全部命中目录；
+  // 文件树搜索按 fileSearchQuery 逐字符整树重算，千级行数下一次键入就是数十万次前缀比较。
+  // 这里只在本次调用内把命中信息各建成一个归一化路径集合，判断改为 O(1) 成员查询加逐级上溯，
+  // 不新增跨调用缓存，也不改变可见性契约。
+  const matchedDescendantPrefixes = new Set<string>();
+  const matchedDirectoryPaths = new Set<string>();
+  for (const matchedRow of matchedRows) {
+    const normalizedMatchedPath = normalizeForRelativePath(matchedRow.path);
+    if (matchedRow.type === "directory") {
+      matchedDirectoryPaths.add(normalizedMatchedPath);
+    }
+    // isWorkspaceFilePathInside(ancestor, matched) 为真当且仅当 ancestor 与 matched 的归一化
+    // 路径相等、或是 matched 按 "/" 分段后的某个前缀；因此登记 matched 自身与全部分段前缀，
+    // 与旧 some 扫描逐字节等价（含尾斜杠、反斜杠、大小写与 UNC 边界）。
+    matchedDescendantPrefixes.add(normalizedMatchedPath);
+    let matchedBoundary = normalizedMatchedPath.lastIndexOf("/");
+    while (matchedBoundary >= 0) {
+      matchedDescendantPrefixes.add(
+        normalizedMatchedPath.slice(0, matchedBoundary).replace(/\/+$/, ""),
+      );
+      if (matchedBoundary === 0) break;
+      matchedBoundary = normalizedMatchedPath.lastIndexOf("/", matchedBoundary - 1);
+    }
+  }
 
   return changedFilteredRows.filter((row) => {
     if (matchedPathSet.has(row.path)) {
       return true;
     }
 
-    if (
-      row.type === "directory" &&
-      matchedRows.some((matchedRow) => isWorkspaceFilePathInside(row.path, matchedRow.path))
-    ) {
+    const normalizedRowPath = normalizeForRelativePath(row.path);
+    if (row.type === "directory" && matchedDescendantPrefixes.has(normalizedRowPath)) {
       return true;
     }
 
-    return matchedDirectoryPaths.some((directoryPath) =>
-      isWorkspaceFilePathInside(directoryPath, row.path),
-    );
+    // 反向判断「行位于某个匹配目录之内」：从行自身开始逐级上溯查匹配目录集合，
+    // 行自身那一级覆盖「与匹配目录仅原始分隔符/尾斜杠不同」的归一化相等情形。
+    if (matchedDirectoryPaths.has(normalizedRowPath)) {
+      return true;
+    }
+    let boundary = normalizedRowPath.lastIndexOf("/");
+    while (boundary >= 0) {
+      if (matchedDirectoryPaths.has(normalizedRowPath.slice(0, boundary).replace(/\/+$/, ""))) {
+        return true;
+      }
+      if (boundary === 0) break;
+      boundary = normalizedRowPath.lastIndexOf("/", boundary - 1);
+    }
+    return false;
   });
 }
 

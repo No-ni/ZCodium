@@ -343,6 +343,19 @@
     desktop continuous 的本地 HTML 直开使用这条查询路径；手机 replayable 仍通过原产物
     tab 读取字节，协议与会话执行所有者不变。
 
+47. 正文预览引用的词法解析由 shared 现有解析器统一负责：仅对 `file://` URL 的
+    pathname 解码一次，使编码的 `#`、`?`、`&` 等还原为文件名字符；双重编码
+    `%2523` 只还原为字面 `%23`，普通文件路径不作 URL 解码。编码的分隔符
+    `%2F`、`%5C`（大小写均适用）拒绝成为引用，不能在解码后新增路径段。 非 `localhost` 主机名必须优先保留为 UNC 命名空间，不能因 pathname 呈盘符形状而转成本地路径。
+    绝对路径归一化须保留 UNC 的 `//server/share` 命名空间及 Windows 盘符根，
+    原始路径或 cwd 相对引用的 `..` 均不能弹出这些根。合法父目录引用仍按会话 cwd
+    解析，候选构建再用 workspacePath 作唯一词法边界；不同盘符、不同 share、同名前缀
+    邻居及工作区外引用继续拒绝。UNC 与单斜线本地路径不等价，本地工作区 `/` 也不能
+    接纳 UNC 引用。候选 sourceRef 保留解析后的路径，fileChanges 与正文共用解析根。
+    验收直接导入实际解析、引用提取及候选构建导出，覆盖编码、根保护和边界正反对照；
+    这些是无 IO 的词法回归，不替代 artifactSource 的 realpath/字节读取授权或真机验收。
+    desktop continuous 与手机 replayable 继续复用原有 Host、身份及读取所有者，不改协议。
+
 ```mermaid
 sequenceDiagram
   participant UI as 产物 UI

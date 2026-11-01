@@ -77,13 +77,20 @@ export namespace Event {
   export function once<T>(event: Event<T>): Event<T> {
     return (listener) => {
       let fired = false;
-      const disposable = event((e) => {
+      let disposable: IDisposable | undefined;
+      // 源事件可能在返回句柄前同步投递；先终结通知，再在句柄取得后走同一幂等释放入口。
+      const subscription = event((e) => {
         if (!fired) {
           fired = true;
-          disposable.dispose();
+          disposable?.dispose();
           listener(e);
         }
       });
+      disposable = toDisposable(() => {
+        fired = true;
+        subscription.dispose();
+      });
+      if (fired) disposable.dispose();
       return disposable;
     };
   }

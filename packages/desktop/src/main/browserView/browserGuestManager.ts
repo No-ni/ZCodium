@@ -3429,7 +3429,8 @@ export class BrowserGuestManager {
 
   private setupDownloadTracking(tab: ManagedTab, guest: GuestWebContents): void {
     tab.downloadCleanup?.();
-    if (!guest.session) return;
+    const session = guest.session;
+    if (!session) return;
     const listener = (_event: unknown, item: GuestDownloadItem, contents: GuestWebContents) => {
       if (contents !== guest || tab.guest !== guest || tab.lifecycle === "closed") return;
       const downloadId = `iab-download:${randomUUID()}`;
@@ -3456,8 +3457,13 @@ export class BrowserGuestManager {
         this.queuedDownloads.set(tab.tabId, queued);
       }
     };
-    guest.session.on("will-download", listener);
-    tab.downloadCleanup = () => guest.session?.removeListener("will-download", listener);
+    session.on("will-download", listener);
+    // 修复原因：will-download 监听挂在 Session 上，而内置浏览器全部 tab 共享同一个持久
+    // partition（persist:zcode-embedded-browser），Session 不随 guest（WebContents）销毁而
+    // 释放；且已销毁 guest 上再访问 guest.session 会抛 "Object has been destroyed"。
+    // 这里在 attach 时捕获 session，cleanup 只引用已捕获对象：guest 先被销毁
+    // （renderer 崩溃 / webview 换代 / 挂起换壳）时也能可靠摘除，不在共享 session 上累积。
+    tab.downloadCleanup = () => session.removeListener("will-download", listener);
   }
 
   private waitForDownload(
@@ -4327,12 +4333,14 @@ export class BrowserGuestManager {
     }
     this.pendingDialogs.delete(tab.tabId);
     try {
-      // Electron 会在 renderer 卸载 <webview> 时先销毁 guest；此时 listener 已随对象释放，
-      // 再调用 session.removeListener 只会产生无意义的 "Object has been destroyed" 日志。
-      if (!guestDestroyed) tab.downloadCleanup?.();
+      // 修复原因：下载监听挂在共享 Session 上而非 guest 自身，guest 已销毁时监听依然存在；
+      // 旧代码以 guestDestroyed 跳过摘除，监听会随 tab 崩溃/换代/换壳在同一共享 session 上
+      // 线性累积，且每次下载事件都会遍历全部陈旧监听。setupDownloadTracking 已捕获 session，
+      // 摘除不再访问 guest.session，也无 "Object has been destroyed" 风险，故两种出口都必须执行。
+      // 注意：activity/crash guard 等挂在 guest 自身的监听仍保留 guestDestroyed 守卫。
+      tab.downloadCleanup?.();
     } catch (error) {
-      // guest renderer 被 Chromium 杀死后，旧 session 的 removeListener 也会抛
-      // "Object has been destroyed"；清理失败不能阻断替代 guest 的 CDP 重新绑定。
+      // 极端情况下 session.removeListener 失败不能阻断替代 guest 的 CDP 重新绑定。
       this.log?.(
         `[browser-use] detachGuest download cleanup failed tabId=${tab.tabId} error=${
           error instanceof Error ? error.message : String(error)

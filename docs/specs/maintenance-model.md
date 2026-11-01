@@ -286,6 +286,64 @@ Windows Node 24.18.0 / pnpm 10.33.2，仓库 pin Node 24.14.0；不安装/切换
 
 主要项目内证据为 `root-final-*-results.json`、`workflow-vitest-results.json`、`agent-tests-1793264985819-results.json`、`ci-final-1793266905044-results.json`、`a-VwLSSw/results.json` 及 `window-sync-direct-log-4Yy5Kq` / `window-sync-direct-log-jWKTAd` 下日志；全部位于 `.run-logs/project-only-validation/`，不是仓库内容。最终通过不改写首次整批失败、Edge 受限或其余未执行边界。
 
+### 2026-10-30：当前工作树确定性 bug 审查
+
+本轮只审查并修复当前工作树，不同步新的上游基线，不改版本号、产品身份、数据根、更新源或发布状态。保留无关本地改动，未提交、推送、打包或触发工作流。
+
+- **Catalog 请求头**：认证默认头与用户头按名称大小写不敏感合并，最后的自定义名称和值胜出，输入不变；发现与 fallback 使用同一结果，端点、超时与持久化不变。
+- **预览路径**：file URL 只解码一次，普通路径的百分号保持字面值；编码分隔符拒绝后不经其他提取分支复活。保留 UNC、盘符根及非 localhost 主机名，保护根段，区分本地与 UNC 命名空间。这里只保证候选路径的词法规范化和边界，不代表 realpath/符号链接授权或已证实的数据泄漏；ArtifactSource、Host 与 identity 契约未变。
+- **RPC scope 与路由等待**：scope 先登记再订阅；握手前断开、同步重入关闭、迟到句柄和重复关闭统一终结。监听与通道只由同一资源列表释放，连接对象只是派生活跃视图；服务端初始化关闭后不再构造客户端。未路由等待取消、dispose、失败与正常移交统一 finish，正常移交不取消业务 token；标识结果按 ctx 选择，显式连接结果必须保持当前活跃对象身份。抛错的外部清理不阻断本方剩余清理。外部 protocol/socket 与忽略取消的 router 自建资源仍归原 owner，不改变 wire、事件路由、Host/lease、CommandInbox 或 continuous/replayable 业务语义。
+
+实际验证：三项生产源码定向回归分别 26/26、33/33、31/31，共 90 项；三个永久入口与两项边界守卫共 18/18 外层测试，其中 15 项是审计/桌面平台边界，不把包装层再计入 90 项。现有 RPC 五文件 55/55；新增 RPC 两套测试与真实源码的独立严格 TypeScript 检查退出 0。另补双连接取消重入场景：旧逻辑取消后仍执行第二个筛选谓词、第二次 ctx getter，31 项中仅这 2 项失败；逐候选检查终态与仅读一次标识后通过。初始化关闭场景另以累计订阅暴露旧逻辑的 3 次订阅（期望 2 次），修复后通过，不能以最终监听归零掩盖额外构造。
+
+根 typecheck、lint、fmt:check、architecture --changed 与 CLI registry 检查退出 0。整合 gates 仍退出 1：CLI lint 是既有 79 errors/55 warnings，134 条诊断按消息和源码位置归一化后与旧日志相同，仅输出顺序不同；未降低 lint/架构门槛或修改 CLI 来隐藏欠账。RPC 在现有策略中仍是 legacy 未纳管、owner 未分配，根架构门禁通过不表示补齐其长期模块治理。
+
+所有显式测试、缓存与日志目标位于项目内隔离目录，启动前检查路径、链接/重解析点及子进程环境；未使用真实用户目录、真实业务数据根或系统临时目录作为测试目标。Node permission 不能单独证明 native addon/子进程完整隔离。当前验证为 Node 24.18.0、pnpm 10.33.2，未按仓库固定的 Node 24.14.0 复验；没有真实模型网络、实体手机、完整 Electron/安装版、真实远端/Socket 或全量语料验收，未执行未完成 IO 审查的文件引用集成测试。此前全量/固定版本的历史结果不能冒充本次验收。
+
+永久回归入口（从仓库根执行）：
+
+```sh
+node --test scripts/ci/provider-model-catalog-regression.test.mjs
+node --test scripts/ci/conversation-preview-path-regression.test.mjs
+node --test scripts/ci/ipc-server-lifecycle-regression.test.mjs
+```
+
+### 2026-10-30：固定工具链复核与相邻缺陷修复
+
+本轮继续审查当前工作树，不同步或改版本，不提交、推送、打包、安装、启动应用或触发工作流。使用项目内固定 Node 24.14.0 / pnpm 10.33.2；freshness 退出 0（ahead 0 / behind 0），补上上一节未固定 Node 版本的验证边界，保留无关工作树改动。
+
+- HTTP 静态资源：复核词法与 realpath 双重包含边界，覆盖 Windows 不同盘符、合法点号前缀、目录与 SPA index；返回已校验的逻辑文件名以保留 MIME/缓存语义。未做物理 junction 或并发替换验收。
+- 延迟 RPC：订阅按监听周期唯一归属，旧周期清理不能夺走新周期槽位或结束新 Event；保持惰性、call 拒绝和现有 wire。补充真实同步重入与外部 disposer 抛错场景；一条新增测试的旧时序安排错误已通过实跑确认并修正，没有为错误测试改产品。控制副本 15/15；分别移除两个 isCurrent 守卫的副本为 13/15、14/15，均被预期用例检出；真实源码未受变异影响。
+- Workspace：必需 inventory 先同步，失败的可选 directory 投影不抛错、不发送、不消耗 generation；补证 legacy 路径 fallback、remoteSessionId 与 lastConnectionError 保留/投影剥离。Host 替换、postMessage 抛错与窗口关闭后的 generation 清理未验收。
+- 自动化：成功回执与计数由 Repo 单事务结算，复核幂等、成功终态和旧轮次归属；新增实测发现旧轮次首个失败会改写新认领的退避/终态，19 项中 4 项失败，补定时轮次归属守卫后 19/19。失败事实仍由 scheduler 写 run 台账，manual、无 runId 的 legacy 路径及当前轮次退避不变。yearly 只校验最终规范化/重锚定的月日组合，保留 Feb 29 和 monthly 原语义。
+- 测试写边界：三套自动化夹具统一经中央 owner 写前拒绝，生命周期旧夹具实测未拒绝未绑定执行，迁移后 3 个未绑定场景全部通过；其余两套旧缺陷仅依据源码写入顺序，未把推断写成旧代码红测。全部测试、SQLite、缓存、编译产物与日志位于项目工作树；未使用真实业务根或外部 TEMP，native/子进程隔离不只依赖 Node permission。
+
+统一回归实测 **190 项通过**，不重复计入包装层：HTTP 35、延迟 RPC 15、workspace 4、结算 19、yearly 7、夹具隔离 3、IPC 生命周期 31、provider catalog 26、预览路径 33、自动化生命周期 8、审计边界 9。HTTP/RPC/三套自动化源码测试的 package-aligned noEmit 三组均退出 0；最初临时配置错误造成的失败已在按各包配置重建后消除，未通过放宽产品类型来绕过。
+
+根 typecheck、lint、fmt:check、architecture --changed 与 CLI registry 均退出 0（`resume-gates-jnAoCQ`）。整合门禁仍退出 1：CLI lint 保留既有 **79 errors / 55 warnings**；完整读取新旧日志，按文件、行列、严重性和消息归一化的 134 条诊断完全相同，新增/移除均为 0，比较结果另存同沙箱。未修改 CLI 或下调检查规则来掩盖该欠账。
+
+证据均保留在项目内忽略目录：统一回归 `resume-regressions-J2AA44`、noEmit `resume-types-jHRhB4`、失败回执红测 `resume-targeted-CUnvjo`、夹具红测 `resume-targeted-gWPoSV` 与绿测 `resume-targeted-GnWDQu`、RPC 副本变异 `dc-mutation-verify-0HL9Te`，根路径为 `.run-logs/project-only-validation/`。永久入口和细分验收见 [HTTP](http-static-resource-boundary.md)、[RPC](rpc-delayed-channel-subscription.md)、[自动化](automation-lifecycle-controls.md) 与 [窗口目录](../../.agents/specs/official-3.16.2-mobile-window-directory.md)。
+
+仍未运行完整 Electron/手机/真实模型网络验收，也未覆盖物理 junction、并发文件替换、失败结算跨进程读写竞争或全部存量临时夹具。架构检查的零违规不等于 session/RPC 的 legacy 模块已完成治理，未刷新 baseline、降低门槛或宣称全项目无缺陷。
+
+## 近期未提交修改复核与收口（2026-11-01）
+
+用户授权整体复核最近修改、修复确定问题，验证后提交并只推送 `origin = No-ni/ZCodium`。本次基线为 `187232e2`，开工 freshness 显示 main 与 origin/main 同步。保留当前工作树已有的 RPC、自动化、文件搜索、存储扫描、UI 派生计算和远控修复，不同步上游、不改变版本或发行配置、不触发 Actions、不打包安装包。
+
+本次重新执行各模块的源码回归，而非沿用历史绿灯。复现并修复历史导入与退役 ACP 夹具的四个异步启动遗漏，八项业务断言和按 services 配置的 noEmit 检查通过；数据库仍由 `prepareTasksIndexStorage` 唯一准备，未放松生产迁移守卫。测试目录统一经中央沙箱写前验证和清理前复核。RPC dispose 的两份集合快照保留，并说明同步外部回调重入时的用途。
+
+CLI 独立 Lint 实际为 **79 errors / 55 warnings，exit 1**。本轮两个 CLI 源使用同一根 oxlint 二进制和 CLI 配置，对 HEAD 原文与当前文件逐项比较：runner-generate 均只有 max-lines 522 / 上限 400，runner-retry 均无诊断；其余 CLI Lint 输入、配置与 HEAD 没有改动。没有新增诊断类别，既有失败仍未解决，不放宽规则或更新架构 baseline。
+
+本地验证使用项目内已有 Node 24.14.0、Corepack pnpm 10.33.2，HOME/TEMP/业务数据/缓存/日志/profile 均绑定当前工作树；不使用真实用户数据库或常驻浏览器。首次审计因本次 runner 漏掉 Git PATH 而失败，修正环境后九项守卫通过；环境失败不记为产品缺陷或验收通过。日志保存在 `.run-logs/project-only-validation/`，不提交测试数据、缓存、产物与根目录三个既有未知 shell 残留。
+
+助手工作项投影的既有十四项性能回归中，两项预算失败揭示生产优化尚未落地。补齐调用内派生 helper 与接线，保留 CUA 自己的转换 owner、分类规则、行顺序和字段；同一十八行合成负载的 legacy 转换 36 → 18 次、身份解析 72 → 18 次，十四项输出等价及预算回归通过。详见 [助手工作项投影](performance-rescan-assistant-work-items.md)。IPv6 复核保留 builder 可构造的合法未指定地址 `::`，路径解析继续只判断必选段边界，实际地址由原连接入口验证；二十一项身份回归通过。
+
+最终统一执行四十五个近期回归入口：四十七项包装层通过，内部 444 项 Node 源码测试与 122 项 Vitest 用例通过，三个未绑定夹具拒绝场景在包装层单独计数，不重复计入内部 566 项。另执行会话批量/Store/差分与手机协议八十九项、既有 RPC 五十五项及审计守卫九项，均通过。统一入口日志为 `review-recent-integration-5c5kqP/logs/command.log`，逐组计数为同沙箱 `inner-summary.json`，根路径均为 `.run-logs/project-only-validation/`。
+
+最终根 typecheck、lint、fmt:check、changed 架构均 exit 0；Lint 为零警告零错误，架构 violations/baseline/new 均零。CLI typecheck 和历史夹具按 services 配置的 noEmit 检查通过，CLI 独立 Lint 的既有失败按上文保留。修复中的一次 root 类型检查与 Lint 捕获到派生 helper 接线尚未完整的中间状态；该失败不归为既有债，最终固定源码已重新检查通过。
+
+项目内 Chromium 手机 UI + 真实 LAN/Channel RPC smoke 通过，覆盖断线重连、草稿保留、迟到/丢失 ACK、同 ID 重试、跨目标隔离与远端会话替换。日志为 `five-rounds-mobile-e2e-D1xsCe/logs/mobile-e2e.log`；WebKit 未安装，跳过其浏览器场景，未下载补齐。该证据不代表完整 Electron、真实 PTY、真实 Docker/SSH、实体手机或模型 API 验收；源码和回归提交仅推送本 fork，不自动构建。
+
 ## 例外
 
 - 本地诊断：安全本地日志可用；后台采样和对外导出分别默认关闭，导出仅使用用户自建接收端，无官方默认地址。

@@ -5,6 +5,7 @@ import { glob, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import type { SSHConfigAliasOption } from "@zcode/shared";
+import { createSshConfigAliasCatalog } from "./sshConfigAliasCatalog.js";
 
 const CACHE_TTL_MS = 30_000;
 const MAX_ALIAS_COUNT = 200;
@@ -28,11 +29,6 @@ interface AliasMeta {
   alias: string;
   source: string;
 }
-
-let aliasCache: {
-  expiresAt: number;
-  options: SSHConfigAliasOption[];
-} | null = null;
 
 function cloneAliasOptions(options: SSHConfigAliasOption[]): SSHConfigAliasOption[] {
   return options.map((option) => ({ ...option }));
@@ -639,28 +635,16 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export async function listSSHConfigAliasesFromLocalConfig(): Promise<SSHConfigAliasOption[]> {
-  const now = Date.now();
-  if (aliasCache && aliasCache.expiresAt > now) {
-    return cloneAliasOptions(aliasCache.options);
-  }
-
+/** 完整扫描一次 SSH config（含 Include 展开与 ssh -G/fallback）；空结果由上层 catalog 按同一 TTL 缓存。 */
+async function loadSshConfigAliases(): Promise<SSHConfigAliasOption[]> {
   const rootConfigPath = join(homedir(), ".ssh", "config");
   if (!existsSync(rootConfigPath)) {
-    aliasCache = {
-      expiresAt: now + CACHE_TTL_MS,
-      options: [],
-    };
     return [];
   }
 
   const blocks = await parseConfigBlocks(rootConfigPath, new Set<string>(), 0);
   const aliasMetas = buildAliasMetas(blocks);
   if (aliasMetas.length === 0) {
-    aliasCache = {
-      expiresAt: now + CACHE_TTL_MS,
-      options: [],
-    };
     return [];
   }
 
@@ -700,9 +684,21 @@ export async function listSSHConfigAliasesFromLocalConfig(): Promise<SSHConfigAl
           } satisfies SSHConfigAliasOption;
         });
 
-  aliasCache = {
-    expiresAt: now + CACHE_TTL_MS,
-    options,
-  };
-  return cloneAliasOptions(options);
+  return options;
+}
+
+/**
+ * alias 列表的唯一缓存与在途合并点（TTL + 单飞）：并发首调不再各自重扫并重复 spawn ssh -G。
+ * 不变量（TTL 锚定调用开始、严格 expiresAt > now、返回经 clone、拒绝清 flight 可重试、
+ * 慢扫描超过 TTL 时加入者只获得在途快照）见 docs/specs/ssh-config-alias-single-flight.md。
+ */
+const aliasCatalog = createSshConfigAliasCatalog<SSHConfigAliasOption[]>({
+  load: loadSshConfigAliases,
+  now: () => Date.now(),
+  ttlMs: CACHE_TTL_MS,
+  clone: cloneAliasOptions,
+});
+
+export async function listSSHConfigAliasesFromLocalConfig(): Promise<SSHConfigAliasOption[]> {
+  return aliasCatalog.read();
 }

@@ -101,8 +101,14 @@ export function buildProviderModelCatalogAttempts(
       : request.apiType === "google-generative-ai"
         ? { "x-goog-api-key": request.apiKey }
         : { Authorization: `Bearer ${request.apiKey}` };
-  // 自定义 headers 同名覆盖内置鉴权头：网关把密钥放在自定义头时不能让内置头把它顶掉。
-  const headers = { ...authHeaders, ...request.headers };
+  // HTTP 头名不区分大小写；对象展开会保留两份鉴权头并被拼接，必须按同名后项覆盖。
+  const headersByName = new Map<string, readonly [string, string]>();
+  for (const source of [authHeaders, request.headers ?? {}]) {
+    for (const [name, value] of Object.entries(source)) {
+      headersByName.set(name.toLowerCase(), [name, value]);
+    }
+  }
+  const headers = Object.fromEntries(headersByName.values());
   const paths: readonly [string, string] = resolveCatalogPaths(request.apiType, base);
   return [
     { url: `${base}${paths[0]}`, headers },

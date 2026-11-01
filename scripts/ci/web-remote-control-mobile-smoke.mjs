@@ -743,7 +743,8 @@ async function reconnectChromium(page, context, endpoint, device) {
 
 async function assertViewScrollIsolationV4(page, tailText, expectedDraft) {
   await page.getByRole("button", { name: "返回任务首页" }).click();
-  await page.getByRole("heading", { name: "ZCode 远程控制", exact: true }).waitFor();
+  // fork 首页标题已经是 ZCodium；等待旧上游名称会让真实恢复回归在正确界面超时。
+  await page.getByRole("heading", { name: "ZCodium 远程控制", exact: true }).waitFor();
   assert.equal(
     await page.getByRole("main").evaluate((node) => node.scrollTop),
     0,
@@ -1178,7 +1179,7 @@ async function assertCrossTargetDrafts(page, device, local, remote, evidenceDir,
   const send = page.getByRole("button", { name: "发送", exact: true });
   const home = async () => {
     await page.getByRole("button", { name: "返回任务首页" }).click();
-    await page.getByRole("heading", { name: "ZCode 远程控制", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "ZCodium 远程控制", exact: true }).waitFor();
   };
   const open = async (remoteTarget) => {
     await page
@@ -1255,7 +1256,7 @@ async function assertRemoteSessionIsolation(page, device, local, remote, evidenc
   const freshDraft = `${prefix}新远端 session 的独立草稿`;
   const home = async () => {
     await page.getByRole("button", { name: "返回任务首页" }).click();
-    await page.getByRole("heading", { name: "ZCode 远程控制", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "ZCodium 远程控制", exact: true }).waitFor();
   };
   const updateTargets = () =>
     device.sendPayload({

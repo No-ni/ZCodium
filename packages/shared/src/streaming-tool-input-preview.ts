@@ -50,6 +50,7 @@ const PARTIAL_JSON_STRING_FIELD_KEYS = [
   "name",
   "script",
 ] as const;
+const PARTIAL_JSON_STRING_FIELD_KEY_SET = new Set<string>(PARTIAL_JSON_STRING_FIELD_KEYS);
 
 export function appendZCodeStreamingToolInputDelta(
   state: ZCodeStreamingToolInputState | undefined,
@@ -153,46 +154,82 @@ function parseCompleteJson(value: string): { ok: true; value: unknown } | { ok: 
 
 function readPartialJsonObjectPreview(rawInput: string): Record<string, string> | null {
   const preview: Record<string, string> = {};
-  for (const key of PARTIAL_JSON_STRING_FIELD_KEYS) {
-    const value = readPartialJsonStringField(rawInput, key);
-    if (value !== undefined) {
-      preview[key] = value;
+  let index = skipJsonWhitespace(rawInput, 0);
+  if (rawInput[index] !== "{") return null;
+  index += 1;
+  // 逐字段扫描顶层 object，避免嵌套路径外溢及每个白名单字段重复扫描整段大输入。
+  while (index < rawInput.length) {
+    index = skipJsonWhitespace(rawInput, index);
+    if (rawInput[index] !== '"') break;
+    const keyEnd = readJsonStringEnd(rawInput, index + 1);
+    if (!keyEnd.closed) break;
+    const key = decodeJsonStringSegment(rawInput.slice(index + 1, keyEnd.index), true);
+    index = skipJsonWhitespace(rawInput, keyEnd.index + 1);
+    if (rawInput[index] !== ":") break;
+    index = skipJsonWhitespace(rawInput, index + 1);
+    const known = PARTIAL_JSON_STRING_FIELD_KEY_SET.has(key);
+    if (rawInput[index] === '"') {
+      const valueEnd = readJsonStringEnd(rawInput, index + 1);
+      if (known) {
+        preview[key] = decodeJsonStringSegment(
+          rawInput.slice(index + 1, valueEnd.index),
+          valueEnd.closed,
+        );
+      }
+      if (!valueEnd.closed) break;
+      index = valueEnd.index + 1;
+    } else {
+      if (known && index < rawInput.length) delete preview[key];
+      index = skipJsonValue(rawInput, index);
     }
+    index = skipJsonWhitespace(rawInput, index);
+    if (rawInput[index] !== ",") break;
+    index += 1;
   }
   return Object.keys(preview).length > 0 ? preview : null;
 }
 
-function readPartialJsonStringField(rawInput: string, key: string): string | undefined {
-  const match = new RegExp(`"${escapeRegExp(key)}"\\s*:\\s*"`).exec(rawInput);
-  if (!match) {
-    return undefined;
-  }
-
-  let encoded = "";
-  let escaped = false;
-  let closed = false;
-  for (let index = match.index + match[0].length; index < rawInput.length; index += 1) {
-    const char = rawInput[index] ?? "";
-    if (escaped) {
-      encoded += `\\${char}`;
-      escaped = false;
-      continue;
-    }
-    if (char === "\\") {
-      escaped = true;
-      continue;
-    }
+function readJsonStringEnd(rawInput: string, start: number): { index: number; closed: boolean } {
+  for (let index = start; index < rawInput.length; index += 1) {
+    const char = rawInput[index];
     if (char === '"') {
-      closed = true;
-      break;
+      return { index, closed: true };
     }
-    encoded += char;
+    if (char === "\\") index += 1;
   }
-  if (escaped) {
-    encoded += "\\";
-  }
+  return { index: rawInput.length, closed: false };
+}
 
-  return decodeJsonStringSegment(encoded, closed);
+function skipJsonWhitespace(rawInput: string, start: number): number {
+  let index = start;
+  while (
+    rawInput[index] === " " ||
+    rawInput[index] === "\t" ||
+    rawInput[index] === "\r" ||
+    rawInput[index] === "\n"
+  )
+    index += 1;
+  return index;
+}
+
+function skipJsonValue(rawInput: string, start: number): number {
+  let depth = 0;
+  for (let index = start; index < rawInput.length; index += 1) {
+    const char = rawInput[index];
+    if (char === '"') {
+      const end = readJsonStringEnd(rawInput, index + 1);
+      if (!end.closed) return rawInput.length;
+      index = end.index;
+    } else if (char === "{" || char === "[") {
+      depth += 1;
+    } else if (char === "}" || char === "]") {
+      if (depth === 0) return index;
+      depth -= 1;
+    } else if (char === "," && depth === 0) {
+      return index;
+    }
+  }
+  return rawInput.length;
 }
 
 function decodeJsonStringSegment(encoded: string, closed: boolean): string {
@@ -205,7 +242,12 @@ function decodeJsonStringSegment(encoded: string, closed: boolean): string {
 }
 
 function trimDanglingJsonEscape(value: string): string {
-  return value.replace(/\\u[0-9a-fA-F]{0,3}$/, "").replace(/\\$/, "");
+  const tail = /\\(?:u[0-9a-fA-F]{0,3})?$/.exec(value);
+  if (!tail) return value;
+  let backslashes = 1;
+  for (let index = tail.index - 1; value[index] === "\\"; index -= 1) backslashes += 1;
+  // 偶数反斜杠已完成转义，尾部的字面 u12 不能被当作半截 Unicode 丢弃。
+  return backslashes % 2 === 0 ? value : value.slice(0, tail.index);
 }
 
 function decodeJsonStringSegmentBestEffort(value: string): string {
@@ -215,8 +257,4 @@ function decodeJsonStringSegmentBestEffort(value: string): string {
     .replace(/\\t/g, "\t")
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, "\\");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

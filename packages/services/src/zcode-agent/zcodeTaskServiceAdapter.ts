@@ -4580,8 +4580,15 @@ function mapToolUpdated(
     // 去掉 ZCode Agent 后如果不记住前序 ToolCallScheduled 的 TodoWrite 名称，result 里的 todos
     // 就只能当普通字符串输出，无法继续投射成顶部 todo/plan 事件。
     const toolName = rememberedToolName;
-    const content = normalizeToolResultContent(toolName, result);
-    const status = toolResultStatus(toolName, result);
+    // 性能修复：normalizeToolResultContent 与 toolResultStatus 都会对 result.content 执行
+    // parseJsonRecord（分别经 parseAgentActivityResultContent 与 isBackgroundAgentLaunchResult），
+    // 同一个 tool_call_update 事件把同一份 content 全量解析两次；大 JSON 工具输出每次事件
+    // 都白付一次全量 parse。这里在调用内解析一次并复用，保持两个消费方的投影判定与顺序；
+    // 空白串无需解析、仍按原文投影（TodoWrite 在 shared tool-plan-adapter 的第三次 parse 不在本层，
+    // 因此普通工具 2→1、TodoWrite 3→2）。
+    const parsedResultContent = parseToolResultContentOnce(result.content);
+    const content = normalizeToolResultContent(toolName, result, parsedResultContent);
+    const status = toolResultStatus(toolName, result, parsedResultContent);
     const toolEvent: ZCodeStreamEvent = {
       type: "tool_call_update",
       taskId,
@@ -4665,11 +4672,12 @@ function mapToolUpdated(
 function toolResultStatus(
   toolName: string | undefined,
   result: Record<string, unknown>,
+  parsedContent?: Record<string, unknown> | null,
 ): Extract<ZCodeStreamEvent, { type: "tool_call_update" }>["status"] {
   if (result.success === false) {
     return "failed";
   }
-  if (isBackgroundAgentLaunchResult(toolName, result)) {
+  if (isBackgroundAgentLaunchResult(toolName, result, parsedContent)) {
     // Agent 后台启动 ACK 只是子 agent 已创建，不代表子 agent 已完成；
     // 投影成 completed 会让前端在真实 completion 前把 subagent 卡片误标为完成。
     return "in_progress";
@@ -4680,6 +4688,7 @@ function toolResultStatus(
 function isBackgroundAgentLaunchResult(
   toolName: string | undefined,
   result: Record<string, unknown>,
+  parsedContent?: Record<string, unknown> | null,
 ): boolean {
   const content = stringValue(result.content);
   if (!content) {
@@ -4691,7 +4700,8 @@ function isBackgroundAgentLaunchResult(
   ) {
     return true;
   }
-  const parsed = parseJsonRecord(content);
+  // 复用调用内已解析的结果（含 {} 与 null 负结果），不重新 parse。
+  const parsed = parsedContent !== undefined ? parsedContent : parseJsonRecord(content);
   const parsedStatus = stringValue(parsed?.status);
   return (
     parsed !== null &&
@@ -4752,20 +4762,23 @@ function parentToolUseIdFromToolPayload(payload: Record<string, unknown>): strin
 function normalizeToolResultContent(
   toolName: string | undefined,
   result: Record<string, unknown>,
+  parsedContent?: Record<string, unknown> | null,
 ): unknown {
   const content = result.content;
-  const agentActivity = parseAgentActivityResultContent(toolName, content);
+  const agentActivity = parseAgentActivityResultContent(toolName, content, parsedContent);
   return agentActivity ?? stringValue(content);
 }
 
 function parseAgentActivityResultContent(
   toolName: string | undefined,
   content: unknown,
+  parsedContent?: Record<string, unknown> | null,
 ): { kind: "agent_activity"; content: string; thought?: string } | null {
   if (typeof content !== "string" || content.trim().length === 0) {
     return null;
   }
-  const parsed = parseJsonRecord(content);
+  // 复用调用内已解析的结果（含 {} 与 null 负结果），不重新 parse。
+  const parsed = parsedContent !== undefined ? parsedContent : parseJsonRecord(content);
   if (!parsed) {
     return null;
   }
@@ -4797,6 +4810,16 @@ function parseJsonRecord(value: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 工具结果 content 的调用内单次解析：仅对非空白字符串调用 parseJsonRecord。
+ * 空白串原先会在状态分支尝试解析并失败，现在复用 null，原文与状态投影不变。
+ * parseJsonRecord 对有效非对象 JSON 返回 {}、对无效 JSON 返回 null；
+ * 两类负结果都随复用下发，消费方据此判定，不重新 parse。
+ */
+function parseToolResultContentOnce(content: unknown): Record<string, unknown> | null {
+  return typeof content === "string" && content.trim().length > 0 ? parseJsonRecord(content) : null;
 }
 
 function agentTextFromContentField(value: unknown): string | undefined {

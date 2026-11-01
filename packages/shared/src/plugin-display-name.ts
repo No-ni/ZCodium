@@ -1,10 +1,12 @@
 import type { ZCodePluginStoreListing } from "./zcode-protocol/index.js";
 
-const CANONICAL_PLUGIN_NAME_ACRONYMS: Readonly<Record<string, string>> = {
-  aws: "AWS",
-  mcp: "MCP",
-  zcode: "ZCode",
-};
+// 合法 slug 可含 constructor；普通对象索引会读到原型函数并把源码显示为名称。
+// 缩写只查显式键，不改变其余分段的 locale 大写与原始大小写规则。
+const CANONICAL_PLUGIN_NAME_ACRONYMS: ReadonlyMap<string, string> = new Map([
+  ["aws", "AWS"],
+  ["mcp", "MCP"],
+  ["zcode", "ZCode"],
+]);
 
 /** listing 的多语言字段先精确匹配，再按语言前缀兜底。 */
 export function resolveLocalizedText(
@@ -31,7 +33,7 @@ export function formatCanonicalPluginName(name: string, locale: string): string 
     .filter(Boolean)
     .map(
       (part) =>
-        CANONICAL_PLUGIN_NAME_ACRONYMS[part.toLowerCase()] ??
+        CANONICAL_PLUGIN_NAME_ACRONYMS.get(part.toLowerCase()) ??
         `${part.charAt(0).toLocaleUpperCase(locale)}${part.slice(1)}`,
     )
     .join(" ");

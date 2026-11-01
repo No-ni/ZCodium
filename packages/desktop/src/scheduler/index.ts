@@ -230,14 +230,15 @@ async function settleDispatchResult(
       await settleManualClaim(true);
       return;
     }
-    await repo.markRunDispatch({
+    // scheduled 成功结算走唯一事务 owner：run 台账首次进入 dispatched 与 automations 计数
+    // 推进在同一 Repo 事务完成；同 runId 迟到/重复回报由闸门幂等跳过（spec「成功结算的事务 owner」）。
+    // 不得先 markRunDispatch('dispatched') 再 markDispatched 双写：那会绕过 run 行幂等闸门。
+    await repo.markScheduledRunDispatched({
       runId: msg.runId,
-      dispatchStatus: "dispatched",
       sessionId: msg.sessionId ?? null,
+      dispatchedAt: now,
+      nextRunAtFor: (automation) => computeAutomationNextRunAt(automation, now),
     });
-    const automation = await repo.get(automationId);
-    const nextRunAt = automation ? computeAutomationNextRunAt(automation, now) : null;
-    await repo.markDispatched(automationId, { dispatchedAt: now, nextRunAt });
     return;
   }
 
@@ -255,6 +256,9 @@ async function settleDispatchResult(
     failedAt: now,
     error: msg.error ?? "dispatch failed",
     kind,
+    // 乱序守卫：迟到失败回报不得把已成功结算（dispatched 终态）的 run 拉回失败，
+    // 也不得让 automation 进入幻影重试退避（spec「成功结算的事务 owner」）。
+    runId: msg.runId,
     // transient 达上限后循环任务跳下一个正常 next_run_at。
     nextRunAt: await repo
       .get(automationId)

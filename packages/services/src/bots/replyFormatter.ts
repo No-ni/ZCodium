@@ -267,6 +267,38 @@ function formatToolStatus(
   return t(locale, "pending");
 }
 
+/** UTF-16 高位代理码元（代理对前半）。 */
+function isHighSurrogateCodeUnit(codeUnit: number): boolean {
+  return codeUnit >= 0xd800 && codeUnit <= 0xdbff;
+}
+
+/** UTF-16 低位代理码元（代理对后半）。 */
+function isLowSurrogateCodeUnit(codeUnit: number): boolean {
+  return codeUnit >= 0xdc00 && codeUnit <= 0xdfff;
+}
+
+/**
+ * Bug 修复依据：硬切分支把 remaining 在 MAX_REPLY_MESSAGE_LENGTH 处定长切断，边界可能落在
+ * UTF-16 代理对（emoji 等非 BMP 字符）中间，产出 ill-formed UTF-16 分片；JSON.stringify
+ * 只把孤立代理项转义为 \udXXX（转义而非替换，出站请求体里携带的仍是 ill-formed
+ * 文本）；接收端解码或显示时可能拒绝、替换或呈现乱码（U+FFFD 只是其中一种表现，不承诺
+ * 必然发生）。边界回退一格让代理对整体进入下一片；MAX_REPLY_MESSAGE_LENGTH 为 ≥2 的模块
+ * 常量，回退后游标仍严格前进。换行/空格断点不可能落在代理对中间（代理对码元不是空白），
+ * 无需处理；trim 语义、纯 BMP 输出与空串返回 [] 的行为不变；输入里原本就存在的孤立
+ * 代理项原样保留，不做静默替换。
+ */
+function safeReplyTextCutBoundary(text: string): number {
+  const end = Math.min(MAX_REPLY_MESSAGE_LENGTH, text.length);
+  if (
+    end < text.length &&
+    isHighSurrogateCodeUnit(text.charCodeAt(end - 1)) &&
+    isLowSurrogateCodeUnit(text.charCodeAt(end))
+  ) {
+    return end - 1;
+  }
+  return end;
+}
+
 function splitLongReplyText(text: string): string[] {
   const chunks: string[] = [];
   let remaining = text.trim();
@@ -275,7 +307,7 @@ function splitLongReplyText(text: string): string[] {
       remaining.lastIndexOf("\n", MAX_REPLY_MESSAGE_LENGTH),
       remaining.lastIndexOf(" ", MAX_REPLY_MESSAGE_LENGTH),
     );
-    const end = breakpoint > 0 ? breakpoint : MAX_REPLY_MESSAGE_LENGTH;
+    const end = breakpoint > 0 ? breakpoint : safeReplyTextCutBoundary(remaining);
     chunks.push(remaining.slice(0, end).trim());
     remaining = remaining.slice(end).trim();
   }

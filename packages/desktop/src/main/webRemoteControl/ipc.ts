@@ -74,18 +74,40 @@ export function registerWebRemoteControlIpcHandlers(options: RegisterWebRemoteCo
     if (windowId === undefined) return;
     const parsed = webRemoteControlWorkspaceSyncSchema.parse(payload);
     const host = options.resolveHostProcess?.(event.sender.id);
+    // 修复依据：手机工作区清单是必选链路，窗口目录投影是可选能力
+    // （packages/services/src/window-project-directory/CONTRACT.md：能力缺席保留原目录路径）。
+    // 原来严格投影校验排在 manager().syncWorkspaces 之前，一条只影响投影的旧标签页形态
+    // （只有 remoteSessionId、没有 workspaceIdentity）会让整个同步抛错，被渲染端吞成一条 warn，
+    // 手机端清单从此停在旧值。这里先落必选清单，投影改为 safeParse，失败只跳过投递本身。
+    manager().syncWorkspaces(windowId, parsed.workspaces);
+    if (!host) return;
     const previous = projectionGenerations.get(windowId);
     const generation = previous && previous.host === host ? previous.generation + 1 : 1;
-    const projection = windowProjectDirectorySnapshotSchema.parse({
+    const directory = windowProjectDirectorySnapshotSchema.safeParse({
       version: 1,
       generation,
       workspaces: parsed.workspaces.map(({ lastConnectionError: _error, ...entry }) => entry),
     });
-    manager().syncWorkspaces(windowId, parsed.workspaces);
-    if (host) {
-      host.postMessage({ type: HostMessageTypes.WindowProjectDirectoryProjection, projection });
-      projectionGenerations.set(windowId, { host, generation });
+    if (!directory.success) {
+      // 被拒绝的投影不写 projectionGenerations，因此不占用代际：
+      // 下一次合法载荷仍按同一 Host 的当前起点 +1，不产生倒退或空号。
+      // 诊断只输出原因码、schema 字段名与计数；zod 的 received/expected 值、真实路径与 identity 都不带。
+      logger.warn("[web-remote-control] window directory projection rejected", {
+        windowId,
+        generation,
+        candidates: parsed.workspaces.length,
+        codes: directory.error.issues.map((issue) => issue.code),
+        fields: directory.error.issues.map((issue) =>
+          issue.path.filter((segment) => typeof segment === "string").join("."),
+        ),
+      });
+      return;
     }
+    host.postMessage({
+      type: HostMessageTypes.WindowProjectDirectoryProjection,
+      projection: directory.data,
+    });
+    projectionGenerations.set(windowId, { host, generation });
   });
 
   ipcMain.handle(PlatformChannels.SyncWebRemoteControlTasks, (event, payload: unknown) => {

@@ -2,7 +2,7 @@ import { setImmediate } from "node:timers/promises";
 import type { WorkspaceFileEntry } from "@zcode/shared";
 import { unpackWorkspaceFileEntries } from "@zcode/shared/workspaceFileEntriesCodec";
 import {
-  filterWorkspaceFileSearchCandidates,
+  createWorkspaceFileSearchCandidateSelector,
   mapWorkspaceFileEntriesToSearchCandidates,
   type WorkspaceFileSearchCandidate,
 } from "@zcode/shared/workspaceFileSearch";
@@ -22,20 +22,20 @@ export async function buildHostFileSearchCandidates(packed: string, rootPath: st
   return candidates;
 }
 
+const HOST_FILE_SEARCH_BATCH_SIZE = 2048;
+
 export async function searchHostFileCandidates(
   candidates: WorkspaceFileSearchCandidate[],
   query: string,
   limit: number,
 ): Promise<WorkspaceFileEntry[]> {
-  let best: WorkspaceFileSearchCandidate[] = [];
-  // top-K 的输入按原索引顺序分批；同分时原序稳定，分批合并与整表排序一致。
-  for (let offset = 0; offset < candidates.length; offset += 2048) {
-    best = filterWorkspaceFileSearchCandidates(
-      [...best, ...candidates.slice(offset, offset + 2048)],
-      query,
-      { limit },
-    );
+  const selector = createWorkspaceFileSearchCandidateSelector(query, { limit });
+  // 每批只评分新候选，旧 top-K 的分数和全局索引由单次 selector 保留。
+  for (let offset = 0; offset < candidates.length; offset += HOST_FILE_SEARCH_BATCH_SIZE) {
+    selector.append(candidates.slice(offset, offset + HOST_FILE_SEARCH_BATCH_SIZE));
     await setImmediate();
   }
-  return best.map(({ name, path, relativePath, type }) => ({ name, path, relativePath, type }));
+  return selector
+    .getMatches()
+    .map(({ name, path, relativePath, type }) => ({ name, path, relativePath, type }));
 }

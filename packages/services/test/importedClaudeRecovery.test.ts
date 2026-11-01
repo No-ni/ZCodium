@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import {
@@ -13,10 +12,15 @@ import { getLegacyTaskSessionSnapshotPath, setDataBaseDir } from "../src/paths.j
 import { parseLegacyTaskSessionFile } from "../src/session/legacyTaskSessionFile.js";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
 import { createZCodeTaskServiceAdapter } from "../src/zcode-agent/zcodeTaskServiceAdapter.js";
+import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import {
+  assertProjectPath,
+  createProjectTestFixture,
+} from "../../../scripts/ci/project-test-sandbox.mjs";
 
 for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as const) {
   test(`previously imported Claude history becomes a real session for ${clientMode}`, async () => {
-    const dir = await mkdtemp(join(tmpdir(), "zcode-import-recovery-"));
+    const dir = await createProjectTestFixture("import-recovery");
     setDataBaseDir(dir);
     const meta = {
       taskId: "claude-import-example",
@@ -46,7 +50,10 @@ for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as cons
     const content = JSON.stringify(legacy);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content);
-    const taskIndexRepo = new TaskIndexRepo(join(dir, "tasks.sqlite"));
+    const databasePath = join(dir, "tasks.sqlite");
+    // 回归夹具遗漏异步准备导致导入断言尚未执行就失败；沿用 Host 的唯一迁移 owner。
+    await prepareTasksIndexStorage(databasePath, () => {});
+    const taskIndexRepo = new TaskIndexRepo(databasePath);
     await taskIndexRepo.syncTaskMeta({ meta });
     type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
     type CreateInput = Parameters<Options["zcodeAgentService"]["createSession"]>[0];
@@ -129,16 +136,17 @@ for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as cons
       });
       assert.equal(await readFile(path, "utf8"), content);
     } finally {
-      service.disposeAll();
+      // disposeAll 是 adapter 的本地生命周期扩展，不属于对外 RPC 服务契约。
+      (service as typeof service & { disposeAll(): void }).disposeAll();
       taskIndexRepo.close();
       setDataBaseDir(null);
-      await rm(dir, { recursive: true, force: true });
+      await rm(await assertProjectPath(dir), { recursive: true, force: true });
     }
   });
 }
 
 test("remote resume keeps remoteSessionId through missing and empty-session Claude repairs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-import-remote-recovery-"));
+  const dir = await createProjectTestFixture("import-remote-recovery");
   setDataBaseDir(dir);
   const remoteSessionId = "remote-import-recovery";
   const meta = {
@@ -168,7 +176,10 @@ test("remote resume keeps remoteSessionId through missing and empty-session Clau
   );
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(legacy));
-  const taskIndexRepo = new TaskIndexRepo(join(dir, "tasks.sqlite"));
+  const databasePath = join(dir, "tasks.sqlite");
+  // 远端恢复使用同一启动契约，不能让测试通过恢复旧同步 DDL 绕过迁移账本。
+  await prepareTasksIndexStorage(databasePath, () => {});
+  const taskIndexRepo = new TaskIndexRepo(databasePath);
   await taskIndexRepo.syncTaskMeta({ meta });
   type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
   type CreateInput = Parameters<Options["zcodeAgentService"]["createSession"]>[0];
@@ -179,7 +190,7 @@ test("remote resume keeps remoteSessionId through missing and empty-session Clau
   const service = createZCodeTaskServiceAdapter({
     taskIndexRepo,
     zcodeAgentService: {
-      async resumeSession(input) {
+      async resumeSession(input: Parameters<Options["zcodeAgentService"]["resumeSession"]>[0]) {
         assert.equal(input.remoteSessionId, remoteSessionId);
         if (missingSession || !session) throw new Error(`Session not found: ${meta.taskId}`);
         return session;
@@ -247,9 +258,9 @@ test("remote resume keeps remoteSessionId through missing and empty-session Clau
       [remoteSessionId, remoteSessionId],
     );
   } finally {
-    service.disposeAll();
+    (service as typeof service & { disposeAll(): void }).disposeAll();
     taskIndexRepo.close();
     setDataBaseDir(null);
-    await rm(dir, { recursive: true, force: true });
+    await rm(await assertProjectPath(dir), { recursive: true, force: true });
   }
 });

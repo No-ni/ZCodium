@@ -29,8 +29,15 @@ export function createStorageService(deps: StorageServiceDependencies): IStorage
   let latestSnapshot: StorageUsageSnapshot | null = null;
   let latestJobId: string | null = null;
   let jobCounter = 0;
+  // startScan 意图代纪。resolveRoots 是异步端口，await 期间新的 startScan /
+  // cancelScan / clean / dispose 都可能改变服务状态；恢复后不匹配的启动意图必须作废。
+  // 代纪刻意不与 latestJobId 复用：后者同时是快照入库过滤器，必须让被取消 job 的
+  // 终态快照继续入库（见下方 emit 注释与 docs/specs/storage-scan-lifecycle.md）。
+  let scanIntentGeneration = 0;
 
   function cancelCurrentJob(): void {
+    // 取消/清理/销毁/被新扫描取代都使尚未注册的在途启动意图作废。
+    scanIntentGeneration += 1;
     currentJob?.cancel();
     currentJob = null;
   }
@@ -44,9 +51,18 @@ export function createStorageService(deps: StorageServiceDependencies): IStorage
   return {
     async startScan() {
       cancelCurrentJob();
+      const generation = ++scanIntentGeneration;
       const jobId = `scan-${++jobCounter}`;
       latestJobId = jobId;
       const roots = await deps.roots.resolveRoots();
+      // 竞态根因（修复依据）：resolveRoots 是异步端口，await 期间 UI 可能已切走/取消/
+      // 重扫/清理/销毁。旧实现此时仍创建 job 并接管 currentJob：先恢复的旧 job 会覆盖
+      // 新 job 且永不被取消（两份全量扫描并发跑完），取消后到达的 job 也会无视取消启动。
+      // 代纪不匹配时只返回 jobId：不创建 job、不接管、不发事件、不写 latestSnapshot；
+      // 调用方对该 jobId 的取消会因 currentJob 不匹配而无害 no-op。
+      if (generation !== scanIntentGeneration) {
+        return { jobId };
+      }
       const job = createScanJob({
         jobId,
         roots,
@@ -70,8 +86,16 @@ export function createStorageService(deps: StorageServiceDependencies): IStorage
     },
 
     async cancelScan(jobId) {
-      if (currentJob?.jobId !== jobId) return;
-      cancelCurrentJob();
+      if (currentJob?.jobId === jobId) {
+        cancelCurrentJob();
+        return;
+      }
+      // 取消可能早于 startScan 注册完成（resolveRoots 在途）：若取消的正是最近一次
+      // 启动意图，推进代纪使该在途启动作废，避免「取消后仍然启动」跑完整个扫描。
+      // 仅匹配 latestJobId 才推进：取消陈旧/未知 job 不得误杀更新的启动意图。
+      if (jobId === latestJobId) {
+        scanIntentGeneration += 1;
+      }
     },
 
     async getSnapshot() {

@@ -14,6 +14,39 @@ HTTP 两个入口的 close 先结束 server/protocol，再释放业务 connectio
 
 remote/connect 的 stream-close 与 backend-disconnect 也在 reportRemoteClose 的唯一上报入口先复用 beginDisposal/disposeBackend，再通知可选上层回调；不能依赖 UI 或 Host 再调用 dispose 才结束请求。显式 dispose/disposeAndWait 与被动断线复用相同幂等释放函数，不引入第二套关闭状态或改变正常 EOF 等待顺序。
 
+## IPCServer 公开框架连接 scope
+
+原 IPCServer 直到 ctx 到达、发出 onDidAddConnection 后才监听 disconnect；握手前或 add 回调重入关闭可留下旧连接，正常关闭的两个订阅句柄也一直留在全局 store。IPCServer 从开始等待 ctx 起拥有每连接 scope，只有此 scope 能接纳、终结该连接；活跃 connections 是 scope 中已接纳连接的派生视图，不另存一份活跃表。
+
+scope 先安装 disconnect，再等待第一条身份消息。关闭先进入不可逆 closed 并从 owner 集合移除，解除 ctx/disconnect 监听，释放已创建的 ChannelServer/ChannelClient，再对已接纳连接通知一次 onDidRemoveConnection。等待 ctx 的 scope 关闭不产生 remove；重复关闭、迟到 ctx、add 回调重入关闭均不能恢复连接。
+
+ChannelServer 初始化发送或订阅返回时允许同步重入关闭；关闭后才返回的资源立即释放，不能继续创建/接纳新客户端。onDidAddConnection 之前关闭处理已就绪。正常断开移除整个 scope，不把每连接句柄永久加入 server 的全局 DisposableStore；server dispose 同样终结握手中和活动 scope。
+
+外部 IMessagePassingProtocol 不归 IPCServer scope 所有，scope 只解除本次注册的监听，不 dispose protocol/socket。仅一个本包私有 IPC 生命周期 helper 封装 scope 与路由等待，依赖 foundation 的 Event/IDisposable/CancellationTokenSource，不导出到 index，不引入业务、IO、持久状态或桌面/mobile 重放语义。
+
+scope 的启动顺序为 IPCServer 先登记进 owner 集合，再 initialize 安装外部事件订阅：断开事件在订阅时同步触发时，迟到句柄立即释放、ctx 监听归零、owner 集合回到基线，已关 scope 不得重登记。scope 与路由等待的终态清理遵循既有 release 契约：单个订阅 disposer 抛错不阻断其余订阅释放、不阻断 remove 通知，也不阻断 server dispose 关闭其余等待与 scope。
+
+```mermaid
+sequenceDiagram
+    participant Transport as 外部 protocol / disconnect
+    participant Owner as IPCServer connection scope
+    participant RPC as ChannelServer / ChannelClient
+    participant Observer as connection observers
+    Transport->>Owner: connect
+    Owner->>Owner: 登记唯一 scope 后再 initialize
+    Owner->>Transport: 先订阅 disconnect，再订阅 ctx
+    Transport->>Owner: ctx
+    Owner->>RPC: 逐个创建通道并交统一资源 owner
+    Owner->>Owner: 每次取得后检查 closed；初始化关闭后不再创建客户端
+    Owner->>Observer: 活跃接纳后 onDidAddConnection
+    Transport->>Owner: disconnect（允许 add 内重入）
+    Owner->>Owner: closed / 移除唯一 scope / 解除监听
+    Owner->>RPC: dispose 本 scope 资源
+    Owner->>Observer: 已接纳连接 remove 一次
+```
+
+新增纯内存验收：ctx 前断开及迟到身份帧；add 回调内关闭；初始化发送期间关闭，累计消息订阅只允许 ctx 等待与服务端通道，终态不再创建客户端；重复断开只 remove 一次；多轮连接/断开监听与全局 store 回到基线；server dispose 释放等待/活动资源但不持有外部 protocol；另覆盖断开事件订阅即同步触发时句柄归零、ctx 监听归零与 owner 集合基线。先在现源码实际跑红，再实现与跑绿，日志及所有缓存只写项目隔离目录。
+
 ### stdio socket 的监听器所有权
 
 `wrapStdioStream` 只拥有本次包装注册的 stdout data/end、stream onClose 订阅和三个 emitter。`connectRemote.beginDisposal` 是现有调用方，在结束 Client/Protocol 后调用 socket.dispose；backend 的异步退出和 EOF 等待仍归连接 owner。

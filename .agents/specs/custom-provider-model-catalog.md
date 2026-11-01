@@ -7,7 +7,7 @@ API Key 型自定义 Provider 支持从 provider 自己的接口直接读取模�
 - 入口只在自定义 Provider 详情卡的模型列表旁，且仅当 `access.type` 为 api-key 族（`api-key` / `zhipu-coding-plan-api-key`）时出现；账号型 Provider（`zhipu-account`）已随官方账号链路移除，运行时 fail-closed，不开放模型目录拉取。
 - Provider 必须已创建并保存。获取前先 flush 当前卡片草稿（与连通性测试同一顺序），未保存的 baseUrl / API Key 不参与请求。
 - 端点按 `api.type` 选择，不做路径补全猜测：OpenAI 兼容（`openai-chat-completions` / `openai-responses`）首选 `{baseUrl}/models`，Anthropic（`anthropic-messages`）首选 `{baseUrl}/v1/models`。首选失败（非 2xx、网络错误、非法 JSON、空目录）才 fallback 到同一 base 的另一种路径；fallback 成功时结果标记 `fallback`。两次都失败返回首选错误，UI 提示失败并保留手动添加。
-- 请求使用 provider 配置里的 `api.baseUrl`、`access.apiKey` 与 `api.headers`；自定义 headers 同名时覆盖内置鉴权头。凭据不出现在日志与错误文案里。
+- 请求使用 provider 配置里的 `api.baseUrl`、`access.apiKey` 与 `api.headers`；HTTP 头名不区分大小写，自定义 headers 同名时覆盖内置鉴权头，不能把两份值拼接发送。自定义配置中同一头名出现不同大小写时，按配置枚举顺序由后项覆盖前项；保留胜出项的字段拼写，不修改输入配置。凭据不出现在日志与错误文案里。
 - 获取结果是候选 modelId 列表，不自动落库。用户在弹窗里勾选后逐条走既有 `addPersonalModel`（推荐配置默认值），已存在的模型只读展示、不可重复添加。
 - 远程 workspace 不加特殊处理：调用 active Environment 的 `provider-settings` 服务，与其它 Provider 设置操作同路径；远端没有该 Provider 配置时按失败降级为手动添加。
 
@@ -43,7 +43,7 @@ sequenceDiagram
 
 ## 验收
 
-1. 三种 `api.type` 都产出正确首选与 fallback 端点、鉴权头；自定义 headers 覆盖同名内置头。
+1. 当前支持的 `api.type` 都产出正确首选与 fallback 端点、鉴权头；自定义 headers 按大小写不敏感规则覆盖同名内置头。OpenAI 的 `authorization`、Anthropic 的 `X-API-KEY` / `Anthropic-Version`、Gemini 的 `X-Goog-Api-Key` 均只发送自定义值；重复自定义头由后项胜出，主备请求一致，输入配置保持不变。
 2. 首选失败后 fallback 成功返回 `source:"fallback"`；两次都失败返回首选错误，且错误文案不含 apiKey。
 3. 非 api-key 访问类型、缺 baseUrl、缺 apiKey（且无自定义 headers）在 Service 层被拒绝，不发起请求。
 4. 未创建/未保存的 Provider 不能触发获取；获取失败后手动添加模型流程不变。

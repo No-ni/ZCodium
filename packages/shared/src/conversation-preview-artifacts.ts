@@ -118,7 +118,8 @@ function cleanPath(path: string): string {
 
 function decodePath(path: string): string {
   try {
-    return decodeURI(path);
+    // 这里只解码 URL pathname 一次；decodeURI 会把文件名中的井号等保留为百分号编码。
+    return decodeURIComponent(path);
   } catch {
     return path;
   }
@@ -128,9 +129,12 @@ function parseFileUrlPath(value: string): string | null {
   try {
     const url = new URL(value);
     if (url.protocol !== "file:") return null;
+    // URL 编码分隔符不能在解码后新增目录层级；普通路径及双重编码仍保持原有字面边界。
+    if (/%(?:2f|5c)/iu.test(url.pathname)) return null;
     const pathname = decodePath(url.pathname);
-    if (/^\/[a-zA-Z]:\//u.test(pathname)) return pathname.slice(1);
+    // 远端 file URL 必须先保留主机名；只有本地 URL 才能转换 Windows 盘符前导斜线。
     if (url.hostname && url.hostname !== "localhost") return `//${url.hostname}${pathname}`;
+    if (/^\/[a-zA-Z]:\//u.test(pathname)) return pathname.slice(1);
     return pathname;
   } catch {
     return null;
@@ -167,18 +171,22 @@ function normalizeRelativePath(path: string): string | null {
 }
 
 function normalizeAbsolutePath(path: string): string {
-  const normalized = normalizeSlashes(path).replace(/\/{2,}/gu, "/");
-  const prefix = normalized.startsWith("/") ? "/" : "";
+  const normalized = normalizeSlashes(path);
+  // UNC 双斜线与 server/share、Windows 盘符都是根，不能按普通目录被 .. 弹出。
+  const prefix = normalized.startsWith("//") ? "//" : normalized.startsWith("/") ? "/" : "";
+  const isDrivePath = /^[a-zA-Z]:\//u.test(normalized);
+  const rootSegments = prefix === "//" ? 2 : isDrivePath ? 1 : 0;
   const segments: string[] = [];
   for (const segment of normalized.split("/")) {
     if (!segment || segment === ".") continue;
     if (segment === "..") {
-      segments.pop();
+      if (segments.length > rootSegments) segments.pop();
       continue;
     }
     segments.push(segment);
   }
-  return `${prefix}${segments.join("/")}`;
+  const driveRootSlash = isDrivePath && segments.length === 1 ? "/" : "";
+  return `${prefix}${segments.join("/")}${driveRootSlash}`;
 }
 
 /**
@@ -222,6 +230,8 @@ function getPathLeaf(path: string): string {
 function isInsideWorkspace(path: string, workspacePath: string): boolean {
   const normalizedPath = normalizeAbsolutePath(path).replace(/\/$/u, "");
   const normalizedWorkspace = normalizeAbsolutePath(workspacePath).replace(/\/$/u, "");
+  // UNC 与单斜线本地路径不是同一命名空间，即使本地工作区为 / 也不能混用。
+  if (normalizedPath.startsWith("//") !== normalizedWorkspace.startsWith("//")) return false;
   return (
     normalizedPath === normalizedWorkspace || normalizedPath.startsWith(`${normalizedWorkspace}/`)
   );

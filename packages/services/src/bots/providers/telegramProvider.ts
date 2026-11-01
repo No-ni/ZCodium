@@ -70,11 +70,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/** UTF-16 高位代理码元（代理对前半）。 */
+function isHighSurrogateCodeUnit(codeUnit: number): boolean {
+  return codeUnit >= 0xd800 && codeUnit <= 0xdbff;
+}
+
+/** UTF-16 低位代理码元（代理对后半）。 */
+function isLowSurrogateCodeUnit(codeUnit: number): boolean {
+  return codeUnit >= 0xdc00 && codeUnit <= 0xdfff;
+}
+
+/**
+ * Bug 修复依据：定长切片会把 UTF-16 代理对（emoji 等非 BMP 字符）切成两半，前一块以
+ * 孤立高位代理结尾、后一块以孤立低位代理开头，产出 ill-formed UTF-16；JSON.stringify
+ * 只把孤立代理项转义为 \udXXX（转义而非替换，请求体里携带的仍是 ill-formed
+ * 文本）；接收端解码或显示时可能拒绝、替换或呈现乱码（U+FFFD 只是其中一种表现，不承诺
+ * 必然发生），用户侧表现为两条各坏一个字符的消息。边界回退一格让
+ * 代理对整体进入下一块；limit 为 ≥2 的模块常量且回退只在 end<text.length（即
+ * end-cursor===limit）时发生，游标严格前进，无空块/死循环。分片大小、顺序与空文本
+ * 返回 [text] 的行为不变；输入里原本就存在的孤立代理项原样保留，不做静默替换。
+ */
 function splitTelegramText(text: string): string[] {
   const limit = 3900;
   const chunks: string[] = [];
-  for (let index = 0; index < text.length; index += limit) {
-    chunks.push(text.slice(index, index + limit));
+  let cursor = 0;
+  while (cursor < text.length) {
+    let end = Math.min(cursor + limit, text.length);
+    if (
+      end < text.length &&
+      isHighSurrogateCodeUnit(text.charCodeAt(end - 1)) &&
+      isLowSurrogateCodeUnit(text.charCodeAt(end))
+    ) {
+      end -= 1;
+    }
+    chunks.push(text.slice(cursor, end));
+    cursor = end;
   }
   return chunks.length > 0 ? chunks : [text];
 }

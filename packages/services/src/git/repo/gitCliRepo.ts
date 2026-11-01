@@ -10,6 +10,7 @@ import type {
   GitCommitGraphRef,
   GitDiffQuery,
   GitDiffResult,
+  GitHeadRefType,
   GitIdentity,
   GitLocalBranch,
   GitLocalBranchListResult,
@@ -543,13 +544,32 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
   const statusRequests = new Map<string, Promise<GitStatusSnapshot>>();
   const collapsedUntrackedRepoRoots = new Set<string>();
 
-  function executeGitStatus(resolution: GitResolvedRepository, untrackedMode: "all" | "normal") {
+  function executeGitStatus(
+    resolution: GitResolvedRepository,
+    untrackedMode: "all" | "normal" | "no",
+  ) {
     return commandProvider.run({
       cwd: resolution.repoRoot,
       args: ["status", "--porcelain=v2", "--branch", `--untracked-files=${untrackedMode}`, "-z"],
       timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
       maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
     });
+  }
+
+  // 分支列表只需要 HEAD 的 branchName / headRefType。原先为了这两个字段调用完整
+  // getStatus：用户每打开一次分支切换下拉，都会额外执行两次全仓 numstat diff，
+  // 并按未跟踪条目逐个读文件数行数——这些结果从不进入分支列表。分支头记录
+  // （# branch.head）与未跟踪模式无关，这里用同一条 status 分支头命令配
+  // --untracked-files=no 取数，解析结果与全量快照的分支字段逐位一致；
+  // 固定 -u no 也永不触发 runGitStatus 的目录折叠记忆。
+  async function readRepositoryBranchHead(resolution: GitResolvedRepository): Promise<{
+    branchName: string | null;
+    headRefType: GitHeadRefType;
+  }> {
+    const result = await executeGitStatus(resolution, "no");
+    ensureGitCommandSucceeded("git status", result);
+    const parsed = parseStatusPorcelain(result.stdout);
+    return { branchName: parsed.branchName, headRefType: parsed.headRefType };
   }
 
   async function runGitStatus(resolution: GitResolvedRepository) {
@@ -975,17 +995,21 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
     },
 
     async listLocalBranches(workspacePath: string): Promise<GitLocalBranchListResult> {
-      const status = await this.getStatus(workspacePath);
-      if (!status.resolution.isGitAvailable || !status.resolution.isRepository) {
+      // 只取 HEAD 分支字段，不再调用完整 getStatus：分支列表不消费条目与行数统计，
+      // 全量快照的两次 numstat diff 与未跟踪文件读取对这里是纯多余 IO。
+      // 非仓库 / Git 不可用的早退形状与旧实现经 createEmptySummary 降级一致。
+      const resolution = await this.resolveRepository(workspacePath);
+      if (!resolution.isGitAvailable || !resolution.isRepository) {
         return {
-          headRefType: status.summary.headRefType,
-          currentBranchName: status.summary.branchName,
+          headRefType: "branch",
+          currentBranchName: null,
           branches: [],
         };
       }
 
+      const { branchName, headRefType } = await readRepositoryBranchHead(resolution);
       const result = await commandProvider.run({
-        cwd: status.resolution.repoRoot,
+        cwd: resolution.repoRoot,
         args: [
           "for-each-ref",
           "refs/heads",
@@ -997,11 +1021,11 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
       ensureGitCommandSucceeded("git for-each-ref refs/heads", result);
 
       return {
-        headRefType: status.summary.headRefType,
-        currentBranchName: status.summary.branchName,
+        headRefType,
+        currentBranchName: branchName,
         branches: parseBranchRefRecords(
           result.stdout,
-          status.summary.headRefType === "branch" ? status.summary.branchName : null,
+          headRefType === "branch" ? branchName : null,
         ),
       };
     },

@@ -190,6 +190,8 @@ export class MobileRemoteControlClient {
 
   private openSocket(): void {
     if (this.disposed || this.terminalFailure) return;
+    // 提前重连可能在旧 socket close 回调前换代；先作废旧 bridge，避免新 matched 后复用旧 Host scope。
+    this.bridge.invalidate();
     const socket = new WebSocket(this.params.wsUrl);
     this.socket = socket;
     this.endpointErrorCode = null;

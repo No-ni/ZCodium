@@ -1,17 +1,14 @@
 import type { SubagentRow, ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
-import {
-  isExecuteToolCall,
-  isExploreToolCall,
-  isShellToolCallAwaitingCommand,
-} from "@/lib/exploreToolCall.js";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
-import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
+import {
+  createToolCallRowDerivationResolver,
+  type ToolCallRowDerivationResolver,
+} from "@/v4/conversationAssistantWorkItemDerivation.js";
 import {
   isConversationReasoningRowVisible,
   type ConversationReasoningVisibility,
 } from "@/v4/conversationRowContext.js";
 import type { AssistantWorkRow } from "@/v4/conversationTurnRenderUnits.js";
-import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
 import {
   ENABLE_CUA_TOOL_CALL_GROUPING,
   prepareCuaGroups,
@@ -73,42 +70,35 @@ const isToolCallRow = (row: AssistantWorkRow): row is ToolCallRow => row.kind ==
 const isAgentToolCallRow = (row: AssistantWorkRow): row is ToolCallRow =>
   isToolCallRow(row) && SUBAGENT_TOOL_NAMES.has(row.toolName);
 
-function isExploreToolCallRow(row: AssistantWorkRow): row is ToolCallRow {
-  if (!isToolCallRow(row)) {
-    return false;
-  }
-  const legacyNode = toolCallRowToLegacyNode(row);
-  return isExploreToolCall({
-    kind: legacyNode.toolCall.kind,
-    input: legacyNode.toolCall.input,
-  });
+function isExploreToolCallRow(
+  row: AssistantWorkRow,
+  derive: ToolCallRowDerivationResolver,
+): row is ToolCallRow {
+  return derive(row)?.isExplore === true;
 }
 
-function isExecuteToolCallRow(row: AssistantWorkRow): row is ToolCallRow {
-  if (!isToolCallRow(row)) {
-    return false;
-  }
-  const legacyNode = toolCallRowToLegacyNode(row);
-  return isExecuteToolCall({
-    kind: legacyNode.toolCall.kind,
-    input: legacyNode.toolCall.input,
-  });
+function isExecuteToolCallRow(
+  row: AssistantWorkRow,
+  derive: ToolCallRowDerivationResolver,
+): row is ToolCallRow {
+  return derive(row)?.isExecute === true;
 }
 
-function isChangesToolCallRow(row: AssistantWorkRow): row is ToolCallRow {
-  if (!isToolCallRow(row)) return false;
-  return resolveToolCallIdentity(toolCallRowToLegacyNode(row).toolCall).family === "file-write";
+function isChangesToolCallRow(
+  row: AssistantWorkRow,
+  derive: ToolCallRowDerivationResolver,
+): row is ToolCallRow {
+  return derive(row)?.isChanges === true;
 }
 
-function shouldDeferUnclassifiedShellToolCall(row: AssistantWorkRow): boolean {
+function shouldDeferUnclassifiedShellToolCall(
+  row: AssistantWorkRow,
+  derive: ToolCallRowDerivationResolver,
+): boolean {
   if (!isToolCallRow(row) || (row.status !== "inputStreaming" && row.status !== "running")) {
     return false;
   }
-  const legacyNode = toolCallRowToLegacyNode(row);
-  return isShellToolCallAwaitingCommand({
-    kind: legacyNode.toolCall.kind,
-    input: legacyNode.toolCall.input,
-  });
+  return derive(row)?.awaitingCommand === true;
 }
 
 function resolveGroupStageStatus(
@@ -122,11 +112,15 @@ function resolveGroupStageStatus(
   return rows.some((row) => row.status === "cancelled") ? "stopped" : "completed";
 }
 
-function buildExploreGroup(rows: ToolCallRow[], stageTailIsRunning: boolean) {
+function buildExploreGroup(
+  rows: ToolCallRow[],
+  stageTailIsRunning: boolean,
+  derive: ToolCallRowDerivationResolver,
+) {
   // 分组 builder 只会在连续同类工具达到两项后调用；空数组不是合法状态，
   // 不再用伪造 identity 的兜底掩盖调用方错误。
   const firstRow = rows[0]!;
-  const childToolCalls = rows.map(toolCallRowToLegacyNode);
+  const childToolCalls = rows.map((row) => derive(row)!.legacyNode);
 
   return {
     kind: "exploreGroup" as const,
@@ -151,7 +145,11 @@ function buildExploreGroup(rows: ToolCallRow[], stageTailIsRunning: boolean) {
   };
 }
 
-function buildExecuteGroup(rows: ToolCallRow[], stageTailIsRunning: boolean) {
+function buildExecuteGroup(
+  rows: ToolCallRow[],
+  stageTailIsRunning: boolean,
+  derive: ToolCallRowDerivationResolver,
+) {
   const firstRow = rows[0]!;
   return {
     kind: "executeGroup" as const,
@@ -170,12 +168,16 @@ function buildExecuteGroup(rows: ToolCallRow[], stageTailIsRunning: boolean) {
         status: resolveGroupStageStatus(rows, stageTailIsRunning),
         startedAt: typeof firstRow.startedAt === "number" ? firstRow.startedAt : undefined,
       },
-      childToolCalls: rows.map(toolCallRowToLegacyNode),
+      childToolCalls: rows.map((row) => derive(row)!.legacyNode),
     },
   };
 }
 
-function buildChangesGroup(rows: ToolCallRow[], stageTailIsRunning: boolean) {
+function buildChangesGroup(
+  rows: ToolCallRow[],
+  stageTailIsRunning: boolean,
+  derive: ToolCallRowDerivationResolver,
+) {
   const firstRow = rows[0]!;
   return {
     kind: "changesGroup" as const,
@@ -194,7 +196,7 @@ function buildChangesGroup(rows: ToolCallRow[], stageTailIsRunning: boolean) {
         // 父级仅表达当前阶段是否仍位于可见运行段尾部。
         status: stageTailIsRunning ? "in_progress" : "completed",
       },
-      childToolCalls: rows.map(toolCallRowToLegacyNode),
+      childToolCalls: rows.map((row) => derive(row)!.legacyNode),
     },
   };
 }
@@ -275,6 +277,7 @@ export function buildAssistantWorkRenderItems(
   options?: ConversationAssistantWorkRenderOptions,
 ): ConversationAssistantWorkRenderItem[] {
   const items: ConversationAssistantWorkRenderItem[] = [];
+  const deriveToolCallRow = createToolCallRowDerivationResolver();
   const enableExploreGrouping = options?.enableExploreGrouping ?? ENABLE_EXPLORE_TOOL_CALL_GROUPING;
   const enableCuaGrouping = options?.enableCuaGrouping ?? ENABLE_CUA_TOOL_CALL_GROUPING;
   const enableTerminalGrouping =
@@ -290,7 +293,7 @@ export function buildAssistantWorkRenderItems(
     ) {
       return false;
     }
-    return !shouldDeferUnclassifiedShellToolCall(row);
+    return !shouldDeferUnclassifiedShellToolCall(row, deriveToolCallRow);
   });
   const { subagentByAgentToolRowId, claimedSubagentRowIds } = pairSubagentRows(visibleRows);
   const preparedRows = prepareCuaGroups(
@@ -332,14 +335,20 @@ export function buildAssistantWorkRenderItems(
       }
     }
 
-    const isExploreRow = isExploreToolCallRow(row);
+    const isExploreRow = isExploreToolCallRow(row, deriveToolCallRow);
     if (!isExploreRow) {
-      if (enableChangesGrouping && isChangesToolCallRow(row)) {
+      if (enableChangesGrouping && isChangesToolCallRow(row, deriveToolCallRow)) {
         const groupRows: ToolCallRow[] = [row];
         index += 1;
         while (index < preparedRows.length) {
           const nextRow = preparedRows[index];
-          if (!nextRow || nextRow.kind === "cuaGroup" || !isChangesToolCallRow(nextRow)) break;
+          if (
+            !nextRow ||
+            nextRow.kind === "cuaGroup" ||
+            !isChangesToolCallRow(nextRow, deriveToolCallRow)
+          ) {
+            break;
+          }
           groupRows.push(nextRow);
           index += 1;
         }
@@ -353,16 +362,21 @@ export function buildAssistantWorkRenderItems(
           buildChangesGroup(
             groupRows,
             options?.stageTailIsRunning === true && index === preparedRows.length,
+            deriveToolCallRow,
           ),
         );
         continue;
       }
-      if (enableTerminalGrouping && isExecuteToolCallRow(row)) {
+      if (enableTerminalGrouping && isExecuteToolCallRow(row, deriveToolCallRow)) {
         const groupRows: ToolCallRow[] = [row];
         index += 1;
         while (index < preparedRows.length) {
           const nextRow = preparedRows[index];
-          if (!nextRow || nextRow.kind === "cuaGroup" || !isExecuteToolCallRow(nextRow)) {
+          if (
+            !nextRow ||
+            nextRow.kind === "cuaGroup" ||
+            !isExecuteToolCallRow(nextRow, deriveToolCallRow)
+          ) {
             break;
           }
           groupRows.push(nextRow);
@@ -378,6 +392,7 @@ export function buildAssistantWorkRenderItems(
           buildExecuteGroup(
             groupRows,
             options?.stageTailIsRunning === true && index === preparedRows.length,
+            deriveToolCallRow,
           ),
         );
         continue;
@@ -405,7 +420,11 @@ export function buildAssistantWorkRenderItems(
     index += 1;
     while (index < preparedRows.length) {
       const nextRow = preparedRows[index];
-      if (!nextRow || nextRow.kind === "cuaGroup" || !isExploreToolCallRow(nextRow)) {
+      if (
+        !nextRow ||
+        nextRow.kind === "cuaGroup" ||
+        !isExploreToolCallRow(nextRow, deriveToolCallRow)
+      ) {
         break;
       }
       groupRows.push(nextRow);
@@ -420,6 +439,7 @@ export function buildAssistantWorkRenderItems(
       buildExploreGroup(
         groupRows,
         options?.stageTailIsRunning === true && index === preparedRows.length,
+        deriveToolCallRow,
       ),
     );
   }

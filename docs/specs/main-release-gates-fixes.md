@@ -13,6 +13,8 @@
 ### Automation 与 Bot 测试契约
 
 - `prepareTasksIndexStorage` 仍是 Host tasks-index 初始化的唯一异步 owner。业务 Repo 的同步迁移入口只校验已完成账本，未准备的新数据库必须拒绝。
+- 历史导入与退役 ACP 保留回归也遵守这一顺序：`importedClaudeRecovery` 的三个真实 SQLite 场景和 `nonCliAcpRetirement` 的索引场景先等待同一启动 owner，再执行业务读写。保持原有 Desktop continuous、手机 replayable、remoteSessionId、历史文件与旧 ID 保留断言；不修改生产迁移守卫。这两组夹具统一用 `createProjectTestFixture` 写前验证绑定，清理前用 `assertProjectPath` 复核，不再以系统 TEMP 为默认测试目标。独立 CI 入口要求八项实际执行、零失败和零跳过。
+- 这两份测试按 services 当前配置单独 noEmit 检查；测试清理显式声明 adapter 实例已有的本地 `disposeAll` 生命周期扩展，远端 resume stub 使用现有参数类型。不把实例清理方法加入对外 RPC 服务契约。
 - Automation 生命周期夹具在构造业务操作前显式等待隔离数据库准备；之后仍用两个真实连接模拟暂停、派发和计数，不放回旧同步迁移、不削弱八项业务断言。扩大回归找到的 TaskAutoArchive 真实 SQLite / adapter 夹具同样等待该 owner，不改归档资格、毫秒边界、Controller 通知或手机恢复断言。
 - Agent 全包复跑发现的两份工作流会话查询夹具使用内存数据库，也必须等待现有 `runSqliteSessionMigrationsAsync` 完成后再创建 journal。会话根/执行 cwd、同级会话隔离与未落库 run 的原断言保持；不为测试另建迁移入口。
 - Bot Bridge 仍拥有偏好 revision 和 runtime cache。初始设置转换包括 `askUserQuestionAutoResolutionEnabled` 与默认 `toolSearchMode: "off"`；迟到的旧 revision 不得让 runtime 提前可用。

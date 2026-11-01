@@ -43,13 +43,14 @@ function nodeMapKey(node: ZCodeGroupedTaskViewNode): string {
 function compareGroupedNodes(
   left: ZCodeGroupedTaskViewNode,
   right: ZCodeGroupedTaskViewNode,
+  resolveSortKey: (node: ZCodeGroupedTaskViewNode) => string,
 ): number {
   const leftOrder = left.sortOrder ?? 0;
   const rightOrder = right.sortOrder ?? 0;
   if (leftOrder !== rightOrder) {
     return leftOrder - rightOrder;
   }
-  return nodeMapKey(left).localeCompare(nodeMapKey(right));
+  return resolveSortKey(left).localeCompare(resolveSortKey(right));
 }
 
 /** 组内成员排序：已有 sort_order 用之；缺失的按 added_at 降序在 max 后补内存序。 */
@@ -60,7 +61,10 @@ function sortGroupTasks(
   const resolvedOrderByTaskKey = new Map<string, number>();
   let maxOrder = 0;
   const missing: Array<{ task: ZCodeTaskListItem; addedAt: number; key: string }> = [];
-  for (const task of tasks) {
+  // 首轮只记录 { task, key }：排序 key 每项只构造一次，末次排序直接复用。
+  // order 不在此快照——缺序补写会覆盖同 key 已写入的成员序，必须在全部补序完成后
+  // 从最终 Map 解析；重复 key 仍以 Map 最后写入为准，条目不去重。
+  const entries = tasks.map((task) => {
     const key = taskKeyOf(task);
     const member = membersByTaskKey.get(key);
     if (member && member.sortOrder !== null) {
@@ -69,7 +73,8 @@ function sortGroupTasks(
     } else {
       missing.push({ task, addedAt: member?.addedAt ?? task.createdAt, key });
     }
-  }
+    return { task, key };
+  });
   missing.sort((left, right) => {
     if (right.addedAt !== left.addedAt) {
       return right.addedAt - left.addedAt;
@@ -81,14 +86,15 @@ function sortGroupTasks(
     nextOrder += GROUPED_TASK_ORDER_STEP;
     resolvedOrderByTaskKey.set(entry.key, nextOrder);
   }
-  return [...tasks].sort((left, right) => {
-    const leftOrder = resolvedOrderByTaskKey.get(taskKeyOf(left)) ?? 0;
-    const rightOrder = resolvedOrderByTaskKey.get(taskKeyOf(right)) ?? 0;
+  entries.sort((left, right) => {
+    const leftOrder = resolvedOrderByTaskKey.get(left.key) ?? 0;
+    const rightOrder = resolvedOrderByTaskKey.get(right.key) ?? 0;
     if (leftOrder !== rightOrder) {
       return leftOrder - rightOrder;
     }
-    return taskKeyOf(left).localeCompare(taskKeyOf(right));
+    return left.key.localeCompare(right.key);
   });
+  return entries.map((entry) => entry.task);
 }
 
 interface BuildGroupedTaskViewParams {
@@ -144,6 +150,13 @@ export function buildGroupedTaskViewFromSessions(
     topOrderByMapKey.set(mapKey, order.sortOrder);
   }
 
+  // 顶层节点排序 key 按节点引用缓存：task 节点在创建时已为 topOrder 查询算过
+  // taskOrderMapKey，直接复用；group 节点不进表，只在打平时按 nodeMapKey 现算，
+  // 无打平时不为任何节点额外构造 key。
+  const nodeSortKeyByNode = new Map<ZCodeGroupedTaskViewNode, string>();
+  const resolveNodeSortKey = (node: ZCodeGroupedTaskViewNode): string =>
+    nodeSortKeyByNode.get(node) ?? nodeMapKey(node);
+
   const nodes: ZCodeGroupedTaskViewNode[] = structure.groups.map((group) => {
     const groupTasks = (membersByGroupId.get(group.id) ?? [])
       .map((member) => activeTaskByKey.get(memberTaskKey(member)))
@@ -162,12 +175,15 @@ export function buildGroupedTaskViewFromSessions(
     if (membersByTaskKey.has(taskKey)) {
       continue;
     }
-    const order = topOrderByMapKey.get(taskOrderMapKey(task));
-    nodes.push({
+    const orderMapKey = taskOrderMapKey(task);
+    const order = topOrderByMapKey.get(orderMapKey);
+    const node: ZCodeGroupedTaskViewNode = {
       type: "task",
       task,
       ...(order !== undefined ? { sortOrder: order } : {}),
-    });
+    };
+    nodeSortKeyByNode.set(node, orderMapKey);
+    nodes.push(node);
   }
 
   // 顶层缺序节点内存补序（normalizeGroupedTopNodeOrders 只读版）：createdAt 降序 → max+STEP。
@@ -179,7 +195,7 @@ export function buildGroupedTaskViewFromSessions(
       if (rightCreated !== leftCreated) {
         return rightCreated - leftCreated;
       }
-      return nodeMapKey(left).localeCompare(nodeMapKey(right));
+      return resolveNodeSortKey(left).localeCompare(resolveNodeSortKey(right));
     });
   let nextSortOrder = structure.topLevelOrders.reduce(
     (max, order) => Math.max(max, order.sortOrder),
@@ -190,6 +206,6 @@ export function buildGroupedTaskViewFromSessions(
     node.sortOrder = nextSortOrder;
   }
 
-  nodes.sort(compareGroupedNodes);
+  nodes.sort((left, right) => compareGroupedNodes(left, right, resolveNodeSortKey));
   return { nodes };
 }

@@ -218,55 +218,76 @@ function findInsertionIndexByBinarySearch(
   return low === bestMatches.length ? -1 : low;
 }
 
+/** 单次查询的派生 top-K owner：跨批保留分数，不重算已入选候选。 */
+export interface WorkspaceFileSearchCandidateSelector {
+  append(candidates: readonly WorkspaceFileSearchCandidate[]): void;
+  getMatches(): WorkspaceFileSearchCandidate[];
+}
+
+export function createWorkspaceFileSearchCandidateSelector(
+  query: string,
+  options: FilterWorkspaceFileSearchCandidatesOptions = {},
+): WorkspaceFileSearchCandidateSelector {
+  const effectiveLimit = options.limit ?? WORKSPACE_FILE_SEARCH_DISPLAY_CAP;
+  const normalizedQuery = query.trim();
+  const requireQuery = options.requireQuery;
+  const bestMatches: ScoredWorkspaceFileSearchCandidate[] = [];
+  let defaultMatches: WorkspaceFileSearchCandidate[] = [];
+  let nextIndex = 0;
+
+  return {
+    append(candidates) {
+      if (!normalizedQuery) {
+        if (!requireQuery) {
+          defaultMatches = applyWorkspaceFileSearchLimit(
+            sortDefaultWorkspaceFileSearchCandidates([...defaultMatches, ...candidates]),
+            effectiveLimit,
+          );
+        }
+        return;
+      }
+
+      for (const candidate of candidates) {
+        // 旧 Host 每批将 best 拼回输入，已入选候选会反复打分；这里只处理新批次，
+        // 保留全局原始 index，确保跨批同分仍按原输入顺序，而不是按当前排名重编号。
+        const index = nextIndex++;
+        const score = getWorkspaceFileSearchCandidateScore(candidate, normalizedQuery);
+        if (score === null) continue;
+
+        const scored = { candidate, index, score };
+        const worst = bestMatches[bestMatches.length - 1];
+        if (
+          worst !== undefined &&
+          bestMatches.length >= effectiveLimit &&
+          compareScoredWorkspaceFileSearchCandidates(scored, worst) >= 0
+        ) {
+          continue;
+        }
+
+        const insertionIndex = findInsertionIndexByBinarySearch(bestMatches, scored);
+        if (insertionIndex === -1) {
+          if (bestMatches.length < effectiveLimit) bestMatches.push(scored);
+          continue;
+        }
+
+        bestMatches.splice(insertionIndex, 0, scored);
+        if (bestMatches.length > effectiveLimit) bestMatches.pop();
+      }
+    },
+    getMatches() {
+      return normalizedQuery
+        ? bestMatches.map(({ candidate }) => candidate)
+        : defaultMatches.slice();
+    },
+  };
+}
+
 export function filterWorkspaceFileSearchCandidates(
   candidates: WorkspaceFileSearchCandidate[],
   query: string,
   options: FilterWorkspaceFileSearchCandidatesOptions = {},
 ): WorkspaceFileSearchCandidate[] {
-  const effectiveLimit = options.limit ?? WORKSPACE_FILE_SEARCH_DISPLAY_CAP;
-  const normalizedQuery = query.trim();
-
-  if (!normalizedQuery) {
-    return options.requireQuery
-      ? []
-      : applyWorkspaceFileSearchLimit(
-          sortDefaultWorkspaceFileSearchCandidates(candidates),
-          effectiveLimit,
-        );
-  }
-
-  const bestMatches: ScoredWorkspaceFileSearchCandidate[] = [];
-  for (const [index, candidate] of candidates.entries()) {
-    const score = getWorkspaceFileSearchCandidateScore(candidate, normalizedQuery);
-    if (score === null) {
-      continue;
-    }
-
-    const scored = { candidate, index, score };
-    // 快速路径：数组按序维护，末尾即当前最差；已满且 scored 不优于末尾时必然落选，
-    // 跳过查找与 splice（宽匹配 query 下大多数候选走这条分支）。
-    const worst = bestMatches[bestMatches.length - 1];
-    if (
-      worst !== undefined &&
-      bestMatches.length >= effectiveLimit &&
-      compareScoredWorkspaceFileSearchCandidates(scored, worst) >= 0
-    ) {
-      continue;
-    }
-
-    const insertionIndex = findInsertionIndexByBinarySearch(bestMatches, scored);
-    if (insertionIndex === -1) {
-      if (bestMatches.length < effectiveLimit) {
-        bestMatches.push(scored);
-      }
-      continue;
-    }
-
-    bestMatches.splice(insertionIndex, 0, scored);
-    if (bestMatches.length > effectiveLimit) {
-      bestMatches.pop();
-    }
-  }
-
-  return bestMatches.map(({ candidate }) => candidate);
+  const selector = createWorkspaceFileSearchCandidateSelector(query, options);
+  selector.append(candidates);
+  return selector.getMatches();
 }

@@ -153,8 +153,17 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
   const [state, setState] = useState<SettingsSyncUiState>(createInitialState);
 
   const loadDiscovery = useCallback(
-    async (intent: LoadDiscoveryIntent = "firstRun") => {
+    // Bugfix: 首启 effect 的取消边界原先只覆盖 getFirstRunPromptState 一个 await，随后
+    // `await loadDiscovery()` 把边界关在了函数外。detect 在途时切换 workspace（path 或
+    // identity 变化）或卸载，旧 scope 的回包会继续提交：非空回包用旧 agents 打开引导弹窗、
+    // 空回包调用 app 级 markFirstRunPromptHandled 吞掉新 workspace 的首启提示、失败回包用
+    // 旧错误打开弹窗，且旧回包可覆盖新回包。这里增加可选陈旧闸门 isStale（由首启 effect
+    // 传入自己的 cancelled），在每个 await 之后复查；不新增状态、pending 队列或第二事实源。
+    async (intent: LoadDiscoveryIntent = "firstRun", isStale?: () => boolean) => {
       if (!params.workspacePath) {
+        return;
+      }
+      if (isStale?.()) {
         return;
       }
 
@@ -169,6 +178,10 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
           workspacePath: params.workspacePath,
           workspaceIdentity: params.workspaceIdentity,
         });
+        // detect 回包可能属于已切换/已卸载的旧 scope：先复查闸门再使用结果。
+        if (isStale?.()) {
+          return;
+        }
         const discovery = normalizeDiscovery(rawDiscovery);
         if (discovery.agents.length === 0) {
           if (intent === "manual") {
@@ -192,7 +205,17 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
           }
           // 去掉三方 agent 迁移后，首启检测会返回空结果。
           // 空结果不应打开一个没有可操作项的 onboarding 弹窗，应直接标记为已处理。
+          // markFirstRunPromptHandled 是 app 级持久化写（无 scope 参数）：旧 scope 的空回包
+          // 不得替新 scope 把首启提示标记为已处理，否则新 workspace 的引导被静默吞掉。
+          if (isStale?.()) {
+            return;
+          }
           await settingsSyncService.markFirstRunPromptHandled();
+          // mark 在途期间又发生切换/卸载：已发出的 mark 不倒退，但不得用旧回包重置新 scope
+          // 的引导状态。
+          if (isStale?.()) {
+            return;
+          }
           setState(createInitialState());
           logger.info("[settings-sync] discovery empty, prompt handled", {
             workspacePath: params.workspacePath,
@@ -217,6 +240,10 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
           selectedCount: selectedKeys.length,
         });
       } catch (error) {
+        // 旧 scope 的失败回包既不得打开错误态弹窗，也不得被记录为新 scope 的失败。
+        if (isStale?.()) {
+          return;
+        }
         const message = normalizeError(error);
         logger.error("[settings-sync] discovery failed", {
           workspacePath: params.workspacePath,
@@ -239,12 +266,17 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
       return;
     }
 
-    if (FORCE_SHOW_ONBOARDING_ON_EVERY_REFRESH) {
-      void loadDiscovery();
-      return;
-    }
-
     let cancelled = false;
+
+    if (FORCE_SHOW_ONBOARDING_ON_EVERY_REFRESH) {
+      // 调试开关保持「每次 effect 都重新检测」的语义，但同样受 cleanup 取消边界约束，
+      // 切换/卸载后旧 detect 回包不得提交。这里必须返回 cleanup：否则 cancelled 永远为
+      // false，传入的 () => cancelled 闸门永久失效，旧 detect 回包仍可覆盖新 scope。
+      void loadDiscovery("firstRun", () => cancelled);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void (async () => {
       try {
@@ -261,7 +293,9 @@ export function useSettingsSync(params: { workspacePath?: string; workspaceIdent
           return;
         }
 
-        await loadDiscovery();
+        // 取消边界必须贯穿 loadDiscovery 的全部 await 之后：detect 在途时切换 workspace
+        // 或卸载，旧 scope 的回包不得提交状态，也不得触发 app 级首启标记。
+        await loadDiscovery("firstRun", () => cancelled);
       } catch (error) {
         const message = normalizeError(error);
         logger.error("[settings-sync] first run prompt state failed", {

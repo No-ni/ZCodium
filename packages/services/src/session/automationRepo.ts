@@ -939,6 +939,28 @@ export class AutomationRepo {
     await this.ensureReady();
     const row = this.getRow(automationId);
     if (!row) return; // 已删除，丢弃回写，避免复活
+    this.applyScheduledDispatchProgress(row, {
+      dispatchedAt: options.dispatchedAt,
+      nextRunAt: options.nextRunAt,
+    });
+  }
+
+  /**
+   * markDispatched 与 markScheduledRunDispatched 共用的 automation 推进写入：计数、last_run_at、
+   * 重试清理、认领释放、lifecycle/next_run_at。两个 public 入口复用同一段 SQL，不新增第二份
+   * 业务写入路径；本函数是同步函数，必须在调用方的事务/连接上下文内直接执行，事务里绝不 await。
+   * preserveClaimSchedule=true（迟到成功，调度已前移到其他 occurrence）时只推进计数与
+   * reachedMax/reachedEnd 终态转换，绝不触碰 running/claimed_at/next_run_at/dispatch_status/
+   * dispatch_attempts/retry_at/last_error——其他认领的字段不属于本次回报（spec owner 边界）。
+   */
+  private applyScheduledDispatchProgress(
+    row: AutomationRow,
+    options: {
+      dispatchedAt: number;
+      nextRunAt: number | null;
+      preserveClaimSchedule?: boolean;
+    },
+  ): void {
     const runCount = row.run_count + 1;
     const scheduledRunCount = row.scheduled_run_count + 1;
     // 有限次任务（recurring=0）达上限即 completed。未显式设 max_runs 时按一次性任务处理（默认上限 1），
@@ -946,6 +968,31 @@ export class AutomationRepo {
     // scheduled_run_count；run_count 还包含 manual run，只能用于 Card 累计展示。
     const reachedMax = row.recurring === 0 && scheduledRunCount >= (row.max_runs ?? 1);
     const reachedEnd = row.end_at !== null && (options.nextRunAt ?? Infinity) > row.end_at;
+    if (options.preserveClaimSchedule) {
+      // 迟到成功：计数按实际接受推进；终态转换（耗尽/截止）仍按 spec 成立；
+      // 在途认领与调度指针属于其他 occurrence，原样保留。
+      this.getDatabase()
+        .prepare(
+          `UPDATE automations
+          SET run_count = @run_count,
+              scheduled_run_count = @scheduled_run_count,
+              last_run_at = @dispatched_at,
+              lifecycle_status = CASE WHEN @completed THEN 'completed' ELSE lifecycle_status END,
+              enabled = CASE WHEN @completed THEN 0 ELSE enabled END,
+              next_run_at = CASE WHEN @completed THEN NULL ELSE next_run_at END,
+              updated_at = @now
+          WHERE automation_id = @id`,
+        )
+        .run({
+          id: row.automation_id,
+          run_count: runCount,
+          scheduled_run_count: scheduledRunCount,
+          dispatched_at: options.dispatchedAt,
+          completed: reachedMax || reachedEnd ? 1 : 0,
+          now: options.dispatchedAt,
+        });
+      return;
+    }
     // 派发期间用户可能已暂停；成功回执只结算本次，不能恢复用户关闭的后续调度。
     // 在 UPDATE 中保留当前状态，避免另一连接在读行之后暂停仍被旧值覆盖。
     this.getDatabase()
@@ -969,7 +1016,7 @@ export class AutomationRepo {
         WHERE automation_id = @id`,
       )
       .run({
-        id: automationId,
+        id: row.automation_id,
         run_count: runCount,
         scheduled_run_count: scheduledRunCount,
         dispatched_at: options.dispatchedAt,
@@ -977,6 +1024,81 @@ export class AutomationRepo {
         next_run_at: reachedMax || reachedEnd ? null : options.nextRunAt,
         now: options.dispatchedAt,
       });
+  }
+
+  /**
+   * scheduled run 成功结算的唯一事务 owner（docs/specs/automation-lifecycle-controls.md「成功结算的事务 owner」）。
+   * 修复依据：markDispatched 读行后无条件推进，同 runId 的迟到/重复回报（scheduler 重启后的迟到回报、
+   * CLAIM_STALE 回收后旧持有者回执）会二次推进 scheduled_run_count，把有限任务提前打成 completed，
+   * 并无条件清 running/claimed_at，破坏重复回报到达前已建立的下一轮 single-flight 认领。
+   * 这里把 automation_runs 首次进入 dispatched 与 automations 计数/调度状态推进放进同一个
+   * BEGIN IMMEDIATE 事务，以 run 行状态作幂等闸门：同 runId 重复回报与幽灵 runId 返回 false，
+   * 不推进任何状态；run 存在但 automation 已删除时仅记账 run，不复活任务。
+   * cron 语义仍不在仓库内：nextRunAt 由调用方以纯函数注入，事务内基于最新行计算。
+   * markDispatched 保留为兼容旧调用（历史测试/外部消费方），生产结算不再使用。
+   */
+  async markScheduledRunDispatched(params: {
+    runId: string;
+    sessionId?: string | null;
+    dispatchedAt: number;
+    /** 由调用方注入的纯 cron 计算（scheduler 传 computeAutomationNextRunAt 柯里化），事务内基于最新行调用。 */
+    nextRunAtFor?: (automation: ZCodeAutomation) => number | null;
+  }): Promise<boolean> {
+    await this.ensureReady();
+    const db = this.getDatabase();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const run = db
+        .prepare(
+          `SELECT automation_id, dispatch_status, scheduled_at
+          FROM automation_runs
+          WHERE run_id = @run_id AND trigger = 'schedule'`,
+        )
+        .get({ run_id: params.runId }) as
+        | Pick<AutomationRunRow, "automation_id" | "dispatch_status" | "scheduled_at">
+        | undefined;
+      // 幂等闸门：重复回报或从未被 upsertRunClaimed 记账的幽灵 runId 一律跳过。
+      if (!run || run.dispatch_status === "dispatched") {
+        db.exec("COMMIT");
+        return false;
+      }
+      db.prepare(
+        `UPDATE automation_runs
+        SET dispatch_status = 'dispatched',
+            session_id = COALESCE(@session_id, session_id),
+            error = NULL,
+            updated_at = @now
+        WHERE run_id = @run_id AND trigger = 'schedule' AND dispatch_status <> 'dispatched'`,
+      ).run({
+        run_id: params.runId,
+        session_id: params.sessionId ?? null,
+        now: params.dispatchedAt,
+      });
+      const row = this.getRow(run.automation_id);
+      if (row) {
+        // cron 语义不在仓库内：事务内基于最新行以注入的纯函数计算下一轮，再复用共享写入
+        // （与 markDispatched 同一段 SQL，有限次任务未显式设 max_runs 时按一次性上限 1 处理）。
+        const nextRunAt = params.nextRunAtFor ? params.nextRunAtFor(rowToAutomation(row)) : null;
+        // owner 事实（spec「迟到成功与在途认领的 owner 边界」）：run.scheduled_at 与当前
+        // next_run_at 相等 → 本次成功属于当前在途 occurrence，全量推进；不相等 → 调度已前移到
+        // 其他 occurrence（规则更新/超时回收后新认领），本次为迟到成功，只推进计数，绝不释放
+        // 在途认领或改写 next_run_at/dispatch_status/重试态。
+        const isCurrentOccurrence =
+          run.scheduled_at !== null &&
+          row.next_run_at !== null &&
+          row.next_run_at === run.scheduled_at;
+        this.applyScheduledDispatchProgress(row, {
+          dispatchedAt: params.dispatchedAt,
+          nextRunAt,
+          preserveClaimSchedule: !isCurrentOccurrence,
+        });
+      }
+      db.exec("COMMIT");
+      return true;
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   /**
@@ -991,11 +1113,41 @@ export class AutomationRepo {
       kind: "transient" | "permanent";
       /** transient 达上限后，循环任务的下一个正常 next_run_at（调用方重算）。 */
       nextRunAt?: number | null;
+      /**
+       * 乱序守卫入参：传入同 runId 时，若该 run 已 dispatched（成功终态）、从未记账（幽灵回报）
+       * 或归属其他 automation（防跨行写坏），整体跳过，不把 automation 推入幻影重试退避。
+       * 传入 runId 时还校验轮次归属：scheduled 的失败必须属于当前 occurrence（见下方 owner 边界）。
+       * 缺省（legacy 调用/旧测试）保持原行为。
+       */
+      runId?: string;
     },
   ): Promise<void> {
     await this.ensureReady();
+    // 先读一次 automation 行：既供下面三条状态机分支使用，也提供失败归属判定所需的当前调度事实。
     const row = this.getRow(automationId);
     if (!row) return;
+    if (options.runId !== undefined) {
+      const run = this.getDatabase()
+        .prepare(
+          `SELECT automation_id, dispatch_status, trigger, scheduled_at
+          FROM automation_runs WHERE run_id = @run_id`,
+        )
+        .get({ run_id: options.runId }) as
+        | Pick<AutomationRunRow, "automation_id" | "dispatch_status" | "trigger" | "scheduled_at">
+        | undefined;
+      if (!run || run.automation_id !== automationId || run.dispatch_status === "dispatched") {
+        return;
+      }
+      // 旧轮次的迟到失败若只按 runId 存在性判断，会清除新轮次认领并改写退避或终态。
+      // 与成功结算复用 scheduled_at/next_run_at 归属：仅当前定时轮次可写 automations。
+      // 失败事实已由调用方记入 run 台账；manual 和无 runId 调用仍保持原行为。
+      if (
+        run.trigger === "schedule" &&
+        (row.next_run_at === null || run.scheduled_at !== row.next_run_at)
+      ) {
+        return;
+      }
+    }
     const db = this.getDatabase();
     const now = options.failedAt;
     if (options.kind === "permanent") {
@@ -1117,7 +1269,8 @@ export class AutomationRepo {
           dispatch_status, error, attempts, created_at, updated_at
         ) VALUES (@run_id, @automation_id, @workspace_key, @scheduled_at, 'schedule', 'skipped', @reason, 0, @now, @now)
         ON CONFLICT(run_id) DO UPDATE SET
-          dispatch_status = 'skipped', error = excluded.error, updated_at = excluded.updated_at`,
+          dispatch_status = 'skipped', error = excluded.error, updated_at = excluded.updated_at
+        WHERE automation_runs.dispatch_status <> 'dispatched'`,
       ).run({
         run_id: params.runId,
         automation_id: params.automationId,
@@ -1204,7 +1357,8 @@ export class AutomationRepo {
           outcome = NULL,
           error = NULL,
           attempts = attempts + 1,
-          updated_at = excluded.updated_at`,
+          updated_at = excluded.updated_at
+        WHERE automation_runs.dispatch_status <> 'dispatched'`,
       )
       .run({
         run_id: params.runId,
@@ -1241,7 +1395,12 @@ export class AutomationRepo {
     return fixed;
   }
 
-  /** 派发结果回写 run（dispatched 回填 session_id / failed_to_dispatch 记 error）。 */
+  /**
+   * 派发结果回写 run（dispatched 回填 session_id / failed_to_dispatch 记 error）。
+   * 成功终态单调（docs/specs/automation-lifecycle-controls.md）：dispatched 是 run 台账的终态，
+   * 乱序/迟到回报不得把已 dispatched 的 run 改回 failed_to_dispatch——否则随后重复的成功回报
+   * 会再次通过结算闸门二次计数。claimed→failed、failed→failed 等非终态迁移不受影响。
+   */
   async markRunDispatch(params: {
     runId: string;
     dispatchStatus: ZCodeAutomationRunDispatchStatus;
@@ -1256,7 +1415,7 @@ export class AutomationRepo {
             session_id = COALESCE(@session_id, session_id),
             error = @error,
             updated_at = @now
-        WHERE run_id = @run_id`,
+        WHERE run_id = @run_id AND dispatch_status <> 'dispatched'`,
       )
       .run({
         run_id: params.runId,
@@ -1373,7 +1532,8 @@ export class AutomationRepo {
           dispatch_status, error, attempts, created_at, updated_at
         ) VALUES (@run_id, @automation_id, @workspace_key, @scheduled_at, @trigger, 'skipped', @reason, 0, @now, @now)
         ON CONFLICT(run_id) DO UPDATE SET
-          dispatch_status = 'skipped', error = excluded.error, updated_at = excluded.updated_at`,
+          dispatch_status = 'skipped', error = excluded.error, updated_at = excluded.updated_at
+        WHERE automation_runs.dispatch_status <> 'dispatched'`,
       )
       .run({
         run_id: params.runId,

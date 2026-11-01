@@ -125,6 +125,11 @@ export function connectViaWebSocket(
         return;
       }
       if (settled) return;
+      // close() 先同步进入 CLOSING，原生 close 事件稍后才到；不能把已关闭的初始化误报为成功。
+      if (ws.readyState !== WebSocket.OPEN) {
+        disposeConnection();
+        return;
+      }
       settled = true;
       resolve(new RemoteServiceAccess(client));
     };

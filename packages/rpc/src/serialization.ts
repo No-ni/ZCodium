@@ -24,6 +24,23 @@ interface IByteReader extends IReader {
   readByte(): number;
 }
 
+/**
+ * 模块内能力接口：可零拷贝即时解码字符串的 reader。
+ * 不导出：只有本模块的反序列化消费，外部 IReader 契约不变。
+ */
+interface IStringReader extends IReader {
+  readString(bytes: number): string;
+}
+
+function isStringReader(reader: IReader): reader is IStringReader {
+  return typeof (reader as { readString?: unknown }).readString === "function";
+}
+
+/** String/Object 负载的即时解码读取：有能力者零拷贝，普通 IReader 回退既有拷贝语义。 */
+function readDecodedPayload(reader: IReader, bytes: number): string {
+  return isStringReader(reader) ? reader.readString(bytes) : reader.read(bytes).toString();
+}
+
 export interface IWriter {
   write(buffer: VSBuffer): void;
 }
@@ -41,6 +58,20 @@ export class BufferReader implements IByteReader {
     const result = this.buffer.slice(this.pos, this.pos + bytes);
     this.pos += result.byteLength;
     return result;
+  }
+
+  /**
+   * 读取 bytes 并即时解码为字符串，不向调用方暴露底层视图。
+   *
+   * 游标推进与 read() 的 slice 归一规则完全一致：先取 subarray 视图再以
+   * view.byteLength 推进，因此越界、零长与负 bytes 的边界行为同 read()，
+   * readByte 的越界容错不受影响。视图只在方法内经 TextDecoder 解码：
+   * 返回 string 不持有底层存储，小结果也不会钉住整帧缓冲。
+   */
+  readString(bytes: number): string {
+    const view = this.buffer.buffer.subarray(this.pos, this.pos + bytes);
+    this.pos += view.byteLength;
+    return VSBuffer.wrap(view).toString();
   }
 
   readByte(): number {
@@ -219,7 +250,7 @@ export function deserialize(reader: IReader): any {
     case DataType.Undefined:
       return undefined;
     case DataType.String:
-      return reader.read(readIntVQL(reader)).toString();
+      return readDecodedPayload(reader, readIntVQL(reader));
     case DataType.Buffer:
       return reader.read(readIntVQL(reader)).buffer;
     case DataType.VSBuffer:
@@ -233,7 +264,7 @@ export function deserialize(reader: IReader): any {
       return result;
     }
     case DataType.Object:
-      return JSON.parse(reader.read(readIntVQL(reader)).toString(), decodeRpcJsonValue);
+      return JSON.parse(readDecodedPayload(reader, readIntVQL(reader)), decodeRpcJsonValue);
     case DataType.Int:
       return readIntVQL(reader);
   }

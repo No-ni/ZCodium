@@ -2,7 +2,6 @@ import type {
   ZCodeAutomation,
   ZCodeAutomationCreateParams,
   ZCodeAutomationRun,
-  ZCodeAutomationScheduleRule,
   ZCodeAutomationUpdateParams,
 } from "@zcode/shared";
 import { resolveWorkspaceKey } from "@zcode/shared";
@@ -21,6 +20,10 @@ import {
   isValidCronExpr,
   scheduleRuleDefinition,
 } from "#src/session/automationCron.js";
+import {
+  assertValidAutomationRelativeDelayParams,
+  assertValidAutomationScheduleRule,
+} from "#src/session/automationScheduleValidation.js";
 
 /** 写/单查操作的 workspace 归属；用于跨 workspace 隔离校验。 */
 interface AutomationWorkspaceScope {
@@ -53,86 +56,6 @@ class InvalidAutomationMaxRunsUpdateError extends Error {
   }
 }
 
-/** 非法自定义调度规则；规则必须先通过领域校验才能写入内部任务库。 */
-class InvalidAutomationScheduleRuleError extends Error {
-  constructor(message: string) {
-    super(`非法的定时任务调度规则：${message}`);
-    this.name = "InvalidAutomationScheduleRuleError";
-  }
-}
-
-/** 相对延迟只用于一次性任务，并由服务端真实时钟生成调度规则。 */
-class InvalidAutomationRelativeDelayError extends Error {
-  constructor(message: string) {
-    super(`非法的相对时间定时任务：${message}`);
-    this.name = "InvalidAutomationRelativeDelayError";
-  }
-}
-
-const MAX_MONTHLY_AUTOMATION_SCHEDULE_INTERVAL = 1_200;
-const AUTOMATION_SCHEDULE_RULE_UNITS = new Set([
-  "minute",
-  "hourly",
-  "daily",
-  "weekly",
-  "monthly",
-  "yearly",
-]);
-
-function hasOnlyIntegersInRange(values: number[] | undefined, min: number, max: number): boolean {
-  return Boolean(
-    values?.length &&
-    values.every((value) => Number.isInteger(value) && value >= min && value <= max),
-  );
-}
-
-function assertValidAutomationScheduleRule(rule: ZCodeAutomationScheduleRule): void {
-  if (!AUTOMATION_SCHEDULE_RULE_UNITS.has(rule.unit)) {
-    throw new InvalidAutomationScheduleRuleError("unit 不受支持");
-  }
-  if (!Number.isInteger(rule.interval) || rule.interval < 1) {
-    throw new InvalidAutomationScheduleRuleError("interval 必须是正整数");
-  }
-  if (rule.unit === "monthly" && rule.interval > MAX_MONTHLY_AUTOMATION_SCHEDULE_INTERVAL) {
-    throw new InvalidAutomationScheduleRuleError(
-      `monthly interval 不能超过 ${MAX_MONTHLY_AUTOMATION_SCHEDULE_INTERVAL}`,
-    );
-  }
-  if (!Number.isInteger(rule.hour) || rule.hour < 0 || rule.hour > 23) {
-    throw new InvalidAutomationScheduleRuleError("hour 必须是 0-23 的整数");
-  }
-  if (!Number.isInteger(rule.minute) || rule.minute < 0 || rule.minute > 59) {
-    throw new InvalidAutomationScheduleRuleError("minute 必须是 0-59 的整数");
-  }
-  if (
-    rule.monthlyMode !== undefined &&
-    rule.monthlyMode !== "date" &&
-    rule.monthlyMode !== "weekday"
-  ) {
-    throw new InvalidAutomationScheduleRuleError("monthlyMode 不受支持");
-  }
-  if (rule.weekdays && !hasOnlyIntegersInRange(rule.weekdays, 0, 6)) {
-    throw new InvalidAutomationScheduleRuleError("weekdays 必须是 0-6 的非空整数数组");
-  }
-  if (rule.unit === "weekly" && !hasOnlyIntegersInRange(rule.weekdays, 0, 6)) {
-    throw new InvalidAutomationScheduleRuleError("weekly 规则必须包含有效的 weekdays");
-  }
-  if (rule.unit === "monthly") {
-    if (rule.monthlyMode === "weekday" && !hasOnlyIntegersInRange(rule.weekdays, 0, 6)) {
-      throw new InvalidAutomationScheduleRuleError("monthly weekday 规则必须包含有效的 weekdays");
-    }
-    if (rule.monthlyMode !== "weekday" && !hasOnlyIntegersInRange(rule.monthDays, 1, 31)) {
-      throw new InvalidAutomationScheduleRuleError("monthly date 规则必须包含有效的 monthDays");
-    }
-  }
-  if (rule.months && !hasOnlyIntegersInRange(rule.months, 1, 12)) {
-    throw new InvalidAutomationScheduleRuleError("months 必须是 1-12 的非空整数数组");
-  }
-  if (rule.monthDays && !hasOnlyIntegersInRange(rule.monthDays, 1, 31)) {
-    throw new InvalidAutomationScheduleRuleError("monthDays 必须是 1-31 的非空整数数组");
-  }
-}
-
 /**
  * automation 管理服务：包 AutomationRepo，负责 cron 语义（校验 / 下次时间计算）+ 生命周期重算。
  * 仓库只做存储；这里承载「create 时算 next_run_at」「改 cron_expr 重算」「改 recurring/max_runs 重算生命周期」
@@ -143,31 +66,15 @@ export class AutomationService {
 
   async create(params: ZCodeAutomationCreateParams): Promise<ZCodeAutomation> {
     const createdAt = Date.now();
-    const relativeDelayMinutes = params.relativeDelayMinutes;
-    if (
-      relativeDelayMinutes !== undefined &&
-      (!Number.isInteger(relativeDelayMinutes) ||
-        relativeDelayMinutes < 1 ||
-        relativeDelayMinutes > 525_600)
-    ) {
-      throw new InvalidAutomationRelativeDelayError("delayMinutes 必须是 1-525600 的整数");
-    }
-    if (relativeDelayMinutes !== undefined && params.recurring) {
-      throw new InvalidAutomationRelativeDelayError("相对延迟任务必须设置 recurring=false");
-    }
-    if (relativeDelayMinutes !== undefined && params.maxRuns !== undefined) {
-      throw new InvalidAutomationRelativeDelayError("相对延迟任务固定只运行一次，不能设置 maxRuns");
-    }
-    if (relativeDelayMinutes !== undefined && params.scheduleRule) {
-      throw new InvalidAutomationRelativeDelayError("不能同时提交 delayMinutes 和 scheduleRule");
-    }
+    // 相对延迟入参校验收敛到调度入参校验模块（与 scheduleRule 校验同族）。
+    assertValidAutomationRelativeDelayParams(params);
     const intervalUnit = params.intervalUnit;
     const interval = params.interval;
     assertValidAutomationIntervalCarrier({
       intervalUnit,
       interval,
       scheduleRule: params.scheduleRule,
-      relativeDelayMinutes,
+      relativeDelayMinutes: params.relativeDelayMinutes,
       recurring: params.recurring,
       maxRuns: params.maxRuns,
     });
@@ -181,11 +88,11 @@ export class AutomationService {
     // 模型只知道日期时会自行猜测当前时刻，把“3 分钟后”算成两小时后或过去时间。
     // 相对时间必须由领域层基于真实 Date.now() 建立锚点，不能信任模型换算的绝对 cron。
     const relativeNormalizedParams =
-      relativeDelayMinutes === undefined
+      params.relativeDelayMinutes === undefined
         ? persistedParams
         : {
             ...persistedParams,
-            ...buildRelativeDelaySchedule(relativeDelayMinutes, createdAt),
+            ...buildRelativeDelaySchedule(params.relativeDelayMinutes, createdAt),
             recurring: false,
           };
     // 会话侧自定义重复 carrier 归一化：把 intervalUnit+interval + 兼容 cron 组装成权威 scheduleRule，
@@ -208,17 +115,18 @@ export class AutomationService {
     if (!isValidCronExpr(normalizedParams.cronExpr)) {
       throw new InvalidCronExprError(normalizedParams.cronExpr);
     }
-    // computeScheduleRuleNextRunAt 曾静默修正 interval=0，并在超大间隔下返回 null，
-    // 使非法规则仍被持久化为 active。写库前必须在领域层拒绝，不能依赖 UI 选择器兜底。
-    if (normalizedParams.scheduleRule) {
-      assertValidAutomationScheduleRule(normalizedParams.scheduleRule);
-    }
     // 标准 `*/N` cron 会对齐墙钟刻度，11:46 创建“每 10 分钟”会在 11:50
     // 提前触发。产品语义是从创建时刻计时，因此缺少显式规则时在领域层补上分钟锚点。
     const scheduleRule = normalizedParams.scheduleRule
       ? { ...normalizedParams.scheduleRule, anchorAt: createdAt }
       : inferMinuteIntervalScheduleRule(normalizedParams.cronExpr, createdAt);
     const createParams = scheduleRule ? { ...normalizedParams, scheduleRule } : normalizedParams;
+    // computeScheduleRuleNextRunAt 曾静默修正 interval=0，并在超大间隔下返回 null，
+    // 使非法规则仍被持久化为 active。写库前必须在领域层拒绝，不能依赖 UI 选择器兜底；
+    // 校验放在重锚定之后，yearly 可行性才能与引擎一致地使用 anchor 回退解析。
+    if (createParams.scheduleRule) {
+      assertValidAutomationScheduleRule(createParams.scheduleRule);
+    }
     // 五段 cron 不含年份；一次性固定月日任务若在创建过程中刚错过目标分钟，
     // 普通 nextRun 会滚到下一年。首次计算只补偿小于一分钟的跨分钟误差，陈旧目标在写库前拒绝。
     const nextRunAt = computeInitialAutomationNextRunAt(createParams, createdAt);
@@ -261,7 +169,10 @@ export class AutomationService {
     const existing = await this.repo.get(automationId, workspaceKey);
     if (!existing) return null;
 
-    if (params.scheduleRule) assertValidAutomationScheduleRule(params.scheduleRule);
+    // 注意：此处不对调用方原始 scheduleRule 提前校验——原始 anchor 不代表引擎实际使用的 anchor
+    // （定义变更会重锚定到 updatedAt，定义未变才保留旧锚），提前校验会把「旧 anchor 不可行、
+    // 重锚定后可行」的合法更新误拒。可行性等全部规则校验统一在解析锚点后的最终 canonical
+    // rule 上进行（见 explicitScheduleRule 复验），scheduleRule 清除与不携带规则的更新无新写入。
 
     // 会话侧自定义重复 carrier 校验：intervalUnit+interval 必须配对且限定为 1–200，并与直传 scheduleRule 互斥。
     const { intervalUnit, interval, scheduleRule: directScheduleRule, ...restParams } = params;
@@ -326,9 +237,8 @@ export class AutomationService {
       effectiveDirectScheduleRule !== undefined
         ? { ...normalizedParams, scheduleRule: effectiveDirectScheduleRule }
         : normalizedParams;
-    if (effectiveDirectScheduleRule) {
-      assertValidAutomationScheduleRule(effectiveDirectScheduleRule);
-    }
+    // 不在此处校验 effectiveDirectScheduleRule：direct rule 尚未重锚定（调用方 anchor），
+    // carrier 规则的最终 anchor 也可能在下方按「定义未变保留旧锚」调整；统一留待最终复验。
     const explicitScheduleRule = effectiveDirectScheduleRule
       ? {
           ...effectiveDirectScheduleRule,
@@ -341,6 +251,11 @@ export class AutomationService {
               : updatedAt,
         }
       : effectiveDirectScheduleRule;
+    // 解析锚点后的最终规则再校验一次：yearly 可行性依赖 anchor 回退（anchor 可能保留旧值），
+    // 与引擎实际使用的 (月, 日) 解析保持一致；拒绝发生在任何仓库写入之前，更新原子失败。
+    if (explicitScheduleRule) {
+      assertValidAutomationScheduleRule(explicitScheduleRule);
+    }
     // cron 改变但调用方没有显式 scheduleRule 时，旧规则不能继续覆盖新 cron；分钟间隔以本次
     // 修改时间重新锚定，其它 cron 则清空旧规则并恢复日历 cron 语义。
     const inferredScheduleRule =

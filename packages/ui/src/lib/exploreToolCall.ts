@@ -1,4 +1,4 @@
-import { resolveToolCallIdentity } from "@/lib/toolIdentity.js";
+import { resolveToolCallIdentity, type ToolCallIdentity } from "@/lib/toolIdentity.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -117,14 +117,28 @@ const EXECUTE_WRITE_COMMAND_RE =
 const SHELL_REDIRECT_WRITE_RE = /(^|[^\d<])>>?\s*\S|&>\s*\S/i;
 const SHELL_LOOP_RE = /\b(for|while)\b/i;
 
-export function isShellToolCallAwaitingCommand({ kind, input }: { kind: string; input: unknown }) {
-  const identity = resolveToolCallIdentity({ kind, input });
+export function isShellToolCallAwaitingCommand(
+  { kind, input }: { kind: string; input: unknown },
+  identity?: ToolCallIdentity,
+) {
+  return isShellToolCallAwaitingWithIdentity(
+    identity ?? resolveToolCallIdentity({ kind, input }),
+    input,
+  );
+}
+
+function isShellToolCallAwaitingWithIdentity(identity: ToolCallIdentity, input: unknown) {
   return identity.family === "shell" && extractToolCommands(input).length === 0;
 }
 
-export function isExploreToolCall({ kind, input }: { kind: string; input: unknown }) {
-  const identity = resolveToolCallIdentity({ kind, input });
+export function isExploreToolCall(
+  { kind, input }: { kind: string; input: unknown },
+  identity?: ToolCallIdentity,
+) {
+  return isExploreToolCallWithIdentity(identity ?? resolveToolCallIdentity({ kind, input }), input);
+}
 
+function isExploreToolCallWithIdentity(identity: ToolCallIdentity, input: unknown) {
   if (identity.family === "file-write") {
     return false;
   }
@@ -165,11 +179,17 @@ export function isExploreToolCall({ kind, input }: { kind: string; input: unknow
   );
 }
 
-export function isExecuteToolCall({ kind, input }: { kind: string; input: unknown }) {
-  const identity = resolveToolCallIdentity({ kind, input });
+export function isExecuteToolCall(
+  { kind, input }: { kind: string; input: unknown },
+  identity?: ToolCallIdentity,
+) {
+  return isExecuteToolCallWithIdentity(identity ?? resolveToolCallIdentity({ kind, input }), input);
+}
+
+function isExecuteToolCallWithIdentity(identity: ToolCallIdentity, input: unknown) {
   return (
     identity.family === "shell" &&
-    !isShellToolCallAwaitingCommand({ kind, input }) &&
-    !isExploreToolCall({ kind, input })
+    !isShellToolCallAwaitingWithIdentity(identity, input) &&
+    !isExploreToolCallWithIdentity(identity, input)
   );
 }

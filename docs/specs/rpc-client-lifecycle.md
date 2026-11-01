@@ -23,6 +23,32 @@ stateDiagram-v2
     terminal --> [*]: finish 先删除，释放资源；迟到回调忽略
 ```
 
+## IPCServer 未路由调用的所有权
+
+IPCServer.getChannel 的反向 call 在选中连接前还没有进入 ChannelClient.requests。原 filter 只等待新增连接，取消及 server dispose 无法终结这段 Promise；StaticRouter 也会保留自己的新增连接监听。此公开框架边界不代表已有桌面或手机生产入口故障。
+
+IPCServer 是未路由调用的唯一 owner；存活等待项统一 finish，在用户取消、server dispose、路由失败或选中连接时先移除 owner、解除本地新增连接及取消监听，再拒绝或移交调用。选中连接后只由原 ChannelClient.requests 接纳，不建立第二份已发送请求表；不使用 timeout 或留下监听的 Promise.race。
+
+路由阶段持有独立 CancellationTokenSource：用户 cancel 联动，server dispose 主动 cancel；正常选中只 dispose、不 cancel。IClientRouter.routeCall 使用既有可选 cancellationToken 接收阶段 token，StaticRouter 在取消时解除自己的新增连接等待。ChannelClient 始终收到原用户 token，正常移交不能取消业务 token，移交后的取消仍有效。路由结果只可选择当前活跃连接；终结后的结果与匹配不得发送请求。
+
+IClientRouter 只承诺返回 Client（ctx）；IPCServer 按 ctx 在当前活跃连接视图中选择目标，仅返回 `{ ctx }` 的 router 同样能正常移交回包，终结后无活跃同 ctx 的结果仍拒绝且不发送请求。用户 token 的取消订阅若同步触发取消，迟到句柄立即释放，不留在已终结等待里。filter 谓词同步抛错按路由失败终结：等待及时 settle 并释放全部监听，异常不得向新增连接事件链泄漏，也不得留下半初始化等待；终态后的迟到投递不再评估谓词。终态清理遵循既有 release 契约：单个外部 disposer 抛错不阻断该等待 settle、不阻断其余监听释放，也不阻断 server dispose 关闭其余等待与 scope；不使用 timeout 或 Promise.race 兜底。 显式返回连接资源时须仍是活跃对象：同 ctx 多连接保留原引用选择，失效实例不能因相同 ctx 的新连接而重新激活；只有标识的结果按 ctx 选择。
+
+自定义 router 自建资源由该 router 持有。若它忽略阶段 token，RPC 仍及时拒绝并丢弃迟到结果，但不能强制终结外部 Promise/清理外部资源；不以兜底重试或替换 router 隐藏此边界。事件路由及 wire/API 不变。
+
+```mermaid
+stateDiagram-v2
+    [*] --> routing: IPCServer 接纳未路由等待
+    routing --> terminal: cancel / dispose / 路由失败，统一 finish
+    routing --> handedOff: 活跃连接选中，finish 回收监听
+    handedOff --> request: 原用户 token 交给 ChannelClient.requests
+    request --> terminal: 既有请求生命周期
+    terminal --> [*]
+```
+
+新增纯内存验收直接导入真实 TS 导出：预取消、等待中取消、dispose、迟到匹配/自定义结果均不发旧请求；正常回包与移交后取消保持有效；StaticRouter cancel/dispose 后新增连接监听归零；另覆盖仅返回 ctx 的 router 结果按活跃连接移交、订阅即同步取消的迟到句柄归零、外部 disposer 抛错后等待仍及时 settle 且 server dispose 存活。使用项目隔离 runSourceTests，不把 Node 内存测试写成真实 socket 或整机验收。 StaticRouter 的 hub 新增连接与阶段取消订阅同步回调时，迟到句柄立即释放，已完成等待不再订阅取消；外部 router 的阶段取消回调抛错也不得中断其余等待与 scope 的终结。
+
+筛选与路由标识解析可能同步执行外部代码。遍历每个候选连接前检查终态；纯 Client 的 ctx 只读取一次作为本次选择的快照。谓词、属性存在性检查或 ctx getter 触发取消/dispose 后，不再执行后续谓词、getter、活跃列表读取或投递；不能只在整段遍历结束后检查。此规则不增加业务状态、超时或资源接管。
+
 ## 验收边界
 
 先在旧实现复现发送抛错后 Promise 不 settle、循环参数编码失败后请求仍保留、同步 cancel 回应抢占取消。使用公开 ChannelClient/ChannelServer 在 direct、真实 MessageChannel 和 SocketProtocol 装配下验证成功/错误/初始化等待/取消/重订/释放；另覆盖资源回收抛错、握手与发送微任务之间终结、迟到结果和原错误字段。以 owner 表及真实订阅/取消句柄归零检查释放，不保留为旧测试服务的兼容集合。旧性能测试中绑定私有集合的断言迁移到唯一请求表，原行为场景全部保留。

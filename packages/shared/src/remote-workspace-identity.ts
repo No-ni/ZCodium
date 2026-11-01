@@ -6,8 +6,8 @@
 //   remote:wsl:<distro>[:<user>]:<posixPath>
 //   remote:docker:<container>:<posixPath>
 // path 段经 normalizeWorkspacePathForIdentity 归一（分隔符 → "/"，去收尾斜杠，
-// 空 → "/"），因此恒以 "/" 开头；authority 各段不含 "/"（host 小写、port 数字、
-// docker 容器名/wsl 发行版名的合法字符集均不含 ":" 与 "/"）。
+// 空 → "/"），因此恒以 "/" 开头；authority 各段不含 "/"，SSH host 可以含 IPv6 冒号，
+// port/username 与 docker 容器名/wsl 发行版名不含 ":" 与 "/"。
 // 消费方：CLI v4 createSession 的 workspaceId（远程 pane 里 workspaceKey =
 // identity）需要还原出真实 workspacePath 作为会话 workingDirectory。
 import type { RemoteTarget } from "./remoteTarget.js";
@@ -94,6 +94,22 @@ export function parseRemoteWorkspaceIdentity(
   const kind = rest.slice(0, kindEnd);
   if (!isRemoteWorkspaceIdentityKind(kind)) {
     return null;
+  }
+  if (kind === "ssh") {
+    // IPv6 host 自带冒号，固定消费三段会把合法身份解析成 null；从路径边界向左取用户和端口。
+    const pathBoundary = rest.indexOf(":/", kindEnd + 1);
+    if (pathBoundary < 0) return null;
+    const userBoundary = rest.lastIndexOf(":", pathBoundary - 1);
+    const portBoundary = rest.lastIndexOf(":", userBoundary - 1);
+    if (
+      portBoundary <= kindEnd + 1 ||
+      userBoundary <= portBoundary + 1 ||
+      pathBoundary <= userBoundary + 1
+    ) {
+      return null;
+    }
+    // `::` 是合法 IPv6 地址；上方只检查必选段边界，实际地址仍由原连接入口验证。
+    return { kind, workspacePath: rest.slice(pathBoundary + 1) };
   }
   // 逐段消费 authority；path 段可能含 ":"（理论上 posix 路径允许），
   // 因此不能整体 split——按段推进后取剩余整段为 path。

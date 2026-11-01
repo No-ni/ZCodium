@@ -1,0 +1,10 @@
+{
+  "revision": "187232e2fd04090a00f26ead73e9f00a0bf472f3",
+  "sources": [
+    {
+      "fixture": "buildGroupedTaskViewFromSessions.ts.txt",
+      "source": "packages/ui/src/lib/buildGroupedTaskViewFromSessions.ts",
+      "sha256": "b722e94aecefe23b3e7f813ee3e09e7c8e44e6077e8ea12deecdf72cf93c4278"
+    }
+  ]
+}

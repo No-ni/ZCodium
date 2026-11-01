@@ -348,6 +348,8 @@ export function findUnclosedAssistantDirectiveStart(
   return unclosedStart;
 }
 
+const DIRECTIVE_WHITESPACE_PATTERN = /\s/;
+
 /**
  * 流式尾部可能刚开始输出特化 directive 时，先把仍然匹配协议名称前缀的内容暂存。
  * 只检查文末连续尾部，且跳过 Markdown 代码范围；一旦前缀分叉，返回 null 让正文照常显示。
@@ -362,42 +364,118 @@ export function findAssistantDirectivePrefixStart(
   const tripleColonNames = new Set(options.tripleColonDirectiveNames ?? []);
   const minimumSingleColonPrefixLength = options.minimumSingleColonPrefixLength ?? 2;
 
+  // 合法前缀的最长可能长度 = 三冒号 + 最长的 directive 名。旧实现从正文最后一个字符逐字符
+  // 回扫全文，每遇到一个冒号就 slice 一次剩余全文、并对每个名字做若干次 startsWith：冒号数随
+  // 正文长度线性增长，而单次 slice 覆盖的是剩余全文，因此**累计 slice 覆盖范围**对正文长度
+  // 平方级增长（startsWith 次数只随冒号数线性增长；V8 的 slice 可能共享底层字符数据，墙钟
+  // 耗时与内存并不保证同比例平方增长）。流式投影在正文每次更新时都会调它。这里把回扫收窄到
+  // 「最后一个非空白字符往前 maxPrefixLength 个字符」。
+  // 下界证明（p 为任一命中位置，lastNonWhitespace 为最后一个非空白字符的下标）：
+  //   - suffix 是某个 ":"×k + name 的真前缀 → suffix.length <= maxPrefixLength，
+  //     故 p >= content.length - maxPrefixLength >= lastNonWhitespace + 1 - maxPrefixLength；
+  //   - suffix 以完整的 ":"×k + name 开头且其后全空白 → 名之后没有非空白字符，
+  //     故 lastNonWhitespace <= p + (k + len(name)) - 1 <= p + maxPrefixLength - 1。
+  // 公开参数不约束名字非空白，第二种形态只能取 <=；旧实现返回最靠右的命中位置，收窄窗口
+  // 因此不改变返回值。完整推导见 docs/specs/performance-rescan-ui-directive-prefix-scan.md。
+  const longestNameLength = directiveNames.reduce(
+    (longest, directiveName) => (directiveName.length > longest ? directiveName.length : longest),
+    0,
+  );
+  const maxPrefixLength = 3 + longestNameLength;
+  // 最后一个非空白字符之后只可能是空白，不可能有冒号，回扫从它开始即可，无需再走一遍尾部空白。
+  let lastNonWhitespace = -1;
   for (let index = content.length - 1; index >= 0; index -= 1) {
+    if (!DIRECTIVE_WHITESPACE_PATTERN.test(content[index] ?? "")) {
+      lastNonWhitespace = index;
+      break;
+    }
+  }
+
+  for (
+    let index = lastNonWhitespace;
+    index >= Math.max(0, lastNonWhitespace + 1 - maxPrefixLength);
+    index -= 1
+  ) {
     if (content[index] !== ":") continue;
     if (content[index - 1] === ":") continue;
     if (overlapsAssistantTextRanges(index, index + 1, protectedRanges)) continue;
 
-    const suffix = content.slice(index);
-    const isPrefix = directiveNames.some((directiveName) => {
-      const canonicalName = `::${directiveName}`;
-      const tripleColonName = `:::${directiveName}`;
-      if (
-        tripleColonNames.has(directiveName) &&
-        suffix.startsWith(":::") &&
-        (tripleColonName.startsWith(suffix) ||
-          (suffix.startsWith(tripleColonName) &&
-            /^\s*$/.test(suffix.slice(tripleColonName.length))))
-      ) {
-        return true;
-      }
-      if (
-        suffix.startsWith("::") &&
-        (canonicalName.startsWith(suffix) ||
-          (suffix.startsWith(canonicalName) && /^\s*$/.test(suffix.slice(canonicalName.length))))
-      ) {
-        return true;
-      }
-
-      if (!singleColonNames.has(directiveName) || suffix.length < minimumSingleColonPrefixLength) {
-        return false;
-      }
-      const compatibilityName = `:${directiveName}`;
-      if (compatibilityName.startsWith(suffix)) return true;
-      return (
-        suffix.startsWith(compatibilityName) && /^\s*$/.test(suffix.slice(compatibilityName.length))
-      );
-    });
+    const tailLength = content.length - index;
+    const isPrefix = directiveNames.some((directiveName) =>
+      matchesDirectivePrefixAt(content, index, tailLength, lastNonWhitespace, directiveName, {
+        minimumSingleColonPrefixLength,
+        singleColonNames,
+        tripleColonNames,
+      }),
+    );
     if (isPrefix) return index;
   }
   return null;
+}
+
+/**
+ * content 在 index 处的尾部是否命中某个 directive 名的前缀。与旧实现按名判定的三种形态
+ * 逐条等价，只是不构造 content.slice(index) 这个中间子串：
+ *   suffix.startsWith(X)          → content.startsWith(X, index)
+ *   X.startsWith(suffix)          → 仅当 tailLength <= X.length 时 slice 后比较（长度已封顶）
+ *   suffix 以 X 开头且名后只剩空白 → content.startsWith(X, index) 且
+ *                                    lastNonWhitespace < index + X.length
+ * 最后一条不假设名字本身非空白，对带尾空白的名字与全空白名字同样成立。
+ */
+function matchesDirectivePrefixAt(
+  content: string,
+  index: number,
+  tailLength: number,
+  lastNonWhitespace: number,
+  directiveName: string,
+  context: {
+    minimumSingleColonPrefixLength: number;
+    singleColonNames: ReadonlySet<string>;
+    tripleColonNames: ReadonlySet<string>;
+  },
+): boolean {
+  const canonicalName = `::${directiveName}`;
+  const tripleColonName = `:::${directiveName}`;
+  if (
+    context.tripleColonNames.has(directiveName) &&
+    content.startsWith(":::", index) &&
+    (isNamePrefixAt(content, index, tailLength, tripleColonName) ||
+      isCompleteNameAt(content, index, lastNonWhitespace, tripleColonName))
+  ) {
+    return true;
+  }
+  if (
+    content.startsWith("::", index) &&
+    (isNamePrefixAt(content, index, tailLength, canonicalName) ||
+      isCompleteNameAt(content, index, lastNonWhitespace, canonicalName))
+  ) {
+    return true;
+  }
+  if (
+    !context.singleColonNames.has(directiveName) ||
+    tailLength < context.minimumSingleColonPrefixLength
+  ) {
+    return false;
+  }
+  const compatibilityName = `:${directiveName}`;
+  return (
+    isNamePrefixAt(content, index, tailLength, compatibilityName) ||
+    isCompleteNameAt(content, index, lastNonWhitespace, compatibilityName)
+  );
+}
+
+/** name 以 content.slice(index) 为前缀；suffix 比 name 长时判定恒为否。 */
+function isNamePrefixAt(content: string, index: number, tailLength: number, name: string): boolean {
+  if (tailLength > name.length) return false;
+  return name.startsWith(content.slice(index));
+}
+
+/** content 在 index 处完整出现 name，且 name 之后只剩下空白字符。 */
+function isCompleteNameAt(
+  content: string,
+  index: number,
+  lastNonWhitespace: number,
+  name: string,
+): boolean {
+  return content.startsWith(name, index) && lastNonWhitespace < index + name.length;
 }

@@ -1,8 +1,8 @@
 import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
-import { basename, extname, relative, resolve, sep } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { hostname } from "node:os";
 import { Hono, type Context } from "hono";
 import { serve } from "@hono/node-server";
@@ -41,6 +41,7 @@ import {
 } from "@zcode/shared";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { resolveStaticFile } from "./httpStaticFiles.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -248,53 +249,6 @@ function isStaticFallbackAllowed(pathname: string): boolean {
   return !isTokenProtectedPath(pathname);
 }
 
-function isInsideDirectory(root: string, candidate: string): boolean {
-  const diff = relative(root, candidate);
-  return diff === "" || (!diff.startsWith("..") && !diff.includes(`..${sep}`));
-}
-
-async function resolveStaticFile(
-  staticRoot: string,
-  pathname: string,
-  spaFallback: boolean,
-): Promise<string | null> {
-  const root = resolve(staticRoot);
-  const normalizedPathname = pathname === "/" ? "/index.html" : pathname;
-  const relativePath = decodeURIComponent(normalizedPathname).replace(/^\/+/, "");
-  let candidate = resolve(root, relativePath);
-  if (!isInsideDirectory(root, candidate)) {
-    return null;
-  }
-
-  try {
-    const candidateStat = await stat(candidate);
-    if (candidateStat.isDirectory()) {
-      candidate = resolve(candidate, "index.html");
-      if (!isInsideDirectory(root, candidate)) {
-        return null;
-      }
-      const indexStat = await stat(candidate);
-      return indexStat.isFile() ? candidate : null;
-    }
-    if (candidateStat.isFile()) {
-      return candidate;
-    }
-  } catch {
-    // 静态资源未命中时再进入 SPA fallback，保留真实文件错误的 404 语义。
-  }
-
-  if (!spaFallback || !isStaticFallbackAllowed(pathname)) {
-    return null;
-  }
-  const indexFile = resolve(root, "index.html");
-  try {
-    const indexStat = await stat(indexFile);
-    return indexStat.isFile() ? indexFile : null;
-  } catch {
-    return null;
-  }
-}
-
 function staticContentType(filePath: string): string {
   return staticMimeTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
@@ -456,7 +410,11 @@ export function createHttpServer(
     const staticRoot = options.staticRoot.trim();
     app.get("*", async (c) => {
       const pathname = new URL(c.req.url).pathname;
-      const filePath = await resolveStaticFile(staticRoot, pathname, options.spaFallback ?? true);
+      const filePath = await resolveStaticFile(
+        staticRoot,
+        pathname,
+        (options.spaFallback ?? true) && isStaticFallbackAllowed(pathname),
+      );
       if (!filePath) {
         return c.notFound();
       }

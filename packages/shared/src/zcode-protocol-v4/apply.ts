@@ -150,8 +150,12 @@ export function applyConversationDeltas(
 ): ConversationSnapshot {
   // 同一帧逐条复制 rows 会把长会话变成 O(行数 × 增量数)。候选只在本函数内可写，
   // 帧末才发布；单条/纯状态帧沿用原语义，避免无意义复制整窗。
-  const rowOperations = deltas.filter((delta) => delta.op.startsWith("row."));
-  if (rowOperations.length > 1) {
+  // 这里只判断是否存在两条行操作；继续筛选整帧会重复扫描并分配无用数组。
+  let rowOperations = 0;
+  for (const delta of deltas) {
+    if (delta.op.startsWith("row.") && ++rowOperations > 1) break;
+  }
+  if (rowOperations > 1) {
     const accumulator = createMutableConversationSnapshotAccumulator(snapshot);
     let changed = false;
     for (const delta of deltas) {

@@ -17,9 +17,9 @@ import {
 import type { IStorageService } from "@zcode/services";
 import { logger } from "./logger.js";
 import { createStorageScanWorkerRunner } from "./storageScanWorkerClient.js";
+import { createResourceManagerStorageScanLifecycle } from "./resourceManagerStorageScanLifecycle.js";
 
 let service: IStorageService | null = null;
-let latestJobId: string | null = null;
 let subscriber: WebContents | null = null;
 const rootsResolver = createStorageRootsResolver({ getHomeDir: homedir, getDataBaseDir });
 
@@ -38,6 +38,11 @@ function getService(): IStorageService {
   return service;
 }
 
+const scanLifecycle = createResourceManagerStorageScanLifecycle<WebContents>({
+  getService,
+  isSubscriberActive: (sender) => subscriber === sender && !sender.isDestroyed(),
+});
+
 /** 只有资源管理器窗口能发起存储命令；窗口关闭时取消进行中的扫描，避免后台空转。 */
 function bindSubscriber(event: IpcMainInvokeEvent): void {
   if (subscriber === event.sender) return;
@@ -46,10 +51,7 @@ function bindSubscriber(event: IpcMainInvokeEvent): void {
   win?.once("closed", () => {
     if (subscriber !== event.sender) return;
     subscriber = null;
-    if (latestJobId && service) {
-      void service.cancelScan(latestJobId);
-      latestJobId = null;
-    }
+    void scanLifecycle.close();
   });
 }
 
@@ -65,14 +67,11 @@ function isPathInsideStorageRoots(absolutePath: string, roots: StorageRootSpec[]
 export function registerResourceManagerStorageIpc(): void {
   ipcMain.handle(PlatformChannels.StorageStartScan, async (event) => {
     bindSubscriber(event);
-    const result = await getService().startScan();
-    latestJobId = result.jobId;
-    return result;
+    return scanLifecycle.startScan(event.sender);
   });
   ipcMain.handle(PlatformChannels.StorageCancelScan, async (_event, jobId: string) => {
     if (!service) return;
-    await service.cancelScan(jobId);
-    if (latestJobId === jobId) latestJobId = null;
+    await scanLifecycle.cancelScan(jobId);
   });
   ipcMain.handle(PlatformChannels.StorageGetSnapshot, async () =>
     service ? service.getSnapshot() : null,

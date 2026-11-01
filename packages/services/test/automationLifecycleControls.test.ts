@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import {
+  assertProjectPath,
+  createProjectTestFixture,
+} from "../../../scripts/ci/project-test-sandbox.mjs";
 import { AutomationRepo } from "../src/session/automationRepo.js";
 import { AutomationService } from "../src/session/automationService.js";
 import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
 
 async function fixture(t: TestContext) {
-  const directory = await mkdtemp(join(tmpdir(), "zcodium-automation-controls-"));
+  // 先建系统临时目录再校验已经越过写边界；与其余自动化回归统一由中央沙箱写前拒绝。
+  const directory = await createProjectTestFixture("automation-controls");
   const path = join(directory, "tasks.sqlite");
   const repo = new AutomationRepo(path);
   const userRepo = new AutomationRepo(path);
@@ -16,8 +20,7 @@ async function fixture(t: TestContext) {
   t.after(async () => {
     userRepo.close();
     repo.close();
-    assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
-    await rm(directory, { recursive: true, force: true });
+    await rm(await assertProjectPath(directory), { recursive: true, force: true });
   });
   // Repo 只校验迁移账本；夹具也必须经过唯一异步启动 owner。
   await prepareTasksIndexStorage(path, () => {});

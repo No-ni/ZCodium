@@ -489,12 +489,14 @@ function waitForGenerateTextOrAbort<T>(
       );
     };
 
-    if (abortSignal.aborted) {
-      onAbort();
-      return;
-    }
-
-    abortSignal.addEventListener("abort", onAbort, { once: true });
+    // 根因：旧实现先判断 signal.aborted 再注册 pending.then；已 aborted 的早退分支直接
+    // return，底层 provider promise 零 handler。Stop 落在 model_request_started 状态发布的
+    // await 窗口时，generateText 已带着已 abort 的 signal 发出，其迟到拒绝会成为
+    // unhandledRejection，而 CLI 进程级边界（packages/cli/src/process-errors.ts）把
+    // unhandledRejection 当致命错误：一次本应 benign 的取消会升级为进程诊断与有界关闭。
+    // 修复：pending 的终结观察先于 pre-aborted 早退注册——signal 监听注册与 cleanup 语义
+    // 不变，Promise 终结（含迟到 fulfill/reject）始终有人观察；迟到 fulfill 不覆盖已发生
+    // 的取消。不新增 await+throwIfAborted，不改变 runtime 是否被调用的既有行为。
     pending.then(
       (value) => {
         cleanup();
@@ -505,6 +507,13 @@ function waitForGenerateTextOrAbort<T>(
         reject(error);
       },
     );
+
+    if (abortSignal.aborted) {
+      onAbort();
+      return;
+    }
+
+    abortSignal.addEventListener("abort", onAbort, { once: true });
   });
 }
 

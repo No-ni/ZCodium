@@ -1150,4 +1150,63 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     expect(c.getState()).toBe("paired");
     expect(onPayload).not.toHaveBeenCalled();
   });
+
+  it("加速重连换代旧 socket 后，新连接必须重开 bridge", async () => {
+    const { c, socket, onPayload } = client();
+    const ready = c.ensureWorkspaceBridge({ workspaceKey: access.workspaceKey });
+    await flush();
+    const oldOpen = socket.opens()[0]!;
+    const oldHost = host(socket, oldOpen.bridgeSessionId);
+    oldHost.send([INITIALIZE]);
+    socket.ready(oldOpen);
+    await ready;
+
+    const oldRead = c.readTaskSnapshot(access).catch((error: Error) => error.message);
+    await flush();
+    expect(
+      requests(socket, oldOpen.bridgeSessionId).some(
+        (request) => request.header[3] === "readSessionMessages",
+      ),
+    ).toBe(true);
+
+    // 浏览器在 close 回调前可能暴露 error 并允许恢复事件加速重连。
+    socket.fire("error");
+    socket.readyState = 2;
+    c.retryNow();
+    const next = FakeWebSocket.instances.at(-1)!;
+    expect(next).not.toBe(socket);
+    expect(socket.opens()).toHaveLength(1);
+    expect(await oldRead).toBe("连接已中断，请连接后重试");
+
+    next.open();
+    next.wire({ type: "auth_ack", pair_status: "matched" });
+    socket.close();
+    socket.wire({ type: "error", code: "INTERNAL", message: "stale" });
+    expect(c.getState()).toBe("paired");
+    expect(onPayload).not.toHaveBeenCalled();
+
+    const reopened = c.ensureWorkspaceBridge(access);
+    await flush();
+    const newOpen = next.opens()[0]!;
+    expect(socket.opens()).toHaveLength(1);
+    expect(newOpen.bridgeSessionId).not.toBe(oldOpen.bridgeSessionId);
+    const newHost = host(next, newOpen.bridgeSessionId);
+    newHost.send([INITIALIZE]);
+    next.ready(newOpen);
+    await reopened;
+
+    socket.wire({
+      type: "data",
+      payload: {
+        zcode_type: "bridge-degraded",
+        bridgeSessionId: oldOpen.bridgeSessionId,
+        reason: "rpc-transport-fault",
+      },
+    });
+    await c.ensureWorkspaceBridge(access);
+    await flush();
+    expect(c.getState()).toBe("paired");
+    expect(next.opens()).toHaveLength(1);
+    expect(onPayload).not.toHaveBeenCalled();
+  });
 });

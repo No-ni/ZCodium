@@ -112,6 +112,12 @@ function validateScratchWorkspaceName(name: string): string {
   if (/[\\/]/.test(trimmedName)) {
     throw new Error("Workspace name cannot contain path separators.");
   }
+  // 修复依据："." / ".." 不含路径分隔符但仍是相对路径段，path.join 会做规范化，
+  // createScratchWorkspace({ name: ".." }) 因此逃逸到 homedir() 本身、"." 落到 ZCodeProject 根，
+  // 空态对话框把输入原样透传给服务层（useRootWorkspaceActions），必须在这里拒绝纯点名。
+  if (trimmedName === "." || trimmedName === "..") {
+    throw new Error("Workspace name cannot be a relative path segment.");
+  }
   return trimmedName;
 }
 function normalizeRelativePath(rootPath: string, targetPath: string): string {

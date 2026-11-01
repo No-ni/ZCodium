@@ -2,7 +2,7 @@ import { accessSync, chmodSync, constants, existsSync, statSync } from "node:fs"
 import { createRequire } from "node:module";
 import { homedir, release } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
-import { Emitter, type Event } from "@zcode/rpc";
+import { Emitter, Event } from "@zcode/rpc";
 import type { IPty } from "node-pty";
 import type { ISettingService } from "../setting/setting.js";
 import type { ITerminalService, TerminalWindowsPtyInfo } from "./terminal.js";
@@ -435,11 +435,25 @@ export function createTerminalService(dependencies: {
     },
 
     onDynamicData(id: string): Event<string> {
-      return getTerminal(id).dataEmitter.event;
+      // Bug 原因：订阅出口原先与 write/resize 共用 getTerminal 的同一道门。PTY 在
+      // create() resolve 之后、renderer 订阅到达之前退出（shell 立即退出、ConPTY 启动即失败），
+      // 或面板快速开关触发 dispose 时，p.onExit / cleanupTerminal 已把 id 从 terminals 删除，
+      // 随后 onDynamicData(id) 抛 "Terminal not found"。该异常经
+      // ProxyChannel.fromService.listen → ChannelServer.dispatch 的 EventListen 分支 catch 后
+      // rethrow，逃逸进 protocol.onMessage（桌面宿主即 MessagePortMain 的 message 监听器），
+      // 而客户端请求被 finish 掉、renderer 收不到任何错误，订阅静默永不触发。
+      // 修复依据：fileWatcherService.onDynamicChange 对同一竞态已有先例——stale 订阅 id 是
+      // 可恢复状态，返回 Event.None 表示"没有事件"，不能 throw 到 RPC 事件订阅链路。
+      // write/resize/dispose 对未知 id 仍抛（调用方传错 id 是真实错误，既有 terminalShutdown 回归已固定）。
+      const terminal = terminals.get(id);
+      return terminal ? terminal.dataEmitter.event : Event.None;
     },
 
     onDynamicExit(id: string): Event<number> {
-      return getTerminal(id).exitEmitter.event;
+      // 与 onDynamicData 同一竞态与同一修复依据：PTY 退出或 dispose 之后订阅 exit 事件
+      // 必须得到"没有事件"，而不是把 Terminal not found 抛进 RPC 事件订阅链路。
+      const terminal = terminals.get(id);
+      return terminal ? terminal.exitEmitter.event : Event.None;
     },
 
     disposeAll(): void {

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
@@ -20,6 +19,11 @@ import {
 import { createMemoryService } from "../src/memory/memoryService.js";
 import { parseLegacyTaskSessionFile } from "../src/session/legacyTaskSessionFile.js";
 import { createProviderConfigRuntime } from "../src/model-provider/providerConfigRuntime.js";
+import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import {
+  assertProjectPath,
+  createProjectTestFixture,
+} from "../../../scripts/ci/project-test-sandbox.mjs";
 
 const meta = {
   taskId: "wrapper-example",
@@ -33,7 +37,7 @@ const meta = {
 };
 
 test("current Project Memory catalog and files remain readable", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-current-memory-"));
+  const dir = await createProjectTestFixture("current-memory");
   setDataBaseDir(dir);
   try {
     const workspaceId = "example-0123456789abcdef";
@@ -60,13 +64,15 @@ test("current Project Memory catalog and files remain readable", async () => {
     assert.equal(file.content, "Use the current project workflow.\n");
   } finally {
     setDataBaseDir(null);
-    await rm(dir, { recursive: true, force: true });
+    await rm(await assertProjectPath(dir), { recursive: true, force: true });
   }
 });
 
 test("opening the task index leaves retired ACP IDs and user rows untouched", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-acp-index-"));
+  const dir = await createProjectTestFixture("acp-index");
   const path = join(dir, "tasks.sqlite");
+  // 旧夹具跳过异步启动 owner，尚未验证旧 ID 保留就失败；先准备同一隔离数据库。
+  await prepareTasksIndexStorage(path, () => {});
   const repo = new TaskIndexRepo(path);
   try {
     await repo.syncTaskMeta({ meta });
@@ -92,12 +98,12 @@ test("opening the task index leaves retired ACP IDs and user rows untouched", as
     }
   } finally {
     repo.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(await assertProjectPath(dir), { recursive: true, force: true });
   }
 });
 
 test("missing sessions report the owner error even when a valid ACP snapshot exists", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-acp-snapshot-"));
+  const dir = await createProjectTestFixture("acp-snapshot");
   setDataBaseDir(dir);
   const path = getLegacyTaskSessionSnapshotPath(meta.workspacePath, meta.taskId);
   const snapshot = parseLegacyTaskSessionFile({ meta, messages: [], toolCalls: [] });
@@ -135,9 +141,10 @@ test("missing sessions report the owner error even when a valid ACP snapshot exi
     }
     assert.equal(await readFile(path, "utf8"), content);
   } finally {
-    service.disposeAll();
+    // 清理 adapter 已有的本地扩展，不把生命周期方法暴露为 RPC 服务能力。
+    (service as typeof service & { disposeAll(): void }).disposeAll();
     setDataBaseDir(null);
-    await rm(dir, { recursive: true, force: true });
+    await rm(await assertProjectPath(dir), { recursive: true, force: true });
   }
 });
 
@@ -219,12 +226,12 @@ test("current session recovery preserves Desktop and replayable projections", as
     assert.equal(resumed.length, 3);
     assert.equal(indexed.length, 3);
   } finally {
-    service.disposeAll();
+    (service as typeof service & { disposeAll(): void }).disposeAll();
   }
 });
 
 test("current Provider configuration starts without an old config migration callback", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-provider-current-"));
+  const dir = await createProjectTestFixture("provider-current");
   const runtime = createProviderConfigRuntime({
     zcodeBuiltinFilePath: fileURLToPath(
       new URL("../../../config/provider/zcode-builtin.json", import.meta.url),
@@ -241,6 +248,6 @@ test("current Provider configuration starts without an old config migration call
     assert.deepEqual(config.personalProviders.toJSON(), []);
   } finally {
     runtime.dispose();
-    await rm(dir, { recursive: true, force: true });
+    await rm(await assertProjectPath(dir), { recursive: true, force: true });
   }
 });
