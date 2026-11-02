@@ -64,7 +64,7 @@ export interface BrowserViewResidencyIpcHandlers {
   ): Promise<BrowserViewRestoredTabShell[]>;
 }
 
-function registerBrowserViewIpcHandlers(
+export function registerBrowserViewIpcHandlers(
   attachBrowserGuest?: AttachBrowserGuest,
   updateBrowserGuestViewport?: UpdateBrowserGuestViewport,
   reportBrowserScreenshotSurfaceReady?: ReportBrowserScreenshotSurfaceReady,
@@ -159,8 +159,8 @@ function registerBrowserViewIpcHandlers(
       const tabId = nonEmptyStringSchema.parse(payload.tabId);
       const viewport =
         payload.viewport === null ? null : browserViewportInputSchema.parse(payload.viewport);
-      // zoom factor 只能从 IPC 绑定的 BrowserWindow 读取，不能信任 renderer payload。
-      await updateBrowserGuestViewport?.(tabId, viewport, win.id, win.webContents.getZoomFactor());
+      // 桌面缩放由 Main sender 持有，缺参会让 guest viewport 使用错误的像素比例。
+      await updateBrowserGuestViewport?.(tabId, viewport, win.id, event.sender.getZoomFactor());
     },
   );
 

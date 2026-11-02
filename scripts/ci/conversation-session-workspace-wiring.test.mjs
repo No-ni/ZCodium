@@ -54,12 +54,12 @@ const CONTRACTS = [
   ]),
   [
     "packages/ui/src/components/ai-elements/message.tsx",
-    "resolveTaskExecutionWorkspaceServices({ baseServices, workspaceIdentity: fileLink.workspaceIdentity, remoteSessionId: fileLink.workspaceRemoteSessionId, })",
+    "useWorkspaceServices( fileLink.workspacePath, fileLink.workspaceRemoteSessionId, fileLink.workspaceIdentity,",
     "Markdown 右键编辑器 stat 与左键使用相同来源 Host，不能借预览所在壳层服务",
   ],
   [
     "packages/ui/src/components/ai-elements/message.tsx",
-    "const baseServices = useOptionalBaseWorkspaceServices();",
+    'fileLink.workspacePath ? "exact" : "ambient"',
     "本地来源右键动作从本机根服务开始，不能把主 pane 的远程服务当成本机",
   ],
   [
@@ -69,7 +69,7 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/app-shell/WorkspaceShellLayout.tsx",
-    "resolveTaskExecutionWorkspaceServices({ baseServices, workspaceIdentity: target.workspaceIdentity, remoteSessionId: target.workspaceRemoteSessionId, });",
+    "resolveTaskExecutionWorkspaceServices({ baseServices, workspaceIdentity: target.workspaceIdentity, remoteSessionId: target.workspaceRemoteSessionId, })",
     "跨 Host 分屏文件链接的 stat 按来源 scope 路由，不能读取活动壳层 Host",
   ],
   [
@@ -98,9 +98,9 @@ const CONTRACTS = [
     "project 分类不能否决 CLI 会话执行根；底部与右侧终端共用同一目标会话及执行目录",
   ],
   [
-    "packages/ui/src/WorkspaceSidebarItem.tsx",
-    "...(isActiveWorkspace ? (activeTaskId ? { taskId: activeTaskId } : {}) : { taskId: null }),",
-    "当前 tab 草稿省略 taskId 才跟随预热目录；非激活 tab 显式 null 始终请求身份根，不能借当前草稿 cwd",
+    "packages/ui/src/project-sidebar/useProjectFileTree.ts",
+    "workspacePath: task.workspacePath,",
+    "旧 workspace tab 按钮已退休；任务文件入口读取任务自身绑定路径，不借活动草稿目录",
   ],
   [
     "packages/ui/src/ToolCallBlocks.tsx",
@@ -118,12 +118,12 @@ const CONTRACTS = [
     "点击打开必须用那个单一读取根：展示取「最深包含根」，两者不能互相冒充（规则 11/12）",
   ],
   [
-    "packages/ui/src/v4/ConversationFileSummaryPanel.tsx",
+    "packages/ui/src/v4/conversationFileSummaryActions.ts",
     "resolveToolCallFilePath(path, context.fileSearchRootPath ?? context.workspacePath)",
     "文件变更摘要的「查看文件/diff」要按会话 cwd 读，否则指向对话根的同名文件",
   ],
   [
-    "packages/ui/src/v4/ConversationFileSummaryPanel.tsx",
+    "packages/ui/src/v4/conversationFileSummaryActions.ts",
     "resolveFileDisplayBasePath(item.path, [context.fileSearchRootPath, workspacePath])",
     "展示标题按「最深包含根」算，会话目录必须参与候选，否则相对路径显示成绝对路径",
   ],
@@ -133,13 +133,13 @@ const CONTRACTS = [
     "产物 sourcePath 相对 run 的 cwd（会话执行目录），拼身份根会指到对话根的同名位置",
   ],
   [
-    "packages/ui/src/app-shell/AnimatedSidePanePanel.tsx",
-    "fileReferenceRootPath={tab.fileReferenceRootPath ?? effectiveWorkspacePath}",
+    "packages/ui/src/app-shell/WorkflowArtifactSidePane.tsx",
+    "fileReferenceRootPath ?? tab.fileReferenceRootPath ?? tab.workspacePath",
     "侧栏产物 tab 优先用打开时冻结的请求根；聚焦会话 cwd 只作缺席回落",
   ],
   [
     "packages/ui/src/app-shell/WorkflowRunSidePane.tsx",
-    "fileReferenceRootPath: artifactRoot,",
+    "fileReferenceRootPath={tab.fileReferenceRootPath}",
     "run 详情面板里的产物 chip 也要拼 sourcePath（相对 run 的 cwd）：解析根取自 tab 冻结值，缺席回落身份根",
   ],
   [
@@ -154,7 +154,7 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/v4/V4InteractionDialogs.tsx",
-    "fileReferenceRootPath={fileReferenceRootPath}",
+    "{...(fileReferenceRootPath === undefined ? {} : { fileReferenceRootPath })}",
     "权限弹窗里的工具入参路径按会话 cwd 展示/读取（`workspacePath` 仍是弹窗身份）",
   ],
   [
@@ -179,7 +179,7 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/prompt-editor/ChatPromptEditor.tsx",
-    "fileReferenceRootResolved={fileReferenceRootResolved}",
+    "fileReferenceRootResolved,",
     "行内编辑器把来源事实同时下发给 Lexical 输入（@ 菜单）与动作菜单（+ 文件列表）",
   ],
   [
@@ -199,7 +199,7 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/mentions/providers/fileMentionProvider.ts",
-    "const mentionTarget = rootResolved ? entry.relativePath : entry.path;",
+    "const mentionPath = rootResolved ? (entry.mentionPath ?? entry.relativePath) : entry.path;",
     "候选插入形态由来源事实决定：未证明的根投绝对路径（首发会话的 cwd 还没铸出来）",
   ],
   [
@@ -248,7 +248,7 @@ const CONTRACTS = [
   // 四处入口（文件树 / 提及 / Cmd+P / 设置页）都必须显式传，这组契约就是那条判据。
   [
     "packages/ui/src/mentions/providers/fileMentionProvider.ts",
-    "const params = { rootPath: searchRootPath, ignoreRulesRoot, workspaceIdentity, query, limit };",
+    "useWorkspaceServicesResolution( ignoreRulesRoot, undefined, workspaceIdentity, )",
     "@ 面板（含 + 菜单共用同一 provider）的搜索根是会话 cwd，规则根必须显式传对话根",
   ],
   [
@@ -293,30 +293,33 @@ for (const [path, snippet, why] of CONTRACTS) {
   });
 }
 
-test("SessionPane 的六处请求供给点都带 pane 的解析根（分享预检 / 分享发布 / 产物打开 / run 详情 / 脚本 transcript / run 目录页）", async () => {
+test("SessionPane 的七处请求供给点都带 pane 的解析根（分享预检 / 分享发布 / 产物打开 / run 详情 / 脚本 transcript / run 目录页）", async () => {
   const source = normalize(await readFile("packages/ui/src/v4/SessionPane.tsx", "utf8"));
   const occurrences = source.split("fileReferenceRootPath: fileSearchRootPath,").length - 1;
   assert.equal(
     occurrences,
-    6,
-    `期望 6 处对象字面量供给点（分享预检 / 分享发布 / 产物打开 / run 详情 / 脚本 transcript / run 目录页），` +
+    7,
+    `期望 7 处对象字面量供给点（分享预检 / 分享发布 / 产物打开 / run 详情 / 脚本 transcript / run 目录页），` +
       `实际 ${occurrences} 处；新增供给点请同步本清单（少一处就是某个入口悄悄退回身份根）`,
   );
 });
 
-test("两个 workflow 侧栏 tab 的宿主侧都优先用冻结在 tab 上的请求根", async () => {
-  const source = normalize(
-    await readFile("packages/ui/src/app-shell/AnimatedSidePanePanel.tsx", "utf8"),
-  );
-  const occurrences =
-    source.split("fileReferenceRootPath={tab.fileReferenceRootPath ?? effectiveWorkspacePath}")
-      .length - 1;
-  assert.equal(
-    occurrences,
-    2,
-    `期望 2 个 tab（产物 / 脚本 transcript）由宿主传冻结根，实际 ${occurrences} 处；` +
-      "run 详情面板的产物 chip 直接从自己的 tab 读冻结根（见上面的契约）",
-  );
+test("workflow 侧栏组件从自己的 tab 读取冻结根", async () => {
+  for (const [path, snippet] of [
+    [
+      "packages/ui/src/app-shell/WorkflowArtifactSidePane.tsx",
+      "fileReferenceRootPath ?? tab.fileReferenceRootPath ?? tab.workspacePath",
+    ],
+    [
+      "packages/ui/src/app-shell/WorkflowWorkspaceSidePane.tsx",
+      "workspace.executionWorkspacePath ?? tab.fileReferenceRootPath ?? tab.workspacePath",
+    ],
+    [
+      "packages/ui/src/app-shell/WorkflowRunSidePane.tsx",
+      "fileReferenceRootPath={tab.fileReferenceRootPath}",
+    ],
+  ])
+    assert.ok(normalize(await readFile(path, "utf8")).includes(normalize(snippet)), path);
 });
 
 test("内置 node_repl 的 spawn cwd 跟随会话执行 cwd（不是工作区键路径）", async () => {
@@ -585,10 +588,6 @@ test("workflow run side-pane scope carries the frozen root into successors and r
 // 时 rmdir 掉 A 窗口存活子会话的正空目录，它下一次相对写入即 ENOENT（第十轮审查实测）。
 // 接线错位同样不会报错、只会静默少一层守卫，因此钉成源码契约；不排除自己的行也不行：
 // v4 deleteSession 是 close 语义（行留在库里），不排除 ⇒ 空目录永不回收。
-const DELETE_GUARD_WIRING = [
-  ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/server-operations.ts", 2],
-  ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/v4-bridge.ts", 1],
-];
 
 test("workflow actor factory consumes the run cwd instead of the app's initial cwd", async () => {
   const source = normalize(
@@ -631,44 +630,26 @@ test("script actor forwards live child cwd through the existing event sink", asy
   );
   assert.ok(operations.includes("record.app.sessionId, executionWorkspacePath,"));
 });
-for (const [path, expected] of DELETE_GUARD_WIRING) {
-  test(`接线契约：${path} 的删除回收用惰性跨进程复检（${expected} 处）`, async () => {
-    const source = normalize(await readFile(path, "utf8"));
-    // 惰性传入（判定链通过后才查库）：急切 await 会让项目工作区/远端每次 close 白跑全表查询。
-    const lazyOccurrences = source.split("resolveSharedByOtherSession: () =>").length - 1;
-    assert.equal(
-      lazyOccurrences,
-      expected,
-      `期望 ${expected} 处回收调用点惰性复检跨进程事实，实际 ${lazyOccurrences} 处；` +
-        "改回急切求值或删掉一处守卫都会在这里变红",
-    );
-    assert.doesNotMatch(
-      source,
-      /sharedByOtherSession:\s*await/u,
-      "不得把跨进程复检改回急切求值（回潮 = 每次 close 为注定不回收的场景白跑一次 listSessions）",
-    );
-    const guardOccurrences =
-      source.split("isConversationSessionDirectoryInUseAcrossProcesses({").length - 1;
-    assert.equal(
-      guardOccurrences,
-      expected,
-      `期望 ${expected} 处跨进程守卫调用，实际 ${guardOccurrences} 处`,
-    );
-    // 被关会话自己的行必须排除，且库事实来自 host 的 sessionStore（不是第二份存储通道）。
-    const excludeOccurrences = source.split("excludeSessionId: String(").length - 1;
-    assert.equal(
-      excludeOccurrences,
-      expected,
-      `期望每处守卫都排除被关会话自己的行，实际 ${excludeOccurrences} 处`,
-    );
-    const portOccurrences = source.split("sessionPathSource: context.deps.sessionStore").length - 1;
-    assert.equal(
-      portOccurrences,
-      expected,
-      `期望每处守卫都接 host 的 sessionStore，实际 ${portOccurrences} 处`,
-    );
-  });
-}
+test("删除与创建失败入口复用唯一 lifecycle owner 的惰性跨进程回收", async () => {
+  const read = async (path) => normalize(await readFile(path, "utf8"));
+  const base = "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/";
+  const owner = await read(base + "session-residency.ts");
+  assert.equal(owner.split("resolveSharedByOtherSession: () =>").length - 1, 1);
+  assert.equal(owner.split("isConversationSessionDirectoryInUseAcrossProcesses({").length - 1, 1);
+  assert.ok(owner.includes("excludeSessionId: sessionId,"));
+  assert.ok(owner.includes("sessionPathSource: context.deps.sessionStore,"));
+  assert.ok(owner.includes('if (mode === "close" || mode === "delete" || mode === "discard")'));
+  assert.ok(
+    owner.includes('releaseSessionRecord(context, sessionId, deleted ? "delete" : "close")'),
+  );
+  assert.ok(owner.includes('releaseSessionRecord(context, sessionId, "discard")'));
+  assert.doesNotMatch(owner, /sharedByOtherSession:\s*await/u);
+  const operations = await read(base + "server-operations.ts"),
+    bridge = await read(base + "v4-bridge.ts");
+  assert.ok(operations.includes("await closeSessionRuntime(context, params.sessionId);"));
+  assert.ok(operations.includes("await discardSessionRuntime(context, sessionId);"));
+  assert.ok(bridge.includes("await closeSessionRuntime(context, sessionId, true);"));
+});
 
 test("dynamic workflow file actions prefer authorized journal cwd over the initial pane root", async () => {
   const read = async (path) => normalize(await readFile(path, "utf8"));
@@ -688,7 +669,7 @@ test("dynamic workflow file actions prefer authorized journal cwd over the initi
     ],
     [
       "packages/ui/src/app-shell/WorkflowWorkspaceSidePane.tsx",
-      "workspace.executionWorkspacePath ?? fileReferenceRootPath ?? tab.workspacePath",
+      "workspace.executionWorkspacePath ?? tab.fileReferenceRootPath ?? tab.workspacePath",
     ],
   ])
     assert.ok((await read(file)).includes(normalize(expected)), file);

@@ -37,6 +37,7 @@ export function workflowRunTabScope(
     workspacePath: tab.workspacePath,
     ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
     ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
+    // 后继 run 保留原请求的执行根，不能在设置提交后按当前 workspace 重算。
     ...(tab.fileReferenceRootPath ? { fileReferenceRootPath: tab.fileReferenceRootPath } : {}),
   };
 }
@@ -86,7 +87,6 @@ export function useWorkflowRunPaneSettings({
       sendCommand,
       sessionModel,
       tab.parentSessionId,
-      tab.fileReferenceRootPath,
       tab.remoteSessionId,
       tab.runId,
       tab.workspaceIdentity,
@@ -96,7 +96,7 @@ export function useWorkflowRunPaneSettings({
 
   // 跟随：被接受的那一刻新 run 未必已在投影里（run-started 随后才到），所以先记下，等它出现再换 tab。
   const [follow, setFollow] = useState<WorkflowRunSettingsAccepted | undefined>(undefined);
-  // 就地生效的修订（只改并发上限、run 仍在运行）没有后继，
+  // 就地生效的修订（只改并发上限、run 又在飞：docs/dynamic-workflow/concurrency.md）没有后继，
   // 结果里的 runId 就是这个 tab 自己——没有可跟随的东西，记下它只会请求把 tab 换成它自己。
   const onAccepted = useCallback(
     (accepted: WorkflowRunSettingsAccepted) => {
@@ -122,7 +122,6 @@ export function useWorkflowRunPaneSettings({
     onOpenWorkflowRun,
     successorArrived,
     tab.parentSessionId,
-    tab.fileReferenceRootPath,
     tab.remoteSessionId,
     tab.runId,
     tab.workflowName,

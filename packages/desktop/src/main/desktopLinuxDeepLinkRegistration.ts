@@ -56,7 +56,7 @@ const APPIMAGE_DEEP_LINK_ARG_PREFIXES = [
   "--enable-features=",
 ];
 
-function resolveLinuxDeepLinkCommand(params: {
+export function resolveLinuxDeepLinkCommand(params: {
   env?: { APPIMAGE?: string };
   executablePath: string;
   argv?: string[];
@@ -110,7 +110,7 @@ function formatDesktopExec(command: LinuxDeepLinkCommand): string {
     .join(" ");
 }
 
-function createLinuxDeepLinkDesktopEntry(params: {
+export function createLinuxDeepLinkDesktopEntry(params: {
   executablePath: string;
   args?: string[];
   productName?: string;
@@ -137,7 +137,7 @@ function createLinuxDeepLinkDesktopEntry(params: {
   ].join("\n");
 }
 
-function resolveLinuxUserDataDir(params: {
+export function resolveLinuxUserDataDir(params: {
   env?: { XDG_DATA_HOME?: string };
   homeDir: string;
 }): string {
@@ -145,7 +145,7 @@ function resolveLinuxUserDataDir(params: {
   return xdgDataHome || join(params.homeDir, ".local", "share");
 }
 
-function resolveLinuxSystemApplicationDirs(env?: { XDG_DATA_DIRS?: string }): string[] {
+export function resolveLinuxSystemApplicationDirs(env?: { XDG_DATA_DIRS?: string }): string[] {
   const raw = env?.XDG_DATA_DIRS?.trim();
   const entries = raw
     ? raw

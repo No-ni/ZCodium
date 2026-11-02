@@ -11,6 +11,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { NodeRecord, NodeRecordStatus, RunStatus, StoredEvent } from "@zcode/dynamic-workflow";
 import type { DwfArtifactItem, DwfArtifactItemsQuery } from "./dwf-journal-artifacts.js";
+import type { DwfEventPageQuery } from "./dwf-journal-pages.js";
 import {
   decodeEvent,
   decodeNode,
@@ -94,17 +95,24 @@ export interface DwfRunIntrospectionQueries {
     runId: string,
     artifactId: string,
     query: DwfArtifactItemsQuery,
-  ): DwfArtifactItem[];
+  ): { items: DwfArtifactItem[]; hasMore: boolean };
+  /** 事件日志的一页：条数与字节两道界（dwf-journal-pages.ts），`hasMore` 由存储层判定。 */
+  listEventPage(
+    runId: string,
+    query: DwfEventPageQuery,
+  ): { events: StoredEvent[]; hasMore: boolean };
   listArtifactRows(runId: string): NodeRecord[];
+  /** 每个预置产物的标签 report 条数（`group by artifact_id`，不读行）。 */
+  countTaggedReports(runId: string): ReadonlyMap<string, number>;
   listRecentLogEvents(runId: string, limit: number): StoredEvent[];
   listRuns(query: DwfListRunsQuery): DwfRunListItem[];
   /**
-   * 本 run 每一世的活动区间，按时序（完成卡的「时间」格）。一条 run 可以
+   * 本 run 每一世的活动区间，按时序（完成卡的「时间」格，见
+   * `docs/dynamic-workflow/transcript-and-notifications.md`「How long it took」）。一条 run 可以
    * 有多世（每次 resume 一世），而每一世的墙钟只有事件日志知道。
    */
   listRunLifeSpans(runId: string): DwfRunLifeSpan[];
   /**
-   * 本 run 的 world-read / world-run 行，按落库先后（`order by id`），带 journal 时间戳。**不取
    * `result_json`**：这条读面是清单（op / args / 状态 / 时间），正文另有按 (siteId, ordinal)
    * 的读面——一页 256 个节点把每个 256 KB 的 stdout 一起解出来，等于把整条 journal 读进内存。
    */

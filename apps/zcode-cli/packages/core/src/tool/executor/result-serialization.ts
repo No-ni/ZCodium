@@ -1,32 +1,28 @@
 import {
   CoreErrorType,
   createCoreError,
-  modelMessageContentToText,
   traceContextToLogContext,
   type ModelMessageContent,
   type ModelMessageContentBlock,
   type ToolResultBudget,
   type TraceContext,
 } from "@zcode/contracts";
-import {
-  OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION,
-  containsOfficialCuaImageRefCredentialText,
-} from "@zcode/zcode-cua/frame-contract";
+import { OFFICIAL_CUA_FRAME_MODEL_CONTENT_PROTECTION, containsOfficialCuaImageRefCredentialText } from "@zcode/zcode-cua/frame-contract";
 import type { ToolEntry, ToolResultSerialization } from "../types.js";
+import { formatGenericPersistedOutputContent, isPersistedOutputContent } from "../result-persistence-format.js";
 import { formatHookAdditionalContexts } from "./hook-flow.js";
 import {
-  formatGenericPersistedOutputContent,
-  isPersistedOutputContent,
-} from "../result-persistence-format.js";
-import {
-  appendHookToPersistedArtifactPreview,
-  appendHookToStringContent,
-  appendHookWithoutReorderingStructuredContent,
   fitContentWithSuffix,
+  isEmptyModelContent,
   OfficialCuaFrameContractError,
   projectHookAugmentedModelContent,
   projectToolReferenceContent,
   projectOfficialCuaStructuredContent,
+  appendHookWithoutReorderingStructuredContent,
+  appendHookToStringContent,
+  appendHookToPersistedArtifactPreview,
+  stringifyModelContentForSerialization,
+  stringifyOutputForModel,
 } from "./result-content-projection.js";
 import type { ToolExecutorDeps } from "./types.js";
 import { isRecord } from "./utils.js";
@@ -81,6 +77,19 @@ export async function serializeOutput(
     Math.min(effectiveBudget.maxModelBytes, effectiveBudget.maxInlineBytes),
   );
   const artifactPath = findArtifactPath(output);
+  if (entry.isModelContentBounded?.(output) === true) {
+    // 修复原因：Bash 失败结果已按字符保留采集段的头尾（约 1 万字符），中文等多字节文本仍会超过
+    // 30000 字节预算，被再次落盘成只有 2KB 开头的预览，模型看不到头尾截断后保留的结尾部分。
+    return {
+      content,
+      modelContent,
+      originalBytes,
+      returnedBytes: originalBytes,
+      truncated: false,
+      budgetStrategy: effectiveBudget.strategy,
+      artifactPath,
+    };
+  }
   const referenceProjection = projectToolReferenceContent(
     modelContent,
     maxModelBytes,
@@ -315,11 +324,6 @@ function structuredMediaBytes(content: ModelMessageContent): number {
   }, 0);
 }
 
-function resolveMaxModelBytes(entry: ToolEntry): number {
-  const budget = entry.resultBudget ?? DEFAULT_RESULT_BUDGET;
-  return Math.max(0, Math.min(budget.maxModelBytes, budget.maxInlineBytes));
-}
-
 async function tryWriteToolArtifact(
   deps: ToolExecutorDeps,
   content: string,
@@ -377,41 +381,6 @@ function formatPersistedOutputContent(input: {
   });
 }
 
-function isEmptyModelContent(content: ModelMessageContent): boolean {
-  if (typeof content === "string") return content.trim() === "";
-  if (content.length === 0) return true;
-  return content.every((block) => {
-    if (block.type !== "text") return false;
-    return typeof block.text !== "string" || block.text.trim() === "";
-  });
-}
-
-function stringifyOutputForModel(output: unknown, entry: ToolEntry): ModelMessageContent {
-  if (entry.formatModelContent) return entry.formatModelContent(output);
-  if (typeof output === "string") return output;
-  if (output === undefined) return "";
-
-  try {
-    return JSON.stringify(output) ?? "";
-  } catch {
-    return String(output);
-  }
-}
-
-function stringifyModelContentForSerialization(content: ModelMessageContent): string {
-  return typeof content === "string" ? content : modelMessageContentToText(content);
-}
-
-function isPersistedArtifactPreview(serialization: ToolResultSerialization): boolean {
-  return (
-    serialization.budgetStrategy === "artifact" &&
-    serialization.truncated &&
-    typeof serialization.artifactPath === "string" &&
-    serialization.artifactPath.length > 0 &&
-    isPersistedOutputContent(serialization.content)
-  );
-}
-
 function findArtifactPath(output: unknown): string | undefined {
   if (!isRecord(output)) return undefined;
   for (const key of ["persistedOutputPath", "rawOutputPath", "artifactPath", "outputPath"]) {
@@ -421,4 +390,21 @@ function findArtifactPath(output: unknown): string | undefined {
     }
   }
   return undefined;
+}
+
+
+function resolveMaxModelBytes(entry: ToolEntry): number {
+  const budget = entry.resultBudget ?? DEFAULT_RESULT_BUDGET;
+  return Math.max(0, Math.min(budget.maxModelBytes, budget.maxInlineBytes));
+}
+
+
+function isPersistedArtifactPreview(serialization: ToolResultSerialization): boolean {
+  return (
+    serialization.budgetStrategy === "artifact" &&
+    serialization.truncated &&
+    typeof serialization.artifactPath === "string" &&
+    serialization.artifactPath.length > 0 &&
+    isPersistedOutputContent(serialization.content)
+  );
 }

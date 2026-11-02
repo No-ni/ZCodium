@@ -52,6 +52,12 @@ const plane = createPluginUiPagePlane({
 });
 const inline = document.getElementById("inline")!;
 const sidebar = document.getElementById("sidebar")!;
+(window as any).previewPage = async (enabled: boolean) => {
+  plane.preview(enabled ? sidebar : null);
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+};
 let off: (() => void) | undefined;
 const deadlines = new Set<() => void>();
 let disposal = Promise.resolve();

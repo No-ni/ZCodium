@@ -6,8 +6,10 @@ import type {
   ManagedCdpBrowserRuntimeOptions,
 } from "@zcode/adapters/browser";
 import type {
+  createDefaultProviderEndpointRoutingPort,
   createModelAdapter,
   createZCodeApp,
+  CreateDefaultProviderEndpointRoutingPortOptions,
   CreateModelAdapterOptions,
   inspectZCodeSkill,
   inspectWorkspaceHookTrust,
@@ -37,6 +39,7 @@ import type { resolveWorkspaceGitBranch } from "./tui-workspace-git.js";
 export type BootstrapModule = typeof import("@zcode/bootstrap");
 
 export interface RunDependencies extends PluginsCommandOverrides {
+  migrateStorage?: () => Promise<import("@zcode/shared/sqlite-migrations").MigrationResult>;
   protocolLifecycle?: RunZCodeProtocolAgentOptions["lifecycle"];
   protocolInput?: NodeJS.ReadableStream;
   createManagedCdpBrowserRuntime?: (
@@ -45,6 +48,9 @@ export interface RunDependencies extends PluginsCommandOverrides {
   createModelAdapter?: (
     options?: CreateModelAdapterOptions,
   ) => ReturnType<typeof createModelAdapter>;
+  createProviderEndpointRoutingPort?: (
+    options: CreateDefaultProviderEndpointRoutingPortOptions,
+  ) => ReturnType<typeof createDefaultProviderEndpointRoutingPort>;
   createZCodeApp?: (
     options?: ZCodeAppOptions,
   ) => Awaited<ReturnType<typeof createZCodeApp>> | ReturnType<typeof createZCodeApp>;
@@ -95,7 +101,7 @@ export interface RunDependencies extends PluginsCommandOverrides {
   startProcessProviderRegistryRuntime?: typeof startProcessProviderRegistryRuntime;
 }
 
-export type CliPermissionMode = "build" | "plan" | "edit" | "yolo";
+export type CliPermissionMode = "build" | "plan" | "edit" | "yolo" | "guarded";
 export type CliRuntimeMode = CliPermissionMode | "auto";
 
 export interface CliModeState {

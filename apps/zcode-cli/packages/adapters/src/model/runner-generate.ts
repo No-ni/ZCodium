@@ -43,7 +43,7 @@ import type {
   AiSdkModelTextRequest,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
+import { nextUnrecognizedCodeStreak, retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-failure-status.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
@@ -77,6 +77,8 @@ export async function runGenerateText(input: {
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
   let emptyCompletionRetryCount = 0;
+  // 不认识的业务码在本次请求里连续出现的次数：workflow 策略表据此停下，见 workflow-model-failure-policy.ts。
+  let unrecognizedCodeStreak = 0;
 
   for (
     let attempt = 1;
@@ -194,24 +196,31 @@ export async function runGenerateText(input: {
         ? serializeStructuredOutput(result)
         : result.text;
       const reasoning = normalizeReasoning(result.reasoning);
+      const contextError = createEmptyContextExceededError({
+        finishReason: result.finishReason,
+        rawFinishReason: result.rawFinishReason ?? result.providerMetadata?.rawFinishReason,
+        hasAssistantContent:
+          text.length > 0 ||
+          (reasoning ?? []).some(
+            (block) => block.text.length > 0 || Object.keys(block.providerOptions ?? {}).length > 0,
+          ),
+        toolCallCount: toolCalls?.length ?? 0,
+        usage,
+      });
+      if (contextError) throw contextError;
       const reasoningLength = (reasoning ?? []).reduce(
         (total, block) => total + block.text.length,
         0,
       );
       const rawFinishReason = result.rawFinishReason ?? result.providerMetadata?.rawFinishReason;
-      const contextError = createEmptyContextExceededError({
-        finishReason: result.finishReason,
-        rawFinishReason,
-        hasAssistantContent: text.length > 0 || reasoningLength > 0,
-        toolCallCount: toolCalls?.length ?? 0,
-        usage,
-      });
-      if (contextError) throw contextError;
+
       if (
         input.request.preserveProviderStreamBoundaries !== true &&
         isZeroOutputModelCompletion({
           finishReason: result.finishReason,
-          rawFinishReason,
+          rawFinishReason:
+            result.rawFinishReason ??
+            (result.providerMetadata as Record<string, unknown> | undefined)?.rawFinishReason,
           reasoningLength,
           textLength: text.length,
           toolCallCount: toolCalls?.length ?? 0,
@@ -298,6 +307,10 @@ export async function runGenerateText(input: {
     } catch (error) {
       const completedAt = Date.now();
       const failure = classifyModelFailure(error, input.request.abortSignal);
+      // 供应商未知错误码的恢复复用当前预算，不恢复官方账号重试路径。
+      unrecognizedCodeStreak = nextUnrecognizedCodeStreak(
+        unrecognizedCodeStreak, failure, inspectProviderFailure(error).providerErrorCode,
+      );
       const responseHeaders = sanitizeModelNetworkHeaders(
         getResponseHeaders(unwrapRetryError(error)),
       );
@@ -324,6 +337,7 @@ export async function runGenerateText(input: {
           failure,
           retryBudget,
           inspectProviderFailure(error).providerErrorCode,
+          unrecognizedCodeStreak,
         );
       const canRetry = retryWithRepairedHistory || canRetryWithFailurePolicy;
 
@@ -343,6 +357,7 @@ export async function runGenerateText(input: {
           ...modelFailureStatusFields(error, failure, options ? "response" : "prepare"),
           timestamp: new Date(completedAt).toISOString(),
           type: "model_request_failed",
+          ...(error instanceof AiSdkModelAdapterError && error.usage ? { usage: error.usage } : {}),
         },
         {
           ...statusPublishOptions(input, admission),
@@ -360,6 +375,7 @@ export async function runGenerateText(input: {
         });
         throw toAdapterError(error, failure, statusContext, attempt, {
           errorPhase: requestInvocationCompleted ? "response" : "prepare",
+          unrecognizedCodeStreak,
         });
       }
 

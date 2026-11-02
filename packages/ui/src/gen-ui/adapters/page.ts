@@ -1,8 +1,4 @@
-import {
-  AppBridge,
-  type McpUiStyles,
-  type McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps/app-bridge";
+import { AppBridge, type McpUiHostContext } from "@modelcontextprotocol/ext-apps/app-bridge";
 import { z } from "zod";
 import type { IGenUiService } from "@zcode/services";
 import type { PluginSandboxPlatformPort, PluginSandboxHandle } from "@zcode/shared/mcp-apps";
@@ -27,7 +23,7 @@ import {
 } from "@/plugin-ui/hostPrimitives.js";
 import type { GenUiCardTarget, GenUiPage, GenUiPageSnapshot } from "../contract.js";
 import { EMPTY_GEN_UI_SNAPSHOT } from "../contract.js";
-import { readGenUiStyleVariables } from "./theme.js";
+import { readGenUiStyleContext } from "./theme.js";
 import { createGenUiTweakRegistry } from "../app/tweaks.js";
 
 export interface GenUiPageInput {
@@ -35,6 +31,7 @@ export interface GenUiPageInput {
   files: IGenUiService;
   state: IGenUiService;
   platform: PluginSandboxPlatformPort;
+  openExternal(url: string): void | Promise<void>;
   confirm(prompt: string): Promise<string | null>;
   onVisibility?(visible: boolean): void;
   onSettled?(): void;
@@ -78,7 +75,7 @@ export function createGenUiPage(input: GenUiPageInput): GenUiPage {
   const context: McpUiHostContext = {
     displayMode: "inline",
     theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
-    styles: { variables: readGenUiStyleVariables() as McpUiStyles },
+    ...readGenUiStyleContext(),
   };
   const pushContext = () => {
     bridge?.setHostContext({ ...context });
@@ -118,7 +115,7 @@ export function createGenUiPage(input: GenUiPageInput): GenUiPage {
     const active = new AppBridge(
       null,
       { name: "zcode-gen-ui", version: "1" },
-      { experimental: { "zcode/gen-ui": {} } },
+      { openLinks: {}, experimental: { "zcode/gen-ui": {} } },
       { hostContext: { ...context } },
     );
     bridge = active;
@@ -139,6 +136,20 @@ export function createGenUiPage(input: GenUiPageInput): GenUiPage {
     };
     const current = () => {
       if (disposed || bridge !== active) throw new Error("Gen UI instance was closed");
+    };
+    active.onopenlink = async ({ url }) => {
+      current();
+      assertCurrent();
+      const link = new URL(url);
+      if (link.protocol !== "https:" && link.protocol !== "http:")
+        throw new Error("External links require an absolute HTTP(S) URL");
+      if (!(await platform.consumeUserGesture(handle!.sandboxId)))
+        throw new Error("External links require a user gesture");
+      // 手势校验跨进程返回时，卡片可能已隐藏或重建，不能执行旧页面的打开请求。
+      current();
+      assertCurrent();
+      await input.openExternal(link.href);
+      return {};
     };
     active.setRequestHandler(
       GEN_UI_STATE_METHOD,
@@ -218,7 +229,7 @@ export function createGenUiPage(input: GenUiPageInput): GenUiPage {
   });
   const themes = new MutationObserver(() => {
     context.theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
-    context.styles = { variables: readGenUiStyleVariables() as McpUiStyles };
+    Object.assign(context, readGenUiStyleContext());
     pushContext();
   });
   themes.observe(document.documentElement, {

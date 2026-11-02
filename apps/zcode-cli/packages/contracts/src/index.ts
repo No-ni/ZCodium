@@ -8,6 +8,7 @@ export * from "./interfaces/execution.port.js";
 export * from "./interfaces/browser-control.port.js";
 export * from "./interfaces/file-system.port.js";
 export * from "./interfaces/context-source.port.js";
+export * from "./interfaces/provider-endpoint-routing.port.js";
 export * from "./interfaces/http-client.port.js";
 export * from "./interfaces/image-processor.port.js";
 export * from "./interfaces/pdf-document.port.js";
@@ -26,6 +27,8 @@ export * from "./interfaces/dynamic-workflow-run.port.js";
 export * from "./interfaces/dynamic-workflow-snippet.port.js";
 export * from "./interfaces/model-catalog.port.js";
 export * from "./interfaces/automation.port.js";
+// 上游的 Off-Peak 时段额度端口属官方账号/套餐权益面，本 fork 不接入，端口随上游剥离。
+export * from "./interfaces/topic-resource.port.js";
 export * from "./interfaces/mcp.port.js";
 
 export * from "./interfaces/runtime-input-presentation.js";

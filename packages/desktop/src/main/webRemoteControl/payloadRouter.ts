@@ -89,6 +89,42 @@ export async function routeMobilePayload(
       }
       return;
     }
+    case "mobile-task-view-update": {
+      const bridge = runtime.bridge;
+      // 旧 epoch / seq / attachment 报告不得清除或覆盖当前查看资格。
+      if (
+        !runtime.mobileConnected ||
+        payload.epoch !== runtime.mobileTaskViewEpoch ||
+        payload.seq <= (runtime.mobileTaskViewSeq ?? -1) ||
+        !bridge ||
+        bridge.degraded ||
+        payload.bridgeSessionId !== bridge.bridgeSessionId ||
+        payload.bridgeGeneration !== bridge.bridgeGeneration
+      )
+        return;
+      const view = payload.view;
+      const target = runtime.workspaces.find((item) => item.workspaceKey === bridge.workspaceKey);
+      if (
+        view &&
+        (!target ||
+          target.workspacePath !== view.workspacePath ||
+          (target.workspaceIdentity?.trim() || target.workspacePath) !==
+            (view.workspaceIdentity?.trim() || view.workspacePath) ||
+          !runtime.tasks.some(
+            (task) => task.workspaceKey === bridge.workspaceKey && task.taskId === view.taskId,
+          ))
+      )
+        return;
+      runtime.mobileTaskViewSeq = payload.seq;
+      runtime.mobileTaskView = view
+        ? {
+            ...view,
+            ...(target?.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
+          }
+        : undefined;
+      ctx.emitStatus(runtime);
+      return;
+    }
     case "mobile-view-state-update": {
       runtime.mobileViewState = payload.viewState;
       runtime.mobileDeviceInfo = payload.deviceInfo;
@@ -194,6 +230,7 @@ function buildBootstrapResult(runtime: WebRemoteControlRuntime) {
       ? { activeWorkspaceKey: activeWorkspaceKey(runtime), activeTaskId: runtime.initialTaskId }
       : { activeWorkspaceKey: activeWorkspaceKey(runtime) },
     mobileViewState: runtime.mobileViewState,
+    mobileTaskViewEpoch: runtime.mobileTaskViewEpoch,
   };
 }
 

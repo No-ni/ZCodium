@@ -19,10 +19,13 @@ import {
   type OpenInEditorOptions,
   type SaveCliMcpToUserDirectoryRequest,
   type CreateTempTextAttachmentRequest,
+  type MaterializeWorkflowArtifactFileRequest,
   type UpdateStatePayload,
   type PlatformChannelMap,
 } from "@zcode/shared";
-import { getInstalledEditors } from "./editors.js";
+import { getAppIconDataUrl, getInstalledEditors } from "./editors.js";
+import { createFileApplicationService } from "@desktop/main/file-open-apps/index.js";
+import type { FileApplicationTarget } from "@zcode/shared";
 import { getApplicationIcon } from "./applicationIcons.js";
 import { exportLogs } from "./exportLogs.js";
 import { resolveCommunityUrl } from "./desktopCommandHandlers.js";
@@ -53,8 +56,10 @@ import {
   saveCliMcpToUserDirectory,
 } from "./mcpUserDirectory/index.js";
 import { createTempTextAttachment } from "./tempTextAttachment.js";
+import { materializeWorkflowArtifactFile } from "./workflowArtifactFile.js";
 import { registerDesktopSaveFileIpcHandler } from "./desktopSaveFile.js";
 import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
+import { registerDesktopCommandIpcHandler } from "./desktopCommandIpc.js";
 
 export function registerPlatformIpcHandlers(options: {
   logger: {
@@ -108,6 +113,13 @@ export function registerPlatformIpcHandlers(options: {
     return result.filePaths[0];
   });
 
+  ipcMain.handle(PlatformChannels.SelectDirectories, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory", "createDirectory", "multiSelections"],
+    });
+    return result.canceled ? [] : result.filePaths;
+  });
+
   ipcMain.handle(PlatformChannels.SelectFile, async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
@@ -135,6 +147,13 @@ export function registerPlatformIpcHandlers(options: {
     PlatformChannels.CreateTempTextAttachment,
     async (_event, payload: CreateTempTextAttachmentRequest) => {
       return createTempTextAttachment(payload);
+    },
+  );
+
+  ipcMain.handle(
+    PlatformChannels.MaterializeWorkflowArtifactFile,
+    async (_event, payload: MaterializeWorkflowArtifactFileRequest) => {
+      return materializeWorkflowArtifactFile(payload);
     },
   );
 
@@ -172,6 +191,11 @@ export function registerPlatformIpcHandlers(options: {
   ipcMain.handle(PlatformChannels.GetResourceUsageSnapshot, (event) =>
     getResourceUsageSnapshot(event.sender.id),
   );
+  // 本 fork 只支持 Windows/macOS，不恢复已退休的 Linux 扩展探测依赖。
+  ipcMain.handle(PlatformChannels.GetCloseToTrayCapability, () => ({
+    supported: process.platform === "win32" || process.platform === "darwin",
+    gnomeLikeWithoutTray: false,
+  }));
   ipcMain.on(PlatformChannels.SetResourceUsageSamplingActive, (event, active: unknown) => {
     if (typeof active === "boolean") setResourceUsageSamplingActive(event.sender.id, active);
   });
@@ -246,6 +270,7 @@ export function registerPlatformIpcHandlers(options: {
     if (win) {
       options.windowWorkspaceMap.set(win.id, new Set(result.data));
       options.syncTaskRealtimeWorkspaceKeys(win.id, result.data);
+      // 远控恢复统一由 SyncWebRemoteControlWorkspaces 的完整快照驱动。
     }
   });
 
@@ -303,7 +328,7 @@ export function registerPlatformIpcHandlers(options: {
     options.setShortcutRecordingActive?.(payload, event.sender.id);
   });
 
-  ipcMain.on(PlatformChannels.Log, (_event, payload: unknown) => {
+  ipcMain.on(PlatformChannels.Log, (event, payload: unknown) => {
     const result = rendererLogPayloadSchema.safeParse(payload);
     if (!result.success) {
       options.logger.warn("[renderer-log] invalid payload:", formatZodError(result.error));
@@ -318,7 +343,9 @@ export function registerPlatformIpcHandlers(options: {
     openPathInFileManager(rawPath, options.logger),
   );
 
-  registerCuaPermissionIpcHandlers({ logger: options.logger });
+  registerCuaPermissionIpcHandlers({
+    logger: options.logger,
+  });
 
   ipcMain.handle(PlatformChannels.CanOpenCommunity, async (_event, locale: unknown) => {
     const result = localeSchema.safeParse(locale);
@@ -376,7 +403,21 @@ export function registerPlatformIpcHandlers(options: {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
     return resolveDesktopWindowChromeState(senderWindow?.isMaximized() ?? false);
   });
-  ipcMain.handle(PlatformChannels.GetInstalledEditors, () => getInstalledEditors());
+  ipcMain.handle(PlatformChannels.GetInstalledEditors, (_event, filePath?: string) =>
+    getInstalledEditors(typeof filePath === "string" ? filePath : undefined),
+  );
+  const fileApplications = createFileApplicationService({
+    getIcon: (id, path) => getAppIconDataUrl(id, path),
+    logger: options.logger,
+  });
+  ipcMain.handle(PlatformChannels.GetFileApplications, (_event, target: FileApplicationTarget) =>
+    fileApplications.getFileApplications(target),
+  );
+  ipcMain.handle(
+    PlatformChannels.OpenFileWithApplication,
+    (_event, payload: { applicationId: string; target: FileApplicationTarget }) =>
+      fileApplications.openFileWithApplication(payload?.applicationId, payload?.target),
+  );
   ipcMain.handle(
     PlatformChannels.GetApplicationIcon,
     (_event, request: string | ApplicationIconRequest) => getApplicationIcon(request),
@@ -392,15 +433,8 @@ export function registerPlatformIpcHandlers(options: {
       openInEditor(payload.editorId, payload.path, payload.options),
   );
 
-  ipcMain.handle(PlatformChannels.ExecuteDesktopCommand, async (event, command: string) => {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender);
-    const isKnownCommand = (Object.values(DesktopCommandIds) as string[]).includes(command);
-    if (!isKnownCommand) {
-      options.logger.warn("[desktop-command] invalid command:", command);
-      return;
-    }
-
-    // 返回值直通 renderer 的 executeDesktopCommand promise（GetCuaOsSupport 依赖此行为）。
-    return await options.executeDesktopCommand(command as DesktopCommandId, senderWindow);
+  registerDesktopCommandIpcHandler({
+    executeDesktopCommand: options.executeDesktopCommand,
+    logger: options.logger,
   });
 }

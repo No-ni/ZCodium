@@ -233,6 +233,7 @@ export function resolveControlledUnknownMessageAttribution(
     /upstream truncated response without stop reason/iu.test(message) ||
     /server disconnected without sending a response/iu.test(message) ||
     /responses\s+流式调用失败/iu.test(message) ||
+    /codex responses websocket stream error/iu.test(message) ||
     /engine protocol predict request failed:\s*fetch failed/iu.test(message) ||
     /the model provider encountered a streaming error/iu.test(message) ||
     /上游流式响应长时间无数据/iu.test(message) ||

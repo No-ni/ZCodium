@@ -1,14 +1,16 @@
 import { memo, useCallback, useMemo } from "react";
 import { LightbulbIcon, XIcon, ChevronDownIcon } from "lucide-react";
 import {
+  ZCODE_AGENT_PROVIDER,
+  getZCodeAgentAvailableModes,
+  type ZCodeConfigOption,
+} from "@zcode/shared";
+import {
   TID_CHAT_MODE_SELECT_TRIGGER,
   TID_CHAT_MODE_SELECT_ITEM,
   TID_V4_COMPOSER_INPUT,
-  ZCODE_AGENT_PROVIDER,
-  getZCodeAgentAvailableModes,
   testId,
-  type ZCodeConfigOption,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,6 +20,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu.js";
+import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -26,6 +29,8 @@ import {
   resolveModeOptionIcon,
 } from "@/chat-input-toolbar/display.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useYoloModeConfirmation } from "@/hooks/useConfirmDialog.js";
+import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -57,11 +62,22 @@ function V4ComposerModeSwitchImpl({
   | "onSwitchMode"
 >) {
   const { intl } = useZCodeIntl();
+  // 原草稿回调随 scope 换代，旧确认不能把权限写入后来选中的任务。
+  const confirmMode = useYoloModeConfirmation(disabled ? null : onSwitchMode, draftConfig?.mode);
+  const requestSwitchMode = useCallback(
+    (mode: string) => {
+      confirmMode(mode, () => onSwitchMode(mode));
+    },
+    [confirmMode, onSwitchMode],
+  );
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   const modeShortcutLabel = useShortcutCommandLabel("cycleSessionMode");
   const modes = getZCodeAgentAvailableModes();
   const permissions = modes.filter((mode) => mode.id !== "plan");
-  const selected = permissions.find((mode) => mode.id === draftConfig?.mode);
+  // 新菜单隐藏 Edit，但历史草稿仍可回显，不能因候选变化隐藏整个权限入口。
+  const selected =
+    permissions.find((mode) => mode.id === draftConfig?.mode) ??
+    (draftConfig?.mode === "edit" ? { id: "edit", name: "Edit" } : undefined);
   const label = (mode: (typeof modes)[number]) =>
     getModeOptionDisplayLabel(intl, displayProvider, { value: mode.id, name: mode.name });
   const plan = modes.find((mode) => mode.id === "plan")!;
@@ -83,8 +99,8 @@ function V4ComposerModeSwitchImpl({
   );
   const cycle = useCallback(() => {
     const next = getNextConfigSelectValue(modeOption);
-    if (next) onSwitchMode(next);
-  }, [modeOption, onSwitchMode]);
+    if (next) requestSwitchMode(next);
+  }, [modeOption, requestSwitchMode]);
   useToolbarShortcutBindings({
     hasAnyOption: Boolean(selected),
     toolbarDisabled: disabled,
@@ -118,11 +134,14 @@ function V4ComposerModeSwitchImpl({
               className={cn(
                 "group/mode h-7 gap-1 rounded-lg px-2 text-ui-base data-[composer-compact=true]:w-7 data-[composer-compact=true]:px-0",
                 selected.id === "yolo" && "text-warning hover:text-warning",
+                selected.id === "guarded" &&
+                  "text-icon-blue hover:text-icon-blue aria-expanded:text-icon-blue",
               )}
             >
               <Icon className="size-4" />
               <span className="inline group-data-[composer-compact=true]/mode:hidden">
-                {label(selected)}
+                {/* Plan 菜单重写时普通 span 丢失了旧 ConfigSelect 的翻滚；复用同一动画组件恢复。 */}
+                <RollingToolbarLabel label={label(selected)} />
               </span>
               <ChevronDownIcon className="size-3.5 group-data-[composer-compact=true]/mode:hidden" />
             </Button>
@@ -134,7 +153,7 @@ function V4ComposerModeSwitchImpl({
           className="w-64"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (!isCoarseTouchDevice())
+            if (!useConfirmDialogStore.getState().pendingRequest && !isCoarseTouchDevice())
               document
                 .querySelector<HTMLElement>(`[data-testid="${TID_V4_COMPOSER_INPUT}"]`)
                 ?.focus();
@@ -157,7 +176,7 @@ function V4ComposerModeSwitchImpl({
             </span>
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup value={selected.id} onValueChange={onSwitchMode}>
+          <DropdownMenuRadioGroup value={selected.id} onValueChange={requestSwitchMode}>
             {permissions.map((mode) => {
               const ModeIcon = resolveModeOptionIcon(mode.id);
               const descriptionId = getModeOptionDescriptionMessageId(displayProvider, {

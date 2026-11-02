@@ -23,6 +23,7 @@ import {
   runCommandAndReadStdout,
 } from "../../../scripts/spawn-command.mjs";
 import { resolveIntranetDepsBaseUrl } from "../../../scripts/intranetDefaults.mjs";
+import { stampMacosUpdateManifests } from "./macos-update-manifest.mjs";
 
 const desktopRoot = resolve(import.meta.dirname, "..");
 const workspaceRoot = resolve(desktopRoot, "../..");
@@ -85,6 +86,10 @@ const commandStdoutMaxBuffer = 64 * 1024 * 1024;
 const requiredRuntimeModules = [
   "module-details-from-path",
   "pngjs",
+  // Bugfix（保留本仓修复口径）：@babel/runtime 挂在被打包库的 peer/runtime 边界上，
+  // pnpm workspace 开发态能解析，但 electron-builder 重打 app.asar 时不保证带上；
+  // 缺失会让已安装应用在主进程启动阶段直接崩溃。与 afterPack 注入名单同口径做机械校验。
+  "@babel/runtime",
   // services 里的代理探测会在运行时 require("undici")。
   // 如果这里只校验 pngjs/ssh2 依赖，打包链路就会放过“产物能生成但主进程启动即缺 undici”的坏包。
   // 这里把 undici 纳入机械校验，让 bundle 阶段就能把问题拦下来。
@@ -97,6 +102,8 @@ const requiredRuntimeModules = [
   // Bugfix: 飞书 SDK 为了避开 Electron ESM 动态 require 崩溃会作为外部依赖保留，
   // 生产包必须显式校验 app.asar 中存在该 scoped 包。
   "@larksuiteoapi/node-sdk",
+  // 26.17.0 的 pnpm collector 仍可能漏掉 deduped 传递依赖；最终包从 updater 入口校验完整闭包。
+  "electron-updater",
   // ssh2 的关键依赖链（asn1/bcrypt-pbkdf/tweetnacl）若缺失，
   // 连接远程 workspace 时会在 keyParser 阶段直接抛 MODULE_NOT_FOUND。
   // 这里把 ssh2 关键依赖链纳入机械校验，避免坏包流出。
@@ -147,9 +154,13 @@ export function createElectronRuntimeMirrorEnv(mirror) {
 }
 
 function resolveDefaultElectronBuilderBinariesMirror(env = process.env) {
-  return env.ZCODE_DEPS_BASE_URL?.trim() || env.INTRANET_MACHINE_HOST?.trim()
-    ? `${resolveIntranetDepsBaseUrl(env)}/electron-builder-binaries/`
-    : NPMMIRROR_ELECTRON_BUILDER_BINARIES_MIRROR;
+  // 修复：未配置内网依赖源时（例如开源构建）内网地址解析会抛错，打包直接失败；
+  // 此时回退到 electron-builder 官方 release 下载地址。内部构建行为不变。
+  try {
+    return `${resolveIntranetDepsBaseUrl(env)}/electron-builder-binaries/`;
+  } catch {
+    return OFFICIAL_ELECTRON_BUILDER_BINARIES_MIRROR;
+  }
 }
 
 export function resolveElectronBuilderBinariesMirror(env = process.env) {
@@ -173,6 +184,9 @@ export function resolveElectronBuilderBinariesMirror(env = process.env) {
 
 export function createElectronBuilderBinariesMirrorEnv(mirror) {
   return {
+    // 26.17.0 默认拒绝非 localhost HTTP 工具镜像。只对明确的 HTTP builder 子进程放行，
+    // HTTPS 时清空父环境中的宽松开关，避免扩大到其他下载链路。
+    ELECTRON_BUILDER_BINARIES_ALLOW_HTTP: /^http:\/\//i.test(mirror.trim()) ? "true" : "",
     // electron-builder 的 DOWNLOAD_OVERRIDE_URL 优先级高于 mirror。
     // CI 若把它误配到 Electron runtime 目录，会完全绕过 mirror fallback 并继续 404。
     ELECTRON_BUILDER_BINARIES_DOWNLOAD_OVERRIDE_URL: "",
@@ -186,6 +200,27 @@ export function createElectronBuilderBinariesMirrorEnv(mirror) {
   };
 }
 
+export function createBundleProcessEnvs({ os, arch, electronMirror, electronBuilderMirror }) {
+  const commonEnv = {
+    ZCODE_TARGET_OS: os,
+    ZCODE_TARGET_ARCH: arch,
+    ...createElectronRuntimeMirrorEnv(electronMirror),
+  };
+  const clearedElectronBuilderEnv = createElectronBuilderBinariesMirrorEnv("");
+
+  return {
+    // 资产准备和常规编译不得继承 Builder 的 HTTP 授权或工具镜像。
+    buildEnv: {
+      ...commonEnv,
+      ...clearedElectronBuilderEnv,
+    },
+    electronBuilderEnv: {
+      ...commonEnv,
+      ...createElectronBuilderBinariesMirrorEnv(electronBuilderMirror),
+    },
+  };
+}
+
 export function shouldFallbackElectronBuilderBinariesMirror(output, mirror, env = process.env) {
   const normalizedOutput = output.toLowerCase();
   const normalizedMirror = mirror.trim().replace(/\/+$/, "");
@@ -195,16 +230,22 @@ export function shouldFallbackElectronBuilderBinariesMirror(output, mirror, env 
   );
   const isMissingBuilderBinary =
     normalizedOutput.includes("status code 404") || normalizedOutput.includes("response code 404");
+  const isDefaultDepsMirror = normalizedMirror === normalizedDefaultMirror;
+  // 26.17 + @electron/get 的并发下载失败经 AsyncTaskManager 聚合后只剩通用
+  // "HTTPError: Response code 404"，不再带完整镜像 URL；默认内网镜像缺新工具目录时
+  // 必须仍可切公共镜像重试，否则要到 ZIP/DMG 阶段才以 Cannot cleanup 暴露。
   const isDefaultDepsMirrorMissing =
-    normalizedMirror === normalizedDefaultMirror &&
-    normalizedOutput.includes("electron-builder-binaries/");
+    isDefaultDepsMirror && normalizedOutput.includes("electron-builder-binaries/");
+  const isDefaultDepsMirrorGenericTool404 = isDefaultDepsMirror && isMissingBuilderBinary;
   const isMisconfiguredNpmMirrorElectronRuntime =
     normalizedOutput.includes("npmmirror.com/binaries/electron/") &&
     !normalizedOutput.includes("electron-builder-binaries/");
 
   return (
     isMissingBuilderBinary &&
-    (isDefaultDepsMirrorMissing || isMisconfiguredNpmMirrorElectronRuntime)
+    (isDefaultDepsMirrorMissing ||
+      isDefaultDepsMirrorGenericTool404 ||
+      isMisconfiguredNpmMirrorElectronRuntime)
   );
 }
 
@@ -694,12 +735,12 @@ async function main() {
   console.log(`[bundle] target=${os}/${arch}`);
   console.log(`[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild}`);
 
-  const buildEnv = {
-    ZCODE_TARGET_OS: os,
-    ZCODE_TARGET_ARCH: arch,
-    ...createElectronRuntimeMirrorEnv(resolveElectronMirror()),
-    ...createElectronBuilderBinariesMirrorEnv(resolveElectronBuilderBinariesMirror()),
-  };
+  const { buildEnv, electronBuilderEnv } = createBundleProcessEnvs({
+    os,
+    arch,
+    electronMirror: resolveElectronMirror(),
+    electronBuilderMirror: resolveElectronBuilderBinariesMirror(),
+  });
 
   if (dryRun) {
     console.log(`[bundle] dry-run: ${pnpmCommand} ${buildArgs.join(" ")}`);
@@ -720,8 +761,10 @@ async function main() {
   }
 
   await runTimedAsync("bundle:electron-builder", () =>
-    runElectronBuilderWithRetry(buildArgs, buildEnv),
+    runElectronBuilderWithRetry(buildArgs, electronBuilderEnv),
   );
+
+  await stampMacosUpdateManifests({ outputDir: desktopDistRoot, platform: os });
 
   runTimedSync("bundle:verify-runtime-dependencies", () =>
     verifyPackagedRuntimeDependencies(os, arch),

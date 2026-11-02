@@ -151,8 +151,8 @@ const ASK_MEMBER = { container: "Agent", member: "ask" } as const;
 
 /**
  * 顶层 facade 函数中产生站点的那些（无容器）。`log` 不产生站点，故不在此。`hole` 在此：留白
- * 有站点 id（名字键 `hole#<hash>`）与 host 调用，身份同样按**声明文件**判定——脚本自己的 `hole`
- * 函数是别人的函数。
+ * 有站点 id（名字键 `hole#<hash>`）与 host 调用（docs/dynamic-workflow/authoring.md「Holes」），身份同样按
+ * **声明文件**判定——脚本自己的 `hole` 函数是别人的函数。
  */
 const SITE_PRODUCING_FUNCTIONS = ["agent", "report", "hole"] as const;
 
@@ -199,10 +199,34 @@ type MarkerFunction = (typeof MARKER_FUNCTIONS)[number];
  * 某 facade symbol 解析到的**展示标记**顶层函数（按声明判定：容器必须缺席），
  * 非标记则 undefined。与 {@link siteProducingFunctionOfSymbol} 同形、刻意不同表。
  */
-export function markerFunctionOfSymbol(symbol: ts.Symbol | undefined): MarkerFunction | undefined {
+export function markerFunctionOfSymbol(
+  symbol: ts.Symbol | undefined,
+): MarkerFunction | undefined {
   const member = facadeMemberOf(symbol);
   if (member === undefined || member.container !== undefined) return undefined;
   return MARKER_FUNCTIONS.find((name) => name === member.member);
+}
+
+/**
+ * 顶层 facade 函数中**纯值构造**的那些：有 facade 身份，但不产生站点、不过 host。目前只有
+ * `model`（docs/dynamic-workflow/authoring.md「Choosing a model per subagent」）。
+ *
+ * `ModelRef` 只活在类型系统里：运行期它就是模型名字符串本身，所以 lowering 把 `model("x")`
+ * 抹成实参 `"x"`，沙箱里既没有 `__host.model`，也没有 journal 行。与 `phase` 分列的理由同
+ * {@link MARKER_FUNCTIONS}：它不产生站点，混进产生站点的清单会让 facade-misuse 的 pass 2 拒绝
+ * 每一次合法调用；它仍是 facade 函数声明，所以别名逃逸（`const m = model`）照旧被 pass 1 拒绝，
+ * lowering 因此可以放心按节点身份抹除。
+ */
+const VALUE_FUNCTIONS = ["model"] as const;
+
+/** 顶层纯值 facade 函数名。由 {@link VALUE_FUNCTIONS} 推导。 */
+type ValueFunction = (typeof VALUE_FUNCTIONS)[number];
+
+/** 某 facade symbol 解析到的纯值顶层函数（按声明判定：容器必须缺席），否则 undefined。 */
+export function valueFunctionOfSymbol(symbol: ts.Symbol | undefined): ValueFunction | undefined {
+  const member = facadeMemberOf(symbol);
+  if (member === undefined || member.container !== undefined) return undefined;
+  return VALUE_FUNCTIONS.find((name) => name === member.member);
 }
 
 /**
@@ -224,7 +248,10 @@ export const SITE_MEMBER_NAMES: ReadonlySet<string> = new Set<string>([
  * 注册表查询：(容器, 成员) → op。容器为 undefined（顶层函数）时永不命中——world-read
  * 一律挂在 facade 容器对象上。
  */
-function worldReadOp(container: string | undefined, member: string): WorldReadOp | undefined {
+export function worldReadOp(
+  container: string | undefined,
+  member: string,
+): WorldReadOp | undefined {
   if (container === undefined) return undefined;
   return WORLD_READ_REGISTRY.find((row) => row.container === container && row.member === member)
     ?.op;
@@ -278,12 +305,6 @@ export function facadeMemberOf(
   );
   if (declaration === undefined || symbol === undefined) return undefined;
   return { container: facadeContainerOf(declaration), member: symbol.name };
-}
-
-/** Pure value constructors have facade identity but no site or host effect. */
-export function valueFunctionOfSymbol(symbol: ts.Symbol | undefined): "model" | undefined {
-  const member = facadeMemberOf(symbol);
-  return member?.container === undefined && member?.member === "model" ? "model" : undefined;
 }
 
 /** 某 facade symbol 解析到的 world-read op（按声明容器判定），非 world-read 则 undefined。 */

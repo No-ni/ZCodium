@@ -6,10 +6,11 @@
     "#src/*": "./src/*"
   },
   "exports": {
+    "./bot-project-runtime": "./src/bot-project-runtime/index.ts",
     "./window-project-directory": "./src/window-project-directory/index.ts",
     "./source-server-workspace": "./src/source-server-workspace/index.ts",
     "./source-server-workspace/node": "./src/source-server-workspace/node.ts",
-    "./storage-startup": "./src/storage-startup.ts",
+    "./storage-startup": "./src/project-storage/startup-entry.ts",
     ".": "./src/index.ts",
     "./cua-permission-broker": "./src/cua-permission-broker/index.ts",
     "./process/processTreeTerminator": "./src/process/processTreeTerminator.ts",
@@ -26,6 +27,7 @@
     "@zcode/rpc": "workspace:*",
     "@zcode/shared": "workspace:*",
     "@zcode/zcode-cua": "workspace:*",
+    "chokidar": "4.0.3",
     "croner": "^10.0.1",
     "ignore": "^5.3.2",
     "node-forge": "^1.4.0",

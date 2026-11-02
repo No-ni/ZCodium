@@ -31,31 +31,14 @@ const PROVIDER_WEBSEARCH_TOOL_NAME = "web_search";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_USES = 8;
 
-const WEBSEARCH_MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
-
-function buildWebSearchProviderDescription(now: Date = new Date()): string {
-  const currentMonth = `${WEBSEARCH_MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
-  return [
-    "Search the web. Returns result blocks with titles and URLs. US-only.",
-    "",
-    `- The current month is ${currentMonth} — use this when searching for recent information.`,
-    "- `allowed_domains` / `blocked_domains` filter results.",
-    '- After answering from results, end with a "Sources:" list of the URLs you used as markdown links.',
-  ].join("\n");
-}
+// 当前月份不写进描述：模型从会话里的当前日期得知月份，描述保持逐字节稳定，跨月不让 tools 缓存失效。
+const WEBSEARCH_PROVIDER_DESCRIPTION = [
+  "Search the web. Returns result blocks with titles and URLs. US-only.",
+  "",
+  "- The current month is (provided in the conversation below) — use this when searching for recent information.",
+  "- `allowed_domains` / `blocked_domains` filter results.",
+  '- After answering from results, end with a "Sources:" list of the URLs you used as markdown links.',
+].join("\n");
 
 const webSearchHandler: ToolHandler<WebSearchInput, WebSearchOutput> = async (input, context) => {
   const startedAt = Date.now();
@@ -114,7 +97,6 @@ const webSearchHandler: ToolHandler<WebSearchInput, WebSearchOutput> = async (in
           toolName: WEBSEARCH_TOOL_NAME,
           querySource: "web_search_tool",
         },
-        modelRequestSessionType: "other",
         modelCall: { operation: "web_search" },
         // statusSink 不在这里设：执行器交出的 context.model 已带默认会话事件出口。
         traceContext: webSearchTraceFromContext(context),
@@ -130,12 +112,10 @@ export const webSearchToolEntry: ToolEntry = {
   ...WEBSEARCH_TOOL_CONTRACT,
   providerNative: undefined,
   metadata: {
+    shouldDefer: true,
     name: WEBSEARCH_TOOL_NAME,
-    // 写死月份会导致模型可见的 WebSearch 描述过期。
-    // 每次读取时重新生成，避免长驻进程跨月后继续投递旧月份。
-    get description() {
-      return buildWebSearchProviderDescription();
-    },
+    searchHint: "search the web for current information",
+    description: WEBSEARCH_PROVIDER_DESCRIPTION,
     readOnly: true,
     destructive: false,
     concurrentSafe: true,

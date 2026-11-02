@@ -14,6 +14,9 @@ import {
   IZCodeTaskService,
   IZCodeAgentService,
   IZCodeSessionService,
+  IProjectService,
+  ITaskGroupService,
+  IRemoteProjectService,
   ICuaPermissionService,
   IConversationShareService,
   IBotsService,
@@ -21,12 +24,17 @@ import {
   IModelSelectionService,
   IProviderSettingsService,
   IProviderProvisioningTargetService,
+  ISourceServerWorkspaceService,
+  ISourceServerManagementService,
+  IDeviceSyncStateService,
+  IProviderProvisioningStatusService,
   IUsageStatsService,
   ICodingPlanSubscriptionService,
   IClientConfigService,
   IClientScenesService,
   ISkillsService,
   ISkillSyncService,
+  IUserConfigSyncService,
   IMcpSyncService,
   IPluginUiAppToolsService,
   IPluginUiSamplingService,
@@ -38,10 +46,10 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
+  IOutputStyleService,
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   IWindowControllerService,
-  ISourceServerManagementService,
   IWindowProjectService,
   IWindowRemoteProjectService,
   IWindowProjectChangesService,
@@ -56,7 +64,6 @@ import {
  */
 export class RemoteServiceAccess implements IServiceAccessor {
   readonly fileService: IFileService;
-  readonly sourceServerManagementService?: ISourceServerManagementService;
   windowProjectDirectory?: WindowProjectDirectoryServices;
   readonly mediaPreviewService: IMediaPreviewService;
   readonly gitService: IGitService;
@@ -71,6 +78,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly windowControllerService: IWindowControllerService;
   readonly zcodeAgentService: IZCodeAgentService;
   readonly zcodeSessionService: IZCodeSessionService;
+  readonly projectService: IProjectService;
+  readonly remoteProjectService: IRemoteProjectService;
+  readonly taskGroupService: ITaskGroupService;
   // cuaPermissionService 在 IServiceAccessor 上是可选（远端/bots host 不提供），但桌面 renderer
   // 经 RPC 一定能拿到（main host 始终注册此 descriptor；非 macOS / 未启用时方法返回 available:false）。
   readonly cuaPermissionService: ICuaPermissionService;
@@ -81,6 +91,12 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly modelSelectionService: IModelSelectionService;
   /** Host-only target proxy；不属于 IServiceAccessor，避免向 Renderer 暴露 Secret 写入接口。 */
   readonly providerProvisioningTargetService!: IProviderProvisioningTargetService;
+  readonly sourceServerWorkspaceService: ISourceServerWorkspaceService;
+  /** 仅 desktop base attachment 注册；其他 scope 必须按可选能力消费。 */
+  readonly sourceServerManagementService?: ISourceServerManagementService;
+  /** 仅 desktop base attachment 注册：数据同步页的设备同步状态。 */
+  readonly deviceSyncStateService?: IDeviceSyncStateService;
+  readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   readonly usageStatsService: IUsageStatsService;
   readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
   readonly clientConfigService: IClientConfigService;
@@ -93,21 +109,23 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly pluginUiSamplingService: IPluginUiSamplingService;
   readonly pluginUiAppToolsService: IPluginUiAppToolsService;
   readonly pluginSyncService: IPluginSyncService;
+  readonly userConfigSyncService: IUserConfigSyncService;
   readonly pluginsService: IPluginsService;
   readonly pluginManagementService: IPluginManagementService;
   readonly subagentsService: ISubagentsService;
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
+  readonly outputStyleService: IOutputStyleService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 
   attachWindowProjectDirectory(channelClient: IChannelClient): WindowProjectDirectoryServices {
     this.windowProjectDirectory ??= {
-      projectService: ProxyChannel.toService<IWindowProjectService>(
+      projectService: ProxyChannel.toService<IProjectService>(
         channelClient.getChannel(IWindowProjectService.channelName),
       ),
-      remoteProjectService: ProxyChannel.toService<IWindowRemoteProjectService>(
+      remoteProjectService: ProxyChannel.toService<IRemoteProjectService>(
         channelClient.getChannel(IWindowRemoteProjectService.channelName),
       ),
       changesService: ProxyChannel.toService<IWindowProjectChangesService>(
@@ -119,14 +137,13 @@ export class RemoteServiceAccess implements IServiceAccessor {
 
   constructor(
     channelClient: IChannelClient,
-    options: { sourceServerManagementService?: boolean; windowProjectDirectory?: boolean } = {},
+    options: {
+      sourceServerManagementService?: boolean;
+      windowProjectDirectory?: boolean;
+      deviceSyncStateService?: boolean;
+    } = {},
   ) {
     if (options.windowProjectDirectory) this.attachWindowProjectDirectory(channelClient);
-    if (options.sourceServerManagementService) {
-      this.sourceServerManagementService = ProxyChannel.toService<ISourceServerManagementService>(
-        channelClient.getChannel(ISourceServerManagementService.channelName),
-      );
-    }
     this.fileService = ProxyChannel.toService<IFileService>(
       channelClient.getChannel(IFileService.channelName),
     );
@@ -168,6 +185,15 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.zcodeAgentService = ProxyChannel.toService<IZCodeAgentService>(
       channelClient.getChannel(IZCodeAgentService.channelName),
     );
+    this.remoteProjectService = ProxyChannel.toService<IRemoteProjectService>(
+      channelClient.getChannel(IRemoteProjectService.channelName),
+    );
+    this.taskGroupService = ProxyChannel.toService<ITaskGroupService>(
+      channelClient.getChannel(ITaskGroupService.channelName),
+    );
+    this.projectService = ProxyChannel.toService<IProjectService>(
+      channelClient.getChannel(IProjectService.channelName),
+    );
     this.zcodeSessionService = ProxyChannel.toService<IZCodeSessionService>(
       channelClient.getChannel(IZCodeSessionService.channelName),
     );
@@ -195,6 +221,27 @@ export class RemoteServiceAccess implements IServiceAccessor {
       ),
       enumerable: false,
     });
+    this.sourceServerWorkspaceService = ProxyChannel.toService<ISourceServerWorkspaceService>(
+      channelClient.getChannel(ISourceServerWorkspaceService.channelName),
+    );
+    // Bug 原因：ProxyChannel 是惰性的，无论服务端是否注册 channel 都能构造出“看似存在”
+    // 的对象，optional 合同因此在首次调用时才失败。scope 创建时必须显式声明能力。
+    this.sourceServerManagementService = options.sourceServerManagementService
+      ? ProxyChannel.toService<ISourceServerManagementService>(
+          channelClient.getChannel(ISourceServerManagementService.channelName),
+        )
+      : undefined;
+    this.deviceSyncStateService = options.deviceSyncStateService
+      ? ProxyChannel.toService<IDeviceSyncStateService>(
+          channelClient.getChannel(IDeviceSyncStateService.channelName),
+        )
+      : undefined;
+    // 与设备同步状态同属数据同步页的本机 Host 服务：同一开关（只在桌面 base 连接打开）。
+    this.providerProvisioningStatusService = options.deviceSyncStateService
+      ? ProxyChannel.toService<IProviderProvisioningStatusService>(
+          channelClient.getChannel(IProviderProvisioningStatusService.channelName),
+        )
+      : undefined;
     this.usageStatsService = ProxyChannel.toService<IUsageStatsService>(
       channelClient.getChannel(IUsageStatsService.channelName),
     );
@@ -231,6 +278,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.pluginSyncService = ProxyChannel.toService<IPluginSyncService>(
       channelClient.getChannel(IPluginSyncService.channelName),
     );
+    this.userConfigSyncService = ProxyChannel.toService<IUserConfigSyncService>(
+      channelClient.getChannel(IUserConfigSyncService.channelName),
+    );
     this.pluginsService = ProxyChannel.toService<IPluginsService>(
       channelClient.getChannel(IPluginsService.channelName),
     );
@@ -248,6 +298,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.memoryService = ProxyChannel.toService<IMemoryService>(
       channelClient.getChannel(IMemoryService.channelName),
+    );
+    this.outputStyleService = ProxyChannel.toService<IOutputStyleService>(
+      channelClient.getChannel(IOutputStyleService.channelName),
     );
     this.settingsSyncService = ProxyChannel.toService<ISettingsSyncService>(
       channelClient.getChannel(ISettingsSyncService.channelName),

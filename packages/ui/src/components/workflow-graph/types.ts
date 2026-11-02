@@ -17,8 +17,7 @@ import type { ToolCallCreateWorkflowCausalityGraph } from "@zcode/shared/zcode-p
  * payload as the run-status join key and the inspector's material; neither is drawn.
  */
 export type WorkflowCausalityGraphData = ToolCallCreateWorkflowCausalityGraph;
-
-/** 纯留白脚本可能没有 step；阶段/留白本身就是可展示、可定位的站，不能当作空图。 */
+/** 纯留白脚本也可展示；合并时不能丢掉阶段/留白的类型收窄。 */
 export function hasWorkflowGraphContent(
   graph: WorkflowCausalityGraphData | undefined,
 ): graph is WorkflowCausalityGraphData {
@@ -64,7 +63,10 @@ export interface WorkflowCausalityGraphSelection {
 export const WORKSPACE_LANE_ID = "workspace";
 /** Lane of an ask whose receiver the analysis could not resolve to an actor site. */
 export const UNKNOWN_LANE_ID = "unknown";
-/** 开放留白属于主代理；不是拥有子会话的子代理。 */
+/**
+ * 主代理的车道：分析器把每个开着的留白记成这条车道上的一步（analysis.md「Sites」）。它不是子代理，
+ * 从不画成药丸——开着的留白自己就是一站（presentation.md「Pills」）。
+ */
 export const MAIN_LANE_ID = "main";
 /** The terminal marker node: the artifact the workflow returns. */
 export const SINK_NODE_ID = "sink";

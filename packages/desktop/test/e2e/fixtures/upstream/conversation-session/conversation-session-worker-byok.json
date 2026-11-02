@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "worker-byok-title",
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"id\":\"title\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"GLM-5.3-Flash\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"title\\\":\\\"Worker BYOK fixture\\\"}\"}],\"stop_reason\":\"end_turn\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}"
+      }
+    },
+    {
+      "id": "worker-byok-initial",
+      "metadata": {
+        "source": "synthetic",
+        "syntheticReason": "Only Provider HTTP is mocked; real Host/Worker admission remains active."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_W99_BOT_INITIAL"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "WORKER_BYOK_OK"
+      }
+    },
+    {
+      "id": "worker-byok-next",
+      "metadata": {
+        "source": "synthetic",
+        "syntheticReason": "Only Provider HTTP is mocked; real Host/Worker admission remains active."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_W99_BOT_NEXT"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "WORKER_BYOK_OK"
+      }
+    },
+    {
+      "id": "worker-byok-attachment",
+      "metadata": {
+        "source": "synthetic",
+        "syntheticReason": "Only Provider HTTP is mocked; real Host/Worker admission remains active."
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_W99_ATTACHMENT"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "WORKER_BYOK_OK"
+      }
+    }
+  ]
+}

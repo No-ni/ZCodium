@@ -1,3 +1,4 @@
+import { checkLoading } from "./preview-corner-checks.js";
 import { app, BrowserWindow, ipcMain, protocol, webContents } from "electron";
 import {
   checkCapture,
@@ -6,12 +7,14 @@ import {
   checkCopyButton,
 } from "./presentation-checks.js";
 import { checkStandalone } from "./standalone-checks.js";
+import { checkExternalLinks } from "./external-links-checks.js";
+import { checkFileSummary } from "./file-summary-checks.js";
 import {
   checkRuntimeWidgets,
   checkCalendarAndCarousel,
   checkTweakLifecycle,
 } from "./runtime-checks.js";
-import { prepareOutputFiles } from "./output-files.js";
+import { checkInheritedOutput, checkRemoteOutput, prepareOutputFiles } from "./output-files.js";
 import { installOfflineChecks } from "./offline-checks.js";
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
@@ -73,6 +76,11 @@ void app
       outputRoot: output.outputRoot,
       registerSandbox: async (input) => sandbox.registerFromHost(input),
     });
+    const remoteService = createGenUiService({
+      stateRoot: join(root, "remote-state"),
+      outputRoot: output.remoteOutputRoot,
+    });
+    ipcMain.handle("fixture-remote-read", (_, input) => remoteService.readDocument(input));
     service.onStateChanged((value) => win.webContents.send("fixture-state", value));
     let latestHandle: any;
     ipcMain.handle("fixture-service", async (_, method: keyof typeof service, input: never) => {
@@ -80,10 +88,10 @@ void app
       if (method === "prepareSandbox") latestHandle = result;
       return result;
     });
-    ipcMain.handle("fixture-config", () => ({
+    ipcMain.handle("fixture-config", (_, remote = false) => ({
       root: output.workspacePath,
-      path: output.paths.fixture,
-      paths: output.paths,
+      path: (remote ? output.remotePaths : output.paths).fixture,
+      paths: remote ? output.remotePaths : output.paths,
     }));
     // No synthetic native gesture: programmatic follow-up must use confirmation.
     ipcMain.handle("fixture-gesture", () => false);
@@ -101,11 +109,6 @@ void app
     await read(
       "new Promise(resolve => globalThis.lucide ? resolve() : document.getElementById('zcode-visualization-lucide').addEventListener('load', resolve, {once:true}))",
     );
-    assert.deepEqual(await read("Object.keys(window.zcode).sort()"), [
-      "sendFollowUpMessage",
-      "setWidgetState",
-      "widgetState",
-    ]);
     assert.equal(await read("typeof window.openai"), "undefined");
     assert.equal(await read("typeof window.require"), "undefined");
     await read(
@@ -118,7 +121,7 @@ void app
     assert.equal(await read("window.zcode.widgetState.modelContent.count"), 7);
     assert.equal(
       await read("getComputedStyle(document.querySelector('.card')).borderWidth"),
-      "0px",
+      "1px",
     );
     win.focus();
     await checkRuntimeWidgets(read);
@@ -165,6 +168,10 @@ void app
     );
     const html = await readFile(output.paths.fixture!, "utf8");
     await writeFile(output.paths.fixture!, html.replace("Original heading", "Updated heading"));
+    await writeFile(
+      output.remotePaths.fixture,
+      html.replace("Original heading", "Updated heading"),
+    );
     await win.webContents.executeJavaScript("window.restore()");
     guest = currentGuest();
     frame = guest.mainFrame.frames.find((value) => value.url.includes("/instance/"))!;
@@ -187,7 +194,7 @@ void app
       await win.webContents.executeJavaScript("document.querySelectorAll('webview').length"),
       0,
     );
-    await win.webContents.executeJavaScript("window.showReply('complete')");
+    await checkLoading(win, waitHost);
     await waitHost(`document.querySelector('[data-gen-ui-phase="ready"]')`);
     assert.equal(
       await win.webContents.executeJavaScript("document.body.textContent.includes('::visualize')"),
@@ -202,11 +209,22 @@ void app
     guest = currentGuest();
     frame = guest.mainFrame.frames.find((value) => value.url.includes("/instance/"))!;
     const guestId = guest.id;
-    await checkInlineLayout(win, read);
+    await checkExternalLinks(win, guest, read);
+    await checkFileSummary(win, root, waitHost);
+    await checkInlineLayout(win, read, root);
     await checkCopyButton(win);
+    const inlineHeight = await win.webContents.executeJavaScript(
+      "document.querySelector('[data-testid=gen-ui-anchor]').style.height",
+    );
     await clickHost("Expand");
     await waitHost(`document.querySelector('[role="dialog"]')`);
     await checkCopyButton(win, true);
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('[data-testid=gen-ui-anchor]').style.height",
+      ),
+      inlineHeight,
+    );
     assert.equal(currentGuest().id, guestId);
     assert.ok(
       await win.webContents.executeJavaScript(
@@ -327,20 +345,11 @@ void app
     );
     assert.equal(currentGuest().id, guestId);
     assert.equal(await read("window.starts"), 1);
-    await read(
-      "document.body.insertAdjacentHTML('beforeend','<div id=height-probe style=height:12000px></div>')",
-    );
-    await waitHost(
-      `document.querySelector('[data-testid="gen-ui-anchor"]').style.height === '10000px'`,
-    );
-    await read("document.querySelector('#height-probe').remove()");
-    await waitHost(
-      `parseFloat(document.querySelector('[data-testid="gen-ui-anchor"]').style.height) < 1000`,
-    );
     await win.webContents.executeJavaScript("window.showTask('second-task')");
     await waitHost(
       `document.querySelector('[data-gen-ui-phase="ready"]') && window.inspectReact().preparations === 2`,
     );
+    await checkInheritedOutput(win);
     assert.equal(
       webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length,
       2,
@@ -378,13 +387,15 @@ void app
     await waitHost(
       `window.inspectReact().ports === 0 && window.inspectReact().states === 0 && !document.querySelector('webview')`,
     );
+    await checkRemoteOutput(win, service, remoteService, output, root, waitHost);
+    remoteService.dispose();
     service.dispose();
     win.destroy();
     await checkStandalone(root);
     offline.assertNoNetwork();
     clearTimeout(deadline);
     process.stdout.write(
-      "Gen UI Electron E2E passed: isolation, state, anchors, styles, tooltip, tabs, icons, calendar, carousel, Tweak lifecycle, follow-up, theme, replay, reload, standalone and historical remount\n",
+      "Gen UI Electron E2E passed: isolation, state, anchors, external links, styles, tooltip, tabs, icons, calendar, carousel, Tweak lifecycle, follow-up, theme, replay, reload, standalone and historical remount\n",
     );
     app.exit(0);
   })

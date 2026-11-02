@@ -1,17 +1,18 @@
+import { LOCAL_TOOL_SEARCH_DESCRIPTION, renderToolSearchAnnouncement } from "./description.js";
 import {
-  DEFERRED_TOOL_CALL_NAME,
   TOOL_SEARCH_NAME,
+  LOCAL_TOOL_SEARCH_NAME,
+  DEFERRED_TOOL_CALL_NAME,
+  type ToolSearchMode,
+  type ResolvedToolSearchMode,
   type Model,
   type ModelToolContract,
-  type ResolvedToolSearchMode,
   type ToolSearchCandidate,
   type ToolSearchExecutionContext,
-  type ToolSearchMode,
 } from "@zcode/contracts";
-import type { RuntimeMessageEntry } from "../../agent/message-history.js";
 import type { ToolRegistry } from "../registry.js";
 import type { ToolMetadata } from "../types.js";
-import { LOCAL_TOOL_SEARCH_DESCRIPTION } from "./description.js";
+import type { RuntimeAttachmentEntry, RuntimeMessageEntry } from "../../agent/message-history.js";
 import { collectToolSearchHistory, projectToolReferences } from "./history.js";
 
 export function resolveToolSearchMode(
@@ -41,6 +42,7 @@ export function isDeferredTool(tool: ModelToolContract, metadata?: ToolMetadata)
     (metadata?.shouldDefer === true || metadata?.mcpPresentation !== undefined)
   );
 }
+
 interface ToolExposureInput {
   model: Model;
   mode?: ToolSearchMode;
@@ -48,49 +50,56 @@ interface ToolExposureInput {
   registry?: Pick<ToolRegistry, "get">;
   entries: readonly RuntimeMessageEntry[];
 }
-function resolveCatalog(input: ToolExposureInput, preCompactDiscoveredTools: ReadonlySet<string>) {
+
+function resolveToolSearchCatalog(
+  input: ToolExposureInput,
+  preCompactDiscoveredTools: ReadonlySet<string>,
+) {
   const requestedMode = resolveToolSearchMode(input.model, input.mode);
   let hasConfiguredDeferred = false;
   const catalog: ToolSearchCandidate[] = input.tools
     .filter((tool) => requestedMode === "local" || tool.name !== DEFERRED_TOOL_CALL_NAME)
     .map((tool) => {
       const entry = input.registry?.get(tool.name);
-      const configuredDeferred = isDeferredTool(tool, entry?.metadata);
+      const metadata = entry?.metadata;
+      const configuredDeferred = isDeferredTool(tool, metadata);
       hasConfiguredDeferred ||= configuredDeferred;
       return {
         name: tool.name,
         aliases: entry?.aliases,
         description: tool.description,
-        searchHint: entry?.metadata.searchHint,
-        mcp: entry?.metadata.mcpPresentation,
+        searchHint: metadata?.searchHint,
+        mcp: metadata?.mcpPresentation,
         deferred:
           configuredDeferred &&
           !(requestedMode === "local" && preCompactDiscoveredTools.has(tool.name)),
       };
     });
+  const deferred = new Set(catalog.filter((tool) => tool.deferred).map((tool) => tool.name));
   const controlsAvailable =
     catalog.some((tool) => tool.name === TOOL_SEARCH_NAME) &&
     (requestedMode !== "local" || catalog.some((tool) => tool.name === DEFERRED_TOOL_CALL_NAME));
+  // 全部提升后仍需要控制入口处理后续目录变化，不能用剩余 deferred 数量关闭 Local。
   const enabled = requestedMode !== "off" && hasConfiguredDeferred && controlsAvailable;
   const mode: ResolvedToolSearchMode = enabled ? requestedMode : "off";
-  const deferred = new Set(catalog.filter((tool) => tool.deferred).map((tool) => tool.name));
   return {
     catalog,
+    deferred,
     enabled,
     mode,
-    deferred,
     reason: enabled
       ? mode
       : requestedMode === "off"
-        ? "disabled"
+        ? "provider_disabled"
         : !hasConfiguredDeferred
           ? "no_deferred_tools"
           : "tool_unavailable",
   };
 }
+
 export function buildToolExposure(input: ToolExposureInput) {
   const { discovered, preCompactDiscoveredTools } = collectToolSearchHistory(input.entries);
-  const { catalog, enabled, mode, deferred, reason } = resolveCatalog(
+  const { catalog, deferred, enabled, mode, reason } = resolveToolSearchCatalog(
     input,
     preCompactDiscoveredTools,
   );
@@ -107,58 +116,70 @@ export function buildToolExposure(input: ToolExposureInput) {
     .map((tool) => {
       const { deferLoading: _previous, ...contract } = tool;
       if (mode === "local" && tool.name === TOOL_SEARCH_NAME)
-        return { ...contract, description: LOCAL_TOOL_SEARCH_DESCRIPTION };
+        return {
+          ...contract,
+          name: LOCAL_TOOL_SEARCH_NAME,
+          description: LOCAL_TOOL_SEARCH_DESCRIPTION,
+        };
       return mode === "native" && deferred.has(tool.name)
         ? { ...contract, deferLoading: true }
         : contract;
     });
+  // Local 使用完整目录，且常驻控制工具以实际发送的定义覆盖原文案。
   const projection = projectToolReferences(
     input.entries,
     mode,
     mode === "local" ? [...input.tools, ...tools] : tools,
     deferred,
   );
-  const context: ToolSearchExecutionContext = { mode, enabled, catalog, discovered };
+  const context: ToolSearchExecutionContext = { enabled, mode, catalog, discovered };
   return { tools, ...projection, enabled, context, reason };
 }
+
+// Bug 根因：请求投影中生成的公告晚于续写快照，恢复快照后会反复生成并累积到主历史。
+// 公告只由正常提醒收集和 compact 重建调用，提交历史后才生成请求快照。
 export function buildToolSearchAnnouncement(
   input: ToolExposureInput,
   compactDiscoveredTools?: ReadonlySet<string>,
-): RuntimeMessageEntry | undefined {
+): RuntimeAttachmentEntry | undefined {
+  // Off 不需要公告或提升信息，保持关闭路径不扫描公告历史。
   if (resolveToolSearchMode(input.model, input.mode) === "off") return undefined;
-  const { preCompactDiscoveredTools } = collectToolSearchHistory(input.entries);
-  for (const name of compactDiscoveredTools ?? []) preCompactDiscoveredTools.add(name);
-  const { enabled, deferred, mode } = resolveCatalog(input, preCompactDiscoveredTools);
-  if (!enabled) return undefined;
+  // Bug 根因：全量 metadata 与增量正文不一致，compact 保留尾部时会误以为旧名称仍在上下文。
+  // 只从保留的公告事实恢复状态；恢复提示不算完整列名，原始列名被压缩后仍需补齐。
   const announced = new Set<string>();
+  const listed = new Set<string>();
+  const preCompactDiscoveredTools = new Set(compactDiscoveredTools);
   for (const entry of input.entries) {
-    for (const name of entry.metadata?.toolSearchAnnouncement?.addedNames ?? [])
+    for (const name of entry.metadata?.compactBoundary?.preCompactDiscoveredTools ?? [])
+      preCompactDiscoveredTools.add(name);
+    const delta = entry.metadata?.toolSearchAnnouncement;
+    if (!delta) continue;
+    const readded = new Set(delta.readdedNames);
+    for (const name of delta.addedNames) {
       announced.add(name);
-    for (const name of entry.metadata?.toolSearchAnnouncement?.removedNames ?? [])
-      announced.delete(name);
+      if (!readded.has(name)) listed.add(name);
+    }
+    for (const name of delta.removedNames) announced.delete(name);
   }
-  const addedNames = [...deferred].filter((name) => !announced.has(name)).sort();
+  const { enabled, deferred, mode } = resolveToolSearchCatalog(input, preCompactDiscoveredTools);
+  if (!enabled) return undefined;
+  const names = [...deferred].sort();
+  const addedNames = names.filter((name) => !announced.has(name) || !listed.has(name));
+  const readdedNames = names.filter((name) => !announced.has(name) && listed.has(name));
+  // deferred 转 alwaysLoad 后工具仍然可用，删除必须对照完整的当前作用域目录。
   const available = new Set(input.tools.map((tool) => tool.name));
   const removedNames = [...announced].filter((name) => !available.has(name)).sort();
-  if (!addedNames.length && !removedNames.length) return undefined;
-  const lines = [
-    ...(addedNames.length
-      ? [
-          `Deferred tools available via ${TOOL_SEARCH_NAME}:\n${addedNames.join("\n")}`,
-          mode === "local"
-            ? `Load their complete schema, then call ${DEFERRED_TOOL_CALL_NAME} {name, input}. Call resident tools directly.`
-            : "Load their schema, then call them directly.",
-        ]
-      : []),
-    ...(removedNames.length ? [`Tools no longer available:\n${removedNames.join("\n")}`] : []),
-    "Discovery is not authorization. Keep normal hooks and permission checks. This is ambient context; do not narrate it unless relevant.",
-  ];
+  if (addedNames.length === 0 && removedNames.length === 0) return undefined;
+  // 只能在生成时判断哪些删除只是本轮隐藏：之后 registry 会变，请求投影按记下的名称渲染。
+  const hiddenNames = removedNames.filter((name) => input.registry?.get(name) !== undefined);
+  const delta = { addedNames, removedNames, readdedNames };
   return {
     kind: "attachment",
-    content: lines.join("\n\n"),
+    content: renderToolSearchAnnouncement(delta, mode, hiddenNames),
     metadata: {
       source: "tool_search_announcement",
-      toolSearchAnnouncement: { addedNames, removedNames, readdedNames: [] },
+      toolSearchAnnouncement: delta,
+      ...(hiddenNames.length ? { toolSearchHiddenNames: hiddenNames } : {}),
     },
   };
 }

@@ -29,6 +29,7 @@ import {
 import type { Locale } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import { createDesktopPlatform } from "./desktopPlatform.js";
+import { handleSourceSettingsServicePortMessage } from "./sourceSettingsServicePortBridge.js";
 import { startPerformanceTimelineCleanup } from "./performanceTimelineCleanup.js";
 import { buildRemoteWorkspaceSessionServices } from "./remoteWorkspaceSessionServices.js";
 import {
@@ -252,6 +253,7 @@ function StartupReadyNotifier() {
 }
 
 function handleServicePortMessage(event: MessageEvent): void {
+  if (handleSourceSettingsServicePortMessage(event)) return;
   if (event.source === window && event.data?.type === InternalChannels.DatabaseStartupState) {
     const result = databaseStartupStateSchema.safeParse(event.data.state);
     if (!result.success || appInitialized) return;

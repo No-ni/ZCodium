@@ -2,8 +2,8 @@ import { writeDerivedTrajectories } from "./derive.js";
 import { writeModelIoAnthropicTrajectory } from "./model-io.js";
 
 interface CliOptions {
-  referenceRequestPath?: string;
   inputPath?: string;
+  ignoreToolSearchChanges?: boolean;
   outDir?: string;
   querySource?: string;
 }
@@ -16,12 +16,13 @@ try {
   requireOption(options.outDir, "--out");
   if (command === "derive") {
     await writeDerivedTrajectories({
-      referenceRequestPath: options.referenceRequestPath,
+      ignoreToolSearchChanges: options.ignoreToolSearchChanges,
       inputPath: options.inputPath,
       outDir: options.outDir,
     });
   } else {
     await writeModelIoAnthropicTrajectory({
+      ignoreToolSearchChanges: options.ignoreToolSearchChanges,
       inputPath: options.inputPath,
       outDir: options.outDir,
       querySource: options.querySource,
@@ -38,6 +39,10 @@ function parseOptions(args: readonly string[]): CliOptions {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--") continue;
+    if (arg === "--ignore-tool-search-changes") {
+      options.ignoreToolSearchChanges = true;
+      continue;
+    }
     const value = args[index + 1];
     if (!value) throw new Error("Missing option value");
     index += 1;
@@ -47,9 +52,6 @@ function parseOptions(args: readonly string[]): CliOptions {
         break;
       case "--input":
         options.inputPath = value;
-        break;
-      case "--reference-request":
-        options.referenceRequestPath = value;
         break;
       case "--query-source":
         options.querySource = value;
@@ -67,7 +69,7 @@ function requireOption<T>(value: T | undefined, flag: string): asserts value is 
 
 function printUsageAndExit(): never {
   console.error(`Usage:
-  pnpm --filter @zcode/prompt-trajectory derive -- --input <trajectory.jsonl> --out <dir> [--reference-request <path>]
-  pnpm --filter @zcode/prompt-trajectory model-io -- --input <model-io.jsonl> --out <dir> [--query-source main_turn]`);
+  pnpm --filter @zcode/prompt-trajectory derive -- --input <trajectory.jsonl> --out <dir> [--ignore-tool-search-changes]
+  pnpm --filter @zcode/prompt-trajectory model-io -- --input <model-io.jsonl> --out <dir> [--query-source main_turn] [--ignore-tool-search-changes]`);
   process.exit(1);
 }

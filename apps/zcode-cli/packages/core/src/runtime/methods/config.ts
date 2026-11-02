@@ -33,6 +33,7 @@ import { applyRuntimeExecutionState } from "../execution-state.js";
 import { refreshRuntimeToolSearchControls } from "../helpers/tool-search-controls.js";
 import type { ToolSearchMode } from "@zcode/contracts";
 import { resolveToolSearchMode } from "../../tool/search/exposure.js";
+import { mirrorSubagentInteractionEvent } from "../../subagent/tool-event-mirror.js";
 import { orderProviderVisibleToolContracts } from "../../tool/provider-visible-order.js";
 import { projectToolModelContract } from "../../tool/model-contract.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
@@ -232,8 +233,10 @@ export async function notifyExternalChildSessionEvent(
     event: SessionEvent;
     traceContext?: TraceContext;
     executionWorkspacePath?: string;
+    interactionOrigin?: ChildClientPortsContext;
   },
 ): Promise<void> {
+  const traceContext = input.traceContext ?? this.rootTraceContext;
   // 只通知、绝不 append：子 runtime 已经按自己的 sessionId 把这条事件落库了，
   // 再走父 runtime 的 append 链路会造成同一事件在共享 store 里出现两份。
   await this.notifyEventSinks(

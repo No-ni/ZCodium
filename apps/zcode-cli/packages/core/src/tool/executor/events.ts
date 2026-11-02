@@ -56,6 +56,7 @@ export async function emitToolCallResult(
   durationMs: number,
   display: ToolResultDisplayPayload | undefined,
   perf: ToolExecutionPerformance | undefined,
+  pluginId?: string,
 ): Promise<void> {
   await deps.emitEvent({
     id: crypto.randomUUID() as any,
@@ -67,6 +68,7 @@ export async function emitToolCallResult(
     sequenceNumber: 0,
     payload: {
       toolCallId: toolCall.id,
+      ...(pluginId ? { pluginId } : {}),
       result: {
         success: true,
         content: serialization.content,
@@ -89,6 +91,7 @@ export async function emitToolCallError(
   traceContext: TraceContext,
   turnId: TurnId | undefined,
   error: ToolExecutionResult["error"],
+  pluginId?: string,
 ): Promise<void> {
   await deps.emitEvent({
     id: crypto.randomUUID() as any,
@@ -101,6 +104,7 @@ export async function emitToolCallError(
     payload: {
       toolCallId,
       error,
+      ...(pluginId ? { pluginId } : {}),
     },
   });
 }
@@ -137,7 +141,11 @@ export async function emitPermissionRequested(
   reason: string | undefined,
   suggestedPermissionUpdates: PermissionUpdate[],
   traceContext: TraceContext,
-  approval?: { display?: ToolResultDisplayPayload; optionsPolicy?: PermissionOptionsPolicy },
+  approval?: {
+    approvalMode?: "user-once";
+    display?: ToolResultDisplayPayload;
+    optionsPolicy?: PermissionOptionsPolicy;
+  },
 ): Promise<void> {
   await deps.emitEvent({
     id: crypto.randomUUID() as any,
@@ -155,9 +163,11 @@ export async function emitPermissionRequested(
       reason: reason ?? `Tool ${toolCall.name} requires approval`,
       input,
       suggestedPermissionUpdates,
+      ...(approval?.approvalMode ? { approvalMode: approval.approvalMode } : {}),
       ...(approval?.display ? { display: approval.display } : {}),
       ...(approval?.optionsPolicy ? { optionsPolicy: approval.optionsPolicy } : {}),
-      ...(deps.sessionModePort?.supportsPermissionFullAccess?.()
+      ...(approval?.approvalMode !== "user-once" &&
+      deps.sessionModePort?.supportsPermissionFullAccess?.()
         ? { fullAccessSupported: true }
         : {}),
     },

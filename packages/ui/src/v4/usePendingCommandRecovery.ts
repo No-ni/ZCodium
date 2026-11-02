@@ -5,7 +5,7 @@ import { pendingCommandRegistry, type PendingCommandEntry } from "@/v4/pendingCo
 import { isPendingCommandForWorkspace } from "@/v4/pendingCommandWorkspace.js";
 import type { SessionDataLayer } from "@/v4/sessionDataLayer.js";
 
-interface UsePendingCommandRecoveryOptions {
+export interface UsePendingCommandRecoveryOptions {
   layer: SessionDataLayer;
   sessionId: string | null;
   snapshot: ConversationSnapshot | null;
@@ -33,8 +33,12 @@ export function usePendingCommandRecovery({
   useEffect(() => pendingCommandRegistry.subscribe(() => setVersion((current) => current + 1)), []);
 
   useEffect(() => {
-    if (snapshot) pendingCommandRegistry.reconcileSnapshot(snapshot);
-  }, [snapshot]);
+    if (snapshot)
+      pendingCommandRegistry.reconcileSnapshot(
+        snapshot,
+        workspaceIdentity?.trim() || workspacePath,
+      );
+  }, [snapshot, workspaceIdentity, workspacePath]);
 
   useEffect(() => {
     if (status !== "live" || subscriptionId === null) return;
@@ -42,12 +46,16 @@ export function usePendingCommandRecovery({
     const targets: Array<string | null> = sessionId === null ? [null] : [sessionId, null];
     void Promise.all(
       targets.map((target) =>
-        pendingCommandRegistry.reconcileSession(target, (params) => layer.queryCommands(params)),
+        pendingCommandRegistry.reconcileSession(
+          target,
+          (params) => layer.queryCommands(params),
+          workspaceIdentity?.trim() || workspacePath,
+        ),
       ),
     ).catch((error) => {
       logger.warn("[v4-pending-command] 重连对账失败，保留账本等待下次连接", error);
     });
-  }, [layer, sessionId, status, subscriptionId]);
+  }, [layer, sessionId, status, subscriptionId, workspacePath, workspaceIdentity]);
 
   // version 是 registry 的窄订阅信号；不把整份账本复制进 React state。
   void version;

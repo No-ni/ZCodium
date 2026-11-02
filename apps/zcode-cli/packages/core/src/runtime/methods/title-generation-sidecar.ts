@@ -133,13 +133,15 @@ async function generateTitleCandidateImpl(
   await this.appendEvent(modelRequestEvent, modelTraceContext);
   events.push(modelRequestEvent);
   const networkEventStartIndex = events.length;
-  const titleAbortSignal = AbortSignal.timeout(
-    positiveTimeoutMs(this.config.titleGeneration?.timeoutMs),
-  );
+  // title 跨 turn 存活，但不能跨所属 runtime 的关闭；超时与关闭共用实际请求取消链。
+  const titleAbortSignal = AbortSignal.any([
+    this.shutdownSignal,
+    AbortSignal.timeout(positiveTimeoutMs(this.config.titleGeneration?.timeoutMs)),
+  ]);
+  titleAbortSignal.throwIfAborted();
   const modelStartedAt = Date.now();
   const invocationContext = {
     metadata: traceContextToLogContext(modelTraceContext),
-    modelRequestSessionType: "other" as const,
     modelCall: {
       operation:
         options.querySource === GOAL_SUMMARY_TITLE_QUERY_SOURCE

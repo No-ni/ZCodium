@@ -45,6 +45,7 @@ import { ReadSessionContextToolCallBlock } from "@/ToolCallBlocks/renderers/read
 import { RespondToCoordinatorToolCallBlock } from "@/ToolCallBlocks/renderers/respond-to-coordinator.js";
 import { SearchToolCallBlock } from "@/ToolCallBlocks/renderers/search.js";
 import { ToolSearchToolCallBlock } from "@/ToolCallBlocks/renderers/tool-search.js";
+import { WebFetchToolCallBlock } from "@/ToolCallBlocks/renderers/web-fetch.js";
 import { SendMessageToolCallBlock } from "@/ToolCallBlocks/renderers/send-message.js";
 import { SkillToolCallBlock } from "@/ToolCallBlocks/renderers/skill.js";
 import { SubmitResultToolCallBlock } from "@/ToolCallBlocks/renderers/submit-result.js";
@@ -76,6 +77,14 @@ export function resolveToolCallRenderer(context: ToolCallBlockRenderContext) {
     identity.toolName === "ToolSearch" ||
     context.toolCallNode.toolCall.toolName === "ToolSearch"
   ) {
+    return ToolSearchToolCallBlock;
+  }
+
+  // 工具目录查询只复用搜索卡片；不改 search family，避免被聚合为 Explore 内容搜索。
+  const toolCall = context.toolCallNode.toolCall;
+  const toolName = toolCall.toolName ?? toolCall.kind;
+  // 参数生成和中途停止尚未经过执行归一化，必须让 Local 名称也复用同一卡片与文案。
+  if (toolName === "ToolSearch" || toolName === "LocalToolSearch") {
     return ToolSearchToolCallBlock;
   }
 
@@ -171,6 +180,8 @@ export function resolveToolCallRenderer(context: ToolCallBlockRenderContext) {
       return ExploreToolCallBlock;
     case "switch-mode":
       return SwitchModeToolCallBlock;
+    case "web-fetch":
+      return WebFetchToolCallBlock;
     case "search":
       return SearchToolCallBlock;
     case "shell":

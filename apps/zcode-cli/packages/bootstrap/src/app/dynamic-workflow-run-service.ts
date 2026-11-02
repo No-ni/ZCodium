@@ -40,16 +40,17 @@
 
 import type { DwfRunSessionListItem } from "@zcode/adapters/storage";
 import type {
+  CollaborationMode,
   TraceContext,
-  DynamicWorkflowRunEvent,
   DynamicWorkflowRunArtifact,
   DynamicWorkflowRunArtifactBytes,
-  DynamicWorkflowRunArtifactItem,
   DynamicWorkflowRunArtifactItemPage,
+  DynamicWorkflowRunArtifactItemsResult,
   DynamicWorkflowRunWorkspaceNode,
   DynamicWorkflowRunWorkspaceNodeResult,
   DynamicWorkflowRunWorkspaceNodeResultQuery,
   DynamicWorkflowRunEventPage,
+  DynamicWorkflowRunEventsResult,
   DynamicWorkflowResolveQuestionResult,
   DynamicWorkflowRunFillHoleRequest,
   DynamicWorkflowRunPort,
@@ -76,7 +77,10 @@ import type {
   WorkflowSubmitPort,
 } from "@zcode/contracts";
 import type { AgentRuntime } from "@zcode/core";
-import { WORKFLOW_RUNS_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+import {
+  WORKFLOW_RUN_EVENTS_PAGE_LIMITS,
+  WORKFLOW_RUNS_LIMITS,
+} from "@zcode/shared/zcode-protocol-v4";
 import type {
   ActorSubmitProfile,
   ActorRef,
@@ -89,6 +93,8 @@ import { readWorkflowArtifactBytes } from "./dynamic-workflow-run-artifact-read.
 import { replayRunProgress } from "./dynamic-workflow-run-replay.js";
 import { listArtifactItemsFrom } from "./dynamic-workflow-run-artifact-queries.js";
 import {
+  pageByCountOnly,
+  supportsEventPages,
   supportsRunEnumeration,
   supportsRunIntrospection,
   type DynamicWorkflowTaskLinkStore,
@@ -121,12 +127,14 @@ import {
   fillDynamicWorkflowHole,
   type DynamicWorkflowRunFillContext,
 } from "./dynamic-workflow-run-fill.js";
+import { runHolesOf } from "./dynamic-workflow-run-holes.js";
 import type { ActorTranscriptStore } from "./workflow-actor-transcript.js";
 import {
-  clampRunConcurrency,
-  resolveWorkflowConcurrencyCeiling,
-} from "./workflow-concurrency-ceiling.js";
+  normalizeRunConcurrency,
+  resolveWorkflowDefaultConcurrency,
+} from "./workflow-default-concurrency.js";
 import type { WorkflowConcurrencyPort } from "./workflow-concurrency-governor.js";
+import type { WorkflowSubagentPermissionMode } from "./workflow-actor-permission.js";
 import type { AgentRuntimeWorkflowDriverDeps } from "./workflow-driver-types.js";
 import {
   createWorkflowEscalationRegistry,
@@ -177,7 +185,13 @@ export interface DynamicWorkflowActorRuntimeInput {
   /** Persona-specific selection, above run default, journal pin and parent. */
   actorModel?: ModelSelection;
   /**
-   * 该 actor runtime 的模型请求准入端口：
+   * 本 run 子代理的权限模式（journal 的 `run-launched` 上的那一个；docs/dynamic-workflow/launch.md
+   * 「Permissions inside a run」）。工厂让 actor 跑在这个模式上（workflow-actor-permission.ts），
+   * 缺席即 YOLO。
+   */
+  subagentPermissionMode?: WorkflowSubagentPermissionMode;
+  /**
+   * 该 actor runtime 的模型请求准入端口（docs/dynamic-workflow/concurrency.md「One ticket per request attempt」）：
    * driver 在治理器端口在场时给出；工厂原样放进 runtime deps。缺席即不受闸门约束。
    */
   modelRequestAdmission?: ModelRequestAdmission;
@@ -202,6 +216,13 @@ export interface DynamicWorkflowRunServiceDeps {
   parentSessionId: string;
   /** 工作区枚举键；run.cwd 保持真实沙箱目录。 */
   workspaceDirectory?: string;
+  /**
+   * 父会话**此刻**的权限模式（create-app 接 `runtime.getMode()`）。只在建 run 那一世读一次
+   * （submit / amend），记进 `run-launched`（docs/dynamic-workflow/launch.md
+   * 「Permissions inside a run」）；resume 只读事件、不读它。惰性：run service 先于 runtime 构造。
+   * 缺席即宿主没有模式概念（CLI 测试装配），子代理照旧 YOLO。
+   */
+  permissionMode?: () => CollaborationMode;
   /** world-read（files.glob / files.read / files.grep）落到的文件系统端口。 */
   fileSystemPort: FileSystemPort;
   /** git.* world-read 落到的子进程执行端口（cwd = run 的工作区）。 */
@@ -276,6 +297,17 @@ export interface DynamicWorkflowRunServiceDeps {
    * 20 分钟的 stall 窗缩到毫秒级）；生产装配永不设置，缺席即 driver 用真时间。
    */
   driverClock?: AgentRuntimeWorkflowDriverDeps["clock"];
+  /**
+   * 按内联规则铸一份草稿（docs/dynamic-workflow/launch.md「The draft after a fill」）：一次补全
+   * 落在一个没有草稿的 run 上时，有效脚本要有个家。规则（slug、`-2`/`-3` 顺延、独占创建、目录
+   * 的 `.gitignore`）只在工具层有一份实现，宿主装配时注入，本服务不复制它。写不成回 `undefined`
+   * （绝不抛）。缺席即不铸——补全照常成功，只是回话里没有路径。
+   */
+  writeWorkflowDraft?: (input: {
+    cwd: string;
+    name: string;
+    source: string;
+  }) => Promise<{ path: string } | undefined>;
 }
 
 export {
@@ -335,21 +367,21 @@ export function createDynamicWorkflowRunService(
   reconcileOrphanRuns(deps);
 
   /**
-   * 本进程的并发天花板。
-   * 与进程级治理器的桶天花板同一份实现：run 上界与桶天花板永远对得上。
+   * 本进程的默认并发 D（docs/dynamic-workflow/concurrency.md「Two bounds on a run」）。
+   * 与进程级治理器的桶起点同一份实现（决策 30）：run 的默认上界与桶的起点永远对得上。
    *
-   * 本服务里它有四个读者，全部经这一个函数：新 run 的 caps 起点、端口上的
-   * {@link DynamicWorkflowRunPort.concurrencyCeiling}（工具层据它钳制与判断「值不值得一提」）、
+   * 本服务里它有四个读者，全部经这一个函数：新 run 的 caps 缺省、端口上的
+   * {@link DynamicWorkflowRunPort.defaultConcurrency}（工具层据它写「（默认）」与判断「值不值得一提」）、
    * 两条读面的 `maxConcurrency` 判据，以及 `run-started` 载荷上的派生字段。
    */
-  const concurrencyCeiling = (): number =>
-    resolveWorkflowConcurrencyCeiling(deps.availableParallelism);
+  const defaultConcurrency = (): number =>
+    resolveWorkflowDefaultConcurrency(deps.availableParallelism);
 
-  // caps 只含并发上界，无墙钟超时；取消是唯一的停止手段。
-  // 上界**起于天花板**，只能被请求压低、永不抬高——
-  // 缺席即天花板，给了就钳到 [1, 天花板]。
+  // caps 只剩并发上界（docs/dynamic-workflow/authoring.md：token 预算与节点上限整体移除，
+  // 无墙钟超时；取消是唯一的停止手段）。缺席即默认并发；给了就照用（向下取整、至少 1），
+  // 高于默认也照用——没有上限（docs/dynamic-workflow/concurrency.md）。
   const caps = (requested?: number): Caps => {
-    return { maxConcurrency: clampRunConcurrency(requested, concurrencyCeiling()) };
+    return { maxConcurrency: normalizeRunConcurrency(requested, defaultConcurrency()) };
   };
 
   // 内省面按能力探测接上（那四条查询不在引擎端口上）。缺席时下面两个**可选成员整个不实现**：
@@ -365,6 +397,7 @@ export function createDynamicWorkflowRunService(
     trackSettlement,
     close,
     assertOpen,
+    trackOperation,
     noteForeignTerminalRow,
   } = createRunServiceLifecycle({
     journal: deps.journal,
@@ -383,6 +416,7 @@ export function createDynamicWorkflowRunService(
     runs,
     escalations,
     caps,
+    assertOpen,
     trackSettlement,
   };
 
@@ -397,20 +431,20 @@ export function createDynamicWorkflowRunService(
       request: DynamicWorkflowRunSubmitRequest,
     ): Promise<DynamicWorkflowRunSubmitResult> {
       assertOpen();
-      return submitDynamicWorkflowRun(entryContext, request);
+      return trackOperation(() => submitDynamicWorkflowRun(entryContext, request));
     },
 
     async amend(request: DynamicWorkflowRunAmendRequest): Promise<DynamicWorkflowRunAmendResult> {
       assertOpen();
-      return amendDynamicWorkflowRun(entryContext, request);
+      return trackOperation(() => amendDynamicWorkflowRun(entryContext, request));
     },
 
     /**
-     * 本进程的并发天花板（端口契约见 {@link DynamicWorkflowRunPort.concurrencyCeiling}）。
-     * 与 caps 的起点是**同一个** {@link concurrencyCeiling}：工具层钳出来的值必须与端口随后
-     * 落库的值相等，否则确认窗显示的就不是将要生效的那个数。
+     * 本进程的默认并发（端口契约见 {@link DynamicWorkflowRunPort.defaultConcurrency}）。
+     * 与 caps 的缺省是**同一个** {@link defaultConcurrency}：确认窗写的「默认 N」必须就是一个没设
+     * 上界的 run 将要跑的那个数。
      */
-    concurrencyCeiling,
+    defaultConcurrency,
 
     /**
      * 就地改一个在飞 run 自己的并发上界（端口契约见
@@ -422,7 +456,7 @@ export function createDynamicWorkflowRunService(
     async retuneConcurrency(
       request: DynamicWorkflowRunRetuneRequest,
     ): Promise<DynamicWorkflowRunRetuneResult> {
-      return retuneRunConcurrency({ runs, journal: deps.journal, concurrencyCeiling }, request);
+      return retuneRunConcurrency({ runs, journal: deps.journal, defaultConcurrency }, request);
     },
 
     /**
@@ -438,7 +472,7 @@ export function createDynamicWorkflowRunService(
 
     async resume(runId: string): Promise<DynamicWorkflowRunResumeResult> {
       assertOpen();
-      return resumeDynamicWorkflowRun(entryContext, runId);
+      return trackOperation(() => resumeDynamicWorkflowRun(entryContext, runId));
     },
 
     async listRunsForSession(limit?: number): Promise<DynamicWorkflowRunSessionSummary[]> {
@@ -489,8 +523,8 @@ export function createDynamicWorkflowRunService(
         // 调用方内存里已有事件的 run（本进程跑过）与注册表在飞的 run 都不回放：
         // 它们的事件全在内存 store 里，再喂一遍只会让 run-started 把相位打回起点。
         if (input.excludeRunIds.has(row.runId) || runs.has(row.runId)) continue;
-        // 天花板与 live 侧同源：冷回放的 `run-started` 载荷必须与 live 那一条逐字节相等。
-        payloads.push(...replayRunProgress(row, deps.journal, concurrencyCeiling()));
+        // 默认并发与 live 侧同源：冷回放的 `run-started` 载荷必须与 live 那一条逐字节相等。
+        payloads.push(...replayRunProgress(row, deps.journal, defaultConcurrency()));
       }
       return payloads;
     },
@@ -502,7 +536,9 @@ export function createDynamicWorkflowRunService(
         runs,
         deps.journal,
         escalations.pendingFor(taskId),
-        concurrencyCeiling(),
+        defaultConcurrency(),
+        // 留白与停驻问题同规由这里投影好递进去：`waiting` 读的是引擎的停驻表（经条目的控制面）。
+        runHolesOf(taskId, runs.get(taskId), deps.journal),
       );
     },
 
@@ -528,7 +564,8 @@ export function createDynamicWorkflowRunService(
           runs,
           deps.journal,
           escalations.pendingFor(taskId),
-          concurrencyCeiling(),
+          defaultConcurrency(),
+          runHolesOf(taskId, undefined, deps.journal),
         );
       }
       if (entry.terminal === undefined) await settleOrAbort(entry.settlement, options?.signal);
@@ -538,7 +575,8 @@ export function createDynamicWorkflowRunService(
         runs,
         deps.journal,
         escalations.pendingFor(taskId),
-        concurrencyCeiling(),
+        defaultConcurrency(),
+        runHolesOf(taskId, entry, deps.journal),
       );
     },
 
@@ -577,12 +615,22 @@ export function createDynamicWorkflowRunService(
     async listEvents(
       runId: string,
       options: DynamicWorkflowRunEventPage,
-    ): Promise<DynamicWorkflowRunEvent[]> {
-      const page = deps.journal.listEvents(runId, {
+    ): Promise<DynamicWorkflowRunEventsResult> {
+      // 审计面要的是逐字节的事件（report 的 item 也在内，线上再经载荷界裁剪），但一页的条数与
+      // 字节数都有界（docs/execution-engine.md「Reading the journal」）：调用方不给时取协议的
+      // 两道上限。网关总是给全两者，这里的缺省只防别的调用方写出一次无界读。
+      const page = {
         ...(options.afterSequence === undefined ? {} : { afterSequence: options.afterSequence }),
-        ...(options.limit === undefined ? {} : { limit: options.limit }),
-      });
-      return page.map((stored) => toProtocolEvent(stored.sequence, stored.event));
+        limit: options.limit ?? WORKFLOW_RUN_EVENTS_PAGE_LIMITS.maxEvents,
+        maxBytes: options.maxBytes ?? WORKFLOW_RUN_EVENTS_PAGE_LIMITS.maxBytes,
+      };
+      const { events, hasMore } = supportsEventPages(deps.journal)
+        ? deps.journal.listEventPage(runId, page)
+        : pageByCountOnly(deps.journal, runId, page);
+      return {
+        events: events.map((stored) => toProtocolEvent(stored.sequence, stored.event)),
+        hasMore,
+      };
     },
 
     /**
@@ -620,11 +668,8 @@ export function createDynamicWorkflowRunService(
       runId: string,
       artifactId: string,
       page: DynamicWorkflowRunArtifactItemPage,
-    ): Promise<readonly DynamicWorkflowRunArtifactItem[]> {
-      return listArtifactItemsFrom(deps.journal, runId, artifactId, {
-        ...(page.afterSequence === undefined ? {} : { afterSequence: page.afterSequence }),
-        limit: page.limit,
-      });
+    ): Promise<DynamicWorkflowRunArtifactItemsResult> {
+      return listArtifactItemsFrom(deps.journal, runId, artifactId, page);
     },
 
     /**
@@ -690,7 +735,7 @@ export function createDynamicWorkflowRunService(
           workspaceDirectory: deps.workspaceDirectory,
           runs,
           escalations,
-          concurrencyCeiling,
+          defaultConcurrency,
         })),
   };
 }

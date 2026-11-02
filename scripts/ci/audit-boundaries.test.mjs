@@ -97,6 +97,18 @@ test("official account providers and purchase webviews stay removed", () => {
   }
 });
 
+test("unconnected official mobile-push and ARMS entrypoints stay removed", () => {
+  for (const pattern of [
+    "collectMobilePushEvents",
+    "initArmsBrowserContext",
+    "VITE_REWARDS_WEBVIEW",
+  ]) {
+    assert.deepEqual(grepFiles(pattern, ["packages/desktop/src"]), []);
+  }
+  const resourceManager = read("packages/desktop/src/main/resourceManagerWindow.ts");
+  assert.doesNotMatch(resourceManager, /observeNetworkWindow|configureNetworkCaptureHost/);
+});
+
 test("BYO API-key quota is the only remaining provider quota path", () => {
   assert.deepEqual(grepFiles("/api/monitor/usage/quota/limit"), [
     "packages/services/src/usage-stats/codingPlanQuota.ts",
@@ -210,4 +222,9 @@ test("background resource and network sampling is opt-in and local-only", () => 
     mainIndex,
     /if \(isLocalResourceMonitoringEnabled\(\)\) \{\s*registerDesktopResourceTelemetry/,
   );
+});
+
+test("renderer mount does not start background performance sampling", () => {
+  const root = read("packages/ui/src/Root.tsx");
+  assert.doesNotMatch(root, /observeLongTasks|new\s+PerformanceObserver/);
 });

@@ -83,6 +83,14 @@ import {
 import { McpResourceSubscriptionRegistry } from "./resource-subscriptions.js";
 import { ProcessTreeStdioClientTransport } from "./stdio-transport.js";
 import type { McpProcessTracker } from "./process-tracker.js";
+// 桌面 Electron 的 node/npm/npx 回退：宿主注入 provider 时，stdio MCP 在用户 PATH 缺失时
+// 回退到随包 Node 与 npm（docs/design/v2/mcp-node-fallback.md）。缺省时 env 保持不变。
+import {
+  applyMcpNodeFallbackEnv,
+  createMcpNodeFallbackProvider,
+  type McpNodeFallback,
+  type McpNodeFallbackProvider,
+} from "./node-fallback.js";
 import {
   createMcpDeadline,
   McpTimeoutError,
@@ -104,6 +112,11 @@ export interface CreateMcpAdapterOptions {
   env?: NodeJS.ProcessEnv;
   logger?: Logger;
   processTracker?: McpProcessTracker;
+  /**
+   * stdio MCP 的 Node/npm 回退来源。由桌面宿主注入（Electron 可执行文件 + 随包 npm）；
+   * 缺省表示不做回退，保持用户 PATH 语义。
+   */
+  nodeFallback?: McpNodeFallbackProvider;
   mcpOAuth?: McpOAuthRuntimeOptions;
   network?: NetworkEgressEnvPolicy;
   workingDirectory?: string;
@@ -186,6 +199,16 @@ export {
   type McpProcessTracker,
   type McpTrackedProcess,
 } from "./process-tracker.js";
+// 桌面宿主用这些出口注入 Electron Node/npm 回退；CLI 单独使用时不注入即保持原语义。
+export {
+  createMcpNodeFallbackProvider,
+  NODE_FALLBACK_EXEC_PATH_ENV_KEY,
+  NODE_FALLBACK_NPM_ROOT_ENV_KEY,
+  renderNodeFallbackShims,
+  type CreateMcpNodeFallbackProviderOptions,
+  type McpNodeFallback,
+  type McpNodeFallbackProvider,
+} from "./node-fallback.js";
 
 /** elicitation 模式白名单（MCP form 与 兼容别名）。 */
 const SUPPORTED_ELICITATION_MODES = new Set(["form", "openai/form", "openaiForm"]);
@@ -203,6 +226,7 @@ class NodeMcpAdapter implements McpPort {
   private readonly mcpOAuth?: McpOAuthRuntimeOptions;
   private readonly network?: NetworkEgressEnvPolicy;
   private readonly processTracker?: McpProcessTracker;
+  private readonly nodeFallback?: McpNodeFallbackProvider;
   private readonly connectionGenerations = new Map<string, number>();
   private credentialStore?: SharedZCodeCredentialStore;
   private readonly records = new Map<string, McpServerRecord>();
@@ -231,6 +255,7 @@ class NodeMcpAdapter implements McpPort {
     this.mcpOAuth = options.mcpOAuth;
     this.network = options.network;
     this.processTracker = options.processTracker;
+    this.nodeFallback = options.nodeFallback;
     this.closeClientAndTransport = createMcpResourceCloser({
       connectionContext: this.connectionContext,
       logger: this.logger,
@@ -461,7 +486,14 @@ class NodeMcpAdapter implements McpPort {
       try {
         const listed = await record.client.listTools();
         record.tools = listed.tools.map((tool) =>
-          normalizeMcpToolDescriptor(name, tool, record.config.timeoutMs),
+          // official 位保持缺省：本仓没有官方 MCP 结果信任面，只有 http 官方后端才需要它（已剥离）。
+          normalizeMcpToolDescriptor(
+            name,
+            tool,
+            record.config.timeoutMs,
+            undefined,
+            record.config.alwaysLoad,
+          ),
         );
         record.status = { ...record.status, toolCount: record.tools.length };
         record.toolsStale = false;
@@ -1360,7 +1392,24 @@ class NodeMcpAdapter implements McpPort {
 
     try {
       this.assertConnectionActive(name, generation, signal);
-      const transportBundle = await this.createTransport(config, name, workingDirectory);
+      // 修复依据（上游 MR !3089 评审 CR-02）：node 回退准备会写 shim 目录，属于文件 IO。原先这类准备
+      // 不受连接超时与取消约束，IO 卡住时连接会一直停在 connecting。这里只约束本次等待，
+      // 回退结果由 provider 在其生命周期内缓存复用，不影响其它 caller。
+      const nodeFallback =
+        config.type === "stdio" && this.nodeFallback
+          ? await waitWithinMcpDeadline(
+              this.nodeFallback.resolve(),
+              createMcpDeadline(timeoutMs),
+              `MCP server ${name} node fallback preparation timed out after ${timeoutMs}ms`,
+              signal,
+            )
+          : undefined;
+      const transportBundle = await this.createTransport(
+        config,
+        name,
+        workingDirectory,
+        nodeFallback,
+      );
       transport = transportBundle.transport;
       // createTransport 的异步窗口可能已被 close 取消，不能把迟到资源交给 eager SDK connect。
       this.assertConnectionActive(name, generation, signal);
@@ -1410,7 +1459,7 @@ class NodeMcpAdapter implements McpPort {
       this.assertConnectionActive(name, generation, signal);
       listToolsDurationMs = Date.now() - listToolsStartedAt;
       const tools = listed.tools.map((tool) =>
-        normalizeMcpToolDescriptor(name, tool, config.timeoutMs),
+        normalizeMcpToolDescriptor(name, tool, config.timeoutMs, undefined, config.alwaysLoad),
       );
       const negotiatedProtocolEra = client.getProtocolEra();
       const negotiatedProtocolVersion = client.getNegotiatedProtocolVersion();
@@ -1725,6 +1774,7 @@ class NodeMcpAdapter implements McpPort {
     config: McpServerConfig,
     serverName: string,
     workingDirectory?: string,
+    nodeFallback?: McpNodeFallback,
   ): Promise<{ transport: McpTransport }> {
     if (config.type === "stdio") {
       return {
@@ -1734,10 +1784,14 @@ class NodeMcpAdapter implements McpPort {
           cwd: config.cwd
             ? resolve(workingDirectory ?? this.workingDirectory ?? process.cwd(), config.cwd)
             : (workingDirectory ?? this.workingDirectory),
-          env: {
-            ...buildMcpStdioEnv({ env: this.env, network: this.network }),
-            ...config.env,
-          },
+          // PATH 里已有 node/npm 时用户环境优先；只有缺失时才把 shim 目录追加到 PATH 末尾。
+          env: applyMcpNodeFallbackEnv(
+            {
+              ...buildMcpStdioEnv({ env: this.env, network: this.network }),
+              ...config.env,
+            },
+            nodeFallback,
+          ),
           stderr: "pipe",
         }),
       };

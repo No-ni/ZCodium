@@ -49,8 +49,9 @@ export class NodeZCodeBuiltinProviderConfigSource implements ProviderSource<Prov
   }
 
   async #readRelease(): Promise<ZCodeBuiltinRelease> {
-    // 历史 Active/LKG 可能来自官方服务，即使版本更高也不能覆盖本地基线。
-    return decodeZCodeBuiltinRelease(JSON.parse(await readFile(this.#bundledFilePath, "utf8")));
+    // 只读随包基线：历史 Active/LKG 可能来自官方服务，即使版本更高也不能覆盖本地基线，
+    // 所以这里不接受第二个来源路径，也不写任何缓存文件。
+    return readBundledRelease(this.#bundledFilePath);
   }
 
   onDidChange(listener: (reason: string) => void): () => void {
@@ -70,9 +71,16 @@ export class NodeZCodeBuiltinProviderConfigSource implements ProviderSource<Prov
   #ensureWatcher(): void {
     if (!this.#watchEnabled || this.#watcher || this.#disposed) return;
     const target = basename(this.#bundledFilePath);
-    this.#watcher = watch(dirname(this.#bundledFilePath), (_eventType, fileName) => {
-      if (fileName === null || fileName.toString() === target) this.#scheduleWatchRefresh();
-    });
+    // 监听目录可能已被清理；挂载失败只能降级为「不监听」，不能让只读基线读取失败。
+    // 失败时保持 #watcher 为 null，下一次读取会重新尝试挂载。
+    try {
+      this.#watcher = watch(dirname(this.#bundledFilePath), (_eventType, fileName) => {
+        if (fileName === null || fileName.toString() === target) this.#scheduleWatchRefresh();
+      });
+    } catch {
+      this.#watcher = null;
+      return;
+    }
     this.#watcher.on("error", () => this.#emit("watch-error"));
   }
 
@@ -122,4 +130,38 @@ function snapshotFromRelease(
 
 function signatureOf(release: ZCodeBuiltinRelease): string {
   return createHash("sha256").update(serializeZCodeBuiltinRelease(release)).digest("hex");
+}
+
+/**
+ * Bug 原因（取自上游 3.17.1 修复，按本仓「静态随包目录」契约适配）：随包配置在启动时物化到
+ * `<envConfigRoot>/runtime/provider/bundled/zcode-builtin.json`，运行中该目录被清理后每次读取
+ * 都拿到 ENOENT，配置同步持续失败直到进程重启。随包基线在进程生命周期内不可变（升级以退出旧
+ * 进程为前提），因此按路径记住本进程最近一次成功解析的基线，仅在文件缺失时兜底，之后照常由
+ * 监听恢复。内容损坏或 Schema 不兼容不兜底：那属于真实损坏，必须继续抛错让上层可见。
+ * 用模块级缓存而非实例字段，是因为来源切换会新建实例，也要读到同一基线；本仓不把官方下载
+ * 缓存当作可信来源，所以这里只可能保存随包资源的解析结果。
+ */
+const lastValidBundledReleaseByPath = new Map<string, ZCodeBuiltinRelease>();
+
+async function readBundledRelease(filePath: string): Promise<ZCodeBuiltinRelease> {
+  const key = resolve(filePath);
+  let release: ZCodeBuiltinRelease;
+  try {
+    release = decodeZCodeBuiltinRelease(JSON.parse(await readFile(filePath, "utf8")));
+  } catch (error) {
+    const baseline = isFileNotFound(error) ? lastValidBundledReleaseByPath.get(key) : undefined;
+    if (!baseline) throw error;
+    return baseline;
+  }
+  lastValidBundledReleaseByPath.set(key, release);
+  return release;
+}
+
+function isFileNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
 }

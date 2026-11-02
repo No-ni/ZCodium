@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Emitter } from "@zcode/rpc";
 import { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV } from "@zcode/shared/node";
-import { getAppConfigDir } from "../paths.js";
+import { getAppConfigDir, getZCodeDataRootDir } from "#src/paths.js";
 import {
   parseZCodeProcessDiagnostic,
   ZCODE_AGENT_LIFECYCLE_LOG_MARKER,
@@ -65,7 +65,17 @@ export type ZCodeAgentCommandResolver = (
   context: ZCodeAgentCommandResolverContext,
 ) => Promise<ZCodeAgentCommand | null> | ZCodeAgentCommand | null;
 
+type RuntimeWorkspace = { workspacePath: string; workspaceIdentity?: string };
+const SHARED_TASK_RUNTIME_KEY = "shared-local-tasks";
+interface RuntimeBinding {
+  workspace: RuntimeWorkspace;
+  processKey: string;
+}
+
 export interface ZCodeAgentProcessManagerOptions {
+  /** Host 项目事实决定首次分配；运行中的绑定不随项目移动改变。 */
+  useSharedTaskRuntime?: (workspace: RuntimeWorkspace) => Promise<boolean>;
+
   commandResolver?: ZCodeAgentCommandResolver;
   presentationSurface?: ZCodeAgentPresentationSurface;
   requestTimeoutMs?: number;
@@ -119,6 +129,7 @@ interface ManagedZCodeAgentProcess {
   client: ZCodeProtocolClient;
   child: ChildProcessWithoutNullStreams;
   cleanupPromise?: Promise<void>;
+  exitDiagnosticsCompleted: Promise<void>;
   exited: boolean;
   firstCleanupReason?: AgentProcessCleanupReason;
   idleTimer?: ReturnType<typeof setTimeout>;
@@ -503,6 +514,10 @@ function wrapZCodeAgentCommandWithStdioTapDevProxy(
 }
 
 export class ZCodeAgentProcessManager {
+  private readonly bindings = new Map<string, RuntimeBinding>();
+  private readonly bindingFlights = new Map<string, Promise<RuntimeBinding>>();
+  private readonly closing = new Map<string, Promise<void>>();
+  private readonly useSharedTaskRuntime: ZCodeAgentProcessManagerOptions["useSharedTaskRuntime"];
   private readonly processesByWorkspaceKey = new Map<string, ManagedZCodeAgentProcess>();
   private readonly ownedProcesses = new Set<ManagedZCodeAgentProcess>();
   private readonly startingByWorkspaceKey = new Map<string, Promise<ZCodeProtocolClient>>();
@@ -523,7 +538,7 @@ export class ZCodeAgentProcessManager {
     workspacePath: string;
     workspaceIdentity?: string;
   }): ZCodeAgentStorageStartupSnapshot | null {
-    const managed = this.processesByWorkspaceKey.get(resolveWorkspaceKey(params));
+    const managed = this.processesByWorkspaceKey.get(this.processKey(params));
     return managed
       ? {
           generation: managed.runtimeIdentity.generation,
@@ -552,6 +567,7 @@ export class ZCodeAgentProcessManager {
   readonly onRuntimeLifecycle = this.runtimeLifecycleEmitter.event;
 
   constructor(options?: ZCodeAgentProcessManagerOptions) {
+    this.useSharedTaskRuntime = options?.useSharedTaskRuntime;
     this.commandResolver = options?.commandResolver ?? resolveDefaultZCodeAgentCommand;
     this.presentationSurface = options?.presentationSurface;
     this.requestTimeoutMs = options?.requestTimeoutMs;
@@ -562,6 +578,90 @@ export class ZCodeAgentProcessManager {
     this.lane = options?.lane?.trim() || undefined;
     this.idleTimeoutMs =
       options?.idleTimeoutMs && options.idleTimeoutMs > 0 ? options.idleTimeoutMs : undefined;
+  }
+
+  private processKey(params: RuntimeWorkspace): string {
+    return (
+      this.bindings.get(resolveWorkspaceKey(params))?.processKey ?? resolveWorkspaceKey(params)
+    );
+  }
+
+  private async bind(params: RuntimeWorkspace): Promise<RuntimeBinding> {
+    const key = resolveWorkspaceKey(params);
+    const existing = this.bindings.get(key);
+    if (existing) {
+      const closing = this.closing.get(existing.processKey);
+      if (closing) {
+        await closing;
+        return this.bind(params);
+      }
+      return existing;
+    }
+    const pending = this.bindingFlights.get(key);
+    if (pending) return pending;
+    const flight = Promise.resolve().then(async () => {
+      const shared = await (!params.workspaceIdentity
+        ? this.useSharedTaskRuntime?.(params)
+        : false);
+      if (this.disposed) throw new Error("ZCode agent process manager is disposed.");
+      if (this.bindingFlights.get(key) !== flight)
+        throw new Error("ZCode agent workspace allocation was cancelled.");
+      const binding = {
+        workspace: {
+          workspacePath: params.workspacePath,
+          ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+        },
+        processKey: shared ? SHARED_TASK_RUNTIME_KEY : key,
+      };
+      // 旧进程树必须释放完毕，才能重新读取项目事实并分配。
+      const closing = this.closing.get(binding.processKey);
+      if (closing) {
+        await closing;
+        return binding;
+      }
+      this.bindings.set(key, binding);
+      return binding;
+    });
+    this.bindingFlights.set(key, flight);
+    let binding: RuntimeBinding;
+    try {
+      binding = await flight;
+    } finally {
+      if (this.bindingFlights.get(key) === flight) this.bindingFlights.delete(key);
+    }
+    return this.bindings.has(key) ? binding : this.bind(params);
+  }
+
+  isSharedRuntime(params: RuntimeWorkspace): boolean {
+    return this.processKey(params) === SHARED_TASK_RUNTIME_KEY;
+  }
+
+  getRuntimeWorkspaces(params: RuntimeWorkspace): RuntimeWorkspace[] {
+    const key = this.processKey(params);
+    return [...this.bindings.values()]
+      .filter((entry) => entry.processKey === key)
+      .map((entry) => entry.workspace);
+  }
+
+  private publishAvailable(managed: ManagedZCodeAgentProcess, binding: RuntimeBinding): void {
+    if (!managed.spawned || managed.exited || managed.client.isDisposed) return;
+    const workspaceKey = resolveWorkspaceKey(binding.workspace);
+    if (
+      this.availableRuntimeIdentityByWorkspaceKey.get(workspaceKey) ===
+      managed.runtimeIdentity.identity
+    )
+      return;
+    this.availableRuntimeIdentityByWorkspaceKey.set(workspaceKey, managed.runtimeIdentity.identity);
+    const runtimeIdentity = { ...managed.runtimeIdentity, workspaceKey };
+    // 新加入共享进程的 workspace 也必须收到 available，供被动索引订阅连接。
+    this.runtimeLifecycleEmitter.fire({
+      ...binding.workspace,
+      workspaceKey,
+      runtimeIdentity,
+      state: "available",
+    });
+    if (runtimeIdentity.generation > 1)
+      this.runtimeRestartedEmitter.fire({ workspaceKey, runtimeIdentity });
   }
 
   private reportProcessLifecycle(
@@ -654,23 +754,22 @@ export class ZCodeAgentProcessManager {
   }
 
   private reportRuntimeUnavailable(managed: ManagedZCodeAgentProcess): void {
-    const workspaceKey = managed.runtimeIdentity.workspaceKey;
-    if (
-      this.availableRuntimeIdentityByWorkspaceKey.get(workspaceKey) !==
-      managed.runtimeIdentity.identity
-    ) {
-      return;
+    for (const binding of this.bindings.values()) {
+      if (binding.processKey !== managed.runtimeIdentity.workspaceKey) continue;
+      const workspaceKey = resolveWorkspaceKey(binding.workspace);
+      if (
+        this.availableRuntimeIdentityByWorkspaceKey.get(workspaceKey) !==
+        managed.runtimeIdentity.identity
+      )
+        continue;
+      this.availableRuntimeIdentityByWorkspaceKey.delete(workspaceKey);
+      this.runtimeLifecycleEmitter.fire({
+        ...binding.workspace,
+        workspaceKey,
+        runtimeIdentity: { ...managed.runtimeIdentity, workspaceKey },
+        state: "unavailable",
+      });
     }
-    this.availableRuntimeIdentityByWorkspaceKey.delete(workspaceKey);
-    this.runtimeLifecycleEmitter.fire({
-      workspacePath: managed.workspace.workspacePath,
-      ...(managed.workspace.workspaceIdentity
-        ? { workspaceIdentity: managed.workspace.workspaceIdentity }
-        : {}),
-      workspaceKey,
-      runtimeIdentity: managed.runtimeIdentity,
-      state: "unavailable",
-    });
   }
 
   private reportRuntimeReady(managed: ManagedZCodeAgentProcess): void {
@@ -714,7 +813,10 @@ export class ZCodeAgentProcessManager {
     let cleanupCompleted = false;
     const cleanupPromise = managed.client
       .disposeAndWait()
-      .then(() => {
+      .then(async () => {
+        // 进程树回收可能先于异步 exit 监听器返回；必须等 stderr/退出事件完成，
+        // 否则 Host 会提前释放所有权，关闭调用方看不到最后一条诊断。
+        await managed.exitDiagnosticsCompleted;
         cleanupCompleted = true;
         log("ZCode agent process cleanup completed", {
           workspaceKey: managed.runtimeIdentity.workspaceKey,
@@ -755,7 +857,31 @@ export class ZCodeAgentProcessManager {
     );
   }
 
-  private async cleanupManagedProcessWithRetry(
+  private cleanupManagedProcessWithRetry(
+    managed: ManagedZCodeAgentProcess,
+    reason: AgentProcessCleanupReason,
+    retryReason: AgentProcessCleanupReason,
+    retryScope: string,
+  ): Promise<void> {
+    const processKey = managed.runtimeIdentity.workspaceKey;
+    const existing = this.closing.get(processKey);
+    if (existing) return existing;
+    // 在终止引发同步 close 回调之前登记屏障，避免重复回收或并发启动第二棵进程树。
+    const flight = Promise.resolve()
+      .then(() =>
+        this.performCleanupManagedProcessWithRetry(managed, reason, retryReason, retryScope),
+      )
+      .then(() => {
+        for (const [key, binding] of this.bindings) {
+          if (binding.processKey === processKey) this.bindings.delete(key);
+        }
+        if (this.closing.get(processKey) === flight) this.closing.delete(processKey);
+      });
+    this.closing.set(processKey, flight);
+    return flight;
+  }
+
+  private async performCleanupManagedProcessWithRetry(
     managed: ManagedZCodeAgentProcess,
     reason: AgentProcessCleanupReason,
     retryReason: AgentProcessCleanupReason,
@@ -802,9 +928,17 @@ export class ZCodeAgentProcessManager {
     if (this.disposed) {
       throw new Error("ZCode agent process manager is disposed.");
     }
-    const workspaceKey = resolveWorkspaceKey(params);
+    const binding = await this.bind(params);
+    const workspaceKey = binding.processKey;
+    const closing = this.closing.get(workspaceKey);
+    if (closing) {
+      await closing;
+      return this.getClient(params);
+    }
+    if (this.bindings.get(resolveWorkspaceKey(params)) !== binding) return this.getClient(params);
     const existing = this.processesByWorkspaceKey.get(workspaceKey);
-    if (existing && !existing.child.killed) {
+    if (existing && !existing.child.killed && !existing.client.isDisposed) {
+      this.publishAvailable(existing, binding);
       return existing.client;
     }
 
@@ -819,6 +953,8 @@ export class ZCodeAgentProcessManager {
         workspaceKey,
         durationMs: Date.now() - waitStartedAt,
       });
+      const managed = this.processesByWorkspaceKey.get(workspaceKey);
+      if (managed) this.publishAvailable(managed, binding);
       return client;
     }
 
@@ -833,7 +969,7 @@ export class ZCodeAgentProcessManager {
     }
     controllers.add(admissionAbortController);
     const startPromise = this.startClient(
-      params,
+      workspaceKey === SHARED_TASK_RUNTIME_KEY ? { workspacePath: getZCodeDataRootDir() } : params,
       workspaceKey,
       startGeneration,
       admissionAbortController.signal,
@@ -841,6 +977,12 @@ export class ZCodeAgentProcessManager {
     this.startingByWorkspaceKey.set(workspaceKey, startPromise);
     try {
       return await startPromise;
+    } catch (error) {
+      if (!this.processesByWorkspaceKey.has(workspaceKey)) {
+        for (const [key, route] of this.bindings)
+          if (route.processKey === workspaceKey) this.bindings.delete(key);
+      }
+      throw error;
     } finally {
       controllers.delete(admissionAbortController);
       if (controllers.size === 0) {
@@ -859,8 +1001,10 @@ export class ZCodeAgentProcessManager {
     workspacePath: string;
     workspaceIdentity?: string;
   }): ZCodeProtocolClient | undefined {
-    const managed = this.processesByWorkspaceKey.get(resolveWorkspaceKey(params));
-    return managed && !managed.child.killed ? managed.client : undefined;
+    const managed = this.processesByWorkspaceKey.get(this.processKey(params));
+    return managed && !managed.child.killed && !managed.client.isDisposed
+      ? managed.client
+      : undefined;
   }
 
   /** 资源管理器：当前仍存活的受管 runtime（pid + workspace + client） */
@@ -898,7 +1042,7 @@ export class ZCodeAgentProcessManager {
     params: { workspacePath: string; workspaceIdentity?: string },
     client: ZCodeProtocolClient,
   ): void {
-    const managed = this.processesByWorkspaceKey.get(resolveWorkspaceKey(params));
+    const managed = this.processesByWorkspaceKey.get(this.processKey(params));
     if (!managed || managed.client !== client || managed.readyAt != null || managed.exited) {
       return;
     }
@@ -1061,10 +1205,12 @@ export class ZCodeAgentProcessManager {
       ...(this.lane ? { lane: this.lane } : {}),
       workspaceKey,
     };
+    const exitDiagnostics = Promise.withResolvers<void>();
     const managed: ManagedZCodeAgentProcess = {
       child,
       client,
       exited: false,
+      exitDiagnosticsCompleted: exitDiagnostics.promise,
       readyReported: false,
       runtimeIdentity,
       runtimeInstanceId,
@@ -1086,10 +1232,16 @@ export class ZCodeAgentProcessManager {
       ) {
         this.scheduleIdleReclaim(workspaceKey, managed);
       }
-      this.storageStartupEmitter.fire({
-        workspaceKey,
-        snapshot: { generation: runtimeGeneration, state: client.storageStartup.snapshot ?? null },
-      });
+      for (const binding of this.bindings.values()) {
+        if (binding.processKey !== workspaceKey) continue;
+        this.storageStartupEmitter.fire({
+          workspaceKey: resolveWorkspaceKey(binding.workspace),
+          snapshot: {
+            generation: runtimeGeneration,
+            state: client.storageStartup.snapshot ?? null,
+          },
+        });
+      }
     };
     client.storageStartup.onDidChange(publishStorage);
     publishStorage();
@@ -1102,18 +1254,10 @@ export class ZCodeAgentProcessManager {
       // 旧代码在确认 spawn 成功前就发布 runtimeRestarted，订阅方随即重连并再次触发
       // 启动，最终形成失败启动 -> 假重启 -> 重连的自激风暴。只有 spawn 事件才表示
       // 新 CLI 运行时真实存在，可以安全通知 v4 订阅方重订。
-      if (runtimeGeneration > 1 && this.processesByWorkspaceKey.get(workspaceKey) === managed) {
-        this.runtimeRestartedEmitter.fire({ workspaceKey, runtimeIdentity });
-      }
       if (this.processesByWorkspaceKey.get(workspaceKey) === managed) {
-        this.availableRuntimeIdentityByWorkspaceKey.set(workspaceKey, runtimeIdentity.identity);
-        this.runtimeLifecycleEmitter.fire({
-          workspacePath: params.workspacePath,
-          ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
-          workspaceKey,
-          runtimeIdentity,
-          state: "available",
-        });
+        for (const binding of this.bindings.values()) {
+          if (binding.processKey === workspaceKey) this.publishAvailable(managed, binding);
+        }
       }
       if (typeof child.pid === "number") {
         this.reportProcessLifecycle((reporter) =>
@@ -1157,63 +1301,69 @@ export class ZCodeAgentProcessManager {
         }),
       );
       if (child.pid == null) {
+        exitDiagnostics.resolve();
         this.ownedProcesses.delete(managed);
       }
     });
     child.once("exit", async (code, signal) => {
-      managed.exited = true;
-      this.clearIdleTimer(managed);
-      const endedAt = Date.now();
-      const terminationKind = managed.terminationIntent?.kind ?? "unexpected";
-      // 协议解析/stream 故障会先触发 protocol-close，再由 Host 用 SIGTERM
-      // 回收仍存活的进程。若只透传主动 termination intent，desktop 只能看到最终信号，
-      // 无法区分协议故障与受控退出；保留首次 cleanup 原因作为结构化根因。
-      const terminationReason = managed.terminationIntent?.reason ?? managed.firstCleanupReason;
-      // 协议已立即失效，但 exit 先于 stderr EOF；保留旧 runtime 闭包身份收齐最后诊断。
-      await transport.waitForStderrDrain();
-      const exitContext = {
-        workspaceKey,
-        pid: child.pid,
-        runtimeIdentity: runtimeIdentity.identity,
-        code,
-        signal,
-        terminationKind,
-        terminationReason,
-      };
-      // 之前日志只有新的 "process started"，缺少旧 pid 的退出轨迹。
-      // agent native crash 后 UI 只会看到 protocol close/Session is not active，无法判断是崩溃还是主动重启。
-      log("ZCode agent process exited", exitContext);
-      if (terminationKind === "unexpected") {
-        // Agent 顶层异常只写 stderr 并以非零 code 退出；stderr 过去仅走开发态
-        // debug，生产日志只剩 code=1，无法还原异常。不能只按非零 code 判断：signal crash
-        // 和长期运行的 Agent 自行 exit 0 同样是非预期退出。
-        // 已有独立生命周期事件，显式标记包装日志，避免 Electron 将其再计为 JS 异常。
-        errorLog(
-          `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
-          {
-            ...exitContext,
-            stderrLineCount,
-          },
-        );
-      }
-      if (typeof child.pid === "number") {
-        this.reportProcessLifecycle((reporter) =>
-          reporter.onExit({
-            pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
-            ...(this.lane ? { lane: this.lane } : {}),
-            exitCode: code,
-            signal,
-            endedAt,
-            terminationKind,
-            runtimeReady: managed.readyAt != null,
-            ...(terminationReason ? { terminationReason } : {}),
-            runtimeGeneration,
-            runtimeInstanceId,
-            uptimeMs: Math.max(0, endedAt - startedAt),
-            stderrLineCount,
-          }),
-        );
+      try {
+        managed.exited = true;
+        this.clearIdleTimer(managed);
+        const endedAt = Date.now();
+        const terminationKind = managed.terminationIntent?.kind ?? "unexpected";
+        // 协议解析/stream 故障会先触发 protocol-close，再由 Host 用 SIGTERM
+        // 回收仍存活的进程。若只透传主动 termination intent，desktop 只能看到最终信号，
+        // 无法区分协议故障与受控退出；保留首次 cleanup 原因作为结构化根因。
+        const terminationReason = managed.terminationIntent?.reason ?? managed.firstCleanupReason;
+        // 协议已立即失效，但 exit 先于 stderr EOF；保留旧 runtime 闭包身份收齐最后诊断。
+        await transport.waitForStderrDrain();
+        const exitContext = {
+          workspaceKey,
+          pid: child.pid,
+          runtimeIdentity: runtimeIdentity.identity,
+          code,
+          signal,
+          terminationKind,
+          terminationReason,
+        };
+        // 之前日志只有新的 "process started"，缺少旧 pid 的退出轨迹。
+        // agent native crash 后 UI 只会看到 protocol close/Session is not active，无法判断是崩溃还是主动重启。
+        log("ZCode agent process exited", exitContext);
+        if (terminationKind === "unexpected") {
+          // Agent 顶层异常只写 stderr 并以非零 code 退出；stderr 过去仅走开发态
+          // debug，生产日志只剩 code=1，无法还原异常。不能只按非零 code 判断：signal crash
+          // 和长期运行的 Agent 自行 exit 0 同样是非预期退出。
+          // 已有独立生命周期事件，显式标记包装日志，避免 Electron 将其再计为 JS 异常。
+          errorLog(
+            `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
+            {
+              ...exitContext,
+              stderrLineCount,
+            },
+          );
+        }
+        if (typeof child.pid === "number") {
+          this.reportProcessLifecycle((reporter) =>
+            reporter.onExit({
+              pid: child.pid!,
+              provider: ZCODE_AGENT_PROVIDER,
+              ...(this.lane ? { lane: this.lane } : {}),
+              exitCode: code,
+              signal,
+              endedAt,
+              terminationKind,
+              runtimeReady: managed.readyAt != null,
+              ...(terminationReason ? { terminationReason } : {}),
+              runtimeGeneration,
+              runtimeInstanceId,
+              uptimeMs: Math.max(0, endedAt - startedAt),
+              stderrLineCount,
+            }),
+          );
+        }
+      } finally {
+        // 合并漏掉退出诊断信号，导致进程已退出而 dispose/resume 永久等待；由原 listener 必达结算。
+        exitDiagnostics.resolve();
       }
     });
     client.onRequestTimeout((event) => {
@@ -1282,14 +1432,14 @@ export class ZCodeAgentProcessManager {
     workspacePath: string;
     workspaceIdentity?: string;
   }): Promise<ZCodeAgentRuntimeIdentity> {
-    const workspaceKey = resolveWorkspaceKey(params);
+    const workspaceKey = this.processKey(params);
     const managed = this.processesByWorkspaceKey.get(workspaceKey);
     // runtime identity 是查询接口，旧实现却复用了启动型 getClient，
     // 导致 provider 保存等被动探测按 workspace 数量隐式 spawn Agent CLI。
     if (!managed || managed.exited || managed.child.killed) {
       throw new Error("ZCode agent runtime identity is unavailable.");
     }
-    return managed.runtimeIdentity;
+    return { ...managed.runtimeIdentity, workspaceKey: resolveWorkspaceKey(params) };
   }
 
   async canStart(params: {
@@ -1323,20 +1473,35 @@ export class ZCodeAgentProcessManager {
     workspacePath: string;
     workspaceIdentity?: string;
   }): Promise<void> {
-    const workspaceKey = resolveWorkspaceKey(params);
+    this.bindingFlights.delete(resolveWorkspaceKey(params));
+    const workspaceKey = this.processKey(params);
+    const closing = this.closing.get(workspaceKey);
+    if (closing) {
+      try {
+        await closing;
+        return;
+      } catch {
+        // 自动获取连接保持隔离；只有显式恢复才允许重试未完成的进程树清理。
+        if (this.closing.get(workspaceKey) === closing) this.closing.delete(workspaceKey);
+      }
+    }
     this.restartGenerationByWorkspaceKey.set(
       workspaceKey,
       (this.restartGenerationByWorkspaceKey.get(workspaceKey) ?? 0) + 1,
     );
     this.abortPendingStarts(workspaceKey);
-    const managed = this.processesByWorkspaceKey.get(workspaceKey);
+    const managed =
+      this.processesByWorkspaceKey.get(workspaceKey) ??
+      [...this.ownedProcesses].find(
+        (candidate) => candidate.runtimeIdentity.workspaceKey === workspaceKey,
+      );
     this.processesByWorkspaceKey.delete(workspaceKey);
     // dispose 不能把尚未完成的 start promise 从追踪表中删掉。删除会让
     // recovery/UI 的下一次 getClient 再开一条 spawn，旧 promise 随后又可能越过异步
     // resolve 回写进程池，形成同一 workspace 的 spawn/dispose 风暴。代际检查会让旧
     // promise 在真正 spawn 前失败，finally 再按 promise identity 清理 map。
     if (managed) {
-      // restartWorkspaceProcess 只应回收当前 workspace 的 agent。
+      // restartWorkspaceProcess 回收该 workspace 绑定的物理进程，包含所有共享工作区。
       // 不能复用 disposeAll，否则会把整个 manager 标记为已关闭，后续首发/预热无法重新拉起。
       this.reportRuntimeUnavailable(managed);
       await this.cleanupManagedProcessWithRetry(

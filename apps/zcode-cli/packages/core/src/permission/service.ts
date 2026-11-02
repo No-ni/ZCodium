@@ -52,6 +52,7 @@ export interface PermissionContext {
 }
 
 export interface PermissionToolCapability {
+  userApprovalRule?: string;
   allowedInPlanMode?: boolean;
   alwaysAsk?: boolean;
   readOnly?: boolean;
@@ -67,6 +68,7 @@ export interface PermissionToolCapability {
 export type PermissionBehavior = "allow" | "ask" | "deny";
 
 export interface PermissionDecisionResult {
+  approvalMode?: "user-once";
   decision: PermissionBehavior;
   allowed: boolean;
   reason?: string;
@@ -134,13 +136,26 @@ export class PermissionService {
       );
     }
 
+    const planEnabled = context.planEnabled ?? context.mode === "plan";
+    // 合并漏掉决策源会让下游 Hook/project allow 越过危险命令的一次人工批准；Plan 仍优先。
+    if (!planEnabled && context.mode === "guarded" && toolCapability?.userApprovalRule) {
+      return {
+        ...this.ask(
+          context,
+          capability,
+          toolCapability.userApprovalRule,
+          "Dangerous command requires your approval for this execution",
+        ),
+        approvalMode: "user-once",
+      };
+    }
+
     // 声明 alwaysAsk 的工具必须经过用户确认，不能被权限模式的放行分支绕过。
     if (capability.alwaysAsk) {
       return this.checkAlwaysAsk(context, capability, projectRules, rulePolicy);
     }
 
-    const planEnabled = context.planEnabled ?? context.mode === "plan";
-    if (context.mode === "yolo" && !planEnabled) {
+    if ((context.mode === "yolo" || context.mode === "guarded") && !planEnabled) {
       return this.allow(context, capability, "mode.yolo", "Yolo mode bypasses permission prompts");
     }
 
@@ -199,6 +214,25 @@ export class PermissionService {
         capability,
         "tool.webfetch.preapproved",
         "WebFetch URL is preapproved",
+      );
+    }
+
+    // 根因：needsApproval=false 不会越过 build/edit 对 workspace 副作用的通用询问，
+    // 导致无人值守的 automation 执行轮停在审批界面。该工具无模型可控 id，只能暂停
+    // Host 为本轮注入且用户可恢复的任务；显式 project deny/ask 与 plan 限制已在上方处理。
+    if (
+      context.toolName === "CronPauseSelf" &&
+      capability.permissionName === "automation.pause" &&
+      capability.sideEffectScope === "workspace" &&
+      capability.riskLevel === "low" &&
+      !capability.destructive &&
+      !capability.needsApproval
+    ) {
+      return this.allow(
+        context,
+        capability,
+        "tool.automationPauseSelf.preapproved",
+        "The current automation run may pause only its own automation",
       );
     }
 

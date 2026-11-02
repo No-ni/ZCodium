@@ -1,5 +1,7 @@
 import { access, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, posix } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 export const DEV_ELECTRON_PROTOCOL_SCHEME = "zcode";
 export const DEV_ELECTRON_APP_NAME = "ZCodium Dev";
@@ -7,7 +9,21 @@ export const DEV_ELECTRON_APP_BUNDLE_ID = "dev.zcodium.app.development";
 // 旧开发副本同样注册了 zcode://，保留会让 LaunchServices 在两个 bundle 之间随机选择。
 const LEGACY_DEV_ELECTRON_APP_NAMES = ["ZCode Dev"];
 // 副本布局版本，见 prepareDevElectronAppBundle 中的指纹说明。
-export const DEV_ELECTRON_BUNDLE_FORMAT = 2;
+export const DEV_ELECTRON_BUNDLE_FORMAT = 3;
+const execFileAsync = promisify(execFile);
+
+async function signDevElectronApp(appPath) {
+  // Electron 42 起通知要求有效签名；原 npm runtime 签名可能不完整，修改身份后也必须重签。
+  // 仅对 ignored 的开发副本做 ad-hoc 签名，正式发布仍走现有证书、公证流程。
+  await execFileAsync("/usr/bin/codesign", [
+    "--deep",
+    "--force",
+    "--sign",
+    "-",
+    "--preserve-metadata=entitlements,flags,runtime",
+    appPath,
+  ]);
+}
 
 function escapeXml(value) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -51,7 +67,7 @@ export function patchDevElectronInfoPlist(plist) {
 }
 
 export function resolveDevElectronAppBundlePath({ runtimeRoot, electronVersion, arch }) {
-  return join(runtimeRoot, `${electronVersion}-${arch}`, `${DEV_ELECTRON_APP_NAME}.app`);
+  return posix.join(runtimeRoot, `${electronVersion}-${arch}`, `${DEV_ELECTRON_APP_NAME}.app`);
 }
 
 export async function prepareDevElectronAppBundle({
@@ -59,18 +75,19 @@ export async function prepareDevElectronAppBundle({
   runtimeRoot,
   electronVersion,
   arch,
+  signApp = signDevElectronApp,
 }) {
   const appPath = resolveDevElectronAppBundlePath({ runtimeRoot, electronVersion, arch });
-  const infoPlistPath = join(appPath, "Contents", "Info.plist");
+  const infoPlistPath = posix.join(appPath, "Contents", "Info.plist");
   // 只清理本工具在固定 runtime 目录生成的旧名字副本，不动 node_modules 或用户数据。
   for (const legacyName of LEGACY_DEV_ELECTRON_APP_NAMES) {
-    await rm(join(dirname(appPath), `${legacyName}.app`), { recursive: true, force: true });
+    await rm(posix.join(dirname(appPath), `${legacyName}.app`), { recursive: true, force: true });
   }
-  const sourceExecutablePath = join(electronAppPath, "Contents", "MacOS", "Electron");
-  const existingExecutablePath = join(appPath, "Contents", "MacOS", "Electron");
+  const sourceExecutablePath = posix.join(electronAppPath, "Contents", "MacOS", "Electron");
+  const existingExecutablePath = posix.join(appPath, "Contents", "MacOS", "Electron");
   // 源二进制的身份指纹，写在 .app 外面：放进 Contents 会污染 bundle 结构。
-  const sourceStampPath = join(dirname(appPath), ".zcodium-dev-electron-source.json");
-  // 这里原本把两个 Electron 可执行文件（各 ~100MB+）整份读进内存做 equals，
+  const sourceStampPath = posix.join(dirname(appPath), ".zcodium-dev-electron-source.json");
+  // 修复原因：这里原本把两个 Electron 可执行文件（各 ~100MB+）整份读进内存做 equals，
   // 每次 dev 启动都要付一次全量读盘。源二进制由 npm 包解压产出，记录它的 size+mtime
   // 即可判定是否需要重拷，语义等价而开销是常数级。
   //
@@ -114,12 +131,13 @@ export async function prepareDevElectronAppBundle({
     await cp(electronAppPath, appPath, { recursive: true, verbatimSymlinks: true });
     const patchedInfoPlist = patchDevElectronInfoPlist(await readFile(infoPlistPath, "utf8"));
     await writeFile(infoPlistPath, patchedInfoPlist, "utf8");
+    await signApp(appPath);
     // 指纹最后写：中途失败时下次仍会判定为需要重拷，不会留下半成品缓存。
     if (sourceStamp !== undefined) await writeFile(sourceStampPath, sourceStamp, "utf8");
   }
 
   return {
     appPath,
-    executablePath: join(appPath, "Contents", "MacOS", "Electron"),
+    executablePath: posix.join(appPath, "Contents", "MacOS", "Electron"),
   };
 }

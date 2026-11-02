@@ -1100,7 +1100,7 @@ function isLowSurrogateCodeUnit(codeUnit: number): boolean {
  * end-cursor===limit）时发生，游标严格前进，无空块/死循环。分片大小、顺序与空文本
  * 返回 [text] 的行为不变；输入里原本就存在的孤立代理项原样保留，不做静默替换。
  */
-function splitFeishuText(text: string): string[] {
+export function splitFeishuText(text: string): string[] {
   const limit = 1900;
   const chunks: string[] = [];
   let cursor = 0;

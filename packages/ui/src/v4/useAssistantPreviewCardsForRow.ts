@@ -26,6 +26,7 @@ interface UseAssistantPreviewCardsForAssistantTextRowParams {
    */
   fileReferenceRootPath: string;
   workspaceHomePath?: string;
+  compactForRemoteControl?: boolean;
   fileChangesTarget: ConversationRowTarget | null;
   fileChangesState?: ConversationFileChangesState;
   fetchFileChanges?: (
@@ -54,6 +55,7 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   latestAssistantTextRow,
   fileReferenceRootPath,
   workspaceHomePath,
+  compactForRemoteControl,
   fileChangesTarget,
   fileChangesState,
   fetchFileChanges,
@@ -73,7 +75,9 @@ export function useAssistantPreviewCardsForAssistantTextRow({
     [canBuildCards, turnText, workspaceHomePath, fileReferenceRootPath],
   );
   const needsFileChanges = fileReferences.some(
-    (reference) => reference.kind === "markdown" || reference.kind === "html",
+    (reference) =>
+      reference.kind === "markdown" ||
+      (reference.kind === "html" && compactForRemoteControl !== true),
   );
   const target = useMemo<ConversationRowTarget | null>(
     () =>
@@ -109,12 +113,9 @@ export function useAssistantPreviewCardsForAssistantTextRow({
           paths: result.state === "reverted" ? [] : result.items.map((item) => item.path),
         });
       },
-      (error: unknown) => {
+      () => {
         if (disposed) return;
-        logger.warn("[AssistantPreviewCards] 读取本轮文件变更失败，已抑制 Markdown/HTML 卡片", {
-          error: error instanceof Error ? error.message : String(error),
-          rowId: target.rowId,
-        });
+        logger.warn("[AssistantPreviewCards] 读取本轮文件变更失败，已抑制 Markdown/HTML 卡片");
         setLoadedChangedPaths({ key: requestKey, paths: [] });
       },
     );
@@ -139,12 +140,14 @@ export function useAssistantPreviewCardsForAssistantTextRow({
             {
               changedFilePaths,
               homePath: workspaceHomePath,
+              suppressWebRemoteCards: compactForRemoteControl === true,
             },
           )
         : [],
     [
       canBuildCards,
       changedFilePaths,
+      compactForRemoteControl,
       fileReferences,
       turnText,
       workspaceHomePath,

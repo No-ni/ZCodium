@@ -27,6 +27,7 @@ import { withFileLock } from "@zcode/shared/node";
 import type { ICommandsService } from "./commands.js";
 import { CommandFileParser, type CommandFileFormat } from "./commandFileParser.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
+import { updateJsonObjectFile } from "#src/fs/atomicFileUtils.js";
 
 function resolveUserHomeDir() {
   const envHome = process.env.HOME?.trim() || process.env.USERPROFILE?.trim();
@@ -97,6 +98,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// 只用于列表展示：config.json 损坏时按空配置展示命令，不影响浏览。写入一律走 updateUserCliConfig。
 async function readUserCliConfig(): Promise<Record<string, unknown>> {
   try {
     const content = await readFile(getUserCliConfigPath(), "utf-8");
@@ -107,26 +109,18 @@ async function readUserCliConfig(): Promise<Record<string, unknown>> {
   }
 }
 
-async function writeUserCliConfig(config: Record<string, unknown>): Promise<void> {
-  const filePath = getUserCliConfigPath();
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
-}
-
 /**
- * 在跨进程锁内完成 config.json 的读-改-写。
- *
- * Bug 原因：config.json 由 Main、Host 与 CLI 共同写入，原先各调用点锁外读、锁外写，
- * 后写的一方用旧快照整文件覆盖其他进程刚写入的字段（跨进程丢更新）。
- * 修复依据：与 credentialService 相同，让跨进程锁覆盖读取、合并和原子替换的全过程。
+ * 根因：旧实现写入前用 readUserCliConfig 读取，读失败或 JSON 损坏时返回空对象，再用 writeFile
+ * 整文件写回，config.json 里的 MCP、插件等其他配置会被冲掉；writeFile 也不是原子写。
+ * 修法：写入路径改用 updateJsonObjectFile——文件损坏时报错不写，写前重读，只改 command 字段，原子替换。
  */
 async function updateUserCliConfig(
   update: (config: Record<string, unknown>) => Record<string, unknown>,
 ): Promise<void> {
+  // 合并修复：保留严格 JSON 读取和原子写入，并让跨进程锁覆盖完整读改写。
   const filePath = getUserCliConfigPath();
-  await withFileLock(filePath, async () => {
-    await writeUserCliConfig(update(await readUserCliConfig()));
-  });
+  await mkdir(dirname(filePath), { recursive: true });
+  await withFileLock(filePath, () => updateJsonObjectFile(filePath, update));
 }
 
 function readCommandEnabledOverrides(config: Record<string, unknown>): Map<string, boolean> {
@@ -144,7 +138,8 @@ function readCommandEnabledOverrides(config: Record<string, unknown>): Map<strin
   return overrides;
 }
 
-async function readCommandEnabledOverridesFromUserConfig(): Promise<Map<string, boolean>> {
+/** 键为命令文件的绝对路径；数据同步列表也复用这份读取（只读展示，config.json 损坏时视为全部启用）。 */
+export async function readCommandEnabledOverridesFromUserConfig(): Promise<Map<string, boolean>> {
   return readCommandEnabledOverrides(await readUserCliConfig());
 }
 
@@ -172,6 +167,18 @@ function setCommandEnabledOverride(
     delete nextConfig.command;
   }
   return nextConfig;
+}
+
+/** 一次写入多条启用覆盖（数据同步新建命令时使用），写入路径与 setCommandEnabled 相同。 */
+export async function setUserCommandEnabledOverrides(
+  entries: ReadonlyArray<{ filePath: string; enabled: boolean }>,
+): Promise<void> {
+  await updateUserCliConfig((config) =>
+    entries.reduce(
+      (next, entry) => setCommandEnabledOverride(next, entry.filePath, entry.enabled),
+      config,
+    ),
+  );
 }
 
 interface PluginConfigSummary {

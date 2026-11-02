@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { zcodeProtocolMethods } from "@zcode/shared";
 import type { ZCodeProtocolAgentServerContext } from "../src/zcode-protocol/server-types.js";
 import { createProtocolBrowserControlBroker } from "../src/zcode-protocol/browser-control-broker.js";
 
@@ -33,7 +34,8 @@ function createContext(calls: RecordedCall[]): ZCodeProtocolAgentServerContext {
     sessions,
     requestClient: async (method: string, params: RecordedCall["params"]) => {
       calls.push({ method, params });
-      return { browsers: [] };
+      // 当前生命周期需要明确成功确认；列表结果仍保留旧夹具的空目录。
+      return method === zcodeProtocolMethods.interactionBrowserList ? { browsers: [] } : { ok: true };
     },
   } as unknown as ZCodeProtocolAgentServerContext;
 }

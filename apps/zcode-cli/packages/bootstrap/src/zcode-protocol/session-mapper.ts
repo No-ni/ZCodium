@@ -305,7 +305,6 @@ export function mapSessionInfo(input: {
   // 根因：任务操作与 Gen UI 只能读到身份根，独立 cwd 必须由会话所有者投影，不能由 UI 重算。
   const executionPath = input.executionWorkspacePath ?? input.session?.path;
   return {
-    archivedAt: input.session?.time.archived,
     createdAt,
     mode: input.projection?.mode ?? input.app?.getMode?.() ?? "build",
     model: input.app ? optionalModelSelectionFromString(input.app.getModel()) : undefined,
@@ -475,8 +474,8 @@ function protocolInstantValue(value: unknown): number | string | undefined {
 
 function mapModelRequestPayload(payload: unknown): Record<string, unknown> {
   const record = asRecord(payload);
-  // 内存 event store 淘汰 sealed turn 时会把 messages 瘦身为 messageCount
-  // （session-event-retention.ts 的 slimRetainedModelRequest），两种形态都要映射出同一个条数。
+  // 内存 event store 淘汰 sealed turn 时把 messages 瘦身为 messageCount（session-event-store-retention.md），
+  // 两种形态都要映射出同一个 messageCount。
   const messageCount =
     typeof record.messageCount === "number"
       ? record.messageCount
@@ -547,7 +546,7 @@ function mapStreamRecoveryPayload(payload: unknown): Record<string, unknown> {
   };
 }
 
-function mapSessionProjection(projection: SessionProjection): ZCodeSessionProjection {
+export function mapSessionProjection(projection: SessionProjection): ZCodeSessionProjection {
   return {
     activeToolCalls: projection.activeToolCalls.map(mapActiveToolCall),
     backgroundJobs: projection.backgroundTasks.map(mapBackgroundTask),
@@ -865,7 +864,9 @@ function contextCacheUsageFromMessages(
   };
 }
 
-function mapPendingPermission(permission: PendingPermission): ZCodePendingPermission {
+function mapPendingPermission(
+  permission: PendingPermission,
+): ZCodePendingPermission {
   // display / optionsPolicy 刻意不进 legacy v3 输出。
   // 根因不是"扩 schema 只能单向兼容"，而是 strict schema 随 packages/shared 打进每个桌面端
   // 的产物：今天把 zcodePendingPermissionSchema（shared/src/zcode-protocol/index.ts:1139）和
@@ -892,7 +893,9 @@ function mapPendingPermission(permission: PendingPermission): ZCodePendingPermis
   };
 }
 
-function mapPermissionRequestedPayload(payload: unknown): Record<string, unknown> {
+function mapPermissionRequestedPayload(
+  payload: unknown,
+): Record<string, unknown> {
   // 同 mapPendingPermission：这个 payload 是整体 spread 出去的，新字段必须在这里显式解构
   // 剔除，否则会直接漏进 strict 的 zcodePermissionRequestedEventPayloadSchema。
   const { display: _display, optionsPolicy, ...record } = asRecord(payload);
@@ -900,6 +903,7 @@ function mapPermissionRequestedPayload(payload: unknown): Record<string, unknown
   return {
     ...record,
     options: buildProtocolPermissionOptions({
+      approvalMode: record.approvalMode === "user-once" ? "user-once" : undefined,
       input: record.input,
       suggestedPermissionUpdates: Array.isArray(record.suggestedPermissionUpdates)
         ? (record.suggestedPermissionUpdates as PendingPermission["suggestedPermissionUpdates"])

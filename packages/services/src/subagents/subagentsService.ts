@@ -24,8 +24,10 @@ import {
   type PluginSubagentModelSelectionOverrides,
   type SubAgentConfig,
   type SubagentsListMode,
+  type SubagentRuntimeConfig,
   type ZCodeProvider,
 } from "@zcode/shared";
+import { createSubagentRuntimeConfigCache } from "./subagentRuntimeConfig.js";
 import { normalizeSubagentModelSelection } from "./subagentModelSelection.js";
 import { serializeSubagentMarkdown, parseSubagentMarkdown } from "./subagentMarkdown.js";
 import {
@@ -183,6 +185,17 @@ function normalizeAgentsStateFile(parsed: unknown): AgentsStateFile {
   };
 }
 
+async function readAgentStateAtPath(path: string): Promise<AgentsStateFile> {
+  await migrateSubagentStateFile(path);
+  try {
+    return normalizeAgentsStateFile(JSON.parse(await readFile(path, "utf8")));
+  } catch (error) {
+    // 读取失败必须由缓存发布 fallback，不能把损坏文件误当成清空所有覆盖。
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyAgentsState();
+    throw error;
+  }
+}
+
 async function readAgentStateFileRaw(options?: SubagentsServiceOptions): Promise<AgentsStateFile> {
   try {
     const raw = await readFile(await resolveSubagentStateFile(options), "utf-8");
@@ -276,7 +289,10 @@ async function discoverFileAgents(params: {
   return agents;
 }
 
-async function collectAgentMarkdownPaths(rootPath: string): Promise<string[]> {
+export async function collectAgentMarkdownPaths(
+  rootPath: string,
+  recursive = false,
+): Promise<string[]> {
   if (!(await exists(rootPath))) {
     return [];
   }
@@ -576,25 +592,55 @@ function normalizeBuiltInSelectionOverrides(
 
 export function createSubagentsService(options?: SubagentsServiceOptions): ISubagentsService & {
   /** Host 启动 Agent 前的一次性存储导入，不暴露为 Renderer RPC。 */
-  prepareRuntimeState(): Promise<void>;
+  prepareRuntimeState(workspace?: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<void>;
+  readRuntimeConfig(workspace: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<SubagentRuntimeConfig>;
+  disposeAll(): void;
 } {
   let writeQueue = Promise.resolve();
+  let disposed = false;
   const storageOptions: SubagentsServiceOptions = {
     homeDir: options?.homeDir,
   };
 
+  const runtimeConfig = createSubagentRuntimeConfigCache({
+    readUserRoot: () => resolveUserSubagentRoot(storageOptions),
+    readStatePath: () => resolveSubagentStateFile(storageOptions),
+    readState: readAgentStateAtPath,
+  });
+  const enqueue = <T>(run: () => Promise<T>): Promise<T> => {
+    const guarded = async () => {
+      if (disposed) throw new Error("Subagents service is disposed");
+      return run();
+    };
+    const queued = writeQueue.then(guarded, guarded);
+    writeQueue = queued.then(
+      () => {},
+      () => {},
+    );
+    return queued;
+  };
+
   return {
-    async prepareRuntimeState() {
-      const markdownMigration = await migrateUserSubagentMarkdown(
-        await resolveUserSubagentRoot(storageOptions),
-      );
-      for (const failure of markdownMigration.failures)
-        subagentLogger.warn(undefined, "用户 Subagent Markdown 迁移失败，保留原文件", failure);
-      const runImport = async () =>
-        migrateSubagentStateFile(await resolveSubagentStateFile(storageOptions));
-      const queued = writeQueue.then(runImport, runImport);
-      writeQueue = queued.catch(() => {});
-      await queued;
+    readRuntimeConfig: runtimeConfig.read,
+    disposeAll() {
+      disposed = true;
+      runtimeConfig.dispose();
+    },
+    async prepareRuntimeState(workspace) {
+      return enqueue(async () => {
+        const markdownMigration = await migrateUserSubagentMarkdown(
+          await resolveUserSubagentRoot(storageOptions),
+        );
+        for (const failure of markdownMigration.failures)
+          subagentLogger.warn(undefined, "用户 Subagent Markdown 迁移失败，保留原文件", failure);
+        await runtimeConfig.prepare(workspace);
+      });
     },
 
     async list(params: {
@@ -677,9 +723,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
         }, storageOptions);
       };
 
-      const queued = writeQueue.then(runUpdate, runUpdate);
-      writeQueue = queued.catch(() => {});
-      await queued;
+      await enqueue(runUpdate);
     },
 
     async setBuiltInModelOverride(params: BuiltInSubagentModelOverrideParams): Promise<void> {
@@ -698,9 +742,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
         }, storageOptions);
       };
 
-      const queued = writeQueue.then(runUpdate, runUpdate);
-      writeQueue = queued.catch(() => {});
-      await queued;
+      await enqueue(runUpdate);
     },
 
     async setPluginAgentModelOverride(params: PluginSubagentModelOverrideParams): Promise<void> {
@@ -715,9 +757,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
           return { ...state, pluginAgentModelSelectionOverrides: overrides };
         }, storageOptions);
       };
-      const queued = writeQueue.then(runUpdate, runUpdate);
-      writeQueue = queued.catch(() => {});
-      await queued;
+      await enqueue(runUpdate);
     },
 
     async getPrimaryUserAgentsDirectory(_params: { provider: ZCodeProvider }): Promise<{

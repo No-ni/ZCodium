@@ -41,6 +41,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
     };
     const pendingReleases = new Set<Promise<void>>();
     let leaseClosed = false;
+    const leaseShutdown = new AbortController();
     let leaseClosePromise: Promise<void> | undefined;
     let sessionStartupReported = false;
 
@@ -53,10 +54,29 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       if (generation !== configurationGeneration) throw new Error("MCP configuration was replaced");
     };
     const requireEntry = (serverName: string): PoolEntry => {
+      assertOpen();
       const entry = leased.get(serverName);
       if (!entry || !registry.isCurrent(entry))
         throw new Error(`MCP server is not leased by this session: ${serverName}`);
       return entry;
+    };
+
+    const callerSignal = (signal?: AbortSignal): AbortSignal =>
+      signal ? AbortSignal.any([leaseShutdown.signal, signal]) : leaseShutdown.signal;
+    const invokeRequest = async <T>(
+      serverName: string,
+      callOptions: McpCallToolOptions | undefined,
+      invoke: (adapter: McpPort, options: McpCallToolOptions) => Promise<T>,
+    ): Promise<T> => {
+      const entry = requireEntry(serverName);
+      const signal = callerSignal(callOptions?.signal);
+      signal.throwIfAborted();
+      const result = await invoke(entry.adapter, { ...callOptions, signal });
+      // 共享连接可能继续存活；旧 lease 或同名旧 entry 的回包不能越过会话释放边界。
+      signal.throwIfAborted();
+      if (requireEntry(serverName) !== entry)
+        throw new Error("MCP connection was released or replaced");
+      return result;
     };
 
     const release = (serverName: string): Promise<void> | undefined => {
@@ -159,6 +179,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
           throw new Error(`MCP connection was released or replaced: ${serverName}`);
         tools.push(...listed);
       }
+      assertOpen();
       if (sessionId && !sessionStartupReported) {
         sessionStartupReported = true;
         const enabledServers = [...configuredServers].filter(
@@ -207,44 +228,51 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         request: McpCallToolRequest,
         callOptions?: McpCallToolOptions,
       ): Promise<McpToolCallResult> {
-        return await requireEntry(request.serverName).adapter.callTool(request, callOptions);
+        return await invokeRequest(request.serverName, callOptions, (adapter, options) =>
+          adapter.callTool(request, options),
+        );
       },
       async readResource(
         request: McpReadResourceRequest,
         callOptions?: McpCallToolOptions,
       ): Promise<McpReadResourceResult> {
-        const adapter = requireEntry(request.serverName).adapter;
+        return await invokeRequest(request.serverName, callOptions, async (adapter, options) => {
         if (!adapter.readResource) {
           throw new Error(`MCP adapter does not support resources: ${request.serverName}`);
         }
-        return await adapter.readResource(request, callOptions);
+        return await adapter.readResource(request, options);
+        });
       },
       // 资源列表与订阅经同一 entry 的 adapter；登记表在 adapter（连接层）里，多 session 共享。
       async listResources(request, callOptions) {
-        const adapter = requireEntry(request.serverName).adapter;
+        return await invokeRequest(request.serverName, callOptions, async (adapter, options) => {
         if (!adapter.listResources) {
           throw new Error(`MCP adapter does not support resources: ${request.serverName}`);
         }
-        return await adapter.listResources(request, callOptions);
+        return await adapter.listResources(request, options);
+        });
       },
       async listResourceTemplates(request, callOptions) {
-        const adapter = requireEntry(request.serverName).adapter;
+        return await invokeRequest(request.serverName, callOptions, async (adapter, options) => {
         if (!adapter.listResourceTemplates) {
           throw new Error(`MCP adapter does not support resources: ${request.serverName}`);
         }
-        return await adapter.listResourceTemplates(request, callOptions);
+        return await adapter.listResourceTemplates(request, options);
+        });
       },
       async subscribeResource(request, callOptions) {
-        const adapter = requireEntry(request.serverName).adapter;
+        return await invokeRequest(request.serverName, callOptions, async (adapter, options) => {
         if (!adapter.subscribeResource) {
           throw new Error(`MCP adapter does not support resources: ${request.serverName}`);
         }
-        await adapter.subscribeResource(request, callOptions);
+        await adapter.subscribeResource(request, options);
+        });
       },
       async unsubscribeResource(request, callOptions) {
-        const adapter = requireEntry(request.serverName).adapter;
+        return await invokeRequest(request.serverName, callOptions, async (adapter, options) => {
         if (!adapter.unsubscribeResource) return;
-        await adapter.unsubscribeResource(request, callOptions);
+        await adapter.unsubscribeResource(request, options);
+        });
       },
       async unsubscribeResourcesBySubscriber(prefix) {
         let released = 0;
@@ -262,6 +290,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         // close 本身也会发布同步失效通知；先签发 single-flight 结果，再同步释放全部引用。
         const closing = Promise.withResolvers<void>();
         leaseClosePromise = closing.promise;
+        leaseShutdown.abort(new Error("MCP session lease closed"));
         try {
           const released = [...leased.keys()].map(release);
           void Promise.all([

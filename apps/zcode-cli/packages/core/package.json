@@ -27,7 +27,10 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-isolation=none test/*.test.ts",
+    "test:source": "node --import tsx --test --test-isolation=none test/*.test.ts",
+    "test:upstream": "vitest run tests",
+    "test": "corepack pnpm test:source && corepack pnpm test:upstream",
+    "coverage": "vitest run tests --coverage",
     "lint": "oxlint src --no-ignore",
     "lint:fix": "oxlint --fix src --no-ignore"
   },
@@ -46,6 +49,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0"
+    "@types/node": "^24.0.0",
+    "vitest": "^4.1.5"
   }
 }

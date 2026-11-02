@@ -51,6 +51,7 @@ export function closeChangedWorkspaceBridge(
     return;
   // open 时的校验不能覆盖后续关工作区/远端换代；先摘掉单槽再释放，阻止旧帧继续访问 Host。
   runtime.bridge = undefined;
+  runtime.mobileTaskView = undefined;
   bridge.dispose();
   return bridge.bridgeSessionId;
 }
@@ -110,6 +111,7 @@ export function openWorkspaceBridge(
   }
   runtime.bridge?.dispose();
   runtime.bridge = undefined;
+  runtime.mobileTaskView = undefined;
   let attachment;
   let opened;
   try {
@@ -133,6 +135,7 @@ export function openWorkspaceBridge(
         const bridge = runtime.bridge;
         if (!bridge || bridge.degraded) return;
         bridge.degraded = true;
+        runtime.mobileTaskView = undefined;
         deps.logger.warn("[web-remote-control] raw relay bridge degraded", {
           windowId: runtime.windowId,
           bridgeSessionId: bridge.bridgeSessionId,
@@ -172,6 +175,7 @@ export function openWorkspaceBridge(
   }
   runtime.bridge = {
     bridgeSessionId: request.bridgeSessionId,
+    bridgeGeneration: request.bridgeGeneration,
     workspaceKey: request.workspaceKey,
     attachmentId: attachment.attachmentId,
     acceptFrame: (frame) => opened.bridge.acceptFrame(frame),

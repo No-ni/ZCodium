@@ -5,19 +5,19 @@ import {
   SlidersHorizontalIcon,
   SquareIcon,
 } from "lucide-react";
-import { TID_CHAT_WORKFLOW_RUN_DIGEST, testId } from "@zcode/shared";
+import { TID_CHAT_WORKFLOW_RUN_DIGEST } from "@zcode/shared";
+import { testId } from "@zcode/shared/test-ids";
 import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import {
-  hasWorkflowGraphContent,
-  type WorkflowCausalityGraphData,
-} from "@/components/workflow-graph/types.js";
+import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/fileSummaryTypes.js";
+import type { HoleLabels } from "./timeline-holes.js";
 import { buildWorkflowTimeline, type TimelinePill } from "./timeline-model.js";
 import { workflowCardDetail } from "./timeline-summary.js";
+import { HolesWaitingChip } from "./WorkflowHoleParts.js";
 import {
   WORKFLOW_RUN_ENDED_KIND_ID,
   WorkflowCardHeader,
@@ -38,6 +38,8 @@ export interface WorkflowRunDigestProps {
   runId: string;
   /** 该 run 的发起图（按发起 toolCallId 查到）；缺席即画不出阶段线（行窗口没带发起行）。 */
   graph: WorkflowCausalityGraphData | undefined;
+  /** 补全过的留白的名字与类型（补全行入参），头的文字从它取（投影没记类型时）。 */
+  holeLabels?: HoleLabels;
   /**
    * 活投影的联接摘要。缺席 = run 不在投影里（八条上限淘汰 / 冷恢复无 journal 命中）：卡退成中性单行
    * ——种类词「工作流已结束」、无灯无轨道无 Cancel / Resume，只留 ⤢（侧板会说「不再实时追踪」）。
@@ -79,6 +81,7 @@ export interface WorkflowRunDigestProps {
 
 export function WorkflowRunDigest({
   graph,
+  holeLabels,
   name,
   onOpenArtifact,
   onOpenPill,
@@ -98,13 +101,12 @@ export function WorkflowRunDigest({
   const [expanded, setExpanded] = useState(true);
 
   // 阶段线只在有活投影且有图时画：没有投影的图全是 pending 灯，会把一条已完成的 run 画成没跑过。
-  // 纯留白的阶段/留白表已足够画站，不能用零 step 隐藏它。
   const model = useMemo(
     () =>
-      hasWorkflowGraphContent(graph) && run !== undefined
-        ? buildWorkflowTimeline(graph, run)
+      graph !== undefined && graph.steps.length > 0 && run !== undefined
+        ? buildWorkflowTimeline(graph, run, holeLabels)
         : undefined,
-    [graph, run],
+    [graph, holeLabels, run],
   );
   const hasRail = model !== undefined && model.stations.length > 0;
   const shown = useMemo(
@@ -166,6 +168,19 @@ export function WorkflowRunDigest({
         <MessageCircleQuestionIcon aria-hidden className="size-3" />
         {questionsLabel}
       </button>
+    );
+  // 「{n} 处留白待补全」（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：笔芯片，落在问题
+  // 芯片的槽位上，两枚可以同时在；点它开整个 run。
+  const holesWaiting = (run?.holes ?? []).filter((hole) => hole.state === "waiting").length;
+  const leading =
+    questions === undefined && holesWaiting === 0 ? undefined : (
+      <>
+        {questions}
+        <HolesWaitingChip
+          count={holesWaiting}
+          {...(onOpenRun === undefined ? {} : { onOpen: () => onOpenRun() })}
+        />
+      </>
     );
   const resume =
     summary?.resumable === true && onResume !== undefined ? (
@@ -230,7 +245,7 @@ export function WorkflowRunDigest({
         {...(cardDetail?.title === undefined ? {} : { detailTitle: cardDetail.title })}
         expanded={expanded}
         kind={kind}
-        leading={questions}
+        leading={leading}
         live={live}
         name={name}
         trailing={
@@ -259,7 +274,14 @@ export function WorkflowRunDigest({
             {...(onOpenWorkspace === undefined ? {} : { onOpenWorkspace })}
             {...(onOpenRun === undefined
               ? {}
-              : { onOpenMore: (station) => onOpenRun({ phaseId: station.id }) })}
+              : {
+                  onOpenMore: (station) => onOpenRun({ phaseId: station.id }),
+                  // 补全的头：开侧板、落到它写下的第一站（那一站的节头就是补全的标题）。
+                  onOpenFill: (fill) => {
+                    const first = shown.stations[fill.from];
+                    if (first !== undefined) onOpenRun({ phaseId: first.id });
+                  },
+                })}
           />
         </div>
       )}

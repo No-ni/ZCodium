@@ -1,12 +1,10 @@
+import { useToolPresentationCapabilities } from "@/ToolCallBlocks/presentationCapabilities.js";
 import { BotIcon } from "lucide-react";
 import { useCallback, useMemo, type ReactNode } from "react";
 import type { AgentColor } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { resolveSubagentColorFromName, SUBAGENT_TEXT_COLOR_CLASS } from "@/lib/subagentColors.js";
-import { useSubagentsContextStore } from "@/store/subagentsContextStore.js";
-import { useSubagentsStore } from "@/store/subagentsStore.js";
-import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
@@ -26,6 +24,7 @@ import {
 const AGENT_TOOL_ICON = <BotIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
 function AgentChildToolList({
+  nestedToolRenderer,
   childToolCalls,
   workspacePath,
   fileReferenceRootPath,
@@ -37,6 +36,7 @@ function AgentChildToolList({
   onOpenAutomationsMain,
   onLoadFullToolCallFields,
 }: {
+  nestedToolRenderer: ToolCallBlockRenderContext["nestedToolRenderer"];
   childToolCalls: ToolCallBlockRenderContext["toolCallNode"]["childToolCalls"];
   workspacePath: string;
   /** 子工具卡必须继承同一解析根，否则子卡退回身份根（已知边界 12）。 */
@@ -53,6 +53,7 @@ function AgentChildToolList({
     return null;
   }
 
+  const ToolCallBlock = nestedToolRenderer;
   return (
     <div className="space-y-2">
       {childToolCalls.map((childToolCallNode) => (
@@ -100,10 +101,6 @@ function AgentNameText({ color, name }: { color: AgentColor; name: string }) {
       {name}
     </span>
   );
-}
-
-function normalizeAgentLookupValue(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 function BackgroundAgentProcessSection({
@@ -177,32 +174,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   const fallbackLabel = formatAgentMessage(intl, "chat.toolCall.agent.fallback", "SubAgent");
   const primaryText = getAgentPrimaryText(toolCall, fallbackLabel);
   const agentName = getAgentKindLabel(toolCall, "", context.authoritativeAgentType);
-  const configuredAgentsFromContext = useSubagentsContextStore((state) => {
-    const candidates = Object.values(state.contexts).filter(
-      (candidate) => candidate.workspacePath === context.workspacePath && candidate.loaded,
-    );
-    // 同一 remote path 可能对应多个 workspaceIdentity；缺少 identity 时宁可回退默认色，
-    // 也不能猜一个桶并把另一远端 workspace 的 Agent 配置串进来。
-    return candidates.length === 1 ? candidates[0]?.agents : undefined;
-  });
-  const configuredAgentsFromHook = useSubagentsStore((state) => state.agents);
-  const configuredAgents =
-    configuredAgentsFromContext && configuredAgentsFromContext.length > 0
-      ? configuredAgentsFromContext
-      : configuredAgentsFromHook.length > 0
-        ? configuredAgentsFromHook
-        : useSubagentsStore.getState().agents;
-  const configuredAgentColor = useMemo(() => {
-    const lookupName = normalizeAgentLookupValue(agentName);
-    if (!lookupName) {
-      return undefined;
-    }
-    return configuredAgents.find((agent) => {
-      const name = normalizeAgentLookupValue(agent.name);
-      const id = normalizeAgentLookupValue(agent.id);
-      return name === lookupName || id === lookupName;
-    })?.color;
-  }, [agentName, configuredAgents]);
+  const configuredAgentColor = useToolPresentationCapabilities().agentColor?.(agentName);
   const agentColor = agentName
     ? (configuredAgentColor ?? getAgentColor(toolCall) ?? resolveSubagentColorFromName(agentName))
     : null;
@@ -295,6 +267,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
           />
         ) : null}
         <AgentChildToolList
+          nestedToolRenderer={context.nestedToolRenderer}
           childToolCalls={childToolCalls}
           workspacePath={context.workspacePath}
           fileReferenceRootPath={context.fileReferenceRootPath}

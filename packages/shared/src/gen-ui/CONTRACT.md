@@ -12,3 +12,5 @@ The budget precedes delimiter escaping; complete state validation still includes
 Each selected output entry is serialized once within the call, without shared caches or input mutation.
 
 Tweak messages follow the upstream registration/update/disposal and ACK lifecycle. Each registration identifies one DOM target and at most 12 typed controls; preview changes carry registrationId, targetId, callback and previousValue. The page owner accepts at most 64 live registrations. This private Gen UI method grants no generic tool access.
+
+Gen UI theme controls travel through `zcode/genUiStyles` as a validated map of `--gen-ui-*` CSS variables. They remain separate from standard MCP host tokens; the map adds no network or resource authority.

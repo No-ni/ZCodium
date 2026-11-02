@@ -1,73 +1,60 @@
-import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
+import {
+  sameItems,
+  type ConversationTurnRenderUnit,
+  type ConversationTurnRenderUnitsPartition,
+} from "@/v4/conversationTurnRenderUnits.js";
 import type { ConversationTurnNavigatorCache } from "./conversationTurnNavigatorCache.js";
+import type {
+  BuildConversationTurnNavigatorItemsOptions,
+  ConversationTurnNavigatorAssistantPreviewKind,
+  ConversationTurnNavigatorItem,
+} from "./conversationTurnNavigatorTypes.js";
+// 公开类型已拆到 conversationTurnNavigatorTypes.ts，滚动定位函数已拆到
+// conversationTurnNavigatorPosition.ts；这里按原入口重新导出，外部从本模块
+// 导入类型与函数的路径和符号保持不变。
+export {
+  resolveConversationTurnNavigatorActiveQueryRowId,
+  resolveConversationTurnNavigatorActiveUnitIndex,
+  resolveConversationTurnNavigatorBarVisualState,
+  resolveConversationTurnNavigatorVisualFocusItemIndex,
+} from "./conversationTurnNavigatorPosition.js";
+export type * from "./conversationTurnNavigatorTypes.js";
 
-export type ConversationTurnNavigatorAssistantPreviewKind = "empty" | "running" | "text";
+export const CONVERSATION_TURN_NAVIGATOR_MIN_WIDTH_PX = 864;
 
-export interface ConversationTurnNavigatorItem {
-  key: string;
-  turnId: string;
-  unitIndex: number;
-  rowId: number;
-  userPreview: string;
-  assistantPreview: string;
-  assistantPreviewKind: ConversationTurnNavigatorAssistantPreviewKind;
-  isRunning: boolean;
+function collectRealUserQueryRowIds(units: readonly ConversationTurnRenderUnit[]): number[] {
+  const rowIds: number[] = [];
+  for (const unit of units) {
+    for (const row of unit.visibleUserInputs) {
+      if (row.origin === "realUser") rowIds.push(row.rowId);
+    }
+  }
+  return rowIds;
 }
 
-export interface BuildConversationTurnNavigatorItemsOptions {
-  assistantEmptyPreview: string;
-  assistantRunningPreview: string;
-  userFallbackPreview: string;
-  maxPreviewChars?: number;
-  maxPreviewParagraphs?: number;
+/**
+ * 目录成员未变时保持身份；正文 token/时钟不能让 DOM 锚点登记跟着全量重建。
+ * 输入按「历史 + 尾轮」分区（docs/ui/chat-virtual-scroll.md「每帧派生成本」）：历史段引用不变且
+ * 尾轮成员不变时直接复用，流式帧只收集尾轮；历史段变化时才整窗比较成员。
+ */
+export function createConversationTurnNavigatorQueryRowIdsSelector() {
+  let previous: ReadonlySet<number> = new Set<number>();
+  let previousHistory: readonly ConversationTurnRenderUnit[] | null = null;
+  let previousTailRowIds: number[] = [];
+  return (units: ConversationTurnRenderUnitsPartition): ReadonlySet<number> => {
+    const tailRowIds = collectRealUserQueryRowIds(units.tail);
+    if (previousHistory === units.history && sameItems(previousTailRowIds, tailRowIds)) {
+      return previous;
+    }
+    previousHistory = units.history;
+    previousTailRowIds = tailRowIds;
+    const next = new Set([...collectRealUserQueryRowIds(units.history), ...tailRowIds]);
+    if (next.size !== previous.size || [...next].some((rowId) => !previous.has(rowId))) {
+      previous = next;
+    }
+    return previous;
+  };
 }
-
-export interface ConversationTurnNavigatorVirtualItem {
-  index: number;
-  start: number;
-  size: number;
-}
-
-interface ResolveConversationTurnNavigatorActiveUnitIndexOptions {
-  items: readonly ConversationTurnNavigatorItem[];
-  virtualItems: readonly ConversationTurnNavigatorVirtualItem[];
-  scrollOffsetPx: number;
-  viewportHeightPx: number;
-}
-
-export interface ConversationTurnNavigatorQueryPosition {
-  rowId: number;
-  start: number;
-  end: number;
-}
-
-interface ResolveConversationTurnNavigatorActiveQueryRowIdOptions {
-  positions: readonly ConversationTurnNavigatorQueryPosition[];
-  scrollOffsetPx: number;
-  viewportHeightPx: number;
-}
-
-type ConversationTurnNavigatorBarTone = "idle" | "mid" | "near" | "peak";
-type ConversationTurnNavigatorBarColorTone = "focus" | "muted";
-
-interface ConversationTurnNavigatorBarVisualState {
-  colorTone: ConversationTurnNavigatorBarColorTone;
-  opacity: number;
-  scaleX: number;
-  tone: ConversationTurnNavigatorBarTone;
-}
-
-interface ResolveConversationTurnNavigatorBarVisualStateOptions {
-  itemIndex: number;
-  visualFocusItemIndex: number | undefined;
-}
-
-interface ResolveConversationTurnNavigatorVisualFocusItemIndexOptions {
-  activeItemIndex: number;
-  interactionItemIndex: number | undefined;
-}
-
-const CONVERSATION_TURN_NAVIGATOR_MIN_WIDTH_PX = 864;
 
 export type ConversationTurnNavigatorHydrationResult =
   | { status: "unsupported"; logEpoch: string }
@@ -101,6 +88,14 @@ export function resolveConversationTurnNavigatorHydrationRetryDelayMs(
 const DEFAULT_MAX_PREVIEW_CHARS = 220;
 const DEFAULT_MAX_PREVIEW_PARAGRAPHS = 2;
 
+function truncatePreview(text: string, maxChars: number): string {
+  const normalizedMaxChars = Math.max(8, maxChars);
+  if (text.length <= normalizedMaxChars) {
+    return text;
+  }
+  return `${text.slice(0, normalizedMaxChars - 3).trimEnd()}...`;
+}
+
 function buildPreviewText({
   texts,
   fallback,
@@ -112,58 +107,42 @@ function buildPreviewText({
   maxPreviewChars: number;
   maxPreviewParagraphs: number;
 }): string {
-  // 原 slice 会取整，NaN 则没有段落；保留旧数值选项与 UTF-16 截断规则。
-  const paragraphLimit = Math.trunc(Math.max(1, maxPreviewParagraphs));
-  if (!paragraphLimit) return fallback;
-  const charLimit = Math.max(8, maxPreviewChars);
-  const result: string[] = [];
-  let length = 0;
-  let paragraphs = 0;
-  let pendingWhitespace = false;
-  let pendingNewlines = 0;
-  let firstSource = true;
-  // 全文 join/split 曾随流式尾部重建反复扫描长正文；只读取能确定摘要的前缀。
-  // 空白等下一处正文才提交，避免把末尾空白误当作超长内容而添加省略号。
+  const maxChars = Math.max(8, maxPreviewChars);
+  const maxParagraphs = Math.trunc(Math.max(1, maxPreviewParagraphs));
+  let preview = "";
+  let paragraphs = 1;
+  let whitespace = false;
+  let newlines = 0;
+  // 旧实现先拼接并正则处理整份正文，最后才截断；每个流式 delta 都会重扫长历史。
+  // 多读一个有效字符即可判断是否省略，保留原来的空白、空行分段及 UTF-16 截断语义。
   for (const text of texts) {
-    if (!firstSource) {
-      pendingWhitespace = true;
-      pendingNewlines = 2;
+    if (preview) {
+      whitespace = true;
+      newlines = 2;
     }
-    firstSource = false;
-    for (let index = 0; index < text.length; index++) {
-      const code = text.charCodeAt(index);
-      const whitespace =
-        code === 32 || (code >= 9 && code <= 13) || (code > 127 && /\s/u.test(text[index]!));
-      if (whitespace) {
-        pendingWhitespace = true;
-        if (code === 10) pendingNewlines = Math.min(2, pendingNewlines + 1);
+    for (let index = 0; index < text.length; index += 1) {
+      const character = text[index]!;
+      if (/\s/u.test(character)) {
+        whitespace = true;
+        if (character === "\n") newlines += 1;
         continue;
       }
-      if (paragraphs === 0) {
-        paragraphs = 1;
-      } else if (pendingWhitespace) {
-        if (pendingNewlines >= 2) {
-          if (paragraphs >= paragraphLimit) return result.join("");
-          paragraphs++;
-          result.push("\n");
+      if (whitespace && preview) {
+        if (newlines >= 2) {
+          if (paragraphs >= maxParagraphs) return truncatePreview(preview, maxChars);
+          paragraphs += 1;
+          preview += "\n";
         } else {
-          result.push(" ");
+          preview += " ";
         }
-        length++;
       }
-      pendingWhitespace = false;
-      pendingNewlines = 0;
-      result.push(text[index]!);
-      length++;
-      if (Number.isNaN(charLimit) || length > charLimit) {
-        return `${result
-          .join("")
-          .slice(0, charLimit - 3)
-          .trimEnd()}...`;
-      }
+      preview += character;
+      whitespace = false;
+      newlines = 0;
+      if (preview.length > maxChars) return truncatePreview(preview, maxChars);
     }
   }
-  return paragraphs === 0 ? fallback : result.join("");
+  return preview || fallback;
 }
 
 function buildRowsPreview(
@@ -272,123 +251,106 @@ function buildUnitNavigatorItems(
   }));
 }
 
-function resolveFiniteNonNegative(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
+/**
+ * 缓存只覆盖当前目录；未变历史轮不应因尾轮 token 或时钟重新扫描正文。
+ * 输入按「历史 + 尾轮」分区：历史段条目按 history 引用缓存，每帧只为尾轮重建条目，
+ * 尾轮条目值未变时直接返回上一份目录（预览最多 220 字，超过后流式正文不再改变条目）。
+ */
+export function createConversationTurnNavigatorItemsSelector() {
+  type UnitCache = Map<
+    string,
+    { unit: ConversationTurnRenderUnit; index: number; items: ConversationTurnNavigatorItem[] }
+  >;
+  let historyCache: UnitCache = new Map();
+  let tailCache: UnitCache = new Map();
+  let previousOptions: BuildConversationTurnNavigatorItemsOptions | undefined;
+  let history: {
+    units: readonly ConversationTurnRenderUnit[];
+    items: ConversationTurnNavigatorItem[];
+  } | null = null;
+  let previousTailItems: ConversationTurnNavigatorItem[] = [];
+  let previousItems: ConversationTurnNavigatorItem[] = [];
 
-export function resolveConversationTurnNavigatorActiveUnitIndex({
-  items,
-  virtualItems,
-  scrollOffsetPx,
-  viewportHeightPx,
-}: ResolveConversationTurnNavigatorActiveUnitIndexOptions): number | undefined {
-  if (items.length === 0) {
-    return undefined;
-  }
-
-  const itemByUnitIndex = new Map(items.map((item) => [item.unitIndex, item]));
-  const viewportStart = resolveFiniteNonNegative(scrollOffsetPx);
-  const viewportEnd = viewportStart + Math.max(1, resolveFiniteNonNegative(viewportHeightPx));
-
-  let activeUnitIndex: number | undefined;
-  let activeDistance = Number.POSITIVE_INFINITY;
-  for (const virtualItem of virtualItems) {
-    const item = itemByUnitIndex.get(virtualItem.index);
-    if (!item) {
-      continue;
-    }
-    const rowStart = resolveFiniteNonNegative(virtualItem.start);
-    const rowEnd = rowStart + Math.max(1, resolveFiniteNonNegative(virtualItem.size));
-    if (rowEnd < viewportStart || rowStart > viewportEnd) {
-      continue;
-    }
-    const distanceToViewportStart = rowStart <= viewportStart ? 0 : rowStart - viewportStart;
-    if (distanceToViewportStart < activeDistance) {
-      activeUnitIndex = item.unitIndex;
-      activeDistance = distanceToViewportStart;
-    }
-  }
-
-  if (activeUnitIndex !== undefined) {
-    return activeUnitIndex;
-  }
-
-  const topVirtualIndex = virtualItems.find((item) => {
-    const rowStart = resolveFiniteNonNegative(item.start);
-    const rowEnd = rowStart + Math.max(1, resolveFiniteNonNegative(item.size));
-    return rowEnd >= viewportStart && rowStart <= viewportEnd;
-  })?.index;
-  if (topVirtualIndex === undefined) {
-    return items[0]?.unitIndex;
-  }
+  const selectUnitItems = (
+    units: readonly ConversationTurnRenderUnit[],
+    indexOffset: number,
+    options: BuildConversationTurnNavigatorItemsOptions,
+    lookup: (key: string) => ReturnType<UnitCache["get"]>,
+    next: UnitCache,
+  ) =>
+    units.flatMap((unit, offset) => {
+      const index = indexOffset + offset;
+      const cached = lookup(unit.key);
+      if (cached?.unit === unit && cached.index === index) {
+        next.set(unit.key, cached);
+        return cached.items;
+      }
+      const built = buildConversationTurnNavigatorItems([unit], options).map((item) => ({
+        ...item,
+        unitIndex: index,
+      }));
+      // running 时钟或不可见正文尾部变化，未必改变目录实际展示值。
+      const stable = built.map((item, i) => {
+        const old = cached?.items[i];
+        return old &&
+          Object.keys(item).every(
+            (key) => item[key as keyof typeof item] === old[key as keyof typeof item],
+          )
+          ? old
+          : item;
+      });
+      next.set(unit.key, { unit, index, items: stable });
+      return stable;
+    });
 
   return (
-    items.find((item) => item.unitIndex >= topVirtualIndex)?.unitIndex ??
-    items.findLast((item) => item.unitIndex <= topVirtualIndex)?.unitIndex ??
-    items[0]?.unitIndex
-  );
-}
-
-export function resolveConversationTurnNavigatorActiveQueryRowId({
-  positions,
-  scrollOffsetPx,
-  viewportHeightPx,
-}: ResolveConversationTurnNavigatorActiveQueryRowIdOptions): number | undefined {
-  if (positions.length === 0) return undefined;
-
-  const viewportStart = resolveFiniteNonNegative(scrollOffsetPx);
-  const viewportEnd = viewportStart + Math.max(1, resolveFiniteNonNegative(viewportHeightPx));
-  const normalized = positions
-    .map((position) => {
-      const start = resolveFiniteNonNegative(position.start);
-      return {
-        rowId: position.rowId,
-        start,
-        end: Math.max(start, resolveFiniteNonNegative(position.end)),
+    units: ConversationTurnRenderUnitsPartition,
+    options: BuildConversationTurnNavigatorItemsOptions,
+  ) => {
+    if (
+      !previousOptions ||
+      Object.keys({ ...previousOptions, ...options }).some(
+        (key) =>
+          options[key as keyof typeof options] !== previousOptions?.[key as keyof typeof options],
+      )
+    ) {
+      historyCache.clear();
+      tailCache.clear();
+      history = null;
+    }
+    previousOptions = options;
+    const previousHistoryCache = historyCache;
+    const previousTailCache = tailCache;
+    let historyChanged = false;
+    if (history?.units !== units.history) {
+      historyCache = new Map();
+      history = {
+        units: units.history,
+        items: selectUnitItems(
+          units.history,
+          0,
+          options,
+          (key) => previousHistoryCache.get(key) ?? previousTailCache.get(key),
+          historyCache,
+        ),
       };
-    })
-    .sort((left, right) => left.start - right.start || left.rowId - right.rowId);
-
-  const visible = normalized.filter(
-    (position) => position.end >= viewportStart && position.start <= viewportEnd,
-  );
-  if (visible.length > 0) {
-    return visible.reduce((nearest, candidate) =>
-      Math.abs(candidate.start - viewportStart) < Math.abs(nearest.start - viewportStart)
-        ? candidate
-        : nearest,
-    ).rowId;
-  }
-
-  return (
-    normalized.findLast((position) => position.start <= viewportStart)?.rowId ??
-    normalized.find((position) => position.start > viewportStart)?.rowId
-  );
-}
-
-export function resolveConversationTurnNavigatorBarVisualState({
-  itemIndex,
-  visualFocusItemIndex,
-}: ResolveConversationTurnNavigatorBarVisualStateOptions): ConversationTurnNavigatorBarVisualState {
-  if (visualFocusItemIndex === undefined) {
-    return { colorTone: "muted", opacity: 0.58, scaleX: 1, tone: "idle" };
-  }
-
-  const distance = Math.abs(itemIndex - visualFocusItemIndex);
-  if (distance === 0) {
-    return { colorTone: "focus", opacity: 1, scaleX: 2.6, tone: "peak" };
-  }
-  if (distance === 1) {
-    return { colorTone: "muted", opacity: 0.86, scaleX: 1.7, tone: "near" };
-  }
-  if (distance === 2) {
-    return { colorTone: "muted", opacity: 0.72, scaleX: 1.25, tone: "mid" };
-  }
-  return { colorTone: "muted", opacity: 0.58, scaleX: 1, tone: "idle" };
-}
-
-export function resolveConversationTurnNavigatorVisualFocusItemIndex({
-  interactionItemIndex,
-}: ResolveConversationTurnNavigatorVisualFocusItemIndexOptions): number | undefined {
-  return interactionItemIndex;
+      historyChanged = true;
+    }
+    tailCache = new Map();
+    const tailItems = selectUnitItems(
+      units.tail,
+      units.history.length,
+      options,
+      (key) => previousTailCache.get(key) ?? previousHistoryCache.get(key),
+      tailCache,
+    );
+    if (!historyChanged && sameItems(tailItems, previousTailItems)) {
+      return previousItems;
+    }
+    previousTailItems = tailItems;
+    const items = [...history!.items, ...tailItems];
+    if (sameItems(items, previousItems)) return previousItems;
+    previousItems = items;
+    return items;
+  };
 }

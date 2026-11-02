@@ -82,11 +82,12 @@ export async function executeTools(
 
   const generator = this.executor.executeSchedule(executableCalls, schedule, {
     automationTurn: options?.automationTurn,
-    toolSearch: options?.toolSearch,
+    automationId: options?.automationId,
     signal: options?.signal,
     traceContext,
     subagentModelOverride: options?.subagentModelOverride,
     model: options?.model,
+    toolSearch: options?.toolSearch,
   });
   let results: ToolExecutionResult[] = [];
 

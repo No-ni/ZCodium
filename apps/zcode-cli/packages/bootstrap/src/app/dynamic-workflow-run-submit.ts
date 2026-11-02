@@ -2,7 +2,7 @@
 // Dynamic Workflow Run Service：三条启动入口（submit / amend / resume）与「编译一次」
 // ============================================================
 // dynamic-workflow-run-service.ts 顶到 oxlint max-lines 上限（400 行），把 `submit` /
-// `resume` 两条入口连同它们共用的 compileOnce / mintRunId 拆到本文件；公开面仍从
+// `resume` 两条入口连同它们共用的 mintRunId 拆到本文件（compileOnce 再拆到 dynamic-workflow-run-compile.ts）；公开面仍从
 // dynamic-workflow-run-service.ts 导出。两条入口方向相反、绝不共用门（那边文件头不变式 1），
 // 但它们共享同一份注册表、同一张停驻表与同一条结算簿记——这三样经
 // {@link DynamicWorkflowRunEntryContext} 从 service 显式递进来，本文件不持有任何自己的状态。
@@ -46,14 +46,15 @@ import {
 } from "./dynamic-workflow-run-holes.js";
 import {
   readRunLaunchAnchor,
+  readRunModelBindings,
   readRunScriptPath,
   readRunSubagentModel,
-  readRunModelBindings,
   resolveLaunchAnchor,
   type RunLaunch,
 } from "./dynamic-workflow-run-launch-anchor.js";
 import { isResumableRecord, type RunRegistryEntry } from "./dynamic-workflow-run-observation.js";
 import type { DynamicWorkflowRunServiceDeps } from "./dynamic-workflow-run-service.js";
+import { workflowSubagentPermissionModeField } from "./workflow-actor-permission.js";
 import type { WorkflowEscalationRegistry } from "./workflow-escalation-registry.js";
 import { createWorkflowRunControl } from "./workflow-run-control.js";
 
@@ -63,12 +64,13 @@ import { createWorkflowRunControl } from "./workflow-run-control.js";
  * 路径上按当下并发探测算出的上界（resume 沿用 journal 记录里的 caps，不经它）。
  */
 export interface DynamicWorkflowRunEntryContext {
+  assertOpen(): void;
   deps: DynamicWorkflowRunServiceDeps;
   runs: Map<string, RunRegistryEntry>;
   escalations: WorkflowEscalationRegistry;
   /**
    * 本次启动的 caps。入参是**请求的**并发上界（`CreateWorkflow` / `AmendWorkflow` 的
-   * `max_concurrency`，已由工具层归一成一个数或缺席）：缺席即天花板，给了就钳到 [1, 天花板]。
+   * `max_concurrency`，已由工具层归一成一个数或缺席）：缺席即默认并发，给了就向下取整、至少 1，没有上限。
    */
   caps: (requestedMaxConcurrency?: number) => Caps;
   trackSettlement: (
@@ -160,7 +162,7 @@ export async function amendDynamicWorkflowRun(
     });
   }
 
-  // 静默闸门。
+  // 静默闸门（apps/zcode-cli/packages/dynamic-workflow/docs/execution-engine.md「What is imported」）。
   //
   // 根因：`dispose()` 是同步的，对还有在飞 turn 的会话只挂了一条 `state.turn.then(close, close)`
   // 而不等它；引擎在 `cancelAsk` 中止 turn 之后立刻结算。所以上面那句 `await live.settlement`
@@ -223,13 +225,15 @@ export async function amendDynamicWorkflowRun(
     ...(request.toolCallId === undefined ? {} : { toolCallId: request.toolCallId }),
     ...(request.phaseNames === undefined ? {} : { phaseNames: request.phaseNames }),
     // 并发上界不从前驱继承：「省略即沿用前驱」是**工具面**的三态，`AmendWorkflow` 的
-    // resolveInput 已经把它归一成这里的一个数或缺席（缺席 = 天花板）。端口若再继承一次，
+    // resolveInput 已经把它归一成这里的一个数或缺席（缺席 = 默认并发）。端口若再继承一次，
     // 「解除限制」（`null`）就永远到不了这里。
     ...(request.maxConcurrency === undefined ? {} : { maxConcurrency: request.maxConcurrency }),
     // 子代理模型同样不从前驱继承，与上面的并发上界同一条论证：「省略即沿用前驱」是**工具面**
     // 的三态，`AmendWorkflow` 的 resolveInput 已经把它归一成这里的一条选择或缺席（缺席 = 回到
     // 会话模型）。端口若再继承一次，「回到会话模型」（`null`）就永远到不了这里。
     ...(request.subagentModel === undefined ? {} : { subagentModel: request.subagentModel }),
+    // 脚本点名的模型同样不由端口从前驱继承：「同名沿用前驱的绑定」是工具面的规则，AmendWorkflow 的
+    // resolveInput 已经把它归一成这里的一张表。
     ...(request.modelBindings === undefined ? {} : { modelBindings: request.modelBindings }),
     // 脚本文件**绝不从前驱继承**：修订记的是这一次修订的脚本来自哪个文件（`path` 提交就是
     // 那个文件，内联提交就是刚写下的草稿）。沿用前驱的路径等于让模型下次去编辑旧脚本。
@@ -252,13 +256,14 @@ interface StartNewRunInput {
   launchInputId?: string;
   /** 脚本声明的阶段表（submit 与 amend 都传：修订用**新脚本**的阶段表）。 */
   phaseNames?: string[];
-  /** 请求的并发上界；缺席即天花板。钳制在 {@link DynamicWorkflowRunEntryContext.caps} 里。 */
+  /** 请求的并发上界；缺席即默认并发。归一在 {@link DynamicWorkflowRunEntryContext.caps} 里。 */
   maxConcurrency?: number;
   /**
    * 本 run 的子代理模型。缺席即子代理跑在会话模型上。
    * 结构化选择进来，落库前归一成 picker 字符串——见 startNewRun 里的注释。
    */
   subagentModel?: ModelSelection;
+  /** 脚本点名的模型（名字 → 结构化选择）；落库前与子代理模型一起归一成规范串。缺席即没点名。 */
   modelBindings?: Record<string, ModelSelection>;
   /**
    * 本 run 脚本文件的绝对路径。缺席即这个
@@ -287,21 +292,14 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
   requireModelBindings(compiled.modelReferences, input.modelBindings);
   // 钳过的上界只算**一次**：它既要随 EngineConfig 落 dwf_run.caps_max_concurrency，也要作为
   // 注册表条目的间隙副本（journal 行出现之前 getTask / getRunDetail 唯一能读到的地方）。
-  // 算两次就等于让两条读面在天花板变化的那一瞬间给出不同的数。
+  // 算两次就等于让两条读面在默认值变化的那一瞬间给出不同的数。
   const caps = ctx.caps(input.maxConcurrency);
   // 规范字符串形态（`providerId/modelId[$reasoningLevel]`）。端口收的是结构化选择，而 journal
   // 事件、两条读面与进度载荷要的都是一个字符串——在这里归一一次，下游全程搬运。
   const subagentModel =
     input.subagentModel === undefined ? undefined : formatModelPickerValue(input.subagentModel);
-  const modelBindings =
-    input.modelBindings === undefined
-      ? undefined
-      : Object.fromEntries(
-          Object.entries(input.modelBindings).map(([name, selection]) => [
-            name,
-            formatModelPickerValue(selection),
-          ]),
-        );
+  // 绑定表同一个归一点：结构化选择 → 规范串，记进 `run-launched` 与条目的是同一张表。
+  const modelBindings = formatModelBindings(input.modelBindings);
 
   // 发起锚点：修订沿用前驱、直接启动用显式值、聊天用活动轮，
   // 都没有就铸一个。引擎在建 run 那一世把它记成 run-launched。
@@ -325,12 +323,16 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     // 子代理模型与阶段表并列同车（同样不进 resolveLaunchAnchor：修订绝不继承前驱的模型）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列（刻意不做迁移）。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    // 脚本点名的模型与子代理模型并列同车（同样不进 resolveLaunchAnchor）。零 SQL。
     ...(modelBindings === undefined ? {} : { modelBindings }),
+    // 子代理权限模式：读**建 run 这一刻**会话的模式（docs/dynamic-workflow/launch.md「Permissions
+    // inside a run」）。不进 resolveLaunchAnchor——修订是新 run，绝不沿用前驱的；resume 不走这里。
+    ...workflowSubagentPermissionModeField(deps.permissionMode?.()),
     // 脚本文件与子代理模型并列同车（同样不进 resolveLaunchAnchor：修订记的是新脚本的文件）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
     ...(input.phaseAlongside === undefined ? {} : { phaseAlongside: input.phaseAlongside }),
-    // 阶段表里哪些站是开放的留白（execution-engine.md「Holes」）：留白按名字站在提交方给的
+    // 阶段表里哪些站是开放的留白（docs/execution-engine.md「Holes」）：留白按名字站在提交方给的
     // 声明表里（9012 保证名字互不重复），按编译产物的开放留白名对出下标。没有留白即字段缺席。
     ...(() => {
       const holes = openHoleIndexes(input.phaseNames, compiled.holes);
@@ -356,9 +358,6 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     cwd: input.cwd,
     ...(input.name === undefined ? {} : { name: input.name }),
     scriptText: input.scriptText,
-    // 留白事实表与阶段表（见 RunRegistryEntry.holes / phaseNames）：一次补全会把两者换成有效脚本的。
-    holes: compiled.holes,
-    ...(input.phaseNames === undefined ? {} : { phaseNames: input.phaseNames }),
     // 生效的并发上界（= 落库那一份）。同一条间隙论证：`AmendWorkflow` 的 resolveInput 读
     // getTask 判「沿用什么」，而修订一个刚起步的 run 恰好会落在这个间隙里。
     maxConcurrency: caps.maxConcurrency,
@@ -366,16 +365,22 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     // 「结构化选择 → 规范字符串」的**唯一**归一点：记进 `run-launched` 的是它，两条读面与
     // `run-started` 载荷读到的也是它，所以格式不可能在三处之间分叉。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    // 绑定表的间隙副本，与子代理模型同规（见 RunRegistryEntry.modelBindings）。
     ...(modelBindings === undefined ? {} : { modelBindings }),
     // 脚本文件的间隙副本，与子代理模型同规（见 RunRegistryEntry.scriptPath）。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
     ...(imported === undefined ? {} : { resumedFrom: imported.resumedFrom }),
+    // 留白事实表与阶段表（见 RunRegistryEntry.holes / phaseNames）：一次补全会把两者换成有效脚本的。
+    holes: compiled.holes,
+    ...(input.phaseNames === undefined ? {} : { phaseNames: input.phaseNames }),
     // 用量起点的间隙副本，与并发上界同规：journal 行落下之前，两条读面只能从条目读到用量，
     // 而修订一个刚起步的 run 恰好落在那几个微任务里——报 0 会让详情面说「这条 lineage 没花钱」。
     ...(input.inheritedTokens === undefined ? {} : { inheritedTokens: input.inheritedTokens }),
     // 真正的结算 promise 在下面替换；先占位以满足类型（同步可见）。
     settlement: Promise.resolve<RunSettlement>({ status: "stopped", reason: "user" }),
   };
+  // amend/resume 可能已经跨过 await；关闭后禁止在旧 owner 上登记新引擎。
+  ctx.assertOpen();
   runs.set(runId, entry);
 
   // fire-and-forget：绝不在 submit 里 await 结算。submit 的契约是「启动并交出 runId」。
@@ -407,6 +412,8 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
       onQuiescenceProbe: (probe) => {
         entry.quiescence = probe;
       },
+      // 留白类型读**条目此刻的**事实表：补全换表之后，函数体里新留白的到达也能念出类型。
+      holeTypeOf: (siteId) => entry.holes?.find((hole) => hole.siteId === siteId)?.type,
       // lineage 指针与缓存表成对下传（launch → harness → EngineConfig）：前者落 dwf_run
       // 的 resumed_from（createRun 一次写死），后者只活在本次执行里。
       ...(imported === undefined
@@ -543,6 +550,7 @@ export async function resumeDynamicWorkflowRun(
     // 就写死在 `run-launched` 上、本 run 余生不变，所以抄下来不会与事件分叉；抄了之后两条读面
     // 只剩一条规则——有条目就读条目，只有冷行才去扫事件。
     ...(resumedSubagentModel === undefined ? {} : { subagentModel: resumedSubagentModel }),
+    // 绑定表：与子代理模型同一条读、同一条论证。
     ...(resumedModelBindings === undefined ? {} : { modelBindings: resumedModelBindings }),
     // 脚本文件：与子代理模型同一条读、同一条论证（建 run 那一世写死、余生不变，抄下来不会
     // 与事件分叉）。resume 之后两条读面因此照旧「有条目就读条目」。
@@ -551,12 +559,15 @@ export async function resumeDynamicWorkflowRun(
     scriptPathStale: resumedHoleEvents.some((stored) => stored.event.type === "hole-filled"),
     settlement: Promise.resolve<RunSettlement>({ status: "stopped", reason: "user" }),
   };
+  // amend/resume 可能已经跨过 await；关闭后禁止在旧 owner 上登记新引擎。
+  ctx.assertOpen();
   runs.set(runId, entry);
 
   entry.settlement = ctx.trackSettlement(
     runId,
     entry,
     launchDynamicWorkflowRun({
+      holeTypeOf: (siteId) => entry.holes?.find((hole) => hole.siteId === siteId)?.type,
       // caps 沿用 journal 记录：spentTokens 是对着这套 caps 累计的，
       modelBindings: () => entry.modelBindings,
       // 重算等于悄悄挪门柱。
@@ -605,4 +616,16 @@ export async function resumeDynamicWorkflowRun(
  */
 function mintRunId(): string {
   return `dwfrun-${randomUUID()}`;
+}
+
+/** 绑定表的唯一归一点：结构化选择 → 规范 picker 串。空表与缺席同义（不造空壳键）。 */
+function formatModelBindings(
+  bindings: Record<string, ModelSelection> | undefined,
+): Record<string, string> | undefined {
+  if (bindings === undefined) return undefined;
+  const entries = Object.entries(bindings);
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(
+    entries.map(([name, selection]) => [name, formatModelPickerValue(selection)]),
+  );
 }

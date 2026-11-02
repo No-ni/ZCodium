@@ -1,16 +1,19 @@
-import { TID_V4_RETRY_SUBSCRIBE } from "@zcode/shared";
+import { useCallback } from "react";
+import { TID_V4_RETRY_SUBSCRIBE } from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
-interface SessionSubscriptionErrorPanelProps {
+export interface SessionSubscriptionErrorPanelProps {
   error: string;
   onReconnect: () => void;
+  reconnectLabel?: string;
 }
 
 export function SessionSubscriptionErrorPanel({
   error,
   onReconnect,
+  reconnectLabel,
 }: SessionSubscriptionErrorPanelProps) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
@@ -22,7 +25,7 @@ export function SessionSubscriptionErrorPanel({
           {intl.formatMessage({ id: "chat.error.feedback" })}
         </Button>
         <Button type="button" data-testid={TID_V4_RETRY_SUBSCRIBE} onClick={onReconnect}>
-          {intl.formatMessage({ id: "workspaceSidebar.reconnect" })}
+          {reconnectLabel ?? intl.formatMessage({ id: "workspaceSidebar.reconnect" })}
         </Button>
       </div>
     </div>

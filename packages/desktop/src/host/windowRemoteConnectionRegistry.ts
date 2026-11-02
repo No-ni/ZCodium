@@ -130,6 +130,7 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
     case "wsl":
       return `wsl:${normalizeWslSegment(target.distro)}\0${normalizeWslSegment(target.user)}`;
     case "docker":
+    case "server":
       // Docker 保持现有 dedicated logical session 生命周期，不按 target 复用。
       return `${target.kind}:dedicated:${remoteSessionId}`;
   }
@@ -734,7 +735,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
         })
       : params.workspaceIdentity;
     session.generation += 1;
-    session.workspaceKey = session.workspaceIdentity.trim() || params.workspacePath;
+    session.workspaceKey = session.workspaceIdentity?.trim() || params.workspacePath;
     session.entry.workspaceKeys.add(session.workspaceKey);
     const ready = prepareWorkspaceRuntime(session);
     changes.fire();
@@ -835,6 +836,18 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
 
   return {
     onDidChange: changes.event,
+    getOnlineSource(sourceServerId: string) {
+      if (disposed) return undefined;
+      const matches = [...entriesByKey.values()].filter(
+        (entry) =>
+          !entry.disposed &&
+          entry.state === "online" &&
+          entry.handle?.sourceServerId === sourceServerId,
+      );
+      // 专用连接可能来自不同 tab；歧义不能任取其一用于 Bot 命令。
+      if (matches.length !== 1) return undefined;
+      return matches[0]!.handle;
+    },
     connect,
     cancelConnect,
     bindWorkspaceContext,

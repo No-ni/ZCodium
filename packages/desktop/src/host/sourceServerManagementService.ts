@@ -60,6 +60,23 @@ export function createSourceServerManagementService(options: {
     await handle.dispose();
     return snapshot();
   };
+  const sourceTarget = async (sourceServerId: string) => {
+    assertOpen();
+    sourceServerDisconnectSchema.parse({ sourceServerId });
+    const directory = await options.directory.snapshot();
+    const server = directory.servers.find(
+      (candidate) => candidate.sourceServerId === sourceServerId,
+    );
+    const profile = directory.profiles.find(
+      (candidate) =>
+        candidate.sourceServerId === sourceServerId &&
+        (!server?.preferredProfileId || candidate.profileId === server.preferredProfileId),
+    );
+    if (!profile) throw new Error("Source has no selected connection Profile");
+    const target = await options.directory.resolveTarget(profile);
+    assertOpen();
+    return { profile, target };
+  };
   return {
     onDidChange: changes.event,
     async getCapabilities() {
@@ -85,6 +102,20 @@ export function createSourceServerManagementService(options: {
       const input = sourceServerDisconnectSchema.parse(raw);
       await options.manager.disconnect(input.sourceServerId);
       return snapshot();
+    },
+    async stopSource(sourceServerId) {
+      const { profile, target } = await sourceTarget(sourceServerId);
+      await options.manager.stopSource(profile, target);
+      return snapshot();
+    },
+    async restartSource(sourceServerId) {
+      const { profile, target } = await sourceTarget(sourceServerId);
+      await options.manager.restartSource(profile, target);
+      return snapshot();
+    },
+    async getSourceRunningTasks(sourceServerId) {
+      const { profile, target } = await sourceTarget(sourceServerId);
+      return options.manager.getRunningTasks(profile, target);
     },
     dispose() {
       if (closed) return;

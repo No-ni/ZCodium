@@ -32,6 +32,7 @@ export {
   type WorkflowProgram,
 } from "./compiler/compile.js";
 export { analyzeWorkflowScript, type AnalyzeResult } from "./analysis/analyze.js";
+export { interpret } from "./analysis/interpret.js";
 export { MAIN_LANE } from "./analysis/causality-graph.js";
 export {
   collectActorModels,
@@ -195,6 +196,13 @@ export {
 export {
   WorkflowEngine,
   InMemoryJournalStore,
+  ALL_EVENTS,
+  NODE_KINDS,
+  NON_REPORT_NODE_KINDS,
+  type GetNodeOptions,
+  type ListActorsOptions,
+  type ListNodesOptions,
+  type RunEventType,
   WorkflowError,
   INSTRUCTIONS_HEAD_MAX_CHARS,
   LAST_TOOL_NAME_MAX_CHARS,

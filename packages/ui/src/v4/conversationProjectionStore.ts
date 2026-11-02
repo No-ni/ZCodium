@@ -26,6 +26,11 @@ import { logger } from "@/logger.js";
 import type { ConversationTurnNavigatorHydrationResult } from "@/v4/conversationTurnNavigatorHelpers.js";
 import type { ConversationTransport } from "@/v4/transport.js";
 import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
+import { advanceConversationRowsPartition } from "./conversationRowsPartition.js";
+export {
+  getConversationRowsPartition,
+  advanceConversationRowsPartition,
+} from "./conversationRowsPartition.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
 /**
@@ -290,6 +295,27 @@ function mergeOlderRows(
   const older = fetched.filter((row) => row.rowId < firstRowId);
   if (older.length === 0) return null;
   return [...older, ...window];
+}
+
+/**
+ * 按行扫描的派生在分区上的通用缓存（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）。
+ *
+ * 为什么需要它：按行扫描的派生要做到流式帧常数开销，都要把历史段结果按 history 数组引用缓存、
+ * 每帧只算尾段，再由消费方合并两段。这里只收拢“按行数组缓存”的 get/compute/set 样板；
+ * 合并方式（求或、取最新、排序二分、建索引）各不相同，留在各自的消费方。
+ * 它只用于去重，不能阻止新增的派生直接遍历整窗而退回 O(N)。
+ *
+ * `fn` 必须只依赖传入的行（协议行不可变），结果按数组引用缓存：history 在流式帧之间引用不变，
+ * 因此只在历史变化时重算；同一帧内多次读取同一个尾段也只算一次。WeakMap 不延长数组寿命。
+ */
+export function memoizeByRows<T>(
+  fn: (rows: readonly ConversationRow[]) => T,
+): (rows: readonly ConversationRow[]) => T {
+  const results = new WeakMap<readonly ConversationRow[], T>();
+  return (rows) => {
+    if (!results.has(rows)) results.set(rows, fn(rows));
+    return results.get(rows) as T;
+  };
 }
 
 /**
@@ -762,6 +788,8 @@ export class ConversationProjectionStore {
     const applied = applyConversationDeltas(current, frame.payload.deltas);
     // seq 是快照对齐水位，delta 帧应用完推进到帧右端点。
     const next = this.shareDeltaRows({ ...applied, seq: frame.toSeq }, frame.payload.deltas);
+    // 订阅方必须在同一次通知中读取对应分区；尾轮更新不重建稳定历史。
+    advanceConversationRowsPartition(current.rows.window, next.rows.window, frame.payload.deltas);
     logSubagentProjectionTransition(this.topic, current, next, "deltas");
     const removedFromRowId = frame.payload.deltas.reduce<number | null>(
       (earliest, delta) =>

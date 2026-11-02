@@ -9,7 +9,10 @@ import {
 import { tableDeclaration } from "./schema-guard.js";
 import { identifier } from "./table-snapshot.js";
 
-type JournalOptions = Pick<MigrationOptions, "journalTable" | "appliedAtColumn">;
+type JournalOptions = Pick<
+  MigrationOptions,
+  "journalTable" | "appliedAtColumn" | "recognizedMigrations"
+>;
 const RESERVED_TABLES = new Set([
   "schema_migration",
   "tasks_schema_migration",
@@ -149,7 +152,8 @@ export function inspectMigrations(
   migrations: readonly SqliteMigration[],
   options: JournalOptions = {},
 ): MigrationInspection {
-  validateMigrations(migrations);
+  const catalog = [...migrations, ...(options.recognizedMigrations ?? [])];
+  validateMigrations(catalog);
   const { name, appliedAt, taskJournal } = journalSettings(options);
   const exists = assertMigrationJournalSchema(db, options);
   const rows = exists
@@ -159,8 +163,9 @@ export function inspectMigrations(
         )
         .all()
     : [];
+  // 同账本合法 scope 共享验收目录，执行/pending 仍只来自本次 migrations。
   const known = new Map(
-    migrations.flatMap((step) =>
+    catalog.flatMap((step) =>
       [step.id, ...(step.previousIds ?? [])].map((id) => [id, step] as const),
     ),
   );

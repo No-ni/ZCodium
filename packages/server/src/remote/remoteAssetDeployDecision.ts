@@ -1,4 +1,7 @@
-import type { RemoteAssetInstaller } from "@zcode/server/remote/remoteAssetInstaller.js";
+import {
+  LocalUploadAssetInstaller,
+  type RemoteAssetInstaller,
+} from "@zcode/server/remote/remoteAssetInstaller.js";
 import type { IRemoteBackend, RemoteEnvironment } from "@zcode/server/remote/backend.js";
 import {
   REMOTE_BASE,
@@ -92,24 +95,35 @@ export async function deployNodePtyPrebuilds(
   });
   if (decision.shouldDeploy) {
     const sourceRelativePath = `node-pty/${platformArch}/pty.node`;
-    logDeployRequired({
-      loggers,
-      installer,
-      componentId: "node-pty",
-      reason: decision.reason,
-    });
-    loggers.log("installing node-pty prebuild...");
-    await installer.installFile({
-      componentId: "node-pty",
-      sourceRelativePath,
-      remotePath: REMOTE_NODE_PTY_PATH,
-    });
-    await writeRemoteAssetComponentMeta(backend, {
-      id: "node-pty",
-      version: expectedVersion ?? "unknown",
-      platformArch,
-    });
-    loggers.log("node-pty install done");
+    // 合并时重复了上传块；先检查本地资源，再由既有 installer 提交一次并记账。
+    if (
+      installer instanceof LocalUploadAssetInstaller &&
+      !(await installer.tryResolveLocalPath(["node-pty"], sourceRelativePath))
+    ) {
+      loggers.logWarn(`WARNING: no node-pty prebuild for ${platformArch}. Terminal will not work.`);
+      loggers.logWarn(
+        `Legacy component assets are no longer built; use the R3 Source Server archive flow.`,
+      );
+    } else {
+      logDeployRequired({
+        loggers,
+        installer,
+        componentId: "node-pty",
+        reason: decision.reason,
+      });
+      loggers.log("installing node-pty prebuild...");
+      await installer.installFile({
+        componentId: "node-pty",
+        sourceRelativePath,
+        remotePath: REMOTE_NODE_PTY_PATH,
+      });
+      await writeRemoteAssetComponentMeta(backend, {
+        id: "node-pty",
+        version: expectedVersion ?? "unknown",
+        platformArch,
+      });
+      loggers.log("node-pty install done");
+    }
   } else {
     loggers.log("node-pty prebuild already exists, skip");
   }
@@ -122,6 +136,19 @@ export async function deployNodePtyPrebuilds(
     decision.shouldDeploy || !(await backend.exists(REMOTE_NODE_PTY_SPAWN_HELPER_PATH));
   if (shouldUploadSpawnHelper) {
     const sourceRelativePath = `node-pty/${platformArch}/spawn-helper`;
+    if (
+      installer instanceof LocalUploadAssetInstaller &&
+      !(await installer.tryResolveLocalPath(["node-pty"], sourceRelativePath))
+    ) {
+      loggers.logWarn(
+        `WARNING: no node-pty spawn-helper for ${platformArch}. Terminal may fail to start.`,
+      );
+      loggers.logWarn(
+        `Legacy component assets are no longer built; use the R3 Source Server archive flow.`,
+      );
+      return;
+    }
+
     loggers.log("installing node-pty spawn-helper...");
     if (!decision.shouldDeploy) {
       logDeployRequired({

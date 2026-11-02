@@ -30,6 +30,7 @@ export type ModelId = string & { readonly __brand: "ModelId" };
 export const ModelRequestSessionType = {
   Main: "main",
   Other: "other",
+  SideChat: "side_chat",
   Subagent: "subagent",
 } as const;
 
@@ -39,10 +40,14 @@ export const ModelRequestSessionType = {
  * - `unbounded`：**瞬态**失败无上限重试（退避曲线不变、封顶 60s 后无限探测），永久失败照旧立即抛。
  *   给 workflow actor（taskType workflow_child / nested_workflow_child）使用：模型错误绝不是
  *   workflow 错误，唯一出口是用户 cancel。
+ * - `single-attempt`：本次请求 maxAttempts 收敛为 1，瞬态失败也不重试、首次失败即上抛。
+ *   给带 selectionFallback 声明的执行作用域 Selection（如 Highspeed 加速卡）使用：失败后由 core
+ *   退回会话模型继续本轮，适配层再按默认 10 次退避重试只会把降级拖到数分钟之后。
  */
 export const ModelRetryBudget = {
   Default: "default",
   Unbounded: "unbounded",
+  SingleAttempt: "single-attempt",
 } as const;
 
 export type ModelRetryBudget = (typeof ModelRetryBudget)[keyof typeof ModelRetryBudget];
@@ -222,6 +227,7 @@ export interface ModelRequestCompletedStatusEvent extends ModelNetworkStatusBase
 
 export interface ModelRequestFailedStatusEvent extends ModelNetworkStatusBase {
   type: "model_request_failed";
+  /** Provider 已报告的失败请求用量；不为失败响应伪造成功完成事件。 */
   usage?: ModelUsage;
   durationMs?: number;
   reason: ModelFailureReason;
@@ -259,9 +265,21 @@ export interface ModelStreamStalledStatusEvent extends ModelNetworkStatusBase {
   message: string;
 }
 
+/** 仅投递进程内 telemetry statusSink，不进入请求 UI 事件；字段不得携带凭据或用户内容。 */
+export type ModelRequestObservation = Readonly<{
+  kind: string;
+  [field: string]: string | number | boolean | undefined;
+}>;
+
+export interface ModelRequestObservationStatusEvent extends ModelNetworkStatusBase {
+  type: "model_request_observation";
+  observation: ModelRequestObservation;
+}
+
 export type ModelNetworkStatusEvent =
   | ModelRequestQueuedStatusEvent
   | ModelRequestAdmittedStatusEvent
+  | ModelRequestObservationStatusEvent
   | ModelRequestStartedStatusEvent
   | ModelRequestCompletedStatusEvent
   | ModelRequestFailedStatusEvent
@@ -397,6 +415,8 @@ export interface ModelInputMessage {
   toolCalls?: ModelToolCall[];
   toolCallId?: string;
   toolName?: string;
+  /** 工具结果保留调用时的 wrapper；恢复历史时不得按当前工具目录重写。 */
+  modelCallWrapper?: ModelCallWrapper;
   isError?: boolean;
   providerId?: ModelProviderId;
   modelId?: ModelId;
@@ -414,6 +434,8 @@ export function modelMessageContentBlockToText(block: ModelMessageContentBlock):
       return block.text;
     case "reasoning":
       return "";
+    case "tool_reference":
+      return block.toolName;
     case "image":
       return attachmentPlaceholder("Attached", block.mediaType, block.source?.placeholder);
     case "video":
@@ -453,6 +475,7 @@ export type ModelToolSideEffectScope =
   | "userInteraction";
 
 export interface ModelToolContract {
+  deferLoading?: boolean;
   name: string;
   description?: string;
   capability?: string;
@@ -462,7 +485,6 @@ export interface ModelToolContract {
   outputSchema?: JsonSchema;
   /** 见 ToolContractDeclaration.strict：严格模式的资格声明，adapter 按 provider/model 落地。 */
   strict?: boolean;
-  deferLoading?: boolean;
   readOnly?: boolean;
   destructive?: boolean;
   concurrentSafe?: boolean;
@@ -628,9 +650,9 @@ export interface ModelRequestSettings {
 }
 
 export interface ModelTextRequest extends ModelRequestSettings {
+  toolSearchEnabled?: boolean;
   messages: ModelInputMessage[];
   tools?: ModelToolContract[];
-  toolSearchEnabled?: boolean;
   toolChoice?: ModelToolChoice;
   responseJsonSchema?: JsonSchema;
   providerOptions?: Record<string, unknown>;
@@ -793,6 +815,17 @@ export type ModelStreamEvent =
       toolCall: ModelToolCall;
     }
   | {
+      /**
+       * Provider 在服务端执行完内置工具（toolCall.providerExecuted）后随流下发的结果。
+       * 客户端不执行这类工具，只用于展示、持久化和下一次请求回放。
+       */
+      type: "provider_tool_result";
+      toolCallId: string;
+      toolName: string;
+      output: unknown;
+      isError: boolean;
+    }
+  | {
       type: "finish";
       finishReason: string;
       providerMetadata?: Record<string, unknown>;
@@ -839,6 +872,15 @@ const attachmentRefJsonSchema = {
 
 const modelMessageContentBlockJsonSchema = {
   oneOf: [
+    {
+      type: "object",
+      required: ["type", "toolName"],
+      additionalProperties: false,
+      properties: {
+        type: { enum: ["tool_reference"] },
+        toolName: { type: "string", minLength: 1 },
+      },
+    },
     {
       type: "object",
       required: ["type", "text"],

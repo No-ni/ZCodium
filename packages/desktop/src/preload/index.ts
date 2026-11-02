@@ -54,6 +54,10 @@ import type {
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
   OpenCuaPermissionOnboardingOptions,
+  FileApplicationInfo,
+  FileApplicationTarget,
+  MaterializeWorkflowArtifactFileRequest,
+  MaterializeWorkflowArtifactFileResult,
 } from "@zcode/shared";
 import { InternalChannels, PlatformChannels, formatZCodeRendererProcessName } from "@zcode/shared";
 
@@ -222,6 +226,8 @@ contextBridge.exposeInMainWorld("zcode", {
     ipcRenderer.invoke(PlatformChannels.BindRemoteWorkspaceSessionContext, context),
   disposeRemoteSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.DisposeRemoteSession, sessionId),
+  requestSourceSettingsAttachment: (sourceServerId: string): Promise<{ attachmentId: string }> =>
+    ipcRenderer.invoke(PlatformChannels.RequestSourceSettingsAttachment, { sourceServerId }),
   /** 开启当前窗口的手机远控（默认仅同网可达；跨网由用户自备端点） */
   startWebRemoteControl: (
     request: WebRemoteControlStartRequest,
@@ -292,6 +298,8 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 打开系统目录选择框，返回选中路径或 null */
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke(PlatformChannels.SelectDirectory),
+  selectDirectories: (): Promise<string[]> =>
+    ipcRenderer.invoke(PlatformChannels.SelectDirectories),
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */
@@ -299,6 +307,17 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 通过 main process 的原生另存为对话框明确落盘 */
   saveFile: (payload: SaveFileRequest): Promise<SaveFileResult> =>
     ipcRenderer.invoke(PlatformChannels.SaveFile, payload),
+  getFileApplications: (target: FileApplicationTarget): Promise<FileApplicationInfo[]> =>
+    ipcRenderer.invoke(PlatformChannels.GetFileApplications, target),
+  openFileWithApplication: (
+    applicationId: string,
+    target: FileApplicationTarget,
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(PlatformChannels.OpenFileWithApplication, { applicationId, target }),
+  materializeWorkflowArtifactFile: (
+    payload: MaterializeWorkflowArtifactFileRequest,
+  ): Promise<MaterializeWorkflowArtifactFileResult> =>
+    ipcRenderer.invoke(PlatformChannels.MaterializeWorkflowArtifactFile, payload),
   /** 将当前页面的 print 媒体版面导出为 PDF（Chromium 打印引擎，矢量文本） */
   printPageToPdf: (): Promise<PrintPageToPdfResult> =>
     ipcRenderer.invoke(PlatformChannels.PrintToPdf),
@@ -737,7 +756,8 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 用户确认重启安装更新 */
   quitAndInstallUpdate: () => ipcRenderer.invoke(PlatformChannels.QuitAndInstallUpdate),
   /** 获取已安装的编辑器/终端列表（含图标） */
-  getInstalledEditors: () => ipcRenderer.invoke(PlatformChannels.GetInstalledEditors),
+  getInstalledEditors: (filePath?: string) =>
+    ipcRenderer.invoke(PlatformChannels.GetInstalledEditors, filePath),
   getApplicationIcon: (request: string | ApplicationIconRequest) =>
     ipcRenderer.invoke(PlatformChannels.GetApplicationIcon, request),
   /** 用指定编辑器打开路径 */
@@ -783,6 +803,7 @@ ipcRenderer.on(
       attachmentId?: string;
       sessionId?: string;
       target?: RemoteTarget;
+      sourceServerId?: string;
     },
   ) => {
     const [port] = event.ports;
@@ -793,6 +814,7 @@ ipcRenderer.on(
           attachmentId: payload.attachmentId,
           sessionId: payload.sessionId,
           target: payload.target,
+          sourceServerId: payload.sourceServerId,
         },
         "*",
         [port],
@@ -800,6 +822,33 @@ ipcRenderer.on(
     }
   },
 );
+
+ipcRenderer.on(InternalChannels.SourceSettingsServicePort, (event, payload: unknown) => {
+  const port = event.ports[0];
+  if (!port) return;
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("sourceServerId" in payload) ||
+    !("attachmentId" in payload) ||
+    typeof payload.sourceServerId !== "string" ||
+    !payload.sourceServerId.trim() ||
+    typeof payload.attachmentId !== "string" ||
+    !payload.attachmentId.trim()
+  ) {
+    port.close();
+    return;
+  }
+  window.postMessage(
+    {
+      type: InternalChannels.SourceSettingsServicePort,
+      sourceServerId: payload.sourceServerId,
+      attachmentId: payload.attachmentId,
+    },
+    "*",
+    [port],
+  );
+});
 
 window.addEventListener("message", (event) => {
   if (event.source !== window || typeof event.data !== "object" || event.data === null) {

@@ -1,8 +1,4 @@
-import type {
-  BotConfig,
-  BotProvider,
-  BotReplyGranularity,
-} from "@zcode/shared";
+import type { BotConfig, BotProvider, BotReplyGranularity } from "@zcode/shared";
 import { getSupportedBotReplyGranularities } from "@zcode/shared";
 
 export type BotProviderEntryId = BotProvider | "dingding";
@@ -57,9 +53,7 @@ export function getBotReplyGranularitiesForProvider(
   provider: BotProvider,
 ): typeof BOT_REPLY_GRANULARITIES {
   const supportedIds = new Set(getSupportedBotReplyGranularities(provider));
-  return BOT_REPLY_GRANULARITIES.filter((granularity) =>
-    supportedIds.has(granularity.id),
-  );
+  return BOT_REPLY_GRANULARITIES.filter((granularity) => supportedIds.has(granularity.id));
 }
 
 export function getBotReplyGranularityEntryForProvider(

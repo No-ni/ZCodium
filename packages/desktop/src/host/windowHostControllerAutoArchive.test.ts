@@ -55,6 +55,9 @@ for (const kind of ["local", "remote"] as const) {
     } as unknown as IZCodeTaskService;
     const controller = createWindowHostControllerRuntime({
       createId: randomUUID,
+      readHostTaskList: async () => {
+        throw new Error("Workspace regression must not read the Host-wide index");
+      },
       resolveSource: () => ({ scope, taskService, sourceAvailability: "online" }),
       onSourceError: (_scope, _operation, error) => {
         throw error;

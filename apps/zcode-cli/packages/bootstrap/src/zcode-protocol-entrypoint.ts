@@ -1,5 +1,6 @@
-import { createConfig } from "@zcode/adapters/config";
+
 import type { McpElicitationPort, McpNotificationPort } from "@zcode/contracts";
+import { createConfig, resolvePath } from "@zcode/adapters/config";
 import { createNodeModelSelectionFacade } from "@zcode/provider-node";
 import { createNodeLoggerFactory } from "@zcode/adapters/logging";
 import {
@@ -13,7 +14,7 @@ import {
   type ZCodeMcpResourceSample,
   type ZCodeMcpTelemetryEvent,
 } from "@zcode/shared";
-import type { SqliteSessionStore } from "@zcode/adapters/storage";
+import { createNodeSessionDataFiles, type SqliteSessionStore } from "@zcode/adapters/storage";
 import { traceContextToLogContext, createRootTraceContext } from "@zcode/contracts";
 import type { McpPort, ModelSelection } from "@zcode/contracts";
 import type { PresentationSurface } from "@zcode/core";
@@ -29,8 +30,11 @@ import {
   prepareProtocolStartupStorage,
 } from "./zcode-protocol/storage-startup.js";
 import { closeSessionStore, getSessionDbPath } from "./app/session-store.js";
+import { resolveMcpNodeFallbackProvider } from "./app/mcp-node-fallback.js";
+import { getCliStorageRoot, getProjectMemoryRoot } from "./app/paths.js";
 import { startProcessProviderRegistryRuntime } from "./app/process-provider-registry-runtime.js";
 import { scheduleStartupLogRetentionCleanup } from "./log-retention.js";
+import { resolveProcessProviderEndpointRoutingPort } from "./provider-endpoint-routing.js";
 import { StartupTimer, startupNow } from "./startup-logging.js";
 import { installZCodeProtocolAiSdkWarningLogger } from "./zcode-protocol/ai-sdk-warning-logger.js";
 import { ZCodeProtocolAgentServer } from "./zcode-protocol/server.js";
@@ -42,7 +46,7 @@ import {
 } from "./zcode-protocol/maintenance.js";
 import { acquireProtocolStartupResource } from "./zcode-protocol/startup-resource.js";
 
-function applyProtocolPresentationSurface(
+export function applyProtocolPresentationSurface(
   options: Omit<ZCodeAppOptions, "providerRegistry">,
   presentationSurface: PresentationSurface,
 ): Omit<ZCodeAppOptions, "providerRegistry"> {
@@ -60,7 +64,7 @@ function applyProtocolPresentationSurface(
  *
  * 旧 workspace snapshot 不再参与 Provider 和 Model 执行。
  */
-function applyProtocolProviderRegistry(
+export function applyProtocolProviderRegistry(
   options: Omit<ZCodeAppOptions, "providerRegistry">,
   providerRegistry: ZCodeAppOptions["providerRegistry"],
   configuredDefaultModelSelection?: ModelSelection,
@@ -131,7 +135,7 @@ export async function runZCodeProtocolAgent(
     | Awaited<ReturnType<typeof startProcessProviderRegistryRuntime>>
     | undefined;
   try {
-    // 数据库准备先于账号、Registry 和遥测，不把远端材料等待混进迁移门禁。
+    // 数据库准备先于 Registry 和诊断，不把远端材料等待混进迁移门禁。
     const configResult = createConfig({ env: options.env });
     sessionStore = await acquireProtocolStartupResource({
       signal: options.lifecycle?.signal,
@@ -171,6 +175,14 @@ export async function runZCodeProtocolAgent(
             onEvent: (event) => mcpDiagnosticSink?.(event),
             onResourceSamples: (samples) => mcpResourceSink?.(samples),
           });
+    const providerEndpointRoutingPort =
+      options.providerEndpointRoutingPort ??
+      resolveProcessProviderEndpointRoutingPort({
+        appVersion: options.version,
+        env: options.env,
+        logger,
+        network: configResult.config.network,
+      });
     // MCP elicitation 归属到协议 server 的会话；pool 先于 server 创建，端口延迟绑定。
     let elicitationServer: {
       requestMcpElicitation: McpElicitationPort["requestElicitation"];
@@ -188,7 +200,8 @@ export async function runZCodeProtocolAgent(
             },
             // server 通知同样延迟绑定到协议 server。
             notifications: {
-              onNotification: (notification) => elicitationServer?.handleMcpNotification(notification),
+              onNotification: (notification) =>
+                elicitationServer?.handleMcpNotification(notification),
             },
             clientVersion: options.version ?? "0.0.0",
             env: options.env,
@@ -200,10 +213,15 @@ export async function runZCodeProtocolAgent(
             },
             processTracker: mcpProcessesTracker,
 
+            nodeFallback: resolveMcpNodeFallbackProvider({
+              cliStorageRoot: getCliStorageRoot(resolvePath(configResult.config.storage.dir)),
+              logger,
+            }),
             workingDirectory: options.cwd,
           });
     mcpPort = mcpConnectionPool?.acquireLease({ leaseId: "protocol-settings" });
     const activeProviderRegistryRuntime = providerRegistryRuntime;
+    const protocolCliStorageRoot = getCliStorageRoot(resolvePath(configResult.config.storage.dir));
     const modelSelectionFacade = createNodeModelSelectionFacade(
       activeProviderRegistryRuntime.runtime.registryService,
     );
@@ -238,6 +256,7 @@ export async function runZCodeProtocolAgent(
                   }),
               }
             : {}),
+          providerEndpointRoutingPort,
           onToolExecResource: (params) =>
             connection.send({ method: zcodeProtocolNotifications.toolExecResource, params }),
         }),
@@ -247,6 +266,12 @@ export async function runZCodeProtocolAgent(
       mcpPort,
       mcpProcesses: mcpProcessesTracker,
       sessionStore,
+      sessionDataFiles: createNodeSessionDataFiles({
+        cliStorageRoot: protocolCliStorageRoot,
+        // 与会话运行时的记忆解析同一函数，删除的正是 CLI 读写的那个目录。
+        memoryRoot: ({ workspacePath, workspaceIdentity }) =>
+          getProjectMemoryRoot(protocolCliStorageRoot, workspacePath, workspaceIdentity),
+      }),
       refreshProviderRegistry: async (reason) => {
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);
       },
@@ -284,7 +309,8 @@ export async function runZCodeProtocolAgent(
     diagnosticSink = (params) =>
       connection.send({ method: zcodeProtocolNotifications.diagnostic, params });
     connection.start();
-    mcpProcessesTracker?.start();
+    // 后台资源采样遵守本仓 opt-in；生命周期跟踪无需启动采样定时器。
+    if (runtimeEnv.ZCODE_LOCAL_RESOURCE_MONITORING === "1") mcpProcessesTracker?.start();
     protocolMaintenance = startProtocolMaintenance(server, logger, (message) =>
       connection.send(message),
     );

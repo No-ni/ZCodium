@@ -10,3 +10,9 @@ export function isValidCronExpr(cronExpr: string): boolean {
     return false;
   }
 }
+
+// 规则可行性与错误类身份由唯一领域验证器维护。
+export {
+  assertValidAutomationScheduleRule,
+  InvalidAutomationScheduleRuleError,
+} from "./automationScheduleValidation.js";

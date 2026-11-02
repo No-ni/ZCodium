@@ -117,7 +117,7 @@ export function resolveTerminalWorkspaceScopeKey(params: {
 
 type TerminalSessionCloseAction = "none" | "close-panel" | "close-session";
 
-interface TerminalSessionExitResult {
+export interface TerminalSessionExitResult {
   state: TerminalPanelState;
   action: TerminalSessionCloseAction;
 }
@@ -139,7 +139,7 @@ export function closeTerminalSession(
   state: TerminalPanelState,
   sessionId: string,
 ): TerminalPanelState {
-  if (getTerminalSessionCloseAction(state, sessionId) !== "close-session") {
+  if (getTerminalSessionCloseAction(state, sessionId) === "none") {
     return state;
   }
 
@@ -152,11 +152,15 @@ export function closeTerminalSession(
   const closingIndex = workspace.sessionIds.indexOf(sessionId);
   const nextSessionIds = workspace.sessionIds.filter((id) => id !== sessionId);
   const fallbackSessionId = nextSessionIds[Math.max(0, closingIndex - 1)] ?? nextSessionIds[0];
+  const { [sessionId]: _closedSession, ...nextSessions } = state.sessions;
   if (!fallbackSessionId) {
-    return state;
+    const { [session.workspaceKey]: _closedWorkspace, ...nextWorkspaces } = state.workspaces;
+    return {
+      sessions: nextSessions,
+      workspaces: nextWorkspaces,
+    };
   }
 
-  const { [sessionId]: _closedSession, ...nextSessions } = state.sessions;
   return {
     sessions: nextSessions,
     workspaces: {
@@ -188,16 +192,10 @@ export function exitTerminalSession(
     };
   }
 
-  // PTY 自身已经退出时，最后一个 tab 不能像手动关闭那样只收起面板并保活。
-  // 这里同时删除 session/workspace 记录；重新打开该 workspace 时再由 ensure 懒创建新 PTY。
-  const { [sessionId]: _exitedSession, ...nextSessions } = state.sessions;
-  const { [session.workspaceKey]: _exitedWorkspace, ...nextWorkspaces } = state.workspaces;
+  const action = session.workspaceKey === activeWorkspaceKey ? "close-panel" : "close-session";
   return {
-    state: {
-      sessions: nextSessions,
-      workspaces: nextWorkspaces,
-    },
-    action: session.workspaceKey === activeWorkspaceKey ? "close-panel" : "close-session",
+    state: closeTerminalSession(state, sessionId),
+    action,
   };
 }
 

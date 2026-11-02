@@ -18,10 +18,12 @@ interface TaskActionMenuSeparatorProps {
 export function TaskActionMenuContent({
   intl,
   isPinned,
+  isArchived = false,
   fileManagerLabel,
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
+  providerConfigFile,
   disableTaskActions = false,
   disableTaskTargetActions = false,
   disablePinTaskAction = false,
@@ -33,8 +35,8 @@ export function TaskActionMenuContent({
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
-  onOpenInSplitPane,
-  openInSplitPaneDisabled = false,
+  onRestartTask,
+  restartPending = false,
   onOpenTaskFeedback,
   onOpenTaskPathInFileManager,
   onCopyWorkspacePath,
@@ -45,11 +47,13 @@ export function TaskActionMenuContent({
   copyMarkdownPending = false,
   copyMarkdownDisabled = false,
   onViewModelTrajectory,
+  onOpenProviderConfig,
 }: {
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
   };
   isPinned: boolean;
+  isArchived?: boolean;
   fileManagerLabel: string;
   taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
   activeSessionId?: string | null;
@@ -58,6 +62,7 @@ export function TaskActionMenuContent({
     path: string | null;
     exists: boolean;
   };
+  providerConfigFile: { loading: boolean; path: string | null; exists: boolean };
   disableTaskActions?: boolean;
   disableTaskTargetActions?: boolean;
   disablePinTaskAction?: boolean;
@@ -69,10 +74,8 @@ export function TaskActionMenuContent({
   onStartRenameTask: () => void;
   onArchiveTask: () => void;
   onMarkTaskAsUnread: () => void;
-  /** 「在分屏打开」（仅桌面 shell 传入；手机远控不显示该入口）。 */
-  onOpenInSplitPane?: () => void;
-  /** 当前 session 或 pane 数达上限且目标无已有归属时禁用（保留布局与层级）。 */
-  openInSplitPaneDisabled?: boolean;
+  onRestartTask?: () => void;
+  restartPending?: boolean;
   onOpenTaskFeedback?: () => void;
   onOpenTaskPathInFileManager: () => void;
   onCopyWorkspacePath: () => void;
@@ -83,6 +86,7 @@ export function TaskActionMenuContent({
   copyMarkdownPending?: boolean;
   copyMarkdownDisabled?: boolean;
   onViewModelTrajectory?: () => void;
+  onOpenProviderConfig: () => void;
 }) {
   const taskTargetActionsDisabled = disableTaskActions || disableTaskTargetActions;
   const platform = usePlatform();
@@ -131,7 +135,7 @@ export function TaskActionMenuContent({
           }
         }}
       >
-        {intl.formatMessage({ id: "taskList.archive" })}
+        {intl.formatMessage({ id: isArchived ? "taskList.unarchive" : "taskList.archive" })}
       </Item>
       <Item
         disabled={taskTargetActionsDisabled}
@@ -144,13 +148,13 @@ export function TaskActionMenuContent({
       >
         {intl.formatMessage({ id: "taskList.markAsUnread" })}
       </Item>
-      {onOpenInSplitPane ? (
+      {onRestartTask ? (
         <Item
-          data-testid={TID_V4_TASK_OPEN_IN_SPLIT}
-          disabled={taskTargetActionsDisabled || openInSplitPaneDisabled}
-          onSelect={onOpenInSplitPane}
+          data-testid="task-restart"
+          disabled={taskTargetActionsDisabled || restartPending}
+          onSelect={onRestartTask}
         >
-          {intl.formatMessage({ id: "taskList.openInSplitPane" })}
+          {intl.formatMessage({ id: restartPending ? "taskList.restarting" : "taskList.restart" })}
         </Item>
       ) : null}
       <Separator />
@@ -190,7 +194,7 @@ export function TaskActionMenuContent({
         title={taskTargetActionsDisabled ? disabledReason : undefined}
         onSelect={onCopyTaskLogPath}
       >
-        {/* ZCode Agent 的日志路径可能先按运行时约定得出，当前日期文件尚未落盘。
+        {/* Bugfix: ZCode Agent 的日志路径可能先按运行时约定得出，当前日期文件尚未落盘。
             复制动作只依赖路径字符串，不能把 exists=false 当成不可复制，否则菜单会表现成“不能点”。 */}
         {intl.formatMessage({ id: "appHeader.copyLogPath" })}
       </Item>
@@ -203,52 +207,23 @@ export function TaskActionMenuContent({
           {intl.formatMessage({ id: "appHeader.copySessionId" })}
         </Item>
       ) : null}
-      {onCopyMarkdown ? (
+      {!hideMobileUnsupportedActions ? (
+        /* Bugfix: 手机远控运行在浏览器里，无法可靠打开桌面端 provider 配置文件。
+           这里只在远控移动端隐藏入口，桌面端仍沿用“路径已知即可前往配置”的能力。 */
         <Item
-          data-testid="task-copy-markdown"
-          disabled={
-            taskTargetActionsDisabled ||
-            !activeSessionId ||
-            copyMarkdownPending ||
-            copyMarkdownDisabled
-          }
-          title={
-            taskTargetActionsDisabled
-              ? disabledReason
-              : copyMarkdownDisabled
-                ? intl.formatMessage({ id: "appHeader.copyMarkdownUnavailable" })
-                : undefined
-          }
-          onSelect={onCopyMarkdown}
+          disabled={disableTaskActions || providerConfigFile.loading || !providerConfigFile.path}
+          title={disableTaskActions ? disabledReason : undefined}
+          onSelect={() => {
+            if (!disableTaskActions) {
+              onOpenProviderConfig();
+            }
+          }}
         >
-          {intl.formatMessage({
-            id: copyMarkdownPending ? "appHeader.copyMarkdownPending" : "appHeader.copyMarkdown",
-          })}
+          <span className="truncate">
+            {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
+          </span>
         </Item>
       ) : null}
-      {/* 「前往配置」打开运行时真正生效的 Provider 配置物化副本——随包源配置在 macOS
-          打包态位于只读 bundle 内，副本才是可写且被 NodeZCodeBuiltinProviderConfigSource
-          监听的那份。加载中 / 不存在 / 平台不支持时禁用，并把原因写进 title，
-          避免用户以为按钮坏了。 */}
-      <Item
-        disabled={taskTargetActionsDisabled || builtinProviderConfigDisabledReason !== null}
-        title={
-          taskTargetActionsDisabled
-            ? disabledReason
-            : (builtinProviderConfigDisabledReason ?? undefined)
-        }
-        onSelect={() => {
-          const path = builtinProviderConfigFile.path;
-          if (taskTargetActionsDisabled || !path) return;
-          void platform.openExternalFile?.(path).then((result) => {
-            if (result && !result.success) {
-              toast(intl.formatMessage({ id: "appHeader.builtinProviderConfigOpenFailed" }));
-            }
-          });
-        }}
-      >
-        {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}
-      </Item>
       {onViewModelTrajectory ? (
         <>
           <Separator />
@@ -267,7 +242,7 @@ export function TaskActionMenuContent({
         <>
           <Separator />
           <Item disabled={taskTargetActionsDisabled} onSelect={onOpenTaskFeedback}>
-            {/* 任务菜单之前只有复制日志/路径，用户遇到任务问题时还要手动回到反馈中心。
+            {/* Bugfix: 任务菜单之前只有复制日志/路径，用户遇到任务问题时还要手动回到反馈中心。
                 “反馈问题”不是任务管理动作，单独放在菜单底部更符合兜底求助入口的层级。 */}
             {intl.formatMessage({ id: "taskList.feedback" })}
           </Item>

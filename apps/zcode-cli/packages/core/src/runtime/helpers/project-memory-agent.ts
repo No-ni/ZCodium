@@ -8,10 +8,12 @@ import {
   traceContextToLogContext,
 } from "../deps.js";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
-import type { ReadFileStateMap } from "../../tool/types.js";
+import type { ExecutableToolCall, ToolExecutionResult, ReadFileStateMap } from "../../tool/types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { getSessionShellSelectionFromConfig } from "../methods/session-shell-environment.js";
-import { buildRuntimeProviderRequestMessages } from "./runtime-provider-request-messages.js";
+import { prepareRuntimeProviderRequest } from "./runtime-provider-request-messages.js";
+import { scheduleTools } from "../methods/tools.js";
+import type { ToolCall } from "../deps.js";
 import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
 import { workspaceLevelRootOf } from "./workspace-scope.js";
 import { isToolSearchControlName } from "./tool-search-controls.js";
@@ -49,7 +51,6 @@ export function captureProjectMemoryAgentContext(
       ...traceContextToLogContext(input.traceContext),
       querySource: input.operation,
     },
-    modelRequestSessionType: "other",
     modelCall: { operation: input.operation },
     traceContext: input.traceContext,
   }));
@@ -73,24 +74,56 @@ export function captureProjectMemoryAgentContext(
   };
 }
 
-export function buildProjectMemoryAgentProviderMessages(
-  runtime: AgentRuntimeInternal,
+/** Memory Agent 的初始 entries：Main 的 provider entries 加 prompt。 */
+export function projectMemoryAgentEntries(
   context: ProjectMemoryAgentContext,
   prompt: string,
-): ModelInputMessage[] {
-  const entries: RuntimeMessageEntry[] = [
-    ...context.providerEntries,
-    { message: { content: prompt, role: "user" } },
-  ];
-  return buildRuntimeProviderRequestMessages(
+): RuntimeMessageEntry[] {
+  // 与 prepareRuntimeProviderRequest 追加 prompt 的形态相同，第一轮请求逐字节不变。
+  return [...context.providerEntries, { message: { role: "user", content: prompt } }];
+}
+
+/** 用 Main 的渲染器从 entries 生成 Memory 请求（MCS、并入 tool_result、ToolSearch 暴露、cache control）。 */
+export function renderProjectMemoryAgentRequest(
+  context: ProjectMemoryAgentContext,
+  entries: readonly RuntimeMessageEntry[],
+) {
+  return prepareRuntimeProviderRequest(
     {
       config: { midConversationSystem: context.midConversationSystem },
     },
-    { applyCacheControl: true, entries, model: context.model },
-  ).messages;
+    {
+      applyCacheControl: true,
+      entries,
+      model: context.model,
+      tools: context.tools,
+    },
+  ).request;
 }
 
-export function createProjectMemoryAgentToolExecutor(
+/** Memory Agent 的工具按 Main 的调度执行：concurrentSafe 的并行，其余按顺序。 */
+export function createProjectMemoryAgentToolRunner(
+  runtime: AgentRuntimeInternal,
+  context: ProjectMemoryAgentContext,
+) {
+  const executor = createProjectMemoryAgentToolExecutor(runtime, context);
+  return async (
+    toolCalls: ExecutableToolCall[],
+    options: { abortSignal?: AbortSignal },
+  ): Promise<ToolExecutionResult[]> => {
+    const schedule = await scheduleTools.call(runtime, toolCalls as ToolCall[]);
+    const run = executor.executeSchedule(toolCalls, schedule, {
+      signal: options.abortSignal,
+      traceContext: context.traceContext,
+    });
+    for (;;) {
+      const next = await run.next();
+      if (next.done) return next.value;
+    }
+  };
+}
+
+function createProjectMemoryAgentToolExecutor(
   runtime: AgentRuntimeInternal,
   context: ProjectMemoryAgentContext,
 ) {

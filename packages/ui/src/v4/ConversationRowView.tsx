@@ -77,7 +77,7 @@ import {
   readWorkflowRetuneCall,
 } from "@/ToolCallBlocks/renderers/createWorkflowInput.js";
 import { WorkflowRetuneRow } from "@/ToolCallBlocks/renderers/WorkflowRetuneRow.js";
-import { workflowRunSettingsCeiling } from "@/components/workflow-timeline/workflowRunSettings.js";
+import { workflowRunDefaultConcurrency } from "@/components/workflow-timeline/workflowRunSettings.js";
 import { isAmendWorkflowToolCall } from "@/lib/workflowToolNames.js";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { resolveWorkflowRunOpenToolCallId } from "@/v4/workflowRunCardJoin.js";
@@ -1960,18 +1960,18 @@ const ToolCallRowView = memo(function ToolCallRowView({
     !context.workflowRunByToolCallId?.has(row.toolCallId)
   ) {
     const sessionId = context.sessionId;
-    // 被调整那条 run 的投影：只为两件事——本机天花板（措辞据它不念出一个大于上限的数）与
+    // 被调整那条 run 的投影：只为两件事——默认并发（等于默认才显示恢复默认）与
     // 打开请求里那条 run 的发起行 id。它不进上面的 `workflowRun`：那个变量回答的是「这一行是不是
     // 某条 run 的发起行」，而这一行不是。
     const retuned = context.workflowRunByRunId?.get(retune.runId);
-    const ceiling =
-      retuned?.run === undefined ? undefined : workflowRunSettingsCeiling(retuned.run);
+    const defaultConcurrency =
+      retuned?.run === undefined ? undefined : workflowRunDefaultConcurrency(retuned.run);
     return (
       <RowShell rowId={row.rowId} className="py-0">
         <WorkflowRetuneRow
           requested={retune.requested}
           runId={retune.runId}
-          {...(ceiling === undefined ? {} : { ceiling })}
+          {...(defaultConcurrency === undefined ? {} : { defaultConcurrency })}
           {...(context.onOpenWorkflowRun && sessionId
             ? {
                 onOpen: () =>

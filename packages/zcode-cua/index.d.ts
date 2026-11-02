@@ -6,6 +6,12 @@ export interface ComputerUseRuntimeContext {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   turnId?: string;
+  /**
+   * 工具卡 badge 文案：node_repl cell 的代码块 title（js 契约必填，host 已放进 request meta）。
+   * 本轮 runtime contract 新增：CUA 动作改由主线程 broker 记账，badge 必须在跨 socket 这一跳
+   * 一起带上，否则 UI 的应用卡/进行中提示拿不到标题。
+   */
+  actionTitle?: string;
   clientMode?: "web-remote-replayable" | "desktop-continuous";
   deliveryKind?: "web-remote-replayable" | "desktop-continuous";
   trace?: Record<string, unknown>;

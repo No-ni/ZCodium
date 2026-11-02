@@ -36,11 +36,11 @@ const RESOURCE_MANAGER_WINDOW_TITLE = "Resource Manager";
 const BROWSER_USE_PLUGIN_NAME = "browser-use";
 
 /** 系统整机 CPU：两次 os.cpus() 之间 busy / total 的差分 */
-interface SystemCpuMeter {
+export interface SystemCpuMeter {
   read(): number;
 }
 
-function createSystemCpuMeter(
+export function createSystemCpuMeter(
   readCpus: () => Array<{ times: Record<string, number> }> = () => os.cpus(),
 ): SystemCpuMeter {
   let previous: { busy: number; total: number } | null = null;
@@ -458,7 +458,7 @@ function collectUnsampledAgentProcesses(sampledPids: Set<number>): ResourceUsage
 const systemCpuMeter = createSystemCpuMeter();
 
 /** 一次完整快照：Electron 进程 + Host 采样的外部进程 + 系统总量 */
-async function buildResourceUsageSnapshot(
+export async function buildResourceUsageSnapshot(
   options: { includeHosts?: boolean; signal?: AbortSignal } = {},
 ): Promise<ResourceUsageSnapshot> {
   const electronProcesses = collectElectronProcesses();

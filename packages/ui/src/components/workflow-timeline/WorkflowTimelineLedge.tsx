@@ -9,8 +9,8 @@ import { cn } from "@/components/lib/utils.js";
 import { STATUS_DOT } from "@/components/workflow-graph/run-status-presentation.js";
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { TimelineHole } from "./timeline-holes.js";
 import type { TimelineRail, TimelineStation } from "./timeline-model.js";
-import { holeLampDashed, type TimelineHole } from "./timeline-holes.js";
 import { LEDGE_PITCH, LEDGE_LAMP, ledgeLamps, railKey, scrollbarThumb } from "./timeline-ledge.js";
 import type { TimelineViewport } from "./use-timeline-viewport.js";
 
@@ -25,23 +25,29 @@ import type { TimelineViewport } from "./use-timeline-viewport.js";
  * 卡上或正在滚时露出，悬停轨道加粗到 4px；拇指可拖，点轨道翻页。原生滚动条隐藏。
  */
 
-/**
- * 站灯：`STATUS_DOT` 词汇表，running 外加 3px 光晕（呼吸）。
- * 开放 / 等待中的留白（`hole` 且状态不是 filled）换成**虚线灯**：内空、1.5px 虚线描边，
- * 等待时描边取警示色——它是「缺一段代码」而不是「在干活」，所以照旧不发光（无 shimmer）。
- */
-export function stationLampClass(status: StepRunStatus | undefined, hole?: TimelineHole): string {
+/** 站灯：`STATUS_DOT` 词汇表，running 外加 3px 光晕（呼吸）——它是画面上唯一发光的东西。 */
+export function stationLampClass(
+  status: StepRunStatus | undefined,
+  /**
+   * 留白灯（docs/dynamic-workflow/presentation.md「Holes on the timeline」）：开着 / 等着的留白是一枚
+   * 1.5px 虚线、无填充的灯；等待时描边换警示色、外加 3px 常亮的光晕——**不搏动**，那里没有东西在跑。
+   * 补全后就是普通的灯。三处画灯的地方（轨道行、带的灯层、边檐）都经这里，留白在哪都长一样。
+   */
+  hole?: TimelineHole,
+): string {
+  if (hole !== undefined && hole.state !== "filled") {
+    return cn(
+      "wf-lamp wf-lamp-hole size-2.5 shrink-0 rounded-full border-[1.5px] border-dashed bg-transparent",
+      hole.state === "waiting"
+        ? "wf-lamp-hole-waiting border-warning"
+        : "border-foreground-subtlest",
+    );
+  }
   const resolved = status ?? "pending";
-  const dashed = holeLampDashed(hole);
   return cn(
     "wf-lamp size-2.5 shrink-0 rounded-full",
-    dashed
-      ? cn(
-          "border-[1.5px] border-dashed bg-transparent",
-          hole?.state === "waiting" ? "border-warning" : "border-foreground-subtlest",
-        )
-      : STATUS_DOT[resolved],
-    !dashed && resolved === "running" && "wf-lamp-running motion-reduce:animate-none",
+    STATUS_DOT[resolved],
+    resolved === "running" && "wf-lamp-running motion-reduce:animate-none",
   );
 }
 
@@ -156,7 +162,6 @@ export function WorkflowLedge({
           <span
             aria-hidden
             className={cn(stationLampClass(station.status, station.hole), "wf-land")}
-            data-hole={station.hole?.state}
             data-lamp={station.status ?? "pending"}
           />
         </button>

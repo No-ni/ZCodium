@@ -124,7 +124,7 @@ export function createPluginSandboxProtocolHandler(options: {
     if (!absolute.startsWith(root)) return notFound();
     try {
       const body = await readAsset(absolute);
-      return new Response(body, {
+      return new Response(new Uint8Array(body), {
         status: 200,
         headers: {
           "Content-Type": MIME_BY_EXTENSION[extname(absolute)] ?? "application/octet-stream",
@@ -235,6 +235,8 @@ export function createPluginSandboxProtocolHandler(options: {
           html =
             html.slice(0, index) +
             decode(kit).replace("<!--__INLINE_VISUALIZATION_FRAGMENT__-->", "") +
+            // 标签切换的短暂溢出可能在撑高后残留空滚动条；只隐藏根滚动条，不裁切内容或禁用作者滚动区。
+            '<style id="zcode-gen-ui-document-scrollbar">html,body{scrollbar-width:none!important}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none!important}</style>' +
             html.slice(index + marker.length);
         } catch {
           // 资源缺失不能返回半成品文档，否则页面看似加载成功但交互静默失效。

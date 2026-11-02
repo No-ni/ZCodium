@@ -1,12 +1,13 @@
+import { getConversationModelOnlyTurnTriggerSource } from "@zcode/shared";
+import type { GenUiModelContext } from "@zcode/shared/gen-ui";
+import { attachGenUiContext } from "../../agent/message-history.js";
 import { activeSessionMessages, modelMessageContentToText } from "../deps.js";
+import { buildPromptAttachmentBlocks } from "../../system-reminder/prompt-attachment.js";
 import {
-  buildPromptAttachmentBlocks,
-  buildPromptAttachmentReminderBodies,
-  type PromptAttachmentReminderInput,
-} from "../../system-reminder/prompt-attachment.js";
-import {
-  realUserRuntimeMetadata,
-  systemReminderAttachmentEntry,
+  buildUserMessageEntries,
+  isPastedInlineImageAttachment,
+  promptAttachmentInputForResolvedAttachment,
+  isFailedTextAttachmentPlaceholder,
   type RuntimeMessageEntry,
 } from "../../agent/message-history.js";
 import type {
@@ -16,6 +17,21 @@ import type {
   ModelMessageContentBlock,
 } from "../deps.js";
 import type { ResolvedTurnAttachment, RunModelTextRequestOptions } from "../types.js";
+
+/**
+ * 隐藏提醒记录：公告、批次提示、中断标记等只给模型看的 system_reminder 记录。它是模型上下文，
+ * 不是对话消息：rewind 锚点回溯、turnNumber、对话指针和 fork 选型回退都跳过它
+ * （meta-user-context.md）。会开启一轮的 model-only 输入（goal continuation 等）不算。
+ */
+export function isHiddenReminderMessage(message: MessageWithParts): boolean {
+  const semantics = message.info.semantics;
+  return (
+    message.info.role === "user" &&
+    semantics?.kind === "system_reminder" &&
+    semantics.uiVisibility === "hidden" &&
+    getConversationModelOnlyTurnTriggerSource(message) === null
+  );
+}
 
 export function getLatestActiveSessionMessageId(
   messages: MessageWithParts[],
@@ -33,6 +49,8 @@ export function getLatestActiveSessionMessageId(
 
   for (let index = activeMessages.length - 1; index >= 0; index--) {
     const message = activeMessages[index]!;
+    // 与 live 一致：隐藏提醒不移动对话指针。
+    if (isHiddenReminderMessage(message)) continue;
     if (message.info.role === "user" || message.info.role === "assistant") {
       return message.info.id;
     }
@@ -111,56 +129,17 @@ export function buildRuntimeUserEntriesFromTurn(
   attachments: ResolvedTurnAttachment[],
   options: {
     browserAmbientContext?: { tabCount: number; currentUrl?: string };
+    genUiContext?: GenUiModelContext;
   } = {},
 ): RuntimeMessageEntry[] {
-  const realUserBlocks: ModelMessageContentBlock[] = [];
-  const pastedImageBlocks: ModelMessageContentBlock[] = [];
-  const promptAttachmentEntries: RuntimeMessageEntry[] = [];
-
-  for (const attachment of attachments) {
-    if (isPastedInlineImageAttachment(attachment)) {
-      pastedImageBlocks.push(attachment.contentBlock);
-      continue;
-    }
-
-    const promptAttachmentInput = promptAttachmentInputForResolvedAttachment(attachment);
-    if (promptAttachmentInput) {
-      const reminderBody = buildPromptAttachmentReminderBodies(promptAttachmentInput).join("\n");
-      promptAttachmentEntries.push(
-        systemReminderAttachmentEntry("prompt_attachment", reminderBody),
-      );
-      continue;
-    }
-
-    if (isFailedTextAttachmentPlaceholder(attachment)) {
-      continue;
-    }
-
-    realUserBlocks.push(attachment.contentBlock);
-  }
-
-  const blocks: ModelMessageContentBlock[] = [];
-  if (input.length > 0) {
-    blocks.push({
-      type: "text",
-      text: formatBrowserAmbientUserInput(input, options.browserAmbientContext),
-    });
-  }
-  blocks.push(...realUserBlocks, ...pastedImageBlocks);
-
-  return [
-    {
-      message: {
-        role: "user",
-        content: normalizeRealUserContent(blocks),
-      },
-      metadata: realUserRuntimeMetadata(),
-    },
-    ...promptAttachmentEntries,
-  ];
+  const [userEntry, ...attachmentEntries] = buildUserMessageEntries(
+    input.length > 0 ? formatBrowserAmbientUserInput(input, options.browserAmbientContext) : input,
+    attachments,
+  );
+  return [attachGenUiContext(userEntry, options.genUiContext), ...attachmentEntries];
 }
 
-function formatBrowserAmbientUserInput(
+export function formatBrowserAmbientUserInput(
   input: string,
   context?: { tabCount: number; currentUrl?: string },
 ): string {
@@ -178,90 +157,4 @@ function formatBrowserAmbientUserInput(
     input,
   ];
   return lines.join("\n");
-}
-
-function normalizeRealUserContent(
-  blocks: readonly ModelMessageContentBlock[],
-): ModelMessageContent {
-  if (blocks.length === 0) return "";
-  if (blocks.length === 1 && blocks[0]!.type === "text") {
-    return blocks[0]!.text;
-  }
-  return blocks.map((block) => ({ ...block })) as ModelMessageContentBlock[];
-}
-
-function isPastedInlineImageAttachment(attachment: ResolvedTurnAttachment): boolean {
-  if (attachment.contentBlock.type === "image") {
-    return attachment.contentBlock.source?.kind === "inline";
-  }
-  return (
-    attachment.contentBlock.type === "text" &&
-    attachment.mime.startsWith("image/") &&
-    /^\[Attached image\/[^:]+: \[image #\d+\]\]$/u.test(attachment.contentBlock.text)
-  );
-}
-
-function shouldAddReadLikePromptAttachmentReminder(
-  attachment: ResolvedTurnAttachment,
-): attachment is ResolvedTurnAttachment & {
-  contentBlock: Extract<ModelMessageContentBlock, { type: "text" }>;
-  source: NonNullable<ResolvedTurnAttachment["source"]>;
-} {
-  if (attachment.contentBlock.type !== "text") return false;
-  if (!attachment.mime.startsWith("text/")) return false;
-  if (!attachment.source) return false;
-  if (attachment.metadata.storageKind !== "inline") return false;
-  if (
-    attachment.metadata.recoverability !== "provider_ready" &&
-    attachment.metadata.recoverability !== "preview_only"
-  ) {
-    return false;
-  }
-  return attachment.metadata.preview?.text === attachment.contentBlock.text;
-}
-
-function promptAttachmentInputForResolvedAttachment(
-  attachment: ResolvedTurnAttachment,
-): (PromptAttachmentReminderInput & { content: string; kind: "file" | "inline_text" }) | undefined {
-  if (shouldAddReadLikePromptAttachmentReminder(attachment)) {
-    return {
-      content: attachment.contentBlock.text,
-      kind: "file",
-      // provider-visible 的 Read 输入要和用户提交的附件引用一致。
-      // local file 的 filename 只是展示名；只有缺少 source 时才用它兜底，避免 live/hydrate 轨迹漂移。
-      label: attachment.source.text.value ?? attachment.filename,
-      preview: attachment.metadata.preview,
-    };
-  }
-
-  if (shouldAddInlinePromptAttachmentReminder(attachment)) {
-    return {
-      content: attachment.contentBlock.text,
-      kind: "inline_text",
-      label: attachment.filename,
-      preview: attachment.metadata.preview,
-    };
-  }
-
-  return undefined;
-}
-
-function shouldAddInlinePromptAttachmentReminder(
-  attachment: ResolvedTurnAttachment,
-): attachment is ResolvedTurnAttachment & {
-  contentBlock: Extract<ModelMessageContentBlock, { type: "text" }>;
-} {
-  return (
-    attachment.contentBlock.type === "text" &&
-    attachment.mime.startsWith("text/") &&
-    !attachment.source
-  );
-}
-
-function isFailedTextAttachmentPlaceholder(attachment: ResolvedTurnAttachment): boolean {
-  return (
-    attachment.contentBlock.type === "text" &&
-    attachment.mime.startsWith("text/") &&
-    attachment.metadata.errorCode === "attachment_read_failed"
-  );
 }

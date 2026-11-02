@@ -1,3 +1,7 @@
+import {
+  RemoteConversationBanner,
+  RemoteConversationDisconnected,
+} from "@/project-sidebar/RemoteConversationDisconnected.js";
 import type { ReactNode } from "react";
 import type {
   GitChangeSourceId,
@@ -30,11 +34,14 @@ import type {
   ConversationFindMatchState,
 } from "@/v4/legacyChatViewTypes.js";
 
-interface V4ChatPaneProps {
+export interface V4ChatPaneProps {
   workspacePath: string;
   workspaceIdentity?: string;
   isDesktop?: boolean;
   readOnly?: boolean;
+  readOnlyReason?: string;
+  allowEscapeStopOutsidePane?: boolean;
+  compactForRemoteControl?: boolean;
   /** CLI session id；null = draft 首发。 */
   sessionId: string | null;
   /** 当前 workspace 主 pane 的打开入口，未提供时按 sidebar 统计。 */
@@ -86,6 +93,9 @@ export function V4ChatPane({
   workspaceIdentity,
   isDesktop = false,
   readOnly = false,
+  readOnlyReason,
+  allowEscapeStopOutsidePane = false,
+  compactForRemoteControl = false,
   sessionId,
 
   provider,
@@ -124,14 +134,35 @@ export function V4ChatPane({
   onSearchResultHighlightDone,
 }: V4ChatPaneProps) {
   return (
-    <V4ConversationProvider workspacePath={workspacePath} workspaceIdentity={workspaceIdentity}>
+    <V4ConversationProvider
+      sessionId={sessionId ?? null}
+      workspacePath={workspacePath}
+      workspaceIdentity={workspaceIdentity}
+      unavailableFallback={
+        <RemoteConversationDisconnected
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          sessionId={sessionId}
+        />
+      }
+      disconnectedBanner={
+        <RemoteConversationBanner
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          sessionId={sessionId}
+        />
+      }
+    >
       <SessionPane
         paneId="workspace-main"
         readOnly={readOnly}
+        readOnlyReason={readOnlyReason}
+        allowEscapeStopOutsidePane={allowEscapeStopOutsidePane}
         sessionId={sessionId}
         workspacePath={workspacePath}
         workspaceIdentity={workspaceIdentity}
         isDesktop={isDesktop}
+        compactForRemoteControl={compactForRemoteControl}
         provider={provider}
         onSessionCreated={onSessionCreated}
         onSessionDeleted={onSessionDeleted}

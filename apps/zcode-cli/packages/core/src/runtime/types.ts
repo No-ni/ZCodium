@@ -1,8 +1,6 @@
-import type {
-  RuntimeInputPresentation,
-  ToolSearchMode,
-  ToolSearchExecutionContext,
-} from "@zcode/contracts";
+import type { ToolSearchExecutionContext, ToolSearchMode } from "@zcode/contracts";
+import type { GetAgentDefinitions, LoadAgentDefinitions } from "../subagent/definitions.js";
+import type { RuntimeInputPresentation, TurnExecutionModelFallbackReason } from "@zcode/contracts";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
 import { PermissionService, ToolScheduler } from "./deps.js";
 import type {
@@ -22,6 +20,7 @@ import type {
 } from "@zcode/contracts";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
+import type { ProviderToolRound } from "./provider-tool-rounds/contract.js";
 import type {
   CompactPhase,
   CompactReason,
@@ -70,6 +69,7 @@ import type {
   BrowserControlPort,
   ExecutionShellSelection,
   AutomationPort,
+  TopicResourcePort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -114,6 +114,7 @@ import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-
 // -----------------------------------------------
 
 export interface AgentRuntimeConfig {
+  toolSearch?: { mode?: ToolSearchMode };
   /** shared-host CUA request routing metadata; desktop is the safe default. */
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
@@ -128,8 +129,6 @@ export interface AgentRuntimeConfig {
   planEnabled?: boolean;
   modelStreaming?: "off" | "on";
   streamingToolExecution?: "off" | "readOnly";
-  /** 实验默认关闭；模式只影响请求曝光，不新增授权系统。 */
-  toolSearch?: { mode?: ToolSearchMode };
   /** Session 创建时固定；缺省使用共享的模型上下文预算默认策略。 */
   modelContextBudgetStrategy?: "legacy" | "preflight-v1";
   maxTurns?: number;
@@ -209,12 +208,20 @@ export interface AgentRuntimeConfig {
   parentSessionId?: SessionId;
   taskType?: SessionTaskType;
   /**
-   * 动态工作流开关：Host 判定后经
-   * ZCode Protocol 下发，runtime 只消费。**缺席即开启**，保留 TUI 默认值；
-   * headless 按 --enable-workflow 显式传 true/false（默认 false），workflow_child 继承父配置。
+   * 动态工作流灰度门（docs/dynamic-workflow/launch.md「Gray release」）：Host 判定后经
+   * ZCode Protocol 下发，runtime 只消费。**缺席即开启**（进程内嵌入方靠这个极性）；
+   * 独立 CLI 的 TUI 与 headless 按 --workflow-mode 显式传 true/false（缺省 disabled，DWG-04），
+   * workflow_child 继承父配置。
    * false 会关闭十个工作流工具，不改变其他工具的注册策略。
    */
   dynamicWorkflowEnabled?: boolean;
+  /**
+   * 灰度 mode `onDemand`（docs/dynamic-workflow/launch.md「On demand: activation」）：十个工作流
+   * 工具推迟到会话首次 `/workflow`（或 GUI 对本会话 run 的 Resume / 配置 / 直接启动、冷恢复时记录里
+   * 已有工作流）才注册。**缺席即立刻注册**，与 dynamicWorkflowEnabled 同极性；只有协议服务端在
+   * Host 下发的 mode 为 onDemand 时写 true。激活状态归 runtime（dynamicWorkflowToolsActivated）。
+   */
+  dynamicWorkflowToolsOnDemand?: boolean;
 
   // Context Builder config
   systemPrompt?: string;
@@ -238,6 +245,8 @@ export interface AgentRuntimeConfig {
   outputStyle?: OutputStylePromptConfig;
   agentName?: string; // Default: "zcode-agent"
   workingDirectory?: string; // Required for context builder
+  /** 本次运行的附加目录，仅用于环境 prompt 展示，不参与配置发现或持久化。 */
+  additionalDirectories?: readonly string[];
   /**
    * 调用方传入的实际工作区路径表示，用于 session 持久化与本地身份恢复。
    * 文件和命令执行仍只使用规范化后的 workingDirectory。
@@ -246,9 +255,13 @@ export interface AgentRuntimeConfig {
   /** 仅用于持久化隔离；文件与命令执行仍使用 workingDirectory。 */
   workspaceIdentity?: WorkspaceId;
   envInfo?: EnvInfo; // Optional, will be auto-detected if not provided
-  currentDate?: string; // YYYY-MM-DD, resolved by adapter when omitted
-  userInstructions?: UserInstructionsOptions; // AGENTS.md
-  projectContext?: ProjectContext; // auto-detected if not provided
+  /**
+   * YYYY-MM-DD，缺省由 adapter 解析。只用于 ContextBuilder 日期段的用量统计；
+   * 模型看到的日期公告一律取运行时时钟（固定日期请注入 `now`）。
+   */
+  currentDate?: string;
+  userInstructions?: UserInstructionsOptions; // P1: AGENTS.md
+  projectContext?: ProjectContext; // P2: auto-detected if not provided
   skillMetadataBudget?: number;
 }
 
@@ -311,6 +324,10 @@ export interface MemoryRuntimeConfig {
 }
 
 export interface AgentRuntimeDeps {
+  /** 只读目录入口；必须同步读取内存，不在请求收集阶段进行 I/O。 */
+  getAgentDefinitions?: GetAgentDefinitions;
+  /** 新父上下文读取一次；子执行不得继承此加载器。 */
+  loadAgentDefinitions?: LoadAgentDefinitions;
   appVersion?: string;
   eventStore: SessionEventStorePort;
   sessionStore?: SessionStorePort;
@@ -369,6 +386,12 @@ export interface AgentRuntimeDeps {
    * 包装（受闸门约束），主 runtime 拿治理器的 observer（只喂信号）；缺席即不设闸门。
    */
   modelRequestAdmission?: ModelRequestAdmission;
+  /**
+   * 主代理 subagent（`Agent` 工具）的准入端口工厂：派生 subagent 时以**当前**父 sessionId 调用，
+   * 结果作为子 runtime 的 `modelRequestAdmission`（受闸门约束，同一父会话的 subagent 共用一条队列）。
+   * 缺席时子 runtime 沿用父的 `modelRequestAdmission`。
+   */
+  subagentModelRequestAdmission?: (parentSessionId: string) => ModelRequestAdmission;
   workflowPort?: WorkflowPort;
   /** workflow run 的提交/观察/取消端口；存在即 CreateWorkflow 真启动，缺席则回占位诊断。 */
   dynamicWorkflowRunPort?: DynamicWorkflowRunPort;
@@ -378,6 +401,7 @@ export interface AgentRuntimeDeps {
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  topicResourcePort?: TopicResourcePort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;
   logger?: Logger;
@@ -411,13 +435,32 @@ export interface ModelExecutionContext {
   /** 仅当前 Turn 跳过自动 Project Memory Extraction；不修改 Session Memory 配置。 */
   memoryExtraction?: "skip";
   selectionScope: "execution";
+  /** 接纳加速输入前固定的 Session 候选；仅在内存中随本条命令传递。 */
+  highspeedFallbackSelection?: ModelSelection;
   subagents?: {
     foregroundModel: "submission";
-    background: "deny";
+    background: "deny" | "allow";
+  };
+  /**
+   * 本次执行的 Selection 失败时，同一 Turn 内退回原模型继续跑完（保留已提交历史，只替换后续请求的
+   * 模型），而不是让整轮直接失败。触发条件必须由发起方声明：`providerId` 限定只匹配本轮 execution
+   * Selection 指向的 provider，`rules` 按声明顺序匹配、首个命中决定退回原因，`providerErrorCode` 缺省
+   * 表示该 provider 的任何失败。core 不按 provider id、模型名或错误文案硬编码。
+   * 退回目标先取 `target`（发起方抽卡时的提交选择，即会话原模型），再取本轮接纳前复制的会话常驻 Session Selection；
+   * 两者都解析不出时无处可退，按真实错误失败。
+   */
+  selectionFallback?: {
+    providerId: string;
+    rules: Array<{
+      reason: TurnExecutionModelFallbackReason;
+      providerErrorCode?: string;
+    }>;
+    target?: ModelSelection;
   };
 }
 
 export interface ExecuteTurnOptionsBase {
+  executionSelection?: ModelSelection;
   abortSignal?: AbortSignal;
   browserAmbientContext?: {
     tabCount: number;
@@ -468,6 +511,8 @@ export type PromptAdmissionOptions = ExecuteTurnOptions & {
   expectedTurnId?: TurnId;
   /** busy 时的产品队列语义；附件或不可 steer 时由 Core 回退 queue。 */
   queueDelivery?: "guide" | "queue";
+  /** 强制进入 FIFO；用于携带只能在未来独立 turn 安装的临时运行模型。 */
+  requireQueue?: boolean;
   /** queue promotion 等内部调用要求 admission 必须 idle，否则直接拒绝。 */
   requireIdle?: boolean;
 };
@@ -697,7 +742,6 @@ export interface ResumeSessionResult extends SessionHistoryHydrationResult {
   /** resume 是否写回了当前 materialization 无法完整反映的 compact 修补事实。 */
   persistedMessagesReloadRequired: boolean;
   readFileStateRestoredCount: number;
-  readFileStateSkippedRangeReadCount: number;
   readFileStateSkippedUnreadableEditCount: number;
   traceId: TraceId;
 }
@@ -712,6 +756,7 @@ export interface PermissionDecisionResult {
 export interface ExecuteToolsOptions {
   toolSearch?: ToolSearchExecutionContext;
   automationTurn?: boolean;
+  automationId?: string;
   signal?: AbortSignal;
   traceContext?: TraceContext;
   /** 仅透传给当前 turn 同步等待的 Agent child。 */
@@ -819,8 +864,10 @@ export interface RunModelTextRequestOptions {
 }
 
 export interface RuntimeModelStreamSnapshot {
+  /** 当前轮（最后一个服务端内置工具之后）的内容；之前的轮在 providerToolRounds。 */
   reasoning: ModelReasoningContentBlock[];
   text: string;
+  providerToolRounds?: readonly ProviderToolRound[];
 }
 
 export interface StreamedToolExecutionResult {
@@ -838,6 +885,8 @@ export interface RuntimeModelTextResult {
   reasoning?: ModelReasoningContentBlock[];
   text: string;
   toolCalls?: ModelToolCall[];
+  /** 服务端内置工具切出的前序轮次；text/reasoning 只保留最后一轮。 */
+  providerToolRounds?: ProviderToolRound[];
   usage: ModelUsage;
 }
 

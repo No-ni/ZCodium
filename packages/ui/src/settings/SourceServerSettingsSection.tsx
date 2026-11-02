@@ -1,16 +1,14 @@
-import { useState } from "react";
-import type { ConnectionProfile } from "@zcode/shared";
+import { useEffect, useRef, useState } from "react";
+import {
+  compareSemverVersions,
+  sourceServerRunningTasksResultSchema,
+  type ConnectionProfile,
+  type SourceServerRunningTasksResult,
+} from "@zcode/shared";
+import { ProfileEditor } from "./SourceServerProfileEditor.js";
 import { useSourceServerManagement } from "@/hooks/useSourceServerManagement.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.js";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -22,119 +20,9 @@ import {
 type PendingConfirmation =
   | { kind: "mirror"; profile: ConnectionProfile }
   | { kind: "identity"; profile: ConnectionProfile; expectedSourceServerId: string }
-  | { kind: "remove"; profile: ConnectionProfile };
-
-function ProfileEditor({
-  profile,
-  pending,
-  onSave,
-}: {
-  profile: ConnectionProfile;
-  pending: boolean;
-  onSave: (profile: ConnectionProfile) => void;
-}) {
-  const { intl } = useZCodeIntl();
-  const [draft, setDraft] = useState(profile);
-  return (
-    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-      <Input
-        aria-label={intl.formatMessage({ id: "sourceServer.profileName" })}
-        value={draft.displayName}
-        onChange={(event) => setDraft({ ...draft, displayName: event.target.value })}
-        disabled={pending}
-      />
-      {draft.target.kind === "ssh" ? (
-        <>
-          <Input
-            aria-label={intl.formatMessage({ id: "sourceServer.host" })}
-            value={draft.target.host}
-            onChange={(event) => {
-              if (draft.target.kind === "ssh")
-                setDraft({ ...draft, target: { ...draft.target, host: event.target.value } });
-            }}
-            disabled={pending}
-          />
-          <Input
-            aria-label={intl.formatMessage({ id: "sourceServer.username" })}
-            value={draft.target.username}
-            onChange={(event) => {
-              if (draft.target.kind === "ssh")
-                setDraft({ ...draft, target: { ...draft.target, username: event.target.value } });
-            }}
-            disabled={pending}
-          />
-          <Input
-            aria-label={intl.formatMessage({ id: "sourceServer.port" })}
-            type="number"
-            min={1}
-            max={65535}
-            value={draft.target.port ?? 22}
-            onChange={(event) => {
-              if (draft.target.kind === "ssh")
-                setDraft({
-                  ...draft,
-                  target: { ...draft.target, port: Number(event.target.value) },
-                });
-            }}
-            disabled={pending}
-          />
-        </>
-      ) : draft.target.kind === "wsl" ? (
-        <Input
-          aria-label={intl.formatMessage({ id: "sourceServer.distro" })}
-          value={draft.target.distro ?? ""}
-          onChange={(event) => {
-            if (draft.target.kind === "wsl")
-              setDraft({
-                ...draft,
-                target: { ...draft.target, distro: event.target.value || undefined },
-              });
-          }}
-          disabled={pending}
-        />
-      ) : (
-        <Input
-          aria-label={intl.formatMessage({ id: "sourceServer.container" })}
-          value={draft.target.container}
-          onChange={(event) => {
-            if (draft.target.kind === "docker")
-              setDraft({ ...draft, target: { ...draft.target, container: event.target.value } });
-          }}
-          disabled={pending}
-        />
-      )}
-      <Select
-        value={draft.configurationMode}
-        onValueChange={(value) =>
-          setDraft({ ...draft, configurationMode: value === "mirror-personal" ? value : "target" })
-        }
-        disabled={pending}
-      >
-        <SelectTrigger
-          aria-label={intl.formatMessage({ id: "sourceServer.configurationMode" })}
-          className="w-full min-w-0"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="target">
-            {intl.formatMessage({ id: "sourceServer.configuration.target" })}
-          </SelectItem>
-          <SelectItem value="mirror-personal">
-            {intl.formatMessage({ id: "sourceServer.configuration.mirror" })}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        variant="secondary"
-        disabled={pending || !draft.displayName.trim()}
-        onClick={() => onSave(draft)}
-      >
-        {intl.formatMessage({ id: "common.save" })}
-      </Button>
-    </div>
-  );
-}
+  | { kind: "remove"; profile: ConnectionProfile }
+  | { kind: "stop"; profile: ConnectionProfile; runningTasks: SourceServerRunningTasksResult }
+  | { kind: "restart"; profile: ConnectionProfile; runningTasks: SourceServerRunningTasksResult };
 
 export function SourceServerSettingsSection() {
   const { intl } = useZCodeIntl();
@@ -142,21 +30,57 @@ export function SourceServerSettingsSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [confirmation, setConfirmation] = useState<PendingConfirmation | null>(null);
-  const run = async (operation: () => Promise<unknown>) => {
-    if (busy || !service) return;
+  const serviceRef = useRef(service);
+  serviceRef.current = service;
+  const admission = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => {
+    generation.current++;
+    admission.current = false;
+    setBusy(false);
+    setConfirmation(null);
+    return () => {
+      generation.current++;
+    };
+  }, [service]);
+  const run = async <T,>(operation: () => Promise<T>, completed?: (result: T) => void) => {
+    if (admission.current || !service || serviceRef.current !== service) return;
+    admission.current = true;
+    const current = generation.current;
+    const active = () => current === generation.current && serviceRef.current === service;
     setBusy(true);
     setError(false);
     try {
-      await operation();
+      const result = await operation();
+      if (!active()) return;
       await refresh();
+      if (!active()) return;
       setConfirmation(null);
+      completed?.(result);
     } catch {
-      setError(true);
+      if (active()) setError(true);
     } finally {
-      setBusy(false);
+      if (active()) {
+        admission.current = false;
+        setBusy(false);
+      }
     }
   };
   const text = (id: string) => intl.formatMessage({ id });
+  const lifecycleDescription =
+    confirmation && "runningTasks" in confirmation
+      ? [
+          text("settings.source.remoteServiceInterruptionDescription"),
+          !confirmation.runningTasks.available
+            ? text("settings.source.remoteServiceRunningTasksUnavailable")
+            : confirmation.runningTasks.tasks.length
+              ? confirmation.runningTasks.tasks
+                  .map((task) => task.sessionId + " — " + task.workspacePath)
+                  .join("\n")
+              : text("settings.source.remoteServiceNoRunningTasks"),
+          text("settings.source.remoteServiceOtherClientsNotice"),
+        ].join("\n\n")
+      : undefined;
   if (state.status !== "ready" || !service)
     return (
       <div className="space-y-3">
@@ -187,6 +111,17 @@ export function SourceServerSettingsSection() {
             (entry) =>
               entry.profileId === profile.profileId && entry.generation === profile.generation,
           );
+          const server = state.snapshot.directory.servers.find(
+            (item) => item.sourceServerId === profile.sourceServerId,
+          );
+          const supported = server ? compareSemverVersions(server.version, "3.17.1") : null;
+          const lifecycleEnabled =
+            supported !== null &&
+            supported >= 0 &&
+            connection?.state !== "connecting" &&
+            !["needs-install", "needs-start", "needs-upgrade", "identity-change-pending"].includes(
+              connection?.state ?? "",
+            );
           return (
             <section
               key={`${profile.profileId}:${profile.generation}`}
@@ -244,6 +179,32 @@ export function SourceServerSettingsSection() {
                     {text("sourceServer.disconnect")}
                   </Button>
                 ) : null}
+                {profile.sourceServerId
+                  ? (["restart", "stop"] as const).map((action) => (
+                      <Button
+                        key={action}
+                        variant={action === "stop" ? "destructive" : "secondary"}
+                        data-testid={"source-server-" + action}
+                        disabled={busy || !lifecycleEnabled}
+                        onClick={() =>
+                          void run(
+                            async () =>
+                              sourceServerRunningTasksResultSchema.parse(
+                                await service.getSourceRunningTasks(profile.sourceServerId!),
+                              ),
+                            (runningTasks) =>
+                              setConfirmation({ kind: action, profile, runningTasks }),
+                          )
+                        }
+                      >
+                        {text(
+                          action === "stop"
+                            ? "settings.source.stopRemoteService"
+                            : "settings.source.restartRemoteService",
+                        )}
+                      </Button>
+                    ))
+                  : null}
                 {connection?.state === "identity-change-pending" &&
                 connection.pendingSourceServerId ? (
                   <Button
@@ -281,21 +242,26 @@ export function SourceServerSettingsSection() {
         <AlertDialogContent>
           <AlertDialogTitle>
             {text(
-              confirmation?.kind === "mirror"
-                ? "sourceServer.mirrorTitle"
-                : confirmation?.kind === "identity"
-                  ? "sourceServer.identityTitle"
-                  : "sourceServer.removeTitle",
+              confirmation?.kind === "stop"
+                ? "settings.source.stopRemoteServiceTitle"
+                : confirmation?.kind === "restart"
+                  ? "settings.source.restartRemoteServiceTitle"
+                  : confirmation?.kind === "mirror"
+                    ? "sourceServer.mirrorTitle"
+                    : confirmation?.kind === "identity"
+                      ? "sourceServer.identityTitle"
+                      : "sourceServer.removeTitle",
             )}
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            {text(
-              confirmation?.kind === "mirror"
-                ? "sourceServer.mirrorDescription"
-                : confirmation?.kind === "identity"
-                  ? "sourceServer.identityDescription"
-                  : "sourceServer.removeDescription",
-            )}
+          <AlertDialogDescription className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words">
+            {lifecycleDescription ??
+              text(
+                confirmation?.kind === "mirror"
+                  ? "sourceServer.mirrorDescription"
+                  : confirmation?.kind === "identity"
+                    ? "sourceServer.identityDescription"
+                    : "sourceServer.removeDescription",
+              )}
           </AlertDialogDescription>
           {confirmation?.kind === "identity" ? (
             <p className="break-all text-ui-sm">
@@ -308,22 +274,41 @@ export function SourceServerSettingsSection() {
             </Button>
             <Button
               disabled={busy}
+              data-testid={
+                confirmation && "runningTasks" in confirmation
+                  ? "source-server-lifecycle-confirm"
+                  : undefined
+              }
+              variant={confirmation?.kind === "stop" ? "destructive" : "default"}
               onClick={() => {
                 if (!confirmation) return;
                 const pending = confirmation;
+                const currentProfile = state.snapshot.directory.profiles.find(
+                  (profile) => profile.profileId === pending.profile.profileId,
+                );
+                // 确认期间线路可能被编辑或删除；旧清单不能授权新线路的停止/重启。
+                if (!currentProfile || currentProfile.generation !== pending.profile.generation) {
+                  setConfirmation(null);
+                  setError(true);
+                  return;
+                }
                 void run(() =>
-                  pending.kind === "mirror"
-                    ? service.saveProfile(pending.profile)
-                    : pending.kind === "remove"
-                      ? service.removeProfile({
-                          profileId: pending.profile.profileId,
-                          generation: pending.profile.generation,
-                        })
-                      : service.confirmIdentityChange({
-                          profileId: pending.profile.profileId,
-                          generation: pending.profile.generation,
-                          expectedSourceServerId: pending.expectedSourceServerId,
-                        }),
+                  pending.kind === "stop"
+                    ? service.stopSource(pending.profile.sourceServerId!)
+                    : pending.kind === "restart"
+                      ? service.restartSource(pending.profile.sourceServerId!)
+                      : pending.kind === "mirror"
+                        ? service.saveProfile(pending.profile)
+                        : pending.kind === "remove"
+                          ? service.removeProfile({
+                              profileId: pending.profile.profileId,
+                              generation: pending.profile.generation,
+                            })
+                          : service.confirmIdentityChange({
+                              profileId: pending.profile.profileId,
+                              generation: pending.profile.generation,
+                              expectedSourceServerId: pending.expectedSourceServerId,
+                            }),
                 );
               }}
             >

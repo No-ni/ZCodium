@@ -1,4 +1,5 @@
 import { useState } from "react";
+import "@/styles.css";
 import { createRoot } from "react-dom/client";
 import { ChatErrorBanner } from "../../../packages/ui/src/ChatErrorBanner.js";
 import { McpToolCallBlock } from "../../../packages/ui/src/ToolCallBlocks/renderers/mcp.js";
@@ -8,7 +9,8 @@ import { TooltipProvider } from "../../../packages/ui/src/components/ui/tooltip.
 const params = new URLSearchParams(location.search);
 const locale = params.get("locale") || "en-US";
 const theme = params.get("theme") === "dark" ? "dark" : "light";
-document.documentElement.className = theme === "dark" ? "dark zai-dark" : "zai-light";
+document.documentElement.className =
+  theme === "dark" ? "dark theme-zai-dark" : "light theme-zai-light";
 window.errorFixture = { copies: [], retries: 0, diagnostics: 0 };
 Object.defineProperty(navigator, "clipboard", {
   configurable: true,

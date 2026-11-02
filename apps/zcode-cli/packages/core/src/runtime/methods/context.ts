@@ -16,13 +16,21 @@ import type {
 } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { ensureMemoryDirectoryExists } from "../../memory/directory.js";
-import { formatProjectMemoryIndexContent } from "../../memory/index-content.js";
 import {
-  createReadFileStateKey,
+  formatProjectMemoryIndexContent,
+  MEMORY_INDEX_FILE_NAME,
+} from "../../memory/index-content.js";
+import {
+  ACTIVE_PROJECT_MEMORY_RETRIEVAL_BRANCH,
+  type ProjectMemoryRetrievalBranch,
+} from "../../memory/project-memory-retrieval-branch.js";
+import {
   normalizeReadFileStateMtimeMs,
+  setReadFileStateEntry,
 } from "../../tool/read-file-state.js";
 import { resolveEnabledProjectMemoryRoot } from "../helpers/project-memory.js";
 import { workspaceLevelRootOf, workspaceScopeRootOf } from "../helpers/workspace-scope.js";
+import { shouldUseMidConversationSystem } from "../helpers/runtime-provider-request-messages.js";
 import { buildContextHistoryEntries } from "./context-history-entries.js";
 import { resolveRuntimeEmbeddedSearchEnabled } from "./embedded-search-branch.js";
 import { getContextSourceShellDisplayName } from "./session-shell-environment.js";
@@ -41,8 +49,12 @@ export async function ensureContextInitialized(
   if (this.contextInitialized) return;
 
   const shellDisplayName = getContextSourceShellDisplayName(this);
-  const snapshot = this.contextSourcePort
-    ? await this.contextSourcePort.resolveContextSources(
+  // child 的快照只由父级传下的配置组成（envInfo、日期、指令快照），端口只留给 cd 之后的环境探测。
+  // 修复原因：child 持有父级端口后在这里走完整解析，会重新查找 project root、探测 Project Context，
+  // 而 child 的 context builder 不使用这些结果，每次启动都白读一次磁盘。
+  const contextSourcePort = this.config.subagentContext ? undefined : this.contextSourcePort;
+  const snapshot = contextSourcePort
+    ? await contextSourcePort.resolveContextSources(
         {
           workingDirectory: this.workingDirectory,
           currentDate: this.config.currentDate,
@@ -76,16 +88,26 @@ export async function ensureContextInitialized(
   // Bash cd 只改 `workingDirectory`，不会重跑本方法，因此执行边界之后的漂移仍不改身份。
   this.workspaceScopeRoot = this.config.workspacePath ?? snapshot.workingDirectory;
   this.contextSourceSnapshot = snapshot;
+  this.sessionStartGitPrefetch = true;
   this.startMcpStartup(traceContext);
   this.skillLoadOutcome = await this.discoverSkillsForContext(traceContext);
   this.memoryRoot = await this.loadProjectMemoryRoot(traceContext);
-  this.memoryIndexContent = await loadProjectMemoryIndexContent(this, this.memoryRoot);
+  this.memoryIndexContent = await loadProjectMemoryIndexContent(
+    this,
+    this.memoryRoot,
+    ACTIVE_PROJECT_MEMORY_RETRIEVAL_BRANCH,
+  );
+  await ensureGenUiOutputDirectory(this);
   await ensureGenUiOutputDirectory(this);
   this.contextBuilder = this.createContextBuilderFromSnapshot(snapshot, this.memoryRoot, {
     memoryIndexContent: this.memoryIndexContent,
     model,
   });
+  // Bug 根因：模型创建失败轮会在 Context 首次可初始化前接纳并持久化用户输入。
+  // init 会替换全部内存历史，因此先保留这些权威运行条目，再接到新建的 Context 前缀之后。
+  const preContextEntries = [...this.messageHistory.borrowReadOnlyRuntimeEntries()];
   this.initializeMessageHistoryFromContext(this.contextBuilder, traceContext);
+  this.messageHistory.addEntries(preContextEntries);
   this.contextInitialized = true;
 }
 
@@ -137,8 +159,12 @@ export function createContextBuilderFromSnapshot(
 
   const contextConfig: ContextBuilderConfig = {
     workingDirectory: snapshot.workingDirectory,
+    additionalDirectories: this.config.additionalDirectories,
     envInfo,
     model: options.model,
+    ...(options.model
+      ? { midConversationSystem: shouldUseMidConversationSystem(this.config, options.model) }
+      : {}),
     presentationSurface: this.config.presentationSurface,
     genUiOutputDirectory: resolveGenUiOutputDirectory(this),
     currentDate: snapshot.currentDate,
@@ -183,18 +209,20 @@ export async function loadProjectMemoryRoot(
   return memoryRoot;
 }
 
-async function loadProjectMemoryIndexContent(
+export async function loadProjectMemoryIndexContent(
   runtime: AgentRuntimeInternal,
   memoryRoot: string | undefined,
+  retrievalBranch: ProjectMemoryRetrievalBranch,
 ): Promise<string | undefined> {
+  if (retrievalBranch !== "default-index") return undefined;
   const fileSystemPort = runtime.fileSystemPort;
   if (!fileSystemPort || !memoryRoot) return undefined;
-  const indexPath = join(memoryRoot, "MEMORY.md");
+  const indexPath = join(memoryRoot, MEMORY_INDEX_FILE_NAME);
   try {
     const read = await fileSystemPort.readTextFile({ path: indexPath });
     const formattedContent = formatProjectMemoryIndexContent(read.content);
     if (!formattedContent) return undefined;
-    runtime.readFileState.set(createReadFileStateKey(indexPath, undefined, undefined), {
+    setReadFileStateEntry(runtime.readFileState, {
       content: read.content,
       isPartialView: formattedContent !== read.content,
       limit: undefined,
@@ -203,6 +231,7 @@ async function loadProjectMemoryIndexContent(
       path: indexPath,
       readAt: runtime.now(),
       revisionId: read.revision?.id,
+      seededFromContext: true,
       sizeBytes: read.sizeBytes,
     });
     return read.content;

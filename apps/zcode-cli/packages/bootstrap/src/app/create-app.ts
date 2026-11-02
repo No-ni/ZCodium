@@ -1,5 +1,8 @@
-import { tmpdir } from "node:os";
+import { createWorkspaceMcpTrust } from "../workspace-mcp-trust/index.js";
+import { subagentProfilesFromSnapshot } from "../runtime-subagents/index.js";
+import { CliDefaultSelection } from "./cli-default-selection.js";
 import { isAbsolute, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import {
   createInMemorySessionEventStore,
   createNodeToolArtifactStore,
@@ -20,8 +23,10 @@ import { createNodeSkillAdapter } from "@zcode/adapters/skills";
 import { createMcpAdapter } from "@zcode/adapters/mcp";
 import {
   AgentRuntime,
+  normalizeAgentProfiles,
   PermissionService,
   buildPluginReferenceCatalog,
+  writeWorkflowDraft,
   type AmendWorkflowRunSettingsInput,
   type ResumeSessionResult,
 } from "@zcode/core";
@@ -31,6 +36,7 @@ import {
   type TraceContext,
   createSessionId,
   createSessionEvent,
+  SessionEventType,
   type ExecutionShellSelection,
   type MessageId,
 } from "@zcode/contracts";
@@ -76,6 +82,7 @@ import { resolvePluginRuntimeFeatures } from "./plugin-runtime-features.js";
 import { createSessionFacade } from "./session-facade.js";
 import { resolveAppRuntimeConfig, runtimeConfigLogContext } from "./runtime-config.js";
 import { resolveBundledSkillRoots } from "./bundled-skills.js";
+import { resolveMcpNodeFallbackProvider } from "./mcp-node-fallback.js";
 import { collectDynamicWorkflowDisabledSkillPaths } from "./dynamic-workflow-gate.js";
 import { createWorkspaceHookRuntimeSecurity } from "./workspace-hook-trust.js";
 import { createScriptWorkflowBridge } from "./script-workflow-methods.js";
@@ -90,6 +97,11 @@ import { createModelCatalogPort } from "./model-catalog-port.js";
 import { createDynamicWorkflowRunProgressSink } from "./dynamic-workflow-run-progress-sink.js";
 import { createScriptWorkflowAgentRuntime } from "./script-workflow-child-runtime.js";
 import { workflowActorModelPolicy } from "./workflow-actor-model.js";
+import {
+  workflowActorInteractionDescription,
+  workflowActorPermissionPolicy,
+} from "./workflow-actor-permission.js";
+import { startWorkflowQuotaAutoResume } from "./dynamic-workflow-quota-resume.js";
 import { workflowActorToolPolicy } from "./workflow-actor-tools.js";
 import {
   createNodeReplBrowserBroker,
@@ -98,9 +110,14 @@ import {
 } from "./node-repl-browser-broker.js";
 import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveZCodeCustomCommandPrompt } from "../custom-command-prompt.js";
-import { resolveZCodeBuiltinPromptCommand } from "../builtin-prompt-command.js";
+import { resolveZCodeBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
+import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
-import { loadPluginAgentProfiles, loadZCodeAgentProfiles } from "../subagents.js";
+import {
+  loadPluginAgentTemplates,
+  resolvePluginAgentProfiles,
+  loadZCodeAgentProfiles,
+} from "../subagents.js";
 import { createRuntimeAiSdkModelExecutionConfig } from "../model-config.js";
 import { ApiProviderModelRuntime } from "./provider-registry-model-runtime.js";
 import {
@@ -136,7 +153,12 @@ function decodePromptAttachmentDataUrl(
   if (
     !mediaType.startsWith("image/") &&
     !mediaType.startsWith("video/") &&
-    mediaType !== "application/pdf"
+    mediaType !== "application/pdf" &&
+    // 根因：文本材料复用上传 artifact，但原 data URL 解码器仅接受媒体，合法预览被二次拒绝。
+    !(
+      mediaType === "text/plain" &&
+      fallbackMime.split(";", 1)[0]?.trim().toLowerCase() === "text/plain"
+    )
   ) {
     throw new Error("fault.attachment.previewNotMedia");
   }
@@ -214,12 +236,19 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
   try {
     const storageRoot = resolvePath(configResult.config.storage.dir);
     const cliStorageRoot = getCliStorageRoot(storageRoot);
-    const zcodeSubagentProfileOutcome = await loadZCodeAgentProfiles({
-      logger,
-      storageRoot,
-      // `.zcodium/agents` 是工作区级 profile 来源。
-      workingDirectory: workspaceDirectory,
+    // 初始化与父轮必须使用同一 Host 来源，避免 CLI storage.dir 的另一份定义在首轮消失。
+    const hostSubagentSnapshot = await options.readSubagentRuntimeConfig?.({
+      signal: new AbortController().signal,
+      traceContext,
     });
+    const zcodeSubagentProfileOutcome = hostSubagentSnapshot
+      ? subagentProfilesFromSnapshot(hostSubagentSnapshot)
+      : await loadZCodeAgentProfiles({
+          logger,
+          storageRoot,
+          workingDirectory: workspaceDirectory,
+          additionalDirectories: options.additionalDirectories,
+        });
     const zcodeSubagentProfiles = zcodeSubagentProfileOutcome.profiles;
     const pluginOutcome = resolveStartupPlugins({
       cliStorageRoot,
@@ -233,12 +262,20 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     });
     // 随 CLI 内置的技能包（dynamic-workflows 等）：不属于任何插件，用户无法停用或卸载。
     const bundledSkillRoots = await resolveBundledSkillRoots({ cliStorageRoot, logger });
-    const pluginSubagentProfiles = loadPluginAgentProfiles({
-      logger,
-      plugins: pluginOutcome.plugins,
-      reservedProfileNames: zcodeSubagentProfiles.map((profile) => profile.name),
-      modelSelectionOverrides: zcodeSubagentProfileOutcome.pluginAgentModelSelectionOverrides,
-    }).profiles;
+    const pluginTemplates = loadPluginAgentTemplates({ logger, plugins: pluginOutcome.plugins });
+    const pluginSubagentProfiles =
+      hostSubagentSnapshot?.kind === "built-in-fallback"
+        ? []
+        : resolvePluginAgentProfiles(
+            {
+              logger,
+              plugins: pluginOutcome.plugins,
+              reservedProfileNames: zcodeSubagentProfiles.map((profile) => profile.name),
+              modelSelectionOverrides:
+                zcodeSubagentProfileOutcome.pluginAgentModelSelectionOverrides,
+            },
+            pluginTemplates,
+          ).profiles;
     const pluginRuntimeFeatures = resolvePluginRuntimeFeatures(pluginOutcome);
     const builtInMcpServers = resolveBuiltInNodeReplMcpServers({
       pluginOutcome,
@@ -317,6 +354,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     const pluginReferenceCatalog = buildPluginReferenceCatalog(pluginOutcome.plugins);
     runtimeConfig.pluginReferenceCatalog = pluginReferenceCatalog;
     let runtime: AgentRuntime | undefined;
+    const cliDefaultSelection =
+      options.modelSelectionMode === "cli-default"
+        ? new CliDefaultSelection(runtimeConfig.modelSelection)
+        : undefined;
     const workspaceHookRuntimeSecurity = createWorkspaceHookRuntimeSecurity({
       appVersion,
       logger,
@@ -397,9 +438,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       startupTimer,
       storageRoot,
     });
-    // MCP 工程配置的作用域是工作区：server 子进程 cwd 与连接身份都按工作区键路径，
-    // 用执行 cwd 会让对话会话的 project 作用域 MCP 落到会话目录并各起一份进程。
-    const mcpPort =
+    const rawMcpPort =
       options.mcpPort ??
       (runtimeConfig.mcp?.enabled === false
         ? undefined
@@ -413,8 +452,31 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               noProxy: configResult.config.network.noProxy,
               caCertFile: configResult.config.network.caCertFile,
             },
+            nodeFallback: resolveMcpNodeFallbackProvider({ cliStorageRoot, logger }),
             workingDirectory: workspaceDirectory,
           })));
+    const mcpPort = rawMcpPort
+      ? createWorkspaceMcpTrust({
+          workingDirectory: workspaceDirectory,
+          workspaceIdentity: options.runtimeConfig?.memory?.workspaceIdentity,
+          userConfigPath: options.userConfigPath,
+          projectConfigPath: options.projectConfigPath,
+          skipUserConfig: options.skipUserConfig,
+          env: options.env,
+          onAdmissionChanged: async (payload) => {
+            if (!runtime) return;
+            await runtime.appendEvent(
+              createSessionEvent(
+                SessionEventType.WorkspaceMcpAdmissionUpdated,
+                sessionId,
+                payload,
+                { traceId: traceContext.traceId },
+              ),
+              traceContext,
+            );
+          },
+        }).guard(rawMcpPort)
+      : undefined;
     const ownsMcpPort = options.mcpPort === undefined && mcpPort !== undefined;
     const executionPort =
       options.executionPort ??
@@ -443,6 +505,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         noProxy: configResult.config.network.noProxy,
         caCertFile: configResult.config.network.caCertFile,
       });
+    const providerEndpointRoutingPort = options.providerEndpointRoutingPort;
     markMcpAdapterInitialized({
       configuredMcpServers,
       hasInjectedMcpPort: options.mcpPort !== undefined,
@@ -487,15 +550,28 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         // 选择 entry 的读取/解析故障不能拖垮独立的历史恢复；留下真实存储错误，
         // 不读取旧消息或默认模型来掩盖失败。
         logger.warn("Session model selection restore failed", {
-          error: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : "UnknownError",
           event: "session.model_selection.restore_failed",
           sessionId,
         });
       }
       const validation = selection && registry.validateSelection(selection);
+      if (selection && validation && !validation.ok) {
+        // 观测：校验失败只影响运行绑定、不影响保存意图；但一旦不绑定，之后若只发送 execution 作用域的
+        // 加速轮就没有机会重新绑定。曾在 Registry 刚就绪、账号权益未解析的 600ms 窗口内静默置空，
+        // 直到加速卡过期降级找不到退回目标才暴露，日志里却看不到这一步。
+        logger.warn("Session model selection restored but not bound to the runtime", {
+          event: "session.model_selection.restore_unbound",
+          modelId: selection.modelId,
+          providerId: selection.providerId,
+          sessionId,
+          validationCode: validation.code,
+        });
+      }
       // 只查模型是否存在会把缺档位/已删除的选择重新绑定进 Runtime，
       // 抵消了未绑定初始化。历史恢复不要求可执行模型，只有完整选择可以绑定。
       getRuntime().setSessionModelSelection(validation?.ok ? selection : undefined);
+      cliDefaultSelection?.set(validation?.ok ? selection : undefined);
       // 恢复结果是保存意图，不是执行绑定。过去在这里置空/删档位，Host 的
       // Selection View 就再也拿不到原意图，账号切换和配置恢复后也无法重新解析。
       return selection;
@@ -528,6 +604,16 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           traceContext: resumeTraceContext,
         });
         await runtime.activatePausedTargetAfterResume(resumeTraceContext);
+        // SessionResumed 已清理旧投影；即使声明未变也要重新发布当前准入。
+        try {
+          await mcpPort?.refreshWorkspaceTrustAdmission?.(true);
+        } catch (error) {
+          logger.warn("MCP trust admission publication failed after resume", {
+            event: "mcp.trust.admission.failed",
+            sessionId,
+            errorName: error instanceof Error ? error.name : "UnknownError",
+          });
+        }
         resumePrepared = true;
         return { ...result, modelSelection };
       } finally {
@@ -563,6 +649,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     };
 
     const modelExecutionConfig = createRuntimeAiSdkModelExecutionConfig(options.env, {
+      appVersion,
+      endpointRoutingPort: providerEndpointRoutingPort,
       network: configResult.config.network,
     });
     const modelAdapter =
@@ -600,6 +688,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       mcpPort,
       modelFactory,
       permissionService,
+      pluginSkillRoots: pluginOutcome.skillRoots,
       prepareUserExecutionBoundary,
       getRuntime,
       runtimeConfig,
@@ -639,10 +728,12 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             },
             createActorRuntime: ({
               cwd: actorWorkingDirectory,
+              actor,
               persona,
               pinnedModel,
               runSubagentModel,
               actorModel,
+              subagentPermissionMode,
               sessionId: actorSessionId,
               submitPort,
               submitProfile,
@@ -658,9 +749,12 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                     ...(persona.name === undefined ? {} : { name: persona.name }),
                     ...(persona.system === undefined ? {} : { persona: persona.system }),
                   },
-                  // actor 的工具面是减法（全集减去会悬挂/越权的交互工具），只能经 configOverrides
+                  // actor 的工具面是减法（全集减去 plan 与越权的元工具），只能经 configOverrides
                   // 表达（request.opts.tools 只有 allowlist）。
                   ...workflowActorToolPolicy(),
+                  // 权限面：子代理跑发起会话的权限模式（plan 除外），未记录即 YOLO
+                  // （docs/dynamic-workflow/launch.md「Permissions inside a run」）。
+                  ...workflowActorPermissionPolicy(subagentPermissionMode),
                   // 模型面：`runSubagentModel` 是本 run 自己的选择（`subagent_model`），在场时整条
                   // 覆盖，排在 pin 之上——主代理不受它影响。没有它也没有 pin 就不覆盖——child runtime
                   // 的基线本就是父会话当前模型（工厂的基线，见 script-workflow-child-runtime.ts）。
@@ -671,6 +765,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                     {
                       parentSelection: getRuntime().getSessionModelSelection(),
                       ...(runSubagentModel === undefined ? {} : { runSelection: runSubagentModel }),
+                      // persona 点名的模型（脚本里的 `agent(…, { model })`）排在 run 选择之上。
                       ...(actorModel === undefined ? {} : { actorSelection: actorModel }),
                     },
                     pinnedModel,
@@ -690,6 +785,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                   // 不各自冻结一份。
                   modelFactory,
                   permissionService,
+                  pluginSkillRoots: pluginOutcome.skillRoots,
                   runtime: getRuntime(),
                   runtimeConfig,
                   sessionId,
@@ -701,6 +797,11 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                 // workflowActor 叠加到基座之上。
                 // request 在这里只是工厂签名的占位：opts 为空即「不覆盖任何东西」。
                 request: { opts: {} } as never,
+                // 权限窗的来源徽标点名这个子代理：`<persona 名> (<siteId>@<ordinal>)`。
+                interactionDescription: workflowActorInteractionDescription({ actor, persona }),
+                // 子代理的 Browser Use：父会话的端口，由工厂经 forChildSession 派生子端口（tab 归属是
+                // actor 自己的 sessionId）。actor runtime 在 run dispose 时 closeBrowserSession，
+                // 那一步连 tab 一起关并撤销登记（dynamic-workflow/docs/execution-engine.md「Subagent sessions」）。
                 traceContext,
                 // 子代理的 Browser Use：父会话的端口，由工厂经 forChildSession 派生子端口（tab 归属是
                 // actor 自己的 sessionId）。actor runtime 关闭时连 tab 一起关并撤销登记。
@@ -746,7 +847,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             // run（死进程的遗物）收敛成 failed；兄弟会话的在飞 run 因此绝不会被误伤。
             parentSessionId: sessionId,
             workspaceDirectory,
-            // 在飞的引擎把本会话钉成常驻。
+            // 补全落在没有草稿的 run 上时铸草稿（docs/dynamic-workflow/launch.md「The draft after a
+            // fill」）：内联规则只在工具层有一份实现，这里注入而不是让 run service 复制它。
+            writeWorkflowDraft,
+            // 建 run 那一刻会话的权限模式（记进 run-launched，子代理随之）。
+            // 惰性同 onRunEvent：启动只来自工具调用或 v4 命令，那时 runtime 必已就绪。
+            permissionMode: () => getRuntime().getMode(),
+            // 在飞的引擎把本会话钉成常驻。2026-09-15 的 bug：引擎不进 runtime task registry，
+            // 常驻池把带着在飞 run 的 App 按 idle（10 分钟）关掉，resume 又起了第二个引擎。
             // 惰性取 runtime 同 onRunEvent：run service 是 AgentRuntime 的依赖，构造更早；
             // 而启动只来自工具调用或 v4 命令，那时 runtime 必已就绪。
             registerResidencyBlockingWork: (work) => {
@@ -788,8 +896,46 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           logger,
         });
       },
+      ...(options.readSubagentRuntimeConfig
+        ? {
+            loadAgentDefinitions: async (input) => {
+              const snapshot = await options.readSubagentRuntimeConfig!(input);
+              const parsed = subagentProfilesFromSnapshot(snapshot);
+              const pluginProfiles =
+                snapshot.kind === "built-in-fallback"
+                  ? []
+                  : resolvePluginAgentProfiles(
+                      {
+                        logger,
+                        plugins: pluginOutcome.plugins,
+                        reservedProfileNames: parsed.profiles.map((profile) => profile.name),
+                        modelSelectionOverrides: parsed.pluginAgentModelSelectionOverrides,
+                      },
+                      pluginTemplates,
+                    ).profiles;
+              return {
+                activeAgents: normalizeAgentProfiles(
+                  [
+                    ...(options.runtimeConfig?.subagents?.profiles ?? []),
+                    ...parsed.profiles,
+                    ...pluginProfiles,
+                  ],
+                  {
+                    builtInModelSelectionOverrides: {
+                      ...parsed.builtInModelSelectionOverrides,
+                      ...options.runtimeConfig?.subagents?.builtInModelSelectionOverrides,
+                    },
+                  },
+                ),
+              };
+            },
+          }
+        : {}),
       // 主代理的模型请求过治理器的 observer：立即放行，但让治理器看见它的 429 / 成功。
       modelRequestAdmission: workflowConcurrencyGovernor.observer(),
+      // 主代理的 subagent 不是 observer：和 workflow run 一样排队、看冷却，同一父会话共用一条队列。
+      subagentModelRequestAdmission: (parentSessionId) =>
+        workflowConcurrencyGovernor.sessionSubagents(parentSessionId),
       eventStore: options.eventStore ?? createInMemorySessionEventStore(),
       sessionStore,
       sessionMailboxPort,
@@ -809,6 +955,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         configResult.config.features.skill && configResult.config.skills.enabled
           ? (options.skillPort ??
             createNodeSkillAdapter({
+              additionalDirectories: options.additionalDirectories,
               extraRoots: configResult.config.skills.roots,
               extraResolvedRoots: [...pluginOutcome.skillRoots, ...bundledSkillRoots],
               disabledPaths: [
@@ -835,6 +982,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       dynamicWorkflowSnippetPort,
       modelCatalogPort,
       automationPort: options.automationPort,
+      topicResourcePort: options.topicResourcePort,
       appVersion,
       traceContext,
     });
@@ -850,20 +998,31 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     });
     scheduleStartupLogRetentionCleanup(loggerFactory, logger);
     const inputFacade = createInputFacade({
+      cliDefaultSelection,
       artifactStore,
       customCommandPromptResolver: async (text, resolverOptions) => {
-        const builtinPrompt = resolveZCodeBuiltinPromptCommand(text, {
-          // 动态工作流关闭时内置 `/workflow` 不得展开。目录侧已经把它从 `/` 面板
-          // 剔除，但用户仍可手打命令名，两条路径必须给出同一个结论。TUI 缺席时不设门禁；
-          // headless 按 --enable-workflow 显式取值，见 runtimeConfig 字段注释。
+        const builtin = resolveZCodeBuiltinPromptCommandInvocation(text, {
+          // 动态工作流灰度关闭时内置 `/workflow` 不得展开（DWG-03）。目录侧已经把它从 `/` 面板
+          // 剔除，但用户仍可手打命令名，两条路径必须给出同一个结论。独立 CLI 的 TUI 与 headless
+          // 按 --workflow-mode 显式取值；缺席（进程内嵌入方）不设门禁，见 runtimeConfig 字段注释。
           dynamicWorkflowEnabled: runtimeConfig.dynamicWorkflowEnabled,
-          // `/init` 的 AGENTS.md 目标在工作区根，不能写进会话执行目录。
+          // /init 和命令发现绑定工作区根，执行 cwd 仍交给 runtime。
           workingDirectory: workspaceDirectory,
         });
-        if (builtinPrompt !== undefined) {
-          return builtinPrompt;
+        if (builtin !== undefined) {
+          if (builtin.name === BUILTIN_WORKFLOW_COMMAND_NAME) {
+            // `/workflow` 的展开处就是 onDemand 会话的激活点（launch.md「On demand: activation」）：
+            // 它先于 executeTurn，本轮首个模型请求就带着十个工具。alwaysOn / 已激活会话里是 no-op。
+            // 问的是 runtime 而不是闭包里的 runtimeConfig——构造时 config 被拷贝，闭包看不到翻转。
+            await runtime?.activateDynamicWorkflowTools({
+              source: "command",
+              traceContext: resolverOptions?.traceContext ?? traceContext,
+            });
+          }
+          return builtin.prompt;
         }
         return await resolveZCodeCustomCommandPrompt(text, {
+          additionalDirectories: options.additionalDirectories,
           env: options.env,
           executionPort,
           logger,
@@ -912,12 +1071,46 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       workingDirectory,
       workspaceDirectory,
     });
+    // 额度停止的 run 到点自动续跑（dynamic-workflow-quota-resume.ts）。续跑与 UI 的「恢复」同一条路
+    // （port.resume → 重臂追踪：终态通知、后台任务条目、常驻护栏），外加统一执行边界：冷启动补做时
+    // 会话可能还没从存储恢复。
+    const quotaAutoResume =
+      dynamicWorkflowRunPort === undefined ||
+      dynamicWorkflowJournal === undefined ||
+      typeof dynamicWorkflowRunPort.resume !== "function"
+        ? undefined
+        : startWorkflowQuotaAutoResume({
+            journal: dynamicWorkflowJournal,
+            logger,
+            parentSessionId: sessionId,
+            resume: async (runId) => {
+              await prepareUserExecutionBoundary({ traceContext });
+              const result = await dynamicWorkflowRunPort.resume!(runId);
+              if (result.ok) {
+                await getRuntime().trackResumedDynamicWorkflowRun({
+                  runId: result.runId,
+                  ...(result.toolCallId === undefined ? {} : { toolCallId: result.toolCallId }),
+                  traceContext,
+                });
+              }
+              return result;
+            },
+            subscribeRunSettled: (listener) => dynamicWorkflowRunPort.subscribeRunSettled(listener),
+          });
     const sessionFacade = createSessionFacade({
+      closeScriptWorkflowRuns: () => scriptWorkflowFacade.closeScriptWorkflowRuns(),
+      cliDefaultSelection,
       // App 关闭时停下本会话拥有的 dwf run：
       // 引擎活在本 App 的闭包里，关掉 App 而不停它，journal 行会停在 running 等下一次孤儿收敛。
       ...(dynamicWorkflowRunPort === undefined
         ? {}
-        : { closeDynamicWorkflowRuns: () => dynamicWorkflowRunPort.close() }),
+        : {
+            closeDynamicWorkflowRuns: () => {
+              // 先停自动续跑：关闭中的 service 拒绝 resume，到点的定时器不该再去撞它。
+              quotaAutoResume?.dispose();
+              return dynamicWorkflowRunPort.close();
+            },
+          }),
       configResult,
       configuredMcpServers,
       ...(options.configuredDefaultModelSelection
@@ -1066,6 +1259,8 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       // session 的 coordinator 并重发 admission 状态（详见 types.ts 注释）。
       reloadWorkspaceHookTrust: () =>
         workspaceHookRuntimeSecurity?.reloadTrust() ?? Promise.resolve(),
+      reloadWorkspaceMcpTrust: () =>
+        mcpPort?.refreshWorkspaceTrustAdmission?.() ?? Promise.resolve(),
       readToolResultArtifact: (uri) =>
         artifactStore.readToolResultArtifact({ uri, trace: traceContext }),
       // wire/staging 全程是 decoded chunk；只有完整 checksum commit 后才在
@@ -1193,12 +1388,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               runId: string;
               afterSequence?: number;
               limit?: number;
+              maxBytes?: number;
             }) =>
               dynamicWorkflowRunPort.listEvents(input.runId, {
                 ...(input.afterSequence === undefined
                   ? {}
                   : { afterSequence: input.afterSequence }),
                 ...(input.limit === undefined ? {} : { limit: input.limit }),
+                ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }),
               }),
           }),
       // workflow run 的**用户面产物**读面。三条一起注册、
@@ -1220,12 +1417,16 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               artifactId: string;
               afterSequence?: number;
               limit: number;
+              maxBytes: number;
+              fields?: readonly string[];
             }) =>
               dynamicWorkflowRunPort.listArtifactItems!(input.runId, input.artifactId, {
                 ...(input.afterSequence === undefined
                   ? {}
                   : { afterSequence: input.afterSequence }),
                 limit: input.limit,
+                maxBytes: input.maxBytes,
+                ...(input.fields === undefined ? {} : { fields: input.fields }),
               }),
             readDynamicWorkflowRunArtifact: async (input: {
               runId: string;
@@ -1256,10 +1457,11 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                 { maxBytes: input.maxBytes },
               ),
           }),
-      // workflow run 的会话级生命周期读面（在飞计数 + 结算订阅）。消费者是宿主的 provider registry
-      // 安全边界：子代理共用本会话的 live adapter，在飞 run 期间不能 replace registry。缺席条件同上。
+      // dwf run 的会话级生命周期读面（在飞计数 + 结算订阅）。消费者是宿主的 provider registry
+      // 安全边界：子代理共用本会话的 live adapter，在飞 run 期间 replace registry 会 dispose
+      // 它们绑定的请求资源。缺席条件同上。
       ...(dynamicWorkflowRunPort === undefined ? {} : {}),
-      // workflow run 的枚举面（重启后的发现查询）。能力缺席条件同上；端口的 listRunsForSession
+      // dwf run 的枚举面（重启后的发现查询）。能力缺席条件同上；端口的 listRunsForSession
       // 是可选成员，方法缺席时本能力同样不注册。
       ...(dynamicWorkflowRunPort === undefined ||
       typeof dynamicWorkflowRunPort.listRunsForSession !== "function"

@@ -18,9 +18,10 @@
 //      `executing` / `waiting` 是 driver 的观察：
 //      模型请求真的发出去了 / 在等进程级槽位或退避；两者在 dispatched 之后来回切换。
 //   2. resume 的完结命中短路**直接发 node-settled**，不经 node-queued（ask 在 scheduler.ts 的
-//      releaseCachedAsk / tryImportedSettle，world-read 在 engine-world.ts 的重放与导入命中），
-//      而 `kind` 只在 queued 上携带——所以 node.kind 是可缺省的，不是漏填。
-//   3. run 级用量：`usage-updated` 直接携带已花 token 总量；
+//      releaseCachedAsk / tryImportedSettle，world-read 在 engine-world.ts 的重放与导入命中）。
+//      ask 的那一条重发出生事实（kind / actor / actorSeq / instructionsHead），world-read 的不带，
+//      更早的 journal 里的也不带——所以 node.kind 与 actor ref 是可缺省的，不是漏填。
+//   3. run 级用量（docs/dynamic-workflow/authoring.md）：`usage-updated` 直接携带已花 token 总量；
 //      `nodesUsed` 由 `node-dispatched` 的首次相位跃迁计数（同一实例重放不重复计数），
 //      没有任何上限可供反算，也不需要。
 
@@ -34,6 +35,7 @@ import {
 } from "./workflow-runs.js";
 
 import { serializeWorkflowArtifact } from "./workflow-artifact.js";
+import { actorsWithTranscriptSession } from "./workflow-runs-actor-session.js";
 import { withDerivedWorkflowActorStatuses } from "./workflow-runs-actor-status.js";
 import {
   countTaggedReport,
@@ -63,11 +65,12 @@ import {
   boundedPhaseName,
   nonEmptyString,
   workflowActorEntry,
+  workflowInstanceRef,
 } from "./workflow-runs-entries.js";
 import { canonicalWorkflowRun, workflowRunUnchanged } from "./workflow-runs-delta.js";
-import { reduceHoleFilled, reduceHoleReached, withoutWaitingHoles } from "./workflow-runs-holes.js";
 import { readRunIdField, readWorkflowRunStopReason } from "./workflow-runs-lineage.js";
 import { carryNodeProgress, reduceNodeProgress } from "./workflow-runs-node-progress.js";
+import { reduceHoleFilled, reduceHoleReached, withoutWaitingHoles } from "./workflow-runs-holes.js";
 import { reducePhaseEntered, reduceRunLaunched } from "./workflow-runs-phases.js";
 import { reduceRunStarted } from "./workflow-runs-started.js";
 import { upsertBoundedByInstance, upsertBoundedByQid } from "./workflow-runs-tables.js";
@@ -202,7 +205,8 @@ function applyWorkflowRunEvent(
       // 出生阶段：`actor-created` 是 actor 的出生事件，戳只在这里到，
       // 没有后续事件可以携带或改写它。
       const phaseName = boundedPhaseName(nonEmptyString(payload.phaseName));
-      const actor = workflowActorEntry(ref, payload.name, phaseName, derived.actorSessionId);
+      const { actorSessionId } = derived;
+      const actor = workflowActorEntry(ref, payload.name, phaseName, actorSessionId, payload.model);
       // 表满时给这个活的新人腾位（workflow-runs-eviction.ts）；腾不出位就照旧拒新。
       // 重放的事件既不腾位也不入座（后者只在**溢出过的** run 上收紧，见 admitsNewEntry）。
       const seated = derived.advancesWaterMark ? withRoomForActor(run, ref, derived.limits) : run;
@@ -237,7 +241,8 @@ function applyWorkflowRunEvent(
       const born =
         eventType === "node-queued" || (eventType === "node-settled" && payload.cached === true);
       const actorRef = workflowInstanceRef(payload.actor);
-      // 带出生事实的 `node-dispatched`：引擎在派发那一刻重发这条实例的 `node-queued` 与它子代理的 `actor-created`
+      // 带出生事实的 `node-dispatched`（docs/dynamic-workflow/presentation.md「Reduction」的
+      // activation）：引擎在派发那一刻重发这条实例的 `node-queued` 与它子代理的 `actor-created`
       // 携带过的同一份事实，于是表外的实例可以在**被派活的那一刻**连人带活回到表上。
       // 缺 actor ref 即老 journal 或 world-read 的裸派发，照旧处理。
       const dispatchActor =
@@ -247,6 +252,7 @@ function applyWorkflowRunEvent(
               payload.actorName,
               boundedPhaseName(nonEmptyString(payload.actorPhaseName)),
               derived.actorSessionId,
+              payload.actorModel,
             )
           : null;
       // 腾位、B2 的拒绝与 activation 三件事的唯一入口（workflow-runs-eviction.ts）。
@@ -328,6 +334,14 @@ function applyWorkflowRunEvent(
           : seated;
       return withDerivedWorkflowActorStatuses({
         ...absorbed,
+        // 转录在哪条会话里（workflow-runs-actor-session.ts）：缓存命中的结算与派发各说一次。
+        actors: actorsWithTranscriptSession(
+          absorbed.actors,
+          eventType,
+          payload,
+          actorRef,
+          derived.actorSessionId,
+        ),
         ...(usage === seated.usage ? {} : { usage }),
         nodes: upsertedNodes.list,
         ...(upsertedNodes.truncated || seated.truncated ? { truncated: true } : {}),
@@ -579,15 +593,6 @@ function applyWorkflowRunEvent(
     default:
       return run;
   }
-}
-
-/** 引擎的 `InstanceRef` / `ActorRef` 同构：站点 id × 序号。缺任一即无法定位，返回 null。 */
-function workflowInstanceRef(value: unknown): { siteId: string; ordinal: number } | null {
-  if (!isPlainRecord(value)) return null;
-  const siteId = nonEmptyString(value.siteId);
-  const ordinal = value.ordinal;
-  if (siteId === undefined || typeof ordinal !== "number") return null;
-  return { siteId, ordinal };
 }
 
 /**

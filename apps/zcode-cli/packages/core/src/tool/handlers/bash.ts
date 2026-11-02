@@ -2,32 +2,28 @@
 // Bash Tool Handler
 // ============================================================
 
+import { matchDangerousCommand } from "./guarded/command.js";
 import {
-  BashInputJsonSchema,
   BashInputSchema,
+  BashInputJsonSchema,
   BashOutputJsonSchema,
   BashOutputSchema,
   CoreErrorType,
   SessionEventType,
   createCoreError,
-  type BackgroundExecutionStartResult,
   type BashInput,
   type BashOutput,
+  type BackgroundExecutionStartResult,
   type ExecutionEvent,
   type ExecutionRequest,
   type ExecutionRunOptions,
+  type ExecutionShellSelection,
   type TraceContext,
 } from "@zcode/contracts";
 import {
   shouldInjectEmbeddedSearchBashPrelude,
   supportsEmbeddedSearchShellSelection,
 } from "../../embedded-search/shell.js";
-import {
-  DEFAULT_BASH_TIMEOUT_POLICY,
-  resolveBashTimeoutMs,
-  type BashTimeoutPolicy,
-} from "../bash-timeout-policy.js";
-import { resolveToolWorkingDirectory } from "../path-policy.js";
 import type {
   ToolEntry,
   ToolExecutionContext,
@@ -35,12 +31,9 @@ import type {
   ToolRuntimePermissionCapability,
   ToolRuntimePermissionCapabilityContext,
 } from "../types.js";
-import { supportsBashBackgroundLifecycle } from "./bash-background-lifecycle.js";
-import { isBashAutoBackgroundEligible } from "./bash-background-policy.js";
-import { resolveBashPermissionRulePolicy } from "./bash-command-permission-policy.js";
+import { resolveToolWorkingDirectory } from "../path-policy.js";
 import { decideBashCwdPolicy } from "./bash-cwd-policy.js";
 import { readStringProperty } from "./bash-metadata.js";
-import { formatBashModelContent, formatPersistedBashModelContent } from "./bash-model-content.js";
 import {
   createBashBackgroundPerformance,
   createEmptyBashPerformance,
@@ -49,7 +42,6 @@ import {
 } from "./bash-output.js";
 import { createBashProviderDescription } from "./bash-prompt.js";
 import { applyBashReadFileStateEffects } from "./bash-read-file-state.js";
-import { isRuntimeReadOnlyBashCommand } from "./bash-semantics.js";
 import { attachToolExecutionPerformance } from "./tool-perf.js";
 export {
   getBashActivityDescription,
@@ -58,6 +50,28 @@ export {
   getBashToolUseSummary,
   getBashUserFacingName,
 } from "./bash-metadata.js";
+import {
+  formatBashModelContent,
+  formatPersistedBashModelContent,
+  isBashModelContentBounded,
+} from "./bash-model-content.js";
+
+/** session shell selection 尚未初始化时 guarded matcher 采用的文法；与 readonly 判定的假设一致。 */
+const GUARDED_DEFAULT_DIALECT: ExecutionShellSelection["dialect"] = "posix";
+import {
+  prepareBashPermissionMatcherForCommand,
+  isBashReadOnlyCommand,
+  isRuntimeReadOnlyBashCommand,
+  type BashPermissionMatcher,
+} from "./bash-semantics.js";
+import { isBashAutoBackgroundEligible } from "./bash-background-policy.js";
+import { supportsBashBackgroundLifecycle } from "./bash-background-lifecycle.js";
+import { resolveBashPermissionRulePolicy } from "./bash-command-permission-policy.js";
+import {
+  DEFAULT_BASH_TIMEOUT_POLICY,
+  resolveBashTimeoutMs,
+  type BashTimeoutPolicy,
+} from "../bash-timeout-policy.js";
 
 const MAX_INLINE_OUTPUT_BYTES = 30_000;
 const MAX_RUNTIME_PERSISTED_OUTPUT_BYTES = 5 * 1024 * 1024 * 1024;
@@ -66,11 +80,47 @@ const BASH_PROVIDER_DESCRIPTION = createBashProviderDescription({
   maxTimeoutMs: DEFAULT_BASH_TIMEOUT_POLICY.maxTimeoutMs,
 });
 
-function resolveBashPermissionCapability(
+export function getBashPrompt(
+  timeoutPolicy: BashTimeoutPolicy = DEFAULT_BASH_TIMEOUT_POLICY,
+): string {
+  return createBashProviderDescription({
+    defaultTimeoutMs: timeoutPolicy.defaultTimeoutMs,
+    maxTimeoutMs: timeoutPolicy.maxTimeoutMs,
+  });
+}
+
+export function isBashInputReadOnly(input: unknown): boolean {
+  const command = readStringProperty(input, "command");
+  return command ? isBashReadOnlyCommand(command) : false;
+}
+
+export function isBashInputConcurrencySafe(input: unknown): boolean {
+  return isBashInputReadOnly(input);
+}
+
+export function checkBashInputPermissions(input: unknown): { behavior: "allow" } | undefined {
+  return resolveBashPermissionCapability(input) ? { behavior: "allow" } : undefined;
+}
+
+export function prepareBashPermissionMatcher(input: unknown): BashPermissionMatcher | undefined {
+  const command = readStringProperty(input, "command");
+  return command === undefined ? undefined : prepareBashPermissionMatcherForCommand(command);
+}
+
+export function resolveBashPermissionCapability(
   input: unknown,
   context?: ToolRuntimePermissionCapabilityContext,
 ): ToolRuntimePermissionCapability | undefined {
   const command = readStringProperty(input, "command");
+  if (command && context?.mode === "guarded") {
+    // selection 缺失是基础设施状态而非语法边界；与下方 isRuntimeReadOnlyBashCommand 一致按 POSIX
+    // 文法匹配，避免 guarded 在 selection 尚未初始化时静默退回 YOLO。显式 legacy-shell 仍 unsupported。
+    const match = matchDangerousCommand(
+      command,
+      context.bashShellSelection?.dialect ?? GUARDED_DEFAULT_DIALECT,
+    );
+    if (match.status === "matched") return { userApprovalRule: match.ruleId };
+  }
   if (!command || !isRuntimeReadOnlyBashCommand(command, context)) return undefined;
   return {
     destructive: false,
@@ -86,7 +136,7 @@ function resolveBashPermissionCapability(
   };
 }
 
-const bashHandler: ToolHandler = (input, context) =>
+export const bashHandler: ToolHandler = (input, context) =>
   executeBashHandler(input, context, DEFAULT_BASH_TIMEOUT_POLICY);
 
 function createBashHandler(timeoutPolicy: BashTimeoutPolicy): ToolHandler {
@@ -161,7 +211,10 @@ async function executeBashHandler(
   const runResult = await runCommand();
 
   if (runResult.kind === "backgrounded") {
-    return toBackgroundedBashOutput(runResult.task, parsed);
+    // auto_on_timeout 只在超时计时器到点时转后台，所以这里记录的就是触发转后台的超时。
+    const timedOutAfterMs =
+      !parsed.run_in_background && eligibleForAutoBackground ? request.timeoutMs : undefined;
+    return toBackgroundedBashOutput(runResult.task, parsed, timedOutAfterMs);
   }
 
   const result = runResult.result;
@@ -208,6 +261,7 @@ function emptyBashOutput(input: BashInput): BashOutput {
 function toBackgroundedBashOutput(
   task: BackgroundExecutionStartResult,
   input: BashInput,
+  timedOutAfterMs: number | undefined,
 ): BashOutput {
   return attachToolExecutionPerformance(
     {
@@ -216,6 +270,7 @@ function toBackgroundedBashOutput(
       interrupted: false,
       status: "backgrounded",
       backgroundTaskId: task.taskId,
+      ...(timedOutAfterMs !== undefined && timedOutAfterMs > 0 ? { timedOutAfterMs } : {}),
       rawOutputPath: task.outputPath,
       persistedOutputPath: task.outputPath,
       stdoutPersistedOutputPath: task.stdoutPersistedOutputPath,
@@ -349,6 +404,8 @@ export const bashToolEntry: ToolEntry = {
   },
   formatModelContent: formatBashModelContent,
   formatPersistedModelContent: formatPersistedBashModelContent,
+  // 失败正文已按字符保留头尾，不再按字节预算落盘。
+  isModelContentBounded: isBashModelContentBounded,
   handler: bashHandler,
   resolveTimeoutBudgetMs: createBashTimeoutBudgetResolver(DEFAULT_BASH_TIMEOUT_POLICY),
   resolvePermissionCapability: resolveBashPermissionCapability,
@@ -452,7 +509,7 @@ function createBashInputJsonSchema(timeoutPolicy: BashTimeoutPolicy): Record<str
       ...properties,
       timeout: {
         ...timeoutProperty,
-        description: `Optional timeout in milliseconds (max ${timeoutPolicy.maxTimeoutMs})`,
+        description: `Optional timeout in milliseconds (max ${timeoutPolicy.maxTimeoutMs} for a foreground command)`,
       },
     },
   };

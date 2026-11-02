@@ -13,13 +13,18 @@ import {
   type ModelReference,
   collectWorldRunCommands,
   createWorkflowProgram,
-  deriveActorSubmitProfilesFor,
+  collectPhaseNames,
+  collectSitePhases,
+  deriveActorSubmitProfiles,
+  interpret,
+  projectControlFlow,
   lowerWorkflow,
   synthesizeAskSchemas,
   type CompileDiagnostic,
   type SiteTable,
   type WorkflowProgram,
 } from "@zcode/dynamic-workflow";
+import { projectSiteGraph } from "@zcode/dynamic-workflow/projections";
 import { compiledHolesOf } from "./dynamic-workflow-run-holes.js";
 import type { CompiledDynamicWorkflowScript } from "./dynamic-workflow-run-launch.js";
 
@@ -99,13 +104,16 @@ export function compileProgram(
   // 用 schemas 的键去构造会让 untyped 站点整个缺席，而引擎把缺席当接线错误硬失败。
   const askSpecs = buildAskSpecs(table, schemas);
   const lowered = lowerWorkflow(workflow, table);
+  // 合并丢失了阶段投影；同一个解释 core 保证提交与补全读取相同的出生事实。
+  const core = interpret(workflow, table);
 
   return {
     modelReferences: models.references,
     askSpecs,
     // 每个 actor 站点的 submit profile：在**同一个** Program 上做解释 + 站点图投影仍是「编译一次」。
-    actorSubmitProfiles: deriveActorSubmitProfilesFor(workflow, table, askSpecs),
-    declaredRunCommands: new Set(worldRun.commands),
+    actorSubmitProfiles: deriveActorSubmitProfiles(projectSiteGraph(core), askSpecs),
+    sitePhases: collectSitePhases(core),
+    phases: collectPhaseNames(projectControlFlow(core)),
     lowered: lowered.code,
     // 留白：已补全留白的函数体文本是补全交给引擎的 `code`——与脚本其余部分同一次 lowering 产出，
     // 现补与日后重放执行的是逐字节相同的文本；留白的编译期事实表供快照与进度载荷读。

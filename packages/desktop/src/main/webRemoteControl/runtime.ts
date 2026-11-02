@@ -3,6 +3,7 @@ import type {
   WebRemoteControlFailure,
   WebRemoteControlMobileDeviceInfo,
   WebRemoteControlMobileViewState,
+  WebRemoteControlMobileTaskView,
   WebRemoteControlRpcTransportFrame,
   WebRemoteControlStatusSnapshot,
   WebRemoteControlStatusState,
@@ -20,6 +21,9 @@ export interface WebRemoteControlRuntime {
   /** 移动端最近回传的视图态；桌面只存不解释。 */
   mobileViewState?: WebRemoteControlMobileViewState;
   mobileDeviceInfo?: WebRemoteControlMobileDeviceInfo;
+  mobileTaskView?: WebRemoteControlMobileTaskView & { remoteSessionId?: string };
+  mobileTaskViewEpoch?: string;
+  mobileTaskViewSeq?: number;
   status: WebRemoteControlStatusState;
   /** 桌面 app 版本，随 bootstrap-response 下发给移动端。 */
   desktopAppVersion: string;
@@ -46,6 +50,7 @@ export interface WebRemoteControlRuntime {
 
 export interface WebRemoteControlBridgeState {
   bridgeSessionId: string;
+  bridgeGeneration?: number;
   workspaceKey: string;
   attachmentId: string;
   /** RPC 帧契约的唯一定义在 shared（含分片字段），这里不再复制一份字段表。 */
@@ -64,6 +69,9 @@ export function buildStatusSnapshot(
     sessionId: runtime.deviceSid,
     windowControlSessionId: runtime.deviceSid,
     mobileConnected: runtime.mobileConnected,
+    mobileViewState: runtime.mobileViewState,
+    mobileTaskView: runtime.mobileTaskView,
+    mobileDeviceInfo: runtime.mobileDeviceInfo,
     qrUrl: statusQrUrl(runtime),
     connectUrl: statusQrUrl(runtime),
     workspacePath: runtime.workspacePath,

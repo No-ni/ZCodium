@@ -54,6 +54,13 @@ export interface InternalExecutionRunOptions extends ExecutionRunOptions {
   shouldRetainExecutionAfterRootExit?: () => boolean;
 }
 
+export interface PreparedBashOutput {
+  file: BashFileOutput;
+  legacyOutputEncoding: string | null;
+  /** 准备与执行交接期间仍由 close() 等待，执行接管后释放准备记录。 */
+  releasePreparation: () => void;
+}
+
 export type BashBackgroundLifecycleMode = "explicit" | "auto_on_timeout";
 
 export type BashBackgroundLifecycleResult =
@@ -82,6 +89,7 @@ export interface ActiveExecutionRecord {
 export interface NodeExecutionAdapterOptions {
   onToolExecResource?: (sample: ZCodeToolExecResource) => void;
   outputRootDir?: string;
+  /** 仅 Bash 输出优先使用的临时父目录；不可用时复用 outputRootDir。 */
   bashOutputTempDir?: string;
   maxPersistedOutputBytes?: number;
   network?: NetworkEgressEnvPolicy;

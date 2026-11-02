@@ -87,6 +87,7 @@ export function decodeAnalysisCore(json: AnalysisCoreJson): AnalysisCore {
       returnData: json.facts.returnData,
       worldReadData: new Map(json.facts.worldReadData),
     },
+    // 留白站点表同样是后加的键：老样例包按「没有留白」解码。
     sites: { ...json.sites, holes: json.sites.holes ?? [] },
     trace: json.trace,
     types: {

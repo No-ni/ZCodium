@@ -2,16 +2,19 @@ import { safeLogArgs } from "@zcode/shared";
 import { spawn, execFile, type ChildProcess } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import type { DockerConnectOptions } from "@zcode/shared";
+import type { DockerConnectOptions, PublicZCodeErrorCode } from "@zcode/shared";
 import type {
   IRemoteBackend,
   RemoteEnvironment,
   RemoteUploadOptions,
   StdioStream,
 } from "@zcode/server/remote/backend.js";
-import { createCloseEventController } from "@zcode/server/remote/closeEvent.js";
 import {
-  isDockerAvailable,
+  createCloseEventController,
+  resolveRemoteExitCode,
+} from "@zcode/server/remote/closeEvent.js";
+import {
+  probeDockerDaemon,
   listDockerContainers,
   resolveDockerCommand,
   type DockerContainerInfo,
@@ -21,11 +24,16 @@ import {
   normalizeRemotePlatform,
   resolveRemotePlatform,
 } from "@zcode/server/remote/detectEnv.js";
-
-interface ResolvedDockerInfo {
-  containerName: string;
-  homeDir: string;
-}
+import {
+  buildDockerExecArgs,
+  dirname,
+  normalizeDockerOutput,
+  quotePosixShellArg,
+  resolveLinuxPath,
+  selectRunningDockerContainer,
+  type OwnedExecChild,
+  type ResolvedDockerInfo,
+} from "@zcode/server/remote/dockerBackendArgs.js";
 
 const DOCKER_EXEC_MAX_BUFFER = 8 * 1024 * 1024;
 const DOCKER_UPLOAD_MAX_STDERR_LENGTH = 2_048;
@@ -33,28 +41,10 @@ const DOCKER_UPLOAD_MAX_STDERR_LENGTH = 2_048;
 const DOCKER_DISPOSE_GRACE_TIMEOUT_MS = 300;
 const DOCKER_DISPOSE_KILL_WAIT_TIMEOUT_MS = 250;
 
-/** 本 backend 自己 spawn 的 exec 子进程所有权条目；closed 在 exit/close/可摘除 error 时收敛。 */
-interface OwnedExecChild {
-  child: ChildProcess;
-  closed: Promise<void>;
-  resolveClosed(): void;
-}
-
-function quotePosixShellArg(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
-function normalizeDockerOutput(raw: string): string {
-  return raw.replace(/\r/g, "");
-}
-
-function buildDockerExecArgs(containerName: string, commandArgs: string[]): string[] {
-  return ["exec", "-i", containerName, ...commandArgs];
-}
-
 export class DockerBackend implements IRemoteBackend {
   private readonly dockerCommand = resolveDockerCommand();
   private readonly options: DockerConnectOptions;
+  private availabilityPromise: Promise<void> | null = null;
   private resolvedInfoPromise: Promise<ResolvedDockerInfo> | null = null;
   // exec() 产物（含 upload 的 cat 管道与 connectRemote 的常驻远端 server）的所有权登记表；
   // 一次性 execFile 命令自行退出，不纳入。详见 docs/specs/docker-backend-process-lifecycle.md。
@@ -98,8 +88,8 @@ export class DockerBackend implements IRemoteBackend {
   ): Promise<void> {
     await this.ensureAvailable();
     const resolvedInfo = await this.resolveInfo();
-    const resolvedRemotePath = this.resolveLinuxPath(remotePath, resolvedInfo.homeDir);
-    const parentDir = this.dirname(resolvedRemotePath);
+    const resolvedRemotePath = resolveLinuxPath(remotePath, resolvedInfo.homeDir);
+    const parentDir = dirname(resolvedRemotePath);
 
     // 上传流不会帮我们创建父目录。
     // 如果直接写入 `~/.zcodium/server/...` 这类首次连接路径，上传会因为目录不存在而失败。
@@ -191,11 +181,17 @@ export class DockerBackend implements IRemoteBackend {
     const resolvedInfo = await this.resolveInfo();
     // dispose 可能在 await 期间到达；此刻再 spawn 会绕过关闭期，创建第二个无人回收的常驻进程。
     this.assertNotDisposed();
+    // Bug 原因：`docker exec` 本身接受名称、完整 ID 和 ID 前缀，也会权威报告 daemon/
+    // container 状态。旧实现却在每条命令前先跑 `docker version`，首次再跑两次 `docker ps`
+    // 和一次 home 探测；冷启动 Source 的单 round-trip probe 因而被放大成五条 CLI 命令。
+    // 纯 exec 不解析远端路径，直接使用用户已确认的 container ref；需要 `~` 展开为本地
+    // 路径的 read/upload 仍走 resolveInfo 的严格校验。
+    const containerRef = this.options.container.trim();
 
     return new Promise((resolve, reject) => {
       const child = spawn(
         this.dockerCommand,
-        buildDockerExecArgs(resolvedInfo.containerName, ["sh", "-lc", command]),
+        buildDockerExecArgs(containerRef, ["sh", "-lc", command]),
         {
           stdio: "pipe",
           windowsHide: true,
@@ -224,11 +220,12 @@ export class DockerBackend implements IRemoteBackend {
           onClose.fire(code);
         };
 
-        child.on("exit", (code) => {
-          fireOnce(code ?? 0);
+        // 被信号终止时 code 为 null，不能当作成功，见 resolveRemoteExitCode。
+        child.on("exit", (code, signal) => {
+          fireOnce(resolveRemoteExitCode(code, signal));
         });
-        child.on("close", (code) => {
-          fireOnce(code ?? 0);
+        child.on("close", (code, signal) => {
+          fireOnce(resolveRemoteExitCode(code, signal));
         });
 
         resolve({
@@ -244,7 +241,7 @@ export class DockerBackend implements IRemoteBackend {
   async exists(remotePath: string): Promise<boolean> {
     try {
       const resolvedInfo = await this.resolveInfo();
-      const resolvedRemotePath = this.resolveLinuxPath(remotePath, resolvedInfo.homeDir);
+      const resolvedRemotePath = resolveLinuxPath(remotePath, resolvedInfo.homeDir);
       await this.execSimple(`test -f ${quotePosixShellArg(resolvedRemotePath)} && printf OK`);
       return true;
     } catch {
@@ -253,8 +250,21 @@ export class DockerBackend implements IRemoteBackend {
   }
 
   async readFile(remotePath: string): Promise<string> {
+    if (remotePath === "~" || remotePath.startsWith("~/")) {
+      // Source ingress token 等内部文件本来就以 home 相对路径表达；shell 在容器内能权威
+      // 展开 `$HOME`，无需先用 docker ps + docker exec 解析同一个 container/home。
+      const shellPath =
+        remotePath === "~" ? '"$HOME"' : `"$HOME"/${quotePosixShellArg(remotePath.slice(2))}`;
+      return normalizeDockerOutput(
+        await this.execDirectInContainer(this.options.container.trim(), [
+          "sh",
+          "-lc",
+          `cat ${shellPath}`,
+        ]),
+      );
+    }
     const resolvedInfo = await this.resolveInfo();
-    const resolvedRemotePath = this.resolveLinuxPath(remotePath, resolvedInfo.homeDir);
+    const resolvedRemotePath = resolveLinuxPath(remotePath, resolvedInfo.homeDir);
     return normalizeDockerOutput(
       await this.execSimple(`cat ${quotePosixShellArg(resolvedRemotePath)}`),
     );
@@ -374,11 +384,37 @@ export class DockerBackend implements IRemoteBackend {
     });
   }
 
+  async diagnoseExecFailure(): Promise<void> {
+    // exec 为了冷启动预算不预跑 daemon 探测（见 exec 注释），所以只在命令失败后探测一次。
+    // 丢弃之前成功的结果：daemon 可能在那之后停止，旧缓存会把这次失败误判成命令自身失败。
+    this.availabilityPromise = null;
+    await this.ensureAvailable();
+  }
+
   private async ensureAvailable(): Promise<void> {
-    const available = await isDockerAvailable();
-    if (!available) {
-      throw new Error("当前系统未检测到可用的 Docker 环境");
+    if (!this.availabilityPromise) {
+      // Bug 原因：Source probe 内的每条 Docker exec 都重复执行 `docker version`；首次解析
+      // container/home 又重复 `docker ps`。应用冷启动峰值下，四五个 CLI round-trip 会让
+      // 单个本地 Docker Source 在真正 probe 前就耗尽 10 秒预算。Backend 生命周期内只需
+      // 探测一次 daemon；失败清空 promise，后续显式重试仍可重新检测。
+      this.availabilityPromise = probeDockerDaemon().catch((error: unknown) => {
+        this.availabilityPromise = null;
+        // Bug 原因：旧逻辑经 isDockerAvailable 只拿到 false，连接错误只剩“未检测到可用的
+        // Docker 环境”，无法区分 docker 未安装、daemon 未启动与 socket 权限不足。这里保留
+        // docker CLI 原因供详细信息与日志使用；显式标为未分类，避免原因里的 “permission
+        // denied” 等文本被归一化成“没有容器写入权限”这类不相符的分类。
+        const detail = error instanceof Error ? error.message.trim() : String(error);
+        throw Object.assign(
+          new Error(
+            detail
+              ? `当前系统未检测到可用的 Docker 环境：${detail}`
+              : "当前系统未检测到可用的 Docker 环境",
+          ),
+          { code: "remote-connection-unknown" satisfies PublicZCodeErrorCode },
+        );
+      });
     }
+    await this.availabilityPromise;
   }
 
   private async resolveInfo(): Promise<ResolvedDockerInfo> {
@@ -389,7 +425,7 @@ export class DockerBackend implements IRemoteBackend {
     this.resolvedInfoPromise = (async () => {
       const container = await this.resolveContainer();
       const homeDir = normalizeDockerOutput(
-        await this.execDirect(["sh", "-lc", "printf %s ~"]),
+        await this.execDirectInContainer(container.name, ["sh", "-lc", "printf %s ~"]),
       ).trim();
 
       return {
@@ -403,46 +439,7 @@ export class DockerBackend implements IRemoteBackend {
 
   private async resolveContainer(): Promise<DockerContainerInfo> {
     const containers = await listDockerContainers({ all: true });
-    const matched = containers.find(
-      (container) =>
-        container.name === this.options.container ||
-        container.id === this.options.container ||
-        container.id.startsWith(this.options.container),
-    );
-
-    if (!matched) {
-      throw new Error(`未找到名为 ${this.options.container} 的 Docker 容器`);
-    }
-
-    if (matched.state.toLowerCase() !== "running") {
-      throw new Error(
-        `Docker 容器 ${matched.name} 当前未运行（state=${matched.state || "unknown"}）`,
-      );
-    }
-
-    return matched;
-  }
-
-  private resolveLinuxPath(remotePath: string, homeDir: string): string {
-    if (remotePath === "~") {
-      return homeDir;
-    }
-
-    if (remotePath.startsWith("~/")) {
-      return `${homeDir.replace(/\/$/, "")}/${remotePath.slice(2)}`;
-    }
-
-    return remotePath;
-  }
-
-  private dirname(remotePath: string): string {
-    const normalized = remotePath.replace(/\/+/g, "/");
-    const lastSlash = normalized.lastIndexOf("/");
-    if (lastSlash <= 0) {
-      return "/";
-    }
-
-    return normalized.slice(0, lastSlash);
+    return selectRunningDockerContainer(containers, this.options.container);
   }
 
   private async execSimple(command: string): Promise<string> {
@@ -463,10 +460,17 @@ export class DockerBackend implements IRemoteBackend {
 
   private async execDirect(commandArgs: string[]): Promise<string> {
     const container = await this.resolveContainer();
+    return await this.execDirectInContainer(container.name, commandArgs);
+  }
+
+  private async execDirectInContainer(
+    containerName: string,
+    commandArgs: string[],
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       execFile(
         this.dockerCommand,
-        buildDockerExecArgs(container.name, commandArgs),
+        buildDockerExecArgs(containerName, commandArgs),
         {
           encoding: "utf8",
           maxBuffer: DOCKER_EXEC_MAX_BUFFER,

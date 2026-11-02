@@ -52,12 +52,17 @@ export function withImplicitPhase(graph: WorkflowCausalityGraphData): WorkflowCa
   };
 }
 
-/** 一个阶段的参与者，保持载荷顺序；主代理的开放留白由留白站展示。 */
+/**
+ * 一个阶段的参与者，保持载荷顺序（= 交接序）。主代理的车道（`main`）不算：它唯一的一步是开着的留白，
+ * 而留白自己是一站（presentation.md「Pills」）。
+ *
+ * 修复原因（2026-09-29 testfield 实测）：分析器把开着的留白放在含 `hole()` 调用的阶段里、并为它发一个
+ * `main` 车道的参与者；这里原样交出去，时间线就把它画成一个没名字的子代理，那一站多一枚「未命名子代理」。
+ */
 export function participantsOfPhase(
   graph: WorkflowCausalityGraphData,
   phaseId: string,
 ): WorkflowParticipantData[] {
-  // 分析器会为开放留白产生 main 参与者；原样展示会多出一张“未命名子代理”卡。
   return graph.participants.filter(
     (participant) => participant.phase === phaseId && participant.lane !== MAIN_LANE_ID,
   );
@@ -103,7 +108,7 @@ export function participantCounts(
   let reads = 0;
   for (const id of participant.steps) {
     const kind = kinds.get(id);
-    // 留白尚未有可运行代码，不能把其站点计为 ask。
+    // 留白自己的站点（kind `hole`）不是 ask：那里还没有代码。
     if (kind === "hole") continue;
     if (kind === "world-read") reads += 1;
     else asks += 1;
@@ -337,8 +342,9 @@ interface RunIndex {
 }
 
 /**
- * 一次视图建一遍的两张索引。没有它们，每张实例卡都要重扫一遍 `run.nodes` 才能收自己的状态——表界是 1024
- * 个实例 × 1024 个节点，也就是每帧一百万次比较。
+ * 一次视图建一遍的两张索引（docs/dynamic-workflow/presentation.md「The timeline model」的
+ * Cost 段）。没有它们，每张实例卡都要重扫一遍 `run.nodes` 才能收自己的状态——表界是 1024
+ * 个实例 × 1024 个节点，也就是每帧一百万次比较（实测 14ms/次，而卡与详情页各建一遍）。
  * 索引之后建模按 actors + nodes 线性。
  *
  * 没有 actor 的节点（world-read）与不带 ordinal 的旧载荷不进索引：原来的筛选条件

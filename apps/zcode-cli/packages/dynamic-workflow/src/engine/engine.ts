@@ -21,15 +21,15 @@
 import { ImportedWorldQueue, matchImportedActor } from "./imported-cache.js";
 import type { ArtifactContentOp, ArtifactPresetOp } from "../facade/registry.js";
 import { AskScheduler, type SchedulerHost } from "./scheduler.js";
-import type { ArtifactIdState, EngineState, RunSettlement } from "./engine-state.js";
+import type { ArtifactIdState, EngineState, ReportTally, RunSettlement } from "./engine-state.js";
 import {
   declarePresetArtifact,
   publishContentArtifact,
-  rememberArtifactRow,
 } from "./engine-artifacts.js";
 import { publishReport } from "./engine-report.js";
 import { closeImportCache, readWorld, recoverImportClosure } from "./engine-world.js";
-import { recoverSettleOrder, ReplaySettleOrder } from "./replay-order.js";
+import { restoreFromJournal } from "./engine-resume.js";
+import { ReplaySettleOrder } from "./replay-order.js";
 import { settleCompleted, settleFailed, settleStopped } from "./engine-settlement.js";
 import type {
   ActorId,
@@ -144,9 +144,9 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
    * kind:"report" 的行数恢复——上限是 run 级的，跨 resume 必须连续计数，否则一个反复
    * resume 的 run 可以无限报告。
    */
-  private reportCount = 0;
+  private reportTally: ReportTally = { count: 0, bytes: 0 };
   /**
-   * 本 run 每个**用户面产物** id 的状态。与 `reportCount`
+   * 本 run 每个**用户面产物** id 的状态。与 `reportTally`
    * 同一条恢复法：resume 时从 journal 的 `kind: "artifact"` 行重建，此后在内存里维护——
    * 上限（32 个 id / 每 id 16 版）与版本号都是 run 级的事实，跨 resume 必须连续，否则一个
    * 反复 resume 的 run 可以无限发布。
@@ -196,9 +196,9 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
       holdForReplay: (instance, release) => {
         this.replaySettleOrder.hold(instance, release);
       },
-      reportCount: () => this.reportCount,
-      countReport: () => {
-        this.reportCount++;
+      reportTally: () => this.reportTally,
+      countReport: (bytes) => {
+        this.reportTally = { count: this.reportTally.count + 1, bytes: this.reportTally.bytes + bytes };
       },
       importClosed: () => this.importClosed,
       closeImport: () => {
@@ -291,19 +291,10 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
           { mismatch: { expected: existing.scriptHash, got: config.scriptHash } },
         );
       }
-      // resume：结算次序按本 run 自己的事件恢复（本闸是 replay 正确性的一部分，不是观察面：
-      // 站点序号依调用到达顺序，而扇出的到达顺序只有首生的结算次序能复现）。节点行只读一次，
-      // 下面的报告计数与产物恢复共用它。
-      const nodes = this.journal.listNodes(this.runId);
-      this.replaySettleOrder = recoverSettleOrder(this.journal, this.runId, nodes);
-      // 报告计数按 journal 里 kind:"report" 的行数恢复；用量从记录恢复（跨生命周期连续）。
-      this.reportCount = nodes.filter((n) => n.kind === "report").length;
-      // 产物状态与 reportCount 同席恢复：id 归属（种类、预置 spec）与已成功版本数全部由
-      // journal 行派生，所以崩溃恢复后第 3 版仍然是第 3 版，而不是从 1 重新数起。
-      for (const node of nodes) {
-        if (node.kind !== "artifact" || node.status !== "completed") continue;
-        rememberArtifactRow(this.state, node.artifactId, node.result);
-      }
+      // 合并曾沿用全表正文恢复和单计数器；按新版 journal 读面恢复同一 owner 的有界状态。
+      const restored = restoreFromJournal(this.state, this.scheduler);
+      this.replaySettleOrder = restored.replaySettleOrder;
+      this.reportTally = restored.reportTally;
       this.spentTokens = existing.spentTokens;
       // 修订 run 的崩溃恢复：导入表被整表重建，而「门是否已关」不落库——从事件精确恢复。
       if (this.importedCache !== undefined) {

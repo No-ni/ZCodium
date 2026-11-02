@@ -1,12 +1,14 @@
 import type { ConnectionProfile } from "@zcode/shared";
 import type {
   connectSourceServerTransport,
+  executeSourceServerCommand,
   SourceServerTransport,
 } from "@zcode/server/source-server";
 import type { connectSourceServerRpc, SourceServerRpcConnection } from "./sourceServerRpc.js";
 import type { SourceServerDirectory } from "./sourceServerDirectory.js";
 
 export interface OnlineSource {
+  generation: number;
   profile: ConnectionProfile;
   transport: SourceServerTransport;
   connection: SourceServerRpcConnection;
@@ -39,4 +41,6 @@ export interface ManagerOptions {
   connectTransport?: typeof connectSourceServerTransport;
   connectRpc?: typeof connectSourceServerRpc;
   beforePublish?: (source: OnlineSource) => Promise<void>;
+  executeCommand?: typeof executeSourceServerCommand;
+  beforeLifecycle?: (sourceServerId: string, signal: AbortSignal) => Promise<void>;
 }

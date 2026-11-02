@@ -17,6 +17,19 @@
 import type { FillHoleResult, HoleFill, OpenHole } from "@zcode/dynamic-workflow";
 import type { RunControlBinding } from "@zcode/dynamic-workflow-runtime";
 import type { WorkflowRunSeatGate } from "./workflow-seat-gate.js";
+import type { WorkflowConcurrencyPort } from "./workflow-concurrency-governor.js";
+
+/** 引擎接受 retune 后，同一次控制命令同步座位与治理器的 run 上界。 */
+export function runBoundTarget(
+  seatGate: Pick<WorkflowRunSeatGate, "setLimit">,
+  concurrency: Pick<WorkflowConcurrencyPort, "setRunBound"> | undefined,
+  runId: string,
+): Pick<WorkflowRunSeatGate, "setLimit"> {
+  return { setLimit: limit => {
+    seatGate.setLimit(limit);
+    concurrency?.setRunBound(runId, limit);
+  }};
+}
 
 export interface WorkflowRunControl extends RunControlBinding {
   /**

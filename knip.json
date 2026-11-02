@@ -13,7 +13,10 @@
       ]
     },
     "packages/desktop": {
+      "webdriver-io": false,
       "entry": [
+        "wdio.conf.ts",
+        "test/e2e/**/*.test.ts",
         "electron-builder.config.js",
         "scripts/sign-windows-hook.cjs",
         "src/renderer/*.html",

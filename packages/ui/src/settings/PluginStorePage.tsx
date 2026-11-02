@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- 插件商店容器统一编排列表/详情、市场源对话框、卸载确认、试用跳转与技能刷新收尾，集中维护保证交互一致。 */
-import { PluginAddMenu } from "@/settings/PluginAddMenu.js";
+import { PluginAddMenu } from "@/conversation-workspace-target/PluginAddMenu.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Settings } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -8,7 +8,6 @@ import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { usePluginStoreOrder } from "@/hooks/usePluginStoreOrder.js";
-import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
@@ -47,7 +46,6 @@ interface PluginStorePageProps {
   workspacePath?: string | null;
   workspaceIdentity?: string;
   onCreateTask?: (request?: CreateTaskRequest) => void;
-  onManageInstalled: () => void;
 }
 
 type PluginStoreView = "store" | "detail";
@@ -56,16 +54,10 @@ export function PluginStorePage({
   workspacePath,
   workspaceIdentity,
   onCreateTask,
-  onManageInstalled,
 }: PluginStorePageProps) {
   const { intl, locale } = useZCodeIntl();
   const { order: storeOrder, refresh: refreshStoreOrder } = usePluginStoreOrder();
   const { pluginManagementService, skillsService } = useServices();
-  const zcodeSessionService = useZCodeSessionService(
-    workspacePath ?? undefined,
-    undefined,
-    workspaceIdentity,
-  );
   const plugins = usePluginManagementStore((state) => state.plugins);
   const pluginDiagnostics = usePluginManagementStore((state) => state.diagnostics);
   const marketplaces = usePluginManagementStore((state) => state.marketplaces);
@@ -79,7 +71,8 @@ export function PluginStorePage({
   const loadedWorkspacePath = usePluginManagementStore((state) => state.workspacePath);
   const loadedWorkspaceIdentity = usePluginManagementStore((state) => state.workspaceIdentity);
   const error = usePluginManagementStore((state) => state.error);
-  const operationId = usePluginManagementStore((state) => state.operationId);
+  // 在途操作是条目数组而非单值：每次 store 调用持有独立条目，UI 只按 operation.id 匹配目标。
+  const activeOperations = usePluginManagementStore((state) => state.activeOperations);
   const describeCache = usePluginManagementStore((state) => state.describeCache);
   const initialize = usePluginManagementStore((state) => state.initialize);
   const updateMarketplace = usePluginManagementStore((state) => state.updateMarketplace);
@@ -237,7 +230,6 @@ export function PluginStorePage({
   // 避免会话里残留悬挂或旧版本能力。
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      zcodeSessionService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-plugin-enabled",
@@ -247,13 +239,13 @@ export function PluginStorePage({
       workspaceIdentity: normalizedWorkspaceIdentity,
       skillsService,
     });
-  }, [normalizedWorkspaceIdentity, skillsService, workspacePath, zcodeSessionService]);
+  }, [normalizedWorkspaceIdentity, skillsService, workspacePath]);
 
   const uninstall = usePluginUninstall({
     pluginService: pluginManagementService,
     installedPlugins,
     plugins,
-    operationId,
+    activeOperations,
     onAfterUninstall: async () => {
       await refreshAfterPluginChange();
     },
@@ -350,10 +342,10 @@ export function PluginStorePage({
       onInstall: (item) => void handleInstall(item),
       onUninstall: uninstall.requestUninstall,
       onUpdate: (pluginId) => void handleUpdatePlugin(pluginId),
-      operationId,
+      activeOperations,
       togglingPluginId: null,
     }),
-    [handleInstall, handleUpdatePlugin, openDetail, operationId, uninstall.requestUninstall],
+    [handleInstall, handleUpdatePlugin, openDetail, activeOperations, uninstall.requestUninstall],
   );
 
   if (!workspacePath) {
@@ -492,7 +484,9 @@ export function PluginStorePage({
                       data-testid="plugin-store-detail-update"
                       variant="outline"
                       size="sm"
-                      disabled={operationId === `plugin:update:${detailItem.id}`}
+                      disabled={activeOperations.some(
+                        (operation) => operation.id === `plugin:update:${detailItem.id}`,
+                      )}
                       onClick={() => void handleUpdatePlugin(detailItem.id)}
                     >
                       {intl.formatMessage({ id: "settings.plugins.detail.update" })}
@@ -526,12 +520,14 @@ export function PluginStorePage({
           items={items}
           marketplaces={marketplaces}
           actions={actions}
-          loading={loading || (operationId?.startsWith("marketplace:update:") ?? false)}
+          loading={
+            loading ||
+            activeOperations.some((operation) => operation.id.startsWith("marketplace:update:"))
+          }
           query={query}
           onQueryChange={setQuery}
           segment={segment}
           onSegmentChange={setSegment}
-          onOpenManage={onManageInstalled}
         />
       )}
 
@@ -561,13 +557,13 @@ export function PluginStorePage({
         onRemoveMarketplace={(marketplace) =>
           void removeMarketplace(marketplace, pluginManagementService)
         }
-        operationId={operationId}
+        activeOperations={activeOperations}
       />
       <AddMarketplaceSourceDialog
         open={addSourceOpen}
         onOpenChange={setAddSourceOpen}
         onAddMarketplace={handleAddMarketplace}
-        operationId={operationId}
+        activeOperations={activeOperations}
         error={addMarketplaceError}
       />
     </div>

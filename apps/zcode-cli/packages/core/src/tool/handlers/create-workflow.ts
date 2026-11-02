@@ -26,13 +26,22 @@ import {
   createWorkflowPhaseAlongside,
   createWorkflowPhaseNames,
 } from "@zcode/contracts";
-import type { ToolApprovalGate, ToolEntry, ToolExecutionContext, ToolHandler } from "../types.js";
+import type {
+  ToolApprovalGate,
+  ToolEntry,
+  ToolExecutionContext,
+  ToolHandler,
+} from "../types.js";
 import { CREATE_WORKFLOW_TOOL_DESCRIPTION } from "./create-workflow-description.js";
 import {
+  CREATE_WORKFLOW_FAILURE_CODE,
   resolveCreateWorkflowInput,
   validateCreateWorkflowSource,
 } from "./create-workflow-source.js";
-import { describeWorkflowSubagentModel, parseWorkflowSubagentModel } from "./model-reference.js";
+import {
+  describeWorkflowSubagentModel,
+  parseWorkflowSubagentModel,
+} from "./model-reference.js";
 import { boundGraphOfAnalysis, displayOfAnalysis } from "./workflow-analysis-display.js";
 import { recordAuthoredWorkflowDraft } from "./workflow-draft-read-state.js";
 import { resolveWorkflowDraftName, writeWorkflowDraft } from "./workflow-drafts.js";
@@ -52,6 +61,13 @@ import {
 } from "./workflow-script-models.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 import { createWorkflowNeedsSkill, requireDynamicWorkflowSkill } from "./workflow-skill-gate.js";
+import { describeScriptModelBindings } from "./workflow-script-models.js";
+import {
+  applyWorkflowSettingsAdjustments,
+  describeWorkflowRunSettings,
+  readAppliedWorkflowSettings,
+  withWorkflowAdjustableSettings,
+} from "./workflow-settings-adjustment.js";
 
 const CREATE_WORKFLOW_TOOL_NAME = "CreateWorkflow";
 const CREATE_WORKFLOW_TIMEOUT_MS = 15_000;
@@ -86,10 +102,14 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   const workspaceDirectory = context.workspaceScopeRoot;
 
   const analysis = analyzeScript(script);
-  const bindings = readScriptModelBindings(input);
-  const unbound = unresolvedScriptModelDiagnostics(analysis, bindings, context.modelCatalogPort);
-  const diagnostics = [...analysis.diagnostics, ...unbound];
-  const ok = analysis.ok && unbound.length === 0;
+  // 脚本点名的模型（docs/dynamic-workflow/launch.md「Models the script names」）：`resolveInput` 已把
+  // 解得出来的写进 `model_bindings`，没绑定的名字在这里报成 9011——与编译错误同一条路，改的是脚本。
+  const modelBindings = readScriptModelBindings(parsed);
+  const modelDiagnostics = analysis.ok
+    ? unresolvedScriptModelDiagnostics(analysis, modelBindings, context.modelCatalogPort)
+    : [];
+  const diagnostics = [...analysis.diagnostics, ...modelDiagnostics];
+  const ok = analysis.ok && modelDiagnostics.length === 0;
   // 确认窗与持久化输出读的是同一份静态分析：中间没有任何模型调用改写名字。
   const causalityGraph = boundGraphOfAnalysis(analysis);
 
@@ -98,7 +118,7 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   // 脚本反而没有文件」。分析排在前面只为取名：没有 `name` 时文件名取第一个阶段名，而阶段名
   // 在图上。saved 来源的拷贝已在 resolveInput 里写过，`path` 来源不写。
   const inlineDraft =
-    unbound.length === 0 && saved === undefined && parsed.path === undefined
+    modelDiagnostics.length === 0 && saved === undefined && parsed.path === undefined
       ? await writeWorkflowDraft({
           cwd: workspaceDirectory,
           name: resolveWorkflowDraftName(parsed.name, causalityGraph),
@@ -155,10 +175,6 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   const submitted = await port.submit(
     {
       scriptText: script,
-      ...(() => {
-        const modelBindings = scriptModelSelections(bindings);
-        return modelBindings === undefined ? {} : { modelBindings };
-      })(),
       // run 的 `cwd` 是对外契约里的单字段：既是 dwf_run 的项目键又是脚本沙箱根，无法只改一半，
       // 因此保持执行 cwd（运行记录按会话执行目录分桶；`listWorkflowRuns` 同键）。见报告残留项。
       cwd: context.workingDirectory,
@@ -184,8 +200,8 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
         const phaseAlongside = createWorkflowPhaseAlongside(causalityGraph);
         return { phaseNames, ...(phaseAlongside === undefined ? {} : { phaseAlongside }) };
       })(),
-      // 并发上界已在 resolveInput 里钳进 `[1, 天花板]`（确认窗显示的就是将要生效的值）；
-      // 缺席即天花板，所以不造空壳键。
+      // 并发上界已在 resolveInput 里取整到至少 1（确认窗显示的就是将要生效的值），没有上限；
+      // 缺席即默认并发，所以不造空壳键。
       ...(parsed.max_concurrency === undefined ? {} : { maxConcurrency: parsed.max_concurrency }),
       // 子代理模型同样已在 resolveInput 里解析成规范形（解不出来的调用根本走不到这里），
       // 所以这里只是把那个字符串拆回结构化选型。缺席即继承会话模型，不造空壳键——端口按
@@ -193,6 +209,12 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
       ...(() => {
         const subagentModel = parseWorkflowSubagentModel(parsed.subagent_model);
         return subagentModel === undefined ? {} : { subagentModel };
+      })(),
+      // 脚本点名的模型与子代理模型同一条路：已解析成规范形，这里只拆回结构化选择。没点名任何
+      // 模型时整个键缺席。
+      ...(() => {
+        const selections = scriptModelSelections(modelBindings);
+        return selections === undefined ? {} : { modelBindings: selections };
       })(),
       // 脚本的家随提交走进 `run-launched`，终态通知与 `GetWorkflowRun` 再从那里读回来。草稿写不下去时字段整个缺席：
       // 端口按「字段在场 = 这个 run 有个可编辑的文件」读它，一个 undefined 会让那句话变成谎话。
@@ -203,6 +225,17 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
   );
 
   const { runId } = submitted;
+  const defaultConcurrency = port.defaultConcurrency?.();
+  // 确认窗里的调整（docs/dynamic-workflow/launch.md「Adjusting the settings in the window」）：入参此刻
+  // 已是调整后的值，但模型的 tool_use 块还留着它自己传的那一份，所以结果要先把调整说出来。
+  const settingsSentences = describeWorkflowRunSettings({
+    applied: readAppliedWorkflowSettings(context.inputAdjustments),
+    defaultConcurrency,
+    describeLimit: () =>
+      describeWorkflowConcurrencyLimit(parsed.max_concurrency, defaultConcurrency),
+    describeModel: () => describeWorkflowSubagentModel(parsed.subagent_model),
+    describeScriptModels: () => describeScriptModelBindings(modelBindings),
+  });
 
   return {
     diagnostics,
@@ -212,7 +245,7 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
     // 模型拿到 backgrounded 输出后立刻用 TaskOutput 阻塞等待，
     // 把异步 run 变成了同步等待——文案必须显式劝阻默认轮询（用户显式要求等待时
     // TaskOutput 仍然可用，这里只改默认引导，不改工具语义）。
-    response: `The workflow script compiled cleanly and the run started in the background with ID: ${runId}. It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${describeWorkflowConcurrencyLimit(parsed.max_concurrency, port.concurrencyCeiling?.())}${describeWorkflowSubagentModel(parsed.subagent_model)}${location === undefined ? "" : workflowLaunchedScriptSentence(location)}`,
+    response: `The workflow script compiled cleanly and the run started in the background with ID: ${runId}. It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${settingsSentences}${location === undefined ? "" : workflowLaunchedScriptSentence(location)}`,
     status: "backgrounded",
     backgroundTaskId: runId,
     ...(causalityGraph === undefined ? {} : { causalityGraph }),
@@ -269,7 +302,9 @@ function diagnosticsNote(
       // 定义本身也按模型面的写法给：它接下来若要改定义，走的是 `SaveWorkflow`，但读到一个
       // 绝对路径而其余路径都是工作区相对的，会让人以为那是另一台机器上的东西。
       savedPath:
-        saved.path === undefined ? location.described : describeWorkflowScriptPath(saved.path, cwd),
+        saved.path === undefined
+          ? location.described
+          : describeWorkflowScriptPath(saved.path, cwd),
       draft: location.described,
     });
   }
@@ -278,18 +313,18 @@ function diagnosticsNote(
 
 /**
  * 生效的并发上界在结果文案里的一句话（`AmendWorkflow` 共用）。**只在设了上界时出现**：跑在
- * 天花板上的 run 没有可说的，多一句「至多 N 个」只会让模型以为自己设过什么。
+ * 默认并发上的 run 没有可说的，多一句「至多 N 个」只会让模型以为自己设过什么。
  *
- * 正好等于天花板时点明是本机上限——那说明模型要的数被压低了，不说破的话它会把「至多 32」
- * 当成已生效，并在用户追问时复述一个假数。
+ * 正好等于默认并发时注明「（默认）」：模型要的数与默认恰好相同，说破了它才知道这个 run 与没设
+ * 一样，之后不会把它当成一条自己定过的界去复述或「修正」。
  */
 export function describeWorkflowConcurrencyLimit(
   limit: number | undefined,
-  ceiling: number | undefined,
+  defaultConcurrency: number | undefined,
 ): string {
   if (limit === undefined) return "";
   const subject = limit === 1 ? "1 subagent runs" : `${limit} subagents run`;
-  return ` At most ${subject} at once${limit === ceiling ? " (this machine's maximum)" : ""}.`;
+  return ` At most ${subject} at once${limit === defaultConcurrency ? " (the default)" : ""}.`;
 }
 
 /**
@@ -324,8 +359,11 @@ function prepareCreateWorkflowApproval(input: unknown): ToolApprovalGate {
   if (!parsed.success || parsed.data.script === undefined) return { gate: "proceed" };
 
   const analysis = analyzeScript(parsed.data.script);
-  if (!analysis.ok || !allScriptModelsBound(analysis, readScriptModelBindings(input)))
+  if (!analysis.ok) return { gate: "proceed" };
+  // 脚本点名的模型有没绑定的（目录里没有）：与编不过同一姿态，不开窗，让 handler 报 9011。
+  if (!allScriptModelsBound(analysis, readScriptModelBindings(parsed.data))) {
     return { gate: "proceed" };
+  }
 
   // 弹窗自带标题并以图为主体；display 与直接启动的启动轮元数据同一构造函数。
   const display = displayOfAnalysis(analysis);
@@ -336,6 +374,7 @@ export const createWorkflowToolEntry: ToolEntry = {
   capability:
     "Typecheck a dynamic-workflow TypeScript script against the facade and, once confirmed, start the run in the background",
   metadata: {
+    shouldDefer: true,
     name: CREATE_WORKFLOW_TOOL_NAME,
     description: CREATE_WORKFLOW_TOOL_DESCRIPTION,
     // 引擎接线后这个调用会启动一个执行子进程与多个 actor 会话；只读声明随执行语义翻面
@@ -353,25 +392,30 @@ export const createWorkflowToolEntry: ToolEntry = {
   // 不是 schema 上——见 CreateWorkflowInputSchema 的注释。
   validateInput: (input) => validateCreateWorkflowSource(input),
   // 全流程唯一一次读盘。此后 hook、权限规则、确认窗与 handler 看到的都是同一份字节。
-  // 天花板同在这里读：钳制必须发生在确认窗之前，否则用户批准的是一个不会生效的数。
+  // 并发上界同在这里取整：归一必须发生在确认窗之前，否则用户批准的是一个不会生效的数。
   // 模型目录同在这里读：`subagent_model` 必须在确认窗之前解析成规范形，否则用户批准的是一个
   // 还没被认出来的名字，而解不出来的调用会在批准之后才失败。
-  resolveInput: (input, context) => {
+  resolveInput: async (input, context) => {
     // 技能门先于一切解析：没读过 dynamic-workflows 就拒绝提交脚本（saved 来源例外，见 gate 模块）。
     if (createWorkflowNeedsSkill(input)) {
       const refused = requireDynamicWorkflowSkill(context, CREATE_WORKFLOW_TOOL_NAME);
       if (refused) return refused;
     }
-    return resolveCreateWorkflowInput(
+    const resolved = await resolveCreateWorkflowInput(
       input,
       {
         executionCwd: context.workingDirectory ?? ".",
         workspaceDirectory: context.workspaceScopeRoot ?? context.workingDirectory ?? ".",
       },
-      context.dynamicWorkflowRunPort?.concurrencyCeiling?.(),
       context.modelCatalogPort,
     );
+    return withWorkflowAdjustableSettings(resolved, context);
   },
+  applyInputAdjustments: (input, adjustments, context) =>
+    applyWorkflowSettingsAdjustments(input, adjustments, context, {
+      errorCode: CREATE_WORKFLOW_FAILURE_CODE,
+      schema: CreateWorkflowInputSchema,
+    }),
   prepareApproval: prepareCreateWorkflowApproval,
   inputSchema: CreateWorkflowInputJsonSchema,
   outputSchema: CreateWorkflowOutputJsonSchema,

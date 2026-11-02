@@ -6,13 +6,17 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.mjs";
-// Vite 配置在 Node 加载期执行，不能导入 @zcode/shared 根入口。
+import { resolveRemoteFrontendVersion } from "./vite/remoteFrontendVersion.mjs";
+// Bugfix: Vite 配置在 Node 加载期执行，不能导入 @zcode/shared 根入口。
 // 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
 import { pickProductEndpointEnv } from "@zcode/shared/zcodeEndpoint";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
-const { version } = JSON.parse(readFileSync(resolve(REPO_ROOT, "package.json"), "utf-8"));
+const { version, zcodeCompatibility } = JSON.parse(
+  readFileSync(resolve(REPO_ROOT, "package.json"), "utf-8"),
+) as { version: string; zcodeCompatibility?: { minCompatibleVersion?: string } };
+const minCompatibleVersion = zcodeCompatibility?.minCompatibleVersion ?? version;
 
 function resolveZCodeEnv(value: string | undefined): "test" | "production" {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
@@ -30,11 +34,11 @@ export default defineConfig(({ mode }) => {
         // 问题原因：packages/ui 的源码直接被 web 应用交给 Vite 打包，但 web 自己没声明 @ -> packages/ui/src，
         // 所以像 "@/components/lib/utils" 这类导入会在运行时构建阶段报找不到模块。
         // 这里把别名补到消费方 Vite 配置里，保持现有组件源码不动，影响面最小。
-        "@": resolve(__dirname, "../ui/src"),
+        "@": resolve(HERE, "../ui/src"),
         // Recharts 依赖 d3-shape@3.x，后者需要 d3-path 的 Path 导出。
         // hoisted node_modules 可能把 d3-shape 旁边的旧 d3-path@1.x 暴露给 Vite 预构建，
         // 导致桌面/Web dev 都在依赖优化阶段失败；显式指向根部 3.x 入口以固定解析边界。
-        "d3-path": resolve(__dirname, "../../node_modules/d3-path/src/index.js"),
+        "d3-path": resolve(HERE, "../../node_modules/d3-path/src/index.js"),
       },
     },
     server: {
@@ -59,8 +63,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      __ZCODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
-      __ZCODE_VERSION__: JSON.stringify(version),
+      __ZCODE_VERSION__: JSON.stringify(
+        resolveRemoteFrontendVersion(version, process.env.WEB_REMOTE_FRONTEND_VERSION),
+      ),
+      __ZCODE_MIN_COMPATIBLE_VERSION__: JSON.stringify(minCompatibleVersion),
       __ZCODE_COMMIT__: JSON.stringify(env.ZCODE_COMMIT || "unknown"),
       __ZCODE_ENV__: JSON.stringify(zcodeEnv),
     },

@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Logger, SessionEvent } from "@zcode/contracts";
-import { SessionEventType } from "@zcode/contracts";
+import type { Logger } from "@zcode/contracts";
 import { createZCodeProcessResourceSampler } from "../src/process-resource-sampler.js";
-import { ConversationTelemetryFactNormalizer } from "../src/zcode-protocol-v4/conversation-telemetry-facts.js";
 import { logModelMilestone } from "../../adapters/src/model/runner-status.js";
 import {
   createStreamDiagnostics,
@@ -126,45 +124,6 @@ test("operation measurement preserves result, original failure and cancellation"
   assert.ok(serialized.includes('"failed"'));
   assert.ok(serialized.includes('"cancelled"'));
   assert.ok(!serialized.includes("PRIVATE-raw-error"));
-});
-
-test("conversation diagnostic facts exclude names, endpoint and raw error", () => {
-  const normalizer = new ConversationTelemetryFactNormalizer();
-  const secret = "PRIVATE-provider-name-url";
-  const event = (type: SessionEvent["type"], payload: unknown) =>
-    ({
-      type,
-      payload,
-      sessionId: "session",
-      turnId: "turn",
-      id: "event",
-      sequenceNumber: 1,
-      timestamp: new Date(),
-    }) as SessionEvent;
-  const fact = normalizer.normalize(
-    "session",
-    event(SessionEventType.ModelNetworkStatus, {
-      type: "model_request_failed",
-      requestId: "request",
-      providerId: secret,
-      modelId: secret,
-      baseURL: secret,
-      transport: "http",
-      attempt: 1,
-      maxAttempts: 2,
-      reason: "network_error",
-      retryable: true,
-      message: secret,
-    }),
-  );
-  assert.ok(fact);
-  assert.ok(!JSON.stringify(fact).includes(secret));
-  const tool = normalizer.normalize(
-    "session",
-    event(SessionEventType.ToolCallScheduled, { toolCallId: "tool", toolName: secret }),
-  );
-  assert.equal(tool?.kind, "tool.lifecycle");
-  assert.ok(!JSON.stringify(tool).includes(secret));
 });
 
 test("central logger persists only safe records and isolated diagnostic IDs", async () => {

@@ -1,0 +1,32 @@
+/** Source snapshot、名称/状态发布者、线路选择和窗口意图各复用既有 owner；Controller 只发原命令，投影不持久化连接事实、不触发部署。公开调用类型沿当前源码，不另造状态或执行入口。 */
+export type SourceServerUiEntry1 = typeof import("../hooks/useSourceServerManagementSnapshot.js");
+export type SourceServerUiEntry2 = typeof import("../lib/remoteConnectionPresentation.js");
+export type { RemoteConnectionStatus } from "../lib/remoteConnectionPresentation.js";
+export type { AggregatedSourceStatus } from "../lib/remoteConnectionPresentation.js";
+export type { RemoteConnectionTone } from "../lib/remoteConnectionPresentation.js";
+export type { RemoteConnectionIcon } from "../lib/remoteConnectionPresentation.js";
+export type { RemoteConnectionPresentationInput } from "../lib/remoteConnectionPresentation.js";
+export type { RemoteConnectionPresentation } from "../lib/remoteConnectionPresentation.js";
+export type SourceServerUiEntry3 = typeof import("../lib/remoteConnectionPresentationErrors.js");
+export type { RemoteConnectionErrorPresentation } from "../lib/remoteConnectionPresentationErrors.js";
+export type SourceServerUiEntry4 =
+  typeof import("../remote-connection/RemoteConnectionSelection.js");
+export type SourceServerUiEntry5 = typeof import("../remote/remoteWorkspaceController.js");
+export type { RemoteWorkspaceReconnectOptions } from "../remote/remoteWorkspaceController.js";
+export type { RemoteWorkspaceIntent } from "../remote/remoteWorkspaceController.js";
+export type { RemoteWorkspaceControllerHandlers } from "../remote/remoteWorkspaceController.js";
+export type { RemoteWorkspaceController } from "../remote/remoteWorkspaceController.js";
+export type SourceServerUiEntry6 = typeof import("../remote/remoteWorkspaceProjection.js");
+export type { WorkspaceAttachmentViewState } from "../remote/remoteWorkspaceProjection.js";
+export type { RemoteWorkspaceAttachmentFact } from "../remote/remoteWorkspaceProjection.js";
+export type { RemoteDeviceView } from "../remote/remoteWorkspaceProjection.js";
+export type { RemoteOpenWorkspaceView } from "../remote/remoteWorkspaceProjection.js";
+export type { RemoteExecutionContextView } from "../remote/remoteWorkspaceProjection.js";
+export type { RemoteWorkspaceProjection } from "../remote/remoteWorkspaceProjection.js";
+export type { RemoteWorkspaceProjectionInput } from "../remote/remoteWorkspaceProjection.js";
+export type { AppSettingsConversationWorkspaceMap } from "../remote/remoteWorkspaceProjection.js";
+export type SourceServerUiEntry7 = typeof import("../store/sourceServerDisplayNameRegistry.js");
+export type { SourceServerDisplayNameRegistry } from "../store/sourceServerDisplayNameRegistry.js";
+export type SourceServerUiEntry8 = typeof import("../store/sourceServerStatusRegistry.js");
+export type { SourceServerStatusRegistry } from "../store/sourceServerStatusRegistry.js";
+export type SourceServerUiEntry9 = typeof import("../settings/SourceServerProfileEditor.js");

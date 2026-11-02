@@ -33,6 +33,8 @@ export const ZCODE_KNOWN_TOOL_NAMES = [
   "AmendWorkflow",
   // 留白补全：同 AmendWorkflow 登记进 workflow family——确认窗按 family 选运行确认块；
   // 工具行侧按名先分流，复用 CreateWorkflow 的输出形状（display kind 同为 create_workflow）。
+  // 留白补全（docs/dynamic-workflow/launch.md「The `FillWorkflowHole` tool」）：同 AmendWorkflow 登记进
+  // workflow family——确认窗按 family 选运行确认块；工具行侧按名先分流到 CreateWorkflow 渲染器换留白词汇。
   "FillWorkflowHole",
   // wire 名就是 snake_case 的 submit_result（仓库里唯一一个），下划线必须字面在场：
   // 未登记时 UI identity 退回 unknown，动态工作流 actor 的提交会落到 raw fallback renderer。
@@ -46,6 +48,7 @@ export type ZCodeToolFamily =
   | "file-write"
   | "shell"
   | "search"
+  | "web-fetch"
   | "todo"
   | "ask-user-question"
   | "agent"
@@ -65,7 +68,7 @@ const TOOL_FAMILY_BY_NAME: Record<ZCodeKnownToolName, ZCodeToolFamily> = {
   Bash: "shell",
   Glob: "search",
   Grep: "search",
-  WebFetch: "search",
+  WebFetch: "web-fetch",
   WebSearch: "search",
   web_search: "search",
   TodoRead: "todo",

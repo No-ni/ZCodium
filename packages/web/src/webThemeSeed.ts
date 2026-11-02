@@ -25,9 +25,5 @@ export function resolveWebInitialTheme({
   storedTheme?: string | null;
   defaultTheme?: WebThemeSeed;
 }): WebThemeSeed {
-  if (isWebThemeSeed(storedTheme)) {
-    return normalizeWebThemeSeed(storedTheme);
-  }
-
-  return normalizeWebThemeSeed(defaultTheme);
+  return normalizeWebThemeSeed(isWebThemeSeed(storedTheme) ? storedTheme : defaultTheme);
 }

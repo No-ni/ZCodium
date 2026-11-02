@@ -4,9 +4,9 @@
 // 安全事实和去激活执行面；pool 只维护 idle TTL、LRU touch、operation lease 与
 // deactivation gate。
 
-const DEFAULT_SESSION_RESIDENT_TARGET_COUNT = 8;
+export const DEFAULT_SESSION_RESIDENT_TARGET_COUNT = 8;
 export const DEFAULT_SESSION_RESIDENT_HIGH_WATER_COUNT = 16;
-const DEFAULT_SESSION_RESIDENT_IDLE_TIMEOUT_MS = 10 * 60 * 1_000;
+export const DEFAULT_SESSION_RESIDENT_IDLE_TIMEOUT_MS = 10 * 60 * 1_000;
 
 export type SessionDeactivationReason = "high_water_lru" | "idle_timeout";
 
@@ -221,6 +221,10 @@ export class SessionResidentPool {
 
   waitForDeactivation(sessionId: string): Promise<void> {
     return this.inFlightDeactivations.get(sessionId) ?? Promise.resolve();
+  }
+
+  operationCount(sessionId: string): number {
+    return this.operationLeaseCounts.get(sessionId) ?? 0;
   }
 
   private isEligible(sessionId: string, facts: SessionResidencyFacts): boolean {

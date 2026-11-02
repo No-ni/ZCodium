@@ -1,4 +1,5 @@
 import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
+import type { ToolSearchMode } from "@zcode/contracts";
 import { extname } from "node:path";
 import { formatJson, type PresentationSurface } from "@zcode/core";
 import type { RunContext, GlobalOptions } from "@zcode/shared-types";
@@ -29,6 +30,13 @@ import {
   runCliCleanupWithTimeout,
 } from "./shutdown.js";
 import { runSkillsCommand } from "./skills-command.js";
+import {
+  DEFAULT_CLI_WORKFLOW_MODE,
+  isWorkflowModeEnabled,
+  resolveWorkflowModeRuntimeConfig,
+  WORKFLOW_DISABLED_NOTICE,
+} from "./workflow-mode.js";
+import type { DynamicWorkflowMode } from "@zcode/shared";
 import type { CommandCenterApp, SlashCommand } from "./command-center.js";
 import type {
   CliPermissionMode,
@@ -73,7 +81,9 @@ export const runPrompt = async (
   resumeRequest: CliResumeRequest = { continueSession: false },
   toolDisallowlist?: readonly string[],
   forceMcs = false,
+  toolsearchMode: ToolSearchMode = "off",
   presentationSurface: PresentationSurface = "terminal",
+  workflowMode: DynamicWorkflowMode = DEFAULT_CLI_WORKFLOW_MODE,
 ): Promise<number> => {
   if (prompt.trim().length === 0) {
     ctx.stderr.write(`${EMPTY_PROMPT_ERROR}\n`);
@@ -83,9 +93,21 @@ export const runPrompt = async (
   const slashCommand = parseSlashCommand(prompt);
   if (slashCommand?.type === "known" && slashCommand.name === "help") {
     ctx.stdout.write(
-      `${formatSlashCommandHelp(slashCommand.args, await listCustomCommandsForPrompt(deps))}\n`,
+      `${formatSlashCommandHelp(slashCommand.args, await listCustomCommandsForPrompt(deps), {
+        workflowMode,
+      })}\n`,
     );
     return 0;
+  }
+  // disabled 下 `/workflow` 不展开（builtin resolver 同判）；若照常建 app 提交，原文会作为普通文本
+  // 发给模型并「成功」退出，脚本察觉不到。建 app 之前就报错退出，与 TUI 的本地提示同一句。
+  if (
+    slashCommand?.type === "known" &&
+    slashCommand.name === "workflow" &&
+    !isWorkflowModeEnabled(workflowMode)
+  ) {
+    ctx.stderr.write(`Error: ${WORKFLOW_DISABLED_NOTICE}\n`);
+    return 1;
   }
   if (slashCommand?.type === "known" && slashCommand.name === "skill" && !slashCommand.skillName) {
     return await runSkillsCommand(ctx, options, deps, []);
@@ -188,9 +210,18 @@ export const runPrompt = async (
             },
           },
     );
+    const createProviderEndpointRoutingPort =
+      deps.createProviderEndpointRoutingPort ??
+      bootstrapModule?.createDefaultProviderEndpointRoutingPort;
+    const providerEndpointRoutingPort = createProviderEndpointRoutingPort?.({
+      appVersion: version,
+      env,
+      workingDirectory,
+    });
     browserRuntime = createCliHeadlessBrowserRuntime(options, deps);
     app = await createApp({
       loggerFactory: deps.loggerFactory,
+      modelSelectionMode: "cli-default",
       browserControlPort: browserRuntime?.browserControlPort,
       env: appEnv,
       // headless 没有交互审批面，core 因此退到 deny broker，于是 CreateWorkflow 的
@@ -198,15 +229,17 @@ export const runPrompt = async (
       // 这个最小 broker 只按工具名放行 CreateWorkflow，其余工具委托回同一个 deny
       // broker，语义逐字不变。详见 headless-workflow.ts 的注释。
       permissionBroker: createHeadlessPermissionBroker(),
+      ...(providerEndpointRoutingPort ? { providerEndpointRoutingPort } : {}),
       providerRegistry: providerRegistryRuntime.runtime.registryService,
       configuredDefaultModelSelection: providerRegistryRuntime.configuredDefaultModelSelection,
       resume: sessionId !== undefined,
       runtimeConfig: {
         ...(mode ? { mode } : {}),
         ...(toolDisallowlist ? { toolDisallowlist } : {}),
+        toolSearch: { mode: toolsearchMode },
         ...(forceMcs ? { midConversationSystem: { mode: "force" as const } } : {}),
         // headless 按本次调用显式开关；不改 core 缺省值，保持 TUI 与 stdio 的既有策略。
-        dynamicWorkflowEnabled: options.enableWorkflow === true,
+        ...resolveWorkflowModeRuntimeConfig(workflowMode),
         memory: { extractionEnabled: options.memoryBench === true },
         modelStreaming: "on",
         presentationSurface,
@@ -252,6 +285,7 @@ export const runPrompt = async (
         traceId,
         abortController.signal,
         deps,
+        workflowMode,
       );
     }
 
@@ -472,6 +506,7 @@ async function runPromptCommandCenterCommand(
   traceId: string | undefined,
   abortSignal: AbortSignal,
   deps: RunDependencies,
+  workflowMode: DynamicWorkflowMode,
 ): Promise<number> {
   const commandCenter = createCommandCenter({
     getApp: async () => app as unknown as CommandCenterApp,
@@ -482,6 +517,7 @@ async function runPromptCommandCenterCommand(
       await app.recordInputHistory?.(input, kind);
     },
     resumeApp: async () => app as unknown as CommandCenterApp,
+    workflowMode,
     setLocale: async (locale) => {
       if (!app.setLocale) {
         throw new Error("Locale switching is not available in this client.");

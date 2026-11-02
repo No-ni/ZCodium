@@ -321,6 +321,9 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
         kind: "docker",
         container: target.container,
       };
+    case "server":
+      // 服务地址没有原生编辑器传输合同，不能把它误拼成 SSH URI。
+      throw new Error("Opening an editor requires an SSH, WSL or Docker target");
   }
 }
 
@@ -452,6 +455,21 @@ export interface RemoteSessionClosedEvent {
   reason: "host-exit";
   exitCode: number | null;
   signal: string | null;
+
+  error?: string;
+
+  /** true = Source transport 仍在自动恢复预算内，UI 不得做终态失败收口。 */
+  recoverable?: boolean;
+
+  recoveryAttempt?: number;
+
+  recoveryLimit?: number;
+
+  recoveryBudgetExhausted?: boolean;
+
+  reasonCode?: string;
+
+  retryable?: boolean;
 }
 
 export interface EmbeddedBrowserOpenUrlRequest {
@@ -489,6 +507,8 @@ export interface BindRemoteWorkspaceSessionContextRequest {
   remoteSessionId: string;
   workspacePath: string;
   workspaceIdentity?: string;
+
+  workspacePurpose?: import("./workspacePurpose.js").WorkspacePurpose;
 }
 
 export const DesktopCommandIds = {
@@ -632,7 +652,7 @@ export interface IPlatformService {
       workspaceIdentity?: string;
       connectTrigger?: import("./remoteTarget.js").RemoteWorkspaceConnectTrigger;
     },
-  ): Promise<{ success: boolean; error?: string; sessionId?: string }>;
+  ): Promise<{ success: boolean; error?: string; reasonCode?: string; sessionId?: string }>;
 
   /** 取消当前窗口尚未建立完成的远程连接（可选：Web 平台可忽略） */
   cancelPendingRemoteConnection?(requestId?: string): Promise<void>;
@@ -749,7 +769,7 @@ export interface IPlatformService {
   showTaskNotification(payload: TaskNotificationPayload): void;
   reportRendererHeapSample?(sample: RendererHeapSample): void;
   reportDiagnostic?(record: import("./diagnostics.js").DiagnosticRecordInput): void;
-  reportLocalTtftBatch?(batch: import("./localTtft.js").LocalTtftBatch): void;
+  reportLocalTtftBatch?(batch: import("./local-ttft/contract.js").LocalTtftBatch): void;
 
   /** 同步当前窗口所有 tab 的 workspace 路径到 main 进程（用于跨窗口去重） */
   syncWindowTabs(paths: string[]): void;
@@ -1004,4 +1024,235 @@ export interface IPlatformService {
 
   /** 同步桌面标题栏亮/暗色，驱动原生窗口控制按钮配色 */
   setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
+
+  /** 是否支持当前客户端本机文件的默认应用与目录操作；Web 不具备此能力。 */
+  canOpenLocalFiles?: boolean;
+
+  /** 打开系统多目录选择框，返回 Host 可访问的本地路径；取消返回空数组，Web 不提供 */
+  selectDirectories?(): Promise<string[]>;
+
+  /**
+   * 把 dwf 产物某一版的字节写成宿主本机上的一份副本（只在路径为空时写），返回其路径。
+   * 仅 Desktop 实现：手机远控与普通 Web 端没有「用本机 App 打开文件」的能力，缺席即不出入口。
+   */
+  materializeWorkflowArtifactFile?(
+    payload: MaterializeWorkflowArtifactFileRequest,
+  ): Promise<MaterializeWorkflowArtifactFileResult>;
+
+  /** 订阅 Source transport 自动重连后的 logical session 换代事件。 */
+  onRemoteSessionReconnected?(handler: (event: RemoteSessionReconnectedEvent) => void): () => void;
+
+  /** Desktop-only：请求在线 Source 的无 workspace 配置 attachment。 */
+  requestSourceSettingsAttachment?(sourceServerId: string): Promise<{ attachmentId: string }>;
+
+  /**
+   * 查询"关闭驻留托盘"能力；桌面端 main 进程探测后返回，Web/手机远控无桥不实现。
+   * 设置页据此决定 Linux 上的开关是否置灰。
+   */
+  getCloseToTrayCapability?(): Promise<DesktopCloseToTrayCapability>;
+
+  /** 注册内置浏览器网页权限弹窗请求（main → renderer），返回 disposer */
+  onEmbeddedBrowserPermissionPrompt?(
+    handler: (event: EmbeddedBrowserPermissionPromptEvent) => void,
+  ): () => void;
+
+  /** 回传用户对内置浏览器权限弹窗的决策（renderer → main） */
+  resolveEmbeddedBrowserPermissionPrompt?(request: EmbeddedBrowserPermissionResolveRequest): void;
+
+  /** 读取内置浏览器站点权限记录（设置页「网站权限」） */
+  getEmbeddedBrowserSitePermissions?(): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
+
+  /** 修改/删除单条站点权限；返回更新后的快照 */
+  setEmbeddedBrowserSitePermission?(
+    request: EmbeddedBrowserSitePermissionUpdateRequest,
+  ): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
+
+  /** 清空全部站点权限记录 */
+  clearEmbeddedBrowserSitePermissions?(): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
+
+  /** 重置单个站点的全部权限记录（删除该 origin 下所有持久决定）；返回更新后的快照 */
+  resetEmbeddedBrowserSitePermission?(
+    request: EmbeddedBrowserSitePermissionResetRequest,
+  ): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
+
+  /** 注册 agent 首次 browser 命令建好受控 view 的回调（自动开 browser-use tab），返回 disposer */
+  onBrowserViewDownloadStarted?(
+    handler: (payload: { webContentsId: number; urls: string[] }) => void,
+  ): () => void;
+
+  /** 本机文件的系统关联应用；Web/远端/目录不提供本机应用。 */
+  getFileApplications?(target: FileApplicationTarget): Promise<FileApplicationInfo[]>;
+
+  /** 重新确认系统关联后，使用该应用打开本机文件。 */
+  openFileWithApplication?(
+    applicationId: string,
+    target: FileApplicationTarget,
+  ): Promise<{ success: boolean; error?: string }>;
+}
+
+/** 系统对当前文件类型注册的应用；id 仅由宿主解析，不能当作命令执行。 */
+export interface FileApplicationInfo {
+  id: string;
+  name: string;
+  iconDataUrl?: string;
+  isDefault: boolean;
+}
+
+export interface FileApplicationTarget {
+  path: string;
+  pathKind: "file" | "directory";
+  workspaceIdentity?: string;
+  remoteTarget?: OpenInEditorRemoteTarget;
+}
+
+/**
+ * dwf 产物「作为文件打开」：把某一版产物的字节落成宿主本机上的一份副本
+ * （docs/dynamic-workflow/authoring.md「How the user sees them」）。
+ *
+ * ⚠ 术语：artifact = 脚本经 `artifact.*` 发布给用户看的产出，不是引擎的 `RunSettlement.artifact`。
+ */
+export interface MaterializeWorkflowArtifactFileRequest {
+  runId: string;
+  artifactId: string;
+  /** 这份字节属于哪一版；副本按版本分目录，一版一份。 */
+  version: number;
+  /** 期望的文件名（含扩展名，扩展名决定系统用哪个 App 打开）；宿主会再清洗一次。 */
+  fileName: string;
+  bytes: Uint8Array;
+}
+
+export interface MaterializeWorkflowArtifactFileResult {
+  /** 副本在宿主本机上的绝对路径。 */
+  localPath: string;
+}
+
+/**
+ * 桌面端"关闭驻留托盘"能力（spec：docs/desktop/linux-close-to-tray.md）。
+ * Linux 上取决于 session DBus 是否有 StatusNotifierWatcher（KDE/XFCE 原生有，
+ * GNOME 需 AppIndicator 扩展）；Windows 固定 supported=true；macOS/Web 不查询。
+ */
+export interface DesktopCloseToTrayCapability {
+  /** 关闭驻留托盘是否可用 */
+  supported: boolean;
+  /** 是否为 GNOME 系桌面且无托盘；设置页据此追加"安装 AppIndicator 扩展"提示 */
+  gnomeLikeWithoutTray: boolean;
+}
+
+export interface RemoteSessionReconnectedEvent {
+  previousSessionId: string;
+  sessionId: string;
+  workspacePath: string;
+  workspaceIdentity: string;
+}
+
+export interface EmbeddedBrowserPermissionDeviceOption {
+  deviceId: string;
+  name?: string;
+  vendorId?: number;
+  productId?: number;
+  serialNumber?: string;
+}
+
+export interface EmbeddedBrowserPermissionScreenOption {
+  sourceId: string;
+  name: string;
+  /** 源类型：整个屏幕 / 窗口，由 main 按 desktopCapturer source id 前缀判定。 */
+  kind: "screen" | "window";
+  thumbnailDataUrl?: string;
+}
+
+/** Main → Renderer 的内置浏览器权限弹窗请求；kind 决定 renderer 渲染哪类弹窗。 */
+export type EmbeddedBrowserPermissionPromptEvent =
+  | {
+      requestId: string;
+      kind: "permission";
+      origin: string;
+      permission: string;
+      mediaTypes?: string[];
+      /** 发起请求的 guest webContents id；renderer 据此只在归属 tab 渲染，
+       *  避免后台 tab 的请求显示在当前 tab 造成误批准。 */
+      guestWebContentsId?: number;
+    }
+  | {
+      requestId: string;
+      kind: "screen-share";
+      origin: string;
+      screens: EmbeddedBrowserPermissionScreenOption[];
+      /** 屏幕共享无 tab 锚定语义，恒缺省（兜底渲染）。 */
+      guestWebContentsId?: number;
+    }
+  | {
+      requestId: string;
+      kind: "device";
+      origin: string;
+      /** select-hid-device / select-usb-device / select-serial-port / select-bluetooth-device */
+      permission: string;
+      devices: EmbeddedBrowserPermissionDeviceOption[];
+      /** 发起请求的 guest webContents id（serial/蓝牙可取到；hid/usb 受 frame 限制
+       *  缺省，renderer 兜底渲染）。 */
+      guestWebContentsId?: number;
+    };
+
+export type EmbeddedBrowserPermissionResolution =
+  | { action: "allow-always" }
+  | { action: "allow-session" }
+  | { action: "block-always" }
+  | { action: "dismiss" }
+  | { action: "share-screen"; sourceId: string }
+  | { action: "select-device"; deviceId: string }
+  | { action: "cancel" };
+
+export interface EmbeddedBrowserPermissionResolveRequest {
+  requestId: string;
+  resolution: EmbeddedBrowserPermissionResolution;
+}
+
+export type EmbeddedBrowserSitePermissionsSnapshot = Record<
+  string,
+  Record<string, "allow" | "deny">
+>;
+
+export interface EmbeddedBrowserSitePermissionUpdateRequest {
+  origin: string;
+  permission: string;
+  /** "ask" 表示删除该条记录，回到每次询问。 */
+  state: "allow" | "deny" | "ask";
+}
+
+export interface EmbeddedBrowserSitePermissionResetRequest {
+  origin: string;
+}
+
+export interface BindRemoteWorkspaceSessionContextResult {
+  sourceServerId?: string;
+  remoteSessionId: string;
+  workspacePath: string;
+  workspaceIdentity: string;
+  workspacePurpose?: import("./workspacePurpose.js").WorkspacePurpose;
+  /** Desktop 专用的 tab 原地换代提示；不是任务路由身份，手机 replayable 客户端忽略。 */
+  previousWorkspaceIdentity?: string;
+}
+
+export type BindRemoteWorkspaceSessionContextIpcResult =
+  | { success: true; result: BindRemoteWorkspaceSessionContextResult }
+  | {
+      success: false;
+      error: string;
+      reasonCode?: string;
+      retryable?: boolean;
+    };
+
+/**
+ * 把 bind IPC 的结构化结果还原成成功结果，或带 code/retryable 的 Error。
+ * Bug 原因：preload 抛出的 Error 跨 contextBridge 会丢失自定义属性，renderer 只剩 message；
+ * 必须由 preload 原样返回结构化结果，在 renderer 一侧调用本函数。
+ */
+export function unwrapRemoteWorkspaceBindResult(
+  result: BindRemoteWorkspaceSessionContextIpcResult,
+): BindRemoteWorkspaceSessionContextResult {
+  if (result.success) return result.result;
+  const error = new Error(result.error) as Error & { code?: string; retryable?: boolean };
+  if (result.reasonCode) error.code = result.reasonCode;
+  if (result.retryable !== undefined) error.retryable = result.retryable;
+  throw error;
 }

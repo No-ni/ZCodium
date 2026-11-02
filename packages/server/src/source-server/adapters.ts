@@ -2,7 +2,13 @@ import { Duplex, Readable, Writable } from "node:stream";
 import { ZCODE_USER_DATA_DIR_NAME, type RemoteTarget } from "@zcode/shared";
 import { createRemoteBackend } from "../remote/create-backend.js";
 import { assertSupportedRemoteEnvironment } from "../remote/remotePlatformSupport.js";
-import { SourceServerTransportError, type SourceServerTransport } from "./contract.js";
+import {
+  SourceServerTransportError,
+  type SourceServerTransport,
+  type SourceServerCommand,
+  type SourceServerCommandOptions,
+  type SourceServerCommandResult,
+} from "./contract.js";
 import type { IRemoteBackend, StdioStream } from "../remote/backend.js";
 
 export const SOURCE_SERVER_ROOT = `~/${ZCODE_USER_DATA_DIR_NAME}/server`;
@@ -47,6 +53,47 @@ async function collect(
     signal?.addEventListener("abort", abort, { once: true });
     if (signal?.aborted) abort();
   });
+}
+
+/** 显式控制预部署服务；不复用已断开的 attachment，也不提供任意命令或安装入口。 */
+export async function executeSourceServerCommand(
+  target: RemoteTarget,
+  command: SourceServerCommand,
+  options: SourceServerCommandOptions = {},
+): Promise<SourceServerCommandResult> {
+  if (!["stop", "restart", "running-tasks"].includes(command))
+    throw new Error("Source command is not supported");
+  options.signal?.throwIfAborted();
+  const backend = await (options.createBackend ?? createRemoteBackend)(target);
+  let disposal: Promise<void> | undefined;
+  const dispose = () => {
+    disposal ??= backend.disposeAndWait
+      ? backend.disposeAndWait()
+      : Promise.resolve().then(() => backend.dispose());
+    return disposal;
+  };
+  const cancel = () => void dispose().catch(() => undefined);
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  try {
+    options.signal?.throwIfAborted();
+    assertSupportedRemoteEnvironment(await backend.detect());
+    options.signal?.throwIfAborted();
+    if (!(await backend.exists(`${SOURCE_SERVER_ROOT}/bin/zcode`)))
+      throw new SourceServerTransportError("source-server-install-required");
+    options.signal?.throwIfAborted();
+    // 旧自动部署适配器把 restart 隐式变成注册服务；保留显式 daemon，禁用注册副作用。
+    const environment = command === "restart" ? "ZCODE_SERVER_SKIP_SERVICE_REGISTRATION=1 " : "";
+    const args = command === "stop" ? "stop --wait" : command;
+    const result = await collect(
+      await backend.exec(`${environment}${BIN_SHELL} ${args} --server-root ${ROOT_SHELL} --json`),
+      options.signal,
+    );
+    options.signal?.throwIfAborted();
+    return result;
+  } finally {
+    options.signal?.removeEventListener("abort", cancel);
+    await dispose();
+  }
 }
 
 export async function connectSourceServerTransport(

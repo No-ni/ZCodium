@@ -49,6 +49,15 @@ export interface ArtifactIdState {
 }
 
 /** 引擎私有状态的接缝：兄弟模块里的自由函数经它读写 WorkflowEngine 的私有字段。 */
+/**
+ * run 级的报告计数：条数与 item 的 UTF-8 序列化字节数之和（`JSON.stringify(item)`，与
+ * `result_json` 落库的字节同一把尺，所以 resume 时 `sumResultBytes` 能把它原样恢复）。
+ */
+export interface ReportTally {
+  count: number;
+  bytes: number;
+}
+
 export interface EngineState {
   readonly runId: string;
   readonly driver: WorkflowDriver;
@@ -80,10 +89,10 @@ export interface EngineState {
    */
   holdForReplay(instance: InstanceRef, release: () => void): void;
 
-  /** 本 run 已发布的报告条数（REPORT_CAPS.maxItemsPerRun 的计数器，跨 resume 连续）。 */
-  reportCount(): number;
-  /** 一条报告过了上限检查、即将落库：计数 +1。 */
-  countReport(): void;
+  /** 本 run 已发布的报告条数与 item 字节数（REPORT_CAPS 两个 run 级上限的计数器，跨 resume 连续）。 */
+  reportTally(): ReportTally;
+  /** 一条报告过了上限检查、即将落库：条数 +1，字节数加上这条 item 的序列化字节数。 */
+  countReport(bytes: number): void;
 
   /** 导入缓存是否已关闭。 */
   importClosed(): boolean;

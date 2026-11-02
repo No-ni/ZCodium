@@ -23,6 +23,52 @@ export function isContextExceededFinishReason(
   );
 }
 
+// GLM（MaaS）输出侧安全审核用非标准的 sensitive 终止流；AI SDK 只认 content-filter。
+const CONTENT_FILTER_FINISH_REASONS = new Set(["content-filter", "content_filter", "sensitive"]);
+
+function isContentFilterFinishReason(reason: string | undefined): boolean {
+  return reason !== undefined && CONTENT_FILTER_FINISH_REASONS.has(reason.trim().toLowerCase());
+}
+
+/** 无正文、无工具调用且 provider 以内容过滤终止；思考内容和 usage 不影响判定。 */
+export function isContentFilteredEmptyModelResult(
+  finishReason: string | undefined,
+  rawFinishReason: string | undefined,
+  responseLength: number,
+  toolCallCount: number,
+): boolean {
+  return (
+    responseLength === 0 &&
+    toolCallCount === 0 &&
+    (isContentFilterFinishReason(finishReason) || isContentFilterFinishReason(rawFinishReason))
+  );
+}
+
+export function createContentFilteredModelResultError(input: {
+  finishReason: string | undefined;
+  model?: { modelId: string; providerId: string };
+  rawFinishReason: string | undefined;
+}) {
+  // 同一上下文重发会被同样拦截；不能落到 suspicious empty（retryable），否则会白跑恢复重试。
+  return createCoreError(
+    CoreErrorType.ModelError,
+    "Model output was blocked by the provider's content safety filter.",
+    {
+      context: {
+        finishReason: input.finishReason,
+        ...(input.model
+          ? { modelId: input.model.modelId, providerId: input.model.providerId }
+          : {}),
+        rawFinishReason: input.rawFinishReason,
+        reason: "content_filter",
+        source: "provider",
+      },
+      recoverable: true,
+      retryable: false,
+    },
+  );
+}
+
 export function createModelContextExceededFinishError(input: {
   finishReason: string | undefined;
   rawFinishReason: string | undefined;
@@ -81,7 +127,7 @@ export function isSuspiciousEmptyModelResult(
 const SUSPICIOUS_EMPTY_MODEL_RESULT_MESSAGE =
   "Model returned no text, no tool calls, and no usage before completing the turn.";
 
-function createSuspiciousEmptyModelResultError(
+export function createSuspiciousEmptyModelResultError(
   finishReason: string | undefined,
   rawFinishReason: string | undefined,
   model?: { modelId: string; providerId: string },
@@ -103,12 +149,14 @@ function createSuspiciousEmptyModelResultError(
 }
 
 /** 空流终态诊断：供 core/adapters 日志与 UI 错误归因对照。 */
-export function buildSuspiciousEmptyDiagnostics(input: {
-  finishReason: string | undefined;
-  providerMetadata: Record<string, unknown> | undefined;
-  rawFinishReason: string | undefined;
-  outboundHeaderKeys?: string[];
-}): Record<string, unknown> {
+export function buildSuspiciousEmptyDiagnostics(
+  input: {
+    finishReason: string | undefined;
+    providerMetadata: Record<string, unknown> | undefined;
+    rawFinishReason: string | undefined;
+    outboundHeaderKeys?: string[];
+  } & Record<string, unknown>,
+): Record<string, unknown> {
   const businessFailure = findProviderBusinessFailureInMetadata(input.providerMetadata);
   return {
     finishReason: input.finishReason ?? null,
@@ -118,8 +166,8 @@ export function buildSuspiciousEmptyDiagnostics(input: {
       ? Object.keys(input.providerMetadata).slice(0, 20)
       : [],
     providerBusinessCodeFromMetadata: businessFailure?.providerCode ?? null,
-    providerBusinessMessageFromMetadata: businessFailure?.message ?? null,
-    responseBodySummaryFromMetadata: businessFailure?.responseBodySummary ?? null,
+    // 合并依据：业务错误原文只交给错误展示，诊断出口不保留响应内容或官方验证头。
+    hasProviderBusinessFailure: businessFailure !== undefined,
   };
 }
 
@@ -144,7 +192,7 @@ export function finalizeSuspiciousEmptyModelResult(input: {
   );
 }
 
-function tryCreateProviderBusinessModelErrorFromMetadata(
+export function tryCreateProviderBusinessModelErrorFromMetadata(
   providerMetadata: Record<string, unknown> | undefined,
   model?: { modelId: string; providerId: string },
 ): ReturnType<typeof createCoreError> | undefined {
@@ -257,7 +305,7 @@ export function isModelContextExceededError(error: unknown): boolean {
   return false;
 }
 
-function isModelContextExceededMarker(value: string | undefined): boolean {
+export function isModelContextExceededMarker(value: string | undefined): boolean {
   return value !== undefined && MODEL_CONTEXT_EXCEEDED_MARKERS.has(value.trim().toLowerCase());
 }
 

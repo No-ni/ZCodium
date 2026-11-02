@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { TID_MODEL_PROVIDER_ADD_PROVIDER_BUTTON } from "@zcode/shared";
+import { TID_MODEL_PROVIDER_ADD_PROVIDER_BUTTON } from "@zcode/shared/test-ids";
 import type { ModelProviderNavGroup } from "@/settings/model-provider-section/constants.js";
 import { ModelProviderSectionNavigation } from "@/settings/model-provider-section/Navigation.js";
 import { ProviderDetailFeedbackBoundary } from "@/settings/model-provider-section/ProviderDetailFeedback.js";
@@ -19,6 +19,13 @@ interface ModelProviderSectionLayoutProps {
   onReorderProviderIds?: (providerIds: string[]) => Promise<void>;
   reorderableProviderIds?: ReadonlySet<string>;
   children: ReactNode;
+}
+
+export function shouldShowModelProviderRefreshLoading(params: {
+  presetLoading: boolean;
+  customLoading: boolean;
+}): boolean {
+  return params.presetLoading || params.customLoading;
 }
 
 export function ModelProviderSectionLayout({

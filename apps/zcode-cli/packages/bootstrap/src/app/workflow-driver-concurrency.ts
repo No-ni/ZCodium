@@ -169,8 +169,7 @@ export function createActorModelActivity(input: {
     if (!chains.delete(key) || anyExecuting()) return;
     let latest: Chain | undefined;
     for (const chain of chains.values()) {
-      if (chain.wait !== undefined && (latest === undefined || chain.waitSeq > latest.waitSeq))
-        latest = chain;
+      if (chain.wait !== undefined && (latest === undefined || chain.waitSeq > latest.waitSeq)) latest = chain;
     }
     if (latest?.wait !== undefined) reportWaiting(latest.wait);
   };
@@ -222,8 +221,7 @@ export function createActorModelActivity(input: {
       if (typeof (runtime as Partial<AgentRuntime>).subscribeEvents !== "function") return;
       unsubscribeEvents = runtime.subscribeEvents({
         onSessionEvent: (event: SessionEvent) => {
-          if (event.type !== SessionEventType.ModelNetworkStatus || event.sessionId !== sessionId)
-            return;
+          if (event.type !== SessionEventType.ModelNetworkStatus || event.sessionId !== sessionId) return;
           const status = event.payload as ModelNetworkStatusEvent;
           const key = chainKey(status);
           switch (status.type) {
@@ -288,8 +286,8 @@ function chainKey(status: ModelNetworkStatusEvent): string {
 
 // ————————————————————————————— run 级 stall 时钟—————————————————————————————
 
-/** 连续多久没有一次成功的模型请求就通知主代理一次。 */
-const WORKFLOW_STALL_NOTIFY_AFTER_MS = 20 * 60_000;
+/** 连续多久没有一次成功的模型请求就通知主代理一次（apps/zcode-cli/packages/dynamic-workflow/docs/execution-engine.md「Terminal states」）。 */
+export const WORKFLOW_STALL_NOTIFY_AFTER_MS = 20 * 60_000;
 
 /** 时钟与定时器（可注入，测试用假时间）。 */
 export interface WorkflowClock {

@@ -15,9 +15,10 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { resolveSummaryModel } from "./summary-model.js";
 import { withModelInvocationContext } from "../methods/runtime-model.js";
 import {
-  buildProjectMemoryAgentProviderMessages,
   captureProjectMemoryAgentContext,
-  createProjectMemoryAgentToolExecutor,
+  createProjectMemoryAgentToolRunner,
+  projectMemoryAgentEntries,
+  renderProjectMemoryAgentRequest,
   type ProjectMemoryAgentContext,
 } from "./project-memory-agent.js";
 import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
@@ -125,7 +126,7 @@ export async function drainMemoryExtractions(
 ): Promise<void> {
   const scheduler = this.memoryExtractionScheduler;
   if (!scheduler) return;
-  // benchmark 显式等待自然结束；普通 session close 仍保留原有有界取消清理。
+  // Runtime 关闭与 benchmark 等待真实收尾；对外关闭期限由 App 管理，不在这里提前放行。
   if (timeoutMs === null) {
     await scheduler.drain();
     return;
@@ -135,8 +136,12 @@ export async function drainMemoryExtractions(
   try {
     await Promise.race([
       scheduler.drain(),
-      new Promise<void>((resolve) => {
-        timeout = setTimeout(resolve, timeoutMs);
+      new Promise<void>((_resolve, reject) => {
+        // 到期只是停止等待；不能向 session 生命周期谎报资源已经释放。
+        timeout = setTimeout(
+          () => reject(new Error("Memory extraction drain timed out")),
+          timeoutMs,
+        );
         timeout.unref?.();
       }),
     ]);
@@ -169,26 +174,17 @@ async function executeProjectMemoryExtraction(
       manifest,
       messageCount: input.messageCount,
     });
-    const providerMessages = buildProjectMemoryAgentProviderMessages(
-      runtime,
-      input.snapshot,
-      prompt,
-    );
-    const executor = createProjectMemoryAgentToolExecutor(runtime, input.snapshot);
-
     await runMemoryAgentLoop({
       abortSignal: input.abortSignal,
-      executeTool: (toolCall, options) =>
-        executor.execute(toolCall, {
-          signal: options.abortSignal,
-          traceContext: input.snapshot.traceContext,
-        }),
+      // 合并依据：Memory 与 Main 共用逐轮投影和批次结算，不能接回已退休的单工具循环。
+      entries: projectMemoryAgentEntries(input.snapshot, prompt),
+      renderRequest: (entries) => renderProjectMemoryAgentRequest(input.snapshot, entries),
+      executeToolCalls: createProjectMemoryAgentToolRunner(runtime, input.snapshot),
+      registry: runtime.registry,
       maxTurns: EXTRACTION_MAX_TURNS,
-      messages: providerMessages,
       model: input.snapshot.model,
       reasoningLevel: input.snapshot.reasoningLevel,
       rootDir: input.snapshot.memoryRoot,
-      tools: input.snapshot.tools,
       workingDirectory: input.snapshot.workingDirectory,
       workspaceRoot: input.snapshot.workspaceRoot,
     });

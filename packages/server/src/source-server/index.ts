@@ -1,2 +1,6 @@
 export * from "./contract.js";
-export { connectSourceServerTransport, SOURCE_SERVER_ROOT } from "./adapters.js";
+export {
+  connectSourceServerTransport,
+  executeSourceServerCommand,
+  SOURCE_SERVER_ROOT,
+} from "./adapters.js";

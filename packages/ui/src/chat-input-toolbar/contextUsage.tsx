@@ -1,9 +1,6 @@
 import { useMemo, useState, type CSSProperties } from "react";
-import {
-  TID_CHAT_CONTEXT_USAGE_TRIGGER,
-  type ZCodeContextUsageBreakdownItem,
-  type ZCodeProvider,
-} from "@zcode/shared";
+import { type ZCodeContextUsageBreakdownItem, type ZCodeProvider } from "@zcode/shared";
+import { TID_CHAT_CONTEXT_USAGE_TRIGGER } from "@zcode/shared/test-ids";
 import {
   Context,
   ContextContentBody,
@@ -33,7 +30,7 @@ const CONTEXT_PROGRESS_TONE_COLORS = [
 const PERCENT_MAX = 100;
 const CACHE_HIT_RATE_DISPLAY_THRESHOLD = 0.78;
 
-function formatContextUsageTokenCount(
+export function formatContextUsageTokenCount(
   value: number,
   locale: string,
   options: { maximumFractionDigits?: number } = {},
@@ -41,7 +38,7 @@ function formatContextUsageTokenCount(
   return formatCompactTokenNumber(locale, value, options);
 }
 
-function formatContextUsageSummary({
+export function formatContextUsageSummary({
   locale,
   percent,
   size,
@@ -65,7 +62,7 @@ function formatContextUsageSummary({
   )} (${percentageFormatter.format(percent)})`;
 }
 
-function formatContextCacheHitRateLabel(
+export function formatContextCacheHitRateLabel(
   hitRate: number | null | undefined,
   locale: string,
   options: { showBelowThreshold?: boolean } = {},
@@ -114,7 +111,7 @@ const BREAKDOWN_SOURCE_ORDER: Record<ContextUsageBreakdownSource, number> = {
   mcp_tool_schemas: 6,
 };
 
-function buildContextUsageBreakdownSegments(
+export function buildContextUsageBreakdownSegments(
   breakdown: readonly ZCodeContextUsageBreakdownItem[] | undefined,
 ): ContextUsageBreakdownSegment[] {
   const charsBySource = new Map<ContextUsageBreakdownSource, number>();
@@ -143,7 +140,9 @@ function buildContextUsageBreakdownSegments(
     );
 }
 
-function buildContextUsageProgressSegments(segments: readonly ContextUsageBreakdownSegment[]) {
+export function buildContextUsageProgressSegments(
+  segments: readonly ContextUsageBreakdownSegment[],
+) {
   return segments.map((segment, index) => ({
     id: segment.source,
     percent: segment.percent,
@@ -276,7 +275,7 @@ export function ChatContextUsage({
         sideOffset={2}
       >
         <ContextContentBody className="space-y-3">
-          {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
+          {/* Bugfix: 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
           工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
           {renderableTaskUsage && compactTokenUsageLabel ? (
             <div className="space-y-2">
@@ -321,7 +320,7 @@ export function ChatContextUsage({
                             id: BREAKDOWN_SOURCE_LABEL_ID[segment.source],
                           })}
                         </span>
-                        {/* breakdown 行只展示占比，分项 token 数会和顶部总量口径混在一起造成误读。*/}
+                        {/* Bugfix: breakdown 行只展示占比，分项 token 数会和顶部总量口径混在一起造成误读。 */}
                         <span className="ml-auto min-w-10 shrink-0 text-right font-mono text-ui-sm tabular-nums text-foreground">
                           {percentageFormatter.format(segment.percent)}
                         </span>

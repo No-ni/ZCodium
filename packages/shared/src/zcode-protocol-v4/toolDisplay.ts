@@ -44,7 +44,7 @@ export const toolCallToolSearchDisplaySchema = z
   .strict();
 export type ToolCallToolSearchDisplay = z.infer<typeof toolCallToolSearchDisplaySchema>;
 
-const toolResultDisplaySchema = z.discriminatedUnion("kind", [
+export const toolResultDisplaySchema = z.discriminatedUnion("kind", [
   toolCallToolSearchDisplaySchema,
   bashOutputDisplaySchema,
   z.object({

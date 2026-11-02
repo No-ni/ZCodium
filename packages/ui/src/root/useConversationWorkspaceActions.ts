@@ -2,25 +2,29 @@ import { useCallback } from "react";
 import type { IServiceAccessor } from "@zcode/services";
 import { logger } from "@/logger.js";
 import type { TabStoreState } from "@/store/tabStore.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
-import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 
 export function useConversationWorkspaceActions({
   services,
   addTab,
+  createTask,
   setWorkspaceActionError,
 }: {
   services: IServiceAccessor;
   addTab: TabStoreState["addTab"];
+  createTask: (source: string) => Promise<void>;
   setWorkspaceActionError: (error: string | null) => void;
 }) {
   const handleSelectConversationWorkspace = useCallback(
-    (path: string) => {
-      // 对话工作区是 app 管理的共享 cwd，不属于用户项目：不走跨窗口项目激活，
+    (path: string, workspaceIdentity?: string) => {
+      // 对话工作区是 app 管理的独立 cwd，不属于用户项目：不走跨窗口项目激活，
       // 也不写 recentProjects，只用 purpose 让展示层把它归到“对话”。
-      logger.info("[Root] select conversation workspace", { path });
-      addTab(path, { workspacePurpose: "conversation" });
+      // Bug 原因：identity 在落到 tab 之前被丢掉，Shell 只能按路径反查；
+      // 多设备的对话 backing path 在同 home 下同名时会命中别的设备。日志同步去掉 path。
+      logger.info("[Root] select conversation workspace");
+      addTab(path, {
+        workspacePurpose: "conversation",
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+      });
       setWorkspaceActionError(null);
     },
     [addTab, setWorkspaceActionError],
@@ -28,35 +32,34 @@ export function useConversationWorkspaceActions({
 
   const handleResolveConversationWorkspace = useCallback(async () => {
     try {
-      const result = await services.fileService.ensureConversationWorkspace();
+      // 窗口 ProjectService 是该目录的唯一 owner，只从 windowProjectDirectory 取，不回落其它源。
+      const projectService = services.windowProjectDirectory?.projectService;
+      if (!projectService) throw new Error("project.service-unavailable");
+      const target = await projectService.prepareSession();
       setWorkspaceActionError(null);
-      return result.path;
+      // 契约：App 消费 { workspacePath, workspaceIdentity? }；identity 缺失时保持缺失，不伪造。
+      return {
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error("[Root] ensure conversation workspace failed", { error });
+      logger.error("[Root] ensure conversation workspace failed");
       setWorkspaceActionError(message);
       throw error;
     }
-  }, [services.fileService, setWorkspaceActionError]);
+  }, [services.windowProjectDirectory?.projectService, setWorkspaceActionError]);
 
   const handleEnsureConversationWorkspace = useCallback(async () => {
-    const path = await handleResolveConversationWorkspace();
-    handleSelectConversationWorkspace(path);
-    return path;
+    const { workspacePath, workspaceIdentity } = await handleResolveConversationWorkspace();
+    handleSelectConversationWorkspace(workspacePath, workspaceIdentity);
+    return workspacePath;
   }, [handleResolveConversationWorkspace, handleSelectConversationWorkspace]);
 
-  const handleCreateConversationTask = useCallback(async () => {
-    try {
-      const path = await handleResolveConversationWorkspace();
-      handleSelectConversationWorkspace(path);
-      // “对话 +”是显式目标，不应被当前 split pane / workbench group 的项目绑定覆盖。
-      useWorkbenchGroupStore.getState().deactivateActiveGroup();
-      usePaneLayoutStore.getState().resetToPrimaryPane();
-      useZCodeSessionStore.getState().startDraft(path);
-    } catch {
-      // handleResolveConversationWorkspace 已记录错误并保留当前 workspace。
-    }
-  }, [handleResolveConversationWorkspace, handleSelectConversationWorkspace]);
+  const handleCreateConversationTask = useCallback(
+    () => createTask("task section new task"),
+    [createTask],
+  );
 
   return {
     handleSelectConversationWorkspace,

@@ -162,6 +162,7 @@ import {
   listDisposingHostProcesses,
   loadWindow,
   spawnHostProcess,
+  getWindowBrowserBackendIdentity,
 } from "./desktopHostProcess.js";
 import { spawnCronScheduler, type CronSchedulerHandle } from "./desktopCronScheduler.js";
 import {
@@ -432,6 +433,23 @@ async function runBrowserCommandOnView(params: {
   sessionContext?: "live" | "cached";
   command: unknown;
 }): Promise<{ ok: boolean; [k: string]: unknown }> {
+  const browserIdentity = getWindowBrowserBackendIdentity(params.win);
+  // init-local 之外不生成身份；旧窗口/旧代次请求不能先创建 tab 或开始录制再失败。
+  if (
+    !browserIdentity ||
+    params.browserId !== browserIdentity.id ||
+    params.browserGeneration !== browserIdentity.generation
+  ) {
+    return {
+      ok: false,
+      elapsedMs: 0,
+      error: {
+        code: "backend_unavailable",
+        message: "Browser owner identity is unavailable or stale",
+        sideEffect: "none",
+      },
+    };
+  }
   const endDialogAutomation = embeddedBrowserDialogController.beginAutomation(params.win.id);
   const command = params.command as { method?: string; tabId?: unknown } | null;
   const method = command?.method ?? "?";
@@ -1968,6 +1986,7 @@ app.whenReady().then(async () => {
       remoteSessionManager.cancelPendingRemoteWorkspaceSessionsForWindow,
     bindRemoteWorkspaceSessionContext: remoteSessionManager.bindRemoteWorkspaceSessionContext,
     confirmRendererAttachmentReady: remoteSessionManager.confirmRendererAttachmentReady,
+    requestSourceSettingsAttachment: remoteSessionManager.requestSourceSettingsAttachment,
     isDockerDaemonAvailable,
     listAvailableWSLDistros,
     listAvailableDockerContainers,

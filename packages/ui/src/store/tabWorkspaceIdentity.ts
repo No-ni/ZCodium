@@ -8,6 +8,7 @@ interface WorkspaceTabIdentityLike {
 interface WorkspaceTabMatchOptions {
   remoteSessionId?: string;
   workspaceIdentity?: string;
+  previousWorkspaceIdentity?: string;
 }
 
 function hasRemoteTabIdentity(tab: WorkspaceTabIdentityLike): boolean {
@@ -27,9 +28,12 @@ export function isSameWorkspaceTab(
     return false;
   }
 
-  const workspaceIdentity = options?.workspaceIdentity?.trim();
-  if (workspaceIdentity) {
-    return (tab.workspaceIdentity?.trim() || tab.workspacePath) === workspaceIdentity;
+  if (options?.workspaceIdentity) {
+    return (
+      tab.workspaceIdentity === options.workspaceIdentity ||
+      (Boolean(options.previousWorkspaceIdentity) &&
+        tab.workspaceIdentity === options.previousWorkspaceIdentity)
+    );
   }
 
   if (options?.remoteSessionId) {

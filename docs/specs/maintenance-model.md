@@ -349,3 +349,25 @@ CLI 独立 Lint 实际为 **79 errors / 55 warnings，exit 1**。本轮两个 CL
 - 本地诊断：安全本地日志可用；后台采样和对外导出分别默认关闭，导出仅使用用户自建接收端，无官方默认地址。
 - 用户自选 Provider 的官方模型 API：由用户配置 Key 和端点，不要求官方账号或订阅。
 - 历史文档、历史 CHANGELOG、历史 spec 中的旧上游链接：只作为记录保留。
+
+## 官方 v3.17.1 本地同步（2026-11-02）
+
+基线 `4ea453673168542c0e3ebf051308fe85d780e2c9`，仅 merge 官方 `zai-org/ZCode@a60ba6a7e5a06742270ca605f5d2cc2766afa7e1`，同步分支 `sync/official-3.17.1`。产品 3.17.1、CLI 0.17.1；Electron 44.7.0、builder 26.17.0、updater 6.8.10、macOS 最低 13。用户授权展示中文文案后创建本地提交并合回 main；不推送、不触发 Actions、不打包或安装。
+
+吸收 BYOK 目录/协议、Node/npm fallback、图片与文件动作、全局指令、YOLO 确认、设备范围和显式配置同步、项目移除/撤销/恢复、共享 CLI 与单任务重启、Office 共享进程、项目插件显式授权、预部署 Source 停止/重启与工具链升级。按用户最后选择保留旧 `@trycua/cua-driver`，不切换不可用官方 CUA 占位后端。
+
+保留 ZCodium 身份、`.zcodium` 数据根、自有更新源、FIFO/owner/lease、手机 replayable 与桌面 continuous 语义。剥离官方账号/权益/云分享上传/MCP 凭据/插件市场自动拉取/client config/relay 默认值/遥测/ARMS/UI 埋点及 Linux 发行资源，不以恢复退休 stub 解决类型问题。Sites 产品与永久 purge、原生手机推送/预测继续不接入。显式 Provider capture 的 MITM 只为开发依赖和 loopback 隔离夹具，不进入生产依赖。
+
+已确认修复真实 Worker 正常退出漏结算 dispose barrier，原 child exit 路径 finally 必达；Web 启动壳删除合并遗留的提前 style 关闭及第二份 head/body/root，回归先红后绿（`source-tests-OLGHkb` → `source-tests-omNYlT`）。连接等待、取消、释放、页面控制器配置和展示块提取保留同一状态 owner，没有新增队列或超时兜底。
+
+本次固定官方双快照准入仅用于 400 个原样新增源码，本仓适配按具体职责登记，不 blanket 管理 packages/apps、不更新 baseline 或新增长度豁免。格式核对确认 1606 个待格式化文件仍与固定官方提交相同，336 个适配文件已格式化（`continue317-format-adapted-tBtblt/report.json`）；全仓格式与 Lint 失败必须单列，不能声称全部门禁通过。
+
+验证和欠账以 [集成 spec](official-3.17.1-integration.md) 文末与领域矩阵最新证据为准。早期工作流 compile/analysis 95/95、内置插件 19/19、Source 21/21 和 flow/identity/tree/TTFT 24/24 保留为历史证据。最终主代理独立执行的根 typecheck 与 changed 架构均 exit 0，架构 violations/baseline/new 均 0；CLI core/bootstrap/cli/node-repl-host/dynamic-workflow 五包类型 0 错误。源码、接线、审计、平台、Source 生命周期和 Worker 释放回归 129/129，真实 Worker BYOK/持久化/冷恢复/附件顺序 1/1，浏览器 4/4（3 个真实组件场景与 1 个静态接线），CLI registry exit 0。Worker 运行中 meta_json 校验与退出退订警告未单独定位。
+
+根 Lint 仍 exit 1（9 errors / 157 warnings），9 个错误均为与固定官方提交相同文件的 max-lines。CLI 独立 Lint 为 exit 1（89 errors / 80 warnings），89 个错误均为 max-lines；14 个文件与合并前 HEAD 相同、26 个与官方相同，其中 6 个重叠，其余 55 个为本仓适配文件，不能全称为官方原样欠账。最终 fmt:check 为 pnpm exit 2，1606 个待格式化文件全部与官方相同，本仓适配为 0；另有 4 个 Electron 示例 HTML 的官方原样解析错误。初次核对的 15 个适配已修，最终报告为 resume317-format-review-2i0OYJ/report.json。没有放宽门槛、刷新 baseline 或全仓重格式化。
+
+锁文件静态核对 54/54 importer、104 个内部链接及 7 个补丁哈希一致，根 React overrides 和 UI 自动 peer 均符合声明；原锁文件未修改。复制工作区的离线 frozen install 两次因 Node 链接/fsync 权限限制 exit 1，未完成依赖安装验收。全部证据仍位于项目内 .run-logs/project-only-validation/，最终日志及细分分类见集成 spec。
+
+浏览器证据保持 pending-review，不晋升 formal/CI；完整 Electron、macOS 原生、实体手机 LAN、真实 SSH/IM、原生 CUA 输入、发行安装与完整语料均未验收。Knip 历史 889 项未完成消债，不盲删导出。前期子代理有项目外写入的自报事件，其自报验证不采纳，已关闭并由主代理重做项目内核验；最终续接没有再次分派子代理。
+
+最终暂存后 900 个未解决索引路径归零，79 个临时/未知文件均未入提交；审计守卫复跑 11/11，changed 架构仍零违规。清理两个本仓适配文件的 5 处空白后 AST 打印一致，根 typecheck 再跑 exit 0，根 Lint 再跑仍 9 errors / 157 warnings。git diff --cached --check 仍 exit 2，其 633 条空白诊断均来自 77 个官方原样文件，无本仓适配诊断或冲突标记；源码与具体证据见集成 spec 文末。

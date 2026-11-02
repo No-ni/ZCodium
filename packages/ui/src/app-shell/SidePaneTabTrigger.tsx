@@ -3,9 +3,12 @@ import { useRef, type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  FolderOpenIcon,
+  PuzzleIcon,
   BotIcon,
   BotMessageSquareIcon,
   BugIcon,
+  FileIcon,
   FileCode2Icon,
   FileDiffIcon,
   MapIcon,
@@ -15,6 +18,7 @@ import {
   NotepadTextIcon,
   PackageIcon,
   PaletteIcon,
+  ShieldCheckIcon,
   SquareTerminalIcon,
   TerminalIcon,
   WaypointsIcon,
@@ -138,14 +142,14 @@ export function SortableSidePaneTabTrigger({
           onCloseTab(tab.id);
         }}
         className={cn(
-          "group relative inline-flex items-center gap-1",
+          "group relative inline-flex items-center gap-1 [corner-shape:superellipse(1.5)]",
           "flex-[1_1_9.75rem] !h-7 min-w-15 max-w-39 justify-start overflow-hidden rounded-md border px-1.5 pr-2 text-ui-base font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
           "!border-transparent !bg-transparent text-foreground-subtle !rounded-lg",
           "hover:text-foreground",
           !isActive && "hover:!bg-hover",
           // TabsTrigger asChild 经过 ContextMenuTrigger 再包一层后，Radix 的 active 标记不会稳定落到真实 tab div。
           // 这里用受控的 isActive 同步补齐 data-active / data-state，保证 Tailwind 的 active variant 能命中。
-          "data-active:!bg-selected data-active:text-foreground",
+          "data-active:!bg-selected data-active:text-foreground data-active:shadow-[0_1px_2px_-1px_rgb(0_0_0/0.08)]",
           "cursor-default",
           isDragging && "cursor-grabbing shadow-md",
         )}
@@ -211,7 +215,7 @@ export function SidePaneTabDragOverlay({
     <div
       className={cn(
         "inline-flex !h-7 w-39 min-w-15 max-w-39 items-center justify-start gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-selected px-1.5 pr-1 text-ui-base font-medium text-foreground shadow-md",
-        "cursor-grabbing",
+        "cursor-grabbing [corner-shape:superellipse(1.5)]",
       )}
     >
       <SidePaneTabItemContent tab={tab} title={title} diffBadgeLabel={diffBadgeLabel} />
@@ -265,6 +269,7 @@ function isDiffPreviewTab(tab: WorkspaceSidePaneTab): boolean {
 }
 
 export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
+  if (tab.type === "file-manager") return <FolderOpenIcon className="size-3.5" />;
   // plan-detail tab 由 switch-mode（ExitPlanMode）工具调用卡片打开，来源卡片
   // 用 NotepadTextIcon；tab 必须与来源一致，避免点击后图标跳变。不用 ListChecksIcon：
   // 那会与状态面板 Todo section 撞图标，语义上也偏向 todo 而非计划方案文档。
@@ -312,6 +317,10 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <BrowserTabFavicon faviconUrl={tab.faviconUrl} />;
   }
 
+  if (tab.type === "browser-permissions") {
+    return <ShieldCheckIcon className="size-3.5" />;
+  }
+
   if (tab.type === "git") {
     return <FileDiffIcon className="size-3.5" />;
   }
@@ -327,6 +336,9 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "model-trajectory") {
     return <WaypointsIcon className="size-3.5" />;
   }
+
+  if (tab.type === "new-tab") return <FileIcon className="size-3.5" />;
+  if (tab.type === "plugin-market") return <PuzzleIcon className="size-3.5" />;
 
   if (tab.type === "developer-tools") {
     return <BugIcon className="size-3.5" />;
@@ -455,7 +467,7 @@ function getPatchHeaderFileDisplayTarget(patch: string): string | null {
   return null;
 }
 
-function getPatchFileDisplayTarget(source: {
+export function getPatchFileDisplayTarget(source: {
   path?: string;
   title: string;
   patch: string;
@@ -520,6 +532,10 @@ export function getSidePaneTabTitle(
     return pageTitle || formatMessage({ id: "browser.title" });
   }
 
+  if (tab.type === "browser-permissions") {
+    return formatMessage({ id: "browser.permission.settings" });
+  }
+
   if (tab.type === "git") {
     return formatMessage({ id: "sidePane.review" });
   }
@@ -535,6 +551,9 @@ export function getSidePaneTabTitle(
   if (tab.type === "model-trajectory") {
     return tab.title?.trim() || formatMessage({ id: "modelTrajectory.title" });
   }
+
+  if (tab.type === "new-tab") return formatMessage({ id: "sidePane.newTab" });
+  if (tab.type === "plugin-market") return formatMessage({ id: "workspace.openPluginsSettings" });
 
   if (tab.type === "developer-tools") {
     return formatMessage({ id: "developerTools.title" });
@@ -555,5 +574,7 @@ export function getSidePaneTabTitle(
     return tab.title.trim() || formatMessage({ id: "sidePane.pluginUi" });
   }
 
+  if (tab.type === "file-manager")
+    return tab.source?.title || formatMessage({ id: "fileManager.title" });
   return tab.source.title || formatMessage({ id: "codeViewer.title" });
 }

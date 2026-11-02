@@ -1,80 +1,7 @@
+import type { TaintOcc, Placeholder, AbstractValue, TaintFacts, PromotedFanout } from "./domain-types.js";
+export type { TaintOcc, Placeholder, AbstractValue, TaintFacts, PromotedFanout } from "./domain-types.js";
 import ts from "typescript";
-import { WORKFLOW_FUNCTION_NAME, type ScriptLoc } from "../compiler/compile.js";
-
-/**
- * The abstract domain of the taint pass and the pure algebra over it. See taint.ts
- * for the analysis that drives these values to a fixpoint.
- *
- * An {@link AbstractValue} carries three orthogonal facts about a runtime value:
- *  - `occs`: the taint labels (artifact/actor site ids) that may have flowed into it,
- *    plus symbolic parameter {@link Placeholder}s when we are inside a function body;
- *  - `fields`: statically-known members (object-literal props, array/tuple indices),
- *    so `x.f` and `[a, b]` stay field-sensitive;
- *  - `fns`: script-local functions reachable as this value, keeping the call graph
- *    total under higher-order code.
- *
- * Every merge is a weak (join-only) union — the analysis is gen-only, so values only
- * ever grow, which is what drives the monotone fixpoint to convergence.
- */
-
-/** A taint occurrence: a site/actor label with an exactness bit and optional join port. */
-export interface TaintOcc {
-  site: string;
-  exact: boolean;
-  port?: number;
-}
-
-/** Symbolic taint of a function parameter, used to express context-sensitive summaries. */
-export interface Placeholder {
-  fnId: number;
-  param: number;
-  /**
-   * A rest parameter (`...parts`) is a single formal that gathers every actual at
-   * index >= `param`. Resolution (substitute in calls.ts, emitFacts in state.ts)
-   * unions ALL those actuals into the formal rather than the single positional one.
-   */
-  rest?: boolean;
-}
-
-export interface AbstractValue {
-  /** Keyed by `${site}|${port ?? ""}`. */
-  occs: Map<string, TaintOcc>;
-  /** Keyed by `${fnId}:${param}`. */
-  phs: Map<string, Placeholder>;
-  fields: Map<string, AbstractValue>;
-  fns: Set<ts.Node>;
-  /**
-   * A partial-application prefix from `Function.prototype.bind`: `f.bind(null, a)` yields
-   * a value carrying f in `fns` plus `bound = [a]`. At the eventual call the prefix is
-   * PREPENDED to the actuals (`applyToFns`), so `g()` reaches f's param 0 as `a`. Rebinding
-   * composes (earlier bind's args first). Because `fns` is a set, a merged bound/plain
-   * value (`flag ? f : f.bind(null, a)`) can't say which fn is bound, so application unions
-   * BOTH alignments (with and without the prefix) — sound either way. Undefined for the
-   * overwhelmingly common non-bound value (kept off the hot path).
-   */
-  bound?: AbstractValue[];
-  /**
-   * MAY-ALIAS back-references: live places a WRITE through this value must ALSO weakly
-   * reach, because at runtime this value may BE one of them. Set for a conditional binding
-   * (`const a = flag ? box1 : box2` → a's value may-aliases box1 AND box2) and for a
-   * `Promise.all` result element that aliases its (place) input. Consulted ONLY at the
-   * write primitives ({@link replayMayAliasWrite} in writeField / handleHeapMutator): the
-   * write is replayed into each target INEXACTLY (it happens on one arm only — never a
-   * strong update), recursing into each target's OWN mayAlias (chained aliases). A Set so
-   * unions dedup by slot IDENTITY (loop-carried merges stay finite → the fixpoint
-   * terminates). Undefined for the overwhelmingly common non-aliased value.
-   *
-   * That termination argument has a PREMISE — the **canonical-heap invariant**: every
-   * target is drawn from the pass-stable heap, i.e. values keyed by a static program point
-   * and created once for the whole fixpoint (env slots per symbol, class instances per
-   * class, join results per join call, conditional places per ternary node, and the
-   * persistent fields of any of those). A per-pass temporary must NEVER become a target:
-   * identity dedup cannot recognize it, so each pass would add one more member, `changed`
-   * would stay true forever, and the analysis would hit `ITERATION_CAP` instead of
-   * converging (state.ts `joinResultOf` / `condPlaceOf` record the two repros that did).
-   */
-  mayAlias?: Set<AbstractValue>;
-}
+import { WORKFLOW_FUNCTION_NAME } from "../compiler/compile.js";
 
 export function emptyValue(): AbstractValue {
   return { fields: new Map(), fns: new Set(), occs: new Map(), phs: new Map() };
@@ -109,20 +36,32 @@ export function addOcc(target: AbstractValue, occ: TaintOcc): boolean {
   return addExact(target, occ);
 }
 
+/**
+ * The ported occurrence keys of each site, per occurrence map. `addExact` and
+ * `addPortless` are the only writers of any `occs` map, and they keep this index in step.
+ *
+ * 修复原因：`addPortless` 曾为找同站点的带端口出现而扫一遍整个出现集，哪怕一个都没有。
+ * 每次读变量都要克隆值，克隆又逐个 addOcc，于是攒着 K 个标签的值每读一次就是 K²；
+ * 一个被 n 条语句读的 n 标签数组是 n³（n=600 用了 5.7 秒）。按站点索引后只碰真正要删的键。
+ */
+const portedKeys = new WeakMap<Map<string, TaintOcc>, Map<string, string[]>>();
+
+function portedKeysOf(v: AbstractValue, site: string): readonly string[] | undefined {
+  return portedKeys.get(v.occs)?.get(site);
+}
+
 function addPortless(target: AbstractValue, occ: TaintOcc): boolean {
   // Drop any ported occurrences of the same site, folding their exactness in.
   let exact = occ.exact;
   let changed = false;
-  const drop: string[] = [];
-  for (const [key, existing] of target.occs) {
-    if (existing.site === occ.site && existing.port !== undefined) {
-      exact = exact || existing.exact;
-      drop.push(key);
+  const drop = portedKeysOf(target, occ.site);
+  if (drop !== undefined) {
+    for (const key of drop) {
+      exact = exact || (target.occs.get(key) as TaintOcc).exact;
+      target.occs.delete(key);
+      changed = true;
     }
-  }
-  for (const key of drop) {
-    target.occs.delete(key);
-    changed = true;
+    portedKeys.get(target.occs)?.delete(occ.site);
   }
   return addExact(target, { exact, site: occ.site }) || changed;
 }
@@ -132,6 +71,16 @@ function addExact(target: AbstractValue, occ: TaintOcc): boolean {
   const existing = target.occs.get(key);
   if (existing === undefined) {
     target.occs.set(key, { exact: occ.exact, port: occ.port, site: occ.site });
+    if (occ.port !== undefined) {
+      let bySite = portedKeys.get(target.occs);
+      if (bySite === undefined) {
+        bySite = new Map();
+        portedKeys.set(target.occs, bySite);
+      }
+      const keys = bySite.get(occ.site);
+      if (keys === undefined) bySite.set(occ.site, [key]);
+      else keys.push(key);
+    }
     return true;
   }
   if (occ.exact && !existing.exact) {
@@ -368,10 +317,7 @@ export function readField(container: AbstractValue, key: string): AbstractValue 
 }
 
 function hasPortedOcc(v: AbstractValue, site: string): boolean {
-  for (const occ of v.occs.values()) {
-    if (occ.site === site && occ.port !== undefined) return true;
-  }
-  return false;
+  return (portedKeysOf(v, site)?.length ?? 0) > 0;
 }
 
 /** Copy of `v` with every occurrence's exactness bit cleared (recursively). */
@@ -408,7 +354,11 @@ export function provisionalFanoutId(order: number): string {
  * (a sound over-approximation, never a kill), and a member that actually HOLDS a tracked
  * script-local function dispatches as an ordinary call (see evalCall's mutator branch).
  */
-export const HEAP_MUTATORS = new Set<string>(["push", "unshift", "splice", "set", "add"]);
+// `send` 是 facade `Channel<T>` 的入队（docs/dynamic-workflow/authoring.md「Streams」）：一次向容器
+// 写入，与 push / Map.set 同规——`ch.send(x)` 把 x 的 taint 并进 channel 的 place，`for await` 再从
+// place 读出，于是每个生产者到每个消费者各画一条数据边。按名字匹配（与其余 mutator 一致），
+// 脚本自己声明的 `send` 方法照旧走 calls.ts 里「成员持有脚本函数则按调用分派」的守卫。
+export const HEAP_MUTATORS = new Set<string>(["push", "unshift", "splice", "set", "add", "send"]);
 
 /**
  * Every compound-assignment token (`+=`, `-=`, … and the logical `||=`/`&&=`/`??=`).
@@ -631,31 +581,4 @@ export function bindingPropertyKey(element: ts.BindingElement): string | undefin
     return undefined;
   }
   return ts.isIdentifier(element.name) ? element.name.text : undefined;
-}
-
-/** The edge-bearing facts consumed by graph assembly. Fan-out ids are provisional. */
-export interface TaintFacts {
-  /** Artifact occurrences reaching each ask instruction (data in-edges to the ask). */
-  askData: Map<string, TaintOcc[]>;
-  /** Actor occurrences of each ask receiver (drive the context relation). */
-  askActor: Map<string, TaintOcc[]>;
-  /** Artifact occurrences reaching each world-read argument. */
-  worldReadData: Map<string, TaintOcc[]>;
-  /** Artifact occurrences reaching each open hole's prompt. */
-  holeData: Map<string, TaintOcc[]>;
-  /** Artifact occurrences reaching each join, carrying the join input port. */
-  joinIn: Map<string, TaintOcc[]>;
-  /** Artifact occurrences reaching each promoted fan-out (provisional id). */
-  fanoutIn: Map<string, TaintOcc[]>;
-  /** Artifact occurrences reaching the script's return expression(s). */
-  returnData: TaintOcc[];
-  /** Promoted iteration candidates, in source order; `id` is provisional (`fan-out@N`). */
-  promoted: PromotedFanout[];
-}
-
-export interface PromotedFanout {
-  order: number;
-  id: string;
-  loc: ScriptLoc;
-  label: string;
 }

@@ -32,12 +32,28 @@ export function maybeStartSessionTitleGeneration(
   traceContext: TraceContext,
   options?: {
     goalSummaryTargetID?: string;
+    offPeakExecutionId?: string;
   },
 ): boolean {
   return maybeStartSessionTitleGenerationFromSeed.call(this, input, {
     goalSummaryTargetID: options?.goalSummaryTargetID,
+    offPeakExecutionId: options?.offPeakExecutionId,
     messageID,
     traceContext,
+  });
+}
+
+export function maybeStartDeferredSessionTitleGeneration(
+  this: AgentRuntimeInternal,
+  input: string,
+  messageID: MessageId,
+  traceContext: TraceContext,
+  offPeakExecutionId?: string,
+): boolean {
+  return maybeStartSessionTitleGenerationFromSeed.call(this, input, {
+    messageID,
+    traceContext,
+    offPeakExecutionId,
   });
 }
 
@@ -63,6 +79,7 @@ function maybeStartSessionTitleGenerationFromSeed(
     messageID?: MessageId;
     traceContext: TraceContext;
     bypassShortInputGuard?: boolean;
+    offPeakExecutionId?: string;
   },
 ): boolean {
   if (
@@ -73,7 +90,7 @@ function maybeStartSessionTitleGenerationFromSeed(
     return false;
   }
   this.sessionTitleGenerationAttempted = true;
-
+  // 合并依据：标题沿用独立 BYOK 总结模型选择和 runtime 关闭信号，不保留官方闲时票据或遥测对象。
   const generation = generateAndPersistSessionTitle
     .call(this, input, options.messageID, options.traceContext, {
       goalSummaryTargetID: options.goalSummaryTargetID,
@@ -112,6 +129,7 @@ function shouldAttemptSessionTitleGeneration(
   input: string,
   options: { bypassShortInputGuard?: boolean } = {},
 ): boolean {
+  if (runtime.shuttingDown) return false;
   if (runtime.sessionTitleGenerationAttempted) return false;
   if (runtime.config.titleGeneration?.enabled === false) return false;
   if (!runtime.config.titleGeneration) return false;

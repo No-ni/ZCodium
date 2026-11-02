@@ -290,7 +290,7 @@ function createLocalUserMessage(content: string): Message & { id: string } {
   };
 }
 
-function redactSensitivePromptForTranscript(text: string): string {
+export function redactSensitivePromptForTranscript(text: string): string {
   const trimmed = text.trim();
   // 退休命令的参数可能仍是旧脚本传入的密钥。不能仅匹配小写或特定套餐格式，
   // 否则命令虽已拒绝，TUI 本地 user row 仍会回显敏感参数。

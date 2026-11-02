@@ -86,8 +86,9 @@
   "scripts": {
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
-    "test": "node --import tsx --test --test-isolation=none test/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-isolation=none test/*.test.ts && vitest run tests",
+    "coverage": "vitest run tests --coverage",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src"
   },
@@ -98,6 +99,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "tsx": "^4.20.0"
+    "vitest": "^4.1.5"
   }
 }

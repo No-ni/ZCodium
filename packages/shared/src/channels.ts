@@ -1,3 +1,15 @@
+import type {
+  EmbeddedBrowserPermissionPromptEvent,
+  EmbeddedBrowserPermissionResolveRequest,
+  EmbeddedBrowserSitePermissionUpdateRequest,
+  EmbeddedBrowserSitePermissionResetRequest,
+  EmbeddedBrowserSitePermissionsSnapshot,
+  FileApplicationInfo,
+  FileApplicationTarget,
+  MaterializeWorkflowArtifactFileRequest,
+  MaterializeWorkflowArtifactFileResult,
+  RemoteSessionReconnectedEvent,
+} from "./platform.js";
 import type { RendererHeapSample } from "./validation.js";
 /* eslint-disable max-lines -- 通信频道和请求响应映射必须集中定义，避免跨进程 channel 字符串散落。 */
 import type {
@@ -146,6 +158,27 @@ export const ServiceChannels = {
   PromptAttachmentTransfer: "prompt-attachment-transfer",
   /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
   OnboardingRecord: "onboarding-record",
+
+  Project: "project",
+
+  TaskGroups: "task-groups",
+
+  RemoteProjects: "remote-projects",
+
+  /** Source Server 端 workspace 身份解析服务 */
+  SourceServerWorkspace: "source-server-workspace",
+
+  /** 桌面 Host 的数据同步设备状态（按 sourceServerId 记录上次同步结果，仅本机注册） */
+  DeviceSyncState: "device-sync-state",
+
+  /** 桌面 Host 的数据同步页模型提供商：读取 / 重试 Main 协调器的 Provisioning lane（仅本机注册） */
+  ProviderProvisioningStatus: "provider-provisioning-status",
+
+  /** 数据同步：子智能体、命令、钩子共用的用户配置同步通道（按 category 区分，不进手机白名单） */
+  UserConfigSync: "user-config-sync",
+
+  /** OutputStyle 管理服务 */
+  OutputStyle: "output-style",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];
@@ -421,6 +454,48 @@ export const PlatformChannels = {
   SetTitleBarTheme: "zcode:set-title-bar-theme",
   /** Renderer → Main：迁移旧版 Common MCP 配置 */
   MigrateLegacyCommonMcp: "zcode:migrate-legacy-common-mcp",
+
+  PluginSandboxExecutionActive: "zcode:plugin-sandbox-execution-active",
+
+  /** 打开系统多目录选择框 */
+  SelectDirectories: "zcode:select-directories",
+
+  /** Renderer → Main：把 dwf 产物某一版的字节落成本机副本（「作为文件打开」） */
+  MaterializeWorkflowArtifactFile: "zcode:materialize-workflow-artifact-file",
+
+  /** Main → Renderer：Source 自动重连后的 logical session 已换代并完成 port ready */
+  RemoteSessionReconnected: "zcode:remote-session-reconnected",
+
+  /** Desktop Renderer → Main：为在线 Source 创建配置专用 attachment */
+  RequestSourceSettingsAttachment: "zcode:request-source-settings-attachment",
+
+  /** Renderer → Main：查询"关闭驻留托盘"能力（Linux 置灰判断；spec：docs/desktop/linux-close-to-tray.md） */
+  GetCloseToTrayCapability: "zcode:get-close-to-tray-capability",
+
+  /** Main → Renderer：内置浏览器网页权限/屏幕共享源/设备选择弹窗请求 */
+  EmbeddedBrowserPermissionPrompt: "zcode:embedded-browser-permission-prompt",
+
+  /** Renderer → Main：用户对内置浏览器权限弹窗的决策回传 */
+  EmbeddedBrowserPermissionResolve: "zcode:embedded-browser-permission-resolve",
+
+  /** Renderer → Main：重建 `<webview>` 前主动断开旧 guest 的 CDP。 */
+  BrowserViewDownloadStarted: "zcode:browser-view-download-started",
+
+  /** Renderer → Main：读取内置浏览器站点权限记录（设置页「网站权限」） */
+  GetEmbeddedBrowserSitePermissions: "zcode:get-embedded-browser-site-permissions",
+
+  /** Renderer → Main：修改/删除单条站点权限（state="ask" 表示删除） */
+  SetEmbeddedBrowserSitePermission: "zcode:set-embedded-browser-site-permission",
+
+  /** Renderer → Main：清空全部站点权限记录 */
+  ClearEmbeddedBrowserSitePermissions: "zcode:clear-embedded-browser-site-permissions",
+
+  /** Renderer → Main：重置单个站点的全部权限记录（站点权限设置标签页「重置」） */
+  ResetEmbeddedBrowserSitePermission: "zcode:reset-embedded-browser-site-permission",
+
+  GetFileApplications: "zcode:get-file-applications",
+
+  OpenFileWithApplication: "zcode:open-file-with-application",
 } as const;
 
 export type PlatformChannelName = (typeof PlatformChannels)[keyof typeof PlatformChannels];
@@ -470,6 +545,9 @@ export const InternalChannels = {
   TaskNotificationSound: "zcode:task-notification-sound",
   /** main → 宿主 renderer：插件 UI 沙箱的 MessagePort 组（port2[]），payload { sandboxId, initId, names } */
   PluginSandboxPorts: "zcode:plugin-sandbox-ports",
+
+  /** main → renderer：在线 Source 的配置专用 MessagePort */
+  SourceSettingsServicePort: "zcode:source-settings-service-port",
 } as const;
 
 /** @deprecated `/ws` 已忽略该头；保留常量仅供旧客户端兼容。 */
@@ -538,6 +616,21 @@ export const HostMessageTypes = {
   /** main → host：资源管理器请求 Host 采样其后代进程（Agent / MCP / 终端）的 CPU 与内存 */
   ResourceUsageSnapshotRequest: "resource-usage-snapshot-request",
   ResourceUsageSnapshotCancel: "resource-usage-snapshot-cancel",
+
+  /** main → Host：准备手机项目目录，只复用已在线物理 Source。 */
+  PrepareProjectWorkspace: "prepare-project-workspace",
+
+  /** main → window Host：取消已超时的 workspace bind */
+  CancelRemoteWorkspaceBind: "cancel-remote-workspace-bind",
+
+  /** main → host：复用现有服务，对新的 RPC MessagePort 暴露服务 */
+  SetTerminalOwner: "set-terminal-owner",
+
+  /** main → host：数据同步页读取 / 重试 Provisioning lane 的结果。 */
+  ProviderProvisioningLaneResult: "provider-provisioning-lane-result",
+
+  /** main → host：Main 的实时界面语言变化（Host 用于 ZCode endpoint 的 X-Client-Language） */
+  ApplicationLocaleChanged: "application-locale-changed",
 } as const;
 
 /** host process → main process 的反馈消息类型 */
@@ -627,6 +720,18 @@ export const HostResponseTypes = {
   ProviderProvisioningSourceChanged: "provider-provisioning-source-changed",
   /** host → main：一次 Remote Environment 同步执行完毕。 */
   ProviderProvisioningExecutionResult: "provider-provisioning-execution-result",
+
+  /** Host → main：已准入的目录与 scope，main 不解释项目业务。 */
+  ProjectWorkspacePrepared: "project-workspace-prepared",
+
+  /** window Host → main：workspace canonical 准备完成，可安全建立新 attachment */
+  RemoteWorkspaceContextBound: "remote-workspace-context-bound",
+
+  /** window Host → main：Source transport 重连后 logical session 已换代 */
+  RemoteWorkspaceReconnected: "remote-workspace-reconnected",
+
+  /** host → main：数据同步页按设备读取或重试 Provisioning lane。 */
+  ProviderProvisioningLaneRequest: "provider-provisioning-lane-request",
 } as const;
 
 // ============================================================================
@@ -694,7 +799,7 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.ConnectRemote]: {
     request: ConnectRemoteRequest;
-    response: { success: boolean; error?: string; sessionId?: string };
+    response: { success: boolean; error?: string; reasonCode?: string; sessionId?: string };
   };
   [PlatformChannels.CancelPendingRemoteConnection]: {
     request: CancelPendingRemoteConnectionRequest;
@@ -1113,5 +1218,70 @@ export interface PlatformChannelMap {
   [PlatformChannels.SetTitleBarTheme]: {
     request: DesktopTitleBarTheme;
     response: void;
+  };
+
+  [PlatformChannels.SelectDirectories]: {
+    request: void;
+    response: string[];
+  };
+
+  [PlatformChannels.MaterializeWorkflowArtifactFile]: {
+    request: MaterializeWorkflowArtifactFileRequest;
+    response: MaterializeWorkflowArtifactFileResult;
+  };
+
+  [PlatformChannels.RemoteSessionReconnected]: {
+    request: RemoteSessionReconnectedEvent;
+    response: void;
+  };
+
+  [PlatformChannels.RequestSourceSettingsAttachment]: {
+    request: { sourceServerId: string };
+    response: { attachmentId: string };
+  };
+
+  [PlatformChannels.EmbeddedBrowserPermissionPrompt]: {
+    request: EmbeddedBrowserPermissionPromptEvent;
+    response: void;
+  };
+
+  [PlatformChannels.EmbeddedBrowserPermissionResolve]: {
+    request: EmbeddedBrowserPermissionResolveRequest;
+    response: void;
+  };
+
+  [PlatformChannels.GetEmbeddedBrowserSitePermissions]: {
+    request: void;
+    response: EmbeddedBrowserSitePermissionsSnapshot;
+  };
+
+  [PlatformChannels.SetEmbeddedBrowserSitePermission]: {
+    request: EmbeddedBrowserSitePermissionUpdateRequest;
+    response: EmbeddedBrowserSitePermissionsSnapshot;
+  };
+
+  [PlatformChannels.ClearEmbeddedBrowserSitePermissions]: {
+    request: void;
+    response: EmbeddedBrowserSitePermissionsSnapshot;
+  };
+
+  [PlatformChannels.ResetEmbeddedBrowserSitePermission]: {
+    request: EmbeddedBrowserSitePermissionResetRequest;
+    response: EmbeddedBrowserSitePermissionsSnapshot;
+  };
+
+  [PlatformChannels.BrowserViewDownloadStarted]: {
+    request: { webContentsId: number; urls: string[] };
+    response: void;
+  };
+
+  [PlatformChannels.GetFileApplications]: {
+    request: FileApplicationTarget;
+    response: FileApplicationInfo[];
+  };
+
+  [PlatformChannels.OpenFileWithApplication]: {
+    request: { applicationId: string; target: FileApplicationTarget };
+    response: { success: boolean; error?: string };
   };
 }

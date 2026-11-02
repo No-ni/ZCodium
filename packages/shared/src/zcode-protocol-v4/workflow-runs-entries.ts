@@ -12,22 +12,38 @@ import { WORKFLOW_RUNS_LIMITS, type WorkflowRunActor } from "./workflow-runs.js"
  * 两种条目，就是两条会在冷回放里对不上的记录。
  *
  * `status` 落的是占位值：紧接着的 `withDerivedWorkflowActorStatuses` 会按节点与 run 终态重算。
+ *
+ * `model` 是可选第 5 参：persona 点名模型时宿主按本 run 绑定表解析出的规范串；不带这个键的旧 CLI
+ * 与读不出的值一律当缺席，条目里也就不写这个键。
  */
 export function workflowActorEntry(
   ref: { siteId: string; ordinal: number },
   name: unknown,
   phaseName: string | undefined,
   sessionId: string | undefined,
+  model?: unknown,
 ): WorkflowRunActor {
   const bounded = boundedActorName(nonEmptyString(name));
+  const canonical = boundedActorModel(nonEmptyString(model));
   return {
     siteId: ref.siteId,
     ordinal: ref.ordinal,
     ...(bounded === undefined ? {} : { name: bounded }),
     ...(sessionId ? { sessionId } : {}),
     ...(phaseName === undefined ? {} : { phaseName }),
+    ...(canonical === undefined ? {} : { model: canonical }),
     status: "waiting",
   };
+}
+
+/**
+ * 子代理模型的线上界：超界**整条丢弃**而不截断——截断的规范串是另一个（不存在的）模型，
+ * 画出来就是一句假话；缺席只是退回「跑在 run 的子代理模型上」那一格。
+ */
+function boundedActorModel(model: string | undefined): string | undefined {
+  return model === undefined || model.length > WORKFLOW_RUNS_LIMITS.maxSubagentModelLength
+    ? undefined
+    : model;
 }
 
 /** 子代理展示名的线上界（见文件头那次订阅失效）。 */
@@ -44,7 +60,28 @@ export function boundedPhaseName(name: string | undefined): string | undefined {
   return name === undefined ? undefined : name.slice(0, WORKFLOW_RUNS_LIMITS.maxPhaseNameLength);
 }
 
+/**
+ * 会话 id 的线上读法：界内的非空串原样收下，其余一律当缺席。**不截断**——与子代理模型串同理，
+ * 一个被砍短的 id 指向的是另一条（或不存在的）会话，宁可不认。
+ */
+export function boundedSessionId(value: unknown): string | undefined {
+  const text = nonEmptyString(value);
+  return text !== undefined && text.length <= WORKFLOW_RUNS_LIMITS.maxSessionIdLength
+    ? text
+    : undefined;
+}
+
 /** 空串按缺席处理：协议线上只有「键在场」与「键缺席」两态。 */
 export function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/** 引擎的 `InstanceRef` / `ActorRef` 同构：站点 id × 序号。缺任一即无法定位，返回 null。 */
+export function workflowInstanceRef(value: unknown): { siteId: string; ordinal: number } | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const siteId = nonEmptyString(record.siteId);
+  const ordinal = record.ordinal;
+  if (siteId === undefined || typeof ordinal !== "number") return null;
+  return { siteId, ordinal };
 }

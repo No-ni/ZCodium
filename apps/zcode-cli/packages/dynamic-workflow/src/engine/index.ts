@@ -7,6 +7,22 @@ export { WorkflowEngine, type RunSettlement } from "./engine.js";
 export type { EngineConfig } from "./engine-config.js";
 export { InMemoryJournalStore } from "./journal-memory.js";
 export {
+  HOLE_PROMPT_MAX_CHARS,
+  type FilledHole,
+  type FillHoleResult,
+  type HoleFill,
+  type OpenHole,
+} from "./engine-holes.js";
+export {
+  ALL_EVENTS,
+  NODE_KINDS,
+  NON_REPORT_NODE_KINDS,
+  type GetNodeOptions,
+  type ListActorsOptions,
+  type ListNodesOptions,
+  type RunEventType,
+} from "./journal-read-types.js";
+export {
   ConcurrencyController,
   CONCURRENCY_DECREASE_FACTOR,
   CONCURRENCY_FLOOR,
@@ -16,13 +32,6 @@ export {
   type ConcurrencyControllerSnapshot,
   type ConcurrencyThrottleReason,
 } from "./concurrency.js";
-export {
-  HOLE_PROMPT_MAX_CHARS,
-  type FilledHole,
-  type FillHoleResult,
-  type HoleFill,
-  type OpenHole,
-} from "./engine-holes.js";
 export { canonicalJson, fnv1a, inputHash } from "./hash.js";
 export {
   WorkflowError,

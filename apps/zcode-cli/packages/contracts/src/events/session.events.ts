@@ -7,8 +7,21 @@ import type { RuntimeInputPresentation } from "../interfaces/runtime-input-prese
 
 import type { HttpClientEgressInfo } from "../interfaces/http-client.port.js";
 import type { PermissionOptionsPolicy, PermissionUpdate } from "../interfaces/permission.port.js";
+
+import type {
+  CompactBoundaryPayload,
+  CompactTimelinePayload,
+  MicrocompactBoundaryPayload,
+} from "../compact/index.js";
+import type { HookRunLifecyclePayload } from "../hooks/index.js";
+import type {
+  MessageVisibility,
+  SessionTitleSource,
+  SyntheticUserMessageSource,
+} from "../interfaces/session-store.port.js";
 import type {
   CollaborationMode,
+  HighspeedMessageMetadata,
   RiskLevel,
   TurnInputIntentMetadata,
   TurnSteerCommandKind,
@@ -35,21 +48,11 @@ import type {
 } from "../model/index.js";
 import { createModelUsageSummary } from "../model/index.js";
 import type { ModelApiErrorPhase, ModelFailureExceptionKind } from "../model/observation.js";
-import type {
-  CompactBoundaryPayload,
-  CompactTimelinePayload,
-  MicrocompactBoundaryPayload,
-} from "../compact/index.js";
-import type { HookRunLifecyclePayload } from "../hooks/index.js";
 import type { CheckpointCreatedPayload, RewindTriggeredPayload } from "../rewind/index.js";
+import type { SkillTelemetryMetadata } from "../skills/index.js";
 import type { GoalCompletionVerificationOutput, SessionGoal } from "../tools/target.js";
 import type { ToolSideEffectScope } from "../tools/contract.js";
 import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
-import type {
-  MessageVisibility,
-  SessionTitleSource,
-  SyntheticUserMessageSource,
-} from "../interfaces/session-store.port.js";
 import type { SavedWorkflowScope } from "../tools/saved-workflow.js";
 import type {
   StreamRecoveryAnchorPayload,
@@ -110,11 +113,13 @@ export const SessionEventType = {
   UserMessage: "user_message",
   AssistantMessage: "assistant_message",
   AssistantFeedbackUpdated: "assistant_feedback_updated",
+  HighspeedMetricsUpdated: "highspeed_metrics_updated",
   // （2026-09-12）：原 ToolWidgetStateUpdated / SessionPluginUiStateUpdated 已删除，
   // 插件 UI widgetState 回退 renderer 内存，不再经 CLI 事件流。
   SystemMessage: "system_message",
   ModelRequest: "model_request",
   ModelSelected: "model_selected",
+  TurnExecutionModelFallback: "turn_execution_model_fallback",
   ModelStreaming: "model_streaming",
   StreamingToolLedgerUpdated: "streaming_tool_ledger_updated",
   StreamRecoveryAnchorCreated: "stream_recovery_anchor_created",
@@ -157,6 +162,7 @@ export const SessionEventType = {
   WorkspaceHookReviewSuperseded: "workspace_hook_review_superseded",
   // 软门禁:准入状态变化时发射,pendingCount=0 时投影层清空 snapshot 字段。
   WorkspaceHookAdmissionUpdated: "workspace_hook_admission_updated",
+  WorkspaceMcpAdmissionUpdated: "workspace_mcp_admission_updated",
   HookRunStarted: "hook_run_started",
   HookRunProgress: "hook_run_progress",
   HookRunCompleted: "hook_run_completed",
@@ -292,7 +298,9 @@ export type WorkflowNotificationMeta =
       askedAt?: number;
     }
   /**
-   * 留白（`hole-reached`）：run 走到一个开着的 `hole<T>()`，那条分支停驻、主代理欠一段代码。
+   * 脚本到达一处留白（docs/dynamic-workflow/transcript-and-notifications.md 的 `hole` 载荷）：
+   * 主代理欠这个 run 一段代码。`prompt` ≤4000（与升级问题同界）；`before` / `after` 是留白前后
+   * 的阶段名，`draftPath` / `line` 指向 run 草稿里的那一行。每个 `hole-reached` 恰好一条。
    * 与 shared 的 `workflowNotificationMetaSchema` 的 `hole` 分支手工同步；`siteId` 是时间线定位键。
    */
   | {
@@ -316,6 +324,26 @@ export type WorkflowNotificationMeta =
       cap?: number;
     };
 
+/**
+ * 主代理闲着、run 还欠着决定时的提醒：每个 run 一条，带发出那一刻开着的问题数、等着的留白数与
+ * 其中最久的等待。不是 run 事件——由父会话的空闲钟发出。
+ *
+ * 它是 originMeta 上独立的键，不是 WorkflowNotificationMeta 的成员：那个 union 在线上是闭集，多一个
+ * kind 会让不认识它的客户端拒掉整帧、打不开会话；不认识的键只是被剥掉
+ * （docs/dynamic-workflow/transcript-and-notifications.md「The payload」）。
+ */
+export interface WorkflowBlockedMeta {
+  questions: number;
+  holes: number;
+  sinceMs: number;
+}
+
+/** 后台 Agent 的终态；产品状态读它，不解析通知文本。error 只在 failed 时出现，与 summary 里的原因相同。 */
+export interface SubagentResultMeta {
+  status: "completed" | "failed" | "killed";
+  error?: string;
+}
+
 /** 独立后台结果轮的展示元信息；批量轮可复用代表任务身份并合成 title，不从通知文本反向解析。 */
 export interface BackgroundResultOriginMeta {
   /** `workflow` 是 dynamic-workflow run（workId ≡ runId），复用整条后台通知管线。 */
@@ -324,6 +352,10 @@ export interface BackgroundResultOriginMeta {
   title: string;
   /** 只在 backgroundSource === "workflow" 的单条通知轮上在场；manifest 渲染的唯一数据源。 */
   workflowNotification?: WorkflowNotificationMeta;
+  /** 空闲提醒的载荷；与 workflowNotification 至多在场一个。 */
+  workflowBlocked?: WorkflowBlockedMeta;
+  /** 只在 backgroundSource === "subagent" 的单条通知轮上在场；合并轮不带。 */
+  subagentResult?: SubagentResultMeta;
 }
 
 /**
@@ -342,15 +374,16 @@ export type TurnBackgroundAttribution = { automationId?: string };
 export type WorkflowLaunchDisplay = Extract<ToolResultDisplayPayload, { kind: "create_workflow" }>;
 
 /**
- * 设置轮的「改了什么」：只有改动过的设置在场，
- * 每项 from / to 缺一端即那一端是默认（模型 = 会话模型，上限 = 本机上限）。`ceiling` 是本机上限，
- * 供「13 → 4」这种读法。与 shared 的 `workflowSettingsAmendMetaSchema` 同形。
+ * 设置轮（docs/dynamic-workflow/launch.md「The settings turn」）的「改了什么」：只有改动过的设置在场，
+ * 每项 from / to 缺一端即那一端是默认（模型 = 会话模型，上限 = 默认并发）。`ceiling` 是默认并发 D
+ * （线上键名早于「默认并发」这个概念，为兼容旧端保留），供「默认 13 → 4」这种读法。与 shared 的 `workflowSettingsAmendMetaSchema` 同形。
  */
 export interface WorkflowSettingsAmendMeta {
   /**
-   * 被这次调整替代（或接着跑）的那个 run。**缺席即就地生效**：只改并发上界、run 又还在飞时，
+   * 被这次调整替代（或接着跑）的那个 run。**缺席即就地生效**
+   * （docs/dynamic-workflow/launch.md「The settings turn」）：只改并发上界、run 又还在飞时，
    * 那次「配置」既不停这次 run 也不另起一次，于是没有前驱可指——`runId` 指的就是被调整的那一个。
-   * 与 shared 的 `workflowSettingsAmendMetaSchema` 同形。
+   * 与 shared 的 `workflowSettingsAmendMetaSchema` 同形（那边记着老桌面上的偏斜）。
    */
   predecessorRunId?: string;
   subagentModel?: { from?: string; to?: string };
@@ -451,6 +484,8 @@ export function boundWorkflowLaunchMeta(input: WorkflowLaunchMeta): WorkflowLaun
 }
 
 export interface TurnStartedPayloadBase {
+  /** 当前输入/后台因果链的客户端来源，仅用于统计。 */
+  inputOrigin?: "desktop" | "mobile";
   /** 执行入口的单调 epoch 毫秒；hooks/持久化发生在 TurnStarted 发布前，不能据发布时间反推执行开始。 */
   executionStartedAt?: number;
   turnNumber: number;
@@ -508,6 +543,8 @@ export interface TurnSteerQueuedPayload {
   commandKind?: TurnSteerCommandKind;
   source?: TurnSteerSource;
   inputPresentation?: RuntimeInputPresentation;
+  /** Host 准入注入的可信 automation 身份；禁止从追踪字段恢复。 */
+  automationId?: string;
   /** 当前排队输入消费时不向 provider 暴露的工具名。 */
   toolDisallowlist?: readonly string[];
   /** 投递语义：queue=消费时切新 product turn；guide=内联当前轮。 */
@@ -642,6 +679,11 @@ export interface AssistantFeedbackUpdatedPayload {
   feedback: "like" | "dislike" | null;
 }
 
+export interface HighspeedMetricsUpdatedPayload {
+  entityId: string;
+  highspeed: HighspeedMessageMetadata;
+}
+
 export interface SystemMessagePayload {
   type: "init" | "compact_boundary" | "interrupted";
   content: string;
@@ -708,6 +750,26 @@ export interface ModelSelectedPayload {
   supportedThoughtLevels?: string[];
   /** 当前 selection 在 runtime 实际应用的上下文窗口；null 表示显式清除，字段缺失兼容旧事件。 */
   contextWindow?: number | null;
+}
+
+/**
+ * 执行 Selection 退回会话 Selection 的原因，与 @zcode/shared 的 selectionFallback 规则同值域：
+ * 卡过期由声明的 provider 错误码命中，其余任何加速请求失败归为 request_failed。
+ */
+export type TurnExecutionModelFallbackReason =
+  | "highspeed_card_expired"
+  | "highspeed_request_failed"
+  | "highspeed_selection_unavailable";
+
+export interface TurnExecutionModelFallbackPayload {
+  inputId?: string;
+  reason: TurnExecutionModelFallbackReason;
+  /**
+   * Provider 重构后单轮执行模型统一用稀疏 Selection 表达（旧的 ModelRef 已删除）：
+   * from 是本轮 execution 作用域的加速 Selection，to 是会话常驻 Selection。
+   */
+  fromModelSelection: ModelSelection;
+  toModelSelection: ModelSelection;
 }
 
 export type ModelStreamingKind =
@@ -883,11 +945,19 @@ export interface ToolCallResultPayload {
   toolCallId: ToolCallId;
   result: ToolResultPayload;
   duration: number;
+  /** Skill metadata 仅用于本地历史归属，不进入模型可见的 result.content，也不做任何上报。 */
+  skillMetadata?: SkillTelemetryMetadata;
+  /** 执行时 ToolEntry 的插件归属，不从工具名称推断。 */
+  pluginId?: string;
 }
 
 export interface ToolCallErrorPayload {
   toolCallId: ToolCallId;
   error: ErrorPayload;
+  /** Skill metadata 仅用于本地历史归属，不进入模型可见的错误正文，也不做任何上报。 */
+  skillMetadata?: SkillTelemetryMetadata;
+  /** 执行时 ToolEntry 的插件归属，不从工具名称推断。 */
+  pluginId?: string;
 }
 
 export interface ToolBatchCompletePayload {
@@ -971,6 +1041,7 @@ export interface DynamicWorkflowRunProgressPayload {
 }
 
 export interface PermissionRequestedPayload {
+  approvalMode?: "user-once";
   requestId?: string;
   toolCallId: ToolCallId;
   toolName: string;
@@ -1075,6 +1146,13 @@ export interface WorkspaceHookAdmissionUpdatedPayload {
   workspaceIdentity?: string;
 }
 
+/** MCP 的声明集合摘要仅供提示去重；逐条授权仍使用各自的 declarationDigest。 */
+export interface WorkspaceMcpAdmissionUpdatedPayload {
+  pendingCount: number;
+  bundleDigest: string;
+  workspaceIdentity?: string;
+}
+
 export type PermissionDecision = "allow" | "deny" | "escalate" | "modify";
 
 export type TargetChangedAction =
@@ -1172,6 +1250,13 @@ export interface ErrorAttribution {
   statusCode?: number;
   providerErrorCode?: string;
   retryable?: boolean;
+  /** string=使用该 Highspeed 卡，null=明确未使用，undefined=旧 Agent 未发布。 */
+  highspeedCardId?: string | null;
+  /**
+   * true=本轮 Highspeed 创建期或请求期失败已命中退回声明，但所有退回目标都无法创建，整轮按真实错误
+   * 结束。Renderer 据此作废匹配卡；不再按错误码推断，请求期 3402/网络失败的 code 是 provider 错误码。
+   */
+  highspeedFallbackUnavailable?: boolean;
 }
 
 // CollaborationMode and RiskLevel are re-exported from ports
@@ -1251,6 +1336,7 @@ export type SessionEventPayload =
   | SystemMessagePayload
   | ModelRequestPayload
   | ModelSelectedPayload
+  | TurnExecutionModelFallbackPayload
   | ModelStreamingPayload
   | StreamingToolLedgerPayload
   | StreamRecoveryAnchorPayload
@@ -1286,6 +1372,7 @@ export type SessionEventPayload =
   | WorkspaceHookReviewSettledPayload
   | WorkspaceHookReviewSupersededPayload
   | WorkspaceHookAdmissionUpdatedPayload
+  | WorkspaceMcpAdmissionUpdatedPayload
   | HookRunLifecyclePayload
   | CompactLifecyclePayload
   | MicrocompactBoundaryEventPayload

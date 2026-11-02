@@ -3,7 +3,7 @@ import type { IntlInstance } from "@/i18n/IntlProvider.js";
 import { runExportLogsAction } from "@/lib/exportLogsAction.js";
 import { ZCODE_PRODUCT_DOCS_URL } from "@/lib/productDocs.js";
 
-interface HelpMenuActionHandlers {
+export interface HelpMenuActionHandlers {
   openIssueReport: () => Promise<void>;
   openProductDocs: () => void;
   exportLogs: () => void;

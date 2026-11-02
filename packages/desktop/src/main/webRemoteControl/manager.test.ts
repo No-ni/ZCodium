@@ -235,8 +235,11 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
         Object.assign(settings, patch);
       },
       async updateDataBaseDir() {},
-      async ensureDefaultProject(homedir) {
-        return { path: homedir, created: false };
+      async getUserInstructions() {
+        return { content: "", filePath: "fixture-instructions.md" };
+      },
+      async saveUserInstructions() {
+        return { filePath: "fixture-instructions.md" };
       },
     };
     const credentialService: ICredentialService = {

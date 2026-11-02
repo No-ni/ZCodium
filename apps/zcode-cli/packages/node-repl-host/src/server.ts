@@ -1,4 +1,3 @@
-import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- shared node_repl host 的 worker、CUA bridge 和生命周期必须保持同一边界。 */
 import { resolve } from "node:path";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
@@ -16,15 +15,31 @@ import {
   type NodeReplRunResult,
 } from "@zcode/core/repl";
 import { type ComputerUseRuntime } from "@zcode/zcode-cua";
+// 旧驱动（@trycua/cua-driver）装配入口：daemon socket / 同进程 embedded / 老 GNOME 兼容层探针。
 import { assembleComputerUseRuntimeAsync, probeGnomeEnvironment } from "@zcode/zcode-cua/platform";
+// 只加载 broker 协议常量；shared 总入口会初始化无关领域的 schema。
+import {
+  NODE_REPL_BROWSER_BROKER_SOCKET_ENV,
+  NODE_REPL_BROWSER_BROKER_TOKEN_ENV,
+} from "@zcode/shared/node-repl-browser-broker";
 import { z } from "zod";
-import { createBrowserBridgeGlobals, type ActiveNodeReplCall } from "./browser-bridge.js";
+import {
+  createBrowserBridgeGlobals,
+  type ActiveNodeReplCall,
+  type NodeReplBrowserBrokerConnection,
+} from "./browser-bridge.js";
+import {
+  createNodeReplBrowserBrokerProxy,
+  createNodeReplCallLedger,
+  type NodeReplBrowserBrokerUpstream,
+} from "./call-ledger/contract.js";
 import {
   createComputerUseBridgeGlobals,
   type ActiveCuaNodeReplCall,
   type NodeReplCuaBrokerConnection,
 } from "./cua-bridge.js";
 import { createNodeReplCuaBroker, type NodeReplCuaBroker } from "./cua-broker.js";
+import { createNoProgressGuard } from "./no-progress-guard.js";
 import {
   isDirectMcpEntrypoint,
   installNodeReplProcessGuards,
@@ -42,11 +57,14 @@ const MAX_SYNC_TIMEOUT_MS = 120_000;
 const UNTRUSTED_SESSION_KEY = "__unscoped__";
 const WORKER_KIND = "zcode-node-repl-call";
 export const NODE_REPL_MCP_PROCESS_TITLE = "zcode-node-repl-mcp";
-const pluginRoot = process.env.ZCODE_PLUGIN_ROOT ?? process.cwd();
+const pluginRoot = process.env.ZCODE_PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT ?? process.cwd();
 // CUA 与 Browser Use 共用 node_repl host，但文档和 native 依赖必须按领域隔离；
 // 否则 CUA skill 会因为 host root 恰好来自 Browser Use 而再次产生隐式依赖。
 const browserDocumentationRoot = resolve(pluginRoot, "docs");
-const cuaDocumentationRoot = resolve(process.env.ZCODE_CUA_PLUGIN_ROOT ?? pluginRoot, "docs");
+const cuaDocumentationRoot = resolve(
+  process.env.ZCODE_CUA_PLUGIN_ROOT ?? pluginRoot,
+  "docs",
+);
 const jsInputSchema = z
   .object({
     code: z.string(),
@@ -87,6 +105,7 @@ export interface NodeReplExecuteInput {
   signal: AbortSignal;
   syncTimeoutMs: number;
   cuaBroker?: NodeReplCuaBrokerConnection;
+  browserBroker?: NodeReplBrowserBrokerConnection;
 }
 
 export type NodeReplExecutor = (input: NodeReplExecuteInput) => Promise<NodeReplRunResult>;
@@ -102,6 +121,7 @@ interface WorkerCallData {
   requestMeta: NodeReplRequestMeta;
   syncTimeoutMs: number;
   cuaBroker?: NodeReplCuaBrokerConnection;
+  browserBroker?: NodeReplBrowserBrokerConnection;
 }
 
 export function setNodeReplMcpProcessTitle(target: { title: string } = process): void {
@@ -119,21 +139,23 @@ export function createInProcessNodeReplExecutor(): NodeReplExecutor {
     let session: NodeReplSession;
     const generation = 1;
     session = new NodeReplSession({
-      injectedGlobals: () => ({
-        ...createBrowserBridgeGlobals({
-          documentationRoot: browserDocumentationRoot,
-          generation,
-          getActiveCall: () => activeCall,
-          session: () => session,
+      injectedGlobals: () =>
+        ({
+          ...createBrowserBridgeGlobals({
+            broker: input.browserBroker,
+            documentationRoot: browserDocumentationRoot,
+            generation,
+            getActiveCall: () => activeCall,
+            session: () => session,
+          }),
+          ...createComputerUseBridgeGlobals({
+            broker: input.cuaBroker,
+            generation,
+            getActiveCall: () => activeCuaCall,
+            session: () => session,
+            documentationRoot: cuaDocumentationRoot,
+          }),
         }),
-        ...createComputerUseBridgeGlobals({
-          broker: input.cuaBroker,
-          generation,
-          getActiveCall: () => activeCuaCall,
-          session: () => session,
-          documentationRoot: cuaDocumentationRoot,
-        }),
-      }),
       restrictProcess: true,
     });
     activeCall = {
@@ -161,12 +183,33 @@ export function createInProcessNodeReplExecutor(): NodeReplExecutor {
 }
 
 export function createNodeReplMcpRuntime(
-  input: { executeJs?: NodeReplExecutor; cuaRuntime?: ComputerUseRuntime } = {},
+  input: {
+    executeJs?: NodeReplExecutor;
+    cuaRuntime?: ComputerUseRuntime;
+    /** ZCode 主进程浏览器 broker 的地址和 token；默认从环境变量读取（测试注入假 broker）。 */
+    browserBrokerUpstream?: NodeReplBrowserBrokerUpstream;
+    writeStderr?: (text: string) => void;
+  } = {},
 ): NodeReplMcpRuntime {
   const executeJs = input.executeJs ?? executeJsInWorker;
+  const writeStderr = input.writeStderr ?? ((text: string) => void process.stderr.write(text));
+  const noProgressGuard = createNoProgressGuard();
+  // runtime 只接受注入：旧驱动的装配是异步的（connect daemon 或起 embedded SDK），在这个同步
+  // factory 里等不到结果；由 main() 先 await 捕获再传入（见 captureComputerUseRuntimeFromEnvironment）。
   const cuaRuntime = input.cuaRuntime;
+  // 本次调用的可信事实只由主线程的两个 broker 记进账本（20-node-repl-call-ledger.md）。
+  const ledger = createNodeReplCallLedger();
   const cuaBroker = cuaRuntime
-    ? createNodeReplCuaBroker({ runtime: cuaRuntime, platform: process.platform })
+    ? createNodeReplCuaBroker({ runtime: cuaRuntime, ledger, platform: process.platform })
+    : undefined;
+  const browserBrokerUpstream =
+    input.browserBrokerUpstream ?? browserBrokerUpstreamFromEnvironment(process.env);
+  const browserBrokerProxy = browserBrokerUpstream
+    ? createNodeReplBrowserBrokerProxy({
+        ledger,
+        upstream: browserBrokerUpstream,
+        platform: process.platform,
+      })
     : undefined;
   const queues = new Map<string, Promise<void>>();
   const activeCalls = new Set<AbortController>();
@@ -212,6 +255,7 @@ export function createNodeReplMcpRuntime(
         activeCalls.add(callController);
         const timeoutMs = args.timeout_ms ?? NODE_REPL_DEFAULT_TIMEOUT_MS;
         const callMeta = { ...requestMeta, ...(args.title ? { title: args.title } : {}) };
+        const call = ledger.open(callMeta);
         try {
           const signal = AbortSignal.any([
             extra.mcpReq.signal,
@@ -223,10 +267,30 @@ export function createNodeReplMcpRuntime(
             requestMeta: callMeta,
             signal,
             syncTimeoutMs: Math.min(timeoutMs, MAX_SYNC_TIMEOUT_MS),
-            cuaBroker: cuaBroker?.connection,
+            ...(cuaBroker
+              ? { cuaBroker: { socketPath: cuaBroker.connection.socketPath, token: call.token } }
+              : {}),
+            ...(browserBrokerProxy
+              ? {
+                  browserBroker: {
+                    socketPath: browserBrokerProxy.connection.socketPath,
+                    token: call.token,
+                  },
+                }
+              : {}),
           });
-          return toMcpRunResult(run);
+          const result = toMcpRunResult(run, call.facts);
+          const hint = noProgressGuard.observe({ requestMeta, code: args.code, result });
+          if (hint) {
+            result.content.push({ type: "text", text: hint.text });
+            writeStderr(
+              `[node_repl] no-progress hint kind=${hint.kind} count=${hint.count} ` +
+                `session=${String(requestMeta.session_id)} turn=${String(requestMeta.turn_id)}\n`,
+            );
+          }
+          return result;
         } finally {
+          call.close();
           activeCalls.delete(callController);
         }
       });
@@ -242,6 +306,7 @@ export function createNodeReplMcpRuntime(
       activeCalls.clear();
       queues.clear();
       void cuaBroker?.close();
+      void browserBrokerProxy?.close();
       void cuaRuntime?.dispose();
     },
   };
@@ -255,8 +320,9 @@ async function executeJsInWorker(input: NodeReplExecuteInput): Promise<NodeReplR
     requestMeta: input.requestMeta,
     syncTimeoutMs: input.syncTimeoutMs,
     cuaBroker: input.cuaBroker,
+    browserBroker: input.browserBroker,
   };
-  const worker = new Worker(new URL(import.meta.url), { workerData: data });
+  const worker = new Worker(new URL(import.meta.url), { workerData: data, env: workerEnvironment() });
   return await new Promise<NodeReplRunResult>((resolveRun, rejectRun) => {
     let settled = false;
     const cleanup = () => {
@@ -282,6 +348,26 @@ async function executeJsInWorker(input: NodeReplExecuteInput): Promise<NodeReplR
     });
     if (input.signal.aborted) onAbort();
   });
+}
+
+function browserBrokerUpstreamFromEnvironment(
+  env: NodeJS.ProcessEnv,
+): NodeReplBrowserBrokerUpstream | undefined {
+  const socketPath = env[NODE_REPL_BROWSER_BROKER_SOCKET_ENV]?.trim();
+  const token = env[NODE_REPL_BROWSER_BROKER_TOKEN_ENV]?.trim();
+  return socketPath && token ? { socketPath, token } : undefined;
+}
+
+/**
+ * Worker 的环境去掉上游浏览器 broker 的地址和 token：只有主线程代理需要它们，Worker 只拿本次调用的
+ * token。这只是缩小暴露面，不是可信边界——cell 仍可能从进程的初始环境读到它们，那样绕过代理的调用
+ * 只会少记、不会多记（20-node-repl-call-ledger.md「可信边界」）。
+ */
+function workerEnvironment(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env[NODE_REPL_BROWSER_BROKER_SOCKET_ENV];
+  delete env[NODE_REPL_BROWSER_BROKER_TOKEN_ENV];
+  return env;
 }
 
 function parseToolInput<T>(schema: z.ZodType<T>, input: unknown, toolName: string): T {
@@ -353,6 +439,7 @@ if (!isMainThread && isWorkerCallData(workerData)) {
     signal: controller.signal,
     syncTimeoutMs: workerData.syncTimeoutMs,
     cuaBroker: workerData.cuaBroker,
+    browserBroker: workerData.browserBroker,
   })
     .then((result) => parentPort?.postMessage(result))
     .catch((error) => {
@@ -367,16 +454,18 @@ if (!isMainThread && isWorkerCallData(workerData)) {
 }
 
 /**
- * 按平台装配 Computer Use 运行时：
- * - Linux 老 GNOME 自动组装 compat（探测 shell/portal/WinRects 版本）；
- * - macOS / Linux 新合成器 / X11 走 cua-driver 原生。
- * 仅当 env 指定 driver socket / embedded 时才构造；driver 缺失保持 fail-closed。
+ * 按平台装配 Computer Use 运行时（本轮保留 `@trycua/cua-driver` 旧后端）：
+ * - 只有显式给出 `ZCODE_CUA_DRIVER_SOCKET`，或 `ZCODE_CUA_DRIVER_EMBEDDED=1` 自起 driver，才构造 runtime；
+ * - Linux 先探 shell / portal / WinRects 版本，决定是否挂老 GNOME 物理输入兼容层；
+ * - driver 缺失保持 fail-closed，不回落任何官方 broker socket。
+ *
+ * 修复原因：上游 3.17.1 把装配入口改成 `ZCODE_CUA_PERMISSION_BROKER_SOCKET` + 占位 runtime，
+ * 而旧后端的 producer 是 driver daemon / embedded SDK；沿用官方读点会让本来可用的 driver 路径
+ * 被永久判成 unavailable（见 .agents/specs/official-3.17.1-cua.md §3）。
  */
 export async function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ComputerUseRuntime | undefined> {
-  // 只认 cua-driver 的 socket；旧闭源 Helper 的 broker socket 不是 driver endpoint，
-  // 连同名 fallback 一并移除（见 computer-use-runtime.md P2）。
   const socketPath = env.ZCODE_CUA_DRIVER_SOCKET?.trim();
   const enabled = Boolean(socketPath) || env.ZCODE_CUA_DRIVER_EMBEDDED === "1";
   if (!enabled) return undefined;
@@ -395,7 +484,9 @@ function isWorkerCallData(value: unknown): value is WorkerCallData {
 
 if (isMainThread && (await isDirectMcpEntrypoint(import.meta.url, process.argv[1]))) {
   void main().catch((error) => {
-    process.stderr.write(`node_repl MCP server failed: ${JSON.stringify(safeLogArgs([error]))}\n`);
+    process.stderr.write(
+      `node_repl MCP server failed: ${error instanceof Error ? error.stack : String(error)}\n`,
+    );
     process.exitCode = 1;
   });
 }

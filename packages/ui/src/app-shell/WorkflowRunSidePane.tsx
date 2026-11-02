@@ -3,7 +3,6 @@ import type {
   WorkflowRunArtifactSummary,
   WorkflowRunPendingQuestion,
 } from "@zcode/shared/zcode-protocol-v4";
-import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
 import { workflowSubagentModelCardLabel } from "@/components/workflow-timeline/subagent-model-label.js";
 import { workflowSummaryParts } from "@/components/workflow-timeline/timeline-summary.js";
@@ -19,6 +18,7 @@ import {
   workflowRunTabScope,
 } from "@/app-shell/useWorkflowRunPaneSettings.js";
 import { WorkflowRunSettingsPopover } from "@/components/workflow-timeline/WorkflowRunSettingsPopover.js";
+import { WorkflowRunPaneSaveSlots } from "@/project-workflow/WorkflowRunPaneSaveSlots.js";
 import { resolveWorkflowLaunchProvenance } from "@/app-shell/workflowRunLaunchProvenance.js";
 import {
   describeWorkflowRunActionRejection,
@@ -46,8 +46,9 @@ import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvaila
 import { useWorkflowRunArtifacts } from "@/hooks/useWorkflowRunArtifacts.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import {
+  buildWorkflowFillGraphByRunId,
   buildWorkflowGraphByToolCallId,
-  resolveWorkflowRunGraph,
+  resolveWorkflowRunGraphForRun,
 } from "@/v4/workflowRunCardJoin.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
@@ -123,15 +124,16 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   // 脚本 transcript 同一张表——CreateWorkflow 工具行或直接启动轮的元数据，谁挂着图都一样。行窗口是
   // 有界的，老对话里翻不到发起行是正常情况，不是错误——此时没有图可给。
   // 「配置」修订出来的 run 在设置轮落地之前借前驱的图（规则与理由见 resolveWorkflowRunGraph）。
-  const graph = useMemo<WorkflowCausalityGraphData | undefined>(
-    () =>
-      resolveWorkflowRunGraph(
-        buildWorkflowGraphByToolCallId(snapshot?.rows.window, snapshot?.workflowRuns?.runs),
-        tab.toolCallId,
-        snapshot?.workflowRuns?.runs,
-      ),
-    [snapshot?.rows.window, snapshot?.workflowRuns, tab.toolCallId],
-  );
+  // 补全过的 run 取最新补全行的有效脚本图（docs/dynamic-workflow/presentation.md「Holes on the timeline」）。
+  const { graph, holeLabels } = useMemo(() => {
+    const fills = buildWorkflowFillGraphByRunId(snapshot?.rows.window);
+    const graphs = buildWorkflowGraphByToolCallId(snapshot?.rows.window);
+    const runs = snapshot?.workflowRuns?.runs;
+    return {
+      graph: resolveWorkflowRunGraphForRun(graphs, fills, tab.toolCallId, tab.runId, runs),
+      holeLabels: fills.get(tab.runId)?.holeLabels,
+    };
+  }, [snapshot?.rows.window, snapshot?.workflowRuns, tab.runId, tab.toolCallId]);
 
   // 直接启动的来龙去脉：作用域、说明、实参与
   // 「由你从工作流中枢启动」。只对中枢启动的 run 在场；工具路径发起的 run 没有这一节。
@@ -142,8 +144,8 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
 
   // 一个模型，三处消费：清单与摘要行都从它出发。
   const model = useMemo(
-    () => (graph === undefined ? undefined : buildWorkflowTimeline(graph, run)),
-    [graph, run],
+    () => (graph === undefined ? undefined : buildWorkflowTimeline(graph, run, holeLabels)),
+    [graph, holeLabels, run],
   );
   // 子代理模型：状态头第一行不再摆芯片，
   // 模型名成了摘要行的第一段——这一行本来就是「这条 run 的几个数」。强度与规范串进 tooltip。
@@ -306,48 +308,30 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
   // 产物。活投影只带最新版的元数据，spec 与版本历史在
   // journal 里，所以 hook 两边都读——`run` 不在投影里（冷恢复 / 被 8-run 上限淘汰）时
   // `live` 缺席，整份清单走 journal。
-  const { artifacts, executionWorkspacePath } = useWorkflowRunArtifacts({
+  const { artifacts } = useWorkflowRunArtifacts({
     sessionId: tab.parentSessionId,
     runId: tab.runId,
     ...(run === undefined ? {} : { live: run.artifacts ?? EMPTY_ARTIFACTS }),
   });
-  const artifactRoot = executionWorkspacePath ?? tab.fileReferenceRootPath ?? tab.workspacePath;
   const handleOpenArtifact = useCallback(
     (artifactId: string) => {
       // 卡片只发意图（哪个产物），会话与 workspace 身份由这里补齐——与 actor transcript
       // 同一条论证：卡片不感知 scope。**不带版本号**：打开即最新版。
       //
       // 这份清单是活投影 + journal 的合并视图，所以 `contentType` 与 `sourcePath` 两个键都在：
-      // 前者让宿主把 html 产物直接开成浏览器 tab，后者供文件入口使用；宿主仍查询 run 的执行根。
+      // 前者让宿主把 html 产物直接开成浏览器 tab，后者省掉宿主再查一次 journal
       const artifact = artifacts.find((candidate) => candidate.id === artifactId);
       onOpenWorkflowArtifact?.({
         ...tabScope,
         parentSessionId: tab.parentSessionId,
         runId: tab.runId,
         artifactId,
-        // 产物 sourcePath 相对冻结 run cwd；Bash cd 后它可能不同于 pane 初始目录。
-        // 根优先取同次产物查询的 journal 投影；旧 Host 才回落 tab 冻结根，
-        // 不能用宿主侧的「当前会话 cwd」；没有冻结根（旧记忆状态里的 tab / 中枢入口）时回落
-        // 工作区身份根，即改动前行为。
-        fileReferenceRootPath: artifactRoot,
         ...(artifact?.title === undefined ? {} : { title: artifact.title }),
         ...(artifact?.contentType === undefined ? {} : { contentType: artifact.contentType }),
         ...(artifact?.sourcePath === undefined ? {} : { sourcePath: artifact.sourcePath }),
       });
     },
-    [
-      artifacts,
-      artifactRoot,
-      onOpenWorkflowArtifact,
-      // 冻结根必须进依赖：同一个 tab id 会在重开时被 `{...existing, ...nextTab}` 覆盖
-      // `fileReferenceRootPath`（首帧回落 → 快照到达后换成会话执行 cwd），漏掉它会让这里
-      // 继续用旧根拼产物路径（404 / 定位不到）。
-      tab.fileReferenceRootPath,
-      tab.parentSessionId,
-      tab.runId,
-      tabScope,
-      tab.workspacePath,
-    ],
+    [artifacts, onOpenWorkflowArtifact, tab.parentSessionId, tab.runId, tabScope],
   );
 
   const result = workflowRunResultView(run);
@@ -360,23 +344,30 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
       data-workflow-run-id={tab.runId}
       data-workflow-run-status={run?.status ?? "absent"}
     >
-      <WorkflowRunStatusHeader
-        cancellable={cancellable}
-        configureOpen={settings.popover.open}
-        onCancel={handleCancel}
-        {...(settings.configurable ? { onConfigureFrom: settings.popover.toggleFrom } : {})}
-        {...(onOpenWorkflowRun === undefined || successor === undefined
-          ? {}
-          : { onOpenSuccessor: handleOpenSuccessor })}
-        onResume={handleResume}
-        {...(rejectionView === undefined ? {} : { rejection: rejectionView })}
-        resumable={resumable}
-        run={run}
-        {...(subagentModel === undefined ? {} : { subagentModel })}
-        summaryParts={summaryParts}
-        title={runTitle}
-        usage={run?.usage}
-      />
+      {/* 「保存 / 再次运行」（docs/dynamic-workflow/transcript-and-notifications.md「Saving the run,
+          and running it again」）：与完成卡同一个控制器，因此同一个 run 在两处说同一句话。 */}
+      <WorkflowRunPaneSaveSlots rows={snapshot?.rows.window} run={run} tab={tab}>
+        {(slots) => (
+          <WorkflowRunStatusHeader
+            cancellable={cancellable}
+            configureOpen={settings.popover.open}
+            onCancel={handleCancel}
+            {...(settings.configurable ? { onConfigureFrom: settings.popover.toggleFrom } : {})}
+            {...(onOpenWorkflowRun === undefined || successor === undefined
+              ? {}
+              : { onOpenSuccessor: handleOpenSuccessor })}
+            onResume={handleResume}
+            {...(rejectionView === undefined ? {} : { rejection: rejectionView })}
+            resumable={resumable}
+            run={run}
+            saveSlots={slots}
+            {...(subagentModel === undefined ? {} : { subagentModel })}
+            summaryParts={summaryParts}
+            title={runTitle}
+            usage={run?.usage}
+          />
+        )}
+      </WorkflowRunPaneSaveSlots>
 
       {run === undefined || !settings.configurable ? null : (
         <WorkflowRunSettingsPopover
@@ -416,6 +407,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
             ? {}
             : { onOpenWorkspace: handleOpenWorkspace })}
           {...(landing === undefined ? {} : { landing })}
+          {...(subagentModelProviderName === undefined ? {} : { subagentModelProviderName })}
         />
       ) : (
         <p
@@ -438,7 +430,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
           runId={tab.runId}
           sessionId={tab.parentSessionId}
           workspacePath={tab.workspacePath}
-          fileReferenceRootPath={artifactRoot}
+          fileReferenceRootPath={tab.fileReferenceRootPath}
           {...(onOpenWorkflowArtifact === undefined ? {} : { onOpenArtifact: handleOpenArtifact })}
         />
       )}

@@ -14,6 +14,7 @@ import {
   IZCodeSessionService,
   IConversationShareService,
   IBotsService,
+  IProjectService,
   IFileWatcherService,
   IModelSelectionService,
   IProviderSettingsService,
@@ -80,6 +81,9 @@ export function createRemoteWorkspaceServiceCollection(params: {
 }): ServiceCollection {
   assertLegacyRemoteWorkspaceRpcContract(params.connectionServices);
   if (params.standaloneSource) return createStandaloneSourceServices(params);
+  // 远端 attachment 的项目准备仍属于本机 Host，不能误用远端 owner 或另建项目库。
+  if (!params.sourceServices) throw new Error("Local project owner unavailable");
+  const projectService = params.sourceServices.get(IProjectService);
   const localSettingService = createSettingService();
   const localCredentialService = createCredentialService();
   const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
@@ -235,6 +239,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
       IBotsService,
       createBotsService({
         credentialService: localCredentialService,
+        projectService,
         zcodeTaskService: remoteZCodeTaskService,
         broadcastService: localBroadcastService,
         settingService: localSettingService,
@@ -321,6 +326,7 @@ function createStandaloneSourceServices(
     .register(IHooksService, remote.hooksService)
     .register(IMemoryService, remote.memoryService)
     .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService);
+  if (remote.projectService) services.register(IProjectService, remote.projectService);
   if (params.sourceServices)
     services.register(ICredentialService, params.sourceServices.get(ICredentialService));
   registerRemoteProviderProvisioningExecutor(

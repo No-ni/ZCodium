@@ -10,7 +10,8 @@ export function useGenUi(
   confirm: (prompt: string) => Promise<string | null>,
   retry: number,
 ) {
-  const platform = useOptionalPlatform()?.pluginSandbox;
+  const platformService = useOptionalPlatform();
+  const platform = platformService?.pluginSandbox;
   const services = useOptionalBaseWorkspaceServices();
   const state = services?.genUiService;
   const resolution = useWorkspaceServicesResolution(
@@ -28,7 +29,7 @@ export function useGenUi(
   targetRef.current = target;
   const key = JSON.stringify(target);
   useEffect(() => {
-    if (!platform || !state || !files || !resolution.rpcReady) {
+    if (!platformService || !platform || !state || !files || !resolution.rpcReady) {
       setResult({ key, page: null });
       return;
     }
@@ -39,6 +40,7 @@ export function useGenUi(
       platform,
       state,
       files,
+      openExternal: (url) => platformService.openExternal(url),
       watchTaskRemoved(run) {
         const subscription = services?.zcodeTaskService?.onDynamicWorkspaceEvent({
           workspacePath: currentTarget.workspacePath,
@@ -67,7 +69,7 @@ export function useGenUi(
     return () => {
       cancelled = true;
     };
-  }, [key, platform, state, files, services, retry, resolution.rpcReady]);
+  }, [key, platformService, platform, state, files, services, retry, resolution.rpcReady]);
   const page = key === result.key ? result.page : null;
   useLayoutEffect(() => page?.attachConfirmation(confirm), [page, confirm]);
   return {

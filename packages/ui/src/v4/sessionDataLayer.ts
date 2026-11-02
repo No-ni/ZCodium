@@ -22,16 +22,16 @@ export interface SessionLease {
   release(): void;
 }
 
-interface SessionDataLayerOptions {
+export interface SessionDataLayerOptions {
   transport: ConversationTransport;
   /** 引用归零后延迟退订窗口（ms），默认 30s。 */
   keepWarmMs?: number;
 }
 
-const SESSION_DATA_LAYER_KEEP_WARM_MS = 30_000;
-const E2E_SESSION_DATA_LAYER_KEEP_WARM_MS = 1_000;
+export const SESSION_DATA_LAYER_KEEP_WARM_MS = 30_000;
+export const E2E_SESSION_DATA_LAYER_KEEP_WARM_MS = 1_000;
 
-function resolveSessionDataLayerKeepWarmMs(
+export function resolveSessionDataLayerKeepWarmMs(
   e2eStoreBridgeEnabled = shouldExposeE2EStoreBridge(),
 ): number {
   return e2eStoreBridgeEnabled
@@ -53,7 +53,8 @@ export class SessionDataLayer {
   private readonly transport: ConversationTransport;
   private readonly keepWarmMs: number;
   private readonly entries = new Map<string, SessionEntry>();
-  // 弱引用池跨 keep-warm 生命周期：冷打开的新 store 可复用仍被旧快照留住的行。
+  // 行结构共享池跨 store 生命周期：keep-warm 过期冷打开的新 store 仍能复用被留住的旧行
+  // （docs/performance/conversation-row-structural-sharing.md）。
   private readonly rowPool = new ConversationRowPool();
   private readonly offFrame: () => void;
   private disposed = false;

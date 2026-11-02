@@ -8,7 +8,7 @@ import {
 const BUILTIN_NODE_REPL_SERVER_NAME = "node_repl";
 const PLUGIN_MCP_NAMESPACE_PREFIX = "plugin:";
 
-type McpTelemetryEvent = ZCodeMcpTelemetryEvent;
+export type McpTelemetryEvent = ZCodeMcpTelemetryEvent;
 export type McpTelemetrySource = Extract<
   ZCodeMcpTelemetryEvent,
   { kind: "process_start" }

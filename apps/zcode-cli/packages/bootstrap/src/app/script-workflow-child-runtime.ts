@@ -26,6 +26,8 @@ import {
   type ModelRequestAdmission,
   type SessionId,
   type SessionStorePort,
+  type SkillPort,
+  type SkillRoot,
   type ToolArtifactStorePort,
   type TraceContext,
   type WorkflowAgentCallInput,
@@ -51,6 +53,11 @@ export interface ScriptWorkflowAgentRuntimeDeps {
   /** 父会话的 model factory：child 与主 turn 从同一份 Registry 视图造 Model，不各自冻结。 */
   modelFactory: NonNullable<AgentRuntimeDeps["modelFactory"]>;
   permissionService: PermissionService;
+  /**
+   * 插件的技能根（主会话 skill 端口的同一份 `pluginOutcome.skillRoots`）。捆绑技能根不在内：
+   * 那里只有 dynamic-workflows，子代理不能起工作流。
+   */
+  pluginSkillRoots: readonly SkillRoot[];
   runtime: AgentRuntime;
   runtimeConfig: AgentRuntimeConfig;
   sessionId: SessionId;
@@ -98,6 +105,12 @@ export function createScriptWorkflowAgentRuntime(input: {
    * 不喂信号。与两个工具端口同路进 runtime deps。
    */
   modelRequestAdmission?: ModelRequestAdmission;
+  /**
+   * 交互请求 origin 上的 `description`（权限窗来源徽标的文字）。dwf actor 由工厂给出
+   * `<persona 名> (<siteId>@<ordinal>)`（workflow-actor-permission.ts）；缺席时回落到
+   * `request.opts.label` / agentType（legacy workflow child 的既有行为）。
+   */
+  interactionDescription?: string;
 }): AgentRuntime {
   // dwf actor 经 configOverrides.workflowActor 走 builder 的叠加路径，此时 systemPrompt 必须
   // 缺席（builder 对二者同在抛错）——父会话自带的 custom system prompt 不得漏给子代理，所以
@@ -133,11 +146,19 @@ export function createScriptWorkflowAgentRuntime(input: {
       ...(systemPrompt === undefined ? {} : { systemPrompt }),
       agentName: input.request.opts?.agentType ?? "zcode-workflow",
       maxTurns: input.request.opts?.maxTurns ?? input.deps.runtimeConfig.maxTurns,
+      // 基线 YOLO，父任务仍保留自己的 Guarded。legacy script workflow child 就停在这里；dwf actor
+      // 经 configOverrides 覆盖成 run 记下的模式（docs/dynamic-workflow/launch.md
+      // 「Permissions inside a run」）。
       mode: "yolo",
       modelSelection,
+      // 父 Shell 在首条输入才解析，子会话须继承已初始化的会话快照。
+      bashShellSelection: input.deps.runtime.getSessionShellSelection(),
       parentSessionId: input.deps.sessionId,
       subagents: { enabled: false },
       taskType: "workflow_child",
+      // actor 只存在于一次 run 之下，天然「已激活」（launch.md「On demand: activation」Children 段）：
+      // 不继承父会话的按需标志，否则 spread 会把 onDemand 带进来而子会话里没有任何激活入口。
+      dynamicWorkflowToolsOnDemand: false,
       toolAllowlist: input.request.opts?.tools,
       workingDirectory: input.deps.workingDirectory,
       ...input.configOverrides,
@@ -149,7 +170,11 @@ export function createScriptWorkflowAgentRuntime(input: {
         agentId: input.childSessionId,
         agentType: input.request.opts?.agentType ?? "zcode-workflow",
         childSessionId: input.childSessionId,
-        description: input.request.opts?.label ?? input.request.opts?.agentType ?? "workflow agent",
+        description:
+          input.interactionDescription ??
+          input.request.opts?.label ??
+          input.request.opts?.agentType ??
+          "workflow agent",
         ...(input.traceContext.turnId === undefined
           ? {}
           : { parentTurnId: input.traceContext.turnId }),
@@ -157,6 +182,15 @@ export function createScriptWorkflowAgentRuntime(input: {
       ...(childBrowserControlPort === undefined
         ? {}
         : { browserControlPort: childBrowserControlPort }),
+      ...(input.browserControlPort === undefined
+        ? {}
+        : {
+            browserControlPort:
+              input.browserControlPort.forChildSession?.({
+                childSessionId: input.childSessionId,
+                parentSessionId: input.deps.sessionId,
+              }) ?? input.browserControlPort,
+          }),
       ...(input.workflowSubmitPort ? { workflowSubmitPort: input.workflowSubmitPort } : {}),
       ...(input.workflowSubmitPort && input.workflowSubmitSchema
         ? { workflowSubmitSchema: input.workflowSubmitSchema }
@@ -198,6 +232,9 @@ function createRuntimeDeps(
           executionWorkspacePath,
           event,
           traceContext,
+          // 交互事件另镜像到父会话：确认窗只从父会话投影生成（与 createChildClientPorts 同一份
+          // 归属，docs/dynamic-workflow/launch.md「Permissions inside a run」）。
+          interactionOrigin: clientPortsContext,
         });
       },
     },
@@ -239,15 +276,30 @@ function createRuntimeDeps(
     ...deps.runtime.createChildClientPorts(clientPortsContext),
     permissionService: deps.permissionService,
     sessionStore: deps.sessionStore,
-    skillPort:
-      deps.configResult.config.features.skill && deps.configResult.config.skills.enabled
-        ? (deps.appOptions.skillPort ??
-          createNodeSkillAdapter({
-            extraRoots: deps.configResult.config.skills.roots,
-            // 脚本 workflow child runtime 不能绕过用户禁用的 SKILL.md 路径。
-            disabledPaths: collectDisabledPaths(deps.configResult.config.skillOverrides),
-          }))
-        : undefined,
+    skillPort: createWorkflowChildSkillPort(deps),
     traceContext,
   };
+}
+
+/**
+ * workflow child 的技能端口：用户配置根 + 插件技能根，禁用路径照主会话。
+ *
+ * Bug 根因（2026-09-30）：这里原先只带用户配置的 roots，插件技能根是后来才加到主会话那一份上的，
+ * child 这边漂掉了——dwf 子代理看不见 browser-use 的 control-browser，只能自己翻插件目录摸索。
+ */
+export function createWorkflowChildSkillPort(
+  deps: Pick<ScriptWorkflowAgentRuntimeDeps, "appOptions" | "configResult" | "pluginSkillRoots">,
+): SkillPort | undefined {
+  if (!deps.configResult.config.features.skill || !deps.configResult.config.skills.enabled) {
+    return undefined;
+  }
+  return (
+    deps.appOptions.skillPort ??
+    createNodeSkillAdapter({
+      extraRoots: deps.configResult.config.skills.roots,
+      extraResolvedRoots: [...deps.pluginSkillRoots],
+      // 脚本 workflow child runtime 不能绕过用户禁用的 SKILL.md 路径。
+      disabledPaths: collectDisabledPaths(deps.configResult.config.skillOverrides),
+    })
+  );
 }

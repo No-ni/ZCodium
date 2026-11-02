@@ -1,8 +1,11 @@
 /**
- * 改编自 zai-org/ZCode aac4755666d09fdcd70272fcf063c077a639015f（Apache-2.0）。
- * Bug 根因：hidden 时 Chromium 不出动画帧，未结算的 CSS 动画会通过 DocumentTimeline
- * 持有已移除的元素及消息子树。以 visibilityState 为唯一来源，禁用 hidden 期间的动画，
- * 避免流式更新创建新的动画引用。规则见 .agents/specs/hidden-document-motion-pause.md。
+ * 页面不可见时暂停 CSS 动画，spec 见 docs/performance/hidden-document-motion-pause.md。
+ *
+ * Bug 根因：窗口 hidden 时 Chromium 不出动画帧，CSS transition/animation 无法结算；
+ * 带动画的元素此时被移除，DocumentTimeline 仍强引用它，并经 parent 指针拖住整棵已卸载的
+ * 消息子树（实测 hidden 期间 GC 后 23 万 DOM 节点，恢复可见 1s 内回落到 4.5 万）。
+ * 这里以 document.visibilityState 为唯一数据源给 <html> 打标记，styles.css 据此禁用动画，
+ * 保证 hidden 期间不创建新的动画对象。
  */
 export const DOCUMENT_HIDDEN_ATTRIBUTE = "data-document-hidden";
 

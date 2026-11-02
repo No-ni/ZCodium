@@ -2,7 +2,17 @@ import { EmptyResultSchema } from "@modelcontextprotocol/core";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-const app = new App({ name: "host-fixture", version: "1.0.0" }, { tools: {} });
+const app = new App(
+  { name: "host-fixture", version: "1.0.0" },
+  {
+    tools: {},
+    ...((window as any).fixtureDisplayModes
+      ? { availableDisplayModes: (window as any).fixtureDisplayModes }
+      : {}),
+  },
+);
+(window as any).requestDisplayMode = (mode: any) => app.requestDisplayMode({ mode });
+(window as any).displayContext = () => app.getHostContext();
 const samplingCalls = new Map<string, AbortController>();
 (window as any).sample = async (key: string, params: any) => {
   const cancel = new AbortController();
@@ -34,6 +44,13 @@ app.setNotificationHandler("notifications/resources/updated", (notification) => 
     ? Promise.resolve()
     : new Promise<void>((resolve) => resourceWaiters.set(count, resolve));
 (window as any).resourceEvents = resourceEvents;
+(window as any).readResourceFixture = async (uri: string) => {
+  try {
+    return { result: await app.readServerResource({ uri }) };
+  } catch (error) {
+    return { error: String(error) };
+  }
+};
 const pageCalls: { key: string; aborted: boolean }[] = [];
 const abortWaiters = new Map<string, () => void>();
 (window as any).waitPageAbort = (key: string) =>
@@ -142,7 +159,12 @@ function Counter() {
     </>
   );
 }
-app.connect().then(() => createRoot(document.getElementById("root")!).render(<Counter />));
+const connectGate = Promise.withResolvers<void>();
+(window as any).releaseFixtureConnect = connectGate.resolve;
+if (!(window as any).fixtureDisplayModes) connectGate.resolve();
+connectGate.promise
+  .then(() => app.connect())
+  .then(() => createRoot(document.getElementById("root")!).render(<Counter />));
 (window as any).storageRoundTrip = async (write: boolean) => {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open("host-fixture");

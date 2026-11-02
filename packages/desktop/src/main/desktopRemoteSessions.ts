@@ -14,12 +14,16 @@ import {
   resolveWorkspaceKey,
   type RemoteTarget,
   type ProviderProvisioningTrigger,
+  type ProviderProvisioningLaneStatus,
   type WindowHostRemoteWorkspaceDescriptor,
   type HostRemoteWorkspaceContextBindReadyResponse,
   type HostRemoteWorkspaceContextBindFailedResponse,
 } from "@zcode/shared";
 import type { RemoteAssetDirs } from "./desktopRuntimeEnv.js";
-import { ProviderProvisioningEnvironmentCoordinator } from "./providerProvisioningEnvironmentCoordinator.js";
+import {
+  ProviderProvisioningEnvironmentCoordinator,
+  ProviderProvisioningExecutionError,
+} from "./providerProvisioningEnvironmentCoordinator.js";
 
 interface RemoteWorkspaceSessionContext {
   workspacePath: string;
@@ -96,6 +100,9 @@ function isSameRemoteTarget(left: RemoteTarget, right: RemoteTarget): boolean {
       );
     case "docker":
       return right.kind === "docker" && left.container === right.container;
+    case "server":
+      // 旧远端桥不接直连 Server 的部署路径，不能仅凭 URL 复用其它 Source 的 attachment。
+      return false;
   }
 }
 
@@ -418,6 +425,7 @@ export function createRemoteWorkspaceSessionManager(options: {
                 environmentKey,
                 trigger,
               ),
+            descriptor.sourceServerId,
           );
     route.providerProvisioningDispose = registration.dispose;
     const assertPreparing = () => {
@@ -681,6 +689,39 @@ export function createRemoteWorkspaceSessionManager(options: {
         });
         return;
       }
+      if (parsed.data.type === HostResponseTypes.ProviderProvisioningLaneRequest) {
+        if (options.windowHostProcessMap.get(webContentsId) !== child || appShutdownStarted) return;
+        const request = parsed.data;
+        const result =
+          request.action === "retry"
+            ? providerProvisioningCoordinator.retry(request.sourceServerId)
+            : providerProvisioningCoordinator.getLaneStatus(request.sourceServerId, {
+                waitForIdle: request.action === "wait",
+              });
+        const reply = (status: ProviderProvisioningLaneStatus) => {
+          // Main 协调器是唯一 lane owner；等待期间 Host 换代不能把结果送给继任者。
+          if (
+            options.windowHostProcessMap.get(webContentsId) !== child ||
+            appShutdownStarted ||
+            child.pid == null
+          )
+            return;
+          try {
+            child.postMessage({
+              type: HostMessageTypes.ProviderProvisioningLaneResult,
+              requestId: request.requestId,
+              status,
+            });
+          } catch {
+            options.logger.warn("[provider-provisioning] status response transport unavailable");
+          }
+        };
+        void result.then(reply).catch(async () => {
+          options.logger.warn("[provider-provisioning] status request failed");
+          reply(await providerProvisioningCoordinator.getLaneStatus(request.sourceServerId));
+        });
+        return;
+      }
       if (parsed.data.type === HostResponseTypes.ProviderProvisioningExecutionResult) {
         const pending = pendingProviderProvisioningExecutions.get(parsed.data.requestId);
         if (
@@ -696,22 +737,26 @@ export function createRemoteWorkspaceSessionManager(options: {
           return;
         }
         const logContext = {
-          environmentKey: parsed.data.environmentKey,
           trigger: pending.trigger,
           status: parsed.data.status,
           durationMs: Math.max(0, monotonicNowMs() - pending.startedAtMonotonicMs),
         };
         if (parsed.data.status !== "applied" && parsed.data.status !== "already-applied") {
-          if (pending.trigger === "environment-online") {
-            pending.reject(new Error(`Provider Provisioning 首次同步失败 (${parsed.data.status})`));
-            return;
-          }
-          // Target 错误可能来自任意远端实现并携带请求材料；过渡期只记录可定位的状态事实，
-          // 不转抄不可证明已脱敏的自由文本，避免 Provisioning 日志成为凭据泄露入口。
+          // 旧转发仅拒绝首次失败，重试失败却 resolve，导致 lane 错记成功；所有触发源统一拒绝。
+          // 只保留固定阶段码和安全指标，不转抄远端自由文本或可能包含连接地址的 Environment key。
           options.logger.warn("[provider-provisioning] Environment sync did not apply", logContext);
-        } else {
-          options.logger.info("[provider-provisioning] Environment sync completed", logContext);
+          pending.reject(
+            new ProviderProvisioningExecutionError(
+              "Provider provisioning execution failed",
+              parsed.data.errorCode ??
+                (parsed.data.status === "unsupported"
+                  ? "capability-unavailable"
+                  : "target-apply-failed"),
+            ),
+          );
+          return;
         }
+        options.logger.info("[provider-provisioning] Environment sync completed", logContext);
         pending.resolve();
         return;
       }
@@ -894,6 +939,41 @@ export function createRemoteWorkspaceSessionManager(options: {
           });
         });
       }
+    }
+  }
+
+  function requestSourceSettingsAttachment(
+    win: BrowserWindow,
+    sourceServerId: string,
+  ): { attachmentId: string } {
+    if (appShutdownStarted || win.isDestroyed() || win.webContents.isDestroyed())
+      throw new Error("Source settings attachment is unavailable");
+    const child = getWindowHost(win);
+    const attachmentId = randomUUID();
+    const { port1, port2 } = createMessageChannel();
+    try {
+      // 是否在线及配置面权限由窗口 Host 判断；Main 只转发端口，不建立第二份连接状态。
+      child.postMessage(
+        {
+          type: HostMessageTypes.AttachServicePort,
+          requestId: randomUUID(),
+          attachmentId,
+          clientMode: "desktop-continuous",
+          scope: { kind: "source-settings", sourceServerId },
+        },
+        [port2],
+      );
+      win.webContents.postMessage(
+        InternalChannels.SourceSettingsServicePort,
+        { attachmentId, sourceServerId },
+        [port1],
+      );
+      return { attachmentId };
+    } catch {
+      detachServicePort(child, attachmentId, "source-settings-delivery-failed");
+      closeMessagePort(port1);
+      closeMessagePort(port2);
+      throw new Error("Source settings attachment delivery failed");
     }
   }
 
@@ -1141,6 +1221,7 @@ export function createRemoteWorkspaceSessionManager(options: {
     bindRemoteWorkspaceSessionContext,
     confirmRendererAttachmentReady,
     reattachRemoteWorkspaceSessionsForWindow,
+    requestSourceSettingsAttachment,
     hasRemoteWorkspaceSessionForTarget,
     hasAttachableRemoteSession,
     createBotRemoteWorkspaceRuntimePort,

@@ -22,6 +22,6 @@ export function localToolsLoadedReminder(names: readonly string[]): string {
 export function localToolsAlreadyLoadedReminder(names: readonly string[]): string {
   return wrapSystemReminderForSource(
     "tool_result_warning",
-    `Tool definitions already available in this conversation: ${names.join(", ")}. Call them with ${DEFERRED_TOOL_CALL_NAME} {name, input}. Searching again does not execute or authorize them.`,
+    `Loaded: ${names.join(", ")}. Call with ${DEFERRED_TOOL_CALL_NAME} {"name":"<tool name>","input":{...}}, using the exact tool name and filling input according to its schema above. No additional LocalToolSearch is needed before calling these tools.`,
   );
 }

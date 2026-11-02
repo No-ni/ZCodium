@@ -4,6 +4,7 @@ import type {
   MessageId,
   ModelStreamRecoveryStatus,
   Model,
+  ModelSelection,
   OutputStylePromptConfig,
   SessionEvent,
   TraceContext,
@@ -11,8 +12,8 @@ import type {
   TurnId,
 } from "../deps.js";
 import type { ActiveTurnSteeringState } from "../types.js";
-import type { SubagentRunOptions } from "@zcode/contracts";
-import type { DrainedPendingInputDiagnostics } from "../types.js";
+import type { ModelToolContract, SubagentRunOptions } from "@zcode/contracts";
+import type { DrainedPendingInputDiagnostics, ModelExecutionContext } from "../types.js";
 import type { TurnMachineImpl } from "../deps.js";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
 
@@ -21,6 +22,8 @@ export type PendingStreamRecoveryRequest = ModelStreamRecoveryStatus;
 export const RAPID_REFILL_TOOL_TURN_THRESHOLD = 3;
 export const MAX_CONSECUTIVE_RAPID_REFILLS = 3;
 export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "CronDelete"] as const;
+/** 执行轮自暂停工具；只在 loop 带 Host 准入注入的 automationId 时可见，不属于 mutation 列表。 */
+export const AUTOMATION_SELF_PAUSE_TOOL_NAME = "CronPauseSelf";
 const AUTOMATION_QUERY_ID_PREFIX = "automation-";
 
 export interface CompactLoopTracking {
@@ -39,20 +42,24 @@ export type CompactAttemptOutcome = "skipped" | "compacted" | "failed";
 export type AutoCompactOutcome = CompactAttemptOutcome | "rapid_refill_blocked";
 
 export interface AutoCompactLoopContext {
+  getAgentListingTools?: () => readonly { name: string }[];
   compactReason: CompactReason;
   modelStepIndex: number;
   phase: CompactPhase;
   rapidRefill: RapidRefillDecision;
   model: Model;
   turnRequestState: TurnRequestState;
+  getContinuationTools?: () => readonly ModelToolContract[];
 }
 
 export interface ReactiveCompactLoopContext {
+  agentListingTools?: readonly { name: string }[];
   activeEntries?: readonly RuntimeMessageEntry[];
   modelStepIndex: number;
   model: Model;
   rapidRefillCount: number;
   turnRequestState: TurnRequestState;
+  getContinuationTools?: () => readonly ModelToolContract[];
 }
 
 export interface TurnRequestState {
@@ -61,6 +68,7 @@ export interface TurnRequestState {
 }
 
 export interface RegularTurnLoopState {
+  offPeakExecutionId?: string;
   activeTurn?: ActiveTurnSteeringState;
   /** Host admission 显式传入的本轮 automation 身份；不能从持久 task metadata 推断。 */
   automationId?: string;
@@ -76,16 +84,28 @@ export interface RegularTurnLoopState {
   drainedSteerForNextRequest?: DrainedPendingInputDiagnostics;
   events: SessionEvent[];
   input: string;
+  inputId?: string;
   modelResponse: string;
   /** 本轮固定使用的可调用模型；配置变化只影响以后创建的 Loop。 */
   model: Model;
   /** execution 表示当前 Active Model 不能被同 loop 的 guide 改写。 */
   modelSelectionScope?: "execution";
+  /** 本轮执行 Selection 的降级声明；命中一次后清空，退回后的模型不再二次降级。 */
+  selectionFallback?: ModelExecutionContext["selectionFallback"];
+  /** 请求期失败已命中退回声明但无可用退回目标；TurnError 归因据此发布，Renderer 作废匹配卡。 */
+  highspeedFallbackUnavailable?: boolean;
+  /** 仅加速卡过期回退使用的启动快照；不用于闲时换票。 */
+  highspeedFallbackSelection?: ModelSelection;
   /** Core Server 的前台 child Selection override；优先于 profile 与父模型继承。 */
   subagentModelOverride?: SubagentRunOptions["modelOverride"];
   modelStepCount: number;
   /** 当前 query 已成功写入 provider 可见持久历史的 assistant/compact 产物数量。 */
   historyRoundCount: number;
+  completedRealToolResultBatch: boolean;
+  /** 下一次 loop 迭代要收集输入附件：轮首、完整工具批次之后、文本回复后续上 guide 时置位。 */
+  inputAttachmentCollectionPending: boolean;
+  /** 工具批次结算时本轮已被停止；决定中断标记用工具阶段的文字。 */
+  interruptedDuringToolBatch?: boolean;
   reactiveCompactAttemptedInCurrentModelStep: boolean;
   repeatedToolCallSignature?: string;
   repeatedToolCallStreakCount: number;
@@ -149,6 +169,7 @@ export function recordCompactSuccess(
 }
 
 export function recordCompletedToolBatch(state: RegularTurnLoopState): void {
+  state.inputAttachmentCollectionPending = true;
   // 旧 guard 活在整个用户 turn，完整工具批次结束后仍保持 used，导致后续真实 overflow 无法再次 reactive compact。
   state.reactiveCompactAttemptedInCurrentModelStep = false;
   if (state.compactTracking) {

@@ -2,15 +2,8 @@ import {
   webRemoteControlStartRequestSchema,
   WEB_REMOTE_CONTROL_RPC_LIMITS,
   type WebRemoteControlAppPayload,
-  type WebRemoteControlFailureReason,
-  type WebRemoteControlBridgeDescriptor,
-  type WebRemoteControlPlatformMethod,
   type WebRemoteControlStatusSnapshot,
-  type WebRemoteControlTaskRef,
-  type WebRemoteControlWorkspaceRef,
 } from "@zcode/shared";
-import type { ICredentialService, ISettingService } from "@zcode/services";
-import type { WebRemoteControlLogger } from "./logger.js";
 import { createNodeWebRemoteControlRelayAuthProvider } from "./authProvider.js";
 import { createWebRemoteControlRelayAuthStorageProvider } from "./authStorage.js";
 import { buildWindowQrUrl } from "./qrUrl.js";
@@ -26,8 +19,19 @@ import { buildStatusSnapshot, type WebRemoteControlRuntime } from "./runtime.js"
 import { pushWorkspaceListIfChanged, routeMobilePayload } from "./payloadRouter.js";
 import { clearPendingOutbound, flushPendingOutbound, sendAppPayload } from "./outboundBuffer.js";
 import { clearGraceTimer, mapTransportState } from "./transportState.js";
-import { createStartAuthorizationStore, type StartAuthorization } from "./authorization.js";
+import { createStartAuthorizationStore } from "./authorization.js";
 import { closeChangedWorkspaceBridge, openWorkspaceBridge } from "./bridgeController.js";
+import type {
+  WebRemoteControlManager,
+  WebRemoteControlManagerDeps,
+  WebRemoteControlTarget,
+} from "./managerTypes.js";
+export type {
+  WebRemoteControlManager,
+  WebRemoteControlManagerDeps,
+  WebRemoteControlOpenBridgeResult,
+  WebRemoteControlTarget,
+} from "./managerTypes.js";
 
 /**
  * Web Remote Control 桌面运行时：按窗口一份，持有配对、传输与 Host bridge。
@@ -35,65 +39,6 @@ import { closeChangedWorkspaceBridge, openWorkspaceBridge } from "./bridgeContro
  * 状态机（spec）：idle → starting → connecting → running ⇄ active → error；
  * 传输态 waiting_terminal = 等待手机，paired = 已配对。失败语义见 shared/status.ts。
  */
-
-interface ElectronUtilityProcessLike {
-  postMessage(message: unknown, transfer?: unknown[]): void;
-}
-
-export interface WebRemoteControlTarget {
-  workspacePath: string;
-  workspaceIdentity?: string;
-  remoteSessionId?: string;
-  initialTaskId?: string;
-}
-
-export interface WebRemoteControlManagerDeps {
-  logger: WebRemoteControlLogger;
-  settingService: ISettingService;
-  credentialService: ICredentialService;
-  deviceMid: string;
-  deviceName: string;
-  appVersion: string;
-  lanPort?: number;
-  onStatusChanged(windowId: number, snapshot: WebRemoteControlStatusSnapshot): void;
-  handlePlatformRequest(method: WebRemoteControlPlatformMethod, args: unknown): Promise<unknown>;
-  /** 请 renderer 重连指定 workspace 的远端会话（workspace-reconnect-request）。 */
-  reconnectWorkspace(windowId: number, workspaceKey: string): Promise<void>;
-  resolveHostProcess(webContentsId: number): ElectronUtilityProcessLike | undefined;
-  /**
-   * 远端 workspace 连接态的权威解析：由桌面 remote session 路由表裁定。
-   * UI 同步载荷里的 `kind` / `connectionState` 不是事实来源；未注入时保持原值不覆盖。
-   */
-  resolveRemoteWorkspaceConnectionState?: (remoteSessionId: string) => "connected" | "disconnected";
-}
-
-export type WebRemoteControlOpenBridgeResult =
-  | { ok: true; bridge: WebRemoteControlBridgeDescriptor }
-  | { ok: false; reason: WebRemoteControlFailureReason; error: string };
-
-export interface WebRemoteControlManager {
-  authorizeStart(windowId: number, target: WebRemoteControlTarget): StartAuthorization;
-  startAuthorized(
-    windowId: number,
-    target: WebRemoteControlTarget,
-    authorization: StartAuthorization,
-  ): Promise<WebRemoteControlStatusSnapshot>;
-  start(windowId: number, target: WebRemoteControlTarget): Promise<WebRemoteControlStatusSnapshot>;
-  stop(windowId: number): Promise<void>;
-  resetPairing(
-    windowId: number,
-    target: WebRemoteControlTarget,
-  ): Promise<WebRemoteControlStatusSnapshot>;
-  resetPairingAuthorized(
-    windowId: number,
-    target: WebRemoteControlTarget,
-    authorization: StartAuthorization,
-  ): Promise<WebRemoteControlStatusSnapshot>;
-  getStatus(windowId: number): WebRemoteControlStatusSnapshot;
-  syncWorkspaces(windowId: number, workspaces: WebRemoteControlWorkspaceRef[]): void;
-  syncTasks(windowId: number, tasks: WebRemoteControlTaskRef[]): void;
-  disposeWindow(windowId: number): Promise<void>;
-}
 
 export function createWebRemoteControlManager(
   deps: WebRemoteControlManagerDeps,
@@ -260,9 +205,15 @@ export function createWebRemoteControlManager(
     };
     const events: WebRemoteControlDeviceTransportEvents = {
       onStateChange: (state) =>
-        mapTransportState(runtime, state, emitStatus, (pairedRuntime) =>
-          flushPendingOutbound(pairedRuntime, deps.logger),
-        ),
+        mapTransportState(runtime, state, emitStatus, (pairedRuntime) => {
+          flushPendingOutbound(pairedRuntime, deps.logger);
+          if (pairedRuntime.mobileTaskViewEpoch)
+            sendAppPayload(
+              pairedRuntime,
+              { zcode_type: "mobile-task-view-request", epoch: pairedRuntime.mobileTaskViewEpoch },
+              deps.logger,
+            );
+        }),
       onPayload: (payload) => void routeMobilePayload(payload, buildRouterContext(runtime)),
       onRegisteredAuth: (registered) => {
         // 运行中凭据失效会重新注册；路由索引和二维码必须随同一份注册更新，避免扫码仍指向旧 SID。
@@ -420,6 +371,7 @@ export function createWebRemoteControlManager(
         };
       });
       const closedBridgeId = closeChangedWorkspaceBridge(runtime, previous);
+      if (closedBridgeId) emitStatus(runtime);
       pushWorkspaceListIfChanged(runtime, deps.logger);
       if (closedBridgeId)
         sendAppPayload(
@@ -436,6 +388,19 @@ export function createWebRemoteControlManager(
       const runtime = runtimes.get(windowId);
       if (!runtime) return;
       runtime.tasks = tasks;
+      const view = runtime.mobileTaskView;
+      if (
+        view &&
+        !tasks.some(
+          (task) =>
+            task.taskId === view.taskId &&
+            task.workspaceKey === (view.workspaceIdentity?.trim() || view.workspacePath),
+        )
+      ) {
+        // 任务已离开权威清单，旧报告不能继续保留自动已读资格。
+        runtime.mobileTaskView = undefined;
+        emitStatus(runtime);
+      }
       pushWorkspaceListIfChanged(runtime, deps.logger);
     },
     async disposeWindow(windowId) {

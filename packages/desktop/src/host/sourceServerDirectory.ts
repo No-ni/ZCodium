@@ -116,9 +116,12 @@ export class SourceServerDirectory {
   }
 
   async ensureProfile(target: RemoteTarget): Promise<ConnectionProfile> {
+    // Profile 合同只支持进程线路；HTTP server 不能按 Docker 分支落盘或写凭据。
+    if (target.kind === "server") throw new Error("Source profile target is unsupported");
     return this.enqueue(async () => {
       const snapshot = await this.snapshot();
       const sanitized = stripRemoteTargetSecrets(target);
+      if (sanitized.kind === "server") throw new Error("Source profile target is unsupported");
       const existing = snapshot.profiles.find(
         (profile) => targetKey(profile.target) === targetKey(sanitized),
       );
@@ -376,5 +379,7 @@ function targetKey(target: RemoteTarget): string {
       return JSON.stringify(["wsl", target.distro ?? "", target.user ?? ""]);
     case "docker":
       return JSON.stringify(["docker", target.container]);
+    case "server":
+      throw new SourceServerDirectoryError("source-server-profile-stale");
   }
 }

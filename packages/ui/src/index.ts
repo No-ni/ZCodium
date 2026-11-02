@@ -88,7 +88,11 @@ export {
 
 export { GlobalDatabaseStartupLoading } from "./root/GlobalDatabaseStartupLoading.js";
 
-export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
+export {
+  LocalTtftObserver,
+  setLocalTtftObserver,
+} from "@/v4/diagnostics/local-ttft/localTtftObserver.js";
 
 export { selectBrowserFileData } from "./lib/browserFilePicker.js";
 export { writeBrowserClipboardText, isBrowserClipboardAvailable } from "./lib/browserClipboard.js";
+export { ensurePendingTaskDraft } from "@/v4/composer/composerDraftStore.js";

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { build } from "esbuild";
 import { tsImport } from "tsx/esm/api";
-import { resolveBuildAliases } from "../../apps/zcode-cli/packages/cli/scripts/build.mjs";
+import { resolveCliSourceAliases } from "./fixtures/cli-source-aliases.mjs";
+import { createProjectTestFixture } from "./project-test-sandbox.mjs";
 
 const { sharedContextImportStateSchema, restoreSharedContextImportState } = await tsImport(
   "../../packages/shared/src/zcode-protocol-v4/shared-context-import.ts",
@@ -115,7 +115,7 @@ test("restoration uses the same source rules for cold reads and reserved/discard
 });
 
 test("real CLI cold recovery and projection retain local origin without adding rows or sequence", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "zcodium-share-context-"));
+  const directory = await createProjectTestFixture("local-share-context");
   t.after(() => rm(directory, { recursive: true, force: true }));
   const outfile = join(directory, "runtime.cjs");
   await build({
@@ -128,7 +128,7 @@ test("real CLI cold recovery and projection retain local origin without adding r
     bundle: true,
     platform: "node",
     format: "cjs",
-    alias: resolveBuildAliases(),
+    alias: await resolveCliSourceAliases(),
     logLevel: "silent",
   });
   const { loadPersistedConversationMaterialization, ProductProjection } = createRequire(

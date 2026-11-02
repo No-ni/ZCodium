@@ -1,7 +1,7 @@
 import { recordChatError } from "@/lib/diagnostics/chatErrors.js";
 import type { LocalTtftContext } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
-import { getLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
+import { getLocalTtftObserver } from "@/v4/diagnostics/local-ttft/localTtftObserver.js";
 /**
  * v4 会话 composer（composer parity）。
  *
@@ -103,7 +103,7 @@ import {
   type ChatComposerAttachment,
 } from "@/lib/chatAttachments.js";
 import { resolveChatPlaceholderKey } from "@/lib/chatPlaceholder.js";
-import { resolveChatEnterShortcut } from "@/lib/mobileTextInput.js";
+import { resolveChatEnterShortcut, useIsMobileTextInputViewport } from "@/lib/mobileTextInput.js";
 import { appendPromptHistoryEntry } from "@/lib/promptHistory.js";
 import {
   persistPromptHistoryEntries,
@@ -382,6 +382,8 @@ interface ConversationComposerProps {
    * 仅草稿态由宿主下发；会话建立后为空。
    */
   contextHeader?: ReactNode;
+  /** Host admission 的提醒动作；追加在权限选择之后，不持有信任事实。 */
+  leadingActionsNode?: ReactNode;
   /** 居中草稿布局（旧 shouldUseCenteredDraftChatLayout）：收窄 max-w-2xl、去 sticky。 */
   centered?: boolean;
   floating?: boolean;
@@ -397,6 +399,7 @@ interface ConversationComposerProps {
    */
   autoFocusEnabled?: boolean;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
+  isWebRemoteControl?: boolean;
   workspacePath: string;
   workspaceIdentity?: string;
   /** 文件 mention / + 菜单文件列表的搜索根（会话执行 cwd）；缺省 = `workspacePath`。 */
@@ -502,6 +505,7 @@ function ConversationComposerImpl({
   createSubmissionFromComposer,
 
   contextHeader,
+  leadingActionsNode: admissionActionsNode,
   centered = false,
   floating = false,
   workingDurationMs,
@@ -510,6 +514,7 @@ function ConversationComposerImpl({
   autoFocusEnabled = true,
   workspacePath,
   workspaceIdentity,
+  isWebRemoteControl = false,
   fileSearchRootPath,
   fileReferenceRootResolved = true,
   remoteSessionId,
@@ -549,6 +554,7 @@ function ConversationComposerImpl({
 }: ConversationComposerProps) {
   const { intl, locale } = useZCodeIntl();
   const services = useOptionalServices();
+  const isMobileTextInputViewport = useIsMobileTextInputViewport();
 
   const draftScopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
@@ -1118,6 +1124,8 @@ function ConversationComposerImpl({
   const mode = snapshot?.inputRouting.mode ?? "startNow";
   const modifiedEnterSubmits = shouldEnableModifiedEnterSubmit({
     inputRoutingMode: mode,
+    isMobileTextInputViewport,
+    isWebRemoteControl,
   });
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
@@ -2091,6 +2099,7 @@ function ConversationComposerImpl({
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}
         />
+        {admissionActionsNode}
         {/* 附件画廊重构曾整段覆盖 leadingActions，误删 CUA 常驻入口。
             入口自身继续负责平台、远程与设置可见性，不在 composer 重复判定。 */}
         <V4ComposerCuaEntry
@@ -2108,6 +2117,7 @@ function ConversationComposerImpl({
       </>
     ),
     [
+      admissionActionsNode,
       activeConfigPicker,
       canStop,
       disabled,

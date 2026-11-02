@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { SESSION_DATABASE_IDENTITY_MIGRATION } from "@zcode/shared/sqlite-migrations";
 import type { SqliteMigration } from "@zcode/shared/sqlite-migrations";
 import { SQLITE_MIGRATIONS } from "./migrations.js";
 
@@ -5,7 +7,7 @@ import { SQLITE_MIGRATIONS } from "./migrations.js";
 const touchedTables: Readonly<Record<string, readonly string[]>> = {
   "0001_base_session_store": ["session", "message", "part", "todo", "session_entry", "permission", "input_history"],
   "0002_local_setting": ["local_setting"],
-  "0003_backfill_permission_local_setting": ["local_setting", "permission"],
+  "0003_backfill_permission_local_setting": ["local_setting"],
   "0004_session_target": ["session_target"],
   "0005_session_target_accounting": ["session_target", "session_target_next"],
   "0006_input_history_attachments": ["input_history"],
@@ -21,15 +23,20 @@ const touchedTables: Readonly<Record<string, readonly string[]>> = {
   "0016_session_input_ledger": ["session_input"],
   "0017_session_input_start_now_delivery": ["session_input", "session_input_before_start_now"],
   "0018_session_input_failed_status": ["session_input", "session_input_before_failed_status"],
-  "0019_dwf_journal": ["dwf_run", "dwf_actor", "dwf_node", "dwf_event"],
+  "0019_dwf_journal": ["dwf_run", "dwf_actor", "dwf_artifact", "dwf_node", "dwf_event"],
   "0020_provider_model_selection": ["message", "part", "session_entry"],
   "0021_official_glm_selection": ["session_entry"],
   "0022_backfilled_session_reasoning": ["session_entry"],
   "0023_repair_invalid_model_selection": ["session_entry"],
+  // 合并新增迁移后必须补齐备份范围，否则模块装载即失败；ID 与冻结 SQL 均沿用既有合同。
+  "0023_session_soft_delete_outcome": ["session"],
+  [SESSION_DATABASE_IDENTITY_MIGRATION.id]: ["zcode_database_identity"],
 };
 
 export const SESSION_DATABASE_MIGRATIONS: readonly SqliteMigration[] = SQLITE_MIGRATIONS.map((step) => {
   const tables = touchedTables[step.id];
   if (!tables) throw new Error("Session migration must explicitly declare touchedTables before startup");
-  return { ...step, touchedTables: tables };
+  // 幂等 apply 也沿用冻结 SQL 的 trim SHA-256，不能哈希函数文本或另造历史 checksum。
+  const checksum = step.checksum ?? createHash("sha256").update(step.sql.trim()).digest("hex");
+  return { ...step, touchedTables: tables, checksum };
 });

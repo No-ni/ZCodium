@@ -2,8 +2,10 @@ import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { basename, extname } from "node:path";
 import { hostname } from "node:os";
+import { resolveServerOsUser } from "@zcode/shared/node";
+import * as nodePath from "node:path";
+import { basename, extname, resolve } from "node:path";
 import { Hono, type Context } from "hono";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
@@ -13,9 +15,12 @@ import {
   VSBuffer,
   SocketProtocol,
   ChannelServer,
+  ChannelClient,
   LoggingChannelServer,
   type ISocket,
 } from "@zcode/rpc";
+import type { TopicResourcePeers } from "@zcode/services/node";
+import { TOPIC_RESOURCE_RELAY_CHANNEL } from "@zcode/shared";
 import {
   ServiceCollection,
   IZCodeAgentService,
@@ -29,18 +34,23 @@ import {
 } from "@zcode/services";
 import {
   botProviders,
-  formatLogPrefix,
-  formatZodError,
   remoteTargetSchema,
+  formatLogPrefix,
+  serverRemoteInfoOutputSchema,
   SERVER_REMOTE_PROTOCOL_VERSION,
   ZCODE_RPC_HOST_CAPABILITY_HEADER,
+  ZCODE_COMPATIBILITY_MANIFEST,
   ZCODE_VERSION,
   type BotProvider,
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
 } from "@zcode/shared";
-import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
+import {
+  SourceServerWorkspaceIdentityChannelServer,
+  type SourceServerWorkspaceIdentityMapper,
+} from "@zcode/services/node";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { resolveStaticFile } from "./httpStaticFiles.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
@@ -89,15 +99,25 @@ function setupChannelServer(
   ws: WebSocket,
   services: ServiceCollection,
   clientMode: "desktop-continuous" | "web-remote-replayable",
+  workspaceIdentityMapper?: SourceServerWorkspaceIdentityMapper,
+  resourcePeers?: TopicResourcePeers,
 ) {
   const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   // 用日志中间件包装，统一记录所有 RPC 调用
-  const server = new LoggingChannelServer(rawServer, log);
+  const loggedServer = new LoggingChannelServer(rawServer, log);
+  const server = workspaceIdentityMapper
+    ? new SourceServerWorkspaceIdentityChannelServer(loggedServer, workspaceIdentityMapper)
+    : loggedServer;
   const agentService = services.getOptional(IZCodeAgentService);
+  const reverseClient =
+    clientMode === "desktop-continuous" && resourcePeers ? new ChannelClient(protocol) : undefined;
+  const peer = reverseClient
+    ? resourcePeers?.attach(reverseClient.getChannel(TOPIC_RESOURCE_RELAY_CHANNEL))
+    : undefined;
   const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(agentService, {
+    ? createZCodeAgentConnectionScope(peer ? peer.wrapAgent(agentService) : agentService, {
         connectionId: `server-ws-${randomUUID()}`,
         clientMode,
         role: clientMode === "desktop-continuous" ? "trusted-host-relay" : "terminal-client",
@@ -121,6 +141,8 @@ function setupChannelServer(
   }
   services.exposeOnChannelServer(server, overrides);
   socket.onClose(() => {
+    peer?.dispose();
+    reverseClient?.dispose();
     rawServer.dispose();
     // 连接 owner 必须同时释放协议，单独结束 server 不会清掉未收完整的大帧。
     protocol.dispose();
@@ -139,6 +161,10 @@ interface HttpServerOptions {
   /** 服务启动入口拥有本地资源目录，HTTP 连接请求不能覆盖。 */
   bundledRemoteAssetsDir?: string;
   serverId?: string;
+  virtualProjects?: boolean;
+  migrationFailedPathCount?: number;
+  workspaceIdentityMapper?: SourceServerWorkspaceIdentityMapper;
+  topicResourcePeers?: TopicResourcePeers;
   name?: string;
   host?: string;
   authRequired?: boolean;
@@ -153,7 +179,7 @@ function readTrimmedEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
-function resolveServerId(options: HttpServerOptions): string {
+export function resolveHttpServerId(options: HttpServerOptions = {}): string {
   return (
     options.serverId?.trim() || readTrimmedEnv("ZCODE_SERVER_ID") || hostname() || "zcode-server"
   );
@@ -173,8 +199,8 @@ function resolveServerWorkspaces(options: HttpServerOptions): ServerRemoteWorksp
 }
 
 function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
-  return {
-    serverId: resolveServerId(options),
+  return serverRemoteInfoOutputSchema.parse({
+    serverId: resolveHttpServerId(options),
     ...(options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME")
       ? { name: options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME") }
       : {}),
@@ -182,11 +208,14 @@ function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
     authRequired: options.authRequired ?? Boolean(readTrimmedEnv("ZCODE_SERVER_TOKEN")),
     workspaces: resolveServerWorkspaces(options),
+    compatibility: ZCODE_COMPATIBILITY_MANIFEST,
+    migration: { failedPathCount: options.migrationFailedPathCount ?? 0 },
+    identity: { osUser: resolveServerOsUser(), hostname: hostname() },
     capabilities: {
       desktopContinuous: true,
       websocketRpc: true,
     },
-  };
+  });
 }
 
 const zcodeLiteTokenCookieName = "zcode_lite_token";
@@ -230,6 +259,13 @@ function parseCookieHeader(header: string | undefined): Map<string, string> {
 }
 
 function hasValidLiteToken(c: Context, token: string): boolean {
+  const authorization = c.req.header("authorization");
+  if (
+    authorization?.startsWith("Bearer ") &&
+    authorization.slice("Bearer ".length).trim() === token
+  ) {
+    return true;
+  }
   const url = new URL(c.req.url);
   if (url.searchParams.get("token") === token) {
     c.header(
@@ -284,14 +320,25 @@ export function createHttpServer(
     "/ws",
     upgradeWebSocket(() => ({
       onOpen(_event, ws) {
-        setupChannelServer(ws.raw as WebSocket, services, "web-remote-replayable");
+        setupChannelServer(
+          ws.raw as WebSocket,
+          services,
+          "web-remote-replayable",
+          options.workspaceIdentityMapper,
+        );
       },
     })),
   );
 
   const upgradeTrustedHostWebSocket = upgradeWebSocket(() => ({
     onOpen(_event, ws) {
-      setupChannelServer(ws.raw as WebSocket, services, "desktop-continuous");
+      setupChannelServer(
+        ws.raw as WebSocket,
+        services,
+        "desktop-continuous",
+        options.workspaceIdentityMapper,
+        options.topicResourcePeers,
+      );
     },
   }));
   app.use("/ws/host", async (c, next) => {
@@ -303,27 +350,19 @@ export function createHttpServer(
   });
   app.get("/ws/host", upgradeTrustedHostWebSocket);
 
-  // Web 模式下发起远程连接
+  // 显式Web连接只使用用户预部署服务；不能借旧HTTP入口恢复自动资源安装。
   app.post("/api/connect-remote", async (c) => {
-    const rawBody = await c.req.json();
-    const parsedBody = remoteTargetSchema.safeParse(rawBody);
-    if (!parsedBody.success) {
-      return c.json({ error: `Invalid request body: ${formatZodError(parsedBody.error)}` }, 400);
-    }
-    const body = parsedBody.data;
-
+    const parsed = remoteTargetSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success || parsed.data.kind === "server")
+      return c.json({ error: "Invalid remote target" }, 400);
     try {
-      const backend = await createRemoteBackend(body);
-      const connection = await connectRemote(backend, {
-        bundledRemoteAssetsDir: options.bundledRemoteAssetsDir,
-      });
+      const backend = await createRemoteBackend(parsed.data);
+      const connection = await connectRemote(backend, { skipDeploy: true });
       const id = generateId();
       remoteConnections.set(id, connection);
-
       return c.json({ id });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: message }, 500);
+    } catch {
+      return c.json({ error: "Remote connection failed" }, 500);
     }
   });
 

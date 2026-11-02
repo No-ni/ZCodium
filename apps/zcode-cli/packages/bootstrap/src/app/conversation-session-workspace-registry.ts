@@ -24,9 +24,7 @@ import { basename, dirname, join, resolve } from "node:path";
  * 这样端口能在测试里用假实现替换，也不把 bootstrap 绑死在某个存储实现上。
  */
 export interface ConversationSessionPathSource {
-  listSessions(input: {
-    includeArchived: boolean;
-  }): Promise<Array<{ id?: string | null; path?: string | null }>>;
+  listSessions(): Promise<Array<{ id?: string | null; path?: string | null }>>;
 }
 
 /** 会话行里本模块用到的两个字段：`id` 用于排除「正在被关的这一行」，`path` 是在册执行目录。 */
@@ -47,7 +45,8 @@ export async function readConversationSessionPathRows(
 ): Promise<ConversationSessionPathRow[] | undefined> {
   let rows: unknown;
   try {
-    rows = await source.listSessions({ includeArchived: true });
+    // 归档组织态属于 Host；CLI 无过滤查询已包含全部未删除会话，不能恢复旧归档字段。
+    rows = await source.listSessions();
   } catch {
     return undefined;
   }

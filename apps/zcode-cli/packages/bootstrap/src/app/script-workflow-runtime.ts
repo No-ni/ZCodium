@@ -11,10 +11,11 @@ import {
   type TraceContext,
   type WorkflowAgentCallInput,
 } from "@zcode/contracts";
+import type { AgentRuntime } from "@zcode/core";
 import type { PrepareUserExecutionBoundary } from "./types.js";
 import { readWorkflowScriptDocument, stableHash } from "./script-workflow-meta.js";
 import { prepareScriptWorkflowRun } from "./script-workflow-prepare.js";
-import { resolveWorkflowConcurrencyCeiling } from "./workflow-concurrency-ceiling.js";
+import { resolveWorkflowDefaultConcurrency } from "./workflow-default-concurrency.js";
 import {
   runScriptWorkflowChild,
   type ScriptWorkflowChildRequest,
@@ -60,10 +61,68 @@ type ScriptWorkflowRunOptions = {
 } & Parameters<PrepareUserExecutionBoundary>[0];
 
 export class ScriptWorkflowRuntime {
-  // 与 workflow run service / 进程级治理器同一份天花板实现；legacy 工具仍只有本地 limiter，不接治理器。
-  private readonly concurrency = resolveWorkflowConcurrencyCeiling();
+  // 与 dwf run service / 进程级治理器同一份默认并发实现（决策 30）；legacy 工具仍只有本地 limiter，不接治理器。
+  private readonly concurrency = resolveWorkflowDefaultConcurrency();
   private readonly limiter = new WorkflowLimiter(this.concurrency);
   private callIndex = 0;
+  private readonly shutdown = new AbortController();
+  private readonly running = new Set<Promise<unknown>>();
+  private readonly children = new Set<AgentRuntime>();
+  private closePromise?: Promise<void>;
+
+  private track<T>(work: Promise<T>): Promise<T> {
+    this.running.add(work);
+    void work.then(
+      () => this.running.delete(work),
+      () => this.running.delete(work),
+    );
+    return work;
+  }
+
+  close(): Promise<void> {
+    this.shutdown.abort(new Error("Workflow runtime closed"));
+    this.closePromise ??= (async () => {
+      while (this.running.size > 0) await Promise.allSettled(this.running);
+      const results = await Promise.allSettled(
+        [...this.children].map(async (runtime) => {
+          await runtime.close();
+          this.children.delete(runtime);
+        }),
+      );
+      const errors = results.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
+      if (errors.length) throw new AggregateError(errors, "Workflow cleanup failed");
+    })().catch((error) => {
+      // 清理失败的 child 仍在 children 中，最终 owner 必须能重试。
+      this.closePromise = undefined;
+      throw error;
+    });
+    return this.closePromise;
+  }
+
+  private ownedOptions(options?: ScriptWorkflowRunOptions): ScriptWorkflowRunOptions {
+    this.shutdown.signal.throwIfAborted();
+    return {
+      ...options,
+      abortSignal: options?.abortSignal
+        ? AbortSignal.any([options.abortSignal, this.shutdown.signal])
+        : this.shutdown.signal,
+    };
+  }
+
+  async run(
+    input: { args?: unknown; resumeFromRunId?: string; runId?: string; scriptPath: string },
+    options?: ScriptWorkflowRunOptions,
+  ) {
+    const owned = this.ownedOptions(options);
+    return this.track(this.runOwned(input, owned));
+  }
+
+  async resume(input: { runId: string }, options?: ScriptWorkflowRunOptions) {
+    const owned = this.ownedOptions(options);
+    return this.track(this.resumeOwned(input, owned));
+  }
 
   constructor(private readonly deps: ScriptWorkflowRuntimeDeps) {}
 
@@ -124,7 +183,7 @@ export class ScriptWorkflowRuntime {
     };
   }
 
-  async run(
+  private async runOwned(
     input: { args?: unknown; resumeFromRunId?: string; runId?: string; scriptPath: string },
     options?: ScriptWorkflowRunOptions,
   ): Promise<{
@@ -133,10 +192,12 @@ export class ScriptWorkflowRuntime {
     status: ScriptWorkflowRunStatus;
     traceId: string;
   }> {
+    options?.abortSignal?.throwIfAborted();
     await this.deps.prepareUserExecutionBoundary(options);
     // 裸 CLI 恢复及父 Bash cd 都会改变 runtime cwd；装配时的目录不再代表执行事实。
     // 每个 run 在准备后冻结一次，脚本和迟到的子代理共用它，不能随父会话后续 cd 漂移。
     const workingDirectory = this.deps.runtime.getWorkingDirectory();
+    options?.abortSignal?.throwIfAborted();
     const document = await readWorkflowScriptDocument({
       fileSystemPort: this.deps.fileSystemPort,
       scriptPath: input.scriptPath,
@@ -184,9 +245,13 @@ export class ScriptWorkflowRuntime {
         completedAt: Date.now(),
         failure: serializeError(error),
         id: run.id,
-        status: "failed",
+        status: options?.abortSignal?.aborted ? "cancelled" : "failed",
       });
-      await this.appendEvent(run.id, "workflow_failed", serializeError(error));
+      await this.appendEvent(
+        run.id,
+        options?.abortSignal?.aborted ? "workflow_cancelled" : "workflow_failed",
+        serializeError(error),
+      );
     }
 
     const finalRun = (await this.store().getScriptWorkflowRun(run.id)) ?? run;
@@ -199,7 +264,7 @@ export class ScriptWorkflowRuntime {
     };
   }
 
-  async resume(
+  private async resumeOwned(
     input: { runId: string },
     options?: ScriptWorkflowRunOptions,
   ): Promise<{
@@ -211,7 +276,7 @@ export class ScriptWorkflowRuntime {
     const run = await this.store().getScriptWorkflowRun(input.runId);
     if (!run) throw new Error(`Workflow run not found: ${input.runId}`);
     if (!run.scriptPath) throw new Error(`Workflow run has no script path: ${input.runId}`);
-    return this.run(
+    return this.runOwned(
       {
         args: run.args,
         resumeFromRunId: input.runId,
@@ -307,6 +372,7 @@ export class ScriptWorkflowRuntime {
         workflowRunId: run.id,
       },
       sessionId: childSessionId,
+      rootSessionId: this.deps.traceContext.rootSessionId ?? this.deps.sessionId,
     });
     const childRuntime = createScriptWorkflowAgentRuntime({
       childSessionId,
@@ -314,6 +380,7 @@ export class ScriptWorkflowRuntime {
       request: input,
       traceContext: childTraceContext,
     });
+    this.children.add(childRuntime);
     const agentPrompt = buildAgentPrompt(input);
 
     let unsubscribe: (() => void) | undefined;
@@ -379,7 +446,7 @@ export class ScriptWorkflowRuntime {
         completedAt: Date.now(),
         error: serializeError(error),
         id: activity.id,
-        status: "failed",
+        status: options?.abortSignal?.aborted ? "cancelled" : "failed",
       });
       await this.addRunStats(run.id, {
         ...emptyScriptWorkflowStats(),
@@ -393,6 +460,21 @@ export class ScriptWorkflowRuntime {
       throw error;
     } finally {
       unsubscribe?.();
+      // activity 结果已经落地；释放失败保留 child，不能把成功结果改写成脚本执行失败。
+      const cancelled = options?.abortSignal?.aborted === true;
+      const released = cancelled ? childRuntime.close() : childRuntime.retire();
+      const release = released.then(
+        () => {
+          this.children.delete(childRuntime);
+        },
+        (error: unknown) =>
+          this.deps.logger?.warn("Workflow child resource cleanup pending", {
+            event: "workflow.child.cleanup.pending",
+            childSessionId,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+      );
+      if (cancelled || !childRuntime.hasResidencyBlockingWork()) await release;
     }
   }
 

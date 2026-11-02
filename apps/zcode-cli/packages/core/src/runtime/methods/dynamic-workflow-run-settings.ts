@@ -29,6 +29,7 @@ import { workspaceLevelRootOf } from "../helpers/workspace-scope.js";
 import { traceContextToLogContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { boundedCompileDiagnostics } from "./dynamic-workflow-run-start.js";
+import { activateDynamicWorkflowTools } from "./dynamic-workflow-activation.js";
 import {
   buildSettingsMessageText,
   enqueueSettingsTurn,
@@ -115,12 +116,11 @@ export async function amendWorkflowRunSettings(
       ...(this.modelCatalogPort === undefined ? {} : { message: model.message }),
     };
   }
-  const ceiling = port.concurrencyCeiling?.();
-  const bound = resolveAmendMaxConcurrency(input.maxConcurrency, current.maxConcurrency, ceiling);
-  // 等于天花板的界就是「没有自己的界」：快照只在低于天花板时带 maxConcurrency，两边同一个读法，
-  // 「未改」的比较才成立（弹层把步进器推到顶也发 null，这里兜住直接给数的调用方）。
+  const defaultConcurrency = port.defaultConcurrency?.();
+  const bound = resolveAmendMaxConcurrency(input.maxConcurrency, current.maxConcurrency);
+  // 修复依据：默认值只是起点；高于默认值的用户上界必须与低于默认值的一样保留。
   const nextBound =
-    bound.max_concurrency === undefined || bound.max_concurrency === ceiling
+    bound.max_concurrency === undefined || bound.max_concurrency === defaultConcurrency
       ? undefined
       : bound.max_concurrency;
   const next: RunSettings = {
@@ -143,6 +143,7 @@ export async function amendWorkflowRunSettings(
       maxConcurrency: input.maxConcurrency ?? null,
     });
     if (answer.ok) {
+      await activateDynamicWorkflowTools.call(this, { source: "run_control", traceContext });
       return retunedSettings.call(this, {
         answer,
         name: displayNameOfSnapshot(snapshot),
@@ -258,7 +259,6 @@ export async function amendWorkflowRunSettings(
     ...(boundChanged
       ? { maxConcurrency: fromTo(current.maxConcurrency, next.maxConcurrency) }
       : {}),
-    ...(ceiling === undefined ? {} : { ceiling }),
   };
 
   // (9)(10) 之后的失败只记日志不回滚：新 run 已在飞，可在侧板停下；撤回它反而制造孤儿。
@@ -343,10 +343,10 @@ function retunedSettings(
   // 发的是 `null`，端口答回来的却永远是绝对值，折算只能在这里做）。
   const amend: WorkflowSettingsAmendMeta = {
     maxConcurrency: fromTo(
-      answer.previous === answer.ceiling ? undefined : answer.previous,
-      answer.maxConcurrency === answer.ceiling ? undefined : answer.maxConcurrency,
+      answer.previous === answer.defaultConcurrency ? undefined : answer.previous,
+      answer.maxConcurrency === answer.defaultConcurrency ? undefined : answer.maxConcurrency,
     ),
-    ceiling: answer.ceiling,
+    ceiling: answer.defaultConcurrency,
   };
   try {
     enqueueSettingsTurn.call(this, {

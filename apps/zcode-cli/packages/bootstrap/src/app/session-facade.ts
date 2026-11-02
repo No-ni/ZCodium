@@ -48,6 +48,7 @@ import {
 import { isClosableSessionStore } from "./session-store.js";
 import { createSubagentObservation } from "./subagent-observation.js";
 import type { PrepareUserExecutionBoundary, ZCodeApp } from "./types.js";
+import type { CliDefaultSelection } from "./cli-default-selection.js";
 
 type SessionFacade = Pick<
   ZCodeApp,
@@ -57,6 +58,7 @@ type SessionFacade = Pick<
   | "close"
   | "callMcpToolForUi"
   | "getMcpAppConnectionSnapshot"
+  | "waitForMcpAppConnection"
   | "onMcpAppConnectionInvalidated"
   | "replaceMcpAppProvidedTools"
   | "connectMcpServer"
@@ -109,15 +111,17 @@ interface SessionResourceCloseInput {
   closeNodeReplBrowserBroker?: () => Promise<void> | void;
   closeSessionStore?: () => void;
   logger: Logger;
-  timeoutMs?: number;
+  timeoutMs?: number | null;
 }
 
 interface CreateSessionFacadeDeps {
+  cliDefaultSelection?: CliDefaultSelection;
   /**
    * 停下本会话拥有的 dwf run：
    * run service 的 `close()`。缺席即本装配没有 dwf 端口（journal 窄化失败、测试装配）。
    */
   closeDynamicWorkflowRuns?: () => Promise<void>;
+  closeScriptWorkflowRuns?: () => Promise<void>;
   closeNodeReplBrowserBroker?: () => Promise<void> | undefined;
   configResult: ConfigResult;
   configuredMcpServers: Record<string, McpServerConfig>;
@@ -156,7 +160,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         selection?: ResolvedRegistrySelection;
       } => {
     const registry = deps.providerRegistry;
-    const selection = deps.runtime.getSessionModelSelection();
+    const selection = readUserModelSelection(deps);
     if (!selection) return { owned: false };
     const { providerId } = selection;
     if (!registry.getProvider(providerId)) return { owned: false };
@@ -284,62 +288,64 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
 
   return {
     close: async () => {
-      closePromise ??= (async () => {
-        // 关闭入口先阻止新调度并取消在飞 Memory Extraction，再等待取消链路收口。
-        deps.runtime.beginShutdown();
-        await deps.runtime.drainMemoryExtractions(60_000);
-        // 引擎归本 App 所有，所以关闭要主动停下它。
-        // 位置是两个约束夹出来的：在 beginShutdown **之后**，结算带出的终态通知才会被丢掉
-        // （background-notifications.ts 在 shuttingDown 时不入队），不会把正在关闭的会话的模型
-        // 叫醒；在 closeSessionResources **之前**，子代理还有 execution / MCP / session store
-        // 可以干净地中止，引擎也还有 journal 可以写自己那一笔 stopped(interrupted)。
-        if (deps.closeDynamicWorkflowRuns !== undefined) {
+      closePromise ??= closeSessionResourceWithinDeadline(
+        "session_shutdown",
+        async () => {
+          // 关闭入口先阻止新调度并取消在飞 Memory Extraction，再等待取消链路收口。
+          const errors: unknown[] = [];
+          deps.runtime.beginShutdown();
+          const owners: Array<[string, (() => Promise<void>) | undefined]> = [
+            ["runtime_work", () => deps.runtime.closeOwnedWork()],
+            ["dynamic_workflow", deps.closeDynamicWorkflowRuns],
+            ["script_workflow", deps.closeScriptWorkflowRuns],
+          ];
+          // deadline 只限制外部等待；真实 drain 未完成前，依赖资源必须继续由此链持有。
+          const closed = await Promise.allSettled(
+            owners.flatMap(([, close]) => (close ? [Promise.resolve().then(close)] : [])),
+          );
+          for (const result of closed) if (result.status === "rejected") errors.push(result.reason);
+          const closableSessionStore =
+            deps.ownsSessionStore && isClosableSessionStore(deps.sessionStore)
+              ? deps.sessionStore
+              : undefined;
           try {
-            await deps.closeDynamicWorkflowRuns();
-          } catch (error: unknown) {
-            // 卡住或抛错的 dwf 关闭绝不能吃掉资源关闭（同下面并行关闭那条注释的论证）：
-            // 记一条 warn 继续走，最坏情况是那个 run 留成孤儿行，下一次构造时被收敛。
-            deps.logger.warn?.(
-              "Closing dynamic workflow runs failed; continuing to close resources",
-              {
-                errorMessage: error instanceof Error ? error.message : String(error),
-                event: "dynamic_workflow.service.close_failed",
-                module: "bootstrap.app",
-              },
-            );
+            await closeSessionResources({
+              beginShutdown: () => deps.runtime.beginShutdown(),
+              closeBrowserSession: () => deps.runtime.closeBrowserSession(),
+              closeExecution:
+                deps.ownsExecutionPort && deps.executionPort.close
+                  ? () => deps.executionPort.close?.()
+                  : undefined,
+              closeMcp: deps.ownsMcpPort && deps.mcpPort ? () => deps.mcpPort?.close() : undefined,
+              closeNodeReplBrowserBroker: deps.closeNodeReplBrowserBroker,
+              closeSessionStore: closableSessionStore
+                ? () => closableSessionStore.close()
+                : undefined,
+              logger: deps.logger,
+              timeoutMs: null,
+            });
+          } catch (error) {
+            errors.push(error);
           }
-        }
-        const closableSessionStore =
-          deps.ownsSessionStore && isClosableSessionStore(deps.sessionStore)
-            ? deps.sessionStore
-            : undefined;
-        await closeSessionResources({
-          beginShutdown: () => deps.runtime.beginShutdown(),
-          closeBrowserSession: () => deps.runtime.closeBrowserSession(),
-          closeExecution:
-            deps.ownsExecutionPort && deps.executionPort.close
-              ? () => deps.executionPort.close?.()
-              : undefined,
-          closeMcp: deps.ownsMcpPort && deps.mcpPort ? () => deps.mcpPort?.close() : undefined,
-          closeNodeReplBrowserBroker: deps.closeNodeReplBrowserBroker,
-          closeSessionStore: closableSessionStore ? () => closableSessionStore.close() : undefined,
-          logger: deps.logger,
-        });
-      })();
+          if (errors.length) throw new AggregateError(errors, "Session shutdown failed");
+        },
+        DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS,
+        deps.logger,
+      );
       return await closePromise;
     },
     getMode: () => deps.runtime.getMode(),
-    getModel: () => formatLegacyRuntimeModelValue(deps.runtime.getSessionModelSelection()),
+    getModel: () => formatLegacyRuntimeModelValue(readUserModelSelection(deps)),
     getLocale: () => currentLocale,
     getTheme: () => deps.configResult.config.ui.theme as UiThemePreference,
     getDefaultThoughtLevel: () => {
       const registryState = currentRegistrySelection();
       return registryState.owned
         ? resolveRegistryThoughtLevel(registryState.selection)
-        : deps.runtime.getSessionModelSelection()?.options?.reasoningLevel;
+        : readUserModelSelection(deps)?.options?.reasoningLevel;
     },
     // 当前档位只读会话事实；缺失时不能借默认档位伪装成已完成选择。
-    getThoughtLevel: () => deps.runtime.getSessionModelSelection()?.options?.reasoningLevel,
+    getThoughtLevel: () => readUserModelSelection(deps)?.options?.reasoningLevel,
     loadSessionTranscript: async () =>
       await loadSessionTranscriptFromStore({
         sessionId: deps.sessionId,
@@ -364,7 +370,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       return listRegistryBackedModels(deps.providerRegistry);
     },
     getCurrentModelOption: () => {
-      const selection = deps.runtime.getSessionModelSelection();
+      const selection = readUserModelSelection(deps);
       return selection && getRegistryBackedModel(deps.providerRegistry, selection);
     },
     getModelOption: (selection) => getRegistryBackedModel(deps.providerRegistry, selection),
@@ -461,6 +467,10 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
     onMcpAppConnectionInvalidated: (name, listener) =>
       deps.mcpPort?.onAppConnectionInvalidated?.(name, listener) ?? (() => {}),
     getMcpAppConnectionSnapshot: (name) => deps.mcpPort?.appConnectionSnapshot?.(name) ?? null,
+    waitForMcpAppConnection: async (name) =>
+      deps.mcpPort?.waitForAppConnection
+        ? deps.mcpPort.waitForAppConnection(name)
+        : (deps.mcpPort?.appConnectionSnapshot?.(name) ?? null),
     callMcpToolForUi: async (serverName, toolName, args, options) => {
       if (!deps.mcpPort) {
         throw new Error("MCP is disabled");
@@ -641,7 +651,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       if (!registrySelection) {
         throw new Error(`Provider Registry 中不存在 Model: ${modelId}`);
       }
-      const previousSelection = deps.runtime.getSessionModelSelection();
+      const previousSelection = readUserModelSelection(deps);
       const previousModel = formatLegacyRuntimeModelValue(previousSelection);
       const model = formatLegacyRuntimeModelValue(registrySelection.selection);
       const sessionSelection: ModelSelection = {
@@ -651,7 +661,12 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
           ? { options: { ...registrySelection.selection.options } }
           : {}),
       };
-      deps.runtime.setSessionModelSelection(sessionSelection);
+      if (deps.cliDefaultSelection && !options?.transient) {
+        deps.cliDefaultSelection.set(sessionSelection);
+      } else {
+        deps.runtime.setSessionModelSelection(sessionSelection);
+      }
+      // transient 切换不产出 modelChange 聊天通知：应用/还原成对出现会刷出两条无意义通知。
       if (!options?.transient) {
         deps.runtime.recordPendingModelChange({
           fromModel: previousSelection,
@@ -678,7 +693,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
     setThoughtLevel: async (level) => {
       const registryState = currentRegistrySelection();
       if (registryState.owned) {
-        const currentSelection = deps.runtime.getSessionModelSelection();
+        const currentSelection = readUserModelSelection(deps);
         if (!currentSelection) throw new Error("Select a model before choosing reasoning effort");
         const registrySelection =
           registryState.selection ??
@@ -691,13 +706,15 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
           currentSelection.options?.reasoningLevel,
         );
         const thoughtLevel = requireRegistryThoughtLevel(registrySelection, level);
-        deps.runtime.setSessionModelSelection({
+        const nextSelection = {
           ...currentSelection,
           options: {
             ...currentSelection.options,
             reasoningLevel: thoughtLevel,
           },
-        });
+        };
+        if (deps.cliDefaultSelection) deps.cliDefaultSelection.set(nextSelection);
+        else deps.runtime.setSessionModelSelection(nextSelection);
         await persistSessionModelSelection(deps);
         deps.logger.info("Session reasoning effort updated", {
           ...traceContextToLogContext(deps.traceContext),
@@ -742,20 +759,18 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
 }
 
 async function closeSessionResources(input: SessionResourceCloseInput): Promise<void> {
+  const errors: unknown[] = [];
   try {
     // 第一拍先关闭 runtime admission；后续 execution cancel 只能收口状态，不能再唤醒模型。
     input.beginShutdown();
   } catch (error) {
+    errors.push(error);
     input.logger.warn("Failed to begin runtime shutdown", {
       error: error instanceof Error ? error.message : String(error),
       event: "session.shutdown_admission.failed",
     });
   }
 
-  const timeoutMs = Math.max(
-    1,
-    Math.trunc(input.timeoutMs ?? DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS),
-  );
   const resources: Array<[name: string, close: (() => Promise<void> | void) | undefined]> = [
     ["browser_session", input.closeBrowserSession],
     ["execution", input.closeExecution],
@@ -763,23 +778,42 @@ async function closeSessionResources(input: SessionResourceCloseInput): Promise<
     ["node_repl_browser_broker", input.closeNodeReplBrowserBroker],
   ];
 
-  // 旧关闭链串行 await；Browser close 永不 settle 时，Execution/MCP 永远不会执行。
-  // 各 owner 并行、独立带 deadline，任何一个失败都不能跳过其它资源。
-  await Promise.all(
-    resources.flatMap(([name, close]) =>
-      close ? [closeSessionResourceWithinDeadline(name, close, timeoutMs, input.logger)] : [],
-    ),
+  // 独立资源并行释放；外部超时不能让仍在收尾的借用者碰到已关闭的 store。
+  const completion = (async () => {
+    const results = await Promise.allSettled(
+      resources.flatMap(([name, close]) =>
+        close
+          ? [
+              Promise.resolve()
+                .then(close)
+                .catch((error: unknown) => {
+                  input.logger.warn("Session resource close failed", {
+                    event: "session.resource_close.failed",
+                    resource: name,
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                  throw error;
+                }),
+            ]
+          : [],
+      ),
+    );
+    for (const result of results) if (result.status === "rejected") errors.push(result.reason);
+    try {
+      input.closeSessionStore?.();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length)
+      throw new AggregateError(errors, "Session resources could not be safely released");
+  })();
+  if (input.timeoutMs === null) return completion;
+  return closeSessionResourceWithinDeadline(
+    "session_resources",
+    () => completion,
+    Math.max(1, Math.trunc(input.timeoutMs ?? DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS)),
+    input.logger,
   );
-
-  try {
-    input.closeSessionStore?.();
-  } catch (error) {
-    input.logger.warn("Failed to close session store", {
-      error: error instanceof Error ? error.message : String(error),
-      event: "session.resource_close.failed",
-      resource: "session_store",
-    });
-  }
 }
 
 async function closeSessionResourceWithinDeadline(
@@ -808,18 +842,19 @@ async function closeSessionResourceWithinDeadline(
       resource: name,
       timeoutMs,
     });
-    return;
+    throw new Error(`Session resource close timed out: ${name}`);
   }
   logger.warn("Session resource close failed", {
     error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
     event: "session.resource_close.failed",
     resource: name,
   });
+  throw outcome.error;
 }
 
 async function persistSessionModelSelection(deps: CreateSessionFacadeDeps): Promise<void> {
   if (!deps.sessionStore.saveSessionEntry) return;
-  const selection = deps.runtime.getSessionModelSelection();
+  const selection = readUserModelSelection(deps);
   if (!selection) return;
   const timestamp = Date.now();
   try {
@@ -839,16 +874,32 @@ async function persistSessionModelSelection(deps: CreateSessionFacadeDeps): Prom
       },
     });
   } catch (error) {
-    // 选型已经在当前 runtime 生效；持久化失败不能反向伪装成切换失败，但必须留生产日志。
-    deps.logger.warn("Session model selection persistence failed", {
+    const logContext = {
       ...traceContextToLogContext(deps.traceContext),
       error: error instanceof Error ? error.message : String(error),
-      event: "session.model_selection.persist_failed",
       modelId: selection.modelId,
       module: "bootstrap",
       providerId: selection.providerId,
-      status: "failed",
       thoughtLevel: selection.options?.reasoningLevel,
+    };
+    // Bug 原因（ZCT-2109847556412547072）：App 在 deferred 会话首条消息前设置选型/档位时，
+    // session 行尚未创建，entry 写入必然报 FOREIGN KEY，却以 warn 进入生产日志，误导排查。
+    // 首次持久化（ensureSessionPersisted）会以当时的 Session Selection 补写同一 entry，
+    // 所以仅在会话仍未持久化时降为 debug。仍先尝试写入而不是预先跳过：若首次持久化正在进行，
+    // 预判跳过会漏写比其读取更晚的选择。
+    if (!deps.runtime.isSessionPersisted()) {
+      deps.logger.debug("Session model selection persistence deferred until session is persisted", {
+        ...logContext,
+        event: "session.model_selection.persist_deferred",
+        status: "waiting",
+      });
+      return;
+    }
+    // 选型已经在当前 runtime 生效；持久化失败不能反向伪装成切换失败，但必须留生产日志。
+    deps.logger.warn("Session model selection persistence failed", {
+      ...logContext,
+      event: "session.model_selection.persist_failed",
+      status: "failed",
     });
   }
 }
@@ -878,4 +929,10 @@ function goalStateChangeReminderText(
     default:
       return undefined;
   }
+}
+
+function readUserModelSelection(deps: CreateSessionFacadeDeps): ModelSelection | undefined {
+  return deps.cliDefaultSelection
+    ? deps.cliDefaultSelection.get()
+    : deps.runtime.getSessionModelSelection();
 }

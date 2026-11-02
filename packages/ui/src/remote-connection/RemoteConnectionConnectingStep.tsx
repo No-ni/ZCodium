@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
+import { RemotePasswordInput } from "@/remote-connection/RemotePasswordInput.js";
+import { classifyRemoteConnectionError } from "@/lib/remoteConnectionPresentation.js";
+import { resolveRemoteConnectionPhases } from "@/remote-connection-flow/connectionPhases.js";
+export {
+  resolveRemoteConnectionPhases,
+  resolveRemoteOperationProgress,
+} from "@/remote-connection-flow/connectionPhases.js";
 import { AlertTriangleIcon, LoaderIcon } from "lucide-react";
 import { TID_SSH_ERROR } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
@@ -17,12 +24,47 @@ export function RemoteConnectionConnectingStep({
   loading,
   onBack,
   onRetry,
+  errorCode,
+  rawError,
+  cancelled,
+  credentials,
+  connectionReady,
+  workspacePath,
+  recognizedDeviceName,
+  profileName,
+  recognizedDeviceMeta,
+  onContinueToDirectory,
+  onCancelConnection,
+  onMinimize,
+  onClose,
+  onBackToDevices,
+  backToDevicesLabel,
 }: {
   logs: RemoteConnectionLogEntry[];
   errorMessage: string;
   loading: boolean;
   onBack: () => void;
   onRetry: () => void;
+  errorCode?: string;
+  rawError?: string;
+  cancelled?: boolean;
+  credentials?: {
+    passphrase: boolean;
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+  };
+  connectionReady?: boolean;
+  workspacePath?: string;
+  recognizedDeviceName?: string;
+  profileName?: string;
+  recognizedDeviceMeta?: string;
+  onContinueToDirectory?: () => void;
+  onCancelConnection?: () => void;
+  onMinimize?: () => void;
+  onClose?: () => void;
+  onBackToDevices?: () => void;
+  backToDevicesLabel?: string;
 }) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
@@ -30,6 +72,15 @@ export function RemoteConnectionConnectingStep({
   const shouldFollowLatestLogRef = useRef(true);
   const latestLogId = logs.at(-1)?.id;
   const latestLogTimestamp = logs.at(-1)?.timestamp;
+  const phases = resolveRemoteConnectionPhases(logs, {
+    connectionReady: !errorMessage && connectionReady,
+    includeWorkspace: Boolean(workspacePath),
+  });
+  const failure = classifyRemoteConnectionError({ errorCode, error: rawError ?? errorMessage });
+  const manualActionRequired = [
+    "source-server-install-required",
+    "source-server-upgrade-required",
+  ].includes(errorCode ?? "");
 
   const handleLogContainerScroll = useCallback(() => {
     const container = logContainerRef.current;
@@ -56,7 +107,78 @@ export function RemoteConnectionConnectingStep({
   }, [logs.length, latestLogId, latestLogTimestamp]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 h-full">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 h-full">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 break-words text-ui-base font-medium">
+          {recognizedDeviceName ?? profileName}
+        </p>
+        <div className="flex gap-2">
+          {onMinimize ? (
+            <Button variant="ghost" size="sm" onClick={onMinimize}>
+              {intl.formatMessage({ id: "remote.continueInBackground" })}
+            </Button>
+          ) : null}
+          {onClose ? (
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              {intl.formatMessage({ id: "common.close" })}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {recognizedDeviceMeta ? (
+        <p className="text-ui-sm text-foreground-subtle">{recognizedDeviceMeta}</p>
+      ) : null}
+      <ol
+        className="flex flex-wrap gap-3 text-ui-sm"
+        aria-label={intl.formatMessage({ id: "remote.connecting" })}
+      >
+        {phases.map((phase) => (
+          <li
+            key={phase.key}
+            data-phase={phase.key}
+            data-phase-status={phase.status}
+            aria-current={phase.status === "active" ? "step" : undefined}
+            className={cn(
+              "rounded-lg border border-border px-3 py-2",
+              phase.status === "failed"
+                ? "text-destructive"
+                : phase.status === "complete"
+                  ? "text-success"
+                  : "text-foreground-subtle",
+            )}
+          >
+            {intl.formatMessage({ id: phase.titleId })}
+          </li>
+        ))}
+      </ol>
+      {cancelled ? (
+        <p role="status">{intl.formatMessage({ id: "remote.connectionCancelled" })}</p>
+      ) : null}
+      {credentials ? (
+        <form
+          className="space-y-3 rounded-lg border border-border p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!loading && credentials.value) credentials.onSubmit();
+          }}
+        >
+          <label className="block text-ui-sm">
+            {intl.formatMessage({
+              id: credentials.passphrase ? "ssh.privateKeyPassphrase" : "ssh.password",
+            })}
+            <RemotePasswordInput
+              data-testid="remote-connection-credential"
+              value={credentials.value}
+              disabled={loading}
+              autoComplete="off"
+              onChange={(event) => credentials.onChange(event.target.value)}
+            />
+          </label>
+          <Button type="submit" disabled={loading || !credentials.value}>
+            {intl.formatMessage({ id: "remote.retryConnection" })}
+          </Button>
+        </form>
+      ) : null}
       <div className="flex flex-col flex-1 min-h-0 space-y-4">
         <div className="min-h-0 flex-1 flex flex-col rounded-xl bg-background border border-border">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -110,7 +232,12 @@ export function RemoteConnectionConnectingStep({
             className="flex flex-wrap items-start gap-3 rounded-xl border border-warning/30 px-4 py-3 text-ui-base text-warning"
           >
             <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 flex-1">{errorMessage}</span>
+            <div className="min-w-0 flex-1 break-words">
+              {errorMessage}
+              {manualActionRequired ? (
+                <p className="mt-1">{intl.formatMessage({ id: failure.reasonId })}</p>
+              ) : null}
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -126,7 +253,21 @@ export function RemoteConnectionConnectingStep({
         ) : null}
       </div>
 
-      <div className="flex justify-end gap-3">
+      <div className="flex flex-wrap justify-end gap-3">
+        {onBackToDevices ? (
+          <Button variant="secondary" disabled={loading} onClick={onBackToDevices}>
+            {backToDevicesLabel ?? intl.formatMessage({ id: "remote.selection.back" })}
+          </Button>
+        ) : null}
+        {loading && onCancelConnection ? (
+          <Button
+            data-testid="remote-connection-cancel"
+            variant="secondary"
+            onClick={onCancelConnection}
+          >
+            {intl.formatMessage({ id: "remote.cancelConnection" })}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="secondary"
@@ -137,17 +278,29 @@ export function RemoteConnectionConnectingStep({
         >
           {intl.formatMessage({ id: "common.back" })}
         </Button>
-        <Button
-          type="button"
-          size="lg"
-          className="h-10 min-w-0 px-5"
-          onClick={onRetry}
-          disabled={loading}
-        >
-          {loading
-            ? intl.formatMessage({ id: "remote.connecting" })
-            : intl.formatMessage({ id: "remote.retryConnection" })}
-        </Button>
+        {connectionReady && onContinueToDirectory ? (
+          <Button data-testid="remote-connection-continue" onClick={onContinueToDirectory}>
+            {intl.formatMessage({ id: "remote.selectDirectoryTitle" })}
+          </Button>
+        ) : null}
+        {!connectionReady && !manualActionRequired && !credentials ? (
+          <Button
+            type="button"
+            size="lg"
+            className="h-10 min-w-0 px-5"
+            onClick={onRetry}
+            disabled={loading}
+          >
+            {loading
+              ? intl.formatMessage({ id: "remote.connecting" })
+              : intl.formatMessage({
+                  id:
+                    errorCode === "source-server-identity-change-pending"
+                      ? "remote.action.confirm-identity"
+                      : "remote.retryConnection",
+                })}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

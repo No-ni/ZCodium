@@ -24,3 +24,5 @@ export const NATIVE_HANDLERS = {
   ...fileRewindHandlers,
   ...assistantFeedbackHandlers,
 } as const;
+
+export type NativeCommandType = keyof typeof NATIVE_HANDLERS;

@@ -1,7 +1,9 @@
-import type { WindowProjectDirectoryServices } from "./contract.js";
+import type { WindowProjectDirectoryServices } from "#src/window-project-directory/contract.js";
 
-export async function readWindowDirectory(directory: WindowProjectDirectoryServices) {
-  const capability = await directory.changesService.getCapabilities();
-  if (capability.version !== 1) throw new Error("Unsupported Window directory");
-  return directory.projectService.readDirectory();
+export async function windowProjectDirectoryExample(directory: WindowProjectDirectoryServices) {
+  await directory.changesService.getCapabilities();
+  return Promise.all([
+    directory.projectService.readTree({ includeDeleted: true }),
+    directory.remoteProjectService.readDirectory(),
+  ]);
 }

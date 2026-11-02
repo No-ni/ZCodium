@@ -8,11 +8,16 @@ export type SettingsSectionId =
   | "browser"
   | "modelProvider"
   | "sourceServers"
+  | "remoteDevices"
+  | "dataSync"
+  | "personalization"
   | "memory"
   | "plugin"
   | "mcp"
   | "skill"
   | "plugins"
+  | "projects"
+  | "archives"
   | "usage"
   | "subagents"
   | "commands"
@@ -30,6 +35,8 @@ const SETTINGS_SECTION_INTENT_KEY = "zcode-settings-section-intent",
   SETTINGS_PLUGIN_TAB_INTENT_KEY = "zcode-settings-plugin-tab-intent",
   SETTINGS_PLUGIN_ORIGIN_INTENT_KEY = "zcode-settings-plugin-origin-intent",
   SETTINGS_PLUGIN_SCOPE_KEY_INTENT_KEY = "zcode-settings-plugin-scope-key-intent";
+const SETTINGS_SOURCE_SERVER_ID_INTENT_KEY = "zcode-settings-source-server-id-intent";
+const SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY = "zcode-settings-source-server-details-intent";
 const SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY = "zcode-settings-model-provider-id-intent";
 const SETTINGS_SECTION_INTENT_EVENT = "zcode:settings-section-intent",
   SETTINGS_LAST_SECTION_STORAGE_KEY = "zcode-settings-last-section";
@@ -42,15 +49,16 @@ const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
   // 工作区搜索（.zcodiumignore）设置入口先隐藏：规则文件仍生效并可手动编辑，
   // 编辑页代码保留，放开时从这里移除即可。
   "workspaceFileSearch",
-  "computerUse",
 ]);
 
-interface SettingsSectionIntentEventDetail {
+export interface SettingsSectionIntentEventDetail {
   section: SettingsSectionId;
   pluginTab?: SettingsPluginTabTarget;
   pluginOrigin?: SettingsPluginNavigationOrigin;
   pluginScopeKey?: string;
   modelProviderId?: string;
+  sourceServerId?: string;
+  sourceServerDetails?: boolean;
 }
 
 export interface SettingsModelProviderTarget {
@@ -65,11 +73,16 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "browser" ||
     value === "modelProvider" ||
     value === "sourceServers" ||
+    value === "remoteDevices" ||
+    value === "dataSync" ||
+    value === "personalization" ||
     value === "memory" ||
     value === "plugin" ||
     value === "mcp" ||
     value === "skill" ||
     value === "plugins" ||
+    value === "projects" ||
+    value === "archives" ||
     value === "usage" ||
     value === "subagents" ||
     value === "commands" ||
@@ -109,7 +122,7 @@ function getLocalStorage(): Storage | null {
   }
 }
 
-function readLastSettingsSectionPreference(
+export function readLastSettingsSectionPreference(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   const storage = getLocalStorage();
@@ -213,6 +226,8 @@ export function setPendingSettingsSectionIntent(
     pluginOrigin?: SettingsPluginNavigationOrigin;
     pluginScopeKey?: string;
     modelProviderId?: string;
+    sourceServerId?: string;
+    sourceServerDetails?: boolean;
   } = {},
 ): void {
   if (typeof window === "undefined") {
@@ -237,8 +252,24 @@ export function setPendingSettingsSectionIntent(
     } else {
       window.sessionStorage.removeItem(SETTINGS_PLUGIN_SCOPE_KEY_INTENT_KEY);
     }
-    // 旧版本遗留的套餐页签意图已无对应页面，清掉后仍正常进入 Usage。
     window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
+    if (section === "remoteDevices" && options.sourceServerId?.trim()) {
+      window.sessionStorage.setItem(
+        SETTINGS_SOURCE_SERVER_ID_INTENT_KEY,
+        options.sourceServerId.trim(),
+      );
+    } else {
+      window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_ID_INTENT_KEY);
+    }
+    if (
+      section === "remoteDevices" &&
+      options.sourceServerId?.trim() &&
+      options.sourceServerDetails
+    ) {
+      window.sessionStorage.setItem(SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY, "true");
+    } else {
+      window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY);
+    }
     if (options.modelProviderId) {
       window.sessionStorage.setItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY, options.modelProviderId);
     } else {
@@ -258,6 +289,12 @@ export function setPendingSettingsSectionIntent(
         pluginOrigin: options.pluginOrigin,
         pluginScopeKey: options.pluginScopeKey?.trim() || undefined,
         modelProviderId: options.modelProviderId,
+        ...(section === "remoteDevices" && options.sourceServerId?.trim()
+          ? {
+              sourceServerId: options.sourceServerId.trim(),
+              ...(options.sourceServerDetails ? { sourceServerDetails: true } : {}),
+            }
+          : {}),
       },
     }),
   );
@@ -270,6 +307,8 @@ function clearPendingSettingsSectionIntent(): void {
 
   try {
     window.sessionStorage.removeItem(SETTINGS_SECTION_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_ID_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_TAB_INTENT_KEY);
@@ -280,7 +319,7 @@ function clearPendingSettingsSectionIntent(): void {
   }
 }
 
-function consumePendingSettingsSection(
+export function consumePendingSettingsSection(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   if (typeof window === "undefined") {
@@ -410,4 +449,27 @@ export function addPendingSettingsSectionListener(
   return () => {
     window.removeEventListener(SETTINGS_SECTION_INTENT_EVENT, handleIntent);
   };
+}
+
+/** 设置页先消费分区，再消费卡片目标；已挂载页面由同一导航事件直接接收。 */
+export function consumePendingSettingsSourceServerId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const id = window.sessionStorage.getItem(SETTINGS_SOURCE_SERVER_ID_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_ID_INTENT_KEY);
+    return id?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function consumePendingSettingsSourceServerDetails(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const details = window.sessionStorage.getItem(SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY);
+    return details === "true";
+  } catch {
+    return false;
+  }
 }

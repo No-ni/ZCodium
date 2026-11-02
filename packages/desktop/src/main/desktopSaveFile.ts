@@ -7,12 +7,12 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { SaveFileRequest, SaveFileResult } from "@zcode/shared";
 import { writeSavedFile } from "./writeSavedFile.js";
-import { CONVERSATION_ARCHIVE_LIMITS, PlatformChannels } from "@zcode/shared";
+import { PlatformChannels } from "@zcode/shared";
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import { Agent, fetch as undiciFetch } from "undici";
 
-const MAX_SAVE_FILE_BYTES = 50 * 1024 * 1024;
-const REMOTE_DOWNLOAD_TIMEOUT_MS = 30_000;
+export const MAX_SAVE_FILE_BYTES = 50 * 1024 * 1024;
+export const REMOTE_DOWNLOAD_TIMEOUT_MS = 30_000;
 const MAX_REMOTE_REDIRECTS = 5;
 
 const blockedRemoteAddresses = new BlockList();
@@ -61,7 +61,6 @@ function parseRemoteImageUrl(value: unknown): URL | null {
   }
 }
 
-// lookup 的重载 ReturnType 不是 all:true 的数组结果，显式声明实际使用的 DNS 契约。
 async function resolvePublicRemoteUrl(url: URL): Promise<LookupAddress[]> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
@@ -192,15 +191,13 @@ export function registerDesktopSaveFileIpcHandler(logger: { warn: (...args: unkn
       }
       const suggestedName = basename(payload.suggestedName.trim()).slice(0, 120);
       const sourceUrl = parseRemoteImageUrl(payload.sourceUrl);
-      const data = payload.data;
-      const hasData = data instanceof ArrayBuffer;
+      const hasData = payload.data instanceof ArrayBuffer;
+      const data = hasData ? payload.data : undefined;
       if (!suggestedName || (sourceUrl === null && !hasData)) {
         return { success: false, error: "invalid_file_payload" };
       }
-      if (hasData && data.byteLength === 0) {
-        return { success: false, error: "invalid_file_payload" };
-      }
-      if (hasData && data.byteLength > CONVERSATION_ARCHIVE_LIMITS.archiveBytes) {
+      // 通用“另存为”必须保留零字节原文件；远程下载仍单独拒绝空响应。
+      if (data && data.byteLength > MAX_SAVE_FILE_BYTES) {
         return { success: false, error: "file_too_large" };
       }
 
@@ -216,7 +213,7 @@ export function registerDesktopSaveFileIpcHandler(logger: { warn: (...args: unkn
       try {
         if (sourceUrl) {
           await downloadRemoteFile(sourceUrl, result.filePath);
-        } else if (hasData) {
+        } else if (data) {
           await writeSavedFile(result.filePath, new Uint8Array(data));
         }
         return { success: true, path: result.filePath, name: basename(result.filePath) };

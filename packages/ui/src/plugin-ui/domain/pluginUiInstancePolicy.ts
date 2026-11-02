@@ -1,4 +1,8 @@
-import type { ConversationRow, ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  ConversationRow,
+  ConversationRowsPartition,
+  ToolCallRow,
+} from "@zcode/shared/zcode-protocol-v4";
 import { resolvePluginUiLogicalScope } from "./pluginUiLogicalScope.js";
 
 /** ：最近几个回合的插件卡片默认展开，更早的按默认收进折叠区。 */
@@ -56,25 +60,25 @@ export function deriveLogicalUiInstances(
   rows: readonly ConversationRow[],
   options: { autoExpandTurns?: number } = {},
 ): PluginUiInstanceDerivation {
-  const pluginRows = rows.filter(isPluginUiToolRow);
-  // 普通流式正文也会触发派生；没有候选插件时回合目录无用途，先返回避免读全量 turnId。
-  if (pluginRows.length === 0) return { instances: [], byToolCallId: {} };
-
-  // 流式更新会重复派生全部历史；用调用内成员索引避免逐行 includes 回扫已见回合。
-  const seenTurns: Record<string, true | undefined> = Object.create(null);
+  // domain 不用 Map / Set（模块边界约束），全部用数组与普通对象。
   const turnOrder: string[] = [];
+  // 流式追加会重复推导整窗；数组 includes 查重会随历史回合数变成平方级开销。
+  const seenTurns: Record<string, true | undefined> = Object.create(null);
   for (const row of rows) {
-    const turnId = row.turnId;
-    if (seenTurns[turnId]) continue;
-    seenTurns[turnId] = true;
-    turnOrder.push(turnId);
+    if (!seenTurns[row.turnId]) {
+      seenTurns[row.turnId] = true;
+      turnOrder.push(row.turnId);
+    }
   }
-  const recentTurns = turnOrder.slice(-(options.autoExpandTurns ?? PLUGIN_UI_AUTO_EXPAND_TURNS));
-  const recentTurnIds: Record<string, true | undefined> = Object.create(null);
-  for (const turnId of recentTurns) recentTurnIds[turnId] = true;
+  const recentTurns = Object.fromEntries(
+    turnOrder
+      .slice(-(options.autoExpandTurns ?? PLUGIN_UI_AUTO_EXPAND_TURNS))
+      .map((id) => [id, true]),
+  );
   const groupKeys: string[] = [];
   const groups: Record<string, ToolCallRow[]> = {};
-  for (const row of pluginRows) {
+  for (const row of rows) {
+    if (!isPluginUiToolRow(row)) continue;
     const display = row.display;
     if (display?.kind !== "mcp_tool" || !display.ui) continue;
     const logical = resolvePluginUiLogicalScope(display.ui, {
@@ -101,25 +105,58 @@ export function deriveLogicalUiInstances(
     const successes = group.filter(isSuccessfulUiRow);
     const active = successes.at(-1) ?? group.at(-1)!;
     const superseded = successes.filter((row) => row !== active).map((row) => row.toolCallId);
-    // 同一 surface 的多次成功结果仍保留原数组顺序和重复 ID，成员判断不再逐行回扫。
-    const supersededIds: Record<string, true | undefined> = Object.create(null);
-    for (const toolCallId of superseded) supersededIds[toolCallId] = true;
+    const supersededById = Object.fromEntries(superseded.map((id) => [id, true]));
     instances.push({ key, activeToolCallId: active.toolCallId, supersededToolCallIds: superseded });
     for (const row of group) {
-      // toolCallId 是协议字符串；普通赋值会触发 __proto__ setter、丢掉自有裁决。
-      // 显式数据属性保留既有普通对象输出和重复 ID 的最后写入规则，不改变原型。
-      Object.defineProperty(byToolCallId, row.toolCallId, {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: {
-          key,
-          superseded: supersededIds[row.toolCallId] === true,
-          autoExpand: recentTurnIds[row.turnId] === true,
-          forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
-        },
-      });
+      byToolCallId[row.toolCallId] = {
+        key,
+        superseded: Object.hasOwn(supersededById, row.toolCallId),
+        autoExpand: Object.hasOwn(recentTurns, row.turnId),
+        forcedInline: row.display?.kind === "mcp_tool" && row.display.ui?.showInline === true,
+      };
     }
   }
   return { instances, byToolCallId };
+}
+
+function sameRefs<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
+}
+
+/**
+ * deriveLogicalUiInstances 只读插件 UI 行和全部行的回合顺序。
+ *
+ * Bug 根因：时间线每帧对整个 rows 重新推导，长会话流式输出时成本随历史长度线性增长。
+ * 调用方传入与 rows 对应的「历史 + 尾轮」分区（两段回合不相交，见
+ * docs/ui/chat-virtual-scroll.md「每帧派生成本」）：历史段引用不变，且尾轮的回合序列与插件 UI
+ * 行引用都不变时，推导输入完全相同，直接复用上一份结果；否则整窗重新推导。
+ */
+export function createLogicalUiInstancesSelector() {
+  let previous: {
+    history: readonly ConversationRow[];
+    tailTurnIds: string[];
+    tailUiRows: ToolCallRow[];
+    result: PluginUiInstanceDerivation;
+  } | null = null;
+  return (
+    rows: readonly ConversationRow[],
+    partition: ConversationRowsPartition,
+  ): PluginUiInstanceDerivation => {
+    const tailTurnIds: string[] = [];
+    const tailUiRows: ToolCallRow[] = [];
+    for (const row of partition.tail) {
+      if (!tailTurnIds.includes(row.turnId)) tailTurnIds.push(row.turnId);
+      if (isPluginUiToolRow(row)) tailUiRows.push(row);
+    }
+    if (
+      previous?.history === partition.history &&
+      sameRefs(previous.tailTurnIds, tailTurnIds) &&
+      sameRefs(previous.tailUiRows, tailUiRows)
+    ) {
+      return previous.result;
+    }
+    const result = deriveLogicalUiInstances(rows);
+    previous = { history: partition.history, tailTurnIds, tailUiRows, result };
+    return result;
+  };
 }

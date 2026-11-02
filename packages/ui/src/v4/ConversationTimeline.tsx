@@ -1,5 +1,6 @@
 import type { ConversationTurnDirectoryEntry } from "@zcode/shared/zcode-protocol-v4";
-import { ConversationTurnRenderCache } from "@/v4/conversationTurnRenderCache.js";
+import { getConversationRowsPartition } from "./conversationRowsPartition.js";
+import { useBotTopicPreparations } from "./BotTopicPreparation.js";
 /* oxlint-disable eslint(max-lines) -- ConversationTimeline 集中承载虚拟滚动、滚动锚定、loadOlder 与 find 高亮协调；拆散会让同一滚动状态跨文件传递。 */
 import {
   Component,
@@ -36,9 +37,8 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { ConversationTurnGroup } from "@/v4/ConversationTurnGroup.js";
 import {
-  deriveLogicalUiInstances,
-  getPluginUiDisclosureVersion,
-  getPluginUiManualPin,
+  createLogicalUiInstancesSelector,
+  getPluginUiDisclosureSnapshot,
   usePublishPluginUiInstanceDerivation,
   subscribePluginUiDisclosure,
   type PluginUiRowPinResolver,
@@ -50,6 +50,7 @@ import { syncConversationShareSelectionPanelLayout } from "@/v4/conversationShar
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import {
   splitConversationTimelineLiveTail,
+  withTopicPreparationUnits,
   resolveConversationLatestTurnSummary,
   isSameConversationLatestTurnSummary,
   type ConversationLatestTurnSummary,
@@ -59,10 +60,11 @@ import {
   getConversationStatusPanelOffsetClassName,
 } from "@/v4/conversationLayout.js";
 import {
-  buildConversationTurnRenderUnits,
+  createConversationTurnRenderUnitsSelector,
   type ConversationTurnRenderUnit,
 } from "@/v4/conversationTurnRenderUnits.js";
 import {
+  createConversationTurnNavigatorQueryRowIdsSelector,
   resolveConversationTurnNavigatorActiveQueryRowId,
   resolveConversationTurnNavigatorHydrationRetryDelayMs,
   shouldHydrateConversationTurnNavigatorDirectory,
@@ -433,35 +435,44 @@ function ConversationTimelineImpl({
     observer.observe(element);
     return () => observer.disconnect();
   }, [hasHeaderSlot]);
-  const renderCache = useMemo(() => new ConversationTurnRenderCache(), [sessionKey]);
-  // 插件卡片展示模型——同资源替代 + 最近三回合自动展开 + 手动固定；推导结果发布给卡片自己读。
-  const pluginUiDerivation = useMemo(() => deriveLogicalUiInstances(rows), [rows]);
-  usePublishPluginUiInstanceDerivation(sessionKey, pluginUiDerivation);
-  const pluginUiDisclosureVersion = useSyncExternalStore(
-    subscribePluginUiDisclosure,
-    getPluginUiDisclosureVersion,
-    getPluginUiDisclosureVersion,
+  // 分区由 ProjectionStore 发布前登记；各派生只缓存稳定历史，流式帧计算尾轮。
+  const rowsPartition = getConversationRowsPartition(rows);
+  const selectPluginUi = useMemo(() => createLogicalUiInstancesSelector(), [sessionKey]);
+  const pluginUiDerivation = useMemo(
+    () => selectPluginUi(rows, rowsPartition),
+    [rows, rowsPartition, selectPluginUi],
   );
-  const pluginUiPinResolver = useMemo<PluginUiRowPinResolver>(() => {
-    // 手动固定 / 收起变化（version 递增）时重建 resolver，折叠边界随之重算。
-    void pluginUiDisclosureVersion;
-    return (toolCallId) => ({
+  // 发布者沿已有视图生命周期释放，正文更新不生成中间 absent 裁决。
+  usePublishPluginUiInstanceDerivation(sessionKey, pluginUiDerivation);
+  const getPins = useCallback(() => getPluginUiDisclosureSnapshot(sessionKey), [sessionKey]);
+  const pluginUiPins = useSyncExternalStore(subscribePluginUiDisclosure, getPins, getPins);
+  const pluginUiPinResolver = useMemo<PluginUiRowPinResolver>(
+    () => (toolCallId) => ({
       disposition: pluginUiDerivation.byToolCallId[toolCallId],
-      manualPinned: getPluginUiManualPin(sessionKey, toolCallId),
-    });
-  }, [pluginUiDerivation, sessionKey, pluginUiDisclosureVersion]);
+      manualPinned: pluginUiPins.get(toolCallId),
+    }),
+    [pluginUiDerivation, pluginUiPins],
+  );
+  const selectRenderUnits = useMemo(
+    () => createConversationTurnRenderUnitsSelector(),
+    [sessionKey],
+  );
+  const topicPreparations = useBotTopicPreparations();
   const renderUnits = useMemo(
     () =>
-      buildConversationTurnRenderUnits(rows, {
-        nowMs: Date.now(),
-        cache: renderCache,
-        sessionPhase,
-        pluginUiPinResolver,
-      }),
-    [renderCache, pluginUiPinResolver, rows, sessionPhase],
+      withTopicPreparationUnits(
+        selectRenderUnits(rowsPartition, { nowMs: Date.now(), sessionPhase, pluginUiPinResolver }),
+        rows,
+        topicPreparations,
+      ),
+    [selectRenderUnits, rowsPartition, rows, sessionPhase, pluginUiPinResolver, topicPreparations],
   );
+  const renderUnitCount = renderUnits.history.length + renderUnits.tail.length;
   const latestTurnSummary = useMemo(
-    () => resolveConversationLatestTurnSummary(renderUnits),
+    () =>
+      resolveConversationLatestTurnSummary(
+        renderUnits.tail.length ? renderUnits.tail : renderUnits.history,
+      ),
     [renderUnits],
   );
   const lastReportedTurnRef = useRef<{
@@ -489,25 +500,24 @@ function ConversationTimelineImpl({
     () => splitConversationTimelineLiveTail(renderUnits),
     [renderUnits],
   );
+  const selectQueryRowIds = useMemo(
+    () => createConversationTurnNavigatorQueryRowIdsSelector(),
+    [sessionKey],
+  );
   const turnNavigatorQueryRowIds = useMemo(
-    () =>
-      new Set(
-        renderUnits.flatMap((unit) =>
-          unit.visibleUserInputs.filter((row) => row.origin === "realUser").map((row) => row.rowId),
-        ),
-      ),
-    [renderUnits],
+    () => selectQueryRowIds(renderUnits),
+    [selectQueryRowIds, renderUnits],
   );
   const turnNavigatorQueryRowIdsRef = useRef(turnNavigatorQueryRowIds);
   turnNavigatorQueryRowIdsRef.current = turnNavigatorQueryRowIds;
   const centeredEmptyLayout =
-    !floatingComposerDock && centerEmptyStateWithDock && renderUnits.length === 0;
+    !floatingComposerDock && centerEmptyStateWithDock && renderUnitCount === 0;
   const responsiveCenteredEmptyLayout = centeredEmptyLayout && !compactEmptyStateWithDock;
   // 高频值经 ref 供稳定回调读取（不进依赖数组）。
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
-  const unitsRef = useRef(renderUnits);
-  unitsRef.current = renderUnits;
+  const unitCountRef = useRef(renderUnitCount);
+  unitCountRef.current = renderUnitCount;
   const virtualizedUnitsRef = useRef(virtualizedUnits);
   virtualizedUnitsRef.current = virtualizedUnits;
   const liveTailRef = useRef<HTMLDivElement>(null);
@@ -845,7 +855,7 @@ function ConversationTimelineImpl({
   const commitFollowing = useCallback((following: boolean) => {
     if (followingRef.current === following) return;
     followingRef.current = following;
-    setBackToBottomVisible(shouldShowBackToBottom(following, unitsRef.current.length));
+    setBackToBottomVisible(shouldShowBackToBottom(following, unitCountRef.current));
   }, []);
 
   const clearUserScrollIntent = useCallback(() => {
@@ -1048,7 +1058,7 @@ function ConversationTimelineImpl({
 
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
-  }, [syncMessageLayerMask, renderUnits.length === 0]);
+  }, [syncMessageLayerMask, renderUnitCount === 0]);
 
   const buildCurrentScrollMemoryState = useCallback(
     (element: HTMLDivElement): ChatSessionScrollMemoryState => {
@@ -1174,7 +1184,7 @@ function ConversationTimelineImpl({
       }
       contentWidthResizeActiveRef.current = false;
     };
-  }, [renderUnits.length === 0, scrollToBottom]);
+  }, [renderUnitCount === 0, scrollToBottom]);
 
   useLayoutEffect(() => {
     const element = liveTailRef.current;
@@ -1256,7 +1266,7 @@ function ConversationTimelineImpl({
       element.scrollTop = resolveChatSessionScrollRestoreTop(state, element);
       lastObservedScrollTopRef.current = element.scrollTop;
       followingRef.current = false;
-      setBackToBottomVisible(shouldShowBackToBottom(false, unitsRef.current.length));
+      setBackToBottomVisible(shouldShowBackToBottom(false, unitCountRef.current));
       syncTurnNavigatorViewport(element);
       userAdjustedScrollSinceRestoreRef.current = false;
       cacheCurrentScrollMemoryState(element);
@@ -1471,9 +1481,16 @@ function ConversationTimelineImpl({
       setPendingDirectoryJump(null);
       return;
     }
-    const unitIndex = renderUnits.findIndex((unit) =>
-      unit.visibleUserInputs.some((row) => row.rowId === pendingDirectoryJump.rowId),
-    );
+    const matches = (unit: ConversationTurnRenderUnit) =>
+      unit.visibleUserInputs.some((row) => row.rowId === pendingDirectoryJump.rowId);
+    const historyIndex = renderUnits.history.findIndex(matches);
+    const tailIndex = historyIndex < 0 ? renderUnits.tail.findIndex(matches) : -1;
+    const unitIndex =
+      historyIndex >= 0
+        ? historyIndex
+        : tailIndex >= 0
+          ? renderUnits.history.length + tailIndex
+          : -1;
     if (unitIndex < 0) return;
     scrollToQuery({ rowId: pendingDirectoryJump.rowId, unitIndex }, pendingDirectoryJump.behavior);
     setPendingDirectoryJump(null);
@@ -1528,6 +1545,17 @@ function ConversationTimelineImpl({
     [clearUserScrollIntent, commitFollowing, liveUnitIndex, syncTurnNavigatorViewport, virtualizer],
   );
 
+  // 已挂载不代表布局已入账；沿用实际测高交接，不能用固定延时或无条件 true。
+  const isMountedLayoutMeasured = useCallback(
+    () =>
+      !isContentWidthChanging() &&
+      virtualizer.getVirtualItems().every((row) => {
+        const node = virtualizer.elementsCache.get(row.key);
+        return node?.isConnected && measureRowHeight(node, undefined) === row.size;
+      }),
+    [isContentWidthChanging, virtualizer],
+  );
+
   useConversationTimelineFind({
     rootRef: scrollRef,
     renderUnits,
@@ -1544,6 +1572,7 @@ function ConversationTimelineImpl({
     searchResultHighlightRequest,
     onSearchResultHighlightDone,
     scrollToUnit,
+    isMountedLayoutMeasured,
   });
 
   const saveCurrentScrollMemoryRef = useRef(saveCurrentScrollMemory);
@@ -1556,7 +1585,7 @@ function ConversationTimelineImpl({
     };
   }, []);
 
-  const rowCount = renderUnits.length;
+  const rowCount = renderUnitCount;
   const rowWindowKey = `${rows.length}:${rows[0]?.rowId ?? "none"}:${rows[rows.length - 1]?.rowId ?? "none"}`;
   const pendingGuideKey = pendingGuides.map((item) => item.queueItemId).join(":");
 
@@ -1579,7 +1608,7 @@ function ConversationTimelineImpl({
     const pendingRestoreWait = resolvePendingScrollMemoryRestoreWait(
       restoredState,
       scrollRef.current,
-      unitsRef.current.length > 0,
+      unitCountRef.current > 0,
     );
     pendingDetachedScrollRestoreRef.current =
       scrollMemoryKey && restoredState && pendingRestoreWait
@@ -1856,7 +1885,7 @@ function ConversationTimelineImpl({
         data-markdown-table-layout-root="true"
         data-row-count={rows.length}
         data-window-row-count={rows.length}
-        data-render-unit-count={renderUnits.length}
+        data-render-unit-count={renderUnitCount}
         data-total-row-count={totalCount}
         data-following={backToBottomVisible ? "false" : "true"}
         data-loading-older={loadingOlder ? "true" : "false"}
@@ -1912,7 +1941,7 @@ function ConversationTimelineImpl({
            * mask-repeat:no-repeat，遮罩会退化成平铺，把水印裁成一条横带（表现为水印
            * 只剩半截或整块看不见）。key 不同即强制换新节点，旧遮罩无从继承。
            */}
-          {renderUnits.length === 0 && !headerSlot ? (
+          {renderUnitCount === 0 && !headerSlot ? (
             <div
               key="v4-timeline-empty-slot"
               className={cn(

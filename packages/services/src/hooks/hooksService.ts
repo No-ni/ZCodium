@@ -22,7 +22,7 @@ import {
 import { parseWorkspaceHookTrustStoreContent } from "@zcode/shared/workspace-hook-trust-store-file";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { IHooksService } from "./hooks.js";
-import { atomicWriteWorkspaceHookConfig } from "./workspaceHookConfigMutation.js";
+import { updateJsonObjectFile } from "#src/fs/atomicFileUtils.js";
 import {
   fromLegacyHooksConfig,
   fromProjectSnapshot,
@@ -218,6 +218,7 @@ async function loadHooksImpl(
   params: {
     workspaceIdentity?: string;
     workspacePath: string;
+    scope?: "all" | "user";
   },
   logger: ServiceLogger,
 ): Promise<{
@@ -226,6 +227,21 @@ async function loadHooksImpl(
   workspaceHookSnapshot?: WorkspaceHookBundleSnapshotData;
 }> {
   const workspacePath = resolve(params.workspacePath);
+  if (params.scope === "user") {
+    const userSource = await readUserZCodeSource();
+    const runtimeRoot = resolveWorkspaceHookRuntimeRoot([userSource?.hooks]);
+    const hooks = [
+      ...fromUserZCodeSource({
+        source: userSource,
+        runtimeRoot,
+        workspacePath,
+        location: buildLocation("zcode"),
+      }),
+      ...(await loadLegacyHooksFromLocation("agents")),
+      ...(await loadLegacyHooksFromLocation("claude")),
+    ];
+    return { hooks, hooksEnabled: hooks.some((hook) => hook.enabled) };
+  }
   const workspaceIdentity = params.workspaceIdentity?.trim() || workspacePath;
   const [{ sources: projectSources }, userSource] = await Promise.all([
     readWorkspaceHookProjectSources({ workingDirectory: workspacePath }),
@@ -270,26 +286,33 @@ async function loadHooksImpl(
   };
 }
 
+/**
+ * 根因：旧实现写入前用 readJsonFile 读取，读失败或 JSON 损坏时返回 null 并按空对象写回，
+ * config.json 里的 MCP、插件等其他配置会被冲掉。
+ * 修法：改用 updateJsonObjectFile——文件损坏时报错不写，写前重读，只改 hooks 字段，原子替换。
+ */
 async function writeZCodeHooksConfig(
   workspacePath: string | undefined,
   hooks: Hook[],
 ): Promise<void> {
-  const configPath = getConfigPath("zcode", workspacePath);
-  const existingConfig = (await readJsonFile<ZCodeConfigFile>(configPath)) ?? {};
-  const enabled = resolveNextRootEnabled(existingConfig.hooks?.enabled, hooks);
-  await atomicWriteWorkspaceHookConfig(configPath, {
-    ...existingConfig,
-    hooks: {
-      ...existingConfig.hooks,
-      ...(enabled !== undefined ? { enabled } : {}),
-      events: toZCodeHooksEvents(hooks),
-    },
+  await updateJsonObjectFile(getConfigPath("zcode", workspacePath), (current) => {
+    const existingConfig = current as ZCodeConfigFile;
+    const enabled = resolveNextRootEnabled(existingConfig.hooks?.enabled, hooks);
+    return {
+      ...existingConfig,
+      hooks: {
+        ...existingConfig.hooks,
+        ...(enabled !== undefined ? { enabled } : {}),
+        events: toZCodeHooksEvents(hooks),
+      },
+    };
   });
 }
 
 async function saveHooksImpl(params: {
   workspaceIdentity?: string;
   workspacePath: string;
+  scope?: "all" | "user";
   hooks: Hook[];
 }): Promise<void> {
   const currentProjectConfigPath = resolve(
@@ -311,7 +334,9 @@ async function saveHooksImpl(params: {
         resolve(hook.configuredState.sourcePath) === currentProjectConfigPath),
   );
   await writeZCodeHooksConfig(undefined, userHooks);
-  await writeZCodeHooksConfig(params.workspacePath, projectHooks);
+  if (params.scope !== "user") {
+    await writeZCodeHooksConfig(params.workspacePath, projectHooks);
+  }
 }
 
 export function createHooksService(

@@ -1,6 +1,8 @@
+import type { SiteNode } from "./types.js";
 import { KIND_RANK } from "./causality-reduce.js";
 import { holePrefixOf } from "./hole-id.js";
 import {
+  MAIN_LANE,
   UNKNOWN_LANE,
   WORKSPACE_LANE,
   type CausalityGraph,
@@ -168,4 +170,22 @@ export function weakest(values: readonly Certainty[]): Certainty {
  */
 export function fillOf(siteId: string): string | undefined {
   return holePrefixOf(siteId);
+}
+
+/** 只从站点表投影 lane；不持有 trace、阶段或 evaluator 状态。 */
+export function buildStepLanes(stepNodes: readonly SiteNode[]): Map<string, string[]> {
+  const laneSet = new Map<string, string[]>();
+  for (const node of stepNodes) {
+    if (node.kind === "world-read") {
+      laneSet.set(node.id, [WORKSPACE_LANE]);
+      continue;
+    }
+    if (node.kind === "hole") {
+      laneSet.set(node.id, [MAIN_LANE]); // 留白等的是主代理：它的车道（docs/analysis.md「Sites」）
+      continue;
+    }
+    const actors = node.actors ?? [];
+    laneSet.set(node.id, actors.length > 0 ? [...actors] : [UNKNOWN_LANE]);
+  }
+  return laneSet;
 }

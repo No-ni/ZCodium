@@ -1,9 +1,10 @@
 import { chmod, readFile, rm } from "node:fs/promises";
-import { readThirdPartyNotices, stageThirdPartyNotices } from "../../../../../scripts/third-party-notices.mjs";
 import { basename, dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
+import sharedPackage from "../../../../../packages/shared/package.json" with { type: "json" };
 import { stageBuiltinProviderConfig } from "../../../../../scripts/builtin-provider-config.mjs";
+import { stageThirdPartyNotices } from "../../../../../scripts/third-party-notices.mjs";
 
 const cliRoot = resolve(import.meta.dirname, "..");
 const projectRoot = resolve(cliRoot, "../..");
@@ -137,12 +138,15 @@ export const resolveBuildAliases = ({
   rootDirectory = projectRoot,
 } = {}) => ({
   "@zcode/shared-types": resolve(cliDirectory, "../shared-types/dist/index.js"),
-  // plugin-host 启动只需这些独立入口，不能经通用 alias 重新求值 shared 总入口。
-  "@zcode/shared/runtime-env": resolve(rootDirectory, "../../packages/shared/src/runtimeEnv.ts"),
-  "@zcode/shared/mcp": resolve(rootDirectory, "../../packages/shared/src/mcp.ts"),
-  "@zcode/shared/runtime-tool-runtime": resolve(
-    rootDirectory,
-    "../../packages/shared/src/runtime-tool-runtime.ts",
+  // esbuild 会按前缀改写。曾多次漏加新子路径，导致入口文件被误当成目录；
+  // 直接从包的公开 exports 派生，并将通用入口放在最后，避免两份清单漂移。
+  ...Object.fromEntries(
+    Object.entries(sharedPackage.exports)
+      .sort(([a], [b]) => Number(a === ".") - Number(b === "."))
+      .map(([subpath, target]) => [
+        subpath === "." ? "@zcode/shared" : `@zcode/shared/${subpath.slice(2)}`,
+        resolve(rootDirectory, "../../packages/shared", target),
+      ]),
   ),
   // esbuild alias 按前缀改写导入路径。所有 shared subpath 必须在通用入口前精确声明，
   // 否则会被错误解析为 `src/index.ts/<subpath>` 并让 Desktop agent/SEA 打包失败。
@@ -226,7 +230,6 @@ export const buildCli = async ({
   const cliVersion = await version;
   const outfile = resolve(cliDirectory, "dist/zcode.cjs");
   const sourcemapFile = `${outfile}.map`;
-  const notices = await readThirdPartyNotices(resolve(rootDirectory, "../.."));
 
   await stageBuiltinProviderConfig({
     root: resolve(rootDirectory, "../.."),
@@ -236,10 +239,8 @@ export const buildCli = async ({
 
   await build({
     banner: {
-      // SEA 与普通 CLI 共用入口；声明必须在 Agent 初始化和原生资源解压前可独立读取。
-      js: `#!/usr/bin/env node\n"use strict";\nif (process.argv.length === 3 && process.argv[2] === "--licenses") { const sea = require("node:sea"); const nodeNotice = sea.isSea() ? "\\n\\n## Bundled Node.js runtime\\n\\n" + sea.getAsset("zcode-node-license", "utf8") : ""; process.stdout.write(${JSON.stringify(notices.toString("utf8"))} + nodeNotice, () => process.exit(0)); } else {`,
+      js: "#!/usr/bin/env node",
     },
-    footer: { js: "}" },
     bundle: true,
     define: {
       __CLI_VERSION__: JSON.stringify(cliVersion),
@@ -278,6 +279,7 @@ export const buildCli = async ({
   }
 
   await chmod(outfile, executableFileMode);
+  // zcode.cjs 内联了第三方代码；dist 旁的伴随声明供发行 CLI 与统一分发包（build-zcode）复制。
   await stageThirdPartyNotices(resolve(cliDirectory, "dist"), resolve(rootDirectory, "../.."));
 };
 

@@ -1,10 +1,17 @@
 import { safeLogArgs } from "@zcode/shared";
 import { createRemoteDiagnosticConsumer } from "./diagnosticStream.js";
-import { SocketProtocol, ChannelClient, type IDisposable, type ISocket } from "@zcode/rpc";
+import {
+  SocketProtocol,
+  ChannelClient,
+  type IDisposable,
+  type ISocket,
+  type IServerChannel,
+} from "@zcode/rpc";
 import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "@zcode/client";
 import {
   SERVICE_AUTHORITY_MODE_ENV,
+  TOPIC_RESOURCE_RELAY_CHANNEL,
   ZCODE_APP_VERSION_ENV,
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
   ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
@@ -16,20 +23,21 @@ import {
 import type { IRemoteBackend } from "./backend.js";
 import { wrapStdioStream } from "./stdio-socket.js";
 import { performHandshake } from "./handshake.js";
-import { deployServer } from "./deploy.js";
-import type { DeployOptions } from "./deploy.js";
 import { assertSupportedRemoteEnvironment } from "@zcode/server/remote/remotePlatformSupport.js";
 import { quotePosixShellArg } from "./posixShell.js";
 import { formatWslProxyForLog } from "./wslProxy.js";
 
 const BACKEND_DISCONNECT_EXIT_CODE = -1;
 
-export interface ConnectOptions extends DeployOptions {
+export interface ConnectOptions {
+  signal?: AbortSignal;
+  /** 仅 Desktop Host 注入，复用当前 stdio 的私有反向资源频道。 */
+  topicResourceChannel?: IServerChannel;
   /** Client identifier for handshake */
   clientId?: string;
   /** Handshake timeout in ms (default: 10000) */
   handshakeTimeout?: number;
-  /** Skip deploy step (assume server is already deployed) */
+  /** @deprecated 兼容旧调用方；连接始终要求服务已预部署。 */
   skipDeploy?: boolean;
   /** 桌面 app 版本；用于透传给远端 agent，让模型请求 header 能标识发起方版本 */
   appVersion?: string;
@@ -106,7 +114,7 @@ interface RemoteBackendOwner {
  *
  * Steps:
  * 1. detect() → { platform, arch }
- * 2. Deploy if needed (upload node + server bundle + node-pty)
+ * 2. Require a predeployed server (installation is a separate explicit action)
  * 3. exec server command
  * 4. Handshake (read hello, pause at its boundary, send ack)
  * 5. Bind lifecycle and stdio → ISocket → SocketProtocol → ChannelClient, then resume
@@ -193,13 +201,7 @@ async function connectRemoteUnchecked(
     log,
   );
 
-  // 2. Deploy server if needed
-  if (!options?.skipDeploy) {
-    log("deploying server...");
-    await deployServer(backend, env, options);
-    throwIfRemoteConnectAborted(options?.signal);
-    log("deploy complete");
-  }
+  // 连接入口曾在省略 options 时自动上传运行资源；本仓连接只消费已预部署服务。
 
   // 3. Launch server
   log("launching remote server...");

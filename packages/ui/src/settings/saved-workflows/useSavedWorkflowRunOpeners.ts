@@ -5,8 +5,8 @@ import type {
   SavedWorkflowsOpenRunParams,
 } from "@/settings/saved-workflows/savedWorkflowContract.js";
 
-/** 一行运行记录归属的项目（项目档恒定，全局档按 `workspacePath ?? cwd` 反查）。 */
-interface SavedWorkflowRunOpenTarget {
+/** 一行运行记录归属的项目（项目档恒定，全局档按 `run.cwd` 反查）。 */
+export interface SavedWorkflowRunOpenTarget {
   workspacePath: string;
   workspaceIdentity?: string;
 }

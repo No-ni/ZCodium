@@ -75,7 +75,8 @@ export function OccupationOnboarding({
 
     setStep(0);
     setRequested(false);
-  }, [intl, setRequested]);
+    // 本仓只保存完成后的本地答案；退出不写官方账号或设备关闭决策。
+  }, [setRequested]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
@@ -97,8 +98,7 @@ export function OccupationOnboarding({
         return;
       }
       if (event.key === "Escape" && onboardingVisible && !saving) {
-        // 直接退出引导（设置里主动打开的场景尤其需要）：不保存、不改记录，
-        // 后续只在用户再次手动打开时显示。
+        // 直接退出不改偏好；首次引导会持久化 dismissed，避免下次启动重复展示。
         event.preventDefault();
         event.stopImmediatePropagation();
         closeOnboarding();
@@ -204,7 +204,7 @@ export function OccupationOnboarding({
       // 偏好保存成功后结束引导，本地完成记录的错误单独处理。
       setStep(0);
       setRequested(false);
-      if (!skip && migration) requestOnboardingDialog("migration");
+      if (!skip && migration) requestOnboardingDialog();
       logger.info("[occupation-onboarding] 偏好保存完成", { interfaceMode: mode });
       if (onboardingRecord) {
         try {

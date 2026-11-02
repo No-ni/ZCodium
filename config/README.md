@@ -16,7 +16,7 @@ Desktop 打包后读取 `resources/config/default.json`，开发态读取仓库
 `config/default.json`；Web 构建时直接导入同一文件。字段缺失或非法时按 schema 回退：
 URL 为空则不展示对应入口，`feedback_use_external_form` 默认 `true`，不会回退到官方地址。
 
-default.json 为随客户端分发的内置默认配置；历史上曾经 CDN 分发、仅为旧版客户端兼容保留，
-现版本无请求或 URL 构造链路，只依赖本目录内置文件，其他字段与既有消费者保持不变。
+旧 CDN default.json 仅为旧版客户端兼容保留；新版无请求或 URL 构造链路，
+不要因此删除线上旧文件或本目录内置文件。内置文件的其他字段与既有消费者保持不变。
 
 详细规则见 [helpAppConfig.ts](../packages/shared/src/helpAppConfig.ts)。

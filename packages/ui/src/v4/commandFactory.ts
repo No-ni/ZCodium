@@ -38,7 +38,7 @@ export function getV4ClientId(): string {
   return clientId;
 }
 
-interface CreateCommandEnvelopeInput<T extends CommandType> {
+export interface CreateCommandEnvelopeInput<T extends CommandType> {
   type: T;
   payload: CommandPayloadMap[T];
   /** createSession 时为 null。 */
@@ -52,11 +52,23 @@ export function createCommandEnvelope<T extends CommandType>(
   input: CreateCommandEnvelopeInput<T>,
 ): CommandEnvelope {
   if (COMMANDS_REQUIRING_BASE_REVISION.has(input.type) && input.baseRevision === undefined) {
-    throw new Error(`command ${input.type} 是 CAS 命令，必须携带 baseRevision`);
+    throw new Error(
+      `command ${input.type} 是 CAS 命令，必须携带 baseRevision（10-protocol-spec §6.4）`,
+    );
   }
   if (ROW_TARGETING_COMMANDS.has(input.type) && !input.baseLogEpoch) {
     throw new Error(`command ${input.type} 是 row target 命令，必须携带 baseLogEpoch`);
   }
+  // 会话 ID 恢复 UUID v4；在信封首次构造时分配，避免重试重新生成并预留另一条任务。
+  const payload =
+    input.type === "createSession"
+      ? {
+          ...input.payload,
+          sessionId:
+            (input.payload as CommandPayloadMap["createSession"]).sessionId ??
+            `sess_${crypto.randomUUID()}`,
+        }
+      : input.payload;
   return {
     commandId: uuidv7(),
     clientId: getV4ClientId(),
@@ -64,7 +76,7 @@ export function createCommandEnvelope<T extends CommandType>(
     ...(input.baseRevision !== undefined ? { baseRevision: input.baseRevision } : {}),
     ...(input.baseLogEpoch ? { baseLogEpoch: input.baseLogEpoch } : {}),
     type: input.type,
-    payload: input.payload,
+    payload,
     issuedAt: Date.now(),
   };
 }

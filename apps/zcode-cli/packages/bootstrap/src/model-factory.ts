@@ -1,6 +1,7 @@
 // Model factory - creates model adapter with config
 
 import {
+  createModelRequestSecurityState,
   AiSdkModelAdapter,
   type AiSdkModelExecutionConfig,
   type EnvRecord,
@@ -18,12 +19,16 @@ export type CreateModelAdapterOptions = CreateModelAdapterBaseOptions & {
   executionConfig: AiSdkModelExecutionConfig;
 };
 
+// 可复用资源由进程拥有，每个 execution 保留自己的请求状态。
+const processRequestSecurityState = createModelRequestSecurityState();
+
 export function createModelAdapter(options: CreateModelAdapterOptions): AiSdkModelAdapter {
   if (!options.executionConfig) {
     throw new Error("createModelAdapter requires executionConfig");
   }
   return new AiSdkModelAdapter({
     ...options.executionConfig,
+    requestSecurityState: processRequestSecurityState,
     env: options.env,
     logger: options.logger,
     streamIdleTimeoutMs: options.streamIdleTimeoutMs,

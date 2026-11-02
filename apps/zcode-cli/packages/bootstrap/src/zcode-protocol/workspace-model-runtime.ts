@@ -72,6 +72,7 @@ export async function createWorkspaceZCodeApp(
 ): Promise<ZCodeApp> {
   return context.deps.createZCodeApp({
     ...options,
+    includeVisualize: true,
     platform: context.deps.platform,
     runtimeConfig: {
       ...options.runtimeConfig,

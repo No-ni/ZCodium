@@ -3,7 +3,7 @@ import { CONVERSATION_ARCHIVE_LIMITS, type IPlatformService } from "@zcode/share
 import type { ImportConversationShareInput } from "@zcode/services";
 type IntlShape = ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { seedImportedSessionDraft } from "@/v4/composer/newTaskDraft.js";
+import { resolveImportedComposerConfig } from "@/v4/composer/newTaskDraft.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import type { WindowTabState } from "@/store/tabStore.js";
 import { dismissToast, toast, updateToast } from "@/components/ui/toast.js";
@@ -127,7 +127,6 @@ export function useConversationArchiveImport(options: Options) {
         });
         const result = await importConversationArchive(service, data, input, operationId);
         if (generation.current !== owner) return;
-        seedImportedSessionDraft(result);
         if (
           !activateTabByPath(
             result.workspacePath,
@@ -140,7 +139,13 @@ export function useConversationArchiveImport(options: Options) {
           });
         }
         const store = useZCodeSessionStore.getState();
-        store.setActiveTaskId(result.workspacePath, result.sessionId, result.workspaceIdentity);
+        // 导航与 Composer 初始配置共用现有写入路径；重复导入不覆盖已有草稿。
+        store.setActiveTaskId(
+          result.workspacePath,
+          result.sessionId,
+          result.workspaceIdentity,
+          resolveImportedComposerConfig(result),
+        );
         store.requestTimelineBottom(
           result.workspacePath,
           result.sessionId,

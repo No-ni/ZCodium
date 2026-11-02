@@ -38,6 +38,9 @@ describe("controller search projection work", () => {
     const scope = { kind: "local" as const, workspacePath: "/workspace" };
     const runtime = createWindowHostControllerRuntime({
       createId: () => "fixture",
+      readHostTaskList: async () => {
+        throw new Error("Workspace search must not read the Host-wide index");
+      },
       resolveSource: () => ({
         scope,
         taskService: service(
@@ -116,6 +119,9 @@ describe("controller search projection work", () => {
     );
     const runtime = createWindowHostControllerRuntime({
       createId: () => "fixture",
+      readHostTaskList: async () => {
+        throw new Error("Workspace search must not read the Host-wide index");
+      },
       resolveSource: (scope: ZCodeTaskListWorkspaceScope) =>
         scope.workspaceIdentity
           ? { scope: remote, taskService: remoteService, sourceAvailability: "online" }

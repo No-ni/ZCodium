@@ -3,9 +3,10 @@
 // facade 与写作规则由 `dynamic-workflows` 技能提供。提交脚本前必须加载技能：会话历史里没有
 // 成功的 `Skill(dynamic-workflows)` 调用时，resolveInput 直接拒绝，避免进入 hook 或显示无效确认窗。
 //
-// 判据来自模型当前可见的 messageHistory。compaction 移除技能正文及对应调用后，需要重新加载；
-// resume/rewind 则随历史一起恢复该判据，不维护第二份会话状态。
-// 探针缺席表示当前装配未提供技能加载检查，此时不设置无法满足的前提。
+// 「读过」的判据是**模型此刻还看得见的历史**（runtime 的 messageHistory），不是一个会话级标志：
+// compaction 把技能正文挤出上下文之后，历史里那次调用也不在了，门重新关上，模型得再读一遍——
+// 这正是 Edit 要求 Read 的同一种语义（compact 后 readFileState 只留下补回给模型的文件）。探针缺席
+// （没有 Skill 工具的会话、单元测试直接造的 context）时门不生效：不能把一个无法满足的前提摆在模型面前。
 
 import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@zcode/contracts";
 import type { ToolHandlerFailure, ToolInputResolutionContext } from "../types.js";

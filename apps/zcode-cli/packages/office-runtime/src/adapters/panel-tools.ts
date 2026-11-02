@@ -1,11 +1,10 @@
 import { z } from "zod";
-import type { DocumentOwner } from "#office/app/documents.ts";
 import type { RegisterOfficeTool } from "#office/adapters/server-resources.ts";
 import { describeDocument, describeSnapshot } from "#office/adapters/tool-results.ts";
 import { FILES_NOUN } from "#office/wording.ts";
 
 /** All panel commands are workspace-read or in-memory reports; no import/write command exists. */
-export function registerPanelTools(register: RegisterOfficeTool, owner: DocumentOwner) {
+export function registerPanelTools(register: RegisterOfficeTool) {
   register(
     "list_documents",
     {
@@ -13,8 +12,8 @@ export function registerPanelTools(register: RegisterOfficeTool, owner: Document
       input: { limit: z.number().int().min(1).max(1000).optional() },
       visibility: ["app"],
     },
-    async ({ limit }) => {
-      const documents = await owner.list(limit ?? 500);
+    async ({ limit }, session) => {
+      const documents = await session.list(limit ?? 500);
       return { text: `${documents.length} documents`, structured: { documents } };
     },
   );
@@ -26,8 +25,8 @@ export function registerPanelTools(register: RegisterOfficeTool, owner: Document
       input: { path: z.string().min(1).max(1000) },
       visibility: ["app"],
     },
-    async ({ path }) => {
-      const loaded = await owner.load(path);
+    async ({ path }, session) => {
+      const loaded = await session.load(path);
       return { text: describeDocument(loaded.info, 10), structured: { ...loaded } };
     },
   );
@@ -39,8 +38,8 @@ export function registerPanelTools(register: RegisterOfficeTool, owner: Document
       input: { path: z.string().min(1).max(1000), at: z.string().min(1).max(300).optional() },
       visibility: ["app"],
     },
-    async ({ path, at }) => {
-      const checked = await owner.check(path, at);
+    async ({ path, at }, session) => {
+      const checked = await session.check(path, at);
       return {
         text: checked.info.revision,
         structured: { path: checked.info.path, revision: checked.info.revision, at: checked.at },
@@ -54,8 +53,8 @@ export function registerPanelTools(register: RegisterOfficeTool, owner: Document
       input: {},
       visibility: ["app"],
     },
-    async () => {
-      const snapshot = owner.snapshot();
+    async (_input, session) => {
+      const snapshot = session.snapshot();
       return { text: describeSnapshot(snapshot, "Viewer has"), structured: { ...snapshot } };
     },
   );
@@ -76,7 +75,7 @@ export function registerPanelTools(register: RegisterOfficeTool, owner: Document
       visibility: ["app"],
       readOnly: false,
     },
-    async (input) => ({ text: "ok", structured: { view: await owner.report(input) } }),
+    async (input, session) => ({ text: "ok", structured: { view: await session.report(input) } }),
   );
   register(
     "release_view",
@@ -86,8 +85,8 @@ export function registerPanelTools(register: RegisterOfficeTool, owner: Document
       visibility: ["app"],
       readOnly: false,
     },
-    async ({ viewId }) => {
-      owner.releaseView(viewId);
+    async ({ viewId }, session) => {
+      session.releaseView(viewId);
       return { text: "ok" };
     },
   );

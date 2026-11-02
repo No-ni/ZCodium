@@ -15,10 +15,15 @@ export const WORKFLOW_RUNS_LIMITS = {
   /** 最近若干个 run；超出按最旧淘汰。 */
   maxRuns: 8,
   /**
-   * actors 与 nodes 使用相同的容量上限，避免节点可展示而所属子代理提前被截断。
-   * 键级增量使每个事件只传输改动部分；容量上限用于限制单条 run 的投影大小，
-   * 并限制异常脚本持续创建条目带来的资源消耗。跨 run 的总量由 {@link maxTotalEntries} 控制。
-   * 这是展示状态的容量限制，不限制引擎实际运行的子代理数量。
+   * actors 与 nodes **同界**。每个节点都属于某个 actor，所以 nodes 的界已经隐含了 actor
+   * 数的量级；把 actors 压得更低（曾是 32）只会让一个平常的 50 路 fan-out 在检视器里
+   * 静默少掉 18 个子代理，而节点表、引擎、图三层都装得下。
+   *
+   * 2026-09-20 从 256 抬到 1024：原来那条界的理由是「状态键按事件整体重发，无界即 O(N²)
+   * 字节」，而键级增量（workflow-runs-delta.ts）落地后每条事件只发改动量，那条理由没了。
+   * 剩下的两条理由都还在，而且都不需要 256 这么紧：挡住「疯掉的脚本在循环里 `agent()`」，
+   * 以及让单条 run 的字节数有个上界。**跨 run** 的总量另有 {@link maxTotalEntries} 管。
+   * 它仍然不是产品意义上的子代理上限。
    */
   maxActors: 1_024,
   maxNodes: 1_024,
@@ -32,7 +37,7 @@ export const WORKFLOW_RUNS_LIMITS = {
    */
   maxTotalEntries: 6_144,
   /**
-   * 详情页 Results 区的**展示**预算，刻意远小于引擎的 run 级 report 上限（256 条）：
+   * 详情页 Results 区的**展示**预算，刻意远小于引擎的 run 级 report 上限（`REPORT_CAPS.maxItemsPerRun`）：
    * 协议线上的界是展示预算，引擎的界才是契约，两者不必相等。超出这个界的条目仍在
    * journal 里（`dwf_node.kind = "report"`），只是不进这条高频状态键。
    */
@@ -56,7 +61,12 @@ export const WORKFLOW_RUNS_LIMITS = {
    */
   maxSubagentModelLength: 256,
   /**
-   * `run.concurrencyCeiling` 的上界。天花板按 `min(16, cores − 2)` 推导，这条界只挡坏载荷
+   * actor `sessionId` 的线上上界。会话 id 是铸出来或读出来的标识，不是展示文本：超界的值
+   * 整条丢弃而不是截断——一个被砍短的会话 id 指向的是另一条（或不存在的）会话。
+   */
+  maxSessionIdLength: 256,
+  /**
+   * `run.concurrencyCeiling`（默认并发 D）的上界。D 按 `max(4, min(16, cores − 2))` 推导，这条界只挡坏载荷
    * （reducer 读到界外的值当作读不出，沿用已知值）。
    */
   maxConcurrencyCeiling: 1_024,
@@ -112,6 +122,8 @@ export const WORKFLOW_RUNS_LIMITS = {
  *
  * ⚠ 这两个数**永远不能改**：它们不是我们的界，是别人二进制里的校验界。超界的载荷不会被
  * 剥掉一个键——它会让整个 `state.updated` patch 解析失败、整帧被丢，那条订阅从此静默。所以给这类订阅者
+ * 剥掉一个键——它会让整个 `state.updated` patch 解析失败、整帧被丢，那条订阅从此静默
+ * （2026-09-04 的那次 `fault.subscription.recoveryFailed` 就是这个形状）。所以给这类订阅者
  * 发帧前必须先过 `clampWorkflowRunsForLegacy`。
  *
  * 「前 256 条」不是随手取的：旧归约触界时是**拒新**，它产出的恰好就是最早的那 256 条。
@@ -123,6 +135,8 @@ export const WORKFLOW_RUNS_LEGACY_LIMITS = {
 
 /**
  * 一个被控制流进入过的阶段（`phase("…")` 标记）。`name` 是作者原词（时间线按它关联 display 的 `phases[].name`）；`rounds` 是进入
+ * 一个被控制流进入过的阶段（`phase("…")` 标记；docs/dynamic-workflow/presentation.md
+ * 2026-09-05）。`name` 是作者原词（时间线按它关联 display 的 `phases[].name`）；`rounds` 是进入
  * 次数——单调（reducer 取 max），所以 resume 重放的前缀不会把它加倍。
  */
 export const workflowRunPhaseSchema = z.object({
@@ -133,6 +147,7 @@ export type WorkflowRunPhase = z.infer<typeof workflowRunPhaseSchema>;
 
 /**
  * 界在某个**出生阶段**上花掉了多少。
+ * 界在某个**出生阶段**上花掉了多少（docs/dynamic-workflow/presentation.md「Reduction」）。
  *
  * 两个计数器（{@link workflowRunUsageSchema} 的 `nodesUnlisted` / `nodesUnlistedSettled`）说得出
  * 一条 run 总共少列了多少，说不出少在**哪一站**——而读面是按站画的：一个站点的花名册、计数环和
@@ -155,6 +170,7 @@ export type WorkflowRunUnlistedPhase = z.infer<typeof workflowRunUnlistedPhaseSc
 
 /**
  * run 级用量：观察面，不是控制面。`spentTokens` 直接取
+ * run 级用量：观察面，不是控制面（docs/dynamic-workflow/authoring.md）。`spentTokens` 直接取
  * 引擎 `usage-updated` 事件携带的已花总量（与 `dwf_run.spent_tokens` 同一同步步骤写入，
  * 二者永远相等）；`nodesUsed` 是本 run 已派发（dispatched）的节点数，由节点事件计数——
  * 没有任何上限可以拿来反算，也不需要。
@@ -164,6 +180,8 @@ export const workflowRunUsageSchema = z.object({
   nodesUsed: z.number().int().nonnegative(),
   /**
    * 撞上 {@link WORKFLOW_RUNS_LIMITS.maxNodes} 被**拒之表外**的实例数，以及其中已结算的条数。`truncated` 只说得出「有东西没进来」，说不出
+   * 撞上 {@link WORKFLOW_RUNS_LIMITS.maxNodes} 被**拒之表外**的实例数，以及其中已结算的条数
+   * （docs/dynamic-workflow/presentation.md）。`truncated` 只说得出「有东西没进来」，说不出
    * 有多少——于是一个 3000 路 fan-out 的 run 在读面上会显示成「1024 步」，那是一句假话。
    *
    * 两条都是**加出来**的计数（被拒实例根本不在表里，没有可去重的身份），所以归约只在事件
@@ -185,14 +203,17 @@ export type WorkflowRunUsage = z.infer<typeof workflowRunUsageSchema>;
  *   - `completed`：其余（全部节点已结算，或 run 已终态）。
  * 不存在可观察的 actor 级 failed：某次 ask 失败仍是「它的活干完了」，结果在节点上。
  *
- * `sessionId` 是 actor 会话 id（phase 5 的 transcript 下钻直接读它）。它同样不在 Boundary C 上，
- * 而是 run service 按 `(runId, actorRef)` 确定性铸造的同一个函数算出来的。
+ * `sessionId` 是**持有这个子代理转录的那条会话**（transcript 下钻直接读它，
+ * docs/dynamic-workflow/presentation.md「Subagent transcripts」）。通常是 run service 按
+ * `(runId, actorRef)` 确定性铸造的本 run 会话；修订 run 里一个到目前为止全部答案都来自导入
+ * 命中的子代理没有自己的会话（命中不建会话），这时它是前驱里被读取的那条会话，由缓存结算的
+ * `sourceSessionId` 带来，第一次 live 派发之后换回本 run 的会话（种子已抄入前缀）。
  */
 export const workflowRunActorSchema = z.object({
   siteId: z.string().min(1).max(64),
   ordinal: z.number().int().nonnegative(),
   name: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxActorNameLength).optional(),
-  sessionId: z.string().min(1).max(256).optional(),
+  sessionId: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxSessionIdLength).optional(),
   status: z.enum(["waiting", "running", "completed"]),
   /**
    * 这个实例**出生**在哪个阶段：它的 ordinal 被铸造的那一刻，控制流所在的 `phase("…")` 标记名。UI 按**名字**与 `phases[].name`
@@ -202,6 +223,12 @@ export const workflowRunActorSchema = z.object({
    * 或者发事件的是不带这个键的旧 CLI。
    */
   phaseName: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxPhaseNameLength).optional(),
+  /**
+   * 这个子代理的模型：persona 点名了模型时，宿主按本 run 的绑定表解析出的规范串
+   * `providerId/modelId[$level]`（docs/dynamic-workflow/presentation.md「Reduction」）。缺席即它跑在
+   * run 的子代理模型上（或发事件的是不带这个键的旧 CLI）。与 `subagentModel` 同界。
+   */
+  model: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxSubagentModelLength).optional(),
 });
 export type WorkflowRunActor = z.infer<typeof workflowRunActorSchema>;
 
@@ -285,16 +312,17 @@ export type WorkflowRunNode = z.infer<typeof workflowRunNodeSchema>;
  * 实际并发是**两者取小**：
  *
  * - `cap`：本 run 所在 provider key 的**共享**闸门现状（治理器按 key 分桶、按 run 扇出，
- *   随 `concurrency-changed` 移动）；`ceiling`：CPU 推导的天花板。事件本身不带 ceiling，
- *   归约按该 run 见过的最大 `previous` / `next` 推导（桶从天花板起步，所以第一条事件的
- *   `previous` 就是它；只降不升的序列里它也恒是最大值）。
+ *   随 `concurrency-changed` 移动）。
+ * - `ceiling`：默认并发 D（线上键名早于「默认并发」，旧端还在读它，故保留）。它是参照线不是上限：
+ *   共享 cap 可以自动长到 2D，用户也可以把本 run 调到 D 之上。已知 `run.concurrencyCeiling` 时就取
+ *   它；只有老 CLI（不发 D）才退回「见过的最大 `previous` / `next`」。
  * - `limit`：本 run **自己的**界（`CreateWorkflow` / `AmendWorkflow` 的 `max_concurrency`
- *   落到 `caps.maxConcurrency`），随 `run-started` 到达、整条 run 不动。**只在低于天花板时
- *   在场**：跑在天花板上的 run 与从前一模一样，一个键都不多。
+ *   落到 `caps.maxConcurrency`），随 `run-started` 到达、就地 retune 时随 `run-caps-changed` 移动。
+ *   **只在 ≠ D 时在场**（高于低于都算）：跑在默认上的 run 与从前一模一样，一个键都不多。
  * - `cooldownMs`：带 Retry-After 的限流冻结新派发的时长，**相对量**（同 `retryInMs` 的理由）；
  *   `idle_reset` 与 run 终态清掉它。
  *
- * UI 只在 `min(cap, limit) < ceiling` 时显示读数（见 workflowRunConcurrencyView）。
+ * UI 的读数规则见 workflowRunConcurrencyView（docs/dynamic-workflow/concurrency.md「What the user sees」）。
  */
 export const workflowRunConcurrencySchema = z.object({
   key: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxConcurrencyKeyLength).optional(),
@@ -446,16 +474,18 @@ export const workflowRunSchema = z.object({
     .max(WORKFLOW_RUNS_LIMITS.maxPendingQuestions)
     .optional(),
   /**
-   * 并发现状（见 {@link workflowRunConcurrencySchema}）。只在**两条界里有一条低于天花板**时
-   * 在场：收到过 `concurrency-changed`（共享桶被限流压低），或 `run-started` 带来一个低于天花板
-   * 的 `limit`（用户给这次 run 定了上限）。两者都没有的 run 一直跑在天花板上，没有可说的。
+   * 并发现状（见 {@link workflowRunConcurrencySchema}）。收到过 `concurrency-changed`（共享桶动过），
+   * 或 `run-started` / `run-caps-changed` 带来一个 ≠ 默认并发的 `limit`（用户给这次 run 定了界）时
+   * 在场。两者都没有的 run 一直跑在默认上，没有可说的。
    * optional 的理由与 `reports` / `pendingQuestions` 同。
    */
   concurrency: workflowRunConcurrencySchema.optional(),
   /**
-   * 本机的并发天花板（`run-started` 载荷的 `concurrencyCeiling`，CLI 铸载荷时拼进去的进程事实）。
-   * 与 `concurrency.ceiling` 不同：那是读数芯片自己的水位，只随芯片在场；这一个**只要读得到就在**，
-   * 不论本 run 是否低于它——「配置」弹层的步进器停在这里。optional 的理由与 `concurrency` 同：老 CLI 不发，少一个键是退化。
+   * 默认并发 D（`run-started` 载荷的 `concurrencyCeiling`，CLI 铸载荷时拼进去的进程事实；键名早于
+   * 「默认并发」这个概念，为兼容旧端保留）。它是起点不是上限。与 `concurrency` 不同，它**只要读得到
+   * 就在**，不论本 run 有没有自己的界——「配置」弹层据它写「默认 N」、判「等于默认 = 不设自己的界」
+   * （docs/dynamic-workflow/concurrency.md「Protocol state」）。optional 的理由与 `concurrency` 同：
+   * 老 CLI 不发，少一个键是退化。
    */
   concurrencyCeiling: z
     .number()

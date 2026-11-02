@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { onboardingRecordFileSchema } from "@zcode/shared";
+import { onboardingRecordFileSchema, onboardingRecordEntrySchema } from "@zcode/shared";
 import type {
   OnboardingRecordEntry,
   OnboardingRecordEntryInput,
@@ -75,7 +75,7 @@ export function createOnboardingRecordService(): IOnboardingRecordService {
 
   return {
     appendRecord(entry) {
-      const validated = onboardingRecordFileSchema.shape.entries.element.parse(entry);
+      const validated = onboardingRecordEntrySchema.parse(entry);
       return enqueueWrite(() => writeEntry(validated));
     },
     async getLatestEntry() {
@@ -83,7 +83,7 @@ export function createOnboardingRecordService(): IOnboardingRecordService {
     },
     updateRecordPreferences(patch) {
       // 在入队时冻结补丁，防止调用方在排队期间修改已接受的偏好。
-      const accepted = onboardingRecordFileSchema.shape.entries.element
+      const accepted = onboardingRecordEntrySchema
         .pick({ memoryEnabled: true, proactiveSuggestionsEnabled: true })
         .partial()
         .parse(patch);

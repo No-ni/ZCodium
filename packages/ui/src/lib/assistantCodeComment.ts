@@ -30,19 +30,11 @@ export interface AssistantCodeCommentCard extends AssistantCodeComment {
   path: string;
 }
 
-/**
- * 代码注释卡片的两根分工（对话会话下两者不同）。
- *
- * `workspacePath` 是**相对路径的解析基准**（= 会话执行 cwd），与对话正文里模型写路径的基准一致；
- * `displayRootPath` 只是**展示基准**（= 工作区键路径）：`displayPath` 先相对解析基准算，落不到
- * 再相对它算。这样会话目录里的文件显示成模型写的样子（`src/foo.ts`），而引用工作区根上的文件
- * （例如 `<对话根>/.zcodium/skills/...`）仍能算出可读的相对路径，不会因为落在解析基准之外丢卡片。
- */
 export interface AssistantCodeCommentCardOptions extends AssistantFilePathResolveOptions {
   displayRootPath?: string;
 }
 
-interface AssistantCodeCommentProjection {
+export interface AssistantCodeCommentProjection {
   comments: AssistantCodeComment[];
   visibleText: string;
 }
@@ -60,11 +52,16 @@ function parsePriority(value: string | undefined): AssistantCodeCommentPriority 
   return Number.parseInt(value, 10) as AssistantCodeCommentPriority;
 }
 
-function extractAssistantCodeComments(
+export function extractAssistantCodeComments(
   content: string,
-  protectedRanges: readonly AssistantTextRange[],
+  knownProtectedRanges?: readonly AssistantTextRange[],
 ): AssistantCodeComment[] {
-  return extractAssistantDirectives(content, CODE_COMMENT_DIRECTIVE_NAME).flatMap((directive) => {
+  const directives = extractAssistantDirectives(content, CODE_COMMENT_DIRECTIVE_NAME);
+  // Bug 根因：搜索会投影每条历史正文；没有指令也扫描全部 Markdown 代码区造成额外线性开销。
+  // 先确认存在候选，再检查代码区保护，保留代码示例中的指令原文。
+  if (directives.length === 0) return [];
+  const protectedRanges = knownProtectedRanges ?? findMarkdownCodeRanges(content);
+  return directives.flatMap((directive) => {
     if (
       !directive.parameters ||
       overlapsAssistantTextRanges(directive.start, directive.start + 1, protectedRanges)

@@ -31,10 +31,12 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
     const preparation = this.usesBashTempOutput(request)
       ? await this.prepareBashOutput(request, options)
       : undefined;
+
     const taskId = `exec_${crypto.randomUUID()}`;
     const controller = new AbortController();
     const startedAt = new Date();
-    const outputPaths = preparation && "result" in preparation ? {} : this.outputPathsForRequest(request);
+    const outputPaths =
+      preparation && "result" in preparation ? {} : this.outputPathsForRequest(request);
     const runRequest =
       request.captureCwdAfterSuccess === true
         ? { ...request, captureCwdAfterSuccess: undefined }
@@ -61,22 +63,26 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
     }
 
     if (preparation && "result" in preparation) this.emitResult(options, preparation.result);
-    const running = preparation && "result" in preparation ? Promise.resolve(preparation.result) : this.run(runRequest, {
-      ...options,
-      preparedBashOutput: preparation && "prepared" in preparation ? preparation.prepared : undefined,
-      signal: controller.signal,
-      onOutputEncodingResolved: (encoding) => {
-        record.legacyOutputEncoding = encoding;
-      },
-      shouldRetainExecutionAfterRootExit: () => true,
-      ...(isBashMergedOutputRequest(runRequest)
-        ? { bashLifecycle: { isBackgrounded: () => true } }
-        : {}),
-      onEvent: (event) => {
-        this.updateBackgroundTaskRecordFromEvent(record, event);
-        return options.onEvent?.(event);
-      },
-    } as InternalExecutionRunOptions);
+    const running =
+      preparation && "result" in preparation
+        ? Promise.resolve(preparation.result)
+        : this.run(runRequest, {
+            ...options,
+            preparedBashOutput:
+              preparation && "prepared" in preparation ? preparation.prepared : undefined,
+            signal: controller.signal,
+            onOutputEncodingResolved: (encoding) => {
+              record.legacyOutputEncoding = encoding;
+            },
+            shouldRetainExecutionAfterRootExit: () => true,
+            ...(isBashMergedOutputRequest(runRequest)
+              ? { bashLifecycle: { isBackgrounded: () => true } }
+              : {}),
+            onEvent: (event) => {
+              this.updateBackgroundTaskRecordFromEvent(record, event);
+              return options.onEvent?.(event);
+            },
+          } as InternalExecutionRunOptions);
     void running.then(
       (result) => {
         this.finalizeBackgroundTaskRecord(record, result);
@@ -316,12 +322,7 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
     sessionId: string,
   ): Promise<BackgroundBashOutputResult> {
     const record = this.backgroundTasks.get(workId);
-    if (
-      !record ||
-      record.sessionId !== sessionId ||
-      !record.isBash ||
-      !record.outputPath
-    )
+    if (!record || record.sessionId !== sessionId || !record.isBash || !record.outputPath)
       return { kind: "unavailable", workId };
     // 先冻结状态，再读文件；若读取期间退出，下次查询才能返回终态及其最终尾窗。
     const snapshot = this.snapshot(record);

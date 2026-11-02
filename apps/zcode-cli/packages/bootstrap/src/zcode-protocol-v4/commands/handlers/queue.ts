@@ -8,31 +8,34 @@ import type {
   CommandPayloadMap,
   CommandResult,
 } from "@zcode/shared/zcode-protocol-v4";
+import { isHighspeedProviderId } from "@zcode/shared";
+import { createModelExecutionContext } from "../../../session-execution/index.js";
 import { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
 import { inputIntentMetadataFromQueueItem } from "../input-intent.js";
-import { startPromptTurn } from "../prompt-turn.js";
+import { startPromptTurn, turnBackgroundAttributionOf } from "../prompt-turn.js";
 import { requireRecord } from "../record-access.js";
-import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
+import type { V4CommandCoreHost } from "../types.js";
 import {
   applyGoalCommand,
   parseGoalObjectiveFromCommandText,
   startManualCompact,
   V4GoalCompactRejectedError,
 } from "./goal-compact.js";
+import { resolveSessionFallbackModelSelection } from "../input-admission.js";
 import { preemptActiveTurnAndWait } from "./session-flow.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
 import { commandExecutionContextOf } from "../executor.js";
 export { V4SessionIdleTimeoutError } from "./session-flow.js";
 
 /** sendQueuedNow 在投影里查不到该项原文（已被 drain/删除或 id 无效）→ 拒绝。 */
-class V4QueueItemTextUnavailableError extends Error {
+export class V4QueueItemTextUnavailableError extends Error {
   constructor(queueItemId: string) {
     super(`v4 sendQueuedNow queue item text unavailable: ${queueItemId}`);
     this.name = "V4QueueItemTextUnavailableError";
   }
 }
 
-class V4QueueItemReservedError extends Error {
+export class V4QueueItemReservedError extends Error {
   readonly reasonCode = "guard.queueItemReserved";
   constructor(queueItemId: string) {
     super(`v4 sendQueuedNow queue item already reserved: ${queueItemId}`);
@@ -40,7 +43,7 @@ class V4QueueItemReservedError extends Error {
   }
 }
 
-class V4QueuePromotionCommitError extends Error {
+export class V4QueuePromotionCommitError extends Error {
   readonly reasonCode = "fault.command.queuePromotionCommitFailed";
   constructor(queueItemId: string) {
     super(`v4 sendQueuedNow started but failed to remove queue item: ${queueItemId}`);
@@ -48,7 +51,7 @@ class V4QueuePromotionCommitError extends Error {
   }
 }
 
-class V4QueueItemNotEditableError extends Error {
+export class V4QueueItemNotEditableError extends Error {
   readonly reasonCode = "guard.queueItemNotEditable";
   constructor(queueItemId: string) {
     super(`v4 queue item is not editable: ${queueItemId}`);
@@ -74,6 +77,7 @@ async function deleteQueueItem(
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["deleteQueueItem"];
   const record = requireRecord(host, envelope.sessionId);
+  const queueItem = host.getQueueItem?.(record.app.sessionId, payload.queueItemId) ?? null;
   // 未命中（并发 drain/重复删除的竞态）= noop，不算失败；留 warn 供观测。
   const removed = await record.app.removeQueueItem(payload.queueItemId);
   if (!removed) {
@@ -84,6 +88,9 @@ async function deleteQueueItem(
     // 未命中曾返回 undefined，gateway 会把并发 drain/重复删除误报为 accepted；
     // queue 撤回编辑因此可能把已消费的旧投影再次恢复到 composer。
     throw new V4CommandNoopError("queue.itemMissing");
+  }
+  if (queueItem) {
+    host.deleteQueuedTurnExecution?.(record.app.sessionId, queueItem.sourceCommandId);
   }
   return undefined;
 }
@@ -211,9 +218,8 @@ async function sendQueuedNow(
         ? undefined
         : await mapAttachmentRefsToTurnAttachments(record.app, queueItem.attachments);
     if (!autoDrainPromotion) acquirePromotionLease("after-current");
-    let preempted = false;
     if (!autoDrainPromotion) {
-      preempted = await preemptActiveTurnAndWait(host, record, {
+      await preemptActiveTurnAndWait(host, record, {
         abortMessage: "v4 sendQueuedNow preempts active turn",
         goalPausedMutationReason: "send_queued_now_goal_paused",
         preserveQueueAutoDrainOnCancel: true,
@@ -225,7 +231,14 @@ async function sendQueuedNow(
       throw new V4QueueItemReservedError(payload.queueItemId);
     }
     if (queueItem.kind === "compact") {
-      await startManualCompact(host, record, queueItem.sourceCommandId, foregroundPromotionLeaseId);
+      // 旧提升只传 commandId，丢失入队时的 B；与普通输入一样恢复完整意图，禁止重读 Composer。
+      const intent = inputIntentMetadataFromQueueItem(queueItem, queueItem.text);
+      intent.modelSelection ??= resolveSessionFallbackModelSelection(record);
+      await startManualCompact(host, record, {
+        inputId: queueItem.sourceCommandId,
+        foregroundPromotionLeaseId,
+        intent,
+      });
       leaseReleaseOwnedByBackground = true;
     } else if (queueItem.kind === "sendGoalCommand") {
       const intent = inputIntentMetadataFromQueueItem(queueItem, objective ?? queueItem.text);
@@ -244,13 +257,20 @@ async function sendQueuedNow(
       leaseReleaseOwnedByBackground = goalContinuationWillStart;
     } else {
       const intent = inputIntentMetadataFromQueueItem(queueItem, queueItem.text);
+      // 旧加速队列只能迁回普通会话模型；不读取或重新激活加速执行材料。
+      if (isHighspeedProviderId(intent.modelSelection?.providerId)) {
+        intent.modelSelection = resolveSessionFallbackModelSelection(record);
+      }
+      delete intent.highspeed;
+      host.deleteQueuedTurnExecution?.(record.app.sessionId, queueItem.sourceCommandId);
       const started = await startPromptTurn(host, record, {
         content: queueItem.text,
         inputId: queueItem.sourceCommandId,
-        // 手动提升若实际抢占旧执行，同样是 human steer；自动 drain 不产生此标记。
-        ...(preempted && !attachments?.length ? { inputPresentation: "user_steer" as const } : {}),
+        // 手动提升即使抢占了旧执行，被点文本也是普通用户消息，与自动 drain 相同（原因见 sendText）。
         intent,
         requireIdle: true,
+        // Bug 根因：提升曾只回放 inputId 和 denylist，导致可信 automation attribution 丢失。
+        ...turnBackgroundAttributionOf({ automationId: queueItem.automationId }),
         toolDisallowlist: queueItem.toolDisallowlist,
         ...(attachments ? { attachments } : {}),
       });

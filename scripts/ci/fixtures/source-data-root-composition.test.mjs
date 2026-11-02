@@ -8,10 +8,8 @@ import { promisify } from "node:util";
 import ts from "typescript";
 import { tsImport } from "tsx/esm/api";
 
-const { resolveSourceDataRoots, createSourcePersistenceEnv } = await tsImport(
-  "../../../packages/shared/src/node.ts",
-  import.meta.url,
-);
+const { resolveSourceDataRoots, createSourcePersistenceEnv, ZCODE_APP_VERSION_ENV, ZCODE_VERSION } =
+  await tsImport("../../../packages/shared/src/node.ts", import.meta.url);
 const { createSourceAgentCommandResolver } = await tsImport(
   "../../../packages/services/src/runtime-tools/sourceAgentCommand.ts",
   import.meta.url,
@@ -177,6 +175,13 @@ test("Core registers inspection with authenticated Source ID and actual layout b
     "runServerCore",
     {
       process: { env: { ZCODE_SERVER_ROOT: sourceRoot } },
+      ZCODE_APP_VERSION_ENV,
+      ZCODE_VERSION,
+      createTopicResourcePeers: () => ({
+        getChannel() {
+          throw new Error("No resource peer in this fixture");
+        },
+      }),
       join,
       __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: "{}",
       ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV: "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE",

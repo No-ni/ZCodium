@@ -11,9 +11,12 @@ export function trackResidencyBlockingWork<T>(
   this: AgentRuntimeInternal,
   work: Promise<T>,
 ): Promise<T> {
-  this.residencyBlockingWorkCount += 1;
+  this.residencyBlockingWork.add(work);
+  this.residencyBlockingWorkCount = this.residencyBlockingWork.size;
   return work.finally(() => {
-    this.residencyBlockingWorkCount = Math.max(0, this.residencyBlockingWorkCount - 1);
+    this.residencyBlockingWork.delete(work);
+    this.residencyBlockingWorkCount = this.residencyBlockingWork.size;
+    for (const notify of this.workChanged) notify();
   });
 }
 
@@ -23,6 +26,7 @@ export function hasResidencyBlockingWork(this: AgentRuntimeInternal): boolean {
     this.hasActiveOrQueuedTurnWork() ||
     this.hasRunningBackgroundTasks() ||
     this.residencyBlockingWorkCount > 0 ||
-    (this.memoryExtractionScheduler?.hasPendingWork() ?? false)
+    (this.memoryExtractionScheduler?.hasPendingWork() ?? false) ||
+    (this.memoryRecallPrefetch !== undefined && !this.memoryRecallPrefetch.settled)
   );
 }

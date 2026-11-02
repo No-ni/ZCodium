@@ -1,0 +1,81 @@
+# 官方 3.17.1 协议与共享契约合并（Protocol 域）
+
+配套：`docs/specs/official-3.17.1-integration.md`（总授权与范围）、`.agents/specs/official-3.17.1-provider.md`（Provider 域）。
+写域：`packages/shared/**`、`packages/rpc/**`、`packages/client/**`、`packages/web/**`、`packages/zcode-server-cli/**`、`packages/server/**`（不含 `packages/server/src/source-server/**`，由主代理显式接管生命周期）。
+
+## 1. 三方与判据
+
+基线 `4ea45367`（ours）/ merge base `872ad960` / 来源 `refs/upstream-tags/v3.17.1`。
+本域开工时 95 个冲突文件；上游另新增约百个共享/前端文件。判据只用两类证据：
+
+1. 文件是否来自 base：`git ls-tree 872ad960 -- <path>`。全空即「上游新增」，本仓无历史义务。
+2. 谁引用它：`git grep -l <module> refs/upstream-tags/v3.17.1`（上游产品面）与 `git grep -l <module>`（合并后工作树）。引用方若是官方账号/购买/市场/relay/上报，则该模块属于持续剥离项。
+
+## 2. 已剥离的上游生产控制面（本域删除，索引由主代理收口）
+
+| 删除对象                                                                                                                                                                                                                            | 判据                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/conversation-telemetry/**`                                                                                                                                                                                     | 远端会话/模型 IO 上报事件；`remoteTelemetryEvent.ts`、`runtimeModelTelemetry.ts`、`providerTelemetryIdentity.ts` 组成上报载荷                     |
+| `packages/shared/src/web-remote-relay/**`                                                                                                                                                                                           | 官方 relay 控制面（配对/心跳/推送/移动端动作）；本仓继续用 `packages/shared/src/webRemoteControl/`（LAN envelope + rpcTransport），未换官方 relay |
+| `packages/shared/src/web-remote-control.ts`、`packages/shared/test/webRemoteControlActions.test.ts`、`webRemoteControlMobileLog.test.ts`、`packages/shared/test/fixtures/fake-relay-v2.ts`、`packages/shared/tsconfig.testing.json` | 只是 relay 的契约/夹具/测试壳，随 relay 一起退出                                                                                                  |
+| `packages/client/src/webRemoteControl{AcknowledgedRelay*,Relay*}.ts`（6 个）                                                                                                                                                        | relay v2 客户端队列/协议/序列化，依赖已删除的 `@zcode/shared/web-remote-relay`                                                                    |
+| `packages/web/src/web-remote-control/**`、`packages/web/src/auth/**`                                                                                                                                                                | 官方 relay 手机版 Web 客户端与官方登录页；HEAD 里 `packages/web/src` 无这两个目录                                                                 |
+| `packages/shared/src/request-security-edition/**`                                                                                                                                                                                   | 按发行版/rollout 决定请求校验与敏感头，属官方 client-config/rollout 控制面                                                                        |
+| `packages/shared/src/marketingTouch.ts`、`rewardsBridge.ts`、`rewardsEmbedded.ts`、`cloudContent.ts`                                                                                                                                | 营销弹窗、奖励 WebView（含清 `oauth:zai:access_token`）、官方云内容对话框                                                                         |
+| `packages/shared/src/project-access-token{,-client,-response}.ts`、`api-key-usage-scene.ts`                                                                                                                                         | 官方平台项目 Token 客户端与 Key 领取场景，服务 `services/model-provider/accountProjectTokenClient.ts` 的官方账号路径                              |
+
+导出面同步收口：`packages/shared/package.json` 去掉 `./conversation-telemetry{,/*}`、`./web-remote-relay`、`./request-security`、`./testing/fake-relay-v2`，并因 `ws` 只被已删夹具使用而移除 `ws`/`@types/ws`（`@modelcontextprotocol/ext-apps` 因 `mcp-apps` 仍在用而保留）。`packages/shared/src/index.ts` 移除 `ARMS/RUM`、`ZCODE_TELEMETRY_REPORT_ENDPOINT`、`ZCODE_AUTO_UPDATE_ENABLED`、`rendererActionTrace`、`telemetry*`、`remoteUsageTelemetry`、`sessionCreateTelemetry`、`coding-plan-reset`、marketing/rewards/cloud、`request-security-edition`、`project-access-token` 等导出；`env.ts` 移除对应构建期 define 与 `mapZCodeEnvToArmsRumEnv`；`oauth.ts` 移除 `OAuthCachedSessionRestoreResult`/`OAuthSessionState`/`ZCODE_JWT_INVALID_BROADCAST_CHANNEL`；`clientConfig.ts` 恢复本仓审计版（不解析官方 rollout 快照）；`plugin-marketplaces.ts` 不引入 `cdn-zcode.z.ai` 官方市场自动拉取；`channels.ts` 不引入 `Feedback`/`OffPeakTask`/`HighspeedCard` 服务频道与 `SessionCreateTelemetry`/`RemoteConversationTelemetry`/`PluginTelemetry` 频道，并删除 `CodingPlanPurchaseCompletePayload`/`CodingPlanWebview*`（`scripts/ci/audit-boundaries.test.mjs` 明令禁止 `CodingPlanWebview` 回流）。
+后续退休（Step5）：`packages/shared/src/off-peak-execution.ts` 已删除——其 13 个导出经 unscoped `dep:refs` 逐个复核，references 全部限于本文件内部、re-exports 为 0，`rg` 亦无 `off-peak-execution` 动态或字符串引用；`offPeakControlParamsSchema` 仍引用已删除的 `modelExecutionSchema.shape.requestAuth`，属残留 producer，按不留 stub 处理；`highspeed` 历史 types/投影与 `off-peak-types.ts` 不动，`scripts/architecture/upstream-snapshot.json` 的两处路径记录由主代理收口。
+
+## 3. 吸收与保留（含理由）
+
+| 上游变化                                                                                                                                                                                                                                                                                                       | 处置                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HostMessageTypes.CuaPipFocusChanged = "cua-pip-focus-changed"`（`channels.ts:626`）与 `hostCuaPipFocusChangedMessageSchema`（`validation.ts:1034`，注册于宿主消息联合 `validation.ts:1174`）                                                                                                                  | 吸收，配对已核：`kind: "focus-changed"` + `revision`（非负安全整数）+ `sourceWindowId` + `sessionId: nullable`，`.strict()` 两端，正是 native pip-session 需要的形状；desktop 侧 `pendingCuaPipFocus`/`cuaPipFocusRouter` 接线由主代理补 |
+| `PlatformChannels.RemoteSessionReconnected` + `RemoteSessionReconnectedEvent` 映射                                                                                                                                                                                                                             | 吸收，同时保留本仓 `BotRemoteWorkspaceReconnected`（两者不同语义：Bot 触发重连 vs Source 换代 ready），两条频道与两条 request 映射并存                                                                                                   |
+| `PluginSandboxExecutionActive` 频道、`PluginSandboxChannels.Init`                                                                                                                                                                                                                                              | 吸收：本机插件 UI 沙箱，不涉及官方服务                                                                                                                                                                                                   |
+| `web-remote-control-rpc-transport.ts`（分帧/计量/assembly 状态机）                                                                                                                                                                                                                                             | 保留为纯 schema+限流契约，无 relay 依赖；LAN 链路可复用                                                                                                                                                                                  |
+| `local-ttft/**`、`networkCapture.ts`、`node/networkCapture.ts`                                                                                                                                                                                                                                                 | 保留为纯 zod 契约与本地采集原语（shared 内不含 fetch/上报）；「默认关闭、不外发」由 desktop/services 的实现方守住，已在第 6 节列为跨域待验项                                                                                             |
+| `highspeed.ts`、`off-peak-types.ts`                                                                                                                                                                                                                                                                            | 保留纯类型与错误码常量：目录里已无 `account:*` Provider（Provider 域），这些类型无产品入口；上游 122 处引用跨 CLI/desktop/ui/services，删除属跨域决定（`off-peak-execution.ts` 已在 Step5 退休，见第 2 节后续退休记录）                  |
+| `conversationSelection.ts`、`attachment-source.ts`、`channel-mention.ts`、`conversation-share-content.ts`、`conversation-share-tool-presentation.ts`、`userInstructions.ts`、`memory.ts`、`output-style.ts`、`subagent-profile*.ts`、`subagent-runtime-config.ts`、`platformUpdate.ts`（手动检查更新结果契约） | 吸收：授权功能面或纯 schema，fail-closed 且不含官方端点                                                                                                                                                                                  |
+| `windowUnread.ts`（`WindowUnreadProjection`）、`node/sourceDataRoots.ts`（`.zcodium` data-root）、`sqlite-migrations` 冻结迁移                                                                                                                                                                                 | 未动，继续作为唯一事实；`sqlite-migrations/{contract,index,module,contract.example}` 仍是 add/add 冲突，待按「冻结迁移不可改写」逐条合并                                                                                                 |
+| RPC / FIFO / async lifecycle 修复                                                                                                                                                                                                                                                                              | `packages/rpc/src/channelClient.ts`、`channelServer.ts` 尚未解决（4/5 个 hunk），解决时必须保留本仓 owner/lease、stale run 防护与 `desktop-continuous` vs `web-remote-replayable` 双语义                                                 |
+
+## 4. 本域已解决文件（内容已落工作树，索引未动）
+
+`packages/shared/package.json`、`src/index.ts`、`src/env.ts`、`src/node.ts`、`src/channels.ts`、`src/oauth.ts`、`src/clientConfig.ts`（恢复本仓审计版）、`src/plugin-marketplaces.ts`。
+`scoped typecheck`（`tsc --noEmit -p packages/shared/tsconfig.json`）在这些文件上无语义错误，只余未解决文件的 `TS1185` 冲突标记报错。
+
+## 5. 剩余未解决（本域 82 个文件仍含冲突标记）
+
+按优先级：`validation.ts`(33) · `zcode-protocol/index.ts`(48) · `platform.ts`(27) · `bots.ts`(63) · `zcodeEndpoint.ts`(24) · `zcode-protocol-v4/*`（workflow-runs 系列 12 个文件）· `sqlite-migrations/*` · `mcp-apps/*` · `gen-ui/contract.ts` · `test-ids.ts` · `validationAppSettings.ts` · `remote-workspace-identity.ts` · `server-remote.ts` · `source-server/compatibility.ts` · `packages/rpc/*` · `packages/client/{globals.d.ts,messageport.ts,remoteServiceAccess.ts}` · `packages/web/{index.html,src/main.tsx,vite.config.ts}` · `packages/zcode-server-cli/*` · `packages/server/{package.json,entry-http.ts,entry-stdio.ts,http.ts,stdio.ts,remote/*}`。
+已定位的「解决时必须丢弃」项：`validation.ts` 的 `conversation-telemetry`/`web-remote-relay`/`remote-conversation-telemetry` 四处引用（均在冲突块内）、`platform.ts` 两处 relay 导入、`zcode-protocol/index.ts` 的 `request-security-edition` 导入。
+
+## 6. 需主代理补的跨包接口
+
+1. 索引收口：本域删除文件当前状态是 `AD`（index 有、工作树无），需要 `git rm --cached`；`clientConfig.ts` 等「按来源整文件恢复」的文件需要正常 stage。
+2. `packages/services`：`cloud-content/cloudContentService.ts`、`model-provider/accountProjectTokenClient.ts`、`conversation-telemetry/*` 依赖已删除的 shared 模块，需按本域边界同步剥离。
+3. `packages/ui`：`components/marketing-touch/*`、`components/cloud-content-dialog/*` 依赖 `marketingTouch`/`cloudContent` 契约。
+4. `packages/desktop`：`main/web-remote-relay/**` 由主代理删除；`src/main/index.ts` 的 `cuaPipFocusRouter` 与 `host/index.ts` 的 `pendingCuaPipFocus` 需要 `CuaPipFocusChanged` 事件（本域契约已就位）。
+5. `apps/zcode-cli`：`bootstrap/src/zcode-protocol-v4/{conversation-telemetry-facts,local-ttft/*}`、`adapters/src/model/{account-request-retry,model-execution,runner-stream}.ts` 引用 `conversation-telemetry`/`request-security-edition`；`resourceManagerNetwork`/`localRuntimeNetworkCapture` 若继续用 `networkCapture`，必须保持默认关闭且无对外导出。
+6. `scripts/builtin-provider-config.mjs`、`apps/zcode-cli/turbo.json` 的双目录问题见 Provider 域第 5 节。
+
+## 7. 验证
+
+### 7.1 机械合并通道与自检（2026-11-01 追加）
+
+逐 hunk 决策器：`.run-logs/protocol-domain/resolve-markers.mjs`，决策表 `.run-logs/protocol-domain/resolution-report.json`（每 hunk 记 ours/theirs/union/stripped 与命中的剥离关键词）。
+解析自检：`.run-logs/protocol-domain/parse-check.mjs`（TS 语法诊断 + JSON 解析，不看跨包类型），对 278 个本域改动文件报 `bad=23`，其中 `packages/shared/tsconfig.json` 是 JSONC 注释导致的误报，实际 22 个文件在 union 通道下被冲突边界切断（函数签名/接口体分叉）。
+这 22 个已用 `git checkout --conflict=merge -- <本域路径>` 还原为冲突态，避免留下可编译性缺失的交错代码；其余 255 个文件解析干净（含 `packages/server/package.json` 的重复 `./remote/*.js`/`./source-server` 与缺逗号修正）。
+
+待人工合并清单（必须逐 hunk 判，不能用 union）：`platform.ts`（保留 HEAD 旧 Cua 方法 + 追加 file 打开方式/另存为/原件/source-settings attachment；删除 `reportTelemetryEvent`）、`zcodeEndpoint.ts`、`sqlite-migrations/contract.ts`（冻结历史 checksum，新增项按 contract）、`source-server/compatibility.ts`、`gen-ui/contract.ts`、`mcp-apps/resourceMime.ts`、`node/genUiPaths.ts`、`conversation-share.ts`、`zcode-protocol-v4/{toolDisplay,workflow-runs-entries,workflow-runs-concurrency,workflow-runs-eviction,workflow-runs-reducer}.ts`、`rpc/{channelClient,channelServer}.ts`（保留 FIFO/async lifecycle 与 owner/lease 修复）、`client/remoteServiceAccess.ts`（去 cloudContent/marketingTouch 服务面）、`web/{main.tsx,platform/*}`（去 `reportTelemetryEvent`/network upload）、`server/{http.ts,remote/{connect,ssh-backend}.ts}`、`zcode-server-cli/{cli.ts,runtime/paths.ts,server-core/http.ts}`。
+
+已核：Provider Provisioning Lane 的本仓契约齐备（`channels.ts` `HostMessageTypes.ProviderProvisioningLaneResult` 与 `PlatformChannels.ProviderProvisioningLaneRequest`；`validation.ts` `hostProviderProvisioningLaneResultMessageSchema`、`hostProviderProvisioningLaneRequestResponseSchema`；`provider-provisioning.ts` `ProviderProvisioningLaneStatus`），desktop 侧 HostManager/Main/preload 桥接可在不动 shared 的前提下接线。LAN pairing 与 `SourceRunningTasksResult` 根导出仍属上面 `platform.ts`/`index.ts` 人工通道。
+
+- 已执行：`tsc --noEmit -p packages/shared/tsconfig.json`（已解决文件无语义错误，其余为冲突标记）；`packages/shared` 导出表 JSON 合法性与「无 telemetry/relay/request-security 导出」检查；`git grep` 引用面复核（本域已无悬空引用）。
+- 已执行（Provider 域，项目内 sandbox）：`packages/provider/test/builtinProviderCatalogBoundaries.test.ts` 5 项、`packages/provider-node/test/zcodeBuiltinProviderConfigSource.test.ts` 5 项全通过。
+- 未执行/未验收：`packages/rpc`、`packages/web`、`packages/server`、`packages/zcode-server-cli` 的域内定向检查（依赖 `packages/shared` 冲突全部落地）；真机 LAN 远控、跨窗口未读计数、SQLite 冻结迁移升级、relay 删除后的手机版回归。根 `typecheck`/`lint`/`fmt:check`/架构与审计守卫由主代理统一跑。
+
+## 续接状态（2026-11-02，覆盖上文早期未完成清单）
+
+上文逐 hunk 清单与 shared 空文件属于历史阶段，当前源码冲突标记扫描已清零，相关接口已经收口。Source 使用既有自建 relay 与预部署-only 合同，未删除本仓 relay。平台/协议/Server 均进入根类型检查；Source 生命周期与设置真实源码回归 21/21（`source-tests-Aod8wl`），审计守卫 11/11（`source-tests-EjBzez` 中的审计子组）通过；不把整组当时 build 断言失败记为绿灯。根最终类型、Lint、格式及架构仍由集成 spec 的最新记录为准，完整真机不在这些证据内。

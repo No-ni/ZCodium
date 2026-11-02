@@ -4,7 +4,7 @@
 // 从 workflow-runs-reducer.ts 拆出（max-lines 门）：主归约只剩 switch 的分派，与
 // `concurrency-changed` / `phase-entered` 同一条先例。这条事件要说的事最多——resume 的
 // 重臂语义、lineage 指针、本 run 自己的并发界——而三者彼此相关：同一个 runId 的第二条
-// `run-started` 既要清掉上一世的结算残影，又不能把进程里已经学到的共享 cap 抹回天花板。
+// `run-started` 既要清掉上一世的结算残影，又不能把进程里已经学到的共享 cap 抹回默认并发。
 
 import { reduceRunStartedConcurrency } from "./workflow-runs-concurrency.js";
 import { workflowRunTablesForNewLife } from "./workflow-runs-eviction.js";

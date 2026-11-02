@@ -62,6 +62,64 @@ export const webRemoteControlMobileViewStateSchema = z
   .strict();
 export type WebRemoteControlMobileViewState = z.infer<typeof webRemoteControlMobileViewStateSchema>;
 
+/** 瞬时查看报告不接受手机自报的 remoteSessionId；Main 从当前 bridge 补足路由。 */
+export const webRemoteControlMobileTaskViewSchema = z
+  .object({
+    workspacePath: nonEmptyStringSchema,
+    workspaceIdentity: nonEmptyStringSchema.optional(),
+    taskId: nonEmptyStringSchema,
+  })
+  .strict();
+export type WebRemoteControlMobileTaskView = z.infer<typeof webRemoteControlMobileTaskViewSchema>;
+const mobileTaskViewUpdateSchema = z
+  .object({
+    zcode_type: z.literal("mobile-task-view-update"),
+    epoch: nonEmptyStringSchema,
+    seq: z.number().int().nonnegative(),
+    bridgeSessionId: bridgeSessionIdSchema,
+    bridgeGeneration: z.number().int().nonnegative().optional(),
+    view: webRemoteControlMobileTaskViewSchema.nullable(),
+  })
+  .strict();
+const mobileTaskViewRequestSchema = z
+  .object({
+    zcode_type: z.literal("mobile-task-view-request"),
+    epoch: nonEmptyStringSchema,
+  })
+  .strict();
+
+/** 以下选项只在 Renderer 导航中使用，不扩大手机平台/RPC 白名单。 */
+export type WebRemoteControlMobileNavigationIntent = "chat";
+export interface WebRemoteControlWorkspaceSwitchOptions {
+  openFileManager?: boolean;
+  taskId?: string;
+  taskHostId?: string;
+  fileTreeTaskId?: string;
+  mobileNavigationIntent?: WebRemoteControlMobileNavigationIntent;
+  markTaskReadExpectedUnreadAt?: number;
+}
+export type WebRemoteControlWorkspaceTarget = WebRemoteControlWorkspaceRef;
+export interface WebRemoteControlTaskTarget {
+  taskId: string;
+  hostId?: string;
+  title: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  workspaceLabel: string;
+  workspaceKind: "local" | "remote";
+  createdAt: number;
+  updatedAt: number;
+  provider?: import("../providers.js").ZCodeProvider;
+  unreadAt?: number;
+}
+export function resolveWebRemoteControlWorkspaceKey(target: {
+  workspacePath: string;
+  workspaceIdentity?: string;
+}): string {
+  return target.workspaceIdentity?.trim() || target.workspacePath;
+}
+
 export const webRemoteControlMobileDeviceInfoSchema = z
   .object({
     userAgent: z.string().optional(),
@@ -124,6 +182,7 @@ export const webRemoteControlBootstrapResultSchema = z
     tasks: z.array(webRemoteControlTaskRefSchema),
     initialViewState: webRemoteControlMobileViewStateSchema.optional(),
     mobileViewState: webRemoteControlMobileViewStateSchema.optional(),
+    mobileTaskViewEpoch: nonEmptyStringSchema.optional(),
   })
   .strict();
 
@@ -310,6 +369,8 @@ export const webRemoteControlAppPayloadSchema = z.discriminatedUnion("zcode_type
   platformRequestSchema,
   platformResponseSchema,
   mobileViewStateUpdateSchema,
+  mobileTaskViewUpdateSchema,
+  mobileTaskViewRequestSchema,
   workspaceBridgeOpenSchema,
   workspaceBridgeReadySchema,
   workspaceBridgeErrorSchema,

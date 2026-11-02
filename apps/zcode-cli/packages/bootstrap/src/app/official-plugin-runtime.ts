@@ -52,7 +52,7 @@ interface OfficialRuntimeManifestInput {
 export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifestInput): void {
   const manifestPath = join(input.rootPath, ".zcodium-plugin", "plugin.json");
   const currentContents = readFileSync(manifestPath, "utf8");
-  // 缓存入口可能已被旧版本改坏；两条 seed 路径都传原 manifest，不能用缓存推测 Office 入口。
+  // 缓存里的入口可能已被旧客户端覆盖，必须从内置原始 manifest 重新生成。
   const manifest = JSON.parse(input.sourceManifestContents ?? currentContents) as Record<
     string,
     unknown
@@ -72,11 +72,27 @@ export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifes
     // HTTP/SSE 复用原 transport；无条件 stdio 重写会破坏远端配置且凭空生成入口。
     if (mcpServer.type === "http" || mcpServer.type === "sse" || typeof mcpServer.url === "string")
       continue;
+    // HTTP/SSE 插件没有本地入口；按 stdio 校验会让 image-search 阻断整个会话初始化。
+    if (mcpServer.type !== undefined && mcpServer.type !== "stdio") continue;
     const mcpServerEnv = isRecord(mcpServer.env) ? mcpServer.env : {};
     const args = runtimeServerArgs(mcpServer.args, input.rootPath);
+    const serverArgs =
+      input.sourceManifestContents === undefined
+        ? [join(input.rootPath, ...MCP_SERVER_RELATIVE_PATH)]
+        : mcpServer.args;
+    if (
+      !Array.isArray(serverArgs) ||
+      !serverArgs.every((arg): arg is string => typeof arg === "string") ||
+      serverArgs.length === 0
+    ) {
+      throw new Error("Official plugin manifest has invalid MCP server args.");
+    }
     mcpServer.command = process.execPath;
-    mcpServer.type = "stdio";
-    mcpServer.args = [...hostPrefixArgs, ...args];
+    // 文档插件使用 dist/server.mjs；统一覆盖成 dist/mcp/server.js 会导致启动失败。
+    mcpServer.args = [
+      ...hostPrefixArgs,
+      ...serverArgs.map((arg) => arg.replaceAll("${ZCODE_PLUGIN_ROOT}", input.rootPath)),
+    ];
     mcpServer.env = {
       ...mcpServerEnv,
       // 桌面打包态的 process.execPath 是 ZCode Helper。

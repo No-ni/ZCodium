@@ -90,7 +90,8 @@ export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFa
       await deps.prepareUserExecutionBoundary({ traceContext: request.traceContext });
       const workflowKind = request.workflowKind ?? builtInExpertWorkflowDefinition.kind;
       const childSessionId = createSessionId(`workflow_${request.activityId}`);
-      const childTraceContext = createChildTraceContext(request.traceContext ?? deps.traceContext, {
+      const parentTraceContext = request.traceContext ?? deps.traceContext;
+      const childTraceContext = createChildTraceContext(parentTraceContext, {
         attributes: {
           parentSessionId: deps.sessionId,
           workflowActivityId: request.activityId,
@@ -99,6 +100,7 @@ export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFa
           workflowRunId: request.runId,
         },
         sessionId: childSessionId,
+        rootSessionId: parentTraceContext.rootSessionId ?? deps.sessionId,
       });
       const parentSelection = deps.runtime.getSessionModelSelection();
       await request.onChildSessionStarted?.({
@@ -235,7 +237,7 @@ export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFa
       : `/workflow ${definition.kind} ${task}`;
 
   const switchWorkflowToYolo = (): void => {
-    if (deps.runtime.getMode() !== "yolo") {
+    if (deps.runtime.getMode() !== "yolo" && deps.runtime.getMode() !== "guarded") {
       deps.runtime.updateConfig({ mode: "yolo" });
     }
   };
@@ -292,8 +294,11 @@ function createWorkflowChildRuntime(
       // 子会话在实际构造时读取当前父 mode；装配快照不再拥有 ToolSearch 偏好，也不复制发现事实。
       toolSearch: { mode: deps.runtime.getToolSearchMode() },
       agentName: options.workflowKind === "expert" ? "zcode-expert" : "zcode-workflow",
+      // workflow child 不在 Guarded 合同内；只隔离父任务模式，不继承审批。
       mode: "yolo",
       modelSelection: deps.runtime.getSessionModelSelection(),
+      // 父 Shell 在首条输入才解析，不能继承 app 创建时尚未初始化的静态配置。
+      bashShellSelection: deps.runtime.getSessionShellSelection(),
       parentSessionId: deps.sessionId,
       taskType: "workflow_child",
       workingDirectory: deps.workingDirectory,

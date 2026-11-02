@@ -42,7 +42,8 @@ function isSameRepositorySource(previous: GitRepositorySource, next: GitReposito
     previous.workspaceKey === next.workspaceKey
   );
 }
-function shouldRefreshLiveGitData(
+
+export function shouldRefreshLiveGitData(
   previous: GitLiveDataRefreshInput | null,
   next: GitLiveDataRefreshInput,
 ): boolean {

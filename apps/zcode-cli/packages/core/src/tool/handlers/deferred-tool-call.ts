@@ -12,8 +12,8 @@ export const deferredToolCallEntry: ToolEntry = {
   metadata: {
     name: DEFERRED_TOOL_CALL_NAME,
     description:
-      "Call one deferred tool with its exact name and input object after loading its complete definition with ToolSearch. Call resident tools directly. Normal target hooks and permissions apply.",
-    // 调度与权限前解包，真正的只读/并发/副作用属性由目标声明决定。
+      "Immediately call one deferred tool and return its result. Use LocalToolSearch to load its complete definition, then pass its exact name and input object. Only deferred tools can be called here; call resident tools directly using their normal tool calls.",
+    // 调度前解包并使用目标属性，控制入口本身不声明只读或并发安全。
     readOnly: false,
     concurrentSafe: false,
     destructive: false,

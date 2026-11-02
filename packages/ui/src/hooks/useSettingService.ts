@@ -8,7 +8,7 @@ import {
   type AppSettings,
   type IPlatformService,
 } from "@zcode/shared";
-import type { ISettingService } from "@zcode/services";
+import type { IServiceAccessor, ISettingService } from "@zcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
 
@@ -18,180 +18,197 @@ type SettingsSnapshot = {
   error: unknown | null;
 };
 
-interface SettingsStore {
-  snapshot: SettingsSnapshot;
-  inflightRefresh: Promise<void> | null;
-  listeners: Set<(snapshot: SettingsSnapshot) => void>;
-  platformSubscriptions: Map<IPlatformService, PlatformSettingsSubscription>;
-}
-
-interface PlatformSettingsSubscription {
-  referenceCount: number;
-  dispose: () => void;
-}
-
-// SettingsPage 外层与模型配置页内层可能分别绑定 Local/Remote Service；
-// 共享一份 snapshot/inflight 会让一次 Environment 的刷新结果覆盖另一份事实源。
-// 按 Service 实例隔离 store，保持同一 Environment 内的组件共享，同时阻断跨 Environment 串写。
-const stores = new WeakMap<object, SettingsStore>();
-const unavailableSettingsStore: SettingsStore = {
-  snapshot: {
-    settings: null,
-    loading: true,
-    error: null,
-  },
-  inflightRefresh: null,
-  listeners: new Set(),
-  platformSubscriptions: new Map(),
+const INITIAL_SETTINGS_SNAPSHOT: SettingsSnapshot = {
+  settings: null,
+  loading: true,
+  error: null,
 };
+const snapshots = new Map<string, SettingsSnapshot>();
+const inflightRefreshes = new Map<string, Promise<void>>();
+const listenersByKey = new Map<string, Set<(snapshot: SettingsSnapshot) => void>>();
+const defaultCacheKeyByServices = new WeakMap<object, string>();
+let nextDefaultCacheKey = 0;
 
-function getSettingsStore(settingService: ISettingService | undefined): SettingsStore {
-  if (
-    !settingService ||
-    (typeof settingService !== "object" && typeof settingService !== "function")
-  ) {
-    return unavailableSettingsStore;
-  }
-  const existing = stores.get(settingService);
-  if (existing) {
-    return existing;
-  }
-  const created: SettingsStore = {
-    snapshot: {
-      settings: null,
-      loading: true,
-      error: null,
-    },
-    inflightRefresh: null,
-    listeners: new Set(),
-    platformSubscriptions: new Map(),
-  };
-  stores.set(settingService, created);
+function resolveSettingsCacheKey(
+  explicitCacheKey: string | undefined,
+  settingService: object | undefined,
+): string {
+  const explicit = explicitCacheKey?.trim();
+  if (explicit) return explicit;
+
+  // 测试/SSR 的最小 ServiceAccessor 可能暂时没有 settingService；不要把 undefined
+  // 作为 WeakMap key 抛出同步异常，真实 Host 服务就绪后仍会使用按服务隔离的缓存键。
+  if (!settingService) return "settings-services:missing";
+
+  const existing = defaultCacheKeyByServices.get(settingService);
+  if (existing) return existing;
+
+  // Bug 原因：默认 cacheKey 曾固定为 "local"。远端 workspace 的 SessionPane 与
+  // Controller SettingsPage 同时挂载时会互相覆盖同一快照，使 Source 选择器消失，
+  // 也可能把本机运行偏好投影到远端。缓存必须跟服务 accessor 的权威边界一致。
+  const created = `settings-services:${++nextDefaultCacheKey}`;
+  defaultCacheKeyByServices.set(settingService, created);
   return created;
 }
 
-function emitSettingsSnapshot(store: SettingsStore) {
-  for (const listener of store.listeners) {
-    listener(store.snapshot);
+function getSettingsSnapshot(cacheKey: string): SettingsSnapshot {
+  return snapshots.get(cacheKey) ?? INITIAL_SETTINGS_SNAPSHOT;
+}
+
+function setSettingsSnapshot(cacheKey: string, snapshot: SettingsSnapshot): void {
+  snapshots.set(cacheKey, snapshot);
+  for (const listener of listenersByKey.get(cacheKey) ?? []) {
+    listener(snapshot);
   }
 }
 
-async function refreshSettingsStore(settingService: ISettingService | undefined) {
-  const store = getSettingsStore(settingService);
-  if (!settingService) {
-    return;
-  }
-  if (store.inflightRefresh) {
-    return store.inflightRefresh;
+async function refreshSharedSettings(cacheKey: string, getSettings: () => Promise<AppSettings>) {
+  const inflight = inflightRefreshes.get(cacheKey);
+  if (inflight) {
+    return inflight;
   }
 
-  store.snapshot = {
-    ...store.snapshot,
+  setSettingsSnapshot(cacheKey, {
+    ...getSettingsSnapshot(cacheKey),
     loading: true,
     error: null,
-  };
-  emitSettingsSnapshot(store);
+  });
 
-  store.inflightRefresh = (async () => {
+  const refreshPromise = (async () => {
     try {
-      const result = await settingService.get();
-      store.snapshot = {
+      const result = await getSettings();
+      setSettingsSnapshot(cacheKey, {
         settings: result,
         loading: false,
         error: null,
-      };
-      emitSettingsSnapshot(store);
+      });
     } catch (error) {
-      store.snapshot = {
-        // 设置读取失败时保留旧快照，避免一次刷新错误把已可用的设置页降级为空状态。
-        settings: store.snapshot.settings,
+      setSettingsSnapshot(cacheKey, {
+        // 修复原因：设置读取失败时保留旧快照，避免一次刷新错误把已可用的设置页降级为空状态。
+        settings: getSettingsSnapshot(cacheKey).settings,
         loading: false,
         error,
-      };
-      emitSettingsSnapshot(store);
+      });
     }
   })().finally(() => {
-    store.inflightRefresh = null;
+    inflightRefreshes.delete(cacheKey);
   });
+  inflightRefreshes.set(cacheKey, refreshPromise);
 
-  return store.inflightRefresh;
+  return refreshPromise;
 }
 
-// 根因：每个 useSettings 消费者都独立注册同一平台的 IPC listener，重复事件虽共用单飞读取，仍会重复分发。
-// 修复依据：由既有 SettingsStore 按 setting service 与 platform 实例引用计数，共享并在末位卸载时释放订阅。
+export async function updateSettingsAndRefreshSnapshot(params: {
+  settingService: Pick<ISettingService, "get" | "update">;
+  patch: Partial<AppSettings>;
+}): Promise<void> {
+  const cacheKey = resolveSettingsCacheKey(undefined, params.settingService);
+  await params.settingService.update(params.patch);
+  await refreshSharedSettings(cacheKey, () => params.settingService.get());
+}
+
+interface PlatformSettingsSubscription {
+  cacheKeys: Map<string, number>;
+  dispose: () => void;
+}
+const platformSettingsSubscriptions = new WeakMap<
+  ISettingService,
+  Map<IPlatformService, PlatformSettingsSubscription>
+>();
+
+// 合并带回不存在的 SettingsStore；订阅应刷新已有缓存，并按 service/platform 共享与释放。
 function acquirePlatformSettingsSubscription(
   settingService: ISettingService | undefined,
   platform: IPlatformService,
+  cacheKey: string,
 ): () => void {
-  const store = getSettingsStore(settingService);
-  let subscription = store.platformSubscriptions.get(platform);
+  if (!settingService) return () => undefined;
+  let subscriptions = platformSettingsSubscriptions.get(settingService);
+  if (!subscriptions) {
+    subscriptions = new Map();
+    platformSettingsSubscriptions.set(settingService, subscriptions);
+  }
+  let subscription = subscriptions.get(platform);
   if (!subscription) {
-    subscription = {
-      referenceCount: 1,
-      dispose: () => undefined,
-    };
-    // 先发布占位记录，注册时即使同步触发回调并重入，也会复用这条订阅。
-    store.platformSubscriptions.set(platform, subscription);
+    subscription = { cacheKeys: new Map([[cacheKey, 1]]), dispose: () => undefined };
+    subscriptions.set(platform, subscription);
+    const owned = subscription;
     try {
-      subscription.dispose =
+      owned.dispose =
         platform.onSettingsChanged?.(() => {
-          void refreshSettingsStore(settingService);
+          for (const key of owned.cacheKeys.keys())
+            void refreshSharedSettings(key, () => settingService.get());
         }) ?? (() => undefined);
     } catch (error) {
-      if (store.platformSubscriptions.get(platform) === subscription) {
-        store.platformSubscriptions.delete(platform);
-      }
+      subscriptions.delete(platform);
       throw error;
     }
   } else {
-    subscription.referenceCount += 1;
+    subscription.cacheKeys.set(cacheKey, (subscription.cacheKeys.get(cacheKey) ?? 0) + 1);
   }
-
-  const ownedSubscription = subscription;
+  const owned = subscription;
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    if (store.platformSubscriptions.get(platform) !== ownedSubscription) return;
-    ownedSubscription.referenceCount -= 1;
-    if (ownedSubscription.referenceCount > 0) return;
-    store.platformSubscriptions.delete(platform);
-    ownedSubscription.dispose();
+    const remaining = (owned.cacheKeys.get(cacheKey) ?? 1) - 1;
+    if (remaining) owned.cacheKeys.set(cacheKey, remaining);
+    else owned.cacheKeys.delete(cacheKey);
+    if (owned.cacheKeys.size) return;
+    if (subscriptions.get(platform) === owned) subscriptions.delete(platform);
+    owned.dispose();
   };
 }
 
 /** 获取和更新应用设置 */
-export function useSettings() {
-  const { botsService, broadcastService, settingService, zcodeAgentService } = useServices();
+export function useSettings(options: { cacheKey?: string; services?: IServiceAccessor } = {}) {
+  const contextualServices = useServices();
+  // Bug 原因：SettingsPage 可在远端 workspace 的 ServiceProvider 下渲染；若继续隐式取当前
+  // context，“记住 Source 选择”会写入远端 setting，Controller 本地快照随后把选择重置为本机。
+  const settingsServices = options.services ?? contextualServices;
+  const { botsService, broadcastService, settingService, zcodeAgentService } = settingsServices;
   const platform = usePlatform();
-  const settingsStore = getSettingsStore(settingService);
-  const [snapshot, setSnapshot] = useState<SettingsSnapshot>(settingsStore.snapshot);
+  const cacheKey = resolveSettingsCacheKey(options.cacheKey, settingService);
+  const [snapshot, setSnapshot] = useState<SettingsSnapshot>(() => getSettingsSnapshot(cacheKey));
 
   const refresh = useCallback(async () => {
-    await refreshSettingsStore(settingService);
-  }, [settingService]);
+    await refreshSharedSettings(cacheKey, () => settingService.get());
+  }, [cacheKey, settingService]);
 
   useEffect(() => {
     const listener = (nextSnapshot: SettingsSnapshot) => {
       setSnapshot(nextSnapshot);
     };
 
-    settingsStore.listeners.add(listener);
-    setSnapshot(settingsStore.snapshot);
+    const listeners = listenersByKey.get(cacheKey) ?? new Set();
+    listeners.add(listener);
+    listenersByKey.set(cacheKey, listeners);
+    setSnapshot(getSettingsSnapshot(cacheKey));
     void refresh();
 
     return () => {
-      settingsStore.listeners.delete(listener);
+      listeners.delete(listener);
+      if (listeners.size === 0) listenersByKey.delete(cacheKey);
     };
-  }, [refresh, settingsStore]);
+  }, [cacheKey, refresh]);
 
   useEffect(() => {
-    return acquirePlatformSettingsSubscription(settingService, platform);
-  }, [platform, settingService]);
+    return acquirePlatformSettingsSubscription(settingService, platform, cacheKey);
+  }, [platform, settingService, cacheKey]);
 
   const update = useCallback(
-    async (patch: Partial<AppSettings>) => {
-      await measureOperation("settings", () => settingService.update(patch));
+    async (
+      patch: Partial<AppSettings>,
+      expectedAccountSettings?: Parameters<ISettingService["update"]>[1],
+    ) => {
+      try {
+        if (expectedAccountSettings) await settingService.update(patch, expectedAccountSettings);
+        else await settingService.update(patch);
+      } catch (error) {
+        // 原因：CAS 失败后页面仍持有旧快照；重读事实后报告失败，下一次用户重试才有新预期。
+        if (expectedAccountSettings) await refresh();
+        throw error;
+      }
       platform.syncAppSettings?.(patch);
       await refresh();
       if (
@@ -221,7 +238,7 @@ export function useSettings() {
         }
       }
     },
-    [botsService, broadcastService, settingService, zcodeAgentService, platform, refresh],
+    [botsService, broadcastService, cacheKey, settingService, zcodeAgentService, platform, refresh],
   );
 
   return {

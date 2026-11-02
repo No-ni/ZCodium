@@ -9,10 +9,18 @@ import { stageAgentBundle } from "../packages/desktop/scripts/stage-agent-bundle
 import { buildOfficialPluginRuntimes } from "../packages/desktop/scripts/prepare-agent-node-bundle.mjs";
 import { runCommand } from "./spawn-command.mjs";
 import { resolveBuiltinProviderBuildEnvironment } from "./builtin-provider-config.mjs";
+import { stageDevCuaPluginRuntime } from "./stage-dev-cua-plugin-runtime.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const useTurboBuild = process.env.ZCODE_DESKTOP_AGENT_BUILD_MODE === "turbo";
 const useBootstrapWithRemoteBuild = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
+// 官方开源电脑操作：dev/prebuild 的 CUA 插件 runtime 必须与 Agent bundle 同源暂存。
+// ZCODE_CUA_DEV_MODE 只作为 staging helper 的输入，不进入最终 product/runtime 环境；
+// 开源占位 producer 不提供原生能力时，helper 自己返回空集，不会伪造出可用 Helper。
+const cuaPluginRuntimeStagingEnv = {
+  ...process.env,
+  ZCODE_CUA_DEV_MODE: "1",
+};
 const officePluginAssets = BUILTIN_PLUGIN_ASSETS.filter(
   ({ runtimeBuildScript }) => runtimeBuildScript === BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
 );
@@ -42,6 +50,14 @@ const cliWorkspaceBuilds = [
 // 连接 MCP 才报错，造成“Helper ready 但 CUA 工具不存在”的半启动状态。所有普通 Dev 必需的
 // 独立 MCP runtime 必须集中登记，并在构建后验证真实入口文件，再允许 Agent bundle 启动。
 export const requiredDevPluginRuntimeBuilds = [
+  {
+    packageName: "@zcode/android-emulator-plugin",
+    artifactPath: "android-emulator-plugin/dist/mcp/server.js",
+  },
+  {
+    packageName: "@zcode/ios-simulator-plugin",
+    artifactPath: "ios-simulator-plugin/dist/mcp/server.js",
+  },
   {
     // node_repl 宿主：Browser Use 与 Computer Use 共用，产物归属独立包。
     packageName: "@zcode/node-repl-host",
@@ -146,6 +162,7 @@ async function main() {
     await runBootstrapWithRemoteBuild(pnpmRunEnv);
     await buildOfficeDevPluginRuntimes();
     stageDevAgentBundle();
+    stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
     return;
   }
 
@@ -164,6 +181,7 @@ async function main() {
       stdio: "inherit",
     });
     stageDevAgentBundle();
+    stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
     return;
   }
 
@@ -183,6 +201,7 @@ async function main() {
   );
   await verifyRequiredDevPluginRuntimeArtifacts();
   stageDevAgentBundle();
+  stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
 }
 
 const entryHref = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;

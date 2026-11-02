@@ -37,6 +37,7 @@ export const SelectionSideChatPane = memo(function SelectionSideChatPane({
       <SessionPane
         paneId={tab.id}
         sessionId={tab.childSessionId}
+        rootSessionId={tab.parentSessionId}
         selectionSideChat
         focused={focused}
         workspacePath={tab.workspacePath}

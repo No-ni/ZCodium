@@ -1,4 +1,5 @@
 packages:
+  - apps/dev-docs
   - packages/*
   - apps/zcode-cli
   - apps/zcode-cli/packages/*
@@ -7,7 +8,6 @@ supportedArchitectures:
   os:
     - current
     - darwin
-    - linux
     - win32
   cpu:
     - current

@@ -9,6 +9,15 @@
 //   - 条目预算让整个状态键**有界**——单条 run 的界乘以 maxRuns 离快照上限太近；
 //   - workflowRunStepCounts 是唯一允许的步数读法——表内 + 表外，读面三处（run 卡、时间线摘要、
 //     TUI 镜像）共用同一计算，保证同一条 run 的显示步数一致。
+// 住在归约主文件之外，与 workflow-runs-concurrency.ts / -phases.ts / -started.ts 同一个理由
+// （主文件的 max-lines 门），也同一条纪律：纯函数、无时钟、无 I/O。
+//
+// 这三件事是同一件事的三面。触界的语义是**拒新**（已有条目照常更新），所以一个宽到撞界的 run
+// 里总有些实例永远不在表上：
+//   - 计数器让它们**可数**——`truncated` 只说得出「有东西没进来」，说不出多少；
+//   - 条目预算让整个状态键**有界**——单条 run 的界乘以 maxRuns 离快照上限太近；
+//   - workflowRunStepCounts 是唯一允许的步数读法——表内 + 表外，读面三处（run 卡、时间线摘要、
+//     TUI 镜像）曾经各数各的，于是同一条 run 在三个地方显示三个步数。
 
 import {
   WORKFLOW_RUNS_LIMITS,

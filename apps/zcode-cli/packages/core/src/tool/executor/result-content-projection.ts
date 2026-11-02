@@ -4,7 +4,7 @@ import {
   type ModelMessageContentBlock,
 } from "@zcode/contracts";
 import { findOfficialCuaFrameContentPair } from "@zcode/zcode-cua/frame-contract";
-import type { ToolResultSerialization } from "../types.js";
+import type { ToolEntry, ToolResultSerialization } from "../types.js";
 
 interface HookStringProjection {
   content: string;
@@ -27,7 +27,8 @@ export function projectToolReferenceContent(
   )
     return undefined;
 
-  // 引用是发现事实与 Native wire，不是展示文本。通用预算只裁文本，不截引用、不改变块顺序。
+  // 引用既是 schema 加载协议也是发现状态，不能按展示文本截断或转成 artifact。
+  // 仅裁剪文本，原始引用及块顺序必须保留；展示内容和计量统一从最终块派生。
   const truncated = Buffer.byteLength(joinTextBlocks(modelContent), "utf8") > maxTextBytes;
   let projected: ModelMessageContentBlock[] = modelContent;
   if (truncated) {
@@ -37,11 +38,8 @@ export function projectToolReferenceContent(
     const ordered = direction === "tail" ? [...modelContent].reverse() : modelContent;
     projected = ordered.flatMap((block): ModelMessageContentBlock[] => {
       if (block.type !== "text") return [block];
-      const text = fitStringToBytes(
-        block.text,
-        Math.max(0, remainingBytes - (hasText ? 2 : 0)),
-        direction,
-      );
+      const textBudget = Math.max(0, remainingBytes - (hasText ? 2 : 0));
+      const text = fitStringToBytes(block.text, textBudget, direction);
       if (text.length > 0) {
         remainingBytes -= Buffer.byteLength(text, "utf8") + (hasText ? 2 : 0);
         hasText = true;
@@ -64,7 +62,7 @@ export function projectToolReferenceContent(
 const OFFICIAL_CUA_TEXT_TRUNCATION_MARKER =
   "[Official CUA text truncated by resultBudget. Re-observe with detail=compact or a narrower window before relying on omitted state.]";
 
-const OFFICIAL_CUA_FRAME_CONTRACT_ERROR_CODE = "official_cua_frame_pair_not_leading";
+export const OFFICIAL_CUA_FRAME_CONTRACT_ERROR_CODE = "official_cua_frame_pair_not_leading";
 
 export class OfficialCuaFrameContractError extends Error {
   readonly code = OFFICIAL_CUA_FRAME_CONTRACT_ERROR_CODE;
@@ -252,7 +250,7 @@ function joinTextBlocks(content: ModelMessageContentBlock[]): string {
     .join("\n\n");
 }
 
-function stringifyModelContentForSerialization(content: ModelMessageContent): string {
+export function stringifyModelContentForSerialization(content: ModelMessageContent): string {
   return typeof content === "string" ? content : modelMessageContentToText(content);
 }
 
@@ -287,6 +285,27 @@ function budgetedTextFromStructuredContent(content: ModelMessageContentBlock[]):
     })
     .filter((text) => text.length > 0)
     .join("\n\n");
+}
+
+export function isEmptyModelContent(content: ModelMessageContent): boolean {
+  if (typeof content === "string") return content.trim() === "";
+  if (content.length === 0) return true;
+  return content.every((block) => {
+    if (block.type !== "text") return false;
+    return typeof block.text !== "string" || block.text.trim() === "";
+  });
+}
+
+export function stringifyOutputForModel(output: unknown, entry: ToolEntry): ModelMessageContent {
+  if (entry.formatModelContent) return entry.formatModelContent(output);
+  if (typeof output === "string") return output;
+  if (output === undefined) return "";
+
+  try {
+    return JSON.stringify(output) ?? "";
+  } catch {
+    return String(output);
+  }
 }
 
 const UTF8_MAX_BYTES_PER_CODE_UNIT = 3;

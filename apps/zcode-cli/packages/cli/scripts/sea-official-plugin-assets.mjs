@@ -54,7 +54,7 @@ export const officialSeaPlugins = [
       "skills/visualize/assets/standalone-shell.js",
     ],
     rootPath: join("packages", "visualize-plugin"),
-    version: "0.1.0",
+    version: "0.1.1",
   },
   {
     // node_repl 宿主：Browser Use 与 Computer Use 共用的运行时产物，自己不是面向用户的插件
@@ -65,7 +65,8 @@ export const officialSeaPlugins = [
     requiresRuntime: true,
     requiredRuntimePaths: ["dist/mcp/server.js"],
     rootPath: join("packages", "node-repl-host"),
-    version: "0.6.1",
+    // SEA 按名称与版本匹配宿主，版本须与 package 和插件 manifest 同步。
+    version: "0.7.0",
   },
   {
     marketplace: "zcode-plugins-official",
@@ -80,11 +81,12 @@ export const officialSeaPlugins = [
     // 导致发布产物不 seed browser-use，进而无法装配宿主 node_repl MCP。
     version: "0.5.1",
   },
+  // SEA 按名称与版本匹配 seed；同步当前 package/definition，避免继续匹配旧缓存。
   ...[
-    { name: "documents", directory: "documents-plugin", version: "0.1.9" },
-    { name: "spreadsheets", directory: "spreadsheets-plugin", version: "0.1.9" },
-    { name: "presentations", directory: "presentations-plugin", version: "0.1.9" },
-    { name: "pdf", directory: "pdf-plugin", version: "0.2.1" },
+    { name: "documents", directory: "documents-plugin", version: "0.2.1" },
+    { name: "spreadsheets", directory: "spreadsheets-plugin", version: "0.2.1" },
+    { name: "presentations", directory: "presentations-plugin", version: "0.2.1" },
+    { name: "pdf", directory: "pdf-plugin", version: "0.2.2" },
   ].map(({ name, directory, version }) => {
     const plugin = BUILTIN_PLUGIN_ASSETS.find((asset) => asset.directory === directory);
     if (!plugin || plugin.runtimeBuildScript !== BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT) {

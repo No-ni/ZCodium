@@ -1,3 +1,4 @@
+import { isRemoteConversationWorkspace } from "@/conversation-workspace-target/purpose.js";
 /* eslint-disable max-lines -- 聚合命令、任务、文件三类搜索结果，后续可按 result section 拆分。 */
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useCommandCenterFileSearch } from "@/hooks/useCommandCenterFileSearch.js";
@@ -212,7 +213,7 @@ function buildTaskResultRows(params: {
   return rows;
 }
 
-function CommandCenterScopeButton({
+export function CommandCenterScopeButton({
   active,
   label,
   onClick,
@@ -267,7 +268,7 @@ function scopeToPrefix(scope: CommandCenterSearchScope): string {
  * 独立组件便于复用与单测；按 DESIGN.md 语义角色，列表项里的相对时间属于
  * secondary copy，使用 text-ui-sm（不用 text-ui-xs，避免偏小）。
  */
-function CommandCenterConversationTimestamp({
+export function CommandCenterConversationTimestamp({
   className,
   children,
 }: {
@@ -295,7 +296,7 @@ function CommandCenterConversationTimestamp({
  * - 历史 chip 搜索词：text-ui-base（可读内容，与列表主体一致）
  * - chip 内 scope 前缀：text-ui-xs（badge 标记，比主体小一级形成层级）
  */
-function CommandCenterSearchHistory({
+export function CommandCenterSearchHistory({
   entries,
   expanded,
   onToggleExpanded,
@@ -423,7 +424,13 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   // 性能修复：Command Center 关闭时不需要跟随 chat streaming 重算命令、任务和 recent changes。
   // 保留 hooks 顺序，但把关闭态输入降为空，避免隐藏弹窗在每个 token 批次重建结果区。
   const effectiveCommands = open ? commands : EMPTY_QUICK_PICK_COMMANDS;
-  const effectiveWorkspaceTabs = open ? workspaceTabs : EMPTY_COMMAND_CENTER_WORKSPACE_TABS;
+  const effectiveWorkspaceTabs = useMemo(
+    () =>
+      open
+        ? workspaceTabs.filter((tab) => !isRemoteConversationWorkspace(tab))
+        : EMPTY_COMMAND_CENTER_WORKSPACE_TABS,
+    [open, workspaceTabs],
+  );
   const effectiveActiveTaskChangeSummary = open ? activeTaskChangeSummary : null;
   const resolvedQuery = useMemo(() => resolveQueryScope(rawQuery), [rawQuery]);
   const activeScope = resolvedQuery.explicitScope ? resolvedQuery.scope : manualScope;
@@ -432,10 +439,6 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   const searchConversations =
     open && hasSearchQuery && (activeScope === "all" || activeScope === "conversations");
   const searchFiles = open && hasSearchQuery && (activeScope === "all" || activeScope === "files");
-  const searchWorkspaceTabs = useMemo(
-    () => (searchConversations ? effectiveWorkspaceTabs : []),
-    [effectiveWorkspaceTabs, searchConversations],
-  );
   const currentWorkspaceTabs = useMemo(
     () =>
       effectiveWorkspaceTabs.filter(
@@ -449,9 +452,10 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   );
   // 关闭态空 scope 仍会接收 Controller 通知；使用原 enabled 门禁解除隐藏列表订阅。
   const taskList = useGlobalTaskList({
-    enabled: open,
-    kind: "active",
-    workspaceTabs: searchWorkspaceTabs,
+    kind: "all",
+    scope: "host",
+    enabled: searchConversations,
+    workspaceTabs: EMPTY_COMMAND_CENTER_WORKSPACE_TABS,
     sortBy: "updated",
     searchQuery,
     expanded: false,
@@ -749,10 +753,11 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
         ) : null}
         {rows.map((task) => {
           const title = getTaskTitle(task, intl.formatMessage({ id: "taskList.untitled" }));
+          // Bugfix：cmdk 按 value 判断选中；标题可重复，必须用工作区身份和任务 ID 隔离重名行。
           return (
             <CommandItem
               key={`${task.workspaceIdentity?.trim() || task.workspacePath}:${task.taskId}`}
-              value={`${title} ${task.workspacePath}`}
+              value={`recent-task:${task.workspaceIdentity?.trim() || task.workspacePath}:${task.taskId}`}
               className={quickPickItemClassName}
               onSelect={() => selectRecentTask(task)}
             >
@@ -836,7 +841,8 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
           return (
             <CommandItem
               key={row.key}
-              value={`${title} ${workspaceLabel} ${searchSnippet ?? ""}`}
+              // 搜索结果沿用含工作区身份、任务 ID 和片段序号的行 key，避免同文案一起选中。
+              value={`task-result:${row.key}`}
               className={quickPickItemClassName}
               onSelect={() => selectTask(row)}
             >

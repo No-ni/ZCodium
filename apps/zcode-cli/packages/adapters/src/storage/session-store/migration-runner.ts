@@ -4,7 +4,7 @@ import {
   databaseStartupErrorDetails,
   type DatabaseMigrationFacts,
 } from "@zcode/shared";
-import { inspectMigrations, migrate, retrySqliteBusy, withShortBusyTimeout } from "@zcode/shared/sqlite-migrations";
+import { inspectMigrations, migrate, retrySqliteBusy, withShortBusyTimeout, type MigrationResult } from "@zcode/shared/sqlite-migrations";
 import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { SqliteSessionMigrationError } from "./errors.js";
@@ -61,7 +61,7 @@ export async function runSqliteSessionMigrationsAsync(
   db: DatabaseSync,
   dbPath: string,
   options: AsyncSqliteMigrationOptions = {},
-): Promise<void> {
+): Promise<MigrationResult> {
   const startedAt = Date.now();
   const deadline = startedAt + (options.lockWaitTimeoutMs ?? DEFAULT_SQLITE_MIGRATION_WAIT_MS);
   let migrationFacts: DatabaseMigrationFacts | undefined;
@@ -75,14 +75,14 @@ export async function runSqliteSessionMigrationsAsync(
   });
   try {
     await report("checking");
-    await withShortBusyTimeout(db, async () => {
+    const result = await withShortBusyTimeout(db, async () => {
       db.exec("PRAGMA foreign_keys=ON");
       await retrySqliteBusy(() => {
         const inspection = inspectMigrations(db, SESSION_DATABASE_MIGRATIONS);
         migrationFacts = { kind: inspection.kind, executedCount: 0, committedCount: 0 };
       }, waitOptions());
       await report("checking");
-      await migrate(db, SESSION_DATABASE_MIGRATIONS, {
+      const migration = await migrate(db, SESSION_DATABASE_MIGRATIONS, {
         ...waitOptions(), database: "cli", appliedAtColumn: "time_applied",
         backupDirectories: options.backupDirectories ?? (dbPath === ":memory:" ? [] : [join(dirname(dbPath), "backup")]),
         onLocked: (inspection) => {
@@ -106,9 +106,12 @@ export async function runSqliteSessionMigrationsAsync(
         if (db.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode !== "wal")
           throw new Error("SQLite refused WAL journal mode");
       }, waitOptions());
+      // 合并曾丢弃真实 applied/backup 回包；只有通用 runner 可以报告提交结果。
+      return migration;
     });
     options.signal?.throwIfAborted();
     await report("ready");
+    return result;
   } catch (error) {
     // 通用 runner 已回滚自己的事务；失败通知不能覆盖首因或再次持有迁移事务。
     const normalized = normalizeMigrationError(error, dbPath, databaseStartupErrorDetails(error).migrationId);

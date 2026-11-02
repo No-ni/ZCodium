@@ -2,9 +2,8 @@ import { createOpenInEditorRemoteTarget } from "@zcode/shared";
 import { useMemo } from "react";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WindowTabState, type WorkspaceTabState } from "@/store/tabStore.js";
-import { isSameWorkspaceTab } from "@/store/tabWorkspaceIdentity.js";
 
-interface WorkspaceOpenInEditorScope {
+export interface WorkspaceOpenInEditorScope {
   workspacePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -19,25 +18,28 @@ export function resolveWorkspaceOpenInEditorTarget(
     return { isRemoteWorkspace: false, remoteTarget: undefined };
   }
 
+  // 远端身份由调用方冻结；只有旧 ambient 预览可以按唯一匹配目录推断线路。
+  const useAmbientPath = scope.scopeResolution === "ambient";
+  const isRemoteWorkspace = Boolean(
+    scope.workspaceIdentity?.trim() || scope.workspaceRemoteSessionId?.trim(),
+  );
   const requestedIdentity = scope.workspaceIdentity?.trim() || undefined;
   const requestedRemoteSessionId = scope.workspaceRemoteSessionId?.trim() || undefined;
-  const useAmbientPath =
-    scope.scopeResolution === "ambient" && !requestedIdentity && !requestedRemoteSessionId;
-  const isRemoteWorkspace = Boolean(requestedIdentity || requestedRemoteSessionId);
+  const workspaceKey = requestedIdentity || scope.workspacePath;
   const matches = tabs.filter((tab): tab is WorkspaceTabState => {
+    if (!isWorkspaceTab(tab) || tab.workspacePath !== scope.workspacePath) {
+      return false;
+    }
+
+    const tabWorkspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
+    const tabRemoteSessionId = tab.remoteSessionId?.trim() || undefined;
     return (
-      isWorkspaceTab(tab) &&
-      (useAmbientPath
-        ? tab.workspacePath === scope.workspacePath
-        : isSameWorkspaceTab(tab, scope.workspacePath!, {
-            workspaceIdentity: requestedIdentity,
-            remoteSessionId: requestedRemoteSessionId,
-          })) &&
-      (!requestedRemoteSessionId || tab.remoteSessionId?.trim() === requestedRemoteSessionId)
+      (!requestedIdentity || tabWorkspaceKey === workspaceKey) &&
+      (!requestedRemoteSessionId || tabRemoteSessionId === requestedRemoteSessionId)
     );
   });
-  // 缺席身份明确表示本地来源，不能借同路径远程 tab；显式远程来源缺 tab/target
-  // 仍保持远程判据，让调用方拒绝打开而不是将远程路径交给本机编辑器。
+  // 修复原因：远程文件动作以前只携带 Linux path，renderer 无法判断它属于哪个 SSH/WSL 目标；
+  // identity/session 已提供时精确匹配，旧调用仅在工作区匹配唯一时提取既有脱敏目标。
   const matchedTab = matches.length === 1 ? matches[0] : undefined;
   const isRemoteTarget =
     isRemoteWorkspace ||

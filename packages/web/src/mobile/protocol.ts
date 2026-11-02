@@ -20,6 +20,8 @@ import {
   generateTraceId,
   parseWebRemoteControlRpcAckFrame,
   type WebRemoteControlAppPayload,
+  type WebRemoteControlMobileTaskView,
+  type WebRemoteControlBridgeDescriptor,
   WebRemoteControlRpcAckScheduler,
   WebRemoteControlRpcAssembler,
   WebRemoteControlRpcReplayBuffer,
@@ -152,6 +154,10 @@ export class MobileRemoteControlClient {
   private readonly windowDirectory = new MobileWindowProjectDirectory();
   private onRpcMessage: ((data: unknown) => void) | null = null;
   private disposed = false;
+  private mobileTaskViewEpoch: string | undefined;
+  private mobileTaskViewSeq = 0;
+  private displayedTaskView: WebRemoteControlMobileTaskView | null = null;
+  private readyViewBridge: WebRemoteControlBridgeDescriptor | null = null;
   private reconnectTimer: number | null = null;
   private connectAttempt = 0;
   private terminalFailure: { reason: string; closeCode?: number } | null = null;
@@ -284,6 +290,8 @@ export class MobileRemoteControlClient {
    * 保证旧订阅回调（迟到事件）无法写进新会话。
    */
   private releaseBridge(): void {
+    this.readyViewBridge = null;
+    this.displayedTaskView = null;
     // 切目标与降级都释放旧 open；否则旧 ready 丢失会堵住串行队列直到 30 秒超时。
     for (const [requestId, pending] of this.pending) {
       if (pending.bridgeSessionId !== this.rpcStreamId) continue;
@@ -488,6 +496,34 @@ export class MobileRemoteControlClient {
   }
 
   /** 发送应用信封（无响应期望，如 mobile-view-state-update）。 */
+  /** 只接收已提交的页面显示地址；它是可见性投影，不是可重放的输入队列。 */
+  updateMobileTaskView(view: WebRemoteControlMobileTaskView | null): void {
+    this.displayedTaskView = view;
+    this.publishMobileTaskView();
+  }
+
+  private publishMobileTaskView(): void {
+    const descriptor = this.readyViewBridge;
+    const epoch = this.mobileTaskViewEpoch;
+    if (!epoch || !descriptor || this.state !== "paired") return;
+    const view = document.visibilityState === "visible" ? this.displayedTaskView : null;
+    if (
+      view &&
+      (descriptor.workspacePath !== view.workspacePath ||
+        (descriptor.workspaceIdentity?.trim() || descriptor.workspacePath) !==
+          (view.workspaceIdentity?.trim() || view.workspacePath))
+    )
+      return;
+    this.sendPayload({
+      zcode_type: "mobile-task-view-update",
+      epoch,
+      seq: this.mobileTaskViewSeq++,
+      bridgeSessionId: descriptor.bridgeSessionId,
+      bridgeGeneration: descriptor.bridgeGeneration,
+      view,
+    });
+  }
+
   sendPayload(payload: WebRemoteControlAppPayload): void {
     this.send({ type: "data", payload });
   }
@@ -637,6 +673,8 @@ export class MobileRemoteControlClient {
       () => this.bridge.assertCurrent(generation),
     );
     this.bridge.assertCurrent(generation);
+    this.readyViewBridge = descriptor;
+    this.publishMobileTaskView();
   }
 
   /**
@@ -792,6 +830,19 @@ export class MobileRemoteControlClient {
         return;
       }
       const payload = parsed.data;
+      const viewEpoch =
+        payload.zcode_type === "mobile-task-view-request"
+          ? payload.epoch
+          : payload.zcode_type === "bootstrap-response"
+            ? payload.result.mobileTaskViewEpoch
+            : undefined;
+      if (viewEpoch && viewEpoch !== this.mobileTaskViewEpoch) {
+        this.mobileTaskViewEpoch = viewEpoch;
+        this.mobileTaskViewSeq = 0;
+        // 新连接只重报当前页面事实；禁止恢复 Main 返回的历史查看状态。
+        this.publishMobileTaskView();
+      }
+      if (payload.zcode_type === "mobile-task-view-request") return;
       if (payload.zcode_type === "rpc-frame" || payload.zcode_type === "rpc-frame-ack") {
         this.acceptRpcFrame(payload.frame);
         return;
@@ -866,6 +917,10 @@ export class MobileRemoteControlClient {
   ): void {
     if (this.state === state) return;
     this.state = state;
+    if (state !== "paired") {
+      this.mobileTaskViewEpoch = undefined;
+      this.readyViewBridge = null;
+    }
     this.events.onStateChange(state, detail);
   }
 }

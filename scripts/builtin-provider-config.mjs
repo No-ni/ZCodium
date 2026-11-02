@@ -43,6 +43,8 @@ export async function resolveBuiltinProviderBuildEnvironment({
 export async function loadBuiltinProviderConfig({ root = repositoryRoot, env = process.env } = {}) {
   env = await loadEndpointEnv({ root, env });
   const environment = await resolveBuiltinProviderBuildEnvironment({ root, env });
+  // 本 fork 只维护单一内建 Provider 配置：测试/生产共用 config/provider/zcode-builtin.json，
+  // 不引入官方 zcode-builtin.test.json 目录；路径仍可由 ZCODE_BUILTIN_PROVIDER_CONFIG_FILE 覆盖。
   const sourcePath = resolve(
     root,
     env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE?.trim() || "config/provider/zcode-builtin.json",

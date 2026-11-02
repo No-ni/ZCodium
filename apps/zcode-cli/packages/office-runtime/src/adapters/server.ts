@@ -12,13 +12,16 @@ import {
   EXAMPLE_LOCATIONS,
   EXTENSIONS_OR,
   FILE_NOUN,
+  FILES_NOUN,
   QUOTE_BEST_FOR,
   READ_FORMS,
+  SKILL_NAMES,
   TARGET_NOUNS,
   TITLE,
 } from "#office/wording.ts";
 
 export { describeDocument } from "#office/adapters/tool-results.ts";
+export { sessionOf } from "#office/adapters/server-resources.ts";
 
 export function createOfficeServer({
   owner,
@@ -28,7 +31,7 @@ export function createOfficeServer({
   assetRoot: string;
 }) {
   const server = new McpServer({ name: SERVER_NAME, version: PLUGIN_VERSION });
-  const register = createToolRegistrar(server);
+  const register = createToolRegistrar(server, owner);
   const anchor = z
     .string()
     .min(1)
@@ -36,31 +39,33 @@ export function createOfficeServer({
     .describe(
       `Document anchor: <workspace-relative path>#<location>, e.g. ${EXAMPLE_ANCHORS}. Omit #<location> for the whole document.`,
     );
+
   register(
     "open_document",
     {
-      description: `Open a ${EXTENSIONS_OR} workspace file in the ${TITLE} viewer panel. Optionally jump to a location. Returns its outline and anchor syntax. Use when the user wants to view, review or discuss ${FILE_NOUN}.`,
+      description: `Open a ${EXTENSIONS_OR} file from the workspace in the ${TITLE} viewer panel, which the user sees. Optionally jump to a location. Returns the document's outline and how to address locations in it. Use this when the user wants to view, review or discuss ${FILE_NOUN}.`,
       input: {
         path: z.string().min(1).max(1000).describe("Workspace-relative path of the file."),
         at: z
           .string()
           .max(300)
           .optional()
-          .describe(`Optional location, e.g. ${EXAMPLE_LOCATIONS}.`),
+          .describe(`Optional location to show, e.g. ${EXAMPLE_LOCATIONS}.`),
       },
       visibility: ["model", "app"],
       panel: true,
       openPanel: true,
     },
-    async ({ path, at }) => {
-      const snapshot = await owner.open(path, at);
+    async ({ path, at }, session) => {
+      const snapshot = await session.open(path, at);
       return { text: describeSnapshot(snapshot, "Opened"), structured: { ...snapshot } };
     },
   );
+
   register(
     "read_document",
     {
-      description: `Read the document or one location as text: ${READ_FORMS}. Blocks carry anchors for citation/reveal. Long results are paged; continue with the returned cursor.`,
+      description: `Read a document you are discussing with the user in the ${TITLE} panel, or one location in it, as text: ${READ_FORMS}. Use it to answer about the open document or anchors the user referenced. Open the document with open_document first. Each block is prefixed with its location, an anchor the panel understands: cite it or pass it to show_in_viewer, with an exact \`quote\` copied from the text to highlight a phrase. Long results are paged: call again with the returned cursor. To extract or process ${FILES_NOUN} outside the panel, use the ${SKILL_NAMES} skill instead.`,
       input: {
         anchor,
         cursor: z
@@ -68,12 +73,12 @@ export function createOfficeServer({
           .int()
           .min(0)
           .optional()
-          .describe("Cursor from the preceding read result."),
+          .describe("Cursor from a previous result to continue reading."),
       },
       visibility: ["model"],
     },
-    async ({ anchor: target, cursor }) => {
-      const { info, at, page } = await owner.read(target, cursor ?? 0);
+    async ({ anchor: target, cursor }, session) => {
+      const { info, at, page } = await session.read(target, cursor ?? 0);
       const head = `${formatAnchor(info.path, at)} (${KIND_NAMES[info.kind]}, revision ${info.revision})`;
       const tail =
         page.next === null
@@ -85,23 +90,23 @@ export function createOfficeServer({
       };
     },
   );
+
   register(
     "search_document",
     {
-      description:
-        "Find document text case-insensitively. Returns matching anchors and snippets; use read_document or show_in_viewer on them.",
+      description: `Find text (case-insensitive) in a document you are discussing with the user in the ${TITLE} panel. Open the document with open_document first. Returns matching locations as anchors with a snippet each; pass them to read_document or show_in_viewer. To search or extract ${FILES_NOUN} outside the panel, use the ${SKILL_NAMES} skill instead.`,
       input: {
-        path: z.string().min(1).max(1000),
+        path: z.string().min(1).max(1000).describe("Workspace-relative path of the file."),
         query: z.string().min(1).max(200),
         limit: z.number().int().min(1).max(100).optional(),
       },
       visibility: ["model"],
     },
-    async ({ path, query, limit }) => {
-      const { info, hits } = await owner.search(path, query, limit ?? 20);
+    async ({ path, query, limit }, session) => {
+      const { info, hits } = await session.search(path, query, limit ?? 20);
       const text = hits.length
         ? [
-            `${hits.length} matches for "${query}" in ${info.path}:`,
+            `${hits.length} match${hits.length === 1 ? "" : "es"} for "${query}" in ${info.path}:`,
             ...hits.map((hit) => `- ${formatAnchor(info.path, hit.at)}  ${hit.snippet}`),
           ].join("\n")
         : `No matches for "${query}" in ${info.path}.`;
@@ -123,43 +128,53 @@ export function createOfficeServer({
           .array(z.object({ anchor, quote: z.string().max(500).optional() }))
           .min(1)
           .max(20),
-        note: z.string().max(500).optional().describe("Caption next to the highlighted location."),
+        note: z
+          .string()
+          .max(500)
+          .optional()
+          .describe(
+            "Optional short caption shown in the dedicated Agent panel next to the highlight; manual document windows are not retargeted.",
+          ),
       },
       visibility: ["model"],
       panel: true,
       openPanel: true,
     },
-    async ({ targets, note }) => {
-      const snapshot = await owner.show(targets, note);
+    async ({ targets, note }, session) => {
+      const snapshot = await session.show(targets, note);
       return { text: describeSnapshot(snapshot, "Showing"), structured: { ...snapshot } };
     },
   );
+
   register(
     "get_view",
     {
-      description: `See the user's document, visible location and selected text in the ${TITLE} panel. Use for "this", "here" or "the selected …". Multiple reported viewers require disambiguation.`,
+      description: `See what the user is looking at in the ${TITLE} panel: the open document, the visible location and the user's current selection with its text. Call this when the user says "this", "here" or "the selected …" about a document.`,
       input: {
         viewId: z
           .string()
           .max(300)
           .optional()
-          .describe("Viewer ID from an ambiguous get_view result."),
+          .describe("Viewer ID from a previous ambiguous get_view result."),
       },
       visibility: ["model"],
     },
-    async ({ viewId }) => {
-      const views = owner.views();
+    async ({ viewId }, session) => {
+      const views = session.views();
       if (!viewId && views.length > 1)
         return {
           text:
-            "Multiple document viewers have reported views. Ask which document the user means, then call get_view with its viewId.\n" +
+            "Multiple document viewers have reported views. Ask the user which document they mean, then call get_view with its viewId.\n" +
             views.map((view) => `${view.viewId}: ${view.path}`).join("\n"),
           structured: { ambiguous: true, views },
         };
       if (viewId && !views.some((view) => view.viewId === viewId))
-        throw new OfficeError("invalid_token", "Unknown viewer; list viewers with get_view.");
-      const view = owner.view(viewId);
-      const current = view.path ? await owner.info(view.path) : owner.current();
+        throw new OfficeError(
+          "invalid_token",
+          "Unknown viewer. Call get_view without viewId to list viewers.",
+        );
+      const view = session.view(viewId);
+      const current = view.path ? await session.info(view.path) : session.current();
       if (!current && !view.path)
         return {
           text: `The ${TITLE} viewer has no document open. Use open_document to open one.`,
@@ -172,7 +187,10 @@ export function createOfficeServer({
         lines.push(`User selection: ${formatAnchor(path, view.selection.at)}`);
         if (view.selection.text) lines.push(`Selected text: """${view.selection.text}"""`);
         if (view.kind === "xlsx") {
-          const stored = await owner.read(formatAnchor(path, view.selection.at)).catch(() => null);
+          // The panel shows computed values; add what the file stores (values and formulas).
+          const stored = await session
+            .read(formatAnchor(path, view.selection.at))
+            .catch(() => null);
           if (stored)
             lines.push(
               "Selected cells as stored in the file:",
@@ -188,7 +206,7 @@ export function createOfficeServer({
       return { text: lines.join("\n"), structured: { view, document: current } };
     },
   );
-  registerPanelTools(register, owner);
+  registerPanelTools(register);
   registerOfficeResources(server, owner, assetRoot);
   return server;
 }

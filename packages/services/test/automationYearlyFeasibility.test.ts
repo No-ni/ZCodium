@@ -9,7 +9,7 @@ import {
 } from "../../../scripts/ci/project-test-sandbox.mjs";
 import { AutomationRepo } from "../src/session/automationRepo.js";
 import { AutomationService } from "../src/session/automationService.js";
-import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import { prepareTasksIndexStorage } from "../src/project-storage/startup.js";
 
 /**
  * yearly 调度规则可行性校验回归（docs/specs/automation-lifecycle-controls.md

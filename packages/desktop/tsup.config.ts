@@ -1,4 +1,3 @@
-import { pickProductEndpointEnv } from "@zcode/shared/zcodeEndpoint";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -12,13 +11,22 @@ const { copyGenUiRuntimeAssets } = await import(
 const { loadBuiltinProviderConfig } = await import(
   pathToFileURL(resolve(import.meta.dirname, "../../scripts/builtin-provider-config.mjs")).href
 );
+// 自动更新开关只认构建环境里的显式值（1/true/yes）。本 fork 没有官方私有构建配置文件，
+// 也不保留任何上报/RUM 端点的构建期解析入口；未配置即关闭，见 createSharedDefines。
+const autoUpdateRequested = ["1", "true", "yes"].includes(
+  (process.env.ZCODE_AUTO_UPDATE ?? "").trim().toLowerCase(),
+);
 
 const buildMetadata = getBuildMetadata();
+
+function resolveZCodeEnv(value: string | undefined): "test" | "production" {
+  return value?.trim().toLowerCase() === "production" ? "production" : "test";
+}
 
 // 手动加载 .env 文件，tsup 不像 Vite 会自动读取 .env.*；这些文件只提供链接常量。
 function loadEnvFiles(): Record<string, string> {
   const vars: Record<string, string> = {};
-  const files = ["../../.env", "../../.env.local"];
+  const files = ["../../.env"];
   if (process.env.NODE_ENV === "production") {
     files.push("../../.env.production");
   } else {
@@ -53,6 +61,90 @@ const { environment: zcodeEnv } = await loadBuiltinProviderConfig();
 const zcodeProductFlavor = resolveDesktopProductFlavor({ ...process.env, ZCODE_ENV: zcodeEnv });
 console.log(`[tsup] ZCODE_ENV=${zcodeEnv} ZCODE_PRODUCT_FLAVOR=${zcodeProductFlavor}`);
 
+function parseCsvEnv(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+export function resolveBuildRemoteCdnReleaseRoots(runtimeEnv: Record<string, string | undefined>) {
+  const domains = parseCsvEnv(runtimeEnv.CDN_DOMAIN);
+  const pathPrefixes = parseCsvEnv(runtimeEnv.OSS_PATH_PREFIX || "zcode/electron/releases");
+  if (domains.length === 0) {
+    return [];
+  }
+  if (pathPrefixes.length !== 1 && pathPrefixes.length !== domains.length) {
+    throw new Error(
+      `OSS_PATH_PREFIX must contain one value or match CDN_DOMAIN count (${domains.length}), got ${pathPrefixes.length}`,
+    );
+  }
+
+  return domains.map((domain, index) => {
+    const pathPrefix = pathPrefixes.length === 1 ? pathPrefixes[0] : pathPrefixes[index];
+    return `https://${domain}/${pathPrefix}`.replace(/\/+$/, "");
+  });
+}
+
+export function resolveBuildPackagedAgentTelemetryEnv(
+  runtimeEnv: Record<string, string | undefined>,
+): Record<string, string> {
+  const endpoint = runtimeEnv.ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT?.trim();
+  const headers = runtimeEnv.ZCODE_PACKAGED_AGENT_OTEL_HEADERS?.trim();
+  const serviceName =
+    runtimeEnv.ZCODE_PACKAGED_AGENT_OTEL_SERVICE_NAME?.trim() || "zcode-cli-agent";
+
+  // 审计边界：本 fork 只在用户显式配置自建 OTLP 接收端时导出诊断，发布构建绝不能反过来
+  // 强制要求任何遥测凭证（官方 release 门会在这里抛错，逼着 fork 的配置去填官方端点）。
+  // 因此未配置就返回空对象，配置了就严格按用户自建地址校验；tsup/vite 不再注入遥测 define。
+  if (!endpoint && !headers) {
+    return {};
+  }
+  if (!endpoint || !headers) {
+    throw new Error(
+      "ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT and ZCODE_PACKAGED_AGENT_OTEL_HEADERS must be configured together",
+    );
+  }
+  if (endpoint.length > 2_048) {
+    throw new Error("ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT exceeds 2048 characters");
+  }
+  if (headers.length > 8_192 || /[\r\n]/u.test(headers)) {
+    throw new Error("ZCODE_PACKAGED_AGENT_OTEL_HEADERS is invalid");
+  }
+  if (!/^[A-Za-z0-9._:-]{1,128}$/u.test(serviceName)) {
+    throw new Error("ZCODE_PACKAGED_AGENT_OTEL_SERVICE_NAME is invalid");
+  }
+
+  let parsedEndpoint: URL;
+  try {
+    parsedEndpoint = new URL(endpoint);
+  } catch {
+    throw new Error("ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT must be a valid HTTP(S) URL");
+  }
+  if (
+    !["http:", "https:"].includes(parsedEndpoint.protocol) ||
+    parsedEndpoint.username ||
+    parsedEndpoint.password
+  ) {
+    throw new Error("ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT must be a valid HTTP(S) URL");
+  }
+  if (
+    resolveZCodeEnv(runtimeEnv.ZCODE_ENV) === "production" &&
+    parsedEndpoint.protocol !== "https:"
+  ) {
+    throw new Error("ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT must use HTTPS in production");
+  }
+
+  return {
+    OTEL_EXPORTER_OTLP_ENDPOINT: parsedEndpoint.toString(),
+    OTEL_EXPORTER_OTLP_HEADERS: headers,
+    OTEL_SERVICE_NAME: serviceName,
+    // 只有打进正式 Desktop 安装包的 Agent 才能由构建链可信判定为 packaged；
+    // source/development_bundle 不在运行时猜测，未显式注入时保持 unknown。
+    ZCODE_TELEMETRY_RUNTIME_DISTRIBUTION: "packaged",
+  };
+}
+
 export function resolveDesktopTsupBundleSecurityOptions(
   runtimeEnv: Record<string, string | undefined> = process.env,
 ) {
@@ -86,14 +178,23 @@ const desktopTsupBundleSecurityOptions = resolveDesktopTsupBundleSecurityOptions
 function createSharedDefines() {
   return {
     __ZCODE_VERSION__: JSON.stringify(buildMetadata.appVersion),
+    __ZCODE_MIN_COMPATIBLE_VERSION__: JSON.stringify(buildMetadata.minCompatibleVersion),
     __ZCODE_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),
     __ZCODE_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
     __ZCODE_ENV__: JSON.stringify(zcodeEnv),
-    __ZCODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
     __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
     // ZCodium 自有更新源。留空表示不检查更新：上游 manifest 分发的是官方 ZCode 安装包，
     // 沿用会把本仓库构建的客户端覆盖成上游版本。详见 .agents/specs/update-source-ownership.md。
     __ZCODIUM_UPDATE_ORIGIN__: JSON.stringify(process.env.ZCODIUM_UPDATE_ORIGIN?.trim() ?? ""),
+    // 自动更新只跟随构建期显式开关，且必须有自有更新源；本 fork 不注入任何上报端点 define。
+    __ZCODE_AUTO_UPDATE_ENABLED__: JSON.stringify(
+      autoUpdateRequested && Boolean(process.env.ZCODIUM_UPDATE_ORIGIN?.trim()),
+    ),
+    // Computer Use Helper 构建身份——官方开源 helperInstaller 读它决定安装包内嵌的 Helper bundle；
+    // dev 为空串走兜底（开发态 helper 不走下载）。CI 用 ZCODE_CUA_HELPER_BUILD_ID 注入。
+    __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(
+      process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "",
+    ),
   };
 }
 
@@ -130,6 +231,8 @@ export default defineConfig([
     outDir: "out",
     format: "esm",
     platform: "node",
+    // node:sqlite 只有带前缀的内置入口；tsup 去掉 node: 会错误加载第三方 sqlite 包。
+    removeNodeProtocol: false,
     target: "node22",
     // undici 如果被 main ESM bundle 直接内联，运行时会落到它内部的 CommonJS require("assert")，
     // Electron 加载 main 产物时会报 Dynamic require of "assert" is not supported。
@@ -151,7 +254,7 @@ export default defineConfig([
       "@zcode/zcode-cua",
     ],
     define: createSharedDefines(),
-    // main/host 同时 watch 且共享 out 根目录时，默认 chunk 命名会互相覆盖，
+    // 修复原因：main/host 同时 watch 且共享 out 根目录时，默认 chunk 命名会互相覆盖，
     // 可能让 main 的 import 指向被 host 刚重写的 chunk，触发“缺少命名导出”的偶发启动报错。
     // 这里按目标分目录输出 chunk，确保并发构建下产物隔离。
     esbuildOptions(options) {
@@ -174,6 +277,8 @@ export default defineConfig([
     outDir: "out",
     format: "cjs",
     platform: "node",
+    // node:sqlite 只有带前缀的内置入口；tsup 去掉 node: 会错误加载第三方 sqlite 包。
+    removeNodeProtocol: false,
     target: "node22",
     external: ["electron"],
     noExternal: ["@zcode/shared"],
@@ -213,11 +318,13 @@ export default defineConfig([
     name: "host",
     entry: {
       "host/index": "src/host/index.ts",
-      "host/tasksStorageWorker": "src/host/tasksStorageWorker.ts",
+      "host/tasksStorageWorker": "src/host/database-startup/tasksStorageWorker.ts",
     },
     outDir: "out",
     format: "esm",
     platform: "node",
+    // node:sqlite 只有带前缀的内置入口；tsup 去掉 node: 会错误加载第三方 sqlite 包。
+    removeNodeProtocol: false,
     target: "node22",
     // host 与 main 共用同一套 services 图，继续内联 undici 会在 Electron ESM runtime 里触发同样的 dynamic require 崩溃。
     // 这里同样保留为外部依赖，避免 desktop 开发态和打包态 host 进程启动失败。
@@ -247,6 +354,8 @@ export default defineConfig([
     outDir: "out",
     format: "esm",
     platform: "node",
+    // node:sqlite 只有带前缀的内置入口；tsup 去掉 node: 会错误加载第三方 sqlite 包。
+    removeNodeProtocol: false,
     target: "node22",
     // 与 host 同构：常驻 cron scheduler 进程复用 @zcode/services（tasks-index + cron），
     // 同样保留 undici 等为外部依赖，避免 Electron ESM runtime 的 dynamic require 崩溃。

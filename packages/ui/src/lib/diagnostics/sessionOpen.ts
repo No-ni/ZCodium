@@ -1,8 +1,7 @@
 import { recordUiDiagnostic as emit, type UiDiagnosticEvent } from "@/lib/diagnostics/recorder.js";
-
 const SESSION_OPEN_GROUP = "ui_perf";
-const SESSION_OPEN_EVENT_START = "perf_ui_session_open_start";
-const SESSION_OPEN_EVENT_RESULT = "perf_ui_session_open_result";
+export const SESSION_OPEN_EVENT_START = "perf_ui_session_open_start";
+export const SESSION_OPEN_EVENT_RESULT = "perf_ui_session_open_result";
 
 export type SessionOpenKind = "cold" | "warm" | "keep_warm";
 export type SessionOpenTrigger =
@@ -14,9 +13,9 @@ export type SessionOpenTrigger =
   | "selection"
   | "split"
   | "pane";
-type SessionOpenStatus = "success" | "failed" | "timeout";
-type SessionOpenProcessState = "spawned" | "reused";
-type SessionOpenRuntimeState = "cold" | "warm";
+export type SessionOpenStatus = "success" | "failed" | "timeout";
+export type SessionOpenProcessState = "spawned" | "reused";
+export type SessionOpenRuntimeState = "cold" | "warm";
 
 export interface SessionOpenIdentity {
   sessionOpenId: string;
@@ -26,7 +25,7 @@ export interface SessionOpenIdentity {
   clientMode: "desktop-continuous";
 }
 
-interface SessionOpenTimingFields {
+export interface SessionOpenTimingFields {
   rendererPrepareMs?: number;
   hostPrepareMs?: number;
   taskMetaReadMs?: number;
@@ -40,7 +39,7 @@ interface SessionOpenTimingFields {
   paintToInteractiveMs?: number;
 }
 
-interface SessionOpenResultFields extends SessionOpenTimingFields {
+export interface SessionOpenResultFields extends SessionOpenTimingFields {
   status: SessionOpenStatus;
   totalMs: number;
   errorPhase?: string;
@@ -75,7 +74,7 @@ function identityProperties(identity: SessionOpenIdentity): Record<string, strin
   };
 }
 
-function buildSessionOpenStartDiagnostic(identity: SessionOpenIdentity): UiDiagnosticEvent {
+export function buildSessionOpenStartDiagnostic(identity: SessionOpenIdentity): UiDiagnosticEvent {
   return {
     name: SESSION_OPEN_EVENT_START,
     group: SESSION_OPEN_GROUP,
@@ -84,7 +83,7 @@ function buildSessionOpenStartDiagnostic(identity: SessionOpenIdentity): UiDiagn
   };
 }
 
-function buildSessionOpenResultDiagnostic(
+export function buildSessionOpenResultDiagnostic(
   identity: SessionOpenIdentity & SessionOpenResultFields,
 ): UiDiagnosticEvent {
   const properties: Record<string, string | number | boolean | undefined> = {

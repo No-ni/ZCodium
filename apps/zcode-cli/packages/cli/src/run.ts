@@ -1,4 +1,9 @@
 import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
+import { ToolSearchModeSchema } from "@zcode/contracts";
+import {
+  STORAGE_MIGRATION_COMMAND,
+  storageMigrationReportSchema,
+} from "@zcode/shared/sqlite-migrations";
 import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
 import { createNodeLoggerFactory } from "@zcode/adapters";
 import { createDiagnosticsExporter } from "@zcode/shared/node";
@@ -30,6 +35,11 @@ import { runPrompt } from "./prompt-command.js";
 import { runPluginsCommand, type PluginsCommandFlags } from "./plugins-command.js";
 import { runSkillsCommand } from "./skills-command.js";
 import { runTuiCommand } from "./tui-command.js";
+import {
+  DEFAULT_CLI_WORKFLOW_MODE,
+  normalizeWorkflowModeOption,
+  WORKFLOW_MODE_SCOPE_ERROR,
+} from "./workflow-mode.js";
 import type {
   CliPermissionMode,
   CliResumeRequest,
@@ -141,8 +151,17 @@ const normalizeLocaleOption = (value: string | undefined): UiLocale | undefined 
 const normalizePromptMode = (value: string | undefined): CliPermissionMode | undefined => {
   if (value === undefined) return undefined;
   const mode = value.toLowerCase();
-  if (mode === "build" || mode === "plan" || mode === "edit" || mode === "yolo") return mode;
-  throw new Error(`Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo.`);
+  if (
+    mode === "build" ||
+    mode === "plan" ||
+    mode === "edit" ||
+    mode === "yolo" ||
+    mode === "guarded"
+  )
+    return mode;
+  throw new Error(
+    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded.`,
+  );
 };
 
 const normalizeBrowserUse = (value: string | undefined): GlobalOptions["browserUse"] => {
@@ -292,6 +311,37 @@ const runZCodeProtocolCommand = async (
 };
 
 export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<number> => {
+  if (ctx.argv[0] === STORAGE_MIGRATION_COMMAND) {
+    try {
+      if (ctx.argv.length !== 1) throw new Error("storage-migrate accepts no arguments");
+      const migrateStorage =
+        deps.migrateStorage ??
+        (async () => {
+          // 复用正常启动的配置解析与存储入口，不初始化 Provider/MCP/Agent 运行态。
+          const { createConfig, resolvePath } = await import("@zcode/adapters/config");
+          const { openStartupSqliteSessionStore } = await import("@zcode/adapters/storage");
+          const config = createConfig({ env: deps.env ?? process.env });
+          const store = await openStartupSqliteSessionStore({
+            dbPath: resolvePath(config.config.storage.sessionDbPath),
+          });
+          try {
+            return store.migrationResult;
+          } finally {
+            store.close();
+          }
+        });
+      const report = storageMigrationReportSchema.parse({
+        version: 1,
+        kind: "storage-migrated",
+        ...(await migrateStorage()),
+      });
+      ctx.stdout.write(`${JSON.stringify(report)}\n`);
+      return 0;
+    } catch (error) {
+      ctx.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
   if (ctx.argv[0] === "__internal-search") {
     return runEmbeddedSearchCli(ctx.argv.slice(1), {
       cwd: (deps.cwd ?? process.cwd)(),
@@ -344,10 +394,14 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
   }
 
   let mode: CliPermissionMode | undefined;
+  let workflowModeOption: ReturnType<typeof normalizeWorkflowModeOption>;
   let browserUse: GlobalOptions["browserUse"];
   let presentationSurface: PresentationSurface;
   try {
     mode = normalizePromptMode(parsed.values.mode as string | undefined);
+    workflowModeOption = normalizeWorkflowModeOption(
+      parsed.values["workflow-mode"] as string | undefined,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(`${message}\n`);
@@ -401,6 +455,14 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
     browserExecutable,
     outputFormat,
   );
+  const parsedToolsearchMode = ToolSearchModeSchema.safeParse(
+    parsed.values["toolsearch-mode"] ?? "off",
+  );
+  if (!parsedToolsearchMode.success) {
+    ctx.stderr.write("--toolsearch-mode must be one of auto, native, local, off.\n");
+    return 1;
+  }
+  const toolsearchMode = parsedToolsearchMode.data;
   const forceMcs = parsed.values["force-mcs"] === true;
   let targetRequest: CliTargetRequest | undefined;
   try {
@@ -467,15 +529,32 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
     return 1;
   }
 
+  // app-server 的 mode 归 Host 决定（launch.md「The standalone CLI: `--workflow-mode`」），
+  // 其余子命令不建会话；作用域与 --force-mcs 相同：只有 --prompt、--target 与 TUI。
   if (
-    forceMcs &&
+    workflowModeOption !== undefined &&
     !isForceMcsSupportedInvocation({
       positionals: parsed.positionals,
       prompt: parsed.values.prompt as string | undefined,
       targetRequest,
     })
   ) {
-    ctx.stderr.write(`${FORCE_MCS_SCOPE_ERROR}\n`);
+    ctx.stderr.write(`${WORKFLOW_MODE_SCOPE_ERROR}\n`);
+    return 1;
+  }
+  const workflowMode = workflowModeOption ?? DEFAULT_CLI_WORKFLOW_MODE;
+
+  if (
+    (forceMcs || parsed.values["toolsearch-mode"] !== undefined) &&
+    !isForceMcsSupportedInvocation({
+      positionals: parsed.positionals,
+      prompt: parsed.values.prompt as string | undefined,
+      targetRequest,
+    })
+  ) {
+    ctx.stderr.write(
+      `${parsed.values["toolsearch-mode"] !== undefined ? "--toolsearch-mode can only be used with --prompt, --target, or tui." : FORCE_MCS_SCOPE_ERROR}\n`,
+    );
     return 1;
   }
 
@@ -524,7 +603,9 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
         resumeRequest,
         toolDisallowlist,
         forceMcs,
+        toolsearchMode,
         presentationSurface,
+        workflowMode,
       );
     }
 
@@ -540,7 +621,9 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
         resumeRequest,
         toolDisallowlist,
         forceMcs,
+        toolsearchMode,
         presentationSurface,
+        workflowMode,
       );
     }
 

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { resolveExecutionState, type ExecutionState } from "@zcode/shared";
+import { isHighspeedProviderId, resolveExecutionState, type ExecutionState } from "@zcode/shared";
 import { buildExecutionStateEntry, readRuntimeExecutionState } from "../execution-state.js";
 import {
   createModelId,
@@ -42,6 +42,7 @@ import {
   clonePartForFork,
   emptyTokenUsageInfo,
   formatConversationForkNoticeBody,
+  isHiddenReminderMessage,
   slugify,
 } from "../helpers/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
@@ -68,6 +69,17 @@ function stableForkError(message: string, context: Record<string, unknown> = {})
 const MODEL_SELECTION_ENTRY_SUFFIX = ":runtime-model-selection";
 
 function modelSelectionFromMessage(message: MessageWithParts): ModelSelection | undefined {
+  // 隐藏提醒（如停止后的中断标记）只记 provider/model，不带 options，不是这一点的选型事实。
+  if (isHiddenReminderMessage(message)) return undefined;
+  const selection = persistedModelSelectionOfMessage(message);
+  // 加速卡 Selection 是 `selectionScope=execution` 的单轮执行事实（highspeed-card-spec §5），
+  // 只有与同一轮 requestAuth 成对才有效。child 继承它会常驻在无凭据的加速 Provider 上：
+  // 用户看到「分叉后原模型没带过来」，子会话首轮还会以 ModelRequestAuthMissing 失败。
+  // 因此跳过该消息，继续向前找最近一次普通选型，最终回落 runtime 常驻 Selection。
+  return selection && isHighspeedProviderId(selection.providerId) ? undefined : selection;
+}
+
+function persistedModelSelectionOfMessage(message: MessageWithParts): ModelSelection | undefined {
   if (message.info.role === "user") {
     return message.info.modelSelection && cloneModelSelection(message.info.modelSelection);
   }
@@ -86,7 +98,9 @@ function resolveForkModelSelection(
   messages: readonly MessageWithParts[],
   explicit?: ModelSelection,
 ): ModelSelection | undefined {
-  if (explicit) return cloneModelSelection(explicit);
+  // 加速 Provider 不能成为 child 的常驻 Selection（理由见 modelSelectionFromMessage），
+  // 调用方显式传入时同样跳过，回落历史普通选型 / runtime 常驻 Selection。
+  if (explicit && !isHighspeedProviderId(explicit.providerId)) return cloneModelSelection(explicit);
   const historical = [...messages].reverse().map(modelSelectionFromMessage).find(Boolean);
   const runtimeSelection = runtime.getSessionModelSelection();
   const identity = historical ?? runtimeSelection;
@@ -123,7 +137,7 @@ function buildModelSelectionEntry(
 }
 
 /** stable/compact-edit fork 一次性预分配的完整 child-local 身份。 */
-interface ForkIdentityMap {
+export interface ForkIdentityMap {
   parentSessionId: SessionId;
   childSessionId: SessionId;
   messageIds: Map<MessageId, MessageId>;
@@ -205,7 +219,7 @@ function collectVerifierEntryIds(
   return ids;
 }
 
-function createForkIdentityMap(options: {
+export function createForkIdentityMap(options: {
   childSessionId: SessionId;
   entries: readonly SessionEntryInfo[];
   goalSnapshots: readonly SessionGoal[];
@@ -374,7 +388,7 @@ function cloneVerifierEntryForAtomicFork(
   };
 }
 
-function buildAtomicForkNotice(
+export function buildAtomicForkNotice(
   runtime: AgentRuntimeInternal,
   options: {
     identities: ForkIdentityMap;
@@ -830,7 +844,7 @@ export async function createSelectionSideConversation(
   });
 }
 
-function selectionSideChatHistoryMessages(
+export function selectionSideChatHistoryMessages(
   activeMessages: readonly MessageWithParts[],
   activeTurnId?: TurnId,
 ): MessageWithParts[] {
@@ -1105,7 +1119,7 @@ export async function forkConversationBeforeMessage(
   });
 }
 
-function conversationHistoryBeforeInput(
+export function conversationHistoryBeforeInput(
   activeMessages: readonly MessageWithParts[],
   targetMessageId: MessageId,
 ): MessageWithParts[] {
@@ -1129,7 +1143,7 @@ function conversationHistoryBeforeInput(
  * 的 active transcript 前缀，并要求 ordered ids 在 active branch 中严格连续；不再按
  * parentID 或“同一 assistant turn”向 boundary 后扩张。
  */
-function stableForkHistoryMessages(
+export function stableForkHistoryMessages(
   activeMessages: readonly MessageWithParts[],
   target: StableConversationForkTarget,
 ): MessageWithParts[] {
@@ -1352,7 +1366,7 @@ function cloneGoalVerificationEntryForFork(
   };
 }
 
-function deriveForkedGoalStatusFromCopiedVerifications(
+export function deriveForkedGoalStatusFromCopiedVerifications(
   parentStatus: GoalStatus,
   copiedVerificationPayloads: readonly TargetCompletionVerificationPayload[],
 ): GoalStatus {
@@ -1386,7 +1400,7 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function activeForkTranscriptMessages(
+export function activeForkTranscriptMessages(
   messages: MessageWithParts[],
   options: {
     branchCutAfterMessageId?: MessageId;

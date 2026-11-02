@@ -1180,12 +1180,7 @@ undefined`，于是补发从未执行、行不变的三条断言恒真（把整�
     回退读到的必然是本会话自己的老计划；其它读取错误（权限等）照旧向上冒泡，不回退、不吞错。
     残留：回退只覆盖"文件还在老位置"这一种迁移形态——用户手工搬动过计划文件时两侧都找不到，
     与改动前"文件不在预期位置"的后果相同。
-26. **工作区级（tab）文件树按钮按目标 tab 的会话归属**（本轮修复）：恢复的重复对话根 tab
-    不能仅按相同 workspacePath 判为激活；sidebar 按 tab id 判断激活状态，文件树请求携带目标
-    tab 的 taskId，再由规则 13 的归属门禁选择执行目录。不会借用另一 tab 的会话 cwd。
-    **草稿 null 归属门禁**：非激活 tab 的显式 `taskId: null` 始终表示身份根请求，即使当前
-    `activeTaskId` 也是 null，亦不能借当前草稿的预热目录。激活 tab 在草稿态省略 taskId，
-    沿用当前 tab 跟随壳层执行目录的既有请求语义；不另存草稿目录或新增会话订阅。
+26. **侧栏文件入口按目标来源读取**：3.17.1 已退休旧 WorkspaceSidebarItem 与工作区 tab 文件树按钮。当前项目 root 入口由 resolveProjectFileTarget 解析，任务入口由 useProjectFileTree 读取 task.workspacePath 和精确远端 identity/session；手机跨 workspace 请求携带 fileTreeTaskId，由新 Root 消费。不得借活动会话或草稿目录。旧按钮的“激活草稿省略 taskId、非激活 tab 显式 null”只记录历史，不恢复退休组件；规则 13 的通用归属门禁仍适用于现有请求。
 27. **派生 live 子会话投影**（本轮修复）：spawn 事件携带 child 初始执行 cwd，gateway 在首帧前
     种入该值。优先级为子会话自己的持久化事实 → spawn 捕获的实际 cwd → 父 record 兼容回落，
     因此父会话 Bash cd 后，子会话可使用更深的目录，迟到的父映射不能覆盖它。项目工作区维持

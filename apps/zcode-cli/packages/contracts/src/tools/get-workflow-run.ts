@@ -214,6 +214,11 @@ export const GetWorkflowRunOutputSchema = WorkflowRunSummarySchema.extend({
    */
   subagentModel: z.string().optional(),
   /**
+   * 本 run 的脚本点名的模型：脚本逐字写下的名字 → 规范形，**只在脚本点名过模型时在场**。
+   * AmendWorkflow 里同名的模型沿用的就是这些绑定。
+   */
+  modelBindings: z.record(z.string()).optional(),
+  /**
    * 本 run 的脚本文件，**已经写成模型面该看到的样子**（在会话工作目录之下就是工作区相对路径，
    * 否则绝对路径）。**只在这个 run 记下过文件
    * 时在场**（与 `subagentModel` 的「无则缺席」同规）：草稿写不下去的项目、本特性之前发起的

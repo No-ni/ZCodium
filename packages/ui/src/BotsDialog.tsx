@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- BotsDialog 现在保留数据加载、保存和轮询编排；右侧卡片已拆到 BotsDialog/* 子组件，后续再继续下沉状态 hook。 */
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { Bot, Loader2, Plus } from "lucide-react";
 import type {
@@ -45,8 +45,9 @@ import {
   BotReplyGranularityCard,
   BotSummaryCard,
 } from "@/BotsDialog/BotSummaryCard.js";
-import { AstrBotSettingsCard, ASTRBOT_PLUGIN_URL } from "@/BotsDialog/AstrBotSettingsCard.js";
+import { ASTRBOT_PLUGIN_URL, AstrBotSettingsCard } from "@/BotsDialog/AstrBotSettingsCard.js";
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
+import { BoundGroupsCard } from "@/BotsDialog/BoundGroupsCard.js";
 import { WorkspaceAccessCard } from "@/BotsDialog/WorkspaceAccessCard.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import {
@@ -316,10 +317,7 @@ export function BotsDialog({
       try {
         const nextBotStates = await botsService.getBotStates();
         if (!cancelled) {
-          // Bugfix: 激活状态轮询内容几乎不变；跳过相同结果，避免无谓重渲染。
-          setBotStates((previous) =>
-            isDeepEqualPollingValue(previous, nextBotStates) ? previous : nextBotStates,
-          );
+          setBotStates(nextBotStates);
         }
       } catch (error) {
         logger.warn(
@@ -358,8 +356,6 @@ export function BotsDialog({
 
   const saveBot = useCallback(
     async (bot: BotConfig, secrets?: { credentialValue?: string }) => {
-      const requestSelection = selectedBotIdRef.current;
-      const requestGeneration = selectedBotGenerationRef.current;
       const saved = await botsService.saveBot({
         bot,
         credentialValue: secrets?.credentialValue,
@@ -368,16 +364,9 @@ export function BotsDialog({
         ...previous,
         bots: [...previous.bots.filter((item) => item.id !== saved.id), saved],
       }));
-      // 保存可能跨越 Bot 切换；旧响应只能更新配置事实，不能抢走当前 Bot 的选择和草稿。
-      if (
-        requestGeneration === selectedBotGenerationRef.current &&
-        selectedBotIdRef.current === requestSelection &&
-        (requestSelection === null || requestSelection === bot.id)
-      ) {
-        setSelectedBotId(saved.id);
-        setCreatingBot(false);
-        setCredentialValue("");
-      }
+      setSelectedBotId(saved.id);
+      setCreatingBot(false);
+      setCredentialValue("");
       void refresh();
       return saved;
     },
@@ -386,22 +375,12 @@ export function BotsDialog({
 
   const createBindCodeForBot = useCallback(
     async (bot: BotConfig) => {
-      const requestId = ++bindCodeRequestRef.current;
-      const requestGeneration = selectedBotGenerationRef.current;
-      if (selectedBotIdRef.current !== bot.id) return;
       const createdAt = Date.now();
       const result = await botsService.createBindCode({
         botId: bot.id,
         ttlMs: BIND_CODE_TTL_MS,
         allowedWorkspaces: bot.allowedWorkspaces,
       });
-      if (
-        requestId !== bindCodeRequestRef.current ||
-        requestGeneration !== selectedBotGenerationRef.current ||
-        selectedBotIdRef.current !== bot.id
-      ) {
-        return;
-      }
       setNowMs(createdAt);
       setBindCode({
         botId: bot.id,
@@ -819,9 +798,6 @@ export function BotsDialog({
 
   const handleStartFeishuRegistration = useCallback(async () => {
     if (!selectedBot || !isFeishuBotProvider(selectedBot.provider)) return;
-    const requestId = ++feishuRegistrationRequestRef.current;
-    const requestGeneration = selectedBotGenerationRef.current;
-    const requestBotId = selectedBot.id;
     setFeishuRegistrationLoading(true);
     try {
       const result = await botsService.beginFeishuRegistration({
@@ -839,15 +815,8 @@ export function BotsDialog({
           error instanceof Error ? error.message : String(error),
         );
       }
-      if (
-        requestId !== feishuRegistrationRequestRef.current ||
-        requestGeneration !== selectedBotGenerationRef.current ||
-        selectedBotIdRef.current !== requestBotId
-      ) {
-        return;
-      }
       setFeishuRegistration({
-        botId: requestBotId,
+        botId: selectedBot.id,
         deviceCode: result.deviceCode,
         qrUrl: result.qrUrl,
         qrDataUrl,
@@ -860,28 +829,16 @@ export function BotsDialog({
       });
       toast(intl.formatMessage({ id: "bots.feishuRegistrationStarted" }));
     } catch (error) {
-      if (
-        requestId !== feishuRegistrationRequestRef.current ||
-        requestGeneration !== selectedBotGenerationRef.current ||
-        selectedBotIdRef.current !== requestBotId
-      ) {
-        return;
-      }
       const message = error instanceof Error ? error.message : String(error);
       logger.error("[BotsDialog] 启动飞书扫码注册失败", message);
       toast(intl.formatMessage({ id: "bots.feishuRegistrationFailed" }, { error: message }));
     } finally {
-      if (requestId === feishuRegistrationRequestRef.current) {
-        setFeishuRegistrationLoading(false);
-      }
+      setFeishuRegistrationLoading(false);
     }
   }, [botsService, intl, selectedBot]);
 
   const handleStartWeixinRegistration = useCallback(async () => {
     if (!selectedBot || selectedBot.provider !== "weixin") return;
-    const requestId = ++weixinRegistrationRequestRef.current;
-    const requestGeneration = selectedBotGenerationRef.current;
-    const requestBotId = selectedBot.id;
     setWeixinRegistrationLoading(true);
     try {
       const result = await botsService.beginWeixinRegistration();
@@ -897,15 +854,8 @@ export function BotsDialog({
           error instanceof Error ? error.message : String(error),
         );
       }
-      if (
-        requestId !== weixinRegistrationRequestRef.current ||
-        requestGeneration !== selectedBotGenerationRef.current ||
-        selectedBotIdRef.current !== requestBotId
-      ) {
-        return;
-      }
       setWeixinRegistration({
-        botId: requestBotId,
+        botId: selectedBot.id,
         qrCode: result.qrCode,
         qrUrl: result.qrUrl,
         qrDataUrl,
@@ -915,20 +865,11 @@ export function BotsDialog({
       });
       toast(intl.formatMessage({ id: "bots.weixinRegistrationStarted" }));
     } catch (error) {
-      if (
-        requestId !== weixinRegistrationRequestRef.current ||
-        requestGeneration !== selectedBotGenerationRef.current ||
-        selectedBotIdRef.current !== requestBotId
-      ) {
-        return;
-      }
       const message = error instanceof Error ? error.message : String(error);
       logger.error("[BotsDialog] 启动微信扫码登录失败", message);
       toast(intl.formatMessage({ id: "bots.weixinRegistrationFailed" }, { error: message }));
     } finally {
-      if (requestId === weixinRegistrationRequestRef.current) {
-        setWeixinRegistrationLoading(false);
-      }
+      setWeixinRegistrationLoading(false);
     }
   }, [botsService, intl, selectedBot]);
 
@@ -1082,6 +1023,7 @@ export function BotsDialog({
     // Bugfix: 删除机器人之前没有二次确认，误触会直接移除凭据和绑定入口。
     // 这里复用项目统一 ConfirmDialog，让破坏性操作和其它设置页保持一致。
     const confirmed = await confirmDialog({
+      confirmVariant: "destructive",
       title: intl.formatMessage(
         { id: "bots.deleteConfirmTitle" },
         { name: formatBotDisplayName(selectedBot.name, fallbackBotName) },
@@ -1129,9 +1071,9 @@ export function BotsDialog({
         onEscapeKeyDown={handleDialogEscapeKeyDown}
       >
         <DialogHeader>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Bot className="size-5 text-foreground" />
-            <DialogTitle className="text-lg font-medium text-foreground">
+            <DialogTitle className="text-ui-lg font-medium text-foreground">
               {intl.formatMessage({ id: "bots.title" })}
             </DialogTitle>
             <DialogDescription className="ml-3">
@@ -1140,8 +1082,8 @@ export function BotsDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 gap-3">
-          <aside className="flex w-64 shrink-0 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row">
+          <aside className="flex max-h-40 w-full shrink-0 flex-col md:max-h-none md:w-64">
             <div className="min-h-0 flex-1 overflow-y-auto">
               <Button
                 type="button"
@@ -1301,6 +1243,8 @@ export function BotsDialog({
                   onPatchBot={patchSelectedBot}
                 />
 
+                {/* AstrBot 走本仓桥接（.agents/specs/bots-astrbot-bridge.md）：绑定码与插件入口，
+                    不使用官方 provider 的凭证表单。 */}
                 {selectedBot.provider === "astrbot" ? (
                   <AstrBotSettingsCard
                     bot={selectedBot}
@@ -1314,30 +1258,31 @@ export function BotsDialog({
                     onCopyBindCommand={() => void copyBindCommand()}
                     onOpenPlugin={() => platform.openExternal(ASTRBOT_PLUGIN_URL)}
                   />
-                ) : (
+                ) : null}
+                {selectedBot.provider === "astrbot" ? null : (
                   <ProviderSettingsCard
                     bot={selectedBot}
                     runtime={selectedRuntime}
                     credentialValue={credentialValue}
-                    bindCode={bindCode}
-                    bindExpired={bindExpired}
-                    bindRemainingMs={bindRemainingMs}
-                    bindCountdownProgress={bindCountdownProgress}
-                    feishuRegistration={feishuRegistration}
-                    feishuRegistrationLoading={feishuRegistrationLoading}
-                    weixinRegistration={weixinRegistration}
-                    weixinRegistrationLoading={weixinRegistrationLoading}
-                    weixinActivated={Boolean(selectedBotState?.weixinActivatedAt)}
-                    secretSaving={secretSaving}
-                    onCredentialValueChange={setCredentialValue}
-                    onSaveSecret={() => void handleSaveSecret()}
-                    onRemoveSecret={() => void handleRemoveSecret()}
-                    onOpenTelegramBotFather={handleOpenTelegramBotFather}
-                    onStartWeixinRegistration={() => void handleStartWeixinRegistration()}
-                    onStartFeishuRegistration={() => void handleStartFeishuRegistration()}
-                    onCreateBindCode={() => void handleCreateBindCode()}
-                    onUnbind={() => void handleUnbind()}
-                    onCopyBindCommand={() => void copyBindCommand()}
+                  bindCode={bindCode}
+                  bindExpired={bindExpired}
+                  bindRemainingMs={bindRemainingMs}
+                  bindCountdownProgress={bindCountdownProgress}
+                  feishuRegistration={feishuRegistration}
+                  feishuRegistrationLoading={feishuRegistrationLoading}
+                  weixinRegistration={weixinRegistration}
+                  weixinRegistrationLoading={weixinRegistrationLoading}
+                  weixinActivated={Boolean(selectedBotState?.weixinActivatedAt)}
+                  secretSaving={secretSaving}
+                  onCredentialValueChange={setCredentialValue}
+                  onSaveSecret={() => void handleSaveSecret()}
+                  onRemoveSecret={() => void handleRemoveSecret()}
+                  onOpenTelegramBotFather={handleOpenTelegramBotFather}
+                  onStartWeixinRegistration={() => void handleStartWeixinRegistration()}
+                  onStartFeishuRegistration={() => void handleStartFeishuRegistration()}
+                  onCreateBindCode={() => void handleCreateBindCode()}
+                  onUnbind={() => void handleUnbind()}
+                  onCopyBindCommand={() => void copyBindCommand()}
                   />
                 )}
 
@@ -1358,6 +1303,13 @@ export function BotsDialog({
                     onToggleWorkspaceAccess={toggleWorkspaceAccess}
                   />
                 </SettingsGroupCard>
+
+                {isFeishuBotProvider(selectedBot.provider) && (
+                  <BoundGroupsCard
+                    key={selectedBot.id + ":" + selectedBot.providerUserId}
+                    bot={selectedBot}
+                  />
+                )}
 
                 <BotDangerCard onDelete={() => void handleDelete()} />
               </div>

@@ -9,9 +9,8 @@
 export interface DynamicWorkflowRunRetuneRequest {
   runId: string;
   /**
-   * 新的并发上界。`null` = 天花板 = 解除本 run 自己的限制（与 `AmendWorkflow` 的
-   * `max_concurrency: null` 同义）。给了数就钳到 `[1, 天花板]`——钳制用的是端口自己那一份实现，
-   * 工具层无须、也不该再钳一次得到第二个答案。
+   * 新的并发上界。`null` = 默认并发（与 `AmendWorkflow` 的 `max_concurrency: null` 同义）。
+   * 与当前提交路径共用归一化：向下取整、至少 1、没有 CPU 派生上限。
    */
   maxConcurrency: number | null;
 }
@@ -31,12 +30,11 @@ export type DynamicWorkflowRunRetuneRefusalReason = "not_live" | "unchanged";
  * {@link import("./dynamic-workflow-run.port.js").DynamicWorkflowRunAmendResult} 同一条论证：
  * 两种理由都是调用方可预期的业务分支。
  *
- * `ceiling` 与 `previous` 不是锦上添花：模型面的回话要说「至多 n 个子代理同时运行」，而 n 等于
- * 天花板时该说的是「限制已解除」（与 `CreateWorkflow` 的回话同一条判据）；事件日志要说「8 → 2」，
- * 从单个新值推不出前一个。两者都只有端口这一侧知道，留给调用方重算就是第二份天花板实现。
+ * `defaultConcurrency` 与 `previous` 由运行端口提供：回话在新值等于默认时注明「默认」，
+ * 事件日志使用前后数值。合并旧 ceiling 字段会与现行归一化和调用方合同不一致。
  */
 export type DynamicWorkflowRunRetuneResult =
-  | { ok: true; maxConcurrency: number; previous: number; ceiling: number }
+  | { ok: true; maxConcurrency: number; previous: number; defaultConcurrency: number }
   | {
       ok: false;
       reason: DynamicWorkflowRunRetuneRefusalReason;

@@ -51,5 +51,6 @@ export { useGitAutoRefresh } from "./useGitAutoRefresh.js";
 export { useGitRepository } from "./useGitRepository.js";
 export { useGitActions } from "./useGitActions.js";
 // workspace provider 配置路径
+export { useWorkspaceProviderConfigFile } from "./useWorkspaceProviderConfigFile.js";
 export { useTaskNativeSessionLogFile } from "./useTaskNativeSessionLogFile.js";
 export { useTaskSessionFilePath } from "./useTaskSessionFilePath.js";

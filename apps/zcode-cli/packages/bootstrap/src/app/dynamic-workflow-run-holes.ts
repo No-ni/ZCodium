@@ -83,7 +83,7 @@ type HoleFilledEvent = Extract<RunEvent, { type: "hole-filled" }>;
 /** 快照投影的事件读：留白事件与首条 `run-launched`（阶段表的冷来源），一次有类型过滤的窄读。 */
 export function readRunHoleEvents(journal: JournalStorePort, runId: string): StoredEvent[] {
   return journal
-    .listEvents(runId, {})
+    .listEvents(runId, { types: "all", reportItems: "all" })
     .filter((stored) => HOLE_EVENT_TYPES.has(stored.event.type));
 }
 

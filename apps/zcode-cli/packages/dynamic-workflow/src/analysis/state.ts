@@ -1,21 +1,19 @@
 import ts from "typescript";
-import { resolvePlaceholders } from "./state-placeholders.js";
 import type { WorkflowProgram } from "../compiler/compile.js";
 import type { HoleSite, IterationCandidate, SiteTable } from "./sites.js";
 import {
   addPlaceholder,
-  collapse,
+  findWorkflowBody,
   emptyValue,
-  isActorSite,
   isFunctionLike,
   mergeInto,
-  provisionalFanoutId,
   type AbstractValue,
-  type PromotedFanout,
   type TaintFacts,
-  type TaintOcc,
 } from "./domain.js";
-import { findWorkflowBody } from "./domain.js";
+import { createTaintResolvers, parameterSymbolOf } from "./state-helpers.js";
+import type { ApplicationVia, ArgBinding, ParamRef, ThroughParam } from "./state-helpers.js";
+export type { ApplicationVia, ArgBinding, ParamRef, ThroughParam };
+import { emitTaintFacts, emitTaintOracle, type TaintOracleView } from "./state-emission.js";
 
 /**
  * The mutable fixpoint state of the taint pass: the site lookups, the global
@@ -24,8 +22,6 @@ import { findWorkflowBody } from "./domain.js";
  * the monotone update primitives (each reports growth via `changed`), and the final
  * placeholder-resolving emission of {@link TaintFacts}.
  */
-/** How a function reached a call site: as the thing called, or as an argument a library may invoke. */
-export type ApplicationVia = "callee" | "argument";
 
 export class TaintState {
   readonly checker: ts.TypeChecker;
@@ -63,6 +59,18 @@ export class TaintState {
    * bodies at exactly these sites instead of guessing from syntax.
    */
   readonly applications = new Map<ts.Node, Map<ts.Node, ApplicationVia>>();
+  /**
+   * PROVENANCE for {@link applications}: at this site, the functions applied as `via` came
+   * from the named parameter of an enclosing function (the callee, or a function-valued
+   * argument, was syntactically that parameter). Keyed by `fnId:param:via`. The merged
+   * record stays beside it; the walk swaps the accounted functions for the binding of the
+   * activation it is inlining (docs/analysis.md "Inlining").
+   */
+  readonly throughParams = new Map<ts.Node, Map<string, ThroughParam & { via: ApplicationVia }>>();
+  /** Per callee application: what each argument bound to the callee's parameters. */
+  readonly bindings = new Map<ts.Node, Map<ts.Node, ArgBinding[]>>();
+  /** Parameters assigned somewhere in their function's body, per function; see {@link parameterRefOf}. */
+  private readonly reassignedParams = new Map<number, Set<ts.Symbol>>();
   /**
    * The live abstract result of each `Promise.all` join call, keyed by the join CALL NODE
    * and PERSISTENT across fixpoint passes (see {@link joinResultOf}). A join result IS a
@@ -458,6 +466,93 @@ export class TaintState {
     if (applied.get(fn) !== "callee") applied.set(fn, via);
   }
 
+  /**
+   * The parameter an expression IS, syntactically: a bare identifier declared as a parameter
+   * of a tracked function, with no default, not a rest parameter, never assigned in the body.
+   * Only then does the parameter's slot hold exactly what callers passed, so a call site's
+   * binding can stand in for the merged record. Anything else has no usable provenance.
+   */
+  parameterRefOf(expr: ts.Node): ParamRef | undefined {
+    const parameter = parameterSymbolOf(this.checker, expr);
+    if (parameter === undefined) return undefined;
+    const { sym, fn } = parameter;
+    const id = this.fnId.get(fn);
+    if (id === undefined) return undefined;
+    const param = (this.fnParamSymbols.get(id) ?? []).indexOf(sym);
+    if (param < 0 || this.assignedParamsOf(id, fn).has(sym)) return undefined;
+    return { fn, param };
+  }
+
+  /** Record that the functions applied at `site` as `via` came through `ref` (see {@link throughParams}). */
+  recordThroughParam(site: ts.Node, ref: ParamRef, via: ApplicationVia, accounted: Iterable<ts.Node>): void {
+    let records = this.throughParams.get(site);
+    if (records === undefined) {
+      records = new Map();
+      this.throughParams.set(site, records);
+    }
+    const key = `${this.fnId.get(ref.fn)}:${ref.param}:${via}`;
+    const existing = records.get(key);
+    if (existing === undefined) records.set(key, { ...ref, accounted: new Set(accounted), via });
+    else for (const fn of accounted) existing.accounted.add(fn);
+  }
+
+  /** Record what argument `param` of `callee` bound at `site` (see {@link bindings}). */
+  recordBinding(site: ts.Node, callee: ts.Node, param: number, value: AbstractValue, through: ParamRef | undefined): void {
+    let byCallee = this.bindings.get(site);
+    if (byCallee === undefined) {
+      byCallee = new Map();
+      this.bindings.set(site, byCallee);
+    }
+    let list = byCallee.get(callee);
+    if (list === undefined) {
+      list = [];
+      byCallee.set(callee, list);
+    }
+    let slot = list[param];
+    if (slot === undefined) {
+      slot = { fns: new Set(), through: [] };
+      list[param] = slot;
+    }
+    const tracked = [...value.fns].filter((fn) => this.fnId.has(fn));
+    for (const fn of tracked) slot.fns.add(fn);
+    if (through === undefined) return;
+    const existing = slot.through.find((t) => t.fn === through.fn && t.param === through.param);
+    if (existing === undefined) slot.through.push({ ...through, accounted: new Set(tracked) });
+    else for (const fn of tracked) existing.accounted.add(fn);
+  }
+
+  /** The parameter symbols of function `id` that its body assigns to (any assignment target naming them). */
+  private assignedParamsOf(id: number, fn: ts.Node): Set<ts.Symbol> {
+    const cached = this.reassignedParams.get(id);
+    if (cached !== undefined) return cached;
+    const params = new Set((this.fnParamSymbols.get(id) ?? []).filter((sym) => sym !== undefined));
+    const assigned = new Set<ts.Symbol>();
+    const target = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        const sym = this.checker.getSymbolAtLocation(node);
+        if (sym !== undefined && params.has(sym)) assigned.add(sym);
+        return;
+      }
+      ts.forEachChild(node, target);
+    };
+    const scan = (node: ts.Node): void => {
+      const assigns =
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment;
+      if (assigns) target((node as ts.BinaryExpression).left);
+      else if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) target(node.operand);
+      else if ((ts.isForOfStatement(node) || ts.isForInStatement(node)) && !ts.isVariableDeclarationList(node.initializer)) {
+        target(node.initializer);
+      }
+      ts.forEachChild(node, scan);
+    };
+    const body = (fn as ts.SignatureDeclaration & { body?: ts.Node }).body;
+    if (body !== undefined) scan(body);
+    this.reassignedParams.set(id, assigned);
+    return assigned;
+  }
+
   /** Mark every enclosing region as reaching a facade site. */
   markFacade(regionStack: string[]): void {
     for (const region of regionStack) {
@@ -501,48 +596,7 @@ export class TaintState {
   // -- emission ------------------------------------------------------------
 
   emitFacts(): TaintFacts {
-    const askData = new Map<string, TaintOcc[]>();
-    const askActor = new Map<string, TaintOcc[]>();
-    const worldReadData = new Map<string, TaintOcc[]>();
-    const joinIn = new Map<string, TaintOcc[]>();
-    const fanoutIn = new Map<string, TaintOcc[]>();
-
-    for (const [id, value] of this.askInstr) askData.set(id, this.resolveArtifact(value));
-    for (const [id, value] of this.askRecv) askActor.set(id, this.resolveActor(value));
-    for (const [id, value] of this.worldRead) worldReadData.set(id, this.resolveArtifact(value));
-    const holeData = new Map<string, TaintOcc[]>();
-    for (const [id, value] of this.holePrompt) holeData.set(id, this.resolveArtifact(value));
-    for (const [id, ports] of this.joinInByPort) {
-      const occs: TaintOcc[] = [];
-      for (const [port, value] of ports) {
-        for (const occ of this.resolveArtifact(value)) {
-          occs.push({ exact: occ.exact, site: occ.site, ...(port >= 0 ? { port } : {}) });
-        }
-      }
-      joinIn.set(id, occs);
-    }
-    for (const [id, value] of this.fanoutInVal) fanoutIn.set(id, this.resolveArtifact(value));
-
-    const promoted: PromotedFanout[] = this.table.iterations
-      .filter((cand) => this.promotedOrders.has(cand.order))
-      .sort((a, b) => a.order - b.order)
-      .map((cand) => ({
-        id: provisionalFanoutId(cand.order),
-        label: "fan-out",
-        loc: cand.loc,
-        order: cand.order,
-      }));
-
-    return {
-      askActor,
-      askData,
-      fanoutIn,
-      holeData,
-      joinIn,
-      promoted,
-      returnData: this.resolveArtifact(this.returnVal),
-      worldReadData,
-    };
+    return emitTaintFacts(this, this.table.iterations, createTaintResolvers(this.paramActuals));
   }
 
   /**
@@ -558,28 +612,8 @@ export class TaintState {
    *
    * Only meaningful after the fixpoint has converged; interpret.ts is the one caller.
    */
-  emitOracle(): {
-    awaitSettles: Map<number, TaintOcc[]>;
-    guardReads: Map<number, TaintOcc[]>;
-    applications: ReadonlyMap<ts.Node, ReadonlyMap<ts.Node, ApplicationVia>>;
-  } {
-    const awaitSettles = new Map<number, TaintOcc[]>();
-    for (const [pos, value] of this.awaitVal) awaitSettles.set(pos, this.resolveArtifact(value));
-    const guardReads = new Map<number, TaintOcc[]>();
-    for (const [pos, value] of this.guardVal) guardReads.set(pos, this.resolveArtifact(value));
-    return { applications: this.applications, awaitSettles, guardReads };
-  }
-
-  private resolveArtifact(value: AbstractValue): TaintOcc[] {
-    return this.resolveOccs(value).filter((occ) => !isActorSite(occ.site));
-  }
-
-  private resolveActor(value: AbstractValue): TaintOcc[] {
-    return this.resolveOccs(value).filter((occ) => isActorSite(occ.site));
-  }
-
-  private resolveOccs(value: AbstractValue): TaintOcc[] {
-    return [...collapse(resolvePlaceholders(value, this.paramActuals)).occs.values()];
+  emitOracle(): TaintOracleView {
+    return emitTaintOracle(this, createTaintResolvers(this.paramActuals));
   }
 
   bindPlaceholderParams(fn: ts.Node, id: number): void {

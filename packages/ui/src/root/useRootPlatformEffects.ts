@@ -16,6 +16,7 @@ export function useRootPlatformEffects({
   initialWorkspaceIdentity,
   initialWorkspacePurpose,
   initialTaskId,
+  initialTaskDraft,
   canBootstrapInitialWorkspace = true,
   addTab,
   setIsBootstrappingInitialWorkspace,
@@ -41,6 +42,7 @@ export function useRootPlatformEffects({
   initialWorkspaceIdentity?: string;
   initialWorkspacePurpose?: import("@zcode/shared").WorkspacePurpose;
   initialTaskId?: string;
+  initialTaskDraft?: import("@/app-shell/types.js").CreateTaskOptions;
   canBootstrapInitialWorkspace?: boolean;
   addTab: (
     workspacePath: string,
@@ -52,7 +54,11 @@ export function useRootPlatformEffects({
   setIsBootstrappingInitialWorkspace: (value: boolean) => void;
   platform: IPlatformService;
   activateTabByPath: (workspacePath: string, options?: { workspaceIdentity?: string }) => boolean;
-  startDraftInWorkspace: (workspacePath: string, workspaceIdentity?: string) => void;
+  startDraftInWorkspace: (
+    workspacePath: string,
+    workspaceIdentity?: string,
+    options?: import("@/app-shell/types.js").CreateTaskOptions,
+  ) => void;
   startNewTaskFromActiveWorkspace: (source: string) => void;
   openWorkspace: () => void;
   openWorkspacePath: (workspacePath: string) => void;
@@ -93,11 +99,12 @@ export function useRootPlatformEffects({
         useZCodeSessionStore
           .getState()
           .setActiveTaskId(initialWorkspaceAbsPath, initialTaskId, initialWorkspaceIdentity);
-      } else if (!isRendererReloadNavigation()) {
+      } else if (initialTaskDraft || !isRendererReloadNavigation()) {
         // main 注入 initial workspace 只表达工作区入口；没有显式 taskId
         // 的 app 冷启动必须进入草稿，不能让 renderer-local last-session/group/pane
         // 抢回历史会话；同一 renderer reload 则保留当前 session 续流资格。
-        startDraftInWorkspace(initialWorkspaceAbsPath, initialWorkspaceIdentity);
+        // 手机目录准入已经完成；交接原草稿才能保留项目、分组与附件，不重复准备目录。
+        startDraftInWorkspace(initialWorkspaceAbsPath, initialWorkspaceIdentity, initialTaskDraft);
       }
     }
     // Dock 最近项目会通过 initialWorkspaceAbsPath 直达工作区。
@@ -109,6 +116,7 @@ export function useRootPlatformEffects({
     addTab,
     canBootstrapInitialWorkspace,
     initialTaskId,
+    initialTaskDraft,
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
     initialWorkspacePurpose,

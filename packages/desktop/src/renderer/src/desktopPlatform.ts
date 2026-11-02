@@ -19,9 +19,14 @@ export function createDesktopPlatform(options: {
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.zcode.selectDirectory(),
+    selectDirectories: () => window.zcode.selectDirectories!(),
     selectFile: () => window.zcode.selectFile(),
     selectFiles: () => window.zcode.selectFiles?.() ?? Promise.resolve([]),
     createTempTextAttachment: (payload) => window.zcode.createTempTextAttachment(payload),
+    materializeWorkflowArtifactFile: (payload) =>
+      window.zcode.materializeWorkflowArtifactFile!(payload),
+    requestSourceSettingsAttachment: (sourceServerId) =>
+      window.zcode.requestSourceSettingsAttachment!(sourceServerId),
     onRemoteConnectionLog: (handler) => window.zcode.onRemoteConnectionLog(handler),
     onRemoteSessionClosed: (handler) => window.zcode.onRemoteSessionClosed(handler),
     onBotRemoteWorkspaceReconnected: (handler) =>
@@ -60,6 +65,9 @@ export function createDesktopPlatform(options: {
     canOpenCommunity: (locale) => window.zcode.canOpenCommunity(locale),
     openInFileManager: (path) => window.zcode.openInFileManager(path),
     openExternalFile: (path) => window.zcode.openExternalFile(path),
+    getFileApplications: (target) => window.zcode.getFileApplications!(target),
+    openFileWithApplication: (applicationId, target) =>
+      window.zcode.openFileWithApplication!(applicationId, target),
     getBuiltinProviderConfigFile: () => window.zcode.getBuiltinProviderConfigFile(),
     openCuaPermissionOnboarding: window.zcode.openCuaPermissionOnboarding
       ? (permissionOptions) =>
@@ -157,7 +165,7 @@ export function createDesktopPlatform(options: {
       window.zcode.acknowledgePostUpdateReleaseNotes(version),
     skipUpdateVersion: (version) => window.zcode.skipUpdateVersion?.(version) ?? Promise.resolve(),
     quitAndInstallUpdate: () => window.zcode.quitAndInstallUpdate(),
-    getInstalledEditors: () => window.zcode.getInstalledEditors(),
+    getInstalledEditors: (filePath) => window.zcode.getInstalledEditors(filePath),
     getApplicationIcon: (bundleId) =>
       window.zcode.getApplicationIcon?.(bundleId) ?? Promise.resolve(null),
     openInEditor: (editorId, path, editorOptions) =>

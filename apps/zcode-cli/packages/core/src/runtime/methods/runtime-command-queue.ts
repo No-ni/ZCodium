@@ -1,3 +1,8 @@
+import {
+  backgroundBatchTelemetryAttributes,
+  telemetryInputOrigin,
+  TELEMETRY_INPUT_ORIGIN_ATTRIBUTE,
+} from "./input-intent-persistence.js";
 import { traceContextToLogContext } from "../deps.js";
 import type { RuntimeCommand, TaskNotificationRuntimeCommand } from "../command-queue.js";
 import { uuidv7 } from "@zcode/shared";
@@ -12,6 +17,7 @@ import { createTurnCancelledError } from "../helpers/index.js";
 import { executeTargetContinuationCommand } from "./target.js";
 import { runActiveTargetContinuationLoop } from "./target-continuation-loop.js";
 import { isStaleBranchRuntimeCommand } from "./runtime-command-generation.js";
+import { noteWorkflowReminderCommandStarted } from "./dynamic-workflow-blocked-reminder.js";
 import type {
   AcquireForegroundPromotionLeaseResult,
   ActiveForegroundExecutionState,
@@ -44,6 +50,7 @@ export async function drainRuntimeCommandQueue(this: AgentRuntimeInternal): Prom
     while ((commands = dequeueNextRunnableBatch.call(this)).length > 0) {
       const firstCommand = commands[0];
       if (!firstCommand) continue;
+      noteWorkflowReminderCommandStarted(this, firstCommand);
       if (firstCommand.mode === "task-notification") {
         const notificationCommands = commands.filter(
           (command): command is TaskNotificationRuntimeCommand =>
@@ -66,7 +73,11 @@ export async function drainRuntimeCommandQueue(this: AgentRuntimeInternal): Prom
 
   if (this.runtimeCommandQueue.hasPending() && this.foregroundPromotionLease === undefined) {
     await this.drainRuntimeCommandQueue();
+    return;
   }
+  // 空闲沿：队列排空，且没有任何在跑 / 排着 / 预留的回合（持着晋升租约、或 prompt 已预留未入队时不算，
+  // 那一轮自己排空时会再走到这里）。「run 还欠着决定」的提醒钟从这里起算。
+  if (!hasActiveOrQueuedTurnWork.call(this)) this.workflowBlockedReminder?.sessionIdle();
 }
 
 function dequeueNextRunnableBatch(this: AgentRuntimeInternal): readonly RuntimeCommand[] {
@@ -156,10 +167,20 @@ async function runPostCommandActiveTargetLoop(
   abortSignal: AbortSignal,
 ): Promise<Awaited<ReturnType<AgentRuntimeInternal["continueActiveTargetLoop"]>> | null> {
   if (command.mode === "prompt" && command.options?.continueActiveTargetAfterTurn === true) {
+    const originalTrace = command.options.traceContext ?? command.traceContext;
+    const inputOrigin = telemetryInputOrigin(command.options.intent, originalTrace.attributes);
     return await runActiveTargetContinuationLoop.call(this, {
       abortSignal,
       inputId: command.options.inputId,
-      traceContext: command.options.traceContext ?? command.traceContext,
+      traceContext: inputOrigin
+        ? {
+            ...originalTrace,
+            attributes: {
+              ...originalTrace.attributes,
+              [TELEMETRY_INPUT_ORIGIN_ATTRIBUTE]: inputOrigin,
+            },
+          }
+        : originalTrace,
       trigger: "user-prompt",
       verifyBeforeFirstContinue: true,
     });
@@ -326,6 +347,13 @@ async function runTaskNotificationBatch(
   const firstCommand = eligibleCommands[0];
   if (!firstCommand) return;
 
+  // 合批轮和 goal 自动续跑属于同一因果链，不能在续跑时回退到首条通知的来源。
+  const batchTraceContext = {
+    ...firstCommand.traceContext,
+    attributes: backgroundBatchTelemetryAttributes(
+      eligibleCommands.map((command) => command.traceContext),
+    ),
+  };
   const foregroundExecution = beginForegroundExecution.call(this, firstCommand);
   const commandIds = eligibleCommands.map((command) => command.id);
   try {
@@ -362,11 +390,11 @@ async function runTaskNotificationBatch(
       recordedInputMessageId: persisted.messageId,
       skipInputRecord: true,
       skipUserPromptSubmitHooks: true,
-      traceContext: firstCommand.traceContext,
+      traceContext: batchTraceContext,
     });
     await runPostCommandActiveTargetLoop.call(
       this,
-      firstCommand,
+      { ...firstCommand, traceContext: batchTraceContext },
       foregroundExecution.controller.signal,
     );
     this.logger?.info?.("Background task notification batch completed", {

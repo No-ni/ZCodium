@@ -19,6 +19,9 @@ const DEFAULT_GLOBS = [
   "packages/*/test/**/*.{ts,tsx,mts,cts}",
   "apps/*/src/**/*.{ts,tsx,mts,cts}",
   "apps/*/test/**/*.{ts,tsx,mts,cts}",
+  "apps/zcode-cli/packages/*/src/**/*.{ts,tsx,mts,cts}",
+  "apps/zcode-cli/packages/*/test/**/*.{ts,tsx,mts,cts}",
+  "apps/zcode-cli/packages/*/tests/**/*.{ts,tsx,mts,cts}",
   "harness/**/*.{ts,tsx,mts,cts}",
   ...EXCLUDE_GLOBS,
 ];
@@ -273,8 +276,8 @@ function printHelp() {
   -h, --help              查看帮助
 
 示例:
-  pnpm dep:refs packages/services/src/oauth/oauthService.ts:createOAuthService
-  pnpm dep:refs --list-exports packages/services/src/oauth/oauthService.ts
+  pnpm dep:refs packages/services/src/bots/botsService.ts:createBotSession
+  pnpm dep:refs --list-exports packages/services/src/bots/botsService.ts
 
 推荐用法:
   1. 先跑 pnpm knip 拿到 unused exports 列表（瞬秒）

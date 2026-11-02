@@ -35,8 +35,8 @@ export function createMutableConversationSnapshotAccumulator(
   };
 }
 
-// row.delta 只允许作用于流式态行（不变量，服务端保证）。
-// 本函数按协议语义实现为：路径不存在/行不存在时 no-op（patch 命中未加载行 = no-op）。
+// row.delta 只允许作用于流式态行（§4.4.4 不变量，服务端保证）。
+// 本函数按协议语义实现为：路径不存在/行不存在时 no-op（§4.3：patch 命中未加载行 = no-op）。
 function appendToRow(row: ConversationRow, path: StreamablePath, append: string): ConversationRow {
   switch (path) {
     case "text":

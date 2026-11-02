@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { WebRemoteControlStatusSnapshot } from "@zcode/shared";
 import type { WebRemoteControlRuntime } from "./runtime.js";
 import { buildStatusSnapshot } from "./runtime.js";
@@ -41,6 +42,10 @@ export function mapTransportState(
   onPaired: (runtime: WebRemoteControlRuntime) => void,
 ): void {
   if (state !== "paired") {
+    // 宽限只保留连接展示；旧页面不能继续获得前台完成自动已读资格。
+    runtime.mobileTaskView = undefined;
+    runtime.mobileTaskViewEpoch = undefined;
+    runtime.mobileTaskViewSeq = undefined;
     // 30 秒宽限只保留状态展示；连接已丢失时旧 Host 订阅和缓存不能跨手机绑定继续存活。
     const bridge = runtime.bridge;
     runtime.bridge = undefined;
@@ -70,6 +75,9 @@ export function mapTransportState(
       runtime.mobileConnected = true;
       runtime.hasEverPaired = true;
       runtime.status = "active";
+      runtime.mobileTaskView = undefined;
+      runtime.mobileTaskViewEpoch = randomUUID();
+      runtime.mobileTaskViewSeq = -1;
       onPaired(runtime);
       emitStatus(runtime);
       return;

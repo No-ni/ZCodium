@@ -18,6 +18,8 @@ ZCode 手机远控的**可选**跨网组件：桌面与手机都 outbound 连它
 
 ## 快速开始
 
+仓库内测试通过公开入口 `@zcode/relay/server` 使用同一 `startRelayServer(options)` 与返回的 `close()`，无需账号服务或另一套模拟配对协议。测试调用方负责隔离路径、loopback 监听和服务释放。
+
 ### 1. 构建
 
 ```bash

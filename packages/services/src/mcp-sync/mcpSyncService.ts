@@ -10,10 +10,6 @@ import type {
   LoadCliMcpFromUserDirectoryResult,
   McpScope,
   McpServerConfig,
-  McpSyncCandidate,
-  McpSyncExportedServer,
-  McpSyncImportResult,
-  McpSyncRemoteStatus,
   McpSyncSource,
   NativeMcpServerRecord,
   SaveCliMcpToUserDirectoryRequest,
@@ -22,6 +18,7 @@ import type {
 } from "@zcode/shared";
 import type { IMcpSyncService } from "./mcpSync.js";
 import { checkRemoteSyncDirectoryWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
+import { createMcpDataSyncMethods } from "../data-sync/node.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 
 const logger = createServiceLogger("mcp-sync");
@@ -37,7 +34,7 @@ interface DirectoryMcpDescriptor {
   configKeyName: McpConfigKeyName;
 }
 
-interface UserMcpRecord {
+export interface UserMcpRecord {
   name: string;
   config: McpServerConfig;
   enabled: boolean;
@@ -74,7 +71,8 @@ const DIRECTORY_MCP_DESCRIPTORS: readonly DirectoryMcpDescriptor[] = [
   AGENTS_MCP_DESCRIPTOR,
 ];
 
-interface McpSyncServiceDependencies {
+export interface McpSyncServiceDependencies {
+  setWorkspaceMcpTrust?: IMcpSyncService["setWorkspaceMcpTrust"];
   /**
    * MCP server 运行态状态检查的执行面。真实 connect/listTools 必须发生在
    * agent 进程（workspace 的 PATH/cwd 环境），host 侧没有可替代实现；无该依赖的
@@ -87,6 +85,7 @@ export function createMcpSyncService(
   dependencies: McpSyncServiceDependencies = {},
 ): IMcpSyncService {
   return {
+    ...createMcpDataSyncMethods(),
     async loadMcpFromUserDirectory(request) {
       return loadMcpFromUserDirectory(request);
     },
@@ -96,61 +95,17 @@ export function createMcpSyncService(
       }
       return dependencies.listMcpServerStatuses(params);
     },
+    async setWorkspaceMcpTrust(params) {
+      if (!dependencies.setWorkspaceMcpTrust) throw new Error("workspace_mcp_trust_unavailable");
+      return dependencies.setWorkspaceMcpTrust(params);
+    },
     async saveMcpToUserDirectory(payload) {
       await saveMcpToUserDirectory(payload);
-    },
-    async listLocalUserMcpCandidates() {
-      const localHomeDir = resolveUserHomeDir();
-      return {
-        candidates: (await collectEffectiveUserMcpRecords()).map(recordToCandidate),
-        localHomeDir,
-      };
-    },
-    async listRemoteUserMcpStatuses(params) {
-      const remoteHomeDir = resolveUserHomeDir();
-      const existingByName = await collectEffectiveUserMcpRecordByName();
-      return {
-        remoteHomeDir,
-        statuses: params.names.map((name): McpSyncRemoteStatus => {
-          const existing = existingByName.get(normalizeMcpNameKey(name));
-          return existing ? { name, exists: true, path: existing.path } : { name, exists: false };
-        }),
-      };
-    },
-    async exportMcpServers(params) {
-      const candidates = (await collectEffectiveUserMcpRecords()).map(recordToCandidate);
-      const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-      return {
-        localHomeDir: resolveUserHomeDir(),
-        servers: params.serverIds.map((id): McpSyncExportedServer => {
-          const candidate = candidateById.get(id);
-          if (!candidate) {
-            throw new Error(`mcp sync candidate not found: ${id}`);
-          }
-          return {
-            id: candidate.id,
-            name: candidate.name,
-            config: cloneMcpConfig(candidate.config),
-            enabled: candidate.enabled,
-            source: candidate.source,
-            path: candidate.path,
-          };
-        }),
-      };
-    },
-    async checkRemoteUserMcpWriteAccess() {
-      return checkRemoteSyncDirectoryWriteAccess(dirname(getUserZcodeMcpConfigPath()));
-    },
-    async importMcpServers(params) {
-      if (params.overwrite) {
-        throw new Error("mcp sync overwrite is not supported");
-      }
-      return await importMcpServers(params);
     },
   };
 }
 
-function resolveUserHomeDir(): string {
+export function resolveUserHomeDir(): string {
   return process.env.HOME?.trim() || process.env.USERPROFILE?.trim() || homedir();
 }
 
@@ -174,7 +129,7 @@ function buildUserConfigPath(descriptor: DirectoryMcpDescriptor): string {
   return buildDirectoryConfigPath(descriptor, "user");
 }
 
-function getUserZcodeMcpConfigPath(): string {
+export function getUserZcodeMcpConfigPath(): string {
   return buildUserConfigPath(ZCODE_MCP_DESCRIPTOR);
 }
 
@@ -202,23 +157,12 @@ function findDescriptorByLocation(location: SettingsDirectoryLocation): Director
   return descriptor;
 }
 
-async function collectEffectiveUserMcpRecords(): Promise<UserMcpRecord[]> {
+export async function collectEffectiveUserMcpRecords(): Promise<UserMcpRecord[]> {
   const zcodeRecords = await readUserMcpRecordsFromFile(ZCODE_MCP_DESCRIPTOR);
   if (zcodeRecords.length > 0) {
     return sortMcpRecords(zcodeRecords);
   }
   return sortMcpRecords(await readUserMcpRecordsFromFile(AGENTS_MCP_DESCRIPTOR));
-}
-
-async function collectEffectiveUserMcpRecordByName(): Promise<Map<string, UserMcpRecord>> {
-  const result = new Map<string, UserMcpRecord>();
-  for (const record of await collectEffectiveUserMcpRecords()) {
-    const nameKey = normalizeMcpNameKey(record.name);
-    if (!result.has(nameKey)) {
-      result.set(nameKey, record);
-    }
-  }
-  return result;
 }
 
 async function loadMcpFromUserDirectory(
@@ -450,32 +394,15 @@ async function readUserMcpRecordsFromFile(
   }));
 }
 
-function recordToCandidate(record: UserMcpRecord): McpSyncCandidate {
-  return {
-    id: createCandidateId(record),
-    name: record.name,
-    config: cloneMcpConfig(record.config),
-    enabled: record.enabled,
-    source: record.source,
-    path: record.path,
-  };
-}
-
-function createCandidateId(record: UserMcpRecord): string {
-  return createHash("sha256")
-    .update(`${record.source}:${record.path}:${record.name}`)
-    .digest("hex");
-}
-
-function normalizeMcpNameKey(name: string): string {
+export function normalizeMcpNameKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function readServerEnabled(config: Record<string, unknown>): boolean {
+export function readServerEnabled(config: Record<string, unknown>): boolean {
   return config[ENABLED_KEY] !== false;
 }
 
-function setServerEnabled(config: McpServerConfig, enabled: boolean): McpServerConfig {
+export function setServerEnabled(config: McpServerConfig, enabled: boolean): McpServerConfig {
   // 启用是默认态，不落盘冗余字段；同时清掉可能残留的 legacy enable，
   // 避免再产出 enable:false + enabled:true 这类自相矛盾的配置。
   const { [LEGACY_ENABLE_KEY]: _legacyEnable, [ENABLED_KEY]: _enabled, ...rest } = config;
@@ -582,106 +509,33 @@ function writeServerMapToJson(
   };
 }
 
-async function importMcpServers(params: {
-  servers: McpSyncExportedServer[];
-  localHomeDir: string;
-  localWorkspacePath?: string;
-  remoteWorkspacePath?: string;
-}): Promise<McpSyncImportResult> {
-  const targetPath = getUserZcodeMcpConfigPath();
-  const current = (await readJsonObject(targetPath)) ?? {};
-  const targetServers = readServerMapFromJson(current, ZCODE_MCP_DESCRIPTOR.configKeyName);
-  // 只记录本轮新增的条目：并发写入方对既有条目的修改必须保留，不能用锁外的旧快照整文件写回。
-  const addedServers: Record<string, Record<string, unknown>> = {};
-  const existingByName = await collectEffectiveUserMcpRecordByName();
-  const results: McpSyncImportResult["results"] = [];
-  let changed = false;
-
-  for (const server of params.servers) {
-    const nameKey = normalizeMcpNameKey(server.name);
-    const existingTarget = targetServers[server.name];
-    if (existingTarget) {
-      results.push({ name: server.name, status: "skipped", path: targetPath });
-      continue;
-    }
-
-    const existing = existingByName.get(nameKey);
-    if (existing) {
-      results.push({
-        name: server.name,
-        status: "skipped",
-        path: existing.path,
-      });
-      continue;
-    }
-
-    try {
-      const rewrittenConfig = rewriteFilesystemMcpConfig(
-        server.name,
-        setServerEnabled(cloneMcpConfig(server.config), server.enabled),
-        {
-          localHomeDir: params.localHomeDir,
-          localWorkspacePath: params.localWorkspacePath,
-          remoteHomeDir: resolveUserHomeDir(),
-          remoteWorkspacePath: params.remoteWorkspacePath,
-        },
-      );
-      addedServers[server.name] = rewrittenConfig as Record<string, unknown>;
-      targetServers[server.name] = rewrittenConfig as Record<string, unknown>;
-      existingByName.set(nameKey, {
-        name: server.name,
-        config: rewrittenConfig,
-        enabled: server.enabled,
-        source: "zcode",
-        path: targetPath,
-      });
-      results.push({ name: server.name, status: "synced", path: targetPath });
-      changed = true;
-    } catch (error) {
-      results.push({
-        name: server.name,
-        status: "failed",
-        path: targetPath,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  if (changed) {
-    // Bug 原因：锁外读到的 current 已被并发写入方超越，整文件写回会抹掉对方刚写入的字段。
-    // 修复依据：锁内重读，只把本轮新增条目合并上去，既有条目以锁内最新值为准。
-    await withFileLock(targetPath, async () => {
-      const fresh = (await readJsonObject(targetPath)) ?? {};
-      const freshServers = readServerMapFromJson(fresh, ZCODE_MCP_DESCRIPTOR.configKeyName);
-      const existingNames = new Set(Object.keys(freshServers).map(normalizeMcpNameKey));
-      const merged = { ...freshServers };
-      for (const [name, config] of Object.entries(addedServers)) {
-        // 锁等待期间可能新增同名 server；导入禁止覆盖，判重必须基于锁内最新值。
-        if (existingNames.has(normalizeMcpNameKey(name))) {
-          const result = results.find((item) => item.name === name && item.status === "synced");
-          if (result) result.status = "skipped";
-        } else {
-          merged[name] = config;
-          existingNames.add(normalizeMcpNameKey(name));
-        }
-      }
-      const next = writeServerMapToJson(fresh, ZCODE_MCP_DESCRIPTOR.configKeyName, merged);
-      await writeTextAtomic(targetPath, `${JSON.stringify(next, null, 2)}\n`);
-    });
-  }
-
-  return { results };
+/** 读取 `config.json` 的 `mcp.servers`（已折叠历史 enable 字段），供数据同步在写前重读后使用。 */
+export function readZcodeServerMap(
+  config: Record<string, unknown>,
+): Record<string, Record<string, unknown>> {
+  return migrateLegacyEnableFlag(readServerMapFromJson(config, ZCODE_MCP_DESCRIPTOR.configKeyName))
+    .servers;
 }
 
-function rewriteFilesystemMcpConfig(
+export function writeZcodeServerMap(
+  config: Record<string, unknown>,
+  servers: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  return writeServerMapToJson(config, ZCODE_MCP_DESCRIPTOR.configKeyName, servers);
+}
+
+export interface McpPathRewrite {
+  sourceHomeDir: string;
+  sourceWorkspacePath?: string;
+  targetHomeDir: string;
+  targetWorkspacePath?: string;
+}
+
+/** 只改写 filesystem 类 stdio MCP 的 `args`；其他 MCP 的 args、env、cwd 原样保留。 */
+export function rewriteFilesystemMcpConfig(
   name: string,
   config: McpServerConfig,
-  paths: {
-    localHomeDir: string;
-    localWorkspacePath?: string;
-    remoteHomeDir: string;
-    remoteWorkspacePath?: string;
-  },
+  paths: McpPathRewrite,
 ): McpServerConfig {
   if (!isStdioMcpConfig(config) || !isFilesystemMcpServer(name, config)) {
     return config;
@@ -722,23 +576,15 @@ function isFilesystemMcpServer(name: string, config: McpServerConfig): boolean {
   );
 }
 
-function rewritePathArgForRemote(
-  arg: string,
-  paths: {
-    localHomeDir: string;
-    localWorkspacePath?: string;
-    remoteHomeDir: string;
-    remoteWorkspacePath?: string;
-  },
-): string {
-  const workspaceRelative = getRelativePathIfWithin(paths.localWorkspacePath, arg);
-  if (workspaceRelative !== null && paths.remoteWorkspacePath?.trim()) {
-    return joinRemotePath(paths.remoteWorkspacePath, workspaceRelative);
+function rewritePathArgForRemote(arg: string, paths: McpPathRewrite): string {
+  const workspaceRelative = getRelativePathIfWithin(paths.sourceWorkspacePath, arg);
+  if (workspaceRelative !== null && paths.targetWorkspacePath?.trim()) {
+    return joinRemotePath(paths.targetWorkspacePath, workspaceRelative);
   }
 
-  const homeRelative = getRelativePathIfWithin(paths.localHomeDir, arg);
+  const homeRelative = getRelativePathIfWithin(paths.sourceHomeDir, arg);
   if (homeRelative !== null) {
-    return joinRemotePath(paths.remoteHomeDir, homeRelative);
+    return joinRemotePath(paths.targetHomeDir, homeRelative);
   }
 
   return arg;
@@ -809,7 +655,7 @@ function joinRemotePath(remoteBasePath: string, relativePath: string): string {
   return posix.join(normalizedBasePath.replaceAll("\\", "/"), ...segments);
 }
 
-function cloneMcpConfig(config: McpServerConfig): McpServerConfig {
+export function cloneMcpConfig(config: McpServerConfig): McpServerConfig {
   return JSON.parse(JSON.stringify(config)) as McpServerConfig;
 }
 

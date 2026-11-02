@@ -3,7 +3,12 @@ import type {
   AiSdkNetworkConfig,
   EnvRecord,
 } from "@zcode/adapters/model";
+import type { ProviderEndpointRoutingPort } from "@zcode/contracts";
+export type ModelProviderSourceTitle = "cli" | "electron";
+
 interface RuntimeExecutionConfigOptions {
+  appVersion?: string;
+  endpointRoutingPort?: ProviderEndpointRoutingPort;
   network?: AiSdkNetworkConfig;
 }
 
@@ -16,6 +21,7 @@ export function createRuntimeAiSdkModelExecutionConfig(
   return {
     env,
     ...(network ? { network } : {}),
+    ...(options.endpointRoutingPort ? { endpointRoutingPort: options.endpointRoutingPort } : {}),
   };
 }
 

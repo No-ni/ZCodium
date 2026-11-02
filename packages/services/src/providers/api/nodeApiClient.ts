@@ -90,7 +90,6 @@ export class NodeApiClient implements ApiClient {
         log.debug(undefined, "zcode endpoint request headers prepared", {
           headerKeys: readHeaderKeys(requestHeaders),
           method,
-          url,
         });
       }
       const response = await fetchImpl(requestInput, {

@@ -110,7 +110,7 @@ test("Local emits complete JSONSchema and a wrapper instruction, not deferred wi
   });
   assert.deepEqual(
     exposure.tools.map((tool) => tool.name),
-    ["ToolSearch", "DeferredToolCall", "Read"],
+    ["LocalToolSearch", "DeferredToolCall", "Read"],
   );
   const result = exposure.entries[1] as any;
   const text = result.message.content.map((block: any) => block.text ?? "").join("\n");

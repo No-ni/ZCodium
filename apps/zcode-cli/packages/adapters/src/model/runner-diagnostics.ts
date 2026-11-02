@@ -31,6 +31,7 @@ interface StreamDiagnostics {
   lastFinishChunk?: unknown;
   rawFinishReason?: unknown;
   reasoningDeltaChars: number;
+  hasReasoningContent: boolean;
   textDeltaChars: number;
   toolCallCount: number;
   usage?: ModelUsage;
@@ -41,6 +42,7 @@ export function createStreamDiagnostics(): StreamDiagnostics {
     chunkCounts: {},
     errorChunkCount: 0,
     reasoningDeltaChars: 0,
+    hasReasoningContent: false,
     textDeltaChars: 0,
     toolCallCount: 0,
   };
@@ -57,8 +59,14 @@ export function recordStreamChunkDiagnostic(diagnostics: StreamDiagnostics, chun
     return;
   }
 
+  if (chunkType.startsWith("reasoning-")) {
+    // 空文本可能携带有效的 reasoning 签名，不能当作空超窗丢弃。
+    diagnostics.hasReasoningContent ||= Object.keys(asRecord(record.providerMetadata)).length > 0;
+  }
   if (chunkType === "reasoning-delta") {
     diagnostics.reasoningDeltaChars += stringProperty(record, "text")?.length ?? 0;
+    diagnostics.hasReasoningContent ||=
+      (stringProperty(record, "delta") ?? stringProperty(record, "text") ?? "").length > 0;
     return;
   }
 
@@ -69,7 +77,8 @@ export function recordStreamChunkDiagnostic(diagnostics: StreamDiagnostics, chun
 
   if (chunkType === "finish") {
     diagnostics.finishReason = stringProperty(record, "finishReason") ?? diagnostics.finishReason;
-    diagnostics.rawFinishReason = record.rawFinishReason ?? asRecord(record.providerMetadata).rawFinishReason;
+    diagnostics.rawFinishReason =
+      record.rawFinishReason ?? asRecord(record.providerMetadata).rawFinishReason;
     diagnostics.lastFinishChunk = chunk;
     diagnostics.usage = normalizeUsage(
       (record.totalUsage ?? record.usage) as Partial<LanguageModelUsage> | undefined,

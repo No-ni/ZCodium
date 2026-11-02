@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  webRemoteControlMobileTaskViewSchema,
+  webRemoteControlMobileViewStateSchema,
+  webRemoteControlMobileDeviceInfoSchema,
+} from "./envelope.js";
 
 /**
  * 桌面远控运行时状态与 IPC 契约。
@@ -49,6 +54,11 @@ export const webRemoteControlStatusSnapshotSchema = z
     sessionId: z.string().optional(),
     windowControlSessionId: z.string().optional(),
     mobileConnected: z.boolean().optional(),
+    mobileViewState: webRemoteControlMobileViewStateSchema.optional(),
+    mobileTaskView: webRemoteControlMobileTaskViewSchema
+      .extend({ remoteSessionId: z.string().optional() })
+      .optional(),
+    mobileDeviceInfo: webRemoteControlMobileDeviceInfoSchema.optional(),
     qrUrl: z.string().optional(),
     connectUrl: z.string().optional(),
     workspacePath: z.string().optional(),
@@ -60,6 +70,7 @@ export const webRemoteControlStatusSnapshotSchema = z
   })
   .strict();
 export type WebRemoteControlStatusSnapshot = z.infer<typeof webRemoteControlStatusSnapshotSchema>;
+export type WebRemoteControlStatus = WebRemoteControlStatusSnapshot;
 
 export const webRemoteControlStartRequestSchema = z
   .object({

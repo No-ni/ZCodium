@@ -1,4 +1,8 @@
-/* oxlint-disable eslint(max-lines) -- WorkbenchLeafPane 集中承载 pane focus、per-pane provider、恢复守卫和 session drop target；拆散会让 DnD/focus/session 绑定链路跨文件跳转，后续稳定后再按职责抽离。 */
+import {
+  RemoteConversationBanner,
+  RemoteConversationDisconnected,
+} from "@/project-sidebar/RemoteConversationDisconnected.js";
+/* oxlint-disable eslint(max-lines) -- WorkbenchLeafPane 集中承载 pane focus、per-pane provider 与恢复守卫；拆散会让 focus/session 绑定链路跨文件跳转。 */
 // 分屏叶子 pane：Focus 层外壳 + per-pane 数据面接线 + 恢复守卫。宿主 = V4WorkspaceChatArea。
 import {
   memo,
@@ -11,7 +15,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { TID_V4_PANE_SHELL, testId } from "@zcode/shared";
+import { TID_V4_PANE_SHELL, testId } from "@zcode/shared/test-ids";
 import type {
   GitChangeSourceId,
   GitRepositorySummary,
@@ -47,8 +51,8 @@ import {
   V4_PRIMARY_PANE_ID,
   type PaneBinding,
   type PaneSplitSide,
-  type PaneWorkspaceScope,
   type SplitDirection,
+  type PaneWorkspaceScope,
 } from "@/v4/paneLayoutStore.js";
 import type { WorkbenchSessionBinding } from "@/v4/workbenchGroupStore.js";
 import {
@@ -150,6 +154,7 @@ const ChatPaneShell = memo(function ChatPaneShell({
       style={style}
       className={cn(
         "absolute flex min-h-0 min-w-0 flex-col",
+        hidden && "hidden",
         showFocusIndicator && focused && "ring-1 ring-inset ring-[var(--color-brand)]",
       )}
     >
@@ -262,6 +267,9 @@ export interface WorkbenchShellBinding {
   remoteSessionId?: string;
   isDesktop?: boolean;
   readOnly?: boolean;
+  readOnlyReason?: string;
+  allowEscapeStopOutsidePane?: boolean;
+  compactForRemoteControl?: boolean;
   sessionId: string | null;
   /** Shell 当前真正激活的 task；split pane 接管 active task 时不等于 primary sessionId。 */
   activeSessionId?: string | null;
@@ -311,10 +319,11 @@ export interface WorkbenchShellBinding {
   onSearchResultHighlightDone?: (requestId: number) => void;
 }
 
-interface WorkbenchLeafPaneProps {
+export interface WorkbenchLeafPaneProps {
   paneId: string;
   rect: RectExpr;
   solo?: boolean;
+  /** 完整视图浮窗只显示焦点 pane；其余 pane 隐藏但不卸载。 */
   hidden?: boolean;
   focused: boolean;
   showFocusIndicator: boolean;
@@ -361,8 +370,8 @@ export function WorkbenchLeafPane({
   primaryBinding,
   shell,
   onFocusRequest,
-  onSplit,
   onClosePane,
+  onSplit,
   onConfirmRestoredSession,
   onBindSession,
   onPaneActiveSessionChange,
@@ -403,6 +412,7 @@ export function WorkbenchLeafPane({
     [hidden, rect, solo],
   );
 
+  // 合并遗漏了菜单拆分接线；布局仍由宿主 store 独占，pane 只转发方向与 scope。
   const handleSplitRight = useCallback(() => {
     onSplit?.(paneId, "row", scope);
   }, [onSplit, paneId, scope]);
@@ -557,7 +567,12 @@ export function WorkbenchLeafPane({
       onDrop={handleDrop}
       restoredUnvalidated={Boolean((isPrimary ? primaryBinding : binding)?.restoredUnvalidated)}
     >
-      <V4PaneConversationProvider scope={scope}>
+      <V4PaneConversationProvider
+        scope={scope}
+        sessionId={sessionId}
+        unavailableFallback={<RemoteConversationDisconnected {...scope} sessionId={sessionId} />}
+        disconnectedBanner={<RemoteConversationBanner {...scope} sessionId={sessionId} />}
+      >
         {(isPrimary ? primaryBinding : binding)?.restoredUnvalidated && sessionId ? (
           <PaneRestoredGuard
             paneId={paneId}
@@ -570,6 +585,7 @@ export function WorkbenchLeafPane({
         <SessionPane
           paneId={paneId}
           readOnly={readOnly}
+          readOnlyReason={isShellWorkspace ? shell.readOnlyReason : undefined}
           sessionId={sessionId}
           activeSelectionSideChatSessionId={resolvePaneActiveSelectionSideChatSessionId(
             sessionId,
@@ -580,6 +596,7 @@ export function WorkbenchLeafPane({
           workspaceIdentity={scope.workspaceIdentity}
           remoteSessionId={scope.remoteSessionId}
           isDesktop={shell.isDesktop}
+          compactForRemoteControl={shell.compactForRemoteControl ?? false}
           provider={isPrimary && isShellWorkspace ? shell.provider : undefined}
           onSessionCreated={handleSessionCreated}
           onSessionDeleted={handleSessionDeleted}
@@ -592,13 +609,16 @@ export function WorkbenchLeafPane({
               : undefined
           }
           focused={focused}
+          allowEscapeStopOutsidePane={shell.allowEscapeStopOutsidePane}
           onSplitRight={canSplit && onSplit ? handleSplitRight : undefined}
           onSplitDown={canSplit && onSplit ? handleSplitDown : undefined}
           onClosePane={isPrimary ? undefined : handleClosePane}
           workspaceBadge={!isPrimary && !isShellWorkspace ? workspaceBadgeFor(scope) : undefined}
           draftComposerHeader={isPrimary && !primaryBinding ? shell.draftComposerHeader : undefined}
+          // 草稿页头才需要上行拖拽控制器。普通会话上传它会把 Composer 的闭包送回壳层，
+          // 再经壳层回调连回旧 SessionPane，形成跨会话的 snapshot / store 保留链。
           onDropTargetControllerChange={
-            isPrimary && !primaryBinding
+            isPrimary && !primaryBinding && sessionId === null
               ? shell.onPrimaryDraftDropTargetControllerChange
               : undefined
           }
@@ -651,7 +671,7 @@ export function WorkbenchLeafPane({
   );
 }
 
-function resolvePaneActiveSelectionSideChatSessionId(
+export function resolvePaneActiveSelectionSideChatSessionId(
   paneSessionId: string | null,
   shellActiveSessionId: string | null,
   activeSelectionSideChatSessionId: string | null | undefined,

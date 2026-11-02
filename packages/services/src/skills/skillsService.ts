@@ -26,6 +26,7 @@ import { atomicWriteText } from "#src/fs/atomicFileUtils.js";
 import type { ISkillsService } from "./skills.js";
 import { SKILL_FILE_NAME, walkSkillMarkdownPaths } from "./skillDiscoveryWalk.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
+import { updateJsonObjectFile } from "#src/fs/atomicFileUtils.js";
 
 interface DiscoverResult {
   skills: SkillSummary[];
@@ -562,6 +563,11 @@ async function readSkillEnabledMap(): Promise<Record<string, boolean>> {
   return readSkillEnabledMapFromConfig(await readCliConfigFile());
 }
 
+/**
+ * 根因：旧实现写入前用 readCliConfigFile 读取，读失败或 JSON 损坏时返回空对象，再用 writeFile
+ * 整文件写回，config.json 里的 MCP、插件等其他配置会被冲掉；writeFile 也不是原子写。
+ * 修法：改用 updateJsonObjectFile——文件损坏时报错不写，写前重读，只改 skills 字段，原子替换。
+ */
 async function writeSkillEnabledMap(next: Record<string, boolean>): Promise<void> {
   // Bug 原因：SKILL_CLI_CONFIG_FILE 就是 ~/.zcodium/cli/config.json，由 Main、Host 与 CLI
   // 共同写入；修复前锁外读、锁外写会用旧快照覆盖其他写入方刚写入的字段。

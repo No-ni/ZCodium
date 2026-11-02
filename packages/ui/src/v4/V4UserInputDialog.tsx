@@ -4,12 +4,12 @@ import {
   TID_V4_USER_INPUT_OPTION,
   TID_V4_USER_INPUT_TEXT,
   testId,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import type { V4UserInputViewModel } from "@/v4/pendingInteractionAdapter.js";
 
-interface V4UserInputDialogProps {
+export interface V4UserInputDialogProps {
   model: V4UserInputViewModel;
   onSubmit: (answer: { optionId?: string; freeText?: string }) => void;
 }

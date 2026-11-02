@@ -3,7 +3,7 @@ import type {
   V4ConversationTurnDirectoryResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
-import { getLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
+import { getLocalTtftObserver } from "@/v4/diagnostics/local-ttft/localTtftObserver.js";
 import { calibrateLocalTtftClock, localTtftNow } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
 // ConversationTransport 的 desktop/host 实现：桥到 IZCodeAgentService 的 v4 转发面
@@ -48,7 +48,7 @@ import {
   type AttachmentUploadOptions,
 } from "@/v4/attachmentUploadTransaction.js";
 
-interface AgentConversationTransportTarget {
+export interface AgentConversationTransportTarget {
   workspacePath: string;
   workspaceIdentity?: string;
   /** Remote workspace shard identity used with its path for every V4 request. */
@@ -355,7 +355,10 @@ export function createAgentConversationTransport(
         throw error;
       }
     },
-    async sendCommand(envelope: CommandEnvelope): Promise<CommandAck> {
+    async sendCommand(
+      envelope: CommandEnvelope,
+      context?: { projectId?: string | null },
+    ): Promise<CommandAck> {
       const hello = await ensureHandshake();
       const payload = envelope.payload as {
         planEnabled?: boolean;
@@ -369,8 +372,8 @@ export function createAgentConversationTransport(
       ) {
         throw new Error("proto.independentPlanUnsupported");
       }
-      return sendWithConversationDelayE2E(() =>
-        agentService.sendConversationCommandV4({ ...workspace, envelope }),
+      return sendWithConversationDelayE2E(envelope, () =>
+        agentService.sendConversationCommandV4({ ...workspace, ...context, envelope }),
       );
     },
     async queryCommands(params: CommandsQueryParams): Promise<CommandsQueryResult> {

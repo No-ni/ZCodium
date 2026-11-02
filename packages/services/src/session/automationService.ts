@@ -1,4 +1,6 @@
+export { InvalidAutomationScheduleRuleError } from "#src/session/automationScheduleValidation.js";
 import type {
+  ProjectExecutionSnapshot,
   ZCodeAutomation,
   ZCodeAutomationCreateParams,
   ZCodeAutomationRun,
@@ -62,7 +64,12 @@ class InvalidAutomationMaxRunsUpdateError extends Error {
  * 「restart 重算」等 cron 相关业务，供 UI 管理面 / RPC 调用。
  */
 export class AutomationService {
-  constructor(private readonly repo: AutomationRepo = new AutomationRepo()) {}
+  constructor(
+    private readonly repo: AutomationRepo = new AutomationRepo(),
+    private readonly prepareProjectExecution?: (
+      projectId: string,
+    ) => Promise<ProjectExecutionSnapshot>,
+  ) {}
 
   async create(params: ZCodeAutomationCreateParams): Promise<ZCodeAutomation> {
     const createdAt = Date.now();
@@ -132,10 +139,19 @@ export class AutomationService {
     const nextRunAt = computeInitialAutomationNextRunAt(createParams, createdAt);
     const endedBeforeFirstRun =
       createParams.endAt !== undefined && (nextRunAt ?? Infinity) > createParams.endAt;
-    return this.repo.create(createParams, {
-      nextRunAt: endedBeforeFirstRun ? null : nextRunAt,
-      ...(endedBeforeFirstRun ? { lifecycleStatus: "completed" as const } : {}),
-    });
+    let execution: ProjectExecutionSnapshot | undefined;
+    if (createParams.projectId) {
+      if (createParams.targetTaskId) throw new Error("project.bound-task");
+      if (!this.prepareProjectExecution) throw new Error("project.creation-unavailable");
+      execution = await this.prepareProjectExecution(createParams.projectId);
+    }
+    return this.repo.create(
+      { ...createParams, ...execution },
+      {
+        nextRunAt: endedBeforeFirstRun ? null : nextRunAt,
+        ...(endedBeforeFirstRun ? { lifecycleStatus: "completed" as const } : {}),
+      },
+    );
   }
 
   async list(scope?: {
@@ -351,6 +367,11 @@ export class AutomationService {
     scope?: AutomationWorkspaceScope,
   ): Promise<void> {
     return this.repo.setEnabled(automationId, enabled, resolveScopeKey(scope));
+  }
+
+  /** 执行轮自暂停（CronPauseSelf）：只暂停当前 workspace 内 active 的任务，返回是否生效。 */
+  async pause(automationId: string, scope?: AutomationWorkspaceScope): Promise<boolean> {
+    return this.repo.pause(automationId, resolveScopeKey(scope));
   }
 
   /** 失败任务手动重跑：回 active、清计数，按 cron 重算下次时间。 */

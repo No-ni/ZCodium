@@ -6,6 +6,27 @@ import {
   type ConversationRow,
 } from "./zcode-protocol-v4/rows.js";
 
+// 本地错误详情只接收结构坐标，拒绝路径原文；无账号、网络请求或云服务依赖。
+const rejectionCoordinateSchema = z
+  .string()
+  .min(1)
+  .max(65)
+  .regex(/^[A-Za-z0-9_.[\]~-]+$/u);
+export const conversationShareRejectionSchema = z
+  .object({
+    rule: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z][a-z0-9_]*$/u),
+    path: rejectionCoordinateSchema.optional().catch(undefined),
+    field: rejectionCoordinateSchema.optional().catch(undefined),
+    row_index: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional().catch(undefined),
+    row_kind: rejectionCoordinateSchema.optional().catch(undefined),
+  })
+  .strict();
+export type ConversationShareRejection = z.infer<typeof conversationShareRejectionSchema>;
+
 /** 旧本地副本的未知行保留计数，避免升级/降级时静默丢失展示。 */
 export function decodeConversationShareRows(rows: readonly unknown[]): {
   rows: ConversationRow[];
@@ -58,6 +79,8 @@ export type ConversationShareArtifactDescriptor = z.infer<
 /** 随包文件格式的能力，供选择预检和附件快照使用。 */
 export interface ConversationShareCapabilities {
   schema_version: number;
+  /** 可选内容块版本；本地 v1 归档不声明即不支持，不据此自动降级或伪造快照。 */
+  content_block_versions?: Record<string, number>;
   max_rows: number;
   max_payload_bytes: number;
   max_artifact_count: number;

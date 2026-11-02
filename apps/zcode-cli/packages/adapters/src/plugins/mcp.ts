@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type {
   McpOAuthConfig,
   McpServerConfig,
-  McpServerRuntimeSource,
+  McpServerConfigBase,
   PluginDiagnostic,
   PluginManifest,
   PluginOptionValues,
@@ -173,10 +173,20 @@ function resolveMcpServerConfig(server: unknown, context: VariableContext): McpS
   if (!isRecord(server)) throw new Error("MCP server config must be an object");
   const type = typeof server.type === "string" ? server.type : inferMcpType(server);
   if (!SUPPORTED_MCP_TYPES.has(type)) throw new Error(`Unsupported MCP transport: ${type}`);
-  // ZCode 官方市场同时包含随应用装载的 Builtin Plugin 与按需安装的 CDN Plugin；后者运行时
-  // source 为 `cache`，因此必须按 marketplace 身份归类，不能只看 loader source。
-  const source: McpServerRuntimeSource = {
-    kind: context.loaded.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE ? "builtin" : "plugin",
+  // 修复原因：各 transport 分别重建配置曾漏传 alwaysLoad，导致插件常驻工具被延迟。
+  // 通用字段只在此解析；source 按 marketplace 归类，兼容 source 为 cache 的官方 CDN 插件。
+  const official = context.loaded.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE;
+  const baseConfig: McpServerConfigBase = {
+    alwaysLoad: typeof server.alwaysLoad === "boolean" ? server.alwaysLoad : undefined,
+    enabled: typeof server.enabled === "boolean" ? server.enabled : undefined,
+    // 工作区共享的 server 要自己按 _meta.session_id 划分状态，只信任官方插件这样做
+    // （文档插件查看面板 spec §8）；其他插件的声明忽略，保持 session isolation。
+    isolation:
+      official && (server.isolation === "workspace" || server.isolation === "session")
+        ? server.isolation
+        : undefined,
+    timeoutMs: typeof server.timeoutMs === "number" ? server.timeoutMs : undefined,
+    source: { kind: official ? "builtin" : "plugin" },
   };
 
   const authError = getUnsupportedMcpAuthError(server);
@@ -202,6 +212,7 @@ function resolveMcpServerConfig(server: unknown, context: VariableContext): McpS
     // 内置插件的 broker 凭据。manifest env spread 之后覆写，确保 user/manifest 无法覆盖。
     env[ZCODE_PLUGIN_ID_ENV_KEY] = context.loaded.id;
     return {
+      ...baseConfig,
       type: "stdio",
       command: resolveTemplate(command, context, { allowSensitive: false }),
       args: Array.isArray(server.args)
@@ -213,9 +224,7 @@ function resolveMcpServerConfig(server: unknown, context: VariableContext): McpS
         typeof server.cwd === "string"
           ? resolveTemplate(server.cwd, context, { allowSensitive: false })
           : undefined,
-      enabled: typeof server.enabled === "boolean" ? server.enabled : undefined,
       env,
-      source,
       timeoutMs: typeof server.timeoutMs === "number" ? server.timeoutMs : undefined,
     };
   }
@@ -230,13 +239,11 @@ function resolveMcpServerConfig(server: unknown, context: VariableContext): McpS
   const oauth = resolveMcpOAuthConfig(server.oauth, context);
 
   return {
+    ...baseConfig,
     type,
     url: resolveTemplate(url, context, { allowSensitive: false }),
-    enabled: typeof server.enabled === "boolean" ? server.enabled : undefined,
     headers,
     oauth,
-    source,
-    timeoutMs: typeof server.timeoutMs === "number" ? server.timeoutMs : undefined,
   } as McpServerConfig;
 }
 

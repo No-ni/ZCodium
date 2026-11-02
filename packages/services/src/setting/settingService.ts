@@ -5,10 +5,16 @@ import type { AppSettings } from "@zcode/shared";
 import { ZCODE_USER_DATA_DIR_NAME, appSettingsPatchSchema, appSettingsSchema } from "@zcode/shared";
 import type { ISettingService } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
-import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";
+import {
+  copyDataDirectory,
+  getAgentUserInstructionsFilePath,
+  getDataBaseDir,
+  validateDataBaseDirTarget,
+} from "../paths.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { maybeThrowInjectedFsFault } from "../fs/fsFaultInjection.js";
 import { atomicWriteText } from "../fs/atomicFileUtils.js";
+import { createUserInstructionsPersistence } from "#src/setting/userInstructionsPersistence.js";
 import { withFileLock } from "@zcode/shared/node";
 import { withSettingsWriteQueueTimeout } from "./settingsWriteQueue.js";
 import {
@@ -19,7 +25,6 @@ import {
   retainLegacyAccountConnectionFields,
 } from "#src/setting/legacyAccountConnectionSettings.js";
 const MAX_RECENT_PROJECTS = 10;
-const DEFAULT_PROJECT_NAME = "ZCodeProject";
 const SETTINGS_PARSE_RETRY_DELAY_MS = 300;
 const SETTINGS_PARSE_RETRY_COUNT = 3;
 
@@ -84,10 +89,13 @@ function shouldPersistSettingsMigrations(rawValue: unknown): boolean {
   if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) return false;
   const raw = rawValue as Record<string, unknown>;
   return (
+    // 原因：只在内存迁移仍会把磁盘上的 3 留给回滚客户端；必须走现有写锁落盘。
+    raw.remoteBoundaryOnboardingVersion === 3 ||
     (needsLegacyAccountConnectionMigration(rawValue) &&
       readIncompleteLegacyTeamConnections(rawValue).length === 0) ||
     raw.closeToTrayOnWindowsMigrationInitialized !== true ||
-    raw.messageStreamShowReasoningMigrationInitialized !== true
+    raw.messageStreamShowReasoningMigrationInitialized !== true ||
+    raw.taskAutoArchiveResetVersion !== 1
   );
 }
 
@@ -226,25 +234,28 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
       options.fixedDataBaseDir.includes("\0"))
   )
     throw new Error("Invalid fixed settings data root");
-  const resolveSettingsFile = () => options.settingsFilePath ?? getSettingsFile();
+  // 实例在创建时固定路径，迟到写入不能因宿主环境变化改投另一实例。
+  const settingsFile = options.settingsFilePath ?? getSettingsFile();
+  const resolveSettingsFile = () => settingsFile;
   const projectSettings = (settings: AppSettings): AppSettings =>
     options.fixedDataBaseDir === undefined
       ? settings
       : { ...settings, dataBaseDir: options.fixedDataBaseDir };
   let updateQueue = Promise.resolve();
-  let commitQueue = Promise.resolve();
   let writeQueueGeneration = 0;
-
+  // 合并曾丢失提交队列；慢rename不能在下一次保存后覆盖新偏好。
+  let commitQueue = Promise.resolve();
   const runSettingsCommit = async (commit: () => Promise<void>) => {
     const queued = commitQueue.then(commit, commit);
     commitQueue = queued.catch(() => {});
     await queued;
   };
+  const userInstructions = createUserInstructionsPersistence(getAgentUserInstructionsFilePath());
 
   const enqueueSettingsWrite = async (
     runUpdate: (shouldCommit: () => boolean, enterCommitPhase: () => void) => Promise<void>,
   ) => {
-    const runCurrentUpdate = () => {
+    const runCurrentUpdate = async () => {
       const currentGeneration = ++writeQueueGeneration;
       const shouldCommit = () => currentGeneration === writeQueueGeneration;
       // Bug 原因：Main 与各窗口 Host 各有一个 setting service，原先的跨进程锁只覆盖临时文件写入和
@@ -271,6 +282,7 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
   };
 
   const service: ISettingService = {
+    ...userInstructions,
     async get(): Promise<AppSettings> {
       // 设置切换后可能立即创建或冷恢复 Session；读取若越过已入队写入，
       // runtime 会固定旧开关值。先等待现有写队列，保证启动偏好读取到已提交的选择。
@@ -307,12 +319,19 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
         throw new Error("SOURCE_DATA_BASE_DIR_FIXED");
       const runUpdate = async (shouldCommit: () => boolean, enterCommitPhase: () => void) => {
         const validatedPatch = appSettingsPatchSchema.parse(normalizeSettingsPatch(patch));
+        const writesConnections =
+          Object.hasOwn(validatedPatch, "providerFamilyConnectionSelections") ||
+          Object.hasOwn(validatedPatch, "providerFamilyDomain");
         const current = projectSettings(await readSettings(resolveSettingsFile()));
         if (expectedAccountSettings) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。
           const expected = appSettingsPatchSchema.parse(expectedAccountSettings);
           if (
             current.providerFamilyDomain !== expected.providerFamilyDomain ||
+            // 原因：另一窗口重新选择相同身份时映射值不变；旧回滚仍须按操作版本拒绝。
+            (expected.providerFamilyDomainUpdatedAt !== undefined &&
+              (current.providerFamilyDomainUpdatedAt ?? 0) !==
+                expected.providerFamilyDomainUpdatedAt) ||
             JSON.stringify(current.providerFamilyConnectionSelections ?? {}) !==
               JSON.stringify(expected.providerFamilyConnectionSelections ?? {})
           ) {
@@ -324,6 +343,14 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
           ...validatedPatch,
         });
 
+        if (writesConnections) {
+          // 即使选择值相同也代表一次新操作，版本由同一写锁保证单调递增。
+          merged.providerFamilyDomainUpdatedAt = Math.max(
+            validatedPatch.providerFamilyDomainUpdatedAt ?? Date.now(),
+            (current.providerFamilyDomainUpdatedAt ?? 0) + 1,
+          );
+        }
+
         // 打开工作区后会几乎同时写 recentProjects 和 lastWorkspaceSession。
         // 之前两个 update 都是基于各自读到的旧 settings 直接覆盖写回，
         // 后写入的补丁会把前一个字段整块抹掉，导致下次启动恢复不到会话。
@@ -333,7 +360,7 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
         }
 
         await writeSettings(
-          merged,
+          projectSettings(merged),
           shouldCommit,
           runSettingsCommit,
           enterCommitPhase,
@@ -365,24 +392,6 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
       }
 
       await this.update({ dataBaseDir: newDir });
-    },
-
-    async ensureDefaultProject(userHomeDir: string): Promise<{ path: string; created: boolean }> {
-      const path = join(userHomeDir, DEFAULT_PROJECT_NAME);
-      let existedBefore = true;
-
-      try {
-        await access(path).catch(() => {
-          existedBefore = false;
-        });
-        maybeThrowInjectedFsFault({ operation: "mkdir", path });
-        await mkdir(path, { recursive: true });
-      } catch (error) {
-        logger.error(undefined, "ensureDefaultProject failed", error);
-        throw error;
-      }
-
-      return { path, created: !existedBefore };
     },
   };
 

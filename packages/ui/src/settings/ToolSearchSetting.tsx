@@ -1,4 +1,9 @@
 import { appToolSearchModeSchema, type AppToolSearchMode } from "@zcode/shared";
+import {
+  TID_SETTINGS_TOOL_SEARCH_OPTION,
+  TID_SETTINGS_TOOL_SEARCH_SELECT,
+  testId,
+} from "@zcode/shared/test-ids";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   Select,
@@ -42,13 +47,17 @@ export function ToolSearchSetting({
             size="lg"
             className="w-full min-w-0 justify-between"
             aria-label={label}
-            data-testid="settings-tool-search-mode"
+            data-testid={TID_SETTINGS_TOOL_SEARCH_SELECT}
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {MODES.map((value) => (
-              <SelectItem key={value} value={value} data-testid={`settings-tool-search-${value}`}>
+              <SelectItem
+                key={value}
+                value={value}
+                data-testid={testId(TID_SETTINGS_TOOL_SEARCH_OPTION, value)}
+              >
                 {intl.formatMessage({ id: `settings.toolSearch.${value}` })}
               </SelectItem>
             ))}

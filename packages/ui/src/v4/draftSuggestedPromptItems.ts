@@ -25,7 +25,7 @@ export interface DraftSuggestedPromptItem {
   };
 }
 
-function parseDraftSuggestedPromptActions(
+export function parseDraftSuggestedPromptActions(
   onFinish: string | null | undefined,
 ): DraftSuggestedPromptAction[] {
   if (!onFinish) return [];

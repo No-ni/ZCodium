@@ -1,6 +1,8 @@
 // MCP Port - Model Context Protocol adapter boundary
 
-import type { McpServerFailureKind } from "@zcode/shared";
+// 官方 MCP 鉴权面（OfficialMcpAuth* / zcode_official）在本仓已删除，不随上游恢复；
+// 这里只保留工作区信任审查与失败分类两个仍存在的 shared 契约。
+import type { McpServerFailureKind, WorkspaceMcpTrustReview } from "@zcode/shared";
 import type { McpAppsToolVisibility, McpToolUiDescriptor } from "@zcode/shared/mcp-apps";
 import type { JsonSchema } from "../model/index.js";
 import type { TraceContext } from "../tracing/tracer.js";
@@ -11,10 +13,11 @@ export type McpServerIsolation = "session" | "workspace";
 
 /** 公共 MCP 配置校验完成后由宿主附加的运行时来源。 */
 export interface McpServerRuntimeSource {
-  kind: "builtin" | "plugin";
+  kind: "builtin" | "plugin" | "workspace" | "user";
 }
 
 export interface McpServerConfigBase {
+  alwaysLoad?: boolean;
   enabled?: boolean;
   isolation?: McpServerIsolation;
   protocolVersion?: McpProtocolVersion;
@@ -75,6 +78,7 @@ export type McpServerStatusKind =
   | "untrusted";
 
 export interface McpServerStatus {
+  workspaceTrust?: WorkspaceMcpTrustReview;
   status: McpServerStatusKind;
   transport: McpServerTransportType;
   toolCount: number;
@@ -112,7 +116,21 @@ export const ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY =
  * `ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY` 的处置）。
  */
 export const ZCODE_MCP_NODE_REPL_CUA_APP_META_KEY = "zcode/nodeReplCuaApp";
+// 剥离上游新增的 browser_use / computer_use 会话能力统计键：本仓不采集 BUA/CUA 使用归因，
+// node_repl 账本只用于执行归属（Planck 域），不再向 _meta 写这两个统计键。
+/**
+ * 远端 Server MCP 响应头里的 `x-request-id`，附在失败的 tool result 上（值为 string）。
+ *
+ * 用短前缀 `zcode/` 而不是 `com.zcode/`：这不是跨语言协议——服务端在 header 里给，客户端
+ * 读到后自己搬进 `_meta`，产出与消费都在客户端（`com.zcode/` 留给 Go 侧直接产出的键，
+ * 如 `com.zcode/mcp-unavailable`）。
+ *
+ * 只在 `isError` 时附加：这是给人看的排障线索（拿它去查服务端日志），成功路径上是纯噪声。
+ */
+export const ZCODE_MCP_SERVER_REQUEST_ID_META_KEY = "zcode/officialMcpServerRequestId";
 export interface McpToolDescriptor {
+  alwaysLoad?: boolean;
+  searchHint?: string;
   serverName: string;
   toolName: string;
   name?: string;
@@ -329,9 +347,15 @@ export interface McpElicitationPort {
 }
 
 export interface McpPort {
+  /** 只读重算工作区准入并通知会话投影，不连接、授权或重放工具。 */
+  refreshWorkspaceTrustAdmission?(reannounce?: boolean): Promise<void>;
   /** 可信配置派生的稳定来源与现有连接代际。断线时不签发新页面凭证。 */
   onAppConnectionInvalidated?(serverName: string, listener: () => void): () => void;
   appConnectionSnapshot?(serverName: string): { identity: string; generation: number } | null;
+  /** 等待目标 server 已有连接任务；不重连、不等待其它 server，owner 失效后返回 null。 */
+  waitForAppConnection?(
+    serverName: string,
+  ): Promise<{ identity: string; generation: number } | null>;
 
   connectConfiguredServers(
     servers: Record<string, McpServerConfig>,
@@ -384,6 +408,11 @@ export interface McpPort {
   ): Promise<void>;
   /** 删除 subscriberKey 以 prefix 开头的全部登记（会话关闭）；返回真正向 server 退订的 uri 数。 */
   unsubscribeResourcesBySubscriber?(subscriberKeyPrefix: string): Promise<number>;
-  /** 永久停止本 owner 的连接 admission；重复调用等待同一次所属资源回收，不关闭其他活跃 owner 的连接。 */
+  /**
+   * 关闭本端口的准入和所属资源。pool lease 只取消本会话等待/调用并归还引用；
+   * 独占连接等待 adapter 释放，共享连接仍由 pool 与其余 lease 持有。
+   * child 借用端口不得关闭父会话持有的 lease。
+   * 永久停止本 owner 的连接 admission 时，重复调用等待同一次所属资源回收，不影响其他活跃 owner。
+   */
   close(): Promise<void>;
 }

@@ -39,6 +39,27 @@ export { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 
 const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
 const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
+const HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY = "zcode-hide-project-device-names";
+export const FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY =
+  "zcode-file-manager-navigation-preferences";
+
+function loadFileManagerNavigationPreferences(): Record<string, boolean> {
+  try {
+    const raw = readSafeLocalStorage(FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, boolean] =>
+          entry[0].trim().length > 0 && typeof entry[1] === "boolean",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
 
 function loadCodePreviewSettings(): CodePreviewSettings {
   try {
@@ -86,6 +107,10 @@ export interface ZCodeState {
   codePreviewSettings: CodePreviewSettings;
   setCodePreviewSettings: (patch: Partial<CodePreviewSettings>) => void;
 
+  /** 各 workspace 的文件导航显隐偏好；缺席时默认展开。 */
+  fileManagerNavigationOpenByWorkspace: Record<string, boolean>;
+  setFileManagerNavigationOpen: (workspaceKey: string, open: boolean) => void;
+
   /** UI 根 rem 字号（px） */
   uiFontSizePx: number;
   setUiFontSizePx: (fontSizePx: number) => void;
@@ -93,6 +118,10 @@ export interface ZCodeState {
   /** 是否启用性能模式 */
   performanceMode: boolean;
   setPerformanceMode: (enabled: boolean) => void;
+
+  /** 仅桌面项目行消费；设备身份和其他入口的显示不受影响。 */
+  hideProjectDeviceNames: boolean;
+  setHideProjectDeviceNames: (hidden: boolean) => void;
 
   /** 是否启用任务通知（桌面通知；提示音由子开关控制） */
   notificationEnabled: boolean;
@@ -109,8 +138,9 @@ export interface ZCodeState {
   /** 手动请求打开 onboarding 弹窗 */
   newUserOnboardingOpen: boolean;
   setNewUserOnboardingOpen: (open: boolean) => void;
-  onboardingDialogRequested: boolean | "migration";
-  requestOnboardingDialog: (entry?: "migration") => void;
+  /** 请求打开迁移向导；所有入口都直接进入第一步「会话」。 */
+  onboardingDialogRequested: boolean;
+  requestOnboardingDialog: () => void;
   clearOnboardingDialogRequest: () => void;
 }
 
@@ -118,9 +148,24 @@ export interface ZCodeState {
 // 需要广播的字段 —— 只有这些字段的变更会发送给其他窗口
 // ============================================================================
 
-const BROADCAST_FIELDS = new Set(["theme", "locale", "uiFontSizePx", "interfaceMode"]);
+const BROADCAST_FIELDS = new Set([
+  "theme",
+  "locale",
+  "uiFontSizePx",
+  "interfaceMode",
+  "notificationEnabled",
+  "hideProjectDeviceNames",
+]);
 
-type BroadcastField = "theme" | "locale" | "uiFontSizePx" | "interfaceMode";
+type BroadcastField =
+  | "theme"
+  | "locale"
+  | "uiFontSizePx"
+  | "interfaceMode"
+  | "hideProjectDeviceNames"
+  // 任务通知开关跨窗口同步：角标是应用级表面，A 窗口关通知而 B 窗口仍上报未读时，
+  // 主进程 max 聚合会让任务栏/托盘继续亮，设置与提醒状态错位。
+  | "notificationEnabled";
 
 /** 广播频道名前缀 */
 const STATE_CHANNEL_PREFIX = "state:";
@@ -186,6 +231,23 @@ export function createZCodeStore(broadcastService: IBroadcastService) {
         return { codePreviewSettings: next };
       }),
 
+    fileManagerNavigationOpenByWorkspace: loadFileManagerNavigationPreferences(),
+    setFileManagerNavigationOpen: (workspaceKey, open) => {
+      const normalizedWorkspaceKey = workspaceKey.trim();
+      if (!normalizedWorkspaceKey) return;
+      set((state) => {
+        const next = {
+          ...state.fileManagerNavigationOpenByWorkspace,
+          [normalizedWorkspaceKey]: open,
+        };
+        writeSafeLocalStorage(
+          FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY,
+          JSON.stringify(next),
+        );
+        return { fileManagerNavigationOpenByWorkspace: next };
+      });
+    },
+
     uiFontSizePx: loadUiFontSizePx(),
     setUiFontSizePx: (fontSizePx: number) => {
       const normalizedFontSizePx = normalizeUiFontSizePx(fontSizePx);
@@ -198,6 +260,12 @@ export function createZCodeStore(broadcastService: IBroadcastService) {
     setPerformanceMode: (enabled: boolean) => {
       writeSafeLocalStorage(PERFORMANCE_MODE_STORAGE_KEY, enabled ? "true" : "false");
       set({ performanceMode: enabled });
+    },
+
+    hideProjectDeviceNames: readSafeLocalStorage(HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY) === "true",
+    setHideProjectDeviceNames: (hidden) => {
+      writeSafeLocalStorage(HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY, String(hidden));
+      set({ hideProjectDeviceNames: hidden });
     },
 
     notificationEnabled: isTaskNotificationEnabled(),
@@ -218,7 +286,7 @@ export function createZCodeStore(broadcastService: IBroadcastService) {
     newUserOnboardingOpen: false,
     setNewUserOnboardingOpen: (open) => set({ newUserOnboardingOpen: open }),
     onboardingDialogRequested: false,
-    requestOnboardingDialog: (entry) => set({ onboardingDialogRequested: entry ?? true }),
+    requestOnboardingDialog: () => set({ onboardingDialogRequested: true }),
     clearOnboardingDialogRequest: () => set({ onboardingDialogRequested: false }),
   }));
 
@@ -299,6 +367,10 @@ export function createZCodeStore(broadcastService: IBroadcastService) {
         state.setInterfaceMode(normalizeInterfaceMode(msg.payload));
       } else if (field === "uiFontSizePx" && typeof msg.payload === "number") {
         state.setUiFontSizePx(msg.payload);
+      } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {
+        state.setNotificationEnabled(msg.payload);
+      } else if (field === "hideProjectDeviceNames" && typeof msg.payload === "boolean") {
+        state.setHideProjectDeviceNames(msg.payload);
       }
     } finally {
       applyingBroadcast = false;

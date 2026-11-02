@@ -1,15 +1,15 @@
+import { TASK_GROUP_ADMISSIONS_SQL } from "#src/task-groups/migration-v6.js";
+import { basename, dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 import { databaseMigrationIdSchema, type DatabaseMigrationFacts } from "@zcode/shared";
+import type { DatabaseSync } from "node:sqlite";
+import { assertTasksDatabaseSchema } from "#src/session/tasksDatabase/schema-guard.js";
 import {
   inspectMigrations,
-  migrate,
+  sqliteMigrations,
   type MigrationOptions,
   type MigrationResult,
-  type SqliteMigration,
 } from "@zcode/shared/sqlite-migrations";
-import { createHash } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
-import { dirname, join } from "node:path";
-import { assertTasksDatabaseSchema } from "#src/session/tasksDatabase/schema-guard.js";
 import {
   AUTOMATION_SCHEMA,
   OFF_PEAK_SCHEMA,
@@ -17,6 +17,11 @@ import {
 } from "#src/session/tasksDatabase/schema-v1.js";
 import { importLegacyAutomationSelections } from "#src/session/tasksDatabase/provider-selection-v2.js";
 import { OFFICIAL_GLM_SELECTION_MIGRATION_SQL } from "#src/session/tasksDatabase/official-glm-selection-v3.js";
+import { CONTROLLER_REMOTE_SCHEMA_SQL } from "#src/session/tasksDatabase/controller-remote-schema-v4.js";
+import {
+  adoptSourceServerWorkspaceSchema,
+  SOURCE_SERVER_SCHEMA_CHECKSUM_INPUT,
+} from "#src/session/tasksDatabase/source-server-schema-v5.js";
 
 // 冻结历史列声明，不能以实时 Repo/schema 代替，否则新版构建会改变已应用 checksum。
 const columns = [
@@ -49,12 +54,31 @@ const indexes = `
 const terminalStatuses = "'completed','failed','cancelled'";
 const activePredicate = `session_id IS NOT NULL AND status NOT IN (${terminalStatuses})`;
 const boundIndex = `CREATE UNIQUE INDEX IF NOT EXISTS idx_off_peak_bound_active ON off_peak_tasks(workspace_key,session_id) WHERE ${activePredicate}`;
+const executionColumns = [
+  ["automations", "project_id"],
+  ["automations", "host_id"],
+  ["automations", "additional_directories"],
+  ["off_peak_tasks", "project_id"],
+  ["off_peak_tasks", "host_id"],
+  ["off_peak_tasks", "additional_directories"],
+] as const;
 
 // 与 Agent 同样是库级串行事务，但不跨域依赖其具体 adapter。TS 转换使用冻结语义版本，
 // 禁用 function.toString 哈希：Electron/SEA 打包会改变函数文本而非迁移语义。
 const definitions = [
   {
     id: "0001_adopt_task_schema",
+    touchedTables: [
+      "tasks",
+      "task_groups",
+      "task_group_members",
+      "task_group_view_node_orders",
+      "task_group_workspace_bootstraps",
+      "automations",
+      "automation_runs",
+      "off_peak_tasks",
+    ],
+    apply: adoptSchema,
     checksumInput: [
       TASK_INDEX_SCHEMA,
       AUTOMATION_SCHEMA,
@@ -67,113 +91,211 @@ const definitions = [
   },
   {
     id: "0002_provider_selection",
+    touchedTables: ["automations"],
+    apply: importLegacyAutomationSelections,
     checksumInput: ["legacy-automation-selection-v1", "no-provider-for-legacy-off-peak-v1"],
   },
   {
     id: "0003_official_glm_selection",
+    touchedTables: ["automations"],
+    apply: (db: DatabaseSync) => db.exec(OFFICIAL_GLM_SELECTION_MIGRATION_SQL),
     checksumInput: [OFFICIAL_GLM_SELECTION_MIGRATION_SQL],
+  },
+  {
+    id: "0004_project_execution_scopes",
+    touchedTables: ["automations", "off_peak_tasks"],
+    checksumInput: [executionColumns, "nullable-text-v1"],
+    apply: (db: DatabaseSync) => {
+      // 原因：调度器可独立打开 Repo，不能等待项目归属转换，也不能把新列写进上游冻结 schema。
+      for (const [table, column] of executionColumns) {
+        if (
+          !db
+            .prepare(`PRAGMA table_info(${table})`)
+            .all()
+            .some((entry) => entry.name === column)
+        )
+          db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
+      }
+    },
+  },
+  {
+    id: "0006_task_group_admissions",
+    touchedTables: ["task_group_admissions"],
+    checksumInput: [TASK_GROUP_ADMISSIONS_SQL],
+    apply: (db: DatabaseSync) => db.exec(TASK_GROUP_ADMISSIONS_SQL),
   },
 ] as const;
 
-const touchedTables: Record<(typeof definitions)[number]["id"], readonly string[]> = {
-  "0001_adopt_task_schema": [
-    "tasks",
-    "task_groups",
-    "task_group_members",
-    "task_group_view_node_orders",
-    "task_group_workspace_bootstraps",
-    "automations",
-    "automation_runs",
-    "off_peak_tasks",
-  ],
-  "0002_provider_selection": ["automations"],
-  "0003_official_glm_selection": ["automations"],
-};
+export type TasksDatabaseMigrationScope = "base" | "controller-remote" | "source-server";
 
-// 只适配合同，不改变已发布 JSON/SQL/apply：前三条历史账本 checksum 和 id 原样保留。
-export const TASKS_DATABASE_MIGRATIONS: readonly SqliteMigration[] = definitions.map(
-  (definition) => ({
-    id: definition.id,
-    appVersion: "3.15.1",
-    sql:
-      definition.id === "0003_official_glm_selection" ? OFFICIAL_GLM_SELECTION_MIGRATION_SQL : "",
-    checksum: createHash("sha256").update(JSON.stringify(definition.checksumInput)).digest("hex"),
-    touchedTables: touchedTables[definition.id],
-    apply:
-      definition.id === "0001_adopt_task_schema"
-        ? adoptSchema
-        : definition.id === "0002_provider_selection"
-          ? importLegacyAutomationSelections
-          : undefined,
-  }),
-);
-
-export interface TasksMigrationOptions {
+interface TasksDatabaseMigrationOptions extends Partial<
+  Pick<MigrationOptions, "backupDirectories" | "signal" | "lockWaitTimeoutMs" | "onWaitingForLock">
+> {
+  scope?: TasksDatabaseMigrationScope;
+  dbPath?: string;
   transactionOpen?: boolean;
   migration?: DatabaseMigrationFacts;
-  backupDirectories?: readonly string[];
-  signal?: AbortSignal;
-  lockWaitTimeoutMs?: number;
-  onWaitingForLock?: () => void | Promise<void>;
-  onProgress?: (
-    phase: "migrating" | "committing",
-    migration: DatabaseMigrationFacts,
-  ) => void | Promise<void>;
+  onProgress?: (phase: "migrating" | "committing", migration: DatabaseMigrationFacts) => void;
 }
 
-/** Host startup 是唯一执行入口；通用 runner 是唯一事务 owner。 */
-export async function runTasksDatabaseMigrationsAsync(
+function prepareMigrations(scope: TasksDatabaseMigrationScope) {
+  // 两端专属表仍归同库账本协调，不会为另一端创建无关表。
+  const migrations =
+    scope === "base"
+      ? definitions
+      : scope === "controller-remote"
+        ? [
+            {
+              id: "0004_controller_remote_identity",
+              checksumInput: [CONTROLLER_REMOTE_SCHEMA_SQL],
+              touchedTables: ["controller_remote_identity_migrations"],
+              apply: (db: DatabaseSync) => db.exec(CONTROLLER_REMOTE_SCHEMA_SQL),
+            },
+          ]
+        : [
+            {
+              id: "0005_source_server_workspace_schema",
+              checksumInput: SOURCE_SERVER_SCHEMA_CHECKSUM_INPUT,
+              touchedTables: [
+                "workspace_alias",
+                "workspace_migration_schema_version",
+                "workspace_migration_ledger",
+                "workspace_migration_conflicts",
+                "workspace_migration_ledger_v2",
+                "workspace_migration_conflicts_v2",
+              ],
+              apply: adoptSourceServerWorkspaceSchema,
+            },
+          ];
+  return migrations.map((migration) => ({
+    id: migration.id,
+    appVersion: "3.12.0",
+    sql: JSON.stringify(migration.checksumInput),
+    touchedTables: migration.touchedTables,
+    apply: migration.apply,
+    checksum: createHash("sha256").update(JSON.stringify(migration.checksumInput)).digest("hex"),
+  }));
+}
+
+function recognizedMigrations(scope: TasksDatabaseMigrationScope) {
+  return (["base", "controller-remote", "source-server"] as const)
+    .filter((candidate) => candidate !== scope)
+    .flatMap(prepareMigrations);
+}
+
+export async function runTasksDatabaseMigrations(
   db: DatabaseSync,
-  options: TasksMigrationOptions = {},
+  scopeOrOptions: string | TasksDatabaseMigrationOptions = "base",
 ): Promise<MigrationResult> {
-  const migrationFacts: DatabaseMigrationFacts = options.migration ?? {
-    kind: inspectTasksMigrationKind(db),
+  const options: TasksDatabaseMigrationOptions =
+    typeof scopeOrOptions === "string"
+      ? ["base", "controller-remote", "source-server"].includes(scopeOrOptions)
+        ? { scope: scopeOrOptions as TasksDatabaseMigrationScope }
+        : { dbPath: scopeOrOptions }
+      : scopeOrOptions;
+  options.signal?.throwIfAborted();
+  const scope = options.scope ?? "base";
+  const migrations = prepareMigrations(scope);
+  if (!options.transactionOpen && areTasksDatabaseMigrationsApplied(db, scope))
+    return { applied: [], backupSkipped: false };
+  const facts = options.migration ?? {
+    kind: inspectTasksMigrationKind(db, scope),
     executedCount: 0,
     committedCount: 0,
   };
-  const path = db
-    .prepare("PRAGMA database_list")
-    .all()
-    .find((row) => row.name === "main")?.file;
-  const backupDirectories =
-    options.backupDirectories ??
-    (typeof path === "string" && path ? [join(dirname(path), "backup")] : []);
-  const runnerOptions: MigrationOptions = {
-    database: "tasks-index",
-    journalTable: "tasks_schema_migration",
-    backupDirectories,
-    transactionOpen: options.transactionOpen,
-    signal: options.signal,
-    lockWaitTimeoutMs: options.lockWaitTimeoutMs,
-    onWaitingForLock: options.onWaitingForLock,
-    onLocked: (inspection) => {
-      migrationFacts.kind = inspection.kind;
-      migrationFacts.lastAppliedMigrationId =
-        inspection.lastAppliedMigrationId === null
-          ? null
-          : databaseMigrationIdSchema.parse(inspection.lastAppliedMigrationId);
-    },
-    onBeforeApply: () => options.onProgress?.("migrating", { ...migrationFacts }),
-    onApplied: () => {
-      migrationFacts.executedCount++;
-    },
-    onCommitting: async () => {
-      assertTasksDatabaseSchema(db);
-      await options.onProgress?.("committing", { ...migrationFacts });
-    },
-  };
-  const result = await migrate(db, TASKS_DATABASE_MIGRATIONS, runnerOptions);
-  migrationFacts.committedCount = migrationFacts.executedCount;
-  return result;
+  const path =
+    options.dbPath ??
+    String(
+      db
+        .prepare("pragma database_list")
+        .all()
+        .find((row) => row.name === "main")?.file ?? ":memory:",
+    );
+  const directory = dirname(path);
+  const dataRoot = basename(directory) === "v2" ? dirname(directory) : directory;
+  let currentMigrationId: string | undefined;
+  try {
+    const result = await sqliteMigrations.migrate(db, migrations, {
+      database: "tasks_schema",
+      recognizedMigrations: recognizedMigrations(scope),
+      journalTable: "tasks_schema_migration",
+      backupDirectories:
+        options.backupDirectories ?? (path === ":memory:" ? [] : [join(dataRoot, "backup")]),
+      signal: options.signal,
+      lockWaitTimeoutMs: options.lockWaitTimeoutMs,
+      onWaitingForLock: options.onWaitingForLock,
+      transactionOpen: options.transactionOpen,
+      // 预检可能过期；基线和计数只能取通用 runner 真正持锁后的事实。
+      onLocked: (inspection) => {
+        facts.kind = inspection.kind;
+        facts.executedCount = 0;
+        facts.committedCount = 0;
+        facts.lastAppliedMigrationId =
+          inspection.lastAppliedMigrationId === null
+            ? null
+            : databaseMigrationIdSchema.parse(inspection.lastAppliedMigrationId);
+      },
+      onBeforeApply: (id) => {
+        currentMigrationId = id;
+        if (facts.kind === "none") facts.kind = "upgrade";
+        if (facts.lastAppliedMigrationId === undefined) {
+          const baseline = db
+            .prepare("SELECT id FROM tasks_schema_migration ORDER BY id DESC LIMIT 1")
+            .get();
+          facts.lastAppliedMigrationId = baseline
+            ? databaseMigrationIdSchema.safeParse(baseline.id).data
+            : null;
+        }
+        options.onProgress?.("migrating", { ...facts });
+      },
+      onApplied: () => {
+        facts.executedCount++;
+      },
+      onCommitting: () => {
+        if (scope === "base") assertTasksDatabaseSchema(db);
+        if (facts.lastAppliedMigrationId === undefined) {
+          const baseline = db
+            .prepare("SELECT id FROM tasks_schema_migration ORDER BY id DESC LIMIT 1")
+            .get();
+          facts.lastAppliedMigrationId = baseline
+            ? databaseMigrationIdSchema.safeParse(baseline.id).data
+            : null;
+        }
+        options.onProgress?.("committing", { ...facts });
+      },
+    });
+    facts.committedCount = facts.executedCount;
+    return result;
+  } catch (error) {
+    if (error && typeof error === "object" && currentMigrationId)
+      Object.assign(error, { migrationId: currentMigrationId });
+    throw error;
+  }
 }
 
-/** 旧 Repo 调用只校验，不能在 ensureReady/getter 另起无备份的同步迁移。 */
-export function runTasksDatabaseMigrations(db: DatabaseSync): void {
-  if (!areTasksDatabaseMigrationsApplied(db))
-    throw Object.assign(
-      new Error("Task storage must be prepared by the asynchronous startup owner"),
-      { kind: "sql_failed" },
-    );
+/** 交接只复用已完成初始化；每个新连接仍按冻结账本确认，替换/清空文件不能假 ready。 */
+export function areTasksDatabaseMigrationsApplied(
+  db: DatabaseSync,
+  scope: TasksDatabaseMigrationScope = "base",
+): boolean {
+  const inspection = inspectMigrations(db, prepareMigrations(scope), {
+    journalTable: "tasks_schema_migration",
+    recognizedMigrations: recognizedMigrations(scope),
+  });
+  if (inspection.pending.length) return false;
+  if (scope === "base") assertTasksDatabaseSchema(db);
+  return true;
+}
+
+/** 只读账本的展示预检，不授权执行；迁移 runner 拿锁后仍复查每一项。 */
+export function inspectTasksMigrationKind(
+  db: DatabaseSync,
+  scope: TasksDatabaseMigrationScope = "base",
+): DatabaseMigrationFacts["kind"] {
+  return inspectMigrations(db, prepareMigrations(scope), {
+    journalTable: "tasks_schema_migration",
+    recognizedMigrations: recognizedMigrations(scope),
+  }).kind;
 }
 
 function adoptSchema(db: DatabaseSync): void {
@@ -195,19 +317,5 @@ function adoptSchema(db: DatabaseSync): void {
   if (!duplicate) db.exec(boundIndex);
 }
 
-/** 交接只复用已完成初始化；每个新连接仍按冻结账本确认，替换/清空文件不能假 ready。 */
-export function areTasksDatabaseMigrationsApplied(db: DatabaseSync): boolean {
-  const inspection = inspectMigrations(db, TASKS_DATABASE_MIGRATIONS, {
-    journalTable: "tasks_schema_migration",
-  });
-  if (inspection.pending.length) return false;
-  assertTasksDatabaseSchema(db);
-  return true;
-}
-
-/** 只读账本的展示预检，不授权执行；迁移 runner 拿锁后仍复查每一项。 */
-export function inspectTasksMigrationKind(db: DatabaseSync): DatabaseMigrationFacts["kind"] {
-  return inspectMigrations(db, TASKS_DATABASE_MIGRATIONS, {
-    journalTable: "tasks_schema_migration",
-  }).kind;
-}
+// 两个公开名称共用一个异步入口，不能恢复并列同步迁移 owner。
+export { runTasksDatabaseMigrations as runTasksDatabaseMigrationsAsync };

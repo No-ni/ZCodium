@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  TID_RESOURCE_MANAGER_TAB,
-  testId,
   type ResourceUsageCategory,
   type ResourceUsageSnapshot,
   type StorageManagementBridge,
 } from "@zcode/shared";
+import { TID_RESOURCE_MANAGER_TAB, testId } from "@zcode/shared/test-ids";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { useZCodeIntl } from "@/i18n/index.js";
 import { StorageSection } from "./storage/StorageSection.js";
@@ -58,7 +57,7 @@ export function ResourceManagerApp({
   const { intl } = useZCodeIntl();
   const [tab, setTab] = useState<ResourceManagerTab>(initialTab);
   // CPU / 内存共用一份进程快照；存储 tab 激活时停止轮询，避免和扫盘争抢 IO。
-  const pollingActive = tab !== "storage";
+  const pollingActive = tab === "cpu" || tab === "memory";
   const [snapshot, setSnapshot] = useState<ResourceUsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<ResourceUsageCategory, boolean>>({

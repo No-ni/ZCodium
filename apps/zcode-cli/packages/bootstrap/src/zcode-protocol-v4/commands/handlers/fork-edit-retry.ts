@@ -9,8 +9,6 @@ import type {
   CommandPayloadMap,
   CommandResult,
 } from "@zcode/shared/zcode-protocol-v4";
-import type { SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelection } from "@zcode/shared";
 import {
   RewindStrategy,
   traceContextToLogContext,
@@ -18,18 +16,17 @@ import {
   type TurnId,
 } from "@zcode/contracts";
 import { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
-import { inputIntentMetadataFromCanonical } from "../input-intent.js";
-import { startPromptTurn } from "../prompt-turn.js";
+import { V4PromptRejectedError } from "../prompt-turn.js";
 import { commandAdmissionOf } from "../executor.js";
+import { hasPromptInput, V4InputAdmissionRejectedError } from "../input-admission.js";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import {
-  hasPromptInput,
-  preemptActiveTurnAndWait,
-  V4InputAdmissionRejectedError,
-} from "./session-flow.js";
-import { applyGoalCommand } from "./goal-compact.js";
-import type { ConversationEditTarget } from "../../product-projection.js";
+  preflightCanonicalIntent,
+  stableAttachmentRefs,
+  startCanonicalIntent,
+} from "./canonical-intent-replay.js";
+import { preemptActiveTurnAndWait } from "./session-flow.js";
 
 const CONVERSATION_COMMAND_LOG_MODULE = "bootstrap.zcode_protocol_v4.commands";
 const EDIT_USER_QUERY_COMPLETED_EVENT = "conversation.command.edit_user_query.completed";
@@ -57,7 +54,7 @@ export class V4ForkTargetNotLatestSegmentError extends Error {
   }
 }
 
-class V4ForkTargetGuardError extends Error {
+export class V4ForkTargetGuardError extends Error {
   constructor(
     readonly reasonCode: string,
     targetRowId: number,
@@ -68,7 +65,7 @@ class V4ForkTargetGuardError extends Error {
 }
 
 /** latestQueryEditOnly：旧 row / 非 realUser row / 无投影均直接拒绝，不 stop 当前 turn。 */
-class V4EditTargetNotLatestError extends Error {
+export class V4EditTargetNotLatestError extends Error {
   readonly reasonCode = "guard.latestQueryEditOnly";
 
   constructor(targetRowId: number) {
@@ -78,7 +75,7 @@ class V4EditTargetNotLatestError extends Error {
 }
 
 /** latestAssistantRetryOnly：历史 assistant 回复 retry 会回退 active branch，必须拒绝。 */
-class V4RetryTargetNotLatestError extends Error {
+export class V4RetryTargetNotLatestError extends Error {
   readonly reasonCode = "guard.latestAssistantRetryOnly";
 
   constructor(targetRowId: number) {
@@ -137,12 +134,33 @@ async function editUserQuery(
   const attachmentRefs = payload.attachments ?? stableAttachmentRefs(editTarget);
   // attachments 缺省与 [] 语义不同；必须基于 effective refs 校验，
   // 才能同时允许 attachment-only edit，并在正文和附件都被清空时于 rewind 前拒绝。
-  if (!hasPromptInput(payload.newText, attachmentRefs)) {
+  if (
+    !hasPromptInput(payload.newText, attachmentRefs) &&
+    !(payload.conversationQuotes ?? editTarget.intent.conversationQuotes)?.length
+  ) {
     throw new V4InputAdmissionRejectedError("proto.invalidPayload", "input must not be empty");
   }
   // 附件映射在 rewind 前完成：引用失效要在截断历史之前暴露，避免半程失败。
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, attachmentRefs);
-  if (record.activeAbortController) {
+  // Bug 根因：模型检查曾位于 branch cut 之后；modelUnavailable 会留下已持久化的历史截断，
+  // workspaceMode=rewind 还会先改文件。必须用本次真正重发的 canonical intent 在所有破坏性操作前预检。
+  await preflightCanonicalIntent(
+    host,
+    record,
+    envelope,
+    editTarget,
+    payload.newText,
+    attachmentRefs,
+    attachments,
+    { modelSelection: payload.modelSelection, mode: payload.mode, planEnabled: payload.planEnabled },
+  );
+  const runtimeHasActiveTurn =
+    record.app.runtime?.getActiveTurnInfo?.() !== undefined ||
+    record.app.runtime?.getActiveForegroundExecutionId?.() !== undefined;
+  if (record.activeAbortController || runtimeHasActiveTurn) {
+    // Bug 根因：后台通知 turn 由 Core runtime 持有时没有 Bootstrap
+    // activeAbortController；只检查后者会让 rewind 与旧模型请求并发，随后新 prompt 被
+    // turn_not_steerable 拒绝。必须把 runtime-owned active turn 也纳入 preempt barrier。
     await preemptActiveTurnAndWait(host, record, {
       abortMessage: "v4 editUserQuery preempts active turn",
       goalPausedMutationReason: "edit_user_query_goal_paused",
@@ -208,21 +226,47 @@ async function editUserQuery(
   if (!conversationRewindCommitted) {
     await submitConversationRewind(host, record, editTarget.transcriptMessageId);
   }
-  await startCanonicalIntent(
-    host,
-    record,
-    envelope,
-    editTarget,
-    payload.newText,
-    attachmentRefs,
-    attachments,
-    {
-      modelSelection: payload.modelSelection,
-      mode: payload.mode,
-      planEnabled: payload.planEnabled,
-    },
-  );
-  // 生产 renderer 不落日志，过去只能从通用 rewind + send 猜测发生过编辑，
+  try {
+    await startCanonicalIntent(
+      host,
+      record,
+      envelope,
+      editTarget,
+      payload.newText,
+      attachmentRefs,
+      attachments,
+      { modelSelection: payload.modelSelection, mode: payload.mode, planEnabled: payload.planEnabled },
+    );
+  } catch (error) {
+    if (
+      editTarget.intent.kind === "sendText" &&
+      error instanceof V4PromptRejectedError &&
+      error.reasonCode === "activePrompt"
+    ) {
+      // Bug 根因：rewind 已经提交后，Core 仍可能在收口旧 turn，带加速执行材料的 admission
+      // 不能 steer，只会返回 turn_not_steerable。此时必须把新文本原子入队，
+      // 否则旧消息已被截断而新消息会随异常一起丢失。
+      host.logger?.warn?.("v4 editUserQuery admission recovered by queue", {
+        reasonCode: error.reasonCode,
+        sessionId: record.app.sessionId,
+        targetRowId: payload.target.rowId,
+      });
+      await startCanonicalIntent(
+        host,
+        record,
+        envelope,
+        editTarget,
+        payload.newText,
+        attachmentRefs,
+        attachments,
+        { modelSelection: payload.modelSelection, mode: payload.mode, planEnabled: payload.planEnabled },
+        { requireQueue: true },
+      );
+    } else {
+      throw error;
+    }
+  }
+  // Bugfix：生产 renderer 不落日志，过去只能从通用 rewind + send 猜测发生过编辑，
   // 无法与 retry 稳定区分。命令副作用完成后由 Agent server 写低频 info 审计索引。
   host.logger?.info?.("v4 editUserQuery completed", {
     ...traceContextToLogContext(record.traceContext),
@@ -246,7 +290,7 @@ async function editUserQuery(
 }
 
 /**
- * retryTurn：assistant target → messageId → rewind 截断 + 重发
+ * retryTurn：assistant target → canonical 输入 messageId → rewind 截断 + 重发
  * canonical user intent。intent 在 projection resolver 阶段、rewind **之前**完成解析，
  * 截断后不再回读可见文本或 transcript parent 猜测原输入。
  */
@@ -266,7 +310,18 @@ async function retryTurn(
   }
   const attachmentRefs = stableAttachmentRefs(resolution.editTarget);
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, attachmentRefs);
-  await submitConversationRewind(host, record, resolution.messageId);
+  // retry 与 edit 共用破坏性 branch cut；模型不可用时必须保留原活动分支。
+  await preflightCanonicalIntent(
+    host,
+    record,
+    envelope,
+    resolution.editTarget,
+    resolution.editTarget.intent.text,
+    attachmentRefs,
+    attachments,
+  );
+  // 从 assistant 就近回溯 user 会误选中途的合成提醒；使用已解析的原始输入边界。
+  await submitConversationRewind(host, record, resolution.editTarget.transcriptMessageId);
   await startCanonicalIntent(
     host,
     record,
@@ -338,72 +393,6 @@ async function forkAssistant(
   });
   const result = { type: "forkAssistant" as const, sessionId: forkedSessionId };
   return result;
-}
-
-function stableAttachmentRefs(editTarget: ConversationEditTarget) {
-  return editTarget.intent.attachments?.flatMap((attachment) =>
-    attachment.ref ? [{ ...attachment, ref: attachment.ref }] : [],
-  );
-}
-
-/**
- * edit/retry 的 Submission 选择：payload 显式字段 > canonical intent 原值。
- * Renderer 新发送端在确认编辑/点击重试瞬间冻结当前 Composer 选择随命令提交；
- * 旧发送端缺省时沿用被编辑轮提交时的原参数，保持历史行为（迁移期兜底）。
- */
-function resolveSubmissionOverride(payload: {
-  modelSelection?: unknown;
-  mode?: unknown;
-  planEnabled?: unknown;
-}): { modelSelection?: ModelSelection; mode?: SubmissionMode; planEnabled?: boolean } {
-  return {
-    ...(payload.modelSelection ? { modelSelection: payload.modelSelection as ModelSelection } : {}),
-    ...(payload.mode ? { mode: payload.mode as SubmissionMode } : {}),
-    ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled as boolean } : {}),
-  };
-}
-
-async function startCanonicalIntent(
-  host: V4CommandCoreHost,
-  record: V4SessionRecordView,
-  envelope: CommandEnvelope,
-  editTarget: ConversationEditTarget,
-  text: string,
-  attachmentRefs: ReturnType<typeof stableAttachmentRefs>,
-  attachments: Awaited<ReturnType<typeof mapAttachmentRefsToTurnAttachments>>,
-  submissionOverride?: { modelSelection?: unknown; mode?: unknown; planEnabled?: unknown },
-): Promise<void> {
-  const intent = inputIntentMetadataFromCanonical(
-    envelope,
-    {
-      kind: editTarget.intent.kind,
-      text: editTarget.intent.text,
-      sourceCommandId: editTarget.intent.sourceCommandId,
-      clientId: editTarget.intent.clientId,
-      queueItemId: editTarget.intent.queueItemId,
-      requestedDelivery: editTarget.intent.requestedDelivery,
-      admittedDelivery: editTarget.intent.admittedDelivery,
-      fallbackReasonCode: editTarget.intent.fallbackReasonCode,
-      ...resolveSubmissionOverride(submissionOverride ?? {}),
-      attachmentRefs,
-      provenance: editTarget.intent.provenance,
-    },
-    text,
-  );
-  if (editTarget.intent.kind === "sendGoalCommand") {
-    await applyGoalCommand(host, record, {
-      inputId: envelope.commandId,
-      objective: text,
-      intent,
-    });
-    return;
-  }
-  await startPromptTurn(host, record, {
-    content: text,
-    inputId: envelope.commandId,
-    intent,
-    ...(attachments ? { attachments } : {}),
-  });
 }
 
 export const forkEditRetryHandlers = {

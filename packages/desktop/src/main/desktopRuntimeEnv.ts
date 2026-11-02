@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
-import type { ConnectOptions } from "@zcode/server/remote";
+import type { remoteAssetDirsSchema } from "@zcode/shared";
 import { listSSHConfigAliasesFromLocalConfig } from "@zcode/services/node";
 import {
   ZCODE_AGENT_RUNTIME,
@@ -131,7 +131,7 @@ export function getCredentialsDir() {
   return getAppConfigDir();
 }
 
-export type RemoteAssetDirs = Pick<ConnectOptions, "bundledRemoteAssetsDir">;
+export type RemoteAssetDirs = ReturnType<typeof remoteAssetDirsSchema.parse>;
 type LocalRuntimeEnv = Record<string, string | undefined>;
 
 export async function isDockerDaemonAvailable(): Promise<boolean> {

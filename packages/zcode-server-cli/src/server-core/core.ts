@@ -1,19 +1,23 @@
+import { hostname } from "node:os";
 import {
   createLocalServices,
   disposeServiceResourcesAndWait,
   materializeZCodeBuiltinProviderConfig,
   ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
+  createTopicResourcePeers,
 } from "@zcode/services/node";
 import { join } from "node:path";
 import { ISourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace";
 import { createNodeSourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace/node";
 import { IZCodeAgentService } from "@zcode/services";
-import { ZCODE_VERSION } from "@zcode/shared";
+import { ZCODE_APP_VERSION_ENV, ZCODE_VERSION } from "@zcode/shared";
 import { createCoreHttpServer } from "./http.js";
+import { createIngressToken } from "./ingressToken.js";
 import { installParentDisconnectHandler } from "./parentDisconnect.js";
 import { resolveCoreServerId } from "./serverIdentity.js";
 import { createTaskActivityTracker } from "./taskActivityTracker.js";
 import { ensureIngressToken } from "../runtime/ingressToken.js";
+import { CORE_HEARTBEAT_INTERVAL_MS } from "../contracts.js";
 import { resolveServerLayout } from "../runtime/paths.js";
 
 declare const __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
@@ -22,6 +26,11 @@ export async function runServerCore(generation: number): Promise<void> {
   const sourceLayout = resolveServerLayout(process.env.ZCODE_SERVER_ROOT ?? "");
   const sourceServerId = await resolveCoreServerId(sourceLayout.serverRoot);
   if (!sourceServerId) throw new Error("Source installation identity is unavailable");
+  // Bug 原因：Agent 的模型请求头从 ZCODE_APP_VERSION 读 App 版本，缺失时回退到 CLI 包版本
+  // （0.17.0）。本地由 Desktop main 注入；远端 Core 由 SSH/WSL/Docker exec → Supervisor fork 拉起，
+  // 整条链都没有这个 env，远端请求于是报 0.17.0（按客户端版本拦截的网关会拒绝）。升级时旧 Supervisor
+  // 会拉起新 release 的 Core，所以只能由 Core 用自身编译期版本写入，Agent spawn 时继承。
+  process.env[ZCODE_APP_VERSION_ENV] = ZCODE_VERSION;
   let shutdown: ((reason: string) => Promise<void>) | undefined;
   let parentDisconnected = false;
   let disposeParentDisconnectHandler = (): void => undefined;
@@ -29,8 +38,12 @@ export async function runServerCore(generation: number): Promise<void> {
     if (shutdown) void shutdown("parent-disconnected");
     else parentDisconnected = true;
   });
+  const topicResourcePeers = createTopicResourcePeers();
   const explicitZCodeBuiltinProviderConfigFilePath =
     process.env[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]?.trim();
+  // Built-in Config 物化到所属 Environment 配置根（.zcodium/v2）而不是 release 自带的 runtime 目录：
+  // release 目录是不可变的，同一 releaseId 重装时 assertExistingReleaseMatches 会重算整棵树的
+  // 内容哈希，多出的物化文件会让校验失败。
   const zcodeBuiltinProviderConfigFilePath = explicitZCodeBuiltinProviderConfigFilePath
     ? explicitZCodeBuiltinProviderConfigFilePath
     : typeof __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__ === "string"
@@ -48,6 +61,7 @@ export async function runServerCore(generation: number): Promise<void> {
     zcodeBuiltinProviderConfigFilePath,
     serviceAuthorityMode: "standalone-server",
     sourceServerRoot: sourceLayout.serverRoot,
+    topicResourceRelayChannel: (request) => topicResourcePeers.getChannel(request),
     providerProvisioningTargetEnabled: true,
   });
   // 安装身份和真实根与 HTTP 握手共用；检查只阻断旧介质，不开库、迁移或伪造停写证明。
@@ -64,6 +78,7 @@ export async function runServerCore(generation: number): Promise<void> {
   const taskActivityTracker = createTaskActivityTracker(services.getOptional(IZCodeAgentService));
   const http = await createCoreHttpServer(services, {
     serverId: sourceServerId,
+    topicResourcePeers,
     ingressToken: await ensureIngressToken(sourceLayout.runDir),
     providerProvisioningV2: true,
   });
@@ -85,6 +100,9 @@ export async function runServerCore(generation: number): Promise<void> {
     host: http.host,
     port: http.port,
     version: ZCODE_VERSION,
+    ...(process.env.ZCODE_SERVER_RELEASE_ID?.trim()
+      ? { releaseId: process.env.ZCODE_SERVER_RELEASE_ID.trim() }
+      : {}),
     generation,
   });
   let shutdownStarted = false;
@@ -92,7 +110,11 @@ export async function runServerCore(generation: number): Promise<void> {
   const activitySubscription = taskActivityTracker.onDidChangeRunningTaskCount(
     (runningTaskCount) => {
       lastRunningTaskCount = runningTaskCount;
-      void send({ type: "task-activity", runningTaskCount });
+      void send({
+        type: "task-activity",
+        runningTasks: taskActivityTracker.readRunningTasks(),
+        runningTaskCount,
+      });
     },
   );
   let heartbeatInFlight: Promise<void> | undefined;
@@ -102,17 +124,31 @@ export async function runServerCore(generation: number): Promise<void> {
       .then((runningTaskCount) => {
         if (runningTaskCount !== lastRunningTaskCount) {
           lastRunningTaskCount = runningTaskCount;
-          void send({ type: "task-activity", runningTaskCount });
+          void send({
+            type: "task-activity",
+            runningTasks: taskActivityTracker.readRunningTasks(),
+            runningTaskCount,
+          });
         }
-        void send({ type: "heartbeat", at: Date.now(), runningTaskCount });
+        void send({
+          type: "heartbeat",
+          runningTasks: taskActivityTracker.readRunningTasks(),
+          at: Date.now(),
+          runningTaskCount,
+        });
       })
       .catch(() => {
-        void send({ type: "heartbeat", at: Date.now(), runningTaskCount: lastRunningTaskCount });
+        void send({
+          type: "heartbeat",
+          runningTasks: taskActivityTracker.readRunningTasks(),
+          at: Date.now(),
+          runningTaskCount: lastRunningTaskCount,
+        });
       })
       .finally(() => {
         heartbeatInFlight = undefined;
       });
-  }, 10_000);
+  }, CORE_HEARTBEAT_INTERVAL_MS);
   shutdown = async (reason: string): Promise<void> => {
     if (shutdownStarted) return;
     shutdownStarted = true;

@@ -13,8 +13,39 @@
  */
 
 import { isArtifactPresetOp } from "../facade/registry.js";
-import type { InstanceRef, JournalStorePort, NodeRecord, RunEvent } from "./types.js";
+import { NODE_KINDS, type RunEventType } from "./journal-read-types.js";
+import type { InstanceRef, JournalStorePort, NodeKind, NodeRecord, RunEvent } from "./types.js";
 import { refToString } from "./types.js";
+
+/**
+ * 重放时一定会兑现一个 promise 的节点 kind：除 `report`（void）与 `artifact`（要看成员族，
+ * 见 {@link claimsOnReplay}）之外的全部。从 {@link NODE_KINDS} 派生：新增的 kind 默认算进来。
+ */
+export const REPLAY_WORK_KINDS: readonly NodeKind[] = NODE_KINDS.filter(
+  (kind) => kind !== "report" && kind !== "artifact",
+);
+
+/** 结算次序只看这三种事件（{@link settledInstanceKey}），其余事件不必读出来。 */
+const SETTLE_EVENT_TYPES: readonly RunEventType[] = [
+  "node-settled",
+  "artifact-published",
+  "artifact-failed",
+];
+
+/**
+ * 结算次序要的节点行：工作行**不带结果**（只看 kind / status / 坐标），产物行带结果（成员族在
+ * `result.kind` 上，而产物行有界：32 个 id × 每 id 16 版）。报告行一条都不读——它们从不认领
+ * 闸门，而一个 run 可以有 65,536 条（docs/execution-engine.md「Reading the journal」）。
+ */
+export function readReplayRows(
+  journal: JournalStorePort,
+  runId: string,
+): { workRows: NodeRecord[]; artifactRows: NodeRecord[] } {
+  return {
+    workRows: journal.listNodes(runId, { kinds: REPLAY_WORK_KINDS, withResult: false }),
+    artifactRows: journal.listNodes(runId, { kinds: ["artifact"], withResult: true }),
+  };
+}
 
 export class ReplaySettleOrder {
   /** 实例键 → 它在首生结算次序里的位置。 */
@@ -142,7 +173,7 @@ export function recoverSettleOrder(
   journal: JournalStorePort,
   runId: string,
   /** 已读好的节点行（引擎的 resume 分支本来就要读一次，传进来省掉第二次全表读）。 */
-  nodes: readonly NodeRecord[] = journal.listNodes(runId),
+  nodes: readonly NodeRecord[] = Object.values(readReplayRows(journal, runId)).flat(),
 ): ReplaySettleOrder {
   const claimable = new Set<string>();
   for (const node of nodes) {
@@ -154,7 +185,7 @@ export function recoverSettleOrder(
 
   const order: string[] = [];
   const seen = new Set<string>();
-  for (const { event } of journal.listEvents(runId)) {
+  for (const { event } of journal.listEvents(runId, { types: SETTLE_EVENT_TYPES, reportItems: { limit: 0 } })) {
     const key = settledInstanceKey(event);
     if (key === undefined || seen.has(key) || !claimable.has(key)) continue;
     seen.add(key);

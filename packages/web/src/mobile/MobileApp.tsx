@@ -261,6 +261,53 @@ export function MobileApp() {
       ? conversationView.state
       : null;
 
+  const hasDisplayedConversation = Boolean(conversation?.snapshot);
+  useEffect(() => {
+    const client = clientRef.current;
+    if (!client) return;
+    // 导航恢复和瞬时查看分别发送；只有已显示的任务且页面在前台才取得查看资格。
+    const visibleView =
+      connection === "paired" && hasDisplayedConversation && selectedTaskId && selectedWorkspacePath
+        ? {
+            workspacePath: selectedWorkspacePath,
+            ...(selectedWorkspaceIdentity ? { workspaceIdentity: selectedWorkspaceIdentity } : {}),
+            taskId: selectedTaskId,
+          }
+        : null;
+    if (connection === "paired" && selectedWorkspaceKey)
+      client.sendPayload({
+        zcode_type: "mobile-view-state-update",
+        viewState: {
+          activeWorkspaceKey: selectedWorkspaceKey,
+          ...(selectedTaskId ? { activeTaskId: selectedTaskId } : {}),
+        },
+      });
+    const syncVisibleTask = () =>
+      client.updateMobileTaskView(document.visibilityState === "visible" ? visibleView : null);
+    const hideVisibleTask = () => client.updateMobileTaskView(null);
+    syncVisibleTask();
+    document.addEventListener("visibilitychange", syncVisibleTask);
+    document.addEventListener("freeze", hideVisibleTask);
+    document.addEventListener("resume", syncVisibleTask);
+    window.addEventListener("pagehide", hideVisibleTask);
+    window.addEventListener("pageshow", syncVisibleTask);
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibleTask);
+      document.removeEventListener("freeze", hideVisibleTask);
+      document.removeEventListener("resume", syncVisibleTask);
+      window.removeEventListener("pagehide", hideVisibleTask);
+      window.removeEventListener("pageshow", syncVisibleTask);
+      hideVisibleTask();
+    };
+  }, [
+    connection,
+    hasDisplayedConversation,
+    selectedTaskId,
+    selectedWorkspaceKey,
+    selectedWorkspacePath,
+    selectedWorkspaceIdentity,
+  ]);
+
   const confirmSubmission = useCallback((pending: PendingSubmission) => {
     if (pendingSubmissions.current.get(pending.accessKey) !== pending) return;
     pendingSubmissions.current.delete(pending.accessKey);

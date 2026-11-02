@@ -1,6 +1,6 @@
 {
   "name": "spreadsheets",
-  "version": "0.1.9",
+  "version": "0.2.1",
   "description": "XLSX spreadsheet production skills, published as an official ZCode plugin. Includes a read-only workspace viewer for shared reading, search, references and captures.",
   "description_i18n": {
     "en": "Spreadsheet skills for XLSX: create, edit, analyze, chart, and convert workbooks. Read together in a read-only workspace panel with anchor references, search, highlights and captures.",

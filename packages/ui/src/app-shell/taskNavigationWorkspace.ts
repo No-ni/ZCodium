@@ -1,32 +1,33 @@
-import { isSameWorkspaceTab } from "@/store/tabWorkspaceIdentity.js";
-
-export function findTaskNavigationWorkspaceTab<
-  T extends {
-    workspacePath: string;
-    workspaceIdentity?: string;
-    remoteSessionId?: string;
-    remoteTarget?: unknown;
-  },
->(
-  tabs: readonly T[],
-  target: { workspacePath: string; workspaceIdentity?: string; remoteSessionId?: string },
-): T | undefined {
-  // 旧远程 tab 可能只有 attachment/target；复用 tab 身份判据，避免本地请求借到远程 Host。
-  const workspaceIdentity = target.workspaceIdentity?.trim();
-  const remoteSessionId = target.remoteSessionId?.trim();
-  return tabs.find(
-    (tab) =>
-      // identity 是稳定键，路径规范化不应使已绑定 tab 失联；已知 attachment 则必须防止重连换代串线。
-      (workspaceIdentity
-        ? tab.workspaceIdentity?.trim() === workspaceIdentity
-        : isSameWorkspaceTab(tab, target.workspacePath, target)) &&
-      (!remoteSessionId || tab.remoteSessionId?.trim() === remoteSessionId),
-  );
-}
-
-type TaskNavigationWorkspaceResult =
+export type TaskNavigationWorkspaceResult =
   | { accepted: true; openedLocalTab: boolean }
   | { accepted: false; reason: "remote_attachment_missing" };
+
+interface TaskNavigationWorkspaceTarget {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  remoteTarget?: unknown;
+}
+
+export function findTaskNavigationWorkspaceTab<T extends TaskNavigationWorkspaceTarget>(
+  tabs: readonly T[],
+  target: TaskNavigationWorkspaceTarget,
+): T | undefined {
+  const identity = target.workspaceIdentity?.trim();
+  return tabs.find((tab) => {
+    // identity 是隔离身份，路径可为别名；显式 attachment 还需复验，避免借用换代连接。
+    if (identity) {
+      return (
+        tab.workspaceIdentity?.trim() === identity &&
+        (!target.remoteSessionId || tab.remoteSessionId === target.remoteSessionId)
+      );
+    }
+    if (tab.workspacePath !== target.workspacePath) return false;
+    if (target.remoteSessionId) return tab.remoteSessionId === target.remoteSessionId;
+    // 同路径的旧 session-only 或 target-only 远端也不能充当本地目录。
+    return !tab.workspaceIdentity?.trim() && !tab.remoteSessionId && !tab.remoteTarget;
+  });
+}
 
 export function ensureTaskNavigationWorkspace(params: {
   workspacePath: string;
@@ -39,17 +40,21 @@ export function ensureTaskNavigationWorkspace(params: {
   addLocalWorkspaceTab: (workspacePath: string) => void;
 }): TaskNavigationWorkspaceResult {
   const workspaceIdentity = params.workspaceIdentity?.trim();
-  const remoteSessionId = params.remoteSessionId?.trim();
   if (
     params.activateTabByPath(
       params.workspacePath,
-      workspaceIdentity || remoteSessionId ? { workspaceIdentity, remoteSessionId } : undefined,
+      workspaceIdentity || params.remoteSessionId
+        ? {
+            workspaceIdentity,
+            ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
+          }
+        : undefined,
     )
   ) {
     return { accepted: true, openedLocalTab: false };
   }
 
-  if (workspaceIdentity || remoteSessionId) {
+  if (workspaceIdentity || params.remoteSessionId) {
     // 远程 workspace 的 identity 只表达隔离身份，不能据此重建 SSH/WSL/Docker
     // attachment。当前窗口没有匹配 tab 时必须 fail-closed，避免创建无法连接的伪远程 tab。
     return { accepted: false, reason: "remote_attachment_missing" };

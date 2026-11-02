@@ -1,11 +1,18 @@
+import { conversationQuotesSchema } from "../conversationSelection.js";
+import { botGroupInputSourceSchema } from "../bots.js";
 // ConversationRow：行类型自包含。
 // 三条结构性规则：row 自包含（渲染任一行不需看别的行）；
 // 结构变化换整行（row.upserted），文本增长用 append（row.delta）；turn 是 row 上的标签不是容器。
 import { z } from "zod";
+import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { timestampSchema } from "./core.js";
 import { conversationInputSourceSchema } from "./input-intent.js";
-import { backgroundResultOriginMetaSchema, workflowLaunchMetaSchema } from "./workflow-row-meta.js";
+import {
+  backgroundResultOriginMetaSchema,
+  workflowLaunchMetaSchema,
+} from "./workflow-row-meta.js";
+import { attachmentRefSchema } from "./attachment-ref.js";
 
 // RowBase。rowId：session 内单调、永不复用、事件日志的确定性纯函数。
 const rowBaseFields = {
@@ -36,10 +43,13 @@ export type RowActions = NonNullable<z.infer<typeof rowActionsSchema>>;
 // workflow 轮的行级元数据拆到了 workflow-row-meta.ts（max-lines）；名字在此原样再导出。
 export {
   backgroundResultOriginMetaSchema,
+  subagentResultMetaSchema,
+  workflowBlockedMetaSchema,
   workflowLaunchMetaSchema,
   workflowNotificationMetaSchema,
   workflowSettingsAmendMetaSchema,
   type BackgroundResultOriginMeta,
+  type WorkflowBlockedMeta,
   type WorkflowLaunchMeta,
   type WorkflowNotificationMeta,
   type WorkflowSettingsAmendMeta,
@@ -80,7 +90,13 @@ export const turnHeaderRowSchema = z.object({
   endedAt: timestampSchema.optional(),
   // 权威工时：排除权限等待/用户输入等待/verifier 等待。
   activeMs: z.number().optional(),
-  // guide 不切 product turn，但每条 accepted guide 都开启独立视觉工作段。
+  // 当前 product turn 内主链路 ModelComplete 的 output usage 累计；optional 兼容旧快照。
+  outputTokens: z.number().int().nonnegative().optional(),
+  // CLI 从运行时事件聚合的真实耗时；optional 兼容旧快照及普通 turn。
+  modelDurationMs: z.number().nonnegative().optional(),
+  toolDurationMs: z.number().nonnegative().optional(),
+  otherDurationMs: z.number().nonnegative().optional(),
+  // guide 不切 product turn；一个 drain 边界按 FIFO 取出全部已等待的 guide，它们共用首条开启的视觉工作段。
   // 普通 turn 缺省以保持旧 snapshot 兼容；一旦出现 guide，CLI 负责完整投影首段与后续段。
   workSegments: z.array(turnWorkSegmentSchema).optional(),
   originMeta: backgroundResultOriginMetaSchema.optional(),
@@ -101,6 +117,9 @@ export type TurnHeaderRow = z.infer<typeof turnHeaderRowSchema>;
 export const userInputRowSchema = z.object({
   ...rowBaseFields,
   kind: z.literal("userInput"),
+  inputOrigin: z.enum(["desktop", "mobile"]).optional(),
+  botGroupSource: botGroupInputSourceSchema.optional(),
+  conversationQuotes: conversationQuotesSchema.optional(),
   text: z.string(),
   // text 从此下标起是引擎附加文本（dwf ask 尾注 /
   // nudge），GUI 把它折进默认收起的披露；0 = 整条都是；缺席 = 无（老转录、非工作流会话）。
@@ -136,17 +155,10 @@ export const userInputRowSchema = z.object({
   rootSourceCommandId: z.string().optional(),
   // 提交端身份由 CLI admission 写入；旧 transcript 可缺省。
   clientId: z.string().optional(),
-  attachments: z
-    .array(
-      z.object({
-        ref: z.string(),
-        fileName: z.string(),
-        mime: z.string(),
-        bytes: z.number(),
-        previewRef: z.string().optional(),
-      }),
-    )
-    .optional(),
+  // accelerated 历史展示的持久事实；缺省兼容普通消息和旧 snapshot。
+  highspeed: highspeedMessageMetaSchema.optional(),
+  // 重复定义曾在出队后的 row 校验中剥掉来源，导致历史附件丢失预览入口；与入站引用共用 schema。
+  attachments: z.array(attachmentRefSchema).optional(),
   // 插件 UI 代发的消息带来源；卡片显示"来自插件 X"。旧 transcript 可缺省。
   source: conversationInputSourceSchema.optional(),
 });
@@ -434,3 +446,20 @@ export const conversationRowSchema = z.discriminatedUnion("kind", [
 ]);
 export type ConversationRow = z.infer<typeof conversationRowSchema>;
 export type ConversationRowKind = ConversationRow["kind"];
+
+/**
+ * rows.window 的「冻结历史 + 尾轮」分区（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）。
+ *
+ * 只是行数组的视图类型，不上 wire，没有 schema；构造与缓存在 renderer 的 conversationProjectionStore。
+ * 放在这里是为了让插件 UI 等 domain 层只依赖协议类型，不依赖 v4 store。
+ * history 与 tail 拼接后逐项等于 rows。
+ */
+export interface ConversationRowsPartition {
+  /** tail 之前的行；只在历史段变化时更换引用。 */
+  readonly history: readonly ConversationRow[];
+  /**
+   * window 的后缀：包含最后一行所在轮的全部行，可能包含多轮（旧轮追加了行、或尾轮内部截断后），
+   * 与 history 的轮次不相交。消费方不能假设 tail 只有一轮。
+   */
+  readonly tail: readonly ConversationRow[];
+}

@@ -6,6 +6,9 @@
     "zcode-relay": "./dist/cli.mjs"
   },
   "type": "module",
+  "exports": {
+    "./server": "./src/server.ts"
+  },
   "scripts": {
     "build": "node build.mjs",
     "start": "node dist/cli.mjs",

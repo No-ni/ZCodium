@@ -20,6 +20,8 @@ export interface MigrationInspection {
 
 export interface MigrationOptions {
   database: string;
+  /** 同账本其它 scope 的冻结合同：只校验已有记录，不能由本次执行或补写。 */
+  recognizedMigrations?: readonly SqliteMigration[];
   /** 只在调用方持有 IMMEDIATE 写锁时移交；runner 成功提交或失败回滚。 */
   transactionOpen?: boolean;
   journalTable?: "schema_migration" | "tasks_schema_migration";
@@ -147,8 +149,20 @@ export interface SqliteMigrationsContract {
   inspect(
     db: DatabaseSync,
     migrations: readonly SqliteMigration[],
-    options?: Pick<MigrationOptions, "journalTable" | "appliedAtColumn">,
+    options?: Pick<MigrationOptions, "journalTable" | "appliedAtColumn" | "recognizedMigrations">,
   ): MigrationInspection;
   /** 停用全部写者；schema 改变时拒绝恢复，不冒充 DDL 降级。 */
   restore(db: DatabaseSync, path: string, options: RestoreOptions): Promise<void>;
 }
+
+/** 建窗前的存储准备只复用已有 runner，不初始化会话或模型。 */
+export const STORAGE_MIGRATION_COMMAND = "storage-migrate";
+export const storageMigrationReportSchema = z
+  .object({
+    version: z.literal(1),
+    kind: z.literal("storage-migrated"),
+    applied: z.array(z.string()),
+    backupPath: z.string().optional(),
+    backupSkipped: z.literal(false),
+  })
+  .strict();

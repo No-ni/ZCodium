@@ -24,6 +24,7 @@ import {
 
 interface FeishuChannelRuntimeDeps {
   runBackgroundTasks?: boolean;
+  onConnectionInvalidated?(botId: string): void;
   credentialService: ICredentialService;
   logger: BotRuntimeLogger;
   statusSink: BotRuntimeStatusSink;
@@ -102,10 +103,14 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
           messageId: "bots.runtime.feishuWebSocketConnecting",
           message: "Feishu WebSocket is connecting.",
         });
+        // 配置或连接重新建立后，旧群聊历史回包必须由 Bot owner 的 epoch 失效。
+        deps.onConnectionInvalidated?.(bot.id);
         client = await startFeishuBotWebSocket({
           bot,
           signal,
           onConnectionStateChange: (state) => {
+            if (signal.aborted) return;
+            if (state === "reconnecting") deps.onConnectionInvalidated?.(bot.id);
             deps.statusSink.setRuntimeStatus({
               botId: bot.id,
               provider: bot.provider,
@@ -142,6 +147,8 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
             return callbackResult.replies[0];
           },
         });
+        // 取消之后迟到的 ready 不得重新发布运行状态，finally 仍负责释放 client/锁。
+        if (signal.aborted) return;
         deps.statusSink.setRuntimeStatus({
           botId: bot.id,
           provider: bot.provider,

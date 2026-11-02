@@ -37,20 +37,25 @@ async function flattenArchiveRoot(extractDir: string): Promise<void> {
   }
 }
 
-interface InstallArchiveOptions {
+// 显式本地归档安装保留自身阶段合同，不依赖已剥离的桌面自动安装协议。
+export type ArchiveInstallPhase = "verify-archive" | "extract" | "verify";
+
+export interface InstallArchiveOptions {
   archivePath: string;
   target: ServerTarget;
-  version: string;
+  version?: string;
   archiveSha256?: string;
+  onProgress?: (phase: ArchiveInstallPhase) => void;
 }
 
 export class ReleaseInstaller {
   public constructor(private readonly layout: ServerLayout) {}
 
   public async installArchive(options: InstallArchiveOptions): Promise<ReleaseManifest> {
-    if (!/^[A-Za-z0-9][A-Za-z0-9._+-]*$/u.test(options.version)) {
+    if (options.version !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._+-]*$/u.test(options.version)) {
       throw new Error(`Invalid release version: ${options.version}`);
     }
+    options.onProgress?.("verify-archive");
     const archiveSha256 = await sha256File(options.archivePath);
     if (
       options.archiveSha256 &&
@@ -64,6 +69,7 @@ export class ReleaseInstaller {
     await releaseManager.ensure();
     const incomingRoot = await mkdtemp(join(this.layout.releasesDir, `.incoming-${process.pid}-`));
     try {
+      options.onProgress?.("extract");
       await extractArchiveSafely(resolve(options.archivePath), incomingRoot);
       await flattenArchiveRoot(incomingRoot);
       const runtimeManifest = serverRuntimeManifestSchema.parse(
@@ -73,19 +79,25 @@ export class ReleaseInstaller {
         throw new Error(
           `Release target mismatch: expected ${options.target}, received ${runtimeManifest.target}`,
         );
-      if (runtimeManifest.appVersion !== options.version)
+      if (options.version !== undefined && runtimeManifest.appVersion !== options.version) {
         throw new Error(
           `Release version mismatch: expected ${options.version}, received ${runtimeManifest.appVersion}`,
         );
-      const releaseId = `${options.version}-${options.target}-${archiveSha256.slice(0, 12)}`;
+      }
+      const version = options.version ?? runtimeManifest.appVersion;
+      if (!/^[A-Za-z0-9][A-Za-z0-9._+-]*$/u.test(version)) {
+        throw new Error(`Invalid release version: ${version}`);
+      }
+      const releaseId = `${version}-${options.target}-${archiveSha256.slice(0, 12)}`;
       const releaseDir = join(this.layout.releasesDir, releaseId);
+      options.onProgress?.("verify");
       await promoteImmutableReleaseDirectory({
         incomingDir: incomingRoot,
         targetDir: releaseDir,
-        identity: { archiveSha256, target: options.target, version: options.version },
+        identity: { archiveSha256, target: options.target, version },
       });
       const manifest = releaseManifestSchema.parse({
-        version: options.version,
+        version,
         releaseDir,
         releaseId,
         appVersion: runtimeManifest.appVersion,
@@ -103,6 +115,11 @@ export class ReleaseInstaller {
             ? "darwin"
             : "linux",
       );
+      // Bug 原因：uninstall 会留下 fail-closed marker；重装过去只写新 release、pending 和
+      // installation ownership，却保留 marker，Supervisor 启动恢复因此始终拒绝 ready。
+      // 只有 archive 校验、immutable promote、pending 与 launcher 都成功后才清除，失败的
+      // 半安装仍保持 uninstalled；未知用户文件不在 allowlist 中，继续原样保留。
+      await rm(this.layout.uninstalledFile, { force: true });
       return manifest;
     } catch (error) {
       await rm(incomingRoot, { recursive: true, force: true });

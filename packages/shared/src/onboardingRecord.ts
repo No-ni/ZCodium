@@ -21,12 +21,32 @@ export const onboardingRecordEntrySchema = z.object({
   completedAt: z.string().min(1),
 });
 
-export const onboardingRecordFileSchema = z.object({
+export const onboardingDecisionSchema = z.object({
+  userId: z.string().min(1).nullable(),
+  status: z.enum(["dismissed", "existing_local_user"]),
+  reason: z.enum(["user_closed", "existing_local_task"]),
+  decidedAt: z.string().min(1),
+});
+
+const onboardingRecordFileV1Schema = z.object({
   version: z.literal(1),
   entries: z.array(onboardingRecordEntrySchema),
 });
 
+const onboardingRecordFileV2Schema = z.object({
+  version: z.literal(2),
+  deviceMid: z.string().min(1),
+  entries: z.array(onboardingRecordEntrySchema),
+  decisions: z.array(onboardingDecisionSchema),
+});
+
+/** 历史 v1/v2 只投影本地答案；写回统一为 v1，不再生成账号或设备档案。 */
+export const onboardingRecordFileSchema = z
+  .union([onboardingRecordFileV1Schema, onboardingRecordFileV2Schema])
+  .transform((file) => ({ version: 1 as const, entries: file.entries }));
+
 export type OnboardingRecordEntry = z.infer<typeof onboardingRecordEntrySchema>;
+export type OnboardingDecision = z.infer<typeof onboardingDecisionSchema>;
 
 /** 仅包含用户显式选择的本地偏好。 */
 export type OnboardingRecordEntryInput = OnboardingRecordEntry;

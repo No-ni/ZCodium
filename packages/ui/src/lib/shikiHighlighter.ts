@@ -145,7 +145,7 @@ const getHighlighter = async (
   return highlighter;
 };
 
-const createRawCodeTokens = (code: string): TokenizedCode => ({
+export const createRawCodeTokens = (code: string): TokenizedCode => ({
   bg: "transparent",
   fg: "inherit",
   tokens: code.split("\n").map((line) =>

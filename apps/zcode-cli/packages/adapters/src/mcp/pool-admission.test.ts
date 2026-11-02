@@ -432,3 +432,79 @@ describe("MCP failed admission cleanup", () => {
     }
   });
 });
+
+
+describe("MCP request lease lifetime", () => {
+  it.each(["callTool", "readResource", "listResources", "listResourceTemplates", "subscribeResource", "unsubscribeResource"] as const)(
+    "%s cancels only its closing lease and rejects its late result",
+    async (method) => {
+      const completion = Promise.withResolvers<void>();
+      const signals: AbortSignal[] = [];
+      const invoke = vi.fn(async (_request: unknown, options?: { signal?: AbortSignal }) => {
+        if (options?.signal) signals.push(options.signal);
+        await completion.promise;
+        return { content: [] };
+      });
+      const port = { ...adapter(), [method]: invoke };
+      const pool = createMcpConnectionPool({ createAdapter: () => port as McpPort });
+      const a = pool.acquireLease(), b = pool.acquireLease();
+      const config = { ...CONFIG, isolation: "workspace" as const };
+      const options = { workingDirectory: WORKSPACE_A };
+      const request = { serverName: "fixture", toolName: "fixture", uri: "fixture:resource", subscriberKey: "fixture-subscriber" };
+      let old: ReturnType<typeof capture<unknown>> | undefined;
+      try {
+        await a.connectServer("fixture", config, options);
+        await b.connectServer("fixture", config, options);
+        old = capture<unknown>(a[method]!(request));
+        await a.close();
+        expect(signals[0]?.aborted).toBe(true);
+        expect(port.close).not.toHaveBeenCalled();
+        completion.resolve();
+        expect((await old).error).toBeInstanceOf(Error);
+        await b[method]!(request);
+        expect(signals[1]?.aborted).toBe(false);
+      } finally {
+        completion.resolve();
+        await old;
+        await a.close();
+        await b.close();
+        await pool.close();
+      }
+    },
+  );
+  it("pre-aborted caller never reaches the shared adapter", async () => {
+    const port = adapter();
+    const pool = createMcpConnectionPool({ createAdapter: () => port as McpPort });
+    const lease = pool.acquireLease();
+    try {
+      await lease.connectServer("fixture", CONFIG);
+      const controller = new AbortController();
+      controller.abort(new Error("fixture cancellation"));
+      await expect(lease.callTool({ serverName: "fixture", toolName: "fixture" }, { signal: controller.signal })).rejects.toThrow("fixture cancellation");
+      expect(port.callTool).not.toHaveBeenCalled();
+    } finally {
+      await lease.close();
+      await pool.close();
+    }
+  });
+  it("same-name replacement cannot publish the older call result", async () => {
+    const completion = Promise.withResolvers<{ content: [] }>();
+    const first = adapter();
+    first.callTool.mockImplementation(() => completion.promise);
+    const pool = createMcpConnectionPool({ createAdapter: vi.fn().mockReturnValueOnce(first).mockReturnValue(adapter()) });
+    const lease = pool.acquireLease();
+    let old: ReturnType<typeof capture<unknown>> | undefined;
+    try {
+      await lease.connectServer("fixture", CONFIG);
+      old = capture(lease.callTool({ serverName: "fixture", toolName: "fixture" }));
+      await lease.connectServer("fixture", { ...CONFIG, command: "replacement" });
+      completion.resolve({ content: [] });
+      expect((await old).error).toBeInstanceOf(Error);
+    } finally {
+      completion.resolve({ content: [] });
+      await old;
+      await lease.close();
+      await pool.close();
+    }
+  });
+});

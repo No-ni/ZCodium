@@ -1,3 +1,4 @@
+import type { ModelRequestSecurityState } from "./request-security.js";
 // ============================================================
 // Vercel AI SDK model runner
 // ============================================================
@@ -27,6 +28,7 @@ import {
   type AiSdkModelRetryOptions,
   type ResolvedAiSdkModelRetryOptions,
 } from "./retry-policy.js";
+import { resolveRetryOptionsForBudget } from "./retry-budget.js";
 import { DEFAULT_MODEL_STREAM_IDLE_TIMEOUT_MS } from "./stream-idle-timeout.js";
 import { runGenerateText } from "./runner-generate.js";
 import { runStreamText } from "./runner-stream.js";
@@ -37,7 +39,7 @@ import {
   type AiSdkModelTextRequest,
   type ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { resolveToolSearchCapability } from "./tool-search.js";
+import { resolveModelRequestCapabilities } from "./tool-search.js";
 import { createModel, type ModelExecutionRequest } from "./model.js";
 
 export type { AiSdkModelRetryOptions } from "./retry-policy.js";
@@ -52,7 +54,12 @@ export type {
 export { normalizeUsage, toModelStreamEvent } from "./runner-normalization.js";
 
 export interface AiSdkModelAdapterOptions {
+  /** 注入请求观测或测试传输，仍经过现有代理、协议及参数映射链。 */
+  transport?: typeof globalThis.fetch;
+  observeTransport?: (transport: typeof globalThis.fetch) => typeof globalThis.fetch;
   defaultHeaders?: AiSdkModelExecutionConfig["defaultHeaders"];
+  requestSecurityState?: ModelRequestSecurityState;
+  endpointRoutingPort?: import("@zcode/contracts").ProviderEndpointRoutingPort;
   network?: AiSdkNetworkConfig;
   runtime?: AiSdkModelRuntime;
   env?: EnvRecord;
@@ -84,10 +91,18 @@ export class AiSdkModelAdapter {
     this.execution = new AiSdkModelExecution(
       {
         defaultHeaders: options.defaultHeaders,
+        ...(options.endpointRoutingPort
+          ? { endpointRoutingPort: options.endpointRoutingPort }
+          : {}),
         ...(options.network ? { network: options.network } : {}),
         ...(options.env ? { env: options.env } : {}),
       },
       {
+        ...(options.transport ? { transport: options.transport } : {}),
+        ...(options.observeTransport ? { observeTransport: options.observeTransport } : {}),
+        ...(options.requestSecurityState
+          ? { requestSecurityState: options.requestSecurityState }
+          : {}),
         ...(options.logger ? { logger: options.logger } : {}),
       },
     );
@@ -150,13 +165,11 @@ export class AiSdkModelAdapter {
       });
     };
     return createModel({
+      requestCapabilities: resolveModelRequestCapabilities(options.providerConfig.api.type),
       providerId: resolved.providerId,
       modelId: resolved.modelId,
       displayName: options.displayName,
       properties,
-      requestCapabilities: {
-        toolSearch: resolveToolSearchCapability(options.providerConfig.api.type),
-      },
       optionSpecs: {
         maxOutputTokens: optionSpecs.maxOutputTokens,
         reasoningLevel: optionSpecs.reasoningLevel,
@@ -195,7 +208,7 @@ export class AiSdkModelAdapter {
       request: projectedRequest,
       resolveModel,
       resolved,
-      retry: this.retry,
+      retry: resolveRetryOptionsForBudget(this.retry, projectedRequest.modelRetryBudget),
       runtime: this.runtime,
       statusSink: this.statusSink,
     });
@@ -213,7 +226,8 @@ export class AiSdkModelAdapter {
       request: projectedRequest,
       resolveModel,
       resolved,
-      retry: this.retry,
+      // single-attempt 预算（带 selectionFallback 的执行作用域句柄）把 maxAttempts 收敛为 1。
+      retry: resolveRetryOptionsForBudget(this.retry, projectedRequest.modelRetryBudget),
       runtime: this.runtime,
       statusSink: this.statusSink,
       streamIdleTimeoutMs: this.streamIdleTimeoutMs,

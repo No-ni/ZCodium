@@ -1,3 +1,4 @@
+import type { IProjectService } from "./project/contract.js";
 import type { IGenUiService } from "./gen-ui/contract.js";
 import type { IPluginUiBridgeService } from "./plugin-ui-bridge/contract.js";
 import type { IPluginUiSamplingService } from "./plugin-ui-bridge/samplingContract.js";
@@ -43,8 +44,14 @@ import type { IConversationShareService } from "./conversation-share/conversatio
 
 import type { WindowProjectDirectoryServices } from "./window-project-directory/contract.js";
 import type { ISourceServerManagementService } from "./source-server-management/sourceServerManagement.js";
+import type { ITaskGroupService } from "./task-groups/contract.js";
+import type { ISourceServerWorkspaceService } from "./source-server-workspace/sourceServerWorkspace.js";
+import type { IDeviceSyncStateService, IUserConfigSyncService } from "./data-sync/contract.js";
+import type { IProviderProvisioningStatusService } from "./provider-provisioning-status/contract.js";
 /** UI 层消费的统一服务接口 */
 export interface IServiceAccessor {
+  /** 已部署 Source 的真实项目 owner；旧宿主没有此能力时拒绝远端项目请求。 */
+  readonly projectService?: IProjectService;
   readonly fileService: IFileService;
   readonly mediaPreviewService?: IMediaPreviewService;
   readonly gitService: IGitService;
@@ -60,7 +67,11 @@ export interface IServiceAccessor {
   /** 窗口 Host 聚合面；旧 server wire 或测试 double 可暂不提供。 */
   readonly windowControllerService?: IWindowControllerService;
   readonly sourceServerManagementService?: ISourceServerManagementService;
+  /** Source Server 工作区解析与迁移报告；旧 host 或测试 double 可不提供。 */
+  readonly sourceServerWorkspaceService?: ISourceServerWorkspaceService;
   readonly windowProjectDirectory?: WindowProjectDirectoryServices;
+  /** 控制端本地组织结构，所有远端任务仍按 Host 身份验证与登记。 */
+  readonly taskGroupService?: ITaskGroupService;
   readonly zcodeAgentService: IZCodeAgentService;
   readonly zcodeSessionService: IZCodeSessionService;
   // CUA 是 opt-in 内测特性：local macOS host 提供，远端 等 host 没有。可选避免连锁必填。
@@ -80,6 +91,12 @@ export interface IServiceAccessor {
   readonly skillsService: ISkillsService;
   readonly skillSyncService: ISkillSyncService;
   readonly mcpSyncService: IMcpSyncService;
+  /** 子智能体 / 命令 / 钩子共用的数据同步通道（docs/remote/data-sync.md）。 */
+  readonly userConfigSyncService?: IUserConfigSyncService;
+  /** 仅桌面本机 Host 注册：数据同步页读取的设备同步状态。 */
+  readonly deviceSyncStateService?: IDeviceSyncStateService;
+  /** Provisioning lane 状态只由桌面本机控制端提供，远端与手机不隐含开放。 */
+  readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   /** 插件 UI 桥；web 或旧 host 可不提供，UI 据此回退普通 MCP 卡片。 */
   readonly genUiService?: IGenUiService;
   readonly pluginUiBridgeService?: IPluginUiBridgeService;

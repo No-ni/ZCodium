@@ -10,6 +10,15 @@ export interface SourceServerTransport {
 export interface SourceServerTransportContract {
   connect(target: RemoteTarget, signal?: AbortSignal): Promise<SourceServerTransport>;
 }
+export type SourceServerCommand = "stop" | "restart" | "running-tasks";
+export interface SourceServerCommandResult {
+  readonly code: number;
+  readonly stdout: string;
+}
+export interface SourceServerCommandOptions {
+  signal?: AbortSignal;
+  createBackend?: (target: RemoteTarget) => Promise<IRemoteBackend>;
+}
 export class SourceServerTransportError extends Error {
   constructor(
     readonly code:

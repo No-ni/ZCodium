@@ -31,7 +31,7 @@ export async function main(): Promise<void> {
   async function close() {
     if (stopping) return;
     stopping = true;
-    owner.close();
+    owner.dispose();
     await server.close();
   }
   const shutdown = () =>

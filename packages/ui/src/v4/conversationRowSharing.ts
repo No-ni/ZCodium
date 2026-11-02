@@ -1,5 +1,4 @@
-// 改编自 zai-org/ZCode aac4755666d09fdcd70272fcf063c077a639015f（Apache-2.0）。
-// Conversation row 结构共享（.agents/specs/conversation-row-structural-sharing.md）。
+// Conversation row 结构共享（docs/performance/conversation-row-structural-sharing.md）。
 //
 // Bug 原因：store 收到整份 snapshot / row.upserted 时换上新反序列化的行对象，历史
 // snapshot 之间零共享；SessionPane 闭包链又会留住上百份历史 snapshot，同一个 200KB
@@ -38,8 +37,7 @@ export function shareStructure<T>(prev: unknown, next: T): T {
     const keys = Object.keys(next);
     let allPrev = keys.length === Object.keys(prev).length;
     let changed = false;
-    // 工具输入可包含 __proto__；先复制自有键，后续赋值不能触发原型 setter。
-    const out: Record<string, unknown> = { ...next };
+    const out: Record<string, unknown> = {};
     for (const key of keys) {
       const item = next[key];
       const hasPrev = Object.hasOwn(prev, key);
@@ -76,13 +74,10 @@ export class ConversationRowPool {
   /** 只登记不比较：流式 row.delta 的新字符串本来就是新的，逐帧深比较是纯开销。 */
   remember(topic: string, row: ConversationRow): void {
     const key = this.key(topic, row.rowId);
-    const previousRef = this.rows.get(key);
-    if (previousRef?.deref() === row) return;
-    // 流式更新会反复替换同键；取消旧登记，避免仍存活的历史行叠加回收记录。
-    if (previousRef) this.registry.unregister(previousRef);
+    if (this.rows.get(key)?.deref() === row) return;
     const ref = new WeakRef(row);
     this.rows.set(key, ref);
-    this.registry.register(row, { key, ref }, ref);
+    this.registry.register(row, { key, ref });
   }
 
   shareRow(topic: string, row: ConversationRow): ConversationRow {

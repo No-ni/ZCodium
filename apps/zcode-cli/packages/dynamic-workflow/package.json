@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
     "./projections": {
       "types": "./dist/projections.d.ts",
       "import": "./dist/projections.js"
@@ -19,16 +23,19 @@
     "build": "node scripts/generate-libs.mjs && tsc",
     "charts": "node scripts/generate-libs.mjs && tsc && node scripts/generate-mermaid.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
-    "test": "node --import tsx --test --test-isolation=none test/*.test.ts",
+    "test:source": "node --import tsx --test --test-isolation=none test/*.test.ts",
+    "test:upstream": "node scripts/generate-libs.mjs && vitest run tests --reporter=verbose",
+    "test": "corepack pnpm test:source && corepack pnpm test:upstream",
     "typecheck": "node scripts/generate-libs.mjs && tsc --noEmit",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "coverage": "node scripts/generate-libs.mjs && vitest run tests --coverage",
+    "lint": "oxlint src tests",
+    "lint:fix": "oxlint --write src tests"
   },
   "dependencies": {
     "typescript": "^5.9.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "tsx": "^4.20.0"
+    "vitest": "^4.1.5"
   }
 }

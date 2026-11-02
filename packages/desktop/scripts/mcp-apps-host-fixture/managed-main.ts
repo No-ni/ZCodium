@@ -1,3 +1,4 @@
+import { checkRetention } from "./managed-retention-checks.js";
 import { app, protocol } from "electron";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
@@ -52,9 +53,31 @@ app
       process.stdout.write(`PASS ${name}\n`);
     };
     try {
-      const scope = await env.agent.session(join(root, "managed-workspace"), "managed");
+      const scope = await env.agent.session(join(root, "managed-workspace"), "managed-delayed");
       const started = performance.now();
-      const win = await env.createWindow(scope);
+      const opening = env.createWindow(scope);
+      void opening.catch(() => {});
+      await check("App opening waits for MCP startup and runs without reload", async () => {
+        await env.agent.events.wait(
+          (e) => e.type === "initialize-waiting" && e.source === "managed",
+        );
+        const arrived = await env.events.wait(
+          (e) => e.type === "bridge-arrived" && e.method === "prepareSandbox",
+        );
+        const owner = env.windows.find((w) => w.webContents.id === arrived.owner)!;
+        assert.equal(
+          (await owner.webContents.executeJavaScript("window.managedState()")).phase,
+          "preparing",
+        );
+        env.agent.release("managed", "initialize");
+        await opening;
+        assert.equal(
+          env.events.history.some((e) => e.type === "phase" && e.phase === "error"),
+          false,
+        );
+        assert.equal(env.events.history.filter((e) => e.type === "registered").length, 1);
+      });
+      const win = await opening;
       const coldPageMs = performance.now() - started;
       await writeFile(
         join(root, "managed-inline.png"),
@@ -72,6 +95,7 @@ app
       );
       await checkManaged(env, win, scope, check);
       await checkPermissions(env, root, check);
+      await checkRetention(env, root, check);
       await checkLifecycle(env, win, scope, check);
       await writeFile(
         join(root, "managed-storage-identity.json"),

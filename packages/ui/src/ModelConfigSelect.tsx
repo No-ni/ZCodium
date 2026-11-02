@@ -7,10 +7,12 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type RefObject,
 } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import type { ProviderConfigObject } from "@zcode/provider";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -40,11 +42,12 @@ import {
   TID_CHAT_MODEL_SELECT_ITEM,
   TID_CHAT_MODEL_SELECT_TRIGGER,
   testId,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import {
   isCoarseTouchDevice,
   shouldRestoreChatInputFocusAfterPickerClose,
 } from "@/lib/pickerFocus.js";
+import { ComposerTriggerTransition } from "@/chat-input-toolbar/ComposerTriggerTransition.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 import {
   ComposerModelMenu,
@@ -76,6 +79,7 @@ export interface ModelSelectGroup {
   key: string;
   label: string;
   labelBadge?: string;
+  logo?: ProviderConfigObject["logo"];
   directItems?: boolean;
   selectedOptionKey?: string;
   connectionOptions?: ModelSelectConnectionOption[];
@@ -93,7 +97,7 @@ const EMPTY_MODEL_SELECT_FOOTER_ACTIONS: readonly ModelSelectFooterAction[] = []
 export const MODEL_CONFIG_SELECT_BADGE_CLASS_NAME =
   "shrink-0 rounded-full bg-surface px-1 py-px text-ui-xs font-medium leading-normal text-foreground-subtle";
 
-function shouldShowModelProviderLevel(modelGroups: readonly ModelSelectGroup[]): boolean {
+export function shouldShowModelProviderLevel(modelGroups: readonly ModelSelectGroup[]): boolean {
   return modelGroups.length > 0;
 }
 
@@ -107,7 +111,7 @@ function isFamilyConnectionGroup(
   );
 }
 
-function shouldRenderModelGroupSeparator(
+export function shouldRenderModelGroupSeparator(
   previousGroup: Pick<ModelSelectGroup, "connectionOptions" | "key" | "labelBadge"> | undefined,
   currentGroup: Pick<ModelSelectGroup, "connectionOptions" | "key" | "labelBadge">,
 ): boolean {
@@ -117,14 +121,14 @@ function shouldRenderModelGroupSeparator(
   return isFamilyConnectionGroup(previousGroup) || isFamilyConnectionGroup(currentGroup);
 }
 
-function isModelSelectGroupSelected(
+export function isModelSelectGroupSelected(
   group: Pick<ModelSelectGroup, "items">,
   normalizedValue: string,
 ): boolean {
   return group.items.some((item) => item.value === normalizedValue);
 }
 
-function getModelTriggerLabelClassName({
+export function getModelTriggerLabelClassName({
   labelVisibilityClassName,
   triggerLabelClassName,
 }: {
@@ -139,7 +143,7 @@ function getModelTriggerLabelClassName({
 }
 
 interface ModelConfigSelectProps {
-  /** 仅 Composer 合并模型/档位入口，其他消费者保留原模型选择交互。 */
+  /** Composer 合并入口；其他使用点保持原有模型选择交互。 */
   composerOptions?: ComposerModelOptions;
   modelGroups: readonly ModelSelectGroup[];
   normalizedValue: string;
@@ -169,6 +173,7 @@ interface ModelConfigSelectProps {
   indicatorClassName?: string;
   triggerClassName?: string;
   triggerIconClassName?: string;
+  triggerIcon?: ReactNode;
   triggerLabelClassName?: string;
   triggerTestId?: string;
   formatTriggerLabel?: (label: string) => string;
@@ -220,6 +225,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
   indicatorClassName,
   triggerClassName,
   triggerIconClassName = "hidden",
+  triggerIcon,
   triggerLabelClassName: customTriggerLabelClassName,
   triggerTestId = TID_CHAT_MODEL_SELECT_TRIGGER,
   formatTriggerLabel,
@@ -237,7 +243,10 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [expandedWidth, setExpandedWidth] = useState<number | null>(null);
   const hasSelectedModel = Boolean(normalizedValue.trim());
+  const showSelectionLabel = Boolean(composerOptions && open && hasSelectedModel);
+  // 未选模型不代表缺失思考档位；空态不应显示横线、绿条或 Tooltip 的伪档位。
   const selectedThoughtLabel = hasSelectedModel
     ? composerOptions?.levels.find((level) => level.value === composerOptions.value)?.label
     : undefined;
@@ -262,12 +271,16 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
 
   const handlePopoverOpenChange = useCallback(
     (nextOpen: boolean) => {
+      // 打开前测量真实按钮，不能在替换文案后反过来测量占位内容。
+      if (nextOpen && composerOptions && buttonRef.current)
+        setExpandedWidth(buttonRef.current.getBoundingClientRect().width);
+      else if (!nextOpen) setExpandedWidth(null);
       if (controlledOpen === undefined) {
         setUncontrolledOpen(nextOpen);
       }
       onOpenChange?.(nextOpen);
     },
-    [controlledOpen, onOpenChange],
+    [controlledOpen, onOpenChange, composerOptions],
   );
 
   useEffect(() => {
@@ -375,7 +388,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           className="min-h-8 gap-2 pl-2 pr-8 text-ui-base"
           onSelect={(event) => {
             handleModelValueChange(item.value);
-            // 合并菜单选模后还要调档，保留弹层；非 Composer 消费者仍选中即关闭。
+            // 合并菜单选模型后还可继续调档，阻止菜单项默认关闭；外侧点击仍走原关闭链路。
             if (composerOptions) event.preventDefault();
             else handlePopoverOpenChange(false);
           }}
@@ -500,10 +513,81 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
     return actions;
   }, [composerOptions, footerActions, manageModelsLabel, onManageModels, showManageModelsAction]);
 
+  // 原因：官方 3.17.1 合并把触发器内联 JSX 改名为 triggerContents 却漏带定义，渲染即报错；
+  // 同时官方冻结块依赖本 fork 合同不存在的供应商云菜单字段（官方账号刷新入口，按审计边界剥离）。
+  // 这里按本 fork 合同恢复定义：不引入官方高速模型购买态；档位指示沿用 ComposerThoughtIndicator
+  // 的 options 单参契约；目录未解析（pending）或模型无档位时不显示「—」伪档位。
+  const triggerContents = showSelectionLabel ? (
+    <>
+      <span
+        data-composer-open-label
+        className="absolute inset-x-1.5 truncate text-center text-foreground-subtle group-data-[composer-model-icon=true]/toolbar:hidden"
+      >
+        {composerOptions!.selectModelLabel}
+      </span>
+      <span
+        data-composer-open-icon
+        aria-hidden="true"
+        className="hidden size-4 shrink-0 items-center text-foreground-subtle group-data-[composer-model-icon=true]/toolbar:inline-flex"
+      >
+        {triggerIcon ?? <PackageIcon className="size-4" />}
+      </span>
+      {composerOptions && hasSelectedModel && composerOptions.levels.length > 0 ? (
+        <span
+          data-composer-open-thought
+          className="hidden group-data-[composer-model-icon=true]/toolbar:inline-flex"
+        >
+          <ComposerThoughtIndicator options={composerOptions} />
+        </span>
+      ) : null}
+    </>
+  ) : (
+    <>
+      {triggerIcon ?? (
+        <PackageIcon
+          className={cn("pointer-events-none size-4 shrink-0 text-current", triggerIconClassName)}
+          aria-hidden="true"
+        />
+      )}
+      <span className={triggerLabelClassName} title={currentTriggerTitle}>
+        <RollingToolbarLabel
+          label={currentTriggerLabel}
+          prefix={pending ? undefined : triggerLabelPrefix}
+          prefixClassName={triggerLabelPrefixClassName}
+          value={pending ? undefined : triggerLabelValue}
+        />
+      </span>
+      {composerOptions && hasSelectedModel && composerOptions.levels.length > 0 ? (
+        <ComposerThoughtIndicator options={composerOptions} />
+      ) : null}
+      {triggerBadge}
+      {pending ? (
+        <LoaderIcon className="pointer-events-none size-3.5 animate-spin text-foreground" />
+      ) : null}
+      {!pending && (
+        <ChevronDownIcon
+          className={cn(
+            "pointer-events-none size-3.5 text-foreground-subtle",
+            indicatorClassName,
+            composerOptions && "group-data-[composer-compact=true]/combined:hidden",
+          )}
+        />
+      )}
+    </>
+  );
+
   const modelTrigger = (
     <DropdownMenuTrigger asChild>
       <Button
         ref={buttonRef}
+        style={
+          showSelectionLabel
+            ? ({
+                // 锁宽只稳定打开态文案；图标态必须释放宽度，否则 resize 后仍挤占其他入口。
+                "--composer-model-open-width": `max(${expandedWidth ?? 0}px, 8rem)`,
+              } as CSSProperties)
+            : undefined
+        }
         type="button"
         variant="ghost"
         size="default"
@@ -519,36 +603,22 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
         onClick={guideTooltipOpen ? onGuideTooltipDismiss : undefined}
         className={cn(
           "w-fit justify-between gap-1 rounded-lg pl-2 pr-1.5 text-ui-base whitespace-nowrap",
-          composerOptions && "group/combined",
+
           triggerClassName,
+          composerOptions && "group/combined relative",
+          showSelectionLabel &&
+            "px-2 w-(--composer-model-open-width) min-w-32 max-w-(--composer-model-open-width) group-data-[composer-model-icon=true]/toolbar:w-auto group-data-[composer-model-icon=true]/toolbar:min-w-0 group-data-[composer-model-icon=true]/toolbar:max-w-none",
+          composerOptions &&
+            !hasSelectedModel &&
+            "text-foreground-subtle hover:text-foreground-subtle aria-expanded:text-foreground-subtle",
         )}
       >
-        <PackageIcon
-          className={cn("pointer-events-none size-4 shrink-0 text-current", triggerIconClassName)}
-          aria-hidden="true"
-        />
-        <span className={triggerLabelClassName} title={currentTriggerTitle}>
-          <RollingToolbarLabel
-            label={currentTriggerLabel}
-            prefix={pending ? undefined : triggerLabelPrefix}
-            prefixClassName={triggerLabelPrefixClassName}
-            value={pending ? undefined : triggerLabelValue}
-          />
-        </span>
-        {composerOptions && hasSelectedModel && composerOptions.levels.length > 0 ? (
-          <ComposerThoughtIndicator options={composerOptions} />
-        ) : null}
-        {triggerBadge}
-        {pending ? (
-          <LoaderIcon className="pointer-events-none size-3.5 animate-spin text-foreground" />
-        ) : null}
-        {!pending && (
-          <ChevronDownIcon
-            className={cn(
-              "pointer-events-none size-3.5 text-foreground-subtle",
-              indicatorClassName,
-            )}
-          />
+        {composerOptions ? (
+          <ComposerTriggerTransition open={showSelectionLabel}>
+            {triggerContents}
+          </ComposerTriggerTransition>
+        ) : (
+          triggerContents
         )}
       </Button>
     </DropdownMenuTrigger>
@@ -558,6 +628,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
     <DropdownMenu open={open} onOpenChange={handlePopoverOpenChange}>
       {tooltipTitle ? (
         <ControlHintTooltip
+          // 合并入口的 Tooltip 应提示操作，不重复按钮已有的模型和档位。
           title={
             guideTooltipOpen && guideTooltipTitle
               ? guideTooltipTitle
@@ -565,7 +636,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           }
           shortcut={guideTooltipOpen ? undefined : shortcutLabel}
           triggerRef={triggerRef}
-          // 打开菜单时 Tooltip 不能吞掉 Escape，留下仍锁住指针的模型弹层。
+          // 菜单打开时 Tooltip 不能再成为最上层；否则 Escape 只关闭提示，菜单仍锁住指针。
           open={open ? false : guideTooltipOpen ? true : undefined}
           className={guideTooltipOpen ? "bg-background py-0.5 pr-0.5 pl-2" : undefined}
         >
@@ -576,7 +647,8 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       )}
       {open && composerOptions ? (
         <DropdownMenuPortal>
-          {/* 插件 webview 不向宿主冒泡指针；透明层只让外侧点击经过既有 Radix 关闭链路。 */}
+          {/* 插件 webview 显式接收指针，内部事件不冒泡到宿主；透明层让外侧点击走 Radix 关闭链路。
+              层级位于插件（10）之上、Composer（20）和浮窗（30）之下，保留同一工具栏的菜单切换。 */}
           <div
             aria-hidden="true"
             className="fixed inset-0 z-[19] pointer-events-auto [app-region:no-drag]"
@@ -587,7 +659,8 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
         <DropdownMenuContent
           className={cn(
             composerOptions
-              ? "w-72 min-w-0 overflow-y-hidden [app-region:no-drag] [&>*:not([data-composer-model-list]):not([data-composer-provider-list])]:shrink-0"
+              ? // 外层滚动会带走供应商和 Effort；只让 Models 列表收缩，且排除窗口拖拽命中。
+                "w-72 min-w-0 overflow-y-hidden [app-region:no-drag] [&>*:not([data-composer-model-list]):not([data-composer-provider-list])]:shrink-0"
               : shouldShowProviderLevel
                 ? "w-max min-w-48 max-w-[calc(100vw-2rem)]"
                 : "w-48 max-h-72 overflow-y-auto",
@@ -629,10 +702,11 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
               isItemLocked={isItemLocked}
               onSelectModel={handleModelValueChange}
               renderItems={renderModelItems}
+              renderConnection={renderProviderConnectionHeader}
               providerFooter={
                 showManageModelsAction && manageModelsLabel ? (
                   <DropdownMenuItem
-                    className="min-h-8 shrink-0 gap-2 px-2"
+                    className="min-h-8 gap-2 px-2"
                     data-model-footer-action="manage-models"
                     onSelect={() => {
                       handlePopoverOpenChange(false);

@@ -71,13 +71,12 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     // 动态工作流工具策略由 Host 决定。
     // 这里不能用端口在场做判据——十个工具的端口在任何 CLI 里都装配齐全，灰度是 Host 的决定。
     // 取值收在 tool-allowlist.ts，与分支刷新那个入口共用同一个推导。
-    includeDynamicWorkflow: resolveRuntimeDynamicWorkflowToolsIncluded(runtime.config),
-    // browserControlPort 只是宿主能力，不应隐式暴露高权限 node_repl。
+    includeDynamicWorkflow: resolveRuntimeDynamicWorkflowToolsIncluded(runtime),
+    // 修复原因：browserControlPort 只是宿主能力，不应隐式暴露高权限 node_repl。
     // node_repl/browser-use 由 ZCode 官方 browser-use 插件启停推导出的 runtimeFeatures 控制。
     includeNodeRepl: nodeReplEnabled,
     includeBrowserUse: browserUseEnabled,
     embeddedSearchEnabled: resolveRuntimeEmbeddedSearchEnabled(runtime),
-    agentProfiles: runtime.config.subagents?.profiles,
     allowedTools: resolveBuiltInToolAllowlist(runtime.config),
     // workflow_child 的结构性禁用（CreateWorkflow/SaveWorkflow 因 alwaysAsk 隐形挂起；
     // ResumeWorkflowRun 已免确认但因「child 内不得再编排」仍在列）在 helper
@@ -190,6 +189,7 @@ function createRuntimeToolExecutor(
     workflowEscalatePort: deps.workflowEscalatePort,
     artifactStore: deps.artifactStore,
     automationPort: deps.automationPort,
+    topicResourcePort: deps.topicResourcePort,
     sessionStore: deps.sessionStore,
     sessionModePort: createRuntimeSessionModePort(runtime),
     workflowPort: deps.workflowPort,
@@ -197,6 +197,9 @@ function createRuntimeToolExecutor(
     dynamicWorkflowSnippetPort: deps.dynamicWorkflowSnippetPort,
     modelCatalogPort: deps.modelCatalogPort,
     runtimeTaskRegistry: runtime.runtimeTaskRegistry,
+    registerResidencyBlockingWork: (work) => {
+      void runtime.trackResidencyBlockingWork(work).catch(() => undefined);
+    },
     readFileState: runtime.readFileState,
     // 工作流创作工具的技能门（tool/handlers/workflow-skill-gate.ts）：按模型此刻看得见的历史回答
     // 「读过技能没有」。只在会话真有 Skill 工具时给探针——没有 skillPort 的会话装不上那个技能，

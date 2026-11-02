@@ -6,6 +6,7 @@ import {
   InternalChannels,
   PlatformChannels,
   remoteTargetSchema,
+  nonEmptyStringSchema,
   type RemoteTarget,
 } from "@zcode/shared";
 import { dispatchTaskNotification } from "./desktopNotifications.js";
@@ -76,11 +77,28 @@ export function registerRemoteIpcHandlers(options: {
     webContentsId: number,
     payload: { sessionId: string; attachmentId: string },
   ) => void;
+  requestSourceSettingsAttachment: (
+    win: BrowserWindow,
+    sourceServerId: string,
+  ) => { attachmentId: string };
   isDockerDaemonAvailable: () => Promise<boolean>;
   listAvailableWSLDistros: () => Promise<unknown[]>;
   listAvailableDockerContainers: () => Promise<unknown[]>;
   listSSHConfigAliases: () => Promise<unknown[]>;
 }) {
+  ipcMain.handle(PlatformChannels.RequestSourceSettingsAttachment, (event, payload: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame)
+      throw new Error("Source settings require the main window frame");
+    const sourceServerId =
+      payload && typeof payload === "object" && "sourceServerId" in payload
+        ? nonEmptyStringSchema.parse(payload.sourceServerId).trim()
+        : "";
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!sourceServerId || !win || win.isDestroyed())
+      throw new Error("Source settings request is invalid");
+    return options.requestSourceSettingsAttachment(win, sourceServerId);
+  });
+
   ipcMain.on(InternalChannels.ScopedServicePortReady, (event, rawPayload: unknown) => {
     if (!rawPayload || typeof rawPayload !== "object") return;
     const payload = rawPayload as { sessionId?: unknown; attachmentId?: unknown };
@@ -192,14 +210,13 @@ export function registerRemoteIpcHandlers(options: {
       return { success: true, sessionId };
     } catch (error) {
       const normalizedError = normalizeUnknownError(error);
-      // 这里之前直接把 Error 对象交给 logger，落盘时会被 JSON.stringify 压成 `{}`。
-      // 改成显式展开 message/code/stack，保证远程建连失败时主进程日志里能看到真实上下文。
-      options.logger.error("[connect-remote] caught error:", {
-        message: normalizedError.message,
-        code: normalizedError.code,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      return { success: false, error: normalizedError.message };
+      // 原因：原始错误和 stack 含路径/凭据；日志仅记固定事件，UI 沿用现有错误与稳定 code。
+      options.logger.error("[connect-remote] connection failed");
+      return {
+        success: false,
+        error: normalizedError.message,
+        ...(normalizedError.code ? { reasonCode: normalizedError.code } : {}),
+      };
     }
   });
 

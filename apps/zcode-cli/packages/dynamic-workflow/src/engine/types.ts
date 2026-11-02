@@ -17,6 +17,12 @@ import type {
 } from "../facade/registry.js";
 import type { AskProgress, AskStats } from "./ask-observation-types.js";
 import type { ActorSessionSeed } from "./imported-cache-types.js";
+import type {
+  GetNodeOptions,
+  ListActorsOptions,
+  ListEventsOptions,
+  ListNodesOptions,
+} from "./journal-read-types.js";
 
 // ————————————————————————————————————————————————————————————————
 // 身份（identity）
@@ -362,7 +368,9 @@ export type ConcurrencyChangeReason =
   | "rate_limited"
   | "provider_overloaded"
   | "recovered"
-  | "idle_reset";
+  | "idle_reset"
+  | "limit_lowered"
+  | "seeded";
 
 /**
  * 治理器对某 provider key 的 cap 调整，扇出给每个有该 key 在飞或等待 ask 的 run
@@ -510,6 +518,8 @@ export type RunEvent =
       parentSessionId?: string;
       phaseNames?: string[];
       subagentModel?: string;
+      /** 创建时固化的权限模式，恢复时仍由同一 run-launched 事实读取。 */
+      subagentPermissionMode?: string;
       modelBindings?: Record<string, string>;
       scriptPath?: string;
       phaseAlongside?: number[][];
@@ -575,6 +585,7 @@ export type RunEvent =
       actor?: ActorRef;
       actorName?: string;
       actorPhaseName?: string;
+      actorPersonaModel?: string;
       phaseName?: string;
       instructionsHead?: string;
     }
@@ -606,6 +617,12 @@ export type RunEvent =
       outcome: NodeOutcome;
       cached?: boolean;
       error?: WorkflowErrorJson;
+      /** 缓存命中重发真实出生事实，读面不需要再回查已淘汰的 queued 事件。 */
+      kind?: NodeKind;
+      actor?: ActorRef;
+      actorSeq?: number;
+      instructionsHead?: string;
+      sourceSessionId?: string;
       /** 仅 `cached: true` 时在场：命中的节点没有 queued，这条就是它的出生事件。 */
       phaseName?: string;
     }
@@ -900,16 +917,14 @@ export interface StoredEvent {
   timeCreated?: number;
 }
 
-/**
- * 事件分页参数（cursor = journal sequence）。app 侧的运行详情页据此增量拉取事件日志：
- * 一次返回全量意味着每翻一页都把整条 journal 读进内存。
- */
-export interface ListEventsOptions {
-  /** 只返回 sequence **严格大于**该值的事件。cursor 是"已读到的最后一个 sequence"，不是偏移量。 */
-  afterSequence?: number;
-  /** 单页最多返回的条数；缺省不限。 */
-  limit?: number;
-}
+// 读面选项（kinds / types / withResult / reportItems …）住在 journal-read-types.ts（max-lines 拆分）。
+export type {
+  GetNodeOptions,
+  ListActorsOptions,
+  ListEventsOptions,
+  ListNodesOptions,
+  RunEventType,
+} from "./journal-read-types.js";
 
 /**
  * run 结算随附的落库内容。存在的理由是**一笔写**：终态状态与产物分两次 UPDATE，
@@ -964,20 +979,34 @@ export interface JournalStorePort {
 
   putActor(record: ActorRecord): void;
   getActor(runId: string, siteId: string, ordinal: number): ActorRecord | undefined;
-  listActors(runId: string): ActorRecord[];
+  listActors(runId: string, opts: ListActorsOptions): ActorRecord[];
 
   putNode(record: NodeRecord): void;
-  getNode(runId: string, siteId: string, ordinal: number): NodeRecord | undefined;
-  listNodes(runId: string): NodeRecord[];
+  getNode(
+    runId: string,
+    siteId: string,
+    ordinal: number,
+    opts?: GetNodeOptions,
+  ): NodeRecord | undefined;
+  /** 读面必须说清要什么（docs/execution-engine.md「Reading the journal」）；整表读写 `"all"`。 */
+  listNodes(runId: string, opts: ListNodesOptions): NodeRecord[];
+  /** `count(*)`：只要行数的读者不必把行读出来。 */
+  countNodes(runId: string, kind: NodeKind): number;
+  /**
+   * 该 kind 各行 `result` 的 UTF-8 序列化字节数之和（`JSON.stringify(result)` 的字节；无结果的行
+   * 计 0）。只要字节数的读者（resume 恢复报告的 run 级字节计数）不必把结果读出来：SQLite 侧是
+   * `sum(octet_length(result_json))`，长度从行头读，不碰结果本身。
+   */
+  sumResultBytes(runId: string, kind: NodeKind): number;
 
   appendEvent(runId: string, event: RunEvent): StoredEvent;
   /**
-   * 按 sequence 升序列出事件。`opts` 缺省即全量（历史形态）；带 cursor / limit 时必须在
-   * 存储层过滤，不得取全量再切片——分页存在的理由就是不把整条 journal 读进内存。
+   * 按 sequence 升序列出事件。类型过滤、cursor、limit 与 report item 的剥离都必须在存储层
+   * 做，不得取全量再切片——分页与过滤存在的理由就是不把整条 journal 读进内存。
    * 未知 runId 与越界 cursor 一律返回空数组（不抛错）：投影与 journal 之间的竞态窗口里，
    * 客户端拿着一个尚未存在的 cursor 回来是正常时序。
    */
-  listEvents(runId: string, opts?: ListEventsOptions): StoredEvent[];
+  listEvents(runId: string, opts: ListEventsOptions): StoredEvent[];
 }
 
 // driver 对 ask 的观察词汇表（用量 + 进度）住在 ask-observation-types.ts（同上），此处转出口以保持引用路径。

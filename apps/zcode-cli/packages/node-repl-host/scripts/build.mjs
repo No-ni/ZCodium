@@ -21,7 +21,10 @@ export const buildNodeReplHostBundle = async ({
     banner: { js: nodeRequireBanner },
     bundle: true,
     entryPoints: [resolve(packageRoot, "src", "server.ts")],
-    external: ["@trycua/cua-driver"],
+    // 两个原生闭包都必须留在 bundle 外：driver 由 stageCuaDriverRuntimeFiles 随包投放，
+    // sharp 由 desktop 的 sharp-package-assets 放到插件自身 node_modules；
+    // 打包进来会让产物在目标机上解析不到原生扩展（上游 3.17.1 同一条 external:["sharp"] 修复）。
+    external: ["@trycua/cua-driver", "sharp"],
     format: "esm",
     legalComments: "none",
     outfile,

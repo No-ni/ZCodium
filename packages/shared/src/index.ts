@@ -1,3 +1,4 @@
+export * from "./networkCapture.js";
 export type {
   FileBinaryPreview,
   FileEntry,
@@ -47,10 +48,11 @@ export type {
 export type {
   DockerConnectOptions,
   RemoteTarget,
+  ServerConnectOptions,
   SSHConnectOptions,
   WSLConnectOptions,
+  RemoteWorkspaceConnectTrigger,
 } from "./remoteTarget.js";
-export type { RemoteWorkspaceConnectTrigger } from "./remoteTarget.js";
 export { stripRemoteTargetSecrets } from "./remoteTarget.js";
 export { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
 export { buildRemoteEnvironmentKey } from "./remoteEnvironmentKey.js";
@@ -80,8 +82,10 @@ export {
 } from "./env.js";
 export * from "./windowUnread.js";
 export * from "./errors.js";
-export type { SessionCreateSource } from "./sessionCreateSource.js";
-export { resolveSafeEndpointHostname } from "./endpointHostname.js";
+export {
+  USER_INSTRUCTIONS_MAX_BYTES,
+  USER_INSTRUCTIONS_TOO_LARGE_ERROR_CODE,
+} from "./userInstructions.js";
 export * from "./validation.js";
 export * from "./api.js";
 export * from "./zcode-protocol/index.js";
@@ -98,10 +102,13 @@ export * from "./zcode-session-visible-content.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";
 export * from "./conversation-share.js";
+export type { SessionCreateSource } from "./sessionCreateSource.js";
 export * from "./conversation-archive.js";
 export * from "./webRemoteControl/index.js";
+export * from "./conversation-share-content.js";
 export * from "./conversation-preview-artifacts.js";
 export * from "./zcode-session-task-status.js";
+export * from "./zcode-session-content-profile.js";
 export * from "./zcode-tool-projection-memory.js";
 export * from "./zcode-slash-command-help.js";
 export * from "./zcodeEndpoint.js";
@@ -124,8 +131,8 @@ export interface ICredentialStore {
   delete(key: string): Promise<void>;
 }
 
-export * from "./test-ids.js";
 export * from "./test-ids-workflow.js";
+export * from "./test-ids.js";
 export * from "./channels.js";
 export * from "./storage.js";
 export * from "./oauth.js";
@@ -142,14 +149,18 @@ export {
   DesktopCommandIds,
   buildLocalMediaPreviewUrl,
   createOpenInEditorRemoteTarget,
+  unwrapRemoteWorkspaceBindResult,
 } from "./platform.js";
 
 export type { LaunchMarks } from "./launchMarks.js";
 export { LAUNCH_MARKS_QUERY_KEY, parseLaunchMarks, serializeLaunchMarks } from "./launchMarks.js";
 export type {
+  BrowserViewSurfaceScaleMode,
   CancelPendingRemoteConnectionRequest,
   BindRemoteWorkspaceSessionContextRequest,
   BotRemoteWorkspaceReconnectedEvent,
+  BindRemoteWorkspaceSessionContextIpcResult,
+  BindRemoteWorkspaceSessionContextResult,
   BrowserTabResidencyState,
   BrowserViewCloseTabNotification,
   BrowserViewCloseTabRequest,
@@ -166,12 +177,17 @@ export type {
   ChromeBrowserDataImportOptions,
   ChromeBrowserDataImportResult,
   ConnectRemoteRequest,
+  FileApplicationInfo,
+  FileApplicationTarget,
   CreateTempTextAttachmentRequest,
   CreateTempTextAttachmentResult,
   SelectedFileData,
+  MaterializeWorkflowArtifactFileRequest,
+  MaterializeWorkflowArtifactFileResult,
   SaveFileRequest,
   SaveFileResult,
   PrintPageToPdfResult,
+  DesktopCloseToTrayCapability,
   DesktopCommandId,
   CuaOsSupport,
   DesktopWindowChromeState,
@@ -185,12 +201,21 @@ export type {
   BrowserGuestAttachResult,
   EmbeddedBrowserDataClearResult,
   EmbeddedBrowserOpenUrlRequest,
+  EmbeddedBrowserPermissionDeviceOption,
+  EmbeddedBrowserPermissionPromptEvent,
+  EmbeddedBrowserPermissionResolution,
+  EmbeddedBrowserPermissionResolveRequest,
+  EmbeddedBrowserPermissionScreenOption,
+  EmbeddedBrowserSitePermissionResetRequest,
+  EmbeddedBrowserSitePermissionUpdateRequest,
+  EmbeddedBrowserSitePermissionsSnapshot,
   IPlatformService,
   OpenInEditorRemoteTarget,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
   RemoteConnectionRuntimeLog,
   RemoteSessionClosedEvent,
+  RemoteSessionReconnectedEvent,
   RemoteServiceSession,
   SSHConfigAliasOption,
   TaskNotificationPayload,
@@ -198,6 +223,7 @@ export type {
   UpdateCheckResultPayload,
   UpdateStatePayload,
   WSLDistro,
+  WindowControlsOverlayReadyPayload,
   ZCodeStdioTapDevState,
 } from "./platform.js";
 export type {
@@ -226,6 +252,7 @@ export * from "./custom-model-value.js";
 export * from "./model-selection-types.js";
 export * from "./model-selection-key.js";
 export * from "./model-selection.js";
+export { modelExecutionSchema } from "./model-execution.js";
 export * from "./legacy-model-provider-identity.js";
 export * from "./official-glm-model-id.js";
 export * from "./skills-types.js";
@@ -255,6 +282,7 @@ export * from "./tool-identity.js";
 export * from "./streaming-tool-input-preview.js";
 export * from "./tool-plan-adapter.js";
 export * from "./permission-request-preview.js";
+
 export * from "./settings-sync.js";
 export * from "./uuid.js";
 export * from "./usage-stats.js";
@@ -262,11 +290,14 @@ export * from "./forceUpdate.js";
 export * from "./intranetProbe.js";
 export * from "./intranetDefaults.js";
 export * from "./hooks.js";
+export * from "./memory.js";
+export * from "./output-style.js";
 export * from "./openrouter-attribution.js";
 export * from "./workspaceSessionRestore.js";
 export * from "./skill-scan-policy.js";
 export * from "./browser-use/index.js";
 
+export * from "./highspeed.js";
 export {
   parseSubagentMarkdownSelection,
   formatSubagentMarkdownModel,
@@ -277,7 +308,12 @@ export * from "./execution-state.js";
 
 export { bashOutputDisplaySchema } from "./bash-output-display.js";
 
-export * from "./localTtft.js";
+export * from "./subagent-runtime-config.js";
+
+export * from "./subagent-profile.js";
+export { parseAgentProfileFromMarkdown } from "./subagent-profile-parser.js";
+
+export * from "./local-ttft/contract.js";
 export * from "./pluginStoreOrder.js";
 export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
@@ -289,3 +325,9 @@ export * from "./diagnostics.js";
 export * from "./diagnosticPrivacy.js";
 
 export { memorySampleToDiagnosticRecord } from "./memoryDiagnostics.js";
+export * from "./conversationSelection.js";
+export * from "./attachment-source.js";
+
+export * from "./channel-mention.js";
+
+export * from "./conversation-share-tool-presentation.js";

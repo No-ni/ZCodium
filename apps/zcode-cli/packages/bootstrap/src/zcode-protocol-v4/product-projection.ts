@@ -1,3 +1,4 @@
+import { normalizeGenUiInput } from "@zcode/core";
 import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@zcode/shared/zcode-protocol-v4";
 // ProductProjection —— CLI 权威投影第二 reducer。
 // 输入：CLI 事件日志（SessionEvent，权威事实源）；输出：ConversationDelta[]。
@@ -9,12 +10,14 @@ import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@zcode/shared/zcode-protocol-v
 // compact marker、goal 状态机、fork marker。传输外壳（TopicFrame/subscribe）在后续片。
 import type {
   AssistantFeedbackUpdatedPayload,
+  HighspeedMetricsUpdatedPayload,
   CompactLifecyclePayload,
   DynamicWorkflowRunProgressPayload,
   HookRunLifecyclePayload,
   ModelCompletePayload,
   ModelNetworkStatusPayload,
   ModelSelectedPayload,
+  TurnExecutionModelFallbackPayload,
   ModelStreamingPayload,
   ModelUsage,
   PermissionDeniedPayload,
@@ -28,6 +31,7 @@ import type {
   SessionInputPromotedPayload,
   StreamRecoveryRetryStartedPayload,
   StreamRecoveryStartedPayload,
+  StreamingToolLedgerPayload,
   TargetChangedPayload,
   TargetCompletionVerificationPayload,
   ToolCallErrorPayload,
@@ -46,14 +50,17 @@ import type {
   TurnSteerQueuedPayload,
   UserInputAutoResolutionUpdatedPayload,
   WorkspaceHookAdmissionUpdatedPayload,
+  WorkspaceMcpAdmissionUpdatedPayload,
   WorkspaceHookReviewRequestedPayload,
   WorkspaceHookReviewSettledPayload,
   WorkspaceHookReviewSupersededPayload,
 } from "@zcode/contracts";
 import {
+  DEFERRED_TOOL_CALL_NAME,
   AMEND_WORKFLOW_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
   CoreErrorType,
+  ModelErrorCode,
   SessionEventType,
   getModelUsageContextTokens,
 } from "@zcode/contracts";
@@ -70,11 +77,13 @@ import {
   ZCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS,
   extractPlanStepsFromToolInput,
   extractPlanStepsFromToolOutput,
+  isHighspeedProviderId,
   isZCodeFileStreamingToolInputPreviewTool,
+  parseZCodeBackgroundTaskNotifications,
   isZCodeModelRetryRecoveryProgressPayload,
-  parseZCodeBackgroundTaskNotificationText,
   resolveZCodeBackgroundTaskControlKind,
   zcodeBackgroundTaskNotificationToolUpdateStatus,
+  type ZCodeParsedBackgroundTaskNotification,
 } from "@zcode/shared";
 import { verdictWorkspaceHookReviewRequest } from "@zcode/shared/workspace-hook-review-monotonicity";
 import type {
@@ -312,6 +321,10 @@ export interface ConversationEditTarget {
   transcriptMessageId: string;
   coveredByStableCompact: boolean;
   intent: {
+    inputOrigin?: "desktop" | "mobile";
+    genUiContext?: import("@zcode/contracts").TurnInputIntentMetadata["genUiContext"];
+    conversationQuotes?: import("@zcode/contracts").TurnInputIntentMetadata["conversationQuotes"];
+    botGroupSource?: CanonicalUserIntentFact["botGroupSource"];
     kind: "sendText" | "sendGoalCommand";
     text: string;
     sourceCommandId?: string;
@@ -337,7 +350,8 @@ export type ConversationRowTargetAction =
   | "applyFileRewind"
   | "fileChanges"
   | "fileRewindPreview"
-  | "setAssistantFeedback";
+  | "setAssistantFeedback"
+  | "setHighspeedMetrics";
 
 export type ConversationRowTargetResolution =
   | {
@@ -413,6 +427,11 @@ interface FileToolInputPreviewState {
   pendingAppend: string;
 }
 
+interface HighspeedToolInterval {
+  startedAt: number;
+  endedAt?: number;
+}
+
 type TurnModelBaseline =
   | { kind: "silentInitial" }
   | { kind: "sourceLess" }
@@ -430,6 +449,8 @@ export class ProductProjection {
   // output-token Continue 是同一 product turn 内的请求级恢复，不应泄漏成新的正文行。
   // 这里只保留上一条满足 length/zero-tool/视觉紧邻条件的 text row，任何真实边界都会清空。
   private outputContinuationTextRowId: number | null = null;
+  // 上一条取出的 guide 之后还没有出现主模型 step：同一次取出的后续 guide 并入它开启的工作段。
+  private guideDrainOpen = false;
   private toolRowIdByCallId = new Map<string, number>();
   private latestListAppsSnapshot = new Map<number, CuaAppIdentity>();
   // snapshot 是权威状态；该 Set 只是 TurnComplete 缺终态兜底的派生索引，避免每轮扫描全表。
@@ -472,6 +493,9 @@ export class ProductProjection {
   private runtimeTurnIdByProductTurnId = new Map<string, string>();
   private productTurnSplitOrdinalByRuntimeTurnId = new Map<string, number>();
   private currentProductTurnStartedAtMs: number | null = null;
+  // Highspeed 分享需要的真实耗时由 CLI 事件聚合，避免 renderer 离场后丢失拆分数据。
+  private highspeedModelDurationByTurnId = new Map<string, number>();
+  private highspeedToolIntervalsByTurnId = new Map<string, Map<string, HighspeedToolInterval>>();
   // 投递语义侧表：TurnSteerQueued 时按事件 payload（或 followupMode 兜底）记录，
   // drain 时决定切轮 vs 内联；账本落地后以账本为准。
   private deliveryByPendingInputId = new Map<string, "guide" | "queue">();
@@ -510,6 +534,20 @@ export class ProductProjection {
     return this.snapshot;
   }
 
+  /** 生命周期状态独立于 run phase；更新必须推进水位，避免旧 base 漏掉门禁。 */
+  setRuntimeInitialization(
+    state: NonNullable<ConversationSnapshot["runtimeInitialization"]>,
+    minimumSeq = this.snapshot.seq + 1,
+    minimumRevision = this.snapshot.revision + 1,
+  ): void {
+    this.snapshot = {
+      ...this.snapshot,
+      runtimeInitialization: state,
+      seq: Math.max(this.snapshot.seq, minimumSeq),
+      revision: Math.max(this.snapshot.revision, minimumRevision),
+    };
+  }
+
   /** assistant 守恒：被拒收的正文流事件数（>0 = 投影可能缺段，需重 hydration）。 */
   getDroppedContentStreamEventCount(): number {
     return this.droppedContentStreamEventCount;
@@ -519,7 +557,12 @@ export class ProductProjection {
     return this.normalizationDiagnostics;
   }
 
-  /** 仅供 publisher 的有界增量估算；返回 null 表示必须走候选快照精确校验。 */
+  /**
+   * 是否为对已打开流式行的追加：是则返回用于估算增量的追加文本（文件工具节流期间为空串），否则返回
+   * null。有两个使用方：publisher 的有界增量估算（null 时走候选快照精确校验），以及
+   * applyEventInternal 的 actions 物化准入（docs/v4-refactor/02-projection.md「命令 actions 的物化
+   * 时机」）。放宽这里的判定时，必须同时满足后者的约束。
+   */
   establishedStreamingAppend(event: SessionEvent): string | null {
     if (event.type !== SessionEventType.ModelStreaming || !this.isRunning()) return null;
     const payload = event.payload as ModelStreamingPayload;
@@ -836,6 +879,17 @@ export class ProductProjection {
       }
       return { ok: true, action, row, messageId };
     }
+    if (action === "setHighspeedMetrics") {
+      const messageId = this.messageIdByRowId.get(row.rowId);
+      if (row.kind !== "userInput" || !row.highspeed || !messageId) {
+        return {
+          ok: false,
+          status: "rejected",
+          reasonCode: "guard.actionUnavailable",
+        };
+      }
+      return { ok: true, action, row, messageId };
+    }
     if (row.kind !== "turnHeader") {
       return {
         ok: false,
@@ -1025,17 +1079,23 @@ export class ProductProjection {
       event.type === SessionEventType.TurnStarted
         ? undefined
         : (this.productTurnIdByRuntimeTurnId.get(runtimeTurnId) ?? runtimeTurnId);
+    // 在归约前取，与 publisher 快路径（ingest）对同一状态判定“是否为已打开流式行的追加”。
+    const streamingAppend = materializeActions && this.establishedStreamingAppend(event) !== null;
     const reduced =
       event.type === SessionEventType.AssistantFeedbackUpdated
         ? this.onAssistantFeedbackUpdated(event)
-        : (() => {
-            const fact = normalizeConversationEvent(event, {
-              productTurnId,
-              openAssistantSegments: this.openAssistantSegments(),
-            });
-            this.normalizationDiagnostics.push(...fact.diagnostics);
-            return this.reduce(fact);
-          })();
+        : event.type === SessionEventType.HighspeedMetricsUpdated
+          ? this.onHighspeedMetricsUpdated(event)
+          : event.type === SessionEventType.TurnExecutionModelFallback
+            ? this.onTurnExecutionModelFallback(event)
+            : (() => {
+                const fact = normalizeConversationEvent(event, {
+                  productTurnId,
+                  openAssistantSegments: this.openAssistantSegments(),
+                });
+                this.normalizationDiagnostics.push(...fact.diagnostics);
+                return this.reduce(fact);
+              })();
     const subagentDeltas = this.shouldMaterializeSubagentProjection(reduced)
       ? this.materializeSubagentProjection(reduced)
       : [];
@@ -1043,9 +1103,11 @@ export class ProductProjection {
     // row、命令 target 与 actions 必须属于同一个 materialization transaction。
     // 旧实现只维护 side-map/最新行判断，UI action 由别处推断，cold/tool-only/failed
     // 轮会出现“入口可见但 target 不可解析”，新目标出现后旧入口也不会撤销。
-    const deltas = materializeActions
-      ? [...reducedWithSubagents, ...this.materializeCommandRowActions(reducedWithSubagents)]
-      : reducedWithSubagents;
+    const deltas =
+      materializeActions &&
+      this.shouldMaterializeCommandRowActions(streamingAppend, reducedWithSubagents)
+        ? [...reducedWithSubagents, ...this.materializeCommandRowActions(reducedWithSubagents)]
+        : reducedWithSubagents;
     const finalDeltas = this.attachRevision(clearSettledOutputPreviews(deltas));
     if (this.hydrationAccumulator) {
       applyConversationDeltasMutable(this.hydrationAccumulator, finalDeltas);
@@ -1095,6 +1157,7 @@ export class ProductProjection {
     clone.streamingTextRowId = this.streamingTextRowId;
     clone.streamingReasoningRowId = this.streamingReasoningRowId;
     clone.outputContinuationTextRowId = this.outputContinuationTextRowId;
+    clone.guideDrainOpen = this.guideDrainOpen;
     clone.toolRowIdByCallId = new Map(this.toolRowIdByCallId);
     // 实时发布逐事件走原子 clone；遗漏该侧表会让成功的 list_apps 快照在提交时丢失。
     clone.latestListAppsSnapshot = new Map(this.latestListAppsSnapshot);
@@ -1136,6 +1199,13 @@ export class ProductProjection {
       this.productTurnSplitOrdinalByRuntimeTurnId,
     );
     clone.currentProductTurnStartedAtMs = this.currentProductTurnStartedAtMs;
+    clone.highspeedModelDurationByTurnId = new Map(this.highspeedModelDurationByTurnId);
+    clone.highspeedToolIntervalsByTurnId = new Map(
+      [...this.highspeedToolIntervalsByTurnId].map(([turnId, intervals]) => [
+        turnId,
+        new Map([...intervals].map(([toolCallId, interval]) => [toolCallId, { ...interval }])),
+      ]),
+    );
     clone.deliveryByPendingInputId = new Map(this.deliveryByPendingInputId);
     clone.currentTurnId = this.currentTurnId;
     clone.currentTurnStartedModelOnly = this.currentTurnStartedModelOnly;
@@ -1157,6 +1227,7 @@ export class ProductProjection {
     this.streamingTextRowId = candidate.streamingTextRowId;
     this.streamingReasoningRowId = candidate.streamingReasoningRowId;
     this.outputContinuationTextRowId = candidate.outputContinuationTextRowId;
+    this.guideDrainOpen = candidate.guideDrainOpen;
     this.toolRowIdByCallId = candidate.toolRowIdByCallId;
     this.latestListAppsSnapshot = candidate.latestListAppsSnapshot;
     this.openForegroundToolCallIds = candidate.openForegroundToolCallIds;
@@ -1179,6 +1250,8 @@ export class ProductProjection {
     this.runtimeTurnIdByProductTurnId = candidate.runtimeTurnIdByProductTurnId;
     this.productTurnSplitOrdinalByRuntimeTurnId = candidate.productTurnSplitOrdinalByRuntimeTurnId;
     this.currentProductTurnStartedAtMs = candidate.currentProductTurnStartedAtMs;
+    this.highspeedModelDurationByTurnId = candidate.highspeedModelDurationByTurnId;
+    this.highspeedToolIntervalsByTurnId = candidate.highspeedToolIntervalsByTurnId;
     this.deliveryByPendingInputId = candidate.deliveryByPendingInputId;
     this.currentTurnId = candidate.currentTurnId;
     this.currentTurnStartedModelOnly = candidate.currentTurnStartedModelOnly;
@@ -1189,6 +1262,29 @@ export class ProductProjection {
     this.configModeTouchedByEvent = candidate.configModeTouchedByEvent;
     this.droppedContentStreamEventCount = candidate.droppedContentStreamEventCount;
     this.normalizationDiagnostics = candidate.normalizationDiagnostics;
+  }
+
+  /**
+   * live 事件的 actions 物化准入（docs/v4-refactor/02-projection.md「命令 actions 的物化时机」）。
+   *
+   * 性能问题根因：每个 token 都整窗物化 actions（建全行 Map、倒序扫描、逐行 JSON 比较），长会话
+   * 流式输出时 CLI 每个事件的成本随历史线性增长（8000 行时每个事件超过 1ms）。
+   *
+   * 物化读取：prospective 行的种类、状态、轮次、userInput.origin、rowId 顺序与现有 actions，
+   * turnHeader 的 fileChanges.state，control.activeWorks 与快照顶层的 pendingInteractions，以及
+   * messageIdByRowId / entityIdByRowId / editTargetByEntityId / turnHeaderRowIdByTurnId 侧表；
+   * 输出行 actions 并写 currentEditableEntityId。row.delta 只追加文本字段，流式追加路径也不写这些
+   * 侧表，所以当本事件归约结果全是 row.delta（或为空）时，物化结果必为空、可编辑目标不变。
+   * 流式追加也可能附带其他增量（清除 apiRetry 的 state.updated、subagent 增量），这时照常物化。
+   *
+   * 前提：事件到达前 actions 已与当前状态一致。其他 live 事件都会物化，cold batch 结束时收敛一次；
+   * 新增只产生 row.delta 却改写上述输入的 reducer，或在事件之外改写这些输入的写入方，必须自己物化。
+   */
+  private shouldMaterializeCommandRowActions(
+    streamingAppend: boolean,
+    reduced: readonly ConversationDelta[],
+  ): boolean {
+    return !streamingAppend || reduced.some((delta) => delta.op !== "row.delta");
   }
 
   /**
@@ -1354,6 +1450,7 @@ export class ProductProjection {
         ];
       case SessionEventType.ModelStreaming: {
         if (fact.semanticKind !== "assistantSegment") return [];
+        this.guideDrainOpen = false;
         const shouldClearApiRetry =
           this.acceptsActiveModelEvent(event) &&
           isZCodeModelRetryRecoveryProgressPayload(
@@ -1378,6 +1475,8 @@ export class ProductProjection {
         return this.onModelComplete(event);
       case SessionEventType.ToolCallScheduled:
         return this.onToolCallScheduled(event);
+      case SessionEventType.StreamingToolLedgerUpdated:
+        return this.onStreamingToolIdentity(event);
       case SessionEventType.ToolCallStarted:
         return this.onToolCallActivity(event);
       case SessionEventType.ToolCallProgress:
@@ -1447,6 +1546,11 @@ export class ProductProjection {
         return this.onWorkspaceHookReviewSuperseded(event);
       case SessionEventType.WorkspaceHookAdmissionUpdated:
         return this.onWorkspaceHookAdmissionUpdated(event);
+      case SessionEventType.WorkspaceMcpAdmissionUpdated: {
+        const payload = event.payload as WorkspaceMcpAdmissionUpdatedPayload;
+        const workspaceMcpAdmission = payload.pendingCount > 0 ? payload : null;
+        return [{ op: "state.updated", patch: { workspaceMcpAdmission } }];
+      }
       case SessionEventType.HookRunStarted:
       case SessionEventType.HookRunProgress:
       case SessionEventType.HookRunCompleted:
@@ -1551,6 +1655,10 @@ export class ProductProjection {
     // epoch 清理时置 null,避免旧 Runtime 的提示条残留到新 Runtime 接管前。
     if (this.snapshot.workspaceHookAdmission !== null) {
       deltas.push({ op: "state.updated", patch: { workspaceHookAdmission: null } });
+    }
+    // 冷恢复的旧提示不是当前授权事实，等新 gate 重读后再显示。
+    if (this.snapshot.workspaceMcpAdmission) {
+      deltas.push({ op: "state.updated", patch: { workspaceMcpAdmission: null } });
     }
     return deltas;
   }
@@ -1988,6 +2096,7 @@ export class ProductProjection {
     this.streamingTextRowId = null;
     this.streamingReasoningRowId = null;
     this.outputContinuationTextRowId = null;
+    this.guideDrainOpen = false;
 
     // background Agent 的 ToolCallResult 只是 launch ACK，先把工具行收口成
     // success；子 Agent 的真实终态随后只作为 model-only task-notification 开新轮。
@@ -2097,11 +2206,18 @@ export class ProductProjection {
       const row: UserInputRow = {
         ...rowBase,
         kind: "userInput",
-        text: fact.input,
+        text:
+          fact.conversationQuotes || fact.botGroupSource
+            ? (fact.intentText ?? fact.input)
+            : fact.input,
         origin: fact.origin,
         ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
         ...(rootSourceCommandId ? { rootSourceCommandId } : {}),
+        ...(fact.inputOrigin ? { inputOrigin: fact.inputOrigin } : {}),
+        ...(fact.conversationQuotes ? { conversationQuotes: fact.conversationQuotes } : {}),
+        ...(fact.botGroupSource ? { botGroupSource: fact.botGroupSource } : {}),
         ...(fact.clientId ? { clientId: fact.clientId } : {}),
+        ...(fact.highspeed ? { highspeed: fact.highspeed } : {}),
         ...(fact.workflowLaunch ? { workflowLaunch: fact.workflowLaunch } : {}),
         ...(fact.epilogueStart === undefined ? {} : { epilogueStart: fact.epilogueStart }),
         ...(attachments && attachments.length > 0 ? { attachments } : {}),
@@ -2122,7 +2238,11 @@ export class ProductProjection {
               intent: {
                 kind: fact.intentKind,
                 text: fact.intentText,
+                genUiContext: fact.genUiContext,
                 ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
+                ...(fact.inputOrigin ? { inputOrigin: fact.inputOrigin } : {}),
+                ...(fact.conversationQuotes ? { conversationQuotes: fact.conversationQuotes } : {}),
+                ...(fact.botGroupSource ? { botGroupSource: fact.botGroupSource } : {}),
                 ...(fact.clientId ? { clientId: fact.clientId } : {}),
                 ...(fact.attachments ? { attachments: fact.attachments } : {}),
                 ...(fact.queueItemId ? { queueItemId: fact.queueItemId } : {}),
@@ -2160,6 +2280,8 @@ export class ProductProjection {
               ...(fact.foregroundExecutionId
                 ? { foregroundExecutionId: fact.foregroundExecutionId }
                 : {}),
+              // 自动中断必须关联实际执行输入，不能由客户端按最后一条消息猜测。
+              ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
               startedAt: this.ms(event),
             },
           ],
@@ -2176,8 +2298,17 @@ export class ProductProjection {
   }
 
   private applyBackgroundTaskNotification(fact: CanonicalUserIntentFact): ConversationDelta[] {
-    const parsed = parseZCodeBackgroundTaskNotificationText(fact.input);
-    if (!parsed) return [];
+    // 终态与失败原文优先取本轮 originMeta 的结构化结果，不解析 summary 文本。
+    // 合并轮的每条通知各自更新自己的工具行。
+    return parseZCodeBackgroundTaskNotifications(fact.input, fact.originMeta).flatMap((parsed) =>
+      this.applyBackgroundTaskNotificationBlock(fact, parsed),
+    );
+  }
+
+  private applyBackgroundTaskNotificationBlock(
+    fact: CanonicalUserIntentFact,
+    parsed: ZCodeParsedBackgroundTaskNotification,
+  ): ConversationDelta[] {
     const row = this.findToolRow(parsed.toolUseId);
     if (!row) return [];
 
@@ -2240,6 +2371,7 @@ export class ProductProjection {
           ? "completedInterrupted"
           : "error";
     const streamClose = payload.resultType === "success" ? "complete" : "interrupted";
+    const activeMs = this.activeMsForCompletion(event, payload.duration);
 
     // stopPausesActiveGoalTarget：stop 作用于任何 foreground work 时，
     // active/verifying 的 goal 强制进入 paused，等待显式 resumeGoal。
@@ -2272,8 +2404,9 @@ export class ProductProjection {
       ...this.upsertTurnHeader(
         event,
         headerState,
-        this.activeMsForCompletion(event, payload.duration),
+        activeMs,
         payload.historyRoundCount,
+        this.highspeedTimingForTurn(this.turnIdOf(event), activeMs),
       ),
       ...(payload.resultType === "success" ? this.markStableForkAssistant(event) : []),
       {
@@ -2357,7 +2490,13 @@ export class ProductProjection {
     return [
       ...this.closeStreamingRows("interrupted"),
       ...this.closeOpenToolRows(event, "error"),
-      ...this.upsertTurnHeader(event, "failed"),
+      ...this.upsertTurnHeader(
+        event,
+        "failed",
+        undefined,
+        undefined,
+        this.highspeedTimingForTurn(this.turnIdOf(event)),
+      ),
       {
         op: "state.updated",
         patch: this.controlPatch(
@@ -2401,6 +2540,22 @@ export class ProductProjection {
   private onModelNetworkStatus(event: SessionEvent): ConversationDelta[] {
     if (!this.acceptsActiveModelEvent(event)) return [];
     const payload = event.payload as ModelNetworkStatusPayload;
+    if (
+      (payload.querySource === undefined || payload.querySource === "main_turn") &&
+      (payload.type === "model_request_completed" || payload.type === "model_request_failed") &&
+      // 加速卡按 family 拆成了多个隐藏 Provider（zai/bigmodel），不能再和单个常量比较，
+      // 否则 BigModel 账号的加速轮会被判成普通轮、节省时间恒为 0。
+      isHighspeedProviderId(payload.providerId) &&
+      payload.durationMs !== undefined
+    ) {
+      // Bug 根因：混合 Turn 卡过期后会切到普通 provider，旧逻辑把普通模型的重试/超时
+      // 也累计进 Highspeed modelDurationMs，导致节省时间按高速倍率放大数小时。
+      const turnId = this.turnIdOf(event);
+      this.highspeedModelDurationByTurnId.set(
+        turnId,
+        (this.highspeedModelDurationByTurnId.get(turnId) ?? 0) + Math.max(0, payload.durationMs),
+      );
+    }
     switch (payload.type) {
       case "model_retry_scheduled": {
         const attempt = positiveInteger(payload.attempt, 1);
@@ -2412,6 +2567,7 @@ export class ProductProjection {
           attempt,
           maxAttempts,
           nextRetryAt: this.ms(event) + nonNegativeInteger(payload.delayMs, 0),
+          // 官方请求验证链已退休；普通 Provider 重试仍保留现有原因投影。
           reasonCode: modelRetryReasonCode(payload.reason),
         });
       }
@@ -2438,6 +2594,7 @@ export class ProductProjection {
       // 不映射成重试/等待标签。
       case "model_request_queued":
       case "model_request_admitted":
+      case "model_request_observation":
         return [];
     }
   }
@@ -2688,6 +2845,65 @@ export class ProductProjection {
     return [{ op: "row.upserted", row: { ...row, feedback: payload.feedback } }];
   }
 
+  private onHighspeedMetricsUpdated(event: SessionEvent): ConversationDelta[] {
+    const payload = event.payload as HighspeedMetricsUpdatedPayload;
+    const row = this.snapshot.rows.window.find(
+      (candidate): candidate is UserInputRow =>
+        candidate.kind === "userInput" && candidate.entityId === payload.entityId,
+    );
+    if (!row) return [];
+    // Bug 根因：终态指标更新曾整体替换 row.highspeed。payload 来自 transcript 原始 metadata + 耗时字段，
+    // 不含 live 投影刚由 TurnExecutionModelFallback 写入的 fallbackAt；降级 Toast 依赖的字段被清空，
+    // live 与 cold/replay 的结果也不一致。指标更新是增量补充：字段级合并、只增不删（spec §5）。
+    return [
+      {
+        op: "row.upserted",
+        row: { ...row, highspeed: { ...row.highspeed, ...payload.highspeed } },
+      },
+    ];
+  }
+
+  private onTurnExecutionModelFallback(event: SessionEvent): ConversationDelta[] {
+    const payload = event.payload as TurnExecutionModelFallbackPayload;
+    // Bug 根因：fallback 会作废当前 assistant attempt，但旧投影只更新输入行元数据，仍把旧模型的
+    // text/reasoning row 留在 streaming；原模型续流时这些内容会被误标 complete，缺少 text_start 时
+    // 甚至直接拼到同一行。未定稿的 tool input 同样不会收到 tool_call，必须随废弃 attempt 一起收口。
+    // 已提交执行的工具不在这里处理，它们由 core 的 tool_abandoned 事件收口。
+    const discardedStreamDeltas = this.acceptsActiveModelEvent(event)
+      ? [
+          ...this.closeStreamingRows("interrupted"),
+          ...this.closeOpenToolRows(event, "cancelled", (row) => row.status === "inputStreaming"),
+        ]
+      : [];
+    // 卡过期与其他加速请求失败都投影到同一张加速输入行：fallbackAt 触发一次性提示，
+    // fallbackReason 让 Renderer 区分“卡已到期”与“加速服务不可用”两种文案。
+    const turnId = this.turnIdOf(event);
+    const row = this.snapshot.rows.window.find(
+      (candidate): candidate is UserInputRow =>
+        candidate.kind === "userInput" &&
+        // Bug 根因：cold hydration 会重建 product turnId，不能再拿 runtime turnId
+        // 关联已持久化的输入；inputId/sourceCommandId 才是跨恢复稳定身份。
+        (candidate.turnId === turnId ||
+          (payload.inputId !== undefined && candidate.sourceCommandId === payload.inputId)) &&
+        candidate.highspeed !== undefined,
+    );
+    if (!row?.highspeed) return discardedStreamDeltas;
+    return [
+      ...discardedStreamDeltas,
+      {
+        op: "row.upserted",
+        row: {
+          ...row,
+          highspeed: {
+            ...row.highspeed,
+            fallbackAt: event.timestamp.getTime(),
+            fallbackReason: payload.reason,
+          },
+        },
+      },
+    ];
+  }
+
   private openReasoningRow(
     event: SessionEvent,
     fact: CanonicalAssistantSegmentFact,
@@ -2864,7 +3080,7 @@ export class ProductProjection {
   ): ConversationDelta[] {
     const toolCallId = String(payload.toolCallId ?? "");
     const rowId = this.toolRowIdByCallId.get(toolCallId);
-    if (rowId === undefined) return [];
+    if (rowId === undefined || this.findToolRow(toolCallId)?.input !== undefined) return [];
     const state = this.fileToolInputPreviewByCallId.get(toolCallId);
     if (!state) {
       return [{ op: "row.delta", rowId, path: "inputText", append: payload.delta }];
@@ -2908,6 +3124,8 @@ export class ProductProjection {
     if (shouldHideInvalidToolCallFromProduct(payload.toolName)) return [];
     const inputText = stringifyToolInput(payload.input);
     const existing = this.findToolRow(toolCallId);
+    // scheduled 或完整 tool_call 已定稿输入；迟到原始流不能覆盖执行身份。
+    if (existing?.input !== undefined) return [];
     if (existing) {
       return [
         {
@@ -2938,6 +3156,33 @@ export class ProductProjection {
     };
     this.toolRowIdByCallId.set(toolCallId, row.rowId);
     return [{ op: "row.appended", row }];
+  }
+
+  private onStreamingToolIdentity(event: SessionEvent): ConversationDelta[] {
+    if (this.isMirroredSubagentToolEvent(event) || !this.acceptsActiveModelEvent(event)) return [];
+    const payload = event.payload as StreamingToolLedgerPayload;
+    if (
+      payload.status !== "tool_call_closed" ||
+      payload.input === undefined ||
+      payload.toolName === DEFERRED_TOOL_CALL_NAME ||
+      shouldHideInvalidToolCallFromProduct(payload.toolName)
+    )
+      return [];
+    const row = this.findToolRow(String(payload.toolCallId));
+    if (row?.toolName !== DEFERRED_TOOL_CALL_NAME) return [];
+    // 断流恢复可能直接提交工具错误而不经过 scheduled；目标身份取 Core 已闭合的调用，
+    // 只补齐包装行，不触发 scheduled 的 Todo 等业务更新，也不重置已有状态和错误。
+    return [
+      {
+        op: "row.upserted",
+        row: {
+          ...row,
+          toolName: payload.toolName,
+          input: payload.input,
+          inputText: stringifyToolInput(payload.input),
+        },
+      },
+    ];
   }
 
   private onToolCallScheduled(event: SessionEvent): ConversationDelta[] {
@@ -3004,6 +3249,11 @@ export class ProductProjection {
   private onToolCallActivity(event: SessionEvent): ConversationDelta[] {
     if (this.isMirroredSubagentToolEvent(event) || !this.isRunning()) return [];
     const payload = event.payload as ToolCallStartedPayload;
+    this.recordHighspeedToolStarted(
+      this.turnIdOf(event),
+      String(payload.toolCallId),
+      this.ms(event),
+    );
     const row = this.findToolRow(String(payload.toolCallId));
     if (!row) return [];
     return projectToolActivity(event, row);
@@ -3055,6 +3305,12 @@ export class ProductProjection {
     if (this.isMirroredSubagentToolEvent(event) || !this.isRunning()) return [];
     const payload = event.payload as ToolCallResultPayload;
     const toolCallId = String(payload.toolCallId);
+    this.recordHighspeedToolEnded(
+      this.turnIdOf(event),
+      toolCallId,
+      this.ms(event),
+      payload.duration,
+    );
     const row = this.findToolRow(toolCallId);
     if (!row) return [];
     const success = payload.result.success;
@@ -3140,6 +3396,7 @@ export class ProductProjection {
   private onToolCallError(event: SessionEvent): ConversationDelta[] {
     if (this.isMirroredSubagentToolEvent(event) || !this.isRunning()) return [];
     const payload = event.payload as ToolCallErrorPayload;
+    this.recordHighspeedToolEnded(this.turnIdOf(event), String(payload.toolCallId), this.ms(event));
     const row = this.findToolRow(String(payload.toolCallId));
     if (!row) return [];
     const cancelled =
@@ -3285,7 +3542,10 @@ export class ProductProjection {
         summary: payload.reason,
         detail: payload.input,
         freeText: true,
-        ...(payload.fullAccessSupported === true && !payload.origin && !payload.optionsPolicy
+        ...(payload.approvalMode !== "user-once" &&
+        payload.fullAccessSupported === true &&
+        !payload.origin &&
+        !payload.optionsPolicy
           ? {
               fullAccessOption: {
                 optionId: PERMISSION_FULL_ACCESS_OPTION_ID,
@@ -3299,6 +3559,7 @@ export class ProductProjection {
         ...(askDisplay ? { display: askDisplay } : {}),
         options: [
           ...buildProtocolPermissionOptions({
+            approvalMode: payload.approvalMode,
             input: payload.input,
             suggestedPermissionUpdates: payload.suggestedPermissionUpdates,
             ...(payload.optionsPolicy ? { optionsPolicy: payload.optionsPolicy } : {}),
@@ -3491,6 +3752,8 @@ export class ProductProjection {
       payload.intent?.requestedDelivery ?? existing?.delivery.requested ?? admittedDelivery;
     const fallbackReasonCode =
       payload.intent?.fallbackReasonCode ?? existing?.delivery.fallbackReasonCode;
+    // Bug 根因：队列投影曾漏掉 intent.highspeed，自动和手动提升都因此把有效卡误判为不存在。
+    const highspeed = payload.intent?.highspeed ?? existing?.highspeed;
     const nextItem: QueueItem = {
       queueItemId,
       kind:
@@ -3499,7 +3762,7 @@ export class ProductProjection {
           : payload.intent?.kind === "sendGoalCommand" || payload.commandKind === "sendGoalCommand"
             ? ("sendGoalCommand" as const)
             : (existing?.kind ?? ("sendText" as const)),
-      text: payload.input,
+      ...normalizeGenUiInput(payload.input, payload.intent?.genUiContext ?? existing?.genUiContext),
       sourceCommandId:
         payload.intent?.sourceCommandId ??
         existing?.sourceCommandId ??
@@ -3517,6 +3780,16 @@ export class ProductProjection {
       planEnabled: payload.intent?.planEnabled ?? existing?.planEnabled,
       sharedContextRefs: payload.intent?.sharedContextRefs ?? existing?.sharedContextRefs,
       provenance: payload.intent?.provenance ?? existing?.provenance,
+      // 排队事件和原地编辑都必须保留可信接入来源，不能在 UI 投影时丢掉发送者。
+      ...((payload.intent?.inputOrigin ?? existing?.inputOrigin)
+        ? { inputOrigin: payload.intent?.inputOrigin ?? existing?.inputOrigin }
+        : {}),
+      ...((payload.intent?.conversationQuotes ?? existing?.conversationQuotes)
+        ? { conversationQuotes: payload.intent?.conversationQuotes ?? existing?.conversationQuotes }
+        : {}),
+      ...((payload.intent?.botGroupSource ?? existing?.botGroupSource)
+        ? { botGroupSource: payload.intent?.botGroupSource ?? existing?.botGroupSource }
+        : {}),
       delivery: {
         requested: requestedDelivery,
         admitted: admittedDelivery,
@@ -3539,13 +3812,14 @@ export class ProductProjection {
               ? { state: "steering" }
               : { state: "notRequested" },
       dispatch: { state: "queued" },
+      ...(highspeed ? { highspeed } : {}),
+      automationId: payload.automationId ?? existing?.automationId,
       ...(payload.toolDisallowlist ? { toolDisallowlist: [...payload.toolDisallowlist] } : {}),
       admittedAt: payload.intent?.admittedAt ?? existing?.admittedAt ?? this.ms(event),
     };
     // 投递语义侧表：payload 未带（旧 runtime 事件）时按当前 followupMode 兜底。
     this.deliveryByPendingInputId.set(payload.pendingInputId, admittedDelivery);
-    // 同 id 重入 = editQueueItem 原地更新（保位）；新 id = 追加。旧逻辑 filter+append
-    // 会把编辑项移到队尾，破坏 queueContentIndependence 的位置语义。
+    // 同 id 编辑原地保位；filter+append 会把它移到队尾，破坏 queueContentIndependence。
     const items =
       existingIndex >= 0
         ? this.snapshot.queue.items.map((item, index) =>
@@ -3657,6 +3931,7 @@ export class ProductProjection {
             ? { fallbackReasonCode: queueItem.delivery.fallbackReasonCode }
             : {}),
           attachmentRefs: queueItem.attachments,
+          genUiContext: queueItem.genUiContext,
         };
         return [
           {
@@ -3670,7 +3945,12 @@ export class ProductProjection {
       });
 
     const deltas: ConversationDelta[] = [];
+    // 同一次取出的多条 guide（中间没有主模型 step）只由第一条开启工作段，后续并入。
+    // 修复原因：原来每条取出的 guide 都开启一个工作段。runtime 现在在一个边界按 FIFO 取出全部
+    // 已等待的 guide，逐条开段会把一次取出拆成多段。改为按模型 step 判定边界：live 由主模型流事件和
+    // ModelComplete 关闭，cold 由每条 assistant 消息合成的 start 事件关闭，两边得到同一份工作段。
     for (const item of items) {
+      const normalizedInput = normalizeGenUiInput(item.text, item.intent?.genUiContext);
       const delivery =
         item.delivery ?? this.deliveryByPendingInputId.get(item.pendingInputId) ?? "queue";
       // queue 消费 = product turn 边界（每条一轮：收口上一段
@@ -3692,12 +3972,21 @@ export class ProductProjection {
       const row = {
         ...this.rowBase(event, productTurnId, entityId),
         kind: "userInput" as const,
-        text: item.text,
+        text:
+          item.intent?.conversationQuotes || item.intent?.botGroupSource
+            ? normalizeGenUiInput(item.intent.text ?? item.text, item.intent.genUiContext).text
+            : normalizedInput.text,
         origin: "realUser" as const,
         ...(delivery === "guide" ? { guided: true as const } : {}),
         ...(item.intent?.sourceCommandId ? { sourceCommandId: item.intent.sourceCommandId } : {}),
         ...(rootSourceCommandId ? { rootSourceCommandId } : {}),
+        ...(item.intent?.inputOrigin ? { inputOrigin: item.intent.inputOrigin } : {}),
+        ...(item.intent?.conversationQuotes
+          ? { conversationQuotes: item.intent.conversationQuotes }
+          : {}),
+        ...(item.intent?.botGroupSource ? { botGroupSource: item.intent.botGroupSource } : {}),
         ...(item.intent?.clientId ? { clientId: item.intent.clientId } : {}),
+        ...(item.intent?.highspeed ? { highspeed: item.intent.highspeed } : {}),
         ...(item.intent?.attachmentRefs?.length ? { attachments: item.intent.attachmentRefs } : {}),
         ...(item.intent?.source ? { source: item.intent.source } : {}),
       };
@@ -3714,9 +4003,18 @@ export class ProductProjection {
               coveredByStableCompact: false,
               intent: {
                 kind: item.intent?.kind === "sendGoalCommand" ? "sendGoalCommand" : "sendText",
-                text: item.intent?.text ?? item.text,
+                text: normalizeGenUiInput(item.intent?.text ?? item.text, item.intent?.genUiContext)
+                  .text,
+                genUiContext: normalizedInput.genUiContext,
                 ...(item.intent?.sourceCommandId
                   ? { sourceCommandId: item.intent.sourceCommandId }
+                  : {}),
+                ...(item.intent?.inputOrigin ? { inputOrigin: item.intent.inputOrigin } : {}),
+                ...(item.intent?.conversationQuotes
+                  ? { conversationQuotes: item.intent.conversationQuotes }
+                  : {}),
+                ...(item.intent?.botGroupSource
+                  ? { botGroupSource: item.intent.botGroupSource }
                   : {}),
                 ...(item.intent?.clientId ? { clientId: item.intent.clientId } : {}),
                 ...(item.intent?.attachmentRefs ? { attachments: item.intent.attachmentRefs } : {}),
@@ -3748,10 +4046,11 @@ export class ProductProjection {
             }
           : undefined,
       );
-      if (delivery === "guide") {
+      if (delivery === "guide" && !this.guideDrainOpen) {
         deltas.push(...this.openGuidedWorkSegment(event, row.entityId ?? item.pendingInputId));
       }
       deltas.push({ op: "row.appended", row });
+      this.guideDrainOpen = delivery === "guide";
       this.deliveryByPendingInputId.delete(item.pendingInputId);
     }
     return [...deltas, ...this.removeQueueItems(payload.pendingInputIds)];
@@ -4468,7 +4767,7 @@ export class ProductProjection {
   // 所以持久、可回放、冷恢复免费（先例：subagents 键）。
   //
   // 归约本体在 @zcode/shared 的 workflow-runs-reducer（与状态 schema 同居）：TUI 镜像要用
-  // 同一份归约，两处各写一份就是两个时钟。
+  // 同一份归约，两处各写一份就是两个时钟（docs/dynamic-workflow/launch.md「The inline card」）。
   // 留在这里的只有投影的非纯部分——从事件信封取载荷、把新旧状态之差发成键级增量。
   private onDynamicWorkflowRunProgress(event: SessionEvent): ConversationDelta[] {
     // 先转 contracts 的有界 payload、再赋给 shared 的结构化入参：这行赋值就是"两边形状不漂移"
@@ -4481,7 +4780,7 @@ export class ProductProjection {
     if (workflowRuns === null) return [];
     // 发**差**而不是整键：一条引擎事件只动一个节点，整键重发是每事件 O(N) 字节、一条 run
     // 全程 O(N²)（workflow-runs-delta.ts 的文件头讲了这笔账怎么变成节点上界和 UI 卡死的）。
-    // `applyAll(prior, diff(prior, next))` 与 next **逐字节**一致是增量协议的契约，
+    // `applyAll(prior, diff(prior, next))` 与 next **逐字节**一致是被 property 测试钉住的契约，
     // 所以 applyEventInternal 把这串 delta 应用回去之后，this.snapshot.workflowRuns 仍是 next。
     return diffWorkflowRunsState(prior, workflowRuns);
   }
@@ -4629,7 +4928,10 @@ export class ProductProjection {
       payload.querySource !== undefined
         ? payload.querySource === "main_turn"
         : payload.stopReason !== "tool_internal";
-    if (isMainTurn) this.outputContinuationTextRowId = null;
+    if (isMainTurn) {
+      this.outputContinuationTextRowId = null;
+      this.guideDrainOpen = false;
+    }
     if (
       isMainTurn &&
       payload.stopReason?.trim().toLowerCase() === "length" &&
@@ -4647,28 +4949,41 @@ export class ProductProjection {
     // subagent ModelComplete 的 usage 仍不是主会话水位，但它携带的
     // fileChanges 是 child session 自己的 workspace 事实，必须独立投影到 child turn header。
     const supportsFileChangeSummary = isMainTurn || payload.querySource === "subagent";
+    const usage = payload.usage as ModelUsage;
     const deltas: ConversationDelta[] = [];
-    if (supportsFileChangeSummary && payload.fileChanges && payload.fileChanges.files > 0) {
-      const turnId = this.turnIdOf(event);
-      const headerRowId = this.turnHeaderRowIdByTurnId.get(turnId);
-      const headerRow = headerRowId !== undefined ? this.findRow(headerRowId) : undefined;
-      if (headerRow?.kind === "turnHeader") {
+    const turnId = this.turnIdOf(event);
+    const headerRowId = this.turnHeaderRowIdByTurnId.get(turnId);
+    const headerRow = headerRowId !== undefined ? this.findRow(headerRowId) : undefined;
+    if (headerRow?.kind === "turnHeader") {
+      const fileChanges =
+        supportsFileChangeSummary && payload.fileChanges && payload.fileChanges.files > 0
+          ? {
+              fileChanges: {
+                additions: payload.fileChanges.additions,
+                deletions: payload.fileChanges.deletions,
+                files: payload.fileChanges.files,
+                // Bug 根因：该条件对象随后与 headerRow 展开合并，TS 会把字面量扩宽为
+                // string，导致 CLI 启动前构建无法满足 TurnFileChangeSummary 契约。
+                state: "active" as const,
+              },
+            }
+          : {};
+      if (isMainTurn || "fileChanges" in fileChanges) {
         deltas.push({
           op: "row.upserted",
           row: {
             ...headerRow,
-            fileChanges: {
-              additions: payload.fileChanges.additions,
-              deletions: payload.fileChanges.deletions,
-              files: payload.fileChanges.files,
-              state: "active",
-            },
+            ...fileChanges,
+            // Bug 根因：Renderer 观察 running 快照的时机不可靠，continuous 可合并更新，
+            // replayable 也可能首次恢复即终态。单 Turn token 必须在权威事件投影中累计。
+            ...(isMainTurn
+              ? { outputTokens: (headerRow.outputTokens ?? 0) + (usage.outputTokens ?? 0) }
+              : {}),
           },
         });
       }
     }
     if (!isMainTurn) return [...deltas, ...retryClearDeltas];
-    const usage = payload.usage as ModelUsage;
     const usedTokens = getModelUsageContextTokens(usage) ?? 0;
     this.contextWindowState.usedTokens = usedTokens;
     const maxTokens = payload.contextWindow ?? this.contextWindowState.maxTokens;
@@ -5255,6 +5570,11 @@ export class ProductProjection {
     state: "completedSuccess" | "completedInterrupted" | "failed",
     activeMs?: number,
     historyRoundCount?: number,
+    highspeedTiming?: {
+      modelDurationMs: number;
+      toolDurationMs: number;
+      otherDurationMs: number;
+    },
   ): ConversationDelta[] {
     const row = this.turnHeaderForEvent(event);
     if (!row) return [];
@@ -5267,6 +5587,7 @@ export class ProductProjection {
           state,
           endedAt,
           ...(activeMs !== undefined ? { activeMs } : {}),
+          ...highspeedTiming,
           ...(historyRoundCount !== undefined ? { historyRoundCount } : {}),
           ...(row.workSegments
             ? {
@@ -5276,6 +5597,60 @@ export class ProductProjection {
         },
       },
     ];
+  }
+
+  private recordHighspeedToolStarted(turnId: string, toolCallId: string, startedAt: number): void {
+    const intervals = this.highspeedToolIntervalsByTurnId.get(turnId) ?? new Map();
+    intervals.set(toolCallId, { startedAt });
+    this.highspeedToolIntervalsByTurnId.set(turnId, intervals);
+  }
+
+  private recordHighspeedToolEnded(
+    turnId: string,
+    toolCallId: string,
+    endedAt: number,
+    durationMs?: number,
+  ): void {
+    const intervals = this.highspeedToolIntervalsByTurnId.get(turnId) ?? new Map();
+    const existing = intervals.get(toolCallId);
+    const startedAt = existing?.startedAt ?? Math.max(0, endedAt - Math.max(0, durationMs ?? 0));
+    intervals.set(toolCallId, {
+      startedAt,
+      endedAt: Math.max(
+        startedAt,
+        existing && durationMs !== undefined ? startedAt + durationMs : endedAt,
+      ),
+    });
+    this.highspeedToolIntervalsByTurnId.set(turnId, intervals);
+  }
+
+  private highspeedTimingForTurn(
+    turnId: string,
+    activeMs?: number,
+  ): { modelDurationMs: number; toolDurationMs: number; otherDurationMs: number } | undefined {
+    const modelDurationMs = this.highspeedModelDurationByTurnId.get(turnId);
+    const intervals = this.highspeedToolIntervalsByTurnId.get(turnId);
+    if (modelDurationMs === undefined && intervals === undefined) return undefined;
+    const sorted = [...(intervals?.values() ?? [])]
+      .filter((interval) => interval.endedAt !== undefined)
+      .sort((left, right) => left.startedAt - right.startedAt);
+    let toolDurationMs = 0;
+    let unionEnd = -1;
+    for (const interval of sorted) {
+      const start = Math.max(0, interval.startedAt);
+      const end = Math.max(start, interval.endedAt ?? start);
+      if (start > unionEnd) toolDurationMs += end - start;
+      else if (end > unionEnd) toolDurationMs += end - unionEnd;
+      unionEnd = Math.max(unionEnd, end);
+    }
+    const model = Math.max(0, modelDurationMs ?? 0);
+    const otherDurationMs = Math.max(
+      0,
+      (activeMs ?? model + toolDurationMs) - model - toolDurationMs,
+    );
+    this.highspeedModelDurationByTurnId.delete(turnId);
+    this.highspeedToolIntervalsByTurnId.delete(turnId);
+    return { modelDurationMs: model, toolDurationMs, otherDurationMs };
   }
 
   private openGuidedWorkSegment(event: SessionEvent, triggerEntityId: string): ConversationDelta[] {

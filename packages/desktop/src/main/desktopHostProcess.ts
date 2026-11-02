@@ -69,7 +69,29 @@ export interface WindowBootstrapOptions {
   locale?: string;
 }
 
+const windowBrowserBackendIdentities = new WeakMap<
+  BrowserWindow,
+  Readonly<{ id: string; generation: number }>
+>();
+
+export function getWindowBrowserBackendIdentity(win: BrowserWindow) {
+  return win.isDestroyed() ? undefined : windowBrowserBackendIdentities.get(win);
+}
+
+function ensureWindowBrowserBackendIdentity(win: BrowserWindow) {
+  if (win.isDestroyed()) throw new Error("Browser window is closed");
+  let identity = windowBrowserBackendIdentities.get(win);
+  if (!identity) {
+    // 浏览器资源位于 Main；Host 重建复用窗口身份，不另造代次遗忘已有 tab/recording。
+    identity = Object.freeze({ id: randomUUID(), generation: 0 });
+    windowBrowserBackendIdentities.set(win, identity);
+    win.once("closed", () => windowBrowserBackendIdentities.delete(win));
+  }
+  return identity;
+}
+
 export interface HostInitMessage {
+  browserBackendIdentity?: { id: string; generation: number };
   type: typeof HostMessageTypes.InitLocal;
   hostId?: string;
   databaseStartupId?: string;
@@ -665,15 +687,17 @@ export function spawnHostProcess(
     }
   });
 
+  const browserBackendIdentity = ensureWindowBrowserBackendIdentity(win);
   const shouldAttachRealtimeHost = options?.taskRealtime != null;
   const hostInitMessage: HostInitMessage = shouldAttachRealtimeHost
     ? {
         ...initMessage,
+        browserBackendIdentity,
         databaseStartupId: databaseStartupRelay.startupId,
         hostId,
         deliveryKind: options?.taskRealtime?.deliveryKind,
       }
-    : { ...initMessage, databaseStartupId: databaseStartupRelay.startupId };
+    : { ...initMessage, browserBackendIdentity, databaseStartupId: databaseStartupRelay.startupId };
 
   if (options?.attachInitialServicePort === false) {
     child.postMessage(hostInitMessage);

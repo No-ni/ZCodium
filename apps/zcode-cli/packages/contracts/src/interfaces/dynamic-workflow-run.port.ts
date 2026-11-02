@@ -68,10 +68,10 @@ export interface DynamicWorkflowRunSubmitRequest {
    */
   phaseNames?: string[];
   /**
-   * 本 run 自己的并发上界：同时在飞的
-   * ask 数，落 `dwf_run.caps_max_concurrency`、resume 照用。**缺席即天花板**（机器推导值，
-   * `resolveWorkflowConcurrencyCeiling`）；给了就钳到 `[1, 天花板]`——它只能压低并发，永不抬高。
-   * 工具层在 `resolveInput` 里已经钳过一次（确认窗要显示实际生效的值），这里再钳是端口自己的契约。
+   * 本 run 自己的并发上界（docs/dynamic-workflow/concurrency.md「Two bounds on a run」）：同时在飞的
+   * ask 数，落 `dwf_run.caps_max_concurrency`、resume 照用。**缺席即默认并发**（机器推导值，
+   * `resolveWorkflowDefaultConcurrency`）；给了就向下取整、至少 1，**没有上限**——高于或低于默认都行。
+   * 工具层在 `resolveInput` 里已经取整过一次（确认窗要显示实际生效的值），这里再取整是端口自己的契约。
    */
   maxConcurrency?: number;
   /**
@@ -206,6 +206,21 @@ export type DynamicWorkflowRunAmendResult =
 export type DynamicWorkflowRunCancelInitiator = "user" | "model" | { superseded: string };
 
 /**
+ * 终态快照带的 report item 上限（`reports` 的长度上界）。取 256——report 条数上限从 256 提到
+ * 65,536 之前的值：报告条数不超过它的 run，快照与通知逐字节不变；更大的 run 由 `reportCount`
+ * 说出真实总数。完成通知那一节的字符预算（8000）本来也容不下更多条。
+ */
+export const DYNAMIC_WORKFLOW_SNAPSHOT_MAX_REPORTS = 256;
+
+/**
+ * 终态快照带的 report item 的字节上界（按 journal 里 `result_json` 的字节计）。取 8 MiB——
+ * 单条上限 32 KiB 时 256 条的最坏情形，所以单条上限提到 1 MiB 之后快照的内存不涨。快照只喂
+ * 完成通知，而通知每条最多展示 2,000 字符、整节 8,000 字符，8 MiB 远超它能用上的部分。
+ * 第一条总是带上，所以一条 1 MiB 的报告不会让快照一条都不带。
+ */
+export const DYNAMIC_WORKFLOW_SNAPSHOT_MAX_REPORT_BYTES = 8 * 1024 * 1024;
+
+/**
  * run 快照：沿用 {@link WorkflowTaskSnapshot} 的形状（后台任务追踪器与通知管线按它读），
  * 只把 `output` 放宽——workflow run 的产物是脚本的顶层返回值，形状由脚本决定，不是 legacy
  * `Workflow` 工具的输出类型。legacy 端口本身不加宽（两套 workflow 机制不共用端口）。
@@ -214,6 +229,9 @@ export type DynamicWorkflowRunCancelInitiator = "user" | "model" | { superseded:
  * `kind = "report"` 节点行——那是这些条目的持久家（`workflowRuns.reports` 只是有界的
  * memory-only 展示面）。完成通知据此在 completed / failed / cancelled 三态下一律回投：
  * 一个死在第 12 个 ask 上的 run 仍然做完了 11 个 ask 的活，捞回它正是 `report` 存在的理由。
+ * 它只带**前** {@link DYNAMIC_WORKFLOW_SNAPSHOT_MAX_REPORTS} 条、且至多
+ * {@link DYNAMIC_WORKFLOW_SNAPSHOT_MAX_REPORT_BYTES} 字节；真实总数在 `reportCount`
+ * （docs/execution-engine.md「Reading the journal」）。
  */
 export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & {
   output?: unknown;
@@ -246,7 +264,6 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
   /** Latest durable bindings, including atomic hole-filled updates. */
   modelBindings?: Record<string, string>;
   /**
-   * 本 run 的脚本文件（绝对路径，journal 事件 `run-launched` 上的那一个）。**只在这个 run 有已确认同步的草稿时在场**；写回失败或补全后的冷恢复未确认时缺席。
    *
    * 终态通知据它把「改好脚本再内联提交」换成「就地编辑那个文件、再 `path` 修订」，所以已确认同步时可
    * 从快照读到；用户面一概不显示（与 `subagentModel` 不同，后者会进桌面的 run 面板）。
@@ -263,7 +280,13 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
    * 那是结算它的那个进程自己看到的一世，一个更保守但永不虚报的答案。
    */
   activeDurationMs?: number;
+  /** 前 {@link DYNAMIC_WORKFLOW_SNAPSHOT_MAX_REPORTS} 条 report item，按报告顺序；零条时缺席。 */
   reports?: readonly unknown[];
+  /**
+   * 本 run 的 report 真实总条数（`count(*)`），与 `reports` 同在同缺。通知与 manifest 的
+   * `count` 读它：`reports` 被截在上限处时，`count ≠ shown` 就是「还有更多」的信号。
+   */
+  reportCount?: number;
   /**
    * 此刻停驻在这个 run 上、等主代理作答的升级问题。
    *
@@ -354,14 +377,32 @@ export interface DynamicWorkflowRunArtifactItem {
   sequence: number;
   siteId: string;
   ordinal: number;
-  item: unknown;
+  /** 整条 item；请求点名了 `fields` 时缺席。 */
+  item?: unknown;
+  /** 请求点名了 `fields` 时：路径 → 值，走不通的路径不在表里。 */
+  fields?: Record<string, unknown>;
 }
 
-/** {@link DynamicWorkflowRunPort.listArtifactItems} 的分页袋（cursor = journal sequence，严格大于）。 */
+/**
+ * {@link DynamicWorkflowRunPort.listArtifactItems} 的分页袋（cursor = journal sequence，严格大于）。
+ * 两道界的语义同 {@link DynamicWorkflowRunEventPage}：条数到 `limit`、或再加一条就超过
+ * `maxBytes` 时收尾，第一条总是带上。两者都由调用方（网关）给定，实现方精确兑现、不再钳。
+ */
 export interface DynamicWorkflowRunArtifactItemPage {
   afterSequence?: number;
-  /** 必填；调用方可传「上限 + 1」探测 hasMore，实现方不得再钳。 */
   limit: number;
+  maxBytes: number;
+  /**
+   * 只取这些字段路径（`readWorkflowArtifactField` 的规则，由 SQLite 取出），结果每条带 `fields`
+   * 而不带 `item`，`maxBytes` 按取出的字段值计。缺省 = 整条 item。
+   */
+  fields?: readonly string[];
+}
+
+/** 看板条目的一页。`hasMore` 由存储层判定：页之后是否还有条目。 */
+export interface DynamicWorkflowRunArtifactItemsResult {
+  items: readonly DynamicWorkflowRunArtifactItem[];
+  hasMore: boolean;
 }
 
 /** {@link DynamicWorkflowRunPort.readArtifact} 的返回：某个版本的全部字节。 */
@@ -418,11 +459,24 @@ export interface DynamicWorkflowRunWaitOptions {
   signal?: AbortSignal;
 }
 
-/** 事件日志的分页参数；cursor = journal sequence（appendEvent 单调分配）。 */
+/**
+ * 事件日志的分页参数；cursor = journal sequence（appendEvent 单调分配）。
+ *
+ * 两道界同时生效（docs/execution-engine.md「Reading the journal」）：页在条数到 `limit`、或
+ * 再加一条就会让存储里的序列化字节超过 `maxBytes` 时收尾；第一条总是带上，所以一条超过
+ * `maxBytes` 的事件自成一页。实现方缺省两者时各取一个有界的默认值——事件日志一页永远有界。
+ */
 export interface DynamicWorkflowRunEventPage {
   /** 只取 sequence 严格大于该值的事件；缺省从头取。 */
   afterSequence?: number;
   limit?: number;
+  maxBytes?: number;
+}
+
+/** 事件日志的一页。`hasMore` 由存储层判定：页之后是否还有事件。 */
+export interface DynamicWorkflowRunEventsResult {
+  events: DynamicWorkflowRunEvent[];
+  hasMore: boolean;
 }
 
 /**
@@ -580,16 +634,18 @@ export interface DynamicWorkflowRunPort {
     options?: DynamicWorkflowRunSubmitOptions,
   ): Promise<DynamicWorkflowRunAmendResult>;
   /**
-   * run 自己并发上界的天花板（`max(1, min(16, availableParallelism() − 2))`，每进程一个值）。同步、无副作用。
+   * 默认并发 D（docs/dynamic-workflow/concurrency.md「Two bounds on a run」：
+   * `max(4, min(16, availableParallelism() − 2))`，每进程一个值）。同步、无副作用。它是**起点**
+   * 不是上限：没设 `max_concurrency` 的 run 跑在它上面，设了的高于低于都行。
    *
-   * 工具层的两个读者：`CreateWorkflow` / `AmendWorkflow` 的 `resolveInput` 把模型给的
-   * `max_concurrency` 钳到它之下（确认窗显示的必须是将要生效的值），`GetWorkflowRun` 据它决定
-   * 一个 run 的上界是否值得一提。**可选成员**（消费方 `typeof` 探测）：端口 stub 不必为它陪跑，
-   * 缺席时工具层不钳、原样下传（端口实现自己还会钳一次）。
+   * 工具层的读者：确认窗与回话（「（默认）」「默认 N」）、`AmendWorkflow` 的同值判定（`null` 要
+   * 折算成数才比得了），以及 `GetWorkflowRun` 据它决定一个 run 的上界是否值得一提（≠ 默认才提）。
+   * **可选成员**（消费方 `typeof` 探测）：端口 stub 不必为它陪跑，缺席时工具层只是不知道默认是几。
    */
-  concurrencyCeiling?(): number;
+  defaultConcurrency?(): number;
   /**
-   * 就地改一个**在飞** run 自己的并发上界：同一个 runId、不铸后继、不 supersede、不导入缓存、在飞 ask 一个不丢。
+   * 就地改一个**在飞** run 自己的并发上界（docs/dynamic-workflow/concurrency.md「Retuning a live
+   * run」）：同一个 runId、不铸后继、不 supersede、不导入缓存、在飞 ask 一个不丢。
    *
    * 与 {@link amend} 并列而非合并：修订换的是**脚本**，代价是停下前驱、铸新 run、从缓存重放；
    * 而「只把这个 run 调慢一点」不该付那笔账。两个调用方（`AmendWorkflow` 的 handler 与 GUI 的
@@ -620,7 +676,7 @@ export interface DynamicWorkflowRunPort {
   listEvents(
     runId: string,
     options: DynamicWorkflowRunEventPage,
-  ): Promise<DynamicWorkflowRunEvent[]>;
+  ): Promise<DynamicWorkflowRunEventsResult>;
   /**
    * 按项目（cwd）枚举 run，最近更新的在前。服务 `ListWorkflowRuns` 工具。
    *
@@ -721,7 +777,7 @@ export interface DynamicWorkflowRunPort {
     runId: string,
     artifactId: string,
     page: DynamicWorkflowRunArtifactItemPage,
-  ): Promise<readonly DynamicWorkflowRunArtifactItem[]>;
+  ): Promise<DynamicWorkflowRunArtifactItemsResult>;
   /**
    * 读某个产物版本的字节：**先**在 journal 里确认 `(runId, artifactId, version)` 有一行
    * `completed` 记录，再按行上的 `uri` 经 tool-artifact store 取——调用方传来的任何 id 都

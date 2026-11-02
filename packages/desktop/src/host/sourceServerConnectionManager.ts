@@ -1,3 +1,10 @@
+import { retireSourceProfiles } from "./sourceServerProfileRetirement.js";
+import {
+  createSourceConnectionFlight,
+  joinSourceConnectionFlight,
+  releaseManagedSource,
+  createManagedSourceHandle,
+} from "./sourceServerConnectionFlights.js";
 import { Emitter } from "@zcode/rpc";
 import {
   evaluateSourceServerCompatibility,
@@ -6,10 +13,12 @@ import {
   type RemoteTarget,
   type SourceServerConnectionStateSnapshot,
   type SourceServerDirectorySnapshot,
+  type SourceServerRunningTasksResult,
 } from "@zcode/shared";
 import type { SourceServerTransport } from "@zcode/server/source-server";
 import { connectSourceServerRpc, type SourceServerRpcConnection } from "./sourceServerRpc.js";
 import { SourceServerDirectoryError } from "./sourceServerDirectory.js";
+import { SourceServerOperationFlights } from "./sourceServerOperationFlights.js";
 import type {
   OnlineSource,
   Flight,
@@ -19,9 +28,13 @@ import type {
 export type { ManagedSourceHandle } from "./sourceServerConnectionTypes.js";
 
 export class SourceServerConnectionManager {
+  private nextGeneration = 1;
   private readonly online = new Map<string, OnlineSource>();
   private readonly flights = new Map<string, Flight>();
   private readonly activeFlights = new Set<Flight>();
+  private readonly operations: SourceServerOperationFlights;
+  private readonly activeDisposals = new Set<Promise<void>>();
+  private disposal?: Promise<void>;
   private readonly states = new Map<string, SourceServerConnectionStateSnapshot>();
   private readonly changes = new Emitter<void>();
   private readonly directorySubscription: { dispose(): void };
@@ -31,6 +44,24 @@ export class SourceServerConnectionManager {
   readonly onDidChange = this.changes.event;
 
   constructor(private readonly options: ManagerOptions) {
+    this.operations = new SourceServerOperationFlights({
+      directory: options.directory,
+      executeCommand: options.executeCommand,
+      isClosed: () => this.closed,
+      setState: (profile, state, code) => this.setState(profile, state, code),
+      reconnect: (profile, target, signal) => this.connect(profile, target, signal),
+      beforeLifecycle: async (profile, signal) => {
+        const pending = [...this.activeFlights].filter(
+          (flight) =>
+            flight.profile.sourceServerId === profile.sourceServerId ||
+            flight.profile.profileId === profile.profileId,
+        );
+        for (const flight of pending) flight.controller.abort();
+        await Promise.allSettled(pending.map((flight) => flight.promise));
+        await options.beforeLifecycle?.(profile.sourceServerId!, signal);
+        await this.disconnect(profile.sourceServerId!);
+      },
+    });
     this.directorySubscription = options.directory.onDidChange((snapshot) =>
       this.retireStaleProfiles(snapshot),
     );
@@ -42,6 +73,33 @@ export class SourceServerConnectionManager {
 
   listStates(): SourceServerConnectionStateSnapshot[] {
     return [...this.states.values()];
+  }
+
+  getOnlineSource(sourceServerId: string) {
+    const source = this.online.get(sourceServerId);
+    // Bot 与设置共用物理 owner；读取不能为离线或显式操作中的设备新建连接。
+    if (
+      this.closed ||
+      !source ||
+      source.connection.isClosed ||
+      this.operations.isBusy(sourceServerId)
+    )
+      return undefined;
+    return {
+      owner: source.connection,
+      services: source.connection.services,
+      generation: source.generation,
+      workspaceInspection: source.connection.workspaceInspection,
+    };
+  }
+
+  getSettingsScope(sourceServerId: string): {
+    services: SourceServerRpcConnection["services"];
+    generation: number;
+  } {
+    const source = this.getOnlineSource(sourceServerId);
+    if (!source) throw new Error("Source settings generation is offline");
+    return { services: source.services, generation: source.generation };
   }
 
   private setState(
@@ -63,51 +121,6 @@ export class SourceServerConnectionManager {
     this.changes.fire();
   }
 
-  private createFlight(
-    profile: ConnectionProfile,
-    target: RemoteTarget,
-    key: string,
-    expectedSourceServerId?: string,
-  ): Flight {
-    const controller = new AbortController();
-    const flight: Flight = {
-      profile,
-      controller,
-      waiters: 0,
-      settled: false,
-      expectedSourceServerId,
-      promise: Promise.resolve().then(() =>
-        this.connect(profile, target, controller.signal, expectedSourceServerId),
-      ),
-    };
-    flight.promise = flight.promise.finally(() => {
-      flight.settled = true;
-      this.activeFlights.delete(flight);
-      if (this.flights.get(key) === flight) this.flights.delete(key);
-    });
-    this.flights.set(key, flight);
-    this.activeFlights.add(flight);
-    return flight;
-  }
-
-  private async joinFlight(flight: Flight, signal?: AbortSignal): Promise<OnlineSource> {
-    flight.waiters += 1;
-    let abort: (() => void) | undefined;
-    const canceled = new Promise<never>((_resolve, reject) => {
-      abort = () => reject(new Error("Source connection canceled"));
-      signal?.addEventListener("abort", abort, { once: true });
-      if (signal?.aborted) abort();
-    });
-    try {
-      return await Promise.race([flight.promise, canceled]);
-    } finally {
-      if (abort) signal?.removeEventListener("abort", abort);
-      flight.waiters -= 1;
-      // 一个 attachment 取消不能中断共享握手；只有最后一位等待者退出才退休准备代际。
-      if (flight.waiters === 0 && !flight.settled) flight.controller.abort();
-    }
-  }
-
   async retain(
     profile: ConnectionProfile,
     target: RemoteTarget,
@@ -115,10 +128,12 @@ export class SourceServerConnectionManager {
     expectedSourceServerId?: string,
   ): Promise<ManagedSourceHandle> {
     if (this.closed) throw new Error("Source manager is closed");
+    this.operations.assertNotBusy(profile.sourceServerId);
     signal?.throwIfAborted();
     const admittedProfile = await this.options.directory.assertCurrent(profile);
     signal?.throwIfAborted();
     if (this.closed) throw new Error("Source manager is closed");
+    this.operations.assertNotBusy(admittedProfile.sourceServerId);
     let source =
       !expectedSourceServerId && admittedProfile.sourceServerId
         ? this.online.get(admittedProfile.sourceServerId)
@@ -127,8 +142,17 @@ export class SourceServerConnectionManager {
       const key = `${profile.profileId}:${profile.generation}:${expectedSourceServerId ?? "normal"}`;
       let flight = this.flights.get(key);
       if (!flight || flight.controller.signal.aborted)
-        flight = this.createFlight(admittedProfile, target, key, expectedSourceServerId);
-      source = await this.joinFlight(flight, signal);
+        flight = createSourceConnectionFlight(
+          admittedProfile,
+          target,
+          key,
+          expectedSourceServerId,
+          this.flights,
+          this.activeFlights,
+          (profile, target, signal, expectedId) =>
+            this.connect(profile, target, signal, expectedId),
+        );
+      source = await joinSourceConnectionFlight(flight, signal);
     }
     signal?.throwIfAborted();
     const current = await this.options.directory.assertCurrent(
@@ -147,6 +171,7 @@ export class SourceServerConnectionManager {
         : profile,
     );
     signal?.throwIfAborted();
+    this.operations.assertNotBusy(source.connection.serverInfo.serverId);
     if (
       this.closed ||
       source.connection.isClosed ||
@@ -157,30 +182,7 @@ export class SourceServerConnectionManager {
     if (expectedSourceServerId && current.sourceServerId !== expectedSourceServerId)
       throw new Error("Source identity confirmation is stale");
     this.setState(current, "online");
-    source.references += 1;
-    let released = false;
-    const captured = source;
-    return {
-      sourceServerId: captured.connection.serverInfo.serverId,
-      profile: current,
-      services: captured.connection.services,
-      workspaceInspection: captured.connection.workspaceInspection,
-      backend: captured.transport.backend,
-      onDidClose: captured.connection.onDidClose,
-      async dispose() {
-        if (released) return;
-        released = true;
-        captured.references -= 1;
-      },
-    };
-  }
-
-  private releaseSource(source: OnlineSource): Promise<void> {
-    if (source.disposal) return source.disposal;
-    source.closeSubscription?.dispose();
-    source.connection.dispose();
-    source.disposal = source.transport.dispose();
-    return source.disposal;
+    return createManagedSourceHandle(source, current);
   }
 
   private async connect(
@@ -225,7 +227,7 @@ export class SourceServerConnectionManager {
             );
           }
         }
-        void this.releaseSource(source).catch(() => undefined);
+        void releaseManagedSource(source, this.activeDisposals).catch(() => undefined);
       });
       const assertLive = () => {
         signal.throwIfAborted();
@@ -254,7 +256,14 @@ export class SourceServerConnectionManager {
         this.setState(current, "online");
         return sameSource;
       }
-      source = { profile: current, transport, connection, references: 0, closeSubscription };
+      source = {
+        generation: this.nextGeneration++,
+        profile: current,
+        transport,
+        connection,
+        references: 0,
+        closeSubscription,
+      };
       await this.options.beforePublish?.(source);
       assertLive();
       await this.options.directory.assertCurrent(current);
@@ -312,56 +321,22 @@ export class SourceServerConnectionManager {
     // 异步读取的旧目录曾关闭新连接；退休只消费已经提交的递增快照。
     if (this.closed || snapshot.generation <= this.directoryGeneration) return;
     this.directoryGeneration = snapshot.generation;
-    for (const flight of this.activeFlights) {
-      const current = snapshot.profiles.find(
-        (profile) => profile.profileId === flight.profile.profileId,
-      );
-      const acceptedConfirmation = Boolean(
-        flight.expectedSourceServerId &&
-        current?.sourceServerId === flight.expectedSourceServerId &&
-        current.generation === flight.profile.generation + 1,
-      );
-      if (acceptedConfirmation) flight.profile = current!;
-      else if (!current || current.generation !== flight.profile.generation)
-        flight.controller.abort();
-    }
-    for (const [id, source] of this.online) {
-      if (
-        snapshot.profiles.some(
-          (profile) =>
-            profile.profileId === source.profile.profileId &&
-            profile.generation === source.profile.generation,
-        )
-      )
-        continue;
-      if (this.online.get(id) !== source) continue;
-      this.online.delete(id);
-      for (const state of this.states.values()) {
-        if (state.sourceServerId !== id || state.state !== "online") continue;
-        const current = snapshot.profiles.find(
-          (profile) =>
-            profile.profileId === state.profileId && profile.generation === state.generation,
-        );
-        if (current) this.setState(current, "offline");
-      }
-      void this.releaseSource(source).catch(() => undefined);
-    }
-    for (const [id, state] of this.states) {
-      if (
-        !snapshot.profiles.some(
-          (profile) => profile.profileId === id && profile.generation === state.generation,
-        )
-      )
-        this.states.delete(id);
-    }
-    this.changes.fire();
+    retireSourceProfiles(snapshot, {
+      operations: this.operations,
+      activeFlights: this.activeFlights,
+      online: this.online,
+      states: this.states,
+      activeDisposals: this.activeDisposals,
+      changes: this.changes,
+      setState: (profile, state) => this.setState(profile, state),
+    });
   }
 
   async disconnect(sourceServerId: string): Promise<void> {
     const source = this.online.get(sourceServerId);
     if (!source) return;
     this.online.delete(sourceServerId);
-    await this.releaseSource(source);
+    await releaseManagedSource(source, this.activeDisposals);
     for (const state of this.states.values()) {
       if (state.sourceServerId === sourceServerId)
         this.setState(
@@ -371,19 +346,43 @@ export class SourceServerConnectionManager {
     }
   }
 
-  async dispose(): Promise<void> {
-    if (this.closed) return;
+  stopSource(profile: ConnectionProfile, target: RemoteTarget): Promise<void> {
+    return this.operations.run(profile, target, "stop");
+  }
+
+  restartSource(profile: ConnectionProfile, target: RemoteTarget): Promise<void> {
+    return this.operations.run(profile, target, "restart");
+  }
+
+  getRunningTasks(
+    profile: ConnectionProfile,
+    target: RemoteTarget,
+  ): Promise<SourceServerRunningTasksResult> {
+    return this.operations.getRunningTasks(profile, target);
+  }
+
+  dispose(): Promise<void> {
+    if (this.disposal) return this.disposal;
     this.closed = true;
     this.directorySubscription.dispose();
     const pending = [...this.activeFlights];
+    const operations = this.operations.dispose();
     for (const flight of pending) flight.controller.abort();
     this.flights.clear();
-    await this.directoryBootstrap;
-    await Promise.allSettled(pending.map((flight) => flight.promise));
-    await Promise.allSettled(
-      Array.from(this.online.values(), (source) => this.releaseSource(source)),
-    );
-    this.online.clear();
-    this.changes.dispose();
+    this.disposal = (async () => {
+      await this.directoryBootstrap;
+      await Promise.allSettled(pending.map((flight) => flight.promise));
+      await operations;
+      await Promise.allSettled(
+        Array.from(this.online.values(), (source) =>
+          releaseManagedSource(source, this.activeDisposals),
+        ),
+      );
+      // 已离线连接也可能仍在释放 transport；退出不能只等待 online map 的剩余对象。
+      await Promise.allSettled([...this.activeDisposals]);
+      this.online.clear();
+      this.changes.dispose();
+    })();
+    return this.disposal;
   }
 }

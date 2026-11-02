@@ -26,7 +26,7 @@ import type {
   TurnState,
   ToolSchedule,
 } from "../deps.js";
-import { getLatestActiveSessionMessageId } from "../helpers/index.js";
+import { getLatestActiveSessionMessageId, isHiddenReminderMessage } from "../helpers/index.js";
 import type { ResumeSessionOptions, ResumeSessionResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import {
@@ -34,12 +34,15 @@ import {
   getSessionShellSelection,
   restoreSessionShellEnvironmentSelectionForResume,
 } from "./session-shell-environment.js";
+import { resetProjectMemoryRecall } from "../helpers/project-memory-recall.js";
+import { restoreDynamicWorkflowActivationOnResume } from "./dynamic-workflow-activation.js";
 import { repairPersistedRemoteSessionPaths } from "../helpers/persisted-remote-session-path-repair.js";
 import {
   restoreWorkspaceCheckpointEntries,
   restoreWorkspaceFileRewindEntries,
 } from "./workspace-checkpoint-persistence.js";
 import { mainTurnCacheHitAggregateFromMessages } from "./turn-model-step-usage.js";
+import { refreshRestoredAnnouncements } from "./context-refresh.js";
 
 export function toScheduleState(
   this: AgentRuntimeInternal,
@@ -70,7 +73,9 @@ export async function resumeFromStore(
 
   const traceContext = options?.traceContext ?? this.rootTraceContext;
   const persistedSession = await this.sessionStore.getSession(this.sessionId);
-  if (!persistedSession || persistedSession.time.archived !== undefined) {
+  // 删除 = CLI 软删除（time_deleted）。归档已归 Host 组织态，CLI 不再有归档列；
+  // 旧的 time.archived 判断永远为 false，这里改为拒绝恢复已软删除的会话。
+  if (!persistedSession || persistedSession.time.deleted !== undefined) {
     throw createCoreError(CoreErrorType.SessionNotFound, `Session not found: ${this.sessionId}`, {
       context: { sessionId: this.sessionId },
       recoverable: true,
@@ -131,14 +136,15 @@ export async function resumeFromStore(
       ? String(session.workspaceID)
       : undefined;
   }
+  resetProjectMemoryRecall(this);
   this.messageHistory = new MessageHistoryImpl();
   this.contextBuilder = null;
   this.contextInitialized = false;
-  this.lastEmittedLocalDate = undefined;
   // cold resume 的历史 hydration 会先清空 runtime-local read-state；必须在
   // Context 初始化前完成，确保随后单次加载的 MEMORY.md 状态与 provider 所见内容一致。
   const readFileStateHydration = await hydrateReadFileStateFromSession({
     branchCutAfterMessageId,
+    markRestoredFromSession: true,
     messages,
     readFileState: this.readFileState,
     rewindCreatedMessageId,
@@ -148,11 +154,16 @@ export async function resumeFromStore(
     workspaceRoot: this.workspaceRoot,
   });
   await this.ensureContextInitialized(traceContext);
+  // 恢复的 envInfo 来自存储，不是刚读的 Git，不能当预取；恢复的窗口还没决定过时，下一次请求重新读取。
+  this.sessionStartGitPrefetch = false;
+  // 存储里的"是否仓库"不是本 runtime 读的；第一次环境公告重读一次，变化时宣告。
+  this.repositoryRecheckPending = true;
   const recoveredCompactTimelineCount = await this.recoverInterruptedCompactTimelines(
     messages,
     traceContext,
   );
   const hydration = await hydrateMessageHistoryFromSession({
+    logger: this.logger,
     artifactStore: this.artifactStore,
     branchCutAfterMessageId,
     history: this.messageHistory,
@@ -161,6 +172,7 @@ export async function resumeFromStore(
     rewindKeptMessageIds,
     rewindTargetMessageId,
   });
+  refreshRestoredAnnouncements(this);
   announceSessionShellEnvironmentNoticeAfterResume(this, {
     persistedEnvInfo,
     restore: shellRestore,
@@ -217,6 +229,9 @@ export async function resumeFromStore(
   if (savedExecution.success && options?.modeOverride === undefined) {
     Object.assign(this.config, savedExecution.data);
   }
+  // onDemand 会话的工具面随记录恢复（launch.md「On demand: activation」）：entry 在场，或历史里
+  // 有过 `/workflow` / 十个工具的调用。要在首轮之前完成，所以放在 resume 里而不是等下一次 turn。
+  await restoreDynamicWorkflowActivationOnResume.call(this, messages);
 
   await restorePermissionGrantMarker(this, traceContext);
 
@@ -224,8 +239,10 @@ export async function resumeFromStore(
     activeMessages,
     persistedMessages: messages,
   });
+  // 隐藏提醒不是对话消息，不算一轮（与 rewind-message.ts 同一判据）。
   this.turnNumber = activeMessages.filter(
-    (message) => message.info.role === "user" && !message.info.summary,
+    (message) =>
+      message.info.role === "user" && !message.info.summary && !isHiddenReminderMessage(message),
   ).length;
   this.sessionPersisted = true;
   await syncPersistedSessionTitleForResume.call(this, {
@@ -308,7 +325,6 @@ export async function resumeFromStore(
     module: "core.runtime",
     partCount: hydration.partCount,
     readFileStateRestoredCount: readFileStateHydration.restoredCount,
-    readFileStateSkippedRangeReadCount: readFileStateHydration.skippedRangeReadCount,
     readFileStateSkippedUnreadableEditCount: readFileStateHydration.skippedUnreadableEditCount,
     recoveredCompactTimelineCount,
     resumedTodoCount: resumedTodos.length,
@@ -324,7 +340,6 @@ export async function resumeFromStore(
     // messages 交给 V4，否则首帧会短暂复活 started/retrying 状态。
     persistedMessagesReloadRequired: recoveredCompactTimelineCount > 0,
     readFileStateRestoredCount: readFileStateHydration.restoredCount,
-    readFileStateSkippedRangeReadCount: readFileStateHydration.skippedRangeReadCount,
     readFileStateSkippedUnreadableEditCount: readFileStateHydration.skippedUnreadableEditCount,
     traceId: traceContext.traceId,
   };

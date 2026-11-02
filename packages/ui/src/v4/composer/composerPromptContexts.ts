@@ -25,7 +25,7 @@ import {
   type PluginUiModelContext,
 } from "@/plugin-ui/index.js";
 
-interface ComposerPromptContexts {
+export interface ComposerPromptContexts {
   codeComments: readonly CodeCommentComposerAttachment[];
   conversationSelections: readonly ConversationSelectionDisplayReference[];
   webElements: readonly WebElementContextComposerAttachment[];
@@ -79,7 +79,7 @@ export function parseComposerPromptContexts(
   pptxElements: PptxElementReference[];
   pluginUiContexts: PluginUiModelContext[];
 } {
-  const plugin = parsePromptPluginUiContexts(stripGenUiModelContext(content));
+  const plugin = parsePromptPluginUiContexts(content);
   const pptx = parsePromptPptxElementReferences(plugin.visibleContent);
   const web = parsePromptWebElementContexts(pptx.visibleContent, workspace);
   const code = parsePromptCodeComments(web.visibleContent, workspace);

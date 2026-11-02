@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#161616" />
     <meta name="color-scheme" content="dark" />
-    <!-- Chrome dev 下可能不发 favicon 网络请求；内嵌小尺寸 App 图标，避免标签页回退到默认图标。-->
+    <!-- Bugfix: Chrome dev 下可能不发 favicon 网络请求；内嵌小尺寸 App 图标，避免标签页回退到默认图标。 -->
     <link
       rel="icon"
       type="image/png"
@@ -16,13 +16,15 @@
     <title>ZCodium</title>
     <script>
       (() => {
-        // JS bundle 执行前先按本地主题偏好决定首屏底色，避免 dark 用户在这一帧看到白底闪烁。
+        // Bugfix: Web 远控跨 workspace 跳转时，JS bundle 还没执行前就会先渲染启动壳。
+        // 这里提前按本地主题偏好决定首屏底色，避免 dark 用户在这一帧看到白底闪烁。
         const STORAGE_KEY = "zcode-theme";
         const DEFAULT_THEME = "zai-dark";
         const BROWSER_THEME_COLORS = {
           dark: "#161616",
           light: "#f8f8f8",
         };
+        const BOOTSTRAP_SNAPSHOT_KEY = "zcode:web-remote-control:bootstrap-shell";
 
         const normalizeResolvedTheme = (theme) => {
           if (theme === "dark") return "dark";
@@ -42,6 +44,49 @@
         };
 
         try {
+          let bootstrapTheme = null;
+          const bootstrapSnapshotRaw = window.sessionStorage.getItem(BOOTSTRAP_SNAPSHOT_KEY);
+          if (bootstrapSnapshotRaw) {
+            window.sessionStorage.removeItem(BOOTSTRAP_SNAPSHOT_KEY);
+            try {
+              const snapshot = JSON.parse(bootstrapSnapshotRaw);
+              if (snapshot && typeof snapshot === "object") {
+                const normalizedTheme = snapshot.theme === "dark" ? "dark" : "light";
+                bootstrapTheme = normalizedTheme;
+                document.documentElement.style.setProperty(
+                  "--zcode-bootstrap-bg",
+                  typeof snapshot.background === "string"
+                    ? snapshot.background
+                    : normalizedTheme === "dark"
+                      ? "#0f172a"
+                      : "#f8fafc",
+                );
+                document.documentElement.style.setProperty(
+                  "--zcode-bootstrap-fg",
+                  typeof snapshot.foreground === "string"
+                    ? snapshot.foreground
+                    : normalizedTheme === "dark"
+                      ? "#e2e8f0"
+                      : "#334155",
+                );
+                if (typeof snapshot.border === "string") {
+                  document.documentElement.style.setProperty(
+                    "--zcode-bootstrap-border",
+                    snapshot.border,
+                  );
+                }
+                if (typeof snapshot.card === "string") {
+                  document.documentElement.style.setProperty(
+                    "--zcode-bootstrap-card",
+                    snapshot.card,
+                  );
+                }
+              }
+            } catch {
+              // ignore invalid snapshot
+            }
+          }
+
           const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
           const resolved =
             saved === "system"
@@ -49,7 +94,8 @@
                 ? "dark"
                 : "light"
               : normalizeResolvedTheme(saved);
-          const finalTheme = resolved === "dark" ? "dark" : "light";
+          const fallbackTheme = resolved === "dark" ? "dark" : "light";
+          const finalTheme = bootstrapTheme ?? fallbackTheme;
           document.documentElement.setAttribute("data-zcode-bootstrap-theme", finalTheme);
           syncBrowserThemeSurface(finalTheme);
           if (finalTheme === "dark") {
@@ -90,7 +136,7 @@
       html[data-zcode-browser-theme-surface],
       html[data-zcode-browser-theme-surface] body,
       html[data-zcode-browser-theme-surface] #root {
-        /* 共享 UI 样式为 Electron vibrancy 强制透明根背景；浏览器入口必须用语义背景
+        /* 修复原因：共享 UI 样式为 Electron vibrancy 强制透明根背景；浏览器入口必须用语义背景
            覆盖该桌面专属行为，否则浏览器工具栏、overscroll 和页面画布会回退为系统白色。 */
         background: var(--color-background, var(--zcode-bootstrap-bg, #161616)) !important;
       }
@@ -100,10 +146,111 @@
       html[data-zcode-browser-theme-surface="light"] #root {
         background: var(--color-background, var(--zcode-bootstrap-bg, #f8f8f8)) !important;
       }
+
+      /* 合并曾提前关闭 style 并插入第二份正文，导致启动 logo CSS 被显示为文本；保持同一启动壳。 */
+
+      .zcode-boot-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        /* Bugfix: UI 全局样式会把 body/#root 置为透明，预渲染壳必须自己承接主题背景，否则深色主题会露出浏览器白底。 */
+        background: var(--zcode-bootstrap-bg, var(--color-background, #0f172a));
+        color: var(--zcode-bootstrap-fg, var(--color-foreground, #e2e8f0));
+      }
+
+      html[data-zcode-bootstrap-theme="light"] .zcode-boot-loading {
+        background: var(--zcode-bootstrap-bg, var(--color-background, #f8fafc));
+        color: var(--zcode-bootstrap-fg, var(--color-foreground, #334155));
+      }
+
+      .zcode-boot-loading__logo-shell {
+        position: relative;
+        display: flex;
+        width: 96px;
+        height: 96px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 24px;
+        background: linear-gradient(180deg, #000000 0%, #151718 100%);
+        box-shadow:
+          0 20px 25px -5px rgb(0 0 0 / 0.2),
+          0 8px 10px -6px rgb(0 0 0 / 0.2);
+      }
+
+      .zcode-boot-loading__logo-shell::before {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        content: "";
+        /* 修复原因：启动 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则首屏边框过重。 */
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: inherit;
+      }
+
+      .zcode-boot-loading__logo {
+        width: 56px;
+        height: auto;
+        color: #ffffff;
+      }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Bugfix: 远程控制跨 workspace 时会整页跳转；在 JS 入口执行前先给出 loading 壳，避免出现白屏空档。 -->
+      <div
+        class="zcode-boot-loading"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Loading..."
+      >
+        <div class="zcode-boot-loading__logo-shell">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="118px"
+            height="100px"
+            fill="none"
+            viewBox="0 0 256 218"
+            class="zcode-boot-loading__logo"
+            aria-hidden="true"
+          >
+            <path
+              fill="currentColor"
+              d="M134.4 0.130152L116.48 25.6022C113.665 29.5699 109.054 32.0019 104.064 32.0019H6.3999V0C6.3999 0.130149 134.4 0.130152 134.4 0.130152Z"
+            >
+              <animate
+                attributeName="opacity"
+                dur="1.5s"
+                repeatCount="indefinite"
+                values="1;0.3;1"
+              />
+            </path>
+            <path fill="currentColor" d="M256 0.130127L102.401 217.732H0L153.599 0.130127H256Z">
+              <animate
+                attributeName="opacity"
+                begin="0.75s"
+                dur="1.5s"
+                repeatCount="indefinite"
+                values="1;0.3;1"
+              />
+            </path>
+            <path
+              fill="currentColor"
+              d="M121.601 217.732L139.65 192.134C142.465 188.166 147.076 185.734 152.067 185.734H249.604V217.736H121.601V217.732Z"
+            >
+              <animate
+                attributeName="opacity"
+                dur="1.5s"
+                repeatCount="indefinite"
+                values="1;0.3;1"
+              />
+            </path>
+          </svg>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

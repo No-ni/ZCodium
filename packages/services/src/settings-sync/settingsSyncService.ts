@@ -28,12 +28,13 @@ import type {
 } from "@zcode/shared";
 import { withFileLock } from "@zcode/shared/node";
 import { atomicWriteText } from "#src/fs/atomicFileUtils.js";
-import { copyFile, cp, link, lstat, mkdir, readFile, readdir, symlink } from "node:fs/promises";
+import { copyFile, cp, link, lstat, mkdir, readFile, readdir, rm, symlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { parse as parseToml } from "smol-toml";
 import { CommandFileParser } from "../commands/commandFileParser.js";
+import { updateJsonObjectFile } from "#src/fs/atomicFileUtils.js";
 import type { ISettingService } from "../setting/setting.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { walkSkillMarkdownPaths } from "../skills/skillDiscoveryWalk.js";
@@ -1105,6 +1106,13 @@ async function collectExistingMcpServerNameKeys(
   return nameKeys;
 }
 
+/**
+ * 迁移导入写 config.json（MCP 的 mcp.servers、插件的 plugins.dirs）。
+ * 根因：旧实现写入前用 readJsonFileOrEmpty 读取，读失败或 JSON 损坏时返回空对象，再用 writeFile
+ * 整文件写回，config.json 里的命令、技能、钩子等其他配置会被冲掉；writeFile 也不是原子写。
+ * 修法：改用 updateJsonObjectFile——文件损坏时报错不写，写前重读，只改自己的字段，原子替换。
+ * 错误交给 importXxxForAgent 的 catch，按现有方式把该项标为 failed 显示在迁移结果里。
+ */
 async function addMcpServerToZcodeConfig(
   filePath: string,
   name: string,
@@ -2065,7 +2073,14 @@ async function importPluginsForAgent(
     try {
       await mkdir(dirname(targetCandidate.targetPath), { recursive: true });
       await importPluginDirectory(candidate.sourcePath, targetCandidate.targetPath, importMode);
-      await addPluginDirToConfig(selectedConfigPath, targetCandidate.targetPath);
+      try {
+        await addPluginDirToConfig(selectedConfigPath, targetCandidate.targetPath);
+      } catch (error) {
+        // config.json 损坏时登记失败，但插件目录已经放好。目录残留会让用户修好配置后重试时
+        // 被判成 targetExists 而永远无法登记；导入前已确认目标不存在，所以这里只删本次放入的目录或软链。
+        await rm(targetCandidate.targetPath, { recursive: true, force: true });
+        throw error;
+      }
       importedCount += 1;
       const existingPluginIds = existingPluginIdsByConfigPath.get(selectedConfigPath);
       if (existingPluginIds) {
@@ -2078,7 +2093,12 @@ async function importPluginsForAgent(
         status: "imported",
         ...(candidate.version ? { version: candidate.version } : {}),
       });
-    } catch {
+    } catch (error) {
+      log.warn(undefined, "[importPlugins] 插件导入失败", {
+        sourcePath: candidate.sourcePath,
+        configPath: selectedConfigPath,
+        errorMessage: (error as Error)?.message,
+      });
       failedCount += 1;
       pluginResults.push({
         name: candidate.name,
@@ -2180,7 +2200,12 @@ async function importMcpServersForAgent(
         sourceScope: candidate.sourceRootScope,
         status: "imported",
       });
-    } catch {
+    } catch (error) {
+      log.warn(undefined, "[importMcpServers] MCP 导入失败", {
+        name: candidate.name,
+        configPath: selectedConfigPath,
+        errorMessage: (error as Error)?.message,
+      });
       failedCount += 1;
       mcpServerResults.push({
         name: candidate.name,

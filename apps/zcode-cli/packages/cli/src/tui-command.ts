@@ -1,6 +1,7 @@
 import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
+import type { ToolSearchMode } from "@zcode/contracts";
 import type { RunContext, GlobalOptions } from "@zcode/shared-types";
-import { resolveZCodeRuntimeEnv } from "@zcode/shared";
+import { resolveZCodeRuntimeEnv, type DynamicWorkflowMode } from "@zcode/shared";
 import { createNodeClipboardImageReader } from "./clipboard-image.js";
 import { createNodeClipboardTextWriter } from "./clipboard-text.js";
 import { listSlashCommandSuggestions } from "./command-center.js";
@@ -13,6 +14,7 @@ import { createWorkspacePathSuggestionProvider } from "./tui-workspace-paths.js"
 import { resolveWorkspaceGitBranch } from "./tui-workspace-git.js";
 import { createCliModeState, currentCliMode } from "./tui-command-state.js";
 import type { CliPermissionMode, CliResumeRequest, RunDependencies } from "./cli-types.js";
+import { DEFAULT_CLI_WORKFLOW_MODE } from "./workflow-mode.js";
 
 export const runTuiCommand = async (
   ctx: RunContext,
@@ -23,6 +25,8 @@ export const runTuiCommand = async (
   resumeRequest?: CliResumeRequest,
   toolDisallowlist?: readonly string[],
   forceMcs = false,
+  toolsearchMode: ToolSearchMode = "off",
+  workflowMode: DynamicWorkflowMode = DEFAULT_CLI_WORKFLOW_MODE,
 ): Promise<number> => {
   try {
     const modeState = createCliModeState(mode);
@@ -45,8 +49,10 @@ export const runTuiCommand = async (
       startupLocale,
       toolDisallowlist,
       forceMcs,
+      toolsearchMode,
       options.browserUse,
       options.browserExecutable,
+      workflowMode,
     );
     const unregisterShutdownHandlers = registerCliShutdownHandlers({
       cleanup: async () => {
@@ -75,7 +81,7 @@ export const runTuiCommand = async (
             theme: metadata.theme ?? "auto",
             modelOptions: metadata.modelOptions,
             effortOptions: metadata.effortOptions,
-            slashCommands: listSlashCommandSuggestions(customCommands),
+            slashCommands: listSlashCommandSuggestions(customCommands, { workflowMode }),
             workspaceGitBranch,
           };
         },

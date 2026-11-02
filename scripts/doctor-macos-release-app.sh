@@ -3,24 +3,37 @@
 set -euo pipefail
 
 APP_PATH="${1:-${ZCODE_MACOS_RELEASE_APP_PATH:-/Applications/ZCodium.app}}"
-# 安装包身份与后端环境分轴：ZCODE_PREVIEW_IDENTITY=1 让生产后端的构建仍是 ZCodium Preview。
-# 只认 "1"，与 CI workflow / release 门的精确比较同一套语义（其它拼写一律视为未开启）。
-is_preview_identity_requested() {
-  [[ "${ZCODE_PREVIEW_IDENTITY:-}" = "1" ]]
-}
+ZCODE_HOME_DIR="${ZCODE_HOME:-${HOME:+$HOME/.zcodium}}"
 APP_BUNDLE_NAME="$(basename "$APP_PATH")"
 APP_DISPLAY_NAME="${APP_BUNDLE_NAME%.app}"
 APP_EXECUTABLE_NAME="${ZCODE_APP_EXECUTABLE_NAME:-$APP_DISPLAY_NAME}"
+# 本 fork 保留旧电脑操作后端（@trycua/cua-driver + 旧 zcode-cua driver），官方独立 Helper.app
+# 与 broker/helperConstants 不在发行链路里；这里只验收真实产品 bundle 自身。
+# 需要额外做公证票据验收时显式开启，缺省不联网、不猜测。
+REQUIRE_APP_STAPLE=0
+if [[ "${ZCODE_MACOS_REQUIRE_STAPLE:-0}" =~ ^(1|true|on)$ ]]; then
+  REQUIRE_APP_STAPLE=1
+fi
+DATA_ROOT="${ZCODE_DATA_ROOT:-.zcodium}"
 
 if [ "${APP_PATH:-}" = "--help" ] || [ "${APP_PATH:-}" = "-h" ]; then
   cat <<'USAGE'
 Usage:
   bash scripts/doctor-macos-release-app.sh /Applications/ZCodium.app
   ZCODE_MACOS_RELEASE_APP_PATH=/Applications/ZCodium.app pnpm run doctor:macos-release
+  ZCODE_MACOS_REQUIRE_STAPLE=1 bash scripts/doctor-macos-release-app.sh /Applications/ZCodium.app
 
 Always validates the installed macOS release app with:
   codesign --verify --deep --strict <app>
   spctl -a -vv -t exec <app>
+  Mach-O magic check on Contents/MacOS/<executable>
+
+ZCODE_MACOS_REQUIRE_STAPLE=1 additionally runs a local notarization staple check
+against the release app itself (xcrun is only required in that mode).
+
+The doctor also confirms the product data root stays on this fork's own identity:
+${ZCODE_HOME:-$HOME/.zcodium}. A release app that would fall back to the upstream
+data directory fails closed.
 USAGE
   exit 0
 fi
@@ -37,7 +50,7 @@ assert_bundle_dir() {
   local label="$1"
   local bundle_path="$2"
   if [ -z "$bundle_path" ]; then
-    echo "[macos-release-doctor] ${label} missing: <no app path provided>" >&2
+    echo "[macos-release-doctor] ${label} path is empty" >&2
     exit 1
   fi
   if [ ! -d "$bundle_path" ]; then
@@ -69,6 +82,28 @@ assert_macho_executable() {
   esac
 }
 
+assert_fork_data_root() {
+  # 根因：本 fork 的业务数据根必须是 .zcodium。构建若漏改身份，安装后的 app 会读写官方
+  # .zcode 目录，等于把 ZCodium 客户端接回上游数据面；release 验收必须在这里挡住。
+  local resolved_root="$1"
+  if [ -z "$resolved_root" ]; then
+    echo "[macos-release-doctor] product data root unresolved; set ZCODE_HOME or HOME" >&2
+    exit 1
+  fi
+  case "$resolved_root" in
+    *"/${DATA_ROOT}"|*"/${DATA_ROOT}/") ;;
+    *"/.zcode"*|*"zcode.z.ai"*)
+      echo "[macos-release-doctor] product data root is not this fork's identity: $resolved_root" >&2
+      exit 1
+      ;;
+    *)
+      echo "[macos-release-doctor] product data root must end with /${DATA_ROOT}: $resolved_root" >&2
+      exit 1
+      ;;
+  esac
+  echo "[macos-release-doctor] product data root: $resolved_root"
+}
+
 run_quiet_validation() {
   local label="$1"
   shift
@@ -94,10 +129,10 @@ validate_release_bundle() {
   run_quiet_validation "${label} codesign verify" codesign --verify --deep --strict "$bundle_path"
   run_quiet_validation "${label} Gatekeeper exec assessment" spctl -a -vv -t exec "$bundle_path"
   if [ "$require_notarization_staple" = "1" ]; then
-    # xcrun 只用于 macOS staple 验收，等目标 bundle 存在且基础签名校验通过后再检查，
-    # 避免缺少 xcrun 的报错掩盖 bundle 缺失或签名错误。
+    # 修复原因：xcrun 只属于 macOS 的 staple 验收工具，必须等 bundle 存在且基础签名校验通过后再检查，
+    # 否则缺工具的错误会掩盖 bundle 缺失或签名错误这类更直接的发布故障。
     require_command xcrun
-    # 仅检查 spctl 可能依赖联网取票或缓存，仍需验证目标 bundle 的本地 staple。
+    # 仅检查 spctl 会被联网取票或缓存掩盖，必须验证最终 app 的本地 staple。
     run_quiet_validation "${label} notarization staple" xcrun stapler validate "$bundle_path"
   fi
 }
@@ -105,12 +140,16 @@ validate_release_bundle() {
 require_command codesign
 require_command spctl
 
-# 过去 release/notarization 成功只说明 DMG 通过了 gate，不能证明安装后的主 app
-# 能被 Gatekeeper 以 exec 类型放行。这里先 fail-closed 检查 bundle 结构和主可执行
-# 文件，再跑 codesign/spctl，避免安装不完整或签名损坏时误报发布成功。
+# Bugfix: 过去 release/notarization 成功只说明 DMG 通过了 gate，不能证明安装后的主 app
+# 能被 Gatekeeper 以 exec 类型放行，也不能证明主可执行是真 Mach-O 而不是残留的 shell wrapper。
+# 这里先 fail-closed 检查 bundle 结构与 Mach-O 头，再跑 codesign/spctl。
 assert_bundle_dir "$APP_BUNDLE_NAME" "$APP_PATH"
 assert_executable "$APP_BUNDLE_NAME" "$APP_PATH/Contents/MacOS/$APP_EXECUTABLE_NAME"
-validate_release_bundle "$APP_BUNDLE_NAME" "$APP_PATH"
+assert_macho_executable \
+  "$APP_BUNDLE_NAME executable" \
+  "$APP_PATH/Contents/MacOS/$APP_EXECUTABLE_NAME"
+assert_fork_data_root "$ZCODE_HOME_DIR"
 
+validate_release_bundle "$APP_BUNDLE_NAME" "$APP_PATH" "$REQUIRE_APP_STAPLE"
 
 echo "[macos-release-doctor] done"

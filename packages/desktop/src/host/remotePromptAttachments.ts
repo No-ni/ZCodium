@@ -6,14 +6,14 @@ import { randomUUID } from "node:crypto";
 const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.zcodium/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".zcodium/tmp/prompt-attachments";
 
-interface RemotePromptAttachmentMaterializeInput {
+export interface RemotePromptAttachmentMaterializeInput {
   taskId?: string;
   content: string;
   traceId: TraceId | string;
   attachments?: ZCodePromptAttachment[];
 }
 
-interface RemotePromptAttachmentMaterializeResult {
+export interface RemotePromptAttachmentMaterializeResult {
   content: string;
   attachments?: ZCodePromptAttachment[];
   uploadedCount: number;
@@ -127,7 +127,7 @@ export async function cleanupStaleRemotePromptAttachments(
   );
 }
 
-function buildRemotePromptAttachmentPath(params: {
+export function buildRemotePromptAttachmentPath(params: {
   filename: string;
   index: number;
   nonce?: string;
@@ -281,6 +281,7 @@ function sanitizePathSegment(value: string): string {
   return sanitized || "attachment";
 }
 
+// 合并时丢失本仓附件物化代理；保留发送前上传与原服务唯一写入路径。
 export function createRemotePromptAttachmentTaskService<T extends object>(
   service: T,
   options: {

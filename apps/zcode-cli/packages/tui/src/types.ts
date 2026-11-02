@@ -31,7 +31,10 @@ export type TuiSessionMetadata = Pick<
   | "modelSetupRequired"
 >;
 
-export type TuiSwitchableMode = Extract<CollaborationMode, "plan" | "build" | "edit" | "yolo">;
+export type TuiSwitchableMode = Extract<
+  CollaborationMode,
+  "plan" | "build" | "edit" | "yolo" | "guarded"
+>;
 
 export type TuiSetModeResult = {
   mode: CollaborationMode;

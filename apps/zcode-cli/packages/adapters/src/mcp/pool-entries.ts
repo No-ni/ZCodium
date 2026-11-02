@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { relative, resolve } from "node:path";
 import type { McpConnectOptions, McpServerConfig, McpServerStatus } from "@zcode/contracts";
 import type { McpConnectionContext, McpConnectionPoolOptions, PoolEntry } from "./pool-types.js";
+import type { McpTelemetrySource } from "./process-tracker.js";
 
 const DEFAULT_IDLE_GRACE_MS = 30_000;
 
@@ -161,7 +162,7 @@ export function createMcpEntryRegistry(options: McpConnectionPoolOptions) {
         connectionId: connectionContext.mcpConnectionId,
         isolation: connectionContext.mcpIsolation,
         serverName,
-        ...(config.source ? { source: config.source.kind } : {}),
+        ...(config.source ? { source: toTelemetrySource(config.source.kind) } : {}),
       });
       let adapter;
       try {
@@ -248,6 +249,18 @@ export function createConnectionContext(input: {
     ...(workspaceKey ? { workspaceKey } : {}),
     ...(mcpIsolation === "session" && input.sessionId ? { sessionId: input.sessionId } : {}),
   };
+}
+
+/** 修复说明（sync/official-3.17.1）：配置 `source.kind` 是 user/workspace/plugin/builtin 四值，
+ *  process tracker 的 McpTelemetrySource 只接受 builtin/plugin/custom。user/workspace 都是
+ *  "宿主装载的自定义 MCP 配置"，规范映射为 custom；plugin/builtin 原样透传；无 source 时
+ *  仍走 tracker 按 serverName 前缀的 builtin/plugin 兜底，不改 owner/lease 与采样默认边界。 */
+function toTelemetrySource(
+  kind: NonNullable<McpServerConfig["source"]>["kind"],
+): McpTelemetrySource {
+  if (kind === "plugin") return "plugin";
+  if (kind === "builtin") return "builtin";
+  return "custom";
 }
 
 function resolveWorkspaceKey(connectOptions: McpConnectOptions): string | undefined {
