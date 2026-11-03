@@ -371,3 +371,7 @@ CLI 独立 Lint 实际为 **79 errors / 55 warnings，exit 1**。本轮两个 CL
 浏览器证据保持 pending-review，不晋升 formal/CI；完整 Electron、macOS 原生、实体手机 LAN、真实 SSH/IM、原生 CUA 输入、发行安装与完整语料均未验收。Knip 历史 889 项未完成消债，不盲删导出。前期子代理有项目外写入的自报事件，其自报验证不采纳，已关闭并由主代理重做项目内核验；最终续接没有再次分派子代理。
 
 最终暂存后 900 个未解决索引路径归零，79 个临时/未知文件均未入提交；审计守卫复跑 11/11，changed 架构仍零违规。清理两个本仓适配文件的 5 处空白后 AST 打印一致，根 typecheck 再跑 exit 0，根 Lint 再跑仍 9 errors / 157 warnings。git diff --cached --check 仍 exit 2，其 633 条空白诊断均来自 77 个官方原样文件，无本仓适配诊断或冲突标记；源码与具体证据见集成 spec 文末。
+
+### 3.17.1 检查收口（2026-11-03）
+
+本轮修复根门禁与检查契约，详见 [检查收口与 CLI 拆分清单](official-3.17.1-check-repair.md)。两个 Store 只拆静态类型，七个验收夹具按精确路径采用测试行数规则；生产源码仍为 400 行。格式继承例外绑定 1610 个固定模式/blob，暂存区与工作区同时匹配才排除，编辑即退出；没有全仓重排或豁免本仓适配。根 typecheck、Lint、changed 架构和架构工程测试通过，格式新入口通过；Lint 仍 157 warnings，CLI 仍 89 errors / 80 warnings。工程测试为 61 passed / 1 Windows skip，审计等 29 项有重叠，不汇总冒充全量验收。未提交、推送、构建、安装；真实设备、冻结安装与全量 corpus 保持未验收。

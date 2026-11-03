@@ -46,6 +46,9 @@ jobs:
       - name: Architecture
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm architecture:check
+      - name: Verify format inheritance and source size contracts
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: node --test scripts/test/source-size-policy.test.mjs scripts/test/format-upstream-snapshot.test.mjs
       - name: Verify 3.17.1 build and release contract
         # 产品版本/工具链、exe+dmg 发行边界、自有更新源、CUA helper 生产链接线都是静态契约，
         # 见 .agents/specs/official-3.17.1-build.md；装好依赖即可运行，不产生任何下载。

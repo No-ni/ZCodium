@@ -41,6 +41,22 @@
       "rules": {
         "max-lines": "off"
       }
+    },
+    {
+      // 这些无 test/spec 后缀的文件仅为验收夹具和 E2E helper，与已有测试使用同一行数规则。
+      // 精确列举，避免把相邻生产入口或未来 scripts 文件误当测试。
+      "files": [
+        "packages/web/test/e2e/manual-review/pending/remote-submit-lifecycle.mjs",
+        "packages/web/test/e2e/manual-review/pending/remote-login-v2.mjs",
+        "packages/web/test/e2e/manual-review/pending/remote-large-rpc.mjs",
+        "packages/desktop/test/e2e/helpers/project-sidebar.ts",
+        "packages/desktop/scripts/mcp-apps-host-fixture/managed-renderer.tsx",
+        "packages/desktop/scripts/mcp-apps-host-fixture/background-main.ts",
+        "packages/desktop/scripts/gen-ui-fixture/main.ts"
+      ],
+      "rules": {
+        "max-lines": "off"
+      }
     }
   ],
   "settings": {

@@ -6,7 +6,7 @@
 
 - 格式化器：`oxfmt`（配置在 `.oxfmtrc.json`，版本以 `package.json` 的 `devDependencies.oxfmt` 为准）
 - 门禁位置：`.github/workflows/desktop.yml` 的 `checks` job，排在 `Lint` 之后、`Architecture` 之前
-- 写入者：本仓库源码由贡献者本地执行 `pnpm fmt`（= `oxfmt`，不带 `--check`）落盘；CI 只校验不改写
+- 写入者：本仓库源码由贡献者本地执行 `pnpm fmt`（经格式入口调用 `oxfmt`，不带 `--check`）落盘；CI 只校验不改写
 
 **没有门禁的格式化必然复发。** 门禁之前的状态是：79 个文件不通过，其中 43 个是本仓库自己写的，且每个手写 PR 都会再添几个。所以「格式化」与「门禁」必须同时落地——只格式化不加门禁等于一次性美化。
 
@@ -42,6 +42,8 @@
 见上表最后一行；与本 spec 同属「生成后落盘」。
 
 ## 维护规则
+
+v3.17.1 的已核验继承文件按 [检查收口 spec](../../../docs/specs/official-3.17.1-check-repair.md) 固定到 `scripts/ci/upstream-format-snapshot.json`。格式入口同时核验暂存区与工作区，再给 oxfmt 生成精确文件排除；任一快照不匹配即恢复检查，不用永久路径豁免替代内容核验。`fmt` 与 `fmt:check` 使用同一规则。
 
 1. **新增排除项必须在 PR 里写明理由**，且只能归入上三类之一。不得为「让门禁变绿」而排除自有源码。
 2. **自有源码不排除。** 本仓库自己写的文件一律格式化。

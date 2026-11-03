@@ -3,8 +3,6 @@ import {
   normalizeAgentProviderToZCodeAgent,
   ZCODE_AGENT_PROVIDER,
   type ZCodeProvider,
-  type AgentSummary,
-  type AgentsCapability,
   type SubAgentConfig,
 } from "@zcode/shared";
 import type { ISubagentsService } from "@zcode/services";
@@ -19,53 +17,8 @@ import {
   nextAgentLoadRequestId,
 } from "@/store/subagentsStoreLoading.js";
 
-interface SubagentsStoreState {
-  workspacePath: string | null;
-  workspaceIdentity: string | null;
-  loadedWorkspacePath: string | null;
-  loadedWorkspaceIdentity: string | null;
-  provider: ZCodeProvider;
-  loadedProvider: ZCodeProvider | null;
-  agents: AgentSummary[];
-  capability: AgentsCapability | null;
-  loading: boolean;
-  error: string | null;
-  /** 正在操作的 agent ID（用于 UI 状态指示） */
-  operatingAgentId: string | null;
-  initialize: (
-    workspacePath: string,
-    providerOrSubagentsService: ZCodeProvider | ISubagentsService,
-    maybeSubagentsService?: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<void>;
-  refresh: (subagentsService: ISubagentsService, workspaceIdentity?: string) => Promise<void>;
-  setEnabled: (
-    agentId: string,
-    enabled: boolean,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<void>;
-  createAgent: (
-    config: SubAgentConfig,
-    provider: ZCodeProvider,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<AgentSummary | null>;
-  updateAgent: (
-    agentId: string,
-    config: SubAgentConfig,
-    oldFilePath: string | undefined,
-    provider: ZCodeProvider,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<AgentSummary | null>;
-  deleteAgent: (
-    agentId: string,
-    filePath: string,
-    subagentsService: ISubagentsService,
-    workspaceIdentity?: string,
-  ) => Promise<boolean>;
-}
+// 类型拆出不移动服务 authority、加载代际或原 Zustand owner。
+import type { SubagentsStoreState } from "./state-contracts/contract.js";
 
 let loadedSubagentsServiceAuthorityId: number | null = null;
 

@@ -1286,6 +1286,17 @@ modules:
     layers:
       app: .
     owner: conversation
+  - id: store-state-contracts
+    roots:
+      - packages/ui/src/store/state-contracts
+    managed: true
+    requires: [shared, services]
+    publicEntrypoints:
+      - packages/ui/src/store/state-contracts/contract.ts
+    layers:
+      domain: .
+    owner: agent-config
+
 global:
   acceptedUpstreamCommits:
     - commit: a60ba6a7e5a06742270ca605f5d2cc2766afa7e1

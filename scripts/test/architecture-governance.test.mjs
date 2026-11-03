@@ -167,6 +167,8 @@ test("changed files support Git output larger than 1 MiB for untracked and track
 
 test("Git enumeration failures reject instead of reporting an empty changed set", async () => {
   await fixture({}, async (cwd) => {
+    // 项目内夹具会被 Git 向上识别成真实仓库；无效的本地标记阻止越界发现，才能验证枚举失败。
+    await writeFile(join(cwd, ".git"), "invalid fixture git marker\n");
     await assert.rejects(changedFilesFromGit(cwd), /git/i);
   });
 });
