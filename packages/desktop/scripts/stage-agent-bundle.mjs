@@ -15,7 +15,7 @@ export const AGENT_BUNDLE_SOURCE_RELATIVE = "apps/zcode-cli/packages/cli/dist/zc
 
 /**
  * 修复原因（2026-10-24 真机）：node_repl MCP server（含内联的 CUA agent runtime）
- * 不在 zcode.cjs 里 —— agent 从 ~/.zcode plugin cache 启动它。dev 的 zcode.cjs 是
+ * 不在 zcode.cjs 里 —— agent 从 ~/.zcodium plugin cache 启动它。dev 的 zcode.cjs 是
  * 纯 esbuild bundle（无 SEA 资产），bootstrap 的 filesystem seed rootCandidates 又
  * 解析不到 apps/zcode-cli/packages/node-repl-host（cwd 是工作区不是仓库布局），
  * 于是 dev agent 只能消费 cache 现有内容；cache 的唯一写入者是生产版 agent 的
@@ -27,7 +27,14 @@ export const AGENT_BUNDLE_SOURCE_RELATIVE = "apps/zcode-cli/packages/cli/dist/zc
  * 打包链（prepare-agent-node-bundle.mjs）随后会用更完整的 officialPluginPackages
  * 逻辑重 stage 同一目录，这里重复暂存同源内容无害。
  */
-const STAGED_NODE_REPL_HOST_ENTRIES = ["dist", ".zcode-plugin", "package.json", "README.md", "scripts"];
+// 修复依据：filesystem seed 使用本仓 .zcodium-plugin 清单，旧条目会漏掉插件元数据。
+const STAGED_NODE_REPL_HOST_ENTRIES = [
+  "dist",
+  ".zcodium-plugin",
+  "package.json",
+  "README.md",
+  "scripts",
+];
 
 export function resolveAgentBundlePaths({ repoRoot, platformKey }) {
   const glmDir = resolve(repoRoot, "packages", "desktop", "bundled-agents", platformKey, "glm");

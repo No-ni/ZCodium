@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   isRealComputerUseProducerInstalled,
@@ -47,10 +47,26 @@ describe("Computer Use producer detection", () => {
     expect(isRealComputerUseProducerInstalled({ desktopPackageRoot: desktopRoot })).toBe(false);
   });
 
-  it("未安装任何 producer 时不算真实 producer", () => {
+  it("未安装任何 producer 时不算真实 producer", async () => {
     const desktopRoot = createWorkspace(null);
-    expect(readComputerUseProducer({ desktopPackageRoot: desktopRoot }).installed).toBe(false);
-    expect(isRealComputerUseProducerInstalled({ desktopPackageRoot: desktopRoot })).toBe(false);
+    // 修复依据：项目内夹具的父级含主仓依赖，未安装场景须独立模拟所有祖先均无 producer。
+    vi.resetModules();
+    vi.doMock("node:fs", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("node:fs")>()),
+      existsSync: () => false,
+    }));
+    try {
+      const isolated = await import("../scripts/computer-use-producer.mjs");
+      expect(isolated.readComputerUseProducer({ desktopPackageRoot: desktopRoot }).installed).toBe(
+        false,
+      );
+      expect(isolated.isRealComputerUseProducerInstalled({ desktopPackageRoot: desktopRoot })).toBe(
+        false,
+      );
+    } finally {
+      vi.doUnmock("node:fs");
+      vi.resetModules();
+    }
   });
 
   it("占位包下 dev 插件运行时暂存直接跳过，不要求 sharp 与插件清单", () => {

@@ -85,6 +85,17 @@
 - `prepare-agent-node-bundle.mjs` 的入口段吸收上游新增的 `stageBundledNpmRuntime` / `stageKoffiForCuaPlugin` /
   `stageSharpForNodeReplPlugin`，与 MCP 的 Node/npm fallback 保持同一份随包 runtime。
 - 运行时文件核验、复制和清理使用显式导入的异步 fs API；缺少 runtime/seed 文件仍必须失败，不能用旧目标文件掩盖。原生依赖的已暂存插件存在性检查使用本仓实际 `.zcodium-plugin/plugin.json`；旧 `.zcode-plugin` 路径不得使 Koffi/Sharp 暂存静默跳过。
+- 共享 Agent 自举暂存保留 node-repl-host 的 `.zcodium-plugin` 清单，不复制旧命名清单。开发态 CUA 原生依赖暂存复用 `isSharpRequiredByComputerUse`：真实 producer 未声明 Sharp 时直接返回空；声明 Sharp 后必须核验当前 `.zcodium-plugin/plugin.json` 并复制本次 Windows/mac 架构依赖，缺少清单仍失败。这遵守既有 Sharp 能力契约，不把保留旧后端当作官方 Helper 或 Sharp producer。
+
+  ```mermaid
+  flowchart LR
+    Build[构建 Agent 与插件] --> Seed[共享暂存当前插件清单]
+    Seed --> Capability[现有 producer 与 Sharp 能力判定]
+    Capability -->|未声明 Sharp| Skip[不暂存 Sharp]
+    Capability -->|声明 Sharp| Validate[核验当前插件清单]
+    Validate --> Native[暂存本次平台与架构依赖]
+  ```
+
 - `stageKoffiForCuaPlugin` 复用现有 Koffi 暂存器，来源是当前 adapters 依赖安装目录，目标只带本次 Windows/mac 架构的二进制。它可接受 `root`、`targetGlmDir` 和 `targetPlatform` 的构建范围参数，默认仍为当前仓库/当前目标；隔离回归用项目内合成文件验证复制与架构裁剪，不执行原生库或本机桌面打包。
 - 官方 helper 的应用名/可执行名由 `@zcode/zcode-cua/broker/helperConstants` 提供；`scripts/cua-driver-runtime-assets.mjs`
   与 `scripts/ci/cua-driver-*.mjs` 仍是 `@trycua/cua-driver` 旧链路的资产与冒烟实现，等 CUA 域切换依赖后一起退役。

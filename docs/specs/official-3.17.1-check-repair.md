@@ -188,3 +188,9 @@ Store 拆分只移动静态契约：调用方 → 原 Store → 原服务 → �
 选择器恢复后实际执行选中的三个 Builder 工程规格，17 项通过、6 项失败；失败均为官方遗留 Linux 发行配置或 Linux fuse 加载成功断言，与本 fork 已明定的 Windows/mac 边界冲突。按发行 spec 对齐测试，保留 prerelease 元数据、Windows/mac 目标与安全断言，追加无 Linux 配置和显式 Linux 拒绝场景，不改变生产发行范围。
 
 对齐后同一批三个 Builder 规格共 19 项全部通过，真实 Builder 配置回归与审计/发行契约共 26 项通过。根 typecheck、Lint、changed 架构与 fmt:check 再次通过，Lint 仍为 157 warnings / 0 errors；未在本机执行桌面准备或打包，新的发行验证由 GitHub Actions 完成后另行记录。
+
+第三轮 Actions 的四个打包目标均在 Agent 构建后被 `stage-dev-cua-plugin-runtime.mjs` 的旧 `.zcode-plugin` 清单路径阻断。当前保留的旧 CUA producer 不声明 Sharp，而这一步也未按既有 Sharp 能力契约跳过。修复同一准备链的能力门与当前清单路径，并对齐共享 Agent 的 node-repl-host 清单暂存。回归使用项目内合成清单、JS 与原生文件验证跳过、缺件失败及 Windows 架构复制，不执行原生文件或本机桌面构建；官方 Helper producer 继续保持原能力门。
+
+新增三项暂存回归先复现失败、修复后全部通过，审计/发行契约共 29 项通过。受影响 producer 工程测试另有一个夹具假设失效：临时目录移入项目后，祖先主仓的已安装依赖被真实向上探测发现。仅在“完全未安装”测试中隔离文件存在性探测并恢复 mock，保留生产搜索规则与真实/占位场景的文件验证。
+
+本轮收尾实测：受影响 producer 工程规格 4 项全部通过；根 typecheck、Lint、changed 架构与 fmt:check 再次通过，Lint 仍为 157 warnings / 0 errors。暂存回归只操作项目内新建夹具，未启动真实 CUA 原生文件，未在本机运行桌面准备或打包。

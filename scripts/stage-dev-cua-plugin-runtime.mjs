@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { isRealComputerUseProducerInstalled } from "../packages/desktop/scripts/computer-use-producer.mjs";
-import { stageSharpIntoBundledAgents } from "../packages/desktop/scripts/sharp-package-assets.mjs";
+import {
+  isSharpRequiredByComputerUse,
+  stageSharpIntoBundledAgents,
+} from "../packages/desktop/scripts/sharp-package-assets.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
@@ -13,10 +16,14 @@ export function stageDevCuaPluginRuntime({
   pluginRoot = resolve(repositoryRoot, "apps", "zcode-cli", "packages", "zcode-cua-plugin"),
 } = {}) {
   if (env.ZCODE_CUA_DEV_MODE !== "1") return [];
-  // 开源占位包不提供 Computer Use 原生能力，也不随附 Sharp：没有真实 producer 时不暂存。
-  if (!isRealComputerUseProducerInstalled({ desktopPackageRoot })) return [];
+  // 修复原因：旧后端是真 producer 但不声明 Sharp，须按既有能力契约跳过这项原生暂存。
+  if (
+    !isRealComputerUseProducerInstalled({ desktopPackageRoot }) ||
+    !isSharpRequiredByComputerUse({ desktopPackageRoot })
+  )
+    return [];
 
-  const manifestPath = resolve(pluginRoot, ".zcode-plugin", "plugin.json");
+  const manifestPath = resolve(pluginRoot, ".zcodium-plugin", "plugin.json");
   if (!existsSync(manifestPath)) {
     throw new Error(
       `[stage-dev-cua-plugin-runtime] CUA plugin manifest is missing: ${manifestPath}`,

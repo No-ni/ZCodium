@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createProjectTestSandbox } from "./project-test-sandbox.mjs";
+import { assertProjectPath, createProjectTestSandbox } from "./project-test-sandbox.mjs";
 
 // 官方 3.17.1 合并的构建/发行契约门：静态断言与隔离的真实配置加载，不装依赖、不跑网络、不打包。
 // 规则出处见 .agents/specs/official-3.17.1-build.md；本文件只验证「构建出来的东西仍是 ZCodium」。
@@ -25,6 +26,102 @@ const tsupConfig = read("packages/desktop/tsup.config.ts");
 const viteConfig = read("packages/desktop/vite.config.ts");
 const bundleScript = read("packages/desktop/scripts/bundle.mjs");
 const workflow = read(".github/workflows/desktop.yml");
+
+async function writeFixture(path, content) {
+  await assertProjectPath(path);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content);
+}
+
+test("CUA dev staging skips legacy producers without Sharp", async () => {
+  const sandbox = await createProjectTestSandbox("cua-legacy-staging");
+  const desktopPackageRoot = join(sandbox.root, "packages", "desktop");
+  await mkdir(desktopPackageRoot, { recursive: true });
+  await writeFixture(
+    join(sandbox.root, "node_modules", "@zcode", "zcode-cua", "package.json"),
+    JSON.stringify({ name: "@zcode/zcode-cua", dependencies: { "@trycua/cua-driver": "0.28.2" } }),
+  );
+  const { stageDevCuaPluginRuntime } = await import("../stage-dev-cua-plugin-runtime.mjs");
+  assert.deepEqual(
+    stageDevCuaPluginRuntime({
+      env: { ZCODE_CUA_DEV_MODE: "1" },
+      desktopPackageRoot,
+      pluginRoot: join(sandbox.root, "missing-plugin"),
+      platform: "win32",
+      arch: "x64",
+    }),
+    [],
+  );
+});
+
+test("CUA dev staging honors ZCodium plugin manifests and Windows architectures", async () => {
+  const { stageDevCuaPluginRuntime } = await import("../stage-dev-cua-plugin-runtime.mjs");
+  for (const arch of ["x64", "arm64"]) {
+    const sandbox = await createProjectTestSandbox(`cua-sharp-staging-${arch}`);
+    const desktopPackageRoot = join(sandbox.root, "packages", "desktop");
+    const pluginRoot = join(sandbox.root, "plugin");
+    await mkdir(desktopPackageRoot, { recursive: true });
+    await writeFixture(
+      join(sandbox.root, "node_modules", "@zcode", "zcode-cua", "package.json"),
+      JSON.stringify({ name: "@zcode/zcode-cua", dependencies: { sharp: "0.34.5" } }),
+    );
+    const manifestPath = join(pluginRoot, ".zcodium-plugin", "plugin.json");
+    await writeFixture(manifestPath, JSON.stringify({ name: "zcode-cua" }));
+    const packages = ["sharp", "detect-libc", "semver", "@img/colour", `@img/sharp-win32-${arch}`];
+    for (const name of packages) {
+      const root = join(sandbox.root, "node_modules", name);
+      await writeFixture(
+        join(root, "package.json"),
+        JSON.stringify({ name, version: "0.0.0", exports: { "./package": "./package.json" } }),
+      );
+      await writeFixture(join(root, "native.node"), `synthetic-${name}`);
+    }
+    const options = {
+      env: { ZCODE_CUA_DEV_MODE: "1" },
+      desktopPackageRoot,
+      pluginRoot,
+      platform: "win32",
+      arch,
+    };
+    const staged = stageDevCuaPluginRuntime(options);
+    assert.deepEqual(
+      staged.map(({ name }) => name),
+      packages,
+    );
+    for (const name of packages) {
+      assert.equal(
+        await readFile(join(pluginRoot, "node_modules", name, "native.node"), "utf8"),
+        `synthetic-${name}`,
+      );
+    }
+    await rm(manifestPath);
+    assert.throws(
+      () => stageDevCuaPluginRuntime(options),
+      /manifest is missing:.*\.zcodium-plugin/,
+    );
+  }
+});
+
+test("Agent bundle staging preserves ZCodium node-repl-host metadata", async () => {
+  const sandbox = await createProjectTestSandbox("agent-plugin-seed");
+  const root = sandbox.root;
+  const source = join(root, "apps", "zcode-cli", "packages", "node-repl-host");
+  const manifest = JSON.stringify({ name: "node-repl-host", version: "0.0.0" });
+  await writeFixture(join(root, "apps/zcode-cli/packages/cli/dist/zcode.cjs"), "// synthetic CLI");
+  await writeFixture(join(source, "dist/mcp/server.js"), "// synthetic MCP server");
+  await writeFixture(join(source, ".zcodium-plugin/plugin.json"), manifest);
+  await writeFixture(join(source, ".zcode-plugin/plugin.json"), "retired fixture metadata");
+  const { stageAgentBundle } =
+    await import("../../packages/desktop/scripts/stage-agent-bundle.mjs");
+  const { stagedBundlePath } = stageAgentBundle({
+    repoRoot: root,
+    platformKey: "win32-x64",
+    log: () => {},
+  });
+  const target = join(dirname(stagedBundlePath), "packages", "node-repl-host");
+  assert.equal(await readFile(join(target, ".zcodium-plugin/plugin.json"), "utf8"), manifest);
+  await assert.rejects(access(join(target, ".zcode-plugin/plugin.json")), { code: "ENOENT" });
+});
 
 test("旧后端下真实 Builder 配置可加载，Windows/mac 均无官方 Helper 资源", async () => {
   const sandbox = await createProjectTestSandbox("builder-config-import");
