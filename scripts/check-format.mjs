@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { randomUUID } from "node:crypto";
+import { readFile, unlink, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import ts from "typescript";
@@ -20,62 +21,64 @@ export async function runFormatter({ cwd = projectRoot, args = [] } = {}) {
   );
   if (error) throw new Error("FORMAT_CONFIG_INVALID");
   // 原因：永久路径排除会把后续本仓修改一起隐藏；只排除两份 Git 快照均匹配的继承文件。
-  const temporaryConfig = await assertProjectPath(join(sandbox.root, "oxfmt.json"));
-  // oxfmt 的配置忽略项相对配置文件所在目录；临时配置在 sandbox，必须保留原项目路径含义。
-  const ignorePatterns = [...(config.ignorePatterns ?? []), ...accepted].map((pattern) => {
-    const negative = pattern.startsWith("!");
-    const target = negative ? pattern.slice(1) : pattern;
-    const absolute = resolve(cwd, target).replaceAll("\\", "/");
-    const escaped = accepted.has(pattern) ? absolute.replace(/[[\]*?{}]/g, "\\$&") : absolute;
-    return `${negative ? "!" : ""}${escaped}`;
-  });
+  const temporaryConfig = await assertProjectPath(join(cwd, `.oxfmt-gate-${randomUUID()}.json`));
+  // 原因：POSIX 绝对 ignore 路径会被当作配置目录锚点；同目录配置保留跨平台的相对规则。
+  const ignorePatterns = [
+    ...(config.ignorePatterns ?? []),
+    ...[...accepted].map((pattern) => `/${pattern.replace(/[[\]*?{}]/g, "\\$&")}`),
+    basename(temporaryConfig),
+  ];
   await writeFile(temporaryConfig, JSON.stringify({ ...config, ignorePatterns }), { flag: "wx" });
-  // 显式文件参数会绕过 oxfmt 的 ignore；同一已核验文件在 write/check 都必须保持原样。
-  const formatterArgs = args.filter((argument) => {
-    if (argument.startsWith("-")) return true;
-    return !accepted.has(relative(cwd, resolve(cwd, argument)).replaceAll("\\", "/"));
-  });
-  const hadTargets = args.some((argument) => !argument.startsWith("-"));
-  if (hadTargets && !formatterArgs.some((argument) => !argument.startsWith("-"))) {
-    return { exitCode: 0, stdout: "", stderr: "", inheritedFiles: accepted.size };
-  }
-  const formatterEnv = { ...sandbox.env };
-  if (!args.includes("--check") && !args.includes("--list-different")) {
-    const suffix = relative(projectRoot, cwd);
-    if (suffix === ".." || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)) {
-      throw new Error("FORMAT_WRITE_PATH_REJECTED");
-    }
-    if (cwd !== projectRoot) await assertProjectPath(cwd);
-    for (const target of formatterArgs.filter((argument) => !argument.startsWith("-"))) {
-      const path = resolve(cwd, target);
-      if (path !== projectRoot) await assertProjectPath(path);
-    }
-    // write 只给当前项目 cwd 写入权；缓存与临时配置继续留在 sandbox。
-    formatterEnv.NODE_OPTIONS = formatterEnv.NODE_OPTIONS.replace(
-      `--allow-fs-write=${JSON.stringify(sandbox.root)}`,
-      `--allow-fs-write=${JSON.stringify(cwd)}`,
-    );
-  }
   try {
-    const output = await execute(
-      process.execPath,
-      [
-        join(projectRoot, "node_modules/oxfmt/bin/oxfmt"),
-        ...formatterArgs,
-        "--config",
-        temporaryConfig,
-      ],
-      { cwd, env: formatterEnv, windowsHide: true, maxBuffer: 32 * 1024 * 1024 },
-    );
-    return { exitCode: 0, ...output, inheritedFiles: accepted.size };
-  } catch (error) {
-    if (typeof error.code !== "number") throw error;
-    return {
-      exitCode: error.code,
-      stdout: error.stdout ?? "",
-      stderr: error.stderr ?? "",
-      inheritedFiles: accepted.size,
-    };
+    // 显式文件参数会绕过 oxfmt 的 ignore；同一已核验文件在 write/check 都必须保持原样。
+    const formatterArgs = args.filter((argument) => {
+      if (argument.startsWith("-")) return true;
+      return !accepted.has(relative(cwd, resolve(cwd, argument)).replaceAll("\\", "/"));
+    });
+    const hadTargets = args.some((argument) => !argument.startsWith("-"));
+    if (hadTargets && !formatterArgs.some((argument) => !argument.startsWith("-"))) {
+      return { exitCode: 0, stdout: "", stderr: "", inheritedFiles: accepted.size };
+    }
+    const formatterEnv = { ...sandbox.env };
+    if (!args.includes("--check") && !args.includes("--list-different")) {
+      const suffix = relative(projectRoot, cwd);
+      if (suffix === ".." || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)) {
+        throw new Error("FORMAT_WRITE_PATH_REJECTED");
+      }
+      if (cwd !== projectRoot) await assertProjectPath(cwd);
+      for (const target of formatterArgs.filter((argument) => !argument.startsWith("-"))) {
+        const path = resolve(cwd, target);
+        if (path !== projectRoot) await assertProjectPath(path);
+      }
+      // write 只给当前项目 cwd 写入权；缓存与其他临时文件继续留在 sandbox。
+      formatterEnv.NODE_OPTIONS = formatterEnv.NODE_OPTIONS.replace(
+        `--allow-fs-write=${JSON.stringify(sandbox.root)}`,
+        `--allow-fs-write=${JSON.stringify(cwd)}`,
+      );
+    }
+    try {
+      const output = await execute(
+        process.execPath,
+        [
+          join(projectRoot, "node_modules/oxfmt/bin/oxfmt"),
+          ...formatterArgs,
+          "--config",
+          temporaryConfig,
+        ],
+        { cwd, env: formatterEnv, windowsHide: true, maxBuffer: 32 * 1024 * 1024 },
+      );
+      return { exitCode: 0, ...output, inheritedFiles: accepted.size };
+    } catch (error) {
+      if (typeof error.code !== "number") throw error;
+      return {
+        exitCode: error.code,
+        stdout: error.stdout ?? "",
+        stderr: error.stderr ?? "",
+        inheritedFiles: accepted.size,
+      };
+    }
+  } finally {
+    await unlink(await assertProjectPath(temporaryConfig));
   }
 }
 

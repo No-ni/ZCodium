@@ -31,6 +31,8 @@ coverage/
 z-work/
 openclaw/
 .run-logs/
+# 格式门禁的独占临时配置在 formatter cwd 创建，正常和异常退出均由入口删除。
+/.oxfmt-gate-*.json
 .worktrees/
 packages/stream-animate/dist-server/
 packages/stream-animate/.stream-animate-data/

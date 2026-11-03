@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
@@ -59,6 +59,7 @@ async function fixture(run) {
 
 test("官方原样文件和解析失败示例仅在两份 Git 快照匹配时排除", async () => {
   await fixture(async ({ cwd }) => {
+    const originalFiles = (await readdir(cwd)).sort();
     const { accepted } = await readUpstreamSnapshot(cwd, snapshotPath);
     assert.deepEqual([...accepted].sort(), [
       "inherited.html",
@@ -73,6 +74,41 @@ test("官方原样文件和解析失败示例仅在两份 Git 快照匹配时排
     const writeResult = await runFormatter({ cwd, args: ["--write", "inherited.ts"] });
     assert.equal(writeResult.exitCode, 0);
     assert.equal(await readFile(join(cwd, "inherited.ts"), "utf8"), original);
+    assert.deepEqual((await readdir(cwd)).sort(), originalFiles);
+  });
+});
+
+test("继承排除精确锚定目录，原配置的相对忽略规则保留", async () => {
+  await fixture(async ({ cwd }) => {
+    await mkdir(join(cwd, "local"));
+    await mkdir(join(cwd, "generated"));
+    await writeFile(join(cwd, "local/inherited.ts"), original);
+    await writeFile(join(cwd, "generated/example.html"), "<input></input>\n");
+    const config = await format(
+      ".oxfmtrc.json",
+      JSON.stringify({ ignorePatterns: ["generated/**"] }),
+    );
+    assert.deepEqual(config.errors, []);
+    await writeFile(join(cwd, ".oxfmtrc.json"), config.code);
+    const result = await runFormatter({ cwd, args: ["--check", "."] });
+    assert.equal(result.exitCode, 1, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /local[\\/]inherited\.ts/);
+    const formatted = await format("local/inherited.ts", original);
+    assert.deepEqual(formatted.errors, []);
+    await writeFile(join(cwd, "local/inherited.ts"), formatted.code);
+    const cleanResult = await runFormatter({ cwd, args: ["--check", "."] });
+    assert.equal(cleanResult.exitCode, 0, cleanResult.stdout + cleanResult.stderr);
+  });
+});
+
+test("自有文件解析失败保留非零退出码并删除本次临时配置", async () => {
+  await fixture(async ({ cwd }) => {
+    await writeFile(join(cwd, "local.html"), "<input></input>\n");
+    const originalFiles = (await readdir(cwd)).sort();
+    const result = await runFormatter({ cwd, args: ["--check", "."] });
+    assert.ok(result.exitCode > 0, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /Void elements/);
+    assert.deepEqual((await readdir(cwd)).sort(), originalFiles);
   });
 });
 

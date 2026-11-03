@@ -167,3 +167,14 @@ Store 拆分只移动静态契约：调用方 → 原 Store → 原服务 → �
 验证调用方 → 当前 Host/CLI 迁移 adapter → 既有 SQLite runner 提交 → schema dump/旧结构兼容比对 → 第二次启动零迁移。真实升级安装由后续 Windows x64 产物完成，其结果另行记录，不将合成数据库检查写成真机数据验收。
 
 追加修复实测：根 typecheck、Lint 与 changed 架构均 exit 0；Lint 保持 157 warnings / 0 errors。新的 `db:schema:check` 为 22 项外层检查通过，隔离 wrapper 实际执行 Host/CLI 两份数据库基线及零重复迁移断言，不把 wrapper 数量当作独立数据库用例。快照差异仅为 Host 定时/闲时表的六个可空执行范围列与既有 admissions 表、CLI 的两个可空状态列及既有数据库身份表。Windows 的 oxfmt CLI write 再次报写入错误，失败日志保留；随后通过 oxfmt API 异步格式化本轮明确文件，格式检查继续实际执行。
+
+## GitHub 首轮构建阻塞与修复规则
+
+用户授权提交、推送、手动构建并升级本机 Windows 后，首轮 Actions 在运行时准备和格式门禁阶段失败，未生成安装包。Bootstrap 的模块契约直接引用 adapters/src，触发 TS6059；格式入口把临时配置放在 sandbox 并写绝对忽略路径，Windows 校验通过但 Linux 目录检查没有正确排除继承文件。
+
+- Bootstrap 跨包声明改走 adapters 的两个精确公开 package exports，保持现有类型与直连行为；不扩大 rootDir、不复制类型、不恢复官方路由功能。显式执行真实 CLI Bootstrap 编译，不能用根 typecheck 代替。
+- 格式入口改为在真实项目 cwd 创建并删除唯一临时配置，保留原相对忽略规则及锚定的精确继承路径；不更新继承快照，不全仓重新排版。回归实际调用 formatter，覆盖目录检查、相邻同名文件及失败后的本次临时文件清理。
+- 事件顺序仍为调用方 → 格式入口核验 Git → 独占创建 cwd 配置 → formatter 原退出码 → finally 删除本次配置 → 调用方。格式入口是本次临时文件的唯一所有者；没有产品状态或远端时序改动。
+- 修复后重新执行根 typecheck、Lint、changed 架构、格式及定向回归，再提交推送并手动派发 desktop.yml。只有正确 SHA 的 Windows x64 产物通过校验后才安装，实际安装结果后续记录。
+
+追加修复本地实测：根 typecheck、Lint、changed 架构与 fmt:check 均 exit 0，Lint 仍为 157 warnings / 0 errors，固定继承清单仍为 1610 项。格式定向回归 11 passed；完整架构工程测试 63 passed / 1 Windows skip；审计与发行契约 25 passed（不与重叠回归累加）。Bootstrap 首次单独编译因本地旧依赖声明失败，日志保留；审查输出路径并按依赖顺序重新编译库后，真实 Bootstrap NodeNext/rootDir 声明编译 exit 0，未改运行时业务代码。首轮失败构建见 [Actions 41599710143](https://github.com/No-ni/ZCodium/actions/runs/41599710143)；修复后的 GitHub CI 与本机安装此时尚未验证。

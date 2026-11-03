@@ -46,6 +46,14 @@
       "types": "./dist/model/index.d.ts",
       "import": "./dist/model/index.js"
     },
+    "./provider-endpoint-routing": {
+      "types": "./dist/model/endpoint-routing-edition/index.d.ts",
+      "import": "./dist/model/endpoint-routing-edition/index.js"
+    },
+    "./provider-endpoint-routing-options": {
+      "types": "./dist/model/provider-endpoint-routing-options.d.ts",
+      "import": "./dist/model/provider-endpoint-routing-options.js"
+    },
     "./logging": {
       "types": "./dist/logging/index.d.ts",
       "import": "./dist/logging/index.js"
