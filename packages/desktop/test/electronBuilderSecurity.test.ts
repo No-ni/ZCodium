@@ -209,8 +209,9 @@ it("Windows 打包关闭 Node Inspector，保留 Agent 所需的 RunAsNode", asy
   expect(config.win?.verifyUpdateCodeSignature).toBe(true);
 });
 
-it.each(["darwin", "linux"])("%s 保留现有 fuse 配置", async (platform) => {
-  vi.stubEnv("ZCODE_TARGET_OS", platform);
+// 修复依据：Linux 的拒绝边界由发行平台测试覆盖；只有 macOS 保留既有 fuse 配置。
+it("macOS 保留现有 fuse 配置", async () => {
+  vi.stubEnv("ZCODE_TARGET_OS", "darwin");
   const { default: config } = await import("../electron-builder.config.js");
 
   expect(config.electronFuses).toBeUndefined();

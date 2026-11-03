@@ -8,7 +8,7 @@
 `scripts/**`、`tsup.config.ts`、`vite.config.ts`、`electron-builder.config.js`。
 
 产品事实源仍是各自的运行域；本域只保证「构建出来的东西符合 ZCodium 契约」。
-守卫脚本：`scripts/ci/official317-build.test.mjs`（`node --test`，纯静态断言，可在任何检出上跑）。
+守卫脚本：`scripts/ci/official317-build.test.mjs`（`node --test`，静态契约与项目隔离的真实配置加载，不运行桌面打包）。
 
 ## 版本与工具链
 
@@ -29,6 +29,7 @@
 1. 桌面只产 Windows `.exe` 与 macOS `.dmg`。`electron-builder.config.js` 在解析目标平台后立刻拒绝非 `darwin/win32`；
    `mac.target` 只有 `["dmg"]`，官方为自动更新准备的 `zip` 不恢复；Linux 的 `pacman` 依赖名单与 `AppImage`/`deb`/`rpm` 目标不恢复。
    `bundle.mjs` 的 `artifactExtensionsByOs` 仍是 `{ mac: [".dmg"], win: [".exe"] }`。
+   受影响的 Builder 工程测试按本仓契约验收：Windows/mac 配置只声明 NSIS/DMG，均无 Linux 分发配置；显式 Linux 目标必须在配置加载时失败。清理官方残留的 Linux 产物与 fuse 成功断言，不通过恢复 Linux 配置让门禁变绿。
 2. 唯一工作流是 `.github/workflows/desktop.yml`，只有 `workflow_dispatch`（fork 的 Actions 用量会被 GitHub 停用，push/PR 不构建），
    四个打包目标：`desktop-win-x64`、`desktop-win-arm64`、`desktop-mac-arm64`、`desktop-mac-x64`。
    工作流不构建、不下载、不嵌入任何 Linux 发行资源或远端运行资源。
@@ -61,6 +62,16 @@
   `__ZCODE_CUA_HELPER_BUILD_ID__`）按 `isRealComputerUseProducerInstalled()` 门控：
   旧后端在位时它自己早退，不伪造资产也不阻塞打包，因此本域保留这些代码但**不把它当作强制条件**，
   契约门里也不断言它必须生效。CUA 域若要删除这条链，可直接删本域对应文件，契约门不会失败。
+- 构建和开发配置须先通过现有 Helper 能力探针，再由 Node 条件加载公开 helper 常量；缺少契约时不导入该模块，也不构造 helper 路径。测试选择器不能在旧后端路径预先解析不可用导出。真实 Builder 配置在隔离子进程中分别以 Windows/mac 目标加载，验证 exe/dmg 目标和空 Helper 资源映射，不执行打包 hook。
+
+  ```mermaid
+  flowchart LR
+    Config[构建或开发配置] --> Probe[现有 Helper 能力探针]
+    Probe -->|缺少契约| Legacy[旧后端流程，无 Helper 模块加载或路径]
+    Probe -->|完整契约| Import[Node 条件加载公开常量]
+    Import --> Assets[现有 Helper 资产流程]
+  ```
+
 - `prepare-runtime-assets.mjs` 与 `electron-builder.config.js` 都在解析目标平台后立刻拒绝非 `darwin/win32`；
   Linux 变体的 driver 目录（如 `@trycua/cua-driver-linux-x64-gnu`）只能作为待清理的陈旧资产存在，不进包。
 - `electron-builder.config.js` 的 afterPack 顺序：`finalizePackagedAsar` → 原生资源策略/node-pty 断言 →

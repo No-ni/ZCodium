@@ -182,3 +182,9 @@ Store 拆分只移动静态契约：调用方 → 原 Store → 原服务 → �
 第二轮 Actions 的 Format 与格式继承回归均通过，运行时准备继续暴露 `prepare-agent-node-bundle.mjs` 缺少异步 fs API 导入，所有打包目标因此停止。修复同脚本的导入与原生暂存接线：使用当前 `.zcodium-plugin` 标记，并通过现有 adapters 安装根解析 Koffi。保持插件构建 → 文件核验 → 暂存 → 本架构依赖复制的原顺序，保留缺件失败和旧 CUA 后端，不恢复官方 helper producer，也不在本机运行完整 desktop prepare/pack。Agent/Vitest corpus 的其他 CI 失败另行区分，不把这次准备脚本修复写成全量业务验收。
 
 准备脚本追加修复实测：项目隔离的构建分发、真实异步资产复制/缺件失败和 Windows x64/arm64 Koffi 裁剪三项回归通过；合成原生文件不执行。根 typecheck、Lint、changed 架构、fmt:check 与审计/发行契约再次通过，Lint 仍为 157 warnings / 0 errors；脚本在显式 Node 环境配置的 no-undef 检查中为 0 warnings / 0 errors。未在本机执行完整 Office 分发 corpus 或桌面打包。
+
+本次 pre-push 又捕获 Builder 配置在能力探针之前静态导入旧后端不存在的 `broker/helperConstants`。这同时会阻断真实打包配置加载，并非选择器可以忽略的测试错误。修复构建/开发配置的导入顺序及无 Helper 时的路径构造，保留原能力探针和真实 producer 分支；不恢复已删除模块、不放宽测试选择器错误规则。追加 Windows/mac 目标的隔离真实配置加载回归。
+
+选择器恢复后实际执行选中的三个 Builder 工程规格，17 项通过、6 项失败；失败均为官方遗留 Linux 发行配置或 Linux fuse 加载成功断言，与本 fork 已明定的 Windows/mac 边界冲突。按发行 spec 对齐测试，保留 prerelease 元数据、Windows/mac 目标与安全断言，追加无 Linux 配置和显式 Linux 拒绝场景，不改变生产发行范围。
+
+对齐后同一批三个 Builder 规格共 19 项全部通过，真实 Builder 配置回归与审计/发行契约共 26 项通过。根 typecheck、Lint、changed 架构与 fmt:check 再次通过，Lint 仍为 157 warnings / 0 errors；未在本机执行桌面准备或打包，新的发行验证由 GitHub Actions 完成后另行记录。

@@ -26,7 +26,9 @@ const hasComputerUseHelperProducer = isComputerUseHelperProducerInstalled({
 const computerUseDevEnv = hasComputerUseHelperProducer ? await resolveComputerUseDevEnv() : {};
 
 async function resolveComputerUseDevEnv() {
-  const { DEV_HELPER_APP_NAME } = await import("@zcode/zcode-cua/broker/helperConstants");
+  // 修复依据：此分支已通过 Helper 能力探针；只在实际 Node 调用时解析公开导出，避免旧后端被预先解析。
+  const helperConstantsSpecifier = "@zcode/zcode-cua/broker/helperConstants";
+  const { DEV_HELPER_APP_NAME } = await import(/* @vite-ignore */ helperConstantsSpecifier);
   const sourceBuiltCuaHelperVersion = JSON.parse(
     readFileSync(join(repoRoot, "package.json"), "utf8"),
   ).version;

@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createProjectTestSandbox } from "./project-test-sandbox.mjs";
 
-// 官方 3.17.1 合并的构建/发行契约门：纯静态断言，不装依赖、不跑网络、不写文件。
+// 官方 3.17.1 合并的构建/发行契约门：静态断言与隔离的真实配置加载，不装依赖、不跑网络、不打包。
 // 规则出处见 .agents/specs/official-3.17.1-build.md；本文件只验证「构建出来的东西仍是 ZCodium」。
 const repoRoot = resolve(import.meta.dirname, "../..");
 
@@ -22,6 +25,30 @@ const tsupConfig = read("packages/desktop/tsup.config.ts");
 const viteConfig = read("packages/desktop/vite.config.ts");
 const bundleScript = read("packages/desktop/scripts/bundle.mjs");
 const workflow = read(".github/workflows/desktop.yml");
+
+test("旧后端下真实 Builder 配置可加载，Windows/mac 均无官方 Helper 资源", async () => {
+  const sandbox = await createProjectTestSandbox("builder-config-import");
+  const execute = promisify(execFile);
+  const source = `
+    const { default: config } = await import('./packages/desktop/electron-builder.config.js');
+    const helpers = (config.extraResources ?? []).filter(resource =>
+      /^(?:cua-helper(?:\\/|$)|tools\\/cua-helper(?:\\/|$))/.test(resource.to ?? ''));
+    process.stdout.write(JSON.stringify({win:config.win.target,mac:config.mac.target,helpers}));
+  `;
+  for (const platform of ["win32", "darwin"]) {
+    const { stdout } = await execute(process.execPath, ["--input-type=module", "-e", source], {
+      cwd: repoRoot,
+      env: {
+        ...sandbox.env,
+        ZCODE_ENV: "production",
+        ZCODE_TARGET_OS: platform,
+        ZCODE_TARGET_ARCH: "x64",
+      },
+      windowsHide: true,
+    });
+    assert.deepEqual(JSON.parse(stdout), { win: ["nsis"], mac: ["dmg"], helpers: [] });
+  }
+});
 
 test("产品与工具链版本对齐官方 3.17.1", () => {
   assert.equal(rootPackage.version, "3.17.1");

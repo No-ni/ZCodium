@@ -4,7 +4,6 @@ import { cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
-import { HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
 import { runCommand, runCommandAndReadStdout } from "../../scripts/spawn-command.mjs";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
 import { validateBuiltinPluginAssets } from "../../scripts/builtin-plugin-assets.mjs";
@@ -76,6 +75,12 @@ const desktopPackageRoot = import.meta.dirname;
 // windows 契约，也没有 broker/helperConstants 导出：官方 Helper 的随包资源与打包后校验整体保持 inert，
 // 与本仓旧发行链路（HEAD）一致；Windows 安装清单仍无条件生成，不受这里的门影响。
 const shouldPackageComputerUseHelper = isComputerUseHelperProducerInstalled({ desktopPackageRoot });
+// 修复原因：静态 import 会先于能力探针解析旧后端不存在的导出；仅由真实 Helper 分支交给 Node 加载。
+const helperConstantsSpecifier = "@zcode/zcode-cua/broker/helperConstants";
+const helperConstants = shouldPackageComputerUseHelper
+  ? await import(/* @vite-ignore */ helperConstantsSpecifier)
+  : null;
+const HELPER_APP_NAME = helperConstants?.HELPER_APP_NAME;
 const HELPER_FILENAME = "zcode-browser-import-helper.exe";
 const runtimeModuleLookupRoots = [
   desktopPackageRoot,
@@ -84,12 +89,9 @@ const runtimeModuleLookupRoots = [
   resolve(workspaceRoot, "node_modules", ".pnpm", "node_modules"),
 ];
 const desktopDistDir = process.env.ZCODE_DESKTOP_DIST_DIR || "dist";
-const bundledCuaHelperSource = resolve(
-  desktopPackageRoot,
-  "bundled-cua-helper",
-  targetPlatform.arch,
-  HELPER_APP_NAME,
-);
+const bundledCuaHelperSource = shouldPackageComputerUseHelper
+  ? resolve(desktopPackageRoot, "bundled-cua-helper", targetPlatform.arch, HELPER_APP_NAME)
+  : null;
 const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 // `pnpm exec asar` 依赖 `.bin/asar`，但 @electron/asar 仅是 electron-builder 传递依赖时，
 // Linux CI（pnpm hoisted）往往解析不到该二进制，`asar list` 未运行即 exit 1。
