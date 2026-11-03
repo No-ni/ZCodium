@@ -49,7 +49,7 @@ CREATE TABLE automations (
         last_error TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
-      );
+      , project_id TEXT, host_id TEXT, additional_directories TEXT);
 
 CREATE TABLE off_peak_tasks (
         off_peak_task_id   TEXT PRIMARY KEY,
@@ -83,7 +83,16 @@ CREATE TABLE off_peak_tasks (
         last_error         TEXT,
         created_at         INTEGER NOT NULL,
         updated_at         INTEGER NOT NULL
-      );
+      , project_id TEXT, host_id TEXT, additional_directories TEXT);
+
+CREATE TABLE task_group_admissions (
+  workspace_key TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  system_kind TEXT,
+  user_organized INTEGER NOT NULL DEFAULT 0,
+  creation_id TEXT,
+  PRIMARY KEY (workspace_key, task_id)
+);
 
 CREATE TABLE task_group_members (
         group_id TEXT NOT NULL,

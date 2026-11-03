@@ -181,7 +181,7 @@ CREATE TABLE session (
         time_compacting integer,
         time_archived integer
       , task_type text not null default 'interactive', title_source text not null default 'first_input'
-        check(title_source in ('default', 'first_input', 'generated', 'custom')), title_message_id text, time_title_updated integer, trace_id text);
+        check(title_source in ('default', 'first_input', 'generated', 'custom')), title_message_id text, time_title_updated integer, trace_id text, time_deleted integer, last_outcome text);
 
 CREATE TABLE session_entry (
         id text primary key,
@@ -398,6 +398,11 @@ CREATE TABLE workflow_run (
         time_updated integer not null,
         time_completed integer
       );
+
+CREATE TABLE zcode_database_identity (
+      scope TEXT PRIMARY KEY,
+      identity TEXT NOT NULL
+    );
 
 CREATE INDEX dwf_actor_run_idx on dwf_actor(run_id);
 

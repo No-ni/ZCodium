@@ -14,30 +14,35 @@ const workspace = fileURLToPath(new URL("../../..", import.meta.url));
 if (process.argv.includes("--update-reviewed-baseline")) {
   throw new Error("SQLITE_SCHEMA_BASELINE_UPDATE_NOT_SUPPORTED");
 }
-const { migrate, assertAdditiveSchema, dumpSqliteSchema } = await tsImport(
+const { assertAdditiveSchema, dumpSqliteSchema } = await tsImport(
   "../../../packages/shared/src/sqlite-migrations/index.ts",
   import.meta.url,
 );
-const { TASKS_DATABASE_MIGRATIONS } = await tsImport(
+const { runTasksDatabaseMigrations } = await tsImport(
   "../../../packages/services/src/session/tasksDatabase/migrations.ts",
   import.meta.url,
 );
-const { SESSION_DATABASE_MIGRATIONS } = await tsImport(
-  "../../../apps/zcode-cli/packages/adapters/src/storage/session-store/migration-contract.ts",
+const { runSqliteSessionMigrationsAsync } = await tsImport(
+  "../../../apps/zcode-cli/packages/adapters/src/storage/session-store/migration-runner.ts",
   import.meta.url,
 );
 const baselines = [
   {
     path: "packages/services/src/session/tasksDatabase/schema.baseline.sql",
     database: "tasks-index",
-    journalTable: "tasks_schema_migration",
-    migrations: TASKS_DATABASE_MIGRATIONS,
+    initialize: (db, root) =>
+      runTasksDatabaseMigrations(db, {
+        dbPath: join(root, "fixture.sqlite"),
+        backupDirectories: [join(root, "backup")],
+      }),
   },
   {
     path: "apps/zcode-cli/packages/adapters/src/storage/session-store/schema.baseline.sql",
     database: "cli",
-    journalTable: "schema_migration",
-    migrations: SESSION_DATABASE_MIGRATIONS,
+    initialize: (db, root) =>
+      runSqliteSessionMigrationsAsync(db, join(root, "fixture.sqlite"), {
+        backupDirectories: [join(root, "backup")],
+      }),
   },
 ];
 
@@ -48,12 +53,11 @@ for (const baseline of baselines)
     t.after(async () => {
       if (db.isOpen) db.close();
     });
-    await migrate(db, baseline.migrations, {
-      database: baseline.database,
-      journalTable: baseline.journalTable,
-      backupDirectories: [join(root, "backup")],
-    });
+    // 原因：旧夹具持有已退役数组和错误账本选项；验证必须复用实际启动 adapter。
+    await baseline.initialize(db, root);
     const current = dumpSqliteSchema(db);
+    assert.deepEqual((await baseline.initialize(db, root)).applied, []);
+    assert.equal(dumpSqliteSchema(db), current, "reopening must not change the schema");
     const path = fileURLToPath(new URL(`../../../${baseline.path}`, import.meta.url));
     const objects = await exec("git", ["ls-tree", "--name-only", "HEAD", "--", baseline.path], {
       cwd: workspace,

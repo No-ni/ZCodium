@@ -154,3 +154,16 @@ Store 拆分只移动静态契约：调用方 → 原 Store → 原服务 → �
 | `apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness.ts`                           |      402 | 本仓适配         |
 
 最终文档落地后的根 fmt:check 为 exit 0，7971 matched files，固定继承清单仍 1610 项；证据 check-repair-format-vcGV9a。git diff --check 为 exit 0，证据 check-repair-final-diff-9vaKvX。Git tracked 改动仅属于本轮明确文件，旧未跟踪路径全部保留，未暂存、未创建真实提交。新增 89 文件 CLI 清单是后续修复范围，不代表这 89 个错误已解决。
+
+## 后续提交与构建前的 SQLite 门禁接线
+
+本次提交、推送和 GitHub 构建已获用户授权。实际 pre-push 复现根 schema 入口引用已删除的 `offPeakTaskRepo`；已有隔离基线夹具还读取退役的 Host 迁移数组，并未使用 CLI 当前启动选项。修复范围仅为验证入口、夹具及可审阅 schema 快照，不改变产品迁移、冻结 SQL/checksum 或真实数据库。
+
+- `db:schema:check` 复用现有项目隔离 wrapper，保留 schema 兼容约束和更新参数拒绝检查；删除失效的旧检查脚本与已退役的 `db:schema:update` 命令。
+- 合成 Host 库调用当前 `runTasksDatabaseMigrations` 的 base scope，合成 CLI 库调用 `runSqliteSessionMigrationsAsync`，使用实际 `time_applied` 账本。验证不复制迁移数组，也不另建生产迁移 owner。
+- 快照只从本项目合成库生成，先对 HEAD 快照做 additive 守卫，再审阅具体差异后落地；基线增加当前已存在的列、表和索引，不改变旧字段语义，不通过重新生成快照放过结构删除。
+- 每个合成库再次调用同一启动入口，必须没有待执行迁移且 schema 完全一致。所有合成数据和日志继续留在项目内。
+
+验证调用方 → 当前 Host/CLI 迁移 adapter → 既有 SQLite runner 提交 → schema dump/旧结构兼容比对 → 第二次启动零迁移。真实升级安装由后续 Windows x64 产物完成，其结果另行记录，不将合成数据库检查写成真机数据验收。
+
+追加修复实测：根 typecheck、Lint 与 changed 架构均 exit 0；Lint 保持 157 warnings / 0 errors。新的 `db:schema:check` 为 22 项外层检查通过，隔离 wrapper 实际执行 Host/CLI 两份数据库基线及零重复迁移断言，不把 wrapper 数量当作独立数据库用例。快照差异仅为 Host 定时/闲时表的六个可空执行范围列与既有 admissions 表、CLI 的两个可空状态列及既有数据库身份表。Windows 的 oxfmt CLI write 再次报写入错误，失败日志保留；随后通过 oxfmt API 异步格式化本轮明确文件，格式检查继续实际执行。
