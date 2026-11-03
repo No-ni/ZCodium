@@ -38,6 +38,8 @@ export {
   unregisterRemoteWorkspaceSession,
   useRemoteWorkspaceSessionStore,
 } from "./store/remoteWorkspaceSessionStore.js";
+// Bug 原因：桌面端口 bridge 已使用包根入口，但缺少导出使 Renderer 无法构建。
+export { registerSourceSettingsServices } from "./store/sourceSettingsServiceStore.js";
 export {
   REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE,
   createRemoteWorkspaceDisconnectedError,

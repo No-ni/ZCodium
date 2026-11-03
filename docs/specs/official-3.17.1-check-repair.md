@@ -194,3 +194,7 @@ Store 拆分只移动静态契约：调用方 → 原 Store → 原服务 → �
 新增三项暂存回归先复现失败、修复后全部通过，审计/发行契约共 29 项通过。受影响 producer 工程测试另有一个夹具假设失效：临时目录移入项目后，祖先主仓的已安装依赖被真实向上探测发现。仅在“完全未安装”测试中隔离文件存在性探测并恢复 mock，保留生产搜索规则与真实/占位场景的文件验证。
 
 本轮收尾实测：受影响 producer 工程规格 4 项全部通过；根 typecheck、Lint、changed 架构与 fmt:check 再次通过，Lint 仍为 157 warnings / 0 errors。暂存回归只操作项目内新建夹具，未启动真实 CUA 原生文件，未在本机运行桌面准备或打包。
+
+第四轮 Actions 的 Windows 打包被 GNU tar 的绝对盘符路径解析阻断，macOS 打包则实际报 Renderer 的旧 `localTtftBootstrap.js` 不存在；同一 Renderer 的 Source settings bridge 另有根公开导出缺失。修复仅接通既有平台解压命令和模块公开入口：Windows 使用系统原生 tar，Renderer 复用受控 local-ttft contract，UI 根入口导出现有 Source 注册函数。保留原状态 owner、释放次序、默认开关及安全本地观测边界，不恢复退役模块。先补真实导入绑定和隔离归档解压回归，再执行根检查、提交推送及新的手动构建。
+
+本轮两项新增回归先失败、修复后通过；Windows 系统 tar 实际解压项目内跨 cwd 且含空格的合成归档，TypeScript 实际绑定 Renderer 的两个公开导入至既有函数 owner。受影响的 npm 与原生搜索工具工程规格 3 文件 / 22 项通过；审计及发行契约共 31 项通过。根 typecheck、Lint、changed 架构与 fmt:check 均通过，Lint 仍为 157 warnings / 0 errors，格式固定继承清单未更新。完整 GitHub 发行与本机安装尚待本轮构建，不能将导入绑定或合成归档回归写成应用真机验收。

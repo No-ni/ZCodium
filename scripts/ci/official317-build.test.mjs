@@ -33,6 +33,90 @@ async function writeFixture(path, content) {
   await writeFile(path, content);
 }
 
+test("Renderer public imports bind existing diagnostics and Source service owners", async () => {
+  const { default: ts } = await import("typescript");
+  const sources = [
+    "packages/desktop/src/renderer/src/main.tsx",
+    "packages/desktop/src/renderer/src/sourceSettingsServicePortBridge.ts",
+    "packages/desktop/src/renderer/src/local-ttft/contract.ts",
+    "packages/desktop/src/renderer/src/local-ttft/initialize.ts",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/store/sourceSettingsServiceStore.ts",
+  ];
+  const program = ts.createProgram(
+    sources.map((path) => resolve(repoRoot, path)),
+    {
+      noEmit: true,
+      noLib: true,
+      noResolve: true,
+      types: [],
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      jsx: ts.JsxEmit.ReactJSX,
+      paths: { "@zcode/ui": [resolve(repoRoot, "packages/ui/src/index.ts")] },
+    },
+  );
+  const checker = program.getTypeChecker();
+  for (const [consumer, name, owner] of [
+    [sources[0], "initializeDesktopLocalTtft", sources[3]],
+    [sources[1], "registerSourceSettingsServices", sources[5]],
+  ]) {
+    const source = program.getSourceFile(resolve(repoRoot, consumer));
+    const imports = source.statements.filter(ts.isImportDeclaration);
+    const binding = imports
+      .flatMap((statement) => {
+        const named = statement.importClause?.namedBindings;
+        return named && ts.isNamedImports(named) ? named.elements : [];
+      })
+      .find((element) => element.name.text === name);
+    assert.ok(binding, `${consumer}: missing import ${name}`);
+    const symbol = checker.getSymbolAtLocation(binding.name);
+    assert.ok(symbol, `${consumer}: unbound ${name}`);
+    const target = checker.getAliasedSymbol(symbol);
+    assert.ok(
+      target.declarations?.some(
+        (declaration) => resolve(declaration.getSourceFile().fileName) === resolve(repoRoot, owner),
+      ),
+      `${consumer}: ${name} must resolve to its existing owner`,
+    );
+  }
+});
+
+test("Native tar extracts a cached archive outside the extraction cwd", async () => {
+  const sandbox = await createProjectTestSandbox("native-tar-extract");
+  const sourceRoot = join(sandbox.root, "source files");
+  const archivePath = join(sandbox.root, "cache files", "npm.tgz");
+  const extractDir = join(sandbox.root, "extracted files");
+  await writeFixture(join(sourceRoot, "package", "bin", "npm-cli.js"), "// synthetic npm");
+  await mkdir(dirname(archivePath), { recursive: true });
+  await mkdir(extractDir);
+  const tar =
+    process.platform === "win32" ? join(process.env.SystemRoot, "System32", "tar.exe") : "tar";
+  const { runCommand } = await import("../spawn-command.mjs");
+  runCommand(tar, ["-czf", archivePath, "-C", sourceRoot, "package"], {
+    cwd: sandbox.root,
+    env: sandbox.env,
+  });
+  const { extractPrebuiltArchive } = await import("../prebuilt-binary-extract.mjs");
+  let runs = 0;
+  extractPrebuiltArchive({
+    archivePath,
+    archiveExt: "tgz",
+    extractDir,
+    cwd: extractDir,
+    run(command, args, options) {
+      runs++;
+      assert.equal(command, tar);
+      return runCommand(command, args, { ...options, env: sandbox.env });
+    },
+  });
+  assert.equal(runs, 1);
+  assert.equal(
+    await readFile(join(extractDir, "package", "bin", "npm-cli.js"), "utf8"),
+    "// synthetic npm",
+  );
+});
+
 test("CUA dev staging skips legacy producers without Sharp", async () => {
   const sandbox = await createProjectTestSandbox("cua-legacy-staging");
   const desktopPackageRoot = join(sandbox.root, "packages", "desktop");

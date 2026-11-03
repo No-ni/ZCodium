@@ -146,3 +146,23 @@
 未执行/未验收：`pnpm install`、`pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、架构与审计门（由主代理统一跑）；
 真实打包（Windows/macOS 安装包）、macOS codesign/公证、CUA 原生输入的真机有效性、Windows arm64 交叉产物在目标机的加载。
 本域守卫是静态契约检查，不代表安装包已在真机通过验收。
+
+## Windows 解压与 Renderer 公开入口接线
+
+第四轮 GitHub 打包确认 npm 缓存归档与解压 cwd 不同，Windows PATH 中的 GNU tar 把绝对路径的盘符冒号解释为远端主机。Windows 的 tar 解压固定调用 `SystemRoot/System32/tar.exe`，缺少 SystemRoot 时明确失败；其他构建主机沿用 tar。保留完整性校验、暂存和清理顺序，归档与解压目录无需同层，不引入新的下载源或 Linux 资产。
+
+Renderer 的本地观测初始化沿用 `local-ttft/contract.ts` 的现有公开函数，替换失效的旧 bootstrap 导入；不改变采样、localOnly 或平台能力开关。Source settings 的 MessagePort bridge 从 `@zcode/ui` 根入口获得现有注册函数，唯一注册表仍为 `sourceSettingsServiceStore`，旧 attachment 关闭不得释放新注册。不复制状态、不跨包导入实现。
+
+```mermaid
+sequenceDiagram
+    participant Renderer
+    participant Public as UI 公开入口
+    participant Store as 既有 Source 服务注册表
+    Renderer->>Public: 验证 MessagePort 后注册 Source / attachment
+    Public->>Store: 同一个 registerSourceSettingsServices
+    Store-->>Renderer: 当前 entry 的释放函数
+    Renderer->>Store: attachment close
+    Store->>Store: 仅当前 entry 可删除并释放
+```
+
+回归先验证真实 Renderer 导入能绑定既有函数，再验证项目内合成归档跨 cwd 的真实原生 tar 解压与命令选择。测试不启动应用、不联网、不执行本机桌面准备或打包；完整发行与安装结果继续以 GitHub 产物及后续 Windows 验证为准。

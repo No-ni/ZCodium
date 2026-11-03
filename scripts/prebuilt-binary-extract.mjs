@@ -9,37 +9,26 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { runCommand } from "./spawn-command.mjs";
 
-// Bugfix: Windows GNU tar（Git Bash）会把绝对路径里的盘符冒号（C:）当成远程主机名，
-// 反斜杠路径也会被 MSYS 参数转换破坏。tar 参数统一转正斜杠，归档路径优先改用
-// 相对 cwd 的形式避开盘符冒号；对 bsdtar 与 Linux/macOS CI 无影响。
+// Windows 原生 bsdtar 接受带盘符的正斜杠绝对路径；不依赖归档与解压 cwd 的层级。
 function toTarPosixPath(pathValue) {
   return pathValue.replaceAll("\\", "/");
 }
 
-function resolveTarArchiveArg(archivePath, cwd) {
-  if (process.platform === "win32") {
-    try {
-      const relativeArchivePath = relative(cwd, archivePath);
-      if (relativeArchivePath && !relativeArchivePath.startsWith("..")) {
-        return toTarPosixPath(relativeArchivePath);
-      }
-    } catch {
-      // 跨盘符时 relative 会抛错，退回正斜杠绝对路径（bsdtar 可用）。
-    }
-  }
-
-  return toTarPosixPath(archivePath);
-}
-
-export function extractPrebuiltArchive({ archivePath, archiveExt, extractDir, cwd }) {
+export function extractPrebuiltArchive({
+  archivePath,
+  archiveExt,
+  extractDir,
+  cwd,
+  run = runCommand,
+}) {
   mkdirSync(extractDir, { recursive: true });
   if (archiveExt === "zip") {
     if (process.platform === "win32") {
-      runCommand("powershell.exe", [
+      run("powershell.exe", [
         "-NoProfile",
         "-NonInteractive",
         "-ExecutionPolicy",
@@ -50,16 +39,22 @@ export function extractPrebuiltArchive({ archivePath, archiveExt, extractDir, cw
       return;
     }
 
-    runCommand("unzip", ["-q", archivePath, "-d", extractDir], { cwd });
+    run("unzip", ["-q", archivePath, "-d", extractDir], { cwd });
     return;
   }
 
   const tarCwd = cwd ?? process.cwd();
-  runCommand(
-    "tar",
-    ["-xzf", resolveTarArchiveArg(archivePath, tarCwd), "-C", toTarPosixPath(extractDir)],
-    { cwd: tarCwd },
-  );
+  let tarCommand = "tar";
+  if (process.platform === "win32") {
+    // Bug 原因：GitHub Windows 的 PATH 会选中 GNU tar，把 npm 缓存绝对盘符当作远端主机。
+    // 固定系统原生 tar，保留真实跨 cwd/盘符解压能力，不靠目录布局绕过失败。
+    if (!process.env.SystemRoot)
+      throw new Error("Windows SystemRoot is required for archive extraction");
+    tarCommand = join(process.env.SystemRoot, "System32", "tar.exe");
+  }
+  run(tarCommand, ["-xzf", toTarPosixPath(archivePath), "-C", toTarPosixPath(extractDir)], {
+    cwd: tarCwd,
+  });
 }
 
 export function findPrebuiltBinary(rootDir, binaryName) {

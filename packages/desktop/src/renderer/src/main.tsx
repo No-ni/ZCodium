@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { DatabaseStartupAdmission } from "./databaseStartupAdmission.js";
-import { initializeDesktopLocalTtft } from "./localTtftBootstrap.js";
+// Bug 原因：旧 bootstrap 已退役；通过现有受控公开入口装配同一本地观测实例。
+import { initializeDesktopLocalTtft } from "./local-ttft/contract.js";
 import { createRoot } from "react-dom/client";
 import { useEffect } from "react";
 import { installDocumentHiddenMotionPause } from "@zcode/ui/document-hidden-motion-pause";
