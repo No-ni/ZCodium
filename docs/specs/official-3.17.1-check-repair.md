@@ -178,3 +178,7 @@ Store 拆分只移动静态契约：调用方 → 原 Store → 原服务 → �
 - 修复后重新执行根 typecheck、Lint、changed 架构、格式及定向回归，再提交推送并手动派发 desktop.yml。只有正确 SHA 的 Windows x64 产物通过校验后才安装，实际安装结果后续记录。
 
 追加修复本地实测：根 typecheck、Lint、changed 架构与 fmt:check 均 exit 0，Lint 仍为 157 warnings / 0 errors，固定继承清单仍为 1610 项。格式定向回归 11 passed；完整架构工程测试 63 passed / 1 Windows skip；审计与发行契约 25 passed（不与重叠回归累加）。Bootstrap 首次单独编译因本地旧依赖声明失败，日志保留；审查输出路径并按依赖顺序重新编译库后，真实 Bootstrap NodeNext/rootDir 声明编译 exit 0，未改运行时业务代码。首轮失败构建见 [Actions 41599710143](https://github.com/No-ni/ZCodium/actions/runs/41599710143)；修复后的 GitHub CI 与本机安装此时尚未验证。
+
+第二轮 Actions 的 Format 与格式继承回归均通过，运行时准备继续暴露 `prepare-agent-node-bundle.mjs` 缺少异步 fs API 导入，所有打包目标因此停止。修复同脚本的导入与原生暂存接线：使用当前 `.zcodium-plugin` 标记，并通过现有 adapters 安装根解析 Koffi。保持插件构建 → 文件核验 → 暂存 → 本架构依赖复制的原顺序，保留缺件失败和旧 CUA 后端，不恢复官方 helper producer，也不在本机运行完整 desktop prepare/pack。Agent/Vitest corpus 的其他 CI 失败另行区分，不把这次准备脚本修复写成全量业务验收。
+
+准备脚本追加修复实测：项目隔离的构建分发、真实异步资产复制/缺件失败和 Windows x64/arm64 Koffi 裁剪三项回归通过；合成原生文件不执行。根 typecheck、Lint、changed 架构、fmt:check 与审计/发行契约再次通过，Lint 仍为 157 warnings / 0 errors；脚本在显式 Node 环境配置的 no-undef 检查中为 0 warnings / 0 errors。未在本机执行完整 Office 分发 corpus 或桌面打包。

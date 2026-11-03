@@ -19,6 +19,8 @@ import {
 
 // 修复原因：清理旧插件 dist 时使用 rmSync，漏导入会在构建前抛出 ReferenceError。
 import { existsSync, rmSync } from "node:fs";
+// 修复原因：运行时/seed 核验与复制使用异步 fs API，漏导入会在干净 CI 的 prepare 阶段失败。
+import { access, cp, mkdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -293,7 +295,7 @@ function stageSharpForNodeReplPlugin() {
     [CUA_PLUGIN_PACKAGE_NAME, resolve(glmDir, "packages", "zcode-cua-plugin")],
   ];
   for (const [packageName, pluginStagedDir] of pluginStagedDirs) {
-    if (!existsSync(resolve(pluginStagedDir, ".zcode-plugin", "plugin.json"))) {
+    if (!existsSync(resolve(pluginStagedDir, ".zcodium-plugin", "plugin.json"))) {
       console.log(`[prepare:agent-bundle] ${packageName} not staged, skip sharp staging`);
       continue;
     }
@@ -308,19 +310,24 @@ function stageSharpForNodeReplPlugin() {
   }
 }
 
-function stageKoffiForCuaPlugin() {
-  const cuaPluginStagedDir = resolve(glmDir, "packages", "zcode-cua-plugin");
-  if (!existsSync(resolve(cuaPluginStagedDir, ".zcode-plugin", "plugin.json"))) {
+export function stageKoffiForCuaPlugin({
+  root = repoRoot,
+  targetGlmDir = glmDir,
+  targetPlatform = { os: platform, arch },
+} = {}) {
+  const cuaPluginStagedDir = resolve(targetGlmDir, "packages", "zcode-cua-plugin");
+  // 修复依据：本仓暂存的是 .zcodium-plugin；旧标记会跳过原生依赖，且来源必须沿 adapters 安装根解析。
+  if (!existsSync(resolve(cuaPluginStagedDir, ".zcodium-plugin", "plugin.json"))) {
     console.log("[prepare:agent-bundle] zcode-cua-plugin not staged, skip koffi staging");
     return;
   }
   stageKoffiIntoBundledAgents({
-    koffiPackageRoot: adaptersRoot,
+    koffiPackageRoot: resolve(root, "apps/zcode-cli/packages/adapters"),
     glmDir: cuaPluginStagedDir,
-    targetPlatform: { os: platform, arch },
+    targetPlatform,
   });
   console.log(
-    `[prepare:agent-bundle] staged koffi into ${resolve(cuaPluginStagedDir, "node_modules")} (${platform}-${arch})`,
+    `[prepare:agent-bundle] staged koffi into ${resolve(cuaPluginStagedDir, "node_modules")} (${targetPlatform.os}-${targetPlatform.arch})`,
   );
 }
 

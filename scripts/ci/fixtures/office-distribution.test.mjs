@@ -146,6 +146,61 @@ test("normal and bootstrap prepare dispatch always build Office once without loc
   }
 });
 
+test("Koffi staging recognizes the ZCodium plugin manifest and keeps only the selected Windows architecture", async () => {
+  const { desktop } = await prepareHooks();
+  const root = await temporary("koffi-stage");
+  const source = join(root, "apps/zcode-cli/packages/adapters/node_modules/koffi");
+  await write(
+    join(source, "package.json"),
+    JSON.stringify({ name: "koffi", version: "0.0.0-fixture" }),
+  );
+  await write(join(source, "index.js"), "module.exports = {};\n");
+  await write(join(source, "index.d.ts"), "export {};\n");
+  for (const arch of ["x64", "arm64"])
+    await write(join(source, "build/koffi", `win32_${arch}`, "koffi.node"), `synthetic-${arch}`);
+  const targetGlmDir = join(root, "staged");
+  const plugin = join(targetGlmDir, "packages/zcode-cua-plugin");
+  await write(join(plugin, ".zcodium-plugin/plugin.json"), JSON.stringify({ name: "zcode-cua" }));
+  for (const arch of ["x64", "arm64"]) {
+    desktop.stageKoffiForCuaPlugin({ root, targetGlmDir, targetPlatform: { os: "win32", arch } });
+    const native = join(plugin, "node_modules/koffi/build/koffi", `win32_${arch}`, "koffi.node");
+    assert.equal(await readFile(native, "utf8"), `synthetic-${arch}`);
+    const otherArch = arch === "x64" ? "arm64" : "x64";
+    await assert.rejects(
+      access(join(plugin, "node_modules/koffi/build/koffi", `win32_${otherArch}`)),
+      { code: "ENOENT" },
+    );
+  }
+});
+
+test("Desktop runtime staging copies current assets and rejects missing source files despite an old target", async () => {
+  const { desktop } = await prepareHooks();
+  const root = await temporary("runtime-stage");
+  const plugins = officeAssets();
+  const targetGlmDir = join(root, "staged");
+  for (const plugin of plugins) {
+    const source = join(root, plugin.relativePath);
+    await write(
+      join(source, ".zcodium-plugin/plugin.json"),
+      JSON.stringify({ name: plugin.directory }),
+    );
+    for (const path of new Set([...plugin.requiredRuntimePaths, ...plugin.requiredSeedPaths]))
+      await write(join(source, path), `synthetic current asset: ${path}`);
+    await write(join(targetGlmDir, plugin.stagedPath, "dist/stale.js"), "old target");
+  }
+  await desktop.stageOfficialPlugins(targetGlmDir, { root, plugins });
+  for (const plugin of plugins)
+    assert.deepEqual(
+      await fileHashes(join(targetGlmDir, plugin.stagedPath, "dist")),
+      await fileHashes(join(root, plugin.relativePath, "dist")),
+    );
+  await rm(join(root, plugins[0].relativePath, "dist/server.mjs"));
+  await assert.rejects(
+    desktop.stageOfficialPlugins(targetGlmDir, { root, plugins }),
+    /missing official plugin runtime/,
+  );
+});
+
 test("ordinary Desktop dev declares all four Office runtimes and uses the shared build", async () => {
   const path = join(repository, "scripts/build-desktop-agent-cli.mjs");
   assert.match(await readFile(path, "utf8"), /if \(entryHref === import\.meta\.url\)/);

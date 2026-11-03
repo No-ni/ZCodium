@@ -73,6 +73,8 @@
   该 env 只作为 staging 输入，不进产品运行环境。
 - `prepare-agent-node-bundle.mjs` 的入口段吸收上游新增的 `stageBundledNpmRuntime` / `stageKoffiForCuaPlugin` /
   `stageSharpForNodeReplPlugin`，与 MCP 的 Node/npm fallback 保持同一份随包 runtime。
+- 运行时文件核验、复制和清理使用显式导入的异步 fs API；缺少 runtime/seed 文件仍必须失败，不能用旧目标文件掩盖。原生依赖的已暂存插件存在性检查使用本仓实际 `.zcodium-plugin/plugin.json`；旧 `.zcode-plugin` 路径不得使 Koffi/Sharp 暂存静默跳过。
+- `stageKoffiForCuaPlugin` 复用现有 Koffi 暂存器，来源是当前 adapters 依赖安装目录，目标只带本次 Windows/mac 架构的二进制。它可接受 `root`、`targetGlmDir` 和 `targetPlatform` 的构建范围参数，默认仍为当前仓库/当前目标；隔离回归用项目内合成文件验证复制与架构裁剪，不执行原生库或本机桌面打包。
 - 官方 helper 的应用名/可执行名由 `@zcode/zcode-cua/broker/helperConstants` 提供；`scripts/cua-driver-runtime-assets.mjs`
   与 `scripts/ci/cua-driver-*.mjs` 仍是 `@trycua/cua-driver` 旧链路的资产与冒烟实现，等 CUA 域切换依赖后一起退役。
 

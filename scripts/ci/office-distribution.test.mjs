@@ -7,5 +7,5 @@ const { runSourceTests } = await import("./source-test-runner.mjs");
 
 test("office-distribution regressions execute inside a project-owned child", async () => {
   const { tests } = await runSourceTests(["scripts/ci/fixtures/office-distribution.test.mjs"]);
-  assert.equal(tests, 6);
+  assert.equal(tests, 8);
 });
