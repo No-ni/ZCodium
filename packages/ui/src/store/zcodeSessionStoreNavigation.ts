@@ -90,9 +90,18 @@ export function createNavigationSlice(set: SetFn, get: GetFn) {
       return result.entry;
     },
 
-    removeTaskFromNavHistory: (taskId: string) => {
+    removeTaskFromNavHistory: (
+      taskId: string,
+      workspacePath?: string,
+      workspaceIdentity?: string,
+    ) => {
       set((state) => ({
-        taskNavHistory: removeTaskFromHistory(state.taskNavHistory, taskId),
+        taskNavHistory: removeTaskFromHistory(
+          state.taskNavHistory,
+          taskId,
+          workspacePath,
+          workspaceIdentity,
+        ),
       }));
     },
   };

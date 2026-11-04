@@ -67,7 +67,7 @@ export function DesktopTopOverlay({
   canGoBack: _canGoBack,
   canGoForward: _canGoForward,
   showNewTaskButton,
-  appLogoUrl,
+  appLogoUrl: _appLogoUrl,
   platform,
   onToggleSidebar,
   onCreateTask,
@@ -127,62 +127,9 @@ export function DesktopTopOverlay({
               (isMacFullscreen ? (!isSidebarVisible ? "pl-5 pt-1" : "pl-3 pt-1") : "pt-1"),
           )}
         >
-          {usesCustomCaptionArea && (
-            <DesktopTopOverlayActionButton
-              title={toggleSidebarTitle}
-              shortcut={toggleSidebarShortcutLabel}
-              ariaLabel={toggleSidebarTitle}
-              buttonClassName="group relative overflow-hidden rounded-lg"
-              onClick={onToggleSidebar}
-            >
-              <img
-                src={appLogoUrl}
-                alt="ZCodium"
-                className="size-5 transition-opacity duration-150 group-hover:opacity-0"
-                draggable={false}
-              />
-              <SidebarToggleIcon className="absolute inset-0 m-auto size-4 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
-            </DesktopTopOverlayActionButton>
-          )}
-
-          {isMacDesktop && (
-            <DesktopTopOverlayActionButton
-              title={toggleSidebarTitle}
-              shortcut={toggleSidebarShortcutLabel}
-              ariaLabel={toggleSidebarTitle}
-              onClick={onToggleSidebar}
-            >
-              <SidebarToggleIcon className="size-4" />
-            </DesktopTopOverlayActionButton>
-          )}
-
-          {/* 远程控制移动端左上角空间有限，任务前进/后退在这里会与主操作拥挤重叠。*/}
-          {hideTaskNavigationButtons ? null : (
-            <>
-              <DesktopTopOverlayActionButton
-                title={taskBackTitle}
-                shortcut={goBackShortcutLabel}
-                ariaLabel={taskBackTitle}
-                testId="desktop-top-nav-back"
-                disabled={!canTaskNavBack}
-                onClick={onGoBack}
-              >
-                <ArrowLeftIcon className="size-4" />
-              </DesktopTopOverlayActionButton>
-              <DesktopTopOverlayActionButton
-                title={taskForwardTitle}
-                shortcut={goForwardShortcutLabel}
-                ariaLabel={taskForwardTitle}
-                disabled={!canTaskNavForward}
-                onClick={onGoForward}
-              >
-                <ArrowRightIcon className="size-4" />
-              </DesktopTopOverlayActionButton>
-            </>
-          )}
-
           <div
             className={cn(
+              // 旧工具组与此 no-drag 工具组同时渲染会出现两套侧栏与导航按钮；这里只保留一个入口。
               // 顶部浮层按钮虽然单个按钮打了 no-drag，但外层容器本身仍悬在窗口标题区上方。
               // Electron 在这类覆盖层上会优先按父级命中拖拽区域，导致点击被窗口拖动吞掉。
               // 这里把整块交互容器一起标成 no-drag，确保展开/收起和新建 task 都能稳定点击。
@@ -247,6 +194,8 @@ export function DesktopTopOverlay({
 
             <div
               aria-hidden={!isNewTaskButtonVisible}
+              // 宽度/透明度只会隐藏视觉；inert 同时阻止 Tab/Enter 触发不可见的新建入口。
+              inert={!isNewTaskButtonVisible}
               className={cn(
                 "inline-flex overflow-hidden transition-[opacity,width] duration-300 ease-out",
                 isNewTaskButtonVisible ? "w-7 opacity-100" : "pointer-events-none w-0 opacity-0",

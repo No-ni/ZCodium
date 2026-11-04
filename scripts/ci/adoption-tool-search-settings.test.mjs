@@ -16,7 +16,12 @@ async function updateCallback({ persisted, snapshot = persisted, failUpdate, syn
       get: async () => persisted,
     },
     platform: { syncAppSettings: (patch) => calls.push(["platform", patch]) },
-    refresh: async () => calls.push(["refresh"]),
+    cacheKey: "fixture-settings",
+    refreshSharedSettings: async (key, _get, requireNewRead) => {
+      assert.equal(key, "fixture-settings");
+      assert.equal(requireNewRead, true);
+      calls.push(["refresh"]);
+    },
     settingsStore: { snapshot: { settings: snapshot } },
     zcodeAgentService: {
       syncAppRuntimePreferences: async (value) => {

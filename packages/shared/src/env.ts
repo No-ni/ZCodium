@@ -46,6 +46,14 @@ export const ZCODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
 export const ZCODIUM_UPDATE_ORIGIN =
   typeof __ZCODIUM_UPDATE_ORIGIN__ !== "undefined" ? __ZCODIUM_UPDATE_ORIGIN__.trim() : "";
 
+/** 菜单能力跟随正式身份和自有更新源，避免无更新器时仍显示不可执行的入口。 */
+export function shouldEnableDesktopAutoUpdates(
+  flavor: ZCodeProductFlavor = ZCODE_PRODUCT_FLAVOR,
+  updateOrigin: string = ZCODIUM_UPDATE_ORIGIN,
+): boolean {
+  return flavor === "production" && Boolean(updateOrigin.trim());
+}
+
 export const ZCODE_APP_VERSION_ENV = "ZCODE_APP_VERSION" as const;
 export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
 

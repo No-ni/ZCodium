@@ -23,6 +23,7 @@ ZCode 任务在后台运行时，如果进入需要用户介入的阻塞态，�
 
 - live stream 收到 `permission_request` 或 `elicitation_request` 时，renderer 通过 `IPlatformService.showTaskNotification` 发送本地化通知。
 - 通知点击只负责激活任务所在 workspace/task，不直接打开或提交弹窗。
+- 列表缓存缺席时，导航用匹配 workspace key 的 tab 取得真实路径与身份，或复用统一远端 identity 解析器；不把 identity key 当作目录。已有 task metadata 优先，本地路径 fallback 保留；点击不直接清除 Host 未读。
 - 通知 dedupe 使用 `taskId + status + requestId`，同一请求不会重复弹；permission 和 elicitation 使用不同 `status`，便于排查和未来统计。
 - `web-remote-replayable` snapshot 恢复出的 `pendingElicitations` 只恢复 UI 状态，不主动补发系统通知，避免断线恢复时把旧阻塞请求重复通知。
 - 桌面 `desktop-continuous` 主链路继续只消费 live event，不引入 replayable 恢复语义。

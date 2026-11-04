@@ -1,7 +1,8 @@
 import { useSourceServerDisplayNames } from "@/hooks/useSourceServerDisplayNames.js";
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { countProjectTreeUnreadTasks } from "@/project-sidebar/view.js";
+import { selectProjectRows } from "@/project-sidebar/view.js";
+import type { WindowUnreadSnapshot } from "@zcode/shared";
 import { useProjectTree } from "@/project-sidebar/useProjectTree.js";
 import { useProjectSidebarPreferences } from "@/project-sidebar/useProjectSidebarPreferences.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
@@ -113,13 +114,30 @@ function DirectoryOwner({ children, isDesktop }: { children: ReactNode; isDeskto
   // 任务通知开关同时门控任务栏/托盘角标：关掉通知 = 连常驻提醒一起关闭
   // （同步 0 清空角标），侧栏蓝点作为应用内状态不受影响。
   const notificationEnabled = useZCodeStoreWithDefault((state) => state.notificationEnabled, true);
-  const unreadTaskCount = useMemo(
-    () => countProjectTreeUnreadTasks(directory.tree),
+  // Root 旧缓存曾覆盖这里的清零结果；窗口角标仅由这个常驻 owner 发送。
+  // 保留完整身份供 Main 跨窗口去重，同样数量但成员变化时也必须同步。
+  const serializedUnreadKeys = useMemo(
+    () =>
+      JSON.stringify(
+        selectProjectRows(directory.tree, { kind: "unread" })
+          .map((task) =>
+            JSON.stringify([
+              task.hostId,
+              task.workspaceIdentity?.trim() || task.workspacePath,
+              task.taskId,
+            ]),
+          )
+          .sort(),
+      ),
     [directory.tree],
   );
+  const unreadSnapshot = useMemo<WindowUnreadSnapshot>(() => {
+    const taskKeys: string[] = notificationEnabled ? JSON.parse(serializedUnreadKeys) : [];
+    return { schemaVersion: 1, count: taskKeys.length, taskKeys };
+  }, [notificationEnabled, serializedUnreadKeys]);
   useEffect(() => {
-    platform?.syncWindowUnreadCount(notificationEnabled ? unreadTaskCount : 0);
-  }, [platform, notificationEnabled, unreadTaskCount]);
+    if (isDesktop) platform?.syncWindowUnreadCount(unreadSnapshot);
+  }, [isDesktop, platform, unreadSnapshot]);
   return (
     <Context.Provider value={directory}>
       <ActionsContext.Provider value={actions}>

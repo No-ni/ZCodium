@@ -86,9 +86,10 @@ export function useWorkspaceTaskNavigation({
         // 模型供应商切换触发 runtime 重建时，当前 provider-workspace 的 task handle 会被短暂回收。
         // 若此时切到其他 task，会并发触发 resumeTask 与重建流程，容易把切换失败误判成任务恢复失败。
         // 这里在 task 切换入口统一拦截，等重建完成后再允许切换，避免 UI 进入 notReady/error 的假失败态。
-        logger.info(
-          `[App] 模型运行时重建中，忽略 task 切换 workspace=${targetWorkspacePath} taskId=${taskId} stage=${targetWorkspaceState.modelSwitchStage}`,
-        );
+        // 原因：导航诊断不能记录用户目录或任务 ID，只保留安全的重建阶段。
+        logger.info("[App] 模型运行时重建中，忽略 task 切换", {
+          stage: targetWorkspaceState.modelSwitchStage,
+        });
         toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
         return;
       }
@@ -181,9 +182,7 @@ export function useWorkspaceTaskNavigation({
           // 远程 workspace 断开时不能按相同 workspacePath 回退到
           // 其他 remote session 或本地 base services，否则会把另一个工作区的未读状态清掉。
           rollbackTaskQueryCacheUnread(targetTask, previousUnreadAt);
-          logger.warn(
-            `[App] 选择 task 时跳过未读持久化，远程 workspace 未连接 workspace=${targetWorkspacePath} taskId=${taskId}`,
-          );
+          logger.warn("[App] 选择 task 时跳过未读持久化，远程 workspace 未连接");
         } else {
           void targetServices.zcodeTaskService
             .setTaskUnread({
@@ -195,14 +194,12 @@ export function useWorkspaceTaskNavigation({
               reconcileTaskQueryCacheUnread(targetTask, meta.unreadAt);
               bumpTaskListMembershipVersion();
             })
-            .catch((error: unknown) => {
+            .catch(() => {
               rollbackTaskQueryCacheUnread(targetTask, previousUnreadAt);
               markTaskQueryCacheScopesStale([targetTask]);
               bumpTaskListMembershipVersion();
-              logger.warn(
-                `[App] 选择 task 时清除未读状态失败 workspace=${targetWorkspacePath} taskId=${taskId}:`,
-                error instanceof Error ? error.message : String(error),
-              );
+              // 原始服务错误可能携带路径和凭据，回滚诊断只记录静态事件。
+              logger.warn("[App] 选择 task 时清除未读状态失败");
             });
         }
       }
@@ -247,19 +244,17 @@ export function useWorkspaceTaskNavigation({
   const handleTaskNavBack = useCallback(() => {
     const currentWorkspaceState = useZCodeSessionStore
       .getState()
-      .getWorkspaceState(workspaceAbsPath);
+      // 门禁属于当前完整 workspace 身份，不能读同路径的本机桶。
+      .getWorkspaceState(workspaceAbsPath, workspaceIdentity);
     if (
       shouldBlockTaskSelectionDuringModelRestart(
         currentWorkspaceState.modelSwitchPending,
         currentWorkspaceState.modelSwitchStage,
       )
     ) {
-      logger.info(
-        "[App] 模型运行时重建中，忽略任务后退导航 workspace=" +
-          workspaceAbsPath +
-          " stage=" +
-          currentWorkspaceState.modelSwitchStage,
-      );
+      logger.info("[App] 模型运行时重建中，忽略任务后退导航", {
+        stage: currentWorkspaceState.modelSwitchStage,
+      });
       toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
       return;
     }
@@ -314,9 +309,19 @@ export function useWorkspaceTaskNavigation({
         return;
       }
 
-      // 目标 task 已被删除，从历史中清理并继续尝试
-      removeTaskFromNavHistory(currentEntry.taskId);
-      entry = taskNavGoBack();
+      // 原因：批量清理会同时删除更早的重复记录，沿用旧下标再后退会选回当前任务。
+      // 先沿原方向越过同一失效目标，保留下一条对象身份，再一次清理全部重复记录。
+      do {
+        entry = taskNavGoBack();
+      } while (
+        entry?.kind === "task" &&
+        buildTaskEntityKey(entry) === buildTaskEntityKey(currentEntry)
+      );
+      removeTaskFromNavHistory(
+        currentEntry.taskId,
+        currentEntry.workspacePath,
+        currentEntry.workspaceIdentity,
+      );
     }
 
     toast(intl.formatMessage({ id: "taskNav.noMoreBack" }));
@@ -329,24 +334,23 @@ export function useWorkspaceTaskNavigation({
     removeTaskFromNavHistory,
     taskNavGoBack,
     workspaceAbsPath,
+    workspaceIdentity,
   ]);
 
   const handleTaskNavForward = useCallback(() => {
     const currentWorkspaceState = useZCodeSessionStore
       .getState()
-      .getWorkspaceState(workspaceAbsPath);
+      // 前进和后退必须读取同一身份的重启状态。
+      .getWorkspaceState(workspaceAbsPath, workspaceIdentity);
     if (
       shouldBlockTaskSelectionDuringModelRestart(
         currentWorkspaceState.modelSwitchPending,
         currentWorkspaceState.modelSwitchStage,
       )
     ) {
-      logger.info(
-        "[App] 模型运行时重建中，忽略任务前进导航 workspace=" +
-          workspaceAbsPath +
-          " stage=" +
-          currentWorkspaceState.modelSwitchStage,
-      );
+      logger.info("[App] 模型运行时重建中，忽略任务前进导航", {
+        stage: currentWorkspaceState.modelSwitchStage,
+      });
       toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
       return;
     }
@@ -400,8 +404,19 @@ export function useWorkspaceTaskNavigation({
         return;
       }
 
-      removeTaskFromNavHistory(currentEntry.taskId);
-      entry = taskNavGoForward();
+      // 原因：只前进一步可能仍拿到同一任务的重复记录，批量删除后该记录已不在栈内。
+      // 清理前沿原方向越过同一失效目标，保证保留的后继不会因数组收缩被跳过。
+      do {
+        entry = taskNavGoForward();
+      } while (
+        entry?.kind === "task" &&
+        buildTaskEntityKey(entry) === buildTaskEntityKey(currentEntry)
+      );
+      removeTaskFromNavHistory(
+        currentEntry.taskId,
+        currentEntry.workspacePath,
+        currentEntry.workspaceIdentity,
+      );
     }
 
     toast(intl.formatMessage({ id: "taskNav.noMoreForward" }));
@@ -414,15 +429,19 @@ export function useWorkspaceTaskNavigation({
     removeTaskFromNavHistory,
     taskNavGoForward,
     workspaceAbsPath,
+    workspaceIdentity,
   ]);
 
   const canGoBack = navCanGoBack(taskNavHistory);
   const canGoForward = navCanGoForward(taskNavHistory);
-  const currentWorkspaceState = useZCodeSessionStore.getState().getWorkspaceState(workspaceAbsPath);
-  const isTaskSwitchLockedByModelRestart = shouldBlockTaskSelectionDuringModelRestart(
-    currentWorkspaceState.modelSwitchPending,
-    currentWorkspaceState.modelSwitchStage,
-  );
+  // getState 不订阅锁变化，按钮会等历史栈变更才更新；只订阅当前身份的门禁布尔值。
+  const isTaskSwitchLockedByModelRestart = useZCodeSessionStore((state) => {
+    const current = state.getWorkspaceState(workspaceAbsPath, workspaceIdentity);
+    return shouldBlockTaskSelectionDuringModelRestart(
+      current.modelSwitchPending,
+      current.modelSwitchStage,
+    );
+  });
   const canTaskNavBack = canGoBack && !isTaskSwitchLockedByModelRestart;
   const canTaskNavForward = canGoForward && !isTaskSwitchLockedByModelRestart;
 

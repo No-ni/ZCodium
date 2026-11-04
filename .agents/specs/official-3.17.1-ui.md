@@ -61,7 +61,7 @@
 2. 上游迁移落点确认并删除旧路径 12 个（`ChatEmptyState`、`WorkspaceGroupedTasksSection`、
    `WorkspacePinnedTasksSection`、`WorkspaceSidebarItem`、`WorkspaceSidebarCollapsedRail`、`useWorkspaceTaskLists`、
    `buildGroupedTaskViewFromSessions`、`taskFileTreeTarget`、`OnboardingWelcomeView`、`RemotePluginSyncDialog`、
-   `workspace-grouped-tasks/task-context-menu-content` 等）；`lib/unreadTaskCount.ts` 仍被存活文件引用，保持本仓版本。
+   `workspace-grouped-tasks/task-context-menu-content` 等）。2026-11-03 清理角标双写：旧 `lib/unreadTaskCount.ts` 与 hook 在引用核对后删除，窗口角标统一从常驻 ProjectDirectoryProvider 的共同未读集合发送。
 3. 本仓先行回填的模块取上游较新版本后逐块复核：`plugin-ui/`、`gen-ui/`、`side-pane-full-view/`、
    `components/workflow-timeline/`、`components/workflow-graph/`、`app-shell/`、`v4/WorkflowNotificationHoleRow`、
    `v4/conversationRowSharing`、`lib/documentHiddenMotionPause`、`lib/zcodeTaskUsageFallback`、

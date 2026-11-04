@@ -62,10 +62,17 @@ function setSettingsSnapshot(cacheKey: string, snapshot: SettingsSnapshot): void
   }
 }
 
-async function refreshSharedSettings(cacheKey: string, getSettings: () => Promise<AppSettings>) {
+async function refreshSharedSettings(
+  cacheKey: string,
+  getSettings: () => Promise<AppSettings>,
+  requireNewRead = false,
+): Promise<void> {
   const inflight = inflightRefreshes.get(cacheKey);
   if (inflight) {
-    return inflight;
+    if (!requireNewRead) return inflight;
+    // 在途请求可能已捕获保存/通知前的旧值；等它结束后再合并一次新读取，不能拿旧值确认保存。
+    await inflight;
+    return refreshSharedSettings(cacheKey, getSettings);
   }
 
   setSettingsSnapshot(cacheKey, {
@@ -104,7 +111,7 @@ export async function updateSettingsAndRefreshSnapshot(params: {
 }): Promise<void> {
   const cacheKey = resolveSettingsCacheKey(undefined, params.settingService);
   await params.settingService.update(params.patch);
-  await refreshSharedSettings(cacheKey, () => params.settingService.get());
+  await refreshSharedSettings(cacheKey, () => params.settingService.get(), true);
 }
 
 interface PlatformSettingsSubscription {
@@ -137,7 +144,8 @@ function acquirePlatformSettingsSubscription(
       owned.dispose =
         platform.onSettingsChanged?.(() => {
           for (const key of owned.cacheKeys.keys())
-            void refreshSharedSettings(key, () => settingService.get());
+            // 变更通知不能被已启动的旧读取吞掉，否则其它窗口仍会显示变更前配置。
+            void refreshSharedSettings(key, () => settingService.get(), true);
         }) ?? (() => undefined);
     } catch (error) {
       subscriptions.delete(platform);
@@ -206,16 +214,17 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
         else await settingService.update(patch);
       } catch (error) {
         // 原因：CAS 失败后页面仍持有旧快照；重读事实后报告失败，下一次用户重试才有新预期。
-        if (expectedAccountSettings) await refresh();
+        if (expectedAccountSettings)
+          await refreshSharedSettings(cacheKey, () => settingService.get(), true);
         throw error;
       }
       platform.syncAppSettings?.(patch);
-      await refresh();
+      await refreshSharedSettings(cacheKey, () => settingService.get(), true);
       if (
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
         patch.toolSearchMode !== undefined
       ) {
-        // 单飞 refresh 可能仍返回保存前快照；运行时同步必须重新读取设置 owner，不能重置另一项偏好。
+        // 运行时同步也读取 owner 的最新事实，不能拿界面快照重置另一项已提交的偏好。
         const committedSettings = await settingService.get();
         const preferences = {
           askUserQuestionAutoResolutionEnabled:
@@ -238,7 +247,7 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
         }
       }
     },
-    [botsService, broadcastService, cacheKey, settingService, zcodeAgentService, platform, refresh],
+    [botsService, broadcastService, cacheKey, settingService, zcodeAgentService, platform],
   );
 
   return {

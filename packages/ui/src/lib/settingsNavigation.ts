@@ -41,6 +41,9 @@ const SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY = "zcode-settings-model-provider-id-
 const SETTINGS_SECTION_INTENT_EVENT = "zcode:settings-section-intent",
   SETTINGS_LAST_SECTION_STORAGE_KEY = "zcode-settings-last-section";
 const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
+  // SourceServerSettingsSection 已是唯一设备管理页；旧远程设备页与独立同步页未装配。
+  "remoteDevices",
+  "dataSync",
   // 产品语义：定时任务是 workspace 主视图，不能再作为设置页分区出现。
   // 注意：hooks 已是正式设置页分区，不在此列。
   "automations",
@@ -103,6 +106,8 @@ export function resolveSettingsSection(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   if (section === "plugins") return "plugin";
+  if (section === "remoteDevices") return "sourceServers";
+  if (section === "dataSync") return "general";
   return isSettingsSectionEnabled(section) ? section : fallbackSection;
 }
 

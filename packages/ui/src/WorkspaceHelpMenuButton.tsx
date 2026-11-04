@@ -1,5 +1,4 @@
 import {
-  DesktopCommandIds,
   TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER,
   TID_WORKSPACE_HELP_MENU_TRIGGER,
 } from "@zcode/shared";
@@ -49,16 +48,6 @@ export function WorkspaceHelpMenuButton({
     platform,
     intl,
   });
-  const handleOpenCommunity = () => {
-    void platform.openCommunity();
-  };
-  const handleOpenResourceManager = () => {
-    void platform.executeDesktopCommand(DesktopCommandIds.OpenResourceManager);
-  };
-
-  const handleShowAbout = () => {
-    void platform.executeDesktopCommand(DesktopCommandIds.ShowAbout);
-  };
 
   return (
     <DropdownMenu>
@@ -89,7 +78,7 @@ export function WorkspaceHelpMenuButton({
           <BookOpenIcon className="size-4" />
           {intl.formatMessage({ id: "workspaceHeader.help.docs" })}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleOpenCommunity}>
+        <DropdownMenuItem onSelect={helpMenuActions.openCommunity}>
           <UsersIcon className="size-4" />
           {intl.formatMessage({ id: "workspaceHeader.help.community" })}
         </DropdownMenuItem>
@@ -112,7 +101,7 @@ export function WorkspaceHelpMenuButton({
             </DropdownMenuItem>
             <DropdownMenuItem
               data-testid={TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER}
-              onSelect={handleOpenResourceManager}
+              onSelect={helpMenuActions.openResourceManager}
             >
               <ActivityIcon className="size-4" />
               {intl.formatMessage({ id: "titleBar.menu.help.resourceManager" })}
@@ -120,7 +109,7 @@ export function WorkspaceHelpMenuButton({
             {updateMenu.visible ? (
               <DropdownMenuItem
                 disabled={updateMenu.disabled}
-                onSelect={updateMenu.checkForUpdates}
+                onSelect={helpMenuActions.checkForUpdates}
               >
                 <RefreshCwIcon className="size-4" />
                 {updateMenu.labelId === "desktopMenu.help.restartToUpdate" ? (
@@ -140,7 +129,7 @@ export function WorkspaceHelpMenuButton({
                 )}
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem onSelect={handleShowAbout}>
+            <DropdownMenuItem onSelect={helpMenuActions.showAbout}>
               <InfoIcon className="size-4" />
               {intl.formatMessage({ id: "titleBar.menu.help.about" })}
             </DropdownMenuItem>

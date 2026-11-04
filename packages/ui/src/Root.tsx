@@ -29,7 +29,6 @@ import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/root/LazySettingsPage.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
 
-import { useWindowUnreadSnapshot } from "@/hooks/useWindowUnreadSnapshot.js";
 import {
   shouldBlockRootRender,
   shouldShowRootStartupLoading,
@@ -319,8 +318,6 @@ function RootInner({
     return activeTab.workspacePath;
   });
   const workspacePersistenceGate = useRef({ canPersist: false, restoreFailed: false }).current;
-  const unreadSnapshot = useWindowUnreadSnapshot();
-  const totalUnreadTaskCount = unreadSnapshot.count;
   const addTab = useTabStore((state) => state.addTab);
   const activateTabByPath = useTabStore((state) => state.activateTabByPath);
   const tabStoreApi = useTabStoreApi();
@@ -549,6 +546,14 @@ function RootInner({
     addTab,
   });
 
+  // 原生事件订阅依赖这个适配器；保持引用稳定，避免普通渲染重新注册全部监听。
+  const handleOpenWorkspacePath = useCallback(
+    (path: string) => {
+      void handleSelectProject(path);
+    },
+    [handleSelectProject],
+  );
+
   useRootPlatformEffects({
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
@@ -566,9 +571,7 @@ function RootInner({
     startDraftInWorkspace,
     startNewTaskFromActiveWorkspace,
     openWorkspace: handleOpenWorkspace,
-    openWorkspacePath: (path) => {
-      void handleSelectProject(path);
-    },
+    openWorkspacePath: handleOpenWorkspacePath,
     setWorkspaceActionError,
     allowOpenWorkspace,
     isDesktop,
@@ -578,8 +581,6 @@ function RootInner({
     activeWorkspaceIdentity,
     reconnectingRemoteWorkspaceKeys,
     remoteWorkspaceErrorByWorkspaceKey,
-    totalUnreadTaskCount,
-    unreadSnapshot,
     hasCompletedFullTabRestore: hasCompletedFullRestore,
     intl,
   });

@@ -22,7 +22,14 @@ async function boundedClose(promise) {
   }
 }
 
-export async function startProjectBrowserFixture({ label, entry, tailwind = true }) {
+export async function startProjectBrowserFixture({
+  label,
+  entry,
+  tailwind = true,
+  optimizeDepsInclude = [],
+  productFlavor,
+  updateOrigin,
+}) {
   if (environmentLeased) throw new Error("PROJECT_BROWSER_FIXTURE_ACTIVE");
   environmentLeased = true;
   const previous = { ...process.env };
@@ -72,6 +79,12 @@ export async function startProjectBrowserFixture({ label, entry, tailwind = true
     }
     server = await createServer({
       configFile: false,
+      define: {
+        ...(productFlavor ? { __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(productFlavor) } : {}),
+        ...(updateOrigin !== undefined
+          ? { __ZCODIUM_UPDATE_ORIGIN__: JSON.stringify(updateOrigin) }
+          : {}),
+      },
       root: projectRoot,
       cacheDir: join(sandbox.cache, "vite"),
       optimizeDeps: {
@@ -119,6 +132,7 @@ export async function startProjectBrowserFixture({ label, entry, tailwind = true
           "zod",
           "zustand",
           "zustand/react/shallow",
+          ...optimizeDepsInclude,
         ],
       },
       plugins,

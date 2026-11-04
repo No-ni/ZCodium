@@ -130,7 +130,8 @@ describe("model provider restart runtime", () => {
     await seedTurboAgentStartupModel("provider-a", "model-a");
 
     expect(
-      JSON.parse(await readFile(join(homeDir, ".zcode", "v2", "provider_config.json"), "utf-8")),
+      // 正式播种写到 .zcodium，重启夹具必须检查同一数据根。
+      JSON.parse(await readFile(join(homeDir, ".zcodium", "v2", "provider_config.json"), "utf-8")),
     ).toEqual({
       schemaVersion: 1,
       config: {

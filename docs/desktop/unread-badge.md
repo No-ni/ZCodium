@@ -8,13 +8,14 @@ Desktop 把 ZCode task 的未读数显示到应用 Dock / launcher badge，口�
 
 1. task 的持久未读权威是 tasks-index meta `unreadAt`。V4 `sessions-index` 不携带这个组织态字段，列表通过
    `taskListMembershipSets` 平行读取后 join 到 session summary。
-2. UI 的 `countAllUnreadTasks` 从各 workspace 可见 task meta 统计未读，并用
-   `workspaceIdentity?.trim() || workspacePath + taskId` 去重；只有列表尚未加载时才兼容旧临时 map。
-3. `useRootPlatformEffects` 调用 `IPlatformService.syncWindowUnreadCount(count)`，只同步当前窗口总数，
-   不让 UI 直接感知 Electron。
+2. 常驻 `ProjectDirectoryProvider` 从 Host ProjectTree 的共同未读集合构造 `WindowUnreadSnapshot`，
+   task key 按 Host、`workspaceIdentity?.trim() || workspacePath`、taskId 去重。不读取旧缓存或临时 map。
+3. 该 Provider 是窗口唯一 `IPlatformService.syncWindowUnreadCount(snapshot)` 发送者，Root 不再发送
+   旧投影。通知关闭发送空快照；相同数量但成员变化也同步。Web 不发送本机角标。
 4. Desktop preload / renderer bridge 通过 `PlatformChannels.SyncWindowUnreadCount` 发给 main。
-5. Main 维护 `windowId -> unreadCount` map，窗口更新或关闭时重算应用总数，再调用
-   `app.setBadgeCount(totalUnread)`；Windows 当前由平台实现决定是否展示，不在 UI 分支写特例。
+5. Main 维护 `windowId -> unread projection` map，按 task key 跨窗口去重；窗口关闭清理其投影。
+   macOS 使用 `app.setBadgeCount(totalUnread)`，Windows 使用 overlay 和托盘红点，清零恢复原图。
+   本 fork 只发行 Windows/macOS 桌面包。
 
 ## 约束
 
@@ -28,9 +29,12 @@ Desktop 把 ZCode task 的未读数显示到应用 Dock / launcher badge，口�
 
 ## 当前代码入口
 
-- `packages/ui/src/lib/unreadTaskCount.ts`
+- `packages/ui/src/project-sidebar/ProjectDirectoryProvider.tsx`
+- `packages/ui/src/project-sidebar/view.ts`
 - `packages/ui/src/lib/taskListMembershipSets.ts`
-- `packages/ui/src/root/useRootPlatformEffects.ts`
+- `packages/shared/src/windowUnread.ts`
 - `packages/desktop/src/main/desktopMainIpcPlatform.ts`
 - `packages/desktop/src/main/desktopWindowLifecycle.ts`
 - `packages/desktop/src/main/unreadBadge.ts`
+
+2026-11-03 的回归证据与验证限制见 [桌面界面回归修复](../specs/windows-ui-regressions.md)。

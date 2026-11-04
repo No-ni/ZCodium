@@ -286,6 +286,10 @@ export function focusWorkspaceInExistingWindow(
       if (existingWin.isMinimized()) {
         existingWin.restore();
       }
+      // 原因：关闭到托盘只隐藏窗口，focus 不保证显示；复用项目前先恢复可见性。
+      if (!existingWin.isVisible()) {
+        existingWin.show();
+      }
       existingWin.focus();
       existingWin.webContents.send(PlatformChannels.FocusTab, path);
       return { activated: true, winId };

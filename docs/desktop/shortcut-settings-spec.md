@@ -111,6 +111,7 @@ key       := [a-z] | [0-9] | "[" | "]" | "=" | "-" | "," | "." | "/" | "\\"
 
 ## 5. 设置模型与持久化
 
+- 快捷键是控制窗口的全局偏好：独立设置页及共享 `useEffectiveShortcutBindings` 都使用窗口 base Host 设置服务，工作区提示、全局分发和输入框命令从同一快照读取。当前远端 workspace 的服务 context 不改变改键的读取、缓存或保存目标；Web base Host 仍是其配对桌面。远端任务配置继续遵守原作用域合同。
 - `AppSettings.shortcutBindings?: Record<string, string[]>`——**只存用户覆盖**；未覆盖的命令不落盘，读取时与命令表默认合并。覆盖语义：整组替换（openCommandCenter 被覆盖时两条默认绑定同时失效，换成用户录的那组）。
 - schema 三处同步：`protocol.ts` 的 `AppSettings` interface、`validationAppSettings.ts` 的 `appSettingsObjectSchema`（`z.record(z.string(), z.array(z.string())).optional()`）与 `appSettingsPatchSchema`（同形 optional）。zod 默认剥除未知字段，漏改 patch schema 会导致更新静默丢失。
 - schema 只校验形状；语义校验（命令 ID 是否存在、binding 是否合法）在生效表 resolve 阶段做容错：未知命令 ID 或非法 binding 条目忽略并打 warn 日志，其余条目正常生效——保证手改 setting.json 写入非法条目不会让快捷键整体失效。
@@ -357,10 +358,15 @@ preventDefault，工具条监听 defaultPrevented 守卫放弃，菜单静默死
 
 评审口径收敛（SG-03 / SG-09）：
 
-- **恢复默认（清除覆盖）与录制同设防**：clearBinding 前用该命令的默认首键做冲突预检
+- **恢复默认（清除覆盖）与录制同设防**：clearBinding 前用该命令的全部默认键做冲突预检
   （物理等价归一后含 Ctrl+m ≡ CmdOrCtrl+m 等变体），命中占用时 toast 提示占用者且
   **不落盘**——按产品口径只提示、不自动清除占用方（自动清需要连锁恢复逻辑，属增生
   设计）；录制态 Backspace 路径复用同一 clearBinding，天然同设防。
+  多默认命令（命令中心的 CmdOrCtrl+K / CmdOrCtrl+Shift+P）只要任一默认键已被同作用域
+  命令占用，整组恢复都不落盘；不能只检首键后删除整组覆盖。预检沿用 shortcuts 内核的
+  平台物理等价与作用域规则，不自动抢回键位；释放占用后可重新恢复全部默认键。
+  录制 hook 的保存与提示在 keydown 事件处理器执行，React 状态 updater 不承载副作用；
+  严格模式下也不重复保存或在渲染期间挂载 toast。
 - **「清除」与「恢复默认」分工（评审后口径）**：垃圾桶「清除」= 覆盖写显式空数组 =
   未分配（原键彻底失效）；录制态 `Backspace` = 恢复默认 = 删除覆盖条目（单命令回默认
   的唯一入口，全局另有「全部恢复默认」）。清除只减少绑定、不产出新键，不破坏「一键一

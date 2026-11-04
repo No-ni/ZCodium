@@ -1,4 +1,4 @@
-import { DesktopCommandIds, type UpdateStatePayload } from "@zcode/shared";
+import type { UpdateStatePayload } from "@zcode/shared";
 import { useEffect, useState } from "react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import {
@@ -26,7 +26,7 @@ export function useDesktopUpdateMenu(isDesktop: boolean) {
       (payload) => {
         if (active && !eventReceived) setState(payload);
       },
-      (error) => logger.warn("[HelpMenu] 同步自动更新状态失败", { error }),
+      () => logger.warn("[HelpMenu] 同步自动更新状态失败"),
     );
     return () => {
       active = false;
@@ -39,8 +39,5 @@ export function useDesktopUpdateMenu(isDesktop: boolean) {
     disabled: state?.enabled === false,
     labelId: getUpdateMenuLabelId(state),
     labelValues: getUpdateMenuLabelValues(state),
-    checkForUpdates: () => {
-      void platform.executeDesktopCommand(DesktopCommandIds.CheckForUpdates);
-    },
   };
 }

@@ -375,3 +375,53 @@ CLI 独立 Lint 实际为 **79 errors / 55 warnings，exit 1**。本轮两个 CL
 ### 3.17.1 检查收口（2026-11-03）
 
 本轮修复根门禁与检查契约，详见 [检查收口与 CLI 拆分清单](official-3.17.1-check-repair.md)。两个 Store 只拆静态类型，七个验收夹具按精确路径采用测试行数规则；生产源码仍为 400 行。格式继承例外绑定 1610 个固定模式/blob，暂存区与工作区同时匹配才排除，编辑即退出；没有全仓重排或豁免本仓适配。根 typecheck、Lint、changed 架构和架构工程测试通过，格式新入口通过；Lint 仍 157 warnings，CLI 仍 89 errors / 80 warnings。工程测试为 61 passed / 1 Windows skip，审计等 29 项有重叠，不汇总冒充全量验收。未提交、推送、构建、安装；真实设备、冻结安装与全量 corpus 保持未验收。
+
+### Windows 界面回归修复（2026-11-03）
+
+基于当前 main 修复重复顶部工具条、设置导航与内容分支遗漏，以及 Root 旧缓存与 ProjectDirectory 权威树双写系统角标。恢复已有个性化/项目/归档页面；个性化使用本机服务。旧远程设备菜单隐藏并映射到唯一 Source 设置页，未装配的独立同步菜单隐藏，保留已有显式同步能力。角标仅由常驻 ProjectDirectory 按共同未读集合、完整 Host/workspace/task 身份发送；关闭通知发送空快照，Web 不发送本机角标。删除确认无调用的旧未读 hook/helper，不恢复退休远程页或官方云模块。
+
+验证与产品边界见 [桌面界面回归修复](windows-ui-regressions.md)。真实组件浏览器 WINUI01–05 外层 1/1、Main helper 与审计守卫 15/15 通过；固定 Node 24.14.0 根 typecheck、fmt:check 和差异空白检查通过，根 Lint 0 errors / 157 warnings，changed 架构零违规。测试、浏览器 profile/cache/temp 和证据全部位于项目内隔离目录。完整 Electron/原生 Windows Shell、实体手机、真远端和安装版尚未验收；本轮未提交、推送、打包、安装或触发 Actions。
+
+### Windows 界面第二轮扫描（2026-11-03）
+
+修复当前远端 context 污染本机常规设置、快捷键与底部标签的读写目标；前进跳过失效历史时保留有效后继，导航及删除/归档清理仅影响完整 workspace 身份；模型重启门禁按当前身份读取并订阅按钮状态；折叠的新建按钮设为 inert，消除不可见的键盘入口。继续复用 base Host、现有导航 store 和门禁合同，不改 Host 组织事实、远控传输或退休功能边界。
+
+生产 callback、历史 helper 与相邻回归 48/48，扩展真实组件浏览器 WINUI01–09 外层 1/1 通过。旧逻辑已实际检出常规回调错写远端、历史跳项/错身份锁、隐藏焦点与快捷键错写；详细红绿记录和项目内证据见 [桌面界面回归修复](windows-ui-regressions.md)。固定 Node 24.14.0 根 typecheck 通过，根 Lint 0 errors / 157 既有 warnings，changed 架构零违规；不宣称全项目无缺陷或 legacy 模块已完成治理。完整 Electron/原生 Windows Shell、实体手机、真实远端及安装版仍未验收；未提交、推送、打包、安装或触发 Actions。
+
+### Windows 界面第三轮扫描（2026-11-03）
+
+修复共享快捷键消费方仍随远端 workspace context 读取配置的问题，统一从 base Host 设置快照读取，覆盖全局按键、输入框命令与标签。设置保存成功、CAS 冲突和平台变更通知必须等待旧在途读取结束，再启动/合并新的读取，避免用保存前快照确认新提交；普通刷新保持单飞，服务隔离及原持久化 owner 不变。另修复快捷键绑定行进入录制状态时丢失 React 列表 key 的警告。
+
+定向及相邻回归 64/64、真实组件浏览器 WINUI01–11 外层 1/1 通过，既有工具条/设置/通知/导航场景均重跑，录制 key 警告归零。固定 Node 24.14.0 根 typecheck 和浏览器夹具 noEmit 通过，根 Lint 0 errors / 157 既有 warnings，changed 架构零违规，根 fmt:check 和差异空白检查通过；红绿细节与项目内证据见 [桌面界面回归修复](windows-ui-regressions.md)。不宣称全项目无缺陷；完整 Electron/原生 Windows Shell、实体手机、真实远端及安装版仍未验收。未提交、推送、打包、安装或触发 Actions。
+
+### Windows 界面第四轮扫描（2026-11-03）
+
+常规设置不再单独读取已提交设置覆盖共享快照，普通字段统一使用 base Host 的共享保存/刷新入口，并完整投影跨窗口设置变更；数据目录迁移保留专用命令。修复无列表缓存时原生任务通知把 workspace identity 当作真实目录的问题，复用 tab 与 shared 身份解析工具，保留 metadata 优先及本地 fallback。原生事件订阅响应当前语言、门禁和动作，Root 打开目录适配回调保持稳定；相关技术日志不携带目录、任务 ID 或原始错误。不改 Host/CLI 业务事实、未读 CAS、远控交付或原生通知协议。
+
+定向及相邻回归 77/77、真实组件浏览器 WINUI01–14 外层 1/1 通过，覆盖模拟跨窗口设置通知、迟到读取、通知导航和语言/门禁/回调变化；前几轮场景全部重跑。根 typecheck、Lint、changed 架构及夹具独立 noEmit 最终通过，Lint 0 errors / 157 既有 warnings，架构零违规，根 fmt:check 与差异空白检查通过；中间的新增未使用导入警告和夹具重复字段错误已修正。红绿与项目内证据见 [桌面界面回归修复](windows-ui-regressions.md)。组件浏览器原生事件由平台契约注入，不代表完整 Electron/Windows Shell、安装版、真实 SSH/WSL 或实体手机验收。未提交、推送、打包、安装或触发 Actions。
+
+### Windows 界面第五轮扫描（2026-11-03）
+
+修复正式版未配置自有更新源时仍显示检查更新的问题，帮助菜单、原生应用菜单、Windows 托盘及常规设置的更新偏好统一读取 shared 的正式身份 + 自有源可用性。隐藏无效入口，不清除保存的偏好，不配置或请求官方源。帮助菜单的文档、反馈、社区、资源管理器、关于和更新动作统一通过现有动作工厂观察平台拒绝，显示当前语言提示并净化日志，避免无反馈的未处理 Promise 拒绝。更新事实和设置写入 owner 不变。
+
+定向及相邻回归最终 89/89、组件浏览器 3/3 通过，覆盖空源/有源的 Windows/macOS/Web 入口和设置偏好、中英文失败重试，以及此前 WINUI01–14。根 typecheck、Lint、changed 架构、fmt:check 和夹具独立 noEmit 均通过；Lint 0 errors / 157 既有 warnings，架构零违规。新增夹具的行数错误已通过拆分修复，没有放宽门禁；红绿证据与验证范围见 [桌面界面回归修复](windows-ui-regressions.md)。原生菜单和托盘使用生产模板/契约替身，未验收完整 Electron/Windows Shell、安装版、真实远端或实体手机。未提交、推送、打包、安装或触发 Actions。
+
+### Windows 界面第六轮扫描（2026-11-04）
+
+快捷键恢复默认逐个预检全部默认键，阻止命令中心第二默认键已被抢绑时重新引入冲突；不自动抢回键位，释放占用后可恢复双默认。录制恢复/保存与 toast 从 React updater 移到原 keydown，严格模式无渲染副作用、一次成功动作只保存一次；原物理等价、作用域与 IME 录制规则保持。Main 激活已登记项目时先恢复最小化、显示隐藏窗口，再聚焦与发送原 FocusTab，解决另一个窗口打开已关闭到托盘项目却看不到原窗口的问题。复用原窗口、Host、映射及设置 owner；相关保存失败日志不携带原始错误。
+
+定向及相邻回归 98/98、组件浏览器 4/4 通过，覆盖严格模式录制/抢绑/恢复、Windows 中英文、macOS 键位、窄屏 Web 与此前 WINUI01–16。根 typecheck、Lint、changed 架构、fmt:check 与浏览器夹具 noEmit 均通过；Lint 0 errors / 157 既有 warnings，架构零违规。红绿证据和边界见 [桌面界面回归修复](windows-ui-regressions.md)。Windows 隐藏窗口验证使用生产函数与原生契约替身，完整 Electron/Windows Shell、安装版、真远端与实体手机仍未验收；浏览器证据 pending-review。本轮未提交、推送、打包、安装或触发 Actions。
+
+### Windows 界面第七轮扫描（2026-11-04）
+
+修复历史批量删除重复失效任务导致前进漏选、后退选回当前任务的问题：清理前沿原方向越过同一完整身份的重复记录，保留有效目标和游标。清理继续复用现有 scoped helper；同 ID 跨 workspace、自动化及插件市场记录保持。导航门禁、远端断线和未读失败日志只保留静态事件及安全 stage，不记录目录、taskId 或原始错误，未读 CAS/回滚顺序不变。
+
+生产 callback 红测 12/20、修复后 20/20；定向及相邻回归 109/109、真实组件浏览器 WINUI01–14/20 外层 1/1 通过。最终前进场景以生产入栈 API 构造同一身份的路径别名，不依赖会被去重的相同相邻记录。根 typecheck、Lint、changed 架构、Desktop E2E 类型、浏览器夹具 noEmit、fmt:check 和差异空白检查均通过；Lint 0 errors / 157 既有 warnings，架构零违规。首次夹具游标类型错误及嵌套 pnpm 工具链错误已修正并重跑。证据、合成数据边界与未验证范围见 [桌面界面回归修复](windows-ui-regressions.md)。浏览器覆盖 Windows/macOS/Web 导航行为，完整 Electron/Windows Shell、真 Host/远端、安装版和实体手机未验收；证据 pending-review，未提交、推送、打包、安装或触发 Actions。
+
+### 界面修复提交前检查（2026-11-04）
+
+用户授权检查后提交、推送 origin 并手动启动 desktop.yml。提交前发现受影响工程测试 6 项失败：Provider/默认草稿夹具仍用旧 `.zcode` 数据根，SSH 目录夹具把当前公开 snapshot 的 directory.profiles 放在顶层。只修正四份工程夹具并保留原断言，重跑选中的 31 个规格为 150 passed / 1 skipped。另将 CI 的浏览器准备提前到 Release corpus 前，并显式注入现有项目内执行文件路径；Release 改为逐文件子进程隔离、串行执行，保留完整文件发现与失败传播，避免环境租约和累计堆跨文件污染。
+
+固定 Node 24.14.0 根 typecheck、Desktop E2E 类型与浏览器夹具 noEmit 通过；Lint 为 0 errors / 157 既有 warnings，changed 架构零违规。定向/相邻回归 109 passed、schema 22 passed、架构工程测试 63 passed / 1 Windows skip。按新 Release 隔离入口实跑发行契约、浏览器 owner 和四项 WINUI 浏览器检查，27 passed；这些数字有重叠，不汇总为全量验收。最终组件截图复核包括 Windows 项目页和窄屏快捷键页；不代表完整 Electron/原生 Shell、安装版、真实远端或实体手机验收。
+
+新证据位于 `.run-logs/project-only-validation/`：`release-push-affected-run-Bnng1y/`、`release-push-ci-windows-NIfGu8/`、`winui-seventh-regression-6iHgkF/`、`release-push-schema-YnDZkG/`、`release-push-architecture-tests-b4RUuF/`。上一轮 [Actions 41612629147](https://github.com/No-ni/ZCodium/actions/runs/41612629147) 四个平台打包成功，但完整 Checks 有 Agent/Vitest 失败及 Release 堆内存耗尽；本次没有在本机执行全量 corpus，CI 其它既有失败仍须以新运行结果复核，不宣称完整 CI 已通过。版本保持官方基线 3.17.1，不在本机打包或保存下载产物。

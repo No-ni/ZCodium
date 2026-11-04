@@ -886,7 +886,13 @@ export function createTaskSlice(set: SetFn) {
 
         return {
           ...workspaceUpdate,
-          taskNavHistory: removeTaskFromHistory(state.taskNavHistory, taskId),
+          // 删除/归档一个工作区的任务，不能连带移除其它身份下同 ID 的历史。
+          taskNavHistory: removeTaskFromHistory(
+            state.taskNavHistory,
+            taskId,
+            workspacePath,
+            workspaceIdentity,
+          ),
         };
       });
     },

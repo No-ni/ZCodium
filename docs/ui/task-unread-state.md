@@ -89,5 +89,10 @@ SBV07：桌面验证菜单、更新时间顺序、分页、重载偏好、已读
 - 任务列表蓝点：task query row 的 joined `membership.unreadAt`
 - 系统角标与按未读列表：共享 Host `ProjectTree` 未读选择器；角标使用 `countProjectTreeUnreadTasks()`
 
+窗口系统角标由常驻 `ProjectDirectoryProvider` 唯一发送，使用共同未读集合的完整
+`Host + canonical workspace identity + taskId` 快照，Main 跨窗口去重。Root 不再发送旧会话缓存投影。
+任务通知关闭时发送空快照，重新开启时读取当前树；Web 不发送桌面系统角标。
+回归场景与实际验证边界见 [桌面界面回归修复](../specs/windows-ui-regressions.md)。
+
 两个入口最终都只消费 tasks-index `unreadAt`；迁移期间可以复用聚合 helper，但不得回退旧
 `taskUnreadByTaskId` 作为业务事实。

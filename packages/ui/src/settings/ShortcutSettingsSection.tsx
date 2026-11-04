@@ -89,8 +89,9 @@ export function ShortcutSettingsSection({ isDesktop = false }: { isDesktop?: boo
       setRecording(null);
       try {
         await update({ shortcutBindings: next });
-      } catch (error) {
-        logger.error("[shortcuts] 保存快捷键绑定失败", { error: String(error) });
+      } catch {
+        // 原始服务错误可能携带配置或路径，保存失败只记录安全的静态事件。
+        logger.error("[shortcuts] 保存快捷键绑定失败");
         setSaveFailed(true);
       } finally {
         savingRef.current = false;
@@ -153,8 +154,8 @@ export function ShortcutSettingsSection({ isDesktop = false }: { isDesktop?: boo
       if (overrides?.[commandId] === undefined) {
         return;
       }
-      const defaultBinding = getDefaultShortcutBindings(commandId)[0];
-      if (defaultBinding) {
+      // 原因：删除覆盖会恢复整组默认键；只预检首键会漏掉已被抢绑的第二键。
+      for (const defaultBinding of getDefaultShortcutBindings(commandId)) {
         const conflict = checkShortcutBindingConflict(commandId, defaultBinding, overrides, {
           menuChannelReserved: !isDesktop,
         });

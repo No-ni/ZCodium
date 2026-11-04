@@ -23,6 +23,8 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/auto
 
 - ZCodium 只从本仓库自己的分发位置获取更新；不向上游 manifest 或 client configs 发起请求。
 - 未配置自有更新源时，**不检查更新**，而不是回退到上游。
+- 帮助菜单、原生应用菜单和 Windows 托盘的更新入口仅在正式产品身份且配置自有更新源时显示；Preview 或空更新源不能显示点击后无可执行功能的入口。可用性由 shared 的同一纯函数判断，UI 不另造更新源配置。
+- 常规设置的接收预览版、自动下载并安装更新选项使用同一可用性判定。隐藏不清除已保存偏好，硬件加速等其它桌面偏好不受影响。
 - 自动更新检查、下载、强制升级门禁三者对「更新源归属」的判定必须同源，不能一处自有一处上游。
 
 ## 所有者与接口
@@ -33,6 +35,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 `packages/desktop/src/main/auto
   `ZCODIUM_UPDATE_ORIGIN`。
 - 读取方：`packages/desktop/src/main/autoUpdater.ts` 的 `applyManifestUpdateProvider` 与
   `forceUpdateGuard.ts`，两者都只读该常量。
+- 菜单和更新偏好的可用性：`packages/shared/src/env.ts` 导出的 `shouldEnableDesktopAutoUpdates` 统一判断正式产品身份与非空自有更新源；通过 shared 公开入口供 Desktop 与 UI 读取，不拥有 updater 运行时状态或设置写入。
 - 空值语义：`ZCODIUM_UPDATE_ORIGIN` 为空串时，`initAutoUpdater` 收到 `enabled: false`
   等价行为，force-update gate 直接放行。
 

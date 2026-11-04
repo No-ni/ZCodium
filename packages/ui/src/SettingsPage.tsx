@@ -12,7 +12,6 @@ import {
   type ReactNode,
 } from "react";
 import type {
-  AppSettings,
   AppToolSearchMode,
   IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
@@ -102,6 +101,17 @@ const ShortcutSettingsSection = lazy(() =>
 const MigrationSection = lazy(() =>
   import("@/settings/MigrationSection.js").then((module) => ({ default: module.MigrationSection })),
 );
+const PersonalizationSection = lazy(() =>
+  import("@/settings/PersonalizationSection.js").then((module) => ({
+    default: module.PersonalizationSection,
+  })),
+);
+const ProjectManagement = lazy(() =>
+  import("@/project-sidebar/index.js").then((module) => ({ default: module.ProjectManagement })),
+);
+const ArchiveManagement = lazy(() =>
+  import("@/project-sidebar/index.js").then((module) => ({ default: module.ArchiveManagement })),
+);
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import {
   SettingsBreadcrumbProvider,
@@ -120,7 +130,7 @@ import { WorkspaceSidebarFooter } from "@/WorkspaceSidebarFooter.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { useSelectDirectory } from "@/hooks/usePlatform.js";
-import { ServiceProvider, useServices } from "@/hooks/useServices.js";
+import { ServiceProvider } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -255,11 +265,15 @@ export function SettingsPage({
   const requestOnboardingDialog = () => setNewUserOnboardingOpen(true);
   const setActiveSettingsSection = useCallback(
     (section: SettingsSectionId, fallbackSection: SettingsSectionId = activeSection) => {
-      const resolvedSection = resolveSettingsSection(section, fallbackSection);
+      // 历史菜单意图也必须经过当前平台的可见列表，避免 Web 跳进仅桌面支持的空白页。
+      const resolvedSection = resolveSettingsSectionForPlatform(
+        resolveSettingsSection(section, fallbackSection),
+        settingsSections,
+      );
       setActiveSection(resolvedSection);
       writeLastSettingsSectionPreference(resolvedSection);
     },
-    [activeSection],
+    [activeSection, settingsSections],
   );
   const handleOpenModelProviderSettings = useCallback(() => {
     setActiveSettingsSection("modelProvider");
@@ -310,10 +324,12 @@ export function SettingsPage({
     activeWorkspaceTab?.remoteTarget,
   );
   const selectDirectory = useSelectDirectory();
-  const services = useServices();
-  const onboardingRecordService = services.onboardingRecordService;
   const localHostServices = useBaseWorkspaceServices();
-  const { settings: sharedSettings, update: updateSharedSettings } = useSettings();
+  // 常规设置属于窗口本机 Host；当前远端 workspace 的 context 会让读写和缓存落到另一台设备。
+  const onboardingRecordService = localHostServices.onboardingRecordService;
+  const { settings: sharedSettings, update: updateSharedSettings } = useSettings({
+    services: localHostServices,
+  });
   const memoryWorkspaceDisplayNames = useMemo(() => {
     const names = new Set<string>();
     // Memory Scope 的项目顺序以 settings.json recentProjects 为准；打开中的
@@ -391,35 +407,6 @@ export function SettingsPage({
   );
 
   useEffect(() => {
-    services.settingService
-      .get()
-      .then((settings: AppSettings) => {
-        setDataBaseDir(settings.dataBaseDir ?? "");
-        setTerminalInheritSystemProfile(settings.terminalInheritSystemProfile ?? true);
-        setTerminalFontFamily(settings.terminalFontFamily ?? "");
-        setIntegratedTerminalShell(settings.integratedTerminalShell ?? { mode: "auto" });
-        setHttpProxy(settings.httpProxy ?? "");
-        setHttpProxyNoProxy(settings.httpProxyNoProxy ?? "");
-        setHttpProxyCaCertPath(settings.httpProxyCaCertPath ?? "");
-        setEmbeddedBrowserAllowInsecureCertificates(
-          settings.embeddedBrowserAllowInsecureCertificates ?? false,
-        );
-        setTaskAutoArchiveEnabled(settings.taskAutoArchiveEnabled ?? false);
-        setTaskAutoArchiveOlderThanDays(settings.taskAutoArchiveOlderThanDays ?? 7);
-        setCloseToTrayOnWindows(settings.closeToTrayOnWindows ?? true);
-        setDesktopChromiumHardwareAccelerationEnabled(
-          settings.desktopChromiumHardwareAccelerationEnabled ?? true,
-        );
-        setReceivePreviewUpdates(settings.receivePreviewUpdates ?? false);
-        setAutoDownloadAndInstallUpdates(settings.autoDownloadAndInstallUpdates ?? false);
-        setMessageStreamShowReasoning(settings.messageStreamShowReasoning ?? true);
-        setMessageStreamShowTodos(settings.messageStreamShowTodos ?? false);
-        setToolGroupingExploreEnabled(settings.toolGroupingExploreEnabled ?? true);
-        setToolGroupingTerminalEnabled(settings.toolGroupingTerminalEnabled ?? true);
-        setToolGroupingChangesEnabled(settings.toolGroupingChangesEnabled ?? false);
-        setZCodeInteractionBehavior(settings.zcodeInteractionBehavior ?? "queue");
-      })
-      .catch(() => {});
     // 这里配置的是本地全局设置。远端 workspace 激活时 useServices()
     // 可能已经被替换为远端 host，不能用远端 shell 枚举结果写入本机设置。
     localHostServices.systemService
@@ -439,12 +426,29 @@ export function SettingsPage({
           });
       })
       .catch(() => {});
-  }, [localHostServices.systemService, services.settingService]);
+  }, [localHostServices.systemService]);
 
   useEffect(() => {
     if (!sharedSettings) {
       return;
     }
+    // 独立初始读取曾在保存后覆盖表单；全部字段从同一个共享快照投影，也能响应其它窗口变更。
+    setDataBaseDir(sharedSettings.dataBaseDir ?? "");
+    setTerminalInheritSystemProfile(sharedSettings.terminalInheritSystemProfile ?? true);
+    setTerminalFontFamily(sharedSettings.terminalFontFamily ?? "");
+    setIntegratedTerminalShell(sharedSettings.integratedTerminalShell ?? { mode: "auto" });
+    setHttpProxy(sharedSettings.httpProxy ?? "");
+    setHttpProxyNoProxy(sharedSettings.httpProxyNoProxy ?? "");
+    setHttpProxyCaCertPath(sharedSettings.httpProxyCaCertPath ?? "");
+    setEmbeddedBrowserAllowInsecureCertificates(
+      sharedSettings.embeddedBrowserAllowInsecureCertificates ?? false,
+    );
+    setTaskAutoArchiveEnabled(sharedSettings.taskAutoArchiveEnabled ?? false);
+    setTaskAutoArchiveOlderThanDays(sharedSettings.taskAutoArchiveOlderThanDays ?? 7);
+    setCloseToTrayOnWindows(sharedSettings.closeToTrayOnWindows ?? true);
+    setDesktopChromiumHardwareAccelerationEnabled(
+      sharedSettings.desktopChromiumHardwareAccelerationEnabled ?? true,
+    );
     setMessageStreamShowReasoning(sharedSettings.messageStreamShowReasoning ?? true);
     setMessageStreamShowTodos(sharedSettings.messageStreamShowTodos ?? false);
     setToolGroupingExploreEnabled(sharedSettings.toolGroupingExploreEnabled ?? true);
@@ -456,25 +460,22 @@ export function SettingsPage({
   }, [sharedSettings]);
   const handleTerminalInheritSystemProfileChange = useCallback(
     async (enabled: boolean) => {
-      await services.settingService.update({ terminalInheritSystemProfile: enabled });
-      setTerminalInheritSystemProfile(enabled);
+      await updateSharedSettings({ terminalInheritSystemProfile: enabled });
     },
-    [services.settingService],
+    [updateSharedSettings],
   );
   const handleTerminalFontFamilyChange = useCallback(
     async (fontFamily: string) => {
       const normalizedFontFamily = fontFamily.trim();
-      await services.settingService.update({ terminalFontFamily: normalizedFontFamily });
-      setTerminalFontFamily(normalizedFontFamily);
+      await updateSharedSettings({ terminalFontFamily: normalizedFontFamily });
     },
-    [services.settingService],
+    [updateSharedSettings],
   );
   const handleIntegratedTerminalShellChange = useCallback(
     async (selection: IntegratedTerminalShellSelection) => {
-      await services.settingService.update({ integratedTerminalShell: selection });
-      setIntegratedTerminalShell(selection);
+      await updateSharedSettings({ integratedTerminalShell: selection });
     },
-    [services.settingService],
+    [updateSharedSettings],
   );
   const handleNativeSearchEnhancementsEnabledChange = useCallback(
     async (enabled: boolean) => {
@@ -518,14 +519,13 @@ export function SettingsPage({
   const handleHttpProxyChange = useCallback(
     async (proxy: string) => {
       const normalizedProxy = proxy.trim();
-      await services.settingService.update({
+      await updateSharedSettings({
         // Bugfix: RPC 会丢弃 undefined；清空代理必须传空串，由服务层删除旧字段。
         httpProxy: normalizedProxy,
       });
-      setHttpProxy(normalizedProxy);
       toast(intl.formatMessage({ id: "settings.httpProxySavedHint" }));
     },
-    [services.settingService, intl],
+    [updateSharedSettings, intl],
   );
   const handleHttpProxyNoProxyChange = useCallback(
     async (noProxy: string) => {
@@ -534,56 +534,50 @@ export function SettingsPage({
         .map((token) => token.trim())
         .filter(Boolean)
         .join(",");
-      await services.settingService.update({
+      await updateSharedSettings({
         // Bugfix: 清空 No Proxy 必须传空串，否则旧绕过规则会继续影响下次启动。
         httpProxyNoProxy: normalizedNoProxy,
       });
-      setHttpProxyNoProxy(normalizedNoProxy);
       toast(intl.formatMessage({ id: "settings.httpProxySavedHint" }));
     },
-    [services.settingService, intl],
+    [updateSharedSettings, intl],
   );
   const handleHttpProxyCaCertPathChange = useCallback(
     async (caCertPath: string) => {
       const normalizedCaCertPath = caCertPath.trim();
-      await services.settingService.update({
+      await updateSharedSettings({
         // Bugfix: 清空自定义 CA 必须传空串，否则旧 NODE_EXTRA_CA_CERTS 路径会残留。
         httpProxyCaCertPath: normalizedCaCertPath,
       });
-      setHttpProxyCaCertPath(normalizedCaCertPath);
       toast(intl.formatMessage({ id: "settings.httpProxySavedHint" }));
     },
-    [services.settingService, intl],
+    [updateSharedSettings, intl],
   );
   const handleDataBaseDirChange = useCallback(
     async (dir: string) => {
-      await services.settingService.updateDataBaseDir(dir || undefined);
+      await localHostServices.settingService.updateDataBaseDir(dir || undefined);
       // Bugfix: 迁移失败时不能先把本地状态改成失败路径，否则设置页会误显示为已切换。
       setDataBaseDir(dir);
     },
-    [services.settingService],
+    [localHostServices.settingService],
   );
   const handleTaskAutoArchiveEnabledChange = useCallback(
     async (enabled: boolean) => {
-      await services.settingService.update({ taskAutoArchiveEnabled: enabled });
-      setTaskAutoArchiveEnabled(enabled);
+      await updateSharedSettings({ taskAutoArchiveEnabled: enabled });
     },
-    [services.settingService],
+    [updateSharedSettings],
   );
   const handleTaskAutoArchiveOlderThanDaysChange = useCallback(
     async (days: number) => {
-      await services.settingService.update({ taskAutoArchiveOlderThanDays: days });
-      setTaskAutoArchiveOlderThanDays(days);
+      await updateSharedSettings({ taskAutoArchiveOlderThanDays: days });
     },
-    [services.settingService],
+    [updateSharedSettings],
   );
   const handleCloseToTrayOnWindowsChange = useCallback(
     async (enabled: boolean) => {
-      await services.settingService.update({ closeToTrayOnWindows: enabled });
-      platform.syncAppSettings?.({ closeToTrayOnWindows: enabled });
-      setCloseToTrayOnWindows(enabled);
+      await updateSharedSettings({ closeToTrayOnWindows: enabled });
     },
-    [services.settingService, platform],
+    [updateSharedSettings],
   );
   // keep-awake：走 useSettings 统一写盘 + syncAppSettings，和 Automations/创建页入口共享同一状态源。
   const handleKeepAwakeWhileRunningChange = useCallback(
@@ -594,20 +588,22 @@ export function SettingsPage({
   );
   const handleDesktopChromiumHardwareAccelerationChange = useCallback(
     async (enabled: boolean) => {
-      await services.settingService.update({ desktopChromiumHardwareAccelerationEnabled: enabled });
-      setDesktopChromiumHardwareAccelerationEnabled(enabled);
+      await updateSharedSettings({
+        desktopChromiumHardwareAccelerationEnabled: enabled,
+      });
       toast(
         intl.formatMessage({
           id: "settings.desktopChromiumHardwareAccelerationSavedHint",
         }),
       );
     },
-    [services.settingService, intl],
+    [updateSharedSettings, intl],
   );
   const handleEmbeddedBrowserAllowInsecureCertificatesChange = useCallback(
     async (enabled: boolean) => {
-      await services.settingService.update({ embeddedBrowserAllowInsecureCertificates: enabled });
-      setEmbeddedBrowserAllowInsecureCertificates(enabled);
+      await updateSharedSettings({
+        embeddedBrowserAllowInsecureCertificates: enabled,
+      });
       // 证书策略在 main 启动时装到 Session 上，改完必须重启才会换掉 verifyProc。
       toast(
         intl.formatMessage({
@@ -615,61 +611,53 @@ export function SettingsPage({
         }),
       );
     },
-    [services.settingService, intl],
+    [updateSharedSettings, intl],
   );
   const handleReceivePreviewUpdatesChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ receivePreviewUpdates: enabled });
-      setReceivePreviewUpdates(enabled);
     },
     [updateSharedSettings],
   );
   const handleAutoDownloadAndInstallUpdatesChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ autoDownloadAndInstallUpdates: enabled });
-      setAutoDownloadAndInstallUpdates(enabled);
     },
     [updateSharedSettings],
   );
   const handleMessageStreamShowReasoningChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ messageStreamShowReasoning: enabled });
-      setMessageStreamShowReasoning(enabled);
     },
     [updateSharedSettings],
   );
   const handleMessageStreamShowTodosChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ messageStreamShowTodos: enabled });
-      setMessageStreamShowTodos(enabled);
     },
     [updateSharedSettings],
   );
   const handleToolGroupingExploreEnabledChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ toolGroupingExploreEnabled: enabled });
-      setToolGroupingExploreEnabled(enabled);
     },
     [updateSharedSettings],
   );
   const handleToolGroupingTerminalEnabledChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ toolGroupingTerminalEnabled: enabled });
-      setToolGroupingTerminalEnabled(enabled);
     },
     [updateSharedSettings],
   );
   const handleToolGroupingChangesEnabledChange = useCallback(
     async (enabled: boolean) => {
       await updateSharedSettings({ toolGroupingChangesEnabled: enabled });
-      setToolGroupingChangesEnabled(enabled);
     },
     [updateSharedSettings],
   );
   const handleZCodeInteractionBehaviorChange = useCallback(
     async (behavior: ZCodeInteractionBehavior) => {
       await updateSharedSettings({ zcodeInteractionBehavior: behavior });
-      setZCodeInteractionBehavior(behavior);
     },
     [updateSharedSettings],
   );
@@ -843,6 +831,7 @@ export function SettingsPage({
                               active={isActive}
                               aria-current={isActive ? "page" : undefined}
                               data-testid={testId(TID_SETTINGS_SECTION_NAV, id)}
+                              data-settings-section-nav={id}
                               onClick={() => {
                                 (() => {
                                   setPluginNavigationOrigin(undefined);
@@ -875,17 +864,20 @@ export function SettingsPage({
               </nav>
 
               <div className="max-lg:hidden">
-                <WorkspaceSidebarFooter
-                  theme={theme}
-                  localeMenuValue={localePreference}
-                  onLocaleChange={handleFooterLocaleChange}
-                  onThemeChange={handleFooterThemeChange}
-                  onSettingsButtonClick={onBack}
-                  onUsageClick={handleOpenUsageSettings}
-                  settingsButtonMode="back"
-                  // 偏好菜单在工作区和设置页共享；透传桌面能力，保留设置页里的界面缩放入口。
-                  isDesktop={isDesktop}
-                />
+                {/* 底部快捷键 hook 读取 context，必须与本机常规设置共用 base Host。 */}
+                <ServiceProvider services={localHostServices}>
+                  <WorkspaceSidebarFooter
+                    theme={theme}
+                    localeMenuValue={localePreference}
+                    onLocaleChange={handleFooterLocaleChange}
+                    onThemeChange={handleFooterThemeChange}
+                    onSettingsButtonClick={onBack}
+                    onUsageClick={handleOpenUsageSettings}
+                    settingsButtonMode="back"
+                    // 偏好菜单在工作区和设置页共享；透传桌面能力，保留设置页里的界面缩放入口。
+                    isDesktop={isDesktop}
+                  />
+                </ServiceProvider>
               </div>
             </div>
           </aside>
@@ -992,98 +984,107 @@ export function SettingsPage({
                         </div>
                         <div className="space-y-8">
                           {activeSection === "general" ? (
-                            <GeneralSectionContent
-                              localePreference={localePreference}
-                              interfaceMode={interfaceMode}
-                              setInterfaceMode={setInterfaceMode}
-                              isDesktop={isDesktop}
-                              isWindowsDesktop={isWindowsDesktop}
-                              platform={platform}
-                              notificationEnabled={notificationEnabled}
-                              notificationSoundEnabled={notificationSoundEnabled}
-                              closeToTrayOnWindows={closeToTrayOnWindows}
-                              keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
-                              desktopChromiumHardwareAccelerationEnabled={
-                                desktopChromiumHardwareAccelerationEnabled
-                              }
-                              receivePreviewUpdates={receivePreviewUpdates}
-                              autoDownloadAndInstallUpdates={autoDownloadAndInstallUpdates}
-                              dataBaseDir={dataBaseDir}
-                              terminalInheritSystemProfile={terminalInheritSystemProfile}
-                              terminalFontFamily={terminalFontFamily}
-                              integratedTerminalShell={integratedTerminalShell}
-                              integratedTerminalShellOptions={integratedTerminalShellOptions}
-                              nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
-                              toolSearchMode={toolSearchMode}
-                              onToolSearchModeChange={handleToolSearchModeChange}
-                              httpProxy={httpProxy}
-                              httpProxyNoProxy={httpProxyNoProxy}
-                              httpProxyCaCertPath={httpProxyCaCertPath}
-                              defaultHomeDir={defaultHomeDir}
-                              showIntegratedTerminalShell={hostPlatform === "win32"}
-                              setLocalePreference={handleFooterLocaleChange}
-                              setNotificationEnabled={(enabled) => setNotificationEnabled(enabled)}
-                              setNotificationSoundEnabled={(enabled) =>
-                                setNotificationSoundEnabled(enabled)
-                              }
-                              taskAutoArchiveEnabled={taskAutoArchiveEnabled}
-                              taskAutoArchiveOlderThanDays={taskAutoArchiveOlderThanDays}
-                              messageStreamShowReasoning={messageStreamShowReasoning}
-                              messageStreamShowTodos={messageStreamShowTodos}
-                              toolGroupingExploreEnabled={toolGroupingExploreEnabled}
-                              toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
-                              toolGroupingChangesEnabled={toolGroupingChangesEnabled}
-                              zcodeInteractionBehavior={zcodeInteractionBehavior}
-                              askUserQuestionAutoResolutionEnabled={
-                                askUserQuestionAutoResolutionEnabled
-                              }
-                              onDataBaseDirChange={handleDataBaseDirChange}
-                              onSelectDataBaseDir={selectDirectory}
-                              onTerminalInheritSystemProfileChange={
-                                handleTerminalInheritSystemProfileChange
-                              }
-                              onTerminalFontFamilyChange={handleTerminalFontFamilyChange}
-                              onIntegratedTerminalShellChange={handleIntegratedTerminalShellChange}
-                              onNativeSearchEnhancementsEnabledChange={
-                                handleNativeSearchEnhancementsEnabledChange
-                              }
-                              onHttpProxyChange={handleHttpProxyChange}
-                              onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
-                              onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
-                              onTaskAutoArchiveEnabledChange={handleTaskAutoArchiveEnabledChange}
-                              onTaskAutoArchiveOlderThanDaysChange={
-                                handleTaskAutoArchiveOlderThanDaysChange
-                              }
-                              onCloseToTrayOnWindowsChange={handleCloseToTrayOnWindowsChange}
-                              onKeepAwakeWhileRunningChange={handleKeepAwakeWhileRunningChange}
-                              onDesktopChromiumHardwareAccelerationChange={
-                                handleDesktopChromiumHardwareAccelerationChange
-                              }
-                              onReceivePreviewUpdatesChange={handleReceivePreviewUpdatesChange}
-                              onAutoDownloadAndInstallUpdatesChange={
-                                handleAutoDownloadAndInstallUpdatesChange
-                              }
-                              onMessageStreamShowReasoningChange={
-                                handleMessageStreamShowReasoningChange
-                              }
-                              onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
-                              onToolGroupingExploreEnabledChange={
-                                handleToolGroupingExploreEnabledChange
-                              }
-                              onToolGroupingTerminalEnabledChange={
-                                handleToolGroupingTerminalEnabledChange
-                              }
-                              onToolGroupingChangesEnabledChange={
-                                handleToolGroupingChangesEnabledChange
-                              }
-                              onZCodeInteractionBehaviorChange={
-                                handleZCodeInteractionBehaviorChange
-                              }
-                              onAskUserQuestionAutoResolutionEnabledChange={
-                                handleAskUserQuestionAutoResolutionEnabledChange
-                              }
-                              onOpenOnboardingDialog={() => requestOnboardingDialog()}
-                            />
+                            // 常规子控件也会调用 useSettings，整组 context 必须与页面的本机 owner 一致。
+                            <ServiceProvider services={localHostServices}>
+                              <GeneralSectionContent
+                                localePreference={localePreference}
+                                interfaceMode={interfaceMode}
+                                setInterfaceMode={setInterfaceMode}
+                                isDesktop={isDesktop}
+                                isWindowsDesktop={isWindowsDesktop}
+                                platform={platform}
+                                notificationEnabled={notificationEnabled}
+                                notificationSoundEnabled={notificationSoundEnabled}
+                                closeToTrayOnWindows={closeToTrayOnWindows}
+                                keepAwakeWhileRunning={
+                                  sharedSettings?.keepAwakeWhileRunning ?? false
+                                }
+                                desktopChromiumHardwareAccelerationEnabled={
+                                  desktopChromiumHardwareAccelerationEnabled
+                                }
+                                receivePreviewUpdates={receivePreviewUpdates}
+                                autoDownloadAndInstallUpdates={autoDownloadAndInstallUpdates}
+                                dataBaseDir={dataBaseDir}
+                                terminalInheritSystemProfile={terminalInheritSystemProfile}
+                                terminalFontFamily={terminalFontFamily}
+                                integratedTerminalShell={integratedTerminalShell}
+                                integratedTerminalShellOptions={integratedTerminalShellOptions}
+                                nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
+                                toolSearchMode={toolSearchMode}
+                                onToolSearchModeChange={handleToolSearchModeChange}
+                                httpProxy={httpProxy}
+                                httpProxyNoProxy={httpProxyNoProxy}
+                                httpProxyCaCertPath={httpProxyCaCertPath}
+                                defaultHomeDir={defaultHomeDir}
+                                showIntegratedTerminalShell={hostPlatform === "win32"}
+                                setLocalePreference={handleFooterLocaleChange}
+                                setNotificationEnabled={(enabled) =>
+                                  setNotificationEnabled(enabled)
+                                }
+                                setNotificationSoundEnabled={(enabled) =>
+                                  setNotificationSoundEnabled(enabled)
+                                }
+                                taskAutoArchiveEnabled={taskAutoArchiveEnabled}
+                                taskAutoArchiveOlderThanDays={taskAutoArchiveOlderThanDays}
+                                messageStreamShowReasoning={messageStreamShowReasoning}
+                                messageStreamShowTodos={messageStreamShowTodos}
+                                toolGroupingExploreEnabled={toolGroupingExploreEnabled}
+                                toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
+                                toolGroupingChangesEnabled={toolGroupingChangesEnabled}
+                                zcodeInteractionBehavior={zcodeInteractionBehavior}
+                                askUserQuestionAutoResolutionEnabled={
+                                  askUserQuestionAutoResolutionEnabled
+                                }
+                                onDataBaseDirChange={handleDataBaseDirChange}
+                                onSelectDataBaseDir={selectDirectory}
+                                onTerminalInheritSystemProfileChange={
+                                  handleTerminalInheritSystemProfileChange
+                                }
+                                onTerminalFontFamilyChange={handleTerminalFontFamilyChange}
+                                onIntegratedTerminalShellChange={
+                                  handleIntegratedTerminalShellChange
+                                }
+                                onNativeSearchEnhancementsEnabledChange={
+                                  handleNativeSearchEnhancementsEnabledChange
+                                }
+                                onHttpProxyChange={handleHttpProxyChange}
+                                onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
+                                onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
+                                onTaskAutoArchiveEnabledChange={handleTaskAutoArchiveEnabledChange}
+                                onTaskAutoArchiveOlderThanDaysChange={
+                                  handleTaskAutoArchiveOlderThanDaysChange
+                                }
+                                onCloseToTrayOnWindowsChange={handleCloseToTrayOnWindowsChange}
+                                onKeepAwakeWhileRunningChange={handleKeepAwakeWhileRunningChange}
+                                onDesktopChromiumHardwareAccelerationChange={
+                                  handleDesktopChromiumHardwareAccelerationChange
+                                }
+                                onReceivePreviewUpdatesChange={handleReceivePreviewUpdatesChange}
+                                onAutoDownloadAndInstallUpdatesChange={
+                                  handleAutoDownloadAndInstallUpdatesChange
+                                }
+                                onMessageStreamShowReasoningChange={
+                                  handleMessageStreamShowReasoningChange
+                                }
+                                onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
+                                onToolGroupingExploreEnabledChange={
+                                  handleToolGroupingExploreEnabledChange
+                                }
+                                onToolGroupingTerminalEnabledChange={
+                                  handleToolGroupingTerminalEnabledChange
+                                }
+                                onToolGroupingChangesEnabledChange={
+                                  handleToolGroupingChangesEnabledChange
+                                }
+                                onZCodeInteractionBehaviorChange={
+                                  handleZCodeInteractionBehaviorChange
+                                }
+                                onAskUserQuestionAutoResolutionEnabledChange={
+                                  handleAskUserQuestionAutoResolutionEnabledChange
+                                }
+                                onOpenOnboardingDialog={() => requestOnboardingDialog()}
+                              />
+                            </ServiceProvider>
                           ) : activeSection === "appearance" ? (
                             <AppearanceSectionContent
                               codePreviewSettings={codePreviewSettings}
@@ -1094,7 +1095,20 @@ export function SettingsPage({
                               setUiFontSizePx={(fontSizePx) => setUiFontSizePx(fontSizePx)}
                             />
                           ) : activeSection === "shortcuts" ? (
-                            <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
+                            // 快捷键与 Main 应用菜单共用本机偏好，不能把改键保存到当前远端。
+                            <ServiceProvider services={localHostServices}>
+                              <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
+                            </ServiceProvider>
+                          ) : activeSection === "personalization" ? (
+                            // 个性化是本机全局指令，不能因当前远端 workspace 而写到另一台设备。
+                            <PersonalizationSection
+                              isDesktop={Boolean(isDesktop)}
+                              settingService={localHostServices.settingService}
+                            />
+                          ) : activeSection === "projects" ? (
+                            <ProjectManagement />
+                          ) : activeSection === "archives" ? (
+                            <ArchiveManagement />
                           ) : activeSection === "sourceServers" ? (
                             <ServiceProvider services={localHostServices}>
                               <SourceServerSettingsSection />

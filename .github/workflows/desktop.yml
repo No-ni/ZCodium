@@ -128,9 +128,17 @@ jobs:
       - name: Terminal local quit checks
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         run: node --import tsx --test --test-concurrency=1 apps/zcode-cli/packages/tui/test/local-quit.test.ts
+      - name: Install browser for release and remote form checks
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        # Release corpus 已包含真实组件浏览器，必须在测试开始前安装并显式注入同一项目内路径。
+        run: |
+          pnpm exec playwright-core install --with-deps chromium webkit
+          node --input-type=module -e 'import { chromium } from "playwright-core"; console.log("PROJECT_TEST_BROWSER_EXECUTABLE=" + chromium.executablePath())' >> "$GITHUB_ENV"
       - name: Release tests
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
-        run: node --test --test-isolation=none scripts/ci/*.test.mjs
+        # 浏览器夹具持有进程环境租约；跨文件共享进程还会累计 TypeScript/Vite 堆内存。
+        # 保留完整发现范围，逐文件隔离且串行执行，不用跳过掩盖失败。
+        run: node --test --test-concurrency=1 scripts/ci/*.test.mjs
       - name: Computer Use runtime and SDK checks
         run: |
           node --test --test-isolation=none packages/zcode-cua/test/*.test.mjs
@@ -141,8 +149,6 @@ jobs:
           node scripts/ci/local-automation-protocol-smoke.mjs
           node scripts/ci/bundled-plugin-marketplace-protocol-smoke.mjs
           node scripts/ci/tui-model-setup-smoke.mjs
-      - name: Install browser for remote form checks
-        run: pnpm exec playwright-core install --with-deps chromium webkit
       - name: Web remote-control browser checks
         run: |
           pnpm --filter @zcode/bootstrap exec node --import tsx --test --test-isolation=none test/web-remote-v4-stream.test.ts test/web-remote-command-inbox.test.ts test/active-session-resume.test.ts

@@ -60,9 +60,10 @@ export function ShortcutBindingRow({
   const conflictBinding = isRecording ? recording?.conflictBinding : null;
 
   // 录制内嵌块：出现在被替换条目 / 追加条目的位置（预览 kbd 抢占焦点）
-  function renderRecorder() {
+  function renderRecorder(bindingKey?: string) {
     return (
-      <span className="flex min-w-0 max-w-full flex-col gap-1 break-words">
+      // 录制分支也在绑定列表中；沿用原绑定的 key，避免切换编辑态时丢失列表身份。
+      <span key={bindingKey} className="flex min-w-0 max-w-full flex-col gap-1 break-words">
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <Keyboard className="size-4 text-foreground-subtle" />
           <kbd
@@ -163,7 +164,7 @@ export function ShortcutBindingRow({
       <span className="order-3 flex min-w-0 flex-col items-start gap-1.5 sm:order-2">
         {bindings.map((binding, index) =>
           isRecording && recording?.mode === "replace" && recording.bindingIndex === index
-            ? renderRecorder()
+            ? renderRecorder(binding)
             : renderBinding(binding, index),
         )}
         {/* 未分配命令录第一条：bindings 为空时录制态占满键位单元格 */}

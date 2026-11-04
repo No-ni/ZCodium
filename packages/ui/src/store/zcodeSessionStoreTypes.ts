@@ -463,7 +463,11 @@ export interface ZCodeSessionStoreState {
   /** 前进，返回目标 entry；到头了返回 null */
   taskNavGoForward: () => WorkspaceNavEntry | null;
   /** task 被删除时清理导航历史中的对应 task 条目 */
-  removeTaskFromNavHistory: (taskId: string) => void;
+  removeTaskFromNavHistory: (
+    taskId: string,
+    workspacePath?: string,
+    workspaceIdentity?: string,
+  ) => void;
 }
 
 // ────────────────────────────────────────────

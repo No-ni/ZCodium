@@ -48,15 +48,11 @@ export function createTaskNavigationHistory(): TaskNavigationHistory {
   return { entries: [], cursor: -1 };
 }
 
-export function isTaskNavEntry(
-  entry: WorkspaceNavEntry,
-): entry is TaskNavEntry {
+export function isTaskNavEntry(entry: WorkspaceNavEntry): entry is TaskNavEntry {
   return entry.kind === "task";
 }
 
-export function isAutomationsNavEntry(
-  entry: WorkspaceNavEntry,
-): entry is AutomationsNavEntry {
+export function isAutomationsNavEntry(entry: WorkspaceNavEntry): entry is AutomationsNavEntry {
   return entry.kind === "automations";
 }
 
@@ -64,10 +60,7 @@ export function isPluginStoreNavEntry(entry: WorkspaceNavEntry): entry is Plugin
   return entry.kind === "plugin-store";
 }
 
-function isSameNavEntry(
-  left: WorkspaceNavEntry,
-  right: WorkspaceNavEntry,
-): boolean {
+function isSameNavEntry(left: WorkspaceNavEntry, right: WorkspaceNavEntry): boolean {
   if (
     left.kind !== right.kind ||
     left.workspacePath !== right.workspacePath ||
@@ -206,17 +199,24 @@ export function goForward(
 }
 
 /**
- * 从历史中移除指定 taskId 的所有 task 条目（task 被删除时调用）。
+ * 指定工作区时仅移除该身份的 task 条目；省略工作区保留旧 taskId-only 清理契约。
  * Automations 条目不属于 task 生命周期，必须原样保留。
  */
 export function removeTaskFromHistory(
   history: TaskNavigationHistory,
   taskId: string,
+  workspacePath?: string,
+  workspaceIdentity?: string,
 ): TaskNavigationHistory {
-  const currentEntry =
-    history.cursor >= 0 ? history.entries[history.cursor] : null;
+  const currentEntry = history.cursor >= 0 ? history.entries[history.cursor] : null;
   const filtered = history.entries.filter(
-    (entry) => !isTaskNavEntry(entry) || entry.taskId !== taskId,
+    // 同 ID 可存在于不同 Host/workspace；明确目标时只移除这个身份，旧调用保持 taskId-only 契约。
+    (entry) =>
+      !isTaskNavEntry(entry) ||
+      entry.taskId !== taskId ||
+      (workspacePath !== undefined &&
+        (entry.workspaceIdentity?.trim() || entry.workspacePath) !==
+          (workspaceIdentity?.trim() || workspacePath)),
   );
 
   if (filtered.length === history.entries.length) {
@@ -230,9 +230,7 @@ export function removeTaskFromHistory(
   // 当前条目未被删除时保持指向它；被删时沿用旧位置选择最近目标。
   const currentEntryIndex = currentEntry ? filtered.indexOf(currentEntry) : -1;
   const cursor =
-    currentEntryIndex >= 0
-      ? currentEntryIndex
-      : Math.min(history.cursor, filtered.length - 1);
+    currentEntryIndex >= 0 ? currentEntryIndex : Math.min(history.cursor, filtered.length - 1);
 
   return { entries: filtered, cursor };
 }

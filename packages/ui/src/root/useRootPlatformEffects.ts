@@ -1,7 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- Root 平台事件共用窗口生命周期。 */
 import { useEffect, useRef } from "react";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import type { IPlatformService } from "@zcode/shared";
+import { parseRemoteWorkspaceIdentity, type IPlatformService } from "@zcode/shared";
 import { isWorkspaceTab, type TabStoreState, type WindowTabState } from "@/store/tabStore.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { logger } from "@/logger.js";
@@ -31,10 +31,6 @@ export function useRootPlatformEffects({
   isDesktop,
   locale,
   tabs,
-  activeWorkspacePath,
-  activeWorkspaceIdentity,
-  totalUnreadTaskCount,
-  unreadSnapshot,
   hasCompletedFullTabRestore = true,
   intl,
 }: {
@@ -71,8 +67,6 @@ export function useRootPlatformEffects({
   activeWorkspaceIdentity?: string | null;
   reconnectingRemoteWorkspaceKeys?: string[];
   remoteWorkspaceErrorByWorkspaceKey?: Record<string, string>;
-  totalUnreadTaskCount: number;
-  unreadSnapshot?: import("@zcode/shared").WindowUnreadSnapshot;
   hasCompletedFullTabRestore?: boolean;
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
 }) {
@@ -126,7 +120,7 @@ export function useRootPlatformEffects({
 
   useEffect(() => {
     const disposeFocusTab = platform.onFocusTab((path: string) => {
-      logger.info("[Root] onFocusTab:", path);
+      logger.info("[Root] onFocusTab");
       if (activateTabByPath(path)) {
         // 系统 workspace focus 是 workspace-only 导航；任务通知另有
         // 显式 taskId 路径，不能在这里隐式恢复这个 workspace 上次选中的 session。
@@ -154,7 +148,7 @@ export function useRootPlatformEffects({
             return;
           }
 
-          logger.info("[Root] onOpenWorkspacePath:", path);
+          logger.info("[Root] onOpenWorkspacePath");
           // 系统服务 deep link 对应输入框上方 Open folder 语义。
           // 这里复用 handleSelectProject，而不是把路径作为聊天附件，才能保留 tab 去重、
           // 跨窗口激活和 recentProjects 更新这些手动打开文件夹的既有行为。
@@ -162,17 +156,27 @@ export function useRootPlatformEffects({
         })
       : () => {};
     const disposeNotificationClick = platform.onTaskNotificationClick((taskId: string) => {
-      logger.info("[Root] onTaskNotificationClick:", taskId);
+      logger.info("[Root] onTaskNotificationClick");
       // 遍历所有 workspace 找到 taskId 所属的 workspace，然后激活对应 tab 并切换任务
       const workspaces = useZCodeSessionStore.getState().workspaces;
-      for (const [workspacePath, workspaceState] of Object.entries(workspaces)) {
+      for (const [workspaceKey, workspaceState] of Object.entries(workspaces)) {
         const taskMeta = workspaceState.taskListCache?.find((task) => task.taskId === taskId);
         const hasTask = workspaceState.activeTaskId === taskId || Boolean(taskMeta);
         if (hasTask) {
-          const targetWorkspacePath = taskMeta?.workspacePath ?? workspacePath;
-          const targetWorkspaceIdentity = taskMeta?.workspaceIdentity;
-          // 通知点击会从全局 workspace store 反查 task。
-          // 远端任务必须用 task meta 自带的 workspaceIdentity 激活和选中，否则会落到 path-only 桶。
+          // 列表缓存缺席时 store key 仍是远端身份，不能当目录；从 tab 或统一解析器恢复真实路径。
+          const workspaceTab = tabs
+            .filter(isWorkspaceTab)
+            .find((tab) => (tab.workspaceIdentity?.trim() || tab.workspacePath) === workspaceKey);
+          const remoteIdentity = parseRemoteWorkspaceIdentity(workspaceKey);
+          const targetWorkspacePath =
+            taskMeta?.workspacePath ??
+            workspaceTab?.workspacePath ??
+            remoteIdentity?.workspacePath ??
+            workspaceKey;
+          const targetWorkspaceIdentity =
+            taskMeta?.workspaceIdentity?.trim() ||
+            workspaceTab?.workspaceIdentity?.trim() ||
+            (remoteIdentity ? workspaceKey : undefined);
           activateTabByPath(
             targetWorkspacePath,
             targetWorkspaceIdentity ? { workspaceIdentity: targetWorkspaceIdentity } : undefined,
@@ -183,7 +187,7 @@ export function useRootPlatformEffects({
           return;
         }
       }
-      logger.warn("[Root] onTaskNotificationClick: task not found in any workspace:", taskId);
+      logger.warn("[Root] onTaskNotificationClick: task not found in any workspace");
     });
     const disposeUpdateCheckResult = platform.onUpdateCheckResult
       ? platform.onUpdateCheckResult((payload) => {
@@ -230,6 +234,7 @@ export function useRootPlatformEffects({
           }
         })
       : () => {};
+    // 只依赖 tab 会保留旧语言、门禁和动作；相关值变化时释放旧订阅，保持每个事件只有一个处理器。
     return () => {
       disposeFocusTab();
       disposeNewTab();
@@ -239,7 +244,18 @@ export function useRootPlatformEffects({
       disposeNotificationClick();
       disposeUpdateCheckResult();
     };
-  }, [activeWorkspaceIdentity, activeWorkspacePath, platform, tabs]);
+  }, [
+    activateTabByPath,
+    allowOpenWorkspace,
+    intl,
+    openWorkspace,
+    openWorkspacePath,
+    platform,
+    setWorkspaceActionError,
+    startDraftInWorkspace,
+    startNewTaskFromActiveWorkspace,
+    tabs,
+  ]);
 
   useEffect(() => {
     if (!isDesktop || !shouldPublishCompleteWorkspaceSnapshot(hasCompletedFullTabRestore)) {
@@ -303,23 +319,17 @@ export function useRootPlatformEffects({
     // 原生菜单文案之前在 main 进程里写死，renderer 切换 locale 只会更新 React 标题栏菜单。
     // 结果就是桌面端会同时出现两套语言，Help 里的反馈/导出日志也无法跟随当前语言切换。
     // 这里把当前 locale 主动同步给 main，让原生菜单和标题栏菜单都从同一份语言状态重建。
-    platform.setApplicationLocale(locale).catch((error) => {
+    platform.setApplicationLocale(locale).catch(() => {
       if (disposed) {
         return;
       }
-      logger.error("[Root] 同步应用菜单语言失败", { locale, error });
+      logger.error("[Root] 同步应用菜单语言失败", { locale });
     });
 
     return () => {
       disposed = true;
     };
   }, [isDesktop, locale, platform]);
-
-  useEffect(() => {
-    // Dock badge 一期只统计“后台完成后还没点开”的 task 数。
-    // 失败态红点和 permission tag 仍留在各自 UI 语义里，避免把平台徽标混成泛化告警数。
-    platform.syncWindowUnreadCount(unreadSnapshot ?? totalUnreadTaskCount);
-  }, [platform, totalUnreadTaskCount, unreadSnapshot]);
 
   const activeTabId = useTabStore((state: TabStoreState) => state.activeTabId);
   const activeTabCandidate = useTabStore((state: TabStoreState) =>

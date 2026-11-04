@@ -2111,6 +2111,7 @@ const enUS: Record<string, string> = {
   "appHeader.openProviderConfigWithEditorSuffix": "config file",
   "appHeader.openProviderConfigInEditorFailed": "Could not open provider config in {editor}",
   "workspaceHeader.help.menu": "Help",
+  "helpMenu.actionFailed": "Could not complete this action. Please try again.",
   "workspaceHeader.help.issueReport": "Report an issue",
   "workspaceHeader.help.reportVulnerability": "Report a vulnerability",
   "workspaceHeader.help.productRequest": "Request a feature",

@@ -7,12 +7,15 @@
 import { useMemo } from "react";
 import { type ShortcutCommandId } from "@zcode/shared";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { resolveEffectiveShortcutBindings, type EffectiveShortcutBindings } from "./bindings.js";
 import { formatShortcutBindingLabel } from "./label.js";
 
 /** 当前生效的快捷键表（默认 + 用户覆盖合并后的只读视图）。 */
 export function useEffectiveShortcutBindings(): EffectiveShortcutBindings {
-  const { settings } = useSettings();
+  // 快捷键是控制窗口的全局偏好；跟随远端 context 会让按键/提示与本机设置和菜单分叉。
+  const baseServices = useBaseWorkspaceServices();
+  const { settings } = useSettings({ services: baseServices });
   const overrides = settings?.shortcutBindings;
   return useMemo(() => resolveEffectiveShortcutBindings(overrides), [overrides]);
 }

@@ -42,105 +42,104 @@ export function useShortcutRecording({
     if (!recording) {
       return;
     }
+    const current = recording;
     function handleRecordingKeydown(event: KeyboardEvent) {
       event.preventDefault();
       event.stopPropagation();
 
-      setRecording((current) => {
-        if (!current) {
-          return current;
-        }
-        if (event.key === "Escape") {
-          return null;
-        }
-        if (event.key === "Backspace") {
-          clearBinding(current.commandId);
-          return null;
-        }
+      // 原因：React 可能在渲染/严格模式重跑 updater，不能在其中保存或挂载 toast。
+      // 当前监听器随 recording 快照更新；副作用只在原按键事件中执行。
+      if (event.key === "Escape") {
+        setRecording(null);
+        return;
+      }
+      if (event.key === "Backspace") {
+        clearBinding(current.commandId);
+        setRecording(null);
+        return;
+      }
 
-        const result = recordShortcutBinding(event);
-        if (result.kind === "pending") {
-          // 残留的冲突/无效提示会让人以为录制器没在听新按键 —— 修饰键按下即刻清空，
-          // 保证「冲突后直接重按第二组组合」在视觉上是活的（实际本来就一直监听着）。
-          if (
-            current.preview === null &&
-            current.error === null &&
-            current.conflictBinding === null
-          ) {
-            return current;
-          }
-          return { ...current, preview: null, error: null, conflictBinding: null };
+      const result = recordShortcutBinding(event);
+      if (result.kind === "pending") {
+        // 残留的冲突/无效提示会让人以为录制器没在听新按键 —— 修饰键按下即刻清空，
+        // 保证「冲突后直接重按第二组组合」在视觉上是活的（实际本来就一直监听着）。
+        if (
+          current.preview === null &&
+          current.error === null &&
+          current.conflictBinding === null
+        ) {
+          return;
         }
-        if (result.kind === "invalid") {
-          return {
-            ...current,
-            preview: null,
-            conflictBinding: null,
-            error: intl.formatMessage({
-              id:
-                result.reason === "no-modifier"
-                  ? "settings.shortcuts.invalidNoModifier"
-                  : "settings.shortcuts.invalidKey",
-            }),
-          };
-        }
+        setRecording({ ...current, preview: null, error: null, conflictBinding: null });
+        return;
+      }
+      if (result.kind === "invalid") {
+        setRecording({
+          ...current,
+          preview: null,
+          conflictBinding: null,
+          error: intl.formatMessage({
+            id:
+              result.reason === "no-modifier"
+                ? "settings.shortcuts.invalidNoModifier"
+                : "settings.shortcuts.invalidKey",
+          }),
+        });
+        return;
+      }
 
-        // 同命令物理等价重复：add 与全部生效条目比；replace 跳过正在替换的
-        // 目标条。一个命令挂同一组键没有意义，直接标红拒绝。
-        const sameCommandBindings = effective[current.commandId] ?? [];
-        const duplicate = sameCommandBindings.some((binding, index) =>
-          current.mode === "replace" && index === current.bindingIndex
-            ? false
-            : isSamePhysicalBinding(binding, result.binding),
-        );
-        if (duplicate) {
-          return {
-            ...current,
-            preview: formatShortcutBindingLabel(result.binding),
-            conflictBinding: null,
-            error: intl.formatMessage({ id: "settings.shortcuts.duplicateBinding" }),
-          };
-        }
+      // 同命令物理等价重复：add 与全部生效条目比；replace 跳过正在替换的
+      // 目标条。一个命令挂同一组键没有意义，直接标红拒绝。
+      const sameCommandBindings = effective[current.commandId] ?? [];
+      const duplicate = sameCommandBindings.some((binding, index) =>
+        current.mode === "replace" && index === current.bindingIndex
+          ? false
+          : isSamePhysicalBinding(binding, result.binding),
+      );
+      if (duplicate) {
+        setRecording({
+          ...current,
+          preview: formatShortcutBindingLabel(result.binding),
+          conflictBinding: null,
+          error: intl.formatMessage({ id: "settings.shortcuts.duplicateBinding" }),
+        });
+        return;
+      }
 
-        // Web 端 menu 通道命令不可配置但默认键仍被根级回退监听消费，按保留键拒绝抢绑
-        const conflict = checkShortcutBindingConflict(
-          current.commandId,
-          result.binding,
-          overrides,
-          {
-            menuChannelReserved: !isDesktop,
-          },
-        );
-        if (conflict) {
-          return {
-            ...current,
-            preview: formatShortcutBindingLabel(result.binding),
-            // 系统保留键直接拒绝（无确认入口）；app 内命令占用提示占用者并支持二次确认抢绑
-            conflictBinding: conflict.kind === "occupied" ? result.binding : null,
-            error:
-              conflict.kind === "reserved"
-                ? intl.formatMessage({ id: "settings.shortcuts.conflictReserved" })
-                : intl.formatMessage(
-                    { id: "settings.shortcuts.conflictOccupied" },
-                    {
-                      command:
-                        conflict.ownerCommandId !== undefined
-                          ? intl.formatMessage({
-                              id: `settings.shortcuts.command.${conflict.ownerCommandId}`,
-                            })
-                          : "",
-                    },
-                  ),
-          };
-        }
-
-        if (current.mode === "add" || current.bindingIndex === null) {
-          appendBinding(current.commandId, result.binding);
-        } else {
-          replaceBindingAt(current.commandId, current.bindingIndex, result.binding);
-        }
-        return null;
+      // Web 端 menu 通道命令不可配置但默认键仍被根级回退监听消费，按保留键拒绝抢绑
+      const conflict = checkShortcutBindingConflict(current.commandId, result.binding, overrides, {
+        menuChannelReserved: !isDesktop,
       });
+      if (conflict) {
+        setRecording({
+          ...current,
+          preview: formatShortcutBindingLabel(result.binding),
+          // 系统保留键直接拒绝（无确认入口）；app 内命令占用提示占用者并支持二次确认抢绑
+          conflictBinding: conflict.kind === "occupied" ? result.binding : null,
+          error:
+            conflict.kind === "reserved"
+              ? intl.formatMessage({ id: "settings.shortcuts.conflictReserved" })
+              : intl.formatMessage(
+                  { id: "settings.shortcuts.conflictOccupied" },
+                  {
+                    command:
+                      conflict.ownerCommandId !== undefined
+                        ? intl.formatMessage({
+                            id: `settings.shortcuts.command.${conflict.ownerCommandId}`,
+                          })
+                        : "",
+                  },
+                ),
+        });
+        return;
+      }
+
+      if (current.mode === "add" || current.bindingIndex === null) {
+        appendBinding(current.commandId, result.binding);
+      } else {
+        replaceBindingAt(current.commandId, current.bindingIndex, result.binding);
+      }
+      setRecording(null);
     }
 
     window.addEventListener("keydown", handleRecordingKeydown, true);

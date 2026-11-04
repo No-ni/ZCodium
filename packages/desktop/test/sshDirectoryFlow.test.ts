@@ -20,14 +20,17 @@ vi.mock("./e2e/helpers/v4-conversation.js", () => ({ startNewV4Draft: vi.fn() })
 vi.mock("./e2e/helpers/remote-project-handoff-probe.js", () => ({
   installHandoffRpcProbe: vi.fn(),
   callHandoffHost: vi.fn(async () => ({
-    profiles: [
-      {
-        transport: "ssh",
-        lifecycleState: "active",
-        sourceServerId: "known-source",
-        target: { kind: "ssh", host: "127.0.0.1", port: 43210, username: "dev" },
-      },
-    ],
+    // getSnapshot 的公开契约把 profiles 放在 directory，不能伪造旧的顶层结构。
+    directory: {
+      profiles: [
+        {
+          transport: "ssh",
+          lifecycleState: "active",
+          sourceServerId: "known-source",
+          target: { kind: "ssh", host: "127.0.0.1", port: 43210, username: "dev" },
+        },
+      ],
+    },
   })),
 }));
 const target = { host: "127.0.0.1", port: 43210, username: "dev", password: "fixture" };

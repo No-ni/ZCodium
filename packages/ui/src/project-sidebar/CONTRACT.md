@@ -117,6 +117,8 @@ Composer 头部通过 `ProjectComposerMenu.showEditProject` 启用当前项目 P
 
 目录读取保留同一 Provider owner。只发送目录命令的 pane 使用 `useOptionalProjectDirectoryActions`，不订阅任务树；工作区选择器使用项目/设备切片。任务活动仍只广播给任务消费者，项目、设备和权限变化继续发布给相关选择器。
 
+窗口系统角标仅由常驻 ProjectDirectoryProvider 从共同未读集合发送完整身份快照，Root 不读旧缓存发送角标。关闭通知发送空快照，Web 不发送本机角标；Main 按 Host、canonical workspace identity 与 taskId 跨窗口去重。设置页项目/归档入口复用这个 owner，切换设置或隐藏侧栏不能中断角标同步。
+
 分组容器的展示委托 GroupItemView，读取同一 props 和父 hook 的当前投影。改名 ref/state、useCallback 的依赖与焦点守卫仍由 GroupItem 持有；GroupRenameEvents 只按传入 ref 与回调执行原事件体，不新增状态或重试。ContextMenuTrigger 的 asChild 直接包住标题 div，保证 Radix 注入的事件与 ref 到达原 DOM。
 
 任务行纯展示提取后，ContextMenuTrigger/TooltipTrigger 必须在 TaskRowContent 内直接包住原 div。不能让 asChild 向不转发原生属性的展示函数注入事件；鼠标右键、键盘上下文菜单、tooltip 与 dnd ref 继续到达同一行 DOM，父仍持有 hover/contextMenu 状态。
