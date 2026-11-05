@@ -39,30 +39,27 @@ export function ProviderModelCatalogDialog({
   onConfirm: (modelIds: readonly string[]) => void | Promise<void>;
 }) {
   const { intl } = useZCodeIntl();
-  const selectableItems = useMemo(() => items.filter((item) => !item.alreadyAdded), [items]);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(
-    () => new Set(resolveDefaultCatalogSelection(items)),
-  );
+  const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set());
 
-  // 每次打开都按最新拉取结果重置勾选，避免上一轮的剩余选择被带进来。
+  // 只在打开时清空排除项；部分添加成功会更新 items，不能因此重新勾选用户取消的模型。
   useEffect(() => {
     if (!open) return;
-    setSelected(new Set(resolveDefaultCatalogSelection(items)));
-  }, [open, items]);
+    setExcluded(new Set());
+  }, [open]);
 
   const selectedIds = useMemo(
-    () => selectableItems.map((item) => item.modelId).filter((modelId) => selected.has(modelId)),
-    [selectableItems, selected],
+    () => resolveDefaultCatalogSelection(items).filter((modelId) => !excluded.has(modelId)),
+    [items, excluded],
   );
   const busy = loading || saving;
 
   const toggle = (modelId: string, checked: boolean): void => {
-    setSelected((current) => {
+    setExcluded((current) => {
       const next = new Set(current);
       if (checked) {
-        next.add(modelId);
-      } else {
         next.delete(modelId);
+      } else {
+        next.add(modelId);
       }
       return next;
     });
@@ -106,7 +103,7 @@ export function ProviderModelCatalogDialog({
                   }
                 >
                   <Checkbox
-                    checked={item.alreadyAdded ? true : selected.has(item.modelId)}
+                    checked={item.alreadyAdded || !excluded.has(item.modelId)}
                     disabled={item.alreadyAdded || saving}
                     onCheckedChange={(checked) => toggle(item.modelId, checked === true)}
                     aria-label={item.modelId}

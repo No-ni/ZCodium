@@ -73,6 +73,7 @@ test("Source Server identity preserves its authenticated source and complete pat
   assert.deepEqual(parseRemoteWorkspaceIdentity(identity), {
     kind: "server",
     serverId: "fixture-source",
+    sourceServerId: "fixture-source",
     workspacePath: "/workspace/a:b/c:d",
   });
 });

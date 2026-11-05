@@ -133,6 +133,8 @@ function Fixture() {
             fileManagerLabel="Open folder"
             taskSessionFile={pathState}
             taskNativeSessionLogFile={pathState}
+            providerConfigFile={pathState}
+            onOpenProviderConfig={noop}
             activeSessionId={sessionId}
             Item={DropdownMenuItem}
             Separator={DropdownMenuSeparator}

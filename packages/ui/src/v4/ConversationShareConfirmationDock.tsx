@@ -6,7 +6,6 @@ import {
   CircleCheck,
   CircleX,
   LoaderCircle,
-  ShieldCheck,
   X,
   MessagesSquare,
   ChevronRight,

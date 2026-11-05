@@ -6,7 +6,6 @@ import { getRemoteConnectionDirectoryFailureState } from "@/lib/remoteConnection
 import { formatRemoteConnectionError } from "@/lib/remoteConnectionPresentation.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import type { RemoteFlowContext } from "./flowContext.js";
-import type { RemoteConnectionCompletionIntent } from "./completionIntent.js";
 export async function runHandleConnect(context: RemoteFlowContext) {
   const {
     loading,

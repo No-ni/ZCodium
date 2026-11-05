@@ -10,7 +10,7 @@ describe("product runtime regression", () => {
     expect(selectCases(["TOOL-001", "TOOL-002"]).map((c) => c.id)).toEqual(["TOOL-001"]);
     expect(selectCases(["TOOL-002"]).map((c) => c.id)).toEqual(["TOOL-001"]);
   });
-  it("文本用例走产品会话，仅发送流式请求并使用产品来源头", async () => {
+  it("文本用例走产品会话，仅发送流式请求且不携带官方身份头", async () => {
     const f = await fixture();
     try {
       await writeFile(
@@ -23,8 +23,8 @@ describe("product runtime regression", () => {
         transport: async (_url, init) => {
           const body = JSON.parse(String(init?.body));
           requests.push(body);
-          expect(new Headers(init?.headers).get("x-title")).toBe("Z Code@electron");
-          expect(new Headers(init?.headers).get("x-zcode-app-version")).toMatch(/^\d+\.\d+\.\d+/);
+          expect(new Headers(init?.headers).get("x-title")).toBeNull();
+          expect(new Headers(init?.headers).get("x-zcode-app-version")).toBeNull();
           expect(body.stream).toBe(true);
           expect(body.messages.some((m: { role: string }) => m.role === "system")).toBe(true);
           return chatResponse();

@@ -3,6 +3,17 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const PLUGIN_SOURCE_CLEANUP_RETRY_DELAYS_MS = [0, 25, 100] as const;
 
+/** marker 来自磁盘，前缀不能证明是同目录名；join 会把 ../ 规范化成插件目录外的删除目标。 */
+export function isAtomicStagingName(targetName: string, stageName: string): boolean {
+  const prefix = `.${targetName}.stage-`;
+  return (
+    stageName.startsWith(prefix) &&
+    stageName.length > prefix.length &&
+    !/[\\/:]/u.test(stageName) &&
+    !stageName.includes("\0")
+  );
+}
+
 export function resolveInside(rootPath: string, rawPath: string): string | null {
   if (isAbsolute(rawPath)) return null;
   const resolved = resolve(rootPath, rawPath);

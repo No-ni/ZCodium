@@ -1,16 +1,35 @@
+import { basename, dirname, isAbsolute, resolve } from "node:path";
+
 /**
- * 对话工作区（未指定项目的会话）标记。
- *
- * 未指定项目的会话共用一个「对话根」（`~/.zcodium/workspace/default`）作为工作区身份，
- * 但每个会话需要一个独立的执行 cwd，否则并行会话会互相看见对方的临时文件与产物。
- * 身份与执行目录的归属不同：**谁是对话根**只有 Host 知道（`getConversationWorkspaceDir()`），
- * **目录怎么建**只有会话所有者 Agent CLI 知道（会话 id 由 CLI 铸造），因此这个事实
- * 只能在 spawn 边界由 Host 下发给 Agent。详见 docs/specs/conversation-session-workspace.md。
- *
- * 语义：值等于对话根路径时，CLI 对该进程内的会话启用「独立会话目录」规则；
- * 未注入（CLI/TUI 直接运行、远程 workspace、项目工作区）保持旧行为（cwd = workspacePath）。
+ * Host 下发的可信默认对话根。普通 task 的目录由 Host prepareSession 创建；旧 default
+ * 根内的会话目录由 CLI 分配。CLI allocator 仍只对请求路径恰好等于该根的本地会话启用，
+ * 独立 task 不再套一层日期/会话目录。Gen UI 使用此标记共同识别 app 管理目录。
+ * 详见 docs/specs/projectless-task-workspaces.md 与 conversation-session-workspace.md。
  */
 export const ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV = "ZCODE_CONVERSATION_WORKSPACE_ROOT";
+
+const taskDirectoryPattern =
+  /^(?:draft|\d+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 只识别 Host 管理的默认根和直接 task 目录，不从项目归属或任意路径后代推导。 */
+export function isManagedConversationWorkspace(
+  workspacePath: string | undefined,
+  workspaceIdentity: string | undefined,
+  conversationWorkspaceRoot: string | undefined,
+): boolean {
+  const path = workspacePath?.trim();
+  const root = conversationWorkspaceRoot?.trim();
+  if (workspaceIdentity?.trim() || !path || !root || !isAbsolute(path) || !isAbsolute(root))
+    return false;
+  const workspace = resolve(path);
+  const conversation = resolve(root);
+  // 原因：独立 task 与无 root 项目都在 workspace 下；必须限定已存在的 task 命名合同，
+  // 不能把 bare project UUID、任务后代或根外同名目录授权为本地任务产物目录。
+  return (
+    workspace === conversation ||
+    (dirname(workspace) === dirname(conversation) && taskDirectoryPattern.test(basename(workspace)))
+  );
+}
 
 /** 读取 Host 下发的对话根标记；空串与缺席等价（都表示「不启用」）。 */
 export function resolveConversationWorkspaceRoot(

@@ -64,7 +64,6 @@ import {
   type ZCodeBackgroundTurnAttribution,
   type ZCodeAutomationBotDeliveryTarget,
   type ZCodeCancelTaskCommandResult,
-  type ZCodeCodexConnectivityCheckResult,
   type ZCodeConfigOption,
   type ZCodeContextCompactionTimelineMeta,
   type ZCodeDeliveryKind,
@@ -2500,6 +2499,11 @@ export function createZCodeTaskServiceAdapter(
       // stale archive API 和设置页自动归档保持一致，清理全部历史 provider。
       const archivedTasks = await taskIndexRepo.archiveStaleTasks({
         ...params,
+        readActiveTaskIds: () =>
+          taskIndexSyncer
+            .activeTaskRefs()
+            .filter((ref) => workspaceKey(ref) === workspaceKey(params))
+            .map((ref) => ref.taskId),
       });
       for (const task of archivedTasks) {
         rememberIndexedTaskMeta(task);

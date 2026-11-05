@@ -121,7 +121,7 @@ export function useRecommendedUiPlugins(target: {
         surfaces.find((surface) => surface.pluginId === pluginId && surface.id === surfaceId) ??
         null
       );
-    } catch (error) {
+    } catch {
       if (!isCurrent()) return undefined;
       logger.warn("[plugin-ui] 推荐面板读取失败");
       return null;

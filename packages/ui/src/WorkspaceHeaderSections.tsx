@@ -208,6 +208,8 @@ export function WorkspaceHeaderTitleSection({
     // 任务日志查询与 Header 当前展示态使用同一个 provider。
     provider: menuTaskProvider,
     intl,
+    // Header 常驻渲染；配置查询只在更多菜单打开时需要，不能因默认 enabled 在首屏提前请求。
+    loadProviderConfig: taskMenuOpen,
   });
   const remoteWorkspaceHostLabel = remoteTarget
     ? formatRemoteWorkspaceHeaderHostLabel(remoteTarget)

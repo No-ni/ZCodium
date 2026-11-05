@@ -52,7 +52,7 @@ test("offline derive converts only an explicitly supplied existing trajectory", 
 });
 
 test("removed recording entrypoints cannot start a provider proxy", async () => {
-  for (const command of ["record", "record-prompt"]) {
+  for (const command of ["record", "record-prompt", "run-testcases"]) {
     await assert.rejects(
       execute(process.execPath, ["--import", "tsx", cli, command]),
       (error: unknown) => {
@@ -61,6 +61,13 @@ test("removed recording entrypoints cannot start a provider proxy", async () => 
       },
     );
   }
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const cliManifest = JSON.parse(
+    await readFile(new URL("../../../package.json", import.meta.url), "utf8"),
+  );
+  assert.equal(manifest.scripts["run:testcases"], undefined);
+  assert.equal(cliManifest.scripts["prompt-trajectory:prompt"], undefined);
+  assert.equal(cliManifest.scripts["prompt-trajectory:testcases"], undefined);
 });
 
 test("existing Model-IO files still convert offline", async () => {

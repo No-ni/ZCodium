@@ -274,10 +274,7 @@ describe(`${CASE_MARKER}: 远端 workspace 附件上传、远端工具读取与 
     await browser.waitUntil(
       async () => {
         failed = await readComposerAttachmentStatuses();
-        return (
-          failed.length === 0 ||
-          failed.every((s) => s.status && s.status !== "uploading" && s.status !== "pending")
-        );
+        return failed.every((s) => s.status && s.status !== "uploading" && s.status !== "pending");
       },
       { timeout: 120_000, interval: 1000, timeoutMsg: `${CASE_MARKER}: 超大附件没有到达终态` },
     );

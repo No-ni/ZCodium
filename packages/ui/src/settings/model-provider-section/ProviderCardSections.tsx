@@ -423,6 +423,7 @@ export function ProviderModelsSection({
   const [catalogDialogOpen, setCatalogDialogOpen] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
+  const catalogSavingRef = useRef(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogMetadata, setCatalogMetadata] = useState<
     Readonly<Record<string, ProviderModelCatalogMetadata>>
@@ -467,11 +468,17 @@ export function ProviderModelsSection({
       setCatalogItems([]);
       setCatalogMetadata({});
       setCatalogError(resolveCatalogFailureMessage(result));
-    } catch (error) {
+    } catch {
       if (requestId !== catalogRequestRef.current) return;
       setCatalogItems([]);
       setCatalogMetadata({});
-      setCatalogError(error instanceof Error ? error.message : String(error));
+      // 原始异常可能含请求地址或凭据，抛错与结构化 request-failed 使用同一稳定提示。
+      setCatalogError(
+        resolveCatalogFailureMessage({
+          success: false,
+          error: { code: "request-failed", message: "request failed" },
+        }),
+      );
     } finally {
       if (requestId === catalogRequestRef.current) {
         setCatalogLoading(false);
@@ -481,44 +488,51 @@ export function ProviderModelsSection({
 
   const confirmCatalogSelection = useCallback(
     async (modelIds: readonly string[]) => {
-      if (modelIds.length === 0) return;
+      // React 的 saving 状态要等渲染才生效；同步取得在途资格，避免连点启动两批保存。
+      if (modelIds.length === 0 || catalogSavingRef.current) return;
+      catalogSavingRef.current = true;
       setCatalogSaving(true);
       setCatalogError(null);
-      const results: boolean[] = [];
-      const addedModelIds: string[] = [];
-      // 逐条串行走既有 addPersonalModel：每条都是一次独立的 Provider 操作，
-      // 并发会把同一 Provider 的保存队列竞争暴露给用户。
-      for (const modelId of modelIds) {
-        try {
-          await onAddModel({
-            ...createEmptyModel(),
-            modelId,
-            ...withCatalogMetadata(catalogMetadata[modelId]),
-          });
-          results.push(true);
-          addedModelIds.push(modelId);
-        } catch (error) {
-          logger.warn("[ModelProviderSection] 添加目录模型失败", { providerId, modelId, error });
-          results.push(false);
+      try {
+        const results: boolean[] = [];
+        const addedModelIds: string[] = [];
+        // 逐条串行走既有 addPersonalModel：每条都是一次独立的 Provider 操作，
+        // 并发会把同一 Provider 的保存队列竞争暴露给用户。
+        for (const modelId of modelIds) {
+          try {
+            await onAddModel({
+              ...createEmptyModel(),
+              modelId,
+              ...withCatalogMetadata(catalogMetadata[modelId]),
+            });
+            results.push(true);
+            addedModelIds.push(modelId);
+          } catch {
+            // 业务 ID 与原始错误不进入技术日志，失败数量仍由弹窗明确反馈。
+            logger.warn("[ModelProviderSection] 添加目录模型失败");
+            results.push(false);
+          }
         }
+        const { added, failed } = summarizeCatalogAddResults(results);
+        if (addedModelIds.length > 0) {
+          setCatalogItems((current) => markCatalogItemsAdded(current, addedModelIds));
+        }
+        if (failed > 0) {
+          setCatalogError(
+            intl.formatMessage(
+              { id: "settings.modelProvider.modelCatalog.partialFailure" },
+              { added, failed },
+            ),
+          );
+          return;
+        }
+        setCatalogDialogOpen(false);
+      } finally {
+        catalogSavingRef.current = false;
+        setCatalogSaving(false);
       }
-      const { added, failed } = summarizeCatalogAddResults(results);
-      setCatalogSaving(false);
-      if (addedModelIds.length > 0) {
-        setCatalogItems((current) => markCatalogItemsAdded(current, addedModelIds));
-      }
-      if (failed > 0) {
-        setCatalogError(
-          intl.formatMessage(
-            { id: "settings.modelProvider.modelCatalog.partialFailure" },
-            { added, failed },
-          ),
-        );
-        return;
-      }
-      setCatalogDialogOpen(false);
     },
-    [catalogMetadata, intl, onAddModel, providerId],
+    [catalogMetadata, intl, onAddModel],
   );
 
   const resolveAddModelConfig = useCallback(

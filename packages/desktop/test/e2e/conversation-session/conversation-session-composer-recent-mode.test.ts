@@ -431,9 +431,10 @@ describe("Composer Recent 权限继承", () => {
 
     await startDraftFromProject(DEFAULT_WORKSPACE);
     await expectMode("yolo");
-    // TD02：先打开空白页，再回原 Session 改选 B 并发送，旧空白页不能覆盖 Recent。
+    // TD02/CR01：先打开空白页，再回原 Session 改选 B + 自主模式并发送。
+    // Bug 依据：旧写入未带项目 scope，新页只能回退首模型和 build；两项必须一起验证。
     await selectV4TaskById(secondSession);
-    await switchV4Mode("build");
+    await switchV4Mode("guarded");
     await switchV4Model(UPSTREAM_PROVIDER_ID, UPSTREAM_SECONDARY_MODEL, "");
     await sendV4PromptAndWaitAccepted(
       "E2E_COMPOSER_RECENT_MODE_SECOND 回复标记。",
@@ -442,14 +443,14 @@ describe("Composer Recent 权限继承", () => {
     );
     await waitForV4TimelineContaining("RECENT_MODE_SECOND_DONE");
     await startDraftFromProject(DEFAULT_WORKSPACE);
-    await expectMode("build");
+    await expectMode("guarded");
     const updated = await captureState("04-new-task-model-b");
     expect(updated.composer.model).toBe(UPSTREAM_SECONDARY_MODEL);
     expect(updated.rootDraft.exists).toBe(false);
     // TD04：同一个空白页面再次 New Task，丢弃未提交配置；删空文字后也不留记录。
     await switchV4Mode("yolo");
     await startDraftFromProject(DEFAULT_WORKSPACE);
-    await expectMode("build");
+    await expectMode("guarded");
     await setV4ComposerText("temporary draft");
     await browser.waitUntil(
       async () =>
@@ -466,12 +467,12 @@ describe("Composer Recent 权限继承", () => {
     await setV4ComposerText("unsent session draft");
     await switchV4Mode("build");
     await selectV4TaskById(secondSession);
-    await expectMode("build");
+    await expectMode("guarded");
     await startDraftFromProject(DEFAULT_WORKSPACE);
-    await expectMode("build");
+    await expectMode("guarded");
     await $('[data-testid="v4-composer-plan-marker"]').waitForDisplayed();
     await browser.refresh();
-    await expectMode("build");
+    await expectMode("guarded");
     await $('[data-testid="v4-composer-plan-marker"]').waitForDisplayed();
     await selectV4TaskById(firstSession);
     // 刷新后的缓存草稿可先于历史投影就绪；必须等旧 Snapshot 恢复后再断言不被覆盖。

@@ -44,16 +44,202 @@ import {
 } from "../src/plugins/helpers.js";
 import { createNodeCustomCommandAdapter } from "../src/commands/index.js";
 import { createNodeSkillAdapter } from "../src/skills/index.js";
+import { resolveInstalledPluginRoot } from "../src/plugins/marketplace.js";
 import {
   ZCODE_AGENT_CA_CERT_ENV_KEY,
   ZCODE_HTTP_PROXY_ENV_KEY,
   ZCODE_NO_PROXY_ENV_KEY,
   ZCODE_TOOL_ENV_PASSTHROUGH_ENV_KEY,
 } from "@zcode/shared";
+import { createProjectTestFixture } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 
 const execFileAsync = promisify(execFile);
 
 describe("NodePluginAdapter", () => {
+  it.each(["known_marketplaces", "installed_plugins"] as const)(
+    "recovers fixed authority files before reading coordinated directories: %s",
+    async (kind) => {
+      const directory = await createProjectTestFixture("plugin-authority-file-owner");
+      try {
+        const storageRoot = join(directory, kind);
+        const name = "fixture-market";
+        const targetPath = join(storageRoot, "marketplaces", name);
+        const backupPath = join(storageRoot, "marketplaces", `.${name}.backup`);
+        const authorityPath = join(storageRoot, `${kind}.json`);
+        const transactionId = "committed-directory-generation";
+        await mkdir(targetPath, { recursive: true });
+        await mkdir(backupPath);
+        await writeFile(join(targetPath, "value.txt"), "committed generation");
+        await writeFile(join(backupPath, "value.txt"), "old generation");
+        for (const [path, plugin] of [
+          [targetPath, "new-plugin"],
+          [backupPath, "old-plugin"],
+        ] as const) {
+          await writeFile(
+            join(path, "marketplace.json"),
+            JSON.stringify({ name, plugins: [{ name: plugin, source: "./plugin" }] }),
+          );
+        }
+        await writeFile(
+          join(storageRoot, `.${kind}.json.backup`),
+          JSON.stringify({
+            version: 1,
+            [kind === "known_marketplaces" ? "marketplaces" : "plugins"]: [
+              { cacheTransactionId: transactionId },
+            ],
+          }),
+        );
+        await writeFile(
+          join(storageRoot, `.${kind}.json.transaction.json`),
+          JSON.stringify({ version: 1, stageName: `.${kind}.json.stage-dead` }),
+        );
+        await writeFile(
+          join(storageRoot, "marketplaces", `.${name}.transaction.json`),
+          JSON.stringify({
+            authorityPath,
+            hadTarget: true,
+            mode: "coordinated",
+            ownerId: "dead-fixture-owner",
+            ownerPid: 999_999_999,
+            stageName: `.${name}.stage-dead`,
+            transactionId,
+            version: 2,
+          }),
+        );
+        if (kind === "known_marketplaces") {
+          expect(loadMarketplaceManifestSync(storageRoot, name)?.plugins[0]?.name).toBe(
+            "new-plugin",
+          );
+        } else {
+          expect(
+            resolveInstalledPluginRoot(storageRoot, {
+              id: "fixture-plugin@fixture-market",
+              name: "fixture-plugin",
+              marketplace: name,
+              version: "1.0.0",
+              installPath: targetPath,
+              installedAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              scope: "user",
+            }),
+          ).toBe(targetPath);
+        }
+        expect(await readFile(join(targetPath, "value.txt"), "utf8")).toBe("committed generation");
+        expect(existsSync(authorityPath)).toBe(true);
+        expect(existsSync(backupPath)).toBe(false);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+  it("coordinated authority checks do not dispatch recovery to a marker supplied path", async () => {
+    const directory = await createProjectTestFixture("plugin-authority-recovery");
+    const targetPath = join(directory, "active");
+    const authorityPath = join(directory, "sentinel");
+    const authorityBackup = join(directory, ".sentinel.backup");
+    const authorityStage = join(directory, ".sentinel.stage-valid");
+    const authorityMarker = join(directory, ".sentinel.transaction.json");
+    try {
+      for (const path of [targetPath, authorityPath, authorityBackup, authorityStage]) {
+        await mkdir(path);
+        await writeFile(join(path, "value.txt"), "keep synthetic data");
+      }
+      const marker = JSON.stringify({ version: 1, stageName: ".sentinel.stage-valid" });
+      await writeFile(authorityMarker, marker);
+      await writeFile(
+        join(directory, ".active.transaction.json"),
+        JSON.stringify({
+          authorityPath,
+          hadTarget: true,
+          mode: "coordinated",
+          ownerId: "dead-fixture-owner",
+          ownerPid: 999_999_999,
+          stageName: ".active.stage-dead",
+          transactionId: "fixture-transaction",
+          version: 2,
+        }),
+      );
+      recoverAtomicTargetSync(targetPath);
+      for (const path of [authorityPath, authorityBackup, authorityStage]) {
+        expect(await readFile(join(path, "value.txt"), "utf8")).toBe("keep synthetic data");
+      }
+      expect(await readFile(authorityMarker, "utf8")).toBe(marker);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("a self-referential coordinated authority does not recurse into recovery", async () => {
+    const directory = await createProjectTestFixture("plugin-authority-cycle");
+    const targetPath = join(directory, "active");
+    const ownerChecks = vi.spyOn(process, "kill");
+    try {
+      await mkdir(targetPath);
+      await writeFile(join(targetPath, "value.txt"), "keep synthetic data");
+      await writeFile(
+        join(directory, ".active.transaction.json"),
+        JSON.stringify({
+          authorityPath: targetPath,
+          hadTarget: true,
+          mode: "coordinated",
+          ownerId: "dead-fixture-owner",
+          ownerPid: 999_999_999,
+          stageName: ".active.stage-dead",
+          transactionId: "fixture-transaction",
+          version: 2,
+        }),
+      );
+      recoverAtomicTargetSync(targetPath);
+      expect(ownerChecks).toHaveBeenCalledTimes(1);
+      expect(await readFile(join(targetPath, "value.txt"), "utf8")).toBe("keep synthetic data");
+    } finally {
+      ownerChecks.mockRestore();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("staging marker paths cannot traverse outside the plugin parent", async () => {
+    const directory = await createProjectTestFixture("plugin-marker-traversal");
+    const parent = join(directory, "plugins");
+    const targetPath = join(parent, "active");
+    const sentinel = join(directory, "sentinel", "value.txt");
+    try {
+      await mkdir(targetPath, { recursive: true });
+      await mkdir(join(directory, "sentinel"));
+      await writeFile(sentinel, "keep synthetic data");
+      await writeFile(join(targetPath, "version.txt"), "current");
+      for (const version of [1, 2]) {
+        for (const stageName of [
+          ".active.stage-x/../../sentinel",
+          ".active.stage-x\\..\\..\\sentinel",
+        ]) {
+          await writeFile(
+            join(parent, ".active.transaction.json"),
+            JSON.stringify({
+              version,
+              stageName,
+              mode: "standalone",
+              hadTarget: true,
+              ownerId: "dead-fixture-owner",
+              ownerPid: 999_999_999,
+              transactionId: "fixture-transaction",
+            }),
+          );
+          recoverAtomicTargetSync(targetPath);
+          expect(await readFile(sentinel, "utf8")).toBe("keep synthetic data");
+          expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("current");
+        }
+      }
+      const validStage = join(parent, ".active.stage-valid");
+      await mkdir(validStage);
+      await writeFile(
+        join(parent, ".active.transaction.json"),
+        JSON.stringify({ version: 1, stageName: ".active.stage-valid" }),
+      );
+      recoverAtomicTargetSync(targetPath);
+      expect(existsSync(validStage)).toBe(false);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it("retains the first discovered agent source and rejects paths outside the plugin", async () => {
     const temporaryRoot = await mkdtemp(join(tmpdir(), "zcode-agent-component-source-"));
     const root = join(temporaryRoot, "plugin");

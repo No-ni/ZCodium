@@ -688,21 +688,7 @@ function verifyPackagedRuntimeDependencies(os, arch) {
     requiredRuntimeModules,
     runtimeModuleLookupRoots,
   );
-  const resolvableRuntimeModules = runtimeModules.filter((entry) => {
-    if (!entry.sourceModulePath) {
-      // afterPack 会按当前平台实际可解析依赖注入；bundle 校验也需保持同口径。
-      // 否则在某些 CI 安装布局中会出现“注入阶段已跳过，但校验阶段仍硬失败”的误报。
-      console.warn(
-        `[bundle] runtime module not found in workspace, skip verify: ${entry.moduleName}; searched=${runtimeModuleLookupRoots
-          .map((lookupRoot) => resolve(lookupRoot, "node_modules", entry.moduleName))
-          .join(", ")}`,
-      );
-      return false;
-    }
-    return true;
-  });
-
-  for (const { moduleName } of resolvableRuntimeModules) {
+  for (const { moduleName } of runtimeModules) {
     const moduleRoot = `/node_modules/${moduleName}`;
     // @electron/asar 在 Windows 下列目录时会通过 path.join 产出反斜杠路径，
     // 之前这里按 POSIX 路径做精确匹配，导致模块其实已经打进 app.asar，校验却仍然误报缺失。

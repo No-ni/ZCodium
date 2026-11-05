@@ -655,13 +655,10 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       };
     } catch (error) {
       if (sessionsById.get(remoteSessionId) === session) {
-        sessionsById.delete(remoteSessionId);
-        entry.sessions.delete(remoteSessionId);
         session.state = "failed";
         session.sourceAvailability = "offline";
-        if (entry.sessions.size === 0 && entry.target.kind === "docker") {
-          await disposeEntry(entry);
-        }
+        // 工作区准备失败也必须走同一释放路径；直接删 owner 会漏掉 Server dispose 与 WSL idle TTL。
+        await disposeSession(remoteSessionId);
       }
       throw error;
     } finally {

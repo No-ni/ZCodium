@@ -2,6 +2,7 @@
 import { resolve } from "node:path";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { INVALID_PARAMS, Server, type Tool } from "@modelcontextprotocol/server";
+import { safeLogArgs } from "@zcode/shared";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { JsInputJsonSchema } from "@zcode/contracts/tools/node-repl";
 // 值导入必须走 @zcode/core/repl 这条深路径：barrel 会把 core 的整张图拖进 bundle
@@ -61,10 +62,7 @@ const pluginRoot = process.env.ZCODE_PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_RO
 // CUA 与 Browser Use 共用 node_repl host，但文档和 native 依赖必须按领域隔离；
 // 否则 CUA skill 会因为 host root 恰好来自 Browser Use 而再次产生隐式依赖。
 const browserDocumentationRoot = resolve(pluginRoot, "docs");
-const cuaDocumentationRoot = resolve(
-  process.env.ZCODE_CUA_PLUGIN_ROOT ?? pluginRoot,
-  "docs",
-);
+const cuaDocumentationRoot = resolve(process.env.ZCODE_CUA_PLUGIN_ROOT ?? pluginRoot, "docs");
 const jsInputSchema = z
   .object({
     code: z.string(),
@@ -139,23 +137,22 @@ export function createInProcessNodeReplExecutor(): NodeReplExecutor {
     let session: NodeReplSession;
     const generation = 1;
     session = new NodeReplSession({
-      injectedGlobals: () =>
-        ({
-          ...createBrowserBridgeGlobals({
-            broker: input.browserBroker,
-            documentationRoot: browserDocumentationRoot,
-            generation,
-            getActiveCall: () => activeCall,
-            session: () => session,
-          }),
-          ...createComputerUseBridgeGlobals({
-            broker: input.cuaBroker,
-            generation,
-            getActiveCall: () => activeCuaCall,
-            session: () => session,
-            documentationRoot: cuaDocumentationRoot,
-          }),
+      injectedGlobals: () => ({
+        ...createBrowserBridgeGlobals({
+          broker: input.browserBroker,
+          documentationRoot: browserDocumentationRoot,
+          generation,
+          getActiveCall: () => activeCall,
+          session: () => session,
         }),
+        ...createComputerUseBridgeGlobals({
+          broker: input.cuaBroker,
+          generation,
+          getActiveCall: () => activeCuaCall,
+          session: () => session,
+          documentationRoot: cuaDocumentationRoot,
+        }),
+      }),
       restrictProcess: true,
     });
     activeCall = {
@@ -245,6 +242,10 @@ export function createNodeReplMcpRuntime(
     if (name === "js") {
       const args = parseToolInput(jsInputSchema, request.params.arguments, name);
       return await serialized(sessionKey, async () => {
+        // 修复原因：排队期间 dispose/取消只影响当时 active 的调用；已持有
+        // previous promise 的等待者仍会继续，所以执行资格到手后必须再次复检。
+        if (disposed) throw new Error("node_repl runtime is disposed");
+        if (extra.mcpReq.signal.aborted) throw extra.mcpReq.signal.reason;
         if (!args.code) {
           return {
             content: [{ type: "text" as const, text: "js expects non-empty JavaScript source" }],
@@ -284,8 +285,8 @@ export function createNodeReplMcpRuntime(
           if (hint) {
             result.content.push({ type: "text", text: hint.text });
             writeStderr(
-              `[node_repl] no-progress hint kind=${hint.kind} count=${hint.count} ` +
-                `session=${String(requestMeta.session_id)} turn=${String(requestMeta.turn_id)}\n`,
+              // 诊断关联不输出业务 session/turn 身份，只保留固定状态与数字。
+              `[node_repl] no-progress hint kind=${hint.kind} count=${hint.count}\n`,
             );
           }
           return result;
@@ -322,7 +323,10 @@ async function executeJsInWorker(input: NodeReplExecuteInput): Promise<NodeReplR
     cuaBroker: input.cuaBroker,
     browserBroker: input.browserBroker,
   };
-  const worker = new Worker(new URL(import.meta.url), { workerData: data, env: workerEnvironment() });
+  const worker = new Worker(new URL(import.meta.url), {
+    workerData: data,
+    env: workerEnvironment(),
+  });
   return await new Promise<NodeReplRunResult>((resolveRun, rejectRun) => {
     let settled = false;
     const cleanup = () => {
@@ -484,9 +488,7 @@ function isWorkerCallData(value: unknown): value is WorkerCallData {
 
 if (isMainThread && (await isDirectMcpEntrypoint(import.meta.url, process.argv[1]))) {
   void main().catch((error) => {
-    process.stderr.write(
-      `node_repl MCP server failed: ${error instanceof Error ? error.stack : String(error)}\n`,
-    );
+    process.stderr.write(`node_repl MCP server failed: ${JSON.stringify(safeLogArgs([error]))}\n`);
     process.exitCode = 1;
   });
 }

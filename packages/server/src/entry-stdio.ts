@@ -1,9 +1,7 @@
-import { migrateApplicationStorage, createSettingService } from "@zcode/services/node";
 import { disposeServiceResourcesAndWait, getAppConfigDir } from "@zcode/services/node";
-import type { IChannel } from "@zcode/rpc";
+
 import {
   ZCODE_VERSION,
-  TOPIC_RESOURCE_RELAY_CHANNEL,
   SERVICE_AUTHORITY_MODE_ENV,
   formatLogPrefix,
   safeLogArgs,

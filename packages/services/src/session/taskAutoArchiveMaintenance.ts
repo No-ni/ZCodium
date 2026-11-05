@@ -23,7 +23,11 @@ const changedSchema = envelopeSchema.extend({
 });
 const logger = createServiceLogger("task-auto-archive");
 
-function collectScopes(settings: AppSettings, conversationPath: string): TaskAutoArchiveScope[] {
+function collectScopes(
+  settings: AppSettings,
+  conversationPath: string,
+  indexedLocalScopes: readonly TaskAutoArchiveScope[] = [],
+): Map<string, TaskAutoArchiveScope> {
   const scopes = new Map<string, TaskAutoArchiveScope>();
   const add = (scope: TaskAutoArchiveScope) => {
     if (scope.workspacePath.trim()) scopes.set(resolveWorkspaceKey(scope), scope);
@@ -38,8 +42,9 @@ function collectScopes(settings: AppSettings, conversationPath: string): TaskAut
         workspaceIdentity: entry.workspaceIdentity.trim(),
       });
   }
+  for (const scope of indexedLocalScopes) add(scope);
   add({ workspacePath: conversationPath });
-  return [...scopes.values()];
+  return scopes;
 }
 
 function schedule(scan: () => Promise<void>, intervalMs: number): () => void {
@@ -80,16 +85,30 @@ export function createTaskAutoArchiveMaintenance(
     const epoch = generation;
     const settings = await options.settingService.get();
     if (disposed || epoch !== generation || !settings.taskAutoArchiveEnabled) return;
-    for (const scope of collectScopes(settings, options.conversationWorkspacePath())) {
+    const indexedLocalScopes = new Map<string, TaskAutoArchiveScope>();
+    try {
+      // Bug 原因：独立 task 和虚拟项目的目录不再保证出现在旧 recent/open 清单。
+      // 只读同一 Host 的索引事实，不读取正文、不遍历目录，也不把远端 scope 回落本地。
+      for (const scope of (await options.listLocalWorkspaceScopes?.()) ?? []) {
+        if (scope.workspaceIdentity?.trim() || !scope.workspacePath.trim()) continue;
+        indexedLocalScopes.set(resolveWorkspaceKey(scope), { workspacePath: scope.workspacePath });
+      }
+    } catch {
+      logger.warn(undefined, "读取自动归档本地范围失败，已知工作区继续扫描");
+    }
+    if (disposed || epoch !== generation) return;
+    const scopes = collectScopes(settings, options.conversationWorkspacePath(), [
+      ...indexedLocalScopes.values(),
+    ]);
+    for (const [key, scope] of scopes) {
       if (disposed || epoch !== generation) return;
       try {
         // 每个提交边界重读，防止另一窗口关闭开关后，旧批次仍把剩余工作区归档。
         const latest = await options.settingService.get();
         if (disposed || epoch !== generation || !latest.taskAutoArchiveEnabled) return;
         if (
-          !collectScopes(latest, options.conversationWorkspacePath()).some(
-            (current) => resolveWorkspaceKey(current) === resolveWorkspaceKey(scope),
-          )
+          !indexedLocalScopes.has(key) &&
+          !collectScopes(latest, options.conversationWorkspacePath()).has(key)
         )
           continue;
         if (

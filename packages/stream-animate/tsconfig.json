@@ -12,5 +12,12 @@
     },
     "types": ["vite/client"]
   },
-  "include": ["src/App.tsx", "src/client", "src/shared", "src/main.tsx", "vite.config.ts"]
+  "include": [
+    "src/App.tsx",
+    "src/client",
+    "src/shared",
+    "src/contract.ts",
+    "src/main.tsx",
+    "vite.config.ts"
+  ]
 }

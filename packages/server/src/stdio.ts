@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  Emitter,
-  VSBuffer,
-  SocketProtocol,
-  ChannelServer,
-  ChannelClient,
-  type ISocket,
-} from "@zcode/rpc";
+import { Emitter, VSBuffer, SocketProtocol, ChannelServer, type ISocket } from "@zcode/rpc";
 import {
   IZCodeAgentService,
   createZCodeAgentConnectionScope,

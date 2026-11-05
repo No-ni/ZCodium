@@ -21,11 +21,7 @@ import {
   prepareSSHLifecycle,
   type SSHLifecycleProvider,
 } from "../../../helpers/ssh-remote-lifecycle.js";
-import {
-  readHostProcesses,
-  readRemoteTabSnapshot,
-  runSSHCommand,
-} from "../../../helpers/ssh-remote-p0.js";
+import { readHostProcesses, runSSHCommand } from "../../../helpers/ssh-remote-p0.js";
 import {
   getV4ConversationState,
   hasV4PermissionDialog,
@@ -140,10 +136,6 @@ async function closeRemoteControlDialog(): Promise<void> {
       { timeout: 10_000, timeoutMsg: `${CASE_MARKER}: 远程控制对话框没有关闭` },
     )
     .catch(() => undefined);
-}
-
-async function mobileText(page: PwPage): Promise<string> {
-  return (await page.evaluate(() => document.body?.innerText ?? "")) as string;
 }
 
 const REMOTE_PERMISSION_DIR = "/home/dev/r3-workspace-a/.zcode-e2e/r3-mobile-permission";

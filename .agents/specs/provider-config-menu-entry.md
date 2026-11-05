@@ -8,6 +8,11 @@
 
 ## 背景与范围
 
+2026-11 合并回归修复：Header、普通任务行及分组菜单统一消费 `useTaskListItemContextActions` 的环境级物化查询与打开动作。
+查询经 `useBuiltinProviderConfigFile`，菜单未启用时不发请求；`loading || !path || !exists || !openExternalFile` 禁用并解释原因。
+文件不存在时不打开 workspace 或父目录；打开失败显示既有双语提示。当前设备能力决定可用性，不能把本机配置伪装为远端 workspace 配置。
+回归范围与证据见 `docs/specs/custom-feature-merge-regressions.md`。
+
 上游语言表在 `appHeader` 域少了 8 个键，本 spec 只覆盖其中**被代码接线的那 1 个**。
 
 核对方式：从官方 3.14.3 安装包全量解包 `app.asar`（27057 文件），在 `out/renderer/assets/*.js`
@@ -86,7 +91,7 @@
 在任务列表项菜单中增加「前往配置」：
 
 1. 能取到 provider 配置文件路径时，点击用系统默认方式打开该文件；
-2. 取不到（仍在加载 / 不存在 / 远端工作区不支持）时禁用，并把原因写进 `title`；
+2. 取不到（仍在加载 / 不存在 / 当前平台缺少查询或原生打开能力）时禁用，并把原因写进 `title`；
 3. 只新增 1 个 i18n 键 `appHeader.goToProviderConfig`，避免引入上游那 7 个死键。
 
 ## 非目标
@@ -125,17 +130,17 @@ interface ZCodeBuiltinProviderConfigFileInfo {
 新增 `packages/ui/src/hooks/useBuiltinProviderConfigFile.ts`：
 
 - 复用上游的竞态防护形态：request-id 自增，过期响应丢弃；
-- `loading` / `error` / `path` / `exists` 四态；
+- `loading` / `path` / `exists`；查询失败清空路径，不另持久化 error 状态；
 - 失败只 `logger.warn`，不抛到 UI。
 
 任务菜单挂载点：与 `copySessionId` / `copyLogPath` 同级的菜单组件
 （`packages/ui/src/TaskActionMenuContent.tsx` 或 `useTaskListItemContextActions.ts` 侧，
 以现有菜单组装位置为准），新增一项：
 
-- `disabled = loading || !path || !exists`
-- `title` = 禁用原因（加载中 / 文件不存在 / 远端工作区不支持）
-- `onClick` → `platform.openInEditor("default", path)`，失败沿用
-  `appHeader.openInFileManagerFailed` 的 toast 模式
+- `disabled = loading || !path || !exists || !platform.openExternalFile`
+- `title` = 禁用原因（加载中 / 文件不存在 / 当前平台不支持）
+- `onSelect` → `useTaskListItemContextActions.handleOpenProviderConfig` →
+  `platform.openExternalFile(path)`；失败显示 `appHeader.builtinProviderConfigOpenFailed`。
 
 ### 4. i18n
 
@@ -163,7 +168,7 @@ interface ZCodeBuiltinProviderConfigFileInfo {
 2. 路径尚未物化（`exists: false`）：菜单项禁用，`title` 说明文件不存在。
 3. 查询进行中（`loading`）：菜单项禁用，`title` 说明加载中。
 4. 查询失败：菜单项禁用，`logger.warn` 记录，不弹错误 toast（不打断菜单）。
-5. 远端工作区（SSH/WSL/Docker）：菜单项禁用，`title` 说明远端不支持。
+5. 远端工作区（SSH/WSL/Docker）：沿用合并前环境级语义，平台有原生能力时打开当前设备的内置配置；不会查询或打开远端机器的配置路径。手机无原生打开能力时禁用/隐藏。
 6. 「复制日志路径」「复制会话 ID」等既有菜单项行为不变。
 7. 中英两种语言下菜单文案分别为「前往配置」/ `Go to config`。
 8. `useBuiltinProviderConfigFile` 在快速切换工作区时不出现旧工作区路径覆盖新工作区
@@ -174,7 +179,7 @@ interface ZCodeBuiltinProviderConfigFileInfo {
 - **语义不完全等价**：上游按工作区解析，本仓库按环境全局物化。若用户期望看到
   「当前工作区生效的那份配置」，拿到的是全局基线。需在 `title` 或文档中说明差异，
   或在实现时确认全局基线就是当前唯一生效配置。
-- 该菜单项在远端工作区下应禁用而非打开本机路径——打开本机文件会让用户误以为改的是远端配置。
+- 菜单操作的是当前设备环境级配置，不代表远端工作区配置。若将来需要编辑远端配置，必须另建明确的远端配置契约。
 
 ## 实现偏差
 
@@ -188,9 +193,12 @@ spec 初稿按上游措辞写成「按工作区解析 Provider 配置文件路�
 因此实现落在环境级物化副本上，而非引入按工作区解析。若将来要做按工作区配置，
 属于配置模型变更，需另起 spec。
 
+2026-11 对照合并前源码确认：菜单原本直接查询当前 platform 的物化配置，并没有按远端 workspace 禁用。
+初稿的「远端一律禁用」及 `openInEditor("default")` 描述未反映实际实现。本轮按已有环境级模型恢复，
+将验收和接口说明同步到 `openExternalFile`，不引入远端配置解析。
+
 ## 未验证部分
 
 - 上游 `getWorkspaceProviderConfigFile` 的 `scope` / `session` 参数语义未能从 bundle 完全还原，
   本 spec 不实现按工作区维度，只读全局物化路径。
-- 「用编辑器打开配置文件」的上游交互无法还原（对应键未接线），本 spec 以
-  `platform.openInEditor("default", ...)` 近似。
+- 「用指定编辑器打开配置文件」的上游交互无法还原（对应键未接线），本仓使用系统默认打开方式。

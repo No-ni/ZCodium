@@ -4,12 +4,6 @@ import { RotateCcwIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
-import { cn } from "@/components/lib/utils.js";
 import { WorkflowArtifactStrip } from "@/components/workflow-timeline/WorkflowArtifactStrip.js";
 import type {
   TimelinePill,

@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test, { after } from "node:test";
 import { tsImport } from "tsx/esm/api";
 import { z } from "zod";
@@ -62,8 +62,9 @@ const { ZCODE_CONVERSATION_WORKSPACE_ROOT_ENV, resolveConversationWorkspaceRoot 
 const { ZCodeAgentProcessManager } = agentProcessManagerModule;
 const { getConversationWorkspaceDir } = pathsModule;
 
-function createFakeAgentManager() {
+function createFakeAgentManager(useSharedTaskRuntime) {
   return new ZCodeAgentProcessManager({
+    useSharedTaskRuntime,
     commandResolver: () => ({
       command: process.execPath,
       args: [
@@ -111,6 +112,54 @@ test("spawn 注入：对话根 workspace 拿到对话根，项目 / identity wor
     );
   } finally {
     delete process.env[inheritedMarkerKey];
+    await manager.disposeAllAndWait();
+  }
+});
+
+test("共享本地进程即使以数据根启动也必须得到 Host 对话根标记", async () => {
+  const manager = createFakeAgentManager(async () => true);
+  try {
+    const client = await manager.getClient({ workspacePath: getConversationWorkspaceDir() });
+    assert.equal(
+      await client.request("session/list", {}, z.string()),
+      getConversationWorkspaceDir(),
+    );
+    // 一个进程服务多个本地目录；标记表示 Host 对话根，CLI 仍按请求目录判定。
+    const project = join(dataBaseDir, "shared-project");
+    await mkdir(project, { recursive: true });
+    const sameClient = await manager.getClient({ workspacePath: project });
+    assert.equal(sameClient, client);
+    assert.equal(
+      await sameClient.request("session/list", {}, z.string()),
+      getConversationWorkspaceDir(),
+    );
+  } finally {
+    await manager.disposeAllAndWait();
+  }
+});
+
+test("PTW06：task 即使重新分配为独立 CLI，仍拿到可信根；任务后代与项目 UUID 不注入", async () => {
+  const root = getConversationWorkspaceDir();
+  const uuid = "a1b2c3d4-1234-4321-8123-123456789abc";
+  const task = join(dirname(root), `draft-${uuid}`);
+  const manager = createFakeAgentManager(async () => false);
+  try {
+    for (const [workspacePath, expected] of [
+      [task, root],
+      [join(dirname(root), `1793846400000-${uuid}`), root],
+      [join(dirname(root), uuid), ""],
+      [join(task, "child"), ""],
+    ]) {
+      await mkdir(workspacePath, { recursive: true });
+      const client = await manager.getClient({ workspacePath });
+      assert.equal(await client.request("session/list", {}, z.string()), expected);
+    }
+    const remote = await manager.getClient({
+      workspacePath: task,
+      workspaceIdentity: "remote:fixture",
+    });
+    assert.equal(await remote.request("session/list", {}, z.string()), "");
+  } finally {
     await manager.disposeAllAndWait();
   }
 });

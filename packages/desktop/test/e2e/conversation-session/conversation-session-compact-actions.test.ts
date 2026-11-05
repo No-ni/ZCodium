@@ -8,7 +8,6 @@ import {
   prepareV4ConversationE2E,
   sendV4Prompt,
   setV4ComposerText,
-  waitForV4AssistantMessageContaining,
   waitForV4ConversationState,
   waitForV4ComposerText,
   waitForV4UserMessageContaining,

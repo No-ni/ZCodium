@@ -9,6 +9,8 @@ API Key 型自定义 Provider 支持从 provider 自己的接口直接读取模�
 - 端点按 `api.type` 选择，不做路径补全猜测：OpenAI 兼容（`openai-chat-completions` / `openai-responses`）首选 `{baseUrl}/models`，Anthropic（`anthropic-messages`）首选 `{baseUrl}/v1/models`。首选失败（非 2xx、网络错误、非法 JSON、空目录）才 fallback 到同一 base 的另一种路径；fallback 成功时结果标记 `fallback`。两次都失败返回首选错误，UI 提示失败并保留手动添加。
 - 请求使用 provider 配置里的 `api.baseUrl`、`access.apiKey` 与 `api.headers`；HTTP 头名不区分大小写，自定义 headers 同名时覆盖内置鉴权头，不能把两份值拼接发送。自定义配置中同一头名出现不同大小写时，按配置枚举顺序由后项覆盖前项；保留胜出项的字段拼写，不修改输入配置。凭据不出现在日志与错误文案里。
 - 获取结果是候选 modelId 列表，不自动落库。用户在弹窗里勾选后逐条走既有 `addPersonalModel`（推荐配置默认值），已存在的模型只读展示、不可重复添加。
+- 弹窗首次打开或重新获取时默认勾选未添加项；同次打开期间添加结果改变候选的 `alreadyAdded` 时，保留用户取消勾选的项。部分失败只重试仍勾选的失败项，不重新勾选用户排除的模型。
+- 一次确认独占添加操作；同步重复确认不启动第二批写入。获取或添加抛错时使用既有本地化失败提示，技术日志只记录固定诊断，不透传原始异常、Provider/model ID 或凭据。
 - 远程 workspace 不加特殊处理：调用 active Environment 的 `provider-settings` 服务，与其它 Provider 设置操作同路径；远端没有该 Provider 配置时按失败降级为手动添加。
 
 ## 所有者与接口
@@ -48,4 +50,5 @@ sequenceDiagram
 3. 非 api-key 访问类型、缺 baseUrl、缺 apiKey（且无自定义 headers）在 Service 层被拒绝，不发起请求。
 4. 未创建/未保存的 Provider 不能触发获取；获取失败后手动添加模型流程不变。
 5. 弹窗勾选添加走既有 `addPersonalModel`，已存在模型不可重复添加；部分失败时有明确提示，成功项从当前选择中移除，重试只提交失败项。
+   额外覆盖 A/B 勾选、C 取消勾选，A 成功 B 失败后重试只提交 B；重新打开恢复默认勾选。覆盖同一同步栈重复确认、目录抛错与添加抛错的文案/日志净化。
 6. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过；新增 services / ui 单测实际执行通过。

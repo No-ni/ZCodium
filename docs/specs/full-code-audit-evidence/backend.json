@@ -1,0 +1,716 @@
+{
+  "date": "2026-11-06",
+  "method": "Compact relative-path review evidence; contract, entrypoint and selected failure-path review. Not a claim of manual review of every leaf or real-device acceptance.",
+  "modules": [
+    {
+      "id": "services",
+      "roots": ["packages/services/src"],
+      "managed": false,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/collection.ts",
+          "packages/services/src/accessor.ts",
+          "packages/services/src/logger/serviceLogger.ts",
+          "packages/services/src/zcode-agent/zcodeAgentService.ts",
+          "packages/services/src/zcode-agent/zcodeAgentProcessManager.ts",
+          "packages/services/src/settings-sync/settingsSyncService.ts"
+        ],
+        "checks": "服务注册与公开入口；Agent 进程和会话 owner；安全日志；配置文件锁与 MCP 导入现入口",
+        "findings": "HTTP share attachment 问题在 server 修复；本组 services/test 两个旧 MCP API 场景对齐当前导入入口；其余 legacy 文件完成语法/导出/IO信号扫描，未做逐分支运行验收",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "session",
+      "roots": ["packages/services/src/session"],
+      "managed": false,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/session/contract.ts",
+          "packages/services/src/session/zcodeTaskService.ts",
+          "packages/services/src/session/taskIndexRepo.ts",
+          "packages/services/src/session/continuousStreamCoalescer.ts",
+          "packages/services/src/session/sessionRealtimePort.ts",
+          "packages/services/src/session/automationRepo.ts",
+          "packages/services/src/session/tasksDatabase/migrations.ts"
+        ],
+        "checks": "CLI 与组织态所有者；workspaceIdentity；任务索引/迁移；continuous 合帧与 replayable 区分；automation 持久化",
+        "findings": "保留既有 owner/lease、索引和历史迁移边界；未声称完整会话真机验收",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "storage",
+      "roots": ["packages/services/src/storage"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/storage/CONTRACT.md",
+          "packages/services/src/storage/contract.ts",
+          "packages/services/src/storage/adapters/fsBoundary.ts",
+          "packages/services/src/storage/adapters/fsWalker.ts",
+          "packages/services/src/storage/adapters/fsCleaner.ts"
+        ],
+        "checks": "目录遍历、清理范围、symlink/junction、枚举后替换、取消代际与现有分类意图",
+        "findings": "修复已存在根/祖先链接越界；7 个真实文件系统回归通过；最终 syscall 间隔的恶意原子替换不作保证",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "server",
+      "roots": ["packages/server/src"],
+      "managed": false,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/server/src/source-server/contract.ts",
+          "packages/server/src/http.ts",
+          "packages/server/src/stdio.ts",
+          "packages/server/src/httpStaticFiles.ts",
+          "packages/server/src/remote/connect.ts",
+          "packages/server/src/remote/stdio-socket.ts",
+          "packages/server/src/remote/handshake.ts"
+        ],
+        "checks": "HTTP 鉴权顺序；实例连接所有权和关闭；stdio ACK/握手；协议交接与取消；路径静态文件边界",
+        "findings": "修复 HTTP 跨实例连接 Map、未释放底层连接及 share base service 暴露；7 个真实 HTTP/WS+mock transport 回归通过",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "zcode-server-cli",
+      "roots": ["packages/zcode-server-cli/src"],
+      "managed": false,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/zcode-server-cli/src/server-core/http.ts",
+          "packages/zcode-server-cli/src/server-core/core.ts",
+          "packages/zcode-server-cli/src/server-core/ingressToken.ts",
+          "packages/zcode-server-cli/src/server-core/parentDisconnect.ts",
+          "packages/zcode-server-cli/src/server-core/proxyStdio.ts",
+          "packages/zcode-server-cli/src/server-core/taskActivityTracker.ts",
+          "packages/zcode-server-cli/src/runtime/paths.ts",
+          "packages/zcode-server-cli/src/runtime/uninstallGuard.ts"
+        ],
+        "checks": "Core HTTP 受信入口；ingress token；父进程断开；代理 stdio；任务活跃跟踪；卸载目标 owner/path",
+        "findings": "现有 Core share attachment 与 shutdown 合同作为 HTTP 修复依据；未在本机执行安装/卸载或 SSH 真机动作",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "desktop",
+      "roots": ["packages/desktop/src"],
+      "managed": false,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/host/windowHostAttachmentRegistry.ts",
+          "packages/desktop/src/host/windowRemoteConnectionRegistry.ts",
+          "packages/desktop/src/main/webRemoteControl/authorization.ts",
+          "packages/desktop/src/main/taskRealtimeBus.ts",
+          "packages/desktop/src/host/taskRealtimeBridge.ts"
+        ],
+        "checks": "window-scoped Host 与 attachment；连接 owner/代际；手机一次性配对 target；实时转发与 lease；Main 职责",
+        "findings": "保留手机复用原 Host 与桌面 continuous/手机 replayable 两种语义；大规模 renderer/fixture 完成静态扫描，未声称 Electron 真机全 E2E",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "window-project-directory",
+      "roots": ["packages/services/src/window-project-directory"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/window-project-directory/CONTRACT.md",
+          "packages/services/src/window-project-directory/contract.ts",
+          "packages/services/src/window-project-directory/webRemoteProjectTreeActivity.ts"
+        ],
+        "checks": "只读完整能力组；Main generation；手机 activity overlay identity/task key；订阅 retain/dispose",
+        "findings": "没有新增状态写入或远端连接 owner；未发现可确认新增缺陷",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "source-server-workspace",
+      "roots": ["packages/services/src/source-server-workspace"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/source-server-workspace/CONTRACT.md",
+          "packages/services/src/source-server-workspace/contract.ts",
+          "packages/services/src/source-server-workspace/app/service.ts",
+          "packages/services/src/source-server-workspace/adapters/files.ts",
+          "packages/services/src/source-server-workspace/adapters/ledger.ts",
+          "packages/services/src/source-server-workspace/adapters/inspection.ts",
+          "packages/services/src/source-server-workspace/domain/plan.ts",
+          "packages/services/src/source-server-workspace/sourceServerWorkspaceIdentityChannelServer.ts"
+        ],
+        "checks": "canonical identity 映射；有界文件路径；ledger/published 状态；计划执行与检查边界",
+        "findings": "保留检查/恢复 owner 及公开 identity mapper；未执行真实远端恢复",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "gen-ui-service",
+      "roots": ["packages/services/src/gen-ui"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/gen-ui/CONTRACT.md",
+          "packages/services/src/gen-ui/contract.ts",
+          "packages/services/src/gen-ui/adapters/files.ts",
+          "packages/services/src/gen-ui/adapters/stateStorage.ts",
+          "packages/services/src/gen-ui/adapters/service.ts"
+        ],
+        "checks": "生成目录/文件选择；state 文件读写；并发通知与服务出口",
+        "findings": "沿现有 adapter 路径和状态所有权检查；未执行浏览器视觉生成流程",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "plugin-ui-bridge",
+      "roots": ["packages/services/src/plugin-ui-bridge"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/plugin-ui-bridge/CONTRACT.md",
+          "packages/services/src/plugin-ui-bridge/contract.ts",
+          "packages/services/src/plugin-ui-bridge/pluginUiBridgeService.ts",
+          "packages/services/src/plugin-ui-bridge/pluginUiSamplingService.ts",
+          "packages/services/src/plugin-ui-bridge/instanceAccounts.ts"
+        ],
+        "checks": "实例账户隔离；prepare 生命周期与 service facade；采样配置/调用边界",
+        "findings": "未发现有回归证据的新增问题；未启用插件外部网络或官方自动拉取",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "plugin-sandbox",
+      "roots": [
+        "packages/desktop/src/main/pluginSandbox",
+        "packages/desktop/src/host/pluginSandbox",
+        "packages/desktop/src/preload/pluginSandbox",
+        "packages/desktop/src/renderer/src/plugin-sandbox"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/host/pluginSandbox/contract.ts",
+          "packages/desktop/src/main/pluginSandbox/CONTRACT.md",
+          "packages/desktop/src/main/pluginSandbox/contract.ts",
+          "packages/desktop/src/main/pluginSandbox/registry.ts",
+          "packages/desktop/src/host/pluginSandbox/index.ts",
+          "packages/desktop/src/preload/pluginSandbox/hostBridge.ts",
+          "packages/desktop/src/renderer/src/plugin-sandbox/desktopPluginSandboxPlatform.ts"
+        ],
+        "checks": "main/host/preload/renderer 四 roots；sandbox registry；guest 资源与 capability；renderer platform 入口",
+        "findings": "检查跨层公开端口与 guest 隔离；未执行 Electron guest 权限真机 E2E",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "project-storage",
+      "roots": ["packages/services/src/project-storage"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/project-storage/CONTRACT.md",
+          "packages/services/src/project-storage/contract.ts",
+          "packages/services/src/project-storage/purge/contract.ts",
+          "packages/services/src/project-storage/startup.ts",
+          "packages/services/src/project-storage/project-repository.ts",
+          "packages/services/src/project-storage/project-repository-queries.ts",
+          "packages/services/src/project-storage/project-task-creation.ts",
+          "packages/services/src/project-storage/remote-policy.ts"
+        ],
+        "checks": "启动迁移屏障；数据库事务与查询；临时任务固化；远端/project/workspace 数据归属",
+        "findings": "prepareTasksIndexStorage 现公开 startup-entry 已告知主代理用于修复旧 root fixture；未恢复退役 tasksDatabase/startup",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "project",
+      "roots": ["packages/services/src/project"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/project/CONTRACT.md",
+          "packages/services/src/project/contract.ts",
+          "packages/services/src/project/data/contract.ts",
+          "packages/services/src/project/index.ts",
+          "packages/services/src/project/data/project-data.ts",
+          "packages/services/src/project/projectRemoteIdentity.ts",
+          "packages/services/src/project/autoArchiveScheduler.ts"
+        ],
+        "checks": "组织态唯一写入；多 roots/session 目录；remote identity；自动归档调度",
+        "findings": "按 session-management 检查组织态与 CLI 事实边界；未进行完整迁移用户数据验收",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "task-facts",
+      "roots": ["packages/services/src/task-facts"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/task-facts/CONTRACT.md",
+          "packages/services/src/task-facts/contract.ts",
+          "packages/services/src/task-facts/index.ts",
+          "packages/services/src/task-facts/repairSubagentTaskIndex.ts"
+        ],
+        "checks": "事实摄入/reconcile；每 await 代际检查；child 索引只按 CLI 权威身份清理",
+        "findings": "未删 fork/未知类型或正文；保留 existing-only 和 workspace identity 校验",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "remote-projects",
+      "roots": ["packages/services/src/remote-projects"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/remote-projects/CONTRACT.md",
+          "packages/services/src/remote-projects/contract.ts",
+          "packages/services/src/remote-projects/index.ts",
+          "packages/services/src/remote-projects/connection-membership.ts",
+          "packages/services/src/remote-projects/validation.ts",
+          "packages/services/src/remote-projects/workspace-settings.ts"
+        ],
+        "checks": "membership 隔离；入口验证；移除/重加后的迟到结果；workspace 设置边界",
+        "findings": "保留远端 Host entry 与物理连接 owner；未发现确定新增缺陷",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "startup-storage",
+      "roots": ["packages/services/src/startup-storage"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/startup-storage/CONTRACT.md",
+          "packages/services/src/startup-storage/contract.ts",
+          "packages/services/src/startup-storage/index.ts"
+        ],
+        "checks": "execFile 数组参数；Agent subcommand 截断；继承 data root/env；版本化严格迁移 JSON",
+        "findings": "不打开业务 runtime/数据库；未运行真实 Agent 迁移命令",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "project-catalog",
+      "roots": ["packages/services/src/project-catalog"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/project-catalog/CONTRACT.md",
+          "packages/services/src/project-catalog/contract.ts",
+          "packages/services/src/project-catalog/index.ts",
+          "packages/services/src/project-catalog/selection-id.ts"
+        ],
+        "checks": "只读目录；membership 与 entry 前后校验；Host/项目选择二元组；离线/删除过滤",
+        "findings": "未引入 cwd 合并或状态缓存；未发现确定新增缺陷",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "bot-project-runtime",
+      "roots": ["packages/services/src/bot-project-runtime"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/bot-project-runtime/CONTRACT.md",
+          "packages/services/src/bot-project-runtime/contract.ts",
+          "packages/services/src/bot-project-runtime/index.ts"
+        ],
+        "checks": "remote identity/host 一致；membership+owner lease；taskId-only 归属；连续事件换代与 dispose",
+        "findings": "只复用现 Source task service，不建立 accepted queue；外部 Bot provider 未做实网验收",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "project-workspace-navigation",
+      "roots": ["packages/services/src/project-workspace-navigation"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/project-workspace-navigation/CONTRACT.md",
+          "packages/services/src/project-workspace-navigation/contract.ts",
+          "packages/services/src/project-workspace-navigation/index.ts"
+        ],
+        "checks": "严格 request schema；task identity 查找；目录一致；provisional scope 提交前 assertCurrent",
+        "findings": "main 只转交 descriptor；未为手机创建第二连接 owner",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "host-database-startup",
+      "roots": ["packages/desktop/src/host/database-startup"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/host/database-startup/CONTRACT.md",
+          "packages/desktop/src/host/database-startup/contract.ts",
+          "packages/desktop/src/host/database-startup/hostDatabaseStartup.ts",
+          "packages/desktop/src/host/database-startup/storagePreparationProcesses.ts",
+          "packages/desktop/src/host/database-startup/tasksStorageWorker.ts"
+        ],
+        "checks": "迁移子进程所有权；退出等待；启动屏障；worker 故障与准备结果",
+        "findings": "现有迁移 SQL/路径 owner 维持；未运行 Electron Host 启动真机流程",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "remote-input-prediction",
+      "roots": ["packages/services/src/zcode-agent/inputPredictionSwitch.ts"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": ["packages/services/src/zcode-agent/inputPredictionSwitch.ts"],
+        "checks": "hello capability 与转发共用开关；trim/default/0/1 语义",
+        "findings": "本组只审查服务侧 root；其余政策 roots 由相应组覆盖",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "remote-resident-rows-range",
+      "roots": ["packages/services/src/zcode-agent/resident-rows-range"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/zcode-agent/resident-rows-range/CONTRACT.md",
+          "packages/services/src/zcode-agent/resident-rows-range/contract.ts"
+        ],
+        "checks": "runtime capability 先验；client WeakMap 与失败重试；旧 CLI 冷恢复禁止转发",
+        "findings": "本组只审查服务侧能力检查；共享/CLI 行范围实现由相应组审查",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "task-groups",
+      "roots": ["packages/services/src/task-groups"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/task-groups/CONTRACT.md",
+          "packages/services/src/task-groups/contract.ts",
+          "packages/services/src/task-groups/index.ts",
+          "packages/services/src/task-groups/repository.ts",
+          "packages/services/src/task-groups/migration-v6.ts"
+        ],
+        "checks": "分组组织态归属；迁移事务；多根/identity 查询；历史分组恢复",
+        "findings": "按 session-management 核对历史修复意图；未对真实用户库执行迁移",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "embedded-browser-permission",
+      "roots": [
+        "packages/desktop/src/main/embedded-browser-permission-contract",
+        "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/main/embedded-browser-permission-contract/CONTRACT.md",
+          "packages/desktop/src/main/embedded-browser-permission-contract/contract.ts",
+          "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts"
+        ],
+        "checks": "embedded browser grant policy 与权限 schema；外部来源/窗口归属",
+        "findings": "未执行真机浏览器权限弹窗",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "data-sync-service",
+      "roots": ["packages/services/src/data-sync"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/data-sync/CONTRACT.md",
+          "packages/services/src/data-sync/contract.ts",
+          "packages/services/src/data-sync/directoryContent.ts",
+          "packages/services/src/data-sync/syncUtils.ts",
+          "packages/services/src/data-sync/userConfigSyncService.ts",
+          "packages/services/src/data-sync/mcpDataSync.ts"
+        ],
+        "checks": "目录/内容 hash；合法同步 payload；scope 与配置 owner；远端同步的显式意图",
+        "findings": "不新增同步写入路径或官方配置回退；未做跨机器真实同步",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "provider-provisioning-status",
+      "roots": ["packages/services/src/provider-provisioning-status"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/provider-provisioning-status/CONTRACT.md",
+          "packages/services/src/provider-provisioning-status/contract.ts",
+          "packages/services/src/provider-provisioning-status/hostProviderProvisioningStatus.ts"
+        ],
+        "checks": "UUID request identity；同步 postMessage 失败；Host dispose 拒绝全部在飞请求；迟到结果",
+        "findings": "Main lane 仍为唯一数据源，不增加超时规则",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "local-ttft-desktop",
+      "roots": ["packages/desktop/src/renderer/src/local-ttft"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/renderer/src/local-ttft/CONTRACT.md",
+          "packages/desktop/src/renderer/src/local-ttft/contract.ts",
+          "packages/desktop/src/renderer/src/local-ttft/initialize.ts"
+        ],
+        "checks": "本地记录与外部导出开关；有界批量；visibility/focus；dispose 释放 timer/listeners",
+        "findings": "不启用外部接收端或遥测；未执行真实 UI 模型首 token 计时",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "file-open-apps",
+      "roots": ["packages/desktop/src/main/file-open-apps"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/main/file-open-apps/CONTRACT.md",
+          "packages/desktop/src/main/file-open-apps/contract.ts",
+          "packages/desktop/src/main/file-open-apps/index.ts",
+          "packages/desktop/src/main/file-open-apps/windows.ts",
+          "packages/desktop/src/main/file-open-apps/windows-default.ts",
+          "packages/desktop/src/main/file-open-apps/mac.ts"
+        ],
+        "checks": "平台 adapter；Windows 默认应用/命令参数；mac native 调用；shell/path 边界",
+        "findings": "未打开或安装本机真实应用；mac 原生路径未运行",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "desktop-source-connection",
+      "roots": [
+        "packages/desktop/src/host/source-connection",
+        "packages/desktop/src/host/sourceServerConnectionManager.ts",
+        "packages/desktop/src/host/sourceServerConnectionTypes.ts",
+        "packages/desktop/src/host/sourceServerConnectionFlights.ts",
+        "packages/desktop/src/host/sourceServerProfileRetirement.ts",
+        "packages/desktop/src/host/sourceServerOperationFlights.ts",
+        "packages/desktop/src/host/sourceServerDirectory.ts",
+        "packages/desktop/src/host/sourceSettingsServiceCollection.ts",
+        "packages/desktop/src/host/botProjectBridge.ts",
+        "packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts",
+        "packages/desktop/src/host/legacyRemoteWorkspaceRpcContract.ts",
+        "packages/desktop/src/main/webRemoteControl/managerTypes.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/host/source-connection/CONTRACT.md",
+          "packages/desktop/src/host/source-connection/contract.ts",
+          "packages/desktop/src/host/sourceServerConnectionManager.ts",
+          "packages/desktop/src/host/sourceServerConnectionFlights.ts",
+          "packages/desktop/src/host/sourceServerOperationFlights.ts",
+          "packages/desktop/src/host/sourceServerProfileRetirement.ts",
+          "packages/desktop/src/host/sourceServerDirectory.ts",
+          "packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts",
+          "packages/desktop/src/main/webRemoteControl/managerTypes.ts"
+        ],
+        "checks": "connect/operation flights；退休 profile；owner/lease；attachment RPC 白名单；本组所有 roots 信号扫描",
+        "findings": "维持 Desktop window-scoped Source owner；未对实 SSH/WSL/Docker 运行回收验收",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "desktop-source-settings-bridge",
+      "roots": [
+        "packages/desktop/src/renderer/src/source-settings-bridge-contract",
+        "packages/desktop/src/renderer/src/sourceSettingsServicePortBridge.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/src/renderer/src/source-settings-bridge-contract/CONTRACT.md",
+          "packages/desktop/src/renderer/src/source-settings-bridge-contract/contract.ts",
+          "packages/desktop/src/renderer/src/sourceSettingsServicePortBridge.ts"
+        ],
+        "checks": "renderer facade 换代；公开服务端口；source settings 与手机准入分离",
+        "findings": "仅 desktop trusted attachment；未执行 UI 配置切换真机 E2E",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "desktop-test-config",
+      "roots": ["packages/desktop/test/test-config-contract", "packages/desktop/wdio.conf.ts"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/desktop/test/test-config-contract/CONTRACT.md",
+          "packages/desktop/test/test-config-contract/contract.ts",
+          "packages/desktop/wdio.conf.ts"
+        ],
+        "checks": "worker/session 生命周期；隔离 HOME 和 profile；子进程环境；onPrepare/afterSession 清理与诊断",
+        "findings": "现桌面 E2E 会构建/launch，本轮未运行；需项目内沙箱配置，不能继承真实用户目录",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "conversation-share-local-context",
+      "roots": [
+        "packages/services/src/conversation-share/local-context-contract",
+        "packages/services/src/conversation-share/conversationShareConnectionScope.ts",
+        "packages/services/src/conversation-share/conversationShareWorkflowSnapshot.ts",
+        "packages/services/src/conversation-share/conversationShareWorkflowSnapshotContent.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/conversation-share/local-context-contract/CONTRACT.md",
+          "packages/services/src/conversation-share/local-context-contract/contract.ts",
+          "packages/services/src/conversation-share/conversationShareConnectionScope.ts",
+          "packages/services/src/conversation-share/conversationShareWorkflowSnapshot.ts",
+          "packages/services/src/conversation-share/conversationShareWorkflowSnapshotContent.ts"
+        ],
+        "checks": "trusted downstream context；replayable deny；workflow snapshot 与正文同源；归档 facade",
+        "findings": "HTTP adapter 已复用该公开准入工厂；7场景中已验 ordinary replayable 不触 base handler",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "subagent-runtime-config",
+      "roots": [
+        "packages/services/src/subagents/runtime-config-contract",
+        "packages/services/src/subagents/subagentRuntimeConfig.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/subagents/runtime-config-contract/CONTRACT.md",
+          "packages/services/src/subagents/runtime-config-contract/contract.ts",
+          "packages/services/src/subagents/subagentRuntimeConfig.ts"
+        ],
+        "checks": "workspace identity 缓存；scope generation/abort；稳定文件读取；首次 fallback 与后台完成；dispose",
+        "findings": "Host 保持 snapshot owner；未创建 CLI runtime 第二写入路径",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "user-instructions",
+      "roots": [
+        "packages/services/src/setting/user-instructions-contract",
+        "packages/services/src/setting/userInstructionsPersistence.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/setting/user-instructions-contract/CONTRACT.md",
+          "packages/services/src/setting/user-instructions-contract/contract.ts",
+          "packages/services/src/setting/userInstructionsPersistence.ts"
+        ],
+        "checks": "UTF8 byte limit；实例 queue；跨实例文件锁；0600 私有原子保存；失败后再写",
+        "findings": "固定现 .zcodium 指令路径；未读写真实用户指令",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "server-docker-arguments",
+      "roots": [
+        "packages/server/src/remote/docker-arguments-contract",
+        "packages/server/src/remote/dockerBackendArgs.ts"
+      ],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/server/src/remote/docker-arguments-contract/CONTRACT.md",
+          "packages/server/src/remote/docker-arguments-contract/contract.ts",
+          "packages/server/src/remote/dockerBackendArgs.ts"
+        ],
+        "checks": "container 与工作目录 argv；参数数组；路径/空格/命令注入边界",
+        "findings": "不改通用 Server/CLI Linux 契约；未运行 Docker daemon",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    },
+    {
+      "id": "output-style",
+      "roots": ["packages/services/src/output-style"],
+      "managed": true,
+      "method": "contract-and-targeted-key-implementation-review",
+      "manualReview": {
+        "level": "contract-and-targeted-key-implementation-review",
+        "keyFiles": [
+          "packages/services/src/output-style/CONTRACT.md",
+          "packages/services/src/output-style/contract.ts",
+          "packages/services/src/output-style/outputStyleService.ts"
+        ],
+        "checks": "直接子文件 ID；add/update/delete 前验证；.md 末尾扩展；安全日志",
+        "findings": "修复路径穿越和中间 .md ID；4个真实文件系统回归通过；保留合法 Unicode/空格/既有 ID",
+        "limits": "No claim of every branch, line-by-line review or real-device full E2E; full per-file static inventory retained separately."
+      }
+    }
+  ]
+}

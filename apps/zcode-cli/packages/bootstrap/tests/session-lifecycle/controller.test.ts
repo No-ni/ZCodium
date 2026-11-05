@@ -20,6 +20,66 @@ function fixture() {
 }
 
 describe("session runtime lifecycle", () => {
+  it("owns resident resume effects until completion without recreating the instance", async () => {
+    const { lifecycle, host } = fixture();
+    await lifecycle.ensureReady("a");
+    const gate = Promise.withResolvers<void>();
+    const refresh = vi.fn(async () => gate.promise);
+    const activate = vi.fn(async () => {});
+    const resumed = lifecycle.initialize("a", activate, refresh);
+    await expect(lifecycle.stop("a")).rejects.toMatchObject({ code: "conflict" });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(activate).not.toHaveBeenCalled();
+    gate.resolve();
+    await resumed;
+    await lifecycle.stop("a");
+    expect(host.activate).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes imported-history replacement through full release before initialization", async () => {
+    const { lifecycle, host, known, runtimes } = fixture();
+    await lifecycle.ensureReady("a");
+    known.delete("a"); // 软删行的重新导入由产品入口授权，公开 restart 仍拒绝它。
+    await expect(lifecycle.restart("a")).rejects.toMatchObject({ code: "sessionNotFound" });
+    const gate = Promise.withResolvers<void>();
+    host.release.mockImplementation(async (id) => {
+      await gate.promise;
+      runtimes.delete(id);
+    });
+    const activate = vi.fn(async () => {
+      expect(runtimes.has("a")).toBe(false);
+      runtimes.add("a");
+    });
+    const replacing = lifecycle.reinitialize("a", activate);
+    await expect(lifecycle.reinitialize("a", activate)).rejects.toMatchObject({ code: "conflict" });
+    await expect(lifecycle.stop("a")).rejects.toMatchObject({ code: "conflict" });
+    expect(activate).not.toHaveBeenCalled();
+    gate.resolve();
+    await replacing;
+    expect(host.release).toHaveBeenCalledTimes(1);
+    expect(activate).toHaveBeenCalledTimes(1);
+    await lifecycle.initialize("a", activate);
+    expect(activate).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes a resident resume after joining an in-flight ready check", async () => {
+    const { lifecycle, host } = fixture();
+    await lifecycle.ensureReady("a");
+    const gate = Promise.withResolvers<void>();
+    host.exists.mockImplementationOnce(async () => {
+      await gate.promise;
+      return true;
+    });
+    const checking = lifecycle.ensureReady("a");
+    const refresh = vi.fn(async () => {});
+    const resumed = lifecycle.initialize("a", async () => {}, refresh);
+    expect(refresh).not.toHaveBeenCalled();
+    gate.resolve();
+    await Promise.all([checking, resumed]);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(host.activate).toHaveBeenCalledTimes(1);
+  });
+
   it("does not treat a deleted persistent session as ready even if its old runtime remains", async () => {
     const { lifecycle, known } = fixture();
     await lifecycle.ensureReady("a");

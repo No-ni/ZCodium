@@ -1,5 +1,13 @@
 # Conversation Session Case Catalog
 
+## CUSTOM-MERGE：定制功能合并回归（2026-11-05 accepted）
+
+CUSTOM-MERGE-01–07 的设置、动作、断言与剪枝见 [修复 spec](specs/custom-feature-merge-regressions.md#已接受场景与剪枝)。恢复现有 Markdown、环境配置、独立 cwd、任务文件树、fork 总结偏好、常驻恢复保活和导入重放契约；运行时与浏览器夹具证据分别记录，不等价于打包桌面/手机真机验收。
+
+## CR：项目 Recent 继承回归（2026-11-05 accepted）
+
+CR01–09 的设置、操作、断言与剪枝见 [修复 spec](specs/composer-recent-scope-regression.md#accepted-cases--candidate-combinations--matrix-backfill)。复用正式 `conversation-session-composer-recent-mode.test.ts` 的首发、已有会话切模、同目录 P/Q、迟到接纳与文字草稿场景；补充自主模式代表。CR09 对齐 E2E 预置、诊断与组件夹具的 v2 key。工程回归不得替代桌面或手机验收。
+
 ## 会话 ID 兼容（SID，2026-10-28 accepted）
 
 规格：[Session identity compatibility](session-context-tool.md#session-identity-compatibility)。
@@ -4162,15 +4170,29 @@ PJM07（pending，2026-10-24）：确认对话框勾选「同时删除它们的 
 
 合同见 virtual-project-design 的“当前任务元数据与自动归档收尾”。pending case：`packages/desktop/test/e2e/conversation-session/conversation-session-active-task-metadata.test.ts`，只创建隔离 HOME 历史 fixture，不请求模型；不晋升 formal。
 
-| Case  | 设置 → 动作 → 断言                                                                                                                                                                            | 状态                                             |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| AMT01 | CLI 持久化冷历史 + Host 标题 → 侧栏打开 → 真实正文和标题，详情不读取 active runtime 标题                                                                                                      | accepted，unit + pending E2E                     |
-| AMT02 | 28 天前已读/未读/置顶 + 6 天前未读 → 开启七天归档 → Host 设置变更扫描纯按时间归档已读与未读旧任务并离开列表，置顶与 6 天前保留；点开 6 天前那条 → 只清未读，保持打开且在列（2026-09-15 改写） | accepted，unit + pending E2E                     |
-| AMT03 | 首次已归档/离线缺行/乱序树 → 刷新 → 不误清显式打开历史或当前任务                                                                                                                              | accepted，unit                                   |
-| AMT04 | 同路径/ID不同远端 identity + rename/切换 → 延迟响应 → 不串标题，Host 权威更新生效                                                                                                             | accepted，unit；真实手机/远端 GUI 待验           |
-| AMT05 | 旧配置开启且无重置标记 → 冷启动 → 开关关闭、保留天数与旧会话；用户重新开启 → 归档超期会话；再次冷启动 → 保持开启（2026-10-14）                                                                | accepted，unit + pending E2E；复用 AMT02 fixture |
+| Case  | 设置 → 动作 → 断言                                                                                                                                                                   | 状态                                             |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| AMT01 | CLI 持久化冷历史 + Host 标题 → 侧栏打开 → 真实正文和标题，详情不读取 active runtime 标题                                                                                             | accepted，unit + pending E2E                     |
+| AMT02 | 28 天前已读/未读/置顶 + 6 天前未读 → 开启七天归档 → 超期已读 completed 离开列表，未读与置顶及 6 天前任务保留；点开 6 天前那条 → 只清未读，保持打开且在列（2026-11-05 fork 资格对齐） | accepted，source + pending E2E                   |
+| AMT03 | 首次已归档/离线缺行/乱序树 → 刷新 → 不误清显式打开历史或当前任务                                                                                                                     | accepted，unit                                   |
+| AMT04 | 同路径/ID不同远端 identity + rename/切换 → 延迟响应 → 不串标题，Host 权威更新生效                                                                                                    | accepted，unit；真实手机/远端 GUI 待验           |
+| AMT05 | 旧配置开启且无重置标记 → 冷启动 → 开关关闭、保留天数与旧会话；用户重新开启 → 归档超期会话；再次冷启动 → 保持开启（2026-10-14）                                                       | accepted，unit + pending E2E；复用 AMT02 fixture |
 
 AMT 验证：4 个相关单测文件 / 15 项通过；桌面 E2E `desktop-e2e-20260911073739200-p10328-ec7ec1db666a0f0c` 2/2 通过，真实历史正文/标题及开启归档后的列表、选中态、另一条同名未读均验证。Host getTaskMeta 0.4ms 完成早于 V4 冷恢复约 1 秒，日志无标题 readSession 请求。root typecheck、desktop typecheck:e2e、fixture check、格式检查、lint（48 个既有 warnings / 0 errors）、architecture（baseline 0 / new 0）通过。代码涉及 ui 与 project-sidebar，CLI/Host 事实归属、owner/lease、continuous/replayable 边界不变；实现净减约 50 行。真实手机配对、SSH/WSL、Windows/Linux GUI 未复跑，远端身份与 attachment 迟到结果由单测覆盖。保持 pending。
+
+2026-11-05 fork 裁决：以 [自动归档规则](specs/task-auto-archive.md) 为准，AMT02 旧纯时间资格和 ARM07 的历史默认 30 天不代表当前 fork。当前默认关闭 / 7 天，已有保留期不改写。AMT02 断言对齐后的 Electron 未运行，上述历史证据不计当前覆盖。
+
+### 定制自动归档接线复查（CFA，accepted）
+
+规格及所有者/时序见 [后续复查](specs/custom-feature-followup-audit.md)，工程与界面边界见 [覆盖矩阵](testing/conversation-session-e2e-coverage-matrix.md#定制自动归档接线复查-cfa)。不新增产品入口，不将服务读取冒充真机 E2E。
+
+| Case  | 准备 → 动作 → 必须断言                                                                                                             | 验证层                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| CFA01 | Host 装配 → 服务初始化接线 → 仅一个 fork maintenance，注入本地索引 scope，无 project scheduler 启动                                | source 接线                              |
+| CFA02 | 两个关闭的独立任务目录及普通项目，无 recent/open → 启动扫描 → 超期已读 completed 归档，未读/error/pin/删除/远端保留，同 scope 去重 | SQLite / adapter；完整 Electron 待验     |
+| CFA03 | 旧 completed 在 Repo 等待时重新运行 → 提交归档 → 当前活动任务保留；活动结束后归档，不同 identity 同 ID 不相互影响，CLI 时间不变    | SQLite / syncer 端口                     |
+| CFA04 | 索引读取在途 → 关闭开关或释放 Host → 旧扫描无新提交；读取失败时原范围继续且远端 scope 不回落本地                                   | source 生命周期                          |
+| CFA05 | 桌面订阅后提交、手机离线后重新读取 → 提交先于通知，恢复读取同一归档事实                                                            | adapter / Controller；真实手机与远端待验 |
 
 ## Start Plan bucket 提醒（2026-09-10）
 
@@ -5458,6 +5480,20 @@ SLR05（2026-10-27）：真实 Linux Electron 与 390×844 触屏 Web 共用 Hos
 | RRI08 | 长历史查找匹配数、首次定位和上下项正确；普通构建采集 CPU 与布局测量                                                                  | PERF04：首次定位、多命中上下项、单命中离窗回环与可选耗时预算；RRI08 浏览器：历史修订、评论投影、单行大量命中遍历预算、CR-01 无 Range 请求终止及未挂载正例 |
 
 规格：[消息渲染性能](chat/message-render-performance.md)。浏览器路径相对于 `packages/ui/test`；手机布局不等同于远程传输，未运行平台不记为通过。
+
+## 无项目任务目录一致性（PTW）
+
+2026-11-05 用户批准统一普通无项目任务体验。产品规则及剪枝见 [spec](specs/projectless-task-workspaces.md)，实跑状态见 [覆盖矩阵](testing/conversation-session-e2e-coverage-matrix.md#无项目任务目录一致性-ptw)。下列行为 accepted；新增 Electron 用例保持 `manual-review/pending/conversation-session-projectless-workspace.test.ts`，未人工转正或加入 CI。
+
+| Case  | 准备、操作和必须断言                                                                                                                                  | 验证层                             |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| PTW01 | 空启动经 Host 创建独立 draft-UUID 任务目录，无 default tab，可输入且文件根正确                                                                        | 工程行为回归 / Electron            |
+| PTW02 | 未发送时任务加号/全局主按钮/原生快捷键复用目录、正文和选择；首发 accepted 后再新建换目录；两任务文件独立；ACK/query/snapshot 及拒绝重试保持原草稿归属 | 工程行为回归 / Electron            |
+| PTW03 | 旧 lastWorkspaceSession 与新活动记录恢复保留 conversation 原路径/purpose/选择；迟到准备不抢项目、设置页和卸载后的导航                                 | 工程行为回归 / Electron            |
+| PTW04 | task Gen UI 位于初始执行 cwd 的 visualizations；Host 精确 session 查询授权；旧全局 fragment 仍可读                                                    | 路径/文件回归 / Electron           |
+| PTW05 | 项目、remote、同名外部路径和根外继承 cwd 保持全局输出；拒绝 sibling、缺席 session、非法文件和链接；不扩大默认根 allocator                             | 路径/文件 / 真实 spawn 回归        |
+| PTW06 | 移入项目后重建 CLI 仍保留 cwd/产物位置；fork/子代理继承，独立 task 不套第二层会话目录                                                                 | spawn / CLI 进程回归；既有 STCLI04 |
+| PTW07 | 已绑定待发送目录缺失时新建报错、保留草稿与当前页，不重建空目录                                                                                        | 工程行为回归 / Electron            |
 
 ## 无项目工作区共享 CLI（STCLI）
 

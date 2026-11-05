@@ -6,7 +6,6 @@
   "scripts": {
     "derive": "tsx src/cli.ts derive",
     "model-io": "tsx src/cli.ts model-io",
-    "run:testcases": "node scripts/run-testcases.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src tests scripts"
   },

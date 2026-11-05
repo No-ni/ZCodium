@@ -2,7 +2,6 @@ import { PencilIcon } from "lucide-react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getFileDisplayPath, resolveFileDisplayBasePath } from "@/lib/fileDisplay.js";
-import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { buildEditCodeViewerSource } from "@/ToolCallBlocks/renderers/edit.js";
 import {

@@ -11,12 +11,7 @@ import {
   TID_WORKSPACE_FILE_TREE_ROW,
   testId,
 } from "@zcode/shared/test-ids";
-import {
-  clearAppData,
-  clickTestIdByDom,
-  hoverTestIdByWebDriver,
-  waitForTestIdByDom,
-} from "../helpers/desktop-app.js";
+import { clearAppData, waitForTestIdByDom } from "../helpers/desktop-app.js";
 import {
   connectSSHWorkspace,
   readHostProcesses,

@@ -308,7 +308,6 @@ export function AnimatedSidePanePanel({
   services,
   isDesktop,
   isWindowsDesktop,
-  isMacDesktop,
   isVisible,
   sidePaneState,
   recentClosedSidePaneTabs,

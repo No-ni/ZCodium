@@ -71,12 +71,7 @@ const CLAUDE_MARKETPLACE_REFRESH_TIMEOUT_MS = 30_000;
 const MARKETPLACE_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const PLUGIN_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const SOURCE_SHA256_PATTERN = /^[a-f0-9]{64}$/u;
-const UNSUPPORTED_MANIFEST_FIELDS = [
-  "channels",
-  "lspServers",
-  "outputStyles",
-  "settings",
-] as const;
+const UNSUPPORTED_MANIFEST_FIELDS = ["channels", "lspServers", "outputStyles", "settings"] as const;
 
 export type MarketplaceSource =
   | { source: "bundled" }
@@ -715,6 +710,8 @@ export function loadMarketplaceManifestSync(
   if (isOfficialMarketplaceId(marketplace)) {
     return parseMarketplaceManifest(loadBundledOfficialMarketplaceSync(storageRoot));
   }
+  // 权威 JSON 可能只剩 backup；固定文件 owner 先恢复，避免只读核验把已提交目录误回滚。
+  readJsonFileSync(join(storageRoot, KNOWN_MARKETPLACES_FILE));
   const manifestPath = getMarketplaceManifestPath(storageRoot, marketplace);
   // 崩溃残留先恢复；若 writer 仍活跃，则在权威 known state 落盘前读 backup，
   // 落盘后读新 target，避免 overview 看见跨代 manifest/summary。
@@ -743,6 +740,8 @@ export function resolveInstalledPluginRoot(
   storageRoot: string,
   record: InstalledPluginRecord,
 ): string {
+  // 已有 record 可直接进入此入口；只恢复固定权威文件，不让磁盘 authorityPath 派发任意清理。
+  readJsonFileSync(join(storageRoot, INSTALLED_PLUGINS_FILE));
   const root =
     record.installPath ||
     getPluginCacheDir(storageRoot, record.marketplace, record.name, record.version);
@@ -1183,7 +1182,9 @@ export async function validateLocalPluginPath(input: {
       },
     ];
   }
-  const rootPath = statSync(resolved).isDirectory() ? resolved : resolveManifestRootFromFile(resolved);
+  const rootPath = statSync(resolved).isDirectory()
+    ? resolved
+    : resolveManifestRootFromFile(resolved);
   if (findMarketplaceManifestPath(rootPath)) {
     return validateMarketplaceSource({
       signal: input.signal,

@@ -17,13 +17,13 @@
 
 ## 与闭源版的关键差异
 
-| 维度 | 闭源版 | 本工具 |
-| --- | --- | --- |
-| 上传目标 | 阿里云 OSS（STS 直传） | `http://127.0.0.1:<port>` |
-| 加密公钥 | 服务端动态下发，私钥只在云端 | **本地生成**，私钥在自己的状态目录 |
-| 谁能解密 | 只有服务端 | **只有你** |
-| 启用方式 | sidecar 无条件实例化，UI 无开关 | 显式 CLI flag / env，**默认关闭** |
-| 披露 | 隐私政策未提及整仓快照 | 本文件 + spec 写明全部行为 |
+| 维度     | 闭源版                          | 本工具                             |
+| -------- | ------------------------------- | ---------------------------------- |
+| 上传目标 | 阿里云 OSS（STS 直传）          | `http://127.0.0.1:<port>`          |
+| 加密公钥 | 服务端动态下发，私钥只在云端    | **本地生成**，私钥在自己的状态目录 |
+| 谁能解密 | 只有服务端                      | **只有你**                         |
+| 启用方式 | sidecar 无条件实例化，UI 无开关 | 显式 CLI flag / env，**默认关闭**  |
+| 披露     | 隐私政策未提及整仓快照          | 本文件 + spec 写明全部行为         |
 
 那张"加密上传"的表象两版完全一致：同样的 AES-256-CTR、同样的信封结构、同样的
 `encryptedDataKey`。差别只有一处——**私钥在谁手里**。原版是"确保服务端单方面能看"；
@@ -31,7 +31,7 @@
 
 ## 跑起来
 
-零依赖（Node ≥ 24，直接用内置的 type stripping）。
+Node ≥ 24，并使用本 package 已声明的本地 `tsx`；先按仓库方式准备依赖。
 
 ```bash
 cd apps/zcode-cli/tools/repo-snapshot-parody
@@ -50,7 +50,7 @@ node bin/parody.mjs capture --workspace /path/to/repo --port 8787 --parody-snaps
 node bin/parody.mjs decrypt --dir ~/.zcodium/repo-snapshot-parody/received/<groupId> --parody-snapshot
 ```
 
-`bin/parody.mjs` 先注册 resolve hook 再引入 `src/cli.ts`，所以不必记得 `--import` 参数。
+`bin/parody.mjs` 先注册本地 `tsx` 再引入 `src/cli.ts`，所以不必记得 `--import` 参数。shared 公开入口包含 Node strip-only 不支持的 TypeScript 语法，不能仅用原生 type stripping。
 
 开关只有两个入口，**都不在 GUI 里**，这是刻意的：
 
@@ -94,12 +94,10 @@ node bin/parody.mjs decrypt --dir ~/.zcodium/repo-snapshot-parody/received/<grou
 ## 测试
 
 ```bash
-node --import ./ts-resolve.mjs --test test/*.test.ts
+node --import tsx --test test/*.test.ts
 ```
 
-`ts-resolve.mjs` 是一个同步 resolve hook，把相对导入的 `.js` 重指到 `.ts`，
-让没装 `tsx` 的 checkout 也能跑（仓库源码遵循 NodeNext 的 `.js` 后缀约定）。
-CLI 通过 `bin/parody.mjs` 预先加载同一个 hook。
+测试和 CLI 都使用本地 `tsx` 处理 NodeNext 的 `.js` 后缀引用与 TypeScript 转译。
 
 覆盖：开关默认关闭与真值判定、回环拒绝、`.git` 强制收录与越上限、各类排除规则、
 tar 布局与长路径、本地密钥加解密与"换钥匙解不开"、multipart 解析、

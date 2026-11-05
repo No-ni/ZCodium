@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { promisify, stripVTControlCharacters } from "node:util";
 import test from "node:test";
 import { runSourceTests } from "./source-test-runner.mjs";
+import { createProjectTestSandbox } from "./project-test-sandbox.mjs";
 
 test("插件泳道和共享 JSON 文件跨进程回归", async (t) => {
   const result = await runSourceTests([
@@ -16,13 +17,18 @@ test("插件泳道和共享 JSON 文件跨进程回归", async (t) => {
 
 test("SSH 信任记录与 Main/Host MCP 迁移回归", async (t) => {
   const root = resolve(import.meta.dirname, "../..");
-  const env = { ...process.env };
+  const sandbox = await createProjectTestSandbox("shared-state-vitest");
+  const env = sandbox.env;
   delete env.NODE_TEST_CONTEXT;
   const result = await promisify(execFile)(
     process.execPath,
     [
       "node_modules/vitest/vitest.mjs",
       "run",
+      "--config",
+      "scripts/ci/fixtures/shared-state-vitest.config.mjs",
+      "--configLoader",
+      "runner",
       "packages/server/src/remote/sshKnownHosts.test.ts",
       "packages/server/src/remote/sshBackendHostKey.test.ts",
       "packages/server/src/remote/sshHostVerificationLifecycle.test.ts",

@@ -96,7 +96,6 @@ export function restorePersistedRemoteWorkspaceSessions({
   tabStoreApi,
   allowRemoteWorkspaceRestore = true,
   unavailableWorkspacePath,
-  conversationWorkspacePath,
   remoteConversationWorkspaceBySourceServerId,
   restoreMode = "all",
 }: {
@@ -104,7 +103,6 @@ export function restorePersistedRemoteWorkspaceSessions({
   tabStoreApi: TabStore;
   allowRemoteWorkspaceRestore?: boolean;
   unavailableWorkspacePath?: string;
-  conversationWorkspacePath?: string;
   remoteConversationWorkspaceBySourceServerId?: AppSettings["remoteConversationWorkspaceBySourceServerId"];
   restoreMode?: "all" | "active-first";
 }): { deferredRestore?: () => void } | undefined {
@@ -113,7 +111,7 @@ export function restorePersistedRemoteWorkspaceSessions({
     remoteConversationWorkspaceBySourceServerId ??
     settings.remoteConversationWorkspaceBySourceServerId;
 
-  if (persistedSessions.length === 0 && !conversationWorkspacePath) {
+  if (persistedSessions.length === 0) {
     return;
   }
 
@@ -126,44 +124,17 @@ export function restorePersistedRemoteWorkspaceSessions({
     persistedSessions.length - 1,
   );
   let restoredActiveIndex = 0;
-  let canonicalConversationRestoredIndex: number | null = null;
-  let shouldActivateCanonicalConversation = false;
 
   for (const [index, persistedEntry] of persistedSessions.entries()) {
     if (persistedEntry.kind === "local") {
-      const isStaleConversationWorkspace = Boolean(
-        settings.lastActiveWorkspace === undefined &&
-        conversationWorkspacePath &&
-        persistedEntry.workspacePurpose === "conversation" &&
-        persistedEntry.workspacePath !== conversationWorkspacePath,
-      );
-      if (isStaleConversationWorkspace) {
-        // 测试数据根目录或旧 data root 可能把多个 conversation backing path
-        // 持久化下来；它们是同一个逻辑“无项目会话”，恢复时必须以 service 给出的
-        // canonical path 为准，否则侧栏和定时任务选择器都会出现多个 default。
-        logger.warn("[Root] 跳过非 canonical conversation workspace 恢复", {
-          workspacePath: persistedEntry.workspacePath,
-          conversationWorkspacePath,
-        });
-        if (index === activeSessionIndex) {
-          shouldActivateCanonicalConversation = true;
-          if (canonicalConversationRestoredIndex !== null) {
-            restoredActiveIndex = canonicalConversationRestoredIndex;
-          }
-        }
-        continue;
-      }
-
+      // 原因：不同 conversation 路径已经是不同任务的文件归属，不能按 purpose 合并到 default。
+      // 仅按原身份去重；旧记录缺 lastActiveWorkspace 也保留原路径、purpose 和活动选择。
       if (seenLocalWorkspacePaths.has(persistedEntry.workspacePath)) {
-        logger.warn("[Root] 跳过重复的本地 workspace 恢复", {
-          workspacePath: persistedEntry.workspacePath,
-        });
+        logger.warn("[Root] 跳过重复的本地 workspace 恢复");
         continue;
       }
 
-      const isConversationWorkspace =
-        persistedEntry.workspacePath === conversationWorkspacePath ||
-        persistedEntry.workspacePurpose === "conversation";
+      const isConversationWorkspace = persistedEntry.workspacePurpose === "conversation";
       const workspacePurpose = isConversationWorkspace
         ? "conversation"
         : persistedEntry.workspacePurpose;
@@ -171,15 +142,6 @@ export function restorePersistedRemoteWorkspaceSessions({
         !isConversationWorkspace && persistedEntry.workspacePath === unavailableWorkspacePath
           ? "unavailable-local-directory"
           : undefined;
-      if (availability && index === activeSessionIndex && conversationWorkspacePath) {
-        // Bug 根因：只标记不可用仍会激活失效项目，WorkspaceShell 不挂载 composer。
-        // 恢复时直接选择已解析的无项目 cwd，保留失效入口供用户查看历史。
-        shouldActivateCanonicalConversation = true;
-        logger.info("[Root] 默认项目不可用，恢复无项目草稿", {
-          workspacePath: persistedEntry.workspacePath,
-          conversationWorkspacePath,
-        });
-      }
       restoredTabs.push(
         workspacePurpose || availability
           ? {
@@ -191,13 +153,7 @@ export function restorePersistedRemoteWorkspaceSessions({
       );
       seenLocalWorkspacePaths.add(persistedEntry.workspacePath);
       const restoredIndex = restoredTabs.length - 1;
-      if (isConversationWorkspace) {
-        canonicalConversationRestoredIndex = restoredIndex;
-      }
-      if (
-        index === activeSessionIndex ||
-        (isConversationWorkspace && shouldActivateCanonicalConversation)
-      ) {
+      if (index === activeSessionIndex) {
         restoredActiveIndex = restoredIndex;
       }
       continue;
@@ -212,10 +168,7 @@ export function restorePersistedRemoteWorkspaceSessions({
     // 停用远程无项目 UI 只跳过恢复，不能删除会话数据或 canonical 历史映射。
     if (workspacePurpose === "conversation") continue;
     if (seenRemoteWorkspaceKeys.has(workspaceKey)) {
-      logger.warn("[Root] 跳过身份冲突的远程 workspace 恢复", {
-        workspacePath: persistedEntry.workspacePath,
-        workspaceIdentity,
-      });
+      logger.warn("[Root] 跳过身份冲突的远程 workspace 恢复");
       continue;
     }
 
@@ -238,25 +191,6 @@ export function restorePersistedRemoteWorkspaceSessions({
     if (index === activeSessionIndex) {
       restoredActiveIndex = restoredTabs.length - 1;
     }
-  }
-
-  if (
-    (!settings.lastActiveWorkspace || shouldActivateCanonicalConversation) &&
-    conversationWorkspacePath &&
-    !seenLocalWorkspacePaths.has(conversationWorkspacePath)
-  ) {
-    // 修复原因：conversation backing workspace 是 app-owned cwd，旧设置里缺少它时，
-    // 侧栏就不会订阅该 scope；若 purpose 丢失又会被当成项目。恢复阶段以 service
-    // 解析出的 canonical path 为权威，非激活补建并强制标记 conversation。
-    restoredTabs.push({
-      workspacePath: conversationWorkspacePath,
-      workspacePurpose: "conversation",
-    });
-    canonicalConversationRestoredIndex = restoredTabs.length - 1;
-  }
-
-  if (shouldActivateCanonicalConversation && canonicalConversationRestoredIndex !== null) {
-    restoredActiveIndex = canonicalConversationRestoredIndex;
   }
 
   if (restoredTabs.length > 0) {

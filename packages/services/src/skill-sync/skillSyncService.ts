@@ -1,8 +1,7 @@
 import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 /* eslint-disable max-lines -- skill 同步服务集中维护候选扫描、远端判重和导入流程，避免拆分时扩大远端同步回归面。 */
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
+import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -17,8 +16,6 @@ import { createSkillDataSyncMethods } from "../data-sync/node.js";
 
 const SKILL_FILE_NAME = "SKILL.md";
 const DEFAULT_MAX_ARCHIVE_BYTES = SKILL_DATA_SYNC_MAX_ITEM_BYTES;
-// 大目录体积扫描按并发窗口收 stat，避免逐项 await 把 O(n) Promise 串起来。
-const SKILL_SIZE_SCAN_IO_CONCURRENCY = 8;
 
 /** 用户级技能候选：path 指向技能目录下的 SKILL.md。 */
 export interface UserSkillCandidate {
@@ -219,86 +216,4 @@ export function parseSkillMetadata(
     typeof metadata.name === "string" && metadata.name.trim() ? metadata.name.trim() : fallbackName;
   const description = typeof metadata.description === "string" ? metadata.description.trim() : "";
   return { name, description };
-}
-
-function createCandidateId(skillDirectoryPath: string): string {
-  return createHash("sha256").update(skillDirectoryPath).digest("hex");
-}
-
-async function computeRecursiveSize(rootPath: string): Promise<number> {
-  const pendingPaths: Array<string | undefined> = [rootPath];
-  const visitedDirectories = new Set<string>();
-  let nextPathIndex = 0;
-  let totalBytes = 0;
-  let hasError = false;
-  let firstError: unknown;
-
-  async function visitPath(path: string): Promise<void> {
-    const pathStat = await lstat(path);
-    if (pathStat.isSymbolicLink()) {
-      const targetStat = await stat(path).catch(() => null);
-      if (!targetStat) return;
-      if (targetStat.isFile()) {
-        totalBytes += targetStat.size;
-        return;
-      }
-      if (!targetStat.isDirectory()) return;
-    } else if (pathStat.isFile()) {
-      totalBytes += pathStat.size;
-      return;
-    } else if (!pathStat.isDirectory()) {
-      return;
-    }
-
-    const canonicalPath = await realpath(path).catch(() => path);
-    if (visitedDirectories.has(canonicalPath)) return;
-    visitedDirectories.add(canonicalPath);
-    for (const child of await readdir(path, { withFileTypes: true })) {
-      pendingPaths.push(join(path, child.name));
-    }
-  }
-
-  return await new Promise<number>((resolve, reject) => {
-    let active = 0;
-    let settled = false;
-    const pump = () => {
-      // Bug 原因：逐层 Promise.all 会把宽目录全部子项同时提交，嵌套层数还会叠加在途 IO。
-      // 修复依据：一次遍历共用有界游标队列；消费后释放路径引用，出错时停止派发并等待在途 IO 排空。
-      while (
-        !hasError &&
-        active < SKILL_SIZE_SCAN_IO_CONCURRENCY &&
-        nextPathIndex < pendingPaths.length
-      ) {
-        const currentIndex = nextPathIndex++;
-        const path = pendingPaths[currentIndex];
-        pendingPaths[currentIndex] = undefined;
-        if (!path) continue;
-        if (nextPathIndex >= 1024 && nextPathIndex * 2 >= pendingPaths.length) {
-          pendingPaths.splice(0, nextPathIndex);
-          nextPathIndex = 0;
-        }
-        active += 1;
-        void visitPath(path)
-          .catch((error: unknown) => {
-            if (!hasError) {
-              hasError = true;
-              firstError = error;
-            }
-          })
-          .finally(() => {
-            active -= 1;
-            pump();
-          });
-      }
-
-      if (!settled && active === 0 && (hasError || nextPathIndex >= pendingPaths.length)) {
-        settled = true;
-        pendingPaths.length = 0;
-        if (hasError) reject(firstError);
-        else resolve(totalBytes);
-      }
-    };
-
-    pump();
-  });
 }

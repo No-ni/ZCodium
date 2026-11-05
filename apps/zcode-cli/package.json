@@ -20,8 +20,6 @@
     "lint:count": "node scripts/count-ts-lines.mjs",
     "lint:fix": "turbo run lint:fix",
     "prompt-trajectory:model-io": "pnpm --filter @zcode/prompt-trajectory model-io --",
-    "prompt-trajectory:prompt": "pnpm --filter @zcode/prompt-trajectory record:prompt --",
-    "prompt-trajectory:testcases": "pnpm --filter @zcode/prompt-trajectory run:testcases --",
     "registry:check": "node scripts/generate-bash-command-registry.mjs --check",
     "registry:generate": "node scripts/generate-bash-command-registry.mjs",
     "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",

@@ -25,7 +25,6 @@ import { shouldShowStandaloneRemoteErrorToast } from "@/lib/remoteConnectionPres
 import {
   bindRemoteWorkspaceIdentity,
   bindRemoteWorkspacePath,
-  getRemoteWorkspaceSession,
 } from "@/store/remoteWorkspaceSessionStore.js";
 
 type ManualReconnectRemoteWorkspaceParams = {

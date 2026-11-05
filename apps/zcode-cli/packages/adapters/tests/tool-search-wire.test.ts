@@ -177,10 +177,10 @@ Regular expressions are not supported. Use space-separated keywords for broad se
       properties: {
         query: {
           description:
-            'Query to find deferred tools. Use "select:<tool_name>" for direct selection, or keywords to search. Regular expressions are not supported.',
+            'Find tools by keywords, or use "select:<name>[,<name>...]" for exact selection. Regular expressions are not supported.',
         },
         max_results: {
-          description: "Maximum number of results to return (default: 5)",
+          description: "Maximum keyword matches to return (default: 5)",
           default: 5,
         },
       },

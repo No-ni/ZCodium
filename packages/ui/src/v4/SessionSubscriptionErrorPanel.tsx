@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { TID_V4_RETRY_SUBSCRIBE } from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

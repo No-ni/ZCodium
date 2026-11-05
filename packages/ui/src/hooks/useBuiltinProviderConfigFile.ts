@@ -26,7 +26,7 @@ const INITIAL_STATE: BuiltinProviderConfigFileState = {
  * 带 request-id 竞态防护：快速切换工作区或重复触发时，丢弃过期响应，
  * 避免旧路径覆盖新路径。查询失败只记日志，不向 UI 抛错。
  */
-export function useBuiltinProviderConfigFile(): BuiltinProviderConfigFileState {
+export function useBuiltinProviderConfigFile(enabled = true): BuiltinProviderConfigFileState {
   const platform = usePlatform();
   const [state, setState] = useState<BuiltinProviderConfigFileState>(INITIAL_STATE);
   const requestIdRef = useRef(0);
@@ -44,20 +44,24 @@ export function useBuiltinProviderConfigFile(): BuiltinProviderConfigFileState {
         exists: info?.exists ?? false,
         loading: false,
       });
-    } catch (error) {
+    } catch {
       if (requestIdRef.current !== requestId) return;
-      logger.warn("[useBuiltinProviderConfigFile] 读取 provider 配置路径失败", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.warn("[useBuiltinProviderConfigFile] 读取 provider 配置路径失败");
       setState({ path: null, exists: false, loading: false });
     }
   }, [platform]);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    if (enabled) void reload();
+    // 平台切换或菜单卸载后旧查询不再有提交资格，不能覆盖新环境配置。
+    return () => {
+      requestIdRef.current++;
+    };
+  }, [enabled, reload]);
 
-  return state;
+  return enabled && platform.openExternalFile && platform.getBuiltinProviderConfigFile
+    ? state
+    : { path: null, exists: false, loading: false };
 }
 
 /** 菜单禁用原因；enabled 为 false 时返回非空文案。 */

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-projectless-workspace",
+  "spec": "./test/e2e/conversation-session/conversation-session-projectless-workspace.test.ts",
+  "providerFixtures": [
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-projectless-workspace.json"
+  ],
+  "fileFixtures": [],
+  "requests": [
+    {
+      "id": "ptw-title",
+      "kind": "common",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定本例旁路标题，避免目录生命周期验证依赖真实供应商。"
+    },
+    {
+      "id": "ptw-done-a",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+    },
+    {
+      "id": "ptw-tool-a",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+    },
+    {
+      "id": "ptw-done-b",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+    },
+    {
+      "id": "ptw-tool-b",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+    },
+    {
+      "id": "ptw-continue-a",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+    }
+  ]
+}

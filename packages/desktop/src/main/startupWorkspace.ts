@@ -20,7 +20,7 @@ async function readStartupSettings(settingsFile: string, logger?: StartupWorkspa
 
     if (!result.success) {
       logger?.warn?.(
-        "[startup-workspace] invalid settings file, falling back to default workspace:",
+        "[startup-workspace] invalid settings file, using empty startup navigation:",
         formatZodError(result.error),
       );
       return appSettingsSchema.parse({});
@@ -108,8 +108,7 @@ export async function resolveStartupWindowBootstrap({
       // 但子进程 cwd 必须落在真实存在的目录；conversation backing workspace 只承担 cwd 兜底。
       await mkdir(conversationWorkspaceDir, { recursive: true });
       logger?.warn?.(
-        "[startup-workspace] active local workspace unavailable; using read-only restore:",
-        unavailableWorkspacePath,
+        "[startup-workspace] active local workspace unavailable; using read-only restore",
       );
     }
     const localActiveSessionIndex = resolveStartupLocalWorkspaceSessionIndex(sessions, activeIndex);
@@ -129,13 +128,11 @@ export async function resolveStartupWindowBootstrap({
     return unavailableWorkspacePath ? { unavailableWorkspacePath } : {};
   }
 
-  // UI 可以没有项目，但 Agent 必须始终有真实 cwd。首次启动统一预热
-  // app-managed conversation backing workspace，不能再创建会被误认成项目的 ZCodeProject。
+  // 原因：把 default 作为 initialWorkspacePath 会绕过 Root 的统一任务新建入口，
+  // 首次打开仍共用默认目录。Main 只准备进程后备 cwd；任务目录由 Host prepareSession 分配。
   await mkdir(conversationWorkspaceDir, { recursive: true });
-  logger?.info?.("[startup-workspace] using conversation workspace:", conversationWorkspaceDir);
+  logger?.info?.("[startup-workspace] prepared conversation runtime fallback");
   return {
-    initialWorkspacePath: conversationWorkspaceDir,
-    initialWorkspacePurpose: "conversation",
     agentWarmupTargets: [{ workspacePath: conversationWorkspaceDir }],
   };
 }

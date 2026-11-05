@@ -178,7 +178,8 @@ function assertRestrictedCelValue(
 }
 
 function jsonEquals(left: JsonValue, right: JsonValue): boolean {
-  if (Object.is(left, right)) return true;
+  // 受限 CEL 明确采用 JavaScript number 比较；Object.is 会把算术产生的 -0 与 0 错判为不等。
+  if (left === right) return true;
   if (Array.isArray(left) || Array.isArray(right)) {
     return (
       Array.isArray(left) &&

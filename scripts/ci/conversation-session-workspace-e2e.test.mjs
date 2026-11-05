@@ -43,22 +43,16 @@ import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
-import {
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { lstat, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { after } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import {
+  assertProjectPath,
+  createProjectTestFixture,
+  createProjectTestSymlink as symlink,
+} from "./project-test-sandbox.mjs";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../..");
 /**
@@ -118,6 +112,80 @@ test("A20/规则8：常驻父会话叶目录被占位后 fork 降级落盘且不
         else assert.equal((await lstat(seedRow.path)).isSymbolicLink(), true);
       },
     );
+  }
+});
+
+test("PTW06：共享真实 CLI 中的独立 task 不嵌套分配，冷恢复与 fork 保留 cwd", async () => {
+  const seed = await startCliProcess({
+    label: "ptw-task-seed",
+    injectConversationRoot: true,
+    sharedRuntime: true,
+    mcpEnabled: false,
+  });
+  let first, second, taskA, taskB;
+  try {
+    await seed.waitForStorageReady();
+    first = join(seed.conversationRoot, "..", `draft-${randomUUID()}`);
+    second = join(seed.conversationRoot, "..", `draft-${randomUUID()}`);
+    // 目录由 Host prepareSession 准备；CLI 保持自己的会话事实和原始任务目录。
+    await mkdir(first, { recursive: true });
+    await mkdir(second, { recursive: true });
+    taskA = await seed.createPersistedSession({ workspacePath: resolve(first) });
+    taskB = await seed.createPersistedSession({ workspacePath: resolve(second) });
+    assert.equal((await seed.waitForSessionRow(taskA)).path, resolve(first));
+    assert.equal((await seed.waitForSessionRow(taskB)).path, resolve(second));
+    const listed = await seed.request(SESSION_LIST_METHOD, {
+      workspace: { workspaceKey: resolve(first), workspacePath: resolve(first) },
+      sessionIds: [taskA, taskB],
+    });
+    assert.equal(listed.error, undefined);
+    assert.deepEqual(
+      listed.result.sessions.map((session) => session.sessionId),
+      [taskA],
+    );
+    assert.equal(listed.result.sessions[0].workspace.workspacePath, resolve(first));
+    for (const directory of [first, second])
+      assert.ok(
+        !(await readdir(directory)).some((entry) => DATE_DIR_PATTERN.test(entry)),
+        "已独立 task 不得再套日期/会话目录",
+      );
+    seed.releaseRoot();
+  } finally {
+    await seed.stop();
+  }
+  const resumed = await startCliProcess({
+    label: "ptw-task-resume",
+    root: seed.root,
+    injectConversationRoot: true,
+    sharedRuntime: true,
+    mcpEnabled: false,
+  });
+  try {
+    await resumed.waitForStorageReady();
+    const result = await resumed.resumeSession(taskA);
+    assert.equal(result.error, undefined);
+    assert.equal(result.snapshot.session.workspace.workspacePath, resolve(first));
+    assert.equal(
+      result.snapshot.session.executionWorkspacePath ??
+        result.snapshot.session.workspace.workspacePath,
+      resolve(first),
+    );
+    assert.equal(resumed.readSessionRow(taskA).path, resolve(first));
+    const read = await resumed.request(SESSION_READ_METHOD, { sessionId: taskA });
+    const messageId = read.result?.messages?.[0]?.info?.messageId;
+    assert.ok(messageId);
+    const fork = await resumed.request(SESSION_FORK_METHOD, {
+      sessionId: taskA,
+      target: { kind: "message", messageId },
+    });
+    assert.equal(fork.error, undefined);
+    assert.equal(
+      (await resumed.waitForSessionRow(fork.result.forkedSessionId)).path,
+      resolve(first),
+    );
+    assert.equal(resumed.readSessionRow(taskB).path, resolve(second));
+  } finally {
+    await resumed.stop();
   }
 });
 
@@ -188,6 +256,8 @@ const createdTempRoots = new Set();
  * 进程组信号已经收掉了 CLI 及其子进程，这里只兜「写完最后一行日志」的窗口。
  */
 async function cleanupDirectory(directory) {
+  // 原因：递归回收只能指向本工作树内已核对的夹具，不能依赖调用方的路径字符串。
+  await assertProjectPath(directory);
   for (let attempt = 0; attempt < 12; attempt += 1) {
     try {
       await rm(directory, { recursive: true, force: true });
@@ -577,7 +647,11 @@ class CliProcess {
     if (this.#stopped) return;
     this.#stopped = true;
     killProcessTree(this.#child);
-    await Promise.race([this.#exited, delay(PROCESS_EXIT_TIMEOUT_MS)]);
+    const exited = await Promise.race([
+      this.#exited.then(() => true),
+      delay(PROCESS_EXIT_TIMEOUT_MS).then(() => false),
+    ]);
+    assert.ok(exited, "CLI 退出屏障未完成，拒绝回收仍可能被写入的夹具");
     if (this.#ownsRoot) await cleanupDirectory(this.root);
   }
 }
@@ -597,9 +671,12 @@ async function startCliProcess({
   injectConversationRoot,
   root: existingRoot,
   mcpEnabled = true,
+  sharedRuntime = false,
 }) {
   assertCliSourcePresent();
-  const root = existingRoot ?? (await mkdtemp(join(tmpdir(), `zcodium-conversation-ws-${label}-`)));
+  const root = existingRoot
+    ? await assertProjectPath(existingRoot)
+    : await createProjectTestFixture(`zcodium-conversation-ws-${label}`);
   createdTempRoots.add(root);
   const conversationRoot = join(root, ".zcodium", "workspace", "default");
   // 真实 Host 也是先 ensureConversationWorkspace() 建好对话根再 spawn。
@@ -634,7 +711,7 @@ async function startCliProcess({
     process.execPath,
     ["--import", TSX_LOADER, CLI_ENTRY, "app-server", "--stdio"],
     {
-      cwd: REPO_ROOT,
+      cwd: sharedRuntime ? join(root, ".zcodium") : REPO_ROOT,
       env,
       // 独立进程组：SIGKILL 时连 CLI 可能派生出的子进程（插件宿主等）一起收掉，
       // 避免它们继续往临时目录写文件导致清理 ENOTEMPTY。Windows 不支持负 pid 组信号，
@@ -1014,6 +1091,30 @@ test("A2/验收3：持久化行 directory = 对话根、path = 会话目录、wo
       `<根>/<创建日>/<id前8位> 不匹配，实际行: ${formatRow(cli.root, row)}`,
     );
   });
+});
+
+test("A1-shared：共享 CLI 从数据根启动，两条无项目会话独立 cwd 且关闭后恢复稳定", async () => {
+  await withCliProcess(
+    { label: "a1-shared", injectConversationRoot: true, sharedRuntime: true },
+    async (cli) => {
+      const ids = [];
+      const paths = [];
+      for (let index = 0; index < 2; index++) {
+        const id = await cli.createPersistedSession({ workspacePath: cli.conversationRoot });
+        const row = await cli.waitForSessionRow(id);
+        assert.equal(observeSessionWorkspace(cli, id, row).insideConversationRoot, true);
+        ids.push(id);
+        paths.push(row.path);
+      }
+      assert.notEqual(paths[0], paths[1]);
+      const closed = await cli.request("session/close", { sessionId: ids[0] });
+      assert.equal(closed.error, undefined);
+      const resumed = await cli.resumeSession(ids[0]);
+      assert.equal(resumed.error, undefined);
+      assert.equal(cli.readSessionRow(ids[0]).path, paths[0]);
+      assert.equal(await pathExists(paths[0]), true);
+    },
+  );
 });
 
 test("A3/验收3：CLI 重启后，会话目录被手工删除时冷订阅按持久化 path 重建", async () => {
@@ -1399,11 +1500,15 @@ test("A8：带 sessionId 的导入创建二次执行复用既有行的执行 cwd
           source: "claudeCode",
           title: "re-create reuse e2e",
           createdAt,
-          messages: [{ content: "re-create reuse e2e", role: "user", timestamp: createdAt }],
+          messages: [
+            { content: `re-create reuse e2e ${createdAt}`, role: "user", timestamp: createdAt },
+          ],
         },
       });
       assert.equal(error, undefined, `session/create returned error: ${JSON.stringify(error)}`);
       assert.equal(result?.messages?.[0]?.info?.sessionId, sessionId);
+      assert.equal(result.messages.length, 1, "重放不能累积旧导入历史");
+      assert.equal(result.messages[0].parts[0].text, `re-create reuse e2e ${createdAt}`);
       return await cli.waitForSessionRow(sessionId);
     };
 
@@ -1438,6 +1543,24 @@ test("A8：带 sessionId 的导入创建二次执行复用既有行的执行 cwd
       await readSessionDirNames(cli.conversationRoot, localDateDirName(firstCreatedAt)),
       [firstDirName],
     );
+    const duplicate = await cli.request(SESSION_CREATE_METHOD, {
+      workspace: { workspaceKey: cli.conversationRoot, workspacePath: cli.conversationRoot },
+      sessionId,
+    });
+    assert.equal(duplicate.error?.code, -32602, "普通创建仍拒绝已有 ID");
+    const wrongWorkspace = await cli.request(SESSION_CREATE_METHOD, {
+      workspace: {
+        workspaceKey: "other-fixture",
+        workspacePath: join(cli.root, "other-workspace"),
+      },
+      sessionId,
+      importedHistory: {
+        source: "claudeCode",
+        messages: [{ content: "wrong owner", role: "user" }],
+      },
+    });
+    assert.equal(wrongWorkspace.error?.code, -32602, "导入重放不能改变 workspace 归属");
+    assert.equal(cli.readSessionRow(sessionId).path, firstRow.path);
   });
 });
 

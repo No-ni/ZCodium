@@ -104,7 +104,11 @@ export function resolveActorPersonaModel(
   bindings: Readonly<Record<string, string>> | undefined,
 ): ModelSelection | undefined {
   if (personaModel === undefined) return undefined;
-  const canonical = bindings?.[personaModel];
+  // 原型成员不是审批时持久化的绑定；直接索引会把 toString 等名字交给解析器，甚至接受继承的模型。
+  const canonical =
+    bindings !== undefined && Object.hasOwn(bindings, personaModel)
+      ? bindings[personaModel]
+      : undefined;
   if (canonical === undefined) {
     throw new WorkflowActorModelUnboundError(personaModel, Object.keys(bindings ?? {}));
   }

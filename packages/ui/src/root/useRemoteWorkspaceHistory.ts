@@ -16,7 +16,6 @@ import type {
   AppSettings,
   BindRemoteWorkspaceSessionContextResult,
   IPlatformService,
-  RemoteTarget,
   BotRemoteWorkspaceReconnectedEvent,
   RemoteSessionClosedEvent,
   RemoteSessionReconnectedEvent,
@@ -601,7 +600,7 @@ export async function cancelPendingRemoteReconnectsForWorkspaceKeys(params: {
     requestIds.map(async (requestId) => {
       try {
         await params.cancelPendingRemoteConnection?.(requestId);
-      } catch (error) {
+      } catch {
         params.logger.warn("[Root] 取消远程 workspace 重连失败");
       }
     }),
@@ -929,7 +928,6 @@ export function useRemoteWorkspaceHistory({
   supportsSettings,
   isDesktop = false,
   allowRemoteWorkspace = true,
-  ensureConversationWorkspaceOnRestore = false,
   deferInactiveWorkspaceRestore = false,
   unavailableWorkspacePath,
   tabStoreApi,
@@ -946,7 +944,6 @@ export function useRemoteWorkspaceHistory({
   supportsSettings: boolean;
   isDesktop?: boolean;
   allowRemoteWorkspace?: boolean;
-  ensureConversationWorkspaceOnRestore?: boolean;
   /** 仅 Desktop 主窗口：输入可用后再把 inactive workspace 加入 sidebar/task 数据源。 */
   deferInactiveWorkspaceRestore?: boolean;
   unavailableWorkspacePath?: string;
@@ -989,7 +986,7 @@ export function useRemoteWorkspaceHistory({
       credentialKeys.map(async (credentialKey) => {
         try {
           await services.credentialService.delete(credentialKey);
-        } catch (error) {
+        } catch {
           logger.warn("[Root] 延迟删除远程 workspace 凭据失败");
         }
       }),
@@ -1068,7 +1065,7 @@ export function useRemoteWorkspaceHistory({
         }
         try {
           await services.credentialService.delete(credentialKey);
-        } catch (error) {
+        } catch {
           logger.warn("[Root] 删除远程 workspace 凭据失败");
         }
       }
@@ -1110,7 +1107,7 @@ export function useRemoteWorkspaceHistory({
       target: Parameters<IPlatformService["connectRemote"]>[0],
       requestId?: string,
       context?: Parameters<IPlatformService["connectRemote"]>[2],
-      feedback?: RemoteConnectionFeedbackOptions,
+      _feedback?: RemoteConnectionFeedbackOptions,
     ) => {
       const result = await platform.connectRemote(target, requestId, context);
       if (!result.success) {
@@ -1496,7 +1493,7 @@ export function useRemoteWorkspaceHistory({
           > = {};
           try {
             settings = await services.settingService.get();
-          } catch (error) {
+          } catch {
             // alias 读取失败不能阻断 Source 状态刷新；没有 map 时继续保持原有 fail-closed 行为。
             logger.warn("[Root] 读取 conversation workspace alias 失败");
           }
@@ -1527,7 +1524,7 @@ export function useRemoteWorkspaceHistory({
           }
           if (shouldAttemptReconnect || becameOnline) attemptReconnect();
         })
-        .catch((error) => {
+        .catch(() => {
           if (!disposed) {
             logger.warn("[Root] 读取 Source 启动恢复状态失败");
           }
@@ -1582,16 +1579,8 @@ export function useRemoteWorkspaceHistory({
       const persistedRemoteSessions = getRemoteWorkspaceSessionEntries(settings);
       setRemoteWorkspaceSessions(persistedRemoteSessions);
       remoteWorkspaceSessionsRef.current = persistedRemoteSessions;
-      let conversationWorkspacePath: string | undefined;
-      if (ensureConversationWorkspaceOnRestore) {
-        try {
-          conversationWorkspacePath = (await services.fileService.ensureConversationWorkspace())
-            .path;
-        } catch (error) {
-          // 路径创建失败不能连带吞掉真实项目恢复；后续显式新建对话仍会走原有可重试错误入口。
-          logger.warn("[Root] 恢复阶段解析 conversation workspace 失败");
-        }
-      }
+      // 原因：恢复时准备 canonical default 会覆盖旧独立 task 路径，还绕过 pending 草稿。
+      // 这里只恢复持久化导航事实；空启动的新目录由 Root 的统一新建 action 准备。
       // R3 先把历史恢复为断连 tab；上方自动恢复 effect 只消费近 7 天、Source 已 online 的
       // remote:server stable history。legacy/过期历史仍保持手动入口，Web 普通模式则
       // 继续把 allowRemoteWorkspaceRestore 置为 false，不恢复 tab 或创建远端 runtime。
@@ -1600,25 +1589,15 @@ export function useRemoteWorkspaceHistory({
         tabStoreApi,
         allowRemoteWorkspaceRestore,
         unavailableWorkspacePath,
-        conversationWorkspacePath,
         remoteConversationWorkspaceBySourceServerId:
           settings.remoteConversationWorkspaceBySourceServerId,
         restoreMode: deferInactiveWorkspaceRestore ? "active-first" : "all",
       });
-      return {
-        ...(conversationWorkspacePath
-          ? { excludedRecentProjectPaths: [conversationWorkspacePath] }
-          : {}),
-        ...(workspaceRestore?.deferredRestore
-          ? { deferredRestore: workspaceRestore.deferredRestore }
-          : {}),
-      };
+      return workspaceRestore ?? {};
     },
     [
       allowRemoteWorkspaceRestore,
       deferInactiveWorkspaceRestore,
-      ensureConversationWorkspaceOnRestore,
-      services.fileService,
       tabStoreApi,
       unavailableWorkspacePath,
     ],
@@ -1980,8 +1959,6 @@ export function useRemoteWorkspaceHistory({
         if (!sessionEntry) {
           continue;
         }
-
-        const pendingReconnectRequestId = pendingReconnectRequestIdsRef.current.get(workspaceKey);
         if (
           !shouldPersistRemoteWorkspaceFailure({
             pendingReconnectRequestIds: pendingReconnectRequestIdsRef.current,
@@ -2105,7 +2082,7 @@ export function useRemoteWorkspaceHistory({
           }),
         );
         // attachment/tab 发布后列表从当前项目目录读取，不恢复两份已退休的远端缓存。
-      } catch (error) {
+      } catch {
         logger.warn("[Root] Bot 远端 workspace 重连成功后同步 UI 状态失败");
       }
     },
@@ -2190,7 +2167,7 @@ export function useRemoteWorkspaceHistory({
           }
           try {
             await services.credentialService.delete(credentialKey);
-          } catch (error) {
+          } catch {
             logger.warn("[Root] 删除已移除远程 workspace 凭据失败");
           }
         }

@@ -65,7 +65,7 @@ import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import { buildChatSessionScrollMemoryKey } from "@/lib/chatSessionScrollMemory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
-import { useServices } from "@/hooks/useServices.js";
+import { useComposerClientNamespace, useServices } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { saveConversationExport } from "@/lib/saveConversationExport.js";
 
@@ -82,7 +82,8 @@ import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePre
 
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
-import { captureComposerRecentSubmission } from "@/lib/composerRecent.js";
+import { acceptComposerRecentReceipt, prepareComposerRecentReceipt } from "@/lib/composerRecent.js";
+import { readPendingTaskDraft, resolveComposerScope } from "@/v4/composer/composerDraftStore.js";
 import { resolveProviderLabel } from "@/lib/registryProviderView.js";
 import {
   buildDraftCreateConfigPayload,
@@ -507,8 +508,6 @@ export function SessionPane({
   focused = true,
   allowEscapeStopOutsidePane = false,
 
-  onSplitRight,
-  onSplitDown,
   onClosePane,
   workspaceBadge,
   draftComposerHeader,
@@ -559,6 +558,7 @@ export function SessionPane({
   const { conversationShareService, modelSelectionService, zcodeSessionService, zcodeTaskService } =
     useServices();
   const baseWorkspaceServices = useServices();
+  const clientNamespace = useComposerClientNamespace();
   const organizationServices = useBaseWorkspaceServices();
   const { intl, locale } = useZCodeIntl();
   const platform = usePlatform();
@@ -659,7 +659,7 @@ export function SessionPane({
     () => shareItems.filter((item) => !item.isRunning),
     [shareItems],
   );
-  const eligibleShareRowIds = useMemo(
+  useMemo(
     () => new Set(eligibleShareItems.map((item) => item.rowId)),
     [eligibleShareItems],
   );
@@ -1359,20 +1359,47 @@ export function SessionPane({
         type === "createSession" || (sessionId === null && (type === "sendText" || type === "sendGoalCommand"))
           ? useZCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
           : null;
-      const clientContext = creationContext ?? (workspaceDraft ? {
+      let clientContext = creationContext ?? (workspaceDraft ? {
         workspace: { workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) },
         projectId: workspaceDraft.draftProjectId ?? null,
         taskGroupId: workspaceDraft.draftTaskGroupId,
         sessionCreateSource: workspaceDraft.draftCreateSource,
       } : undefined);
+      const submission = submissionConfigFromCommand(type, payload);
+      // Bug 原因：发送写旧 workspace key，新任务却读项目 key；回执还未进入命令账本，
+      // 丢 ACK 后也无法恢复偏好。先于所有 await 冻结配置和顺序，再按 Host 权威归属结算。
+      // 空会话创建只准备运行时，不能提前把首发偏好当成已接纳输入。
+      const recentReceipt = submission
+        ? (clientContext?.composer ?? prepareComposerRecentReceipt(
+            resolveComposerScope(clientContext?.projectId, workspaceIdentity, clientNamespace),
+            submission,
+          ))
+        : undefined;
+      if (recentReceipt && !clientContext?.composer && sessionId && targetSessionId) {
+        const projectService = baseWorkspaceServices.projectService;
+        if (!projectService) throw new Error("project.service-unavailable");
+        const directories = await projectService.resolveSessionDirectories(
+          {
+            workspacePath,
+            workspaceIdentity,
+            // 辅助 child 没有主任务索引行，查所属主会话；普通会话与 fork 查自身。
+            taskId: selectionSideChat && targetSessionId === sessionId && rootSessionId
+              ? rootSessionId
+              : targetSessionId,
+          },
+          recentReceipt.scope.hostId,
+        );
+        recentReceipt.scope = { ...recentReceipt.scope, projectId: directories.projectId };
+      }
+      if (recentReceipt) clientContext = {
+        ...clientContext,
+        workspace: clientContext?.workspace ?? { workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) },
+        composer: recentReceipt,
+      };
       if (type === "sendText" && typeof payload.text === "string") {
         const genUiContext = await readGenUiModelContext(targetSessionId ?? sessionId);
         if (genUiContext) payload = { ...payload, text: `${payload.text}\n\n${genUiContext}` };
       }
-      const submission = submissionConfigFromCommand(type, payload);
-      const acceptRecent = submission
-        ? captureComposerRecentSubmission(workspacePath, submission, workspaceIdentity)
-        : undefined;
       const acceptSelection =
         submission && (sessionId === null || targetSessionId === sessionId)
           ? captureAcceptedModelSelection(submission.modelSelection)
@@ -1426,9 +1453,8 @@ export function SessionPane({
         }
         if (isProviderNotReadyError(error)) {
           // provider_not_ready 在 Host getClient 前确定性拒绝，CLI 不可能已经
-          // admission。若继续保留 renderer 恢复账本，重连 query 必然得到 unknown；即使
-          // unknown 现已静默清账，也不应为确定性拒绝留下无效的恢复记录。
-          pendingCommandRegistry.settle(envelope.sessionId, envelope.commandId);
+          // admission。必须先释放匹配的草稿发送标记再清账，否则重试会被旧 commandId 阻塞。
+          pendingCommandRegistry.rejectCommand(envelope.sessionId, envelope.commandId);
         }
         recordV4CommandAck({
           type,
@@ -1442,7 +1468,8 @@ export function SessionPane({
       pendingCommandRegistry.applyAck(envelope, ack);
       if (ack.status === "accepted") {
         acceptSelection?.();
-        acceptRecent?.();
+        // retry/edit 不进入可重发输入账本，仍用同一回执函数保留原有接纳偏好行为。
+        if (!recorded && recentReceipt) acceptComposerRecentReceipt(recentReceipt);
       }
       if (
         lease?.store &&
@@ -1483,6 +1510,10 @@ export function SessionPane({
       handleDraftSessionCreated,
       readGenUiModelContext,
       captureAcceptedModelSelection,
+      baseWorkspaceServices,
+      clientNamespace,
+      rootSessionId,
+      selectionSideChat,
       lease,
       provider,
       sendCommand,
@@ -2651,7 +2682,6 @@ export function SessionPane({
           throw new Error("createSession 缺少 sessionId");
         }
         const newSessionId = createResult.sessionId;
-        await handleDraftSessionCreated(newSessionId, creationContextAtSend);
         await dispatchSlashCommand(
           draftSlashCommand,
           newSessionId,
@@ -2659,6 +2689,7 @@ export function SessionPane({
           heldQueueDisposition,
           expectedHeldQueueItemIds,
           submission,
+          creationContextAtSend,
         );
         return;
       }
@@ -2767,11 +2798,12 @@ export function SessionPane({
           undefined,
           undefined,
           options?.localTtft,
+          undefined,
+          creationContextAtSend,
         );
         if (sendAck.status !== "accepted") {
           throw new Error(sendAck.reasonCode ?? "sendText 被拒绝");
         }
-        await handleDraftSessionCreated(newSessionId, creationContextAtSend);
         return;
       }
       // 附件 ref 已在 composer 预传状态机中收口。
@@ -2815,8 +2847,6 @@ export function SessionPane({
       availableSelectionSideSlashCommandNames,
       appSlashCommands,
       appFollowupMode,
-      handleDraftSessionCreated,
-
       handleDraftSwitchMode,
       handleOpenSelectionSideConversationWithPrompt,
       intl,
@@ -2847,6 +2877,20 @@ export function SessionPane({
         submission:
           options?.submission === undefined ? createSubmissionFromComposer() : options.submission,
       };
+      if (sessionId === null && submissionOptions.submission) {
+        const scope = resolveComposerScope(creationContext.projectId, workspaceIdentity, clientNamespace);
+        const pendingDraft = readPendingTaskDraft(scope);
+        // Bug 原因：首发只带 Recent 回执，没有 draftId，接纳后下一任务仍复用旧目录。
+        // 在配置屏障前冻结原文与匹配目录的身份；迟到回执不能清掉下一代草稿。
+        creationContext.composer = {
+          ...prepareComposerRecentReceipt(scope, {
+            modelSelection: submissionOptions.submission.modelSelection,
+            mode: submissionOptions.submission.mode,
+          }),
+          submittedText: text,
+          ...(pendingDraft?.workspacePath === workspacePath ? { draftId: pendingDraft.draftId } : {}),
+        };
+      }
       // followupMode 仍通过 Session CAS 同步；模型和模式已封装进 Submission，不再
       // 依赖“配置命令先到、sendText 后到”的跨命令时序。
       return configCommandBarrier.enqueue(async () => {
@@ -2866,6 +2910,7 @@ export function SessionPane({
     [
       configCommandBarrier,
       createSubmissionFromComposer,
+      clientNamespace,
       dispatchSendTextAfterConfig,
       markDraftProviderNotReady,
       sessionId,

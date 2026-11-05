@@ -94,7 +94,11 @@ export function readTaskStoreSnapshotInBrowser(
     const result: Record<string, string | null> = {};
     try {
       for (const [key, value] of Object.entries(window.localStorage)) {
-        if (key.startsWith("zcode-model-selection-recent-v1:")) {
+        // Bug 依据：诊断只采旧 key 会漏掉当前实际读写的项目 Recent，误判为没有记住。
+        if (
+          key.startsWith("zcode-composer-recent:v2:") ||
+          key.startsWith("zcode-model-selection-recent-v1:")
+        ) {
           result[key] = value;
         }
       }

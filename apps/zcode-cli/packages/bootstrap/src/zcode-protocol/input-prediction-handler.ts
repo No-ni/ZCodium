@@ -55,6 +55,10 @@ export class ConversationInputPredictionHandler {
     const withRequestId = (result: CachedResult): V4ConversationInputPredictionResult =>
       requestId === undefined ? result : { ...result, requestId };
 
+    // 修复原因：恢复已缓存的草稿也是最新请求；提前返回缓存会让旧草稿继续
+    // 请求模型并返回非 cancelled 结果，因此取消必须先于缓存查找。
+    this.inFlight.get(sessionId)?.abort();
+    this.inFlight.delete(sessionId);
     const cached = this.cache.get(cacheKey);
     if (cached) {
       // LRU 触碰。
@@ -64,7 +68,6 @@ export class ConversationInputPredictionHandler {
     }
 
     // 新请求替代同会话的旧请求：手机只关心最新草稿。
-    this.inFlight.get(sessionId)?.abort();
     const controller = new AbortController();
     this.inFlight.set(sessionId, controller);
     try {
@@ -92,10 +95,12 @@ export class ConversationInputPredictionHandler {
     let material: InputPredictionSessionMaterial | null;
     try {
       material = await this.deps.loadSession(sessionId);
-    } catch (error) {
-      this.warn("transcript_failed", sessionId, error);
+    } catch {
+      this.warn("transcript_failed");
       return emptyInputPredictionResult("unavailable");
     }
+    // 旧 loader 可能比替代请求更晚返回；取消后不能再启动副作用模型调用。
+    if (abortSignal.aborted) return emptyInputPredictionResult("cancelled");
     if (!material || material.turns.length < inputPredictionMinTurns(draft)) {
       return emptyInputPredictionResult("suppress_no_context");
     }
@@ -110,9 +115,9 @@ export class ConversationInputPredictionHandler {
         abortSignal,
         ...(this.deps.timeoutMs !== undefined ? { timeoutMs: this.deps.timeoutMs } : {}),
       });
-    } catch (error) {
+    } catch {
       // 超时 / 网络 / 模型不可用：静默降级，不影响手机主链路。被替代的请求不记日志。
-      if (!abortSignal.aborted) this.warn("model_failed", sessionId, error);
+      if (!abortSignal.aborted) this.warn("model_failed");
       return emptyInputPredictionResult("unavailable");
     }
     if (!rawCandidates) return emptyInputPredictionResult("suppress_below_threshold");
@@ -133,13 +138,11 @@ export class ConversationInputPredictionHandler {
     }
   }
 
-  private warn(reason: string, sessionId: string, error: unknown): void {
-    // 只记错误类型与消息，绝不记草稿和会话内容。
+  private warn(reason: "transcript_failed" | "model_failed"): void {
+    // 原始异常可能携带草稿、凭据和路径；服务出口只传固定分类，不把净化责任推给 Logger。
     this.deps.logger?.warn("v4 input prediction degraded", {
       event: `zcode_protocol.v4.input_prediction_${reason}`,
       module: "bootstrap.zcode_protocol",
-      sessionId,
-      error: error instanceof Error ? error.message : String(error),
     });
   }
 }

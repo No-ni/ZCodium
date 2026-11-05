@@ -3,8 +3,11 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import { resolve } from "node:path";
 import { build, stop } from "esbuild";
+import { createProjectTestSandbox } from "./project-test-sandbox.mjs";
+import { launchProjectTestPage } from "./project-test-browser.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
+const sandbox = await createProjectTestSandbox("copy-markdown-browser");
 const { outputFiles } = await build({
   entryPoints: [resolve(import.meta.dirname, "fixtures/copy-conversation-markdown.jsx")],
   bundle: true,
@@ -41,12 +44,10 @@ try {
       process.once("SIGTERM", resolveStop);
     });
   } else {
-    const { chromium } = await import("playwright-core");
-    browser = await chromium.launch({
-      headless: true,
-      executablePath: process.env.ZCODE_TEST_CHROMIUM_EXECUTABLE || undefined,
-    });
-    const page = await browser.newPage();
+    browser = await launchProjectTestPage(sandbox);
+    const { page } = browser;
+    page.setDefaultTimeout(10000);
+    page.setDefaultNavigationTimeout(10000);
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     for (const locale of ["en-US", "zh-CN"]) {

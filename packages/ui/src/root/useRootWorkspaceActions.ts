@@ -3,7 +3,6 @@ import { readProjectSidebarView } from "@/project-sidebar/index.js";
 /* eslint-disable max-lines -- Root workspace action hook 集中编排项目、远程和 conversation 入口；合并期保持动作边界完整，后续按领域拆分。 */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  DesktopCommandIds,
   remoteHostIdFromWorkspaceIdentity,
   type IPlatformService,
   type ZCodeTaskClientMode,
@@ -34,11 +33,7 @@ import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { notifyTaskNavigationCommitted } from "@/store/zcodeSessionStoreNavigation.js";
 import { type TabStore, type TabStoreState } from "@/store/tabStore.js";
 import type { RootProps } from "@/root/types.js";
-import {
-  hadPersistedPaneLayoutAtModuleLoad,
-  INITIAL_PANE_LAYOUT,
-  usePaneLayoutStore,
-} from "@/v4/paneLayoutStore.js";
+import { hadPersistedPaneLayoutAtModuleLoad, usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
 import { resolveWorkbenchNewTaskTarget } from "@/conversation-workspace-target/workbenchTarget.js";
 import type { WorkbenchNewTaskTarget } from "@/conversation-workspace-target/workbenchTarget.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
@@ -568,7 +563,7 @@ export function useRootWorkspaceActions({
     // 和菜单打开工作区时抢占整页。现在打开工作区只保留为动作：本地优先直接弹系统目录选择，
     // 不再进入中间页面；不支持系统目录选择的壳层由启动兜底负责创建默认 workspace。
     if (!supportsSettings) {
-      void handleEnsureConversationWorkspace().catch((error) => {
+      void handleEnsureConversationWorkspace().catch(() => {
         logger.error("[Root] 创建对话 workspace 失败");
       });
       return;
@@ -611,7 +606,7 @@ export function useRootWorkspaceActions({
     }
 
     if (!supportsSettings) {
-      void handleEnsureConversationWorkspace().catch((error) => {
+      void handleEnsureConversationWorkspace().catch(() => {
         logger.error("[Root] 从空态菜单创建对话 workspace 失败");
       });
       return;

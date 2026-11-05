@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { buildGenUiScopeKey, genUiScopeSchema, type GenUiScope } from "../gen-ui/index.js";
+import { isManagedConversationWorkspace } from "./conversationWorkspaceEnv.js";
 
 /** Execution Host supplies this process-scoped root; models never choose it. */
 export const GEN_UI_OUTPUT_ROOT_ENV = "ZCODE_GEN_UI_OUTPUT_ROOT";
@@ -16,16 +17,26 @@ export function getGenUiOutputDirectory(
     throw new Error("Gen UI output root and workspace must be absolute");
   const executionPath = conversation?.executionWorkspacePath;
   if (
-    !scope.workspaceIdentity?.trim() &&
-    conversation?.conversationWorkspaceRoot &&
-    resolve(conversation.conversationWorkspaceRoot) === resolve(scope.workspacePath) &&
-    executionPath &&
-    resolve(executionPath) !== resolve(scope.workspacePath)
+    conversation &&
+    isManagedConversationWorkspace(
+      scope.workspacePath,
+      scope.workspaceIdentity,
+      conversation.conversationWorkspaceRoot,
+    ) &&
+    executionPath
   ) {
-    const child = relative(resolve(scope.workspacePath), resolve(executionPath));
     if (!isAbsolute(executionPath)) throw new Error("Gen UI execution directory must be absolute");
-    // 根因：actor 可继承父 cd 到根外的 cwd；只在对话根内分配会话输出，根外沿用 Host 全局输出。
-    if (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child))
+    const child = relative(resolve(scope.workspacePath), resolve(executionPath));
+    const isLegacyRoot =
+      resolve(scope.workspacePath) === resolve(conversation.conversationWorkspaceRoot);
+    // 原因：task 已有独立 cwd，可直接放产物；旧 default 只有分配子 cwd 后才可本地输出。
+    // 派生 actor 若继承根外 cwd 仍用全局输出，不能因此扩大 Host 文件授权。
+    if (
+      (!isLegacyRoot || child) &&
+      child !== ".." &&
+      !child.startsWith(`..${sep}`) &&
+      !isAbsolute(child)
+    )
       return join(executionPath, GEN_UI_OUTPUT_DIRECTORY);
   }
   const root = resolve(outputRoot);

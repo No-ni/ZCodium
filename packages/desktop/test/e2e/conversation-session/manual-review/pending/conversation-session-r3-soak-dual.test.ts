@@ -20,15 +20,10 @@ import {
   prepareSSHLifecycle,
   type SSHLifecycleProvider,
 } from "../../../helpers/ssh-remote-lifecycle.js";
-import {
-  readHostProcesses,
-  readRemoteTabSnapshot,
-  runSSHCommand,
-} from "../../../helpers/ssh-remote-p0.js";
+import { readHostProcesses, runSSHCommand } from "../../../helpers/ssh-remote-p0.js";
 import {
   getV4Messages,
   sendV4PromptAndWaitAccepted,
-  waitForV4AssistantMessageContaining,
   waitForV4ConversationState,
 } from "../../../helpers/v4-conversation.js";
 

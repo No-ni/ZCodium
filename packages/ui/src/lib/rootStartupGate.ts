@@ -17,16 +17,6 @@ interface ProviderStartupSyncState {
   modelSelectionViewHydrated: boolean;
 }
 
-interface ProviderAvailabilityLoginEntryGuardState {
-  isWebRemoteControlRoot: boolean;
-}
-
-interface ProviderStartupResolutionState {
-  isWebRemoteControlRoot: boolean;
-  providerStartupSyncPending: boolean;
-  providerAvailabilityStartupCheckCompleted: boolean;
-}
-
 export function shouldBlockRootRender(state: RootStartupGateState): boolean {
   return state.isRestoring || state.isBootstrappingInitialWorkspace;
 }

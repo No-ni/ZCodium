@@ -52,7 +52,6 @@ export const UPSTREAM_THOUGHT_LEVEL = readUpstreamThoughtLevel();
 export const UPSTREAM_SECONDARY_THOUGHT_LEVEL =
   process.env.E2E_PROVIDER_SECONDARY_THOUGHT_LEVEL?.trim() || "max";
 const E2E_PROVIDER_REPLAY_API_KEY = "e2e-fixture-key";
-const MODEL_SELECTION_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
 const UPSTREAM_THOUGHT_LEVEL_MAX_ATTEMPTS = 8;
 const UPSTREAM_THOUGHT_LEVEL_LABELS_BY_VALUE: Record<string, string[]> = {
   high: ["High", "高"],
@@ -234,19 +233,33 @@ async function createMissingUpstreamProvider() {
 
 async function seedUpstreamToolbarPreferences() {
   await browser.execute(
-    (workspacePath, keyPrefix, providerId, modelId, thoughtLevel, appProvider) => {
+    (workspacePath, providerId, modelId, thoughtLevel, appProvider) => {
+      const state = (
+        window as Window & {
+          __zcodeSessionStoreE2E?: {
+            getState(): { workspaces: Record<string, { draftProjectId?: string | null }> };
+          };
+        }
+      ).__zcodeSessionStoreE2E?.getState().workspaces[workspacePath];
+      if (!state) throw new Error("E2E 当前工作区草稿状态未就绪");
+      // Bug 原因：旧 helper 预置 workspace key，新草稿只读项目 v2 key，预置实际未生效。
+      // 只覆盖测试模型，保留已有权限和接纳顺序，避免准备流程抹掉模式继承证据。
+      const key = `zcode-composer-recent:v2:${JSON.stringify(["desktop", "local", state.draftProjectId ?? null])}`;
+      const previous = JSON.parse(window.localStorage.getItem(key) ?? "{}");
       window.localStorage.setItem(
-        `${keyPrefix}:${workspacePath}`,
+        key,
         JSON.stringify({
-          providerId,
-          modelId,
-          ...(thoughtLevel.trim() ? { options: { reasoningLevel: thoughtLevel.trim() } } : {}),
+          ...previous,
+          modelSelection: {
+            providerId,
+            modelId,
+            ...(thoughtLevel.trim() ? { options: { reasoningLevel: thoughtLevel.trim() } } : {}),
+          },
         }),
       );
       window.localStorage.setItem("zcode-last-agent-provider", appProvider);
     },
     DEFAULT_WORKSPACE,
-    MODEL_SELECTION_RECENT_KEY_PREFIX,
     UPSTREAM_PROVIDER_ID,
     UPSTREAM_MODEL,
     UPSTREAM_THOUGHT_LEVEL,

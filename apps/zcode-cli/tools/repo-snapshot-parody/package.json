@@ -2,13 +2,13 @@
   "name": "@zcode/repo-snapshot-parody",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Satirical reimplementation of the closed-source ZCode repo-snapshot upload, pointed at 127.0.0.1. Not a product feature.",
+  "type": "module",
   "scripts": {
     "parody": "node bin/parody.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src test",
-    "test": "node --import ./ts-resolve.mjs --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

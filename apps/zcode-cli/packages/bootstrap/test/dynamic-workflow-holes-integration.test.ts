@@ -70,7 +70,7 @@ it(
       assert.ok(service.getRunDetail);
       assert.equal((await service.getRunDetail(runId))?.scriptPath, draftPath);
       const launch = journal
-        .listEvents(runId, {})
+        .listEvents(runId, { types: "all", reportItems: "all" })
         .find((entry) => entry.event.type === "run-launched")?.event;
       assert.equal(launch?.type, "run-launched");
       if (launch?.type !== "run-launched") return;
@@ -93,7 +93,9 @@ it(
         parentSessionId: "session-1",
         fileSystemPort: {} as never,
         executionPort: {} as never,
-        createActorRuntime: () => { throw new Error("no actor expected"); },
+        createActorRuntime: () => {
+          throw new Error("no actor expected");
+        },
       });
       try {
         assert.equal((await cold.getTask(runId))?.scriptPath, undefined);
@@ -113,7 +115,7 @@ it(
       assert.equal((await service.getRunDetail(runId))?.scriptPath, undefined);
       await reached.get(holeSiteId("inner"))!.promise;
       const event = journal
-        .listEvents(runId, {})
+        .listEvents(runId, { types: "all", reportItems: "all" })
         .find((entry) => entry.event.type === "hole-filled")?.event;
       assert.equal(event?.type, "hole-filled");
       if (event?.type !== "hole-filled") return;
@@ -139,7 +141,7 @@ it(
       await service.waitForTask(runId);
       assert.equal(journal.getRun(runId)?.status, "completed");
       const fills = journal
-        .listEvents(runId, {})
+        .listEvents(runId, { types: "all", reportItems: "all" })
         .filter((entry) => entry.event.type === "hole-filled");
       assert.equal(fills.length, 2);
       assert.ok(filled.ok && final.ok);

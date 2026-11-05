@@ -67,6 +67,8 @@ function startupFixture(response: unknown, errorCode?: number) {
           runtime: {
             subscribeEvents: () => () => {},
             getSessionModelSelection: () => undefined,
+            getSessionShellSelection: () => undefined,
+            getToolSearchMode: () => "off",
           },
           listThoughtLevels: () => [],
         };
@@ -235,6 +237,34 @@ test("inherited session startup reads the current parent runtime mode without co
   }
 });
 
+test("actual parent record preserves the live summary preference channel for fork startup", async () => {
+  const fixture = startupFixture({ nativeSearchEnhancementsEnabled: true });
+  const created = await createSessionRecordForV4(fixture.context, {
+    workspace: fixture.workspace,
+    persistence: "deferred",
+  });
+  const parent = fixture.context.sessions.get(created.sessionId)!;
+  const { resolveSessionStartupPreferences } = await sourceFunctions(
+    "zcode-protocol/server-operations.ts",
+    ["resolveSessionStartupPreferences"],
+    { DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY },
+  );
+  const inherited = await resolveSessionStartupPreferences!(fixture.context, "fixture-child", {
+    kind: "inherit",
+    parent,
+  });
+  assert.equal(typeof inherited.resolveSummaryModelSelection, "function");
+  assert.equal(inherited.resolveSummaryModelSelection, fixture.assembled[0].resolveSummaryModelSelection);
+  let selection = { providerId: "fixture-summary", modelId: "one" };
+  fixture.context.requestClient = async (_method, _params, schema) => schema.parse({
+    nativeSearchEnhancementsEnabled: true,
+    summaryModelSelection: selection,
+  });
+  assert.deepEqual(await inherited.resolveSummaryModelSelection(), selection);
+  selection = { ...selection, modelId: "two" };
+  assert.deepEqual(await inherited.resolveSummaryModelSelection(), selection);
+});
+
 test("both child constructors inherit current ToolSearch mode at construction and keep explicit overrides", async () => {
   const captured: Array<{ config: any; deps: any }> = [];
   class CaptureRuntime {
@@ -259,13 +289,13 @@ test("both child constructors inherit current ToolSearch mode at construction an
   };
   const script = await sourceFunctions(
     "app/script-workflow-child-runtime.ts",
-    ["createScriptWorkflowAgentRuntime", "createRuntimeDeps"],
+    ["createScriptWorkflowAgentRuntime", "createRuntimeDeps", "createWorkflowChildSkillPort"],
     dependencies,
   );
   const expert = await sourceFunctions(
     "app/workflow-facade.ts",
     ["createWorkflowChildRuntime"],
-    dependencies,
+    { ...dependencies, createWorkflowChildSkillPort: script.createWorkflowChildSkillPort },
   );
   let currentMode: ToolSearchMode = "off";
   const ports = { fixturePort: true };
@@ -279,6 +309,7 @@ test("both child constructors inherit current ToolSearch mode at construction an
     configResult: { config: { features: { skill: false } } },
     runtime: {
       getToolSearchMode: () => currentMode,
+      getSessionShellSelection: () => undefined,
       getSessionModelSelection: () => ({ providerId: "fixture", modelId: "fixture" }),
       getSessionEventStore: () => ports,
       createChildClientPorts: () => ({ permissionBroker: ports }),

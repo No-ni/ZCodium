@@ -1,6 +1,6 @@
 import { safeLogArgs } from "@zcode/shared";
 import { resolve } from "node:path";
-import { createLocalServices, getAppConfigDir } from "@zcode/services/node";
+import { getAppConfigDir } from "@zcode/services/node";
 import { createServerHostServices, createTopicResourcePeers } from "@zcode/services/node";
 import {
   materializeBundledZCodeBuiltinProviderConfig,

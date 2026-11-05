@@ -1,0 +1,948 @@
+{
+  "date": "2026-11-06",
+  "method": "Compact relative-path review evidence; contract, entrypoint and selected failure-path review. Not a claim of manual review of every leaf or real-device acceptance.",
+  "modules": [
+    {
+      "id": "ui",
+      "roots": ["packages/ui/src"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src",
+          "files": [
+            "packages/ui/src/logger.ts",
+            "packages/ui/src/index.ts",
+            "packages/ui/src/previewPaneCodeContent.tsx",
+            "packages/ui/src/composer-toolbar-layout/CONTRACT.md",
+            "packages/ui/src/App.tsx",
+            "packages/ui/src/components/ai-elements/image-preview-dialog.tsx",
+            "packages/ui/src/previewPaneImageContent.tsx",
+            "packages/ui/src/hooks/useWorkspaceServices.tsx",
+            "packages/ui/src/Root.tsx",
+            "packages/ui/src/store/pluginManagementStoreLoading.ts",
+            "packages/ui/src/store/remoteWorkspaceSessionStore.ts",
+            "packages/ui/src/store/serviceAuthorityKey.ts",
+            "packages/ui/src/store/subagentsStoreLoading.ts",
+            "packages/ui/src/settings/saved-workflows/useSavedWorkflowLauncher.ts"
+          ]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-02"]
+    },
+    {
+      "id": "web",
+      "roots": ["packages/web/src"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/web/src",
+          "files": [
+            "packages/web/src/saveBrowserFile.ts",
+            "packages/web/src/main.tsx",
+            "packages/web/src/communityUrl.ts",
+            "packages/web/src/mobile/conversationReducer.ts",
+            "packages/web/src/mobile/workspaceBridgeLifecycle.ts",
+            "packages/web/src/mobile/windowProjectDirectory.ts",
+            "packages/web/src/mobile/windowDirectoryPresentation.ts",
+            "packages/web/src/mobile/taskGrouping.ts",
+            "packages/web/src/mobile/taskConversationLifecycle.ts",
+            "packages/web/src/mobile/protocol.ts",
+            "packages/web/src/mobile/MobileApp.tsx",
+            "packages/web/src/mobile/main.tsx"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "side-pane-full-view",
+      "roots": ["packages/ui/src/side-pane-full-view"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/side-pane-full-view",
+          "files": [
+            "packages/ui/src/side-pane-full-view/index.ts",
+            "packages/ui/src/side-pane-full-view/CONTRACT.md",
+            "packages/ui/src/side-pane-full-view/contract.ts",
+            "packages/ui/src/side-pane-full-view/components/ConversationHost.tsx",
+            "packages/ui/src/side-pane-full-view/domain/model.ts",
+            "packages/ui/src/side-pane-full-view/adapters/useFloatingGeometry.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "gen-ui",
+      "roots": ["packages/ui/src/gen-ui"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/gen-ui",
+          "files": [
+            "packages/ui/src/gen-ui/index.ts",
+            "packages/ui/src/gen-ui/host.ts",
+            "packages/ui/src/gen-ui/domain/references.ts",
+            "packages/ui/src/gen-ui/CONTRACT.md",
+            "packages/ui/src/gen-ui/components/GenUiCard.tsx",
+            "packages/ui/src/gen-ui/app/tweaks.ts",
+            "packages/ui/src/gen-ui/adapters/retainedPage.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "plugin-ui",
+      "roots": ["packages/ui/src/plugin-ui"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/plugin-ui",
+          "files": [
+            "packages/ui/src/plugin-ui/CONTRACT.md",
+            "packages/ui/src/plugin-ui/index.ts",
+            "packages/ui/src/plugin-ui/domain/pluginUiLogicalScope.ts",
+            "packages/ui/src/plugin-ui/app/pluginUiPageManager.ts",
+            "packages/ui/src/plugin-ui/app/pluginUiHostTeardown.ts",
+            "packages/ui/src/plugin-ui/app/pluginUiHostController.ts",
+            "packages/ui/src/plugin-ui/app/pluginUiHostBridge.ts",
+            "packages/ui/src/plugin-ui/app/pluginUiHostAppHandlers.ts",
+            "packages/ui/src/plugin-ui/adapters/pluginUiManagedPageController.ts",
+            "packages/ui/src/plugin-ui/adapters/messagePortTransport.ts",
+            "packages/ui/src/plugin-ui/adapters/usePublishPluginUiInstanceDerivation.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "project-sidebar",
+      "roots": ["packages/ui/src/project-sidebar"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/project-sidebar",
+          "files": [
+            "packages/ui/src/project-sidebar/ProjectDirectoryProvider.tsx",
+            "packages/ui/src/project-sidebar/index.tsx",
+            "packages/ui/src/project-sidebar/useProjectTree.ts",
+            "packages/ui/src/project-sidebar/useProjectTaskNavigation.ts",
+            "packages/ui/src/project-sidebar/useProjectFileTree.ts",
+            "packages/ui/src/project-sidebar/useProjectDirectoryServices.ts",
+            "packages/ui/src/project-sidebar/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "workspace-config-catalog",
+      "roots": ["packages/ui/src/workspace-config-catalog"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/workspace-config-catalog",
+          "files": [
+            "packages/ui/src/workspace-config-catalog/useConfigWorkspaceTargets.ts",
+            "packages/ui/src/workspace-config-catalog/index.ts",
+            "packages/ui/src/workspace-config-catalog/contract.ts",
+            "packages/ui/src/workspace-config-catalog/CONTRACT.md",
+            "packages/ui/src/workspace-config-catalog/catalog.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "conversation-workspace-target",
+      "roots": ["packages/ui/src/conversation-workspace-target"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/conversation-workspace-target",
+          "files": [
+            "packages/ui/src/conversation-workspace-target/sourceIdentity.ts",
+            "packages/ui/src/conversation-workspace-target/resolve.ts",
+            "packages/ui/src/conversation-workspace-target/index.ts",
+            "packages/ui/src/conversation-workspace-target/contract.ts",
+            "packages/ui/src/conversation-workspace-target/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "remote-connection-flow",
+      "roots": ["packages/ui/src/remote-connection-flow"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/remote-connection-flow",
+          "files": [
+            "packages/ui/src/remote-connection-flow/flowDismissal.ts",
+            "packages/ui/src/remote-connection-flow/flowConnection.ts",
+            "packages/ui/src/remote-connection-flow/CONTRACT.md",
+            "packages/ui/src/remote-connection-flow/flowRecovery.ts",
+            "packages/ui/src/remote-connection-flow/index.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "project-workflow",
+      "roots": ["packages/ui/src/project-workflow"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/project-workflow",
+          "files": [
+            "packages/ui/src/project-workflow/WorkflowRunSaveControls.tsx",
+            "packages/ui/src/project-workflow/WorkflowRunPaneSaveSlots.tsx",
+            "packages/ui/src/project-workflow/useWorkflowRunSave.ts",
+            "packages/ui/src/project-workflow/contract.ts",
+            "packages/ui/src/project-workflow/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-01"]
+    },
+    {
+      "id": "mobile-ui",
+      "roots": ["packages/ui/src/components/mobile-ui"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/components/mobile-ui",
+          "files": [
+            "packages/ui/src/components/mobile-ui/ZCodeAppLogo.tsx",
+            "packages/ui/src/components/mobile-ui/index.ts",
+            "packages/ui/src/components/mobile-ui/DevicePlatformIcon.tsx",
+            "packages/ui/src/components/mobile-ui/CONTRACT.md",
+            "packages/ui/src/components/mobile-ui/bottom-sheet.tsx"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "web-remote-control-ui",
+      "roots": [
+        "packages/ui/src/web-remote-control",
+        "packages/ui/src/hooks/useWebRemoteControlStatus.ts"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/web-remote-control",
+          "files": [
+            "packages/ui/src/web-remote-control/WebRemoteControlTaskViewReporter.tsx",
+            "packages/ui/src/web-remote-control/index.ts",
+            "packages/ui/src/web-remote-control/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/hooks/useWebRemoteControlStatus.ts",
+          "files": ["packages/ui/src/hooks/useWebRemoteControlStatus.ts"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "conversation-share-interaction",
+      "roots": ["packages/ui/src/conversation-share-interaction"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/conversation-share-interaction",
+          "files": [
+            "packages/ui/src/conversation-share-interaction/index.ts",
+            "packages/ui/src/conversation-share-interaction/conversationSharePreflightResponse.ts",
+            "packages/ui/src/conversation-share-interaction/conversationSharePreflightRequest.ts",
+            "packages/ui/src/conversation-share-interaction/conversationSharePopoverActions.ts",
+            "packages/ui/src/conversation-share-interaction/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "workspace-plugin-preview",
+      "roots": ["packages/ui/src/workspace-plugin-preview"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/workspace-plugin-preview",
+          "files": [
+            "packages/ui/src/workspace-plugin-preview/WorkspacePluginPreview.tsx",
+            "packages/ui/src/workspace-plugin-preview/index.ts",
+            "packages/ui/src/workspace-plugin-preview/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "data-sync",
+      "roots": ["packages/ui/src/data-sync"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/data-sync",
+          "files": [
+            "packages/ui/src/data-sync/index.ts",
+            "packages/ui/src/data-sync/CONTRACT.md",
+            "packages/ui/src/data-sync/app/useDataSyncProviders.ts",
+            "packages/ui/src/data-sync/app/useDataSyncDialog.ts",
+            "packages/ui/src/data-sync/app/loadDataSyncCategory.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "settings-scope",
+      "roots": ["packages/ui/src/settings-scope"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/settings-scope",
+          "files": [
+            "packages/ui/src/settings-scope/index.ts",
+            "packages/ui/src/settings-scope/domain/scope.ts",
+            "packages/ui/src/settings-scope/contract.ts",
+            "packages/ui/src/settings-scope/CONTRACT.md",
+            "packages/ui/src/settings-scope/app/useSettingsScopeForm.ts",
+            "packages/ui/src/settings-scope/app/useSettingsScope.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "ui-file-menu",
+      "roots": [
+        "packages/ui/src/file-menu",
+        "packages/ui/src/OpenSplitButton.types.ts",
+        "packages/ui/src/OpenSplitButtonDropdownActions.tsx",
+        "packages/ui/src/OpenSplitButtonTrigger.tsx"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/file-menu",
+          "files": [
+            "packages/ui/src/file-menu/useFileApplications.ts",
+            "packages/ui/src/file-menu/index.ts",
+            "packages/ui/src/file-menu/fileCopy.ts",
+            "packages/ui/src/file-menu/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/OpenSplitButton.types.ts",
+          "files": ["packages/ui/src/OpenSplitButton.types.ts"]
+        },
+        {
+          "root": "packages/ui/src/OpenSplitButtonDropdownActions.tsx",
+          "files": ["packages/ui/src/OpenSplitButtonDropdownActions.tsx"]
+        },
+        {
+          "root": "packages/ui/src/OpenSplitButtonTrigger.tsx",
+          "files": ["packages/ui/src/OpenSplitButtonTrigger.tsx"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "web-platform",
+      "roots": ["packages/web/src/platform"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/web/src/platform",
+          "files": [
+            "packages/web/src/platform/saveBrowserFile.ts",
+            "packages/web/src/platform/module.ts",
+            "packages/web/src/platform/index.ts",
+            "packages/web/src/platform/contract.ts",
+            "packages/web/src/platform/CONTRACT.md",
+            "packages/web/src/platform/contract.example.ts"
+          ]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-02"]
+    },
+    {
+      "id": "image-preview-editor",
+      "roots": ["packages/ui/src/image-preview-editor"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/image-preview-editor",
+          "files": [
+            "packages/ui/src/image-preview-editor/index.ts",
+            "packages/ui/src/image-preview-editor/ImagePreviewSurface.tsx",
+            "packages/ui/src/image-preview-editor/geometry.ts",
+            "packages/ui/src/image-preview-editor/CONTRACT.md",
+            "packages/ui/src/image-preview-editor/composerTarget.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "windows-caption-menu",
+      "roots": [
+        "packages/ui/src/windows-caption-menu",
+        "packages/ui/src/WindowsCaptionMenuButton.tsx"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/windows-caption-menu",
+          "files": [
+            "packages/ui/src/windows-caption-menu/contract.ts",
+            "packages/ui/src/windows-caption-menu/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/WindowsCaptionMenuButton.tsx",
+          "files": ["packages/ui/src/WindowsCaptionMenuButton.tsx"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "source-server-ui",
+      "roots": [
+        "packages/ui/src/source-server-ui-contract",
+        "packages/ui/src/hooks/useSourceServerManagementSnapshot.ts",
+        "packages/ui/src/lib/remoteConnectionPresentation.ts",
+        "packages/ui/src/lib/remoteConnectionPresentationErrors.ts",
+        "packages/ui/src/remote-connection/RemoteConnectionSelection.tsx",
+        "packages/ui/src/remote/remoteWorkspaceController.ts",
+        "packages/ui/src/remote/remoteWorkspaceProjection.ts",
+        "packages/ui/src/store/sourceServerDisplayNameRegistry.ts",
+        "packages/ui/src/store/sourceServerStatusRegistry.ts",
+        "packages/ui/src/settings/SourceServerProfileEditor.tsx"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/source-server-ui-contract",
+          "files": [
+            "packages/ui/src/source-server-ui-contract/contract.ts",
+            "packages/ui/src/source-server-ui-contract/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/hooks/useSourceServerManagementSnapshot.ts",
+          "files": ["packages/ui/src/hooks/useSourceServerManagementSnapshot.ts"]
+        },
+        {
+          "root": "packages/ui/src/lib/remoteConnectionPresentation.ts",
+          "files": ["packages/ui/src/lib/remoteConnectionPresentation.ts"]
+        },
+        {
+          "root": "packages/ui/src/lib/remoteConnectionPresentationErrors.ts",
+          "files": ["packages/ui/src/lib/remoteConnectionPresentationErrors.ts"]
+        },
+        {
+          "root": "packages/ui/src/remote-connection/RemoteConnectionSelection.tsx",
+          "files": ["packages/ui/src/remote-connection/RemoteConnectionSelection.tsx"]
+        },
+        {
+          "root": "packages/ui/src/remote/remoteWorkspaceController.ts",
+          "files": ["packages/ui/src/remote/remoteWorkspaceController.ts"]
+        },
+        {
+          "root": "packages/ui/src/remote/remoteWorkspaceProjection.ts",
+          "files": ["packages/ui/src/remote/remoteWorkspaceProjection.ts"]
+        },
+        {
+          "root": "packages/ui/src/store/sourceServerDisplayNameRegistry.ts",
+          "files": ["packages/ui/src/store/sourceServerDisplayNameRegistry.ts"]
+        },
+        {
+          "root": "packages/ui/src/store/sourceServerStatusRegistry.ts",
+          "files": ["packages/ui/src/store/sourceServerStatusRegistry.ts"]
+        },
+        {
+          "root": "packages/ui/src/settings/SourceServerProfileEditor.tsx",
+          "files": ["packages/ui/src/settings/SourceServerProfileEditor.tsx"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "conversation-render-parts",
+      "roots": [
+        "packages/ui/src/v4/render-parts-contract",
+        "packages/ui/src/app-shell/WorkflowRunPhasePills.tsx",
+        "packages/ui/src/v4/ConversationBackgroundWorks.tsx",
+        "packages/ui/src/v4/conversationTurnRenderUnitTypes.ts",
+        "packages/ui/src/v4/buildTaskListResultFromSessions.ts",
+        "packages/ui/src/v4/conversationFileSummaryActions.ts",
+        "packages/ui/src/v4/conversationRowsPartition.ts",
+        "packages/ui/src/v4/conversationTurnNavigatorPosition.ts",
+        "packages/ui/src/v4/conversationTurnNavigatorTypes.ts",
+        "packages/ui/src/v4/conversationTurnRenderPartition.ts",
+        "packages/ui/src/v4/workbenchPointerDragDrop.ts",
+        "packages/ui/src/v4/conversationTimelineFindCache.ts",
+        "packages/ui/src/v4/conversationTimelineFindTypes.ts",
+        "packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactHeader.tsx"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/v4/render-parts-contract",
+          "files": [
+            "packages/ui/src/v4/render-parts-contract/contract.ts",
+            "packages/ui/src/v4/render-parts-contract/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/app-shell/WorkflowRunPhasePills.tsx",
+          "files": ["packages/ui/src/app-shell/WorkflowRunPhasePills.tsx"]
+        },
+        {
+          "root": "packages/ui/src/v4/ConversationBackgroundWorks.tsx",
+          "files": ["packages/ui/src/v4/ConversationBackgroundWorks.tsx"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationTurnRenderUnitTypes.ts",
+          "files": ["packages/ui/src/v4/conversationTurnRenderUnitTypes.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/buildTaskListResultFromSessions.ts",
+          "files": ["packages/ui/src/v4/buildTaskListResultFromSessions.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationFileSummaryActions.ts",
+          "files": ["packages/ui/src/v4/conversationFileSummaryActions.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationRowsPartition.ts",
+          "files": ["packages/ui/src/v4/conversationRowsPartition.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationTurnNavigatorPosition.ts",
+          "files": ["packages/ui/src/v4/conversationTurnNavigatorPosition.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationTurnNavigatorTypes.ts",
+          "files": ["packages/ui/src/v4/conversationTurnNavigatorTypes.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationTurnRenderPartition.ts",
+          "files": ["packages/ui/src/v4/conversationTurnRenderPartition.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/workbenchPointerDragDrop.ts",
+          "files": ["packages/ui/src/v4/workbenchPointerDragDrop.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationTimelineFindCache.ts",
+          "files": ["packages/ui/src/v4/conversationTimelineFindCache.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/conversationTimelineFindTypes.ts",
+          "files": ["packages/ui/src/v4/conversationTimelineFindTypes.ts"]
+        },
+        {
+          "root": "packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactHeader.tsx",
+          "files": ["packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactHeader.tsx"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "web-theme-seed",
+      "roots": ["packages/web/src/theme-seed-contract", "packages/web/src/webThemeSeed.ts"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/web/src/theme-seed-contract",
+          "files": ["packages/web/src/theme-seed-contract/CONTRACT.md"]
+        },
+        {
+          "root": "packages/web/src/webThemeSeed.ts",
+          "files": ["packages/web/src/webThemeSeed.ts"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "local-ttft-renderer",
+      "roots": ["packages/ui/src/v4/diagnostics/local-ttft"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/v4/diagnostics/local-ttft",
+          "files": [
+            "packages/ui/src/v4/diagnostics/local-ttft/localTtftPendingStart.ts",
+            "packages/ui/src/v4/diagnostics/local-ttft/localTtftObserverCore.ts",
+            "packages/ui/src/v4/diagnostics/local-ttft/contract.ts",
+            "packages/ui/src/v4/diagnostics/local-ttft/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "plugin-store-display",
+      "roots": [
+        "packages/ui/src/settings/plugin-store-display-contract",
+        "packages/ui/src/settings/pluginStoreActions.ts",
+        "packages/ui/src/settings/PluginStorePaidPlanBadge.tsx"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/settings/plugin-store-display-contract",
+          "files": [
+            "packages/ui/src/settings/plugin-store-display-contract/contract.ts",
+            "packages/ui/src/settings/plugin-store-display-contract/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/settings/pluginStoreActions.ts",
+          "files": ["packages/ui/src/settings/pluginStoreActions.ts"]
+        },
+        {
+          "root": "packages/ui/src/settings/PluginStorePaidPlanBadge.tsx",
+          "files": ["packages/ui/src/settings/PluginStorePaidPlanBadge.tsx"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "pending-command-recovery",
+      "roots": [
+        "packages/ui/src/v4/pending-command-recovery-contract",
+        "packages/ui/src/v4/pendingCommandRegistryTypes.ts",
+        "packages/ui/src/v4/pendingCommandRegistryHelpers.ts",
+        "packages/ui/src/v4/pendingCommandComposer.ts"
+      ],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/v4/pending-command-recovery-contract",
+          "files": [
+            "packages/ui/src/v4/pending-command-recovery-contract/contract.ts",
+            "packages/ui/src/v4/pending-command-recovery-contract/CONTRACT.md"
+          ]
+        },
+        {
+          "root": "packages/ui/src/v4/pendingCommandRegistryTypes.ts",
+          "files": ["packages/ui/src/v4/pendingCommandRegistryTypes.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/pendingCommandRegistryHelpers.ts",
+          "files": ["packages/ui/src/v4/pendingCommandRegistryHelpers.ts"]
+        },
+        {
+          "root": "packages/ui/src/v4/pendingCommandComposer.ts",
+          "files": ["packages/ui/src/v4/pendingCommandComposer.ts"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "store-state-contracts",
+      "roots": ["packages/ui/src/store/state-contracts"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui/src/store/state-contracts",
+          "files": [
+            "packages/ui/src/store/state-contracts/contract.ts",
+            "packages/ui/src/store/state-contracts/CONTRACT.md"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "dev-docs-legacy",
+      "roots": ["apps/dev-docs"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "apps/dev-docs",
+          "files": [
+            "apps/dev-docs/tsconfig.json",
+            "apps/dev-docs/src/main.tsx",
+            "apps/dev-docs/src/feature-boundary-graph/FeatureBoundaryGraphView.tsx",
+            "apps/dev-docs/src/feature-boundary-graph/featureBoundaryGraphLayout.ts",
+            "apps/dev-docs/src/data/protocolDocs.ts",
+            "apps/dev-docs/src/capability-map/useCapabilityMapLayout.ts",
+            "apps/dev-docs/src/capability-map/useCapabilityMapHighlight.ts",
+            "apps/dev-docs/src/capability-map/CapabilityMapView.tsx"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "stream-animate",
+      "roots": ["packages/stream-animate/src"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/stream-animate/src",
+          "files": [
+            "packages/stream-animate/src/shared/types.ts",
+            "packages/stream-animate/src/server/index.ts",
+            "packages/stream-animate/src/server/http.ts",
+            "packages/stream-animate/src/server/frameForecast.ts",
+            "packages/stream-animate/src/server/frameBuckets.ts",
+            "packages/stream-animate/src/server/deepseekRunner.ts",
+            "packages/stream-animate/src/server/dataStore.ts",
+            "packages/stream-animate/src/server/cli.ts",
+            "packages/stream-animate/src/module.ts",
+            "packages/stream-animate/src/main.tsx",
+            "packages/stream-animate/src/index.ts",
+            "packages/stream-animate/src/contract.ts",
+            "packages/stream-animate/src/CONTRACT.md",
+            "packages/stream-animate/src/contract.example.ts",
+            "packages/stream-animate/src/client/RunSummaryPanel.tsx",
+            "packages/stream-animate/src/client/RunHistory.tsx",
+            "packages/stream-animate/src/client/RunForm.tsx",
+            "packages/stream-animate/src/client/FrameChart.tsx",
+            "packages/stream-animate/src/client/api.ts",
+            "packages/stream-animate/src/client/Aggregates.tsx",
+            "packages/stream-animate/src/App.tsx"
+          ]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-04", "UI-AUDIT-05", "UI-AUDIT-10"]
+    },
+    {
+      "id": "e2e-report",
+      "roots": ["packages/e2e-report/src"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/e2e-report/src",
+          "files": [
+            "packages/e2e-report/src/viewer/trendData.ts",
+            "packages/e2e-report/src/viewer/reportData.ts",
+            "packages/e2e-report/src/viewer/main.tsx",
+            "packages/e2e-report/src/viewer/format.ts",
+            "packages/e2e-report/src/viewer/CoveragePanel.tsx",
+            "packages/e2e-report/src/viewer/ChartPanels.tsx",
+            "packages/e2e-report/src/viewer/App.tsx",
+            "packages/e2e-report/src/shared/types.ts",
+            "packages/e2e-report/src/node/index.ts",
+            "packages/e2e-report/src/module.ts",
+            "packages/e2e-report/src/index.ts",
+            "packages/e2e-report/src/contract.ts",
+            "packages/e2e-report/src/CONTRACT.md",
+            "packages/e2e-report/src/contract.example.ts"
+          ]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-07", "UI-AUDIT-09"]
+    },
+    {
+      "id": "dev-docs-view",
+      "roots": ["apps/dev-docs/src/docs-view", "apps/dev-docs/src/App.tsx"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "apps/dev-docs/src/docs-view",
+          "files": [
+            "apps/dev-docs/src/docs-view/ui/TrafficFrameDetail.tsx",
+            "apps/dev-docs/src/docs-view/ui/TrafficControls.tsx",
+            "apps/dev-docs/src/docs-view/ui/StructureSection.tsx",
+            "apps/dev-docs/src/docs-view/ui/StdioTrafficView.tsx",
+            "apps/dev-docs/src/docs-view/ui/Navigation.tsx",
+            "apps/dev-docs/src/docs-view/ui/ConceptPanels.tsx",
+            "apps/dev-docs/src/docs-view/ui/App.tsx",
+            "apps/dev-docs/src/docs-view/module.ts",
+            "apps/dev-docs/src/docs-view/index.ts",
+            "apps/dev-docs/src/docs-view/domain/trafficFrames.ts",
+            "apps/dev-docs/src/docs-view/domain/presentation.ts",
+            "apps/dev-docs/src/docs-view/domain/mockTraffic.ts",
+            "apps/dev-docs/src/docs-view/contract.ts",
+            "apps/dev-docs/src/docs-view/CONTRACT.md",
+            "apps/dev-docs/src/docs-view/contract.example.ts",
+            "apps/dev-docs/src/docs-view/adapters/useStdioTraffic.ts"
+          ]
+        },
+        {
+          "root": "apps/dev-docs/src/App.tsx",
+          "files": ["apps/dev-docs/src/App.tsx"]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-08"]
+    },
+    {
+      "id": "dev-docs-vite-adapters",
+      "roots": ["apps/dev-docs/vite-adapters", "apps/dev-docs/vite.config.ts"],
+      "managed": true,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "apps/dev-docs/vite-adapters",
+          "files": [
+            "apps/dev-docs/vite-adapters/stdioTrafficApiPlugin.ts",
+            "apps/dev-docs/vite-adapters/module.ts",
+            "apps/dev-docs/vite-adapters/index.ts",
+            "apps/dev-docs/vite-adapters/featureBoundaryGraphPlugin.ts",
+            "apps/dev-docs/vite-adapters/contract.ts",
+            "apps/dev-docs/vite-adapters/CONTRACT.md",
+            "apps/dev-docs/vite-adapters/contract.example.ts"
+          ]
+        },
+        {
+          "root": "apps/dev-docs/vite.config.ts",
+          "files": ["apps/dev-docs/vite.config.ts"]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-06"]
+    },
+    {
+      "id": "package:share-ui",
+      "roots": ["packages/share-ui"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/share-ui",
+          "files": []
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "package:web-share",
+      "roots": ["packages/web-share"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/web-share",
+          "files": []
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "package:model-option-map",
+      "roots": ["packages/model-option-map"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/model-option-map",
+          "files": [
+            "packages/model-option-map/src/types.ts",
+            "packages/model-option-map/src/tokenizer.ts",
+            "packages/model-option-map/src/parser.ts",
+            "packages/model-option-map/src/option-maps.ts",
+            "packages/model-option-map/src/merge-patch.ts",
+            "packages/model-option-map/src/index.ts",
+            "packages/model-option-map/src/evaluator.ts",
+            "packages/model-option-map/src/compiler.ts"
+          ]
+        }
+      ],
+      "findingIds": ["UI-AUDIT-03"]
+    },
+    {
+      "id": "package:ui-support",
+      "roots": ["packages/ui"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/ui",
+          "files": [
+            "packages/ui/vitest.holes.config.ts",
+            "packages/ui/vitest.config.ts",
+            "packages/ui/vite/pdfJsCMapsPlugin.ts"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "package:web-support",
+      "roots": ["packages/web"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/web",
+          "files": ["packages/web/vite.config.ts", "packages/web/vite/remoteFrontendVersion.mjs"]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "package:stream-animate-support",
+      "roots": ["packages/stream-animate"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/stream-animate",
+          "files": [
+            "packages/stream-animate/vite.config.ts",
+            "packages/stream-animate/tsconfig.server.json",
+            "packages/stream-animate/tsconfig.json"
+          ]
+        }
+      ],
+      "findingIds": []
+    },
+    {
+      "id": "package:e2e-report-support",
+      "roots": ["packages/e2e-report"],
+      "managed": false,
+      "method": "contract + entrypoints + traced risk paths",
+      "rootReadEvidence": [
+        {
+          "root": "packages/e2e-report",
+          "files": ["packages/e2e-report/vite.config.ts", "packages/e2e-report/tsconfig.json"]
+        }
+      ],
+      "findingIds": []
+    }
+  ]
+}

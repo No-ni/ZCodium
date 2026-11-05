@@ -1,7 +1,5 @@
 import { MoonIcon } from "lucide-react";
 import { TID_OFFPEAK_CREATE_CARD } from "@zcode/shared/test-ids";
-import { Button } from "@/components/ui/button.js";
-import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
 

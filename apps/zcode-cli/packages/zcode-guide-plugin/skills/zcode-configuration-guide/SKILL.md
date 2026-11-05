@@ -25,14 +25,14 @@ There are two ways to work with configuration in the ZCode client, and this plug
 
 ## The five resources at a glance
 
-| Resource | Form | User scope | Workspace scope | Conflict rule |
-|---|---|---|---|---|
-| **Skills** | Directory + `SKILL.md` | `~/.zcodium/skills/`, `~/.agents/skills/` | `<repo>/.zcodium/skills/`, `<repo>/.agents/skills/` | Identity is the file path; on load the **first same-named skill wins** (user scope has priority) |
-| **Commands** | `.md` file | `~/.zcodium/commands/`, `~/.agents/commands/` | `<repo>/.zcodium/commands/`, `<repo>/.agents/commands/` | Deduplicated by normalized command name; **first match wins** (user scope overrides workspace), the loser is ignored |
-| **MCP** | JSON object | `~/.zcodium/cli/config.json` → `mcp.servers` (fallback `~/.agents/mcp.json` → `mcpServers`) | `<repo>/.zcodium/config.json` → `mcp.servers` (fallback `<repo>/.agents/mcp.json` → `mcpServers`) | **User overrides workspace** for a same-named server; workspace-scoped servers are **trusted and auto-connected** by default, same as user-scoped |
-| **Hooks** | `hooks.json` / config object | `~/.zcodium/cli/config.json` → `hooks` | `<repo>/.zcodium/config.json` → `hooks` | Configuration-file hooks require `hooks.enabled: true`; plugin hooks are appended |
-| **Plugins** | Directory + `plugin.json` | Installed from a marketplace; enable/disable state stored in `~/.zcodium/cli/config.json` | — | A plugin contributes skills, commands, hooks, MCP servers, and agents |
-| **Instructions** | `AGENTS.md` file | `~/.zcodium/AGENTS.md` | `<repo>/AGENTS.md` | User default instructions load first, then workspace instructions load later so the workspace can narrow or override broad defaults |
+| Resource         | Form                         | User scope                                                                                  | Workspace scope                                                                                   | Conflict rule                                                                                                                        |
+| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Skills**       | Directory + `SKILL.md`       | `~/.zcodium/skills/`, `~/.agents/skills/`                                                   | `<repo>/.zcodium/skills/`, `<repo>/.agents/skills/`                                               | Identity is the file path; on load the **first same-named skill wins** (user scope has priority)                                     |
+| **Commands**     | `.md` file                   | `~/.zcodium/commands/`, `~/.agents/commands/`                                               | `<repo>/.zcodium/commands/`, `<repo>/.agents/commands/`                                           | Deduplicated by normalized command name; **first match wins** (user scope overrides workspace), the loser is ignored                 |
+| **MCP**          | JSON object                  | `~/.zcodium/cli/config.json` → `mcp.servers` (fallback `~/.agents/mcp.json` → `mcpServers`) | `<repo>/.zcodium/config.json` → `mcp.servers` (fallback `<repo>/.agents/mcp.json` → `mcpServers`) | **User overrides workspace** for a same-named server; workspace declarations require explicit approval for their exact configuration |
+| **Hooks**        | `hooks.json` / config object | `~/.zcodium/cli/config.json` → `hooks`                                                      | `<repo>/.zcodium/config.json` → `hooks`                                                           | Configuration-file hooks require `hooks.enabled: true`; plugin hooks are appended                                                    |
+| **Plugins**      | Directory + `plugin.json`    | Installed from a marketplace; enable/disable state stored in `~/.zcodium/cli/config.json`   | —                                                                                                 | A plugin contributes skills, commands, hooks, MCP servers, and agents                                                                |
+| **Instructions** | `AGENTS.md` file             | `~/.zcodium/AGENTS.md`                                                                      | `<repo>/AGENTS.md`                                                                                | User default instructions load first, then workspace instructions load later so the workspace can narrow or override broad defaults  |
 
 > Note: `.agents/mcp.json` is a **compatibility fallback** for MCP. Within each scope the client reads `.zcodium` first; only if that scope has no MCP servers does it fall back to `.agents/mcp.json` (which uses a top-level `mcpServers` key, whereas `.zcodium` uses nested `mcp.servers`).
 
@@ -65,7 +65,7 @@ Within a level, `.zcodium` is scanned before `.agents`. A deeper working-directo
 ## MCP: merge and auto-connect
 
 - **Override order** for a same-named server: CLI override → environment → user → workspace → system defaults. In short, **user overrides workspace**. Plugin-provided servers form the base layer and are overridden by explicit configuration.
-- **Auto-connect**: MCP servers from every scope — user, **workspace**, plugin, environment, and CLI — are **trusted and connected automatically** at session start. (Workspace-scoped servers were previously untrusted and required manual authorization; they now connect by default like any other scope.) Use **Settings → MCP** to inspect status and repair server configuration.
+- **Connection admission**: workspace-scoped MCP declarations require explicit approval held by the target Host. Approval is bound to the workspace identity and exact execution declaration; unknown, changed or damaged records deny connection. Inspect and review the declaration in **Settings → MCP**, then create/restart the affected session to use updated admission. User and plugin MCP sources use their existing connection rules. Never bypass a workspace rejection by moving its declaration to another scope.
 
 ## Hooks: essentials
 
@@ -85,7 +85,7 @@ Within a level, `.zcodium` is scanned before `.agents`. A deeper working-directo
 - Team- or project-shared, versioned with the repository → workspace scope (`<repo>/.zcodium/...` or `.agents/...`).
 - Shared with other coding agents that read `~/.agents/skills/` → put skills there; to override a same-named skill only inside ZCode, use `.zcodium/skills/`.
 - Personal default instructions → `~/.zcodium/AGENTS.md`; repository-specific instructions → `<repo>/AGENTS.md`. If both exist, keep broad preferences in the user file and project rules in the workspace file.
-- MCP servers → user configuration for personal servers, or workspace configuration to share with a team; both scopes connect automatically. Because opening a project now auto-connects the MCP servers declared in its configuration, only open workspaces you trust.
+- MCP servers → user configuration for personal servers, or workspace configuration to share with a team. Review workspace declarations before approving their command, working directory, environment or network endpoint. Opening a project does not grant trust to its MCP configuration.
 - Secrets → never commit them to version control; use environment variables or local settings.
 
 ## When something is wrong — route to a diagnostic skill

@@ -1,9 +1,8 @@
 import type { SitesFailureReason, SitesResult } from "../contract.ts";
 
 /**
- * 宿主在每条发给 stdio 官方 MCP 的消息上附的身份结果，键与 `@zcode/shared` 的
- * OFFICIAL_MCP_AUTH_META_KEY 一致（跨进程协议常量，单测比对）。这里不 import shared 的主入口，
- * 免得把整个 shared 打进 server.mjs。
+ * 只保留历史 stdio 消息的身份 key；本仓 shared 已删除官方身份接口，
+ * 不能为历史插件测试恢复它。没有合格身份或显式自建 endpoint 均不发请求。
  */
 export const OFFICIAL_MCP_AUTH_META_KEY = "com.zcode/official-mcp-auth";
 
@@ -32,8 +31,8 @@ export function readOfficialAuth(meta: unknown): AuthResult {
 }
 
 export interface SitesApiOptions {
-  /** zcode-server origin，与宿主解析官方 MCP 目标时同一口径。 */
-  origin: string;
+  /** 显式自建 endpoint；缺失时拒绝，不回退官方地址。 */
+  origin: string | undefined;
   /** 控制面要求的 X-ZCode-App-Version；缺失返回 3001，过旧返回 3609。 */
   appVersion: string;
   fetch: typeof globalThis.fetch;
@@ -53,6 +52,8 @@ export type SitesApi = (
  */
 export function createSitesApi(options: SitesApiOptions): SitesApi {
   return async (authMeta, method, path, body) => {
+    // fork 已移除官方默认 origin；不能把 undefined 拼成 URL 再尝试网络请求。
+    if (!options.origin?.trim()) return { error: { reason: "official_mcp_origin_untrusted" } };
     const auth = readOfficialAuth(authMeta);
     if (!auth.ok) return { error: { reason: auth.reason } };
     let response: Response;

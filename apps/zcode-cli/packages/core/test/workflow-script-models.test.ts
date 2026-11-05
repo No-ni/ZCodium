@@ -43,7 +43,6 @@ it("host bindings are absent from model schemas and malformed forged bindings ar
   const resolved = await resolveCreateWorkflowInput(
     { script, model_bindings: false },
     { executionCwd: ".", workspaceDirectory: "." },
-    undefined,
     catalog,
   );
   assert.equal(resolved.result, true);
@@ -91,7 +90,6 @@ it("9011 skips approval and leaves run, draft and storage untouched", async () =
     const resolution = await resolveCreateWorkflowInput(
       { script, model_bindings: { fast: "p/forged" } },
       { executionCwd: cwd, workspaceDirectory: cwd },
-      undefined,
       { listModels: () => [] },
     );
     assert.equal(resolution.result, true);

@@ -51,13 +51,18 @@ export class SessionLifecycleController implements SessionLifecycle {
   }
 
   /** 产品 create/fork/resume 的内部装配入口；调用方负责其存在性规则。 */
-  initialize(sessionId: string, activate: () => Promise<void>): Promise<void> {
+  initialize(
+    sessionId: string,
+    activate: () => Promise<void>,
+    onReady?: () => Promise<void>,
+  ): Promise<void> {
     const entry = this.entry(sessionId);
-    if (entry.flight?.operation === "stop") {
-      return entry.flight.promise.then(() => this.initialize(sessionId, activate));
+    if (entry.flight && (onReady || entry.flight.operation === "stop")) {
+      return entry.flight.promise.then(() => this.initialize(sessionId, activate, onReady));
     }
     return this.run(sessionId, "ensureReady", async () => {
-      if (entry.snapshot.state === "ready") return;
+      // 常驻恢复仍有目录保活副作用，必须占有同一操作资格，不能在 owner 外与关闭交叉。
+      if (entry.snapshot.state === "ready") return onReady?.();
       await this.activate(sessionId, activate);
     });
   }
@@ -71,23 +76,44 @@ export class SessionLifecycleController implements SessionLifecycle {
   }
 
   restart(sessionId: string): Promise<void> {
+    return this.restartRuntime(
+      sessionId,
+      () => this.host.activate(sessionId),
+      () => this.assertExists(sessionId),
+    );
+  }
+
+  /** 导入重放的内部装配入口；产品入口负责存在性规则，不能覆盖尚未释放的旧实例。 */
+  reinitialize(sessionId: string, activate: () => Promise<void>): Promise<void> {
+    const entry = this.entry(sessionId);
+    // 导入重建带自己的物化结果，不能共享其他 restart 的结果而跳过导入回调。
+    if (entry.flight || entry.restartAfterStartup)
+      return Promise.reject(new SessionLifecycleError("conflict", "Session lifecycle operation is in progress"));
+    return this.restartRuntime(sessionId, activate, async () => {});
+  }
+
+  private restartRuntime(
+    sessionId: string,
+    activate: () => Promise<void>,
+    preflight: () => Promise<void>,
+  ): Promise<void> {
     const entry = this.entry(sessionId);
     if (entry.restartAfterStartup) return entry.restartAfterStartup;
     if (entry.flight?.operation === "ensureReady") {
       // 初始化尚未支持硬取消时等待其安全收口；同时关闭 ready 准入，不能并行创建实例。
       const afterStartup = () => {
         entry.restartAfterStartup = undefined;
-        return this.restart(sessionId);
+        return this.restartRuntime(sessionId, activate, preflight);
       };
       entry.restartAfterStartup = entry.flight.promise.then(afterStartup, afterStartup);
       return entry.restartAfterStartup;
     }
     return this.run(sessionId, "restart", async () => {
-      await this.assertExists(sessionId);
+      await preflight();
       this.host.assertCanStop(sessionId);
       // history-first 可以只有 publisher 没有实例；重启仍必须完整失效旧发布链路。
       await this.release(sessionId, () => this.host.release(sessionId));
-      await this.activate(sessionId, () => this.host.activate(sessionId));
+      await this.activate(sessionId, activate);
     });
   }
 

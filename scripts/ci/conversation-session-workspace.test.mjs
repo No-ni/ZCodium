@@ -14,7 +14,6 @@ import {
   realpath,
   rm,
   stat,
-  symlink,
   utimes,
   writeFile,
 } from "node:fs/promises";
@@ -22,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join, basename, resolve, sep } from "node:path";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
+import { createProjectTestSymlink as symlink } from "./project-test-sandbox.mjs";
 
 const {
   ConversationSessionWorkspaceCollisionError,
@@ -635,7 +635,7 @@ test("常驻会话的恢复也刷新目录 mtime：deferred 草稿的空目录�
 
     // 命中注册表的「恢复」走早退分支：不经过 resolveRecordExecutionWorkspacePath，因此必须自己
     // 刷新 mtime（规则 3）。deferred 草稿不落 sqlite ⇒ 不在清扫的在册集合里，只有 mtime 能救它。
-    const record = { executionWorkspacePath: touchedDir };
+    const record = { executionWorkspacePath: touchedDir, workspace: { workspacePath: root } };
     const warnings = [];
     const context = {
       deps: { env: { ZCODE_CONVERSATION_WORKSPACE_ROOT: root } },
@@ -1729,7 +1729,7 @@ test("启动清扫：在册判定不依赖 directory 过滤（工作区键路径
       0,
     );
     await assertPresent(registeredDir);
-    assert.deepEqual(source.inputs, [{ includeArchived: true }]);
+    assert.deepEqual(source.inputs, [undefined]);
   });
 });
 
@@ -2602,7 +2602,7 @@ test("启动清扫只在注入对话根标记且接线了会话库时排一次�
     assert.equal(scheduleConversationSessionEmptySweep({ env, sessionPathSource: source }), false);
     await waitForMissing(staleSessionDir);
     await assertMissing(join(root, "2026-01-01"));
-    assert.deepEqual(source.inputs, [{ includeArchived: true }]);
+    assert.deepEqual(source.inputs, [undefined]);
   });
 });
 

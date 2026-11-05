@@ -1,8 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getSourceServerDisplayNameRegistry } from "../../packages/ui/src/store/sourceServerDisplayNameRegistry.ts";
-import { getSourceServerStatusRegistry } from "../../packages/ui/src/store/sourceServerStatusRegistry.ts";
-import { buildRemoteWorkspaceProjection } from "../../packages/ui/src/remote/remoteWorkspaceProjection.ts";
+import { fileURLToPath } from "node:url";
+import { tsImport } from "tsx/esm/api";
+// UI 包内 @/* 只由自身 tsconfig 定义，根工程 loader 无法解析这些公开入口的内部依赖。
+const sourceOptions = {
+  parentURL: import.meta.url,
+  tsconfig: fileURLToPath(new URL("../../packages/ui/tsconfig.json", import.meta.url)),
+};
+const { getSourceServerDisplayNameRegistry } = await tsImport(
+  "../../packages/ui/src/store/sourceServerDisplayNameRegistry.ts",
+  sourceOptions,
+);
+const { getSourceServerStatusRegistry } = await tsImport(
+  "../../packages/ui/src/store/sourceServerStatusRegistry.ts",
+  sourceOptions,
+);
+const { buildRemoteWorkspaceProjection } = await tsImport(
+  "../../packages/ui/src/remote/remoteWorkspaceProjection.ts",
+  sourceOptions,
+);
 const flush = async () => {
   for (let n = 0; n < 5; n++) await new Promise((resolve) => setImmediate(resolve));
 };

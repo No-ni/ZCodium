@@ -49,10 +49,7 @@ export function useProjectUnreadSignals(
   const taskKey = (target: ProjectTaskRef) =>
     JSON.stringify([target.workspaceIdentity?.trim() || target.workspacePath, target.taskId]);
   // 队列挂在组件级 ref 上：跨 effect 串行；命令自身负责校验当前记录是否仍然有效。
-  const enqueueForegroundCommand = (
-    target: ProjectTaskRef,
-    command: () => Promise<void>,
-  ) => {
+  const enqueueForegroundCommand = (target: ProjectTaskRef, command: () => Promise<void>) => {
     const key = taskKey(target);
     const previous = foregroundQueuesRef.current.get(key) ?? Promise.resolve();
     const current = previous.then(command);
@@ -128,7 +125,8 @@ export function useProjectUnreadSignals(
       return Promise.all(writes);
     };
     const clearOnFocus = () => {
-      for (const [key, entry] of [...foregroundCompletions]) {
+      const completions = Array.from(foregroundCompletions.entries());
+      for (const [key, entry] of completions) {
         // 只清「已补写且用户回到窗口时任务仍在面前」的记录；
         // 未补写的（还没离开过）保持记录，等真正的离开事件。
         if (!entry.written || entry.marker == null) continue;

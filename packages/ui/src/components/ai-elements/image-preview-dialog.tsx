@@ -172,6 +172,8 @@ export async function downloadImagePreview(
       suggestedName: imageDownloadFilename(item),
     });
     if (result.canceled) return { kind: "canceled" };
+    // 浏览器只确认下载已交付，不提供本机 path；不能把已经开始的下载误报为保存失败。
+    if (result.success && result.downloadStarted) return { kind: "started" };
     if (!result.success || !result.path) throw new Error(result.error || "save_failed");
     return { kind: "saved", path: result.path };
   }
@@ -193,6 +195,7 @@ export async function downloadImagePreview(
   if (saveFile) {
     const result = await saveFile({ data: await blob.arrayBuffer(), suggestedName: filename });
     if (result.canceled) return { kind: "canceled" };
+    if (result.success && result.downloadStarted) return { kind: "started" };
     if (!result.success || !result.path) throw new Error(result.error || "save_failed");
     return { kind: "saved", path: result.path };
   }

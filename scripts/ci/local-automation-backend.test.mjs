@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
+import { createProjectTestFixture } from "./project-test-sandbox.mjs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { tsImport } from "tsx/esm/api";
@@ -62,17 +62,17 @@ test("retired idle configuration RPC is absent and never consults official crede
   assert.equal(shared.DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY, "preflight-v1");
 });
 
-test("database startup preserves retired queue rows without resuming or rewriting them", async (t) => {
+test("database startup preserves retired queue rows without resuming or rewriting them", async () => {
   const { runTasksDatabaseMigrationsAsync } = await tsImport(
     "../../packages/services/src/session/tasksDatabase/migrations.ts",
     import.meta.url,
   );
   const { prepareTasksIndexStorage } = await tsImport(
-    "../../packages/services/src/session/tasksDatabase/startup.ts",
+    "../../packages/services/src/project-storage/startup-entry.ts",
     import.meta.url,
   );
-  const dir = await mkdtemp(join(tmpdir(), "zcodium-idle-history-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  // 历史数据只使用项目内新夹具，不访问系统临时目录或清理真实旧数据。
+  const dir = await createProjectTestFixture("idle-history");
   const path = join(dir, "tasks.sqlite");
   const db = new DatabaseSync(path);
   try {
@@ -84,11 +84,23 @@ test("database startup preserves retired queue rows without resuming or rewritin
       insert.run(`old-${status}`, status);
     const before = db.prepare("SELECT * FROM off_peak_tasks ORDER BY off_peak_task_id").all();
     const phases = [];
-    await prepareTasksIndexStorage(path, (phase) => phases.push(phase));
+    await prepareTasksIndexStorage(path, (phase) => phases.push(phase), {
+      backupDirectories: [join(dir, "backups")],
+    });
     assert.equal(phases.at(-1), "ready");
+    // 既有项目迁移允许首次补齐执行归属；退休队列的内容、状态和全部运行/核销字段仍原样保留。
+    assert.deepEqual(
+      db
+        .prepare("SELECT * FROM off_peak_tasks ORDER BY off_peak_task_id")
+        .all()
+        .map((row) => ({ ...row })),
+      before.map((row) => ({ ...row, host_id: "local", additional_directories: "[]" })),
+    );
+    const handedOff = db.prepare("SELECT * FROM off_peak_tasks ORDER BY off_peak_task_id").all();
+    await prepareTasksIndexStorage(path, () => {}, { backupDirectories: [join(dir, "backups")] });
     assert.deepEqual(
       db.prepare("SELECT * FROM off_peak_tasks ORDER BY off_peak_task_id").all(),
-      before,
+      handedOff,
     );
     assert.equal(db.prepare("SELECT count(*) AS n FROM automations").get().n, 0);
   } finally {

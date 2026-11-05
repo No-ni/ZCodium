@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { access, cp, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import { appendPluginSourceCleanupError, cleanupPluginSourceBestEffort } from "./helpers.js";
+import {
+  appendPluginSourceCleanupError,
+  cleanupPluginSourceBestEffort,
+  isAtomicStagingName,
+} from "./helpers.js";
 
 export interface ActivateDirectoryAtomicallyInput {
   authorityPath?: string;
@@ -123,7 +127,7 @@ export function recoverAtomicTargetSync(targetPath: string): string {
     rmSync(backupPath, { force: true, recursive: true });
   }
 
-  if (transaction?.stageName.startsWith(`.${name}.stage-`)) {
+  if (transaction && isAtomicStagingName(name, transaction.stageName)) {
     rmSync(join(parent, transaction.stageName), { force: true, recursive: true });
   }
   rmSync(transactionPath, { force: true });
@@ -163,10 +167,10 @@ function isAtomicTransactionOwnerAlive(transaction: AtomicTransactionRecordV2): 
 }
 
 function authorityContainsTransactionSync(authorityPath: string, transactionId: string): boolean {
-  const readableAuthorityPath = recoverAtomicTargetSync(authorityPath);
   let value: unknown;
   try {
-    value = JSON.parse(readFileSync(readableAuthorityPath, "utf8")) as unknown;
+    // 磁盘 marker 只可核验提交状态，不能把任意 authorityPath 递归派发为恢复/删除目标。
+    value = JSON.parse(readFileSync(authorityPath, "utf8")) as unknown;
   } catch {
     return false;
   }

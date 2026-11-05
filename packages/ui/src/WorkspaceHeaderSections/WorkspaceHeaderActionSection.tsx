@@ -18,7 +18,6 @@ export function WorkspaceHeaderActionSection({
   workspaceIdentity,
   remoteSessionId,
   remoteTarget,
-  isWebRemoteControl = false,
   isDesktop,
   isTerminalOpen,
   isSidePaneOpen,

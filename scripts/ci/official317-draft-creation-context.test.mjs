@@ -17,9 +17,22 @@ test("send freezes project and group before the configuration barrier", async ()
       workspacePath: "fixture-workspace",
       workspaceIdentity: "fixture-identity",
       workspaceKey: "fixture-identity",
+      clientNamespace: "desktop",
       sessionId: null,
       prewarmBindingRef: { current: null },
-      createSubmissionFromComposer: () => ({ model: "fixture" }),
+      createSubmissionFromComposer: () => ({
+        modelSelection: { providerId: "fixture-provider", modelId: "fixture-model" },
+        mode: "guarded",
+        planEnabled: false,
+      }),
+      // 本例验证组织意图冻结；完整回执接纳链由 PTW 源码回归验证。
+      resolveComposerScope: (projectId, hostId, clientNamespace) => ({
+        projectId,
+        hostId,
+        clientNamespace,
+      }),
+      readPendingTaskDraft: () => null,
+      prepareComposerRecentReceipt: (scope, selection) => ({ scope, selection, order: 1 }),
       configCommandBarrier: {
         enqueue: (callback) => {
           run = callback;
@@ -39,6 +52,8 @@ test("send freezes project and group before the configuration barrier", async ()
   assert.equal(received.projectId, "project-a");
   assert.equal(received.taskGroupId, "group-a");
   assert.equal(received.workspace.workspaceIdentity, "fixture-identity");
+  assert.equal(received.composer.scope.projectId, "project-a");
+  assert.equal(received.composer.submittedText, "fixture prompt");
 });
 
 test("create dispatch forwards frozen project intent and records the same recovery context", async () => {

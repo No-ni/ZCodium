@@ -7,5 +7,7 @@
  * 再动态引入真正的入口——这样使用者不必记得 `--import ./ts-resolve.mjs`。
  */
 
-import "../ts-resolve.mjs";
+// shared 公开入口包含 parameter property，Node strip-only 不支持；使用已有本地 tsx。
+import { register } from "tsx/esm/api";
+register();
 await import("../src/cli.ts");

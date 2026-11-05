@@ -102,10 +102,11 @@ test("MCP migration failure keeps safe diagnostics and the offline migration res
     "../../packages/services/src/mcp-sync/mcpSyncService.ts",
     import.meta.url,
   );
-  const result = await createMcpSyncService().listLocalUserMcpCandidates();
-  assert.equal(result.candidates.length, 1);
-  assert.equal(result.candidates[0].enabled, false);
-  assert.equal(Object.hasOwn(result.candidates[0].config, "enable"), false);
+  // MCP 目录读取已收口到现公开 load 接口；继续验证迁移失败时的内存与磁盘边界。
+  const result = await createMcpSyncService().loadMcpFromUserDirectory();
+  assert.equal(result.servers.length, 1);
+  assert.equal(result.servers[0].enabled, false);
+  assert.equal(Object.hasOwn(result.servers[0].config, "enable"), false);
   assert.equal(
     JSON.parse(await fs.readFile(file, "utf8")).mcp.servers["private-server-fixture"].enable,
     false,

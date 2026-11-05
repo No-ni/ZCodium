@@ -48,10 +48,18 @@ export function useWorkflowRunSave(host: WorkflowRunSaveHost): WorkflowRunSaveCo
   const target = useMemo<WorkflowRunSaveTarget>(
     () => ({
       workspacePath: host.workspacePath,
+      ...(host.projectId === undefined ? {} : { projectId: host.projectId }),
+      ...(host.hostId === undefined ? {} : { hostId: host.hostId }),
       ...(host.workspaceIdentity ? { workspaceIdentity: host.workspaceIdentity } : {}),
       ...(resolution.remoteSessionId ? { remoteSessionId: resolution.remoteSessionId } : {}),
     }),
-    [host.workspacePath, host.workspaceIdentity, resolution.remoteSessionId],
+    [
+      host.workspacePath,
+      host.projectId,
+      host.hostId,
+      host.workspaceIdentity,
+      resolution.remoteSessionId,
+    ],
   );
   const workspaceKey = useMemo(
     () =>
@@ -150,16 +158,12 @@ export function useWorkflowRunSave(host: WorkflowRunSaveHost): WorkflowRunSaveCo
           });
         destination = { ...target, projectId: binding.projectId };
       }
-      const result = await launcher.launch(
-        {
-          workspacePath: destination.workspacePath,
-          ...(destination.workspaceIdentity
-            ? { workspaceIdentity: destination.workspaceIdentity }
-            : {}),
-          ...(destination.remoteSessionId ? { remoteSessionId: destination.remoteSessionId } : {}),
-        },
-        { name: entry.name, scope: entry.scope, args },
-      );
+      // 新会话准入必须保留目录 owner／显式选择的项目 ID，不能只传 cwd 导致任务丢失项目归属。
+      const result = await launcher.launch(destination, {
+        name: entry.name,
+        scope: entry.scope,
+        args,
+      });
       return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
     },
     [launcher, target, services.windowProjectDirectory?.projectService, host.sessionId],

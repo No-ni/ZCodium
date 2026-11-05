@@ -1,13 +1,15 @@
 ---
 name: restore-legacy-sessions
-description: Use when ZCode needs to inspect, plan, or execute restoration of old ACP-era ZCode sessions under `~/.zcode/v2/sessions` into this fork's own stores under `~/.zcodium/`. Trigger when the user wants to choose a previous agent, select a workspace to restore, pick a specific historical conversation, dry-run legacy session migration, or reason about tasks-index.sqlite and ~/.zcodium/cli/db/db.sqlite consistency.
+description: Explain the current unavailable status and historical rules for old ACP-era session restoration into this fork's stores. Trigger for legacy session scanning, restoration, dry-run migration, or task-index/CLI store consistency questions.
 ---
 
 # Restore Legacy Sessions
 
 ## Overview
 
-Use this skill to guide old ACP-era ZCode session restoration. The first job is selection, not mutation: identify the source agent, the workspace, and the exact conversation before proposing any write to the new stores.
+Legacy scanning and restoration are currently unavailable because the snapshot and two-store implementation is absent. The bundled plugin remains disabled by default. Explain this status to the user; do not execute restoration, reconstruct removed helpers, or use historical SQL as a substitute. Both scripts accept `--help`, while scan, restore and `--dry-run` return exit code 2 before any file or database access. Do not interpret this rejection as an empty scan or successful dry run.
+
+The remaining workflow and mutation rules record the historical capability for a separately reviewed future implementation. They are not operational instructions for the current commands.
 
 ## Stores
 
@@ -17,7 +19,7 @@ Use this skill to guide old ACP-era ZCode session restoration. The first job is 
 
 Use `restoredTaskId = meta.acpSessionId || meta.taskId`. The legacy snapshot filename and `meta.taskId` are historical IDs; the app task list often uses `meta.acpSessionId` as the real task/session ID.
 
-The scan script defaults to the live legacy source `~/.zcode/v2/sessions`; pass `--legacy-dir <path>` only when the user explicitly asks to inspect another source directory.
+The current command has no active source or destination defaults and reads no directories. Any future legacy source must be explicitly selected; this fork does not automatically migrate historical user directories.
 
 Restored ACP-era conversations are normal ZCode Agent history, so persisted provider fields must be `glm`. Treat the snapshot provider as legacy source context only; do not write task-index `migration_source` or `meta_json.migrationSource` for these restores. The `migrationSource` enum is reserved for the existing Claude Code native import path (`claudeCode`).
 

@@ -53,7 +53,7 @@ it(
       assert.ok(first.ok);
       const before = {
         run: journal.getRun(runId),
-        events: journal.listEvents(runId),
+        events: journal.listEvents(runId, { types: "all", reportItems: "all" }),
         script: await service.getScript(runId),
       };
       const stale = await service.fillHole({
@@ -67,7 +67,7 @@ it(
       assert.deepEqual(
         {
           run: journal.getRun(runId),
-          events: journal.listEvents(runId),
+          events: journal.listEvents(runId, { types: "all", reportItems: "all" }),
           script: await service.getScript(runId),
         },
         before,
@@ -87,7 +87,9 @@ it(
       assert.ok(fresh.ok);
       assert.ok(fresh.commitSequence > first.commitSequence);
       assert.equal(
-        journal.listEvents(runId).filter((entry) => entry.event.type === "hole-filled").length,
+        journal
+          .listEvents(runId, { types: "all", reportItems: "all" })
+          .filter((entry) => entry.event.type === "hole-filled").length,
         2,
       );
     } finally {

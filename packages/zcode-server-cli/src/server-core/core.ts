@@ -1,4 +1,3 @@
-import { hostname } from "node:os";
 import {
   createLocalServices,
   disposeServiceResourcesAndWait,
@@ -12,7 +11,7 @@ import { createNodeSourceWorkspaceInspectionService } from "@zcode/services/sour
 import { IZCodeAgentService } from "@zcode/services";
 import { ZCODE_APP_VERSION_ENV, ZCODE_VERSION } from "@zcode/shared";
 import { createCoreHttpServer } from "./http.js";
-import { createIngressToken } from "./ingressToken.js";
+import "./ingressToken.js";
 import { installParentDisconnectHandler } from "./parentDisconnect.js";
 import { resolveCoreServerId } from "./serverIdentity.js";
 import { createTaskActivityTracker } from "./taskActivityTracker.js";

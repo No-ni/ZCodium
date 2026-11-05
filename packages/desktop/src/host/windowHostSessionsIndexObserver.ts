@@ -174,6 +174,9 @@ export function createWindowHostSessionsIndexObserver(options: {
   function requestRecovery(): void {
     const subscriptionId = activeSubscriptionId;
     if (disposed || recovering || !subscriptionId) return;
+    const recoveryGeneration = generation;
+    const isCurrent = () =>
+      !disposed && generation === recoveryGeneration && activeSubscriptionId === subscriptionId;
     recovering = true;
     assembler.abort(topic, subscriptionId);
     void options.agentService
@@ -185,17 +188,19 @@ export function createWindowHostSessionsIndexObserver(options: {
         runtimePolicy: "existing-only",
       })
       .then(() => {
-        if (disposed || activeSubscriptionId !== subscriptionId || !recovering) return;
+        if (!isCurrent() || !recovering) return;
         clearRecoveryTimer();
         recoveryTimer = setTimeout(() => {
           recoveryTimer = null;
-          if (!disposed && activeSubscriptionId === subscriptionId && recovering) {
+          if (isCurrent() && recovering) {
             resubscribeAfterRecovery();
           }
         }, PROTOCOL_V4_LIMITS.logicalFrameAssemblyTimeoutMs);
         recoveryTimer.unref?.();
       })
       .catch((error) => {
+        // 旧 resync 失败可能晚于 runtime 换代或 dispose；不能据此拆掉当前订阅或制造新错误。
+        if (!isCurrent()) return;
         recovering = false;
         if (!isRuntimeUnavailableError(error)) {
           options.onError?.(error);
@@ -310,10 +315,12 @@ export function createWindowHostSessionsIndexObserver(options: {
         stagedBytes = 0;
         for (const wire of initialWires) acceptOwnedWire(wire);
       } catch (error) {
-        if (!disposed && isRuntimeUnavailableError(error)) {
+        // available 已开启下一代时，旧 subscribe 的 unavailable 不能再把 observer 置为 dormant。
+        if (disposed || subscribeGeneration !== generation) return;
+        if (isRuntimeUnavailableError(error)) {
           // 有 lifecycle 的新 Host 等 available 再订阅，避免每次列表查询都重复打 dormant RPC。
           dormant = Boolean(options.agentService.onAgentRuntimeLifecycle);
-        } else if (!disposed) {
+        } else {
           options.onError?.(error);
         }
       }

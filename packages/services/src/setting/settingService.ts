@@ -1,4 +1,4 @@
-import { access, readFile, mkdir, rename } from "node:fs/promises";
+import { readFile, mkdir, rename } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import type { AppSettings } from "@zcode/shared";

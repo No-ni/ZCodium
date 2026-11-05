@@ -22,7 +22,6 @@ import {
   getE2EAppDataPaths,
   setCurrentElectronRendererContentSize,
   setInputValueByTestIdDom,
-  waitForDefaultWorkspaceReady,
   waitForTestIdByDom,
   waitForWorkspaceApp,
 } from "./desktop-app.js";

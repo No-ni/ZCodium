@@ -2,12 +2,16 @@
 
 ## 产品规则
 
+2026-11 回归夹具随事实归属迁移更新：启动使用 project-storage 唯一 owner；CLI 时间/完成/删除经 applyCliFacts，pin/archive/unread 经 updateTaskState。
+归档资格里的 completed 与活动时间读取 CLI 持久化镜像，不用旧 syncTaskMeta 合成事实。服务/协议回归不替代桌面及手机真机验收。
+
 - 开关默认关闭，保留期默认 7 天；沿用设置校验范围和已有选项。
 - 开启后，Host 服务就绪时扫描一次，此后每 30 分钟扫描。开启开关、修改保留期、最近项目或保存的工作区记录发生变化时立即补扫；远程工作区连接就绪后补扫。
 - 扫描与侧栏视图、列表缓存、窗口是否正在显示任务无关。分组结构查询恢复为纯读取。
-- 本地范围是 `recentProjects`（现有最近 10 个项目）、`lastWorkspaceSession` 中的本地工作区和 `getConversationWorkspaceDir()` 的并集。关闭项目标签不删除最近项目的扫描资格；普通对话即使不在最近项目列表中也被覆盖。不枚举整个文件系统、不启动 Agent。
+- 本地范围是当前 Host tasks-index 已索引的本地会话 workspace scopes、`recentProjects`、`lastWorkspaceSession` 中的本地工作区和 `getConversationWorkspaceDir()` 的并集。关闭任务或项目标签不影响已索引目录的扫描资格，独立任务目录无需进入旧最近项目名单。不枚举文件系统、不启动 Agent。2026-11 合并后的单 owner、索引范围与当前活动保护见 [后续复查](custom-feature-followup-audit.md)。
 - 远程范围来自保存的远程工作区记录，只通过当前窗口连接注册表中已就绪的对应 session 执行。必须同时匹配 identity、路径和当前 remoteSessionId；离线跳过，不能按路径回退本地或为了扫描建立连接。
 - 候选必须同时满足：未删除、未归档、未置顶、无未读、状态 completed、最后更新时间严格早于保留期。包含隐藏的历史 provider；归档不删除会话内容、不修改最后更新时间。
+- completed 读取 CLI 持久终态；当前 syncer 观察到的活动会话仍被排除。旧 completed 终态不能作为重新运行会话已结束的证明。本 fork 不启动仅按时间的 project scheduler。
 - “已打开任务”不增加额外排除规则：旧实现也未提供该条件，唯一资格仍是上述持久化事实。
 
 ## 所有者与接口
@@ -68,7 +72,7 @@ sequenceDiagram
 
 UI E2E 场景：临时数据目录预置过期已读完成任务，保持默认项目视图，在设置打开归档；验证任务移至归档列表；第二窗口同步；手机断线期间归档后重连不重新显示活动任务。实际运行受 Electron/浏览器和现有测试入口可用性约束，不能把计划写成已执行。
 
-## 本次验证记录
+## 初次实现验证记录（历史）
 
 - 使用 `mise.toml` 指定的 Node 24.14.0，通过 `corepack pnpm` 执行检查。
 - 新增 12 项测试全部通过：维护器、真实 SQLite、真实 task adapter、远程路由，以及本地/远程 Controller 的桌面增量帧与手机恢复快照。SQLite 测试包含精确到毫秒的保留期边界。
@@ -78,3 +82,9 @@ UI E2E 场景：临时数据目录预置过期已读完成任务，保持默认�
 - `architecture:check --changed`：0 违规；改动文件格式检查、Git whitespace 检查和新增功能图节点校验通过。
 - 未执行完整 Electron 界面 E2E。以上 Controller / adapter 测试是服务与协议集成验证，不替代真实界面操作。
 - 新增回归测试接入 Desktop CI，在构建前自动验证。
+
+## 2026-11 后续复查
+
+合并后修复两套调度器并行、关闭独立目录漏扫，以及旧 completed 终态导致当前活动任务误归档。保持默认关闭 / 7 天和原资格，范围通过只读索引扩充，当前活动观察在 SQL 提交边界排除。归档入口自行创建项目内沙箱，AMT02 候选对齐未读保护。
+
+当前实际结果、首次失败和验证边界见 [后续复查记录](custom-feature-followup-audit.md#执行记录)。根检查与工程回归已通过；完整桌面、真实手机/远端和跨 Host 活动窗口未运行，历史验收不代替本轮端到端证据。

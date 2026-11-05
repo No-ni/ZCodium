@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-projectless-workspace",
+  "spec": "./test/e2e/conversation-session/conversation-session-projectless-workspace.test.ts",
+  "fixtures": [
+    {
+      "id": "ptw-title",
+      "description": "PTW 标题旁路",
+      "metadata": {
+        "kind": "common",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定本例旁路标题，避免目录生命周期验证依赖真实供应商。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "statusMessage": "OK",
+        "headers": {
+          "content-type": "application/json; charset=utf-8"
+        },
+        "body": "{\"id\":\"ptw-title\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"fixture-model\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"title\\\":\\\"PTW task\\\"}\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":80,\"output_tokens\":16}}"
+      }
+    },
+    {
+      "id": "ptw-done-a",
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+      },
+      "maxMatches": 1,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_PTW_A", "toolu_ptw_a"],
+        "bodyExcludes": ["Generate a concise title", "E2E_PTW_CONTINUE_A"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "ptw-done-a",
+          "text": "PTW_A_DONE\n::visualize{path=\"{{projectlessVisualization}}\" title=\"Task artifact\"}"
+        }
+      }
+    },
+    {
+      "id": "ptw-tool-a",
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+      },
+      "maxMatches": 1,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyExcludes": ["Generate a concise title", "toolu_ptw_a", "E2E_PTW_CONTINUE_A"],
+        "bodyIncludes": ["E2E_PTW_A"]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUses": [
+          {
+            "id": "toolu_ptw_a",
+            "name": "Bash",
+            "input": {
+              "command": "node -e \"const fs=require('node:fs');fs.mkdirSync('visualizations',{recursive:true});fs.writeFileSync('visualizations/chart.html','<div>PTW_ARTIFACT_A</div>');fs.writeFileSync('task-cwd.txt',process.cwd())\"",
+              "timeout": 120000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ptw-done-b",
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+      },
+      "maxMatches": 1,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_PTW_B", "toolu_ptw_b"],
+        "bodyExcludes": ["Generate a concise title", "E2E_PTW_CONTINUE_A"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "ptw-done-b",
+          "text": "PTW_B_DONE"
+        }
+      }
+    },
+    {
+      "id": "ptw-tool-b",
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+      },
+      "maxMatches": 1,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyExcludes": ["Generate a concise title", "toolu_ptw_b", "E2E_PTW_CONTINUE_A"],
+        "bodyIncludes": ["E2E_PTW_B"]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUses": [
+          {
+            "id": "toolu_ptw_b",
+            "name": "Bash",
+            "input": {
+              "command": "node -e \"const fs=require('node:fs');fs.mkdirSync('visualizations',{recursive:true});fs.writeFileSync('visualizations/chart.html','<div>PTW_ARTIFACT_B</div>');fs.writeFileSync('task-cwd.txt',process.cwd())\"",
+              "timeout": 120000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ptw-continue-a",
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定模型工具和回复；真实 CLI 相对文件写入、Host Gen UI 授权及桌面交互负责目录归属断言。"
+      },
+      "maxMatches": 1,
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_PTW_CONTINUE_A"],
+        "bodyExcludes": ["Generate a concise title"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "ptw-continue-a",
+          "text": "PTW_CONTINUED_A"
+        }
+      }
+    }
+  ]
+}

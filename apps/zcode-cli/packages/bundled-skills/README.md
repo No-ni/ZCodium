@@ -18,11 +18,11 @@ or the composer's `$` skill picker. The runtime discovers its `skills/` director
 - **Development and Electron desktop**: the directory is resolved on disk next to the CLI entry
   (`packages/bundled-skills` relative to the entry, the same candidate walk official plugins
   use) and read in place; nothing is copied.
-- **SEA binaries**: `scripts/sea-bundled-skill-assets.mjs` embeds `skills/**` under the
+- **SEA binaries**: `packages/cli/scripts/sea-bundled-skill-assets.mjs` embeds `skills/**` under the
   `zcode-bundled-skills/` asset prefix. On start the CLI extracts them once into
-  `~/.zcode/cli/bundled-skills/<content-hash>/` and reads from there.
-- **Remote hosts**: `scripts/prepare-prebuilds.mjs` stages the directory next to the remote
-  `zcode.cjs`, like the official plugin packages.
+  `<cli storage>/bundled-skills/<content-hash>/` and reads from there. The default CLI storage
+  is under `~/.zcodium/cli/`; explicitly configured storage keeps its own root.
+- **Distribution**: stage the directory alongside the CLI entry, like bundled plugin packages.
 
 The resolver is `apps/zcode-cli/packages/bootstrap/src/app/bundled-skills.ts`. Every file
 under `skills/dynamic-workflows/` is a required asset: a stage or seed that loses one refuses

@@ -1,8 +1,10 @@
 # Restore Legacy Sessions Plugin
 
-ZCode official plugin for restoring old ACP-era ZCode session snapshots into the new task index and CLI session DB.
+Bundled historical plugin for restoring old ACP-era ZCode session snapshots into the task index and CLI session DB.
 
-This plugin is bundled as `restore-legacy-sessions@zcode-plugins-official` and is disabled by default. Enable it only when you need to inspect or restore old session data.
+This plugin is bundled as `restore-legacy-sessions@zcode-plugins-official` and is disabled by default. Its snapshot scanning and restoration implementation is currently unavailable. Enabling the plugin does not restore this capability.
+
+Both scripts support `--help`. Scan, restore and `--dry-run` return exit code 2 with `LEGACY_SCAN_UNAVAILABLE` or `LEGACY_RESTORE_UNAVAILABLE` before any file or database access. They do not create backups or mutate data. A future implementation must first be reviewed against the current store owners and migration contracts.
 
 ## Enable
 
@@ -22,13 +24,13 @@ Changes apply to new sessions. After enabling, use:
 /restore-legacy-sessions
 ```
 
-## Data Boundaries
+## Historical Data Boundaries
 
-- Default source: `~/.zcode/v2/sessions`
+- Sources must be explicitly selected if restoration is implemented; no legacy directory migration is performed by this fork.
 - Task index destination: `~/.zcodium/v2/tasks-index.sqlite`
 - CLI session DB destination: `~/.zcodium/cli/db/db.sqlite`
 
-The restore scripts create timestamped DB backups before writing. Restored ACP-era conversations are persisted as normal `glm` ZCode Agent history and do not write `migration_source`.
+Historical restoration rules require backups before writes and normal `glm` ZCode Agent history without `migration_source`. The current unavailable commands do not execute these operations.
 
 ## Development
 

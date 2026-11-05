@@ -5,13 +5,29 @@ import { SQLITE_MIGRATIONS } from "./migrations.js";
 
 // 清单独立于已发布 SQL：添加备份合同不能改变 0001–0023 的 trim SHA-256 或历史 ledger id。
 const touchedTables: Readonly<Record<string, readonly string[]>> = {
-  "0001_base_session_store": ["session", "message", "part", "todo", "session_entry", "permission", "input_history"],
+  "0001_base_session_store": [
+    "session",
+    "message",
+    "part",
+    "todo",
+    "session_entry",
+    "permission",
+    "input_history",
+  ],
   "0002_local_setting": ["local_setting"],
-  "0003_backfill_permission_local_setting": ["local_setting"],
+  // 转换目标可能为空，但源 permission 已有行；源表也必须触发迁移前备份。
+  "0003_backfill_permission_local_setting": ["permission", "local_setting"],
   "0004_session_target": ["session_target"],
   "0005_session_target_accounting": ["session_target", "session_target_next"],
   "0006_input_history_attachments": ["input_history"],
-  "0007_workflow_script_runtime": ["session", "workflow_definition", "workflow_run", "workflow_activity", "workflow_event", "session_task_link"],
+  "0007_workflow_script_runtime": [
+    "session",
+    "workflow_definition",
+    "workflow_run",
+    "workflow_activity",
+    "workflow_event",
+    "session_task_link",
+  ],
   "0008_workflow_definition_scope": ["workflow_definition"],
   "0009_session_title_metadata": ["session"],
   "0010_usage_observability": ["model_usage", "turn_usage", "tool_usage"],
@@ -33,10 +49,13 @@ const touchedTables: Readonly<Record<string, readonly string[]>> = {
   [SESSION_DATABASE_IDENTITY_MIGRATION.id]: ["zcode_database_identity"],
 };
 
-export const SESSION_DATABASE_MIGRATIONS: readonly SqliteMigration[] = SQLITE_MIGRATIONS.map((step) => {
-  const tables = touchedTables[step.id];
-  if (!tables) throw new Error("Session migration must explicitly declare touchedTables before startup");
-  // 幂等 apply 也沿用冻结 SQL 的 trim SHA-256，不能哈希函数文本或另造历史 checksum。
-  const checksum = step.checksum ?? createHash("sha256").update(step.sql.trim()).digest("hex");
-  return { ...step, touchedTables: tables, checksum };
-});
+export const SESSION_DATABASE_MIGRATIONS: readonly SqliteMigration[] = SQLITE_MIGRATIONS.map(
+  (step) => {
+    const tables = touchedTables[step.id];
+    if (!tables)
+      throw new Error("Session migration must explicitly declare touchedTables before startup");
+    // 幂等 apply 也沿用冻结 SQL 的 trim SHA-256，不能哈希函数文本或另造历史 checksum。
+    const checksum = step.checksum ?? createHash("sha256").update(step.sql.trim()).digest("hex");
+    return { ...step, touchedTables: tables, checksum };
+  },
+);

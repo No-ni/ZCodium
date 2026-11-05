@@ -13,6 +13,12 @@ Local conversation sessions instead write into `visualizations` under their CLI-
 directory. The Host resolves that directory through an injected, trusted session query; callers
 cannot supply an authorization root. Both output layouts use the shared directory resolver and
 reject symbolic links. Existing global output files remain readable without moving user content.
+
+Managed local task workspaces use the same rule without adding a nested session directory. The
+Host marker identifies only the legacy default root and its strictly named direct task siblings;
+remote identities, arbitrary descendants and bare project UUID roots remain excluded. A confirmed
+session whose optional execution path is absent uses its own workspace path. Missing or mismatched
+sessions never supply a read root. Project membership changes do not change managed task outputs.
 Actors inheriting an explicit execution directory outside the conversation root retain the Host
 global output layout; that external directory never becomes a fragment-read authorization root.
 Creation failures surface before the runtime advertises a writable directory. HTML stays on the

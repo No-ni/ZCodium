@@ -904,26 +904,6 @@ interface ActiveWorkspaceClient {
   workspace: ZCodeAgentWorkspaceTarget;
 }
 
-function requiresProviderRegistryRefresh(commandType: string): boolean {
-  // Bug 原因：模型切换遗漏刷新屏障，会用存量 Worker 的旧 Registry 校验新下发的 Provider。
-  // 复用同一刷新队列，成功后才下发切换命令，失败则直接拒绝本次切换。
-  switch (commandType) {
-    case "createSession":
-    case "createSelectionSideSession":
-    case "sendText":
-    case "sendGoalCommand":
-    case "compact":
-    case "forkAssistant":
-    case "editUserQuery":
-    case "retryTurn":
-    case "sendQueuedNow":
-    case "switchModelConfig":
-      return true;
-    default:
-      return false;
-  }
-}
-
 /** 与 CLI V4SessionNotResidentError 同一 reasonCode 文本，手机按它识别「不在内存，跳过」。 */
 function sessionNotResidentError(sessionId: string): Error {
   return new Error(`session is not resident: ${sessionId} (proto.sessionNotResident)`);

@@ -98,11 +98,13 @@ export async function seedCustomAnthropicMessagesProvider({
   modelId,
   providerId,
   providerName,
+  reasoningLevel,
 }: {
   baseURL: string;
   modelId: string;
   providerId: string;
   providerName: string;
+  reasoningLevel?: SeedCustomOpenAIProviderOptions["reasoningLevel"];
 }): Promise<E2EModelProviderSnapshot> {
   const providerConfig = new ProviderConfig({
     group: "standard-personal",
@@ -121,7 +123,12 @@ export async function seedCustomAnthropicMessagesProvider({
     await repository.update((current) => ({
       ...current,
       providers: current.providers.setRule({ providerId, providerName, config: providerConfig }),
-      models: current.models.setExact(providerId, modelId, createE2EModelConfig(["text"])),
+      // 草稿选择专项必须播种真实能力；缺省模型仍只允许 disabled。
+      models: current.models.setExact(
+        providerId,
+        modelId,
+        createE2EModelConfig(["text"], reasoningLevel),
+      ),
     }));
   } finally {
     repository.dispose();

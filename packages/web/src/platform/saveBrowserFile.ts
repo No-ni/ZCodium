@@ -68,7 +68,7 @@ export async function saveBrowserFile(payload: SaveFileRequest): Promise<SaveFil
     anchor.click();
     dispatched = true;
     // 浏览器下载没有可靠的落盘回执；success 只表示已将字节交给下载器。
-    return { success: true };
+    return { success: true, downloadStarted: true, name: filename };
   } catch (error) {
     return {
       success: false,

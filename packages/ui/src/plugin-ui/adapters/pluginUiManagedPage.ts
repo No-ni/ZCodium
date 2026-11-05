@@ -37,7 +37,7 @@ export function createPage(
   platform: Platform,
   services: Services,
 ): Page {
-  const bridge = services.pluginUiBridgeService!;
+  void services.pluginUiBridgeService;
   const sandboxPlatform = platform.pluginSandbox!;
   const surfaceKey = key;
   const latest = { current: input };

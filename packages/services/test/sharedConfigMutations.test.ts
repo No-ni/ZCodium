@@ -92,13 +92,10 @@ async function readConfig() {
   return JSON.parse(await readFile(observation.path, "utf8"));
 }
 
-async function importSettingsMcp() {
+async function importSettingsMcp(name = "imported", command = "fixture-import") {
   const source = join(observation.home, ".claude", "settings.json");
   await mkdir(dirname(source), { recursive: true });
-  await writeFile(
-    source,
-    JSON.stringify({ mcpServers: { imported: { command: "fixture-import" } } }),
-  );
+  await writeFile(source, JSON.stringify({ mcpServers: { [name]: { command } } }));
   const { createSettingsSyncService } = await import("../src/settings-sync/settingsSyncService.js");
   const service = createSettingsSyncService({
     settingService: {} as import("../src/setting/setting.js").ISettingService,
@@ -420,30 +417,24 @@ it.each([false, true])("命令改名保留并发更新的启用状态（原状�
 
 it.each(["shared", "SHARED"])("MCP 导入保留并发添加的同名 server（%s）", async (name) => {
   await writeFile(observation.path, "{}");
-  const { createMcpSyncService } = await import("../src/mcp-sync/mcpSyncService.js");
-  const service = createMcpSyncService();
   const fresh = {
     provider: { model: "latest" },
     mcp: { servers: { [name]: { command: "latest" } } },
   };
-  const result = await raceWithWriter(
-    () =>
-      service.importMcpServers({
-        localHomeDir: observation.home,
-        servers: [
-          {
-            id: "shared",
-            name: "shared",
-            config: { command: "old" },
-            enabled: true,
-            source: "zcode",
-            path: "source",
-          },
-        ],
-      }),
-    fresh,
-  );
-  expect(result.results).toEqual([{ name: "shared", status: "skipped", path: observation.path }]);
+  // MCP 导入 owner 已收口到 settingsSync；沿现入口保留同一锁时序，不能恢复已删除的接口。
+  const result = await raceWithWriter(() => importSettingsMcp("shared", "old"), fresh);
+  expect(result.successCount).toBe(0);
+  expect(result.skippedCount).toBe(1);
+  expect(result.failedCount).toBe(0);
+  expect(result.taskResults[0]?.mcpServerResults).toEqual([
+    {
+      name: "shared",
+      path: `${join(observation.home, ".claude", "settings.json")}#shared`,
+      sourceScope: "global",
+      status: "skipped",
+      skipReason: "sameNameExists",
+    },
+  ]);
   expect(await readConfig()).toEqual(fresh);
 });
 

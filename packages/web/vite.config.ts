@@ -9,7 +9,7 @@ import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.m
 import { resolveRemoteFrontendVersion } from "./vite/remoteFrontendVersion.mjs";
 // Bugfix: Vite 配置在 Node 加载期执行，不能导入 @zcode/shared 根入口。
 // 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
-import { pickProductEndpointEnv } from "@zcode/shared/zcodeEndpoint";
+import "@zcode/shared/zcodeEndpoint";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");

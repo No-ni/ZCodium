@@ -25,6 +25,86 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.projectless-task-workspaces
+    kind: capability
+    label: Independent directories for ordinary projectless tasks
+    aliases: [无项目独立目录, 任务独立文件夹, projectless task workspace, shared CLI task cwd]
+    sourceDocs:
+      [
+        docs/specs/projectless-task-workspaces.md,
+        docs/ui/project-task-draft-lifecycle.md,
+        docs/shared-task-cli.md,
+      ]
+    codeSeeds:
+      - file: packages/ui/src/root/useRootWorkspaceActions.ts
+        symbol: startNewTaskFromActiveWorkspace
+      - file: packages/shared/src/node/genUiPaths.ts
+        symbol: getGenUiOutputDirectory
+    invariants:
+      - Ordinary task creation shares the existing pending draft owner; first accepted input consumes its directory reference.
+      - Shared process cwd never determines session cwd or artifact ownership; saved task paths are restored unchanged.
+      - Only the exact legacy default root enables the CLI date/session directory allocator.
+  - id: surface.projectless-startup
+    kind: ui-surface
+    label: Empty desktop startup creates a projectless draft
+    codeSeeds:
+      - file: packages/desktop/src/main/startupWorkspace.ts
+        symbol: resolveStartupWindowBootstrap
+      - file: packages/ui/src/Root.tsx
+      - file: packages/ui/src/root/useRemoteWorkspaceHistory.ts
+        symbol: restorePersistedSession
+      - file: packages/ui/src/root/remoteWorkspaceSessionPersistence.ts
+        symbol: restorePersistedRemoteWorkspaceSessions
+  - id: surface.projectless-task-add
+    kind: ui-surface
+    label: Task section add creates a projectless draft
+    codeSeeds:
+      - file: packages/ui/src/project-sidebar/index.tsx
+      - file: packages/ui/src/root/useConversationWorkspaceActions.ts
+        symbol: handleCreateConversationTask
+  - id: surface.projectless-global-new
+    kind: ui-surface
+    label: Global new task and shortcuts use the active valid project or task scope
+    codeSeeds:
+      - file: packages/ui/src/NewTaskButtonGroup.tsx
+        symbol: NewTaskButtonGroup
+      - file: packages/desktop/src/main/desktopApplicationMenu.ts
+        symbol: rebuildApplicationMenu
+      - file: packages/ui/src/root/useRootPlatformEffects.ts
+        symbol: useRootPlatformEffects
+      - file: packages/ui/src/root/useRootWorkspaceActions.ts
+        symbol: startNewTaskFromActiveWorkspace
+  - id: state.projectless-pending-draft
+    kind: state-owner
+    label: Client task-scope pending directory reference
+    codeSeeds:
+      - file: packages/ui/src/v4/composer/composerDraftStore.ts
+        symbol: ensurePendingTaskDraft
+      - file: packages/ui/src/v4/composer/composerDraftStore.ts
+        symbol: completePendingTaskDraft
+  - id: service.projectless-workspace-preparation
+    kind: service
+    label: Host prepares and validates managed task directories
+    codeSeeds:
+      - file: packages/services/src/project/index.ts
+        symbol: prepareSession
+  - id: service.projectless-gen-ui-output
+    kind: service
+    label: Shared task artifact paths and trusted Host fragment reads
+    codeSeeds:
+      - file: packages/shared/src/node/conversationWorkspaceEnv.ts
+      - file: packages/shared/src/node/genUiPaths.ts
+        symbol: getGenUiOutputDirectory
+      - file: packages/services/src/runtime-tools/agentProxyEnv.ts
+        symbol: buildAgentConversationWorkspaceEnv
+      - file: packages/services/src/gen-ui/adapters/files.ts
+        symbol: readGenUiDocument
+      - file: apps/zcode-cli/packages/core/src/runtime/helpers/gen-ui-output.ts
+        symbol: resolveGenUiOutputDirectory
+    invariants:
+      - Only trusted app-managed local task paths use cwd/visualizations; ordinary projects and remote identities keep global scope outputs.
+      - Local file authorization requires a matching persisted session, contained initial cwd and nonsymlink path components.
+      - Managed task outputs survive project membership changes and process restarts; legacy global documents remain readable.
   - id: capability.desktop-startup-motion
     kind: capability
     label: Continuous desktop startup presentation
@@ -381,6 +461,20 @@ nodes:
     invariants:
       - Late effort callbacks must match both the current model and composer scope before writing.
       - Submission freezes the selected tuple; later menu edits affect only later submissions.
+  - id: persistence.composer-recent
+    kind: persistence
+    label: Client project-scoped accepted composer defaults
+    codeSeeds:
+      - file: packages/ui/src/lib/composerRecent.ts
+        symbol: prepareComposerRecentReceipt
+      - file: packages/ui/src/v4/composer/newTaskDraft.ts
+        symbol: initializeNewTaskDraft
+      - file: packages/ui/src/v4/SessionPane.tsx
+    invariants:
+      - Recent is keyed by client namespace, stable target Host and project ID; cwd does not infer project membership.
+      - Only accepted user submissions update the complete model and mode tuple through the existing receipt writer.
+      - Pending command recovery preserves the original scope and order; late receipts cannot replace newer accepted defaults.
+      - Existing text drafts and current Session state remain independent from Recent.
   - id: service.conversation-submission
     kind: service
     label: CLI sendText submission handling
@@ -680,6 +774,59 @@ nodes:
       - Project paths and junctions are validated and test run roots are retained without recursive cleanup.
       - Node write permissions complement reviewed command boundaries and are not a complete native system sandbox.
 edges:
+  - from: capability.projectless-task-workspaces
+    to: surface.projectless-startup
+    type: starts-empty-local-chat-in
+    rank: must-inspect
+  - from: capability.projectless-task-workspaces
+    to: surface.projectless-task-add
+    type: creates-unassigned-task-in
+    rank: must-inspect
+  - from: capability.projectless-task-workspaces
+    to: surface.projectless-global-new
+    type: shares-task-creation-with
+    rank: must-inspect
+  - from: surface.projectless-startup
+    to: state.projectless-pending-draft
+    type: reuses-pending-task-scope
+    rank: must-inspect
+  - from: surface.projectless-task-add
+    to: state.projectless-pending-draft
+    type: reuses-pending-task-scope
+    rank: must-inspect
+  - from: surface.projectless-global-new
+    to: state.projectless-pending-draft
+    type: reuses-pending-task-scope
+    rank: conditional
+    condition: The active valid project is absent; project and remote creation retain their existing scopes.
+  - from: state.projectless-pending-draft
+    to: service.projectless-workspace-preparation
+    type: prepares-directory-through
+    rank: must-inspect
+  - from: state.projectless-pending-draft
+    to: persistence.composer-recent
+    type: consumes-reference-on-accepted-submission
+    rank: should-inspect
+  - from: capability.projectless-task-workspaces
+    to: service.projectless-gen-ui-output
+    type: stores-task-artifacts-through
+    rank: must-inspect
+  - from: capability.projectless-task-workspaces
+    to: boundary.workspace-key
+    type: preserves-identity-and-path-distinction
+    rank: invariant-only
+  - from: capability.projectless-task-workspaces
+    to: persistence.task-index
+    type: preserves-cli-cwd-facts-and-host-membership
+    rank: invariant-only
+  - from: capability.projectless-task-workspaces
+    to: boundary.desktop-continuous
+    type: preserves-live-owner
+    rank: invariant-only
+  - from: capability.projectless-task-workspaces
+    to: boundary.web-remote-replayable
+    type: preserves-existing-attachment
+    rank: invariant-only
   - from: capability.workflow-stop-admission
     to: capability.conversation-runtime
     type: preserves-runtime-stop-recovery
@@ -1052,6 +1199,16 @@ edges:
     type: submits-selection-to
     rank: must-inspect
     condition: Sending captures modelSelection in the submission; subsequent menu edits affect later sends.
+  - from: service.conversation-submission
+    to: persistence.composer-recent
+    type: persists-to
+    rank: must-inspect
+    condition: The renderer freezes scope and order before async work; ACK, query and authoritative recovery settle the same receipt.
+  - from: persistence.composer-recent
+    to: state.composer-submission-intent
+    type: initializes-new-draft
+    rank: must-inspect
+    condition: A fresh empty project draft reads the same scope; existing text drafts and Sessions keep their own selections.
   - from: service.conversation-submission
     to: service.conversation-command-inbox
     type: requires-admission-through

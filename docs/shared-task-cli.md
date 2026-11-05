@@ -1,5 +1,7 @@
 # 无项目工作区共享 CLI
 
+普通新建入口与产物目录按 [无项目任务目录一致性](specs/projectless-task-workspaces.md) 收口：空启动复用任务 pending draft 流程；共享 CLI 继续按各请求 workspacePath 执行，不在已独立 task 目录下再分配会话目录。Gen UI 写读共同识别 Host 管理的本地 task 目录，项目移动与进程重建不改变其原产物位置。
+
 ## 目标与分配规则
 
 本期将本地无项目执行工作区放入同一个 chat CLI。项目工作区继续按 workspace 分配；远端、插件管理和 MCP 状态探测保持独立。长期可将同一选择入口扩展到全部 session。CLI 进程共享不改变任务 cwd、配置发现、项目归属、两库持久化或输入队列。

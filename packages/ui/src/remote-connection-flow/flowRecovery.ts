@@ -2,7 +2,6 @@ import { getRemoteIdentityConfirmation } from "@/remote-connection-flow/identity
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { findPreferredSourceConnectionProfile } from "@/lib/remoteConnectionWizard.js";
 import type { RemoteFlowContext } from "./flowContext.js";
-import type { RemoteConnectionCompletionIntent } from "./completionIntent.js";
 export function runFlowEffect7(context: RemoteFlowContext) {
   const {
     open,

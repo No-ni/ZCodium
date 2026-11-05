@@ -9,6 +9,8 @@ const {
   scheduleProjectMemoryExtraction,
   runMemoryAgentLoop,
   getCurrentModelInvocationContext,
+  createRuntimeModel,
+  renderProjectMemoryAgentRequest,
 } = await tsImport("./fixtures/summary-model-runtime.ts", import.meta.url);
 const traceContext = { traceId: "fixture-trace", spanId: "fixture-span" };
 const sessionSelection = { providerId: "session", modelId: "current" };
@@ -54,6 +56,7 @@ function titleRuntime(resolvePreference) {
   const selections = [];
   const runtime = {
     config: { taskType: "interactive", titleGeneration: {} },
+    shutdownSignal: new AbortController().signal,
     resolveSummaryModelSelection: resolvePreference,
     getSessionModelSelection: () => sessionSelection,
     modelFactory({ selection }) {
@@ -146,9 +149,7 @@ test("default and invalid summary preferences preserve the memory snapshot invoc
     { providerId: "summary", modelId: "fixed", options: { reasoningLevel: "high" } },
   ]) {
     const { runtime, requests } = titleRuntime(async () => preference);
-    const model = fakeModel(sessionSelection, requests, () => [
-      { type: "finish", finishReason: "stop", usage: {} },
-    ]);
+    const model = createRuntimeModel(runtime, { selection: sessionSelection });
     let acquisition;
     Object.assign(runtime, {
       config: {
@@ -178,7 +179,7 @@ test("default and invalid summary preferences preserve the memory snapshot invoc
     await Array.fromAsync(snapshot.model.streamText({ messages: [] }));
     assert.equal(requests.at(-1).invocation.modelCall.operation, "project_memory_extract");
     assert.equal(requests.at(-1).invocation.metadata.querySource, "project_memory_extract");
-    assert.equal(requests.at(-1).invocation.modelRequestSessionType, "other");
+    assert.equal(requests.at(-1).invocation.modelRequestSessionType, "main");
     assert.equal(
       requests.at(-1).selection.providerId,
       preference?.options?.reasoningLevel === "high" ? "summary" : "session",
@@ -196,15 +197,14 @@ test("default and invalid summary preferences preserve the memory snapshot invoc
     // 后续偏好改变与清除不能改写已调度的高档或缺省快照。
     requests.length = 0;
     await runMemoryAgentLoop({
-      messages: [],
+      ...memoryLoopFixture(snapshot.model),
       model: snapshot.model,
       reasoningLevel: snapshot.reasoningLevel,
-      tools: [],
       maxTurns: 1,
       rootDir: snapshot.memoryRoot,
       workingDirectory: snapshot.workingDirectory,
       workspaceRoot: snapshot.workspaceRoot,
-      executeTool: async () => {
+      executeToolCalls: async () => {
         throw new Error("No tools expected");
       },
     });
@@ -237,17 +237,21 @@ test("memory streaming completes a tool round and replays signed reasoning", asy
   );
   const executed = [];
   const result = await runMemoryAgentLoop({
-    messages: [],
+    ...memoryLoopFixture(model, [{ name: "Read" }]),
     model,
     reasoningLevel: "high",
-    tools: [{ name: "Read" }],
     maxTurns: 5,
     rootDir: resolve("fixture-memory"),
     workingDirectory: resolve("fixture-workspace"),
     workspaceRoot: resolve("fixture-workspace"),
-    executeTool: async (call) => {
-      executed.push(call);
-      return { content: "fixture", metadata: {} };
+    executeToolCalls: async (calls) => {
+      executed.push(...calls);
+      return calls.map((call) => ({
+        toolCallId: call.id,
+        toolName: call.name,
+        success: true,
+        output: "fixture",
+      }));
     },
   });
   assert.equal(result.turns, 2);
@@ -271,14 +275,13 @@ test("an incomplete memory stream never executes collected tool calls", async ()
   let executions = 0;
   await assert.rejects(
     runMemoryAgentLoop({
-      messages: [],
+      ...memoryLoopFixture(model, [{ name: "Read" }]),
       model,
-      tools: [{ name: "Read" }],
       maxTurns: 1,
       rootDir: resolve("fixture-memory"),
       workingDirectory: resolve("fixture-workspace"),
       workspaceRoot: resolve("fixture-workspace"),
-      executeTool: async () => {
+      executeToolCalls: async () => {
         executions++;
         return {};
       },
@@ -287,3 +290,13 @@ test("an incomplete memory stream never executes collected tool calls", async ()
   );
   assert.equal(executions, 0);
 });
+
+// 合并后的 Memory 循环消费 Main entries/renderRequest/batch executor；
+// 使用生产渲染器保留下一轮签名推理和工具结果的语义，不能继续喂退休的 messages 接口。
+function memoryLoopFixture(model, tools = []) {
+  return {
+    entries: [],
+    registry: { get: () => undefined },
+    renderRequest: (entries) => renderProjectMemoryAgentRequest({ model, tools }, entries),
+  };
+}

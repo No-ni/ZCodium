@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
-import { isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { getGenUiOutputDirectory } from "@zcode/shared/node";
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { getGenUiOutputDirectory, isManagedConversationWorkspace } from "@zcode/shared/node";
 import {
   GEN_UI_HTML_MAX_BYTES,
   genUiStateTargetSchema,
@@ -34,8 +34,11 @@ export async function readGenUiDocument(
   const file = normalize(input.path);
   if (
     conversation &&
-    !input.workspaceIdentity?.trim() &&
-    resolve(conversation.conversationWorkspaceRoot) === resolve(input.workspacePath)
+    isManagedConversationWorkspace(
+      input.workspacePath,
+      input.workspaceIdentity,
+      conversation.conversationWorkspaceRoot,
+    )
   ) {
     const child = relative(resolve(input.workspacePath), file);
     if (child && child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child)) {
@@ -44,7 +47,9 @@ export async function readGenUiDocument(
         conversationWorkspaceRoot: conversation.conversationWorkspaceRoot,
         executionWorkspacePath: await conversation.resolveSessionWorkspacePath(scope),
       });
-      root = resolve(conversation.conversationWorkspaceRoot);
+      // task 与 default 是同一可信 workspace 根下的直接目录；从父根逐级核对，
+      // 才能拒绝 task 根本身被 junction 指到别处，而不是先 realpath 后把链接当授权根。
+      root = dirname(resolve(conversation.conversationWorkspaceRoot));
     }
   }
   const sessionChild = relative(sessionRoot, file);

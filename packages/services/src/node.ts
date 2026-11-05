@@ -12,9 +12,7 @@ export {
 import {
   createProjectDataPort,
   createProjectService,
-  createTaskAutoArchiveScheduler,
   IProjectService,
-  shouldRescanTaskAutoArchive,
 } from "#src/project/index.js";
 export { createLegacySingleRootProjectService } from "#src/project/index.js";
 export { createRemoteProjectService } from "#src/remote-projects/index.js";
@@ -590,13 +588,12 @@ const providerProvisioningTriggerDisposers = new WeakMap<
   ServiceCollection,
   readonly (() => void)[]
 >();
-// 自动归档定时扫描器不是 IPC 服务，随 services 释放时停掉定时器与设置监听。
-const taskAutoArchiveDisposers = new WeakMap<ServiceCollection, () => void>();
 // TaskIndexRepo 等各自持有 tasks-index.sqlite 的连接句柄；
 // dispose 链必须统一关闭：Windows 上句柄悬着会让宿主回收后临时目录 rm 撞 EBUSY
 // （stdioDesktopPresentationSurface 单测稳定复现），Linux 的 unlink-while-open 语义掩盖了泄漏。
 // 与其它侧表一样按 ServiceCollection 登记并在 dispose 时统一 close。
 const sharedSqliteRepos = new WeakMap<ServiceCollection, ReadonlyArray<{ close(): void }>>();
+// 自动归档定时扫描器不是 IPC 服务，随 services 释放时停掉定时器与设置监听。
 const taskAutoArchiveMaintenance = new WeakMap<ServiceCollection, TaskAutoArchiveMaintenance>();
 
 /** 连接就绪时补扫；只请求现有维护器，不创建新的 Host 或定时器。 */
@@ -1305,8 +1302,7 @@ export function createLocalServices(options: {
     // 自定义 Provider 的模型目录读取走宿主 ApiClient（代理/超时/ZCode 端点判定复用同一出口）。
     modelCatalog: createProviderModelCatalogLister({ apiClient }),
   });
-  const sourceServerWorkspaceService =
-    options.sourceServerWorkspaceService ?? createSourceServerWorkspaceService();
+  void (options.sourceServerWorkspaceService ?? createSourceServerWorkspaceService());
   const skillsService = createSkillsService({ isDesktopRuntime: true });
   const mcpSyncService = createMcpSyncService({
     // mcp/list 的 host 消费点收拢到 mcpSync 服务；真实状态检查仍在 agent 进程。
@@ -1480,12 +1476,6 @@ export function createLocalServices(options: {
       return { ok: true };
     },
   };
-  // 动态工作流的用户选择（docs/dynamic-workflow/launch.md「The user's choice」）：本机设置文件是唯一来源，
-  // 每次使用时读取。desktop-attached remote Host 读不到桌面的设置，选择由 desktop 推送
-  // （zcodeAgentService.syncDynamicWorkflowUserMode），这里不注入。读取失败按「跟随」处理。
-  const resolveDynamicWorkflowUserMode = isDesktopAttachedRemote
-    ? undefined
-    : async () => (await settingService.get()).dynamicWorkflowMode;
   // 套餐面在本仓是本地 stub（无官方支付/额度/闲时/校验配置），构造不接受官方 apiClient 与凭据。
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService();
   const publishProjectChange = async () => {
@@ -1793,21 +1783,6 @@ export function createLocalServices(options: {
     agentService: zcodeAgentService,
     taskIndexRepo,
   });
-  // 自动归档只由这里的定时扫描触发（启动首轮 + 每小时 + 设置变更补扫）；readTree 与任务点击
-  // 都不再执行 archiveInactive。判据仍排除 syncer 观察到的非终态会话，不为扫描启动 CLI。
-  const taskAutoArchiveScheduler = createTaskAutoArchiveScheduler({
-    readPolicy: async () => {
-      const settings = await settingService.get();
-      if (!settings.taskAutoArchiveEnabled) return null;
-      const days = Math.max(1, Math.floor(settings.taskAutoArchiveOlderThanDays ?? 30));
-      return {
-        cutoff: Date.now() - days * 86_400_000,
-        activeTasks: zcodeTaskIndexSyncer.activeTaskRefs(),
-      };
-    },
-    repository: () => taskIndexRepo.getProjectRepository(),
-    afterChange: publishProjectChange,
-  });
   // The plugin can be toggled at runtime. Do not let a previously created resolver continue
   // health-checking/restarting Helper after disable, and create it lazily after enable.
   // 动态 resolver：isPluginEnabled 与 helper 创建用同一个 isCuaEnabledForContext 门控（dev mode 一致），
@@ -1985,8 +1960,14 @@ export function createLocalServices(options: {
               sessionIds: [scope.sessionId],
             });
             const session = sessions.find((entry) => entry.sessionId === scope.sessionId);
-            if (!session) throw new Error("Gen UI session not found");
-            return session.executionWorkspacePath;
+            if (
+              !session ||
+              session.workspace.workspacePath !== scope.workspacePath ||
+              session.workspace.workspaceKey !== (scope.workspaceIdentity?.trim() || scope.workspacePath)
+            ) throw new Error("Gen UI session not found");
+            // 原因：独立 task 的 CLI 投影可省略 executionWorkspacePath；找到同 scope 的
+            // session 后才允许使用其绑定 workspacePath，不能把缺席查询当作授权回落。
+            return session.executionWorkspacePath ?? session.workspace.workspacePath;
           },
         },
       }),
@@ -2036,19 +2017,6 @@ export function createLocalServices(options: {
   providerProvisioningSources.set(services, providerProvisioningSource);
   providerProvisioningTriggerDisposers.set(services, providerProvisioningDisposers);
   astrBotBridgeProviders.set(services, astrBotProvider);
-  // desktop-attached-remote 的组织态在远端 Host 库里，由远端自己的扫描器归档；本机不扫。
-  if (!isDesktopAttachedRemote) {
-    const stopSettingsRescan = settingService.onDidUpdate((event) => {
-      if (shouldRescanTaskAutoArchive(event.keys)) {
-        void taskAutoArchiveScheduler.scan().catch(() => {});
-      }
-    });
-    taskAutoArchiveScheduler.start();
-    taskAutoArchiveDisposers.set(services, () => {
-      stopSettingsRescan();
-      taskAutoArchiveScheduler.dispose();
-    });
-  }
   services
     .register(IProviderSettingsService, providerRuntime.providerSettings)
     .register(IModelSelectionService, providerRuntime.modelSelection);
@@ -2081,10 +2049,13 @@ export function createLocalServices(options: {
   sharedSqliteRepos.set(services, [taskIndexRepo]);
   // 远端 attachment 只执行所属数据源的归档 API，调度和设置由桌面 Local Host 持有。
   if (!isDesktopAttachedRemote) {
+    // 合并同时启动两套计时器会让 project 的纯时间归档绕过本 fork 的已读/终态规则。
+    // 只保留原维护 owner，索引目录、原子资格检查与活动保护经同一 task adapter 提交。
     const maintenance = createTaskAutoArchiveMaintenance({
       settingService,
       taskService: zcodeTaskService,
       conversationWorkspacePath: getConversationWorkspaceDir,
+      listLocalWorkspaceScopes: () => taskIndexRepo.listLocalWorkspaceScopes(),
       dataSourceKey: createHash("sha256").update(getTasksIndexDatabasePath()).digest("hex"),
       broadcastService,
       resolveRemoteTarget: options.taskAutoArchive?.resolveRemoteTarget,
@@ -2152,8 +2123,6 @@ function disposeServiceResourcesNow(services: ServiceCollection): void {
   for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
-  taskAutoArchiveDisposers.get(services)?.();
-  taskAutoArchiveDisposers.delete(services);
   managedHostApiNetworkTransports.get(services)?.dispose();
 }
 
@@ -2197,8 +2166,6 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
   for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
-  taskAutoArchiveDisposers.get(services)?.();
-  taskAutoArchiveDisposers.delete(services);
   await managedHostApiNetworkTransports
     .get(services)
     ?.disposeAndWait()

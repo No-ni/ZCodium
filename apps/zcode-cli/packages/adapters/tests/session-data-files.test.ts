@@ -1,17 +1,14 @@
-import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createNodeSessionDataFiles } from "../src/storage/session-data-files/index.js";
-
-const roots: string[] = [];
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
+import {
+  createProjectTestFixture,
+  createProjectTestSymlink,
+} from "../../../../../scripts/ci/project-test-sandbox.mjs";
 
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "session-data-files-"));
-  roots.push(root);
+  const root = await createProjectTestFixture("session-data-files");
   const cli = join(root, "cli");
   const files = createNodeSessionDataFiles({
     cliStorageRoot: cli,
@@ -66,9 +63,56 @@ describe("node session data files", () => {
     const outside = join(root, "outside");
     await write(join(outside, "precious.txt"), 50);
     await mkdir(join(cli, "artifacts"), { recursive: true });
-    await symlink(outside, join(cli, "artifacts", "sess_link"));
+    await createProjectTestSymlink(outside, join(cli, "artifacts", "sess_link"), "dir");
     expect(await files.measureSession("sess_link")).toBe(0);
     await files.removeSession("sess_link");
     expect((await stat(join(outside, "precious.txt"))).size).toBe(50);
+  });
+
+  it("rejects a linked session parent before removing any member of the batch", async () => {
+    const { root, cli, files, write } = await setup();
+    const outside = join(root, "outside");
+    await write(join(outside, "sess_a", "precious.txt"), 50);
+    await write(join(cli, "exec", "sess_a", "keep.txt"), 7);
+    await createProjectTestSymlink(outside, join(cli, "artifacts"), "dir");
+
+    await expect(files.measureSession("sess_a")).rejects.toThrow(
+      "session-data.storage-link-rejected",
+    );
+    await expect(files.removeSession("sess_a")).rejects.toThrow(
+      "session-data.storage-link-rejected",
+    );
+    expect((await stat(join(outside, "sess_a", "precious.txt"))).size).toBe(50);
+    expect((await stat(join(cli, "exec", "sess_a", "keep.txt"))).size).toBe(7);
+  });
+
+  it("rejects a linked memory ancestor without touching the project folder", async () => {
+    const { root, cli, files, write } = await setup();
+    const outside = join(root, "outside");
+    await write(join(outside, "projects", "demo-hash", "memory", "MEMORY.md"), 9);
+    await mkdir(cli, { recursive: true });
+    await createProjectTestSymlink(outside, join(cli, "memories"), "dir");
+
+    await expect(files.measureMemory({ workspacePath: "/work/demo" })).rejects.toThrow(
+      "session-data.storage-link-rejected",
+    );
+    await expect(files.removeMemory({ workspacePath: "/work/demo" })).rejects.toThrow(
+      "session-data.storage-link-rejected",
+    );
+    expect((await stat(join(outside, "projects", "demo-hash", "memory", "MEMORY.md"))).size).toBe(
+      9,
+    );
+  });
+
+  it("rejects a linked CLI root", async () => {
+    const { root, cli, files, write } = await setup();
+    const outside = join(root, "outside");
+    await write(join(outside, "debug", "model-io-sess_a.jsonl"), 11);
+    await createProjectTestSymlink(outside, cli, "dir");
+
+    await expect(files.removeSession("sess_a")).rejects.toThrow(
+      "session-data.storage-link-rejected",
+    );
+    expect((await stat(join(outside, "debug", "model-io-sess_a.jsonl"))).size).toBe(11);
   });
 });

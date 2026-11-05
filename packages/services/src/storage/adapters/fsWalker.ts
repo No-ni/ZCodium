@@ -3,10 +3,11 @@
  * 产出 (relativePath, bytes, mtimeMs)，分类与聚合由 domain 在调用方完成。
  * 每处理 yieldEvery 个条目让出一次事件循环，避免在 Worker/host 内长时间独占。
  */
-import { lstat, opendir } from "node:fs/promises";
+import { opendir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import type { StorageScanEntry } from "../domain/usageAggregate.js";
 import type { StoragePathError } from "@zcode/shared";
+import { assertUnlinkedStoragePath } from "./fsBoundary.js";
 
 export interface WalkStorageRootOptions {
   rootPath: string;
@@ -71,6 +72,8 @@ export async function walkStorageRoot(
     throwIfAborted();
     let directory;
     try {
+      // 根目录/已入队目录都可能是链接或在入队后被替换；在实际打开前复验同一边界。
+      await assertUnlinkedStoragePath(rootPath, directoryPath);
       directory = await opendir(directoryPath);
     } catch (error) {
       if (directoryPath === rootPath && errorCode(error) === "ENOENT") {
@@ -92,7 +95,9 @@ export async function walkStorageRoot(
         }
         if (!dirent.isFile()) continue;
         try {
-          const stats = await lstat(entryPath);
+          // opendir 仍持有旧目录条目时，异步迭代期间原路径可被换成 junction；
+          // 单独 lstat 文件会跟随祖先读取根外元数据，逐文件复用当前路径边界。
+          const stats = await assertUnlinkedStoragePath(rootPath, entryPath);
           if (!stats.isFile()) continue;
           result.filesScanned += 1;
           onEntry({

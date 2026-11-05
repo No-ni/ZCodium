@@ -7,7 +7,7 @@ import { DockerBackend } from "./docker-backend.js";
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
   execFile: vi.fn(),
-  isDockerAvailable: vi.fn(async () => true),
+  probeDockerDaemon: vi.fn(async () => {}),
   listDockerContainers: vi.fn(async () => [
     { name: "fixture-container", id: "fixture-container", state: "running" },
   ]),
@@ -20,7 +20,9 @@ vi.mock("node:child_process", async (importOriginal) => {
 });
 
 vi.mock("@zcode/server/remote/docker-detect.js", () => ({
-  isDockerAvailable: mocks.isDockerAvailable,
+  // Bug 原因：后端已改用抛错式 daemon 探测，旧 boolean mock 让生命周期用例在 spawn 前失败。
+  // 修复依据：模拟当前公开接口，仍由同一探测 Promise 控制迟到 exec，不执行真实 Docker。
+  probeDockerDaemon: mocks.probeDockerDaemon,
   listDockerContainers: mocks.listDockerContainers,
   resolveDockerCommand: mocks.resolveDockerCommand,
 }));
@@ -77,8 +79,8 @@ beforeEach(() => {
     callback(null, "/root\n", "");
     return undefined;
   }) as never);
-  mocks.isDockerAvailable.mockReset();
-  mocks.isDockerAvailable.mockImplementation(async () => true);
+  mocks.probeDockerDaemon.mockReset();
+  mocks.probeDockerDaemon.mockImplementation(async () => {});
   mocks.listDockerContainers.mockReset();
   mocks.listDockerContainers.mockImplementation(async () => [
     { name: "fixture-container", id: "fixture-container", state: "running" },
@@ -176,13 +178,13 @@ describe("DockerBackend exec 进程所有权", () => {
 
   it("关闭期间迟到的 exec 不会 spawn", async () => {
     const target = backend();
-    const gate = deferred<boolean>();
-    mocks.isDockerAvailable.mockImplementationOnce(() => gate.promise);
+    const gate = deferred<void>();
+    mocks.probeDockerDaemon.mockImplementationOnce(() => gate.promise);
     const pending = target.exec("late");
     // 先同步挂上拒绝处理器再触发 dispose，避免拒绝在无处理器窗口内被 Node 记为未处理。
     const rejection = pending.catch((error: unknown) => error);
     target.dispose();
-    gate.resolve(true);
+    gate.resolve();
     await flush();
     expect(mocks.spawn).not.toHaveBeenCalled();
     const error = await rejection;

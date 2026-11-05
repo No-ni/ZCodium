@@ -326,7 +326,7 @@ export const MemoTaskItem = memo(function TaskListItem({
     ignoreRestoredFocusRef.current = true;
     onOpenTaskContextMenu?.(task.taskId);
   }, [onOpenTaskContextMenu, task.taskId]);
-  const handleOpenFileTree = useCallback(
+  useCallback(
     (event: React.MouseEvent) => {
       event.preventDefault();
       event.stopPropagation();

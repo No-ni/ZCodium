@@ -97,10 +97,9 @@ export async function executeSessionCase(input: {
       env: { ...process.env, ZCODE_STORAGE_DIR: directory },
       skipUserConfig: true,
       pluginStorageRoot: join(directory, "plugins"),
-      sourceTitle: "electron",
+      // fork 已移除官方来源身份/原文采集选项，回归复用当前 App 公开装配。
       providerRegistry: input.registry,
       modelAdapter: input.adapter,
-      modelIoFullRetentionEnabled: false,
       runtimeConfig: {
         workingDirectory: directory,
         modelSelection: {

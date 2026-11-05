@@ -34,6 +34,8 @@ export interface TaskAutoArchiveMaintenanceOptions {
   };
   taskService: Pick<IZCodeTaskService, "archiveStaleTasks">;
   conversationWorkspacePath(): string;
+  /** 当前 Host 索引的本地 scope，只读去重；不为扫描启动 Agent 或遍历用户目录。 */
+  listLocalWorkspaceScopes?(): Promise<readonly TaskAutoArchiveScope[]>;
   resolveRemoteTarget?: ResolveTaskAutoArchiveRemoteTarget;
   /** 同一 tasks-index 数据源的稳定标识；不包含原始路径。 */
   dataSourceKey: string;

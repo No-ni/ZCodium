@@ -7,6 +7,7 @@ import { InMemoryJournalStore, holeSiteId } from "@zcode/dynamic-workflow";
 import { createDynamicWorkflowRunService } from "../src/app/dynamic-workflow-run-service.js";
 import {
   resolveActorPersonaModel,
+  WorkflowActorModelUnboundError,
   workflowActorModelPolicy,
 } from "../src/app/workflow-actor-model.js";
 import { readRunModelBindings } from "../src/app/dynamic-workflow-run-launch-anchor.js";
@@ -23,8 +24,33 @@ it("persona binding wins over run selection and journal pin; missing binding fai
   );
   assert.deepEqual(policy.configOverrides.modelSelection, actorSelection);
   assert.equal(actorSelection.providerId, "p");
-  assert.throws(() => resolveActorPersonaModel("missing", {}), /9011/);
-  assert.throws(() => resolveActorPersonaModel("toString", {}), /9011/);
+  assert.throws(
+    () => resolveActorPersonaModel("missing", {}),
+    (error) => error instanceof WorkflowActorModelUnboundError && error.modelName === "missing",
+  );
+  assert.equal(resolveActorPersonaModel(undefined, {}), undefined);
+});
+
+for (const modelName of ["toString", "constructor", "__proto__"]) {
+  it(`persona 名称 ${modelName} 只接受自有绑定，保留完整 reasoning 选择`, () => {
+    assert.deepEqual(resolveActorPersonaModel(modelName, { [modelName]: "p/fast$high" }), {
+      providerId: "p",
+      modelId: "fast",
+      options: { reasoningLevel: "high" },
+    });
+    assert.throws(
+      () => resolveActorPersonaModel(modelName, {}),
+      (error) => error instanceof WorkflowActorModelUnboundError && error.modelName === modelName,
+    );
+  });
+}
+
+it("persona 不能把继承的模型值当作审批绑定", () => {
+  const bindings = Object.create({ fast: "p/unapproved" }) as Readonly<Record<string, string>>;
+  assert.throws(
+    () => resolveActorPersonaModel("fast", bindings),
+    (error) => error instanceof WorkflowActorModelUnboundError && error.modelName === "fast",
+  );
 });
 
 it(
@@ -120,7 +146,7 @@ it(
         deep: "p/deep$high",
       });
       const fills = journal
-        .listEvents(runId, {})
+        .listEvents(runId, { types: "all", reportItems: "all" })
         .filter((stored) => stored.event.type === "hole-filled");
       assert.equal(fills.length, 2);
       assert.ok(first.ok && second.ok && second.commitSequence > first.commitSequence);
@@ -141,8 +167,9 @@ it(
         deep: "p/deep$high",
       });
       assert.equal(
-        journal.listEvents(runId, {}).filter((stored) => stored.event.type === "hole-filled")
-          .length,
+        journal
+          .listEvents(runId, { types: "all", reportItems: "all" })
+          .filter((stored) => stored.event.type === "hole-filled").length,
         2,
       );
     } finally {

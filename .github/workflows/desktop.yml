@@ -138,7 +138,8 @@ jobs:
         if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         # 浏览器夹具持有进程环境租约；跨文件共享进程还会累计 TypeScript/Vite 堆内存。
         # 保留完整发现范围，逐文件隔离且串行执行，不用跳过掩盖失败。
-        run: node --test --test-concurrency=1 scripts/ci/*.test.mjs
+        # Source exports 使用 .ts 与 .js specifier；显式 loader 避免原生类型擦除解析失败。
+        run: node --import tsx --test --test-concurrency=1 scripts/ci/*.test.mjs
       - name: Computer Use runtime and SDK checks
         run: |
           node --test --test-isolation=none packages/zcode-cua/test/*.test.mjs

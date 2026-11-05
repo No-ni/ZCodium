@@ -19,12 +19,7 @@ import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
-import {
-  type FileBinaryPreview,
-  type FileMediaPreview,
-  type FileTextSlice,
-  TID_PREVIEW_PANE,
-} from "@zcode/shared";
+import { type FileMediaPreview, type FileTextSlice, TID_PREVIEW_PANE } from "@zcode/shared";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { usePptxFileWatch } from "@/hooks/usePptxFileWatch.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -531,18 +526,12 @@ export function PreviewPane({
     [rawSource],
   );
   const sourceWorkspacePath = source?.workspacePath ?? workspacePath;
-  const matchedOpenContext = useWorkspaceOpenInEditorTarget({
+  useWorkspaceOpenInEditorTarget({
     workspacePath: sourceWorkspacePath,
     workspaceIdentity: source?.workspaceIdentity,
     workspaceRemoteSessionId: source?.workspaceRemoteSessionId,
     scopeResolution: source?.workspacePath ? "exact" : "ambient",
   });
-  const openInEditorRemoteTarget = matchedOpenContext.remoteTarget;
-  const isRemoteSource = Boolean(
-    source?.workspaceIdentity ||
-    source?.workspaceRemoteSessionId ||
-    matchedOpenContext.isRemoteWorkspace,
-  );
   const { fileService, fileWatcherService, mediaPreviewService } = useWorkspaceServices(
     sourceWorkspacePath,
     source?.workspaceRemoteSessionId,

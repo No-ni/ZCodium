@@ -1,12 +1,4 @@
-import {
-  Fragment,
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, Loader2Icon } from "lucide-react";
 import type { ModelSelectGroup } from "@/ModelConfigSelect.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

@@ -1,0 +1,9 @@
+# Stream animate
+
+独立、用户显式启动的SSE profiler；server拥有run与文件写入，App拥有选择/列表/详情投影。UI不复制server接受事实，旧请求按runId与serial丢弃，轮询等待当批完成。
+
+shared为纯类型/domain、server为IO/adapters、client为UI；公开index只提供显式start/close及类型。静态读取按路径段限制dist，当前契约不宣称symlink部署防护。不打开产品遥测、后台采样或自动上报。
+
+列表与详情共同写入同一runs投影；每run的detail提交版本仅是顺序元数据，不保存第二份事实。list接受时保留请求开始之后已提交的detail行，其他行正常刷新。初始化list复用同一refreshRuns序号/错误入口；config独立读取，不把过期list错误当成config失败。
+
+首次接受的列表在selectedRunId为空时完成默认首行选择，手动刷新先于初始读取完成也适用；后续刷新不抢已有选择。

@@ -85,6 +85,7 @@
 - `prepare-agent-node-bundle.mjs` 的入口段吸收上游新增的 `stageBundledNpmRuntime` / `stageKoffiForCuaPlugin` /
   `stageSharpForNodeReplPlugin`，与 MCP 的 Node/npm fallback 保持同一份随包 runtime。
 - 运行时文件核验、复制和清理使用显式导入的异步 fs API；缺少 runtime/seed 文件仍必须失败，不能用旧目标文件掩盖。原生依赖的已暂存插件存在性检查使用本仓实际 `.zcodium-plugin/plugin.json`；旧 `.zcode-plugin` 路径不得使 Koffi/Sharp 暂存静默跳过。
+- 外置运行时依赖闭包由 `runtime-dependency-closure.mjs` 统一解析，供 afterPack 注入与最终 bundle 校验使用。根依赖和 `dependencies` 中的必需依赖若不可解析，立即失败；只有未安装的 `optionalDependencies` 可跳过。不能因为工作区里缺少必需包，就同时跳过注入和产物校验，否则可能输出启动时才报 `MODULE_NOT_FOUND` 的安装包。回归使用项目内合成包验证根依赖、传递依赖、可选依赖及两种校验入口，不执行桌面打包。
 - 共享 Agent 自举暂存保留 node-repl-host 的 `.zcodium-plugin` 清单，不复制旧命名清单。开发态 CUA 原生依赖暂存复用 `isSharpRequiredByComputerUse`：真实 producer 未声明 Sharp 时直接返回空；声明 Sharp 后必须核验当前 `.zcodium-plugin/plugin.json` 并复制本次 Windows/mac 架构依赖，缺少清单仍失败。这遵守既有 Sharp 能力契约，不把保留旧后端当作官方 Helper 或 Sharp producer。
 
   ```mermaid

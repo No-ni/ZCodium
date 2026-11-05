@@ -253,7 +253,12 @@ export class SqliteSessionStore
     this.forkCommitFaultAt = options.forkCommitFaultAt;
   }
 
-  static async open(options: SqliteSessionStoreOptions = {}, migrationOptions?: AsyncSqliteMigrationOptions): Promise<SqliteSessionStore> {
+  static async open(
+    options: SqliteSessionStoreOptions = {},
+    migrationOptions?: AsyncSqliteMigrationOptions,
+  ): Promise<SqliteSessionStore> {
+    // 迁移 runner 的取消检查晚于 mkdir/open；预先取消的启动必须在任何写入前拒绝。
+    migrationOptions?.signal?.throwIfAborted();
     const dbPath = options.dbPath ?? getDefaultSessionDbPath();
     const startupLockTimeoutMs =
       options.startupLockTimeoutMs ?? DEFAULT_SQLITE_STARTUP_LOCK_TIMEOUT_MS;
@@ -263,9 +268,13 @@ export class SqliteSessionStore
         maybeThrowStorageFsFault({ operation: "mkdir", path: dirname(dbPath) });
         await mkdir(dirname(dbPath), { recursive: true });
       }
+      migrationOptions?.signal?.throwIfAborted();
       maybeThrowStorageFsFault({ operation: "sqliteOpen", path: dbPath });
       db = new DatabaseSync(dbPath, { timeout: startupLockTimeoutMs });
     } catch (error) {
+      // 异步目录准备期间收到取消时保留 reason，不误报数据库打开失败，也不继续建连接。
+      if (migrationOptions?.signal?.aborted && error === migrationOptions.signal.reason)
+        throw error;
       throw new SqliteSessionMigrationError(`Failed to open SQLite session database at ${dbPath}`, {
         cause: error,
         dbPath,
@@ -273,15 +282,26 @@ export class SqliteSessionStore
       });
     }
     try {
-      const migration = await runSqliteSessionMigrationsAsync(db, dbPath, migrationOptions ?? { lockWaitTimeoutMs: startupLockTimeoutMs });
+      const migration = await runSqliteSessionMigrationsAsync(
+        db,
+        dbPath,
+        migrationOptions ?? { lockWaitTimeoutMs: startupLockTimeoutMs },
+      );
       return new SqliteSessionStore(db, dbPath, options, migration);
     } catch (error) {
-      try { db.close(); } catch { /* 关闭失败不能覆盖迁移错误。 */ }
+      try {
+        db.close();
+      } catch {
+        /* 关闭失败不能覆盖迁移错误。 */
+      }
       throw error;
     }
   }
 
-  static async openStartup(options: SqliteSessionStoreOptions = {}, migrationOptions: AsyncSqliteMigrationOptions = {}) {
+  static async openStartup(
+    options: SqliteSessionStoreOptions = {},
+    migrationOptions: AsyncSqliteMigrationOptions = {},
+  ) {
     return SqliteSessionStore.open(options, migrationOptions);
   }
 

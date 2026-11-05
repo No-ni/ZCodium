@@ -10,7 +10,6 @@ import { useState } from "react";
 import { TID_WORKSPACE_HEADER } from "@zcode/shared/test-ids";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { cn } from "@/components/lib/utils.js";
-import { resolveWorkspaceHeaderLeadingInset } from "@/lib/workspaceHeaderLeadingInset.js";
 import {
   WorkspaceHeaderActionSection,
   type WorkspaceHeaderState,

@@ -1145,11 +1145,14 @@ export class ZCodeAgentProcessManager {
         [GEN_UI_OUTPUT_ROOT_ENV]: join(getAppConfigDir(), GEN_UI_OUTPUT_DIRECTORY),
         // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
         ...buildAgentWorkspaceIdentityEnv(params.workspaceIdentity),
-        // 对话工作区（未指定项目的会话）的执行 cwd 由 Agent 按会话铸造：这里只把
-        // 「本 workspace 就是对话根」这一 Host 侧事实施加给子进程，目录规则与命名
-        // 全部归会话所有者。见 docs/specs/conversation-session-workspace.md。
+        // Host 下发可信 default 根；共享进程和独立 task 都据此解析本地 Gen UI 产物。
+        // CLI allocator 仍只给精确 default 请求铸造会话子目录，task 使用已准备的 cwd。
         ...buildAgentConversationWorkspaceEnv(
-          params.workspacePath,
+          // 合并引入共享 CLI 后 spawn cwd 是数据根，不能再用它判断对话根。
+          // 共享本地进程拿 Host 权威根，CLI 仍按每个请求的路径和 identity 决定是否建独立目录。
+          workspaceKey === SHARED_TASK_RUNTIME_KEY
+            ? getConversationWorkspaceDir()
+            : params.workspacePath,
           params.workspaceIdentity,
           getConversationWorkspaceDir(),
         ),

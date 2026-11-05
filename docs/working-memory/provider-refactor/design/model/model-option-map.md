@@ -86,6 +86,8 @@ comprehension、其他 Option、Provider/Model/凭据对象、时间、随机数
 表达式不实现 CEL 的 `int` / `double` 类型区分或整数除法。数值输入和计算结果必须能安全表示为有限 JSON
 number；Map 最终必须返回 JSON Object。
 
+数值相等比较沿同一 JavaScript number 语义：`-0 == 0` 为 true，`-0 != 0` 为 false；数组／对象递归比较其中的数值也遵守该规则。不能用区分正负零的 Object.is 决定相等分支，否则合法算术表达式会生成错误的请求 Patch。
+
 ## Overlay 与完整性
 
 Rule Input 中的 `optionSpecs.reasoningLevel` 和 `optionSpecs.maxOutputTokens` 都是可嵌套的稀疏 Overlay；

@@ -49,8 +49,7 @@ export function isModelStreamIdleTimeoutError(
 
   const record = error as Record<string, unknown>;
   return (
-    record.code === "MODEL_STREAM_IDLE_TIMEOUT" ||
-    record.name === "ModelStreamIdleTimeoutError"
+    record.code === "MODEL_STREAM_IDLE_TIMEOUT" || record.name === "ModelStreamIdleTimeoutError"
   );
 }
 
@@ -104,16 +103,15 @@ export async function readNextWithStreamIdleTimeout<T>(
     timeoutMs: number;
   },
 ): Promise<IteratorResult<T>> {
-  if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) {
-    return iterator.next();
-  }
-
   const readStartedAt = Date.now();
   let timeout: ReturnType<typeof setTimeout> | undefined;
   let removeAbortListener: (() => void) | undefined;
   let timedOut = false;
   let timeoutError: ModelStreamIdleTimeoutError | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
+    // 禁用空闲计时只跳过 timer，不能直通 next：Provider 不响应 abort 时仍需主动结束等待。
+    // 继续复用下方的 abort race 与 finally 清理，迟到的 Provider 结算也始终有人观察。
+    if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) return;
     timeout = setTimeout(() => {
       if (options.abortController.signal.aborted) {
         reject(options.abortController.signal.reason ?? new Error("Model stream aborted."));
@@ -144,7 +142,10 @@ export async function readNextWithStreamIdleTimeout<T>(
   });
 
   try {
-    return await Promise.race([iterator.next(), timeoutPromise, abortPromise]);
+    // 预先取消必须优先于已结算的 next；同步抛错也需转为被观察的拒绝，
+    // 否则它会绕过 race，遮蔽取消并遗留无 handler 的 abortPromise。
+    const nextPromise = new Promise<IteratorResult<T>>((resolve) => resolve(iterator.next()));
+    return await Promise.race([abortPromise, nextPromise, timeoutPromise]);
   } catch (error) {
     if (!timedOut) {
       throw error;

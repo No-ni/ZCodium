@@ -377,21 +377,7 @@ function resolveMissingRuntimeModules(appAsarPath) {
     REQUIRED_ASAR_RUNTIME_MODULES,
     runtimeModuleLookupRoots,
   );
-  const resolvableRuntimeModules = runtimeModules.filter((entry) => {
-    if (!entry.sourceModulePath) {
-      // 不同平台/安装布局下，部分运行时依赖可能被裁剪或未落到本次打包工作区。
-      // 之前这里直接在 copy 阶段抛错会中断整个平台出包；改为记录告警并跳过该模块，
-      // 让 afterPack 只处理当前环境确实可解析的依赖，避免 CI 因单个可选依赖缺失全量失败。
-      console.warn(
-        `[afterPack] runtime module not found, skip injection: ${entry.moduleName}; searched=${runtimeModuleLookupRoots
-          .map((lookupRoot) => resolve(lookupRoot, "node_modules", entry.moduleName))
-          .join(", ")}`,
-      );
-      return false;
-    }
-    return true;
-  });
-  return resolvableRuntimeModules.filter((entry) => {
+  return runtimeModules.filter((entry) => {
     const { moduleName } = entry;
     const moduleRoot = `/node_modules/${moduleName}`;
     if (asarEntrySet.has(moduleRoot)) {

@@ -90,6 +90,8 @@ export async function uploadSnapshot(input: UploadInput): Promise<UploadResult> 
       "Content-Length": String(requestBody.byteLength),
     },
     body: requestBody,
+    // 首 URL 的回环校验不能约束 307/308 目的地；禁止自动转发完整快照正文。
+    redirect: "manual",
   });
 
   return {

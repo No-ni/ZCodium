@@ -2,7 +2,6 @@
 import { BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
 import { readZCodeStdioTapDevState } from "@zcode/services/node";
 import {
-  DesktopCommandIds,
   appSettingsPatchSchema,
   formatZodError,
   localeSchema,

@@ -1,4 +1,3 @@
-import { OFFICIAL_MCP_AUTH_META_KEY as SHARED_KEY } from "@zcode/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createSitesApi, OFFICIAL_MCP_AUTH_META_KEY, readOfficialAuth } from "./api.ts";
 
@@ -23,8 +22,8 @@ const envelope = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 describe("official auth meta", () => {
-  it("uses the same protocol key as the host", () => {
-    expect(OFFICIAL_MCP_AUTH_META_KEY).toBe(SHARED_KEY);
+  it("retains the historical protocol key without a shared official-auth dependency", () => {
+    expect(OFFICIAL_MCP_AUTH_META_KEY).toBe("com.zcode/official-mcp-auth");
   });
 
   it("passes the host's failure reason through and treats anything else as unavailable", () => {
@@ -48,6 +47,17 @@ describe("official auth meta", () => {
 });
 
 describe("createSitesApi", () => {
+  it.each([undefined, "", "  "])(
+    "does not request without an explicit origin (%s)",
+    async (origin) => {
+      const fetch = vi.fn();
+      const call = createSitesApi({ origin, appVersion: "3.16.2", fetch, timeoutMs: 1000 });
+      await expect(call(authed, "GET", "/api/v1/sites")).resolves.toEqual({
+        error: { reason: "official_mcp_origin_untrusted" },
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
   it("sends the identity headers and app version and returns data", async () => {
     const { fetch, call } = api(() =>
       envelope({ code: 0, msg: "", data: { id: "1" }, logid: "l" }),

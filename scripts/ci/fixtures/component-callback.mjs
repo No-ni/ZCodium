@@ -9,6 +9,9 @@ export async function loadComponentCallback(path, name, dependencies) {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const matches = [];
   function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) {
+      matches.push(node.getText(source).replace(/^export\s+(?:default\s+)?/, ""));
+    }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) {
       const value = node.initializer;
       const callback =

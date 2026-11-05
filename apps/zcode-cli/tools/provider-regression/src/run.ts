@@ -218,8 +218,7 @@ export async function runRegression(options: RegressionOptions): Promise<Regress
           ).apply({}, { reasoningLevel: expectedLevel, maxOutputTokens: expectedBudget });
           const adapter = new AiSdkModelAdapter({
             ...executionConfig,
-            // 1 pass 只限制用例重复；保留产品内部重试和空回答恢复。
-            modelIoFullRetentionEnabled: false,
+            // 使用当前公开 Adapter 契约；原文保留开关已退场，不能为回归工具恢复采集。
             transport: options.transport,
             observeTransport: (transport) => async (url, init) => {
               const body = await readModelRequestBody(url, init);

@@ -1,10 +1,9 @@
 import { lstat, readdir, rm } from "node:fs/promises";
-import { dirname, join, relative, isAbsolute } from "node:path";
+import { dirname, join, relative, isAbsolute, resolve, sep } from "node:path";
 
 import type { SessionDataDirectory, SessionDataFilesPort } from "./contract.js";
 
 export type { SessionDataDirectory, SessionDataFilesPort } from "./contract.js";
-
 
 export interface NodeSessionDataFilesOptions {
   cliStorageRoot: string;
@@ -22,7 +21,7 @@ const SAFE_SESSION_ID = /^[A-Za-z0-9_-]+$/;
 export function createNodeSessionDataFiles(
   options: NodeSessionDataFilesOptions,
 ): SessionDataFilesPort {
-  const root = options.cliStorageRoot;
+  const root = resolve(options.cliStorageRoot);
   const sessionPaths = (sessionId: string) => {
     if (!SAFE_SESSION_ID.test(sessionId)) throw new Error("session-data.invalid-session-id");
     return [
@@ -35,12 +34,22 @@ export function createNodeSessionDataFiles(
     const projects = join(root, ...MEMORY_PROJECTS_PATH);
     const inside = relative(projects, projectFolder);
     // 只允许 memories/projects 的直接子目录，防止解析结果越界删到别处。
-    if (!inside || inside.startsWith("..") || isAbsolute(inside) || inside.includes("/") || inside.includes("\\"))
+    if (
+      !inside ||
+      inside.startsWith("..") ||
+      isAbsolute(inside) ||
+      inside.includes("/") ||
+      inside.includes("\\")
+    )
       throw new Error("session-data.memory-outside-storage");
     return projectFolder;
   };
-  const measureAll = async (paths: string[]) =>
-    (await Promise.all(paths.map(measurePath))).reduce((sum, bytes) => sum + bytes, 0);
+  const measureAll = async (paths: string[]) => {
+    // 修复原因：只对目标 lstat 无法阻止父目录 junction/symlink 被先行解析。
+    // 整批测量前检查全部父级，避免删除已开始后才发现另一个目标指向存储根外。
+    await Promise.all(paths.map((path) => validateStorageParents(root, path)));
+    return (await Promise.all(paths.map(measurePath))).reduce((sum, bytes) => sum + bytes, 0);
+  };
   const removeAll = async (paths: string[]) => {
     const bytes = await measureAll(paths);
     // rm 不跟随目录内的符号链接；顶层是链接时只删除链接本身。
@@ -53,6 +62,23 @@ export function createNodeSessionDataFiles(
     measureMemory: async (directory) => measureAll([memoryPath(directory)]),
     removeMemory: async (directory) => removeAll([memoryPath(directory)]),
   };
+}
+
+async function validateStorageParents(root: string, path: string): Promise<void> {
+  let directory = root;
+  const parents = relative(root, dirname(path)).split(sep).filter(Boolean);
+  for (let index = 0; index <= parents.length; index += 1) {
+    let stats;
+    try {
+      stats = await lstat(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (stats.isSymbolicLink()) throw new Error("session-data.storage-link-rejected");
+    if (!stats.isDirectory()) throw new Error("session-data.invalid-storage-directory");
+    if (index < parents.length) directory = join(directory, parents[index]!);
+  }
 }
 
 async function measurePath(path: string): Promise<number> {

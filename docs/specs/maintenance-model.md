@@ -425,3 +425,76 @@ CLI 独立 Lint 实际为 **79 errors / 55 warnings，exit 1**。本轮两个 CL
 固定 Node 24.14.0 根 typecheck、Desktop E2E 类型与浏览器夹具 noEmit 通过；Lint 为 0 errors / 157 既有 warnings，changed 架构零违规。定向/相邻回归 109 passed、schema 22 passed、架构工程测试 63 passed / 1 Windows skip。按新 Release 隔离入口实跑发行契约、浏览器 owner 和四项 WINUI 浏览器检查，27 passed；这些数字有重叠，不汇总为全量验收。最终组件截图复核包括 Windows 项目页和窄屏快捷键页；不代表完整 Electron/原生 Shell、安装版、真实远端或实体手机验收。
 
 新证据位于 `.run-logs/project-only-validation/`：`release-push-affected-run-Bnng1y/`、`release-push-ci-windows-NIfGu8/`、`winui-seventh-regression-6iHgkF/`、`release-push-schema-YnDZkG/`、`release-push-architecture-tests-b4RUuF/`。上一轮 [Actions 41612629147](https://github.com/No-ni/ZCodium/actions/runs/41612629147) 四个平台打包成功，但完整 Checks 有 Agent/Vitest 失败及 Release 堆内存耗尽；本次没有在本机执行全量 corpus，CI 其它既有失败仍须以新运行结果复核，不宣称完整 CI 已通过。版本保持官方基线 3.17.1，不在本机打包或保存下载产物。
+
+### 三路代码审查与失败路径修复（2026-11-04）
+
+用户授权主代理与两个子代理并行审查并修复。起始 `main` 工作树干净、freshness 通过；重点核查 Host/远端生命周期、CLI 模型异步等待与桌面构建审计边界，没有上游同步、版本修改、提交、推送或安装包构建。
+
+- workspace 准备失败改为复用 Registry 的 `disposeSession`，补齐 Server handle 释放与 WSL idle TTL，同时保留 sibling owner、SSH cache 和 Docker dedicated 行为。
+- sessions-index observer 的 subscribe/resync 失败续体补齐 generation / subscriptionId 校验，阻止旧失败拆掉新订阅、将已恢复 runtime 标为 dormant 或在 dispose 后发布错误。两项规格与事件顺序见 [Host 异步生命周期失败收口](host-async-lifecycle-regression.md)。
+- 模型流禁用 idle timer 时仍观察取消；预先取消优先于已经结算的 `next()`，同步抛错进入受观察的 Promise，防止覆盖取消与未处理拒绝。见 [模型流取消规则](model-stream-disabled-timeout-cancellation.md)。
+- 外置运行时闭包遇到缺失的根依赖或必需传递依赖直接失败，afterPack 与 bundle 不再将其当作可选依赖跳过；未安装的 optional dependency 仍可跳过。见 [桌面构建规格](../../.agents/specs/official-3.17.1-build.md)。当前工作区两份闭包分别解析 77 / 76 项，没有缺失的必需依赖；这不代表实际安装包的所有模块均已验收。
+
+四类问题均先有失败回归再做最小修复。最终使用项目内已有 Node 24.14.0 与 corepack pnpm 10.33.2，按固定工具链复跑根 typecheck、Lint、fmt:check、changed 架构与新增回归；初次检查使用系统 Node 24.18.0，最终结论以固定版本复跑为准。
+
+| 验证                                       | 结果                                                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| 根 typecheck / CLI adapters noEmit         | 均 exit 0                                                                                              |
+| 根 Lint                                    | exit 0，0 errors / 157 warnings，未清理警告欠账                                                        |
+| 根 fmt:check / CLI 改动文件格式检查        | 均通过；根保留 1608 个已核验继承文件                                                                   |
+| changed 架构 / diff 空白                   | 零 violations / baseline / new；空白检查通过                                                           |
+| 新增回归                                   | 闭包 4、Registry 5、Observer 5、模型流 14，共 28 个场景通过                                            |
+| 定向审计、更新源、准备顺序与构建规格       | 与新增回归合跑外层 46/46，0 skipped；其中三个 wrapper 各执行 14 / 5 / 5 个源测试，不重复汇总为全量测试 |
+| 模型 generate abort / retry sleep 相邻回归 | 子代理项目隔离源测试共 15/15，通过                                                                     |
+
+固定工具链门禁日志位于 `.run-logs/project-only-validation/review-pinned-final-f19NAW/logs/`。回归使用项目内隔离目录、合成包或真实源码内存 fixture；没有访问真实 `.zcodium`、连接真实 Provider/SSH/WSL、启动 Electron、操作实体手机或下载发行产物。未执行完整业务语料、真机 E2E、跨平台安装或 GitHub Checks；这些定向证据不能替代上述验收。
+
+### 根 Lint 警告清理（2026-11-04）
+
+在上一轮未提交修复上继续三路清理，根 Lint 从 0 errors / 157 warnings 降至 0 errors / 0 warnings，固定 Node 24.14.0 实际检查 5574 个文件。清理 144 条未使用绑定、6 条多余转义和 7 条数组/对象简化告警；保留 IO/初始化、React hooks、模块加载与集合快照，不更改 Lint 规则、忽略范围、行数上限或公开服务接口。首次修改的官方继承 `output-style` 目录补齐 managed 模块清单与既有合同，不改变产品行为。
+
+根 typecheck、fmt:check、changed 架构和差异空白检查通过，架构零违规。定向合跑外层 40/40、UI 相邻回归 69/69；Docker 生命周期夹具从退役 boolean 探测 mock 对齐当前 `probeDockerDaemon`，原 14 个场景及断言保持并通过。CLI 录制夹具的单行数组替换通过 AST 等价核对与对应 smoke 用例，但其独立整文件格式检查仍有历史排版欠账；整文件格式化会超过现有行数门禁，因此未保留该格式整理，也未放宽门禁。细分证据、wrapper 计数与未验收范围见 [根 Lint 警告清理](lint-warning-cleanup.md)。
+
+没有执行完整 Electron/原生平台 E2E、真实远端/Provider、实体手机、全量业务语料或安装包验收；未提交、推送、构建或触发 Actions。上述 0 warnings 仅指当前根 Lint 的既有覆盖范围，不代表 CLI 全部独立检查或全仓运行时已无缺陷。
+
+### 定制功能合并回归复查（2026-11-05）
+
+按用户授权核对现有 spec，修复七处确认的入口回归：顶部复制 Markdown、共享 CLI 对话根标记、任务文件树执行 cwd、内置 Provider 配置目标、fork 总结偏好继承、常驻恢复目录保活、同 ID 历史导入重放。保留普通创建防重、workspace 身份隔离、生命周期 owner、Windows/macOS 桌面与去官方云/遥测边界；同步修正过时测试接口及双语孤立键。配置菜单 spec 的早期远端禁用和编辑器描述按合并前实际环境级行为校正，不引入远端配置体系。
+
+固定 Node 24.14.0 下根 typecheck、bootstrap typecheck、Lint、fmt:check 与 changed 架构均通过；定制与审计 source 208/208、生命周期 16/16、真实 CLI 4/4，以及项目内 Electron React 夹具 Markdown 44 组、配置菜单 64 组及文件树竞态场景通过。证据、所有者/时序及验证边界见 [定制功能合并回归修复](custom-feature-merge-regressions.md)。没有上游同步、版本修改、提交、推送或构建；未做打包桌面、实体手机、真实远端及完整业务语料验收，不将定向检查写为全仓无遗漏。
+
+### 定制功能后续复查与归档收口（2026-11-05）
+
+继续保留 `main@12e77221` 的既有未提交修复，先确认其他定制回归，再修复归档三处问题：合并后两套计时器并行，官方纯时间规则绕过未读/completed 保护；独立任务及虚拟项目的关闭目录缺席旧 recent/open 范围；上轮 completed 镜像仍可能让当前活动会话被归档。保留 fork maintenance 单一调度入口，通过 tasks-index 只读去重本地 scope，adapter 提供 syncer 当前活动查询，Repo 在最后一个 await 后读取并加入同条条件 UPDATE。默认关闭 / 7 天及已有天数不改写，远端精确路由和 continuous/replayable 边界不变。
+
+归档 CI 入口改用现有项目内 source runner，SQLite 夹具统一创建/清理前验证；AMT02 的官方纯时间断言对齐本 fork 未读保护，catalog/matrix 明确历史 E2E 不计当前验收。没有 schema、协议或新的 UI/归档命令。规格、事件图、CFA01–05 及日志见 [后续复查](custom-feature-followup-audit.md)。
+
+固定 Node 24.14.0 / corepack pnpm 10.33.2，最终定制 source 外层 233/233；归档外层 2/2、内层 16/16，计数不相加。根 typecheck、Lint（0 warnings / 0 errors）、fmt:check、changed 架构均通过，services 回归 noEmit、Desktop E2E 类型与归档 fixture 检查通过。首次根 typecheck 因 scheduler 声明产物缺失出现 TS6305，项目内只重生成声明后复跑 exit 0；一次格式批量写入失败，单文件/逐文件及根复查通过。原始触发原因尚未确认，失败日志与最终日志均保留，不把中间失败改写为始终通过。
+
+未运行完整 Electron、实体手机、真实 SSH/WSL、真实模型/跨 Host 活动窗口、CLI 全包独立 Lint、全量语料、安装包或 macOS/Windows 发行验收；SQLite/adapter/Controller 证据不等价真机。改动留在本地，未上游同步、改版本、提交、推送或触发 Actions。
+
+### 定制模型目录与工作流复查（2026-11-05）
+
+继续保留 `main@12e77221` 的既有未提交改动，修复模型目录部分成功后误勾选排除项、同一同步栈重复确认和原始异常透传。Dialog 仅拥有用户排除项，确认入口同步取得在途资格并在 finally 释放；沿用现有 Provider 保存 owner 与串行路径。workflow actor 改为只读绑定表自有键，原型成员不作为已审批模型；工作流回归显式使用当前 journal 选项、resolver 第三参数和 actor 错误类型，保留原子提交、零副作用及冷恢复断言。
+
+固定 Node 24.14.0 / corepack pnpm 10.33.2：目录 callback 8、真实组件 DOM 4、工作流 37 项通过；按 Release 同入口复验外层 2/2，内部 12/37，不重复汇总。根与 bootstrap 类型、根 Lint（0 warnings / 0 errors）、根格式、六份 CLI 文件格式、目标 actor Lint、changed 架构和差异空白均通过。红绿证据、夹具中间失败与验证边界见 [模型目录与工作流复查](custom-feature-catalog-workflow-audit.md)。
+
+本地分支记录中没有其他待合并定制分支，未重新查询远端。Chrome/Edge 在项目隔离目录的调试连接受限，浏览器复验入口已准备，但没有浏览器/Electron/完整布局、实体手机、真实 Provider/远端、全量语料、CLI 全包独立 Lint、安装包或完整 CI 验收。没有同步上游、改版本、提交、推送或构建。
+
+### 全仓模块检查与本地修复（2026-11-06）
+
+按用户授权审查当前全部 105 个登记模块/205 roots，并登记 CLI38包、未登记工具包、空目录、Android 与根工程入口。结构扫描和模块契约/关键路径阅读分别记录，不宣称全叶文件逐行或全平台运行验收。修复 RPC 重放、HTTP 连接 owner/释放和 attachment share 准入、多处文件清理/静态链接边界、输入预测与 REPL 取消、SQLite 启动/备份、插件 marker 清理/递归 authority、Web/workflow/图表及开发工具回归。保留身份、数据根、显式 API/远程边界，不恢复退役云/遥测模块使旧测试通过。
+
+固定 Node 24.14.0 / corepack pnpm：根及 CLI typecheck 通过，根 Lint 0/0；CLI Lint 89个既有max-lines错误/76警告，无新增诊断。全量架构0，增量架构仍5个修改后失去snapshot豁免的legacy未纳管文件，未放宽门槛。Node255、root Vitest186、CUA mock70、SQLite20及10场隔离真实React/Chart.js交互等实际通过；包装层、内层和重跑不重复汇总。旧恢复插件仍unavailable，Android端点产品决策待用户裁决；无完整产品/真机/macOS/Android/真实Provider远端/安装包验收。
+
+所有显式测试及输出只在获准工作树的项目沙箱；没有真实用户数据迁移、发行构建、版本变更、提交、推送或Actions触发。具体红绿证据、覆盖和未验证边界统一查 [全仓代码检查与修复](full-code-audit.md) 及四份分区报告。
+
+### 全仓第二轮复核与提交收口（2026-11-06）
+
+用户随后授权再检查一轮、修复后提交并推送。继续独立分区及交叉复核，修复 HTTP 关闭被迟到握手阻塞、storage 打开后祖先替换、插件合法 authority 崩溃恢复遗漏、预测日志泄漏、relay 启动失败及半开 WS 释放、stdio 与 stream 交叉读取和初始选择、Chart null 采样等问题。失败回归先于修复；因职责拆分引入的初始默认选择小回归也实际复现并修复。
+
+正式纳管五个开发工具模块，增量架构从第一轮5失败收口为0；原104模块/global不变，不刷新snapshot/baseline或抬阈值。最终110模块/212roots缺口0，当前库存6793源码与合同文件，AST6698源码无解析/重复literal case诊断；这不等同于逐叶人工审查或全平台验收。精简覆盖证据入库，完整机械扫描和本机runner留在忽略目录。
+
+最终冻结源码的根typecheck、Lint、全量/changed架构均通过，Lint0/0。CLI正式类型通过，独立Lint仍89个既有max-lines错误/76警告，二轮未增加诊断。后端20、relay生命周期3、root合同186、工程85通过/1平台skip、UI21+CEL2及18场真实React浏览器回归等实际通过，不重复累计包装层、内层及重跑；格式与正常pre-push执行结果查总报告。截图受限、旧恢复unavailable、Android端点待裁决、完整native/真实远端/Provider/安装包未验收照实保留。
+
+本次提交包含当前已复核的源码、测试和文档，推送仅限`origin = No-ni/ZCodium`的main；不触发发行构建、不改版本、不提PR/issue、不同步上游。所有测试数据、缓存和验证输出仍在获准项目工作树，不操作真实`.zcodium`。

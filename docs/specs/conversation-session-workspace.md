@@ -1,8 +1,16 @@
 # 对话会话独立工作目录
 
+2026-11-05 普通无项目新建入口按 [无项目任务目录一致性](projectless-task-workspaces.md) 统一到 Host 已准备的独立 task 目录。本文件的 default 日期/会话分配规则保留为旧根兼容合同，只适用于请求 workspacePath 恰好等于 default 根的会话；独立 task 目录不再嵌套分配。已保存 tab 原路径恢复，Gen UI 同时支持 task 本地目录与旧全局产物。
+
 ## 背景与目标
 
-未指定项目的会话（对话工作区）当前共用 `getConversationWorkspaceDir()` 返回的
+2026-11 共享 CLI 适配：共享本地进程仍在数据根启动，Host 根据 process key 下发权威对话根标记；不再用进程 cwd 是否等于对话根决定注入。
+CLI 继续按每次请求的 workspacePath 与 workspaceIdentity 判定，项目路径与远端 identity 不获得独立对话目录。
+任务文件树经精确 session 查询获取执行 cwd，不能把 task 索引的身份根直接当成 cwd；查询迟到、离线或目标缺失时停止打开。
+生命周期重构后的常驻恢复仍在 owner 的操作资格内刷新目录 mtime；同 ID 导入重放先释放旧实例，再复用持久化 cwd 重建，普通创建和跨 workspace 重放继续被拒绝。
+回归范围与证据见 `docs/specs/custom-feature-merge-regressions.md`。
+
+旧默认根入口的未指定项目会话（对话工作区）共用 `getConversationWorkspaceDir()` 返回的
 `~/.zcodium/workspace/default` 作为 Agent 执行 cwd（`packages/services/src/paths.ts`）。
 并行会话因此互相看见对方的临时文件、脚本产物与工作区条目。
 
@@ -70,7 +78,7 @@
    （subagent child / workflow actor）没有 record 时按 spawn 捕获的子执行目录投影；旧事件缺席
    该字段时才按父 record 回落（见规则 17 与边界 27）。
 6. 项目工作区会话与 CLI/TUI 独立运行不受影响：没有标记即沿用旧行为（cwd = workspacePath）。
-7. 明确不做：给本地工作区引入 `workspaceIdentity`；每会话一个 workspace tab 或
+7. 本 default 兼容分配器明确不做：给本地工作区引入 `workspaceIdentity`；每会话一个 workspace tab 或
    `workspace_key` 分桶；迁移或重命名对话根下已有文件；修改任务索引、checkpoint、
    automation、手机远控的键（conversation-share 的安全边界键也不改，只有引用解析根按规则 11
    两分）。

@@ -449,8 +449,6 @@ export function modelMessageContentBlockToText(block: ModelMessageContentBlock):
       );
     case "resource_link":
       return `[Resource: ${block.title ?? block.name ?? block.uri}]`;
-    case "tool_reference":
-      return `[Tool reference: ${block.toolName}]`;
   }
 }
 

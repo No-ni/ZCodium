@@ -18,13 +18,13 @@
 
 ## 与 ZCode 原版的关键差异（讽刺的落点）
 
-| 维度 | ZCode 原版 | 本工具 |
-| --- | --- | --- |
-| 上传目标 | 阿里云 OSS（STS 直传） | `http://127.0.0.1:<port>`，默认仅回环 |
+| 维度     | ZCode 原版                       | 本工具                                 |
+| -------- | -------------------------------- | -------------------------------------- |
+| 上传目标 | 阿里云 OSS（STS 直传）           | `http://127.0.0.1:<port>`，默认仅回环  |
 | 加密公钥 | **服务端动态下发**，私钥只在云端 | **本地生成**，私钥落在你自己的状态目录 |
-| 谁能解密 | 只有智谱后端 | **只有你** |
-| 启用方式 | sidecar 无条件实例化，UI 无开关 | 显式 CLI flag / env，**默认关闭** |
-| 披露 | 隐私政策未提及整仓快照 | 本 spec + README 写明全部行为 |
+| 谁能解密 | 只有智谱后端                     | **只有你**                             |
+| 启用方式 | sidecar 无条件实例化，UI 无开关  | 显式 CLI flag / env，**默认关闭**      |
+| 披露     | 隐私政策未提及整仓快照           | 本 spec + README 写明全部行为          |
 
 那张"加密上传"的表象两版完全一致：同样的 AES-256-CTR、同样的信封结构、同样的 `encryptedDataKey`。
 差别只有一处——**私钥在谁手里**。原版是"确保服务端单方面能看"；这里"确保只有你能看"。
@@ -49,9 +49,9 @@
 
 ### 本工具引入的环境变量
 
-| 变量 | 用途 | 缺省 |
-| --- | --- | --- |
-| `ZCODE_PARODY_SNAPSHOT` | 总开关 | 未设置 = 关闭 |
+| 变量                     | 用途                 | 缺省                              |
+| ------------------------ | -------------------- | --------------------------------- |
+| `ZCODE_PARODY_SNAPSHOT`  | 总开关               | 未设置 = 关闭                     |
 | `ZCODE_PARODY_STATE_DIR` | 状态/密钥/产物根目录 | `~/.zcodium/repo-snapshot-parody` |
 
 不用 `setting.json`：见上文第 2 条。端口只用 `--port`，不做成持久化配置。
@@ -122,12 +122,16 @@
 `POST http://127.0.0.1:<port>/snapshot`，`multipart/form-data`。字段名刻意模仿原版的
 OSS 表单，便于并排对比：
 
-| 字段 | 原版 | 本工具 |
-| --- | --- | --- |
-| `key` | OSS object path | `parody/<workspaceHash>/<groupId>.tar.gz.enc` |
-| `policy` / `x-oss-signature` / `x-oss-credential` / `x-oss-security-token` | OSS STS 签名 | 不适用，留空或省略 |
-| `callback` | base64 的 `{callbackUrl, callbackBody}` | 同形状，指向本地 |
-| `success_action_status` | `200` | `200` |
+上传禁止 HTTP 重定向；首地址通过回环校验后，307/308 也只能作为失败响应返回，不能把密文/清单自动转发到另一 origin。CLI 的显式总开关可位于子命令之前或之后，不参与 workspace 参数解析；没有 `--workspace` 时使用 cwd，缺失其值时拒绝，不把其它 flag 当目录。
+
+自举入口使用 package 已声明的本地 tsx loader，再动态加载 CLI；只靠 Node strip-only 无法加载 shared 公开入口中的 TypeScript parameter property，不能宣称零依赖。
+
+| 字段                                                                       | 原版                                    | 本工具                                        |
+| -------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
+| `key`                                                                      | OSS object path                         | `parody/<workspaceHash>/<groupId>.tar.gz.enc` |
+| `policy` / `x-oss-signature` / `x-oss-credential` / `x-oss-security-token` | OSS STS 签名                            | 不适用，留空或省略                            |
+| `callback`                                                                 | base64 的 `{callbackUrl, callbackBody}` | 同形状，指向本地                              |
+| `success_action_status`                                                    | `200`                                   | `200`                                         |
 
 本地接收端 `serve` 把 artifact / envelope / manifest 落盘，并打印**它到底收到了什么**：
 文件数、字节数、前若干条路径。这是整个工具的核心输出——让你直视"服务端当时看到了什么"。
@@ -139,14 +143,14 @@ OSS 表单，便于并排对比：
 
 ## 错误行为
 
-| 情况 | 行为 |
-| --- | --- |
-| 开关未启用 | 退出码 2，stderr 打印"未启用"及启用方式，**不写任何文件** |
-| 目标非回环 | 退出码 2，拒绝。默认只允许 `127.0.0.1` / `::1` / `localhost` |
-| 接收端不可达 | 记 `failureCount += 1`，artifact 留在 `pending/` 等重试；不静默丢弃 |
-| `git` 不可用或非仓库 | 退化为纯文件系统遍历，manifest 标注 `source: "walk"` |
-| 扫描中文件消失 | 跳过该条目，不计失败 |
-| 解密失败 | 退出码 1，打印信封摘要（不含密文），不重试 |
+| 情况                 | 行为                                                                |
+| -------------------- | ------------------------------------------------------------------- |
+| 开关未启用           | 退出码 2，stderr 打印"未启用"及启用方式，**不写任何文件**           |
+| 目标非回环           | 退出码 2，拒绝。默认只允许 `127.0.0.1` / `::1` / `localhost`        |
+| 接收端不可达         | 记 `failureCount += 1`，artifact 留在 `pending/` 等重试；不静默丢弃 |
+| `git` 不可用或非仓库 | 退化为纯文件系统遍历，manifest 标注 `source: "walk"`                |
+| 扫描中文件消失       | 跳过该条目，不计失败                                                |
+| 解密失败             | 退出码 1，打印信封摘要（不含密文），不重试                          |
 
 ## 验收场景
 
@@ -158,3 +162,5 @@ OSS 表单，便于并排对比：
 6. `.git/` 下的文件出现在 manifest 中，且不受 1 MiB 上限约束。
 7. `node_modules/`、`dist/` 不出现在 manifest 中。
 8. 目标设为非回环地址 → 退出码 2。
+9. 接收端返回 307 到另一服务 → 原响应返回失败，第二服务不接收任何请求/正文。
+10. `--parody-snapshot manifest` 与 `manifest --parody-snapshot` 均扫描 cwd；`--workspace` 缺值退出失败。

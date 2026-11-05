@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  assertProjectPath,
+  createProjectTestFixture,
+} from "../../../scripts/ci/project-test-sandbox.mjs";
 import { appSettingsSchema, type ZCodeTaskMeta } from "@zcode/shared";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
-import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import { prepareTasksIndexStorage } from "../src/project-storage/startup.js";
 import { createTaskAutoArchiveMaintenance } from "../src/session/taskAutoArchiveMaintenance.js";
 import { createObservableSettingService } from "../src/setting/observableSettingService.js";
 import { createBroadcastService } from "../src/broadcast/broadcastService.js";
 import type { ISettingService } from "../src/setting/setting.js";
 import { createZCodeTaskServiceAdapter } from "../src/zcode-agent/zcodeTaskServiceAdapter.js";
 import { createZCodeTaskIndexSyncer } from "../src/zcode-agent/zcodeTaskIndexSyncer.js";
+import { createTaskGroupService } from "../src/task-groups/index.js";
 import type { IZCodeAgentService } from "../src/zcode-agent/zcodeAgent.js";
 
 function settingsFixture() {
@@ -245,10 +249,10 @@ test("same-source Hosts receive archive invalidation once; different databases a
 
 test("real SQLite preserves all exclusion conditions, identity, update time and cross-connection idempotency", async (context) => {
   context.mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
-  const dir = await mkdtemp(join(tmpdir(), "zcodium-auto-archive-"));
+  const dir = await createProjectTestFixture("archive-sqlite");
   const path = join(dir, "tasks.sqlite");
-  const first = new TaskIndexRepo(path);
-  const second = new TaskIndexRepo(path);
+  const first = new TaskIndexRepo(undefined, undefined, path);
+  const second = new TaskIndexRepo(undefined, undefined, path);
   const now = Date.now();
   const old = now - 8 * 86400000;
   const meta = (taskId: string, patch: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta => ({
@@ -276,8 +280,21 @@ test("real SQLite preserves all exclusion conditions, identity, update time and 
       { meta: meta("deleted"), deleted: true },
       { meta: meta("archived"), archived: true },
       { meta: meta("remote", { workspaceIdentity: "other" }) },
-    ])
-      await first.syncTaskMeta(entry);
+    ]) {
+      await first.applyCliFacts({
+        meta: entry.meta,
+        deleted: entry.deleted,
+        // 自动归档资格取 CLI 完成事实；运行中且无完成事实不能被当成 completed。
+        lastOutcome: entry.meta.status === "completed" ? "completed" : undefined,
+      });
+      if (!entry.deleted)
+        await first.updateTaskState({
+          workspacePath: entry.meta.workspacePath,
+          workspaceIdentity: entry.meta.workspaceIdentity,
+          taskId: entry.meta.taskId,
+          patch: { pinned: entry.pinned, archived: entry.archived, unreadAt: entry.meta.unreadAt },
+        });
+    }
     const params = { workspacePath: "/closed", olderThanDays: 7 };
     const results = await Promise.all([
       first.archiveStaleTasks(params),
@@ -306,14 +323,15 @@ test("real SQLite preserves all exclusion conditions, identity, update time and 
   } finally {
     first.close();
     second.close();
+    await assertProjectPath(dir);
     await rm(dir, { recursive: true, force: true });
   }
 });
 
 test("task adapter grouped reads are pure; Host maintenance commits before desktop notification and mobile recovery reads", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcodium-archive-adapter-"));
+  const dir = await createProjectTestFixture("archive-adapter");
   const path = join(dir, "tasks.sqlite");
-  const repo = new TaskIndexRepo(path);
+  const repo = new TaskIndexRepo(undefined, undefined, path);
   const agent = { disposeAll() {} } as IZCodeAgentService;
   const syncer = createZCodeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
   const taskService = createZCodeTaskServiceAdapter({
@@ -333,7 +351,8 @@ test("task adapter grouped reads are pure; Host maintenance commits before deskt
   try {
     // 纯读与归档通知测试复用已准备库，不能以旧同步迁移旁路初始化。
     await prepareTasksIndexStorage(path, () => {});
-    await repo.syncTaskMeta({
+    await repo.applyCliFacts({
+      lastOutcome: "completed",
       meta: {
         taskId: "old",
         traceId: "fixture",
@@ -346,7 +365,12 @@ test("task adapter grouped reads are pure; Host maintenance commits before deskt
         updatedAt: 1,
       },
     });
-    await taskService.listGroupedTaskViewStructure({ workspaceScopes: [scope] });
+    const groups = createTaskGroupService({
+      database: () => repo.getOrganizationDatabase(),
+      resolveTasks: async () => [],
+      afterChange: async () => assert.fail("grouped read must not mutate organization"),
+    });
+    await groups.read();
     assert.deepEqual(
       (await taskService.listTasks(scope)).map((x) => x.taskId),
       ["old"],
@@ -366,6 +390,239 @@ test("task adapter grouped reads are pure; Host maintenance commits before deskt
     subscription.dispose();
     (taskService as typeof taskService & { disposeAll(): void }).disposeAll();
     repo.close();
+    await assertProjectPath(dir);
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("closed independent task and project scopes are archived from SQLite without recent or open workspace records", async () => {
+  const dir = await createProjectTestFixture("archive-indexed-scopes");
+  const repo = new TaskIndexRepo(undefined, undefined, join(dir, "tasks.sqlite"));
+  const agent = { disposeAll() {} } as IZCodeAgentService;
+  const syncer = createZCodeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
+  const taskService = createZCodeTaskServiceAdapter({
+    zcodeAgentService: agent,
+    taskIndexRepo: repo,
+    taskIndexSyncer: syncer,
+  });
+  const first = join(dir, "workspaces", "draft-11111111-1111-4111-8111-111111111111");
+  const second = join(dir, "workspaces", "draft-22222222-2222-4222-8222-222222222222");
+  const project = join(dir, "project");
+  const indexed: string[][] = [];
+  const f = fixture({
+    taskService,
+    listLocalWorkspaceScopes: async () => {
+      const scopes = await repo.listLocalWorkspaceScopes();
+      indexed.push(scopes.map((scope) => scope.workspacePath));
+      return scopes;
+    },
+  });
+  const notified: string[] = [];
+  const subscriptions = [first, second, project].map((workspacePath) =>
+    taskService.onDynamicWorkspaceEvent({ workspacePath })((event) => {
+      if (event.type === "workspace_task_list_changed") notified.push(workspacePath);
+    }),
+  );
+  try {
+    await prepareTasksIndexStorage(join(dir, "tasks.sqlite"), () => {});
+    await f.settings.update({ recentProjects: [], lastWorkspaceSession: [] });
+    const projects = await repo.getProjectRepository();
+    const savedProject = projects.saveProject({
+      name: "fixture-project",
+      roots: [project],
+      primaryRoot: project,
+    });
+    const old = Date.now() - 8 * 86400000;
+    for (const [taskId, workspacePath, lastOutcome, workspaceIdentity] of [
+      ["old-a", first, "completed"],
+      ["old-b", second, "completed"],
+      ["project", project, "completed"],
+      ["unread", first, "completed"],
+      ["error", first, "error"],
+      ["pinned", first, "completed"],
+      ["remote", first, "completed", "remote-fixture"],
+      ["remote-only", join(dir, "remote-only"), "completed", "remote-fixture"],
+      ["deleted-only", join(dir, "deleted-only"), "completed"],
+      ["archived-only", join(dir, "archived-only"), "completed"],
+      ["foreign-host", join(dir, "foreign-host"), "completed"],
+    ] as const) {
+      await repo.applyCliFacts({
+        lastOutcome,
+        deleted: taskId === "deleted-only",
+        meta: {
+          taskId,
+          workspacePath,
+          workspaceIdentity,
+          traceId: "fixture",
+          title: taskId,
+          mode: "build",
+          provider: "glm",
+          createdAt: old,
+          updatedAt: old,
+        },
+      });
+      if (taskId === "unread" || taskId === "pinned")
+        await repo.updateTaskState({
+          workspacePath,
+          taskId,
+          patch: taskId === "unread" ? { unreadAt: old } : { pinned: true },
+        });
+      if (taskId === "archived-only")
+        await repo.updateTaskState({ workspacePath, taskId, patch: { archived: true } });
+      if (taskId === "foreign-host")
+        (await repo.getOrganizationDatabase())
+          .prepare("UPDATE tasks SET host_id=? WHERE workspace_key=? AND task_id=?")
+          .run("remote-fixture", workspacePath, taskId);
+    }
+    projects.moveTask({
+      task: { workspacePath: project, taskId: "project" },
+      projectId: savedProject.id,
+    });
+    assert.equal(
+      projects.readTree().tasks.find((task) => task.taskId === "project")?.projectId,
+      savedProject.id,
+    );
+    await f.maintenance.start();
+    assert.deepEqual(
+      (await repo.listTaskMetas({ archived: true })).map((row) => row.taskId).sort(),
+      ["archived-only", "old-a", "old-b", "project"],
+    );
+    assert.deepEqual(indexed, [[first, second, project].sort()]);
+    assert.deepEqual(notified.sort(), [first, second, project].sort());
+    assert.equal(
+      (await repo.getTaskMeta({ workspacePath: first, taskId: "old-a" }))?.updatedAt,
+      old,
+    );
+    assert.deepEqual(
+      await repo.listTaskMetas({
+        workspacePath: first,
+        workspaceIdentity: "remote-fixture",
+        archived: true,
+      }),
+      [],
+    );
+    // 手机离线期间没有通知；恢复直接读取同一归档集合，不能重新显示已归档任务。
+    subscriptions.forEach((subscription) => subscription.dispose());
+    assert.deepEqual(
+      (await taskService.listTasks({ workspacePath: second })).map((row) => row.taskId),
+      [],
+    );
+    assert.deepEqual(
+      (await taskService.listArchivedTasks({ workspacePath: second })).map((row) => row.taskId),
+      ["old-b"],
+    );
+  } finally {
+    await f.maintenance.disposeAndWait();
+    subscriptions.forEach((subscription) => subscription.dispose());
+    (taskService as typeof taskService & { disposeAll(): void }).disposeAll();
+    repo.close();
+    await assertProjectPath(dir);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a resumed active task keeps its old completed fact but is protected at the SQL commit boundary", async () => {
+  const dir = await createProjectTestFixture("archive-active-boundary");
+  const database = join(dir, "tasks.sqlite");
+  const repo = new TaskIndexRepo(undefined, undefined, database);
+  const agent = { disposeAll() {} } as IZCodeAgentService;
+  const syncer = createZCodeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
+  let active: ReturnType<typeof syncer.activeTaskRefs> = [];
+  const taskService = createZCodeTaskServiceAdapter({
+    zcodeAgentService: agent,
+    taskIndexRepo: repo,
+    taskIndexSyncer: { ...syncer, activeTaskRefs: () => active },
+  });
+  const scope = { workspacePath: dir };
+  try {
+    await prepareTasksIndexStorage(database, () => {});
+    await repo.applyCliFacts({
+      lastOutcome: "completed",
+      meta: {
+        taskId: "resumed",
+        traceId: "fixture",
+        ...scope,
+        title: "resumed",
+        provider: "glm",
+        mode: "build",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    });
+    const pending = taskService.archiveStaleTasks({ ...scope, olderThanDays: 7 });
+    active = [{ ...scope, taskId: "resumed" }];
+    assert.deepEqual(
+      await pending,
+      [],
+      "an active observation made while Repo awaits preparation must protect the task",
+    );
+    assert.deepEqual(await repo.listTaskMetas({ ...scope, archived: true }), []);
+    active = [{ ...scope, workspaceIdentity: "other-host", taskId: "resumed" }];
+    assert.deepEqual(
+      (await taskService.archiveStaleTasks({ ...scope, olderThanDays: 7 })).map(
+        (row) => row.taskId,
+      ),
+      ["resumed"],
+    );
+    assert.equal((await repo.getTaskMeta({ ...scope, taskId: "resumed" }))?.updatedAt, 1);
+  } finally {
+    (taskService as typeof taskService & { disposeAll(): void }).disposeAll();
+    repo.close();
+    await assertProjectPath(dir);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("indexed scope reads are fenced by settings changes and Host disposal", async () => {
+  for (const stop of ["disable", "dispose"] as const) {
+    const entered = deferred();
+    const release = deferred();
+    let readStarted = false;
+    const f = fixture({
+      listLocalWorkspaceScopes: async () => {
+        readStarted = true;
+        entered.resolve();
+        await release.promise;
+        return [{ workspacePath: "/closed-independent" }];
+      },
+    });
+    const startup = f.maintenance.start();
+    try {
+      await Promise.race([entered.promise, startup]);
+      assert.equal(readStarted, true, "the scan must read the indexed workspace source");
+      if (stop === "disable") await f.settings.update({ taskAutoArchiveEnabled: false });
+      else f.maintenance.dispose();
+      release.resolve();
+      await startup;
+      assert.equal(f.calls.length, 0);
+    } finally {
+      release.resolve();
+      await f.maintenance.disposeAndWait();
+    }
+  }
+});
+
+test("indexed scope failure preserves old known scopes and foreign identities never enter local routing", async () => {
+  for (const listLocalWorkspaceScopes of [
+    async () => {
+      throw new Error("fixture-private-path");
+    },
+    async () => [
+      { workspacePath: "/closed", workspaceIdentity: "other-host" },
+      { workspacePath: "/closed" },
+      { workspacePath: "/closed" },
+    ],
+  ]) {
+    const f = fixture({ listLocalWorkspaceScopes });
+    try {
+      await f.maintenance.start();
+      assert.deepEqual(
+        f.calls.map((scope) => scope.workspacePath),
+        ["/closed", "/conversation"],
+      );
+      assert.ok(f.calls.every((scope) => !scope.workspaceIdentity));
+    } finally {
+      await f.maintenance.disposeAndWait();
+    }
   }
 });

@@ -2,13 +2,14 @@
  * 清理执行器：枚举候选（递归 / 非递归两种范围）与有界并发删除。
  * 删除后自底向上移除变空的目录，但保留 keepDirectories（类别顶层目录），写入方不必重新 mkdir。
  */
-import { lstat, readdir, rm, rmdir } from "node:fs/promises";
-import { dirname, join, relative, sep } from "node:path";
+import { readdir, rm, rmdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { FsCleanerPort, StorageDeleteResult } from "../app/ports.js";
 import type { StorageCleanCandidate } from "../domain/cleanPlan.js";
 import type { StorageCleanScope } from "../domain/storageCatalog.js";
 import { normalizeStorageRelativePath } from "../domain/storageCatalog.js";
 import { walkStorageRoot } from "./fsWalker.js";
+import { assertUnlinkedStoragePath } from "./fsBoundary.js";
 
 const DELETE_CONCURRENCY = 8;
 
@@ -22,6 +23,7 @@ async function listShallow(rootPath: string, prefix: string): Promise<StorageCle
   const directoryPath = join(rootPath, prefix);
   let names: string[];
   try {
+    await assertUnlinkedStoragePath(rootPath, directoryPath);
     names = await readdir(directoryPath);
   } catch {
     return [];
@@ -29,7 +31,7 @@ async function listShallow(rootPath: string, prefix: string): Promise<StorageCle
   const candidates: StorageCleanCandidate[] = [];
   for (const name of names) {
     try {
-      const stats = await lstat(join(directoryPath, name));
+      const stats = await assertUnlinkedStoragePath(rootPath, join(directoryPath, name));
       if (!stats.isFile()) continue;
       candidates.push({
         relativePath: `${prefix}/${name}`,
@@ -69,7 +71,10 @@ async function pruneEmptyParents(
   }
   const ordered = [...directories].sort((a, b) => b.split("/").length - a.split("/").length);
   for (const directory of ordered) {
-    await rmdir(join(rootPath, directory)).catch(() => {});
+    const path = join(rootPath, directory);
+    await assertUnlinkedStoragePath(rootPath, path)
+      .then(() => rmdir(path))
+      .catch(() => {});
   }
 }
 
@@ -101,12 +106,13 @@ export function createFsStorageCleaner(): FsCleanerPort {
         for (let target = queue[nextTarget++]; target; target = queue[nextTarget++]) {
           const relativePath = normalizeStorageRelativePath(target.relativePath);
           const absolutePath = join(rootPath, relativePath);
-          const back = relative(rootPath, absolutePath);
-          if (back.startsWith("..") || back.split(sep).includes("..")) {
-            result.failures.push({ path: relativePath, code: "EOUTSIDE" });
-            continue;
-          }
           try {
+            // 候选只证明枚举时的路径；删除前重新核对祖先，避免链接目标被误删。
+            const info = await assertUnlinkedStoragePath(rootPath, absolutePath);
+            if (!info.isFile()) {
+              result.failures.push({ path: relativePath, code: "EISDIR" });
+              continue;
+            }
             await rm(absolutePath, { force: false });
             result.deletedCount += 1;
             result.freedBytes += target.bytes;

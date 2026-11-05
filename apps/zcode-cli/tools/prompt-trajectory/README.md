@@ -7,17 +7,16 @@ The tool runs under `tools/` and stays outside production CLI and SEA packaging.
 
 ```bash
 pnpm --filter @zcode/prompt-trajectory derive -- \
-  --input /path/to/existing-trajectory.jsonl \
-  --out /tmp/zcode-prompt-trajectory/converted
+  --input ./fixtures/existing-trajectory.jsonl \
+  --out ./out/converted
 
 pnpm --filter @zcode/prompt-trajectory model-io -- \
-  --input /path/to/existing-model-io.jsonl \
-  --out /tmp/zcode-prompt-trajectory/converted-model-io
+  --input ./fixtures/existing-model-io.jsonl \
+  --out ./out/converted-model-io
 ```
 
-Both commands require an explicit input file. `derive` accepts
-`--reference-request <path>` to copy an existing reference into
-`<out>/raw/reference-request-body.raw.json`.
+Both commands require an explicit input file and an output directory.
+Recording and live Provider proxy commands have been removed.
 
 The converter writes a manifest and OpenAI-compatible and Anthropic request
 snapshots under `<out>/trajectories`. Model-IO conversion also writes

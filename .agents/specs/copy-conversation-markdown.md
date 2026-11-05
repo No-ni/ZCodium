@@ -2,6 +2,8 @@
 
 ## 产品规则
 
+2026-11 合并回归：恢复 `TaskActionMenuContent` 对现有 `onCopyMarkdown`、pending、available 的消费；菜单真实交互沿用浏览器 smoke 验证，不以 hook 文件存在当作入口已接线。
+
 - 仅在顶部会话菜单的「复制会话 ID」之后添加「复制为 Markdown」。复用现有菜单、双语文案和 toast。
 - 一次点击复制当前有效分支的全部已保存消息，不依赖 renderer 已加载的尾窗，不保存文件、不发布分享。
 - 标题为一级标题；用户消息与助手正文使用角色标题，保留原有 Markdown。工具输入/结果、可见思考、子任务摘要、Hook 执行和重要事件使用默认折叠的 details。

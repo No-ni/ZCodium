@@ -1,5 +1,32 @@
 # Conversation Session E2E Coverage Matrix
 
+## CUSTOM-MERGE：定制功能合并回归（2026-11-05）
+
+| 范围                                      | 状态                | 验证入口                                                                     |
+| ----------------------------------------- | ------------------- | ---------------------------------------------------------------------------- |
+| CUSTOM-MERGE-01 顶部 Markdown 菜单        | passed 44 + 时序    | `scripts/ci/copy-conversation-markdown-smoke.mjs`                            |
+| CUSTOM-MERGE-02 共享 CLI、独立 cwd 与恢复 | passed source/CLI   | `scripts/ci/conversation-workspace-spawn-env.test.mjs`、真实 CLI A1-shared   |
+| CUSTOM-MERGE-03/04 文件树与配置菜单       | passed 64 + 文件树  | `scripts/ci/custom-feature-menus-smoke.mjs`，项目内 Electron 内核 React 夹具 |
+| CUSTOM-MERGE-05 实际父 record 回调继承    | passed source       | `apps/zcode-cli/packages/bootstrap/test/tool-search-preferences.test.ts`     |
+| CUSTOM-MERGE-06 常驻恢复保活              | passed source/owner | 目录规则 63 项、生命周期 16 项                                               |
+| CUSTOM-MERGE-07 导入重放与 cwd            | passed CLI/owner    | 真实 CLI A8/A12/A13、生命周期拒绝竞争重建                                    |
+| 打包桌面、手机与远端真机                  | not-run             | 工程验证不替代真机证据                                                       |
+
+本轮日志与环境限制见 [修复 spec 的执行结果](../specs/custom-feature-merge-regressions.md#执行结果2026-11-05)。未把 source wiring 或夹具验证升级为正式桌面 E2E admission。
+
+## CR：项目 Recent 写读与接纳恢复（2026-11-05）
+
+| 范围                                                  | 当前状态          | 验证入口                                                                                           |
+| ----------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
+| CR01/02/04/08 桌面首发、续发切模、P/Q、迟到 ACK、草稿 | blocked before UI | `packages/desktop/test/e2e/conversation-session/conversation-session-composer-recent-mode.test.ts` |
+| CR01–09 工程接纳、初始化与 E2E helper                 | passed 21/21      | `scripts/ci/composer-recent-scope-regression.test.mjs`                                             |
+| CR09 分享组件 Recent 390/1200                         | blocked before UI | `packages/ui/test/browser/manual-review/pending/share-import-selection.test.mjs`                   |
+| CR07 手机、不同远端真机                               | not-run           | 共享代码的工程隔离断言不代表手机真机或远端端到端                                                   |
+
+具体 accepted 场景与日志见 [修复 spec](../specs/composer-recent-scope-regression.md#本轮验证)。工程证据为
+`.run-logs/project-only-validation/source-tests-3ajy5T/logs/source-tests.log`，相邻 21 项也通过；类型、Lint、架构与 fixture 检查通过。
+Desktop 在 Electron 安装准备时失败；分享组件在 Chrome 远程调试启动时失败；两者均未执行 UI 断言，不计完整 E2E 覆盖。
+
 ## 会话 ID 兼容 SID（2026-10-28）
 
 SID01–SID05 已接受，候选：
@@ -3877,15 +3904,33 @@ PJM07（pending，2026-10-24）：确认对话框勾选「同时删除它们的 
 
 合同见 virtual-project-design 的“当前任务元数据与自动归档收尾”。pending case：`packages/desktop/test/e2e/conversation-session/conversation-session-active-task-metadata.test.ts`，只创建隔离 HOME 历史 fixture，不请求模型；不晋升 formal。
 
-| Case  | 设置 → 动作 → 断言                                                                                                                                                                            | 状态                                             |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| AMT01 | CLI 持久化冷历史 + Host 标题 → 侧栏打开 → 真实正文和标题，详情不读取 active runtime 标题                                                                                                      | accepted，unit + pending E2E                     |
-| AMT02 | 28 天前已读/未读/置顶 + 6 天前未读 → 开启七天归档 → Host 设置变更扫描纯按时间归档已读与未读旧任务并离开列表，置顶与 6 天前保留；点开 6 天前那条 → 只清未读，保持打开且在列（2026-09-15 改写） | accepted，unit + pending E2E                     |
-| AMT03 | 首次已归档/离线缺行/乱序树 → 刷新 → 不误清显式打开历史或当前任务                                                                                                                              | accepted，unit                                   |
-| AMT04 | 同路径/ID不同远端 identity + rename/切换 → 延迟响应 → 不串标题，Host 权威更新生效                                                                                                             | accepted，unit；真实手机/远端 GUI 待验           |
-| AMT05 | 旧配置开启且无重置标记 → 冷启动 → 开关关闭、保留天数与旧会话；用户重新开启 → 归档超期会话；再次冷启动 → 保持开启（2026-10-14）                                                                | accepted，unit + pending E2E；复用 AMT02 fixture |
+| Case  | 设置 → 动作 → 断言                                                                                                                                                                   | 状态                                             |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| AMT01 | CLI 持久化冷历史 + Host 标题 → 侧栏打开 → 真实正文和标题，详情不读取 active runtime 标题                                                                                             | accepted，unit + pending E2E                     |
+| AMT02 | 28 天前已读/未读/置顶 + 6 天前未读 → 开启七天归档 → 超期已读 completed 离开列表，未读与置顶及 6 天前任务保留；点开 6 天前那条 → 只清未读，保持打开且在列（2026-11-05 fork 资格对齐） | accepted，source + pending E2E                   |
+| AMT03 | 首次已归档/离线缺行/乱序树 → 刷新 → 不误清显式打开历史或当前任务                                                                                                                     | accepted，unit                                   |
+| AMT04 | 同路径/ID不同远端 identity + rename/切换 → 延迟响应 → 不串标题，Host 权威更新生效                                                                                                    | accepted，unit；真实手机/远端 GUI 待验           |
+| AMT05 | 旧配置开启且无重置标记 → 冷启动 → 开关关闭、保留天数与旧会话；用户重新开启 → 归档超期会话；再次冷启动 → 保持开启（2026-10-14）                                                       | accepted，unit + pending E2E；复用 AMT02 fixture |
 
 AMT 验证：4 个相关单测文件 / 15 项通过；桌面 E2E `desktop-e2e-20260911073739200-p10328-ec7ec1db666a0f0c` 2/2 通过，真实历史正文/标题及开启归档后的列表、选中态、另一条同名未读均验证。Host getTaskMeta 0.4ms 完成早于 V4 冷恢复约 1 秒，日志无标题 readSession 请求。root typecheck、desktop typecheck:e2e、fixture check、格式检查、lint（48 个既有 warnings / 0 errors）、architecture（baseline 0 / new 0）通过。代码涉及 ui 与 project-sidebar，CLI/Host 事实归属、owner/lease、continuous/replayable 边界不变；实现净减约 50 行。真实手机配对、SSH/WSL、Windows/Linux GUI 未复跑，远端身份与 attachment 迟到结果由单测覆盖。保持 pending。
+
+2026-11-05 fork 裁决：AMT02 的当前资格见 [自动归档规则](../specs/task-auto-archive.md)。默认关闭 / 7 天沿用当前 schema，已有天数不改写。AMT02 已对齐未读保护断言但未运行 Electron；历史官方 E2E 和 ARM07 默认 30 天不能计为本 fork 当前验收。
+
+### 定制自动归档接线复查（CFA）
+
+accepted，工程回归已运行；UI E2E 保持 partial / pending-review。规格见 [后续复查](../specs/custom-feature-followup-audit.md)。最终定制 source 为 `.run-logs/project-only-validation/source-tests-72VxOW/logs/source-tests.log`，外层 233/233。归档定向证据为 `source-tests-hhPxWF/logs/source-tests.log`（外层 2/2）及其 `children/source-tests-JL1gyX/logs/source-tests.log`（内层 16/16，其中 services 13 项）；wrapper 和内层不重复相加。
+
+| Case  | 已运行证据                                                                | 未运行边界                                |
+| ----- | ------------------------------------------------------------------------- | ----------------------------------------- |
+| CFA01 | Host 接线检查：一个 maintenance 与实际索引来源                            | 完整 Host/Electron 启动                   |
+| CFA02 | 真实 SQLite 三个关闭目录、资格排除、去重、提交后通知                      | 独立目录/归档管理完整 UI、实体远端        |
+| CFA03 | 真实 SQLite 与 adapter：await 后读取 active 端口、identity 隔离、时间不变 | 真实模型运行/跨 Host 活动窗口             |
+| CFA04 | 读取屏障下 disable/dispose，无新提交；来源失败及错误 remote scope         | 原生窗口退出与远端网络故障                |
+| CFA05 | adapter 提交后通知及断线读取；wrapper 的本地/远端 Controller 恢复         | 完整 Electron、实体手机配对与真实 SSH/WSL |
+
+不晋升 formal/CI。旧 AMT02 候选路径保留，未把断言修改或源码/协议通过写成端到端验收。
+
+AMT02 当前类型及 fixture 检查均 exit 0，日志为 `custom-second-gates-Kia75g/logs/e2e-typecheck.log` 与 `e2e-fixture.log`；Electron 未运行。无预设 sandbox root 的归档 CI 入口外层 2/2，日志为 `custom-second-standalone-archive-fhFWmz/logs/standalone-archive.log`。上述日志根目录均为 `.run-logs/project-only-validation/`。
 
 ## Start Plan bucket 提醒
 
@@ -5889,6 +5934,24 @@ Windows/Linux 原生桌面、其他远端平台或正式安装器验收。候选
 | RRI08 | 长历史查找匹配数、首次定位和上下项正确；普通构建采集 CPU 与布局测量                                                                  | PERF04：首次定位、多命中上下项、单命中离窗回环与可选耗时预算；RRI08 浏览器：历史修订、评论投影、单行大量命中遍历预算、CR-01 无 Range 请求终止及未挂载正例 |
 
 规格：[消息渲染性能](../chat/message-render-performance.md)。浏览器路径相对于 `packages/ui/test`；手机布局不等同于远程传输，未运行平台不记为通过。
+
+## 无项目任务目录一致性（PTW）
+
+行为 accepted，规则、执行日志与剪枝见 [spec](../specs/projectless-task-workspaces.md)。新候选 `manual-review/pending/conversation-session-projectless-workspace.test.ts` 保持 pending；人工转正与本轮执行证据独立。下列 covered 仅指列出的验证层，未运行的平台和断言不记 covered。
+
+| Case  | 状态                     | 本轮执行与边界                                                                                                                  |
+| ----- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| PTW01 | covered / pending-review | Windows Electron 空启动独立 task、可输入、无 default tab；源码启动门禁通过                                                      |
+| PTW02 | covered / pending-review | Windows 任务加号/全局主按钮/原生快捷键保留草稿与 high 档位，A/B 文件隔离；源码首发 ACK/query/snapshot、附件/Goal 与拒绝重试通过 |
+| PTW03 | covered / pending-review | Windows 重启恢复旧记录中的两个原目录并续聊；新活动记录、迟到准备与设置页/项目/卸载隔离由源码验证                                |
+| PTW04 | covered / pending-review | Windows 真实 CLI 生成 task 本地文件，Host 展示；可信 session 与旧全局读取由文件/源码验证                                        |
+| PTW05 | covered / pending-review | 路径/文件/真实 spawn 验证项目、remote identity、根外输出和拒绝 sibling/缺席/非法文件/链接；未实跑 SSH                           |
+| PTW06 | partial / pending-review | 真实 spawn 3/3、共享 CLI 双 scope/冷恢复/fork 1/1，无嵌套；项目移动与子代理运行未实跑，继承规则仅源码覆盖                       |
+| PTW07 | covered / pending-review | Windows 移动待发送目录后新建报错，保留正文与目录引用、不 mkdir；源码同边界通过                                                  |
+
+2026-11-05：PTW 源码 39/39，Recent 21/21，既有创建/模型回归 21/21；根 typecheck、lint、architecture changed、桌面 typecheck:e2e、范围格式和 fixture contract 均通过。Windows run 为 `ptw-093f115e-5364-4e73-860e-15eae2b447bb`，综合用例 1/1，构建 `fresh-stable`；日志与截图见 spec。CLI 首次组合批次有旧 PTW06 夹具断言失败，修正可选字段读取后单项复跑通过，不将原整批描述为通过。
+
+手机同 runtime 的 STCLI07 保留原证据；本轮不扩大远端无项目入口，不宣称新增实体手机/macOS 验收。
 
 ## 无项目工作区共享 CLI（STCLI）
 

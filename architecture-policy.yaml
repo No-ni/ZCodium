@@ -1297,6 +1297,116 @@ modules:
       domain: .
     owner: agent-config
 
+  # 首次修改官方继承代码后登记；复用现有输出样式服务合同与持久化 owner。
+  - id: output-style
+    roots: [packages/services/src/output-style]
+    managed: true
+    requires: [services, shared]
+    publicEntrypoints:
+      [
+        packages/services/src/output-style/index.ts,
+        packages/services/src/output-style/contract.ts,
+        packages/services/src/output-style/outputStyle.ts,
+      ]
+    layers: { adapters: "." }
+    owner: desktop-settings
+  # 开发文档未迁移的静态数据和地图所有者；UI/Vite实际入口由下方受管模块接管。
+  - id: dev-docs-legacy
+    roots:
+      - apps/dev-docs
+    managed: false
+    publicEntrypoints:
+      - apps/dev-docs/src/data/protocolDocs.ts
+      - apps/dev-docs/src/data/featureBoundaryGraphSource.ts
+      - apps/dev-docs/src/capability-map/CapabilityMapView.tsx
+      - apps/dev-docs/src/feature-boundary-graph/FeatureBoundaryGraphView.tsx
+    owner: developer-tools
+  # stream-animate：由 architecture:adopt 登记
+  - id: stream-animate
+    roots:
+      - packages/stream-animate/src
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/stream-animate/src/index.ts
+      - packages/stream-animate/src/contract.ts
+      - packages/stream-animate/src/shared/types.ts
+    layers:
+      contract: contract.ts
+      domain: shared
+      adapters: server
+      ui: .
+    owner: developer-tools
+    layerOrder:
+      - contract
+      - domain
+      - adapters
+      - ui
+  # e2e-report：由 architecture:adopt 登记
+  - id: e2e-report
+    roots:
+      - packages/e2e-report/src
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/e2e-report/src/index.ts
+      - packages/e2e-report/src/contract.ts
+      - packages/e2e-report/src/node/index.ts
+      - packages/e2e-report/src/shared/types.ts
+    layers:
+      contract: contract.ts
+      domain: shared
+      adapters: node
+      ui: .
+    owner: developer-tools
+    layerOrder:
+      - contract
+      - domain
+      - adapters
+      - ui
+  # dev-docs-view：由 architecture:adopt 登记
+  - id: dev-docs-view
+    roots:
+      - apps/dev-docs/src/docs-view
+      - apps/dev-docs/src/App.tsx
+    managed: true
+    requires:
+      - dev-docs-legacy
+    publicEntrypoints:
+      - apps/dev-docs/src/docs-view/index.ts
+      - apps/dev-docs/src/docs-view/contract.ts
+      - apps/dev-docs/src/App.tsx
+    layers:
+      contract: contract.ts
+      domain: domain
+      adapters: adapters
+      ui: .
+    owner: developer-tools
+    layerOrder:
+      - contract
+      - domain
+      - adapters
+      - ui
+  # dev-docs-vite-adapters：由 architecture:adopt 登记
+  - id: dev-docs-vite-adapters
+    roots:
+      - apps/dev-docs/vite-adapters
+      - apps/dev-docs/vite.config.ts
+    managed: true
+    requires:
+      - dev-docs-legacy
+    publicEntrypoints:
+      - apps/dev-docs/vite-adapters/index.ts
+      - apps/dev-docs/vite-adapters/contract.ts
+      - apps/dev-docs/vite.config.ts
+    layers:
+      contract: contract.ts
+      adapters: .
+    owner: developer-tools
+    layerOrder:
+      - contract
+      - adapters
+
 global:
   acceptedUpstreamCommits:
     - commit: a60ba6a7e5a06742270ca605f5d2cc2766afa7e1

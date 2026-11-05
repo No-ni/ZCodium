@@ -216,7 +216,12 @@ export class PersistentProtocol implements IMessagePassingProtocol, ConnectionFl
 
       switch (type) {
         case ProtocolMessageType.Regular:
-          this.incomingAckId = id;
+          // 断线前 ACK 可能未送达，重连会重放已收帧；只投递新的有序 ID，避免重复调用和 ACK 倒退。
+          // SocketProtocol 的 ID=0 不参与可靠序号，仍独立投递且不覆盖当前累计 ACK。
+          if (id !== 0) {
+            if (id <= this.incomingAckId) break;
+            this.incomingAckId = id;
+          }
           this._onMessage.fire(body);
           break;
         case ProtocolMessageType.Ack:

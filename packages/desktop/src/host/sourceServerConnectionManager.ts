@@ -379,7 +379,7 @@ export class SourceServerConnectionManager {
         ),
       );
       // 已离线连接也可能仍在释放 transport；退出不能只等待 online map 的剩余对象。
-      await Promise.allSettled([...this.activeDisposals]);
+      await Promise.allSettled(Array.from(this.activeDisposals));
       this.online.clear();
       this.changes.dispose();
     })();

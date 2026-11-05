@@ -1,5 +1,7 @@
 import { lstat, mkdir, mkdtemp, realpath } from "node:fs/promises";
 import { isAbsolute, join, parse, relative, resolve, sep } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 export const projectRoot = resolve(import.meta.dirname, "../..");
 export const projectValidationRoot = join(projectRoot, ".run-logs", "project-only-validation");
@@ -141,4 +143,35 @@ export async function createProjectTestFixture(label, env = process.env) {
   await ensureDirectory(parent);
   const path = await mkdtemp(join(parent, `${label}-`));
   return assertProjectPath(path);
+}
+
+/** Node permission 模式禁止 symlink；固定子进程只执行已验证的夹具两端，不扩大父进程写白名单。 */
+export async function createProjectTestSymlink(target, path, type, env = process.env) {
+  const sandbox = await boundSandbox(env);
+  const linkPath = await assertProjectPath(resolve(path));
+  const targetPath = await assertProjectPath(resolve(parse(linkPath).dir, target));
+  if (!contained(sandbox, linkPath) || !contained(sandbox, targetPath)) throw rejected();
+  if (type !== undefined && type !== "dir" && type !== "file") throw rejected();
+  const run = promisify(execFile);
+  // Windows 使用 PowerShell 7 的 .NET API，支持悬空目标；操作数仅由已校验 env 传递。
+  if (process.platform === "win32") {
+    await run(
+      "pwsh.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        type === "dir"
+          ? "[System.IO.Directory]::CreateSymbolicLink($env:PROJECT_TEST_LINK_PATH, $env:PROJECT_TEST_LINK_TARGET) | Out-Null"
+          : "[System.IO.File]::CreateSymbolicLink($env:PROJECT_TEST_LINK_PATH, $env:PROJECT_TEST_LINK_TARGET) | Out-Null",
+      ],
+      {
+        windowsHide: true,
+        env: { ...env, PROJECT_TEST_LINK_PATH: linkPath, PROJECT_TEST_LINK_TARGET: targetPath },
+      },
+    );
+  } else {
+    await run("ln", ["-s", "--", targetPath, linkPath], { env });
+  }
+  if (!(await lstat(linkPath)).isSymbolicLink()) throw rejected();
 }

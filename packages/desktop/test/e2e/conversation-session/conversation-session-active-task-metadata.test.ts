@@ -1,13 +1,14 @@
 import { DatabaseSync } from "node:sqlite";
 import { basename, join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
+import { assertProjectPath } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 import { TID_TASK_SETTINGS_BUTTON, TID_SETTINGS_BACK_BUTTON } from "@zcode/shared/test-ids";
 import { DEFAULT_WORKSPACE, waitForWorkspaceApp } from "../helpers/desktop-app.js";
 import { restartIntoWorkspacePreservingProfile } from "#e2e/helpers/model-provider-restart-runtime";
 
 const home = process.env.ZCODE_E2E_HOME_DIR!;
 const DAY = 86_400_000;
-// 2026-09-15 裁决：自动归档纯按最后活动时间，置顶与运行中除外；未读、error 不再保护旧任务。
+// 合并回归原因：官方纯时间断言会把 fork 的未读保护判成错误；资格以 task-auto-archive spec 为准。
 const fixtures = [
   { id: "sess_e2e_amt_cold", title: "E2E_AMT_COLD_TITLE", age: 100_000, unread: false, pinned: 0 },
   { id: "sess_e2e_amt_old_read", title: "E2E_AMT_1111", age: 28 * DAY, unread: false, pinned: 0 },
@@ -65,6 +66,14 @@ describe("当前任务元数据与自动归档", () => {
     // 原因：批量 runner 使用 runId 隔离 HOME，不能只接受早期手工回放的目录名。
     if (!home || !/^(?:zcode-active-task-e2e-|\.e2e-home-)/u.test(basename(home)))
       throw new Error("isolated active-task HOME required");
+    // 目录名不足以证明隔离；SQLite、设置和截图路径还必须留在当前工作树且不穿过链接。
+    await Promise.all([
+      assertProjectPath(DEFAULT_WORKSPACE),
+      assertProjectPath(join(home, ".zcodium/v2/tasks-index.sqlite")),
+      assertProjectPath(join(home, ".zcodium/cli/db/db.sqlite")),
+      assertProjectPath(join(home, ".zcodium/v2/setting.json")),
+      assertProjectPath(process.env.ZCODE_E2E_ARTIFACT_DIR!),
+    ]);
     await waitForWorkspaceApp(DEFAULT_WORKSPACE, 45_000);
     const db = new DatabaseSync(join(home, ".zcodium/v2/tasks-index.sqlite"));
     const cli = new DatabaseSync(join(home, ".zcodium/cli/db/db.sqlite"));
@@ -188,18 +197,17 @@ describe("当前任务元数据与自动归档", () => {
         JSON.parse(await readFile(join(home, ".zcodium/v2/setting.json"), "utf8"))
           .taskAutoArchiveEnabled === true,
     );
-    // 设置变更触发 Host 补扫：28 天前的已读与未读任务都归档，置顶与保留期内的不动。
-    await browser.waitUntil(
-      () => facts(oldRead).archived === 1 && facts(oldUnread).archived === 1,
-      { timeout: 15_000 },
-    );
+    // 本 fork 只归档超期已读 completed；保留同名未读任务，避免合并后的第二套计时器绕过保护。
+    await browser.waitUntil(() => facts(oldRead).archived === 1, { timeout: 15_000 });
+    expect(facts(oldUnread).archived).toBe(0);
     expect(facts(oldUnread).unread_at).not.toBeNull();
     expect(facts(oldPinned)).toMatchObject({ archived: 0, pinned: 1 });
     expect(facts(recent).archived).toBe(0);
     expect(facts(cold).archived).toBe(0);
     await $(`[data-testid="${TID_SETTINGS_BACK_BUTTON}"]`).click();
     await item(oldRead).waitForExist({ reverse: true, timeout: 15_000 });
-    await item(oldUnread).waitForExist({ reverse: true, timeout: 15_000 });
+    await revealProject(oldUnread);
+    expect(await item(oldUnread).isDisplayed()).toBe(true);
     await revealProject(recent);
     await item(recent).click();
     await browser.waitUntil(async () => (await header().getText()).includes("E2E_AMT_RECENT"), {

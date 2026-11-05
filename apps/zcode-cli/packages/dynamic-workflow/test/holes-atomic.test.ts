@@ -40,7 +40,8 @@ it("atomic fill failure preserves durable script/events, engine tables and parke
   });
   const before = {
     run: journal.getRun(config.runId),
-    events: journal.listEvents(config.runId),
+    // journal 新接口要求显式选取事件与报告范围，原子性比较仍保留完整事件历史。
+    events: journal.listEvents(config.runId, { types: "all", reportItems: "all" }),
     open: engine.openHoles(),
   };
   const fill: HoleFill = {
@@ -56,7 +57,10 @@ it("atomic fill failure preserves durable script/events, engine tables and parke
   await Promise.resolve();
   assert.equal(released, false);
   assert.deepEqual(journal.getRun(config.runId), before.run);
-  assert.deepEqual(journal.listEvents(config.runId), before.events);
+  assert.deepEqual(
+    journal.listEvents(config.runId, { types: "all", reportItems: "all" }),
+    before.events,
+  );
   assert.deepEqual(engine.openHoles(), before.open);
   assert.deepEqual(engine.filledHoles(), []);
   const tables = engine as unknown as { askSpecs: unknown; sitePhases: unknown };
@@ -72,7 +76,7 @@ it("atomic fill failure preserves durable script/events, engine tables and parke
   assert.equal(tables.askSpecs, fill.askSpecs);
   assert.equal(tables.sitePhases, fill.sitePhases);
   const fills = journal
-    .listEvents(config.runId)
+    .listEvents(config.runId, { types: "all", reportItems: "all" })
     .filter((entry) => entry.event.type === "hole-filled");
   assert.equal(fills.length, 1);
   assert.equal(result.commitSequence, fills[0]?.sequence);

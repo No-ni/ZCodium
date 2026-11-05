@@ -1,25 +1,29 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ViteDevServer } from "vite";
+import type { StreamAnimateServerHandle, StreamAnimateServerOptions } from "../contract.js";
 import type { ChatMessageInput, RunRequestInput, RunSummary } from "../shared/types.js";
-import { DATA_DIR_NAME, createRunId, listRuns, readRawLines, readRun, writeRunSummary } from "./dataStore.js";
+import {
+  DATA_DIR_NAME,
+  createRunId,
+  listRuns,
+  readRawLines,
+  readRun,
+  writeRunSummary,
+} from "./dataStore.js";
 import { executeDeepseekRun } from "./deepseekRunner.js";
 
 const DEFAULT_BASE_URL = "https://api.deepseek.com/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-pro";
 
-interface ServerOptions {
-  dev: boolean;
-  packageRoot: string;
-  port: number;
-}
-
 const activeRuns = new Map<string, RunSummary>();
 
-export async function startStreamAnimateServer(options: ServerOptions) {
+export async function startStreamAnimateServer(
+  options: StreamAnimateServerOptions,
+): Promise<StreamAnimateServerHandle> {
   const vite = options.dev ? await createViteServer(options.packageRoot) : null;
   const server = createServer(async (request, response) => {
     try {
@@ -39,7 +43,9 @@ export async function startStreamAnimateServer(options: ServerOptions) {
     }
   });
 
-  await new Promise<void>((resolveServer) => server.listen(options.port, "127.0.0.1", resolveServer));
+  await new Promise<void>((resolveServer) =>
+    server.listen(options.port, "127.0.0.1", resolveServer),
+  );
   return {
     close: async () => {
       await Promise.all([
@@ -182,7 +188,9 @@ function mergeActiveRuns(storedRuns: RunSummary[]) {
   for (const run of activeRuns.values()) {
     runById.set(run.id, run);
   }
-  return [...runById.values()].sort((first, second) => second.createdAt.localeCompare(first.createdAt));
+  return [...runById.values()].sort((first, second) =>
+    second.createdAt.localeCompare(first.createdAt),
+  );
 }
 
 async function createViteServer(packageRoot: string): Promise<ViteDevServer> {
@@ -196,11 +204,18 @@ async function createViteServer(packageRoot: string): Promise<ViteDevServer> {
   });
 }
 
-async function serveStatic(packageRoot: string, request: IncomingMessage, response: ServerResponse) {
+async function serveStatic(
+  packageRoot: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+) {
   const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
   const staticRoot = join(packageRoot, "dist");
   const candidate = resolve(staticRoot, `.${decodeURIComponent(requestUrl.pathname)}`);
-  const filePath = candidate.startsWith(staticRoot) ? candidate : join(staticRoot, "index.html");
+  // 字符串前缀会接受 dist-private 等兄弟目录；解码后的路径必须按目录段留在静态根内。
+  const relativePath = relative(staticRoot, candidate);
+  const insideRoot = !isAbsolute(relativePath) && !/^\.\.(?:[\\/]|$)/u.test(relativePath);
+  const filePath = insideRoot ? candidate : join(staticRoot, "index.html");
   const resolvedPath = await resolveStaticPath(filePath, staticRoot);
   if (!resolvedPath) {
     sendNotFound(response);

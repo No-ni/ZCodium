@@ -145,7 +145,8 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
   {
     appVersion: "0.2.0",
     id: "0003_backfill_permission_local_setting",
-    touchedTables: ["local_setting"],
+    // 备份需覆盖转换源；只改元数据，冻结 SQL/checksum 与 ledger ID 保持。
+    touchedTables: ["permission", "local_setting"],
     sql: `
       insert or ignore into local_setting (
         scope,

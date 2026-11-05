@@ -52,7 +52,7 @@ const at = (b: string[], s: number): string => (s >= 0 && s < 90 ? b[s] ?? '.' :
 
 // 棋盘：90 格一维数组，下标 = 行*9+列；第 0 行为黑方底线（上方），第 9 行为红方底线（下方）
 function initialBoard(): string[] {
-  const b: string[] = new Array<string>(90).fill('.');
+  const b: string[] = Array.from({ length: 90 }, () => '.');
   const back = 'rhbakabhr';
   for (let c = 0; c < 9; c++) {
     const pc = back[c] ?? '.';

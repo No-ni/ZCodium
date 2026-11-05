@@ -17,7 +17,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip.js";
-import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { composeRefs } from "@/lib/composeRefs.js";
 import { ControlShortcutBadge } from "@/ControlShortcutBadge.js";
 
@@ -41,17 +40,6 @@ type TriggerChildProps = {
   className?: string;
   ref?: Ref<HTMLElement>;
 };
-
-function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (!ref) {
-    return;
-  }
-  if (typeof ref === "function") {
-    ref(value);
-    return;
-  }
-  ref.current = value;
-}
 
 export function ControlHintTooltip({
   children,

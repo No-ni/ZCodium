@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/context-menu.js";
 import { TaskGroupColorDot } from "@/project-sidebar/grouped/colors.js";
 import type { TaskGroupMenuItem } from "@/project-sidebar/grouped/types.js";
+import { resolveBuiltinProviderConfigDisabledReason } from "@/hooks/useBuiltinProviderConfigFile.js";
 
 export function GroupedTaskContextMenuContent({
   task,
@@ -42,7 +43,7 @@ export function GroupedTaskContextMenuContent({
   fileManagerLabel: string;
   taskSessionFile: { loading: boolean; path: string | null };
   taskNativeSessionLogFile: { loading: boolean; path: string | null };
-  providerConfigFile: { loading: boolean; path: string | null };
+  providerConfigFile: { loading: boolean; path: string | null; exists: boolean };
   onMoveTaskToGroup: (task: ZCodeTaskMeta, groupId: string | null) => void;
   onMoveTaskToTop: (task: ZCodeTaskMeta) => void;
   onStartRenameTask: (task: ZCodeTaskMeta) => void;
@@ -55,6 +56,14 @@ export function GroupedTaskContextMenuContent({
   onOpenTaskFeedback: () => void;
   disabledReason?: string;
 }) {
+  const providerConfigDisabledReason = resolveBuiltinProviderConfigDisabledReason(
+    providerConfigFile,
+    {
+      loading: intl.formatMessage({ id: "taskList.loading" }),
+      missing: intl.formatMessage({ id: "appHeader.builtinProviderConfigMissing" }),
+      unsupported: intl.formatMessage({ id: "appHeader.builtinProviderConfigUnsupported" }),
+    },
+  );
   return (
     <ContextMenuContent className="w-56">
       <ContextMenuSub>
@@ -199,8 +208,12 @@ export function GroupedTaskContextMenuContent({
         {intl.formatMessage({ id: "appHeader.copySessionId" })}
       </ContextMenuItem>
       <ContextMenuItem
-        disabled={providerConfigFile.loading || !providerConfigFile.path}
-        onSelect={onOpenProviderConfig}
+        data-testid="task-provider-config"
+        disabled={Boolean(disabledReason) || providerConfigDisabledReason !== null}
+        title={disabledReason ?? providerConfigDisabledReason ?? undefined}
+        onSelect={() => {
+          if (!disabledReason && providerConfigDisabledReason === null) onOpenProviderConfig();
+        }}
       >
         <span className="truncate">
           {intl.formatMessage({ id: "appHeader.goToProviderConfig" })}

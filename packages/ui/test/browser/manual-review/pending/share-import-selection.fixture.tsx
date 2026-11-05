@@ -13,9 +13,13 @@ import { ThoughtLevelCycleControl } from "@/chat-input-toolbar/ThoughtLevelCycle
 import { ModelConfigSelect } from "@/ModelConfigSelect.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
-import { captureComposerRecentSubmission } from "@/lib/composerRecent.js";
+import { acceptComposerRecentReceipt, prepareComposerRecentReceipt } from "@/lib/composerRecent.js";
 import { useDraftConfigControl } from "@/v4/composer/useDraftConfigControl.js";
-import { persistV4ComposerDraft, readV4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
+import {
+  persistV4ComposerDraft,
+  readV4ComposerDraft,
+  resolveComposerScope,
+} from "@/v4/composer/composerDraftStore.js";
 import { resolveImportedComposerConfig } from "@/v4/composer/newTaskDraft.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
@@ -77,7 +81,13 @@ if (!sessionStorage.getItem("prepared")) {
       modelSelection: selection,
     });
   if (source === "recent")
-    captureComposerRecentSubmission(workspacePath, { modelSelection: selection, mode: "yolo" })();
+    // Bug 依据：真实 Hook 读取 scoped Recent；组件夹具也必须预置同一 key。
+    acceptComposerRecentReceipt(
+      prepareComposerRecentReceipt(resolveComposerScope(null), {
+        modelSelection: selection,
+        mode: "yolo",
+      }),
+    );
   if (source === "root" || source === "empty")
     persistV4ComposerDraft(workspacePath, undefined, "__draft__", {
       text: "ROOT MUST STAY",

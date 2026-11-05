@@ -1,16 +1,32 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { createProjectTestFixture } from "../project-test-sandbox.mjs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
+import { pathToFileURL } from "node:url";
 
-const host = await tsImport(
+// 历史分步 fixture 需要实际冻结合同，但该清单已不再是产品公开 API。
+// 仅在项目沙箱中的源码副本追加测试导出，复用原 prepareMigrations，不恢复旧生产接口。
+const hostSourceUrl = new URL(
   "../../../packages/services/src/session/tasksDatabase/migrations.ts",
   import.meta.url,
 );
+const hostFixtureRoot = await createProjectTestFixture("host-migration-contract");
+const hostFixturePath = join(hostFixtureRoot, "migrations.ts");
+const hostSource = (await readFile(hostSourceUrl, "utf8")).replace(
+  /from "#src\/(.*?)\.js"/g,
+  (_, path) =>
+    `from "${new URL(`../../../packages/services/src/${path}.ts`, import.meta.url).href}"`,
+);
+await writeFile(
+  hostFixturePath,
+  `${hostSource}\nexport const TASKS_DATABASE_MIGRATIONS = prepareMigrations("base");\n`,
+  { flag: "wx" },
+);
+const host = await tsImport(pathToFileURL(hostFixturePath).href, import.meta.url);
 const cli = await tsImport(
   "../../../apps/zcode-cli/packages/adapters/src/storage/session-store/migration-runner.ts",
   import.meta.url,
@@ -28,7 +44,8 @@ const { SESSION_DATABASE_MIGRATIONS } = await tsImport(
   import.meta.url,
 );
 const { prepareTasksIndexStorage } = await tsImport(
-  "../../../packages/services/src/session/tasksDatabase/startup.ts",
+  // 启动 owner 已迁入 project-storage，通过现公开入口验证，不恢复旧文件。
+  "../../../packages/services/src/project-storage/startup-entry.ts",
   import.meta.url,
 );
 const { SqliteSessionStore } = await tsImport(
@@ -41,6 +58,14 @@ const hostLedger = [
   [
     "0003_official_glm_selection",
     "8987adb50ae412a46c294141c1af89ccfc252f22d41351bdf4c7528f56edc8b4",
+  ],
+  [
+    "0004_project_execution_scopes",
+    "caae5e91fc3abfeee6508f782890ad8d67cebeb80611775d39dc13a7e6fea3f0",
+  ],
+  [
+    "0006_task_group_admissions",
+    "0af559d04bb3f1a1dab12d6533d59292d232b09ea3ef3ef6ca3c9373bd663019",
   ],
 ];
 const cliChecksums = [
@@ -115,6 +140,14 @@ const cliChecksums = [
     "0023_repair_invalid_model_selection",
     "4c6e691908fc69c6e4397e37723a54f0788117067a0b90eb671f468c14dda264",
   ],
+  [
+    "0023_session_soft_delete_outcome",
+    "999cc9840e30c94f8a6628440f3e729c24e7ee839720f3e76099b3c3127a8bd8",
+  ],
+  [
+    "0024_session_database_identity",
+    "3eb41922313d66d492544ac05e0b314d55cdccbfc49f118768c0b4b0121e18b3",
+  ],
 ];
 
 test("Host published JSON ledger fixture remains frozen after runner adaptation", async (t) => {
@@ -127,7 +160,7 @@ test("Host published JSON ledger fixture remains frozen after runner adaptation"
       .map((row) => [row.id, row.checksum]),
     hostLedger,
   );
-  host.runTasksDatabaseMigrations(f.db);
+  await host.runTasksDatabaseMigrations(f.db);
 });
 
 test("CLI published SQL trim checksums and ledger identifiers are frozen before adaptation", () => {
@@ -156,9 +189,11 @@ async function fixture(t, name) {
   return { root, path, db, connect, backupDirectories: [join(root, "backup")] };
 }
 
-test("Host sync Repo entry validates ready only and never becomes a parallel migration owner", async (t) => {
+test("Host ready inspection is read-only and both migration names use one asynchronous owner", async (t) => {
   const f = await fixture(t, "tasks.sqlite");
-  assert.throws(() => host.runTasksDatabaseMigrations(f.db));
+  // 当前两个名称是同一个异步入口；只读预检才是 Repo 的 admission 合同。
+  assert.equal(host.runTasksDatabaseMigrations, host.runTasksDatabaseMigrationsAsync);
+  assert.equal(host.areTasksDatabaseMigrationsApplied(f.db), false);
   assert.equal(
     f.db.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE type='table'").get().n,
     0,
@@ -225,7 +260,7 @@ test("CLI startup backs up existing rows before applying next frozen SQL migrati
 test("Host historical JSON ledger upgrades once, blocks backup faults and restores original ledger", async (t) => {
   const f = await fixture(t, "host-history.sqlite");
   await migrate(f.db, host.TASKS_DATABASE_MIGRATIONS.slice(0, 1), {
-    database: "tasks-index",
+    database: "tasks_schema",
     journalTable: "tasks_schema_migration",
     backupDirectories: f.backupDirectories,
   });
@@ -253,10 +288,38 @@ test("Host historical JSON ledger upgrades once, blocks backup faults and restor
       .applied,
     [],
   );
-  await restore(f.db, result.backupPath, { database: "tasks-index", writersStopped: true });
-  assert.deepEqual(f.db.prepare("SELECT * FROM automations").all(), before);
+  // 当前追加的执行归属列改变 schema，通用恢复不得假装能回退 DDL。
+  const upgraded = f.db.prepare("SELECT * FROM automations").all();
+  await assert.rejects(
+    restore(f.db, result.backupPath, { database: "tasks_schema", writersStopped: true }),
+    /changed database schema/,
+  );
+  assert.deepEqual(f.db.prepare("SELECT * FROM automations").all(), upgraded);
+
+  // 原先数据型迁移的可恢复合同仍保留，使用真实历史前三步，而非当前新增 DDL。
+  const historical = await fixture(t, "host-restore-history.sqlite");
+  const historicalOptions = {
+    database: "tasks_schema",
+    journalTable: "tasks_schema_migration",
+    backupDirectories: historical.backupDirectories,
+  };
+  await migrate(historical.db, host.TASKS_DATABASE_MIGRATIONS.slice(0, 1), historicalOptions);
+  historical.db.exec(
+    "INSERT INTO automations(automation_id,cron_expr,prompt,model,provider,workspace_key,workspace_path,created_at,updated_at) VALUES('fixture','0 * * * *','Fixture','custom:fixture:model','fixture','/fixture','/fixture',1,1)",
+  );
+  const historicalRows = historical.db.prepare("SELECT * FROM automations").all();
+  const historicalUpgrade = await migrate(
+    historical.db,
+    host.TASKS_DATABASE_MIGRATIONS.slice(0, 3),
+    historicalOptions,
+  );
+  await restore(historical.db, historicalUpgrade.backupPath, {
+    database: "tasks_schema",
+    writersStopped: true,
+  });
+  assert.deepEqual(historical.db.prepare("SELECT * FROM automations").all(), historicalRows);
   assert.deepEqual(
-    f.db
+    historical.db
       .prepare("SELECT id,checksum FROM tasks_schema_migration ORDER BY id")
       .all()
       .map((row) => [row.id, row.checksum]),
@@ -275,7 +338,7 @@ test("Host startup owns migration and reports ready only after original maintena
     phases.findIndex((event) => event.phase === "committing") <
       phases.findIndex((event) => event.phase === "maintaining"),
   );
-  assert.equal(phases.at(-1).facts.committedCount, 3);
+  assert.equal(phases.at(-1).facts.committedCount, hostLedger.length);
   assert.equal(host.areTasksDatabaseMigrationsApplied(f.db), true);
   const repeated = [];
   await prepareTasksIndexStorage(f.path, (phase, facts) => repeated.push({ phase, facts }), {
@@ -288,7 +351,7 @@ test("Host startup owns migration and reports ready only after original maintena
 test("Host startup backup failure never publishes migrated, maintaining or ready", async (t) => {
   const f = await fixture(t, "host-failed.sqlite");
   await migrate(f.db, host.TASKS_DATABASE_MIGRATIONS.slice(0, 1), {
-    database: "tasks-index",
+    database: "tasks_schema",
     journalTable: "tasks_schema_migration",
     backupDirectories: f.backupDirectories,
   });
@@ -401,16 +464,20 @@ test("current Host and CLI schema snapshots derive only from frozen migration co
     });
     const schema = dumpSqliteSchema(cliDb);
     assertAdditiveSchema(schema, schema);
-    assert.equal(cliDb.prepare("SELECT count(*) AS n FROM schema_migration").get().n, 23);
-    assert.equal(f.db.prepare("SELECT count(*) AS n FROM tasks_schema_migration").get().n, 3);
+    assert.equal(
+      cliDb.prepare("SELECT count(*) AS n FROM schema_migration").get().n,
+      cliChecksums.length,
+    );
+    assert.equal(
+      f.db.prepare("SELECT count(*) AS n FROM tasks_schema_migration").get().n,
+      hostLedger.length,
+    );
     assert.equal(
       f.db.prepare("SELECT 1 FROM sqlite_schema WHERE name='zcode_database_identity'").get(),
       undefined,
     );
-    assert.equal(
-      cliDb.prepare("SELECT 1 FROM sqlite_schema WHERE name='zcode_database_identity'").get(),
-      undefined,
-    );
+    // 当前 CLI 接管身份表结构但不擅自生成身份；Host 仍使用自己的数据库合同。
+    assert.equal(cliDb.prepare("SELECT count(*) AS n FROM zcode_database_identity").get().n, 0);
   } finally {
     cliDb.close();
   }
@@ -447,8 +514,17 @@ test("CLI openStartup is the real asynchronous owner and sync constructor only a
   );
   try {
     assert.equal(phases.at(-1).phase, "ready");
-    assert.equal(phases.at(-1).migration.committedCount, 23);
-    const ready = new SqliteSessionStore({ dbPath });
+    assert.equal(phases.at(-1).migration.committedCount, cliChecksums.length);
+    // constructor 已私有化，重开也必须经过当前唯一异步入口，不能调用旧构造签名。
+    const repeated = [];
+    const ready = await SqliteSessionStore.openStartup(
+      { dbPath },
+      {
+        backupDirectories: f.backupDirectories,
+        onProgress: (event) => repeated.push(event),
+      },
+    );
+    assert.equal(repeated.at(-1).migration.executedCount, 0);
     ready.close();
   } finally {
     store.close();
@@ -492,7 +568,7 @@ test("Host cancellation at maintenance admission preserves committed facts but n
     phases.some((event) => event.phase === "ready"),
     false,
   );
-  assert.equal(phases.at(-1).facts.committedCount, 3);
+  assert.equal(phases.at(-1).facts.committedCount, hostLedger.length);
   assert.equal(host.areTasksDatabaseMigrationsApplied(f.db), true);
 });
 

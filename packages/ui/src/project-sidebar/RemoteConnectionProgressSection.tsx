@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Check, Copy, LoaderCircle } from "lucide-react";
 import { buildRemoteHostWorkspaceIdentity, parseRemoteWorkspaceIdentity } from "@zcode/shared";
 import type { RemoteProjectHost } from "@/project-sidebar/contract.js";
-import { cn } from "@/components/lib/utils.js";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";

@@ -22,6 +22,8 @@ test("stable Source identity is independent of route and isolates identical path
   assert.deepEqual(parseRemoteWorkspaceIdentity(first), {
     kind: "server",
     serverId: "source-a",
+    // 当前解析合同同时保留旧名称与稳定 Source 名称，两者必须来自同一已验证 ID。
+    sourceServerId: "source-a",
     workspacePath: "/workspace/app",
   });
   assert.throws(() =>

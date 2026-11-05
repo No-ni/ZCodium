@@ -3,3 +3,5 @@ export { generateTitleCandidate } from "../../../apps/zcode-cli/packages/core/sr
 export { scheduleProjectMemoryExtraction } from "../../../apps/zcode-cli/packages/core/src/runtime/helpers/project-memory-extraction.js";
 export { runMemoryAgentLoop } from "../../../apps/zcode-cli/packages/core/src/memory/memory-agent-loop.js";
 export { getCurrentModelInvocationContext } from "../../../apps/zcode-cli/packages/core/src/runtime/deps.js";
+export { createRuntimeModel } from "../../../apps/zcode-cli/packages/core/src/runtime/methods/runtime-model.js";
+export { renderProjectMemoryAgentRequest } from "../../../apps/zcode-cli/packages/core/src/runtime/helpers/project-memory-agent.js";

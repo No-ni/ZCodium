@@ -253,7 +253,7 @@ describe(`${CASE_MARKER}: 远端 Agent、工作流 actor 与辅助对话的项�
         });
         const remoteLog = await runSSHCommand(
           prepared.config,
-          'F=$(ls -t ~/.zcode/cli/log/*.jsonl | head -n1); grep -c "\"Agent\"" "$F" || true; grep -o "\"event\":\"[a-z_.]*subagent[a-z_.]*\"" "$F" | sort | uniq -c | tail -n 8',
+          'F=$(ls -t ~/.zcode/cli/log/*.jsonl | head -n1); grep -c ""Agent"" "$F" || true; grep -o ""event":"[a-z_.]*subagent[a-z_.]*"" "$F" | sort | uniq -c | tail -n 8',
         );
         facts.remoteSubagentLog = remoteLog.stdout.trim().split("\n");
         throw error;

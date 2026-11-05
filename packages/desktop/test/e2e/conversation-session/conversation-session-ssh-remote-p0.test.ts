@@ -7,7 +7,7 @@ import {
   refreshSeededOpenAIProvidersThroughSettings,
   seedCustomOpenAIChatCompletionsProvider,
 } from "../helpers/custom-openai-provider.js";
-import { resolveSeededReplayBaseUrl } from "../helpers/custom-openai-provider-store.js";
+import "../helpers/custom-openai-provider-store.js";
 import {
   selectUpstreamProviderModelById,
   selectUpstreamThoughtLevelValue,

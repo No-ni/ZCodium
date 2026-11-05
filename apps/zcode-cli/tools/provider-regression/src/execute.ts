@@ -191,6 +191,8 @@ export async function executeCase(input: {
             toolCallId: "regression-websearch",
             workingDirectory: input.fixtureDir,
             workspaceRoot: input.fixtureDir,
+            // 权限模式按 scope root 解析；探针与产品工具必须使用同一显式夹具范围。
+            workspaceScopeRoot: input.fixtureDir,
           },
         );
         const output = result as { summary?: string; sources?: unknown[]; results?: unknown[] };

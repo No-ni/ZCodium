@@ -1,3 +1,5 @@
+import { safeLogArgs } from "@zcode/shared";
+
 const processGuardInstalled = new WeakSet<object>();
 const OUTPUT_CLOSED_ERROR_CODES = new Set([
   "EPIPE",
@@ -26,8 +28,9 @@ export function installNodeReplProcessGuards(input: {
   processGuardInstalled.add(input.process);
 
   let outputClosed = false;
-  const describe = (reason: unknown): string =>
-    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  // 修复原因：此出口直接写 stderr，不经过 NodeFileLogger；原始异常堆栈
+  // 可能带用户路径、凭据和 cell 正文，必须复用共享白名单后才能输出。
+  const describe = (reason: unknown): string => JSON.stringify(safeLogArgs([reason]));
   const report = (kind: "uncaughtException" | "unhandledRejection", reason: unknown): void => {
     if (outputClosed) return;
     if (isOutputClosedError(reason)) {

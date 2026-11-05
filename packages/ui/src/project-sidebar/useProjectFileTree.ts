@@ -9,19 +9,22 @@ import type {
 import { getPathLeaf } from "@/lib/path.js";
 import { resolveProjectFileTarget } from "@/project-sidebar/project-file-navigation.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { resolveTaskExecutionWorkspacePath } from "@/lib/taskExecutionWorkspacePath.js";
 
 export function useProjectFileTree(
   props: ProjectSidebarProps,
   directory: RemoteProjectDirectory,
   remoteService?: IRemoteProjectService,
 ) {
+  const baseServices = useBaseWorkspaceServices();
   const request = useRef(0);
   const consumedRequest = useRef<ProjectSidebarProps["fileTreeOpenRequest"]>(null);
   useEffect(
     () => () => {
       request.current++;
     },
-    [],
+    [baseServices, props.workspacePath, props.workspaceIdentity, props.workspaceRemoteSessionId],
   );
   useEffect(() => {
     const next = props.fileTreeOpenRequest;
@@ -82,13 +85,31 @@ export function useProjectFileTree(
             session.workspaceIdentity !== identity))
       )
         throw new Error("project.connection-unavailable");
+      // 合并后的 task.workspacePath 是索引身份根，独立对话的 cwd 仍归 CLI。
+      // 精确查询该 session；远端不能借用本地服务，迟到结果不能覆盖新选择。
+      const executionWorkspacePath = await resolveTaskExecutionWorkspacePath(
+        identity ? session!.services : baseServices,
+        {
+          workspacePath: task.workspacePath,
+          ...(identity ? { workspaceIdentity: identity, remoteSessionId: sessionId } : {}),
+          sessionId: task.taskId,
+        },
+      );
+      if (generation !== request.current) return;
+      if (
+        identity &&
+        useRemoteWorkspaceSessionStore.getState().sessionsById[sessionId!] !== session
+      )
+        return;
+      if (!executionWorkspacePath) throw new Error("project.session-not-found");
       props.onOpenFileManager?.({
-        workspacePath: task.workspacePath,
-        workspaceName: getPathLeaf(task.workspacePath) || task.workspacePath,
+        workspacePath: executionWorkspacePath,
+        workspaceName: getPathLeaf(executionWorkspacePath) || executionWorkspacePath,
         ...(identity ? { workspaceIdentity: identity, workspaceRemoteSessionId: sessionId } : {}),
       });
     },
     [
+      baseServices,
       props.webRemoteControlWorkspaceSwitcher,
       props.workspaceIdentity,
       props.workspacePath,

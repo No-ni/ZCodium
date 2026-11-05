@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
 import { WebSocketServer, type WebSocket } from "ws";
 import { webRemoteControlClientToEndpointFrameSchema } from "@zcode/shared";
 import { RelayPairingRegistry, type RelayLogger } from "./registry.js";
@@ -61,8 +61,14 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
   const sweep = setInterval(() => registry.sweepExpired(), 60 * 60 * 1000);
   sweep.unref?.();
 
+  let closing = false;
+  let closePromise: Promise<void> | undefined;
   const server: Server = createServer((req, res) => handleHttp(req, res, options, registry));
   server.on("upgrade", (req, socket, head) => {
+    if (closing) {
+      socket.destroy();
+      return;
+    }
     if (!URL.canParse(req.url ?? "/", "http://localhost")) {
       socket.destroy();
       return;
@@ -77,24 +83,42 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
     });
   });
 
-  await new Promise<void>((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(options.port, options.host, () => resolveListen());
-  });
+  let listenError: ((error: Error) => void) | undefined;
+  try {
+    await new Promise<void>((resolveListen, rejectListen) => {
+      listenError = rejectListen;
+      server.once("error", listenError);
+      server.listen(options.port, options.host, () => resolveListen());
+    });
+  } catch (error) {
+    // 监听失败不会返回 handle；同一 owner 必须先释放 sweep/WS 资源，不能留给不存在的调用方。
+    await close();
+    throw error;
+  } finally {
+    if (listenError) server.removeListener("error", listenError);
+  }
   const address = server.address();
   const port = address && typeof address === "object" ? address.port : options.port;
-  options.logger.info("relay: listening", { port, path: options.path, host: options.host });
+  // 监听配置可能包含内部地址；日志只保留生命周期和数字指标。
+  options.logger.info("relay: listening", { port });
 
   return {
     port,
-    async close() {
-      clearInterval(sweep);
-      for (const client of wss.clients) {
-        client.close(1001, "relay-shutdown");
-      }
-      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
-    },
+    close,
   };
+
+  function close(): Promise<void> {
+    if (closePromise) return closePromise;
+    closing = true;
+    clearInterval(sweep);
+    // relay 没有待提交业务状态；停机直接终止传输，避免半开对端不回 close ACK 拖住资源释放。
+    closePromise = Promise.all([
+      new Promise<void>((done) => server.close(() => done())),
+      new Promise<void>((done) => wss.close(() => done())),
+    ]).then(() => undefined);
+    for (const client of wss.clients) client.terminate();
+    return closePromise;
+  }
 
   async function attachClient(ws: WebSocket, ip: string): Promise<void> {
     let pendingAuth:
@@ -124,7 +148,6 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
       const text = typeof raw === "string" ? raw : raw.toString();
       if (Buffer.byteLength(text) > options.maxPhysicalFrameBytes) {
         options.logger.warn("relay: oversize frame dropped", {
-          ip,
           bytes: Buffer.byteLength(text),
         });
         send(ws, { type: "error", code: "WRONG_PARAM", message: "frame too large" });
@@ -144,9 +167,9 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
         ws.close(4001, "WRONG_PARAM");
         return;
       }
-      handleFrame(ws, ip, parsed.data).catch((error) => {
+      handleFrame(ws, parsed.data).catch(() => {
         options.logger.warn("relay: frame handling failed", {
-          message: error instanceof Error ? error.message : String(error),
+          failure: "FRAME_HANDLING_FAILED",
         });
       });
     });
@@ -163,11 +186,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
     });
     ws.on("error", () => ws.close(1011, "internal"));
 
-    async function handleFrame(
-      socket: WebSocket,
-      clientIp: string,
-      frame: Record<string, unknown>,
-    ): Promise<void> {
+    async function handleFrame(socket: WebSocket, frame: Record<string, unknown>): Promise<void> {
       const type = frame.type;
       switch (type) {
         case "device_register_init": {
@@ -233,7 +252,6 @@ export async function startRelayServer(options: RelayServerOptions): Promise<Rel
           }
           options.logger.info("relay: authenticated", {
             role: boundRole,
-            clientIp,
             deviceSidSuffix: entry.deviceSid.slice(-6),
             pairStatus,
           });
@@ -332,15 +350,22 @@ async function handleHttp(
     return;
   }
   const root = resolve(options.mobileDir);
-  const relative = pathname === "/" ? "/mobile.html" : pathname;
-  const target = resolve(join(root, normalize(relative)));
-  if (!target.startsWith(root)) {
+  const requestPath = pathname === "/" ? "/mobile.html" : pathname;
+  // URL 文件路径统一采用斜杠语义，避免 macOS 将编码反斜杠当文件名而绕过同一拒绝规则。
+  const target = resolve(root, `.${requestPath.replaceAll("\\", "/")}`);
+  // 保留解码后的越界含义再按目录段拒绝，避免绝对路径 normalize 抹去 .. 后进入 SPA fallback。
+  if (!isWithinStaticRoot(root, target)) {
     res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
     res.end("Forbidden\n");
     return;
   }
   try {
-    const body = await readFile(target);
+    const body = await readWithinStaticRoot(root, target);
+    if (body === null) {
+      res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+      res.end("Forbidden\n");
+      return;
+    }
     res.writeHead(200, {
       "content-type": CONTENT_TYPES[extname(target).toLowerCase()] ?? "application/octet-stream",
       "cache-control": "no-store",
@@ -349,7 +374,12 @@ async function handleHttp(
   } catch {
     // SPA 回退：深链回 mobile.html。
     try {
-      const fallback = await readFile(join(root, "mobile.html"));
+      const fallback = await readWithinStaticRoot(root, join(root, "mobile.html"));
+      if (fallback === null) {
+        res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+        res.end("Forbidden\n");
+        return;
+      }
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
@@ -360,4 +390,16 @@ async function handleHttp(
       res.end("Not found\n");
     }
   }
+}
+
+function isWithinStaticRoot(root: string, target: string): boolean {
+  const suffix = relative(root, target);
+  return suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix);
+}
+
+async function readWithinStaticRoot(root: string, target: string) {
+  const [actualRoot, actualTarget] = await Promise.all([realpath(root), realpath(target)]);
+  // 普通文件和 SPA fallback 共用读取边界，避免链接将公开目录指向外部文件。
+  if (!isWithinStaticRoot(actualRoot, actualTarget)) return null;
+  return readFile(actualTarget);
 }

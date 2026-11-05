@@ -1,0 +1,726 @@
+{
+  "date": "2026-11-06",
+  "method": "AST structure scan; not manual line-by-line review",
+  "sourceAndContractFileCount": 6793,
+  "parsedSourceFileCount": 6698,
+  "parseDiagnostics": [],
+  "duplicateLiteralCases": [],
+  "removedFiles": [],
+  "modules": [
+    {
+      "id": "rpc",
+      "roots": ["packages/rpc/src"],
+      "sourceAndContractFileCount": 18
+    },
+    {
+      "id": "shared",
+      "roots": ["packages/shared/src"],
+      "sourceAndContractFileCount": 265
+    },
+    {
+      "id": "provider",
+      "roots": ["packages/provider/src"],
+      "sourceAndContractFileCount": 24
+    },
+    {
+      "id": "provider-node",
+      "roots": ["packages/provider-node/src"],
+      "sourceAndContractFileCount": 13
+    },
+    {
+      "id": "services",
+      "roots": ["packages/services/src"],
+      "sourceAndContractFileCount": 271
+    },
+    {
+      "id": "session",
+      "roots": ["packages/services/src/session"],
+      "sourceAndContractFileCount": 43
+    },
+    {
+      "id": "storage",
+      "roots": ["packages/services/src/storage"],
+      "sourceAndContractFileCount": 16
+    },
+    {
+      "id": "client",
+      "roots": ["packages/client/src"],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "server",
+      "roots": ["packages/server/src"],
+      "sourceAndContractFileCount": 56
+    },
+    {
+      "id": "zcode-server-cli",
+      "roots": ["packages/zcode-server-cli/src"],
+      "sourceAndContractFileCount": 51
+    },
+    {
+      "id": "ui",
+      "roots": ["packages/ui/src"],
+      "sourceAndContractFileCount": 1539
+    },
+    {
+      "id": "web",
+      "roots": ["packages/web/src"],
+      "sourceAndContractFileCount": 21
+    },
+    {
+      "id": "desktop",
+      "roots": ["packages/desktop/src"],
+      "sourceAndContractFileCount": 285
+    },
+    {
+      "id": "formal-proof",
+      "roots": ["packages/formal-proof/src"],
+      "sourceAndContractFileCount": 2
+    },
+    {
+      "id": "zcode-cua",
+      "roots": ["packages/zcode-cua"],
+      "sourceAndContractFileCount": 46
+    },
+    {
+      "id": "relay",
+      "roots": ["packages/relay/src"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "zcode-cli",
+      "roots": ["apps/zcode-cli"],
+      "sourceAndContractFileCount": 2892
+    },
+    {
+      "id": "side-pane-full-view",
+      "roots": ["packages/ui/src/side-pane-full-view"],
+      "sourceAndContractFileCount": 23
+    },
+    {
+      "id": "source-server-protocol",
+      "roots": ["packages/shared/src/source-server"],
+      "sourceAndContractFileCount": 11
+    },
+    {
+      "id": "window-project-directory",
+      "roots": ["packages/services/src/window-project-directory"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "source-server-workspace",
+      "roots": ["packages/services/src/source-server-workspace"],
+      "sourceAndContractFileCount": 27
+    },
+    {
+      "id": "sqlite-migrations",
+      "roots": ["packages/shared/src/sqlite-migrations"],
+      "sourceAndContractFileCount": 14
+    },
+    {
+      "id": "gen-ui-protocol",
+      "roots": ["packages/shared/src/gen-ui"],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "gen-ui-service",
+      "roots": ["packages/services/src/gen-ui"],
+      "sourceAndContractFileCount": 14
+    },
+    {
+      "id": "gen-ui",
+      "roots": ["packages/ui/src/gen-ui"],
+      "sourceAndContractFileCount": 17
+    },
+    {
+      "id": "office-runtime",
+      "roots": ["apps/zcode-cli/packages/office-runtime"],
+      "sourceAndContractFileCount": 110
+    },
+    {
+      "id": "mcp-apps-protocol",
+      "roots": ["packages/shared/src/mcp-apps"],
+      "sourceAndContractFileCount": 15
+    },
+    {
+      "id": "mcp-ui",
+      "roots": ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui"],
+      "sourceAndContractFileCount": 20
+    },
+    {
+      "id": "plugin-ui-bridge",
+      "roots": ["packages/services/src/plugin-ui-bridge"],
+      "sourceAndContractFileCount": 15
+    },
+    {
+      "id": "plugin-sandbox",
+      "roots": [
+        "packages/desktop/src/main/pluginSandbox",
+        "packages/desktop/src/host/pluginSandbox",
+        "packages/desktop/src/preload/pluginSandbox",
+        "packages/desktop/src/renderer/src/plugin-sandbox"
+      ],
+      "sourceAndContractFileCount": 38
+    },
+    {
+      "id": "plugin-ui",
+      "roots": ["packages/ui/src/plugin-ui"],
+      "sourceAndContractFileCount": 83
+    },
+    {
+      "id": "project-storage",
+      "roots": ["packages/services/src/project-storage"],
+      "sourceAndContractFileCount": 18
+    },
+    {
+      "id": "project",
+      "roots": ["packages/services/src/project"],
+      "sourceAndContractFileCount": 11
+    },
+    {
+      "id": "task-facts",
+      "roots": ["packages/services/src/task-facts"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "project-sidebar",
+      "roots": ["packages/ui/src/project-sidebar"],
+      "sourceAndContractFileCount": 111
+    },
+    {
+      "id": "remote-projects",
+      "roots": ["packages/services/src/remote-projects"],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "startup-storage",
+      "roots": ["packages/services/src/startup-storage"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "workspace-config-catalog",
+      "roots": ["packages/ui/src/workspace-config-catalog"],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "project-catalog",
+      "roots": ["packages/services/src/project-catalog"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "bot-project-runtime",
+      "roots": ["packages/services/src/bot-project-runtime"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "project-workspace-navigation",
+      "roots": ["packages/services/src/project-workspace-navigation"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "conversation-workspace-target",
+      "roots": ["packages/ui/src/conversation-workspace-target"],
+      "sourceAndContractFileCount": 11
+    },
+    {
+      "id": "remote-connection-flow",
+      "roots": ["packages/ui/src/remote-connection-flow"],
+      "sourceAndContractFileCount": 24
+    },
+    {
+      "id": "project-workflow",
+      "roots": ["packages/ui/src/project-workflow"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "host-database-startup",
+      "roots": ["packages/desktop/src/host/database-startup"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "cli-subagent-config",
+      "roots": [
+        "apps/zcode-cli/packages/bootstrap/src/runtime-subagents",
+        "apps/zcode-cli/packages/bootstrap/tests/runtime-subagents"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "cli-session-execution",
+      "roots": [
+        "apps/zcode-cli/packages/bootstrap/src/session-execution",
+        "apps/zcode-cli/packages/bootstrap/tests/session-execution",
+        "apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/canonical-intent-replay.ts"
+      ],
+      "sourceAndContractFileCount": 9
+    },
+    {
+      "id": "mobile-ui",
+      "roots": ["packages/ui/src/components/mobile-ui"],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "web-remote-control-ui",
+      "roots": [
+        "packages/ui/src/web-remote-control",
+        "packages/ui/src/hooks/useWebRemoteControlStatus.ts"
+      ],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "cli-arguments",
+      "roots": [
+        "apps/zcode-cli/packages/cli/src/argument-parsing",
+        "apps/zcode-cli/packages/cli/src/arguments.ts",
+        "apps/zcode-cli/packages/cli/tests/argument-parsing"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "workflow-tool-entrypoints",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/tool/workflow-entrypoints",
+        "apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow.ts",
+        "apps/zcode-cli/packages/core/src/tool/handlers/list-models.ts",
+        "apps/zcode-cli/packages/core/src/tool/handlers/fill-workflow-hole.ts",
+        "apps/zcode-cli/packages/core/tests/workflow-entrypoints",
+        "apps/zcode-cli/packages/core/src/tool/handlers/workflow.ts",
+        "apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow-approval.ts"
+      ],
+      "sourceAndContractFileCount": 10
+    },
+    {
+      "id": "tool-result-settlement",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/runtime/tool-result-settlement",
+        "apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts",
+        "apps/zcode-cli/packages/core/tests/tool-result-settlement"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "remote-input-prediction",
+      "roots": [
+        "packages/shared/src/zcode-protocol-v4/input-prediction",
+        "packages/services/src/zcode-agent/inputPredictionSwitch.ts",
+        "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts",
+        "apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts"
+      ],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "remote-resident-rows-range",
+      "roots": ["packages/services/src/zcode-agent/resident-rows-range"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "tool-discovery",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/tool/search",
+        "apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts",
+        "apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts",
+        "apps/zcode-cli/packages/contracts/src/tools/tool-search.ts",
+        "apps/zcode-cli/packages/core/tests/tool-discovery"
+      ],
+      "sourceAndContractFileCount": 15
+    },
+    {
+      "id": "node-repl-call-ledger",
+      "roots": [
+        "apps/zcode-cli/packages/node-repl-host/src/call-ledger",
+        "apps/zcode-cli/packages/node-repl-host/test/call-ledger"
+      ],
+      "sourceAndContractFileCount": 10
+    },
+    {
+      "id": "provider-tool-rounds",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds",
+        "apps/zcode-cli/packages/core/tests/provider-tool-rounds"
+      ],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "provider-builtin-tool-compat",
+      "roots": [
+        "apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat",
+        "apps/zcode-cli/packages/adapters/tests/provider-builtin-tool-compat"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "conversation-quote-context",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/runtime/conversation-quote-context",
+        "apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts",
+        "apps/zcode-cli/packages/core/tests/conversation-quote-context"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "tool-search-comparison",
+      "roots": [
+        "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract",
+        "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts",
+        "apps/zcode-cli/tools/prompt-trajectory/tests/tool-search-comparison"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "channel-reply-tool",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/tool/channel-reply",
+        "apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts",
+        "apps/zcode-cli/packages/core/tests/channel-reply"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "task-groups",
+      "roots": ["packages/services/src/task-groups"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "conversation-share-interaction",
+      "roots": ["packages/ui/src/conversation-share-interaction"],
+      "sourceAndContractFileCount": 10
+    },
+    {
+      "id": "workspace-plugin-preview",
+      "roots": ["packages/ui/src/workspace-plugin-preview"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "embedded-browser-permission",
+      "roots": [
+        "packages/desktop/src/main/embedded-browser-permission-contract",
+        "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts"
+      ],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "data-sync-service",
+      "roots": ["packages/services/src/data-sync"],
+      "sourceAndContractFileCount": 20
+    },
+    {
+      "id": "provider-provisioning-status",
+      "roots": ["packages/services/src/provider-provisioning-status"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "data-sync",
+      "roots": ["packages/ui/src/data-sync"],
+      "sourceAndContractFileCount": 27
+    },
+    {
+      "id": "settings-scope",
+      "roots": ["packages/ui/src/settings-scope"],
+      "sourceAndContractFileCount": 10
+    },
+    {
+      "id": "local-ttft-contract",
+      "roots": ["packages/shared/src/local-ttft"],
+      "sourceAndContractFileCount": 4
+    },
+    {
+      "id": "local-ttft-desktop",
+      "roots": ["packages/desktop/src/renderer/src/local-ttft"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "local-ttft-cli",
+      "roots": ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "zcode-site-panel",
+      "roots": ["apps/zcode-cli/packages/zcode-site-plugin/src"],
+      "sourceAndContractFileCount": 25
+    },
+    {
+      "id": "file-open-apps",
+      "roots": ["packages/desktop/src/main/file-open-apps"],
+      "sourceAndContractFileCount": 11
+    },
+    {
+      "id": "ui-file-menu",
+      "roots": [
+        "packages/ui/src/file-menu",
+        "packages/ui/src/OpenSplitButton.types.ts",
+        "packages/ui/src/OpenSplitButtonDropdownActions.tsx",
+        "packages/ui/src/OpenSplitButtonTrigger.tsx"
+      ],
+      "sourceAndContractFileCount": 16
+    },
+    {
+      "id": "web-platform",
+      "roots": ["packages/web/src/platform"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "image-preview-editor",
+      "roots": ["packages/ui/src/image-preview-editor"],
+      "sourceAndContractFileCount": 12
+    },
+    {
+      "id": "protocol-session-data",
+      "roots": ["packages/shared/src/zcode-protocol-v4/session-data"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "cli-session-data-files",
+      "roots": ["apps/zcode-cli/packages/adapters/src/storage/session-data-files"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "cli-session-data",
+      "roots": ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data"],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "provider-regression",
+      "roots": ["apps/zcode-cli/tools/provider-regression"],
+      "sourceAndContractFileCount": 25
+    },
+    {
+      "id": "session-lifecycle",
+      "roots": [
+        "apps/zcode-cli/packages/bootstrap/src/session-lifecycle",
+        "apps/zcode-cli/packages/bootstrap/tests/session-lifecycle"
+      ],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "workspace-mcp-trust",
+      "roots": ["apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "desktop-source-connection",
+      "roots": [
+        "packages/desktop/src/host/source-connection",
+        "packages/desktop/src/host/sourceServerConnectionManager.ts",
+        "packages/desktop/src/host/sourceServerConnectionTypes.ts",
+        "packages/desktop/src/host/sourceServerConnectionFlights.ts",
+        "packages/desktop/src/host/sourceServerProfileRetirement.ts",
+        "packages/desktop/src/host/sourceServerOperationFlights.ts",
+        "packages/desktop/src/host/sourceServerDirectory.ts",
+        "packages/desktop/src/host/sourceSettingsServiceCollection.ts",
+        "packages/desktop/src/host/botProjectBridge.ts",
+        "packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts",
+        "packages/desktop/src/host/legacyRemoteWorkspaceRpcContract.ts",
+        "packages/desktop/src/main/webRemoteControl/managerTypes.ts"
+      ],
+      "sourceAndContractFileCount": 15
+    },
+    {
+      "id": "provider-endpoint-routing",
+      "roots": [
+        "apps/zcode-cli/packages/bootstrap/src/provider-endpoint-routing-contract",
+        "apps/zcode-cli/packages/adapters/src/model/endpoint-routing-edition/index.ts",
+        "apps/zcode-cli/packages/adapters/src/model/provider-endpoint-routing-options.ts",
+        "apps/zcode-cli/packages/bootstrap/src/provider-endpoint-routing.ts"
+      ],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "project-memory-runtime",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/runtime/project-memory-contract",
+        "apps/zcode-cli/packages/core/src/runtime/helpers/project-memory-dream.ts",
+        "apps/zcode-cli/packages/core/src/runtime/helpers/project-memory-recall.ts"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "turn-tool-visibility",
+      "roots": [
+        "apps/zcode-cli/packages/core/src/runtime/turn-tool-visibility-contract",
+        "apps/zcode-cli/packages/core/src/runtime/methods/turn-tool-visibility.ts"
+      ],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "desktop-source-settings-bridge",
+      "roots": [
+        "packages/desktop/src/renderer/src/source-settings-bridge-contract",
+        "packages/desktop/src/renderer/src/sourceSettingsServicePortBridge.ts"
+      ],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "desktop-test-config",
+      "roots": ["packages/desktop/test/test-config-contract", "packages/desktop/wdio.conf.ts"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "conversation-share-local-context",
+      "roots": [
+        "packages/services/src/conversation-share/local-context-contract",
+        "packages/services/src/conversation-share/conversationShareConnectionScope.ts",
+        "packages/services/src/conversation-share/conversationShareWorkflowSnapshot.ts",
+        "packages/services/src/conversation-share/conversationShareWorkflowSnapshotContent.ts"
+      ],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "subagent-runtime-config",
+      "roots": [
+        "packages/services/src/subagents/runtime-config-contract",
+        "packages/services/src/subagents/subagentRuntimeConfig.ts"
+      ],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "user-instructions",
+      "roots": [
+        "packages/services/src/setting/user-instructions-contract",
+        "packages/shared/src/userInstructions.ts",
+        "packages/services/src/setting/userInstructionsPersistence.ts"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "conversation-ui-metadata",
+      "roots": [
+        "packages/shared/src/conversation-ui-metadata",
+        "packages/shared/src/sessionCreateSource.ts",
+        "packages/shared/src/test-ids-conversation.ts"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "windows-caption-menu",
+      "roots": [
+        "packages/ui/src/windows-caption-menu",
+        "packages/ui/src/WindowsCaptionMenuButton.tsx"
+      ],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "source-server-ui",
+      "roots": [
+        "packages/ui/src/source-server-ui-contract",
+        "packages/ui/src/hooks/useSourceServerManagementSnapshot.ts",
+        "packages/ui/src/lib/remoteConnectionPresentation.ts",
+        "packages/ui/src/lib/remoteConnectionPresentationErrors.ts",
+        "packages/ui/src/remote-connection/RemoteConnectionSelection.tsx",
+        "packages/ui/src/remote/remoteWorkspaceController.ts",
+        "packages/ui/src/remote/remoteWorkspaceProjection.ts",
+        "packages/ui/src/store/sourceServerDisplayNameRegistry.ts",
+        "packages/ui/src/store/sourceServerStatusRegistry.ts",
+        "packages/ui/src/settings/SourceServerProfileEditor.tsx"
+      ],
+      "sourceAndContractFileCount": 13
+    },
+    {
+      "id": "conversation-render-parts",
+      "roots": [
+        "packages/ui/src/v4/render-parts-contract",
+        "packages/ui/src/app-shell/WorkflowRunPhasePills.tsx",
+        "packages/ui/src/v4/ConversationBackgroundWorks.tsx",
+        "packages/ui/src/v4/conversationTurnRenderUnitTypes.ts",
+        "packages/ui/src/v4/buildTaskListResultFromSessions.ts",
+        "packages/ui/src/v4/conversationFileSummaryActions.ts",
+        "packages/ui/src/v4/conversationRowsPartition.ts",
+        "packages/ui/src/v4/conversationTurnNavigatorPosition.ts",
+        "packages/ui/src/v4/conversationTurnNavigatorTypes.ts",
+        "packages/ui/src/v4/conversationTurnRenderPartition.ts",
+        "packages/ui/src/v4/workbenchPointerDragDrop.ts",
+        "packages/ui/src/v4/conversationTimelineFindCache.ts",
+        "packages/ui/src/v4/conversationTimelineFindTypes.ts",
+        "packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactHeader.tsx"
+      ],
+      "sourceAndContractFileCount": 17
+    },
+    {
+      "id": "server-docker-arguments",
+      "roots": [
+        "packages/server/src/remote/docker-arguments-contract",
+        "packages/server/src/remote/dockerBackendArgs.ts"
+      ],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "web-theme-seed",
+      "roots": ["packages/web/src/theme-seed-contract", "packages/web/src/webThemeSeed.ts"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "cua-test-config",
+      "roots": ["packages/zcode-cua/test-config-contract", "packages/zcode-cua/vitest.config.ts"],
+      "sourceAndContractFileCount": 5
+    },
+    {
+      "id": "local-ttft-renderer",
+      "roots": ["packages/ui/src/v4/diagnostics/local-ttft"],
+      "sourceAndContractFileCount": 12
+    },
+    {
+      "id": "workflow-analysis-helpers",
+      "roots": [
+        "apps/zcode-cli/packages/dynamic-workflow/src/analysis/helpers-contract",
+        "apps/zcode-cli/packages/dynamic-workflow/src/analysis/state-helpers.ts",
+        "apps/zcode-cli/packages/dynamic-workflow/src/analysis/state-emission.ts",
+        "apps/zcode-cli/packages/dynamic-workflow/src/analysis/domain-types.ts",
+        "apps/zcode-cli/packages/dynamic-workflow/src/analysis/call-substitution.ts"
+      ],
+      "sourceAndContractFileCount": 8
+    },
+    {
+      "id": "plugin-store-display",
+      "roots": [
+        "packages/ui/src/settings/plugin-store-display-contract",
+        "packages/ui/src/settings/pluginStoreActions.ts",
+        "packages/ui/src/settings/PluginStorePaidPlanBadge.tsx"
+      ],
+      "sourceAndContractFileCount": 6
+    },
+    {
+      "id": "pending-command-recovery",
+      "roots": [
+        "packages/ui/src/v4/pending-command-recovery-contract",
+        "packages/ui/src/v4/pendingCommandRegistryTypes.ts",
+        "packages/ui/src/v4/pendingCommandRegistryHelpers.ts",
+        "packages/ui/src/v4/pendingCommandComposer.ts"
+      ],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "store-state-contracts",
+      "roots": ["packages/ui/src/store/state-contracts"],
+      "sourceAndContractFileCount": 4
+    },
+    {
+      "id": "output-style",
+      "roots": ["packages/services/src/output-style"],
+      "sourceAndContractFileCount": 7
+    },
+    {
+      "id": "dev-docs-legacy",
+      "roots": ["apps/dev-docs"],
+      "sourceAndContractFileCount": 25
+    },
+    {
+      "id": "stream-animate",
+      "roots": ["packages/stream-animate/src"],
+      "sourceAndContractFileCount": 21
+    },
+    {
+      "id": "e2e-report",
+      "roots": ["packages/e2e-report/src"],
+      "sourceAndContractFileCount": 14
+    },
+    {
+      "id": "dev-docs-view",
+      "roots": ["apps/dev-docs/src/docs-view", "apps/dev-docs/src/App.tsx"],
+      "sourceAndContractFileCount": 17
+    },
+    {
+      "id": "dev-docs-vite-adapters",
+      "roots": ["apps/dev-docs/vite-adapters", "apps/dev-docs/vite.config.ts"],
+      "sourceAndContractFileCount": 8
+    }
+  ]
+}

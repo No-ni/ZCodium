@@ -45,10 +45,6 @@ function getCommandModifierLabel(platformInfo?: KeyboardShortcutPlatformInfo): s
   return isAppleKeyboardPlatform(platformInfo) ? "⌘" : "Ctrl";
 }
 
-function getCtrlModifierLabel(platformInfo?: KeyboardShortcutPlatformInfo): string {
-  return isAppleKeyboardPlatform(platformInfo) ? "⌃" : "Ctrl";
-}
-
 function formatAppleShortcutLabel(...parts: string[]): string {
   return parts.join(" ");
 }

@@ -8,5 +8,6 @@
 - 同一 job 内进度快照的 `bytes` 只增不减；`status` 只能从 `scanning` 到 `complete | cancelled | failed`。
 - `clean` 只删除 catalog 显式匹配且通过 `cleanPlan` 校验的路径；受保护白名单在任何类别下都不删；失败逐路径记入 `failures`，不抛整体异常。
 - `entries` 只聚合到规则命中路径的下一级，并有数量上限；快照体积与文件总数无关。
+- 文件适配器在扫描目录、逐文件读取元数据、枚举清理范围和删除前逐段核对数据根及祖先，无符号链接/junction 才继续。目录已打开不代表后续路径仍安全，迭代异步间隔发生的可观察替换也要拒绝。链接使用 `ELOOP` 拒绝，词法界外使用 `EOUTSIDE`；不存在的范围保持空枚举。删除不复用枚举时的安全判断，避免范围目录在二者之间被替换后触及链接目标。Node 路径检查不提供 hostile 并发 rename 的原子 dirfd 保证。
 - 数据根来自注入的 `RootsResolverPort`（desktop 传 `homedir()` 与 `getDataBaseDir()`），模块内不读环境变量、不读设置文件。
 - 只做桌面端；不进入 task realtime 链路，不区分 `desktop-continuous` / `web-remote-replayable`。

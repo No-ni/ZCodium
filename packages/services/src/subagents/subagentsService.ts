@@ -291,7 +291,7 @@ async function discoverFileAgents(params: {
 
 export async function collectAgentMarkdownPaths(
   rootPath: string,
-  recursive = false,
+  _recursive = false,
 ): Promise<string[]> {
   if (!(await exists(rootPath))) {
     return [];

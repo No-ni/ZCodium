@@ -1,5 +1,5 @@
 ---
-description: Select and restore a legacy ZCode session.
+description: Explain the current unavailable status of legacy session restoration.
 argument-hint: "[agent/workspace/session filters]"
 skills: restore-legacy-sessions
 ---
@@ -8,4 +8,4 @@ Use the `restore-legacy-sessions` skill for this request:
 
 $ARGUMENTS
 
-Start by listing legacy agents, then narrow to a workspace and a conversation. Run a dry run before applying any restore, and keep the default source as `~/.zcode/v2/sessions` unless the user explicitly provides another source directory.
+Explain that legacy scanning, restoration and dry-run are currently unavailable. The scripts provide `--help` and otherwise reject before any file or database access. Do not run the historical selection/apply workflow or reconstruct deleted helpers. Keep the user's existing data intact.

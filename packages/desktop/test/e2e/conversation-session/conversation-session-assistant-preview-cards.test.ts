@@ -59,7 +59,6 @@ const OFFICE_FILES = [
   { fixture: "sample.pptx", name: "产品 路线.pptx" },
   { fixture: "sample.pdf", name: "审计 报告.pdf" },
 ] as const;
-const MEDIA_FILES = ["生成 视频.mp4", "生成 音频.wav"] as const;
 
 interface PreviewCardSnapshot {
   text: string;
@@ -439,9 +438,7 @@ async function clickPreviewCard(title: string) {
 // 卡片主体整卡可点：点击标题区域（铺满卡片的透明按钮）与主按钮执行同一预览动作。
 async function clickPreviewCardBody(title: string) {
   const result = await browser.execute((expectedTitle) => {
-    const row = document.querySelector<HTMLElement>(
-      `[data-preview-card-title="${expectedTitle}"]`,
-    );
+    const row = document.querySelector<HTMLElement>(`[data-preview-card-title="${expectedTitle}"]`);
     const overlay = Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? []).find(
       (button) => (button.getAttribute("aria-label") ?? "").endsWith(expectedTitle),
     );

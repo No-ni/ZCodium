@@ -5,7 +5,6 @@ import {
   getPassiveAgentStartupWorkspacePaths,
 } from "./helpers/passive-agent-startup-fixture.js";
 import {
-  isMainRendererUrl,
   isResourceManagerUrl,
   openResourceManager,
   switchToElectronRendererTarget,

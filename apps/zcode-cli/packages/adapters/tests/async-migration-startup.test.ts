@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -9,9 +9,78 @@ import {
   runSqliteSessionMigrationsAsync,
 } from "../src/storage/session-store/migration-runner.js";
 import type { SqliteMigrationProgress } from "../src/storage/session-store/migration-runner.js";
+import { migrate } from "@zcode/shared/sqlite-migrations";
+import { SESSION_DATABASE_MIGRATIONS } from "../src/storage/session-store/migration-contract.js";
+import { createProjectTestFixture } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 
 const dbs: DatabaseSync[] = [];
 const dirs: string[] = [];
+
+it("pre-cancelled startup never creates a directory, database or progress", async () => {
+  const { SqliteSessionStore } =
+    await import("../src/storage/session-store/sqlite-session-store.js");
+  const directory = await createProjectTestFixture("cli-cancelled-open");
+  dirs.push(directory);
+  const abort = new AbortController();
+  const reason = new Error("fixture cancelled before open");
+  abort.abort(reason);
+  const onProgress = vi.fn();
+  await expect(
+    SqliteSessionStore.openStartup(
+      { dbPath: join(directory, "cancelled", "session.sqlite") },
+      { signal: abort.signal, onProgress },
+    ),
+  ).rejects.toBe(reason);
+  expect(await readdir(directory)).toEqual([]);
+  expect(onProgress).not.toHaveBeenCalled();
+});
+
+it("cancellation during directory preparation preserves a non-Error reason without opening SQLite", async () => {
+  const { SqliteSessionStore } =
+    await import("../src/storage/session-store/sqlite-session-store.js");
+  const directory = await createProjectTestFixture("cli-cancelled-mkdir");
+  dirs.push(directory);
+  const abort = new AbortController();
+  const onProgress = vi.fn();
+  const opening = SqliteSessionStore.openStartup(
+    { dbPath: join(directory, "prepared", "session.sqlite") },
+    { signal: abort.signal, onProgress },
+  );
+  // mkdir 已发起而 await 尚未恢复；取消应阻断后续 DatabaseSync，而非伪称目录可回滚。
+  abort.abort("fixture cancellation reason");
+  await expect(opening).rejects.toBe("fixture cancellation reason");
+  expect(await readdir(join(directory, "prepared"))).toEqual([]);
+  expect(onProgress).not.toHaveBeenCalled();
+});
+
+it("permission conversion backs up populated source even with an empty destination", async () => {
+  const directory = await createProjectTestFixture("cli-permission-backup");
+  dirs.push(directory);
+  const path = join(directory, "session.sqlite");
+  const db = open(path);
+  const backupDirectories = [join(directory, "backup")];
+  await migrate(db, SESSION_DATABASE_MIGRATIONS.slice(0, 2), {
+    database: "cli",
+    appliedAtColumn: "time_applied",
+    backupDirectories,
+  });
+  db.exec("INSERT INTO permission VALUES('fixture',1,1,'[]')");
+  const blocked = join(directory, "blocked");
+  await writeFile(blocked, "not a directory");
+  await expect(
+    runSqliteSessionMigrationsAsync(db, path, { backupDirectories: [blocked] }),
+  ).rejects.toMatchObject({ cause: { kind: "backup_failed" } });
+  expect(db.prepare("SELECT count(*) AS n FROM schema_migration").get()?.n).toBe(2);
+  expect(db.prepare("SELECT count(*) AS n FROM local_setting").get()?.n).toBe(0);
+  expect(db.prepare("SELECT data FROM permission").get()?.data).toBe("[]");
+  const result = await runSqliteSessionMigrationsAsync(db, path, { backupDirectories });
+  expect(result.applied).toContain("0003_backfill_permission_local_setting");
+  expect(result.backupPath).toBeTruthy();
+  const metadata = JSON.parse(await readFile(join(result.backupPath!, "backup.json"), "utf8"));
+  expect(metadata.tables).toEqual(
+    expect.arrayContaining([expect.objectContaining({ name: "permission", rows: 1 })]),
+  );
+});
 const open = (path = ":memory:") => {
   const db = new DatabaseSync(path);
   dbs.push(db);

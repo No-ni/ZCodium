@@ -92,10 +92,6 @@ import {
   type PrimaryDraftEffectiveSessionBinding,
   type PrimaryDraftEffectiveSessionBindingEvent,
 } from "@/v4/primaryDraftSessionBinding.js";
-
-const EMPTY_REMOTE_WORKSPACE_RECOVERY_BY_WORKSPACE_KEY: NonNullable<
-  AppProps["remoteWorkspaceRecoveryByWorkspaceKey"]
-> = {};
 const EMPTY_REMOTE_CONNECTION_LOGS: NonNullable<AppProps["remoteConnectionLogs"]> = [];
 const EMPTY_RECONNECT_LOGS: NonNullable<AppProps["reconnectingRemoteWorkspaceLogsByWorkspaceKey"]> =
   {};
@@ -107,14 +103,12 @@ export function App({
   onCancelRemoteProject,
   onReconnectRemoteWorkspace,
   reconnectingRemoteWorkspaceKeys,
-  remoteWorkspaceRecoveryByWorkspaceKey = EMPTY_REMOTE_WORKSPACE_RECOVERY_BY_WORKSPACE_KEY,
   remoteWorkspaceErrorByWorkspaceKey,
   reconnectingRemoteWorkspaceLogsByWorkspaceKey = EMPTY_RECONNECT_LOGS,
 
   remoteConnectionLogs = EMPTY_REMOTE_CONNECTION_LOGS,
   onCreateTask,
   onCreateConversationTask,
-  onCreateConversationTaskOnSource,
   onResolveConversationWorkspace,
   onOpenWorkspace,
   onOpenFolderFromWorkspaceMenu,
@@ -124,9 +118,6 @@ export function App({
   onReturnToWorkspace,
   allowOpenWorkspace = true,
   webRemoteControlWorkspaceSwitcher,
-  initialSidebarFileTreeOpen,
-  initialWebRemoteControlMobileNavigationIntent,
-  webRemoteControlTerminalTransportState,
   allowRemoteWorkspace = true,
   workspaceAbsPath,
   workspaceRemoteSessionId,

@@ -36,14 +36,12 @@ describe("ConversationInputPredictionHandler", () => {
     const handler = new ConversationInputPredictionHandler({
       loadSession: async () => material(callModel),
     });
-    await expect(handler.handle({ sessionId: "s", revision: 1, requestId: "a" })).resolves.toEqual(
-      {
-        decision: "show",
-        candidates: [{ text: "提交代码", confidence: 0.9 }],
-        topConfidence: 0.9,
-        requestId: "a",
-      },
-    );
+    await expect(handler.handle({ sessionId: "s", revision: 1, requestId: "a" })).resolves.toEqual({
+      decision: "show",
+      candidates: [{ text: "提交代码", confidence: 0.9 }],
+      topConfidence: 0.9,
+      requestId: "a",
+    });
     await expect(
       handler.handle({ sessionId: "s", revision: 1, requestId: "b" }),
     ).resolves.toMatchObject({ decision: "show", requestId: "b" });
@@ -94,6 +92,43 @@ describe("ConversationInputPredictionHandler", () => {
     await expect(a).resolves.toMatchObject({ decision: "show" });
   });
 
+  it("命中旧草稿缓存的新请求仍取消当前在途模型", async () => {
+    const pending = deferred<{ text: string }>();
+    let signal: AbortSignal | undefined;
+    const callModel = vi.fn<InputPredictionModelCall>(async (_messages, options) => {
+      if (callModel.mock.calls.length === 1) return { text: SHOW_RESPONSE };
+      signal = options.abortSignal;
+      return pending.promise;
+    });
+    const handler = new ConversationInputPredictionHandler({
+      loadSession: async () => material(callModel),
+    });
+    await handler.handle({ sessionId: "s", revision: 1, draft: "提" });
+    const stale = handler.handle({ sessionId: "s", revision: 1, draft: "提交", requestId: "old" });
+    await vi.waitFor(() => expect(callModel).toHaveBeenCalledTimes(2));
+    await expect(
+      handler.handle({ sessionId: "s", revision: 1, draft: "提", requestId: "new" }),
+    ).resolves.toMatchObject({ decision: "show", requestId: "new" });
+    expect(signal?.aborted).toBe(true);
+    pending.resolve({ text: SHOW_RESPONSE });
+    await expect(stale).resolves.toMatchObject({ decision: "cancelled", requestId: "old" });
+    expect(callModel).toHaveBeenCalledTimes(2);
+  });
+
+  it("被替代的会话装载迟到时不再调用模型", async () => {
+    const loading = deferred<InputPredictionSessionMaterial>();
+    const callModel = vi.fn<InputPredictionModelCall>(async () => ({ text: SHOW_RESPONSE }));
+    let loads = 0;
+    const handler = new ConversationInputPredictionHandler({
+      loadSession: async () => (++loads === 1 ? loading.promise : material(callModel)),
+    });
+    const stale = handler.handle({ sessionId: "s", revision: 1, draft: "提", requestId: "old" });
+    await handler.handle({ sessionId: "s", revision: 1, draft: "提交" });
+    loading.resolve(material(callModel));
+    await expect(stale).resolves.toMatchObject({ decision: "cancelled", requestId: "old" });
+    expect(callModel).toHaveBeenCalledTimes(1);
+  });
+
   it("会话不在内存或轮数不够 → suppress_no_context，不调模型", async () => {
     const callModel = vi.fn<InputPredictionModelCall>();
     const missing = new ConversationInputPredictionHandler({ loadSession: async () => null });
@@ -108,9 +143,9 @@ describe("ConversationInputPredictionHandler", () => {
     });
     // 草稿模式 1 轮就够。
     callModel.mockResolvedValue({ text: SHOW_RESPONSE });
-    await expect(short.handle({ sessionId: "s", revision: 0, draft: "帮我" })).resolves.toMatchObject(
-      { decision: "show" },
-    );
+    await expect(
+      short.handle({ sessionId: "s", revision: 0, draft: "帮我" }),
+    ).resolves.toMatchObject({ decision: "show" });
   });
 
   it("无模型、模型失败、超时、读会话失败 → unavailable；日志不含草稿内容；unavailable 不缓存", async () => {
@@ -118,7 +153,9 @@ describe("ConversationInputPredictionHandler", () => {
     const logger = { warn } as unknown as NonNullable<
       ConstructorParameters<typeof ConversationInputPredictionHandler>[0]["logger"]
     >;
-    const noModel = new ConversationInputPredictionHandler({ loadSession: async () => material(null) });
+    const noModel = new ConversationInputPredictionHandler({
+      loadSession: async () => material(null),
+    });
     await expect(noModel.handle({ sessionId: "s", revision: 0 })).resolves.toMatchObject({
       decision: "unavailable",
     });
@@ -164,6 +201,39 @@ describe("ConversationInputPredictionHandler", () => {
       decision: "suppress_below_threshold",
       candidates: [],
     });
+  });
+
+  it("loader 和模型降级只输出固定分类，不把 Error 或非 Error 原文与业务身份交给 Logger", async () => {
+    const sensitive = "synthetic-secret-token C:\\synthetic-user\\draft.txt private-draft";
+    const sessionId = "private-session-id";
+    const requestId = "private-request-id";
+    for (const source of ["transcript", "model"] as const) {
+      for (const error of [new Error(sensitive), sensitive]) {
+        const warn = vi.fn();
+        const handler = new ConversationInputPredictionHandler({
+          loadSession: async () => {
+            if (source === "transcript") throw error;
+            return material(async () => {
+              throw error;
+            });
+          },
+          logger: { warn } as unknown as NonNullable<
+            ConstructorParameters<typeof ConversationInputPredictionHandler>[0]["logger"]
+          >,
+        });
+        await expect(
+          handler.handle({ sessionId, revision: 0, requestId, draft: "private-draft" }),
+        ).resolves.toMatchObject({ decision: "unavailable", requestId });
+        expect(warn).toHaveBeenCalledWith("v4 input prediction degraded", {
+          event: `zcode_protocol.v4.input_prediction_${source === "transcript" ? "transcript_failed" : "model_failed"}`,
+          module: "bootstrap.zcode_protocol",
+        });
+        const logged = JSON.stringify(warn.mock.calls);
+        for (const value of [sensitive, sessionId, requestId, "private-draft"]) {
+          expect(logged).not.toContain(value);
+        }
+      }
+    }
   });
 
   it("非法参数直接抛错（strict schema）", async () => {

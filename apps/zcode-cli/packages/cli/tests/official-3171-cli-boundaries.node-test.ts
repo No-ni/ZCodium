@@ -1,9 +1,13 @@
 // 官方 3.17.1 合并的 CLI 域边界回归：产品身份、剥离的官方后端、以及"未吸收完的悬空引用"棘轮。
-// 用 node:test（与本包其它 *.node-test.ts 一致），不联网、不写盘，只读仓库文件。
+// 用 node:test；静态检查只读仓库，命令边界回归仅使用项目内隔离夹具，不联网。
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, it } from "node:test";
+import { execFile } from "node:child_process";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
+import { createProjectTestFixture } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 
 const cliRoot = resolve(import.meta.dirname, "..", "..", "..");
 const repoRoot = resolve(cliRoot, "..", "..");
@@ -73,18 +77,8 @@ const DANGLING_BASELINE = new Set<string>([
   "packages/core/src/runtime/internal.ts|../telemetry/runtime-telemetry.js",
   "packages/core/src/tool/handlers/workflow.ts|./off-peak.js",
   "packages/core/tests/child-client-ports.test.ts|../src/runtime/methods/model-runtime-headers.js",
-  "packages/core/tests/off-peak-tool.test.ts|../src/tool/handlers/off-peak.js",
   "packages/debug/tests/network-capture.test.ts|../server/network-capture.js",
   "tools/prompt-trajectory/src/cli.ts|./record.js",
-  "tools/prompt-trajectory/src/testcases.ts|./fixture.js",
-  "tools/prompt-trajectory/src/testcases.ts|./record.js",
-  "tools/prompt-trajectory/tests/fixture.test.ts|../src/fixture.js",
-  "tools/prompt-trajectory/tests/openai-provider-proxy.test.ts|../src/message-ledger.js",
-  "tools/prompt-trajectory/tests/openai-provider-proxy.test.ts|../src/openai-provider-proxy.js",
-  "tools/prompt-trajectory/tests/record-isolation.test.ts|../src/fixture.js",
-  "tools/prompt-trajectory/tests/record-isolation.test.ts|../src/record.js",
-  "tools/prompt-trajectory/tests/record.test.ts|../src/record.js",
-  "tools/prompt-trajectory/tests/response-assembler.test.ts|../src/openai-response-assembler.js",
 ]);
 
 const DOMAIN_GROUPS = ["packages", "tools"];
@@ -123,18 +117,98 @@ function resolves(fromFile: string, spec: string): boolean {
   // 构建产物与外部资源不是源码依赖边。
   if (spec.includes("/dist/") || spec.endsWith("dist/index.js")) return true;
   const base = resolve(dirname(fromFile), spec).replace(/\.js$/, "");
-  for (const candidate of [`${base}.ts`, `${base}.tsx`, `${base}.mjs`, join(base, "index.ts"), base]) {
+  for (const candidate of [
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.mjs`,
+    join(base, "index.ts"),
+    base,
+  ]) {
     if (existsSync(candidate) && statSync(candidate).isFile()) return true;
   }
   return false;
 }
 
 describe("官方 3.17.1 合并的 CLI 边界", () => {
+  it("incomplete legacy restore commands provide help and fail closed with zero storage writes", async () => {
+    const directory = await createProjectTestFixture("legacy-command-unavailable");
+    await writeFile(join(directory, "sentinel.txt"), "keep synthetic bytes");
+    const isolatedRoots = [process.env.HOME!, process.env.ZCODE_DATA_BASE_DIR!];
+    const originalEntries = await Promise.all(
+      isolatedRoots.map((root) => readdir(root, { recursive: true })),
+    );
+    const execute = promisify(execFile);
+    const scripts = join(
+      cliRoot,
+      "packages/restore-legacy-sessions-plugin/skills/restore-legacy-sessions/scripts",
+    );
+    for (const name of ["scan-legacy-sessions.mjs", "restore-conversation.mjs"]) {
+      const help = await execute(process.execPath, [join(scripts, name), "--help"], {
+        env: process.env,
+        windowsHide: true,
+      });
+      assert.match(help.stdout, /Usage:/);
+      assert.match(help.stdout, /unavailable/i);
+    }
+    for (const [name, args, code] of [
+      [
+        "scan-legacy-sessions.mjs",
+        [
+          "summary",
+          "--legacy-dir",
+          join(directory, "source"),
+          "--cli-db",
+          join(directory, "new-cli/db.sqlite"),
+          "--task-index",
+          join(directory, "new-index/db.sqlite"),
+          "--json",
+        ],
+        "LEGACY_SCAN_UNAVAILABLE",
+      ],
+      [
+        "restore-conversation.mjs",
+        [
+          "--snapshot",
+          join(directory, "absent.json"),
+          "--cli-db",
+          join(directory, "new-cli/db.sqlite"),
+          "--task-index",
+          join(directory, "new-index/db.sqlite"),
+        ],
+        "LEGACY_RESTORE_UNAVAILABLE",
+      ],
+      [
+        "restore-conversation.mjs",
+        ["--snapshot", join(directory, "absent.json"), "--dry-run"],
+        "LEGACY_RESTORE_UNAVAILABLE",
+      ],
+    ] as const) {
+      await assert.rejects(
+        execute(process.execPath, [join(scripts, name), ...args], {
+          env: process.env,
+          windowsHide: true,
+        }),
+        (error: any) =>
+          error.code === 2 &&
+          error.stderr.includes(code) &&
+          !error.stderr.includes("ERR_MODULE_NOT_FOUND"),
+      );
+    }
+    assert.deepEqual(await readdir(directory), ["sentinel.txt"]);
+    assert.equal(await readFile(join(directory, "sentinel.txt"), "utf8"), "keep synthetic bytes");
+    assert.deepEqual(
+      await Promise.all(isolatedRoots.map((root) => readdir(root, { recursive: true }))),
+      originalEntries,
+    );
+  });
   it("CLI manifest 跟随官方 0.17.1，且不恢复 Linux 发行/测试入口", () => {
     const manifest = readJson(join(cliRoot, "package.json"));
     assert.equal(manifest.version, "0.17.1");
     assert.equal(manifest.packageManager, "pnpm@10.33.2");
-    assert.ok(!("test:browser-headless:linux" in manifest.scripts), "不得恢复 Linux docker 测试入口");
+    assert.ok(
+      !("test:browser-headless:linux" in manifest.scripts),
+      "不得恢复 Linux docker 测试入口",
+    );
     // 本仓根编排入口保持 corepack 与自有 lint 门槛，不被上游覆盖。
     assert.match(manifest.scripts.typecheck as string, /corepack pnpm/);
     assert.match(manifest.scripts.lint as string, /check-cli-lint\.mjs/);
@@ -191,7 +265,8 @@ describe("官方 3.17.1 合并的 CLI 边界", () => {
       // 仍在解冲突的文件不参与棘轮：那里的文本还不代表最终实现。
       if (MERGE_IN_PROGRESS.test(body)) continue;
       for (const m of body.matchAll(/from\s+"((?:\.\.?\/)[^"]+)"/g)) {
-        if (!resolves(file, m[1])) current.push(`${relative(cliRoot, file).split(sep).join("/")}|${m[1]}`);
+        if (!resolves(file, m[1]))
+          current.push(`${relative(cliRoot, file).split(sep).join("/")}|${m[1]}`);
       }
     }
     const unique = [...new Set(current)];

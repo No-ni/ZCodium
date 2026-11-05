@@ -1,5 +1,5 @@
 import { readdir, readFile, stat, unlink } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { encodeCustomModelValue } from "@zcode/shared";
 import {
   TID_CHAT_ERROR_BANNER,

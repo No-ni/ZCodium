@@ -1,7 +1,4 @@
-import { TID_V4_TASK_OPEN_IN_SPLIT } from "@zcode/shared";
-import { useBuiltinProviderConfigFile } from "@/hooks/useBuiltinProviderConfigFile.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
-import { toast } from "@/components/ui/toast.js";
+import { resolveBuiltinProviderConfigDisabledReason } from "@/hooks/useBuiltinProviderConfigFile.js";
 
 interface TaskActionMenuItemProps {
   children: React.ReactNode;
@@ -89,18 +86,14 @@ export function TaskActionMenuContent({
   onOpenProviderConfig: () => void;
 }) {
   const taskTargetActionsDisabled = disableTaskActions || disableTaskTargetActions;
-  const platform = usePlatform();
-  // 自取而非由调用方传入： Provider 配置是环境级状态，与具体 task 无关，
-  // 两个调用点（任务列表项菜单 / 工作区头部菜单）都不必额外接线。
-  // 平台未提供该方法（Web、手机远控经 desktop host 除外）时 path 为 null，入口禁用。
-  const builtinProviderConfigFile = useBuiltinProviderConfigFile();
-  const builtinProviderConfigDisabledReason = builtinProviderConfigFile.loading
-    ? intl.formatMessage({ id: "taskList.loading" })
-    : !builtinProviderConfigFile.path
-      ? intl.formatMessage({ id: "appHeader.builtinProviderConfigUnsupported" })
-      : !builtinProviderConfigFile.exists
-        ? intl.formatMessage({ id: "appHeader.builtinProviderConfigMissing" })
-        : null;
+  const providerConfigDisabledReason = resolveBuiltinProviderConfigDisabledReason(
+    providerConfigFile,
+    {
+      loading: intl.formatMessage({ id: "taskList.loading" }),
+      missing: intl.formatMessage({ id: "appHeader.builtinProviderConfigMissing" }),
+      unsupported: intl.formatMessage({ id: "appHeader.builtinProviderConfigUnsupported" }),
+    },
+  );
 
   return (
     <>
@@ -207,14 +200,38 @@ export function TaskActionMenuContent({
           {intl.formatMessage({ id: "appHeader.copySessionId" })}
         </Item>
       ) : null}
-      {!hideMobileUnsupportedActions ? (
-        /* Bugfix: 手机远控运行在浏览器里，无法可靠打开桌面端 provider 配置文件。
-           这里只在远控移动端隐藏入口，桌面端仍沿用“路径已知即可前往配置”的能力。 */
+      {/* 合并保留了复制 hook，却漏掉菜单入口；运行中复制与单飞状态沿用原有契约。 */}
+      {onCopyMarkdown ? (
         <Item
-          disabled={disableTaskActions || providerConfigFile.loading || !providerConfigFile.path}
-          title={disableTaskActions ? disabledReason : undefined}
+          data-testid="task-copy-markdown"
+          disabled={
+            taskTargetActionsDisabled ||
+            !activeSessionId ||
+            copyMarkdownPending ||
+            copyMarkdownDisabled
+          }
+          title={
+            taskTargetActionsDisabled
+              ? disabledReason
+              : copyMarkdownDisabled
+                ? intl.formatMessage({ id: "appHeader.copyMarkdownUnavailable" })
+                : undefined
+          }
+          onSelect={onCopyMarkdown}
+        >
+          {intl.formatMessage({
+            id: copyMarkdownPending ? "appHeader.copyMarkdownPending" : "appHeader.copyMarkdown",
+          })}
+        </Item>
+      ) : null}
+      {!hideMobileUnsupportedActions ? (
+        /* 合并把环境级物化文件换成 workspace 占位路径；缺失配置必须禁用，不能打开父目录。 */
+        <Item
+          data-testid="task-provider-config"
+          disabled={disableTaskActions || providerConfigDisabledReason !== null}
+          title={disableTaskActions ? disabledReason : (providerConfigDisabledReason ?? undefined)}
           onSelect={() => {
-            if (!disableTaskActions) {
+            if (!disableTaskActions && providerConfigDisabledReason === null) {
               onOpenProviderConfig();
             }
           }}

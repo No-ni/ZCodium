@@ -1,8 +1,4 @@
 import { TaskGroupRepository } from "#src/task-groups/index.js";
-import {
-  isTasksStorageMigrated,
-  isTasksStoragePrepared,
-} from "#src/session/tasksDatabase/prepared.js";
 /* eslint-disable max-lines -- task 索引仓库集中维护 sqlite schema、查询和状态写入，迁移稳定后再按读写职责拆分。 */
 import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -1204,6 +1200,21 @@ export class TaskIndexRepo {
     });
   }
 
+  /** 本地扫描只需要身份目录，避免全量解析 task metadata 或依赖已关闭的 UI 页签。 */
+  async listLocalWorkspaceScopes(): Promise<Array<{ workspacePath: string }>> {
+    await this.ensureReady();
+    const rows = this.getDatabase()
+      .prepare(`SELECT DISTINCT workspace_path FROM tasks
+        WHERE (host_id IS NULL OR host_id = 'local')
+          AND workspace_key = workspace_path
+          AND trim(coalesce(workspace_identity, '')) = ''
+          AND cli_created_at IS NOT NULL
+          AND deleted = 0 AND coalesce(cli_deleted, 0) = 0 AND archived = 0
+        ORDER BY workspace_path`)
+      .all() as Array<{ workspace_path: string }>;
+    return rows.map((row) => ({ workspacePath: row.workspace_path }));
+  }
+
   async listTaskMetas(params: {
     workspacePath?: string;
     workspaceIdentity?: string;
@@ -1306,6 +1317,8 @@ export class TaskIndexRepo {
     workspaceIdentity?: string;
     olderThanDays: number;
     provider?: ZCodeProvider;
+    /** 当前活动事实的只读来源；必须在准备完成后的 SQL 提交边界读取，不能提前缓存。 */
+    readActiveTaskIds?: () => readonly string[];
   }): Promise<ZCodeTaskMeta[]> {
     await this.ensureReady();
     const days = Math.max(1, Math.floor(params.olderThanDays));
@@ -1321,6 +1334,13 @@ export class TaskIndexRepo {
     ];
     const args: Array<string | number> = [workspaceKey(params), Date.now() - days * 86400000];
     if (params.provider) appendZCodeAgentIndexedProviderFilter(where, args, params.provider);
+    // Bug 原因：重新运行的会话仍可能保留上轮 completed 终态。活动 owner 的最新观察
+    // 必须在最后一个 await 之后进入同条条件 UPDATE，避免归档期间恢复的任务被隐藏。
+    const activeTaskIds = [...new Set(params.readActiveTaskIds?.() ?? [])];
+    if (activeTaskIds.length > 0) {
+      where.push(`task_id NOT IN (${activeTaskIds.map(() => "?").join(", ")})`);
+      args.push(...activeTaskIds);
+    }
     // 修复依据：多个 Window Host 共用索引，单条条件 UPDATE 才不会覆盖期间的 pin/unread/status 变化。
     const rows = this.getDatabase()
       .prepare(`UPDATE tasks SET archived=1 WHERE ${where.join(" AND ")} RETURNING *`)

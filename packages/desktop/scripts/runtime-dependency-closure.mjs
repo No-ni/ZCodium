@@ -68,17 +68,18 @@ export function collectRuntimeModuleClosureEntries(moduleNames, moduleLookupRoot
     if (!runtimePackage && optional) {
       return;
     }
+    // 必需依赖缺失不能和可选包一起跳过，否则 afterPack 与 bundle 会同时漏检，
+    // 安装包直到启动时才报 MODULE_NOT_FOUND；两条链路共用此处的闭包判定。
+    if (!runtimePackage) {
+      throw new Error(`Required runtime dependency not found: ${moduleName}`);
+    }
 
     visited.add(moduleName);
     collected.push({
       moduleName,
-      sourceModulePath: runtimePackage?.packageRoot ?? null,
-      packageJsonPath: runtimePackage?.packageJsonPath ?? null,
+      sourceModulePath: runtimePackage.packageRoot,
+      packageJsonPath: runtimePackage.packageJsonPath,
     });
-
-    if (!runtimePackage) {
-      return;
-    }
 
     const { packageJson, packageJsonPath } = runtimePackage;
     const dependencies = packageJson.dependencies ?? {};

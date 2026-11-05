@@ -8,8 +8,7 @@ import {
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
+
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -23,10 +22,7 @@ import {
   withE2ESourceEvidence,
 } from "./test/e2e/reporting/e2e-source-evidence.js";
 import { config as loadDotenv } from "dotenv";
-import {
-  PROVIDER_RESPONSIVE_TEAM_NAME,
-  buildProviderResponsiveStartBalance,
-} from "./test/e2e/fixtures/provider-family-responsive.js";
+import "./test/e2e/fixtures/provider-family-responsive.js";
 import {
   startUpstreamReplayServer,
   type UpstreamReplayServer,
@@ -81,19 +77,17 @@ import {
 } from "./test/e2e/helpers/e2e-worker-isolation.js";
 import { seedRemoteOnboardingFixture } from "./test/e2e/helpers/remote-startup-profile.js";
 import { prepareWebRemoteControlSessionFixture } from "./test/e2e/helpers/web-remote-control-session-fixture.js";
-import { createE2EReplayFixtureVariables } from "./test/e2e/helpers/e2e-runtime-paths.js";
+import {
+  createE2EReplayFixtureVariables,
+  resolveE2EStorageRoot,
+} from "./test/e2e/helpers/e2e-runtime-paths.js";
 import { stageE2EAppOutput } from "./test/e2e/helpers/e2e-app-output-stage.js";
 import { withE2EDesktopBuildLock } from "./scripts/ensure-e2e-desktop-build.mjs";
 import {
   ensureSshRemoteReleaseAssets,
   resolveSshRemoteReleaseScope,
 } from "./test/e2e/helpers/e2e-ssh-remote-release-assets.js";
-import {
-  ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV,
-  BUILTIN_MODEL_PROVIDER_IDS,
-  BIGMODEL_PROVIDER_ID,
-  ZAI_PROVIDER_ID,
-} from "@zcode/shared";
+import { ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV } from "@zcode/shared";
 import {
   seedPersonalProviderConfig,
   seedPersonalDefaultModelSelection,
@@ -122,11 +116,7 @@ import {
   startModelContextBudgetConfigMockServer,
   type ModelContextBudgetConfigMockServer,
 } from "./test/e2e/helpers/model-context-budget-config-mock-server.js";
-import {
-  MODEL_PROVIDER_CATALOG_PAYLOAD,
-  resolveSubagentLoginCatalogConfigVersion,
-  resolveSubagentLoginCatalogPayload,
-} from "./test/e2e/helpers/model-provider-catalog-mock-server.js";
+import "./test/e2e/helpers/model-provider-catalog-mock-server.js";
 import {
   applyClientScenesMockEnv,
   clearClientScenesMockEnv,
@@ -164,7 +154,7 @@ import {
 } from "./test/e2e/helpers/passive-agent-startup-fixture.js";
 import { seedSessionHistoryFirstFixture } from "./test/e2e/helpers/session-history-first-fixture.js";
 import { seedTaskIndexRowAuthorityFixture } from "./test/e2e/helpers/task-list-row-authority-fixture.js";
-import { seedDeleteAllArchivedTasksFixture } from "./test/e2e/helpers/delete-all-archived-tasks-fixture.js";
+import "./test/e2e/helpers/delete-all-archived-tasks-fixture.js";
 import { seedTaskTitleMarqueeFixture } from "./test/e2e/helpers/task-title-marquee-fixture.js";
 import { seedAppUsageE2EFixture } from "./test/e2e/helpers/usage-stats-app-usage-fixture.js";
 
@@ -194,8 +184,8 @@ const E2E_HOME_DIR = resolve(
 const E2E_PACKAGED_APP_BINARY_PATH = process.env.ZCODE_E2E_PACKAGED_APP_PATH?.trim()
   ? resolve(process.env.ZCODE_E2E_PACKAGED_APP_PATH)
   : null;
-// 目录隔离已回滚：所有 Desktop E2E 继续使用历史 ~/.zcode 布局。
-const E2E_STORAGE_ROOT = resolve(E2E_HOME_DIR, ".zcode");
+// 原因：runner 保留 .zcode 常量会把配置播种到产品不读取的目录；与路径 helper 共用当前根。
+const E2E_STORAGE_ROOT = resolveE2EStorageRoot(E2E_HOME_DIR);
 const E2E_APP_CONFIG_DIR = resolve(E2E_STORAGE_ROOT, "v2");
 const E2E_APP_SETTINGS_FILE = resolve(E2E_APP_CONFIG_DIR, "setting.json");
 const E2E_APP_CREDENTIALS_FILE = resolve(E2E_APP_CONFIG_DIR, "credentials.json");
@@ -223,19 +213,13 @@ const E2E_NETWORK_CAPTURE_DIR = resolve(
 const E2E_CERT_CACHE_ROOT =
   process.env.ZCODE_E2E_CERT_CACHE_DIR?.trim() || resolve(REPO_ROOT, ".cache");
 const E2E_NETWORK_CAPTURE_CA_DIR = resolve(E2E_CERT_CACHE_ROOT, "desktop-e2e-network-capture-ca");
-const E2E_CODING_PLAN_DATA_PLANE_CA_DIR = resolve(
-  E2E_CERT_CACHE_ROOT,
-  "desktop-e2e-coding-plan-data-plane-ca",
-);
+
 const E2E_BROWSER_DRIVER_CACHE_DIR = resolve(REPO_ROOT, ".cache/wdio-browser-drivers");
 const DESKTOP_BUILD_OUTPUT_DIR = resolve(DESKTOP_DIR, "out");
 const DESKTOP_BUILD_ENTRY_POINT = resolve(DESKTOP_BUILD_OUTPUT_DIR, "main/index.js");
 const E2E_RENDERER_ASSETS_DIR = resolve(DESKTOP_DIR, "out/renderer/assets");
 const UPSTREAM_CAPTURE_ARTIFACT_PATH = resolve(E2E_NETWORK_CAPTURE_DIR, "upstream-provider.json");
-const CODING_PLAN_DATA_PLANE_ARTIFACT_PATH = resolve(
-  E2E_NETWORK_CAPTURE_DIR,
-  "coding-plan-data-plane.json",
-);
+
 const E2E_PROVIDER_RUNTIME_FILE = resolve(E2E_NETWORK_CAPTURE_DIR, "upstream-runtime.json");
 const UPSTREAM_REPLAY_FIXTURE_ROOT = resolve(DESKTOP_DIR, "test/e2e/fixtures/upstream");
 const UPSTREAM_COMMON_REPLAY_FIXTURE_PATH = resolve(UPSTREAM_REPLAY_FIXTURE_ROOT, "common.json");
@@ -323,7 +307,7 @@ const SUBAGENT_RUNTIME_CATALOG_PROVIDER_ID = "e2e-claude-runtime-catalog";
 const SUBAGENT_RUNTIME_CATALOG_PROVIDER_NAME = "Claude Runtime Catalog E2E";
 const SUBAGENT_RUNTIME_CATALOG_MODEL = "claude-opus-4-8";
 const SUBAGENT_RUNTIME_CATALOG_AGENT_NAME = "e2e-claude-catalog-reviewer";
-const MODEL_PROVIDER_PLAN_SURFACE_SPEC = "conversation-session-model-provider-plan-surface.test.ts";
+
 const SUBAGENT_TEAM_SCOPE_SPEC = "conversation-session-subagent-team-scope.test.ts";
 const TOOL_ERROR_SURFACE_SPEC = "conversation-session-tool-error-surface.test.ts";
 const MODEL_OUTPUT_TOKEN_BUDGET_SPEC = "conversation-session-model-output-token-budget.test.ts";
@@ -337,13 +321,7 @@ const TOOL_ERROR_SURFACE_HEALTHY_AGENT_NAME = "e2e-healthy-error-reviewer";
 // 回放模式使用本地回放服务器，实际生效的地址经 E2E_PROVIDER_RUNTIME_BASE_URL 传给各测试进程。
 const E2E_PROVIDER_UPSTREAM_BASE_URL = process.env.E2E_PROVIDER_BASE_URL?.trim() ?? "";
 const E2E_PROVIDER_REPLAY_API_KEY = "e2e-fixture-key";
-const CODING_PLAN_MODEL_SSE_BODY =
-  'event: message_start\ndata: {"type":"message_start","message":{"id":"coding-plan-e2e","type":"message","role":"assistant","content":[],"model":"glm-e2e","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":128,"output_tokens":0}}}\n\n' +
-  'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n' +
-  'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"coding-plan-e2e-ok"}}\n\n' +
-  'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n' +
-  'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":12}}\n\n' +
-  'event: message_stop\ndata: {"type":"message_stop"}\n\n';
+
 const GLM_HIGHSPEED_E2E_PROVIDER_ID = "e2e-glmhighspeed";
 const GLM_HIGHSPEED_E2E_MODEL = "glm-5.1-highspeed";
 const GLM_HIGHSPEED_E2E_BASE_URL = "https://open.bigmodel.cn/api";
@@ -783,7 +761,7 @@ function readE2EProviderPresetName(): E2EProviderPresetName {
   );
 }
 
-function resolveActiveE2EProviderEnv(specs: string[] = configuredE2ESpecs) {
+function resolveActiveE2EProviderEnv(_specs: string[] = configuredE2ESpecs) {
   return {
     providerId: e2eProviderPreset.providerId,
     providerName: e2eProviderPreset.providerName,
@@ -2001,8 +1979,6 @@ function seedE2EStartupState(specs: string[] = []) {
     mkdirSync(legacyDefaultProjectPath, { recursive: true });
   }
   const now = Date.now();
-  const builtInSubagentModelOverridesSpec = isBuiltInSubagentModelSelectionOverridesSpec(specs);
-  const providerReadinessColdStartFixture = usesProviderReadinessColdStartFixture(specs);
   writeFileSync(
     E2E_APP_SETTINGS_FILE,
     JSON.stringify(
@@ -2506,10 +2482,6 @@ function isSettingsSubagentCreateEditPersistenceSpec(specs: string[] = []) {
 
 function isSubagentRuntimeCatalogReasoningSpec(specs: string[] = []) {
   return specs.some((spec) => spec.includes(SUBAGENT_RUNTIME_CATALOG_REASONING_SPEC));
-}
-
-function isModelProviderPlanSurfaceSpec(specs: string[] = []) {
-  return specs.some((spec) => spec.includes(MODEL_PROVIDER_PLAN_SURFACE_SPEC));
 }
 
 function isToolErrorSurfaceSpec(specs: string[] = []) {

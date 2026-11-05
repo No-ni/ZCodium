@@ -1,7 +1,6 @@
 import { type RemoteTarget } from "@zcode/shared";
 import { logger } from "@/logger.js";
 import type { RemoteFlowContext } from "./flowContext.js";
-import type { RemoteConnectionCompletionIntent } from "./completionIntent.js";
 export function runUpdatePendingRemoteTarget(
   context: RemoteFlowContext,
   target: RemoteTarget | null,

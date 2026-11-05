@@ -14,11 +14,7 @@ import { homedir } from "node:os";
 import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 import { join } from "node:path";
 import { rm, stat } from "node:fs/promises";
-import {
-  PARODY_ENV_KEY,
-  PARODY_FLAG,
-  resolveParodyGate,
-} from "./gate.js";
+import { PARODY_ENV_KEY, PARODY_FLAG, resolveParodyGate } from "./gate.js";
 import { scanRepoSnapshot, workspaceKeyHash, workspaceKeyOf } from "./scan.js";
 import {
   buildDelta,
@@ -41,7 +37,10 @@ const STATE_DIR_ENV_KEY = "ZCODE_PARODY_STATE_DIR";
 const DEFAULT_PORT = 8787;
 
 function defaultStateDir(): string {
-  return process.env[STATE_DIR_ENV_KEY]?.trim() || join(homedir(), ZCODE_USER_DATA_DIR_NAME, "repo-snapshot-parody");
+  return (
+    process.env[STATE_DIR_ENV_KEY]?.trim() ||
+    join(homedir(), ZCODE_USER_DATA_DIR_NAME, "repo-snapshot-parody")
+  );
 }
 
 function fail(message: string): never {
@@ -73,8 +72,7 @@ async function runCapture(argv: string[]): Promise<void> {
   const portIndex = argv.indexOf("--port");
   const port = portIndex >= 0 ? Number(argv[portIndex + 1]) : DEFAULT_PORT;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const workspaceArg = argv[argv.indexOf("--workspace") + 1];
-  const workspacePath = workspaceArg ?? process.cwd();
+  const workspacePath = readWorkspacePath(argv);
 
   const stateDir = defaultStateDir();
   const keysDir = join(stateDir, "keys");
@@ -151,7 +149,9 @@ async function runCapture(argv: string[]): Promise<void> {
 
   console.log(`[archive] tar.gz → ${plaintextPath}`);
   const archived = await writeTarGz(entries, plaintextPath);
-  console.log(`[archive] ${archived.fileCount} 个文件，明文 ${formatBytes(archived.plaintextBytes)}`);
+  console.log(
+    `[archive] ${archived.fileCount} 个文件，明文 ${formatBytes(archived.plaintextBytes)}`,
+  );
 
   const attribution: CaptureAttribution = {
     captureStage: "parody-capture",
@@ -274,8 +274,7 @@ async function runDecrypt(argv: string[]): Promise<void> {
 
 async function runManifest(argv: string[]): Promise<void> {
   requireGate();
-  const workspaceArg = argv[argv.indexOf("--workspace") + 1];
-  const workspacePath = workspaceArg ?? process.cwd();
+  const workspacePath = readWorkspacePath(argv);
   const { manifest } = await scanRepoSnapshot(workspacePath);
   const hash = computeManifestHash(manifest);
   console.log(
@@ -295,7 +294,8 @@ async function runManifest(argv: string[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const [command, ...rest] = process.argv.slice(2);
+  // gate 本身仍读取原 argv；子命令解析只移除总开关，避免首/尾位置被当命令或 cwd。
+  const [command, ...rest] = process.argv.slice(2).filter((argument) => argument !== PARODY_FLAG);
   switch (command) {
     case "capture":
       await runCapture(rest);
@@ -320,6 +320,14 @@ async function main(): Promise<void> {
       );
       process.exit(2);
   }
+}
+
+function readWorkspacePath(argv: readonly string[]): string {
+  const index = argv.indexOf("--workspace");
+  if (index < 0) return process.cwd();
+  const value = argv[index + 1];
+  if (!value || value.startsWith("--")) throw new Error("--workspace requires a directory");
+  return value;
 }
 
 await main();

@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs
 import { join } from "node:path";
 import { clearAppData, DEFAULT_WORKSPACE } from "../helpers/desktop-app.js";
 import { resolveE2ERuntimePath } from "../helpers/e2e-runtime-paths.js";
-import { ensureToolCrossProductFullAccessMode } from "../helpers/conversation-session-tool-cross-product.js";
+import "../helpers/conversation-session-tool-cross-product.js";
 import { countUpstreamRequests } from "../helpers/conversation-session-network.js";
 import {
   getV4PaneSnapshot,

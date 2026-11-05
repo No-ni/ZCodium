@@ -55,7 +55,10 @@ async function main(): Promise<void> {
       mobileDir && existsSync(mobileDir)
         ? mobileDir
         : (() => {
-            logger.warn("relay: mobile dir missing; page hosting disabled", { mobileDir });
+            // 用户目录只用于文件操作，不把真实路径输出到部署日志。
+            logger.warn("relay: mobile dir missing; page hosting disabled", {
+              mobileDirConfigured: mobileDir !== null,
+            });
             return null;
           })(),
     logger,
@@ -66,7 +69,7 @@ async function main(): Promise<void> {
   });
   logger.info("relay: ready", {
     port: handle.port,
-    mobileDir: mobileDir ?? "none",
+    mobileDirConfigured: mobileDir !== null,
     docs: "https://github.com/No-ni/ZCodium/blob/main/.agents/specs/web-remote-control.md",
   });
 
@@ -79,9 +82,10 @@ async function main(): Promise<void> {
   process.on("SIGINT", () => void shutdown("SIGINT"));
 }
 
-void main().catch((error) => {
+void main().catch(() => {
   logger.warn("relay: failed to start", {
-    message: error instanceof Error ? error.message : String(error),
+    // fields.message 会覆盖固定事件并泄漏原始异常；出口仅提供稳定失败分类。
+    failure: "START_FAILED",
   });
   process.exit(1);
 });

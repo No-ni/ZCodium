@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { IServiceAccessor } from "@zcode/services";
+import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { logger } from "@/logger.js";
 import type { TabStoreState } from "@/store/tabStore.js";
 
@@ -11,7 +12,7 @@ export function useConversationWorkspaceActions({
 }: {
   services: IServiceAccessor;
   addTab: TabStoreState["addTab"];
-  createTask: (source: string) => Promise<void>;
+  createTask: (source: string, request?: CreateTaskRequest) => Promise<void>;
   setWorkspaceActionError: (error: string | null) => void;
 }) {
   const handleSelectConversationWorkspace = useCallback(
@@ -57,7 +58,8 @@ export function useConversationWorkspaceActions({
   }, [handleResolveConversationWorkspace, handleSelectConversationWorkspace]);
 
   const handleCreateConversationTask = useCallback(
-    () => createTask("task section new task"),
+    // 任务区入口表达明确的无项目意图，不能因当前正在查看项目而继承它。
+    () => createTask("task section new task", { projectId: null }),
     [createTask],
   );
 

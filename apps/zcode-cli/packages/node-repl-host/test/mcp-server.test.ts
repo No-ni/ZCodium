@@ -520,7 +520,9 @@ describe("node_repl MCP server", () => {
       },
       ledgerFacts(),
     );
-    expect(forgedRun._meta).not.toHaveProperty(ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY);
+    expect(forgedRun._meta).not.toHaveProperty(
+      ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY,
+    );
   });
 
   it("projects the CUA app identity recorded in the ledger and drops the sandbox-forgeable key", () => {
@@ -533,7 +535,10 @@ describe("node_repl MCP server", () => {
         responseMeta: {
           [CUA_APP_ASSOCIATIONS_META_KEY]: {
             schemaVersion: 1,
-            primary: { appKey: "darwin:com.apple.systempreferences", displayName: "System Settings" },
+            primary: {
+              appKey: "darwin:com.apple.systempreferences",
+              displayName: "System Settings",
+            },
           },
         },
       },
@@ -577,16 +582,24 @@ describe("node_repl MCP server", () => {
       [ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY]: true,
       [ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY]: true,
     };
-    const failed = toMcpRunResult({ logs: "", error: { name: "Error", message: "boom" } }, ledgerFacts());
+    const failed = toMcpRunResult(
+      { logs: "", error: { name: "Error", message: "boom" } },
+      ledgerFacts(),
+    );
     expect(failed.isError).toBe(true);
     expect(failed._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY);
     expect(failed._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
 
     // 展示事实照常写：目标应用身份来自账本，不受统计剥离影响。
-    const withApp = toMcpRunResult({ logs: "" }, ledgerFacts({
-      cuaApps: [{ appKey: "win32:msedge", displayName: "Edge" }],
-    }));
-    expect(withApp._meta).toMatchObject({ [ZCODE_MCP_NODE_REPL_CUA_APP_META_KEY]: { appKey: "win32:msedge" } });
+    const withApp = toMcpRunResult(
+      { logs: "" },
+      ledgerFacts({
+        cuaApps: [{ appKey: "win32:msedge", displayName: "Edge" }],
+      }),
+    );
+    expect(withApp._meta).toMatchObject({
+      [ZCODE_MCP_NODE_REPL_CUA_APP_META_KEY]: { appKey: "win32:msedge" },
+    });
     expect(withApp._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
 
     // sandbox 通道写入的同名 key、Worker 结果消息里冒充的字段（MR !3207 评审 CR-01）一律不采信。
@@ -605,19 +618,22 @@ describe("node_repl MCP server", () => {
   });
 
   it("maps screenshot indices to their real content positions when only some images are screenshots", () => {
-    const result = toMcpRunResult({
-      logs: "",
-      images: [
-        { base64: "AAAA", mimeType: "image/png" },
-        { base64: "BBBB", mimeType: "image/png" },
-        { base64: "CCCC", mimeType: "image/png" },
-      ],
-    }, ledgerFacts({
-      browserScreenshots: [
-        { base64: "AAAA", mimeType: "image/png" },
-        { base64: "CCCC", mimeType: "image/png" },
-      ],
-    }));
+    const result = toMcpRunResult(
+      {
+        logs: "",
+        images: [
+          { base64: "AAAA", mimeType: "image/png" },
+          { base64: "BBBB", mimeType: "image/png" },
+          { base64: "CCCC", mimeType: "image/png" },
+        ],
+      },
+      ledgerFacts({
+        browserScreenshots: [
+          { base64: "AAAA", mimeType: "image/png" },
+          { base64: "CCCC", mimeType: "image/png" },
+        ],
+      }),
+    );
 
     expect(result._meta).toMatchObject({
       [ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY]: [0, 2],
@@ -832,9 +848,7 @@ describe("node_repl MCP server", () => {
           { type: "text", text: "[node_repl] No progress ×10. You may end this turn." },
         ],
       });
-      expect(stderr).toEqual([
-        "[node_repl] no-progress hint kind=no_progress count=10 session=no-progress-session turn=turn-a\n",
-      ]);
+      expect(stderr).toEqual(["[node_repl] no-progress hint kind=no_progress count=10\n"]);
 
       expect((await call("// end", "turn-b")).content).toEqual([
         { type: "text", text: "(no output)" },

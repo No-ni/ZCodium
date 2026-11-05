@@ -4,16 +4,36 @@ import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promise
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createServiceLogger } from "../logger/serviceLogger.js";
 
-const DEFAULT_OUTPUT_STYLE = "default";
 const SETTINGS_FILE = "settings.json";
+const log = createServiceLogger("output-style");
+
+function getStyleFilePath(stylesDir: string, baseName: string): string {
+  // 名称和 RPC ID 都是直接子文件标识；旧实现直接 join，../ 和反斜杠可写删样式目录外文件。
+  // 保留 Unicode、空格与中间的 .md；仅拒绝路径分隔符和当前平台不能表示的文件名。
+  if (
+    typeof baseName !== "string" ||
+    baseName.length === 0 ||
+    baseName.includes("/") ||
+    baseName.includes("\\") ||
+    baseName.includes("\0") ||
+    (process.platform === "win32" &&
+      (/[<>:"|?*]/.test(baseName) ||
+        [...baseName].some((character) => character.charCodeAt(0) < 32)))
+  ) {
+    throw Object.assign(new Error("Invalid output style file name"), {
+      code: "OUTPUT_STYLE_INVALID_FILE_NAME",
+    });
+  }
+  return join(stylesDir, `${baseName}.md`);
+}
 
 const BUILT_IN_STYLES: OutputStyle[] = [
   {
     id: "default",
     name: "Default",
-    description:
-      "Completes coding tasks efficiently and provides concise responses",
+    description: "Completes coding tasks efficiently and provides concise responses",
     content: "",
     isBuiltIn: true,
     enabled: true,
@@ -21,8 +41,7 @@ const BUILT_IN_STYLES: OutputStyle[] = [
   {
     id: "explanatory",
     name: "Explanatory",
-    description:
-      "Explains implementation choices and codebase patterns",
+    description: "Explains implementation choices and codebase patterns",
     content: "",
     isBuiltIn: true,
     enabled: false,
@@ -30,8 +49,7 @@ const BUILT_IN_STYLES: OutputStyle[] = [
   {
     id: "learning",
     name: "Learning",
-    description:
-      "Pauses and asks you to write small pieces of code for hands-on practice",
+    description: "Pauses and asks you to write small pieces of code for hands-on practice",
     content: "",
     isBuiltIn: true,
     enabled: false,
@@ -67,8 +85,8 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
     }
     const content = await readFile(filePath, "utf-8");
     return JSON.parse(content) as T;
-  } catch (error) {
-    console.error(`Failed to read JSON file ${filePath}:`, error);
+  } catch {
+    log.warn(undefined, "Output style settings read failed");
     return null;
   }
 }
@@ -80,7 +98,7 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
   try {
     await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
   } catch (error) {
-    console.error(`Failed to write JSON file ${filePath}:`, error);
+    log.error(undefined, "Output style settings write failed");
     throw error;
   }
 }
@@ -160,7 +178,8 @@ export function createOutputStyleService(): IOutputStyleService {
             const filePath = join(stylesDir, entry.name);
             const content = await readFile(filePath, "utf-8");
             const { name, description } = parseMarkdownStyle(content, entry.name);
-            const styleId = `custom-${entry.name.replace(".md", "")}`;
+            // 只移除最终扩展名；report.md.extra.md 的 ID 必须仍定位 report.md.extra.md。
+            const styleId = `custom-${entry.name.slice(0, -3)}`;
 
             customStyles.push({
               id: styleId,
@@ -171,8 +190,8 @@ export function createOutputStyleService(): IOutputStyleService {
               enabled: styleId === activeStyleId,
               filePath,
             });
-          } catch (error) {
-            console.error(`Failed to read output style file ${entry.name}:`, error);
+          } catch {
+            log.warn(undefined, "Output style file read failed");
           }
         }
       }
@@ -198,6 +217,7 @@ export function createOutputStyleService(): IOutputStyleService {
   async function addStyle(params: { config: OutputStyleConfig }): Promise<void> {
     const { config } = params;
     const stylesDir = getUserOutputStylesDir();
+    const filePath = getStyleFilePath(stylesDir, config.name.toLowerCase().replace(/\s+/g, "-"));
 
     try {
       await mkdir(stylesDir, { recursive: true });
@@ -208,9 +228,6 @@ export function createOutputStyleService(): IOutputStyleService {
       }
     }
 
-    const filename = `${config.name.toLowerCase().replace(/\s+/g, "-")}.md`;
-    const filePath = join(stylesDir, filename);
-
     // 生成文件内容
     const content = `name: ${config.name}
 description: ${config.description}
@@ -220,17 +237,13 @@ ${config.content}`;
     await writeFile(filePath, content, "utf-8");
   }
 
-  async function updateStyle(params: {
-    id: string;
-    config: OutputStyleConfig;
-  }): Promise<void> {
+  async function updateStyle(params: { id: string; config: OutputStyleConfig }): Promise<void> {
     const { id, config } = params;
 
     // 移除 'custom-' 前缀获取文件名
     const baseId = id.startsWith("custom-") ? id.slice(7) : id;
     const stylesDir = getUserOutputStylesDir();
-    const filename = `${baseId}.md`;
-    const filePath = join(stylesDir, filename);
+    const filePath = getStyleFilePath(stylesDir, baseId);
 
     // 生成文件内容
     const content = `name: ${config.name}
@@ -247,8 +260,7 @@ ${config.content}`;
     // 移除 'custom-' 前缀获取文件名
     const baseId = id.startsWith("custom-") ? id.slice(7) : id;
     const stylesDir = getUserOutputStylesDir();
-    const filename = `${baseId}.md`;
-    const filePath = join(stylesDir, filename);
+    const filePath = getStyleFilePath(stylesDir, baseId);
 
     await rm(filePath, { force: true });
   }

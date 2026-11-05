@@ -2,10 +2,11 @@ import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import type { Server as HttpServer } from "node:http";
 import { hostname } from "node:os";
 import { resolveServerOsUser } from "@zcode/shared/node";
-import * as nodePath from "node:path";
-import { basename, extname, resolve } from "node:path";
+
+import { basename, extname } from "node:path";
 import { Hono, type Context } from "hono";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
@@ -31,6 +32,7 @@ import {
   ITerminalService,
   IBotsService,
   IProviderProvisioningTargetService,
+  IConversationShareService,
 } from "@zcode/services";
 import {
   botProviders,
@@ -47,6 +49,7 @@ import {
 } from "@zcode/shared";
 import {
   SourceServerWorkspaceIdentityChannelServer,
+  scopeConversationShareServiceForAttachment,
   type SourceServerWorkspaceIdentityMapper,
 } from "@zcode/services/node";
 import { createHostCapabilityStore } from "./hostCapability.js";
@@ -116,16 +119,36 @@ function setupChannelServer(
   const peer = reverseClient
     ? resourcePeers?.attach(reverseClient.getChannel(TOPIC_RESOURCE_RELAY_CHANNEL))
     : undefined;
+  const connectionContext = {
+    connectionId: `server-ws-${randomUUID()}`,
+    clientMode,
+    role:
+      clientMode === "desktop-continuous"
+        ? ("trusted-host-relay" as const)
+        : ("terminal-client" as const),
+  };
   const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(peer ? peer.wrapAgent(agentService) : agentService, {
-        connectionId: `server-ws-${randomUUID()}`,
-        clientMode,
-        role: clientMode === "desktop-continuous" ? "trusted-host-relay" : "terminal-client",
-      })
+    ? createZCodeAgentConnectionScope(
+        peer ? peer.wrapAgent(agentService) : agentService,
+        connectionContext,
+      )
     : undefined;
   const overrides = new Map<string, unknown>();
   if (connectionScope) {
     overrides.set(IZCodeAgentService.channelName, connectionScope.service);
+  }
+  const shareService = services.getOptional(IConversationShareService);
+  if (shareService) {
+    // HTTP 与 stdio 必须共用 attachment 准入；直接暴露 base service 会让 Web 调到桌面归档。
+    overrides.set(
+      IConversationShareService.channelName,
+      scopeConversationShareServiceForAttachment(
+        shareService,
+        clientMode,
+        connectionScope?.service,
+        connectionContext,
+      ),
+    );
   }
   // Provisioning 携带跨 Environment 凭据，只允许 Desktop trusted host 使用；普通 Web
   // remote/replayable 客户端即使知道频道名，也不能获得 target 写入接口。
@@ -149,9 +172,6 @@ function setupChannelServer(
     void connectionScope?.dispose();
   });
 }
-
-/** 存储 web 模式下的远程连接，key 为随机 ID */
-const remoteConnections = new Map<string, RemoteConnection>();
 
 function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -295,8 +315,32 @@ export function createHttpServer(
   options: HttpServerOptions = {},
 ) {
   const app = new Hono();
-  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+  const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({ app });
   const hostCapabilities = createHostCapabilityStore();
+  // 一个 HTTP 实例独占准备、待绑定和已绑定连接；模块全局 Map 会令其他实例消费同一 ID。
+  const remoteConnections = new Map<string, RemoteConnection>();
+  const ownedRemoteConnections = new Set<RemoteConnection>();
+  const connectControllers = new Set<AbortController>();
+  const connectFlights = new Set<Promise<void>>();
+  const releaseFlights = new Set<Promise<void>>();
+  const releasedConnections = new WeakMap<RemoteConnection, Promise<void>>();
+  let closing = false;
+  const releaseRemote = (connection: RemoteConnection): Promise<void> => {
+    const existing = releasedConnections.get(connection);
+    if (existing) return existing;
+    ownedRemoteConnections.delete(connection);
+    const released = Promise.resolve()
+      .then(() => connection.disposeAndWait())
+      .catch(() => log("remote connection release failed"));
+    releasedConnections.set(connection, released);
+    releaseFlights.add(released);
+    void released.finally(() => releaseFlights.delete(released));
+    return released;
+  };
+  app.use("*", async (c, next) => {
+    if (closing) return c.json({ error: "Server shutting down" }, 503);
+    await next();
+  });
 
   const authToken = options.authToken?.trim();
   if (authToken) {
@@ -355,14 +399,42 @@ export function createHttpServer(
     const parsed = remoteTargetSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success || parsed.data.kind === "server")
       return c.json({ error: "Invalid remote target" }, 400);
+    if (closing) return c.json({ error: "Server shutting down" }, 503);
+    const controller = new AbortController();
+    connectControllers.add(controller);
+    let finish!: () => void;
+    const flight = new Promise<void>((done) => {
+      finish = done;
+    });
+    connectFlights.add(flight);
     try {
       const backend = await createRemoteBackend(parsed.data);
-      const connection = await connectRemote(backend, { skipDeploy: true });
+      if (closing) {
+        if (backend.disposeAndWait) await backend.disposeAndWait();
+        else backend.dispose();
+        return c.json({ error: "Server shutting down" }, 503);
+      }
+      const connection = await connectRemote(backend, {
+        skipDeploy: true,
+        signal: controller.signal,
+      });
+      ownedRemoteConnections.add(connection);
+      // 取消可与握手完成交错；迟到资源仍由本次 flight 释放，不能重新发布可消费 ID。
+      if (closing) {
+        await releaseRemote(connection);
+        return c.json({ error: "Server shutting down" }, 503);
+      }
       const id = generateId();
       remoteConnections.set(id, connection);
       return c.json({ id });
     } catch {
-      return c.json({ error: "Remote connection failed" }, 500);
+      return closing
+        ? c.json({ error: "Server shutting down" }, 503)
+        : c.json({ error: "Remote connection failed" }, 500);
+    } finally {
+      connectControllers.delete(controller);
+      connectFlights.delete(flight);
+      finish();
     }
   });
 
@@ -431,6 +503,13 @@ export function createHttpServer(
           }
           // 一个连接只给一个 WS 客户端使用，取出后从 Map 移除
           remoteConnections.delete(id);
+          const rawSocket = ws.raw as WebSocket;
+          rawSocket.once("close", () => {
+            void releaseRemote(connection);
+          });
+          rawSocket.once("error", () => {
+            void releaseRemote(connection);
+          });
 
           // 将远程 services 包装为 ServiceCollection，复用 exposeOnChannelServer 统一注册
           const remoteServices = new ServiceCollection()
@@ -466,14 +545,52 @@ export function createHttpServer(
     });
   }
 
+  // 当前入口只使用 serve 默认的 node:http 工厂，没有 HTTP/2 或自定义 server 注入；
+  // 具体 HTTP 类型使 close 的返回值与该实例一致，不能沿库的多工厂联合签名覆盖方法。
   const server = serve({ fetch: app.fetch, hostname: options.host, port }, () => {
     const address = server.address();
     const listenPort = typeof address === "object" && address ? address.port : port;
     const listenHost = options.host?.trim() || "localhost";
     log(`http://${listenHost}:${listenPort}`);
-  });
+  }) as HttpServer;
 
   injectWebSocket(server);
+
+  // 原生 HTTP close 不处理 upgrade socket。关闭从同步退休开始，callback 还要等待
+  // 同一实例的迟到准备结果及 disposeAndWait，防止先宣告退出、后遗留远端进程。
+  wss.on("connection", (socket) => {
+    if (closing) socket.terminate();
+  });
+  const nativeClose = server.close.bind(server);
+  let closeFlight: Promise<void> | undefined;
+  server.close = (callback?: (error?: Error) => void) => {
+    if (!closeFlight) {
+      closing = true;
+      for (const controller of connectControllers) controller.abort();
+      remoteConnections.clear();
+      const httpClosed = new Promise<void>((done, reject) => {
+        nativeClose((error?: Error) => (error ? reject(error) : done()));
+      });
+      for (const socket of wss.clients) socket.terminate();
+      const socketsClosed = new Promise<void>((done, reject) => {
+        wss.close((error?: Error) => (error ? reject(error) : done()));
+      });
+      const remotesClosed = (async () => {
+        // 准备中的连接有独立 flight owner；不能让其迟到握手阻塞已建立连接开始释放。
+        // 当前连接立即回收，迟到连接仍在原 flight 内释放，最后等待同一 release 集合。
+        const readyRemotesClosed = Promise.all([...ownedRemoteConnections].map(releaseRemote));
+        await Promise.all(connectFlights);
+        await readyRemotesClosed;
+        await Promise.all(releaseFlights);
+      })();
+      closeFlight = Promise.all([httpClosed, socketsClosed, remotesClosed]).then(() => undefined);
+    }
+    void closeFlight.then(
+      () => callback?.(),
+      (error: Error) => callback?.(error),
+    );
+    return server;
+  };
 
   return server;
 }

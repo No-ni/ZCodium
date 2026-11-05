@@ -1350,18 +1350,35 @@ async function createSessionWithProjectionUnserialized<T>(
   const params = parseParams(zcodeSessionCreateParamsSchema, rawParams);
   const sessionId = (params.sessionId ?? createSessionId()) as SessionId;
   const claims = (context.sessionCreationIds ??= new Set<string>());
-  // Host 预留只决定身份与归属，不能覆盖 CLI 已有/软删/正在创建的会话。
+  // Host 普通创建预留只决定身份与归属；历史导入可按原契约重放，不能覆盖正在创建的会话。
   // 在任何 await 前占用 ID，防止 native 与 V4 并发 materialize 同一 runtime。
-  if (context.sessions.has(sessionId) || claims.has(sessionId))
+  if (claims.has(sessionId) || (context.sessions.has(sessionId) && !params.importedHistory))
     throw new ProtocolRequestError(-32602, "sessionId already exists");
   claims.add(sessionId);
   try {
-    if (await context.deps.sessionStore?.getSession(sessionId))
+    const persisted = await context.deps.sessionStore?.getSession(sessionId);
+    if (persisted && !params.importedHistory)
       throw new ProtocolRequestError(-32602, "sessionId already exists");
+    const resident = context.sessions.get(sessionId);
+    const requestedKey = params.workspace.workspaceIdentity?.trim() || params.workspace.workspacePath;
+    // 导入幂等仅允许同一身份重放，不能借显式 ID 把其他 workspace 的历史与 cwd 改归属。
+    if (
+      params.importedHistory &&
+      ((persisted && (persisted.workspaceID?.trim() || persisted.directory) !== requestedKey) ||
+        (resident &&
+          (resident.workspace.workspaceIdentity?.trim() || resident.workspace.workspacePath) !==
+            requestedKey))
+    )
+      throw new ProtocolRequestError(-32602, "session workspace mismatch");
     let result!: T;
-    await getSessionLifecycle(context).initialize(sessionId, async () => {
+    const lifecycle = getSessionLifecycle(context);
+    const materialize = async () => {
       result = await materializeCreatedSession(context, { ...params, sessionId }, trace, project);
-    });
+    };
+    // 导入的同 ID 重放是既有幂等契约：先释放旧实例，再按持久 cwd 重建，不能被普通创建防重拦截。
+    if (params.importedHistory && (persisted || context.sessions.has(sessionId)))
+      await lifecycle.reinitialize(sessionId, materialize);
+    else await lifecycle.initialize(sessionId, materialize);
     return result;
   } finally {
     claims.delete(sessionId);
@@ -1577,9 +1594,20 @@ export async function activateSessionForResume(
   options: { reusePersistedMessages?: boolean; persistedMessages?: MessageWithParts[] } = {},
 ): Promise<ActivatedSessionForResume> {
   let activated: ActivatedSessionForResume | undefined;
-  await getSessionLifecycle(context).initialize(params.sessionId, async () => {
-    activated = await activateSessionRuntime(context, params, options);
-  });
+  await getSessionLifecycle(context).initialize(
+    params.sessionId,
+    async () => {
+      activated = await activateSessionRuntime(context, params, options);
+    },
+    async () => {
+      const resident = context.sessions.get(params.sessionId);
+      await touchResidentConversationSessionDir({
+        context,
+        executionPath: resident?.executionWorkspacePath,
+        sessionId: params.sessionId,
+      });
+    },
+  );
   const record = activated?.record ?? context.sessions.get(params.sessionId);
   if (!record) throw new Error("Session runtime unavailable after initialization");
   return activated ?? { record };
@@ -4268,6 +4296,9 @@ async function createRecord(
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
     toolSearchMode: startupPreferences.toolSearchMode,
+    // 合并漏掉 record 上的读取通道，fork 继承时拿不到 App 已有的总结偏好回调。
+    // 保留同一回调，每次辅助任务仍读取 Host 最新偏好，不缓存模型选择。
+    resolveSummaryModelSelection: startupPreferences.resolveSummaryModelSelection,
     ...(parentSessionId ? { parentSessionId } : {}),
     persistence: "persistence" in params ? (params.persistence ?? "immediate") : "immediate",
     protocolEventSequences: new Map(),

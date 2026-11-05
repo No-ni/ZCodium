@@ -55,7 +55,7 @@ function loadEnvFiles(): Record<string, string> {
   };
 }
 
-const env = loadEnvFiles();
+loadEnvFiles();
 const { environment: zcodeEnv } = await loadBuiltinProviderConfig();
 // 安装包身份与后端环境分轴：ZCODE_PREVIEW_IDENTITY=1 让生产后端的构建仍以 ZCode Preview 身份打包运行。
 const zcodeProductFlavor = resolveDesktopProductFlavor({ ...process.env, ZCODE_ENV: zcodeEnv });

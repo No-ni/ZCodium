@@ -5,7 +5,6 @@ import { getErrorMessage } from "@/lib/errorMessage.js";
 import { buildRemoteTargetFromProfile } from "@/lib/remoteConnectionWizard.js";
 import { loadConnectionProfileCredentials } from "@/root/reconnectRemoteWorkspaceHistoryEntry.js";
 import type { RemoteFlowContext } from "./flowContext.js";
-import type { RemoteConnectionCompletionIntent } from "./completionIntent.js";
 export function runHandleSelectProfile(
   context: RemoteFlowContext,
   profile: ConnectionProfile,

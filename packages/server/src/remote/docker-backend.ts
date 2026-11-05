@@ -178,7 +178,7 @@ export class DockerBackend implements IRemoteBackend {
     // 已释放的 backend 不能启动新命令：断连/退出后迟到的 exec 必须拒绝，不能留下无人回收的进程。
     this.assertNotDisposed();
     await this.ensureAvailable();
-    const resolvedInfo = await this.resolveInfo();
+    await this.resolveInfo();
     // dispose 可能在 await 期间到达；此刻再 spawn 会绕过关闭期，创建第二个无人回收的常驻进程。
     this.assertNotDisposed();
     // Bug 原因：`docker exec` 本身接受名称、完整 ID 和 ID 前缀，也会权威报告 daemon/

@@ -99,8 +99,8 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/project-sidebar/useProjectFileTree.ts",
-    "workspacePath: task.workspacePath,",
-    "旧 workspace tab 按钮已退休；任务文件入口读取任务自身绑定路径，不借活动草稿目录",
+    "workspacePath: executionWorkspacePath,",
+    "任务索引身份根不等于执行 cwd；任务文件入口精确查询目标 session，不借活动草稿目录",
   ],
   [
     "packages/ui/src/ToolCallBlocks.tsx",
