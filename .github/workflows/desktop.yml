@@ -4,14 +4,6 @@ name: Desktop CI
 # Workflows（2026-10-09 曾触发），push 分支、push 标签与 PR 均不自动构建。
 on:
   workflow_dispatch:
-    inputs:
-      targets:
-        description: "构建目标：all=四个平台全建；minimal=只建 win x64 与 mac arm64（节省 Actions 用量）"
-        type: choice
-        options:
-          - all
-          - minimal
-        default: all
 
 permissions:
   contents: read
@@ -225,8 +217,7 @@ jobs:
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.arch }})
     # checks 与平台打包没有产物依赖，从同一 ref 并行开始；本工作流只上传 Actions artifacts。
-    # minimal 只跑 win x64：Windows arm64 是交叉目标，按需再全量构建，避免白耗 Actions 用量。
-    if: ${{ !cancelled() && (inputs.targets != 'minimal' || (matrix.platform == 'win' && matrix.arch == 'x64')) }}
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -284,9 +275,9 @@ jobs:
 
   build-macos:
     name: Build (mac ${{ matrix.arch }})
-    # 默认产出 arm64 与 x64 两个 DMG；minimal 只跑 arm64（本机 Mac 装包用的那一档）。
+    # 本仓库只在手动运行时触发，因此每次都产出 arm64 与 x64 两个 DMG。
     # checks 与 macOS 打包并行；本工作流只上传 Actions artifacts。
-    if: ${{ !cancelled() && (inputs.targets != 'minimal' || matrix.arch == 'arm64') }}
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
