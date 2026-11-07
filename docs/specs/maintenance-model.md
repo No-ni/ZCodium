@@ -498,3 +498,29 @@ CLI 独立 Lint 实际为 **79 errors / 55 warnings，exit 1**。本轮两个 CL
 最终冻结源码的根typecheck、Lint、全量/changed架构均通过，Lint0/0。CLI正式类型通过，独立Lint仍89个既有max-lines错误/76警告，二轮未增加诊断。后端20、relay生命周期3、root合同186、工程85通过/1平台skip、UI21+CEL2及18场真实React浏览器回归等实际通过，不重复累计包装层、内层及重跑；格式与正常pre-push执行结果查总报告。截图受限、旧恢复unavailable、Android端点待裁决、完整native/真实远端/Provider/安装包未验收照实保留。
 
 本次提交包含当前已复核的源码、测试和文档，推送仅限`origin = No-ni/ZCodium`的main；不触发发行构建、不改版本、不提PR/issue、不同步上游。所有测试数据、缓存和验证输出仍在获准项目工作树，不操作真实`.zcodium`。
+
+### QA-2026-11-07 缺陷修复（2026-11-08）
+
+基线 `main@34de6db5`。按 [Bug 报告](../testing/qa-2026-11-07/bug-report.md) 修复 4 个未修复缺陷，
+证据与验收边界见 [修复报告](../testing/qa-2026-11-07/fix-report.md)。未提交、推送、
+改版本、打包或触发 Actions，未读取真实用户数据或访问公网。
+
+- QA-BUG-001（P2）：删除合并上游时误引入的 `/login`→`name: "workflow"` 别名，并把退役账号
+  命令判定提前到 workflowMode 门禁之前；新增 [路由优先级 spec](cli-retired-account-command-routing.md)。
+  正式契约 6/6 通过（新增 enabled 模式覆盖）；CLI 单测 29→28 失败，仅解析用例转绿。
+- QA-BUG-002（P2）：Hook timeout 明确为「空白→默认 60；其余有限正数，小数截断且 ≥ 1」；
+  UI Save 门禁 + 就地提示，写入 owner 写盘前用共享 schema 校验（user/project 先统一校验再写）。
+  规则写入 [hooks-runtime-contract.md](../hooks-runtime-contract.md)「设置页契约」，新增回归 10/10。
+- QA-BUG-003（P2）：Main 原生出口分流落在 `desktopMainIpcHelpers`：`file:` 解码后走
+  `shell.openPath`（host 仅空/localhost，UNC fail-closed），`http(s)` 走 `openExternal`，
+  其他协议零出口；渲染层与 `IPlatformService` 契约未改。新增 Main 单测 13/13；wdio E2E 未运行。
+- QA-BUG-004（P1）：插件图标补齐默认只读本地缓存、严格 0 次请求；外部增强仅限显式自建来源且
+  fail-closed，官方图标域按未配置处理。规则见 [图标来源门禁](plugin-icon-source-boundary.md)；
+  source 回归 6/6、audit-boundaries 11/11、bundled marketplace 9/9。
+
+根 `pnpm typecheck`、CLI typecheck、根 Lint（0 errors / 46 warnings，与修前一致）、改动文件格式与
+`architecture:check --changed`（0 violations）通过；首次根类型检查的 TS6305 仍来自 desktop
+scheduler 陈旧增量产物，`tsc -b --force` 重建声明后通过。CLI 独立 Lint 仍 89 个既有
+`max-lines` 错误，根 `fmt:check` 全仓仍有 707 个历史文件不合规；两项均与本次改动文件无关，
+未放宽门槛或刷新 baseline。Windows 真实 Electron UI、wdio E2E、macOS/手机/远端/真实 Provider/
+公网/安装包均未验收。
