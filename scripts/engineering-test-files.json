@@ -26,6 +26,7 @@
   "packages/desktop/test/desktopAppTestIdLookup.test.ts",
   "packages/desktop/test/desktopAppWorkspaceReadiness.test.ts",
   "packages/desktop/test/desktopE2EContainerScript.test.ts",
+  "packages/desktop/test/desktopExternalOpenRouting.test.ts",
   "packages/desktop/test/desktopProductIdentity.test.ts",
   "packages/desktop/test/devDesktopRemoteProdScript.test.ts",
   "packages/desktop/test/devElectronAppBundle.test.ts",

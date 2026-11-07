@@ -15,16 +15,7 @@ import {
   clearWorkspaceDeepLinkStateForWindow,
   deliverPendingWorkspaceOpen,
 } from "./desktopOAuthDeepLink.js";
-import { openPathInDefaultApp } from "./desktopMainIpcHelpers.js";
-
-function isAllowedExternalOpenUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" || url.protocol === "file:";
-  } catch {
-    return false;
-  }
-}
+import { handleExternalOpenRequest, openPathInDefaultApp } from "./desktopMainIpcHelpers.js";
 
 interface OpenExternalRequest {
   url: string;
@@ -109,23 +100,25 @@ export function registerRemoteIpcHandlers(options: {
     options.confirmRendererAttachmentReady(event.sender.id, { sessionId, attachmentId });
   });
 
-  ipcMain.on(PlatformChannels.OpenExternal, (event, payload: unknown) => {
+  ipcMain.on(PlatformChannels.OpenExternal, (_event, payload: unknown) => {
     const request = parseOpenExternalRequest(payload);
     if (!request) {
-      options.logger.warn("[open-external] blocked unsupported request", payload);
+      // 原因：payload 可能含完整本地路径/URL，日志只留固定事件；OpenExternal 是单向 send，
+      // renderer 收不到错误，因此这里只需拒绝，不能回退到任何 shell 出口。
+      options.logger.warn("[open-external] blocked unsupported request");
       return;
     }
-    const { url } = request;
-    if (!isAllowedExternalOpenUrl(url)) {
-      options.logger.warn("[open-external] blocked unsupported url", url);
-      return;
-    }
-    void Promise.resolve(shell.openExternal(url)).catch((error: unknown) => {
-      options.logger.warn("[open-external] 外部 URL 打开失败", {
-        url,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
+    // QA-BUG-003 修复：出口分流落在 Main 的原生出口 owner。file: 解码成本地路径后走
+    // shell.openPath（本地 file URL 交给 openExternal 时关联程序只会收到 URL 文本）；
+    // http/https 仍走 shell.openExternal；其他协议与非法 file host fail-closed。
+    void handleExternalOpenRequest(
+      request.url,
+      {
+        openExternal: (url) => shell.openExternal(url),
+        openPathInDefaultApp: (path) => openPathInDefaultApp(path, options.logger),
+      },
+      options.logger,
+    );
   });
 
   ipcMain.handle(PlatformChannels.OpenExternalFile, async (_event, rawPath: string) =>
