@@ -1034,24 +1034,24 @@ test("zcode logout clears shared OAuth credentials", async () => {
   assert.match(ctx.stdout.output(), /Logged out from Coding Plan accounts/);
 });
 
-test("parses login and logout slash commands", () => {
+// 本仓已退役官方账号命令：/login、/logout 由 retired-account-command 按 rawName 统一拒绝。
+// 它们不得被解析成任何仍然存活的命令名（QA-BUG-001：合并上游时 /login 曾被映射成
+// name=workflow，导致默认 disabled 下命中 workflow 门禁、返回错误提示）。
+test("retired account slash commands are not parsed as live commands", () => {
   assert.deepEqual(parseSlashCommand("/login"), {
     args: "",
-    name: "login",
     rawName: "login",
-    type: "known",
+    type: "unknown",
   });
   assert.deepEqual(parseSlashCommand("/login zai-coding-plan"), {
     args: "zai-coding-plan",
-    name: "login",
     rawName: "login",
-    type: "known",
+    type: "unknown",
   });
   assert.deepEqual(parseSlashCommand("/logout"), {
     args: "",
-    name: "logout",
     rawName: "logout",
-    type: "known",
+    type: "unknown",
   });
 });
 

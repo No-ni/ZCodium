@@ -175,12 +175,25 @@ test("an unknown --workflow-mode value fails before any app is created", async (
 
 // ── DWG-15：作用域 ──────────────────────────────────────────────────────────
 
-for (const argv of [["app-server"], ["agent-server"], ["login"], ["skills"]] as const) {
+for (const argv of [["app-server"], ["agent-server"], ["skills"]] as const) {
   test(`--workflow-mode is rejected with ${argv[0]}`, async () => {
     const { deps, seen } = createRecordingDeps();
     const ctx = createContext([...argv, "--workflow-mode", "alwaysOn"]);
     assert.equal(await run(ctx, deps), 1);
     assert.equal(ctx.stderr.output(), `${WORKFLOW_MODE_SCOPE_ERROR}\n`);
+    assert.deepEqual(seen, []);
+  });
+}
+
+// 退役账号命令优先于任何模式参数校验（QA-BUG-001）：login 已不是会话入口，
+// 不应先报 --workflow-mode 作用域错误，也不应把用户引导去开启动态工作流。
+for (const command of ["login", "logout"] as const) {
+  test(`--workflow-mode with retired ${command} returns the retired-account notice`, async () => {
+    const { deps, seen } = createRecordingDeps();
+    const ctx = createContext([command, "--workflow-mode", "alwaysOn"]);
+    assert.equal(await run(ctx, deps), 1);
+    assert.match(ctx.stderr.output(), /removed/i);
+    assert.doesNotMatch(ctx.stderr.output(), /--workflow-mode/);
     assert.deepEqual(seen, []);
   });
 }

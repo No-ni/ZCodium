@@ -121,14 +121,11 @@ export function parseSlashCommand(input: string): SlashCommand | null {
     };
   }
 
-  if (rawName === "login") {
-    return {
-      args,
-      name: "workflow",
-      rawName,
-      type: "known",
-    };
-  }
+  // 已退役的 /login、/logout 不在这里登记：它们由 `isRetiredAccountCommand`(rawName) 在任何
+  // 运行模式判断之前统一返回固定说明。Bugfix（QA-BUG-001）：合并上游 v3.17.1 时曾把上游
+  // `name: "login"` 的冲突分支误改成 `name: "workflow"`，让 /login 借用动态工作流身份；
+  // 默认 disabled 下 `prompt-command` 的 workflow 门禁抢先命中，/login 被误导去开启 workflow。
+  // 这里不能把退役命令别名成任何仍然存活的命令名。
 
   if (rawName === "locale" || rawName === "language") {
     return {

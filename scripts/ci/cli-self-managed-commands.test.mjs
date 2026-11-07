@@ -107,6 +107,56 @@ test("CLI and slash help offer self-managed commands without official sign-in ch
   );
 });
 
+// QA-BUG-001：退役判定必须先于 workflowMode 等运行模式门禁。默认 mode 只覆盖了 disabled，
+// 这里补合法 enabled 模式，防止解析层再把 /login 借用成 workflow 身份后只在 enabled 下"碰巧"对。
+test("headless retired account commands win over every workflow mode", async () => {
+  const deps = new Proxy(
+    {},
+    {
+      get(_, key) {
+        throw new Error(`Unexpected dependency access: ${String(key)}`);
+      },
+    },
+  );
+  for (const locale of ["en-US", "zh-CN"]) {
+    for (const command of ["login", "logout"]) {
+      for (const workflowMode of ["onDemand", "alwaysOn"]) {
+        let output = "";
+        const stream = {
+          write: (text) => {
+            output += text;
+          },
+        };
+        const ctx = {
+          argv: ["--locale", locale, `--workflow-mode`, workflowMode],
+          stdout: stream,
+          stderr: stream,
+        };
+        assert.equal(
+          await runPrompt(
+            ctx,
+            `/${command} fixture-private-key`,
+            [],
+            { locale },
+            deps,
+            "fixture",
+            undefined,
+            { continueSession: false },
+            undefined,
+            false,
+            "off",
+            "terminal",
+            workflowMode,
+          ),
+          1,
+        );
+        assert.match(output, locale === "zh-CN" ? /已移除/ : /removed/);
+        assert.ok(!output.includes("fixture-private-key"));
+      }
+    }
+  }
+});
+
 test("CLI and headless login commands return a fixed failure without account IO or echoing parameters", async () => {
   const deps = new Proxy(
     {},

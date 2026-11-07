@@ -99,6 +99,13 @@ export const runPrompt = async (
     );
     return 0;
   }
+  // 退役账号命令的判定必须先于任何运行模式门禁（QA-BUG-001）：/login、/logout 只返回固定说明，
+  // 不能因为命令名或别名命中 workflowMode 等模式判断就抢先给出「开启动态工作流」这类无关提示。
+  // 旧命令可能包含 API key，只写固定说明，不回显参数、不转交模型。
+  if (slashCommand && isRetiredAccountCommand(slashCommand.rawName)) {
+    ctx.stderr.write(`${retiredAccountCommandResponse(options.locale)}\n`);
+    return 1;
+  }
   // disabled 下 `/workflow` 不展开（builtin resolver 同判）；若照常建 app 提交，原文会作为普通文本
   // 发给模型并「成功」退出，脚本察觉不到。建 app 之前就报错退出，与 TUI 的本地提示同一句。
   if (
@@ -111,10 +118,6 @@ export const runPrompt = async (
   }
   if (slashCommand?.type === "known" && slashCommand.name === "skill" && !slashCommand.skillName) {
     return await runSkillsCommand(ctx, options, deps, []);
-  }
-  if (slashCommand && isRetiredAccountCommand(slashCommand.rawName)) {
-    ctx.stderr.write(`${retiredAccountCommandResponse(options.locale)}\n`);
-    return 1;
   }
 
   const runtimePrompt =
