@@ -229,6 +229,14 @@ Hooks 设置页必须在 desktop 和 Web UI 使用同一组件，并满足：
 - `.zcode` hooks 支持新增、编辑、删除、启停和 user/workspace scope。
 - 表单支持 7 个事件、`process` / `command` 类型、matcher、argv、timeout、`statusMessage`
   和 command async。
+- timeout 输入单位为秒，数值规则见 [HookForm.tsx](../packages/ui/src/settings/HookForm.tsx) 的 `parseHookTimeoutSeconds`：
+  空白沿用默认 60；其余必须是有限正数，小数按截断取整且结果 ≥ 1；负数、0、NaN、Infinity
+  以及超出安全整数（含秒→毫秒换算）的值判为非法。非法时禁用 Save 并就地提示，草稿与原有效
+  配置保持不变，不能把非法值交给写入 owner。
+- 写入 owner 在落盘前用 `workspaceHooksConfigSchema` 校验本次写入的 `enabled` / `events`；
+  校验失败抛错中止写入（`updateJsonObjectFile` 的 mutator 抛错时不落盘），错误只带字段路径，
+  不回显命令或参数原文。不得为通过设置页测试而放宽共享 schema。依据 QA-BUG-002：负数 timeout
+  经 `timeout * 1000` 写入非法 `timeoutMs` 后，整份 user hooks 子树读取失败，列表目标消失。
 - `.agents` / `.claude` hooks 标记为兼容来源、不可直接编辑或启停，并提供显式导入 `.zcode`。
 - 插件 hooks 单独分组；列表只读展示 event 与 command，并以分组标题和插件图标表达来源。
   matcher、type、source path 与 effective enabled 状态保留为数据事实，不在列表行重复堆叠。

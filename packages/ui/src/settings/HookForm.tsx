@@ -19,6 +19,36 @@ import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
 import { PluginScopeMenu, getPluginWorkspaceKey } from "@/settings/PluginScopeMenu.js";
 import type { ConfigWorkspaceTarget } from "@/workspace-config-catalog/index.js";
 
+/**
+ * Hook 表单 timeout 输入的数值规则（spec：docs/hooks-runtime-contract.md「设置页契约」）。
+ *
+ * 单位是秒。空白输入沿用默认 60 秒；其余必须是有限正数，小数沿用既有 parseInt 的截断语义，
+ * 截断后仍需 ≥ 1；负号、0、NaN、Infinity 以及会溢出安全整数（含秒→毫秒换算）的值一律判为非法。
+ *
+ * Bugfix（QA-BUG-002）：旧实现用 `Number.parseInt(timeout, 10) || 60`，负数不会被假值回退，
+ * 原样进入 Hook.timeout → 写盘变成负的 timeoutMs，违反 workspaceHooksConfigSchema 的
+ * `finite().positive()`。整份 user hooks 子树读取失败后设置列表目标消失。
+ */
+export const DEFAULT_HOOK_TIMEOUT_SECONDS = 60;
+
+export type HookTimeoutParseResult = { seconds: number } | { error: "invalid" };
+
+export function parseHookTimeoutSeconds(raw: string): HookTimeoutParseResult {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { seconds: DEFAULT_HOOK_TIMEOUT_SECONDS };
+
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value <= 0) return { error: "invalid" };
+
+  const seconds = Math.trunc(value);
+  if (seconds < 1) return { error: "invalid" };
+  // 写入 owner 会把秒换算成毫秒（process hook），两者都必须留在安全整数范围内。
+  if (!Number.isSafeInteger(seconds) || !Number.isSafeInteger(seconds * 1000)) {
+    return { error: "invalid" };
+  }
+  return { seconds };
+}
+
 interface HookFormProps {
   hook?: Hook;
   workspaceAvailable?: boolean;
@@ -101,7 +131,7 @@ export function HookForm({
   const [asyncCommand, setAsyncCommand] = useState(hook?.async ?? false);
   const [shell, setShell] = useState(typeof hook?.shell === "string" ? hook.shell : "");
   const [statusMessage, setStatusMessage] = useState(hook?.statusMessage ?? "");
-  const [timeout, setTimeout] = useState(String(hook?.timeout ?? 60));
+  const [timeout, setTimeout] = useState(String(hook?.timeout ?? DEFAULT_HOOK_TIMEOUT_SECONDS));
   const [customJson, setCustomJson] = useState(formatCustomJson(hook?.custom));
   const [customError, setCustomError] = useState<string | null>(null);
   const customJsonValid = (() => {
@@ -113,10 +143,17 @@ export function HookForm({
       return false;
     }
   })();
-  const canSave = Boolean(command.trim() && customJsonValid);
+  // Bugfix（QA-BUG-002）：timeout 也必须参与 Save 门禁与写盘取值，不能再把非法数值交给 owner。
+  const timeoutParse = parseHookTimeoutSeconds(timeout);
+  const timeoutError =
+    "error" in timeoutParse ? intl.formatMessage({ id: "settings.hooks.timeoutInvalid" }) : null;
+  const canSave = Boolean(command.trim() && customJsonValid && !timeoutError);
 
   const handleSave = useCallback(() => {
     if (!command.trim()) return;
+
+    const parsedTimeout = parseHookTimeoutSeconds(timeout);
+    if ("error" in parsedTimeout) return;
 
     let custom: Record<string, unknown> | undefined;
     if (customJson.trim()) {
@@ -151,7 +188,7 @@ export function HookForm({
             shell: shell.trim() || (hook?.shell === true ? true : undefined),
           }),
       statusMessage: statusMessage.trim() || undefined,
-      timeout: Number.parseInt(timeout, 10) || 60,
+      timeout: parsedTimeout.seconds,
       enabled: hook?.enabled ?? true,
       custom,
       storageLevel,
@@ -320,6 +357,7 @@ export function HookForm({
                   size="lg"
                   type="number"
                   min={1}
+                  step={1}
                   value={timeout}
                   onChange={(event) => setTimeout(event.target.value)}
                   className="w-28"
@@ -327,6 +365,9 @@ export function HookForm({
                 <p className="text-ui-base text-foreground-subtlest">
                   {intl.formatMessage({ id: "settings.hooks.timeoutHint" })}
                 </p>
+                {timeoutError ? (
+                  <p className="text-ui-base text-destructive">{timeoutError}</p>
+                ) : null}
               </Field>
 
               <Field

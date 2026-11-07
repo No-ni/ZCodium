@@ -8,6 +8,7 @@ import type {
 } from "@zcode/shared";
 import {
   resolveWorkspaceHookEntries,
+  workspaceHooksConfigSchema,
   type CanonicalWorkspaceHookEntryData,
   type WorkspaceHookBundleSnapshotData,
   type WorkspaceHookDefinition,
@@ -264,6 +265,43 @@ export function toZCodeHooksEvents(hooks: Hook[]): WorkspaceHooksConfig["events"
     matcher.hooks.push(getWritableHook(hook) as WorkspaceHookDefinition);
   }
   return events;
+}
+
+/** 写入 owner 的配置校验错误：只暴露字段路径，不回显可能含密钥的命令/参数原文。 */
+export class HooksConfigValidationError extends Error {
+  constructor(readonly issuePaths: readonly string[]) {
+    super(
+      issuePaths.length > 0
+        ? `Invalid hooks configuration at ${issuePaths.join(", ")}`
+        : "Invalid hooks configuration",
+    );
+    this.name = "HooksConfigValidationError";
+  }
+}
+
+/**
+ * 构建写回 `config.json` 的 hooks patch，并在写盘前用共享 schema 校验。
+ *
+ * Bugfix（QA-BUG-002）：旧实现直接把 Hook[] 转成 events 写出。UI 传来的负数 timeout 经
+ * `timeout * 1000` 变成负的 timeoutMs，违反 `workspaceHooksConfigSchema` 的
+ * `finite().positive()`；读路径对整份 user hooks 子树 safeParse 失败后返回空 source，
+ * 表现为「保存成功、设置列表目标消失」。校验失败必须抛错中止写入（updateJsonObjectFile
+ * 在 mutator 抛错时不落盘），由调用方保留原配置与草稿。
+ */
+export function buildValidatedZCodeHooksPatch(
+  existingEnabled: boolean | undefined,
+  hooks: Hook[],
+): { enabled?: boolean; events: WorkspaceHooksConfig["events"] } {
+  const events = toZCodeHooksEvents(hooks);
+  const enabled = resolveNextRootEnabled(existingEnabled, hooks);
+  const candidate = { ...(enabled !== undefined ? { enabled } : {}), events };
+  const parsed = workspaceHooksConfigSchema.safeParse(candidate);
+  if (!parsed.success) {
+    throw new HooksConfigValidationError(
+      parsed.error.issues.map((issue) => (issue.path.length > 0 ? issue.path.join(".") : "<root>")),
+    );
+  }
+  return candidate;
 }
 
 export function resolveNextRootEnabled(

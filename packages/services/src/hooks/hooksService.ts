@@ -24,11 +24,10 @@ import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogg
 import type { IHooksService } from "./hooks.js";
 import { updateJsonObjectFile } from "#src/fs/atomicFileUtils.js";
 import {
+  buildValidatedZCodeHooksPatch,
   fromLegacyHooksConfig,
   fromProjectSnapshot,
   fromUserZCodeSource,
-  resolveNextRootEnabled,
-  toZCodeHooksEvents,
   type LegacyHooksConfig,
 } from "./workspaceHookSettingsModel.js";
 
@@ -297,13 +296,14 @@ async function writeZCodeHooksConfig(
 ): Promise<void> {
   await updateJsonObjectFile(getConfigPath("zcode", workspacePath), (current) => {
     const existingConfig = current as ZCodeConfigFile;
-    const enabled = resolveNextRootEnabled(existingConfig.hooks?.enabled, hooks);
+    // Bugfix（QA-BUG-002）：写盘前必须校验。非法 timeout（负数/0/NaN）写进去后，
+    // readUserZCodeSource 对整份 hooks 子树 safeParse 失败会返回空 source，设置列表目标消失。
+    // 校验失败抛错 → updateJsonObjectFile 不写盘 → UI 保留草稿与原有效配置。
     return {
       ...existingConfig,
       hooks: {
         ...existingConfig.hooks,
-        ...(enabled !== undefined ? { enabled } : {}),
-        events: toZCodeHooksEvents(hooks),
+        ...buildValidatedZCodeHooksPatch(existingConfig.hooks?.enabled, hooks),
       },
     };
   });
@@ -333,6 +333,12 @@ async function saveHooksImpl(params: {
       (!hook.configuredState ||
         resolve(hook.configuredState.sourcePath) === currentProjectConfigPath),
   );
+  // Bugfix（QA-BUG-002）补充：两个 scope 先按同一规则校验再写盘。若只在各自写入时才校验，
+  // user 文件已写、project 校验失败会留下半写状态；这里在第一次 IO 前把非法配置挡掉。
+  buildValidatedZCodeHooksPatch(undefined, userHooks);
+  if (params.scope !== "user") {
+    buildValidatedZCodeHooksPatch(undefined, projectHooks);
+  }
   await writeZCodeHooksConfig(undefined, userHooks);
   if (params.scope !== "user") {
     await writeZCodeHooksConfig(params.workspacePath, projectHooks);
