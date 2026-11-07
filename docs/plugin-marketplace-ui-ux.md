@@ -280,6 +280,10 @@ flowchart TD
 `https://cdn-zcode.z.ai/zcode/official-plugin/assets/icon-sources.json` 获取可选图标映射，
 并按插件 `name` 为缺失 `icon` 的目录条目补齐：
 
+> 本仓差异（ZCodium）：图标映射不是隐式官方网络依赖。未显式配置自建来源时只读本地缓存，
+> 严格 0 次 HTTP 请求，且不得回退官方地址；下方 "从 CDN 获取" 的流程在本仓被门禁取代。
+> 规则与验收见 [插件图标来源门禁](specs/plugin-icon-source-boundary.md)。
+
 - 仅作用于 `claude-plugins-official`；用户自加市场、inline 插件及孤立安装不按名称套用，
   避免跨市场同名插件误用图标。
 - marketplace 条目自带的 `icon` 优先，映射不得覆盖。

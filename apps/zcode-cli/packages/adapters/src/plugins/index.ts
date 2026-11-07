@@ -75,6 +75,7 @@ export {
   validateMarketplacePlugin,
   validateLocalPluginPath,
   validateMarketplaceSource,
+  type ClaudeMarketplaceIconEnrichmentOptions,
   type DescribeMarketplacePluginResult,
   type InstalledPluginRecord,
   type KnownMarketplaceRecord,

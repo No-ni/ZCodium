@@ -54,7 +54,9 @@ const MARKETPLACE_FILE = "marketplace.json";
 const CLAUDE_OFFICIAL_MARKETPLACE = "claude-plugins-official";
 const PLUGIN_ICON_SOURCES_FILE = "icon-sources.json";
 const PLUGIN_ICON_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets/";
-const PLUGIN_ICON_SOURCES_URL = `${PLUGIN_ICON_ASSETS_BASE_URL}${PLUGIN_ICON_SOURCES_FILE}`;
+// QA-BUG-004：官方图标资源域只用于解析历史本地缓存中的相对路径和拒绝“官方地址伪装成自建来源”，
+// 不再作为 enrichment 的默认请求目标。
+const OFFICIAL_PLUGIN_ICON_ASSETS_HOST = new URL(PLUGIN_ICON_ASSETS_BASE_URL).hostname;
 const MARKETPLACE_JSON_MAX_BYTES = 10 * 1024 * 1024;
 const MARKETPLACE_JSON_MAX_REDIRECTS = 5;
 const MARKETPLACE_JSON_TIMEOUT_MS = 180_000;
@@ -146,13 +148,6 @@ export interface InstalledPluginRecord {
   source?: unknown;
   /** 内部崩溃恢复代际；协议/UI 投影不暴露。 */
   cacheTransactionId?: string;
-}
-
-interface PluginIconSourceRecord {
-  name: string;
-  icon: string;
-  mimeType?: string;
-  sha256?: string;
 }
 
 export interface InstalledPluginsState {
@@ -489,7 +484,10 @@ export async function addMarketplace(input: {
   }
 }
 
-export function parsePluginIconSources(value: unknown): Map<string, string> {
+export function parsePluginIconSources(
+  value: unknown,
+  baseUrl: string = PLUGIN_ICON_ASSETS_BASE_URL,
+): Map<string, string> {
   const result = new Map<string, string>();
   if (!Array.isArray(value)) return result;
   for (const item of value) {
@@ -501,7 +499,8 @@ export function parsePluginIconSources(value: unknown): Map<string, string> {
     if (!PLUGIN_NAME_PATTERN.test(name) || !isSafePluginIconPath(icon)) continue;
     if (mimeType !== undefined && mimeType !== "image/png") continue;
     if (sha256 !== undefined && !SOURCE_SHA256_PATTERN.test(sha256)) continue;
-    result.set(name, new URL(icon, PLUGIN_ICON_ASSETS_BASE_URL).href);
+    // 历史本地缓存沿用官方基址解析；显式自建来源传入自己的目录基址，避免把图标重写回官方域。
+    result.set(name, new URL(icon, baseUrl).href);
   }
   return result;
 }
@@ -523,9 +522,28 @@ export function applyClaudePluginIcons(
   return changed ? { ...manifest, plugins } : manifest;
 }
 
+/**
+ * 插件图标增强的可选外部来源。
+ *
+ * QA-BUG-004：图标映射只是展示增强，不是隐式的官方网络依赖。字段缺省即“未配置自建来源”，
+ * enrichment 只读本地缓存；只有调用方显式传入用户自建地址才允许一次外部请求，且失败必须
+ * 回退本地。这里不新增环境变量，也不引入新的持久化配置项（见 docs/specs/plugin-icon-source-boundary.md）。
+ */
+export interface ClaudeMarketplaceIconEnrichmentOptions {
+  /** 用户显式配置的自建 icon-sources.json 地址；官方图标 CDN 不属于自建来源。 */
+  selfHostedIconSourcesUrl?: string;
+}
+
+interface SelfHostedIconSource {
+  /** 相对 icon 路径的解析基址：自建来源所在目录。 */
+  baseUrl: string;
+  url: string;
+}
+
 export async function enrichCachedClaudeMarketplaceIcons(
   storageRoot: string,
   withWriteLock: (write: () => Promise<void>) => Promise<void> = (write) => write(),
+  options: ClaudeMarketplaceIconEnrichmentOptions = {},
 ): Promise<void> {
   const attemptKey = resolve(storageRoot);
   if (claudeIconMigrationAttempts.has(attemptKey)) return;
@@ -534,7 +552,13 @@ export async function enrichCachedClaudeMarketplaceIcons(
   const manifest = loadMarketplaceManifestSync(storageRoot, CLAUDE_OFFICIAL_MARKETPLACE);
   if (!manifest) return;
   try {
-    const iconSources = await loadClaudePluginIconSources(storageRoot);
+    // 修复 QA-BUG-004：本 fork 不依赖官方图标 CDN。未配置用户自建来源时这里只读本地缓存
+    // （storageRoot/icon-sources.json）并返回，绝不发起任何官方或外部 HTTP 请求；只有显式
+    // 自建来源才允许一次外部增强，且失败 fail-closed 回退本地，不回退官方地址。
+    const iconSources = await loadClaudePluginIconSources(
+      storageRoot,
+      resolveSelfHostedIconSource(options.selfHostedIconSourcesUrl),
+    );
     await withWriteLock(async () => {
       // 网络请求期间不持 plugin storage 锁；获得锁后必须重读，避免覆盖并发 marketplace 更新。
       const latest = loadMarketplaceManifestSync(storageRoot, CLAUDE_OFFICIAL_MARKETPLACE);
@@ -550,6 +574,27 @@ export async function enrichCachedClaudeMarketplaceIcons(
   }
 }
 
+/**
+ * 解析用户显式配置的自建图标来源。
+ *
+ * QA-BUG-004：官方图标 CDN 不是“自建来源”，即使调用方显式传入也按未配置处理，否则等于把
+ * 官方云依赖重新变回可达路径；空白、非法、非 http(s) 输入同样 fail-closed 到“未配置”。
+ */
+function resolveSelfHostedIconSource(input: string | undefined): SelfHostedIconSource | undefined {
+  const trimmed = input?.trim();
+  if (!trimmed) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return undefined;
+  if (parsed.hostname === OFFICIAL_PLUGIN_ICON_ASSETS_HOST) return undefined;
+  // 相对 icon 路径按自建来源所在目录解析，避免把图标重写回官方基址。
+  return { baseUrl: new URL("./", parsed).href, url: parsed.href };
+}
+
 function isSafePluginIconPath(icon: string): boolean {
   if (!icon.endsWith(".png") || icon.startsWith("/") || icon.includes("\\")) return false;
   const segments = icon.split("/");
@@ -558,36 +603,27 @@ function isSafePluginIconPath(icon: string): boolean {
 
 async function loadClaudePluginIconSources(
   storageRoot: string,
+  selfHosted?: SelfHostedIconSource,
   operationSignal?: AbortSignal,
 ): Promise<Map<string, string>> {
   const cachePath = join(storageRoot, PLUGIN_ICON_SOURCES_FILE);
   const cached = (): Map<string, string> => parsePluginIconSources(readJsonFileSync(cachePath));
+  // QA-BUG-004 门禁：没有用户自建来源时只读本地缓存直接返回；不建 AbortController、
+  // 不设超时、不调用 requestMarketplaceJson，保证未 opt-in 分支严格 0 次请求。
+  if (!selfHosted) return cached();
   const controller = new AbortController();
   const abort = (): void => controller.abort();
   operationSignal?.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, 10_000);
   try {
-    const response = await requestMarketplaceJson(
-      PLUGIN_ICON_SOURCES_URL,
-      undefined,
-      controller.signal,
-      10_000,
+    const parsed = parsePluginIconSources(
+      await requestMarketplaceJson(selfHosted.url, undefined, controller.signal, 10_000),
+      selfHosted.baseUrl,
     );
-    const value = response;
-    const parsed = parsePluginIconSources(value);
-    if (parsed.size === 0) return cached();
-    // 缓存只保留产品需要的字段，不落盘素材源机器路径等 provenance 信息。
-    const sanitized: PluginIconSourceRecord[] = [...parsed.entries()].map(([name, iconUrl]) => ({
-      name,
-      icon: new URL(iconUrl).pathname.slice(new URL(PLUGIN_ICON_ASSETS_BASE_URL).pathname.length),
-      mimeType: "image/png",
-    }));
-    try {
-      await writeJsonFile(cachePath, sanitized);
-    } catch {
-      // 图标缓存写入失败不影响本次 marketplace 主数据刷新。
-    }
-    return parsed;
+    // fail-closed：自建来源不可达、响应非法或映射为空时回退本地缓存，不回退官方地址。
+    // 也不再写回官方格式缓存：自建来源的相对路径按自建基址解析，写进官方格式缓存后会在
+    // 下次被官方基址重放，等于重新引入官方资源引用。
+    return parsed.size > 0 ? parsed : cached();
   } catch {
     return cached();
   } finally {
