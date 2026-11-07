@@ -1,0 +1,1 @@
+{"capturedAt":"2026-11-06T19:26:30.368Z","durationMs":14379,"featureArea":"general","file":"C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-tab-residency.test.ts","fullTitle":"BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab","passed":true,"passedOnRetry":false,"retryIndex":0,"retryLimit":-1,"title":"BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab"}

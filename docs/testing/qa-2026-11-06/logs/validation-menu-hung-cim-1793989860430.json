@@ -1,0 +1,33 @@
+{
+  "capturedAt": "2026-11-06T18:31:00.430Z",
+  "runId": "qa-menu-20261106-menu-reviewed",
+  "workerId": "0-1",
+  "expectedMainPid": 25980,
+  "perfCapturedAt": "2026-11-06T18:23:34.440Z",
+  "sourceSha256": "854d38a0149cbcc2c2984a3521337ecf909665ef72b6b333d447a6676c218795",
+  "intervalMs": 2000,
+  "logicalCpus": 16,
+  "noUiAttachKill": true,
+  "scope": "Two fixed-run CIM observations; exact worker main and creation-limited PPID descendants only; command lines stay in memory",
+  "samples": [
+    {
+      "capturedAt": "2026-11-06T18:31:01.392Z",
+      "cimMs": 957,
+      "exactMainCount": 0,
+      "exactMatchingMainPids": [],
+      "refusal": "no-exact-same-run-main",
+      "main": null,
+      "processes": []
+    },
+    {
+      "capturedAt": "2026-11-06T18:31:04.313Z",
+      "cimMs": 919,
+      "exactMainCount": 0,
+      "exactMatchingMainPids": [],
+      "refusal": "no-exact-same-run-main",
+      "main": null,
+      "processes": []
+    }
+  ],
+  "finishedAt": "2026-11-06T18:31:04.314Z"
+}

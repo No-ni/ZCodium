@@ -1,0 +1,77 @@
+{
+  "capturedAt": "2026-11-06T19:51:20.636Z",
+  "evidenceKind": "finite synthetic loopback runtime UI; no real clipboard/Git/network provider",
+  "status": "fixture",
+  "taskId": "sess_f2e79661-af32-4a03-9f6e-644951ee2b98",
+  "mainRequests": 1,
+  "titleRequests": 1,
+  "titleFixtureSource": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\fixtures\\qa-runtime-copy-find-title.json",
+  "titleFixtureSha256": "742c1eb7c965f428eb95709ec7ec8e3619bc2dc37b2be5b00ea6390c62c75631",
+  "provider": "finite loopback replay",
+  "state": {
+    "activePane": "sess_f2e79661-af32-4a03-9f6e-644951ee2b98",
+    "activeTag": "DIV",
+    "clipboardAttempts": [],
+    "clipboardMethods": [],
+    "copiedLengths": [],
+    "dpr": 1.5,
+    "findQuery": null,
+    "headings": [
+      "命令面板",
+      "查找回归长正文"
+    ],
+    "toast": null
+  },
+  "fixtureSource": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+  "fixtureSha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b",
+  "expectedBodyLength": 3930,
+  "expectedBodySha256": "f79b3698c2a748a78ccb2c9623a4685ec1ee66967d262cbf1656cc6dd042d5d6",
+  "requests": [
+    {
+      "fixtureId": "chat-find-refocus-long-body",
+      "status": "complete",
+      "statusCode": 200,
+      "bodyBytes": 11599,
+      "path": "/anthropic/v1/messages",
+      "loopback": true,
+      "queryKind": "main",
+      "markers": {
+        "titleInstruction": false,
+        "setup": true,
+        "exactPrompt": false
+      },
+      "shape": {
+        "object": true,
+        "messageCount": 1,
+        "roles": [
+          "user"
+        ],
+        "systemType": "array",
+        "toolCount": 52
+      }
+    },
+    {
+      "fixtureId": "qa-runtime-copy-find-setup-title",
+      "status": "complete",
+      "statusCode": 200,
+      "bodyBytes": 991,
+      "path": "/anthropic/v1/messages",
+      "loopback": true,
+      "queryKind": "title",
+      "markers": {
+        "titleInstruction": true,
+        "setup": true,
+        "exactPrompt": true
+      },
+      "shape": {
+        "object": true,
+        "messageCount": 1,
+        "roles": [
+          "user"
+        ],
+        "systemType": "array",
+        "toolCount": 0
+      }
+    }
+  ]
+}

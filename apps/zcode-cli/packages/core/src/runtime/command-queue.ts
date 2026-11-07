@@ -36,6 +36,8 @@ export interface PromptRuntimeCommand extends RuntimeCommandBase {
   readonly startReservation?: ActiveTurnStartReservation;
   readonly reject: (error: unknown) => void;
   readonly resolve: (result: TurnResult) => void;
+  /** 主体尚未执行的取消归同一调度 owner；已进入主体不调用。 */
+  readonly onCancelledBeforeStart?: (error: unknown) => Promise<void>;
 }
 
 export interface TargetContinuationRuntimeCommandOptions {

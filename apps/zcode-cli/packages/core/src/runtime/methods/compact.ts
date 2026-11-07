@@ -63,24 +63,26 @@ export async function executeManualCompact(
       status: "started",
     });
 
-    await this.ensureSessionPersisted(input, turnTraceContext);
-
-    const turnStartedEvent = this.createEvent(
-      SessionEventType.TurnStarted,
-      {
-        turnNumber: this.turnNumber,
-        input,
-        inputId,
-        // 手动 /compact 是维护命令，不是用户真实 query。
-        // 事件仍保留 raw input 便于恢复/排查，但 v4 投影不能把它渲染成 user bubble。
-        inputVisibility: "model-only",
-      },
-      turnTraceContext,
-    );
-    await this.appendEvent(turnStartedEvent, turnTraceContext);
-    events.push(turnStartedEvent);
-
+    // Bugfix：启动持久化/TurnStarted 也可能失败，必须由 compact 的同一 outcome owner
+    // 收口；父轮已移交所有权，不能在无 TurnStarted 时只日志退场。
     try {
+      await this.ensureSessionPersisted(input, turnTraceContext);
+
+      const turnStartedEvent = this.createEvent(
+        SessionEventType.TurnStarted,
+        {
+          turnNumber: this.turnNumber,
+          input,
+          inputId,
+          // 手动 /compact 是维护命令，不是用户真实 query。
+          // 事件仍保留 raw input 便于恢复/排查，但 v4 投影不能把它渲染成 user bubble。
+          inputVisibility: "model-only",
+        },
+        turnTraceContext,
+      );
+      await this.appendEvent(turnStartedEvent, turnTraceContext);
+      events.push(turnStartedEvent);
+
       throwIfTurnAborted(abortSignal);
       const compactResult = await this.compactActiveConversation(
         customInstructions,
@@ -146,8 +148,8 @@ export async function executeManualCompact(
       const preserveQueueAutoDrainOnCancel =
         coreError.type === CoreErrorType.TurnCancelled &&
         this.activeForegroundExecution?.preserveQueueAutoDrainOnCancel === true;
-      if (coreError.type === CoreErrorType.TurnCancelled && !preserveQueueAutoDrainOnCancel) {
-        // Stop compact 与普通 Stop 语义一致：队列重新暂停，外层 FIFO 恢复窗口同时关闭。
+      if (!preserveQueueAutoDrainOnCancel) {
+        // compact 失败/Stop 都暂停 FIFO barrier 后的输入，外层恢复窗口同步关闭。
         this.queueAutoDrain = false;
         this.queueExternalDrainActive = false;
       }

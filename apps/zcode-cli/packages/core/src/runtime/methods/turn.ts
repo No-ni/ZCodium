@@ -40,6 +40,7 @@ import {
   isExternalTurnFault,
   isTurnCancellationError,
   appendTurnOutcomeEvent,
+  settleQueuedPromptBeforeStart,
   buildRuntimeUserEntriesFromTurn,
   buildUserContentFromTurn,
   logResolvedTurnAttachments,
@@ -103,8 +104,16 @@ export async function executeTurn(
       modelExecution: captureHighspeedFallbackSelection(this, options.modelExecution),
     };
   }
+  const onCancelledBeforeStart = (error: unknown) =>
+    settleQueuedPromptBeforeStart(
+      this,
+      options,
+      error,
+      options?.traceContext ?? this.rootTraceContext,
+    );
   return await enqueueCancellableRuntimeCommand<TurnResult, PromptRuntimeCommand>(this, {
     abortSignal: options?.abortSignal,
+    onCommandCancelled: onCancelledBeforeStart,
     onCommandAccepted: () => {
       // 原始 executeTurn 与协议 admission 共用接纳语义；Loop 开始后不再倒写旧选择。
       void acceptSubmissionModelSelection(
@@ -122,6 +131,7 @@ export async function executeTurn(
       id: createRuntimeCommandId(),
       input,
       mode: "prompt",
+      onCancelledBeforeStart,
       options,
       priority: "next",
       reject,
@@ -419,6 +429,8 @@ export async function executeTurnCommand(
           options?.modelExecution,
           admittedModel,
         );
+        // compact 自己结算启动持久化和执行终态；父轮只负责交接前的准备失败。
+        turnFailureHandled = true;
         return this.executeManualCompact(
           input,
           compactInstructions,
@@ -430,6 +442,8 @@ export async function executeTurnCommand(
         );
       }
       if (rewindCommand !== null) {
+        // rewind 与 compact 一样沿自身 outcome owner 收口，不能由父轮重复发布。
+        turnFailureHandled = true;
         return this.executeRewindCommand(
           input,
           rewindCommand,
@@ -1069,17 +1083,42 @@ export async function executeTurnCommand(
       (result) => {
         return result;
       },
-      (error: unknown) => {
+      async (error: unknown) => {
         if (!turnFailureHandled) {
-          this.logger?.warn("Turn execution escaped lifecycle handler", {
-            ...traceContextToLogContext(turnTraceContext),
+          // Bugfix：Context、hooks、启动持久化和初始 abort 都可能在主 try 前拒绝。
+          // 已接纳输入必须经同一 outcome owner 结算，不能只写日志留下 promoting 幽灵。
+          turnFailureHandled = true;
+          const coreError = createTurnFailureError(
+            error,
+            turnAbortSignal,
+            TURN_EXECUTION_FAILED_MESSAGE,
+          );
+          const preserveQueueAutoDrainOnCancel =
+            coreError.type === CoreErrorType.TurnCancelled &&
+            this.activeForegroundExecution?.preserveQueueAutoDrainOnCancel === true;
+          if (!preserveQueueAutoDrainOnCancel) {
+            this.queueAutoDrain = false;
+            this.queueExternalDrainActive = false;
+          }
+          await appendTurnOutcomeEvent(this, {
+            coreError,
+            events,
             durationMs: Date.now() - turnStartedAtMs,
-            errorMessage: error instanceof Error ? error.message : String(error),
-            event: "turn.lifecycle.unhandled_rejection",
-            module: "core.runtime",
-            phase: turnPhase,
-            status: "failed",
+            turnPhase,
+            inputId: options?.inputId,
+            highspeedCardId: options?.intent?.highspeed?.cardId,
+            traceContext: turnTraceContext,
+            fallbackMessage: TURN_EXECUTION_FAILED_MESSAGE,
+            logEvent: "turn.failed",
+            logLabel: "Turn",
+            preserveQueueAutoDrainOnCancel,
+            backgroundSubagentResultConsumed: options?.backgroundSubagentResultConsumed === true,
+            workflowResultConsumed: options?.workflowResultConsumed === true,
           });
+          if (coreError.type === CoreErrorType.TurnCancelled) {
+            await this.pauseActiveTargetForCancellation(turnTraceContext);
+          }
+          throw coreError;
         }
         throw error;
       },

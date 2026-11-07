@@ -1,0 +1,68 @@
+{
+  "capturedAt": "2026-11-06T19:55:42.862Z",
+  "evidenceKind": "synthetic Windows local UI plus readonly index; no real clipboard/picker/provider",
+  "status": "failed",
+  "error": "waitUntil condition timed out after 15000ms",
+  "frameEvidence": {
+    "format": "PNG/time frame sequence; WebM not encoded",
+    "frames": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\qa-residual-local-menus-0-2-32460-1793994895712\\RLM05-frames",
+    "error": "No standard video encoder; PNG/time sequence retained"
+  },
+  "state": {
+    "activePane": "share-import-b53654ad-c994-4b2c-bb49-9dd25e28122b",
+    "activeWorkspace": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\ZCodeProject",
+    "centerQuery": "",
+    "clipboard": [],
+    "dpr": 1.5,
+    "history": {
+      "zcode-command-center-search-history:C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\ZCodeProject": "[{\"query\":\"RLM_TASK_中文_01\",\"scope\":\"conversations\",\"updatedAt\":1793994925436}]"
+    },
+    "menus": [
+      {
+        "disabled": null,
+        "selected": "false",
+        "text": "All"
+      },
+      {
+        "disabled": null,
+        "selected": "false",
+        "text": "Actions"
+      },
+      {
+        "disabled": null,
+        "selected": "true",
+        "text": "Tasks"
+      },
+      {
+        "disabled": null,
+        "selected": "false",
+        "text": "Files"
+      }
+    ],
+    "pickerCount": 2,
+    "theme": [
+      "platform-windows-desktop",
+      "theme-zai-light"
+    ],
+    "toasts": ""
+  },
+  "index": [
+    {
+      "task_id": "share-import-e7c6210e-4cfa-437a-8acf-e5b7ac88cb07",
+      "workspace_path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\ZCodeProject",
+      "workspace_key": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\ZCodeProject",
+      "title": "Imported: RLM_TASK_中文_01",
+      "unread_at": null,
+      "meta_json": "{\"taskId\":\"share-import-e7c6210e-4cfa-437a-8acf-e5b7ac88cb07\",\"traceId\":\"6a5bb52e-fb44-4c53-b285-ace62c69792e\",\"title\":\"Imported: RLM_TASK_中文_01\",\"workspacePath\":\"C:\\\\vibecoding\\\\zcodium\\\\docs\\\\testing\\\\qa-2026-11-06\\\\runtime\\\\qa-menu-20261106-local-supplement-retry\\\\.e2e-home-qa-menu-20261106-local-supplement-retry\\\\ZCodeProject\",\"createdAt\":1793994898071,\"updatedAt\":1793994898072,\"mode\":\"build\",\"provider\":\"glm\",\"titleOverridden\":true,\"model\":\"e2e-upstream/deepseek-v4-flash\",\"target\":null}"
+    },
+    {
+      "task_id": "share-import-b53654ad-c994-4b2c-bb49-9dd25e28122b",
+      "workspace_path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\ZCodeProject",
+      "workspace_key": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\ZCodeProject",
+      "title": "Imported: RLM_RECENT_ANCHOR_中文_1793994919713",
+      "unread_at": null,
+      "meta_json": "{\"taskId\":\"share-import-b53654ad-c994-4b2c-bb49-9dd25e28122b\",\"traceId\":\"28cb7240-35b3-46e1-8b91-ff1c7c1dd404\",\"title\":\"Imported: RLM_RECENT_ANCHOR_中文_1793994919713\",\"workspacePath\":\"C:\\\\vibecoding\\\\zcodium\\\\docs\\\\testing\\\\qa-2026-11-06\\\\runtime\\\\qa-menu-20261106-local-supplement-retry\\\\.e2e-home-qa-menu-20261106-local-supplement-retry\\\\ZCodeProject\",\"createdAt\":1793994920600,\"updatedAt\":1793994920601,\"mode\":\"build\",\"provider\":\"glm\",\"titleOverridden\":true,\"model\":\"e2e-upstream/deepseek-v4-flash\",\"target\":null}"
+    }
+  ],
+  "providerRequestCount": 0
+}

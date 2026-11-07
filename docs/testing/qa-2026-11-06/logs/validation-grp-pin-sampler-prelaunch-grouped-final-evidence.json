@@ -1,0 +1,14 @@
+{
+  "capturedAt": "2026-11-06T19:27:11.417Z",
+  "runId": "qa-menu-20261106-grp-pin-grouped",
+  "exists": {
+    "runtime": false,
+    "stagedApp": false,
+    "exitEvidence": false
+  },
+  "samplerSha256": "ad11d09c35475c3859d0acafdc8d9cb880faf694af47bbcf9537d618b0155254",
+  "ancestorAndReparseChecks": true,
+  "firstLockMaterializedPathAudit": true,
+  "liveStarted": false,
+  "noUiOrCim": true
+}

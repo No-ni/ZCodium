@@ -1,0 +1,62 @@
+{
+  "capturedAt": "2026-11-06T18:02:34.001Z",
+  "node": "v24.18.0",
+  "evidenceKind": "Read-only CJS VM parse and actual exported hook arrays; excluded fit hooks only. No UI/build, reload/bootstrap/target hooks not invoked.",
+  "hookPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-project-bootstrap.cjs",
+  "observerPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-composer-fit-observer.ts",
+  "hookSourceSha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525",
+  "observerSourceSha256": "da80835824645e1790c9acf66cef27949028d25e2553cf80831153bc3f5579be",
+  "moduleInitializationReads": 1,
+  "order": {
+    "beforeAll": [
+      "originalBeforeAll",
+      "bootstrapProject"
+    ],
+    "beforeEach": [
+      "originalBeforeEach",
+      "beginReloadObservationBeforeEach",
+      "beginComposerFitObservationBeforeEach"
+    ],
+    "afterAll": [
+      "originalAfterAll"
+    ],
+    "afterEach": [
+      "finishReloadObservationAfterEach",
+      "finishComposerFitObservationAfterEach",
+      "observeSpfv002AfterEach",
+      "originalAfterEach"
+    ]
+  },
+  "expectedOrder": {
+    "beforeAll": [
+      "originalBeforeAll",
+      "bootstrapProject"
+    ],
+    "beforeEach": [
+      "originalBeforeEach",
+      "beginReloadObservationBeforeEach",
+      "beginComposerFitObservationBeforeEach"
+    ],
+    "afterAll": [
+      "originalAfterAll"
+    ],
+    "afterEach": [
+      "finishReloadObservationAfterEach",
+      "finishComposerFitObservationAfterEach",
+      "observeSpfv002AfterEach",
+      "originalAfterEach"
+    ]
+  },
+  "missingBaselineRejected": true,
+  "excludedContexts": 3,
+  "excludedHookCalls": 6,
+  "counters": {
+    "browser": 0,
+    "dynamicImports": 0,
+    "auditProcesses": 0,
+    "pathAudits": 0,
+    "fileReads": 0,
+    "fileWrites": 0
+  },
+  "allPassed": true
+}

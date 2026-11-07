@@ -1,0 +1,957 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence",
+  "completedAt": "2026-11-06T16:05:11.700Z",
+  "containerE2E": false,
+  "durationMs": 1186772,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-core-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.63,
+            "peak": 3.58,
+            "p95": 1.99,
+            "sampleCount": 111
+          },
+          "memoryWorkingSetMb": {
+            "mean": 186.03,
+            "peak": 203.32,
+            "p95": 200.33,
+            "sampleCount": 111
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 1.63,
+            "peak": 5.31,
+            "p95": 3.92,
+            "sampleCount": 111
+          },
+          "memoryWorkingSetMb": {
+            "mean": 162.55,
+            "peak": 240.59,
+            "p95": 217.79,
+            "sampleCount": 111
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.57,
+            "peak": 4.56,
+            "p95": 2.06,
+            "sampleCount": 111
+          },
+          "memoryWorkingSetMb": {
+            "mean": 432.33,
+            "peak": 490.57,
+            "p95": 486.06,
+            "sampleCount": 111
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 2.25,
+            "peak": 6.62,
+            "p95": 4.91,
+            "sampleCount": 111
+          },
+          "memoryWorkingSetMb": {
+            "mean": 359.19,
+            "peak": 479.14,
+            "p95": 452.62,
+            "sampleCount": 111
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 5.08,
+        "peak": 15.92,
+        "p95": 12.37,
+        "sampleCount": 111
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-1.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-10.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-11.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-12.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-13.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-14.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-15.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-16.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-17.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-18.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-19.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-2.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-20.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-3.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-4.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-5.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-6.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-7.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-8.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\evidence\\perf\\process-samples-0-9.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1140.1,
+        "peak": 1326.32,
+        "p95": 1264.39,
+        "sampleCount": 111
+      },
+      "sampleCount": 111
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 131298,
+        "p95Ms": 131298,
+        "totalMs": 131298
+      },
+      "before-session": {
+        "count": 21,
+        "p50Ms": 1367,
+        "p95Ms": 1514,
+        "totalMs": 28784
+      },
+      "before-suite": {
+        "count": 42,
+        "p50Ms": 21,
+        "p95Ms": 39,
+        "totalMs": 998
+      },
+      "after": {
+        "count": 21,
+        "p50Ms": 16,
+        "p95Ms": 22,
+        "totalMs": 332
+      },
+      "after-session": {
+        "count": 21,
+        "p50Ms": 854,
+        "p95Ms": 964,
+        "totalMs": 18139
+      },
+      "worker": {
+        "count": 21,
+        "p50Ms": 44636,
+        "p95Ms": 82282,
+        "totalMs": 1044361
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2694,
+        "p95Ms": 2694,
+        "totalMs": 2694
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.875,
+    "firstTimePassRate": 0.875,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 1186772,
+    "caseDurationP50Ms": 2876,
+    "caseDurationP95Ms": 24545,
+    "slowestCases": [
+      {
+        "fullTitle": "F98-03：继承 Map 多行展示，个人 Map 不重排，添加/编辑取消不落盘",
+        "durationMs": 30046
+      },
+      {
+        "fullTitle": "W89-05 / W89-08：不完整个人模型可修复；添加失败保留草稿",
+        "durationMs": 27164
+      },
+      {
+        "fullTitle": "SC90-01：添加固定配置、取消与失败保留草稿、编辑重开恢复智能配置",
+        "durationMs": 24545
+      },
+      {
+        "fullTitle": "完成态 assistant 行 fork → 切到 child session，历史含父内容",
+        "durationMs": 15921
+      },
+      {
+        "fullTitle": "PLUS05 offers Workflow after Goal in an empty draft and keeps it at the message start",
+        "durationMs": 15323
+      },
+      {
+        "fullTitle": "accepts a one-token probe without text and preserves saved selections",
+        "durationMs": 11968
+      },
+      {
+        "fullTitle": "B15：running 中点继续只武装，当前流收口后才消费暂停队首",
+        "durationMs": 11336
+      },
+      {
+        "fullTitle": "B06：正常发送按钮打开 modal；keep 保留队列发送，clear 清空队列发送",
+        "durationMs": 10911
+      },
+      {
+        "fullTitle": "VP30：未打开项目与侧栏一致、搜索项目、零 root 选择与改名同步",
+        "durationMs": 10609
+      },
+      {
+        "fullTitle": "PZ-06: 保存中切走分区且写入失败后，草稿仍可恢复重试",
+        "durationMs": 9405
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 1,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 6
+  },
+  "requestedSpecs": [
+    "./test/e2e/conversation-session/conversation-session-plus-menu.test.ts",
+    "./test/e2e/conversation-session/conversation-session-project-composer.test.ts",
+    "./test/e2e/settings/settings-personalization.test.ts",
+    "./test/e2e/ui-shell/side-pane-tabs-responsive-interactions.test.ts",
+    "./test/e2e/ui-shell/side-pane-full-view.test.ts",
+    "./test/e2e/workspace-file-tree-refresh.test.ts",
+    "./test/e2e/task-list-archive-confirmation.test.ts",
+    "./test/e2e/git/git-commit-dialog-ui-flow.test.ts",
+    "./test/e2e/automations-create-manage.test.ts",
+    "./test/e2e/conversation-session/conversation-session-first-send.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-stop-queue.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-queue.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-attachment.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-attachment-layout.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-edit.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-rename.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-fork.test.ts",
+    "./test/e2e/conversation-session/conversation-session-workspace-file-search-filter.test.ts",
+    "./test/e2e/settings/provider-settings-write-recovery.test.ts",
+    "./test/e2e/settings/provider-model-smart-config.test.ts",
+    "./test/e2e/settings/provider-connectivity-prompt.test.ts"
+  ],
+  "runId": "qa-menu-20261106-core-retry",
+  "startedAt": "2026-11-06T15:45:24.928Z",
+  "tests": {
+    "failed": 7,
+    "passed": 49,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T15:48:16.271Z",
+        "durationMs": 1227,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts",
+        "fullTitle": "PLUS02 offers Goal only in an empty new draft and keeps it at the message start",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PLUS02 offers Goal only in an empty new draft and keeps it at the message start"
+      },
+      {
+        "capturedAt": "2026-11-06T15:48:31.598Z",
+        "durationMs": 15323,
+        "error": "slash 面板没有出现候选项: slash:workflow",
+        "errorCategory": "unknown",
+        "errorStack": "Error: slash 面板没有出现候选项: slash:workflow\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async waitForV4SlashOption (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\v4-conversation.ts:2526:3)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts:56:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts",
+        "fullTitle": "PLUS05 offers Workflow after Goal in an empty draft and keeps it at the message start",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PLUS05 offers Workflow after Goal in an empty draft and keeps it at the message start"
+      },
+      {
+        "capturedAt": "2026-11-06T15:48:33.385Z",
+        "durationMs": 1777,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts",
+        "fullTitle": "PLUS01/03 shares the enabled plugin candidate with @ and supports Escape",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PLUS01/03 shares the enabled plugin candidate with @ and supports Escape"
+      },
+      {
+        "capturedAt": "2026-11-06T15:48:35.641Z",
+        "durationMs": 2254,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts",
+        "fullTitle": "PLUS02 inserts into the current draft after the saved selection becomes stale",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PLUS02 inserts into the current draft after the saved selection becomes stale"
+      },
+      {
+        "capturedAt": "2026-11-06T15:48:37.437Z",
+        "durationMs": 1794,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts",
+        "fullTitle": "PLUS04 keeps the composer anchor across repeated opens",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PLUS04 keeps the composer anchor across repeated opens"
+      },
+      {
+        "capturedAt": "2026-11-06T15:48:40.857Z",
+        "durationMs": 3418,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-plus-menu.test.ts",
+        "fullTitle": "PLUS04 lays out a single desktop footer row and wraps inside a narrow viewport",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PLUS04 lays out a single desktop footer row and wraps inside a narrow viewport"
+      },
+      {
+        "capturedAt": "2026-11-06T15:49:35.419Z",
+        "durationMs": 10609,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-project-composer.test.ts",
+        "fullTitle": "VP30：未打开项目与侧栏一致、搜索项目、零 root 选择与改名同步",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "VP30：未打开项目与侧栏一致、搜索项目、零 root 选择与改名同步"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:12.122Z",
+        "durationMs": 455,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-00: 个性化是「Agent 能力」组的第一项",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-00: 个性化是「Agent 能力」组的第一项"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:12.988Z",
+        "durationMs": 693,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-01: 点击个性化直达编辑器，保存后落盘 AGENTS.md",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-01: 点击个性化直达编辑器，保存后落盘 AGENTS.md"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:13.476Z",
+        "durationMs": 311,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-02: 文件是唯一事实源，重新进入回显且取消丢弃修改",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-02: 文件是唯一事实源，重新进入回显且取消丢弃修改"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:13.994Z",
+        "durationMs": 356,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-03: 清空并保存后文件内容被清空",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-03: 清空并保存后文件内容被清空"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:14.618Z",
+        "durationMs": 457,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-04: 超过 Agent 读取上限（100KB）的内容被阻断保存并提示",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-04: 超过 Agent 读取上限（100KB）的内容被阻断保存并提示"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:15.077Z",
+        "durationMs": 290,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-05: 未保存草稿跨分区切换存活",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-05: 未保存草稿跨分区切换存活"
+      },
+      {
+        "capturedAt": "2026-11-06T15:50:24.642Z",
+        "durationMs": 9405,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\settings-personalization.test.ts",
+        "fullTitle": "PZ-06: 保存中切走分区且写入失败后，草稿仍可恢复重试",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "PZ-06: 保存中切走分区且写入失败后，草稿仍可恢复重试"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:07.281Z",
+        "durationMs": 5589,
+        "error": "Can't call getSize on element with selector \"[data-desktop-logo-badge]\" because element wasn't found",
+        "errorCategory": "unknown",
+        "errorStack": "Error: Can't call getSize on element with selector \"[data-desktop-logo-badge]\" because element wasn't found\n    at implicitWait (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:743:13)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10490:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts:171:14)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-000 renders the shared header skeleton for a new task draft",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-000 renders the shared header skeleton for a new task draft"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:11.705Z",
+        "durationMs": 4421,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "TERM-TAB-05 closes the sole terminal session and creates a fresh one on reopen",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "TERM-TAB-05 closes the sole terminal session and creates a fresh one on reopen"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:14.172Z",
+        "durationMs": 2465,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-001 keeps one tab at 156px and the add button beside it",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-001 keeps one tab at 156px and the add button beside it"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:14.715Z",
+        "durationMs": 541,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-002 shrinks tabs equally above 60px before scrolling",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-002 shrinks tabs equally above 60px before scrolling"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:16.376Z",
+        "durationMs": 1659,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-003 scrolls only at the 60px floor and fixes add outside",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-003 scrolls only at the 60px floor and fixes add outside"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:18.388Z",
+        "durationMs": 2011,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-004 shows close on active or hovered tabs without activating an inactive tab",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-004 shows close on active or hovered tabs without activating an inactive tab"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:22.639Z",
+        "durationMs": 4249,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-005 restarts the 1500ms tooltip delay on another tab",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-005 restarts the 1500ms tooltip delay on another tab"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:22.893Z",
+        "durationMs": 251,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-006 closes an inactive tab with the middle mouse button without activating it",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-006 closes an inactive tab with the middle mouse button without activating it"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:28.229Z",
+        "durationMs": 5335,
+        "error": "最大化后的 Side Pane 必须保持四角 5px 和完整边框",
+        "errorCategory": "unknown",
+        "errorStack": "Error: 最大化后的 Side Pane 必须保持四角 5px 和完整边框\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts:845:9)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-007 routes custom desktop minimize and close controls",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-007 routes custom desktop minimize and close controls"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:31.342Z",
+        "durationMs": 3110,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "SPT-E2E-009 opens a real new tab and replaces it with a tool",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPT-E2E-009 opens a real new tab and replaces it with a tool"
+      },
+      {
+        "capturedAt": "2026-11-06T15:51:32.685Z",
+        "durationMs": 1342,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-tabs-responsive-interactions.test.ts",
+        "fullTitle": "新标签页支持多开、聚焦、统一宽度和关闭",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "新标签页支持多开、聚焦、统一宽度和关闭"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:09.955Z",
+        "durationMs": 1357,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-001 进入、退出且不重新挂载对话",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-001 进入、退出且不重新挂载对话"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:15.628Z",
+        "durationMs": 5671,
+        "error": "单行浮窗高度没有收到一行",
+        "errorCategory": "unknown",
+        "errorStack": "Error: 单行浮窗高度没有收到一行\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts:181:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-002 对话 tab 全宽，面板 tab 显示浮窗",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-002 对话 tab 全宽，面板 tab 显示浮窗"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:16.910Z",
+        "durationMs": 1280,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-003 操作栏、最小化与恢复共享同一份草稿",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-003 操作栏、最小化与恢复共享同一份草稿"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:18.109Z",
+        "durationMs": 1197,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-004 拖动吸附到左上并通过菜单打开对话",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-004 拖动吸附到左上并通过菜单打开对话"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:22.475Z",
+        "durationMs": 4364,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-005 用上 / 下按钮展开与收起消息流",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-005 用上 / 下按钮展开与收起消息流"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:22.510Z",
+        "durationMs": 33,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-009 body 级插件页面层不被完整视图的面板外框遮挡",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-009 body 级插件页面层不被完整视图的面板外框遮挡"
+      },
+      {
+        "capturedAt": "2026-11-06T15:52:23.499Z",
+        "durationMs": 988,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "fullTitle": "SPFV-E2E-006 面板开关退出完整视图，重新打开不回到完整视图",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SPFV-E2E-006 面板开关退出完整视图，重新打开不回到完整视图"
+      },
+      {
+        "capturedAt": "2026-11-06T15:53:01.417Z",
+        "durationMs": 2217,
+        "featureArea": "workspace",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\workspace-file-tree-refresh.test.ts",
+        "fullTitle": "重命名后点击刷新会更新已加载子目录，新增文件会实时出现在文件树",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "重命名后点击刷新会更新已加载子目录，新增文件会实时出现在文件树"
+      },
+      {
+        "capturedAt": "2026-11-06T15:53:44.421Z",
+        "durationMs": 7039,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\task-list-archive-confirmation.test.ts",
+        "fullTitle": "项目视图的任务区归档确认不会在按下时消失，完整点击后任务离开任务区",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "项目视图的任务区归档确认不会在按下时消失，完整点击后任务离开任务区"
+      },
+      {
+        "capturedAt": "2026-11-06T15:54:29.124Z",
+        "durationMs": 5082,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\git\\git-commit-dialog-ui-flow.test.ts",
+        "fullTitle": "GCD-UI-01: 打开提交弹窗后可聚焦输入、切换未暂存范围、用方向键切换 Command 动作并展开分支列表",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "GCD-UI-01: 打开提交弹窗后可聚焦输入、切换未暂存范围、用方向键切换 Command 动作并展开分支列表"
+      },
+      {
+        "capturedAt": "2026-11-06T15:55:08.839Z",
+        "durationMs": 2876,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\automations-create-manage.test.ts",
+        "fullTitle": "表单创建后可编辑、暂停、恢复并删除",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "表单创建后可编辑、暂停、恢复并删除"
+      },
+      {
+        "capturedAt": "2026-11-06T15:55:47.936Z",
+        "durationMs": 2273,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-first-send.test.ts",
+        "fullTitle": "首发应创建 session，完成后继续发送应进入下一轮",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "首发应创建 session，完成后继续发送应进入下一轮"
+      },
+      {
+        "capturedAt": "2026-11-06T15:56:30.643Z",
+        "durationMs": 6026,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-stop-queue.test.ts",
+        "fullTitle": "B02/B04：stop 后 queue 原样保留、autoDrain=false，并显示暂停提示",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B02/B04：stop 后 queue 原样保留、autoDrain=false，并显示暂停提示"
+      },
+      {
+        "capturedAt": "2026-11-06T15:56:41.557Z",
+        "durationMs": 10911,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-stop-queue.test.ts",
+        "fullTitle": "B06：正常发送按钮打开 modal；keep 保留队列发送，clear 清空队列发送",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B06：正常发送按钮打开 modal；keep 保留队列发送，clear 清空队列发送"
+      },
+      {
+        "capturedAt": "2026-11-06T15:56:49.988Z",
+        "durationMs": 8429,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-stop-queue.test.ts",
+        "fullTitle": "B14：idle 暂停队列点继续后按 Q1/Q2 FIFO 自动消费到空",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B14：idle 暂停队列点继续后按 Q1/Q2 FIFO 自动消费到空"
+      },
+      {
+        "capturedAt": "2026-11-06T15:57:01.327Z",
+        "durationMs": 11336,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-stop-queue.test.ts",
+        "fullTitle": "B15：running 中点继续只武装，当前流收口后才消费暂停队首",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B15：running 中点继续只武装，当前流收口后才消费暂停队首"
+      },
+      {
+        "capturedAt": "2026-11-06T15:57:07.807Z",
+        "durationMs": 6478,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-stop-queue.test.ts",
+        "fullTitle": "B08：held 队列项「立即发送」→ 该项出队并以新 turn 消费",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B08：held 队列项「立即发送」→ 该项出队并以新 turn 消费"
+      },
+      {
+        "capturedAt": "2026-11-06T15:57:50.712Z",
+        "durationMs": 2283,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-queue.test.ts",
+        "fullTitle": "running 中入队一条 → QueuePanel 显示 → 删除 → 队列清空",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "running 中入队一条 → QueuePanel 显示 → 删除 → 队列清空"
+      },
+      {
+        "capturedAt": "2026-11-06T15:57:56.114Z",
+        "durationMs": 4865,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-queue.test.ts",
+        "fullTitle": "running 中带图片入队 → 撤回到 composer → 修改重发产生新 queueItemId",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "running 中带图片入队 → 撤回到 composer → 修改重发产生新 queueItemId"
+      },
+      {
+        "capturedAt": "2026-11-06T15:58:01.671Z",
+        "durationMs": 5030,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-queue.test.ts",
+        "fullTitle": "composer 已有草稿时编辑 queue 不撤回且提示先处理草稿",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "composer 已有草稿时编辑 queue 不撤回且提示先处理草稿"
+      },
+      {
+        "capturedAt": "2026-11-06T15:58:07.456Z",
+        "durationMs": 5778,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-queue.test.ts",
+        "fullTitle": "running 中入队两条 → 拖拽第二条到第一条 → 顺序互换（reorderQueueItem）",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "running 中入队两条 → 拖拽第二条到第一条 → 顺序互换（reorderQueueItem）"
+      },
+      {
+        "capturedAt": "2026-11-06T15:58:49.414Z",
+        "durationMs": 2852,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-attachment.test.ts",
+        "fullTitle": "仅附件首发 → edit 删除一个 → active branch 与 provider 仅保留剩余 ref",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "仅附件首发 → edit 删除一个 → active branch 与 provider 仅保留剩余 ref"
+      },
+      {
+        "capturedAt": "2026-11-06T15:59:33.845Z",
+        "durationMs": 6894,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-attachment-layout.test.ts",
+        "fullTitle": "Composer → sent → edit 覆盖附件结构、context、响应式、主题与序列化",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "Composer → sent → edit 覆盖附件结构、context、响应式、主题与序列化"
+      },
+      {
+        "capturedAt": "2026-11-06T16:00:09.813Z",
+        "durationMs": 4193,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-edit.test.ts",
+        "fullTitle": "compact 后 edit → 原 session branch cut，无旧分支和 reminder",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "compact 后 edit → 原 session branch cut，无旧分支和 reminder"
+      },
+      {
+        "capturedAt": "2026-11-06T16:00:42.261Z",
+        "durationMs": 2310,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-rename.test.ts",
+        "fullTitle": "建立 session → 重命名 → 标题投影更新为自定义值",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "建立 session → 重命名 → 标题投影更新为自定义值"
+      },
+      {
+        "capturedAt": "2026-11-06T16:01:28.055Z",
+        "durationMs": 15921,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-fork.test.ts",
+        "fullTitle": "完成态 assistant 行 fork → 切到 child session，历史含父内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "完成态 assistant 行 fork → 切到 child session，历史含父内容"
+      },
+      {
+        "capturedAt": "2026-11-06T16:02:01.018Z",
+        "durationMs": 997,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-workspace-file-search-filter.test.ts",
+        "fullTitle": "@ files 候选默认过滤：隐藏目录后代可搜、build 放开、node_modules 与 .env 排除",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "@ files 候选默认过滤：隐藏目录后代可搜、build 放开、node_modules 与 .env 排除"
+      },
+      {
+        "capturedAt": "2026-11-06T16:02:58.760Z",
+        "durationMs": 27164,
+        "error": "删除模型应显示删除成功而非保存成功",
+        "errorCategory": "unknown",
+        "errorStack": "Error: 删除模型应显示删除成功而非保存成功\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-settings-write-recovery.test.ts:112:7)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-settings-write-recovery.test.ts",
+        "fullTitle": "W89-05 / W89-08：不完整个人模型可修复；添加失败保留草稿",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "W89-05 / W89-08：不完整个人模型可修复；添加失败保留草稿"
+      },
+      {
+        "capturedAt": "2026-11-06T16:03:53.745Z",
+        "durationMs": 24545,
+        "error": "Electron reload 旧进程退出屏障失败",
+        "errorCategory": "unknown",
+        "errorStack": "Error: Electron reload 旧进程退出屏障失败\n    at reloadElectronSessionSafely (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\e2e-electron-reload.ts:86:15)\n    at async restartIntoWorkspaceRestoringPreferences (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\model-provider-restart-runtime.ts:89:3)\n    at async restartIntoWorkspace (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\model-provider-restart.ts:369:3)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-model-smart-config.test.ts:66:7)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-model-smart-config.test.ts",
+        "fullTitle": "SC90-01：添加固定配置、取消与失败保留草稿、编辑重开恢复智能配置",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SC90-01：添加固定配置、取消与失败保留草稿、编辑重开恢复智能配置"
+      },
+      {
+        "capturedAt": "2026-11-06T16:04:23.793Z",
+        "durationMs": 30046,
+        "error": "waitUntil condition failed with the following reason: WebDriverError: invalid session id when running \"element\" with method \"POST\"",
+        "errorCategory": "timeout",
+        "errorStack": "Error: waitUntil condition failed with the following reason: WebDriverError: invalid session id when running \"element\" with method \"POST\"\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Browser.$ (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:1164:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Browser.browser.waitUntil.timeout (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\occupation-onboarding.ts:8:8)\n    ---\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6478:17)\n    at listOnTimeout (node:internal/timers:567:9)\n    at process.processTimers (node:internal/timers:541:7)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async skipOccupationOnboardingIfPresent (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\occupation-onboarding.ts:6:3)\n    at async ensureV4ShellReady (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\v4-conversation.ts:157:3)\n    at async prepareV4ConversationE2E (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\v4-conversation.ts:132:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-model-smart-config.test.ts:218:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-model-smart-config.test.ts",
+        "fullTitle": "F98-03：继承 Map 多行展示，个人 Map 不重排，添加/编辑取消不落盘",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "F98-03：继承 Map 多行展示，个人 Map 不重排，添加/编辑取消不落盘"
+      },
+      {
+        "capturedAt": "2026-11-06T16:05:04.501Z",
+        "durationMs": 11968,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\settings\\provider-connectivity-prompt.test.ts",
+        "fullTitle": "accepts a one-token probe without text and preserves saved selections",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "accepts a one-token probe without text and preserves saved selections"
+      }
+    ],
+    "skipped": 0,
+    "total": 56
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "evidenceKind": "Record of the actual root tool output after the GRP onPrepare failure; read-write handle opened without any write",
+  "file": "C:/vibecoding/zcodium/apps/zcode-cli/packages/node-repl-host/dist-types/process-lifecycle.d.ts.map",
+  "method": "System.IO.File.Open(FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite); Dispose in finally",
+  "opened": true,
+  "length": 675,
+  "wroteBytes": 0,
+  "attributesObserved": "Archive",
+  "sha256ObservedBeforeOpen": "a0c4526c03648daef1923af174860cb8dbb1d1f81dbf92b87dff9816dead5c22",
+  "creationTimeUtcObserved": "2026-10-07T11:43:17Z",
+  "lastWriteTimeUtcObservedBeforeOpen": "2026-11-06T18:16:07Z",
+  "probeWallTime": "Not separately timestamped; executed between the first GRP failure and the local-supplement launch",
+  "limits": "No truncate, content write, deletion, restore, or ACL change. A successful later Open does not establish the cause of the earlier TypeScript UNKNOWN error."
+}

@@ -1,0 +1,15 @@
+{
+  "command": "corepack pnpm exec tsc -p docs/testing/qa-2026-11-06/tsconfig.qa.json --noEmit",
+  "started": "2026-11-06T20:44:10.219Z",
+  "finished": "2026-11-06T20:44:15.183Z",
+  "code": 0,
+  "signal": null,
+  "outerNode": "v24.18.0",
+  "pinnedNode": "C:/Program Files/nodejs/node.exe",
+  "pinnedPnpm": "10.33.2",
+  "shimPath": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin\\pnpm.cmd",
+  "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd;C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\WindowsPowerShell\\v1.0",
+  "cacheNetworkDisabled": true,
+  "packageManagerAutoManagementDisabled": true,
+  "compileCachesDisabled": true
+}

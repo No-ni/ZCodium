@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "version": "7.6.9",
+  "shellMatches": true,
+  "profiles": [
+    {
+      "label": "AllUsersAllHosts",
+      "exists": false,
+      "inWorktree": false
+    },
+    {
+      "label": "AllUsersCurrentHost",
+      "exists": false,
+      "inWorktree": false
+    },
+    {
+      "label": "CurrentUserAllHosts",
+      "exists": false,
+      "inWorktree": true
+    },
+    {
+      "label": "CurrentUserCurrentHost",
+      "exists": false,
+      "inWorktree": true
+    }
+  ],
+  "modules": [
+    {
+      "inWorktree": true,
+      "auditedSystem": false,
+      "knownMissingSystem": false
+    },
+    {
+      "inWorktree": false,
+      "auditedSystem": false,
+      "knownMissingSystem": true
+    },
+    {
+      "inWorktree": false,
+      "auditedSystem": true,
+      "knownMissingSystem": false
+    },
+    {
+      "inWorktree": false,
+      "auditedSystem": true,
+      "knownMissingSystem": false
+    }
+  ],
+  "scope": "prelaunch NoProfile probe only; actual Host/PTY must be checked by suite"
+}

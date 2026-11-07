@@ -49,6 +49,7 @@ export function ChatPromptEditor({
   initialValue,
   syncInitialValueOnMount = true,
   placeholder,
+  placeholderContent,
   disabled = false,
   disabledReason,
   submitting = false,
@@ -110,6 +111,8 @@ export function ChatPromptEditor({
   initialValue?: string;
   syncInitialValueOnMount?: boolean;
   placeholder?: string;
+  /** 可独立刷新的展示叶子；placeholder 仍提供稳定的无障碍名称。 */
+  placeholderContent?: ReactNode;
   disabled?: boolean;
   disabledReason?: string;
   submitting?: boolean;
@@ -370,6 +373,7 @@ export function ChatPromptEditor({
     <div className={isInline ? "min-w-1/2 flex-1 py-1 [&_[contenteditable]]:min-h-5" : "contents"}>
       <LexicalChatInput
         placeholder={placeholder}
+        placeholderContent={placeholderContent}
         disabled={disabled}
         submitDisabled={submitDisabled}
         allowSubmitWhenEmpty={allowSubmitWhenEmpty}
@@ -426,7 +430,6 @@ export function ChatPromptEditor({
         />
       )}
       <div
-        ref={toolbarRef}
         data-composer-layout={layout}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -463,6 +466,7 @@ export function ChatPromptEditor({
           editorNode
         )}
         <div
+          // Bugfix：紧凑属性与 named group CSS 必须同属工具栏行，外壳不能共用这个 ref。
           ref={toolbarRef}
           className={cn("group/toolbar flex items-end gap-3", isInline && "shrink-0 gap-1.5")}
         >

@@ -1,0 +1,14 @@
+{
+  "capturedAt": "2026-11-06T19:20:42.655Z",
+  "evidenceKind": "Read-only fixed grouped readiness; no sampler, process scan, target runtime creation or UI",
+  "runId": "qa-menu-20261106-grp-pin-grouped",
+  "exists": {
+    "runtime": false,
+    "stagedApp": false,
+    "exitEvidence": false
+  },
+  "samplerSha256": "22ded6f9d2a1914f819ff083aa35d99c05a40c7c0ba60607a8ee46ca7b3b9c64",
+  "ancestorAndReparseChecks": true,
+  "command": "node .run-logs/qa-2026-11-06/validation/run-validation.mjs grp-pin-sampler-grouped",
+  "order": "Sampler start confirmed before root wrapper; do not create runtime or staged app first"
+}

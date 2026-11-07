@@ -1,0 +1,235 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence",
+  "completedAt": "2026-11-06T21:51:43.064Z",
+  "containerE2E": false,
+  "durationMs": 218289,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-ui-20261107-bugfix%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.95,
+            "peak": 3.49,
+            "p95": 3.49,
+            "sampleCount": 8
+          },
+          "memoryWorkingSetMb": {
+            "mean": 160.7,
+            "peak": 163.52,
+            "p95": 163.52,
+            "sampleCount": 8
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 1.09,
+            "peak": 2.83,
+            "p95": 2.83,
+            "sampleCount": 8
+          },
+          "memoryWorkingSetMb": {
+            "mean": 153.5,
+            "peak": 179.2,
+            "p95": 179.2,
+            "sampleCount": 8
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.42,
+            "peak": 2,
+            "p95": 2,
+            "sampleCount": 8
+          },
+          "memoryWorkingSetMb": {
+            "mean": 338.47,
+            "peak": 341.37,
+            "p95": 341.37,
+            "sampleCount": 8
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.85,
+            "peak": 5.68,
+            "p95": 5.68,
+            "sampleCount": 8
+          },
+          "memoryWorkingSetMb": {
+            "mean": 265.64,
+            "peak": 305.18,
+            "p95": 305.18,
+            "sampleCount": 8
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 4.31,
+        "peak": 13.29,
+        "p95": 13.29,
+        "sampleCount": 8
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-bugfix\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 918.31,
+        "peak": 979.43,
+        "p95": 979.43,
+        "sampleCount": 8
+      },
+      "sampleCount": 8
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 111525,
+        "p95Ms": 111525,
+        "totalMs": 111525
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 973,
+        "p95Ms": 973,
+        "totalMs": 973
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 17,
+        "p95Ms": 20,
+        "totalMs": 37
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 15,
+        "p95Ms": 15,
+        "totalMs": 15
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 926,
+        "p95Ms": 926,
+        "totalMs": 926
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 98271,
+        "p95Ms": 98271,
+        "totalMs": 98271
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2652,
+        "p95Ms": 2652,
+        "totalMs": 2652
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.6667,
+    "firstTimePassRate": 0.6667,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 218289,
+    "caseDurationP50Ms": 2919,
+    "caseDurationP95Ms": 4100,
+    "slowestCases": [
+      {
+        "fullTitle": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行",
+        "durationMs": 4100
+      },
+      {
+        "fullTitle": "UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器",
+        "durationMs": 2919
+      },
+      {
+        "fullTitle": "UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点",
+        "durationMs": 1074
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 1,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-ui-bugfix-20261107.test.ts"
+  ],
+  "runId": "qa-ui-20261107-bugfix",
+  "startedAt": "2026-11-06T21:48:04.775Z",
+  "tests": {
+    "failed": 1,
+    "passed": 2,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T21:50:53.554Z",
+        "durationMs": 1074,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+        "fullTitle": "UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点"
+      },
+      {
+        "capturedAt": "2026-11-06T21:51:10.704Z",
+        "durationMs": 2919,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+        "fullTitle": "UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器"
+      },
+      {
+        "capturedAt": "2026-11-06T21:51:28.726Z",
+        "durationMs": 4100,
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: false\nReceived: true",
+        "errorCategory": "assertion",
+        "errorStack": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: false\nReceived: true\n    at <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts:208:46)\n    at async run (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts:113:62)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts:191:70)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+        "fullTitle": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行"
+      }
+    ],
+    "skipped": 0,
+    "total": 3
+  }
+}

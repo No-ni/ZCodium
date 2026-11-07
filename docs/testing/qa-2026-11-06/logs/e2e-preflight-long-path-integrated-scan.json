@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-11-06T17:10:01.6013222Z",
+  "evidenceKind": "Read-only full failed QA home scan with shared guard and PS7",
+  "result": {
+    "success": true,
+    "version": "7.6.9",
+    "directories": 229,
+    "entries": 1169,
+    "scope": "existing failed synthetic home"
+  }
+}

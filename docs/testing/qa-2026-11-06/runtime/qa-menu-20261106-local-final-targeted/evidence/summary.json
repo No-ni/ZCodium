@@ -1,0 +1,295 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence",
+  "completedAt": "2026-11-06T20:15:28.484Z",
+  "containerE2E": false,
+  "durationMs": 423894,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-local-final-targeted%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.93,
+            "peak": 2.22,
+            "p95": 2.17,
+            "sampleCount": 22
+          },
+          "memoryWorkingSetMb": {
+            "mean": 171.2,
+            "peak": 185.41,
+            "p95": 184.08,
+            "sampleCount": 22
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.72,
+            "peak": 2.18,
+            "p95": 1.94,
+            "sampleCount": 22
+          },
+          "memoryWorkingSetMb": {
+            "mean": 158.87,
+            "peak": 179.27,
+            "p95": 179.27,
+            "sampleCount": 22
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.24,
+            "peak": 0.8,
+            "p95": 0.67,
+            "sampleCount": 22
+          },
+          "memoryWorkingSetMb": {
+            "mean": 343.56,
+            "peak": 353.12,
+            "p95": 350.83,
+            "sampleCount": 22
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.12,
+            "peak": 4.19,
+            "p95": 3.21,
+            "sampleCount": 22
+          },
+          "memoryWorkingSetMb": {
+            "mean": 263.52,
+            "peak": 285.21,
+            "p95": 280.03,
+            "sampleCount": 22
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 3.01,
+        "peak": 8.58,
+        "p95": 7.68,
+        "sampleCount": 22
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\perf\\process-samples-0-1.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\perf\\process-samples-0-2.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\perf\\process-samples-0-3.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 937.14,
+        "peak": 982.11,
+        "p95": 975.9,
+        "sampleCount": 22
+      },
+      "sampleCount": 22
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 109968,
+        "p95Ms": 109968,
+        "totalMs": 109968
+      },
+      "before-session": {
+        "count": 4,
+        "p50Ms": 1205,
+        "p95Ms": 1272,
+        "totalMs": 4887
+      },
+      "before-suite": {
+        "count": 8,
+        "p50Ms": 23,
+        "p95Ms": 27,
+        "totalMs": 180
+      },
+      "after": {
+        "count": 4,
+        "p50Ms": 12,
+        "p95Ms": 14,
+        "totalMs": 51
+      },
+      "after-session": {
+        "count": 4,
+        "p50Ms": 809,
+        "p95Ms": 885,
+        "totalMs": 3316
+      },
+      "worker": {
+        "count": 4,
+        "p50Ms": 76067,
+        "p95Ms": 84126,
+        "totalMs": 305585
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2677,
+        "p95Ms": 2677,
+        "totalMs": 2677
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.5,
+    "firstTimePassRate": 0.5,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 423894,
+    "caseDurationP50Ms": 2224,
+    "caseDurationP95Ms": 10729,
+    "slowestCases": [
+      {
+        "fullTitle": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "durationMs": 10729
+      },
+      {
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "durationMs": 7784
+      },
+      {
+        "fullTitle": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+        "durationMs": 5409
+      },
+      {
+        "fullTitle": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+        "durationMs": 2224
+      },
+      {
+        "fullTitle": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+        "durationMs": 2203
+      },
+      {
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "durationMs": 2005
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 1,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 2
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-final-local-gaps-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-local-final-targeted",
+  "startedAt": "2026-11-06T20:08:24.590Z",
+  "tests": {
+    "failed": 3,
+    "passed": 3,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T20:11:15.471Z",
+        "durationMs": 2203,
+        "error": "WebDriverError: javascript error: RFC same-turn copy action is not unique\n  (Session info: chrome=152.0.7977.130) when running \"execute/sync\" with method \"POST\"",
+        "errorCategory": "unknown",
+        "errorStack": "javascript error: WebDriverError: javascript error: RFC same-turn copy action is not unique\n  (Session info: chrome=152.0.7977.130) when running \"execute/sync\" with method \"POST\"\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts:195:17)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts:114:326)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts:193:70)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+        "fullTitle": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+      },
+      {
+        "capturedAt": "2026-11-06T20:12:26.928Z",
+        "durationMs": 7784,
+        "error": "expect(received).toEqual(expected) // deep equality\n\nExpected: ArrayContaining [\"system\", \"user\", \"reasoning\", \"assistant\", \"tool-call\", \"tool-result\"]\nReceived: [\"user\", \"reasoning\", \"assistant\", \"tool-call\", \"user\", \"reasoning\", \"assistant\", \"tool-call\", \"user\", \"reasoning\", …]",
+        "errorCategory": "assertion",
+        "errorStack": "Error: expect(received).toEqual(expected) // deep equality\n\nExpected: ArrayContaining [\"system\", \"user\", \"reasoning\", \"assistant\", \"tool-call\", \"tool-result\"]\nReceived: [\"user\", \"reasoning\", \"assistant\", \"tool-call\", \"user\", \"reasoning\", \"assistant\", \"tool-call\", \"user\", \"reasoning\", …]\n    at <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:610:29)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:438:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:601:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+      },
+      {
+        "capturedAt": "2026-11-06T20:12:43.361Z",
+        "durationMs": 2005,
+        "error": "HIST02 requires successful HIST01 fixture; no repair or fabricated task",
+        "errorCategory": "unknown",
+        "errorStack": "Error: HIST02 requires successful HIST01 fixture; no repair or fabricated task\n    at <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:698:15)\n    at runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:438:11)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:696:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+      },
+      {
+        "capturedAt": "2026-11-06T20:13:59.615Z",
+        "durationMs": 10729,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-05: Command Center任务范围查询唯一ID并重开最近"
+      },
+      {
+        "capturedAt": "2026-11-06T20:14:59.050Z",
+        "durationMs": 2224,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接"
+      },
+      {
+        "capturedAt": "2026-11-06T20:15:19.397Z",
+        "durationMs": 5409,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新"
+      }
+    ],
+    "skipped": 0,
+    "total": 6
+  }
+}

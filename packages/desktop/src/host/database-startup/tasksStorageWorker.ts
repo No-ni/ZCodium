@@ -1,6 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { tasksStorageWorkerDataSchema } from "./contract.js";
-import { prepareTasksIndexStorage } from "@zcode/services/storage-startup";
+import { createSettingService, prepareTasksIndexStorage } from "@zcode/services/storage-startup";
 import {
   classifyDatabaseStartupError,
   databaseStartupErrorDetails,
@@ -9,9 +9,13 @@ import {
 
 const data = tasksStorageWorkerDataSchema.parse(workerData);
 try {
-  // 本仓迁移由统一异步 runner 持有；第三参是启动 options，不能误传上游旧设置对象。
-  await prepareTasksIndexStorage(data.path, (phase, migration) =>
-    parentPort?.postMessage({ type: "progress", phase, migration }),
+  // 修复原因：首次项目迁移只读取旧设置保留的项目；未等待设置会以空清单提交 0005。
+  // 设置仍由 Worker 所属 Host 读取，第三参沿用启动 options，不进入 workerData/进度消息。
+  const settings = await createSettingService().get();
+  await prepareTasksIndexStorage(
+    data.path,
+    (phase, migration) => parentPort?.postMessage({ type: "progress", phase, migration }),
+    { settings },
   );
   parentPort?.postMessage({ type: "done" });
 } catch (error) {

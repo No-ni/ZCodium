@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { EmbeddedBrowserSitePermissionRecord, EmbeddedBrowserSitePermissionStore } from "./embeddedBrowserPermissionPolicy.js";
+import type { EmbeddedBrowserSitePermissionRecord, EmbeddedBrowserSitePermissionStore } from "./embedded-browser-permission-contract/site-permissions.js";
 
 /**
  * 内置浏览器站点同意记录的文件持久化：userData 下独立 JSON，原子写（tmp + rename）。

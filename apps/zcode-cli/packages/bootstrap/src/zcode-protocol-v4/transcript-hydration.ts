@@ -718,6 +718,9 @@ function synthesizeReasoningPart(
       partId: part.id,
     },
     turnId,
+    // Bugfix：冷合成若用 seq 时钟，关闭事件只能生成几毫秒的历史思考耗时。
+    // 透传持久区间，事件全序仍由 sequenceNumber 决定。
+    finiteTimeMs(part.time?.start),
   );
   push(
     SessionEventType.ModelStreaming,
@@ -733,6 +736,7 @@ function synthesizeReasoningPart(
     SessionEventType.ModelStreaming,
     { kind: "reasoning_end", delta: "", done: false, partId: part.id },
     turnId,
+    intervalEndOrStartMs(part.time),
   );
 }
 

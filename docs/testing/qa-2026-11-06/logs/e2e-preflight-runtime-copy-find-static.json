@@ -1,0 +1,53 @@
+{
+  "capturedAt": "2026-11-06T18:32:44.127Z",
+  "evidenceKind": "all external QA noEmit; actual module import/3 registrations; finite existing fixture source audit; lint/serialized callback syntax only; no UI/Host/provider execution",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "sha256": "9187dfd0a79c389db3a7a9e96af22d7d1024e8a5a22bdf9db43b8bbdb87da9ff"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+      "sha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    }
+  ],
+  "diagnostics": [],
+  "registeredCases": [
+    "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+    "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+    "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+  ],
+  "checkedCallbacks": 17,
+  "closureFindings": [],
+  "checkedRawScripts": 3,
+  "rawSyntaxErrors": [],
+  "fixture": {
+    "id": "chat-find-refocus-long-body",
+    "metadata": {
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实发送长正文，用于单命中反复导航和滚动定位；不验证模型文本质量。"
+    },
+    "expectedBodyLength": 3930,
+    "expectedBodySha256": "f79b3698c2a748a78ccb2c9623a4685ec1ee66967d262cbf1656cc6dd042d5d6",
+    "markerCount": 1,
+    "pureText": true
+  },
+  "targetedLint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 12ms on 2 files with 94 rules using 16 threads."
+  },
+  "canonicalFixtureCheck": {
+    "exitCode": 0,
+    "output": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\manual-review\\pending\\conversation-session-chat-find-refocus.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-chat-find-refocus.test.ts\nCase: conversation-session-chat-find-refocus\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-chat-find-refocus.json\nSpec markers: E2E_CHAT_FIND_REFOCUS_NEEDLE, E2E_CHAT_FIND_REFOCUS_SETUP, E2E_FILE_CHANGE_FIND_REFOCUS_NEEDLE\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json (1 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_CHAT_FIND_REFOCUS_NEEDLE\n- Spec marker is not covered by fixture matchers: E2E_FILE_CHANGE_FIND_REFOCUS_NEEDLE\n\nFixture check passed."
+  }
+}

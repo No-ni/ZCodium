@@ -1,0 +1,160 @@
+{
+  "capturedAt": "2026-11-06T18:12:15.834Z",
+  "evidenceKind": "Read-only compressed attribution of existing bounded DOM history; no UI, process actions or source edits",
+  "runId": "qa-menu-20261106-local-canonical",
+  "classification": "BUG-006 P2: confirmed production measurement-probe structure defect; actual narrow outer composer remains unverified",
+  "confirmationEvidence": {
+    "file": "logs/feature-inventory-fit-probe.json",
+    "kind": "Actual production source transpiled in memory; non-rendered synthetic skeleton with real protected240 geometry; no additional UI or product-test count",
+    "fact": "Probe lacks leading/content/trailing/combined-model nodes and writes no compact flag; direct fit on complete synthetic structure writes composerModelIcon:true.",
+    "sourceSha256": "9b6562cdbc303acb8dbd5f9422334ec4ce6e37abc688898a7e2e85709df64e45"
+  },
+  "sources": [
+    {
+      "file": "runtime/qa-menu-20261106-local-canonical/evidence/qa-composer-fit-0-6-001-30916-1793988522119.json",
+      "bytes": 789713,
+      "sha256": "19162b28f2db2a36c9df2352ec1d8a167483a7d8f8bd2294f945da8b6ca22b6a",
+      "capturedAt": "2026-11-06T18:08:42.119Z",
+      "observerSourceSha256": "da80835824645e1790c9acf66cef27949028d25e2553cf80831153bc3f5579be",
+      "hookSourceSha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525",
+      "test": {
+        "title": "keeps the open model picker responsive when the composer shrinks and expands",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-composer-toolbar.test.ts",
+        "state": "failed",
+        "assertionError": null
+      },
+      "historyPresent": true,
+      "frameCount": 24,
+      "dropped": 74,
+      "observationError": null,
+      "screenshot": "runtime/qa-menu-20261106-local-canonical/evidence/qa-composer-fit-0-6-001-30916-1793988522119.png",
+      "protected240Frames": [
+        {
+          "elapsedMs": 2258.9,
+          "reason": "control.style,coalesced:frame2",
+          "dpr": 1.5,
+          "viewport": {
+            "height": 802,
+            "scale": 1,
+            "width": 1200
+          },
+          "shell": {
+            "width": 782.6666870117188,
+            "height": 105.33333587646484,
+            "inlineWidth": "",
+            "layout": "stacked",
+            "composerModelIcon": null
+          },
+          "toolbar": {
+            "width": 240,
+            "inlineWidth": "240px",
+            "composerModelIcon": null
+          },
+          "model": {
+            "width": 271.94793701171875,
+            "state": "closed"
+          },
+          "leadingRight": 502.66668701171875,
+          "trailingLeft": 357.3333435058594,
+          "label": {
+            "exists": true,
+            "display": "block",
+            "width": 242.61459350585938
+          },
+          "icon": {
+            "exists": true,
+            "display": "none",
+            "width": 0
+          }
+        },
+        {
+          "elapsedMs": 2268.1,
+          "reason": "toolbar.style,control.style,coalesced:frame1",
+          "dpr": 1.5,
+          "viewport": {
+            "height": 802,
+            "scale": 1,
+            "width": 1200
+          },
+          "shell": {
+            "width": 782.6666870117188,
+            "height": 105.33333587646484,
+            "inlineWidth": "",
+            "layout": "stacked",
+            "composerModelIcon": null
+          },
+          "toolbar": {
+            "width": 240,
+            "inlineWidth": "240px",
+            "composerModelIcon": null
+          },
+          "model": {
+            "width": 271.94793701171875,
+            "state": "closed"
+          },
+          "leadingRight": 502.66668701171875,
+          "trailingLeft": 357.3333435058594,
+          "label": {
+            "exists": true,
+            "display": "block",
+            "width": 242.61459350585938
+          },
+          "icon": {
+            "exists": true,
+            "display": "none",
+            "width": 0
+          }
+        }
+      ]
+    },
+    {
+      "file": "runtime/qa-menu-20261106-local-canonical/evidence/qa-composer-fit-0-6-001-30916-1793988529076.json",
+      "bytes": 984,
+      "sha256": "59cb781b4c978c9c6032f0b49b767f8f10c2a2345bff48c5e80a31ce42daccee",
+      "capturedAt": "2026-11-06T18:08:49.076Z",
+      "observerSourceSha256": "da80835824645e1790c9acf66cef27949028d25e2553cf80831153bc3f5579be",
+      "hookSourceSha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525",
+      "test": {
+        "title": "keeps the open model picker responsive when the composer shrinks and expands",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-composer-toolbar.test.ts",
+        "state": "failed",
+        "assertionError": null
+      },
+      "historyPresent": false,
+      "frameCount": 0,
+      "dropped": 0,
+      "observationError": "Composer fit observer history missing; not layout evidence",
+      "screenshot": null,
+      "protected240Frames": []
+    }
+  ],
+  "facts": [
+    "The first record has 24 frames and preserves two 240px inner-toolbar frames; this is not a missing-width observation.",
+    "At both preserved frames the outer composer remains 782.667px wide in a 1200px viewport with DPR1.5.",
+    "Both actual open-label and open-icon elements exist: label display:block and icon display:none; the compact composerModelIcon datasets are absent on outer and inner roots.",
+    "The second afterEach record is empty history with observationError; it does not overwrite or negate the first history.",
+    "The PNG is the final cleanup frame, not a failure-frame recording."
+  ],
+  "sourceChain": [
+    {
+      "file": "packages/desktop/test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "line": 1077,
+      "fact": "resizeToolbar sets trailing.parentElement.style.width, which is the inner group/toolbar."
+    },
+    {
+      "file": "packages/ui/src/prompt-editor/ChatPromptEditor.tsx",
+      "line": 182,
+      "fact": "One useComposerToolbarFit ref is reused at outer line433 and inner line470; actual observed root ownership is not proven by this snapshot alone."
+    },
+    {
+      "file": "packages/ui/src/prompt-editor/useComposerToolbarFit.ts",
+      "line": 124,
+      "fact": "Resize observers derive roots and descendants from the assigned ref; the canonical artificially shrunk subtree may differ from the actual root."
+    }
+  ],
+  "limits": [
+    "No confirmation that this canonical artificial resize represents an actual narrow outer composer or floating-window layout.",
+    "test.assertionError is null in the observer; the actual case result must be read from NDJSON.",
+    "Use upcoming SPFV001/002 raw DOM to inspect the real narrow outer layout and its cause; do not assume the double-ref issue shares BUG-006's source-probe defect."
+  ]
+}

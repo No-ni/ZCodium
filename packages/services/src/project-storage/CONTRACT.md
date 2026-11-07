@@ -37,6 +37,8 @@ Host 项目组织态的持久化升级。调用者持有 app SQLite 连接，CLI
 
 启动入口复用 session 模块公开的旧 Repo 与迁移适配器：先 SQL 迁移并提交，再逐一 ensureReady/close，最后标记 prepared。Worker 必须注入旧 settings 以完成首次项目导入；进度复制迁移事实，失败不撤回已提交计数。storage-startup 子路径保持不变。
 
+`TasksStorageStartupOptions.settings` 只携带原 `ProjectMigrationContext.settings` 的项目迁移输入，传到同一 `TaskIndexRepo` 首参，不改 lock/signal/backup options 或新增状态所有者。Desktop Worker 在调用前等待自身 SettingService；没有配置的新安装允许空清单，已有迁移账本不重跑、不自动恢复先前空设置记账。
+
 显式本地打开目录使用 saveProject 的 reuseExistingRoot 选项：仅接受无 ID、无编辑字段的单 root 请求。目录异步校验与 normalize 后，由同一 Host 写事务复用包含该 root 的未删除项目或创建单 root 项目；主要目录匹配优先，其后按 position、ID 稳定选择。复用不改项目元数据，不恢复已删除项目。普通保存、全局新任务和远程入口不启用此选项。
 
 创建命令的 ID 分配属于 Host：`session_creation_commands` 以 workspace*key/client_id/command_id 为唯一键，与任务预留在同一写事务提交；首次缺省分配 `sess*${randomUUID()}`，重试只读原映射。显式 ID 冲突、映射对应任务已彻底删除均拒绝，不重新分配。无映射的旧请求仅查询原 3.16 哈希 ID，命中则保留旧 task 行并登记映射。0009 只新建映射表，不重写历史任务；命令执行与 ACK 仍由 CLI 裁决。

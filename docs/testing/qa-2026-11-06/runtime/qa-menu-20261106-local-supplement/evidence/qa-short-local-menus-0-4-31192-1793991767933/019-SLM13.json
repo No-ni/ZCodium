@@ -1,0 +1,297 @@
+{
+  "capturedAt": "2026-11-06T19:04:27.185Z",
+  "evidenceKind": "synthetic local menu UI; readonly index; mock clipboard/native exits; no Provider send",
+  "status": "blocked",
+  "reason": "PowerShell profile probe returned unknown keys",
+  "state": {
+    "activePane": "share-import-c27f4554-88f5-43ca-84c5-9f9ef5aceb57",
+    "clips": [
+      {
+        "length": 161,
+        "method": "writeText",
+        "synthetic": true
+      },
+      {
+        "length": 13,
+        "method": "writeText",
+        "synthetic": true
+      }
+    ],
+    "dpr": 1.5,
+    "headings": [
+      "Command palette",
+      "Imported: SLM_TASK_中文_0-4-31192-1793991767933",
+      "ZCodeProject"
+    ],
+    "menus": [
+      {
+        "label": null,
+        "testid": null,
+        "text": "New task\nCtrl+N"
+      },
+      {
+        "label": "Conversation options",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": "automations-open",
+        "text": "Automations"
+      },
+      {
+        "label": null,
+        "testid": "plugin-store-sidebar-open",
+        "text": "Plugin Marketplace"
+      },
+      {
+        "label": "Search",
+        "testid": "sidebar-search-open",
+        "text": ""
+      },
+      {
+        "label": "Filter view",
+        "testid": "sidebar-view-menu",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": null,
+        "text": "Projects"
+      },
+      {
+        "label": "Collapse all projects",
+        "testid": "virtual-project-toggle-all",
+        "text": ""
+      },
+      {
+        "label": "New project",
+        "testid": "virtual-project-add",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": "virtual-project-toggle",
+        "text": "ZCodeProject"
+      },
+      {
+        "label": "More",
+        "testid": "virtual-project-menu",
+        "text": ""
+      },
+      {
+        "label": "Show files",
+        "testid": "virtual-project-files",
+        "text": ""
+      },
+      {
+        "label": "New task",
+        "testid": "virtual-project-create-task",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": null,
+        "text": "Tasks"
+      },
+      {
+        "label": "New task",
+        "testid": "virtual-project-new-task",
+        "text": ""
+      },
+      {
+        "label": "Preferences",
+        "testid": "sidebar-preferences-trigger",
+        "text": "Preferences"
+      },
+      {
+        "label": "Mobile remote control",
+        "testid": null,
+        "text": "Mobile remote control"
+      },
+      {
+        "label": "Settings",
+        "testid": "task-settings-button",
+        "text": ""
+      },
+      {
+        "label": "ZCodeProject · main",
+        "testid": "workspace-path",
+        "text": ""
+      },
+      {
+        "label": "More",
+        "testid": "workspace-more-button",
+        "text": ""
+      },
+      {
+        "label": "Open in 资源管理器",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Choose app",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Export conversation",
+        "testid": "conversation-share-trigger",
+        "text": ""
+      },
+      {
+        "label": "Help",
+        "testid": "workspace-help-menu-trigger",
+        "text": ""
+      },
+      {
+        "label": "Toggle terminal",
+        "testid": "terminal-toggle",
+        "text": ""
+      },
+      {
+        "label": "Add context",
+        "testid": "chat-attachment-button",
+        "text": "Add context"
+      },
+      {
+        "label": "Switch mode",
+        "testid": "chat-mode-select-trigger",
+        "text": "Ask before changes"
+      },
+      {
+        "label": "Upstream E2E/deepseek-v4-flash High",
+        "testid": "chat-model-select-trigger",
+        "text": "Upstream E2E/deepseek-v4-flash\nHigh"
+      },
+      {
+        "label": "Send",
+        "testid": "v4-composer-send",
+        "text": "Send"
+      },
+      {
+        "label": "Search tabs",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Close Files",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Close Files",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Close Files",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Close Files",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Add tab",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Enter full view",
+        "testid": "side-pane-full-view-toggle",
+        "text": ""
+      },
+      {
+        "label": "Collapse side pane",
+        "testid": "side-pane-toggle",
+        "text": ""
+      },
+      {
+        "label": "Minimize window",
+        "testid": "window-control-minimize",
+        "text": ""
+      },
+      {
+        "label": "Maximize or restore window",
+        "testid": "window-control-maximize",
+        "text": ""
+      },
+      {
+        "label": "Close window",
+        "testid": "window-control-close",
+        "text": ""
+      },
+      {
+        "label": "Hide file navigation",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "More",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Show changed files only",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Refresh file tree",
+        "testid": "workspace-file-tree-refresh-button",
+        "text": ""
+      },
+      {
+        "label": "Toggle sidebar",
+        "testid": "desktop-top-logo-sidebar-toggle",
+        "text": ""
+      },
+      {
+        "label": "Go back",
+        "testid": "desktop-top-nav-back",
+        "text": ""
+      },
+      {
+        "label": "Go forward",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "New task",
+        "testid": null,
+        "text": ""
+      }
+    ],
+    "mode": "coding",
+    "tabs": [
+      {
+        "id": "file-manager:9b151709-09aa-4213-8b6d-e9fdd6d4cefb",
+        "state": "inactive"
+      },
+      {
+        "id": "file-manager:aec658e8-6137-4810-81fc-134573082112",
+        "state": "inactive"
+      },
+      {
+        "id": "file-manager:056c068b-2966-440b-8645-838af885901b",
+        "state": "inactive"
+      },
+      {
+        "id": "file-manager:b14cba95-35aa-4cf8-bba3-ba9b7f4ef7af",
+        "state": "active"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "share-import-c27f4554-88f5-43ca-84c5-9f9ef5aceb57",
+      "workspace_path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\.e2e-home-qa-menu-20261106-local-supplement\\ZCodeProject",
+      "workspace_key": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\.e2e-home-qa-menu-20261106-local-supplement\\ZCodeProject",
+      "title": "Imported: SLM_TASK_中文_0-4-31192-1793991767933"
+    }
+  ],
+  "providerRequests": 0
+}

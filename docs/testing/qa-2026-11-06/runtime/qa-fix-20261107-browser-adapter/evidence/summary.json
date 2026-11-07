@@ -1,0 +1,218 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence",
+  "completedAt": "2026-11-06T22:06:57.843Z",
+  "containerE2E": false,
+  "durationMs": 235798,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 0,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-fix-20261107-browser-adapter%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.78,
+            "peak": 1.44,
+            "p95": 1.44,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 164.71,
+            "peak": 169.11,
+            "p95": 169.11,
+            "sampleCount": 5
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.9,
+            "peak": 2.52,
+            "p95": 2.52,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 139.13,
+            "peak": 147.23,
+            "p95": 147.23,
+            "sampleCount": 5
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.19,
+            "peak": 0.48,
+            "p95": 0.48,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 397.15,
+            "peak": 482.85,
+            "p95": 482.85,
+            "sampleCount": 5
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.03,
+            "peak": 2.93,
+            "p95": 2.93,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 388.23,
+            "peak": 477.07,
+            "p95": 477.07,
+            "sampleCount": 5
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 2.9,
+        "peak": 7.22,
+        "p95": 7.22,
+        "sampleCount": 5
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-adapter\\evidence\\perf\\process-samples-0-1.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1089.22,
+        "peak": 1155.07,
+        "p95": 1155.07,
+        "sampleCount": 5
+      },
+      "sampleCount": 5
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 112791,
+        "p95Ms": 112791,
+        "totalMs": 112791
+      },
+      "before-session": {
+        "count": 2,
+        "p50Ms": 1025,
+        "p95Ms": 1225,
+        "totalMs": 2250
+      },
+      "before-suite": {
+        "count": 4,
+        "p50Ms": 24,
+        "p95Ms": 60,
+        "totalMs": 145
+      },
+      "after": {
+        "count": 2,
+        "p50Ms": 11,
+        "p95Ms": 11,
+        "totalMs": 22
+      },
+      "after-session": {
+        "count": 2,
+        "p50Ms": 814,
+        "p95Ms": 841,
+        "totalMs": 1655
+      },
+      "worker": {
+        "count": 2,
+        "p50Ms": 51737,
+        "p95Ms": 57687,
+        "totalMs": 109424
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2928,
+        "p95Ms": 2928,
+        "totalMs": 2928
+      }
+    }
+  },
+  "stability": {
+    "passRate": 1,
+    "firstTimePassRate": 1,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 235798,
+    "caseDurationP50Ms": 1656,
+    "caseDurationP95Ms": 1789,
+    "slowestCases": [
+      {
+        "fullTitle": "BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问",
+        "durationMs": 1789
+      },
+      {
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "durationMs": 1656
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "./test/e2e/browser-permission/browser-permission-site-settings.test.ts",
+    "./test/e2e/manual-review/pending/qa-browser-permission-bugfix-20261107.test.ts"
+  ],
+  "runId": "qa-fix-20261107-browser-adapter",
+  "startedAt": "2026-11-06T22:03:02.045Z",
+  "tests": {
+    "failed": 0,
+    "passed": 2,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T22:05:52.413Z",
+        "durationMs": 1656,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts",
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问"
+      },
+      {
+        "capturedAt": "2026-11-06T22:06:49.329Z",
+        "durationMs": 1789,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\manual-review\\pending\\qa-browser-permission-bugfix-20261107.test.ts",
+        "fullTitle": "BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问"
+      }
+    ],
+    "skipped": 0,
+    "total": 2
+  }
+}

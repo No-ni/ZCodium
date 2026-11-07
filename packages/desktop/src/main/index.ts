@@ -44,6 +44,12 @@ import {
 import { createDesktopBrowserScreenshotSurfaceCoordinator } from "./browserView/browserScreenshotSurfaceCoordinatorWiring.js";
 import { EMBEDDED_BROWSER_PARTITION } from "./browserDataManager.js";
 import { EmbeddedBrowserJavaScriptDialogController } from "./embeddedBrowserJavaScriptDialog.js";
+import { applyEmbeddedBrowserPermissionPolicy } from "./embeddedBrowserPermissionPolicy.js";
+import { createEmbeddedBrowserSitePermissionStore } from "./embeddedBrowserSitePermissionStore.js";
+import {
+  createEmbeddedBrowserPermissionUiBridge,
+  setActiveEmbeddedBrowserPermissionUiBridge,
+} from "./embeddedBrowserPermissionUiBridge.js";
 import {
   browserOperationResetsResizeBaseline,
   resolveBrowserOperationTabId,
@@ -709,6 +715,8 @@ function focusForceUpdateGateWindow() {
   gateWindow.focus();
 }
 
+// 冷启动 activate/open-url 可与 whenReady 的异步加载并发；Main 唯一装配完成标志约束所有窗口入口。
+let embeddedBrowserPermissionPolicyReady = false;
 const primaryWindowCoordinator = createPrimaryWindowCoordinator({
   listWindows: getApplicationWindowsExcludingCuaIndicator,
   resolveStartupWindowBootstrap: () => {
@@ -736,6 +744,7 @@ const primaryWindowCoordinator = createPrimaryWindowCoordinator({
     createWindowInstance(startupBootstrap);
   },
   canCreateWindow: (reason) => {
+    if (!embeddedBrowserPermissionPolicyReady) return false;
     if (!forceUpdateMainWindowCreationBlocked) {
       return true;
     }
@@ -1816,6 +1825,22 @@ app.whenReady().then(async () => {
   } catch (error) {
     logger.warn("[desktop-network] Chromium network policy bootstrap failed:", error);
   }
+
+  // BUG-005：此前只有策略实现，没有启动装配，Electron 会默认授予网页敏感权限。
+  // 必须等待同一授权管理器加载并安装 handler，再进入后续窗口/guest 创建入口。
+  const embeddedBrowserPermissionBridge = createEmbeddedBrowserPermissionUiBridge({ logger });
+  embeddedBrowserPermissionBridge.registerResolveListener();
+  setActiveEmbeddedBrowserPermissionUiBridge(embeddedBrowserPermissionBridge);
+  await applyEmbeddedBrowserPermissionPolicy(session.fromPartition(EMBEDDED_BROWSER_PARTITION), {
+    logger,
+    store: createEmbeddedBrowserSitePermissionStore(
+      join(app.getPath("userData"), "embedded-browser-site-permissions.json"),
+    ),
+    prompt: embeddedBrowserPermissionBridge.promptPermission,
+    devicePicker: embeddedBrowserPermissionBridge.devicePicker,
+    onDisplayMediaRequest: embeddedBrowserPermissionBridge.onDisplayMediaRequest,
+  });
+  embeddedBrowserPermissionPolicyReady = true;
 
   await hydratePendingPostUpdateReleaseNotes(mainSettingService);
   logWindowsBundledRuntimeIntegrityDiagnostic();

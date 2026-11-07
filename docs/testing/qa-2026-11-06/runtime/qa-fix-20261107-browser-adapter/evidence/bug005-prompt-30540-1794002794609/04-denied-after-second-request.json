@@ -1,0 +1,7 @@
+{
+  "state": {
+    "geolocation": "denied",
+    "notifications": "denied",
+    "result": "denied"
+  }
+}

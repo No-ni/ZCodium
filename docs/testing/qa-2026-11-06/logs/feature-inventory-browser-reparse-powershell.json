@@ -1,0 +1,9 @@
+{
+  "capturedAt": "2026-11-06T17:49:00.6552881Z",
+  "evidenceKind": "Read-only PS7 Get-Item/Get-ChildItem BFS; reparse nodes are never followed or changed",
+  "powershell": "7.6.9",
+  "runRoot": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser",
+  "directoryCount": 524,
+  "found": [],
+  "errors": []
+}

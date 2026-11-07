@@ -1,0 +1,512 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence",
+  "completedAt": "2026-11-06T15:19:48.876Z",
+  "containerE2E": false,
+  "durationMs": 250196,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-settings-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.91,
+            "peak": 2.34,
+            "p95": 2.34,
+            "sampleCount": 36
+          },
+          "memoryWorkingSetMb": {
+            "mean": 166.76,
+            "peak": 189.51,
+            "p95": 189.39,
+            "sampleCount": 36
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.89,
+            "peak": 3.22,
+            "p95": 2.1,
+            "sampleCount": 36
+          },
+          "memoryWorkingSetMb": {
+            "mean": 166.86,
+            "peak": 203.88,
+            "p95": 199.66,
+            "sampleCount": 36
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.33,
+            "peak": 1.16,
+            "p95": 1,
+            "sampleCount": 36
+          },
+          "memoryWorkingSetMb": {
+            "mean": 372.16,
+            "peak": 486.71,
+            "p95": 482,
+            "sampleCount": 36
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.52,
+            "peak": 4.16,
+            "p95": 3.99,
+            "sampleCount": 36
+          },
+          "memoryWorkingSetMb": {
+            "mean": 346.55,
+            "peak": 418.06,
+            "p95": 418.05,
+            "sampleCount": 36
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 3.65,
+        "peak": 9.4,
+        "p95": 8.63,
+        "sampleCount": 36
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings-retry\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1052.33,
+        "peak": 1225.42,
+        "p95": 1217.74,
+        "sampleCount": 36
+      },
+      "sampleCount": 36
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 111321,
+        "p95Ms": 111321,
+        "totalMs": 111321
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 1046,
+        "p95Ms": 1046,
+        "totalMs": 1046
+      },
+      "before-suite": {
+        "count": 1,
+        "p50Ms": 30,
+        "p95Ms": 30,
+        "totalMs": 30
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 11,
+        "p95Ms": 11,
+        "totalMs": 11
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 886,
+        "p95Ms": 886,
+        "totalMs": 886
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 130260,
+        "p95Ms": 130260,
+        "totalMs": 130260
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2628,
+        "p95Ms": 2628,
+        "totalMs": 2628
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.8261,
+    "firstTimePassRate": 0.8261,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 250196,
+    "caseDurationP50Ms": 631,
+    "caseDurationP95Ms": 23120,
+    "slowestCases": [
+      {
+        "fullTitle": "QSM20-zai-light-zh-CN: 实际选择主题/语言并检查设置及主导航",
+        "durationMs": 23232
+      },
+      {
+        "fullTitle": "QSM22-zai-dark-zh-CN: 实际选择主题/语言并检查设置及主导航",
+        "durationMs": 23120
+      },
+      {
+        "fullTitle": "QSM23-zai-dark-en-US: 实际选择主题/语言并检查设置及主导航",
+        "durationMs": 23102
+      },
+      {
+        "fullTitle": "QSM21-zai-light-en-US: 实际选择主题/语言并检查设置及主导航",
+        "durationMs": 23092
+      },
+      {
+        "fullTitle": "QSM01: 真实进入 general 并验证标题与内容",
+        "durationMs": 1118
+      },
+      {
+        "fullTitle": "QSM03: 真实进入 modelProvider 并验证标题与内容",
+        "durationMs": 817
+      },
+      {
+        "fullTitle": "QSM06: 真实进入 memory 并验证标题与内容",
+        "durationMs": 778
+      },
+      {
+        "fullTitle": "QSM07: 真实进入 subagents 并验证标题与内容",
+        "durationMs": 684
+      },
+      {
+        "fullTitle": "QSM16: 真实进入 usage 并验证标题与内容",
+        "durationMs": 676
+      },
+      {
+        "fullTitle": "QSM08: 真实进入 plugin 并验证标题与内容",
+        "durationMs": 652
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 4
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-settings-retry",
+  "startedAt": "2026-11-06T15:15:38.680Z",
+  "tests": {
+    "failed": 4,
+    "passed": 19,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T15:17:55.454Z",
+        "durationMs": 1118,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM01: 真实进入 general 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM01: 真实进入 general 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:17:55.827Z",
+        "durationMs": 372,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM02: 真实进入 appearance 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM02: 真实进入 appearance 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:17:56.645Z",
+        "durationMs": 817,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM03: 真实进入 modelProvider 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM03: 真实进入 modelProvider 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:17:57.277Z",
+        "durationMs": 631,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM04: 真实进入 sourceServers 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM04: 真实进入 sourceServers 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:17:57.913Z",
+        "durationMs": 635,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM05: 真实进入 personalization 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM05: 真实进入 personalization 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:17:58.694Z",
+        "durationMs": 778,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM06: 真实进入 memory 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM06: 真实进入 memory 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:17:59.379Z",
+        "durationMs": 684,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM07: 真实进入 subagents 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM07: 真实进入 subagents 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:00.034Z",
+        "durationMs": 652,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM08: 真实进入 plugin 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM08: 真实进入 plugin 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:00.348Z",
+        "durationMs": 314,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM09: 真实进入 mcp 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM09: 真实进入 mcp 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:00.650Z",
+        "durationMs": 301,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM10: 真实进入 skill 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM10: 真实进入 skill 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:00.945Z",
+        "durationMs": 294,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM11: 真实进入 commands 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM11: 真实进入 commands 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:01.538Z",
+        "durationMs": 592,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM12: 真实进入 hooks 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM12: 真实进入 hooks 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:02.154Z",
+        "durationMs": 614,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM13: 真实进入 browser 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM13: 真实进入 browser 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:02.639Z",
+        "durationMs": 484,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM14: 真实进入 computerUse 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM14: 真实进入 computerUse 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:03.249Z",
+        "durationMs": 608,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM15: 真实进入 shortcuts 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM15: 真实进入 shortcuts 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:03.925Z",
+        "durationMs": 676,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM16: 真实进入 usage 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM16: 真实进入 usage 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:04.492Z",
+        "durationMs": 566,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM17: 真实进入 projects 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM17: 真实进入 projects 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:05.051Z",
+        "durationMs": 558,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM18: 真实进入 archives 并验证标题与内容",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM18: 真实进入 archives 并验证标题与内容"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:05.167Z",
+        "durationMs": 116,
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM19: 当前桌面18个菜单存在且历史隐藏入口不出现",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM19: 当前桌面18个菜单存在且历史隐藏入口不出现"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:28.401Z",
+        "durationMs": 23232,
+        "error": "element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms",
+        "errorCategory": "unknown",
+        "errorStack": "Error: element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:433:11)\n    at async withEvidence (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:248:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:381:9)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM20-zai-light-zh-CN: 实际选择主题/语言并检查设置及主导航",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM20-zai-light-zh-CN: 实际选择主题/语言并检查设置及主导航"
+      },
+      {
+        "capturedAt": "2026-11-06T15:18:51.495Z",
+        "durationMs": 23092,
+        "error": "element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms",
+        "errorCategory": "unknown",
+        "errorStack": "Error: element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:433:11)\n    at async withEvidence (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:248:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:381:9)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM21-zai-light-en-US: 实际选择主题/语言并检查设置及主导航",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM21-zai-light-en-US: 实际选择主题/语言并检查设置及主导航"
+      },
+      {
+        "capturedAt": "2026-11-06T15:19:14.617Z",
+        "durationMs": 23120,
+        "error": "element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms",
+        "errorCategory": "unknown",
+        "errorStack": "Error: element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:433:11)\n    at async withEvidence (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:248:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:381:9)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM22-zai-dark-zh-CN: 实际选择主题/语言并检查设置及主导航",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM22-zai-dark-zh-CN: 实际选择主题/语言并检查设置及主导航"
+      },
+      {
+        "capturedAt": "2026-11-06T15:19:37.720Z",
+        "durationMs": 23102,
+        "error": "element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms",
+        "errorCategory": "unknown",
+        "errorStack": "Error: element (\"[data-testid^=\"v4-composer-input-\"]\") still not displayed after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:433:11)\n    at async withEvidence (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:248:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts:381:9)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-settings-menu-20261106.test.ts",
+        "fullTitle": "QSM23-zai-dark-en-US: 实际选择主题/语言并检查设置及主导航",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QSM23-zai-dark-en-US: 实际选择主题/语言并检查设置及主导航"
+      }
+    ],
+    "skipped": 0,
+    "total": 23
+  }
+}

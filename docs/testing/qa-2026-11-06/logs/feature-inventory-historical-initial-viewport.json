@@ -1,0 +1,55 @@
+{
+  "capturedAt": "2026-11-06T20:17:49.435Z",
+  "evidenceKind": "Read-only frozen generator/current UI pure projection and saved DOM snapshot; no UI, Host, history writes or build",
+  "qaFile": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+  "qaSha256": "774f4c92c6f915b465c95d66cde65a5653bb9f4a6f6fc27bbec955f32ad2fd29",
+  "uiFile": "C:\\vibecoding\\zcodium\\packages\\ui\\src\\ModelTrajectoryTimeline.tsx",
+  "uiSha256": "d006e6d3fe424532b6d9974e1cdc7b8a11df13ba64ace9bf9fda3929b1cf06bb",
+  "snapshotFile": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-final-targeted\\evidence\\qa-historical-trajectory-0-1-32648-1793995922626\\003-HIST01.json",
+  "snapshotSha256": "920759466fde023e131b6b5a43bc15e5b0bf2adf444a5494b3cb4c328cda6d7d",
+  "observedCapturedAt": "2026-11-06T20:12:26.907Z",
+  "recordCount": 80,
+  "firstInputRoles": [
+    "system",
+    "user",
+    "tool"
+  ],
+  "firstSixRoles": [
+    "system",
+    "user",
+    "tool-result",
+    "reasoning",
+    "assistant",
+    "tool-call"
+  ],
+  "logicalMarkerIndices": [
+    1,
+    42
+  ],
+  "actualSnapshot": {
+    "virtual": 8,
+    "calls": 8,
+    "expanded": 32,
+    "roles": [
+      "user",
+      "reasoning",
+      "assistant",
+      "tool-call"
+    ],
+    "capturedCopyCount": 0
+  },
+  "inferredMountedRecordIndicesFromAssistantOutput": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "inferenceBoundary": "The saved JSON has no scrollTop or raw data-index list; indices are inferred from exact synthetic assistant output markers. PNG visibly starts at call05. Initial scroll cause is not proven.",
+  "currentQaPrecondition": "expanded>=6 counts any mounted records; it does not require first data-index=0 or initial system/tool-result owner.",
+  "accepted": true,
+  "conclusion": "Current cumulative fixture retains six roles in first record and two logical markers at 1/42. Failure snapshot mounts record1-8 and omits the first-record-only roles. Preserve fixture and assertions; explicitly scroll the real timeline owner to first call and wait for its system/tool-result before the initial snapshot. No product defect is established by this QA viewport assumption."
+}

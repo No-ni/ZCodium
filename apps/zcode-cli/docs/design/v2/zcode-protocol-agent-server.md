@@ -13,6 +13,12 @@ z-code 桌面端后续不再通过 ZCode app-server 兼容多 agent，而是只�
 
 ## 状态归属
 
+当前 V4 会话投影由 `packages/shared/src/zcode-protocol-v4/index.ts` 公开导出并执行 schema 校验；当前协议说明见[ZCode Protocol](../../../../../docs/zcode-protocol.md)。工作时长与提醒的维护契约见[会话工作连续性](../../../../../docs/specs/session-work-status-continuity.md)：
+
+- CLI `SessionsIndexProjection` 从 `snapshot.queue.autoDrain && snapshot.queue.items.length > 0` 派生可选 `SessionSummary.autoContinuePending`，覆盖 queued/reserved/promoting；旧字段缺省等价于 false。客户端仅据此抑制自动队列中间成功的通知/未读，不改变 phase、terminal/ready 或 admission。
+- `ProductProjection` 以 reasoning_start 的事件时间写入 `ReasoningRow.createdAt`，所有关闭路径以关闭事件时间冻结 `durationMs` 并钳制负差。冷 transcript 合成透传持久 reasoning part 的 start/end；缺 end 沿既有 interval 下界使用 start，禁止以 UI 挂载、当前时间或合成 seq 推算历史工时。
+- Host 和客户端只将首帧及新 logEpoch snapshot 作为静默摘要基线，同 epoch recovery 仍可补投已观察运行会话的有效完成边沿。subscribe ACK 不覆盖 Host 已应用摘要的 epoch。
+
 插件 `plugins/referenceCatalog` 与 `plugins/referenceCatalogWithCategory` 沿现有 listing join
 按完整 plugin ID 投影可选 `description` / `descriptionI18n`。字段仅用于 Picker 按语言展示描述，
 不进入 Session 冻结的能力身份或 model-only reminder；旧 Host 缺字段时 UI 留空。

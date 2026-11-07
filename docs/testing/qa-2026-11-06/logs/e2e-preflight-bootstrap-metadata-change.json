@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-11-06T15:53:22Z",
+  "evidenceKind": "QA-only artifact metadata correction during root-owned core-retry; no product change",
+  "file": "docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs",
+  "sha256": "912d0a22a7572303349b35e5d5a8be6f9b5be46a6955edb0468e0792df695488",
+  "change": "artifact stem now worker + module invocation counter + PID + millisecond timestamp; PNG exclusive reservation and JSON flag wx; per-module loaded source hash recorded in snapshots",
+  "unchangedBehavior": ["original WDIO renderer preflight", "isolated paths and Node loader guard", "project creation UI", "native directory dialog mock", "folder trust confirmation", "start draft"],
+  "runtimeBoundary": "already-loaded workers retain old module; later workers load metadata correction",
+  "knownLimitation": "old worker-only before/after files may have overwritten first empty snapshot; they cannot independently prove initial empty projects",
+  "validMigrationEvidence": "logs/e2e-preflight-project-migration-snapshot.json from earlier read-only isolated live DB remains the empty-table evidence",
+  "syntaxCheck": "node --check exit 0"
+}

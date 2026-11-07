@@ -1,4 +1,5 @@
 import type { DatabaseMigrationFacts } from "@zcode/shared";
+import type { ProjectMigrationContext } from "#src/project-storage/contract.js";
 import { retrySqliteBusy, withShortBusyTimeout } from "@zcode/shared/sqlite-migrations";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -29,6 +30,8 @@ const LOCK_WAIT_MS = 60 * 60_000;
 const BUSINESS_BUSY_TIMEOUT_MS = 5_000;
 
 export interface TasksStorageStartupOptions {
+  /** Worker 已等待本 Host 设置读取；首次项目迁移沿用原 Repo 输入。 */
+  settings?: ProjectMigrationContext["settings"];
   backupDirectories?: readonly string[];
   lockWaitTimeoutMs?: number;
   signal?: AbortSignal;
@@ -107,7 +110,9 @@ export async function prepareTasksIndexStorage(
   options.signal?.throwIfAborted();
   markTasksStorageMigrated(path);
   const repos = [
-    new TaskIndexRepo(undefined, undefined, path, BUSINESS_BUSY_TIMEOUT_MS),
+    // 修复原因：旧启动链丢掉 settings，0005 按空清单记账后无法再导入保存的项目。
+    // 复用同一 Repo 和冻结迁移，只补齐首次导入输入，不重放已登记账本。
+    new TaskIndexRepo(options.settings, undefined, path, BUSINESS_BUSY_TIMEOUT_MS),
     new AutomationRepo(path, BUSINESS_BUSY_TIMEOUT_MS),
   ];
   let preparationFailed = false;

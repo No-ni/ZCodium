@@ -1,4 +1,6 @@
 import { recordChatError } from "@/lib/diagnostics/chatErrors.js";
+import type { ConversationTurnWorkStatus } from "@/v4/conversationTurnWorkSegments.js";
+import { ConversationWorkingPlaceholder } from "@/components/ai-elements/chat-loading.js";
 import type { LocalTtftContext } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
 import { getLocalTtftObserver } from "@/v4/diagnostics/local-ttft/localTtftObserver.js";
@@ -86,7 +88,6 @@ import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
@@ -124,6 +125,7 @@ import {
   type ComposerAutoFocusOptions,
 } from "@/v4/composer/composerAutoFocus.js";
 import { V4_DRAFT_SCOPE_ROOT, type V4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
+import type { ComposerSubmissionDraftTransaction } from "@/v4/composer/useDraftConfigControl.js";
 import {
   resolveOppositeFollowupDelivery,
   resolveFollowupModifierTooltip,
@@ -368,6 +370,10 @@ interface ConversationComposerProps {
   draftConfig?: Partial<SessionConfigState>;
   /** SessionPane 注入的完整 Draft owner；生产路径不再由编辑器直接覆盖持久记录。 */
   composerDraft: V4ComposerDraft;
+  composerDraftScopeToken: symbol;
+  captureComposerSubmissionDraftTransaction: (
+    content: Pick<V4ComposerDraft, "text" | "editorStateJson" | "mention">,
+  ) => ComposerSubmissionDraftTransaction;
   updateComposerContent: (
     content: Pick<V4ComposerDraft, "text" | "editorStateJson" | "mention">,
   ) => void;
@@ -387,7 +393,7 @@ interface ConversationComposerProps {
   /** 居中草稿布局（旧 shouldUseCenteredDraftChatLayout）：收窄 max-w-2xl、去 sticky。 */
   centered?: boolean;
   floating?: boolean;
-  workingDurationMs?: number;
+  workingStatus?: ConversationTurnWorkStatus;
   /**
    * v4 bottom dock 阻塞交互 id。存在时 composer 只隐藏不卸载，保留草稿、附件与编辑器实例。
    */
@@ -499,6 +505,8 @@ function ConversationComposerImpl({
   draftMode = false,
   draftConfig,
   composerDraft,
+  composerDraftScopeToken,
+  captureComposerSubmissionDraftTransaction,
   updateComposerContent,
   replaceComposerDraft,
   submissionReady = true,
@@ -508,7 +516,7 @@ function ConversationComposerImpl({
   leadingActionsNode: admissionActionsNode,
   centered = false,
   floating = false,
-  workingDurationMs,
+  workingStatus,
   blockingRequestId = null,
   disabled = false,
   autoFocusEnabled = true,
@@ -560,7 +568,10 @@ function ConversationComposerImpl({
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
   const [text, setText] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<{
+    scopeToken: symbol;
+  } | null>(null);
+  const pending = pendingSubmission?.scopeToken === composerDraftScopeToken;
   const [configPickerState, setConfigPickerState] = useState<{
     scopeKey: string;
     activePicker: V4ComposerConfigPicker | null;
@@ -596,16 +607,23 @@ function ConversationComposerImpl({
     },
     [configPickerScopeKey],
   );
-  const [heldQueueConfirmation, setHeldQueueConfirmation] = useState<{
+  const [heldQueueConfirmationState, setHeldQueueConfirmation] = useState<{
+    scopeToken: symbol;
     queueItemIds: readonly string[];
     localTtft?: LocalTtftContext;
     requestedDelivery?: "startNow" | "queue" | "guide";
   } | null>(null);
+  const heldQueueConfirmation =
+    heldQueueConfirmationState?.scopeToken === composerDraftScopeToken
+      ? heldQueueConfirmationState
+      : null;
   const [sendTooltipOpen, setSendTooltipOpen] = useState(false);
   // submit 经 ref 读取最新文本/pending，避免回调随每次输入变更引用。
   const textRef = useRef("");
   const contentRevisionRef = useRef(0);
-  const pendingRef = useRef(false);
+  const pendingRef = useRef<typeof pendingSubmission>(null);
+  const composerDraftScopeTokenRef = useRef(composerDraftScopeToken);
+  composerDraftScopeTokenRef.current = composerDraftScopeToken;
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
   // 这条线断过一次：composer 原本读一个平行的 sharedContextImport prop，而 SessionPane 从没
@@ -794,7 +812,7 @@ function ConversationComposerImpl({
     scopeId: draftScopeId,
   });
   const draftPersistTimerRef = useRef<number | null>(null);
-  const suppressDraftPersistRef = useRef(false);
+  const suppressDraftPersistRef = useRef<symbol | null>(null);
 
   const snapshotDraftOfEditor = useCallback((): {
     text: string;
@@ -815,7 +833,7 @@ function ConversationComposerImpl({
 
   const persistDraftNow = useCallback(
     (scopeId: string) => {
-      if (suppressDraftPersistRef.current) return;
+      if (suppressDraftPersistRef.current === composerDraftScopeTokenRef.current) return;
       const content = snapshotDraftOfEditor();
       if (scopeId === draftScopeRef.current) {
         updateComposerContent(content);
@@ -968,7 +986,7 @@ function ConversationComposerImpl({
       previousTarget.workspacePath !== workspacePath ||
       previousTarget.workspaceIdentity !== workspaceIdentity;
     let transferredDraft: ReturnType<typeof snapshotDraftOfEditor> | null = null;
-    if (targetChanged && !suppressDraftPersistRef.current) {
+    if (targetChanged && suppressDraftPersistRef.current !== composerDraftScopeTokenRef.current) {
       if (draftPersistTimerRef.current !== null) {
         window.clearTimeout(draftPersistTimerRef.current);
         draftPersistTimerRef.current = null;
@@ -1180,6 +1198,8 @@ function ConversationComposerImpl({
       existingLocalTtft?: LocalTtftContext,
       requestedDelivery?: "startNow" | "queue" | "guide",
     ) => {
+      // 导航边界迟到的确认按钮仍可能保留旧闭包；读取 live editor ref 前先校验原 owner。
+      if (composerDraftScopeTokenRef.current !== composerDraftScopeToken) return;
       const trimmed = textRef.current.trim();
       const submittedQueueItemIds =
         snapshotRef.current?.queue.items.map((item) => item.queueItemId) ?? [];
@@ -1211,7 +1231,7 @@ function ConversationComposerImpl({
           !hasPendingConversationSelections &&
           !hasPendingPluginUiContexts &&
           !submittedShareContext) ||
-        pendingRef.current ||
+        pendingRef.current?.scopeToken === composerDraftScopeToken ||
         !submissionReady ||
         (createSubmissionFromComposer !== undefined && submission === null) ||
         attachmentsApi.hasUnreadyAttachments
@@ -1219,8 +1239,14 @@ function ConversationComposerImpl({
         return;
       }
 
-      pendingRef.current = true;
-      setPending(true);
+      // 同一 Composer 会跨会话复用。只借用既有 Draft incarnation 识别本次提交，
+      // A 的迟到回执/finally 不能接管 B；Root promotion 则沿用同一 token 正常结算。
+      const submissionOwner = { scopeToken: composerDraftScopeToken };
+      const draftTransaction = captureComposerSubmissionDraftTransaction(submittedDraft);
+      const isCurrentSubmissionScope = () =>
+        composerDraftScopeTokenRef.current === submissionOwner.scopeToken;
+      pendingRef.current = submissionOwner;
+      setPendingSubmission(submissionOwner);
       // 本地耗时诊断复用队列确认前的观测，不创建或发送遥测事件。
       const localTtft =
         existingLocalTtft ??
@@ -1245,19 +1271,25 @@ function ConversationComposerImpl({
         // 首发 promotion 会在 onSendText 返回前切换 scope 或重建 Composer。
         // 若仍允许旧 scope effect 落盘，新 Composer 会把已经发送的正文当草稿恢复。
         // 提交前先占用并隐藏该草稿；失败路径再恢复，避免用等待时间掩盖竞态。
-        suppressDraftPersistRef.current = true;
-        updateComposerContent({ text: "" });
-        draftSubmissionClaimed = true;
+        draftSubmissionClaimed = draftTransaction.claim();
+        if (draftSubmissionClaimed && isCurrentSubmissionScope()) {
+          suppressDraftPersistRef.current = submissionOwner.scopeToken;
+        }
       };
       const restoreSubmittedDraft = () => {
-        if (!draftSubmissionClaimed) return;
-        // 用户在等待期间已经产生更新时，当前完整正文是更新后的事实；旧失败回包不能覆盖。
-        if (contentRevisionRef.current === cleanupRevision) {
-          updateComposerContent(submittedDraft);
+        // 原 scope 已经离开时仍需恢复它的持久草稿；旧 updateComposerContent 闭包会因
+        // incarnation 已失效而拒写，不能把 UI early-return 当成原提交的结算。
+        const restored = draftTransaction.restore();
+        const canRestoreEditor =
+          restored.current &&
+          restored.applied &&
+          isCurrentSubmissionScope() &&
+          contentRevisionRef.current === cleanupRevision;
+        if (suppressDraftPersistRef.current === submissionOwner.scopeToken) {
+          suppressDraftPersistRef.current = null;
         }
-        suppressDraftPersistRef.current = false;
         draftSubmissionClaimed = false;
-        if (editorClearedOptimistically && contentRevisionRef.current === cleanupRevision) {
+        if (editorClearedOptimistically && canRestoreEditor) {
           if (submittedDraft.editorStateJson) {
             inputApiRef.current?.setEditorStateJson(submittedDraft.editorStateJson);
           } else {
@@ -1266,11 +1298,15 @@ function ConversationComposerImpl({
           updateText(submittedDraft.text);
           editorClearedOptimistically = false;
         }
+        return canRestoreEditor;
       };
       const finalizeSubmittedDraft = () => {
-        if (!draftSubmissionClaimed) return;
-        suppressDraftPersistRef.current = false;
+        const finalized = draftTransaction.finalize();
+        if (suppressDraftPersistRef.current === submissionOwner.scopeToken) {
+          suppressDraftPersistRef.current = null;
+        }
         draftSubmissionClaimed = false;
+        return finalized;
       };
       const rollbackPromptHistory = () => {
         if (!promptHistoryWasPersisted || !promptHistoryBeforeSend || !promptHistoryAfterAppend) {
@@ -1279,10 +1315,10 @@ function ConversationComposerImpl({
         const currentPromptHistory = readPromptHistoryEntries(workspacePath);
         if (arePromptHistoryEntriesEqual(currentPromptHistory, promptHistoryAfterAppend)) {
           persistPromptHistoryEntries(workspacePath, promptHistoryBeforeSend);
-          setPromptHistory(promptHistoryBeforeSend);
+          if (isCurrentSubmissionScope()) setPromptHistory(promptHistoryBeforeSend);
           return;
         }
-        setPromptHistory(currentPromptHistory);
+        if (isCurrentSubmissionScope()) setPromptHistory(currentPromptHistory);
       };
       try {
         // 二次门禁：只消费预传完成的 ref，不在点击发送时回落上传。
@@ -1328,7 +1364,12 @@ function ConversationComposerImpl({
           }
         }
         claimSubmittedDraft();
-        if (requestedDelivery === "startNow") {
+        if (
+          requestedDelivery === "startNow" &&
+          draftSubmissionClaimed &&
+          isCurrentSubmissionScope() &&
+          contentRevisionRef.current === cleanupRevision
+        ) {
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
           // 先清空可见正文；命令拒绝时用冻结 editor state 原样恢复。
@@ -1368,11 +1409,13 @@ function ConversationComposerImpl({
         if (sendResult === "confirmationRequired") {
           if (localTtft) getLocalTtftObserver()?.confirmation(localTtft, true);
           rollbackPromptHistory();
-          restoreSubmittedDraft();
+          const canReopenConfirmation = restoreSubmittedDraft();
+          if (!canReopenConfirmation) return;
           const latestQueueItemIds =
             snapshotRef.current?.queue.items.map((item) => item.queueItemId) ?? [];
           // 首次提交冻结当前队列；跨端 stale 后用最新投影替换，要求用户重新确认。
           setHeldQueueConfirmation({
+            scopeToken: submissionOwner.scopeToken,
             localTtft,
             ...(requestedDelivery ? { requestedDelivery } : {}),
             queueItemIds:
@@ -1381,11 +1424,17 @@ function ConversationComposerImpl({
 
           return;
         }
-        setHeldQueueConfirmation(null);
+        if (isCurrentSubmissionScope()) setHeldQueueConfirmation(null);
         // 暂存内容只有在发送成功后才移交给 task；失败仍保留为可重试草稿。
         await attachmentsApi.adoptSentAttachments(submittedAttachmentIds);
         // Bug 原因：发送等待期间产生的新正文属于下一次 Submission，旧 ACK 不能清除。
-        if (contentRevisionRef.current === cleanupRevision) {
+        const finalized = finalizeSubmittedDraft();
+        if (
+          finalized?.current &&
+          finalized.applied &&
+          isCurrentSubmissionScope() &&
+          contentRevisionRef.current === cleanupRevision
+        ) {
           inputApiRef.current?.clear();
           updateText("");
         }
@@ -1402,7 +1451,6 @@ function ConversationComposerImpl({
         );
         // 发送成功：清本次提交捕获的 scope 草稿；prompt history 已在真实发送前同步写盘，
         // 避免首发 promote 丢失或误清 promotion 后的新 scope。
-        finalizeSubmittedDraft();
       } catch (error) {
         rollbackPromptHistory();
         restoreSubmittedDraft();
@@ -1411,8 +1459,11 @@ function ConversationComposerImpl({
         logger.warn(`[v4-composer] 发送失败: ${String(error)}`);
         // ACK 侧失败已由 SessionPane 落定；能走到这里的是 composer 自身链路异常。
       } finally {
-        pendingRef.current = false;
-        setPending(false);
+        draftTransaction.release();
+        if (pendingRef.current === submissionOwner) {
+          pendingRef.current = null;
+          setPendingSubmission((current) => (current === submissionOwner ? null : current));
+        }
       }
     },
     [
@@ -1420,6 +1471,8 @@ function ConversationComposerImpl({
       conversationSelectionReferences,
       draftConfig,
       createSubmissionFromComposer,
+      composerDraftScopeToken,
+      captureComposerSubmissionDraftTransaction,
       submissionReady,
       getCodeCommentContexts,
       modelSelectionView,
@@ -1566,17 +1619,13 @@ function ConversationComposerImpl({
 
   // 动态 placeholder（旧 chatViewPlaceholder 语义）：无历史 → newTask；
   // 有历史空闲 → followUpAsk；有历史处理中 → followUpQueue。
-  const workDurationLabel =
-    floating && canStop ? formatConversationWorkDuration(workingDurationMs, intl, locale) : null;
-  const placeholder = workDurationLabel
-    ? intl.formatMessage({ id: "chat.history.workingFor" }, { duration: workDurationLabel })
-    : intl.formatMessage({
-        id: resolveChatPlaceholderKey({
-          hasHistoryMessages: (snapshot?.rows.totalCount ?? 0) > 0,
-          isTaskProcessing: canStop,
-          compactNewTask: false,
-        }),
-      });
+  const placeholder = intl.formatMessage({
+    id: resolveChatPlaceholderKey({
+      hasHistoryMessages: (snapshot?.rows.totalCount ?? 0) > 0,
+      isTaskProcessing: canStop,
+      compactNewTask: false,
+    }),
+  });
   const sendTooltipTitle = intl.formatMessage({
     id: mode === "enqueue" ? "chat.queue.enqueue" : "chat.send",
   });
@@ -2206,6 +2255,11 @@ function ConversationComposerImpl({
           taskId={sessionId}
           skillCatalogSessionId={skillCatalogSessionId}
           placeholder={placeholder}
+          placeholderContent={
+            floating && canStop ? (
+              <ConversationWorkingPlaceholder status={workingStatus} fallback={placeholder} />
+            ) : undefined
+          }
           disabled={disabled || mode === "reject"}
           submitting={pending}
           submitDisabled={pending || !routingAllowsSend || !attachmentsReady || !submissionReady}
@@ -2268,10 +2322,16 @@ function ConversationComposerImpl({
       <Dialog
         open={heldQueueConfirmation !== null}
         onOpenChange={(open) => {
-          if (!open && !pendingRef.current) {
+          if (
+            !open &&
+            composerDraftScopeTokenRef.current === composerDraftScopeToken &&
+            pendingRef.current?.scopeToken !== composerDraftScopeToken
+          ) {
             if (heldQueueConfirmation?.localTtft)
               getLocalTtftObserver()?.exclude(heldQueueConfirmation.localTtft, "cancelled");
-            setHeldQueueConfirmation(null);
+            setHeldQueueConfirmation((current) =>
+              current?.scopeToken === composerDraftScopeToken ? null : current,
+            );
           }
         }}
       >

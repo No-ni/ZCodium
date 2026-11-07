@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-11-06T17:15:31.567Z",
+  "evidenceKind": "PS7 executable-only QA adaptation; no UI, product build or desktop process started",
+  "powershell": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "sources": [
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs",
+      "sha256": "29942faa65955e801d1227e30cfe69abaea721b560a3e316301cfa7672996ec0"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts",
+      "sha256": "f80b24a94246f4e52370f989b5f0fcdf0fb8358f3ebc690633569c6e537e6ceb"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+      "sha256": "5483855a16c087c500004c20b897fad02ab93b0e07a35e1b4527babf5a53ecbf"
+    }
+  ],
+  "checks": [
+    {
+      "name": "PS7 shared guard readonly runtime descendant audit",
+      "exitCode": 0,
+      "output": "7.6.9"
+    },
+    {
+      "name": "node syntax bootstrap",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "name": "external QA TypeScript noEmit",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "name": "targeted hook/local/residual oxlint",
+      "exitCode": 0,
+      "output": "Found 0 warnings and 0 errors.\nFinished in 11ms on 3 files using 16 threads."
+    }
+  ]
+}

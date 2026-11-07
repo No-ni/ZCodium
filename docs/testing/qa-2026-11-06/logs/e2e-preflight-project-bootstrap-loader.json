@@ -1,0 +1,7 @@
+{
+  "evidenceKind": "Mocha require plugin loader integration; no hooks executed, no UI",
+  "beforeAllCount": 2,
+  "preservesOriginalPreflight": true,
+  "bootstrapName": "bootstrapProject",
+  "beforeEachCount": 0
+}

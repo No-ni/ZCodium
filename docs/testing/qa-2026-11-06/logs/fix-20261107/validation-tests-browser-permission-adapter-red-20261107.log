@@ -1,0 +1,178 @@
+✖ getEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (3.7331ms)
+✖ setEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (1.366ms)
+✖ clearEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (0.9182ms)
+✖ resetEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (2.0305ms)
+✖ 权限 prompt 从实际 preload 进入 adapter 订阅，并注销同一 listener (0.5761ms)
+✖ 权限 resolve 沿实际 adapter/preload send 回传原请求，不改成 invoke (0.4827ms)
+✔ 旧 preload 缺六能力时实际 adapter 保持 undefined，不伪造支持或成功 (33.6724ms)
+✖ 旧 preload 只提供读取时能力逐项保留，设置与气泡不能被兜底启用 (8.5118ms)
+✔ 内置浏览器启动在窗口入口前等待唯一权限装配 (1.7892ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 2
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 484.1438
+
+✖ failing tests:
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:78:3
+✖ getEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (3.7331ms)
+  AssertionError [ERR_ASSERTION]: 实际宿主 preload 缺少唯一权限方法 getEmbeddedBrowserSitePermissions
+  
+  0 !== 1
+  
+      at createPreloadMethod (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:54:10)
+      at wire (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:60:19)
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:81:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.start (node:internal/test_runner/test:1191:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:78:3
+✖ setEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (1.366ms)
+  AssertionError [ERR_ASSERTION]: 实际宿主 preload 缺少唯一权限方法 setEmbeddedBrowserSitePermission
+  
+  0 !== 1
+  
+      at createPreloadMethod (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:54:10)
+      at wire (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:60:19)
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:81:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:78:3
+✖ clearEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (0.9182ms)
+  AssertionError [ERR_ASSERTION]: 实际宿主 preload 缺少唯一权限方法 clearEmbeddedBrowserSitePermissions
+  
+  0 !== 1
+  
+      at createPreloadMethod (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:54:10)
+      at wire (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:60:19)
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:81:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:78:3
+✖ resetEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (2.0305ms)
+  AssertionError [ERR_ASSERTION]: 实际宿主 preload 缺少唯一权限方法 resetEmbeddedBrowserSitePermission
+  
+  0 !== 1
+  
+      at createPreloadMethod (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:54:10)
+      at wire (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:60:19)
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:81:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:98:1
+✖ 权限 prompt 从实际 preload 进入 adapter 订阅，并注销同一 listener (0.5761ms)
+  AssertionError [ERR_ASSERTION]: 实际宿主 preload 缺少唯一权限方法 onEmbeddedBrowserPermissionPrompt
+  
+  0 !== 1
+  
+      at createPreloadMethod (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:54:10)
+      at wire (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:60:19)
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:101:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:119:1
+✖ 权限 resolve 沿实际 adapter/preload send 回传原请求，不改成 invoke (0.4827ms)
+  AssertionError [ERR_ASSERTION]: 实际宿主 preload 缺少唯一权限方法 resolveEmbeddedBrowserPermissionPrompt
+  
+  0 !== 1
+  
+      at createPreloadMethod (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:54:10)
+      at wire (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:60:19)
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:121:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\ci\embedded-browser-permission-adapter.test.mjs:140:1
+✖ 旧 preload 只提供读取时能力逐项保留，设置与气泡不能被兜底启用 (8.5118ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'undefined'
+  - 'function'
+  
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/embedded-browser-permission-adapter.test.mjs:143:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'undefined',
+    expected: 'function',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

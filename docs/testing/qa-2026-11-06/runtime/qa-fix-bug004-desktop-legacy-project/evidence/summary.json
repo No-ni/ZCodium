@@ -1,0 +1,216 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence",
+  "completedAt": "2026-11-06T21:30:50.157Z",
+  "containerE2E": false,
+  "durationMs": 172411,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 0,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-fix-bug004-desktop-legacy-project%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.38,
+            "peak": 1.12,
+            "p95": 1.12,
+            "sampleCount": 9
+          },
+          "memoryWorkingSetMb": {
+            "mean": 184.38,
+            "peak": 186,
+            "p95": 186,
+            "sampleCount": 9
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.51,
+            "peak": 2.13,
+            "p95": 2.13,
+            "sampleCount": 9
+          },
+          "memoryWorkingSetMb": {
+            "mean": 119.93,
+            "peak": 138.27,
+            "p95": 138.27,
+            "sampleCount": 9
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.43,
+            "peak": 2.36,
+            "p95": 2.36,
+            "sampleCount": 9
+          },
+          "memoryWorkingSetMb": {
+            "mean": 410.24,
+            "peak": 505.13,
+            "p95": 505.13,
+            "sampleCount": 9
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.68,
+            "peak": 2.5,
+            "p95": 2.5,
+            "sampleCount": 9
+          },
+          "memoryWorkingSetMb": {
+            "mean": 303.3,
+            "peak": 340.79,
+            "p95": 340.79,
+            "sampleCount": 9
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 2,
+        "peak": 7.68,
+        "p95": 7.68,
+        "sampleCount": 9
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1017.84,
+        "peak": 1154.13,
+        "p95": 1154.13,
+        "sampleCount": 9
+      },
+      "sampleCount": 9
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 114800,
+        "p95Ms": 114800,
+        "totalMs": 114800
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 961,
+        "p95Ms": 961,
+        "totalMs": 961
+      },
+      "before-suite": {
+        "count": 1,
+        "p50Ms": 22,
+        "p95Ms": 22,
+        "totalMs": 22
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 9,
+        "p95Ms": 9,
+        "totalMs": 9
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 871,
+        "p95Ms": 871,
+        "totalMs": 871
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 48818,
+        "p95Ms": 48818,
+        "totalMs": 48818
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2979,
+        "p95Ms": 2979,
+        "totalMs": 2979
+      }
+    }
+  },
+  "stability": {
+    "passRate": 1,
+    "firstTimePassRate": 1,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 172411,
+    "caseDurationP50Ms": 7362,
+    "caseDurationP95Ms": 17421,
+    "slowestCases": [
+      {
+        "fullTitle": "B4UI02：完整冷重开保留项目 ID、roots、顺序和账本",
+        "durationMs": 17421
+      },
+      {
+        "fullTitle": "B4UI01：启动前旧设置经真实 Worker 生成项目和侧栏",
+        "durationMs": 7362
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-bug004-desktop-migration-20261107.test.ts"
+  ],
+  "runId": "qa-fix-bug004-desktop-legacy-project",
+  "startedAt": "2026-11-06T21:27:57.746Z",
+  "tests": {
+    "failed": 0,
+    "passed": 2,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T21:30:21.901Z",
+        "durationMs": 7362,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-bug004-desktop-migration-20261107.test.ts",
+        "fullTitle": "B4UI01：启动前旧设置经真实 Worker 生成项目和侧栏",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B4UI01：启动前旧设置经真实 Worker 生成项目和侧栏"
+      },
+      {
+        "capturedAt": "2026-11-06T21:30:39.324Z",
+        "durationMs": 17421,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-bug004-desktop-migration-20261107.test.ts",
+        "fullTitle": "B4UI02：完整冷重开保留项目 ID、roots、顺序和账本",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "B4UI02：完整冷重开保留项目 ID、roots、顺序和账本"
+      }
+    ],
+    "skipped": 0,
+    "total": 2
+  }
+}

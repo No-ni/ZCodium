@@ -55,17 +55,18 @@ export async function executeRewindCommand(
       status: "started",
     });
 
-    await this.ensureSessionPersisted(input, turnTraceContext);
-
-    const turnStartedEvent = this.createEvent(
-      SessionEventType.TurnStarted,
-      { turnNumber: this.turnNumber, input, inputId },
-      turnTraceContext,
-    );
-    await this.appendEvent(turnStartedEvent, turnTraceContext);
-    events.push(turnStartedEvent);
-
+    // Bugfix：父轮移交后，启动持久化/TurnStarted 的拒绝也归同一 rewind outcome owner。
     try {
+      await this.ensureSessionPersisted(input, turnTraceContext);
+
+      const turnStartedEvent = this.createEvent(
+        SessionEventType.TurnStarted,
+        { turnNumber: this.turnNumber, input, inputId },
+        turnTraceContext,
+      );
+      await this.appendEvent(turnStartedEvent, turnTraceContext);
+      events.push(turnStartedEvent);
+
       throwIfTurnAborted(abortSignal);
       const response =
         command.action === "status"
@@ -99,13 +100,13 @@ export async function executeRewindCommand(
                     })
                   ).response
                 : (
-                  await this.rewindWorkspaceToCheckpoint({
-                    abortSignal,
-                    events,
-                    targetCheckpointId: command.targetCheckpointId,
-                    traceContext: turnTraceContext,
-                  })
-                ).response;
+                    await this.rewindWorkspaceToCheckpoint({
+                      abortSignal,
+                      events,
+                      targetCheckpointId: command.targetCheckpointId,
+                      traceContext: turnTraceContext,
+                    })
+                  ).response;
       throwIfTurnAborted(abortSignal);
 
       const turnUsage = createModelUsageSummaryFromEvents(events);

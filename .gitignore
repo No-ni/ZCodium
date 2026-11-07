@@ -31,6 +31,10 @@ coverage/
 z-work/
 openclaw/
 .run-logs/
+# 菜单专项 QA 的本机 profile、缓存、驱动和原始日志不随源码提交。
+# 报告直接引用的复现证据由提交时按文件显式纳入，已跟踪文件仍保留。
+/docs/testing/qa-2026-11-06/runtime/
+/docs/testing/qa-2026-11-06/logs/
 # 全仓审查的本机 runner、源码扫描与合成证据；可读覆盖摘要另存 docs/specs。
 /.audit/
 # 格式门禁的独占临时配置在 formatter cwd 创建，正常和异常退出均由入口删除。

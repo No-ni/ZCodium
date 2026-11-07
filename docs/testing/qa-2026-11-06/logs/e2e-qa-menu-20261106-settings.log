@@ -1,0 +1,50 @@
+apps/zcode-cli                           |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.0","pnpm":"10.33.2"})
+
+> @zcode/desktop@ pretest:e2e C:\vibecoding\zcodium\packages\desktop
+> pnpm --filter @zcode/e2e-report build:node
+
+../../apps/zcode-cli                     |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.0","pnpm":"10.33.2"})
+
+> @zcode/e2e-report@ build:node C:\vibecoding\zcodium\packages\e2e-report
+> tsc -p tsconfig.json
+
+
+> @zcode/desktop@ test:e2e C:\vibecoding\zcodium\packages\desktop
+> node scripts/run-windows-e2e-shards.mjs "--" "--shards=1" "--spec" "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts"
+
+(node:3144) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+../../apps/zcode-cli                     |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.0","pnpm":"10.33.2"})
+2026-11-06T15:13:31.906Z ERROR @wdio/config:ConfigParser: Failed loading configuration file: file:///C:/vibecoding/zcodium/packages/desktop/wdio.conf.ts: Manual review defaults to capture; set E2E_PROVIDER_REPLAY_FIXTURE_PATH for pending replay.
+2026-11-06T15:13:32.594Z ERROR @wdio/config:ConfigParser: Failed loading configuration file: file:///C:/vibecoding/zcodium/packages/desktop/wdio.conf.ts: Manual review defaults to capture; set E2E_PROVIDER_REPLAY_FIXTURE_PATH for pending replay.
+Error: Manual review defaults to capture; set E2E_PROVIDER_REPLAY_FIXTURE_PATH for pending replay.
+    at resolveUpstreamE2EHttpMode (C:\vibecoding\zcodium\packages\desktop\test\e2e\helpers\upstream-replay-fixture-resolution.ts:221:10)
+    at provider (C:\vibecoding\zcodium\packages\desktop\wdio.conf.ts:3454:1)
+    at <anonymous> (C:\vibecoding\zcodium\packages\desktop\wdio.conf.ts:3454:1)
+    at eval_evalModule (C:\vibecoding\zcodium\node_modules\jiti\dist\jiti.cjs:1:155533)
+    at jitiRequire (C:\vibecoding\zcodium\node_modules\jiti\dist\jiti.cjs:1:150967)
+    at RequireLibrary.<anonymous> (C:\vibecoding\zcodium\node_modules\jiti\dist\jiti.cjs:1:157987)
+    at file:///C:/vibecoding/zcodium/node_modules/@wdio/config/build/node/index.js:19:26
+    at async _ConfigParser.addConfigFile (file:///C:/vibecoding/zcodium/node_modules/@wdio/config/build/node/index.js:327:30)
+    at async _ConfigParser.initialize (file:///C:/vibecoding/zcodium/node_modules/@wdio/config/build/node/index.js:289:7)
+    at async Launcher.initialize (file:///C:/vibecoding/zcodium/node_modules/@wdio/cli/build/index.js:931:5)
+    at async Launcher.run (file:///C:/vibecoding/zcodium/node_modules/@wdio/cli/build/index.js:853:5)
+[e2e-shards] {
+  "runId": "qa-menu-20261106-settings",
+  "shardTotal": 1,
+  "distributionKind": "wdio-native",
+  "wallDurationMs": 27379,
+  "manifestPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings\\evidence\\shard-manifest.json",
+  "children": [
+    {
+      "shardId": "1/1",
+      "exitCode": 1,
+      "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings\\evidence",
+      "summaryPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-settings\\evidence\\summary.json"
+    }
+  ]
+}
+[e2e-shards] shard 1/1 exited with code 1
+C:\vibecoding\zcodium\packages\desktop:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @zcode/desktop@ test:e2e: `node scripts/run-windows-e2e-shards.mjs "--" "--shards=1" "--spec" "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts"`
+Exit status 1

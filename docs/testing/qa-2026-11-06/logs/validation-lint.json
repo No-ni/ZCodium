@@ -1,0 +1,8 @@
+{
+  "command": "corepack pnpm lint",
+  "started": "2026-11-06T14:55:51.688Z",
+  "finished": "2026-11-06T14:55:52.686Z",
+  "code": 0,
+  "signal": null,
+  "node": "v24.18.0"
+}

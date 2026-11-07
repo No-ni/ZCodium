@@ -1,0 +1,45 @@
+{
+  "capturedAt": "2026-11-06T20:30:57.271Z",
+  "evidenceKind": "synthetic history via real Host/UI; no recorder/provider/native picker/system clipboard",
+  "taskId": "share-import-15bd87fb-47e0-49f8-8e89-821eb6b0abdb",
+  "status": "failed",
+  "error": "waitUntil condition timed out after 15000ms",
+  "frames": {
+    "frameDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\qa-historical-trajectory-0-1-29036-1793996997692\\HIST02-frames",
+    "error": "No standard video encoder; timestamped PNG sequence retained",
+    "format": "PNG/time sequence; no encoded video"
+  },
+  "state": {
+    "activeMatches": 0,
+    "calls": 6,
+    "clips": [
+      "QA_HIST_SYSTEM\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nsynthetic line\nQA_HIST_SYSTEM_END"
+    ],
+    "counter": null,
+    "expanded": 7,
+    "expandedText": "qa_synthetic_toolqa-hist-call-0QA_HIST_TOOL_RESULT\nQA_HIST_REASONING_0\nQA_HIST_REASONING_1\nQA_HIST_REASONING_2\nQA_HIST_REASONING_3\nQA_HIST_REASONING_4\nQA_HIST_REASONING_5",
+    "indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "registered": false,
+    "roles": [
+      "tool-result",
+      "reasoning",
+      "reasoning",
+      "reasoning",
+      "reasoning",
+      "reasoning",
+      "reasoning"
+    ],
+    "scrollTop": 69.33333587646484,
+    "text": "系统提示词用户消息助手消息工具结果01主会话达到长度限制IN 10· OUT 2· 250ms· 08:00:00输入系统提示词QA_HIST_SYSTEM250ms·2026/11/6 08:00:00展开收起展开收起用户消息user 0250ms·2026/11/6 08:00:00展开收起展开收起工具结果输出QA_HIST_TOOL_RESULTqa_synthetic_toolqa-hist-call-0250ms·2026/11/6 08:00:00展开收起展开收起qa_synthetic_toolqa-hist-call-0QA_HIST_TOOL_RESULT输出思考过程QA_HIST_REASONING_0250ms·2026/11/6 08:00:00展开收起展开收起QA_HIST_REASONING_0助手消息QA_HIST_ASSISTANT_0250ms·2026/11/6 08:00:00展开收起展开收起工具调用输入{\"value\":\"QA_HIST_INPUT\"}qa_synthetic_toolqa-hist-call-0250ms·2026/11/6 08:00:00展开收起展开收起02主会话工具调用IN 10· OUT 2· 250ms· 08:00:01输入用户消息user QA_HIST_SHARED_NEEDLE 1250ms·2026/11/6 08:00:01展开收起展开收起输出思考过程QA_HIST_REASONING_1250ms·2026/11/6 08:00:01展开收起展开收起QA_HIST_REASONING_1助手消息QA_HIST_ASSISTANT_1250ms·2026/11/6 08:00:01展开收起展开收起工具调用输入{\"value\":\"QA_HIST_INPUT\"}qa_synthetic_toolqa-hist-call-1250ms·2026/11/6 08:00:01展开收起展开收起03主会话工具调用IN 10· OUT 2· 250ms· 08:00:02输入用户消息user 2250ms·2026/11/6 08:00:02展开收起展开收起输出思考过程QA_HIST_REASONING_2250ms·2026/11/6 08:00:02展开收起展开收起QA_HIST_REASONING_2助手消息QA_HIST_ASSISTANT_2250ms·2026/11/6 08:00:02展开收起展开收起工具调用输入{\"value\":\"QA_HIST_INPUT\"}qa_synthetic_toolqa-hist-call-2250ms·2026/11/6 08:00:02展开收起展开收起04主会话工具调用IN 10· OUT 2· 250ms· 08:00:03输入用户消息user 3250ms·2026/11/6 08:00:03展开收起展开收起输出思考过程QA_HIST_REASONING_3250ms·2026/11/6 08:00:03展开收起展开收起QA_HIST_REASONING_3助手消息QA_HIST_ASSISTANT_3250ms·2026/11/6 08:00:03展开收起展开收起工具调用输入{\"value\":\"QA_HIST_INPUT\"}qa_synthetic_toolqa-hist-call-3250ms·2026/11/6 08:00:03展开收起展开收起05主会话工具调用IN 10· OUT 2· 250ms· 08:00:04输入用户消息user 4250ms·2026/11/6 08:00:04展开收起展开收起输出思考过程QA_HIST_REASONING_4250ms·2026/11/6 08:00:04展开收起展开收起QA_HIST_REASONING_4助手消息QA_HIST_ASSISTANT_4250ms·2026/11/6 08:00:04展开收起展开收起工具调用输入{\"value\":\"QA_HIST_INPUT\"}qa_synthetic_toolqa-hist-call-4250ms·2026/11/6 08:00:04展开收起展开收起06主会话工具调用IN 10· OUT 2· 250ms· 08:00:05输入用户消息user 5250ms·2026/11/6 08:00:05展开收起展开收起输出思考过程QA_HIST_REASONING_5250ms·2026/11/6 08:00:05展开收起展开收起QA_HIST_REASONING_5助手消息QA_HIST_ASSISTANT_5250ms·2026/11/6 08:00:05展开收起展开收起工具调用输入{\"value\":\"QA_HIST_INPUT\"}qa_synthetic_toolqa-hist-call-5250ms·2026/11/6 08:00:05展开收起展开收起",
+    "truncated": 0,
+    "virtual": 6
+  },
+  "requests": 0
+}

@@ -1,0 +1,138 @@
+{
+  "capturedAt": "2026-11-06T18:50:23.375Z",
+  "evidenceKind": "NoEmit and real registration/filter only; no UI/hooks/Host/Provider/build/test task/history writes",
+  "includeResidual": false,
+  "includeShort": false,
+  "archiveOnly": true,
+  "grep": "(?:^| )ARM(?:01/05/06|02|03)：",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "sha256": "151a25ad86037442d7eb5706133eafaa923be97790d79d3a798102c3d5bf04c6"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-reparse-children.ps1",
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210",
+      "fixtures": [
+        {
+          "id": "upstream-conversation-readonly-tool-call",
+          "metadata": {
+            "kind": "common",
+            "timingPolicy": "fast-text",
+            "source": "synthetic",
+            "syntheticReason": "只读工具首段用于构造稳定 tool_use/tool_result 历史；工具业务由本地文件 fixture 决定，不依赖真实模型选择。"
+          }
+        }
+      ]
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-archive-management.json",
+      "sha256": "d2295f799f005fb4b1a29d5d939b406f719e1fb110c51842b852617a792817c0",
+      "fixtures": []
+    }
+  ],
+  "diagnostics": [],
+  "registered": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM08：页面标题与固定文案统一为会话",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM08：页面标题与固定文案统一为会话"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM01/05/06：分组折叠、搜索、时间排序和项目选择"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM02：取消归档、取消删除与确认删除后刷新不复活"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM03：全部删除仅作用于当前筛选，分组更多取消归档",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM03：全部删除仅作用于当前筛选，分组更多取消归档"
+    }
+  ],
+  "hooks": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "kind": "before"
+    }
+  ],
+  "grepTarget": "Mocha describe stack + it.title fullTitle",
+  "selected": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM01/05/06：分组折叠、搜索、时间排序和项目选择"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM02：取消归档、取消删除与确认删除后刷新不复活"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM03：全部删除仅作用于当前筛选，分组更多取消归档",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM03：全部删除仅作用于当前筛选，分组更多取消归档"
+    }
+  ],
+  "excluded": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM08：页面标题与固定文案统一为会话",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM08：页面标题与固定文案统一为会话"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+      "title": "ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择",
+      "suites": [
+        "归档管理"
+      ],
+      "fullTitle": "归档管理 ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择"
+    }
+  ],
+  "oldAnchoredTitleOnlyCount": 3,
+  "oldAnchoredFullTitleCount": 0,
+  "count": 3,
+  "accepted": true
+}

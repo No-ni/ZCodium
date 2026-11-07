@@ -1,0 +1,8 @@
+{
+  "capturedAt": "2026-11-06T17:48:26.614Z",
+  "evidenceKind": "Read-only lstat/readdir/readlink scan of completed browser QA run; links not followed, changed or deleted",
+  "runRoot": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser",
+  "inspected": 10687,
+  "found": [],
+  "errors": []
+}

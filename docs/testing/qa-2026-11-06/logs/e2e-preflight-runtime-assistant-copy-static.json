@@ -1,0 +1,100 @@
+{
+  "capturedAt": "2026-11-06T20:19:59.054Z",
+  "evidenceKind": "all external QA noEmit; actual module import/fullTitle registrations; current checker function and replay matcher/source sidecar static proof; no UI/Host/provider execution",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "sha256": "94f2788e1be06dc116e1bd361083ac49ecfd77eaa1569045710203a9e9d7b5d2"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+      "sha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\fixtures\\qa-runtime-copy-find-title.json",
+      "sha256": "742c1eb7c965f428eb95709ec7ec8e3619bc2dc37b2be5b00ea6390c62c75631"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\upstream-replay-server.ts",
+      "sha256": "04e4e073761ad298f8a4c9ddafad859e7ba2448f021fccc6e948254b2e883661"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\scripts\\check-e2e-fixtures.mjs",
+      "sha256": "1d23cf14b66b66bf86480e7fdf967b27c2406daecfd50c1f9234399a86d9c61b"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\apps\\zcode-cli\\packages\\core\\src\\runtime\\methods\\title-generation-sidecar.ts",
+      "sha256": "75e779c1ff642c62bb255160d9d8298f9f61da182ea905d5e14fc796e3f03db1"
+    }
+  ],
+  "diagnostics": [],
+  "registeredCases": [
+    {
+      "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+    },
+    {
+      "title": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC02: runtime会话唯一命中滚离后四种导航与重开居中"
+    },
+    {
+      "title": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+    }
+  ],
+  "checkedCallbacks": 16,
+  "closureFindings": [],
+  "checkedRawScripts": 4,
+  "rawSyntaxErrors": [],
+  "titleFixture": {
+    "id": "qa-runtime-copy-find-setup-title",
+    "warnings": [],
+    "errors": [],
+    "matchProof": {
+      "positiveCurrentTitleInput": true,
+      "rejectMain": true,
+      "rejectOtherPrompt": true,
+      "rejectMissingInstruction": true,
+      "rejectWrongMethod": true,
+      "rejectWrongPath": true,
+      "normalizedPromptExact": true
+    }
+  },
+  "fixture": {
+    "id": "chat-find-refocus-long-body",
+    "metadata": {
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实发送长正文，用于单命中反复导航和滚动定位；不验证模型文本质量。"
+    },
+    "expectedBodyLength": 3930,
+    "expectedBodySha256": "f79b3698c2a748a78ccb2c9623a4685ec1ee66967d262cbf1656cc6dd042d5d6",
+    "markerCount": 1,
+    "pureText": true
+  },
+  "targetedLint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 11ms on 2 files with 94 rules using 16 threads."
+  },
+  "canonicalFixtureCheck": {
+    "exitCode": 0,
+    "output": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\manual-review\\pending\\conversation-session-chat-find-refocus.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-chat-find-refocus.test.ts\nCase: conversation-session-chat-find-refocus\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-chat-find-refocus.json\nSpec markers: E2E_CHAT_FIND_REFOCUS_NEEDLE, E2E_CHAT_FIND_REFOCUS_SETUP, E2E_FILE_CHANGE_FIND_REFOCUS_NEEDLE\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json (1 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_CHAT_FIND_REFOCUS_NEEDLE\n- Spec marker is not covered by fixture matchers: E2E_FILE_CHANGE_FIND_REFOCUS_NEEDLE\n\nFixture check passed."
+  },
+  "mode": "RFC01 exact assistant row copy retry static only",
+  "grep": "(?:^| )RFC01:",
+  "filteredCases": [
+    {
+      "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+    }
+  ]
+}

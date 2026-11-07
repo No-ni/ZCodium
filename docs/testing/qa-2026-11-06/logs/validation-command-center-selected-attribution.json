@@ -1,0 +1,91 @@
+{
+  "capturedAt": "2026-11-06T19:04:19.772Z",
+  "evidenceKind": "Read-only attribution of existing UI evidence and current source; no new UI, probe, process scan or test count",
+  "classification": "BUG-008 P2: distinct Settings command IDs project to identical cmdk value, producing two visible selected rows",
+  "sourceEvidence": [
+    {
+      "path": "../../../packages/ui/src/command-center/CommandCenterDialog.tsx",
+      "bytes": 38563,
+      "sha256": "6e81ef4ddcac686d243b297462c05a20e92684c9a085f20062e6dac82024f44e"
+    },
+    {
+      "path": "../../../packages/ui/src/quickpick/quickPickCommands.ts",
+      "bytes": 7210,
+      "sha256": "1ef01d944075487fae36e6798ce2b3152d8e743a99ea8591b0b698b71f26d9bd"
+    },
+    {
+      "path": "../../../packages/ui/src/components/ui/command.tsx",
+      "bytes": 5402,
+      "sha256": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb"
+    },
+    {
+      "path": "../../../node_modules/cmdk/dist/index.mjs",
+      "bytes": 11328,
+      "sha256": "9e11be720996de8ce85d7c31f91d87a92ddc903880b7b2e2d4f21859b4cbd09d"
+    }
+  ],
+  "actualEvidence": [
+    {
+      "path": "runtime/qa-menu-20261106-local-supplement/evidence/qa-residual-local-menus-0-3-25872-1793991442433/003-RLM04.json",
+      "bytes": 6860,
+      "sha256": "205dafe1b83a3be0efa7f63ebe51304ed34af9ea2eaa693f935bf7cb9aa95deb"
+    },
+    {
+      "path": "runtime/qa-menu-20261106-local-supplement/evidence/qa-residual-local-menus-0-3-25872-1793991442433/003-RLM04.png",
+      "bytes": 99066,
+      "sha256": "716968898bcdcb255e28d2a4447551f6ef7a956026fba158fc9970a1c21d24af"
+    }
+  ],
+  "actual": {
+    "capturedAt": "2026-11-06T18:57:46.941Z",
+    "query": "设置",
+    "visiblePickerCount": 1,
+    "scope": "Actions",
+    "selectedQuery": "[role=\"dialog\"] [cmdk-item][aria-selected=\"true\"]",
+    "selectedCount": 2,
+    "distinctSelectedElementSuffixesFromActualError": [
+      "e.83",
+      "e.84"
+    ],
+    "screenshotReviewed": true,
+    "screenshotObservation": "One open dialog; Settings under both Suggested and Configure visibly share selected gray background",
+    "providerRequests": 0,
+    "dpr": 1.5
+  },
+  "sourceChain": {
+    "renderer": {
+      "file": "packages/ui/src/command-center/CommandCenterDialog.tsx",
+      "line": 793,
+      "identity": "value uses title and joined keywords; React key command.id does not make cmdk value unique"
+    },
+    "options": {
+      "file": "packages/ui/src/quickpick/quickPickCommands.ts",
+      "lines": [
+        113,
+        190
+      ],
+      "ids": [
+        "suggested-settings",
+        "settings"
+      ],
+      "sameTitleId": "quickPick.command.settings",
+      "sameKeywords": [
+        "settings",
+        "preferences",
+        "配置",
+        "设置"
+      ]
+    },
+    "installedCmdk": {
+      "file": "node_modules/cmdk/dist/index.mjs",
+      "line": 1,
+      "selection": "Each Item compares the shared selected value with its own value; equal values set both aria-selected and data-selected true"
+    },
+    "style": {
+      "file": "packages/ui/src/components/ui/command.tsx",
+      "line": 153,
+      "consumer": "data-selected drives selected background"
+    }
+  },
+  "limits": "Only repeated selected markers and visual keyboard selection are confirmed. Test stopped before Enter/settings action; no claim of duplicate execution. RLM07 shares same run/source and is supporting evidence, not an independent clean reproduction. No generic hidden-DOM count explanation: screenshot contains both rows in one open dialog."
+}

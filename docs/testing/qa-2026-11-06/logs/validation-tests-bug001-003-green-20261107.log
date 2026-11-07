@@ -1,0 +1,67 @@
+✔ darwin Helper=false bytecode=false 按能力与显式选项串行调度 (2.9441ms)
+✔ darwin Helper=false bytecode=true 按能力与显式选项串行调度 (1.4543ms)
+✔ darwin Helper=true bytecode=false 按能力与显式选项串行调度 (1.2301ms)
+✔ darwin Helper=true bytecode=true 按能力与显式选项串行调度 (1.0836ms)
+✔ win32 Helper=false bytecode=false 按能力与显式选项串行调度 (0.9722ms)
+✔ win32 Helper=false bytecode=true 按能力与显式选项串行调度 (0.8539ms)
+✔ win32 Helper=true bytecode=false 按能力与显式选项串行调度 (1.0567ms)
+✔ win32 Helper=true bytecode=true 按能力与显式选项串行调度 (1.6329ms)
+✖ 任一准备阶段拒绝后停止调度并保留失败出口 (2.9083ms)
+✔ retired payment RPC cannot read credentials or contact a payment endpoint (1.5519ms)
+✔ local App Usage still reads Agent statistics without any account or payment IO (0.9499ms)
+✔ remaining workflow configuration is local-only and never contacts official config (0.8803ms)
+✔ application dependencies contain no telemetry SDK or workspace package (251.5017ms)
+✔ product code cannot enable official or proprietary telemetry collectors (2082.3158ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 13
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3858.8528
+
+✖ failing tests:
+
+test at scripts\ci\dev-desktop-env-dispatch.test.mjs:77:1
+✖ 任一准备阶段拒绝后停止调度并保留失败出口 (2.9083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   Error: synthetic stage failure
+  +       at run (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:35:48)
+  +       at evalmachine.<anonymous>:4:11
+  +       at executeDispatch (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:40:9)
+  +       at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:81:28)
+  +       at Test.runInAsyncScope (node:async_hooks:227:14)
+  +       at Test.run (node:internal/test_runner/test:1325:25)
+  +       at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+  +       at Test.postRun (node:internal/test_runner/test:1465:19)
+  +       at Test.run (node:internal/test_runner/test:1390:12)
+  +       at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)
+  -   'synthetic stage failure'
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:83:14)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [
+      Error: synthetic stage failure
+          at run (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:35:48)
+          at evalmachine.<anonymous>:4:11
+          at executeDispatch (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:40:9)
+          at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/dev-desktop-env-dispatch.test.mjs:81:28)
+          at Test.runInAsyncScope (node:async_hooks:227:14)
+          at Test.run (node:internal/test_runner/test:1325:25)
+          at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+          at Test.postRun (node:internal/test_runner/test:1465:19)
+          at Test.run (node:internal/test_runner/test:1390:12)
+          at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)
+    ],
+    expected: [ 'synthetic stage failure' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

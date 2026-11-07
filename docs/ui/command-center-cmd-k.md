@@ -86,6 +86,7 @@
 ## 任务行选中身份
 
 - cmdk 是面板选中状态的唯一持有者；React `key` 与 cmdk `value` 都必须使用稳定的行身份。
+- 操作命令的 `value` 为 `command:${command.id}`，与 title、翻译和 keywords 分离。建议区与常规区可显示相同设置名称，但不同 command ID 必须分别选中。搜索仍由现有 `matchesCommand` 使用 title/keywords 匹配，执行仍调用该行原有回调；不改变命令顺序、搜索历史、设置直达或禁用状态。
 - 最近任务的 `value` 使用 `recent-task:${workspaceKey}:${taskId}`；任务搜索结果使用 `task-result:${row.key}`，其中 `row.key` 已包含工作区身份、任务 ID 和有正文片段时的片段序号。
 - 标题、工作区显示名和搜索片段只用于展示和现有搜索匹配，不能作为选中身份。原因是同工作区的重名任务会得到相同文本，cmdk 按 `value` 判断选中时会同时高亮多行，并影响键盘定位。
 - 鼠标移动或键盘上下移动后，只允许目标行处于 `aria-selected=true`；Enter 和点击继续通过该行原有回调打开对应任务/正文片段。
@@ -102,9 +103,12 @@
 | ------------ | ----------------------------------------------------------- | ---------------------------------------------------------------- |
 | CC-SELECT-01 | 最近任务有三个同工作区的重名任务；依次 hover、上下键、Enter | 始终仅目标行选中，打开目标任务                                   |
 | CC-SELECT-02 | 搜索返回同标题、同工作区显示名、同正文片段的不同任务        | 每行可独立选中；不同远程 identity 和同任务的不同片段也可独立选中 |
+| CC-SELECT-03 | 操作范围搜索中文设置 / English Settings，同时显示 suggested-settings 与 settings；分别 hover、ArrowDown/Up 和 Enter | 同一时刻只有一行 selected；各 command ID 分别可执行设置回调；切换语言后身份不变，保留匹配与高亮 |
 
 组件回归：`packages/ui/test/commandCenterSelection.test.ts`。
 桌面交互候选：`packages/desktop/test/e2e/ui-shell/command-center-selection.test.ts`，验证真实索引列表与 cmdk 鼠标/键盘交互；不发送模型请求。
+
+2026-11-07 BUG-008 修复回归：CC-SELECT-03 使用外置 pending `docs/testing/qa-2026-11-06/manual-review/pending/qa-ui-bugfix-20261107.test.ts`；修前同一弹窗内两行同时选中的证据保留。新回归不写任务数据库、不请求模型，不把旧原始 FAIL 覆盖为 PASS。
 
 ## 视觉细节
 

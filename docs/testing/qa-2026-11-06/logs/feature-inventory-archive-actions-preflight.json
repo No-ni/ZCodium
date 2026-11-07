@@ -1,0 +1,98 @@
+{
+  "capturedAt": "2026-11-06T19:32:30.083Z",
+  "evidenceKind": "NoEmit and real registration/filter only; no UI/hooks/Host/Provider/build/test task/history writes",
+  "includeResidual": false,
+  "includeShort": false,
+  "archiveOnly": false,
+  "archiveActions": true,
+  "panelRetry": false,
+  "finalLocalCount": 0,
+  "shortPreviewReviewed": false,
+  "titleFixture": null,
+  "grep": "(?:^| )QAR0[12]:",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "sha256": "843ea6a2d87f987f28c5c7bfbc8b7ce178e7193177e24d230ba889f5143367d6"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-reparse-children.ps1",
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210",
+      "fixtures": [
+        {
+          "id": "upstream-conversation-readonly-tool-call",
+          "metadata": {
+            "kind": "common",
+            "timingPolicy": "fast-text",
+            "source": "synthetic",
+            "syntheticReason": "只读工具首段用于构造稳定 tool_use/tool_result 历史；工具业务由本地文件 fixture 决定，不依赖真实模型选择。"
+          }
+        }
+      ]
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-archive-management.json",
+      "sha256": "d2295f799f005fb4b1a29d5d939b406f719e1fb110c51842b852617a792817c0",
+      "fixtures": []
+    }
+  ],
+  "diagnostics": [],
+  "registered": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "title": "QAR01: 明确展开本树合成组后取消归档保持CLI会话",
+      "suites": [
+        "本轮归档行操作补测"
+      ],
+      "fullTitle": "本轮归档行操作补测 QAR01: 明确展开本树合成组后取消归档保持CLI会话"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "title": "QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活",
+      "suites": [
+        "本轮归档行操作补测"
+      ],
+      "fullTitle": "本轮归档行操作补测 QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活"
+    }
+  ],
+  "hooks": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "kind": "afterEach"
+    }
+  ],
+  "grepTarget": "Mocha describe stack + it.title fullTitle",
+  "selected": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "title": "QAR01: 明确展开本树合成组后取消归档保持CLI会话",
+      "suites": [
+        "本轮归档行操作补测"
+      ],
+      "fullTitle": "本轮归档行操作补测 QAR01: 明确展开本树合成组后取消归档保持CLI会话"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "title": "QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活",
+      "suites": [
+        "本轮归档行操作补测"
+      ],
+      "fullTitle": "本轮归档行操作补测 QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活"
+    }
+  ],
+  "excluded": [],
+  "oldAnchoredTitleOnlyCount": 2,
+  "oldAnchoredFullTitleCount": 0,
+  "count": 2,
+  "accepted": true
+}

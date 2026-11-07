@@ -21,22 +21,29 @@ import {
   stabilizeTaskListItems,
 } from "@/v4/taskListItemStabilization.js";
 
-/** 活动态只覆盖已有行的 UI sidecar；Controller 快照不能替代项目树的行集合和事实。 */
+/** 活动态与轻量交互只覆盖已有行的展示投影；Controller 快照不替代项目树行集合。 */
 export function applyProjectTaskActivities(
   tree: ProjectTree,
   activities: readonly {
     address: WindowHostTaskAddress;
     activity: WindowHostControllerTaskActivity;
+    pendingInteraction?: ProjectTask["pendingInteraction"];
   }[],
 ): ProjectTree {
-  const byKey = new Map(
-    activities.map(({ address, activity }) => [buildTaskEntityKey(address), activity]),
-  );
+  const byKey = new Map(activities.map((entry) => [buildTaskEntityKey(entry.address), entry]));
   return {
     ...tree,
     tasks: tree.tasks.map((task) => {
-      const activity = byKey.get(buildTaskEntityKey(task));
-      return activity ? attachTaskListRowActivity(task, activity) : task;
+      const live = byKey.get(buildTaskEntityKey(task));
+      // 旧 meta_json 的等待详情不是实时事实；当前投影缺字段或离线时也必须清掉旧胶囊。
+      if (!live)
+        return task.pendingInteraction === undefined
+          ? task
+          : { ...task, pendingInteraction: undefined };
+      return attachTaskListRowActivity(
+        { ...task, pendingInteraction: live.pendingInteraction },
+        live.activity,
+      );
     }),
   };
 }

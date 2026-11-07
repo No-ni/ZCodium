@@ -2266,29 +2266,36 @@ export class ProductProjection {
     }
 
     if (fact.executionKind === "agent") {
+      // Bugfix：提升的 admission 可先于 TurnStarted 摘除 runtime 队列；投影以
+      // 同源启动事实原子更新 queue/running/availability，避免虚假成功空队列窗口。
+      const queue = this.queueWithoutItems(this.promotingQueueIdsForSource(fact.sourceCommandId));
       deltas.push({
         op: "state.updated",
-        patch: this.controlPatch({
-          phase: "running",
-          sessionEnded: false,
-          canStop: true,
-          stopState: "stoppable",
-          stopTargetKind: "assistant",
-          activeWorks: [
-            {
-              kind: fact.origin === "goalContinuation" ? "goalContinuation" : "primaryTurn",
-              ...(fact.foregroundExecutionId
-                ? { foregroundExecutionId: fact.foregroundExecutionId }
-                : {}),
-              // 自动中断必须关联实际执行输入，不能由客户端按最后一条消息猜测。
-              ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
-              startedAt: this.ms(event),
-            },
-          ],
-          // 新一轮被接受后，旧错误不再是当前事实（与旧 reducer 同一裁决）。
-          lastError: null,
-          apiRetry: null,
-        }),
+        patch: this.controlPatch(
+          {
+            phase: "running",
+            sessionEnded: false,
+            canStop: true,
+            stopState: "stoppable",
+            stopTargetKind: "assistant",
+            activeWorks: [
+              {
+                kind: fact.origin === "goalContinuation" ? "goalContinuation" : "primaryTurn",
+                ...(fact.foregroundExecutionId
+                  ? { foregroundExecutionId: fact.foregroundExecutionId }
+                  : {}),
+                // 自动中断必须关联实际执行输入，不能由客户端按最后一条消息猜测。
+                ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
+                startedAt: this.ms(event),
+              },
+            ],
+            // 新一轮被接受后，旧错误不再是当前事实（与旧 reducer 同一裁决）。
+            lastError: null,
+            apiRetry: null,
+          },
+          undefined,
+          queue === this.snapshot.queue ? undefined : queue,
+        ),
       });
     }
     // /goal 的可见 query 用 controlOnly turn 建立 live 时间线身份，
@@ -2347,6 +2354,12 @@ export class ProductProjection {
   private onTurnComplete(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as TurnCompletePayload;
     this.outputContinuationTextRowId = null;
+    // Bugfix：启动准备期间取消也可能没有 TurnStarted；只结算同源 promoting，
+    // 其余 future input 仍由既有 Stop 契约保留为 held。
+    const queue =
+      payload.resultType === "cancelled"
+        ? this.queueWithoutItems(this.promotingQueueIdsForSource(payload.inputId))
+        : this.snapshot.queue;
     const headerState = mapTurnResultToHeaderState(payload.resultType);
     const header = this.turnHeaderForEvent(event);
     if (header?.executionKind === "controlOnly") {
@@ -2358,6 +2371,9 @@ export class ProductProjection {
         ...this.leaveDraftAfterControlOnlyTurn(
           payload.resultType === "success" ? "completedSuccess" : "completedInterrupted",
         ),
+        ...(queue === this.snapshot.queue
+          ? []
+          : [{ op: "state.updated" as const, patch: this.queuePatch(queue) }]),
       ];
       this.currentTurnId = null;
       // turn 收口后 model-only 标记随之失效，避免影响下一次归属判断。
@@ -2387,17 +2403,19 @@ export class ProductProjection {
     const heldQueue =
       payload.resultType === "cancelled" &&
       payload.preserveQueueAutoDrainOnCancel !== true &&
-      this.snapshot.queue.items.length > 0 &&
-      (this.snapshot.queue.autoDrain || this.snapshot.queue.pauseReason !== "stopped")
+      queue.items.length > 0 &&
+      (queue.autoDrain || queue.pauseReason !== "stopped")
         ? {
-            ...this.snapshot.queue,
+            ...queue,
             autoDrain: false,
             pauseReason: "stopped" as const,
           }
-        : undefined;
+        : queue === this.snapshot.queue
+          ? undefined
+          : queue;
 
     const deltas: ConversationDelta[] = [
-      ...this.closeStreamingRows(streamClose),
+      ...this.closeStreamingRows(event, streamClose),
       // turn 终态一并收口在飞的 foreground tool row（收口不变量：被 profile
       // 过滤的 inputText 流必须被不可过滤的 row.upserted 蕴含，见 profiles.ts）。
       ...this.closeOpenToolRows(event, payload.resultType === "cancelled" ? "cancelled" : "error"),
@@ -2465,10 +2483,16 @@ export class ProductProjection {
   private onTurnError(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as TurnErrorPayload;
     this.outputContinuationTextRowId = null;
+    // Bugfix：pre-start 失败可能没有 TurnStarted，准确结算同源 promoting，
+    // 其余已接受 future input 仍保留为 held，不能因当前失败一并丢弃。
+    const queue = this.queueWithoutItems(this.promotingQueueIdsForSource(payload.inputId));
     if (this.turnHeaderForEvent(event)?.executionKind === "controlOnly") {
       const deltas = [
         ...this.upsertTurnHeader(event, "failed"),
         ...this.leaveDraftAfterControlOnlyTurn("error"),
+        ...(queue === this.snapshot.queue
+          ? []
+          : [{ op: "state.updated" as const, patch: this.queuePatch(queue) }]),
       ];
       this.currentTurnId = null;
       // turn 收口后 model-only 标记随之失效，避免影响下一次归属判断。
@@ -2480,15 +2504,17 @@ export class ProductProjection {
     // 防止 error 后悬挂只能先发 TurnSteerDiscarded，造成用户消息丢失；现在把现有 queue
     // 原样转成 error-paused，等待显式 setAutoDrain(true) 恢复 FIFO。
     const heldQueue =
-      this.snapshot.queue.items.length > 0
+      queue.items.length > 0
         ? {
-            ...this.snapshot.queue,
+            ...queue,
             autoDrain: false,
             pauseReason: "error" as const,
           }
-        : undefined;
+        : queue === this.snapshot.queue
+          ? undefined
+          : queue;
     return [
-      ...this.closeStreamingRows("interrupted"),
+      ...this.closeStreamingRows(event, "interrupted"),
       ...this.closeOpenToolRows(event, "error"),
       ...this.upsertTurnHeader(
         event,
@@ -2622,7 +2648,7 @@ export class ProductProjection {
     // toolCallId 再开一行，UI 于是并排出现两张「正在编写工作流」。已提交（running /
     // pendingApproval）的行不在此列，它们的终态由 executor 自己发布。
     return [
-      ...this.closeStreamingRows("interrupted"),
+      ...this.closeStreamingRows(event, "interrupted"),
       ...this.closeOpenToolRows(event, "cancelled", (row) => row.status === "inputStreaming"),
     ];
   }
@@ -2741,7 +2767,7 @@ export class ProductProjection {
         ];
       }
       case "reasoning_end":
-        return this.closeReasoningRow();
+        return this.closeReasoningRow(event);
       case "tool_input_start":
         return this.openToolRow(event, payload, fact.entityId);
       case "tool_input_delta": {
@@ -2871,7 +2897,7 @@ export class ProductProjection {
     // 已提交执行的工具不在这里处理，它们由 core 的 tool_abandoned 事件收口。
     const discardedStreamDeltas = this.acceptsActiveModelEvent(event)
       ? [
-          ...this.closeStreamingRows("interrupted"),
+          ...this.closeStreamingRows(event, "interrupted"),
           ...this.closeOpenToolRows(event, "cancelled", (row) => row.status === "inputStreaming"),
         ]
       : [];
@@ -2908,7 +2934,7 @@ export class ProductProjection {
     event: SessionEvent,
     fact: CanonicalAssistantSegmentFact,
   ): ConversationDelta[] {
-    const close = this.closeReasoningRow();
+    const close = this.closeReasoningRow(event);
     const row: ReasoningRow = {
       ...this.rowBase(event, this.turnIdOf(event), fact.entityId),
       kind: "reasoning",
@@ -2925,16 +2951,29 @@ export class ProductProjection {
     return [...close, { op: "row.appended", row }];
   }
 
-  private closeReasoningRow(state: "complete" | "interrupted" = "complete"): ConversationDelta[] {
+  private closeReasoningRow(
+    event: SessionEvent,
+    state: "complete" | "interrupted" = "complete",
+  ): ConversationDelta[] {
     if (this.streamingReasoningRowId === null) return [];
     const row = this.findRow(this.streamingReasoningRowId);
     this.streamingReasoningRowId = null;
     if (row?.kind !== "reasoning") return [];
-    return [{ op: "row.upserted", row: { ...row, state } }];
+    // Bugfix：仅收口 state 会让重挂载后的历史思考依赖 UI 挂载计时，显示成几秒。
+    // 所有关闭路径都用事件的稳定时间冻结工时，持久事件重放与实时投影保持一致。
+    return [
+      {
+        op: "row.upserted",
+        row: { ...row, state, durationMs: Math.max(0, this.ms(event) - row.createdAt) },
+      },
+    ];
   }
 
-  private closeStreamingRows(state: "complete" | "interrupted"): ConversationDelta[] {
-    return [...this.closeTextRow(state), ...this.closeReasoningRow(state)];
+  private closeStreamingRows(
+    event: SessionEvent,
+    state: "complete" | "interrupted",
+  ): ConversationDelta[] {
+    return [...this.closeTextRow(state), ...this.closeReasoningRow(event, state)];
   }
 
   // turn 终态收口所有 foreground 未终态 tool row（迟到终态不复活由 isRunning 闸保证）；
@@ -4124,7 +4163,20 @@ export class ProductProjection {
 
   private onTurnSteerDiscarded(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as TurnSteerDiscardedPayload;
-    return this.removeQueueItems(payload.pendingInputIds);
+    // Core 的 promoted 只证明 admission 已接受，尚不能证明新执行已启动。
+    // 在旧终态保留 promoting 项，直到匹配 Agent TurnStarted 推进真实运行态。
+    const phase = this.snapshot.control.phase;
+    const terminalPhase =
+      phase === "completedSuccess" || phase === "completedInterrupted" || phase === "error";
+    const pendingInputIds =
+      payload.reason === "promoted" && terminalPhase
+        ? payload.pendingInputIds.filter(
+            (id) =>
+              this.snapshot.queue.items.find((item) => item.queueItemId === id)?.dispatch.state !==
+              "promoting",
+          )
+        : payload.pendingInputIds;
+    return this.removeQueueItems(pendingInputIds);
   }
 
   private onSessionInputPromoted(event: SessionEvent): ConversationDelta[] {
@@ -4132,7 +4184,16 @@ export class ProductProjection {
     // sendQueuedNow 启动成功后，显式 TurnSteerDiscarded(promoted)
     // 可能在进程/链路边界丢失，使 UI 永久留下 promoting 幽灵项。
     // SessionInputPromoted 只在 user message + session_input 同事务提交后产生，
-    // 因此它才是可以安全移除 queue 投影的 durable commit signal。
+    // 因此它是 queue 投影的 durable commit signal；但 Goal 控制轮会先持久化再启动执行。
+    // 旧终态上的 promoting 项须等待同源 Agent TurnStarted，不能把控制 query 当成执行已结束。
+    const phase = this.snapshot.control.phase;
+    if (
+      (phase === "completedSuccess" || phase === "completedInterrupted" || phase === "error") &&
+      this.snapshot.queue.items.find((item) => item.queueItemId === payload.pendingInputId)
+        ?.dispatch.state === "promoting"
+    ) {
+      return [];
+    }
     return this.removeQueueItems([payload.pendingInputId]);
   }
 
@@ -4785,7 +4846,16 @@ export class ProductProjection {
     return diffWorkflowRunsState(prior, workflowRuns);
   }
 
-  private removeQueueItems(ids: readonly string[]): ConversationDelta[] {
+  private promotingQueueIdsForSource(sourceCommandId: string | undefined): string[] {
+    if (!sourceCommandId) return [];
+    return this.snapshot.queue.items
+      .filter(
+        (item) => item.dispatch.state === "promoting" && item.sourceCommandId === sourceCommandId,
+      )
+      .map((item) => item.queueItemId);
+  }
+
+  private queueWithoutItems(ids: readonly string[]): ConversationSnapshot["queue"] {
     const idSet = new Set(ids);
     for (const id of ids) this.deliveryByPendingInputId.delete(id);
     const items = this.snapshot.queue.items
@@ -4795,11 +4865,18 @@ export class ProductProjection {
           ? item
           : { ...item, order: { ...item.order, queuePosition: index } },
       );
-    if (items.length === this.snapshot.queue.items.length) return [];
+    return items.length === this.snapshot.queue.items.length
+      ? this.snapshot.queue
+      : { ...this.snapshot.queue, items };
+  }
+
+  private removeQueueItems(ids: readonly string[]): ConversationDelta[] {
+    const queue = this.queueWithoutItems(ids);
+    if (queue === this.snapshot.queue) return [];
     return [
       {
         op: "state.updated",
-        patch: this.queuePatch({ ...this.snapshot.queue, items }),
+        patch: this.queuePatch(queue),
       },
     ];
   }
@@ -5179,6 +5256,29 @@ export class ProductProjection {
           verifications: [],
           iterations: [],
         };
+        // Goal 先持久化 controlOnly query，再发布 active target；控制轮本身没有
+        // running 事实。只清与已见控制轮 sourceCommandId 匹配的 Goal promoting 项，
+        // 在同一 patch 下发布 active Goal 资格，且 pre-start 无续跑也不会留下幽灵队列。
+        const ids =
+          payload.source === "command" && goal.status === "active"
+            ? this.snapshot.queue.items
+                .filter(
+                  (item) =>
+                    item.kind === "sendGoalCommand" &&
+                    item.dispatch.state === "promoting" &&
+                    this.snapshot.rows.window.some(
+                      (row) =>
+                        row.kind === "turnHeader" &&
+                        row.executionKind === "controlOnly" &&
+                        row.sourceCommandId === item.sourceCommandId,
+                    ),
+                )
+                .map((item) => item.queueItemId)
+            : [];
+        const queue = this.queueWithoutItems(ids);
+        if (queue !== this.snapshot.queue) {
+          return [{ op: "state.updated", patch: this.controlPatch({}, goal, queue) }];
+        }
         return [{ op: "state.updated", patch: this.goalPatch(goal) }];
       }
       case "cleared": {

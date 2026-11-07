@@ -1,0 +1,8 @@
+{
+  "command": "corepack pnpm --dir packages/desktop typecheck:e2e",
+  "started": "2026-11-06T20:32:51.691Z",
+  "finished": "2026-11-06T20:32:58.360Z",
+  "code": 0,
+  "signal": null,
+  "node": "v24.18.0"
+}

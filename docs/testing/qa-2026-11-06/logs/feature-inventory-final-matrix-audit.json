@@ -1,0 +1,56 @@
+{
+  "capturedAt": "2026-11-06T20:48:50.289Z",
+  "evidenceKind": "Read-only inventory/matrix identity, anchors and local evidence-link audit; no UI, build, Host or product validation",
+  "inputs": [
+    {
+      "file": "feature-inventory.md",
+      "sha256": "9d7cb31d4fba1226414b44a2e092a0ce48fbe7bb6ad3ccb7580f8fa03b196c2e"
+    },
+    {
+      "file": "coverage-matrix.md",
+      "sha256": "c0a27d9e3fc4350bcf637d2188735d29f0d59f8706dc197683d74ef2f2573f59"
+    },
+    {
+      "file": "test-report.md",
+      "sha256": "8e8d3998c692fd839295cc193a47d817e9e1cb84710674b93a174442088d3db8"
+    }
+  ],
+  "inventoryGroups": 87,
+  "inventoryUniqueGroups": 87,
+  "matrixGroups": 87,
+  "matrixUniqueGroups": 87,
+  "uniqueAnchors": 87,
+  "missingGroups": [],
+  "extraGroups": [],
+  "badAnchors": [],
+  "localLinks": 212,
+  "missingLocalLinks": [],
+  "partialGroupCount": 84,
+  "noPartialGroups": [
+    "GIT-02",
+    "BROW-02",
+    "SET-13"
+  ],
+  "groupsWithAnyTargetedExecutionOrFailureEvidence": 85,
+  "notRunGroups": [
+    "GIT-02",
+    "SET-13"
+  ],
+  "blockedGroups": [
+    "NAV-12",
+    "GIT-02",
+    "TERM-01",
+    "SET-12",
+    "SET-13",
+    "SET-15",
+    "REM-01",
+    "REM-02",
+    "REM-03",
+    "BOT-02"
+  ],
+  "blockedOrNotRunUniqueGroups": 10,
+  "failureLabelCount": 25,
+  "atomicMenuActionCount": null,
+  "atomicMenuActionCountReason": "87 inventories functional groups; individual state/action combinations were not exhaustively counted. Partial and failure labels overlap.",
+  "accepted": true
+}

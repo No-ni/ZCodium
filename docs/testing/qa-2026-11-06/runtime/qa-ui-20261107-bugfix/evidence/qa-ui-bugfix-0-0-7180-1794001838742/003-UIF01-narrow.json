@@ -1,0 +1,133 @@
+{
+  "capturedAt": "2026-11-06T21:50:53.220Z",
+  "evidenceKind": "isolated real UI; synthetic preview/draft; no Provider or native clipboard",
+  "status": "step",
+  "forcedShellWidth": 240,
+  "normalWindowWidth": 1280,
+  "state": {
+    "active": {
+      "tag": "DIV",
+      "testId": "composer-provider-trigger"
+    },
+    "center": {
+      "input": null,
+      "items": []
+    },
+    "composers": [
+      {
+        "compact": [
+          {
+            "compact": "true",
+            "priority": "1"
+          },
+          {
+            "compact": "true",
+            "priority": "3"
+          }
+        ],
+        "content": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 440.66668701171875,
+          "right": 500.66668701171875,
+          "top": 500.3333435058594,
+          "width": 60,
+          "x": 440.66668701171875,
+          "y": 500.3333435058594
+        },
+        "editorSame": true,
+        "input": {
+          "bottom": 488.3333435058594,
+          "height": 40,
+          "left": 440.66668701171875,
+          "right": 655.3333587646484,
+          "top": 448.3333435058594,
+          "width": 214.6666717529297,
+          "x": 440.66668701171875,
+          "y": 448.3333435058594
+        },
+        "layout": "stacked",
+        "leading": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 440.66668701171875,
+          "right": 574.0000305175781,
+          "top": 500.3333435058594,
+          "width": 133.33334350585938,
+          "x": 440.66668701171875,
+          "y": 500.3333435058594
+        },
+        "model": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 586,
+          "right": 623.3333358764648,
+          "top": 500.3333435058594,
+          "width": 37.333335876464844,
+          "x": 586,
+          "y": 500.3333435058594
+        },
+        "modelChildren": [
+          {
+            "class": "relative flex min-w-0 flex-1 items-center overflow-hidden",
+            "display": "flex",
+            "tag": "SPAN"
+          }
+        ],
+        "modelText": "Choose modelHigh",
+        "shell": {
+          "bottom": 541.0000228881836,
+          "height": 105.33333587646484,
+          "left": 428,
+          "right": 668,
+          "top": 435.66668701171875,
+          "width": 240,
+          "x": 428,
+          "y": 435.66668701171875
+        },
+        "shellData": {
+          "composerLayout": "stacked"
+        },
+        "toolbar": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 440.66668701171875,
+          "right": 655.3333587646484,
+          "top": 500.3333435058594,
+          "width": 214.6666717529297,
+          "x": 440.66668701171875,
+          "y": 500.3333435058594
+        },
+        "toolbarData": {
+          "composerModelIcon": "true"
+        },
+        "trailing": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 586,
+          "right": 655.3333358764648,
+          "top": 500.3333435058594,
+          "width": 69.33333587646484,
+          "x": 586,
+          "y": 500.3333435058594
+        }
+      }
+    ],
+    "host": {
+      "bottom": 894,
+      "height": 888,
+      "left": 268,
+      "right": 1274,
+      "top": 6,
+      "width": 1006,
+      "x": 268,
+      "y": 6
+    },
+    "hostMode": "normal",
+    "viewport": {
+      "dpr": 1.5,
+      "height": 900,
+      "width": 1280
+    }
+  }
+}

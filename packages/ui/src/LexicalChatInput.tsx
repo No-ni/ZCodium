@@ -1442,6 +1442,7 @@ function EditorApiPlugin({
 
 interface LexicalChatInputProps {
   placeholder?: string;
+  placeholderContent?: React.ReactNode;
   disabled?: boolean;
   submitDisabled?: boolean;
   allowSubmitWhenEmpty?: boolean;
@@ -1483,6 +1484,7 @@ const EDITOR_THEME = {
 
 export function LexicalChatInput({
   placeholder,
+  placeholderContent,
   disabled = false,
   submitDisabled = false,
   allowSubmitWhenEmpty = false,
@@ -1593,7 +1595,7 @@ export function LexicalChatInput({
               },
             )} text-foreground-subtlest`}
           >
-            {placeholder}
+            {placeholderContent ?? placeholder}
           </div>
         ),
       }

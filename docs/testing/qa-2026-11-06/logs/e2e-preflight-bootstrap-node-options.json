@@ -1,0 +1,68 @@
+{
+  "evidenceKind": "pure option grammar plus read-only loader/reparse audit; no UI/hooks executed",
+  "capturedAt": "2026-11-06T15:40:02.214Z",
+  "sources": [
+    "node_modules/@wdio/cli/build/index.js:922-925",
+    "node_modules/@wdio/local-runner/build/index.js:262-276"
+  ],
+  "results": [
+    {
+      "name": "empty",
+      "accepted": true,
+      "result": {
+        "source": "empty launcher environment",
+        "loaderCount": 0
+      }
+    },
+    {
+      "name": "installed-cli",
+      "accepted": true,
+      "result": {
+        "source": "audited installed WDIO tsx injection",
+        "loader": "C:\\vibecoding\\zcodium\\node_modules\\tsx\\dist\\loader.mjs",
+        "loaderCount": 1,
+        "sourceMapsCount": 0
+      }
+    },
+    {
+      "name": "installed-local-runner-duplicate",
+      "accepted": true,
+      "result": {
+        "source": "audited installed WDIO tsx injection",
+        "loader": "C:\\vibecoding\\zcodium\\node_modules\\tsx\\dist\\loader.mjs",
+        "loaderCount": 2,
+        "sourceMapsCount": 0
+      }
+    },
+    {
+      "name": "installed-with-source-maps",
+      "accepted": true,
+      "result": {
+        "source": "audited installed WDIO tsx injection",
+        "loader": "C:\\vibecoding\\zcodium\\node_modules\\tsx\\dist\\loader.mjs",
+        "loaderCount": 1,
+        "sourceMapsCount": 1
+      }
+    },
+    {
+      "name": "reject-foreign-loader",
+      "accepted": false,
+      "error": "QA bootstrap refuses unknown Node preload/options"
+    },
+    {
+      "name": "reject-arbitrary-require",
+      "accepted": false,
+      "error": "QA bootstrap refuses unknown Node preload/options"
+    },
+    {
+      "name": "reject-unexpected-node-option",
+      "accepted": false,
+      "error": "QA bootstrap refuses unknown Node preload/options"
+    },
+    {
+      "name": "reject-triple-injection",
+      "accepted": false,
+      "error": "QA bootstrap refuses unexpected WDIO Node options multiplicity"
+    }
+  ]
+}

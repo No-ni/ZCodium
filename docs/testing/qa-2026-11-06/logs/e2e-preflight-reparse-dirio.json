@@ -1,0 +1,19 @@
+{
+  "probeRoot": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-dirio-probe-7233af21f7f043959e7c3409e8615277",
+  "results": [
+    {
+      "passed": true,
+      "name": "DirectoryNotFoundException/DirIOError after initial Get-Item and removal accepted"
+    },
+    {
+      "passed": true,
+      "name": "DirectoryNotFoundException with existing path rejected"
+    },
+    {
+      "passed": true,
+      "name": "Other IOException with missing path and DirIOError rejected"
+    }
+  ],
+  "capturedAt": "2026-11-06T16:22:43.2515854Z",
+  "evidenceKind": "QA guard exception classification probes; synthetic native error record, not UI acceptance"
+}

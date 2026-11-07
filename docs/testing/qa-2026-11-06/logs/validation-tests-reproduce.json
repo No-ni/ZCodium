@@ -1,0 +1,8 @@
+{
+  "command": "node --test --test-concurrency=1 scripts/ci/no-telemetry.test.mjs scripts/ci/no-official-purchase.test.mjs",
+  "started": "2026-11-06T15:03:46.686Z",
+  "finished": "2026-11-06T15:03:50.520Z",
+  "code": 1,
+  "signal": null,
+  "node": "v24.18.0"
+}

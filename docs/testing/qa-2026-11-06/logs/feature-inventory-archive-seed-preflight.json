@@ -1,0 +1,86 @@
+{
+  "capturedAt": "2026-11-06T19:37:38.194Z",
+  "evidenceKind": "actual source seed executed only in SQLite :memory: using current host/CLI baseline DDL; no UI/Host/process/replay/filesystem task data",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+      "sha256": "843ea6a2d87f987f28c5c7bfbc8b7ce178e7193177e24d230ba889f5143367d6"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\services\\src\\project-storage\\schema.baseline.sql",
+      "sha256": "f7ea0e50e859eaa8b2087a3fb9e95e494ea9bf69178cb7212781c97639883c65"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\apps\\zcode-cli\\packages\\adapters\\src\\storage\\session-store\\schema.baseline.sql",
+      "sha256": "64e03808a22873b7bcf2b44963b8c42e7a5e008ce6e2121775bd8ea126dbdad2"
+    }
+  ],
+  "scripts": [
+    {
+      "pos": 136,
+      "parse": true,
+      "externalNameHelper": false
+    },
+    {
+      "pos": 143,
+      "parse": true,
+      "externalNameHelper": false
+    }
+  ],
+  "probes": [
+    {
+      "name": "actual source seed on both current baseline schemas",
+      "passed": true,
+      "hostRows": [
+        {
+          "task_id": "qa-archive-actions-32620-1793993858193-delete",
+          "archived": 1,
+          "cli_deleted": 0,
+          "project_id": "qa-archive-actions-32620-1793993858193-project",
+          "metaTaskId": "qa-archive-actions-32620-1793993858193-delete"
+        },
+        {
+          "task_id": "qa-archive-actions-32620-1793993858193-keep",
+          "archived": 1,
+          "cli_deleted": 0,
+          "project_id": "qa-archive-actions-32620-1793993858193-project",
+          "metaTaskId": "qa-archive-actions-32620-1793993858193-keep"
+        },
+        {
+          "task_id": "qa-archive-actions-32620-1793993858193-restore",
+          "archived": 1,
+          "cli_deleted": 0,
+          "project_id": "qa-archive-actions-32620-1793993858193-project",
+          "metaTaskId": "qa-archive-actions-32620-1793993858193-restore"
+        }
+      ],
+      "cliRows": [
+        {
+          "id": "qa-archive-actions-32620-1793993858193-delete",
+          "title_source": "custom",
+          "time_deleted": null
+        },
+        {
+          "id": "qa-archive-actions-32620-1793993858193-keep",
+          "title_source": "custom",
+          "time_deleted": null
+        },
+        {
+          "id": "qa-archive-actions-32620-1793993858193-restore",
+          "title_source": "custom",
+          "time_deleted": null
+        }
+      ]
+    },
+    {
+      "name": "second seed refuses duplicate IDs before mutation",
+      "passed": true
+    },
+    {
+      "name": "source finally closes both handles on success and refusal",
+      "passed": true,
+      "calls": 4
+    }
+  ],
+  "accepted": true
+}

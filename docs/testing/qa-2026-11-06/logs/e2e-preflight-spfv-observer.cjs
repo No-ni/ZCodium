@@ -1,0 +1,43 @@
+"use strict";
+const fs = require("node:fs");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+const { execFileSync } = require("node:child_process");
+const { createHash } = require("node:crypto");
+const repository = path.resolve(__dirname, "../../../..");
+const runtime = path.join(repository, "docs/testing/qa-2026-11-06/runtime/qa-spfv-static");
+const spec = path.join(repository, "docs/testing/qa-2026-11-06/qa-spfv-observer.ts");
+const bootstrap = path.join(repository, "docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs");
+const auditScript = "$ErrorActionPreference='Stop'; $paths=ConvertFrom-Json $env:QA_STATIC_AUDIT_PATHS; foreach($target in $paths) { $cursor=[IO.Path]::GetFullPath($target); while($cursor) { if(Test-Path -LiteralPath $cursor) { $item=Get-Item -LiteralPath $cursor -Force; if($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Observer static probe refuses ancestor reparse point' } }; $cursor=[IO.Path]::GetDirectoryName($cursor) }; if(Test-Path -LiteralPath $target -PathType Container) { $queue=[Collections.Generic.Queue[string]]::new(); $queue.Enqueue($target); while($queue.Count) { foreach($item in Get-ChildItem -LiteralPath $queue.Dequeue() -Force) { if($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Observer static probe refuses descendant reparse point' }; if($item.PSIsContainer) { $queue.Enqueue($item.FullName) } } } } }";
+execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", auditScript], {env: {...process.env, QA_STATIC_AUDIT_PATHS: JSON.stringify([runtime, __dirname, spec, bootstrap])}, windowsHide: true, stdio: "pipe", timeout: 30000});
+for (const key of ["HOME", "USERPROFILE", "TEMP", "TMP", "TMPDIR", "APPDATA", "LOCALAPPDATA", "TSX_CACHE_DIR", "NODE_COMPILE_CACHE", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "ZCODE_E2E_HOME_DIR", "ZCODE_E2E_ARTIFACT_DIR"]) {
+  process.env[key] = path.join(runtime, key.toLowerCase());
+  fs.mkdirSync(process.env[key], {recursive: true});
+}
+process.env.NODE_OPTIONS = "";
+process.env.E2E_PROVIDER_HTTP_MODE = "replay";
+const ts = require("typescript");
+const configPath = path.join(repository, "packages/desktop/tsconfig.e2e.json");
+const config = ts.readConfigFile(configPath, ts.sys.readFile);
+const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(configPath));
+const options = {...parsed.options, rootDir: repository, composite: false, incremental: false, noEmit: true};
+delete options.tsBuildInfoFile;
+const program = ts.createProgram([spec], options);
+const diagnostics = ts.getPreEmitDiagnostics(program).map((item) => ({file: item.file?.fileName ?? null, code: item.code, line: item.file && item.start !== undefined ? item.file.getLineAndCharacterOfPosition(item.start).line + 1 : null, message: ts.flattenDiagnosticMessageText(item.messageText, "\n")}));
+(async () => {
+  const {tsImport} = require("tsx/esm/api");
+  let forbiddenCalls = 0;
+  const original = () => undefined;
+  globalThis.browser = {options: {mochaOpts: {rootHooks: {beforeAll: [original]}}}, execute: () => { forbiddenCalls += 1; throw new Error("Static observer must not call UI"); }, saveScreenshot: () => { forbiddenCalls += 1; throw new Error("Static observer must not write screenshot"); }};
+  const observer = await tsImport(pathToFileURL(spec).href, {parentURL: pathToFileURL(__filename).href, tsconfig: configPath});
+  await observer.observeSpfv002({currentTest: {title: "SPFV-E2E-001 excluded", file: path.join(repository, "packages/desktop/test/e2e/ui-shell/side-pane-full-view.test.ts")}}, {});
+  await observer.observeSpfv002({currentTest: {title: "SPFV-E2E-002 other file", file: path.join(repository, "docs/testing/wrong.test.ts")}}, {});
+  const hooks = require(bootstrap).mochaHooks();
+  await hooks.afterEach[1].call({currentTest: {title: "SPFV-E2E-001 excluded", file: path.join(repository, "packages/desktop/test/e2e/ui-shell/side-pane-full-view.test.ts")}});
+  await hooks.beforeEach[0].call({});
+  await hooks.afterEach[0].call({});
+  const evidence = {capturedAt: new Date().toISOString(), evidenceKind: "TypeScript noEmit/actual tsx import/root hook registration/non-selected-case guards; no matching observer, tests or UI executed", diagnostics, forbiddenCalls, originalBeforeAllPreserved: hooks.beforeAll[0] === original, observerAfterEachRegistered: hooks.afterEach.length === 2, reloadObserverHooksRegistered: hooks.beforeEach.length === 1, sha256: {observer: createHash("sha256").update(fs.readFileSync(spec)).digest("hex"), bootstrap: createHash("sha256").update(fs.readFileSync(bootstrap)).digest("hex")}};
+  fs.writeFileSync(path.join(__dirname, "e2e-preflight-spfv-observer.json"), JSON.stringify(evidence, null, 2) + "\n");
+  process.stdout.write(JSON.stringify(evidence, null, 2) + "\n");
+  if (diagnostics.length || forbiddenCalls || !evidence.originalBeforeAllPreserved || !evidence.observerAfterEachRegistered) process.exitCode = 1;
+})().catch((error) => {process.stderr.write(error.stack + "\n"); process.exitCode = 1;});

@@ -1,0 +1,136 @@
+{
+  "capturedAt": "2026-11-06T21:51:09.595Z",
+  "evidenceKind": "isolated real UI; synthetic preview/draft; no Provider or native clipboard",
+  "status": "step",
+  "expectedWidth": 560,
+  "singleRowGeometry": true,
+  "centerTolerancePx": 2,
+  "heightObservedOnly": true,
+  "noPrompt": true,
+  "state": {
+    "active": {
+      "tag": "BUTTON",
+      "testId": "side-pane-full-view-toggle"
+    },
+    "center": {
+      "input": null,
+      "items": []
+    },
+    "composers": [
+      {
+        "compact": [
+          {
+            "compact": "true",
+            "priority": "1"
+          },
+          {
+            "compact": "true",
+            "priority": "3"
+          }
+        ],
+        "content": {
+          "bottom": 868.65625,
+          "height": 28,
+          "left": 1145.3333740234375,
+          "right": 1173.3333740234375,
+          "top": 840.65625,
+          "width": 28,
+          "x": 1145.3333740234375,
+          "y": 840.65625
+        },
+        "editorSame": true,
+        "input": {
+          "bottom": 864.65625,
+          "height": 20,
+          "left": 742,
+          "right": 1137.3333435058594,
+          "top": 844.65625,
+          "width": 395.3333435058594,
+          "x": 742,
+          "y": 844.65625
+        },
+        "layout": "inline",
+        "leading": {
+          "bottom": 868.65625,
+          "height": 28,
+          "left": 1145.3333740234375,
+          "right": 1173.3333740234375,
+          "top": 840.65625,
+          "width": 28,
+          "x": 1145.3333740234375,
+          "y": 840.65625
+        },
+        "model": {
+          "bottom": 868.65625,
+          "height": 28,
+          "left": 1179.3333740234375,
+          "right": 1216.6667098999023,
+          "top": 840.65625,
+          "width": 37.333335876464844,
+          "x": 1179.3333740234375,
+          "y": 840.65625
+        },
+        "modelChildren": [
+          {
+            "class": "relative flex min-w-0 flex-1 items-center overflow-hidden",
+            "display": "flex",
+            "tag": "SPAN"
+          }
+        ],
+        "modelText": "Upstream E2E/deepseek-v4-flashHigh",
+        "shell": {
+          "bottom": 877.3229598999023,
+          "height": 45.333335876464844,
+          "left": 697.3333740234375,
+          "right": 1257.3333740234375,
+          "top": 831.9896240234375,
+          "width": 560,
+          "x": 697.3333740234375,
+          "y": 831.9896240234375
+        },
+        "shellData": {
+          "composerLayout": "inline"
+        },
+        "toolbar": {
+          "bottom": 868.65625,
+          "height": 28,
+          "left": 1145.3333740234375,
+          "right": 1248.6667098999023,
+          "top": 840.65625,
+          "width": 103.33333587646484,
+          "x": 1145.3333740234375,
+          "y": 840.65625
+        },
+        "toolbarData": {
+          "composerModelIcon": "true"
+        },
+        "trailing": {
+          "bottom": 868.65625,
+          "height": 28,
+          "left": 1179.3333740234375,
+          "right": 1248.6667098999023,
+          "top": 840.65625,
+          "width": 69.33333587646484,
+          "x": 1179.3333740234375,
+          "y": 840.65625
+        }
+      }
+    ],
+    "host": {
+      "bottom": 877.3229370117188,
+      "height": 45.53125,
+      "left": 697.3333740234375,
+      "right": 1257.3333740234375,
+      "top": 831.7916870117188,
+      "width": 560,
+      "x": 697.3333740234375,
+      "y": 831.7916870117188
+    },
+    "hostMode": "floating",
+    "viewport": {
+      "dpr": 1.5,
+      "height": 900,
+      "width": 1280
+    }
+  }
+}

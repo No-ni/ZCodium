@@ -1,0 +1,308 @@
+{
+  "capturedAt": "2026-11-06T20:21:44.655Z",
+  "evidenceKind": "QA noEmit/rawJS/keepNames/lint and real Mocha fullTitle registration only; no UI/hooks/Host/Provider/build/task/history",
+  "diagnostics": [],
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "sha256": "94f2788e1be06dc116e1bd361083ac49ecfd77eaa1569045710203a9e9d7b5d2"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "sha256": "c1d9a330906001f8ae36d42b1556878d857a16cae30dea7eaffd341990de061b"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-preview-dom.ts",
+      "sha256": "3646eaec8b75953d7944c864fde82d65770bef502b3cb049a1e366183a99d01d"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-local-rpc-probe.ts",
+      "sha256": "d75cfa0bd781b866ffd3d19ae3152995c1b724a7f6944817df2257dc7a53416a"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-reparse-children.ps1",
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+      "sha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\fixtures\\qa-runtime-copy-find-title.json",
+      "sha256": "742c1eb7c965f428eb95709ec7ec8e3619bc2dc37b2be5b00ea6390c62c75631"
+    }
+  ],
+  "callbacks": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 108
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 135
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 142
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 150
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 156
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 159
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 192
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 227
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 228
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 229
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 230
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 232
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 256
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 258
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 262
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 266
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-local-rpc-probe.ts",
+      "line": 31
+    }
+  ],
+  "scripts": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 83
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 122
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "line": 195
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 185
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 248
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 252
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 262
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 377
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 383
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 408
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 500
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 504
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 515
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 520
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 525
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 531
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 615
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 664
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "line": 678
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "line": 5
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-preview-dom.ts",
+      "line": 5
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-local-rpc-probe.ts",
+      "line": 8
+    }
+  ],
+  "rawErrors": [],
+  "closureErrors": [],
+  "registered": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC02: runtime会话唯一命中滚离后四种导航与重开居中"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+    }
+  ],
+  "hooks": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "kind": "after"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "kind": "after"
+    }
+  ],
+  "grep": "(?:^| )(?:RFC01:|HIST0[12]:)",
+  "selected": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+    }
+  ],
+  "excluded": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC02: runtime会话唯一命中滚离后四种导航与重开居中"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+    }
+  ],
+  "sourceCounts": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "expected": 2,
+      "actual": 2
+    }
+  ],
+  "lint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 11ms on 5 files with 94 rules using 16 threads."
+  },
+  "accepted": true,
+  "parameters": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs\\feature-inventory-copy-history-final-parameters.json"
+}

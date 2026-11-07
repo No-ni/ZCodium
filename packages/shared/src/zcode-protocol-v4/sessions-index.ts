@@ -38,6 +38,10 @@ export const sessionSummarySchema = z.object({
   lastOutcome: z.enum(["completed", "error", "interrupted"]).optional(),
   phase: sessionPhaseSchema,
   sessionEnded: z.boolean(),
+  // CLI 从自动队列派生的提醒资格；旧摘要缺省等价于 false，不改变 terminal/ready。
+  autoContinuePending: z.boolean().optional(),
+  // 真实通知资格边沿的源事件身份；冷 seed/旧 CLI 缺席时不制造历史通知。
+  notificationEventId: z.string().min(1).optional(),
   // 列表小圆点用（此处保留布尔，避免为侧栏订阅整个 backgroundWorks）。
   hasBackgroundWork: z.boolean(),
   // 侧栏工作流运行行：有界的 run 摘要，
@@ -55,6 +59,21 @@ export const sessionSummarySchema = z.object({
   createdAt: timestampSchema,
 });
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;
+
+/** CLI 和通知消费者共用完整资格，避免 Goal/自动队列交接被当成整项完成。 */
+export function sessionTerminalNotificationStatus(
+  session: Pick<SessionSummary, "phase" | "goalStatus" | "autoContinuePending">,
+): "completed" | "failed" | null {
+  // 中断不代表成功；Goal 验证和已接受自动队列尚未收口时也没有完成资格。
+  if (
+    session.phase === "completedSuccess" &&
+    session.autoContinuePending !== true &&
+    (session.goalStatus === undefined || session.goalStatus === "verified")
+  ) {
+    return "completed";
+  }
+  return session.phase === "error" ? "failed" : null;
+}
 
 export const sessionsIndexSnapshotSchema = z.object({
   protocolVersion: z.literal(1),

@@ -1,0 +1,256 @@
+{
+  "capturedAt": "2026-11-06T18:29:30.148Z",
+  "evidenceKind": "synthetic local menu UI; readonly index; mock clipboard/native exits; no Provider send",
+  "status": "blocked",
+  "readonly": {
+    "notice": true,
+    "runtimeCopies": 0
+  },
+  "state": {
+    "activePane": "share-import-ef65fc3c-883d-4fa0-be79-96df670c2769",
+    "clips": [],
+    "dpr": 1.5,
+    "headings": [
+      "Command palette",
+      "Imported: SLM_TASK_中文_0-2-7176-1793989664768"
+    ],
+    "menus": [
+      {
+        "label": null,
+        "testid": null,
+        "text": "New task\nCtrl+N"
+      },
+      {
+        "label": "Conversation options",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": "automations-open",
+        "text": "Automations"
+      },
+      {
+        "label": null,
+        "testid": "plugin-store-sidebar-open",
+        "text": "Plugin Marketplace"
+      },
+      {
+        "label": "Search",
+        "testid": "sidebar-search-open",
+        "text": ""
+      },
+      {
+        "label": "Filter view",
+        "testid": "sidebar-view-menu",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": null,
+        "text": "Projects"
+      },
+      {
+        "label": "Collapse all projects",
+        "testid": "virtual-project-toggle-all",
+        "text": ""
+      },
+      {
+        "label": "New project",
+        "testid": "virtual-project-add",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": "virtual-project-toggle",
+        "text": "SLM_SORT_B_1793989742072"
+      },
+      {
+        "label": "More",
+        "testid": "virtual-project-menu",
+        "text": ""
+      },
+      {
+        "label": "Show files",
+        "testid": "virtual-project-files",
+        "text": ""
+      },
+      {
+        "label": "New task",
+        "testid": "virtual-project-create-task",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": "virtual-project-toggle",
+        "text": "SLM_SORT_A_1793989742072"
+      },
+      {
+        "label": "More",
+        "testid": "virtual-project-menu",
+        "text": ""
+      },
+      {
+        "label": "Show files",
+        "testid": "virtual-project-files",
+        "text": ""
+      },
+      {
+        "label": "New task",
+        "testid": "virtual-project-create-task",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": "virtual-project-toggle",
+        "text": "ZCodeProject"
+      },
+      {
+        "label": "More",
+        "testid": "virtual-project-menu",
+        "text": ""
+      },
+      {
+        "label": "Show files",
+        "testid": "virtual-project-files",
+        "text": ""
+      },
+      {
+        "label": "New task",
+        "testid": "virtual-project-create-task",
+        "text": ""
+      },
+      {
+        "label": null,
+        "testid": null,
+        "text": "Tasks"
+      },
+      {
+        "label": "New task",
+        "testid": "virtual-project-new-task",
+        "text": ""
+      },
+      {
+        "label": "Preferences",
+        "testid": "sidebar-preferences-trigger",
+        "text": "Preferences"
+      },
+      {
+        "label": "Mobile remote control",
+        "testid": null,
+        "text": "Mobile remote control"
+      },
+      {
+        "label": "Settings",
+        "testid": "task-settings-button",
+        "text": ""
+      },
+      {
+        "label": "13e64113-5f79-4da2-b873-6f8b2da1460c · main",
+        "testid": "workspace-path",
+        "text": ""
+      },
+      {
+        "label": "More",
+        "testid": "workspace-more-button",
+        "text": ""
+      },
+      {
+        "label": "Open in 资源管理器",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Choose app",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "Export conversation",
+        "testid": "conversation-share-trigger",
+        "text": ""
+      },
+      {
+        "label": "Help",
+        "testid": "workspace-help-menu-trigger",
+        "text": ""
+      },
+      {
+        "label": "Toggle terminal",
+        "testid": "terminal-toggle",
+        "text": ""
+      },
+      {
+        "label": "Expand side pane",
+        "testid": "side-pane-toggle",
+        "text": ""
+      },
+      {
+        "label": "Minimize window",
+        "testid": "window-control-minimize",
+        "text": ""
+      },
+      {
+        "label": "Maximize or restore window",
+        "testid": "window-control-maximize",
+        "text": ""
+      },
+      {
+        "label": "Close window",
+        "testid": "window-control-close",
+        "text": ""
+      },
+      {
+        "label": "Add context",
+        "testid": "chat-attachment-button",
+        "text": "Add context"
+      },
+      {
+        "label": "Switch mode",
+        "testid": "chat-mode-select-trigger",
+        "text": "Ask before changes"
+      },
+      {
+        "label": "Upstream E2E/deepseek-v4-flash High",
+        "testid": "chat-model-select-trigger",
+        "text": "Upstream E2E/deepseek-v4-flash\nHigh"
+      },
+      {
+        "label": "Send",
+        "testid": "v4-composer-send",
+        "text": "Send"
+      },
+      {
+        "label": "Toggle sidebar",
+        "testid": "desktop-top-logo-sidebar-toggle",
+        "text": ""
+      },
+      {
+        "label": "Go back",
+        "testid": "desktop-top-nav-back",
+        "text": ""
+      },
+      {
+        "label": "Go forward",
+        "testid": null,
+        "text": ""
+      },
+      {
+        "label": "New task",
+        "testid": null,
+        "text": ""
+      }
+    ],
+    "mode": "coding",
+    "tabs": []
+  },
+  "tasks": [
+    {
+      "task_id": "share-import-ef65fc3c-883d-4fa0-be79-96df670c2769",
+      "workspace_path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-reviewed\\.e2e-home-qa-menu-20261106-menu-reviewed\\.zcodium\\workspace\\13e64113-5f79-4da2-b873-6f8b2da1460c",
+      "workspace_key": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-reviewed\\.e2e-home-qa-menu-20261106-menu-reviewed\\.zcodium\\workspace\\13e64113-5f79-4da2-b873-6f8b2da1460c",
+      "title": "Imported: SLM_TASK_中文_0-2-7176-1793989664768"
+    }
+  ],
+  "providerRequests": 0
+}

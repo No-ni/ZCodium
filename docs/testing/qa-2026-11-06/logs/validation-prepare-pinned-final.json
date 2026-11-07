@@ -1,0 +1,10 @@
+{
+  "command": "node .run-logs/qa-2026-11-06/validation/run-validation.mjs prepare-pinned-final",
+  "started": "2026-11-06T20:43:23.725Z",
+  "finished": "2026-11-06T20:43:30.774Z",
+  "code": 0,
+  "projects": 19,
+  "pinnedNode": "C:/Program Files/nodejs/node.exe",
+  "pinnedPnpm": "10.33.2",
+  "workspaceOnlyOutputPaths": true
+}

@@ -735,12 +735,18 @@ modules:
       [
         "packages/desktop/src/main/embedded-browser-permission-contract",
         "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts",
+        "packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts",
+        "packages/desktop/src/main/embeddedBrowserSitePermissions.ts",
+        "packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts",
       ]
     managed: true
     requires: ["desktop", "shared"]
     publicEntrypoints:
       [
         "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts",
+        "packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts",
+        "packages/desktop/src/main/embeddedBrowserSitePermissions.ts",
+        "packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts",
         "packages/desktop/src/main/embedded-browser-permission-contract/contract.ts",
       ]
     layers: { adapters: "." }

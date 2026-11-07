@@ -1,0 +1,237 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence",
+  "completedAt": "2026-11-06T20:31:06.809Z",
+  "containerE2E": false,
+  "durationMs": 288499,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-copy-history-final%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.47,
+            "peak": 1.14,
+            "p95": 1.14,
+            "sampleCount": 16
+          },
+          "memoryWorkingSetMb": {
+            "mean": 179.25,
+            "peak": 207.59,
+            "p95": 207.59,
+            "sampleCount": 16
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.57,
+            "peak": 2.97,
+            "p95": 2.97,
+            "sampleCount": 16
+          },
+          "memoryWorkingSetMb": {
+            "mean": 165.32,
+            "peak": 184.59,
+            "p95": 184.59,
+            "sampleCount": 16
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.1,
+            "peak": 0.77,
+            "p95": 0.77,
+            "sampleCount": 16
+          },
+          "memoryWorkingSetMb": {
+            "mean": 337.96,
+            "peak": 341.75,
+            "p95": 341.75,
+            "sampleCount": 16
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.11,
+            "peak": 6.58,
+            "p95": 6.58,
+            "sampleCount": 16
+          },
+          "memoryWorkingSetMb": {
+            "mean": 321.83,
+            "peak": 498.11,
+            "p95": 498.11,
+            "sampleCount": 16
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 2.25,
+        "peak": 10.06,
+        "p95": 10.06,
+        "sampleCount": 16
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\perf\\process-samples-0-1.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1004.36,
+        "peak": 1205.29,
+        "p95": 1205.29,
+        "sampleCount": 16
+      },
+      "sampleCount": 16
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 111774,
+        "p95Ms": 111774,
+        "totalMs": 111774
+      },
+      "before-session": {
+        "count": 2,
+        "p50Ms": 964,
+        "p95Ms": 1170,
+        "totalMs": 2134
+      },
+      "before-suite": {
+        "count": 4,
+        "p50Ms": 20,
+        "p95Ms": 25,
+        "totalMs": 87
+      },
+      "after": {
+        "count": 2,
+        "p50Ms": 13,
+        "p95Ms": 15,
+        "totalMs": 28
+      },
+      "after-session": {
+        "count": 2,
+        "p50Ms": 800,
+        "p95Ms": 831,
+        "totalMs": 1631
+      },
+      "worker": {
+        "count": 2,
+        "p50Ms": 66738,
+        "p95Ms": 101538,
+        "totalMs": 168276
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2692,
+        "p95Ms": 2692,
+        "totalMs": 2692
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.6667,
+    "firstTimePassRate": 0.6667,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 288499,
+    "caseDurationP50Ms": 10135,
+    "caseDurationP95Ms": 18547,
+    "slowestCases": [
+      {
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "durationMs": 18547
+      },
+      {
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "durationMs": 10135
+      },
+      {
+        "fullTitle": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+        "durationMs": 3197
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 1,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-copy-history-final",
+  "startedAt": "2026-11-06T20:26:18.310Z",
+  "tests": {
+    "failed": 1,
+    "passed": 2,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T20:29:11.538Z",
+        "durationMs": 3197,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+        "fullTitle": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+      },
+      {
+        "capturedAt": "2026-11-06T20:30:24.447Z",
+        "durationMs": 10135,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+      },
+      {
+        "capturedAt": "2026-11-06T20:30:57.333Z",
+        "durationMs": 18547,
+        "error": "waitUntil condition timed out after 15000ms",
+        "errorCategory": "timeout",
+        "errorStack": "Error: waitUntil condition timed out after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6476:13)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async expandedOverrideSurvives (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:499:3)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:717:7)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:455:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:713:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+      }
+    ],
+    "skipped": 0,
+    "total": 3
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "evidenceKind": "targeted TypeScript diagnostics plus actual local tsx import/12-case registration; no hooks/tests/UI executed",
+  "capturedAt": "2026-11-06T18:03:42.216Z",
+  "spec": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-local-menu-actions-20261106.test.ts",
+  "localDiagnostics": [],
+  "dependencyDiagnosticsCount": 0,
+  "registeredCases": [
+    "QLA01: 底部偏好语言英文/中文/系统即时保存并恢复",
+    "QLA02: 底部主题浅色/深色/系统生效并恢复",
+    "QLA03: 底部办公/编码模式选择保存并恢复",
+    "QLA04: 底部缩放实际大小/放大/缩小与原值恢复",
+    "QLA05: 帮助四个fork链接只请求mock openExternal",
+    "QLA06: 无自有更新源隐藏入口，About ZCodium显示版本并关闭",
+    "QLA07: 记忆开关即时保存，scope/refresh或明确空catalog范围",
+    "QLA08: 自动归档关闭时可设30天、开关保存并恢复",
+    "QLA09: Browser总开关就绪后切换恢复，Windows不展示Chrome导入",
+    "QLA10: Windows Computer Use总开关/composer显隐切换恢复",
+    "QLA11: Hooks收敛后空态/列表、新建草稿填写取消不保存",
+    "QLA12: 商店当前列表/空态、新增市场源risk gate输入后取消"
+  ]
+}

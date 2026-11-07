@@ -8,6 +8,7 @@ import {
 } from "../deps.js";
 import type { SessionEvent, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import type { ExecuteTurnOptions } from "../types.js";
 import {
   ErrorPayloadRole,
   projectExecutionErrorPayload,
@@ -232,6 +233,39 @@ export async function appendTurnOutcomeEvent(
     status: cancelled ? "cancelled" : "failed",
     turnPhase,
   });
+}
+
+export async function settleQueuedPromptBeforeStart(
+  runtime: AgentRuntimeInternal,
+  options: ExecuteTurnOptions | undefined,
+  error: unknown,
+  traceContext: TraceContext,
+): Promise<void> {
+  // Bugfix：已接受 queue 在调度阶段取消时尚未进入 turn 主体，必须由调度 owner
+  // 结算一次；未接受的直接调用拒绝不伪造执行结果。三个取消入口复用同一回调。
+  if (!options?.intent?.queueItemId) return;
+  const coreError = createTurnFailureError(error, options.abortSignal, "Turn execution failed");
+  const cancelled = coreError.type === CoreErrorType.TurnCancelled;
+  const preserveQueueAutoDrainOnCancel =
+    cancelled && runtime.activeForegroundExecution?.preserveQueueAutoDrainOnCancel === true;
+  if (!preserveQueueAutoDrainOnCancel) {
+    runtime.queueAutoDrain = false;
+    runtime.queueExternalDrainActive = false;
+  }
+  await appendTurnOutcomeEvent(runtime, {
+    coreError,
+    events: [],
+    durationMs: 0,
+    turnPhase: "command_admission",
+    inputId: options.inputId ?? options.intent.sourceCommandId,
+    traceContext,
+    fallbackMessage: "Turn execution failed",
+    logEvent: "turn.failed",
+    logLabel: "Turn",
+    preserveQueueAutoDrainOnCancel,
+  });
+  // 先落唯一终态，暂停持久化失败也不能吞掉已接受输入的结算事实。
+  if (cancelled) await runtime.pauseActiveTargetForCancellation(traceContext);
 }
 
 export function isTurnCancellationError(error: unknown, abortSignal?: AbortSignal): boolean {

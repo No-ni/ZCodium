@@ -1,0 +1,14 @@
+{
+  "capturedAt": "2026-11-06T18:49:19.009Z",
+  "evidenceKind": "Read-only fixed retry readiness; no sampler, process scan, target runtime creation or UI",
+  "runId": "qa-menu-20261106-grp-pin-repro-retry",
+  "exists": {
+    "runtime": false,
+    "stagedApp": false,
+    "exitEvidence": false
+  },
+  "samplerSha256": "b92d49efcd10e38395f121e46f52d109fd4b200383d06912debf9861990cf073",
+  "ancestorAndReparseChecks": true,
+  "command": "node .run-logs/qa-2026-11-06/validation/run-validation.mjs grp-pin-sampler-retry",
+  "order": "Sampler start confirmed before root wrapper; do not create runtime or staged app first"
+}

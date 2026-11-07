@@ -4,8 +4,10 @@ import type { TaskNotificationPayload } from "@zcode/shared";
 import { formatZodError, PlatformChannels, taskNotificationPayloadSchema } from "@zcode/shared";
 
 const TASK_NOTIFICATION_DEDUPE_WINDOW_MS = 3000;
+const MAX_IDENTIFIED_TASK_NOTIFICATION_KEYS = 4096;
 const MAX_ACTIVE_TASK_NOTIFICATIONS = 100;
 const recentTaskNotificationTimestamps = new Map<string, number>();
+const identifiedTaskNotificationKeys = new Set<string>();
 const activeTaskNotifications = new Set<Notification>();
 
 function isAnyAppWindowFocused() {
@@ -18,7 +20,19 @@ function shouldSuppressDuplicateTaskNotification(
   taskId: string,
   status: TaskNotificationPayload["status"],
   requestId?: string,
+  notificationId?: string,
 ) {
+  if ((status === "completed" || status === "failed") && notificationId) {
+    // 两次真实完成可在三秒内发生，不能再按 taskId 折叠；同一事实跨窗口/迟到 IPC 则幂等。
+    // Main 只保留有界已展示身份，不保存会话运行态，也不以超时改变事实身份。
+    if (identifiedTaskNotificationKeys.has(notificationId)) return true;
+    identifiedTaskNotificationKeys.add(notificationId);
+    if (identifiedTaskNotificationKeys.size > MAX_IDENTIFIED_TASK_NOTIFICATION_KEYS) {
+      const oldestKey = identifiedTaskNotificationKeys.values().next().value;
+      if (oldestKey !== undefined) identifiedTaskNotificationKeys.delete(oldestKey);
+    }
+    return false;
+  }
   const now = Date.now();
 
   for (const [key, timestamp] of recentTaskNotificationTimestamps) {
@@ -67,6 +81,7 @@ export function getActiveTaskNotificationCountForTest() {
 export function resetActiveTaskNotificationsForTest() {
   activeTaskNotifications.clear();
   recentTaskNotificationTimestamps.clear();
+  identifiedTaskNotificationKeys.clear();
 }
 
 export function focusTaskNotificationWindow(senderWindow: BrowserWindow) {
@@ -109,7 +124,7 @@ export function dispatchTaskNotification(options: {
     return false;
   }
 
-  const { taskId, status, requestId, title, body } = result.data;
+  const { taskId, status, requestId, notificationId, title, body } = result.data;
   const notificationTitle = title.trim();
   const notificationBody = body.trim();
   if (!notificationTitle || !notificationBody) {
@@ -124,7 +139,7 @@ export function dispatchTaskNotification(options: {
     return false;
   }
 
-  if (shouldSuppressDuplicateTaskNotification(taskId, status, requestId)) {
+  if (shouldSuppressDuplicateTaskNotification(taskId, status, requestId, notificationId)) {
     return false;
   }
 

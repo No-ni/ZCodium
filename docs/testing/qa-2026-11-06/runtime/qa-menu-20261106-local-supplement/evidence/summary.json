@@ -1,0 +1,482 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence",
+  "completedAt": "2026-11-06T19:05:28.964Z",
+  "containerE2E": false,
+  "durationMs": 856620,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-local-supplement%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.56,
+            "peak": 1.81,
+            "p95": 1.57,
+            "sampleCount": 98
+          },
+          "memoryWorkingSetMb": {
+            "mean": 172.85,
+            "peak": 204.9,
+            "p95": 194.84,
+            "sampleCount": 98
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.4,
+            "peak": 2.09,
+            "p95": 1.63,
+            "sampleCount": 98
+          },
+          "memoryWorkingSetMb": {
+            "mean": 168.89,
+            "peak": 206.18,
+            "p95": 194.75,
+            "sampleCount": 98
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.16,
+            "peak": 1.11,
+            "p95": 0.87,
+            "sampleCount": 98
+          },
+          "memoryWorkingSetMb": {
+            "mean": 338.8,
+            "peak": 410.7,
+            "p95": 344.76,
+            "sampleCount": 98
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.67,
+            "peak": 6.05,
+            "p95": 2.78,
+            "sampleCount": 98
+          },
+          "memoryWorkingSetMb": {
+            "mean": 275.03,
+            "peak": 356.3,
+            "p95": 331.65,
+            "sampleCount": 98
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 1.78,
+        "peak": 8.61,
+        "p95": 6.57,
+        "sampleCount": 98
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\process-samples-0-1.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\process-samples-0-2.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\process-samples-0-3.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\perf\\process-samples-0-4.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 955.56,
+        "peak": 1088.08,
+        "p95": 1046.49,
+        "sampleCount": 98
+      },
+      "sampleCount": 98
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 110500,
+        "p95Ms": 110500,
+        "totalMs": 110500
+      },
+      "before-session": {
+        "count": 5,
+        "p50Ms": 1184,
+        "p95Ms": 1258,
+        "totalMs": 5786
+      },
+      "before-suite": {
+        "count": 10,
+        "p50Ms": 22,
+        "p95Ms": 26,
+        "totalMs": 222
+      },
+      "after": {
+        "count": 5,
+        "p50Ms": 14,
+        "p95Ms": 17,
+        "totalMs": 68
+      },
+      "after-session": {
+        "count": 5,
+        "p50Ms": 858,
+        "p95Ms": 1064,
+        "totalMs": 4407
+      },
+      "worker": {
+        "count": 5,
+        "p50Ms": 87703,
+        "p95Ms": 324369,
+        "totalMs": 733263
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2672,
+        "p95Ms": 2672,
+        "totalMs": 2672
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.6111,
+    "firstTimePassRate": 0.6111,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 2,
+    "infraFailureRate": 0.1111
+  },
+  "timing": {
+    "totalDurationMs": 856620,
+    "caseDurationP50Ms": 7002,
+    "caseDurationP95Ms": 34859,
+    "slowestCases": [
+      {
+        "fullTitle": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+        "durationMs": 34859
+      },
+      {
+        "fullTitle": "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+        "durationMs": 24988
+      },
+      {
+        "fullTitle": "RLM-06: Command Center文件范围索引实际中文空格文件",
+        "durationMs": 24667
+      },
+      {
+        "fullTitle": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "durationMs": 19639
+      },
+      {
+        "fullTitle": "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+        "durationMs": 15019
+      },
+      {
+        "fullTitle": "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+        "durationMs": 11801
+      },
+      {
+        "fullTitle": "SLM09: 文件加入聊天及另存为取消保留源文件",
+        "durationMs": 9877
+      },
+      {
+        "fullTitle": "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+        "durationMs": 9169
+      },
+      {
+        "fullTitle": "SLM06: 引导侧栏和通用页两个入口进入退出",
+        "durationMs": 8178
+      },
+      {
+        "fullTitle": "QLA05: 帮助四个fork链接只请求mock openExternal",
+        "durationMs": 7002
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 2,
+    "crash": 0,
+    "infra": 2,
+    "unknown": 3
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-local-supplement",
+  "startedAt": "2026-11-06T18:51:12.344Z",
+  "tests": {
+    "failed": 7,
+    "passed": 11,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T18:54:10.511Z",
+        "durationMs": 7002,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-local-menu-actions-20261106.test.ts",
+        "fullTitle": "QLA05: 帮助四个fork链接只请求mock openExternal",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QLA05: 帮助四个fork链接只请求mock openExternal"
+      },
+      {
+        "capturedAt": "2026-11-06T18:54:28.516Z",
+        "durationMs": 3911,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-local-menu-actions-20261106.test.ts",
+        "fullTitle": "QLA08: 自动归档关闭时可设30天、开关保存并恢复",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QLA08: 自动归档关闭时可设30天、开关保存并恢复"
+      },
+      {
+        "capturedAt": "2026-11-06T18:56:20.797Z",
+        "durationMs": 2016,
+        "error": "Conversation archive: invalid_archive",
+        "errorCategory": "unknown",
+        "errorStack": "ConversationArchiveError: Conversation archive: invalid_archive\n    at validateArchiveManifest (C:\\vibecoding\\zcodium\\packages\\services\\src\\conversation-share\\conversationArchiveValidation.ts:82:11)\n    at encodeConversationArchive (C:\\vibecoding\\zcodium\\packages\\services\\src\\conversation-share\\conversationArchive.ts:47:5)\n    at importedTask (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:255:23)\n    at <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:664:13)\n    at runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:483:11)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:663:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+      },
+      {
+        "capturedAt": "2026-11-06T18:56:37.612Z",
+        "durationMs": 1997,
+        "error": "HIST02 requires successful HIST01 fixture; no repair or fabricated task",
+        "errorCategory": "unknown",
+        "errorStack": "Error: HIST02 requires successful HIST01 fixture; no repair or fabricated task\n    at <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:783:15)\n    at runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:483:11)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:781:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+      },
+      {
+        "capturedAt": "2026-11-06T18:57:47.526Z",
+        "durationMs": 4065,
+        "error": "expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 2\nReceived array:  [{\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.83\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.83\", \"index\": 0, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=\\\"true\\\"]\", \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, {\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.84\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.84\", \"index\": 1, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=\\\"true\\\"]\", \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}]",
+        "errorCategory": "infra",
+        "errorStack": "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 2\nReceived array:  [{\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.83\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.83\", \"index\": 0, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-04: Command Center操作范围键盘进入设置",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-04: Command Center操作范围键盘进入设置"
+      },
+      {
+        "capturedAt": "2026-11-06T18:58:22.400Z",
+        "durationMs": 19639,
+        "error": "waitUntil condition timed out after 15000ms",
+        "errorCategory": "timeout",
+        "errorStack": "Error: waitUntil condition timed out after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6476:13)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:368:133)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:302:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:367:63)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-05: Command Center任务范围查询唯一ID并重开最近"
+      },
+      {
+        "capturedAt": "2026-11-06T18:59:03.525Z",
+        "durationMs": 24667,
+        "error": "RLM file preview did not load synthetic content",
+        "errorCategory": "unknown",
+        "errorStack": "Error: RLM file preview did not load synthetic content\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:374:44)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:302:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:372:62)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-06: Command Center文件范围索引实际中文空格文件",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-06: Command Center文件范围索引实际中文空格文件"
+      },
+      {
+        "capturedAt": "2026-11-06T18:59:22.881Z",
+        "durationMs": 3894,
+        "error": "expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 2\nReceived array:  [{\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.137\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.137\", \"index\": 0, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=\\\"true\\\"]\", \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, {\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.138\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.138\", \"index\": 1, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=\\\"true\\\"]\", \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}]",
+        "errorCategory": "infra",
+        "errorStack": "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 2\nReceived array:  [{\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.137\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.137\", \"index\": 0, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selecte",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空"
+      },
+      {
+        "capturedAt": "2026-11-06T18:59:42.905Z",
+        "durationMs": 4518,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-08: 文件选择取消与pending入口busy不启动第二事务",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-08: 文件选择取消与pending入口busy不启动第二事务"
+      },
+      {
+        "capturedAt": "2026-11-06T19:00:10.318Z",
+        "durationMs": 11801,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-09: 有效归档真实Host导入与重复复用、草稿保留"
+      },
+      {
+        "capturedAt": "2026-11-06T19:00:51.630Z",
+        "durationMs": 24988,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复"
+      },
+      {
+        "capturedAt": "2026-11-06T19:01:18.597Z",
+        "durationMs": 9169,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-11: MCP真实新建填写取消不保存或启动服务器"
+      },
+      {
+        "capturedAt": "2026-11-06T19:01:40.151Z",
+        "durationMs": 4620,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-12: Commands真实新建名称/prompt取消无文件新增",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-12: Commands真实新建名称/prompt取消无文件新增"
+      },
+      {
+        "capturedAt": "2026-11-06T19:02:01.334Z",
+        "durationMs": 5278,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-13: Skills新建真实进入skill-creator草稿，无发送",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-13: Skills新建真实进入skill-creator草稿，无发送"
+      },
+      {
+        "capturedAt": "2026-11-06T19:03:12.719Z",
+        "durationMs": 8178,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+        "fullTitle": "SLM06: 引导侧栏和通用页两个入口进入退出",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SLM06: 引导侧栏和通用页两个入口进入退出"
+      },
+      {
+        "capturedAt": "2026-11-06T19:03:45.061Z",
+        "durationMs": 15019,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+        "fullTitle": "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SLM08: 文件树绝对相对路径复制只写mock剪贴板"
+      },
+      {
+        "capturedAt": "2026-11-06T19:04:10.083Z",
+        "durationMs": 9877,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+        "fullTitle": "SLM09: 文件加入聊天及另存为取消保留源文件",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SLM09: 文件加入聊天及另存为取消保留源文件"
+      },
+      {
+        "capturedAt": "2026-11-06T19:04:28.357Z",
+        "durationMs": 3251,
+        "errorCategory": "unknown",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+        "fullTitle": "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留"
+      },
+      {
+        "capturedAt": "2026-11-06T19:05:18.582Z",
+        "durationMs": 34859,
+        "error": "waitUntil condition timed out after 30000ms",
+        "errorCategory": "timeout",
+        "errorStack": "Error: waitUntil condition timed out after 30000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6476:13)\n    at listOnTimeout (node:internal/timers:567:9)\n    at process.processTimers (node:internal/timers:541:7)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts:437:5)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts:168:334)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts:435:56)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+        "fullTitle": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SLM15: 长text真实预览滚动与当前无局部Find边界"
+      }
+    ],
+    "skipped": 1,
+    "total": 19
+  }
+}

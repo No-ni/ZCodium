@@ -218,8 +218,13 @@ async function runRuntimeCommand(
   try {
     if (command.mode === "prompt") {
       if (this.runtimeCommandQueue.consumeCancelPending(command.id)) {
-        if (command.startReservation) this.releaseTurnStart(command.startReservation.turnId);
-        command.reject(createTurnCancelledError(command.options?.abortSignal?.reason));
+        if (command.startReservation && !command.onCancelledBeforeStart) {
+          this.releaseTurnStart(command.startReservation.turnId);
+        }
+        const error = createTurnCancelledError(command.options?.abortSignal?.reason);
+        // Bugfix：出队后的窄窗取消也归原调度回调，不能直接 reject 留 promoting 残影。
+        await command.onCancelledBeforeStart?.(error);
+        command.reject(error);
         return;
       }
       try {

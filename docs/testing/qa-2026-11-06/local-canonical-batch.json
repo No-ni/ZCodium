@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "status": "READY_AFTER_FINAL_STATIC_PREFLIGHT",
+  "runId": "qa-menu-20261106-local-canonical",
+  "specPathBase": "packages/desktop",
+  "bootstrap": true,
+  "openSidePane": false,
+  "expectedSpecs": 9,
+  "expectedCases": 13,
+  "specs": [
+    "./test/e2e/conversation-session/conversation-session-markdown-preview-selection.test.ts",
+    "./test/e2e/conversation-session/conversation-session-selection-side-chat.test.ts",
+    "./test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts",
+    "./test/e2e/workspace-file-tree/workspace-file-tree-shared-search.test.ts",
+    "./test/e2e/manual-review/pending/office-preview-security.test.ts",
+    "./test/e2e/conversation-session/conversation-session-model-trajectory-viewer.test.ts",
+    "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+    "./test/e2e/settings/settings-subagent-create-edit-persistence.test.ts",
+    "./test/e2e/conversation-session/conversation-session-unavailable-project-draft.test.ts"
+  ],
+  "grep": "(?:MPS01/02/06/08/09: 预览选区加入草稿，去重、移除且不自动发送|SSC01/02/08/14/15/17/19/25/26/27/28/29/30/31: 隐藏历史、多开、关闭隔离、active 路由与 /side 命令|PIA01: 各格式与非 UTF-8 SVG 另存为保留原始字节，取消保存不报错|PIA02: 只追加文件引用，保留空/非空草稿和附件，不发送|未展开深层 Java 文件可以通过左侧文件树搜索命中并打开预览|搜索结果中的深层目录点击后会回到树态并逐级展开定位|OPS01：PPTX 气泡 tooltip 把 HTML 系列名显示为文本|OPS02：XLSX Canvas、形状、图片外链经过统一校验|TRJ01-TRJ09: 写入、投影、交互、虚拟搜索、窄布局与有界尾读|keeps the open model picker responsive when the composer shrinks and expands|SE-02: 切换模型时物化 catalog 默认档位|SE-03: 删除已选模型后显示选择模型且不恢复候选|冷启动默认项目被移动后，直接显示可输入的无项目草稿，刷新后保持)$",
+  "replayFixtures": [
+    "./test/e2e/fixtures/upstream/common.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-markdown-preview-selection.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-selection-side-chat.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-preview-image-actions.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-model-trajectory-viewer.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-v4-composer-toolbar.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-unavailable-project-draft.json"
+  ],
+  "cases": [
+    {
+      "key": "MPS",
+      "spec": "./test/e2e/conversation-session/conversation-session-markdown-preview-selection.test.ts",
+      "titles": ["MPS01/02/06/08/09: 预览选区加入草稿，去重、移除且不自动发送"],
+      "fixture": "conversation-session-markdown-preview-selection"
+    },
+    {
+      "key": "SSC",
+      "spec": "./test/e2e/conversation-session/conversation-session-selection-side-chat.test.ts",
+      "titles": [
+        "SSC01/02/08/14/15/17/19/25/26/27/28/29/30/31: 隐藏历史、多开、关闭隔离、active 路由与 /side 命令"
+      ],
+      "fixture": "conversation-session-selection-side-chat"
+    },
+    {
+      "key": "PIA",
+      "spec": "./test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts",
+      "titles": [
+        "PIA01: 各格式与非 UTF-8 SVG 另存为保留原始字节，取消保存不报错",
+        "PIA02: 只追加文件引用，保留空/非空草稿和附件，不发送"
+      ],
+      "fixture": "conversation-session-preview-image-actions"
+    },
+    {
+      "key": "FTS",
+      "spec": "./test/e2e/workspace-file-tree/workspace-file-tree-shared-search.test.ts",
+      "titles": [
+        "未展开深层 Java 文件可以通过左侧文件树搜索命中并打开预览",
+        "搜索结果中的深层目录点击后会回到树态并逐级展开定位"
+      ],
+      "fixture": null
+    },
+    {
+      "key": "OPS",
+      "spec": "./test/e2e/manual-review/pending/office-preview-security.test.ts",
+      "titles": [
+        "OPS01：PPTX 气泡 tooltip 把 HTML 系列名显示为文本",
+        "OPS02：XLSX Canvas、形状、图片外链经过统一校验"
+      ],
+      "fixture": null
+    },
+    {
+      "key": "TRJ",
+      "spec": "./test/e2e/conversation-session/conversation-session-model-trajectory-viewer.test.ts",
+      "titles": ["TRJ01-TRJ09: 写入、投影、交互、虚拟搜索、窄布局与有界尾读"],
+      "fixture": "conversation-session-model-trajectory-viewer"
+    },
+    {
+      "key": "TOOLBAR",
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "titles": ["keeps the open model picker responsive when the composer shrinks and expands"],
+      "fixture": "conversation-session-v4-composer-toolbar"
+    },
+    {
+      "key": "SE",
+      "spec": "./test/e2e/settings/settings-subagent-create-edit-persistence.test.ts",
+      "titles": [
+        "SE-02: 切换模型时物化 catalog 默认档位",
+        "SE-03: 删除已选模型后显示选择模型且不恢复候选"
+      ],
+      "fixture": null
+    },
+    {
+      "key": "TSL08",
+      "spec": "./test/e2e/conversation-session/conversation-session-unavailable-project-draft.test.ts",
+      "titles": ["冷启动默认项目被移动后，直接显示可输入的无项目草稿，刷新后保持"],
+      "fixture": "conversation-session-unavailable-project-draft"
+    }
+  ],
+  "excludedTitles": [
+    "显式收起目录后，其他文件与 App 重启沿用同一 workspace 偏好",
+    "OPS03：主窗口拒绝危险 popup，合法外链不创建原生窗口",
+    "SE-01: builtin、user 与 workspace 保存后写入精确 model/reasoning 配置",
+    "SE-04: 内置官方插件 subagent 可见并按 agent id 持久化 model/effort 覆盖",
+    "slash 面板：/ 触发目录候选，过滤后选中插入命令",
+    "模型选择器/思考深度/模式切换 → config 投影更新；usage 投影非零",
+    "合并模型/思考弹层与模式 picker 互斥",
+    "slider dots grow on hover and remain white on the filled track",
+    "模型管理入口位于 Provider 子菜单并打开模型设置",
+    "completed task 的 picker 不跨 scope 自动弹到新 draft",
+    "completed task → draft 后独立重新水合自定义 slash command",
+    "draft → 已知 completed task 后保留自定义 slash command",
+    "model tooltip describes the action and closes when the menu opens",
+    "dismisses with one outside click after using the effort slider"
+  ],
+  "requiredBeforeRun": [
+    "ReplayFixtures parameter implementation/preflight verified; use finite 7 paths and prohibit common-only",
+    "All runtime HOME/profile/temp/cache/evidence/network paths inside this worktree; reject reparse/redirect ancestors and descendants",
+    "No system clipboard API; use canonical synthesized paste and trajectory writeText capture",
+    "Bootstrap must attach existing read-only reload observer for final TSL08 case without overriding exit barrier",
+    "Do not enable OpenSidePane; SE prepares the Provider registry through UI but sends no prompt and adds no replay fixture",
+    "TOOLBAR responsive initializes its own completed seed; legacy badge/highspeed/slash and stale completed-to-draft group-click cases are excluded",
+    "No concurrent Electron/build; one worker"
+  ],
+  "plan": "test-plan-local-canonical.md",
+  "deferredCandidates": [
+    {
+      "key": "CFR",
+      "spec": "./test/e2e/conversation-session/manual-review/pending/conversation-session-chat-find-refocus.test.ts",
+      "title": "会话和文件变更滚走后，重复导航仍把同一个命中重新居中",
+      "status": "NOT-RUN / DEFERRED",
+      "reason": "Canonical issues English synthetic Git commit text; current repository requires Chinese commit messages and prior display. Root excluded it; use no-commit imported long-body conversation find in supplemental QA suite. Plain file preview has no current content-find entry; changes find requires a separately reviewed Chinese synthetic Git baseline."
+    }
+  ]
+}

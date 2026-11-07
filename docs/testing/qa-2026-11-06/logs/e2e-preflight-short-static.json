@@ -1,0 +1,110 @@
+{
+  "capturedAt": "2026-11-06T18:45:23.858Z",
+  "evidenceKind": "All external QA TypeScript noEmit; actual tsx import/15-case registration; serialized callback keepNames audit; public archive encode/decode; no hooks/cases/UI/Host/PTY executed",
+  "source": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+  "sourceSha256": "abb2086e369104e2dd2e0a47405966296ea254e9aa8aefd426ae1a1906f39fbe",
+  "sourceFiles": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "sha256": "abb2086e369104e2dd2e0a47405966296ea254e9aa8aefd426ae1a1906f39fbe"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-local-menu-actions-20261106.test.ts",
+      "sha256": "fb3c4976fb123617561f22e6de64b02e428070ec29f1510be1c45298aad98b2d"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "sha256": "2eb73bb1cb66625d0d074c71ecfe68649c43d29b0e1c57442c12d8499fa70ab7"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-local-rpc-probe.ts",
+      "sha256": "d75cfa0bd781b866ffd3d19ae3152995c1b724a7f6944817df2257dc7a53416a"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    }
+  ],
+  "diagnostics": [],
+  "registeredCases": [
+    "SLM01: 原生帮助更新日志只请求本fork mock链接",
+    "SLM02: 原生开发者工具真实打开关闭并恢复",
+    "SLM03: 原生清除所有数据受控取消保留本地数据",
+    "SLM04: 两个合成项目键盘排序持久化并反向恢复",
+    "SLM05: 公开completed归档真实导入并复制assistant正文",
+    "SLM06: 引导侧栏和通用页两个入口进入退出",
+    "SLM07: 机器人管理新增渠道选择前取消无新增Bot",
+    "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+    "SLM09: 文件加入聊天及另存为取消保留源文件",
+    "SLM10: Review真实Git入口空态或列表与tab关闭",
+    "SLM11: 办公模式隐藏新Review终端且保留已有Review",
+    "SLM12: 真实侧栏launcher不提供Whiteboard入口",
+    "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+    "SLM14: 公开长会话三命中查找导航与重开居中",
+    "SLM15: 长text真实预览滚动与当前无局部Find边界"
+  ],
+  "checkedCallbacks": 65,
+  "callbackClosureFindings": [],
+  "checkedRawScripts": 5,
+  "rawScriptDiagnostics": [],
+  "terminalProbeShape": {
+    "accepted": [
+      {
+        "name": "structured-object",
+        "profileCount": 4,
+        "moduleCount": 1
+      },
+      {
+        "name": "JSON-string",
+        "profileCount": 4,
+        "moduleCount": 1
+      }
+    ],
+    "rejected": [
+      {
+        "index": 0,
+        "rejected": true
+      },
+      {
+        "index": 1,
+        "rejected": true
+      },
+      {
+        "index": 2,
+        "rejected": true
+      },
+      {
+        "index": 3,
+        "rejected": true
+      },
+      {
+        "index": 4,
+        "rejected": true
+      },
+      {
+        "index": 5,
+        "rejected": true
+      },
+      {
+        "index": 6,
+        "rejected": true
+      },
+      {
+        "index": 7,
+        "rejected": true
+      }
+    ]
+  },
+  "publicEntry": "C:\\vibecoding\\zcodium\\packages\\services\\src\\node.ts",
+  "fixture": {
+    "byteLength": 4240,
+    "title": "SLM_TASK_中文_STATIC",
+    "rowCount": 3,
+    "artifacts": 0,
+    "assistantTextLength": 28828
+  },
+  "targetedLint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 12ms on 5 files with 94 rules using 16 threads."
+  }
+}

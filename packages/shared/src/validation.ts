@@ -133,6 +133,7 @@ export const taskNotificationPayloadSchema = z.object({
   taskId: nonEmptyStringSchema,
   status: z.enum(["completed", "failed", "permission_request", "elicitation_request"]),
   requestId: nonEmptyStringSchema.optional(),
+  notificationId: nonEmptyStringSchema.optional(),
   title: z.string(),
   body: z.string(),
 });

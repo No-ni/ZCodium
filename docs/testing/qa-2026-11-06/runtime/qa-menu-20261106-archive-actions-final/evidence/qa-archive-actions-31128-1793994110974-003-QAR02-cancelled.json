@@ -1,0 +1,58 @@
+{
+  "capturedAt": "2026-11-06T19:42:52.243Z",
+  "sourceSha256": "843ea6a2d87f987f28c5c7bfbc8b7ce178e7193177e24d230ba889f5143367d6",
+  "label": "QAR02-cancelled",
+  "error": null,
+  "snapshot": {
+    "confirmPresent": false,
+    "groups": [
+      {
+        "expanded": "true",
+        "hostId": "local",
+        "projectId": "qa-archive-actions-31128-1793994110974-project",
+        "taskIds": [
+          "qa-archive-actions-31128-1793994110974-keep",
+          "qa-archive-actions-31128-1793994110974-delete"
+        ]
+      }
+    ],
+    "managementPresent": true,
+    "status": []
+  },
+  "states": [
+    {
+      "id": "qa-archive-actions-31128-1793994110974-restore",
+      "host": {
+        "archived": 0,
+        "cli_deleted": 0,
+        "project_id": "qa-archive-actions-31128-1793994110974-project"
+      },
+      "cli": {
+        "time_deleted": null
+      }
+    },
+    {
+      "id": "qa-archive-actions-31128-1793994110974-delete",
+      "host": {
+        "archived": 1,
+        "cli_deleted": 0,
+        "project_id": "qa-archive-actions-31128-1793994110974-project"
+      },
+      "cli": {
+        "time_deleted": null
+      }
+    },
+    {
+      "id": "qa-archive-actions-31128-1793994110974-keep",
+      "host": {
+        "archived": 1,
+        "cli_deleted": 0,
+        "project_id": "qa-archive-actions-31128-1793994110974-project"
+      },
+      "cli": {
+        "time_deleted": null
+      }
+    }
+  ],
+  "requests": 0
+}

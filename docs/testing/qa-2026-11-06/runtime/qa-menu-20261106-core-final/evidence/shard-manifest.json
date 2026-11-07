@@ -1,0 +1,15 @@
+{
+  "runId": "qa-menu-20261106-core-final",
+  "shardTotal": 1,
+  "distributionKind": "wdio-native",
+  "wallDurationMs": 32912,
+  "manifestPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-final\\evidence\\shard-manifest.json",
+  "children": [
+    {
+      "shardId": "1/1",
+      "exitCode": 1,
+      "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-final\\evidence",
+      "summaryPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-final\\evidence\\summary.json"
+    }
+  ]
+}

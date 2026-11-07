@@ -1,0 +1,428 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence",
+  "completedAt": "2026-11-06T20:01:09.916Z",
+  "containerE2E": false,
+  "durationMs": 745768,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-local-supplement-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.83,
+            "peak": 3.74,
+            "p95": 2.35,
+            "sampleCount": 78
+          },
+          "memoryWorkingSetMb": {
+            "mean": 176.95,
+            "peak": 228.59,
+            "p95": 202.06,
+            "sampleCount": 78
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.6,
+            "peak": 3.45,
+            "p95": 1.93,
+            "sampleCount": 78
+          },
+          "memoryWorkingSetMb": {
+            "mean": 171.85,
+            "peak": 223.01,
+            "p95": 208.63,
+            "sampleCount": 78
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.24,
+            "peak": 1.77,
+            "p95": 1.42,
+            "sampleCount": 78
+          },
+          "memoryWorkingSetMb": {
+            "mean": 341.88,
+            "peak": 348.42,
+            "p95": 346.32,
+            "sampleCount": 78
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.25,
+            "peak": 7.27,
+            "p95": 5.19,
+            "sampleCount": 78
+          },
+          "memoryWorkingSetMb": {
+            "mean": 302.84,
+            "peak": 517.08,
+            "p95": 464.21,
+            "sampleCount": 78
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 2.92,
+        "peak": 13.64,
+        "p95": 9.33,
+        "sampleCount": 78
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\process-samples-0-1.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\process-samples-0-2.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\process-samples-0-3.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\perf\\process-samples-0-4.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 993.52,
+        "peak": 1255.49,
+        "p95": 1189.11,
+        "sampleCount": 78
+      },
+      "sampleCount": 78
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 109260,
+        "p95Ms": 109260,
+        "totalMs": 109260
+      },
+      "before-session": {
+        "count": 5,
+        "p50Ms": 1243,
+        "p95Ms": 1343,
+        "totalMs": 6065
+      },
+      "before-suite": {
+        "count": 10,
+        "p50Ms": 22,
+        "p95Ms": 29,
+        "totalMs": 229
+      },
+      "after": {
+        "count": 5,
+        "p50Ms": 13,
+        "p95Ms": 18,
+        "totalMs": 68
+      },
+      "after-session": {
+        "count": 5,
+        "p50Ms": 906,
+        "p95Ms": 1129,
+        "totalMs": 4646
+      },
+      "worker": {
+        "count": 5,
+        "p50Ms": 112061,
+        "p95Ms": 217107,
+        "totalMs": 628631
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2738,
+        "p95Ms": 2738,
+        "totalMs": 2738
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.6429,
+    "firstTimePassRate": 0.6429,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 745768,
+    "caseDurationP50Ms": 10389,
+    "caseDurationP95Ms": 25258,
+    "slowestCases": [
+      {
+        "fullTitle": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "durationMs": 25258
+      },
+      {
+        "fullTitle": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+        "durationMs": 18749
+      },
+      {
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "durationMs": 17917
+      },
+      {
+        "fullTitle": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+        "durationMs": 16773
+      },
+      {
+        "fullTitle": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+        "durationMs": 14839
+      },
+      {
+        "fullTitle": "FLG02: 六项回答消息和工具分组开关保存重开与恢复",
+        "durationMs": 13847
+      },
+      {
+        "fullTitle": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+        "durationMs": 10418
+      },
+      {
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "durationMs": 10389
+      },
+      {
+        "fullTitle": "FLG07: 项目管理51个合成项目分页筛选排序与选择恢复",
+        "durationMs": 9967
+      },
+      {
+        "fullTitle": "RLM-06: Command Center文件范围索引实际中文空格文件",
+        "durationMs": 5505
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 1,
+    "timeout": 1,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 3
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-final-local-gaps-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-local-supplement-retry",
+  "startedAt": "2026-11-06T19:48:44.148Z",
+  "tests": {
+    "failed": 5,
+    "passed": 9,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T19:51:35.505Z",
+        "durationMs": 2090,
+        "error": "RFC runtime assistant row copy action missing",
+        "errorCategory": "unknown",
+        "errorStack": "Error: RFC runtime assistant row copy action missing\n    at <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts:195:19)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts:114:326)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts:193:70)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+        "fullTitle": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+      },
+      {
+        "capturedAt": "2026-11-06T19:51:54.275Z",
+        "durationMs": 4477,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+        "fullTitle": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中"
+      },
+      {
+        "capturedAt": "2026-11-06T19:52:18.976Z",
+        "durationMs": 10418,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+        "fullTitle": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+      },
+      {
+        "capturedAt": "2026-11-06T19:53:35.569Z",
+        "durationMs": 10389,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+      },
+      {
+        "capturedAt": "2026-11-06T19:54:08.313Z",
+        "durationMs": 17917,
+        "error": "HIST second result did not mount",
+        "errorCategory": "unknown",
+        "errorStack": "Error: HIST second result did not mount\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async expandedOverrideSurvives (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:473:3)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:697:7)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:435:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts:693:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+        "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+      },
+      {
+        "capturedAt": "2026-11-06T19:55:43.470Z",
+        "durationMs": 25258,
+        "error": "waitUntil condition timed out after 15000ms",
+        "errorCategory": "timeout",
+        "errorStack": "Error: waitUntil condition timed out after 15000ms\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6476:13)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:373:340)\n    at async runCase (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:303:5)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts:368:63)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-05: Command Center任务范围查询唯一ID并重开最近"
+      },
+      {
+        "capturedAt": "2026-11-06T19:56:04.878Z",
+        "durationMs": 5505,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+        "fullTitle": "RLM-06: Command Center文件范围索引实际中文空格文件",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "RLM-06: Command Center文件范围索引实际中文空格文件"
+      },
+      {
+        "capturedAt": "2026-11-06T19:57:08.764Z",
+        "durationMs": 3205,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG01: 交互Queue和Guide设置持久化重开并恢复",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG01: 交互Queue和Guide设置持久化重开并恢复"
+      },
+      {
+        "capturedAt": "2026-11-06T19:57:37.768Z",
+        "durationMs": 13847,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG02: 六项回答消息和工具分组开关保存重开与恢复",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG02: 六项回答消息和工具分组开关保存重开与恢复"
+      },
+      {
+        "capturedAt": "2026-11-06T19:57:54.789Z",
+        "durationMs": 1970,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG03: 数据目录浏览取消及本树选择草稿取消无迁移",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG03: 数据目录浏览取消及本树选择草稿取消无迁移"
+      },
+      {
+        "capturedAt": "2026-11-06T19:58:26.757Z",
+        "durationMs": 16773,
+        "error": "WebDriverError: stale element reference: stale element not found in the current frame\n  (Session info: chrome=152.0.7977.130) when running \"element/f.91403505B853072C7FD096A45297A729.d.8E1B5B7F05230485605EF7BEA90403FE.e.255/value\" with method \"POST\"",
+        "errorCategory": "assertion",
+        "errorStack": "stale element reference: WebDriverError: stale element reference: stale element not found in the current frame\n  (Session info: chrome=152.0.7977.130) when running \"element/f.91403505B853072C7FD096A45297A729.d.8E1B5B7F05230485605EF7BEA90403FE.e.255/value\" with method \"POST\"\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.testOverride (C:\\vibecoding\\zcodium\\node_modules\\wdio-electron-service\\dist\\esm\\index.js:1900:32)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts:156:381)\n    at async run (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts:85:378)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接"
+      },
+      {
+        "capturedAt": "2026-11-06T19:59:00.706Z",
+        "durationMs": 18749,
+        "error": "FLG visible control missing: [data-scope-projects-trigger][data-scope-device=\"local\"] ",
+        "errorCategory": "unknown",
+        "errorStack": "Error: FLG visible control missing: [data-scope-projects-trigger][data-scope-device=\"local\"] \n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async clickVisibleControl (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts:30:3)\n    at async click (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts:59:55)\n    at async <anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts:164:325)\n    at async run (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts:85:378)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts:160:61)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新"
+      },
+      {
+        "capturedAt": "2026-11-06T19:59:17.045Z",
+        "durationMs": 1121,
+        "errorCategory": "unknown",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG06: 无commit合成Git index未暂存diff与四个文件菜单",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG06: 无commit合成Git index未暂存diff与四个文件菜单"
+      },
+      {
+        "capturedAt": "2026-11-06T19:59:42.612Z",
+        "durationMs": 9967,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+        "fullTitle": "FLG07: 项目管理51个合成项目分页筛选排序与选择恢复",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "FLG07: 项目管理51个合成项目分页筛选排序与选择恢复"
+      },
+      {
+        "capturedAt": "2026-11-06T20:00:59.166Z",
+        "durationMs": 14839,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+        "fullTitle": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "SLM15: 长text真实预览滚动与当前无局部Find边界"
+      }
+    ],
+    "skipped": 1,
+    "total": 15
+  }
+}

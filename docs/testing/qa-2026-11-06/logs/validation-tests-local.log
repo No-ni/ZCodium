@@ -1,0 +1,83 @@
+✔ permission selection 下发 selection payload，含序号选项、对应命令与 requestId (2.6004ms)
+✔ elicitation selection 带 token，canonical 文本给出 /elicitation <token> <序号> (0.248ms)
+✔ 菜单类 selection 也下发选项与对应命令前缀 (0.1961ms)
+✔ 英文 locale 只本地化提示行，选项 label 原样透传 (0.3232ms)
+✔ provider.send 带 selection 时只发一条 selection delivery，不重复发标题文本 (1.2106ms)
+✔ selection delivery 与 text delivery 共用 seq/回放窗口 (0.3611ms)
+✔ 群聊按 chatId 路由，selection 也能到达同一绑定 (0.2717ms)
+✔ 权限应答后任务恢复：无无主 stream，终态与恢复后的正文同 stream (0.6897ms)
+✔ 任务等待期间收到独立命令：该轮次仍被收口，不会被挂住 (0.3677ms)
+✔ 非任务命令保持「立即收口」的原有语义 (0.23ms)
+✔ single-instance forwarding accepts workspace links and drops retired login payloads (2.8641ms)
+✔ retired callbacks cannot be cached, delivered or logged by Main (71.3687ms)
+✔ workspace routing preserves consent, readiness, window isolation and close cleanup (7.3567ms)
+✔ real IPC registration retains renderer-ready and close handling without login channels (11.482ms)
+✔ public platform and preload no longer expose proprietary OAuth callbacks (4.051ms)
+✔ Host boundaries reject removed feedback archive commands in both directions (2.1132ms)
+✔ Host initialization does not propagate obsolete feedback endpoints or device identity (1.5315ms)
+✔ task notifications preserve execution and permission states without ticket updates (0.711ms)
+[2026-11-06 23:03:05.589] [pid:18120] [onboardingRecordService] invalid onboarding record json, treating as missing. error: {
+  errorType: 'SyntaxError',
+  frames: [
+    'packages/services/src/onboarding/onboardingRecordService.ts:37:50'
+  ]
+}
+✔ local onboarding retains latest preferences and removes account attribution from reads and writes (57.2216ms)
+✔ local usage panel and hooks have no account or quota query dependencies (45.5854ms)
+✔ old usage tab intent is consumed without affecting local usage or other settings navigation (78.4911ms)
+✔ retired payment RPC cannot read credentials or contact a payment endpoint (2.3561ms)
+✔ local App Usage still reads Agent statistics without any account or payment IO (0.9469ms)
+✖ remaining workflow configuration is local-only and never contacts official config (2.0086ms)
+✔ Web entry no longer packages official login, profile storage or token exchange (128.568ms)
+✔ collectModelStreamResult aggregates text, reasoning, tool calls and finish (1.948ms)
+✔ collectModelStreamResult aggregates reasoning deltas without a start event (0.3338ms)
+✔ collectModelStreamResult surfaces stream errors (0.7572ms)
+✔ collectModelStreamResult rejects incomplete or error finishes instead of returning partial tools (0.5896ms)
+✔ collectModelStreamResult preserves signed reasoning for the next memory tool round (0.3811ms)
+✔ resolveSummaryModelSelection returns host preference when present (0.3101ms)
+✔ resolveSummaryModelSelection falls back to undefined when host resolver is absent (0.194ms)
+✔ resolveSummaryModelSelection swallows host resolution failures (0.448ms)
+✔ resolveSummaryModel prefers host selection over the turn model (0.7456ms)
+✔ resolveSummaryModel falls back to the turn model when selection creation fails (0.4452ms)
+✔ runtime preferences schema accepts summaryModelSelection and stays old-host compatible (1.7952ms)
+✔ app settings schemas round-trip summaryModelSelection including null clears (9.8301ms)
+✔ 自动更新与强制升级门禁以自有更新源为准，缺失时跳过而非回退上游 (6.1575ms)
+✔ 更新与门禁路径不再保留任何官方 endpoint fallback (8.124ms)
+✔ 更新与门禁路径都从共享常量读取自有更新源 (1.8807ms)
+✔ 构建期注入自有更新源，未注入时为空串而不是上游地址 (1.218ms)
+✔ 共享常量未注入 define 时为空串 (0.7778ms)
+✔ 更新缓存目录在打包后被改写为按 appId 隔离的名字 (0.7676ms)
+✔ 更新源与缓存目录各有对应 spec (1.4688ms)
+ℹ tests 44
+ℹ suites 0
+ℹ pass 43
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11645.5981
+
+✖ failing tests:
+
+test at scripts\ci\no-official-purchase.test.mjs:80:1
+✖ remaining workflow configuration is local-only and never contacts official config (2.0086ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      enabled: false,
+      mode: 'disabled',
+  +   offeredMode: 'disabled',
+      source: 'default'
+    }
+  
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/no-official-purchase.test.mjs:98:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { mode: 'disabled', enabled: false, source: 'default', offeredMode: 'disabled' },
+    expected: { mode: 'disabled', enabled: false, source: 'default' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

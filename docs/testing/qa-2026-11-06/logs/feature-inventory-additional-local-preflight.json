@@ -1,0 +1,155 @@
+{
+  "capturedAt": "2026-11-06T18:01:21.239Z",
+  "node": "v24.18.0",
+  "evidenceKind": "Read-only canonical titles/source/fixture and bounded path audit; archive JSON checker only. No UI/build/spec import/hook invocation.",
+  "expectedSpecs": 2,
+  "expectedCases": 6,
+  "selected": [
+    {
+      "runId": "qa-menu-20261106-archive-final",
+      "spec": "./test/e2e/conversation-session/conversation-session-archive-management.test.ts",
+      "selectedTitles": [
+        "ARM08：页面标题与固定文案统一为会话",
+        "ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择",
+        "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+        "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+        "ARM03：全部删除仅作用于当前筛选，分组更多取消归档"
+      ],
+      "excludedTitles": []
+    },
+    {
+      "runId": "qa-menu-20261106-residency-final",
+      "spec": "./test/e2e/browser-tab-residency.test.ts",
+      "selectedTitles": [
+        "BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab"
+      ],
+      "excludedTitles": []
+    }
+  ],
+  "archiveNoProviderRequests": true,
+  "archiveFixtureCheck": {
+    "exitCode": 0,
+    "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts\nCase: conversation-session-archive-management\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-archive-management.json\nSpec markers: E2E_NO_ARCHIVE_MATCH\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-archive-management.json (0 fixtures)\n\nFixture check passed.\n",
+    "stderr": ""
+  },
+  "browserFixtureCheck": {
+    "status": "NOT-APPLICABLE",
+    "reason": "Browser domain not supported by conversation checker; skipProvider/about:blank/no prompt reviewed from source"
+  },
+  "auditedExistingPaths": 557,
+  "sourceHashes": [
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-archive-management.test.ts",
+      "bytes": 24460,
+      "sha256": "151a25ad86037442d7eb5706133eafaa923be97790d79d3a798102c3d5bf04c6"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/common.json",
+      "bytes": 2339,
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-archive-management.json",
+      "bytes": 187,
+      "sha256": "d2295f799f005fb4b1a29d5d939b406f719e1fb110c51842b852617a792817c0"
+    },
+    {
+      "path": "packages/desktop/test/e2e/browser-tab-residency.test.ts",
+      "bytes": 14636,
+      "sha256": "d57cd5afc8e56ce2fce5cbf79b27d5238b87254655ccd1c8eccad9d4330d3844"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/common.json",
+      "bytes": 2339,
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/desktop-app.ts",
+      "bytes": 54331,
+      "sha256": "cca3fb6cc94d69445d1886090f640972a50d218ba2f0ccc9b7b07b1d5a81472d"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/conversation-session.ts",
+      "bytes": 28633,
+      "sha256": "60ad43c4a11509a35035424445dbb5880941fac74e5daab8f22668f7a5a0cc1f"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/conversation-session-readonly-tool.ts",
+      "bytes": 917,
+      "sha256": "d9710592e86433eb8f6481b1c25a25f74767ecc48c042aca3ecfd5848da85c15"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/e2e-runtime-paths.ts",
+      "bytes": 3672,
+      "sha256": "2388b0131323bd949ed56311f434e624088594b962625d31ad4b004c0367506d"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/model-provider-restart-runtime.ts",
+      "bytes": 4694,
+      "sha256": "40c8bc9a867f69db5465dce0dec1d6a8305e3f0c5eb84ec4664ae727e51c9d7a"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/e2e-electron-reload.ts",
+      "bytes": 12342,
+      "sha256": "127cac8625524c4f459d031200f37d765ec7967a2a832d8847b4e7f5f4b1bbad"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/e2e-process-cleanup.ts",
+      "bytes": 13226,
+      "sha256": "30ae64d43e9b2d9c36e64a97e36ad0568a782cd4c0aca3aff313bc44c6399cb1"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/e2e-electron-storage.ts",
+      "bytes": 352,
+      "sha256": "3eb1ee45d9c4f5011275fe001ac8e0078a48734197b243dc25c963e42b5348b6"
+    },
+    {
+      "path": "packages/services/src/zcode-agent/zcodeTaskServiceAdapter.ts",
+      "bytes": 219621,
+      "sha256": "5788f0c054df0514f03444f55cd18888cbd41c8767a09a56c64c21dcd222524b"
+    },
+    {
+      "path": "packages/desktop/wdio.conf.ts",
+      "bytes": 143731,
+      "sha256": "485fa52abb1b023389c5fd6e202f25a8aeb7b86c4da5a063a9870f15c9badab0"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/run-menu-tests.ps1",
+      "bytes": 13827,
+      "sha256": "546f253aafbffac590ae0c2e100602be7bd62facb2f5622e7a99d30f6d8277fb"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs",
+      "bytes": 15903,
+      "sha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-reparse-children.ps1",
+      "bytes": 1260,
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/reload-observation.cjs",
+      "bytes": 1668,
+      "sha256": "51d8b3778d6d848dc705c835a425c54947814f66200f958f19163ff31918be4b"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-reload-observer.ts",
+      "bytes": 7414,
+      "sha256": "8f014b418da448a5ae22f7fa29cdf5c4299fd752ff40f05333082933e61ccf7b"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/cases/conversation-session/conversation-session-archive-management.json",
+      "bytes": 404,
+      "sha256": "957bd57b28facbb41a9822b3deb960b2ca9ba80422ae3741c85a6c3623c1c858"
+    }
+  ],
+  "pendingRuntimeChecks": [
+    "Actual run environment and all descendant reparse points must pass wrapper guard again",
+    "Archive seed must follow successful old-process exit barrier",
+    "Browser initial pane is prepared only for its own run",
+    "No real clipboard, external URL, SSH, devices or git commit selected",
+    "Actual attempts remain unrun until root reports NDJSON/summary"
+  ],
+  "allPassed": true
+}

@@ -1,0 +1,509 @@
+{
+  "capturedAt": "2026-11-06T18:40:48.892Z",
+  "evidenceKind": "Readonly compression of existing actual DOM/PNG and source; no new UI, probe, process scan or test count",
+  "classification": "BUG-007 P2: inline composer compact dataset is written to outer shell while model CSS consumes inner named toolbar group",
+  "distinctFromBug006": "Inline iconOnly bypasses the clone measurement path and actually produces composerModelIcon=true; failure is flag owner/CSS consumer mismatch",
+  "uniqueReproductionsInThisEvidence": 1,
+  "duplicateAfterEachNotIndependentRepro": true,
+  "observations": [
+    {
+      "file": "runtime/qa-menu-20261106-menu-reviewed/evidence/qa-spfv-observe-0-3-001-5628-1793990174199.json",
+      "bytes": 68360,
+      "sha256": "861652778735a6dd94eb7886fffbf11ee820366ee69fb29971fe1c43c0f67bb1",
+      "png": "runtime/qa-menu-20261106-menu-reviewed/evidence/qa-spfv-observe-0-3-001-5628-1793990174199.png",
+      "pngSha256": "25474038e4ea4639ad29f233bc980ac43c1a8af2cc41942ed0ea803edb3895d4",
+      "capturedAt": "2026-11-06T18:36:14.199Z",
+      "test": {
+        "title": "SPFV-E2E-002 对话 tab 全宽，面板 tab 显示浮窗",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "state": "failed",
+        "assertionError": null
+      },
+      "observerSourceSha256": "d3f5791452e26dc8b56f1eace9c4ff3c6b9d4b93dea19afc66176c6acda50a19",
+      "hookSourceSha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525",
+      "viewport": {
+        "height": 802,
+        "outerHeight": 809,
+        "outerWidth": 1214,
+        "scale": 1,
+        "width": 1200
+      },
+      "dpr": 1.5,
+      "host": {
+        "tag": "DIV",
+        "testId": "side-pane-full-view-host",
+        "rect": {
+          "bottom": 779.3333358764648,
+          "height": 81.33333587646484,
+          "left": 617.3333740234375,
+          "right": 1177.3333740234375,
+          "top": 698,
+          "width": 560,
+          "x": 617.3333740234375,
+          "y": 698
+        },
+        "dataset": {
+          "floating": "collapsed",
+          "headerVisible": "false",
+          "running": "false",
+          "sidePaneFullViewHost": "floating",
+          "testid": "side-pane-full-view-host"
+        },
+        "display": "block"
+      },
+      "shell": {
+        "tag": "DIV",
+        "testId": null,
+        "rect": {
+          "bottom": 779.3333358764648,
+          "height": 81.33333587646484,
+          "left": 617.3333740234375,
+          "right": 1177.3333740234375,
+          "top": 698,
+          "width": 560,
+          "x": 617.3333740234375,
+          "y": 698
+        },
+        "dataset": {
+          "composerLayout": "inline",
+          "composerModelIcon": "true"
+        },
+        "display": "flex"
+      },
+      "toolbar": {
+        "tag": "DIV",
+        "testId": null,
+        "rect": {
+          "bottom": 770.6666870117188,
+          "height": 28,
+          "left": 626,
+          "right": 927.9479370117188,
+          "top": 742.6666870117188,
+          "width": 301.94793701171875,
+          "x": 626,
+          "y": 742.6666870117188
+        },
+        "dataset": {},
+        "display": "flex"
+      },
+      "model": {
+        "tag": "BUTTON",
+        "testId": "chat-model-select-trigger",
+        "rect": {
+          "bottom": 770.6666870117188,
+          "height": 28,
+          "left": 660,
+          "right": 895.9479217529297,
+          "top": 742.6666870117188,
+          "width": 235.9479217529297,
+          "x": 660,
+          "y": 742.6666870117188
+        },
+        "dataset": {
+          "chatToolbarPopoverTrigger": "true",
+          "composerCollapsePriority": "3",
+          "composerCombinedModel": "true",
+          "composerCompact": "true",
+          "modelCurrentValue": "custom:e2e-upstream:deepseek-v4-flash",
+          "size": "default",
+          "slot": "tooltip-trigger",
+          "state": "closed",
+          "testid": "chat-model-select-trigger",
+          "variant": "ghost"
+        },
+        "display": "flex"
+      },
+      "labels": [
+        {
+          "tag": "SPAN",
+          "testId": null,
+          "rect": {
+            "bottom": 767.1666870117188,
+            "height": 21,
+            "left": 668.6666870117188,
+            "right": 889.2812805175781,
+            "top": 746.1666870117188,
+            "width": 220.61459350585938,
+            "x": 668.6666870117188,
+            "y": 746.1666870117188
+          },
+          "dataset": {},
+          "display": "block"
+        }
+      ],
+      "icons": [
+        {
+          "tag": "SPAN",
+          "testId": "composer-thought-meter",
+          "rect": {
+            "bottom": 0,
+            "height": 0,
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "dataset": {
+            "progress": "50",
+            "testid": "composer-thought-meter"
+          },
+          "display": "none"
+        }
+      ],
+      "thoughtMeters": [
+        {
+          "tag": "SPAN",
+          "testId": "composer-thought-meter",
+          "rect": {
+            "bottom": 0,
+            "height": 0,
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "dataset": {
+            "progress": "50",
+            "testid": "composer-thought-meter"
+          },
+          "display": "none"
+        }
+      ],
+      "editor": {
+        "tag": "DIV",
+        "testId": "v4-composer-input",
+        "rect": {
+          "bottom": 730.6666870117188,
+          "height": 20,
+          "left": 662,
+          "right": 1168.6666870117188,
+          "top": 710.6666870117188,
+          "width": 506.66668701171875,
+          "x": 662,
+          "y": 710.6666870117188
+        },
+        "dataset": {
+          "e2eLexicalBridge": "ready",
+          "e2eSpfvMarker": "spfv-editor-instance",
+          "lexicalEditor": "true",
+          "testid": "v4-composer-input"
+        },
+        "display": "block"
+      },
+      "plus": {
+        "tag": "BUTTON",
+        "testId": "chat-attachment-button",
+        "rect": {
+          "bottom": 734.6666870117188,
+          "height": 28,
+          "left": 626,
+          "right": 654,
+          "top": 706.6666870117188,
+          "width": 28,
+          "x": 626,
+          "y": 706.6666870117188
+        },
+        "dataset": {
+          "size": "icon-md",
+          "slot": "tooltip-trigger",
+          "state": "closed",
+          "testid": "chat-attachment-button",
+          "variant": "ghost"
+        },
+        "display": "flex"
+      },
+      "send": {
+        "tag": "BUTTON",
+        "testId": "v4-composer-send",
+        "rect": {
+          "bottom": 770.6666870117188,
+          "height": 28,
+          "left": 899.9479370117188,
+          "right": 927.9479370117188,
+          "top": 742.6666870117188,
+          "width": 28,
+          "x": 899.9479370117188,
+          "y": 742.6666870117188
+        },
+        "dataset": {
+          "size": "icon-md",
+          "slot": "tooltip-trigger",
+          "state": "closed",
+          "testid": "v4-composer-send",
+          "variant": "default"
+        },
+        "display": "flex"
+      },
+      "finiteAnimationCount": 0
+    },
+    {
+      "file": "runtime/qa-menu-20261106-menu-reviewed/evidence/qa-spfv-observe-0-3-001-5628-1793990181593.json",
+      "bytes": 68360,
+      "sha256": "dbaf9d58cb8555adcf9bef19ff2dc75c0e1cf4b54080d42f158f699ae1c51ef6",
+      "png": "runtime/qa-menu-20261106-menu-reviewed/evidence/qa-spfv-observe-0-3-001-5628-1793990181593.png",
+      "pngSha256": "25474038e4ea4639ad29f233bc980ac43c1a8af2cc41942ed0ea803edb3895d4",
+      "capturedAt": "2026-11-06T18:36:21.593Z",
+      "test": {
+        "title": "SPFV-E2E-002 对话 tab 全宽，面板 tab 显示浮窗",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+        "state": "failed",
+        "assertionError": null
+      },
+      "observerSourceSha256": "d3f5791452e26dc8b56f1eace9c4ff3c6b9d4b93dea19afc66176c6acda50a19",
+      "hookSourceSha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525",
+      "viewport": {
+        "height": 802,
+        "outerHeight": 809,
+        "outerWidth": 1214,
+        "scale": 1,
+        "width": 1200
+      },
+      "dpr": 1.5,
+      "host": {
+        "tag": "DIV",
+        "testId": "side-pane-full-view-host",
+        "rect": {
+          "bottom": 779.3333358764648,
+          "height": 81.33333587646484,
+          "left": 617.3333740234375,
+          "right": 1177.3333740234375,
+          "top": 698,
+          "width": 560,
+          "x": 617.3333740234375,
+          "y": 698
+        },
+        "dataset": {
+          "floating": "collapsed",
+          "headerVisible": "false",
+          "running": "false",
+          "sidePaneFullViewHost": "floating",
+          "testid": "side-pane-full-view-host"
+        },
+        "display": "block"
+      },
+      "shell": {
+        "tag": "DIV",
+        "testId": null,
+        "rect": {
+          "bottom": 779.3333358764648,
+          "height": 81.33333587646484,
+          "left": 617.3333740234375,
+          "right": 1177.3333740234375,
+          "top": 698,
+          "width": 560,
+          "x": 617.3333740234375,
+          "y": 698
+        },
+        "dataset": {
+          "composerLayout": "inline",
+          "composerModelIcon": "true"
+        },
+        "display": "flex"
+      },
+      "toolbar": {
+        "tag": "DIV",
+        "testId": null,
+        "rect": {
+          "bottom": 770.6666870117188,
+          "height": 28,
+          "left": 626,
+          "right": 927.9479370117188,
+          "top": 742.6666870117188,
+          "width": 301.94793701171875,
+          "x": 626,
+          "y": 742.6666870117188
+        },
+        "dataset": {},
+        "display": "flex"
+      },
+      "model": {
+        "tag": "BUTTON",
+        "testId": "chat-model-select-trigger",
+        "rect": {
+          "bottom": 770.6666870117188,
+          "height": 28,
+          "left": 660,
+          "right": 895.9479217529297,
+          "top": 742.6666870117188,
+          "width": 235.9479217529297,
+          "x": 660,
+          "y": 742.6666870117188
+        },
+        "dataset": {
+          "chatToolbarPopoverTrigger": "true",
+          "composerCollapsePriority": "3",
+          "composerCombinedModel": "true",
+          "composerCompact": "true",
+          "modelCurrentValue": "custom:e2e-upstream:deepseek-v4-flash",
+          "size": "default",
+          "slot": "tooltip-trigger",
+          "state": "closed",
+          "testid": "chat-model-select-trigger",
+          "variant": "ghost"
+        },
+        "display": "flex"
+      },
+      "labels": [
+        {
+          "tag": "SPAN",
+          "testId": null,
+          "rect": {
+            "bottom": 767.1666870117188,
+            "height": 21,
+            "left": 668.6666870117188,
+            "right": 889.2812805175781,
+            "top": 746.1666870117188,
+            "width": 220.61459350585938,
+            "x": 668.6666870117188,
+            "y": 746.1666870117188
+          },
+          "dataset": {},
+          "display": "block"
+        }
+      ],
+      "icons": [
+        {
+          "tag": "SPAN",
+          "testId": "composer-thought-meter",
+          "rect": {
+            "bottom": 0,
+            "height": 0,
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "dataset": {
+            "progress": "50",
+            "testid": "composer-thought-meter"
+          },
+          "display": "none"
+        }
+      ],
+      "thoughtMeters": [
+        {
+          "tag": "SPAN",
+          "testId": "composer-thought-meter",
+          "rect": {
+            "bottom": 0,
+            "height": 0,
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "dataset": {
+            "progress": "50",
+            "testid": "composer-thought-meter"
+          },
+          "display": "none"
+        }
+      ],
+      "editor": {
+        "tag": "DIV",
+        "testId": "v4-composer-input",
+        "rect": {
+          "bottom": 730.6666870117188,
+          "height": 20,
+          "left": 662,
+          "right": 1168.6666870117188,
+          "top": 710.6666870117188,
+          "width": 506.66668701171875,
+          "x": 662,
+          "y": 710.6666870117188
+        },
+        "dataset": {
+          "e2eLexicalBridge": "ready",
+          "e2eSpfvMarker": "spfv-editor-instance",
+          "lexicalEditor": "true",
+          "testid": "v4-composer-input"
+        },
+        "display": "block"
+      },
+      "plus": {
+        "tag": "BUTTON",
+        "testId": "chat-attachment-button",
+        "rect": {
+          "bottom": 734.6666870117188,
+          "height": 28,
+          "left": 626,
+          "right": 654,
+          "top": 706.6666870117188,
+          "width": 28,
+          "x": 626,
+          "y": 706.6666870117188
+        },
+        "dataset": {
+          "size": "icon-md",
+          "slot": "tooltip-trigger",
+          "state": "closed",
+          "testid": "chat-attachment-button",
+          "variant": "ghost"
+        },
+        "display": "flex"
+      },
+      "send": {
+        "tag": "BUTTON",
+        "testId": "v4-composer-send",
+        "rect": {
+          "bottom": 770.6666870117188,
+          "height": 28,
+          "left": 899.9479370117188,
+          "right": 927.9479370117188,
+          "top": 742.6666870117188,
+          "width": 28,
+          "x": 899.9479370117188,
+          "y": 742.6666870117188
+        },
+        "dataset": {
+          "size": "icon-md",
+          "slot": "tooltip-trigger",
+          "state": "closed",
+          "testid": "v4-composer-send",
+          "variant": "default"
+        },
+        "display": "flex"
+      },
+      "finiteAnimationCount": 0
+    }
+  ],
+  "sources": [
+    {
+      "file": "packages/ui/src/prompt-editor/ChatPromptEditor.tsx",
+      "sha256": "562c96bb7b72da74b64808e64133973b5c89faf1043a238d67be6f2179c83833"
+    },
+    {
+      "file": "packages/ui/src/prompt-editor/useComposerToolbarFit.ts",
+      "sha256": "9b6562cdbc303acb8dbd5f9422334ec4ce6e37abc688898a7e2e85709df64e45"
+    },
+    {
+      "file": "packages/ui/src/v4/composer/V4ComposerToolbar.tsx",
+      "sha256": "c6ed5793a83b4e969ce830e8b7323fb332c75992515c458e72158e6b46d82905"
+    },
+    {
+      "file": "docs/ui/side-pane-full-view.md",
+      "sha256": "0412066248a61f3132f2582aac7073c8c6244b06256cf0c370b19d44701a7056"
+    }
+  ],
+  "causalSource": {
+    "refBindings": "ChatPromptEditor.tsx:433 and 470 use the same toolbarRef",
+    "inlineMode": "ChatPromptEditor.tsx:181-182 passes iconOnly=true; useComposerToolbarFit.ts:79-81 invokes fit on live ref directly",
+    "cssConsumer": "V4ComposerToolbar.tsx:572-575 group-data composer-model-icon /toolbar variants require the named group carrying the flag",
+    "contract": "docs/ui/side-pane-full-view.md:118 requires plus/input/controls/send in one line; 131 sets floating width560"
+  },
+  "limits": [
+    "Two afterEach snapshots share worker/counter and are one actual case, not two independent runs",
+    "Old <=64px assertion is not used as product specification",
+    "No multiline text, attachments, permission cards or drawer content in this captured empty-input shape",
+    "PNG is a real afterEach state; no continuous video is available",
+    "No product source changed; no macOS or installer validation"
+  ]
+}

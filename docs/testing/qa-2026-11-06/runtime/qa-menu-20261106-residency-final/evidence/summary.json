@@ -1,0 +1,200 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence",
+  "completedAt": "2026-11-06T19:26:45.394Z",
+  "containerE2E": false,
+  "durationMs": 190629,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 0,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-residency-final%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.51,
+            "peak": 1.17,
+            "p95": 1.17,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 175.05,
+            "peak": 188.22,
+            "p95": 188.22,
+            "sampleCount": 6
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.97,
+            "peak": 2.71,
+            "p95": 2.71,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 132.37,
+            "peak": 150.34,
+            "p95": 150.34,
+            "sampleCount": 6
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.95,
+            "peak": 2.06,
+            "p95": 2.06,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 399.07,
+            "peak": 502.27,
+            "p95": 502.27,
+            "sampleCount": 6
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 2.53,
+            "peak": 7.68,
+            "p95": 7.68,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 338.94,
+            "peak": 506.86,
+            "p95": 506.86,
+            "sampleCount": 6
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 4.96,
+        "peak": 13.13,
+        "p95": 13.13,
+        "sampleCount": 6
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-residency-final\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1045.43,
+        "peak": 1162.44,
+        "p95": 1162.44,
+        "sampleCount": 6
+      },
+      "sampleCount": 6
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 110500,
+        "p95Ms": 110500,
+        "totalMs": 110500
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 954,
+        "p95Ms": 954,
+        "totalMs": 954
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 22,
+        "p95Ms": 23,
+        "totalMs": 45
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 14,
+        "p95Ms": 14,
+        "totalMs": 14
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 797,
+        "p95Ms": 797,
+        "totalMs": 797
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 72051,
+        "p95Ms": 72051,
+        "totalMs": 72051
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2980,
+        "p95Ms": 2980,
+        "totalMs": 2980
+      }
+    }
+  },
+  "stability": {
+    "passRate": 1,
+    "firstTimePassRate": 1,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 190629,
+    "caseDurationP50Ms": 14379,
+    "caseDurationP95Ms": 14379,
+    "slowestCases": [
+      {
+        "fullTitle": "BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab",
+        "durationMs": 14379
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "./test/e2e/browser-tab-residency.test.ts"
+  ],
+  "runId": "qa-menu-20261106-residency-final",
+  "startedAt": "2026-11-06T19:23:34.765Z",
+  "tests": {
+    "failed": 0,
+    "passed": 1,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T19:26:30.368Z",
+        "durationMs": 14379,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-tab-residency.test.ts",
+        "fullTitle": "BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab"
+      }
+    ],
+    "skipped": 0,
+    "total": 1
+  }
+}

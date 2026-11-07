@@ -1,0 +1,289 @@
+{
+  "CapturedAt": "2026-11-06T15:31:45.5812179Z",
+  "Scope": "completed runs only; excludes running core and hook/no-case failures",
+  "Runs": [
+    "qa-menu-20261106-smoke",
+    "qa-menu-20261106-smoke-retry",
+    "qa-menu-20261106-features",
+    "qa-menu-20261106-settings-retry",
+    "qa-menu-20261106-settings-final"
+  ],
+  "Unique": 45,
+  "Attempts": 68,
+  "LatestPassed": 37,
+  "LatestFailed": 8,
+  "AttemptPassed": 56,
+  "AttemptFailed": 12,
+  "Latest": [
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM01: 真实进入 general 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:28.299Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM02: 真实进入 appearance 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:28.687Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM03: 真实进入 modelProvider 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:29.435Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM04: 真实进入 sourceServers 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:30.063Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM05: 真实进入 personalization 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:30.814Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM06: 真实进入 memory 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:31.518Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM07: 真实进入 subagents 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:32.133Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM08: 真实进入 plugin 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:32.751Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM09: 真实进入 mcp 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:33.106Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM10: 真实进入 skill 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:33.444Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM11: 真实进入 commands 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:33.756Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM12: 真实进入 hooks 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:34.381Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM13: 真实进入 browser 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:35.098Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM14: 真实进入 computerUse 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:35.796Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM15: 真实进入 shortcuts 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:36.455Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM16: 真实进入 usage 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:37.211Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM17: 真实进入 projects 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:37.802Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM18: 真实进入 archives 并验证标题与内容",
+      "CapturedAt": "2026-11-06T15:26:38.389Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM19: 当前桌面18个菜单存在且历史隐藏入口不出现",
+      "CapturedAt": "2026-11-06T15:26:38.528Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM20-zai-light-zh-CN: 实际选择主题/语言并检查设置及主导航",
+      "CapturedAt": "2026-11-06T15:26:46.653Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM21-zai-light-en-US: 实际选择主题/语言并检查设置及主导航",
+      "CapturedAt": "2026-11-06T15:26:55.374Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM22-zai-dark-zh-CN: 实际选择主题/语言并检查设置及主导航",
+      "CapturedAt": "2026-11-06T15:27:04.071Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-settings-final",
+      "Key": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/manual-review/pending/qa-settings-menu-20261106.test.ts|QSM23-zai-dark-en-US: 实际选择主题/语言并检查设置及主导航",
+      "CapturedAt": "2026-11-06T15:27:13.36Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/automations-create-manage.test.ts|表单创建后可编辑、暂停、恢复并删除",
+      "CapturedAt": "2026-11-06T15:13:54.075Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/browser-empty-state-deferred-guest.test.ts|空 tab 与地址草稿不创建 guest，回车后创建单 guest 并完成导航",
+      "CapturedAt": "2026-11-06T15:11:36.808Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/git/git-commit-dialog-ui-flow.test.ts|GCD-UI-01: 打开提交弹窗后可聚焦输入、切换未暂存范围、用方向键切换 Command 动作并展开分支列表",
+      "CapturedAt": "2026-11-06T15:13:19.294Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/resource-manager-storage.test.ts|SM-01: 切到存储 tab 后自动扫描，磁盘卡片、根目录与类别大小随扫描完成填充",
+      "CapturedAt": "2026-11-06T15:14:15.839Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/resource-manager-storage.test.ts|SM-02: 点击类别进入明细，列出根目录下的条目并可返回",
+      "CapturedAt": "2026-11-06T15:14:19.013Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/resource-manager-storage.test.ts|SM-03: safe 类别直接清理，文件被删除并重新扫描归零",
+      "CapturedAt": "2026-11-06T15:14:27.327Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/resource-manager-storage.test.ts|SM-04: confirm 类别先弹确认框，取消不删，确认后删除",
+      "CapturedAt": "2026-11-06T15:14:34.995Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/resource-manager-storage.test.ts|SM-05: 清理日志只删旧文件，当天日志保留",
+      "CapturedAt": "2026-11-06T15:14:42.253Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/settings-window-size-persistence.test.ts|拖拽调整后保存尺寸，不依赖 close/quit 写入",
+      "CapturedAt": "2026-11-06T15:09:35.804Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-key-search.test.ts|SC-11: 武装后按组合键，过滤出物理等价绑定的命令；清除后恢复全量",
+      "CapturedAt": "2026-11-06T15:08:46.358Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-key-search.test.ts|SC-12: 无命中组合展示空态；Escape 退出武装态不再吞键",
+      "CapturedAt": "2026-11-06T15:08:46.908Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-key-search.test.ts|SC-13: 深浅主题与窄屏保持控件和长组合键可见",
+      "CapturedAt": "2026-11-06T15:08:47.298Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-key-search.test.ts|SC-14: 清除保存后可继续编辑并恢复默认",
+      "CapturedAt": "2026-11-06T15:08:47.883Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-rebind.test.ts|SC-01: 录制新键位后落盘，主界面按新键位切换侧栏",
+      "CapturedAt": "2026-11-06T15:09:10.132Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-rebind.test.ts|SC-02: app 内占用提示后二次确认抢绑；系统保留键直接拒绝且无确认入口",
+      "CapturedAt": "2026-11-06T15:09:10.856Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-rebind.test.ts|SC-03: IME 组合中的按键不触发快捷键命令",
+      "CapturedAt": "2026-11-06T15:09:12.051Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/settings/shortcut-settings-rebind.test.ts|SC-10: 清除 = 未分配，原键彻底失效且持久化不回退默认",
+      "CapturedAt": "2026-11-06T15:09:13.679Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-smoke-retry",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/smoke.test.ts|默认启动后应进入可交互的工作区主界面",
+      "CapturedAt": "2026-11-06T15:04:31.311Z",
+      "Passed": true
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/task-list-archive-confirmation.test.ts|项目视图的任务区归档确认不会在按下时消失，完整点击后任务离开任务区",
+      "CapturedAt": "2026-11-06T15:12:27.24Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/ui-shell/command-center-focus.test.ts|CC-FOCUS-01：深浅主题和窄屏只保留外层胶囊边框",
+      "CapturedAt": "2026-11-06T15:15:02.846Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/ui-shell/command-center-focus.test.ts|DIALOG-FOCUS-01：项目名称沿用共享 Input 焦点边框，点击和 Tab 不叠加 outline",
+      "CapturedAt": "2026-11-06T15:15:03.439Z",
+      "Passed": false
+    },
+    {
+      "Run": "qa-menu-20261106-features",
+      "Key": "C:/vibecoding/zcodium/packages/desktop/test/e2e/workspace-file-tree-refresh.test.ts|重命名后点击刷新会更新已加载子目录，新增文件会实时出现在文件树",
+      "CapturedAt": "2026-11-06T15:11:01.685Z",
+      "Passed": false
+    }
+  ]
+}

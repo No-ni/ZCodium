@@ -144,10 +144,79 @@ guest 页面发起请求
 ## 审计日志
 
 ```text
-[embedded-browser-permission] decision=granted|denied origin=… permission=… source=allowlist|site-setting|session-allow|user-prompt|prompt-timeout|device-picker|source-picker|default-deny
+[embedded-browser-permission] decision=granted|denied permission=… source=allowlist|site-setting|session-allow|user-prompt|prompt-timeout|device-picker|source-picker|default-deny
 ```
 
 info 级（低频、生产保留）；弹窗类路径日志量与权限请求数同数量级（极低频）。
+origin 只用于授权键及产品弹窗，不进入日志；加载、保存、选择器失败只输出固定分类，不输出原始错误、路径或设备内容。
+
+### 2026-11-07：启动接线恢复（BUG-005）
+
+2026-11-06 两次独立 guest 查询证明：当前 Main 仅注册恢复协议，没有调用权限装配入口，未授权 geolocation 为 `granted`。启动链必须在 Chromium 网络策略完成后创建既有 bridge、注册回执、设为 active bridge，并等待 `applyEmbeddedBrowserPermissionPolicy` 完成 JSON 加载与 handler 注册；之后才能创建窗口/guest。装配失败不得继续创建未受治理的浏览器。沿用 app 已隔离的 `userData/embedded-browser-site-permissions.json`，授权管理器仍为唯一持久 owner。
+
+Main 仅在该 await 成功后设置装配完成标志；primary window coordinator 的既有 `canCreateWindow` 统一门禁在此前拒绝创建，以覆盖冷启动期间并发的 activate/open-url。初始 app-ready 路径随后负责创建窗口，已记录的启动 workspace 请求仍由原单飞 coordinator 消费。
+
+```mermaid
+sequenceDiagram
+  participant M as Main whenReady
+  participant B as UI bridge
+  participant P as Partition policy
+  participant S as Site permission manager
+  participant W as Window / guest
+  M->>B: 注册回执并设 active bridge
+  M->>P: await apply（既有 store / prompt / chooser）
+  P->>S: await load
+  S-->>P: 授权快照或空记录
+  P-->>M: request/check/device/display handlers 已安装
+  M->>W: 创建窗口，guest 才能发起请求
+  W->>B: 宿主 renderer 回传用户决定
+  B->>B: 校验 requestId / 形状 / 实际宿主 sender
+```
+
+回归使用本树隔离 HOME 与 loopback 页面，不访问真实位置、摄像头、设备或屏幕：保留既有站点设置 E2E 的默认 denied→允许 granted→重置 denied；补充 notifications 请求的产品拒绝及再次询问。启动装配守卫验证 await、唯一接线与窗口创建顺序。macOS 系统权限、设备/屏幕共享和重启持久化仍按实际执行证据登记，不能由源码守卫宣称通过。
+
+### 2026-11-07：Desktop platform 与 preload 能力补线（BUG-005）
+
+`qa-fix-20261107-browser-retry` 已确认 Main 默认拒绝生效，但设置页缺少权限控件，通知请求未出现产品气泡。当前 shared 与 client 已声明六个权限接口，Main 也已注册对应数据 IPC 与回执 listener；Desktop platform adapter 和宿主 preload 未提供它们。站点 hook 因此判定 `supported=false`，气泡组件无法订阅申请事件。恢复既有契约只补平台委托，不新增授权状态、IPC channel、UI 状态源或设备能力。
+
+| 既有平台接口 | 宿主 preload 使用的既有 channel / 操作 |
+| --- | --- |
+| `getEmbeddedBrowserSitePermissions()` | `GetEmbeddedBrowserSitePermissions` / `ipcRenderer.invoke` |
+| `setEmbeddedBrowserSitePermission(request)` | `SetEmbeddedBrowserSitePermission` / `ipcRenderer.invoke` |
+| `clearEmbeddedBrowserSitePermissions()` | `ClearEmbeddedBrowserSitePermissions` / `ipcRenderer.invoke` |
+| `resetEmbeddedBrowserSitePermission({ origin })` | `ResetEmbeddedBrowserSitePermission` / `ipcRenderer.invoke` |
+| `onEmbeddedBrowserPermissionPrompt(handler)` | `EmbeddedBrowserPermissionPrompt` / `ipcRenderer.on`，disposer 移除同一 handler |
+| `resolveEmbeddedBrowserPermissionPrompt(request)` | `EmbeddedBrowserPermissionResolve` / `ipcRenderer.send`；Main 保留实际宿主 sender 校验 |
+
+Desktop renderer 的 `desktopBrowserPlatformBridge` 经现有 `createDesktopPlatform` 合并进入 `IPlatformService`。六方法仅在对应 `window.zcode` 能力存在时提供，旧 preload 缺能力时保持 `undefined`；不能用空快照、空 disposer 或成功 fallback 伪造支持。数据 IPC 的实际 Promise、返回快照及拒绝继续交给既有 hook；adapter 不缓存授权、不吞错，不记录载荷、origin、路径或原始错误。宿主 preload 只通过已有 `contextBridge` API 暴露这六方法，guest 网页仍不能直接读写站点授权或提交用户决策。
+
+```mermaid
+sequenceDiagram
+  participant G as Guest 网页
+  participant M as Main policy / bridge
+  participant S as Main 站点权限 manager
+  participant P as 宿主 preload
+  participant A as Desktop platform adapter
+  participant U as UI hook / 气泡
+  U->>A: 订阅权限申请
+  A->>P: 订阅既有 prompt channel
+  G->>M: 请求敏感权限
+  M->>P: 向申请的实际宿主发送 requestId / guestId
+  P->>A: 转交申请事件
+  A->>U: 按当前 guest 渲染产品气泡
+  U->>A: 用户决定
+  A->>P: 委托 resolve
+  P->>M: send requestId / resolution
+  M->>M: 校验 requestId / 形状 / 实际宿主 sender
+  M->>S: 按决定更新唯一授权记录
+  M-->>G: 允许或拒绝
+  U->>A: 设置页 get / set / reset
+  A->>P: 委托既有 invoke
+  P->>S: Main 数据 IPC 读写同一 owner
+  S-->>U: 实际授权快照
+```
+
+本段是既有 Desktop 连续交互链的补线；手机/Web 未提供这些可选平台方法时仍显示不支持，不新增手机权限恢复链。回归守卫须从当前 adapter/preload 源码抽取实际方法执行，验证六接口、载荷委托、事件订阅/注销、旧 preload 能力缺失及真实 Promise 拒绝；不能只检验复制的 mock 实现。UI 回归仍由隔离 runner 串行执行上述两条 E2E。当前请求前截图仅证明 loopback 页面已挂载且查询默认 denied；通知请求是否进入 Main、其 host/guest 归属及页面 Promise 是否结算尚未采证，不能由气泡缺失直接认定 Chromium 的通知触发条件有缺陷。调查与原失败证据见 [adapter 缺口报告](../testing/qa-2026-11-06/browser-permission-adapter-gap.md)。
 
 ## 兼容性影响面（已逐项验证）
 

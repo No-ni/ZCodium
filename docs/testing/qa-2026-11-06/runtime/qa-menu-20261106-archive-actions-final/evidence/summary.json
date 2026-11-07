@@ -1,0 +1,216 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence",
+  "completedAt": "2026-11-06T19:43:17.629Z",
+  "containerE2E": false,
+  "durationMs": 218048,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 0,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-archive-actions-final%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.38,
+            "peak": 1.6,
+            "p95": 1.6,
+            "sampleCount": 7
+          },
+          "memoryWorkingSetMb": {
+            "mean": 178.05,
+            "peak": 186.92,
+            "p95": 186.92,
+            "sampleCount": 7
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.33,
+            "peak": 1.34,
+            "p95": 1.34,
+            "sampleCount": 7
+          },
+          "memoryWorkingSetMb": {
+            "mean": 131.25,
+            "peak": 151.35,
+            "p95": 151.35,
+            "sampleCount": 7
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.4,
+            "peak": 2.13,
+            "p95": 2.13,
+            "sampleCount": 7
+          },
+          "memoryWorkingSetMb": {
+            "mean": 439.2,
+            "peak": 503.87,
+            "p95": 503.87,
+            "sampleCount": 7
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.8,
+            "peak": 3.52,
+            "p95": 3.52,
+            "sampleCount": 7
+          },
+          "memoryWorkingSetMb": {
+            "mean": 310.19,
+            "peak": 369.06,
+            "p95": 369.06,
+            "sampleCount": 7
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 1.91,
+        "peak": 8.59,
+        "p95": 8.59,
+        "sampleCount": 7
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1058.69,
+        "peak": 1194.04,
+        "p95": 1194.04,
+        "sampleCount": 7
+      },
+      "sampleCount": 7
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 113123,
+        "p95Ms": 113123,
+        "totalMs": 113123
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 981,
+        "p95Ms": 981,
+        "totalMs": 981
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 22,
+        "p95Ms": 26,
+        "totalMs": 48
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 12,
+        "p95Ms": 12,
+        "totalMs": 12
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 773,
+        "p95Ms": 773,
+        "totalMs": 773
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 96606,
+        "p95Ms": 96606,
+        "totalMs": 96606
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2945,
+        "p95Ms": 2945,
+        "totalMs": 2945
+      }
+    }
+  },
+  "stability": {
+    "passRate": 1,
+    "firstTimePassRate": 1,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 218048,
+    "caseDurationP50Ms": 426,
+    "caseDurationP95Ms": 11400,
+    "slowestCases": [
+      {
+        "fullTitle": "QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活",
+        "durationMs": 11400
+      },
+      {
+        "fullTitle": "QAR01: 明确展开本树合成组后取消归档保持CLI会话",
+        "durationMs": 426
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-archive-actions-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-archive-actions-final",
+  "startedAt": "2026-11-06T19:39:39.581Z",
+  "tests": {
+    "failed": 0,
+    "passed": 2,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T19:42:37.801Z",
+        "durationMs": 426,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+        "fullTitle": "QAR01: 明确展开本树合成组后取消归档保持CLI会话",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QAR01: 明确展开本树合成组后取消归档保持CLI会话"
+      },
+      {
+        "capturedAt": "2026-11-06T19:43:03.027Z",
+        "durationMs": 11400,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+        "fullTitle": "QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活"
+      }
+    ],
+    "skipped": 0,
+    "total": 2
+  }
+}

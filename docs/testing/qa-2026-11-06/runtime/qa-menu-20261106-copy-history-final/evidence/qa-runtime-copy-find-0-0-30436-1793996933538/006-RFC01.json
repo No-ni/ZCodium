@@ -1,0 +1,77 @@
+{
+  "capturedAt": "2026-11-06T20:29:10.923Z",
+  "evidenceKind": "finite synthetic loopback runtime UI; no real clipboard/Git/network provider",
+  "status": "passed",
+  "state": {
+    "activePane": "sess_af8833f0-31de-4f98-814c-11da629891a3",
+    "activeTag": "BUTTON",
+    "clipboardAttempts": [
+      "writeText"
+    ],
+    "clipboardMethods": [
+      "writeText"
+    ],
+    "copiedLengths": [
+      3930
+    ],
+    "dpr": 1.5,
+    "findQuery": null,
+    "headings": [
+      "命令面板",
+      "查找回归长正文"
+    ],
+    "toast": null
+  },
+  "fixtureSource": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+  "fixtureSha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b",
+  "expectedBodyLength": 3930,
+  "expectedBodySha256": "f79b3698c2a748a78ccb2c9623a4685ec1ee66967d262cbf1656cc6dd042d5d6",
+  "requests": [
+    {
+      "fixtureId": "chat-find-refocus-long-body",
+      "status": "complete",
+      "statusCode": 200,
+      "bodyBytes": 11599,
+      "path": "/anthropic/v1/messages",
+      "loopback": true,
+      "queryKind": "main",
+      "markers": {
+        "titleInstruction": false,
+        "setup": true,
+        "exactPrompt": false
+      },
+      "shape": {
+        "object": true,
+        "messageCount": 1,
+        "roles": [
+          "user"
+        ],
+        "systemType": "array",
+        "toolCount": 52
+      }
+    },
+    {
+      "fixtureId": "qa-runtime-copy-find-setup-title",
+      "status": "complete",
+      "statusCode": 200,
+      "bodyBytes": 991,
+      "path": "/anthropic/v1/messages",
+      "loopback": true,
+      "queryKind": "title",
+      "markers": {
+        "titleInstruction": true,
+        "setup": true,
+        "exactPrompt": true
+      },
+      "shape": {
+        "object": true,
+        "messageCount": 1,
+        "roles": [
+          "user"
+        ],
+        "systemType": "array",
+        "toolCount": 0
+      }
+    }
+  ]
+}

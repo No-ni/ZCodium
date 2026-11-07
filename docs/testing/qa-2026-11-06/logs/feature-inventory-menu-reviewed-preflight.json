@@ -1,0 +1,143 @@
+{
+  "capturedAt": "2026-11-06T18:08:41.473Z",
+  "node": "v24.18.0",
+  "evidenceKind": "Read-only plan/spec title registration, finite replay JSON and runner ordering audit. No spec import/UI/build/hooks.",
+  "planSourceSha256": "4e0b3b3e4cf055abbd8253180b3271653040711c8376a8571e0eb35bb5cb80e6",
+  "runnerSourceSha256": "546f253aafbffac590ae0c2e100602be7bd62facb2f5622e7a99d30f6d8277fb",
+  "hookSourceSha256": "0375d355df5c248a8c07edce9a91fbc448247d8f1c430430e8908a23650dc525",
+  "expectedSpecs": 5,
+  "plannedCases": 47,
+  "expectedCounts": [
+    12,
+    13,
+    15,
+    2,
+    5
+  ],
+  "selected": [
+    {
+      "spec": "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts",
+      "selectedTitles": [
+        "QLA01: 底部偏好语言英文/中文/系统即时保存并恢复",
+        "QLA02: 底部主题浅色/深色/系统生效并恢复",
+        "QLA03: 底部办公/编码模式选择保存并恢复",
+        "QLA04: 底部缩放实际大小/放大/缩小与原值恢复",
+        "QLA05: 帮助四个fork链接只请求mock openExternal",
+        "QLA06: 无自有更新源隐藏入口，About ZCodium显示版本并关闭",
+        "QLA07: 记忆开关即时保存，scope/refresh或明确空catalog范围",
+        "QLA08: 自动归档关闭时可设30天、开关保存并恢复",
+        "QLA09: Browser总开关就绪后切换恢复，Windows不展示Chrome导入",
+        "QLA10: Windows Computer Use总开关/composer显隐切换恢复",
+        "QLA11: Hooks收敛后空态/列表、新建草稿填写取消不保存",
+        "QLA12: 商店当前列表/空态、新增市场源risk gate输入后取消"
+      ],
+      "excludedTitles": []
+    },
+    {
+      "spec": "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+      "selectedTitles": [
+        "RLM-01: 四种任务路径/ID复制及文件管理器出口",
+        "RLM-02: Markdown完整复制、受控拒绝后恢复重试",
+        "RLM-03: 真实标记未读与同任务清除、返回不反弹",
+        "RLM-04: Command Center操作范围键盘进入设置",
+        "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+        "RLM-06: Command Center文件范围索引实际中文空格文件",
+        "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空",
+        "RLM-08: 文件选择取消与pending入口busy不启动第二事务",
+        "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+        "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+        "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+        "RLM-12: Commands真实新建名称/prompt取消无文件新增",
+        "RLM-13: Skills新建真实进入skill-creator草稿，无发送"
+      ],
+      "excludedTitles": []
+    },
+    {
+      "spec": "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+      "selectedTitles": [
+        "SLM01: 原生帮助更新日志只请求本fork mock链接",
+        "SLM02: 原生开发者工具真实打开关闭并恢复",
+        "SLM03: 原生清除所有数据受控取消保留本地数据",
+        "SLM04: 两个合成项目键盘排序持久化并反向恢复",
+        "SLM05: 公开completed归档真实导入并复制assistant正文",
+        "SLM06: 引导侧栏和通用页两个入口进入退出",
+        "SLM07: 机器人管理新增渠道选择前取消无新增Bot",
+        "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+        "SLM09: 文件加入聊天及另存为取消保留源文件",
+        "SLM10: Review真实Git入口空态或列表与tab关闭",
+        "SLM11: 办公模式隐藏新Review终端且保留已有Review",
+        "SLM12: 真实侧栏launcher不提供Whiteboard入口",
+        "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+        "SLM14: 公开长会话三命中查找导航与重开居中",
+        "SLM15: 长text真实预览滚动与当前无局部Find边界"
+      ],
+      "excludedTitles": []
+    },
+    {
+      "spec": "./test/e2e/ui-shell/side-pane-full-view.test.ts",
+      "selectedTitles": [
+        "SPFV-E2E-001 进入、退出且不重新挂载对话",
+        "SPFV-E2E-002 对话 tab 全宽，面板 tab 显示浮窗"
+      ],
+      "excludedTitles": [
+        "SPFV-E2E-003 操作栏、最小化与恢复共享同一份草稿",
+        "SPFV-E2E-004 拖动吸附到左上并通过菜单打开对话",
+        "SPFV-E2E-005 用上 / 下按钮展开与收起消息流",
+        "SPFV-E2E-009 body 级插件页面层不被完整视图的面板外框遮挡",
+        "SPFV-E2E-006 面板开关退出完整视图，重新打开不回到完整视图"
+      ]
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-archive-management.test.ts",
+      "selectedTitles": [
+        "ARM08：页面标题与固定文案统一为会话",
+        "ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择",
+        "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+        "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+        "ARM03：全部删除仅作用于当前筛选，分组更多取消归档"
+      ],
+      "excludedTitles": []
+    }
+  ],
+  "hashes": [
+    {
+      "path": "docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts",
+      "sha256": "07f2557d74b5d4068d1e48b8c86929a3573cfc2659fe8997fb40cb5b122bd31c"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+      "sha256": "3fe46363e145869dcbcc48b3eda9d62a4e22cca35541021d00c8899d8ccd0828"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+      "sha256": "d74361289cb0f1a806ee1a36aa0bf933dadea1432e50205f5fc133aeae0742c8"
+    },
+    {
+      "path": "packages/desktop/test/e2e/ui-shell/side-pane-full-view.test.ts",
+      "sha256": "fbaadc200a08437af4100a2e6c3edc3d24446f89950d3a26cd21e0f800b63f25"
+    },
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-archive-management.test.ts",
+      "sha256": "151a25ad86037442d7eb5706133eafaa923be97790d79d3a798102c3d5bf04c6"
+    }
+  ],
+  "grep": "(?:(?:QLA|RLM-?|SLM)\\d{2}:|SPFV-E2E-00[12]|ARM(?:08|07|01/05/06|02|03)：)",
+  "replayFixtures": [
+    {
+      "path": "./test/e2e/fixtures/upstream/common.json",
+      "fixtureCount": 1,
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "path": "./test/e2e/fixtures/upstream/conversation-session/conversation-session-archive-management.json",
+      "fixtureCount": 0,
+      "sha256": "d2295f799f005fb4b1a29d5d939b406f719e1fb110c51842b852617a792817c0"
+    }
+  ],
+  "explicitOverrideAfterPendingDefault": true,
+  "commonFixtureIsNotEmpty": true,
+  "commonBoundary": "Common contains an existing synthetic readonly Read reply; selected no-prompt menus/SPFV/archive do not invoke it. Not an empty JSON and not UI execution evidence.",
+  "archiveExitObserverBoundary": "Archive reload occurs suite beforeAll, before root beforeEach observer installation; retain formal exit barrier, do not claim independent PID JSON unless present.",
+  "auditedExistingPaths": 539,
+  "allPassed": true
+}

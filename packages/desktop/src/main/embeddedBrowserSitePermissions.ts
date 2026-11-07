@@ -1,7 +1,7 @@
 import type {
   EmbeddedBrowserSitePermissionRecord,
   EmbeddedBrowserSitePermissionStore,
-} from "./embeddedBrowserPermissionPolicy.js";
+} from "./embedded-browser-permission-contract/site-permissions.js";
 
 /**
  * 内置浏览器站点同意记录的模块级管理器：
@@ -24,8 +24,8 @@ export async function initEmbeddedBrowserSitePermissions(input: {
   if (store) {
     try {
       record = await store.load();
-    } catch (error) {
-      input.logger.warn("[embedded-browser-permission] site permission store load failed:", error);
+    } catch {
+      input.logger.warn("[embedded-browser-permission] site permission store load failed");
     }
   }
 }
@@ -78,9 +78,9 @@ async function persist(): Promise<void> {
   if (!store) return;
   try {
     await store.persist(record);
-  } catch (error) {
+  } catch {
     // 内存记录已生效，落盘失败只降级为重启后回退到「每次询问」，不阻塞决策。
-    logger?.warn("[embedded-browser-permission] site permission store persist failed:", error);
+    logger?.warn("[embedded-browser-permission] site permission store persist failed");
   }
 }
 

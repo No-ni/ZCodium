@@ -12,6 +12,7 @@ import { cn } from "../lib/utils.js";
 import { TID_CHAT_REASONING_CONTENT, TID_CHAT_REASONING_TRIGGER } from "@zcode/shared/test-ids";
 import { BrainIcon, ChevronRightIcon } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useConversationWorkDuration } from "@/hooks/useConversationWorkDuration.js";
 import { QueuedSummaryContent } from "@/ToolCallBlocks/QueuedSummaryContent.js";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import {
@@ -38,6 +39,7 @@ interface ReasoningContextValue {
   shouldRenderContent: boolean;
   setIsOpen: (open: boolean) => void;
   duration: number | undefined;
+  startedAt: number | undefined;
 }
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -57,6 +59,8 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   duration?: number;
+  /** reasoning_start 的稳定时间；仅用于流式展示，完成耗时由 duration 事实提供。 */
+  startedAt?: number;
 };
 
 const MS_IN_S = 1000;
@@ -95,7 +99,8 @@ export const Reasoning = memo(
     open,
     defaultOpen = false,
     onOpenChange,
-    duration: durationProp,
+    duration,
+    startedAt,
     children,
     ...props
   }: ReasoningProps) => {
@@ -105,12 +110,6 @@ export const Reasoning = memo(
       onChange: onOpenChange,
       prop: open,
     });
-    const [duration, setDuration] = useControllableState<number | undefined>({
-      defaultProp: undefined,
-      prop: durationProp,
-    });
-
-    const startTimeRef = useRef<number | null>(null);
     const contentUnmountDelayRef = useRef<number | null>(null);
     const userInteractedRef = useRef(false);
     const previousAutoCollapseKeyRef = useRef<string | number | null>(null);
@@ -125,37 +124,6 @@ export const Reasoning = memo(
       },
       [setIsOpen],
     );
-
-    useEffect(() => {
-      if (!isStreaming) {
-        if (startTimeRef.current !== null) {
-          setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
-        }
-        startTimeRef.current = null;
-        return;
-      }
-
-      if (startTimeRef.current === null) {
-        startTimeRef.current = Date.now();
-      }
-
-      // 收起态展示流式摘要，不需要为了隐藏的耗时每秒触发整块 reasoning 重渲染；
-      // 展开时再按同一个开始时间补算并持续更新时间。
-      if (!isOpen) {
-        return;
-      }
-
-      const updateDuration = () => {
-        if (startTimeRef.current === null) {
-          return;
-        }
-        setDuration(Math.max(1, Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S)));
-      };
-
-      updateDuration();
-      const durationTimer = window.setInterval(updateDuration, MS_IN_S);
-      return () => window.clearInterval(durationTimer);
-    }, [isOpen, isStreaming, setDuration]);
 
     useEffect(() => {
       const previousAutoCollapseKey = previousAutoCollapseKeyRef.current;
@@ -215,8 +183,8 @@ export const Reasoning = memo(
     }, []);
 
     const contextValue = useMemo(
-      () => ({ duration, isOpen, isStreaming, setIsOpen, shouldRenderContent }),
-      [duration, isOpen, isStreaming, setIsOpen, shouldRenderContent],
+      () => ({ duration, startedAt, isOpen, isStreaming, setIsOpen, shouldRenderContent }),
+      [duration, startedAt, isOpen, isStreaming, setIsOpen, shouldRenderContent],
     );
 
     return (
@@ -290,7 +258,16 @@ export const ReasoningTrigger = memo(
     streamingText = "",
     ...props
   }: ReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
+    const { isStreaming, isOpen, duration: fixedDuration, startedAt } = useReasoning();
+    // 切会话和虚拟滚动会重挂载思考组件；只由文案叶子按事件起点插值，结束后直接读取固定事实。
+    const elapsedMs = useConversationWorkDuration(
+      isStreaming && isOpen && fixedDuration === undefined && startedAt !== undefined
+        ? { state: "running", liveStartedAt: startedAt }
+        : undefined,
+    );
+    const duration =
+      fixedDuration ??
+      (elapsedMs === undefined ? undefined : Math.max(1, Math.ceil(elapsedMs / MS_IN_S)));
     const { intl } = useZCodeIntl();
     const streamingSummary =
       isStreaming && !isOpen ? resolveReasoningStreamingSummary(streamingText) : null;

@@ -1,0 +1,8 @@
+{
+  "command": "corepack pnpm exec tsc -p docs/testing/qa-2026-11-06/tsconfig.qa.json --noEmit",
+  "started": "2026-11-06T17:53:14.183Z",
+  "finished": "2026-11-06T17:53:18.303Z",
+  "code": 0,
+  "signal": null,
+  "node": "v24.18.0"
+}

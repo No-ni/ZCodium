@@ -977,9 +977,11 @@ interface ReasoningRow extends RowBase {
   kind: "reasoning";
   text: string; // 流式：path="text"
   state: "streaming" | "complete" | "interrupted";
-  durationMs?: number; // 完成时出现
+  durationMs?: number; // 关闭事件时间减 createdAt，负差钳制；完成/中断后冻结
 }
 ```
+
+Reasoning 的 `createdAt` 是 reasoning_start 的事件时间。冷 transcript 合成透传持久 reasoning part 的 start/end，缺 end 沿既有 interval 下界取 start；事件顺序仍由 sequenceNumber 裁决。Renderer 只展示固定 `durationMs` 或对流式稳定起点插值，不把挂载时间写成历史耗时。
 
 不变量（09§3 保留）：追加只能进 `state="streaming"` 的行；普通的新模型 response 必然新
 `rowId`。唯一例外是同一 product turn 内的 output-token Continue：上一请求以
@@ -1309,6 +1311,7 @@ interface SessionSummary {
   title: string;
   phase: SessionControl["phase"];
   sessionEnded: boolean;
+  autoContinuePending?: boolean; // queue.autoDrain && items.length > 0；旧字段缺省 false
   hasBackgroundWork: boolean; // 列表小圆点用（此处保留布尔，避免为侧栏订阅整个 backgroundWorks）
   goalStatus?: GoalState["status"];
   lastActivityAt: Timestamp; // Updated 排序唯一权威；tasks-index mutation 不得覆盖
@@ -1321,6 +1324,8 @@ interface SessionSummary {
   createdAt: Timestamp;
 }
 ```
+
+`autoContinuePending` 包含 queued/reserved/promoting，仅抑制自动队列中间成功的完成通知/未读，不改变 phase、terminal/ready 或 admission。Host 摘要与已应用 logEpoch 共同构成边沿基线；新 epoch snapshot 静默替换，同 epoch recovery 可补投有效完成，subscribe ACK 不能覆盖已应用 epoch。
 
 ---
 

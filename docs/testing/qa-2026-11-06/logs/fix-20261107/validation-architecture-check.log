@@ -1,0 +1,9 @@
+
+> zcode@3.17.1 architecture:check C:\vibecoding\zcodium
+> node scripts/architecture/architecture-check.mjs check "--changed"
+
+architecture: OK
+base: merge-base upstream origin/main
+violations: 0
+baseline: 0
+new: 0

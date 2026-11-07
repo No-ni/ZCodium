@@ -1,0 +1,23 @@
+{
+  "source": "scripts/dev-desktop-env.mjs",
+  "sourceLine": 105,
+  "exactLine": "  if (process.platform === \"darwin\" && hasComputerUseProducer) {",
+  "condition": "process.platform === \"darwin\" && hasComputerUseProducer",
+  "scopeBindings": [
+    "process.platform",
+    "hasComputerUseHelperProducer"
+  ],
+  "hasDeclaredWrongIdentifier": false,
+  "results": [
+    {
+      "platform": "darwin",
+      "errorName": "ReferenceError",
+      "errorMessage": "hasComputerUseProducer is not defined"
+    },
+    {
+      "platform": "win32",
+      "result": false
+    }
+  ],
+  "verificationBoundary": "Exact source condition evaluated in VM with synthetic platform; no macOS app launch, build, install or packaging performed"
+}

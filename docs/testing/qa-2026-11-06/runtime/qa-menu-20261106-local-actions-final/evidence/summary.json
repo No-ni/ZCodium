@@ -1,0 +1,182 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence",
+  "completedAt": "2026-11-06T16:27:21.466Z",
+  "containerE2E": false,
+  "durationMs": 182266,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-local-actions-final%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0,
+            "peak": 0,
+            "p95": 0,
+            "sampleCount": 1
+          },
+          "memoryWorkingSetMb": {
+            "mean": 187.05,
+            "peak": 187.05,
+            "p95": 187.05,
+            "sampleCount": 1
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0,
+            "peak": 0,
+            "p95": 0,
+            "sampleCount": 1
+          },
+          "memoryWorkingSetMb": {
+            "mean": 166.9,
+            "peak": 166.9,
+            "p95": 166.9,
+            "sampleCount": 1
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0,
+            "peak": 0,
+            "p95": 0,
+            "sampleCount": 1
+          },
+          "memoryWorkingSetMb": {
+            "mean": 482.32,
+            "peak": 482.32,
+            "p95": 482.32,
+            "sampleCount": 1
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0,
+            "peak": 0,
+            "p95": 0,
+            "sampleCount": 1
+          },
+          "memoryWorkingSetMb": {
+            "mean": 335.08,
+            "peak": 335.08,
+            "p95": 335.08,
+            "sampleCount": 1
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 0,
+        "peak": 0,
+        "p95": 0,
+        "sampleCount": 1
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1171.35,
+        "peak": 1171.35,
+        "p95": 1171.35,
+        "sampleCount": 1
+      },
+      "sampleCount": 1
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 132672,
+        "p95Ms": 132672,
+        "totalMs": 132672
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 1127,
+        "p95Ms": 1127,
+        "totalMs": 1127
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 27,
+        "p95Ms": 48,
+        "totalMs": 75
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 18,
+        "p95Ms": 18,
+        "totalMs": 18
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 863,
+        "p95Ms": 863,
+        "totalMs": 863
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 40435,
+        "p95Ms": 40435,
+        "totalMs": 40435
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 3367,
+        "p95Ms": 3367,
+        "totalMs": 3367
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0,
+    "firstTimePassRate": 0,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 182266,
+    "caseDurationP50Ms": 0,
+    "caseDurationP95Ms": 0,
+    "slowestCases": []
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts"
+  ],
+  "runId": "qa-menu-20261106-local-actions-final",
+  "startedAt": "2026-11-06T16:24:19.200Z",
+  "tests": {
+    "failed": 0,
+    "passed": 0,
+    "results": [],
+    "skipped": 0,
+    "total": 0
+  }
+}

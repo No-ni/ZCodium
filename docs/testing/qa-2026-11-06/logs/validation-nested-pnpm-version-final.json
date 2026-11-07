@@ -1,0 +1,17 @@
+{
+  "command": "corepack pnpm --dir packages/desktop exec pnpm --version",
+  "started": "2026-11-06T20:40:31.850Z",
+  "finished": "2026-11-06T20:40:32.325Z",
+  "code": 1,
+  "signal": null,
+  "outerNode": "v24.18.0",
+  "pinnedNode": "C:/Program Files/nodejs/node.exe",
+  "pinnedPnpm": "10.33.2",
+  "shimPath": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin\\pnpm.cmd",
+  "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin;C:/Program Files/nodejs;C:/Program Files/Git/cmd;C:/Windows/System32;C:/Windows;C:/Windows/System32/WindowsPowerShell/v1.0",
+  "cacheNetworkDisabled": true,
+  "packageManagerAutoManagementDisabled": true,
+  "compileCachesDisabled": true,
+  "expectedVersion": "10.33.2",
+  "actualVersion": "The syntax of the command is incorrect."
+}

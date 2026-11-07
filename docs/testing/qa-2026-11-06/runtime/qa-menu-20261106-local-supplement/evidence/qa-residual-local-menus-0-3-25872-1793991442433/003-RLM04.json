@@ -1,0 +1,58 @@
+{
+  "capturedAt": "2026-11-06T18:57:46.941Z",
+  "evidenceKind": "synthetic Windows local UI plus readonly index; no real clipboard/picker/provider",
+  "status": "failed",
+  "error": "expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 2\nReceived array:  [{\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.83\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.83\", \"index\": 0, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=\\\"true\\\"]\", \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, {\"addCommand\": [Function anonymous], \"element-6066-11e4-a52e-4f735466cecf\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.84\", \"elementId\": \"f.E0EB98F0F0B5D3F6B4D9F40AC3578B49.d.6D884352430F44335D9503F65026494D.e.84\", \"index\": 1, \"isReactElement\": false, \"isShadowElement\": false, \"overwriteCommand\": [Function anonymous], \"parent\": {\"addCommand\": [Function bound ], \"addLocatorStrategy\": [Function anonymous], \"capabilities\": {\"acceptInsecureCerts\": false, \"browserName\": \"chrome\", \"browserVersion\": \"152.0.7977.130\", \"chrome\": {\"chromedriverVersion\": \"152.0.7977.130 (2c592105bbcd9490a9894df48d0fe59b2c512651-refs/branch-heads/7977@{#2660})\", \"userDataDir\": \"C:\\\\vibecoding\\\\zcodium\\\\packages\\\\desktop\\\\.e2e-cache\\\\qa-menu-20261106-local-supplement\\\\chromium-profiles\\\\0-3\"}, \"fedcm:accounts\": true, \"goog:chromeOptions\": {\"debuggerAddress\": \"localhost:50118\"}, \"goog:processID\": 8448, \"networkConnectionEnabled\": false, \"pageLoadStrategy\": \"normal\", \"platformName\": \"windows\", \"proxy\": {}, \"setWindowRect\": true, \"strictFileInteractability\": false, \"timeouts\": {\"implicit\": 0, \"pageLoad\": 300000, \"script\": 30000}, \"unhandledPromptBehavior\": \"dismiss and notify\", \"webauthn:extension:credBlob\": true, \"webauthn:extension:largeBlob\": true, \"webauthn:extension:minPinLength\": true, \"webauthn:extension:prf\": true, \"webauthn:virtualAuthenticators\": true}, \"electron\": {\"clearAllMocks\": [Function bound clearAllMocks], \"execute\": [Function execute], \"isMockFunction\": [Function bound isMockFunction], \"mock\": [Function bound mock], \"mockAll\": [Function bound mockAll], \"resetAllMocks\": [Function bound resetAllMocks], \"restoreAllMocks\": [Function bound restoreAllMocks], \"windowHandle\": \"E0EB98F0F0B5D3F6B4D9F40AC3578B49\"}, \"overwriteCommand\": [Function bound ], \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}, \"selector\": \"[role=\\\"dialog\\\"] [cmdk-item][aria-selected=\\\"true\\\"]\", \"sessionId\": \"c45510c52bcef3dbdf4549f2feac45a2\"}]",
+  "frameEvidence": {
+    "format": "PNG/time frame sequence; WebM not encoded",
+    "frames": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\evidence\\qa-residual-local-menus-0-3-25872-1793991442433\\RLM04-frames",
+    "error": "No standard video encoder; PNG/time sequence retained"
+  },
+  "state": {
+    "activePane": "share-import-47442f2a-f7ce-4b3f-bbbc-9b9a8a0adf71",
+    "activeWorkspace": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\.e2e-home-qa-menu-20261106-local-supplement\\ZCodeProject",
+    "centerQuery": "设置",
+    "clipboard": [],
+    "dpr": 1.5,
+    "history": {},
+    "menus": [
+      {
+        "disabled": null,
+        "selected": "false",
+        "text": "All"
+      },
+      {
+        "disabled": null,
+        "selected": "true",
+        "text": "Actions"
+      },
+      {
+        "disabled": null,
+        "selected": "false",
+        "text": "Tasks"
+      },
+      {
+        "disabled": null,
+        "selected": "false",
+        "text": "Files"
+      }
+    ],
+    "pickerCount": 1,
+    "theme": [
+      "platform-windows-desktop",
+      "theme-zai-light"
+    ],
+    "toasts": ""
+  },
+  "index": [
+    {
+      "task_id": "share-import-47442f2a-f7ce-4b3f-bbbc-9b9a8a0adf71",
+      "workspace_path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\.e2e-home-qa-menu-20261106-local-supplement\\ZCodeProject",
+      "workspace_key": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement\\.e2e-home-qa-menu-20261106-local-supplement\\ZCodeProject",
+      "title": "Imported: RLM_TASK_中文_01",
+      "unread_at": null,
+      "meta_json": "{\"taskId\":\"share-import-47442f2a-f7ce-4b3f-bbbc-9b9a8a0adf71\",\"traceId\":\"d38f3118-3a50-4784-86e4-b7e8e5c466f1\",\"title\":\"Imported: RLM_TASK_中文_01\",\"workspacePath\":\"C:\\\\vibecoding\\\\zcodium\\\\docs\\\\testing\\\\qa-2026-11-06\\\\runtime\\\\qa-menu-20261106-local-supplement\\\\.e2e-home-qa-menu-20261106-local-supplement\\\\ZCodeProject\",\"createdAt\":1793991444827,\"updatedAt\":1793991444828,\"mode\":\"build\",\"provider\":\"glm\",\"titleOverridden\":true,\"model\":\"e2e-upstream/deepseek-v4-flash\",\"target\":null}"
+    }
+  ],
+  "providerRequestCount": 0
+}

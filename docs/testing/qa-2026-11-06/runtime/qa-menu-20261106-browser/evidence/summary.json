@@ -1,0 +1,262 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence",
+  "completedAt": "2026-11-06T17:39:28.502Z",
+  "containerE2E": false,
+  "durationMs": 392247,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-browser%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.41,
+            "peak": 1.65,
+            "p95": 1.65,
+            "sampleCount": 17
+          },
+          "memoryWorkingSetMb": {
+            "mean": 175,
+            "peak": 186.14,
+            "p95": 186.14,
+            "sampleCount": 17
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.47,
+            "peak": 2.16,
+            "p95": 2.16,
+            "sampleCount": 17
+          },
+          "memoryWorkingSetMb": {
+            "mean": 128.16,
+            "peak": 148.34,
+            "p95": 148.34,
+            "sampleCount": 17
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.27,
+            "peak": 2.08,
+            "p95": 2.08,
+            "sampleCount": 17
+          },
+          "memoryWorkingSetMb": {
+            "mean": 426.48,
+            "peak": 492.45,
+            "p95": 492.45,
+            "sampleCount": 17
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.73,
+            "peak": 3.28,
+            "p95": 3.28,
+            "sampleCount": 17
+          },
+          "memoryWorkingSetMb": {
+            "mean": 329.52,
+            "peak": 476.13,
+            "p95": 476.13,
+            "sampleCount": 17
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 1.88,
+        "peak": 7.76,
+        "p95": 7.76,
+        "sampleCount": 17
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\process-samples-0-1.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\process-samples-0-2.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\process-samples-0-3.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-browser\\evidence\\perf\\process-samples-0-4.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1059.16,
+        "peak": 1140.51,
+        "p95": 1140.51,
+        "sampleCount": 17
+      },
+      "sampleCount": 17
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 110179,
+        "p95Ms": 110179,
+        "totalMs": 110179
+      },
+      "before-session": {
+        "count": 5,
+        "p50Ms": 1170,
+        "p95Ms": 1250,
+        "totalMs": 5818
+      },
+      "before-suite": {
+        "count": 9,
+        "p50Ms": 23,
+        "p95Ms": 26,
+        "totalMs": 203
+      },
+      "after": {
+        "count": 5,
+        "p50Ms": 13,
+        "p95Ms": 14,
+        "totalMs": 61
+      },
+      "after-session": {
+        "count": 5,
+        "p50Ms": 833,
+        "p95Ms": 876,
+        "totalMs": 4202
+      },
+      "worker": {
+        "count": 5,
+        "p50Ms": 54382,
+        "p95Ms": 78985,
+        "totalMs": 267754
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2620,
+        "p95Ms": 2620,
+        "totalMs": 2620
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.5,
+    "firstTimePassRate": 0.5,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 392247,
+    "caseDurationP50Ms": 667,
+    "caseDurationP95Ms": 25281,
+    "slowestCases": [
+      {
+        "fullTitle": "只恢复 human 模式、尺寸和预览比例，不恢复旧 tab、URL 或 history",
+        "durationMs": 25281
+      },
+      {
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "durationMs": 804
+      },
+      {
+        "fullTitle": "空 tab 与地址草稿不创建 guest，回车后创建单 guest 并完成导航",
+        "durationMs": 667
+      },
+      {
+        "fullTitle": "BTC01: main 已经关闭逻辑 tab 后，renderer 再次请求关闭仍然成功",
+        "durationMs": 158
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 1,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 1
+  },
+  "requestedSpecs": [
+    "./test/e2e/browser-empty-state-deferred-guest.test.ts",
+    "./test/e2e/browser-tab-close-idempotent.test.ts",
+    "./test/e2e/browser-permission/browser-permission-site-settings.test.ts",
+    "./test/e2e/browser-human-viewport-preference.test.ts",
+    "./test/e2e/browser-tab-residency.test.ts"
+  ],
+  "runId": "qa-menu-20261106-browser",
+  "startedAt": "2026-11-06T17:32:56.255Z",
+  "tests": {
+    "failed": 2,
+    "passed": 2,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T17:35:47.306Z",
+        "durationMs": 667,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-empty-state-deferred-guest.test.ts",
+        "fullTitle": "空 tab 与地址草稿不创建 guest，回车后创建单 guest 并完成导航",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "空 tab 与地址草稿不创建 guest，回车后创建单 guest 并完成导航"
+      },
+      {
+        "capturedAt": "2026-11-06T17:36:43.411Z",
+        "durationMs": 158,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-tab-close-idempotent.test.ts",
+        "fullTitle": "BTC01: main 已经关闭逻辑 tab 后，renderer 再次请求关闭仍然成功",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "BTC01: main 已经关闭逻辑 tab 后，renderer 再次请求关闭仍然成功"
+      },
+      {
+        "capturedAt": "2026-11-06T17:37:37.759Z",
+        "durationMs": 804,
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"denied\"\nReceived: \"granted\"",
+        "errorCategory": "assertion",
+        "errorStack": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: \"denied\"\nReceived: \"granted\"\n    at Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts:64:73)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts",
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问"
+      },
+      {
+        "capturedAt": "2026-11-06T17:38:56.009Z",
+        "durationMs": 25281,
+        "error": "切换右侧面板后没有出现 Open Tab 或 add trigger",
+        "errorCategory": "unknown",
+        "errorStack": "Error: 切换右侧面板后没有出现 Open Tab 或 add trigger\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async ensureSidePaneEntryVisible (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\browser-side-pane.ts:37:3)\n    at async openFirstBrowserTab (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\browser-side-pane.ts:15:3)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-human-viewport-preference.test.ts:86:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-human-viewport-preference.test.ts",
+        "fullTitle": "只恢复 human 模式、尺寸和预览比例，不恢复旧 tab、URL 或 history",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "只恢复 human 模式、尺寸和预览比例，不恢复旧 tab、URL 或 history"
+      }
+    ],
+    "skipped": 0,
+    "total": 4
+  }
+}

@@ -2,25 +2,13 @@ import type { TaskNotificationPayload } from "@zcode/shared";
 import type {
   ConversationSnapshot,
   PendingInteraction,
-  SessionPhase,
   SessionSummary,
   UserInputRequestPayload,
 } from "@zcode/shared/zcode-protocol-v4";
+import { sessionTerminalNotificationStatus } from "@zcode/shared/zcode-protocol-v4";
 import type { IntlInstance } from "@/i18n/index.js";
 
 type FormatMessage = IntlInstance["formatMessage"];
-
-function terminalStatusForPhase(
-  phase: SessionPhase,
-): Extract<TaskNotificationPayload["status"], "completed" | "failed"> | null {
-  if (phase === "completedSuccess" || phase === "completedInterrupted") {
-    return "completed";
-  }
-  if (phase === "error") {
-    return "failed";
-  }
-  return null;
-}
 
 function taskTitleBody(
   title: string,
@@ -60,19 +48,44 @@ export function collectTerminalTaskNotificationPayloads(params: {
   previousBySessionId: ReadonlyMap<string, SessionSummary>;
   sessions: readonly SessionSummary[];
   formatMessage: FormatMessage;
+  notificationScope?: {
+    endpointKey?: string;
+    workspaceKey: string;
+    logEpoch: string;
+  };
 }): TaskNotificationPayload[] {
   const payloads: TaskNotificationPayload[] = [];
   for (const session of params.sessions) {
-    const status = terminalStatusForPhase(session.phase);
+    const status = sessionTerminalNotificationStatus(session);
     if (!status) continue;
 
     const previous = params.previousBySessionId.get(session.sessionId);
     if (!previous) continue;
 
-    const previousStatus = terminalStatusForPhase(previous.phase);
-    if (previousStatus === status) continue;
+    const previousStatus = sessionTerminalNotificationStatus(previous);
+    // conflated snapshot/recovery 可能省略两轮之间的 running；CLI 已观察到新资格边沿时，
+    // 不同事实身份仍代表新通知。旧 CLI 没有身份则保持原资格比较，避免重放冷历史。
+    if (
+      previousStatus === status &&
+      (!previous.notificationEventId ||
+        !session.notificationEventId ||
+        previous.notificationEventId === session.notificationEventId)
+    ) {
+      continue;
+    }
 
-    payloads.push(terminalPayloadForSession(session, status, params.formatMessage));
+    const payload = terminalPayloadForSession(session, status, params.formatMessage);
+    if (params.notificationScope && session.notificationEventId) {
+      // 相同真实事件跨窗口保持同一身份；不同 Host/workspace/epoch 的同 taskId 必须隔离。
+      payload.notificationId = JSON.stringify([
+        params.notificationScope.endpointKey ?? null,
+        params.notificationScope.workspaceKey,
+        params.notificationScope.logEpoch,
+        session.sessionId,
+        session.notificationEventId,
+      ]);
+    }
+    payloads.push(payload);
   }
   return payloads;
 }

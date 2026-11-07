@@ -4,4 +4,6 @@ Host Worker 是 app 库启动准备的唯一执行者。宿主验证 progress/do
 
 先读取旧 settings，再调用 project-storage 的启动入口迁移和维护索引，完成后发送 done，失败保留结构化错误及已经提交的迁移事实。所有退出路径关闭 MessagePort。此顺序避免空设置先记账、之后无法再恢复旧项目种子。
 
+Worker 自己等待 `@zcode/services/storage-startup` 的 `createSettingService().get()`，经启动入口第三参 `options.settings` 交给原 Repo；不扩展 path-only workerData，不把完整配置写入消息或日志。读取失败沿原 failed 帧退出。已登记 `0005_projects` 不重跑，既有空归属不因此自动分配；坏账恢复另行显式定义。
+
 构建产物仍为 host/tasksStorageWorker.js，取消、超时及进程代际仍由宿主原有管理器负责；不改变历史 SQL、checksum 或 attachment。

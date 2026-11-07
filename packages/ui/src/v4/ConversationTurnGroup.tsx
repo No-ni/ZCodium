@@ -89,6 +89,7 @@ import type {
 } from "@/v4/conversationTurnRenderUnits.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { useConversationWorkDuration } from "@/hooks/useConversationWorkDuration.js";
+import type { ConversationTurnWorkStatus } from "@/v4/conversationTurnWorkSegments.js";
 import { ConversationTurnRow, resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
@@ -147,11 +148,15 @@ function toRetryStatus(apiRetry: ApiRetryState): ZCodeApiRetryStatus {
 function TurnChatLoadingSlot({
   apiRetry,
   eligible,
+  workStatus,
 }: {
   apiRetry: ApiRetryState | null;
   eligible: boolean;
+  workStatus?: ConversationTurnWorkStatus;
 }) {
   const { intl, locale } = useZCodeIntl();
+  // 文案叶子使用工作段的稳定起点；隐藏、重试或重挂载后仍能立即补齐已有耗时。
+  const elapsedMs = useConversationWorkDuration(workStatus, 100);
   const retryStatus = useMemo(() => (apiRetry ? toRetryStatus(apiRetry) : null), [apiRetry]);
   // 前两次短暂恢复对用户等价于普通加载；保留 apiRetry 运行态，但只在
   // 第三次重试开始后显示计数。必须在 retry/loading 分支前收敛，否则会留下空 slot，
@@ -166,7 +171,7 @@ function TurnChatLoadingSlot({
       ) : (
         // running 是 ChatLoading 的权威事实；额外静默计时会让 projection
         // 更新反复重启可见性，并使 UI 晚于真实状态。
-        <ChatLoading loading data-testid={TID_CHAT_LOADING} size="sm" />
+        <ChatLoading loading elapsedMs={elapsedMs} data-testid={TID_CHAT_LOADING} size="sm" />
       )}
     </div>
   );
@@ -829,7 +834,11 @@ function ConversationTurnFlow({
           stageTailIsRunning={unit.isRunning}
           assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
-        <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+        <TurnChatLoadingSlot
+          apiRetry={apiRetry}
+          eligible={showLoading}
+          workStatus={unit.workSegments?.at(-1)?.workStatus ?? unit.workStatus}
+        />
       </div>
     );
   }
@@ -894,7 +903,11 @@ function ConversationTurnFlow({
           shareSelectionRowId={shareSelectionRowId}
         />
       ))}
-      <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+      <TurnChatLoadingSlot
+        apiRetry={apiRetry}
+        eligible={showLoading}
+        workStatus={unit.workSegments?.at(-1)?.workStatus ?? unit.workStatus}
+      />
     </div>
   );
 }
@@ -1102,7 +1115,11 @@ function ConversationBackgroundResultWork({
           assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       ) : null}
-      <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+      <TurnChatLoadingSlot
+        apiRetry={apiRetry}
+        eligible={showLoading}
+        workStatus={unit.workSegments?.at(-1)?.workStatus ?? unit.workStatus}
+      />
     </div>
   );
 }

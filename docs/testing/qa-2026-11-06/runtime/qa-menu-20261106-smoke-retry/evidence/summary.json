@@ -1,0 +1,200 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence",
+  "completedAt": "2026-11-06T15:04:36.577Z",
+  "containerE2E": false,
+  "durationMs": 148596,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 0,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-smoke-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.99,
+            "peak": 1.88,
+            "p95": 1.88,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 179.02,
+            "peak": 180.52,
+            "p95": 180.52,
+            "sampleCount": 3
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 2.97,
+            "peak": 8.63,
+            "p95": 8.63,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 108.53,
+            "peak": 112.7,
+            "p95": 112.7,
+            "sampleCount": 3
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 3.32,
+            "peak": 5.21,
+            "p95": 5.21,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 396.89,
+            "peak": 475.79,
+            "p95": 475.79,
+            "sampleCount": 3
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 1.97,
+            "peak": 3.81,
+            "p95": 3.81,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 286.91,
+            "peak": 329.54,
+            "p95": 329.54,
+            "sampleCount": 3
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 9.25,
+        "peak": 19.53,
+        "p95": 19.53,
+        "sampleCount": 3
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-smoke-retry\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 971.36,
+        "peak": 1098.04,
+        "p95": 1098.04,
+        "sampleCount": 3
+      },
+      "sampleCount": 3
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 114474,
+        "p95Ms": 114474,
+        "totalMs": 114474
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 2121,
+        "p95Ms": 2121,
+        "totalMs": 2121
+      },
+      "before-suite": {
+        "count": 1,
+        "p50Ms": 29,
+        "p95Ms": 29,
+        "totalMs": 29
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 27,
+        "p95Ms": 27,
+        "totalMs": 27
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 843,
+        "p95Ms": 843,
+        "totalMs": 843
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 24042,
+        "p95Ms": 24042,
+        "totalMs": 24042
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2430,
+        "p95Ms": 2430,
+        "totalMs": 2430
+      }
+    }
+  },
+  "stability": {
+    "passRate": 1,
+    "firstTimePassRate": 1,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 148596,
+    "caseDurationP50Ms": 3214,
+    "caseDurationP95Ms": 3214,
+    "slowestCases": [
+      {
+        "fullTitle": "默认启动后应进入可交互的工作区主界面",
+        "durationMs": 3214
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "./test/e2e/smoke.test.ts"
+  ],
+  "runId": "qa-menu-20261106-smoke-retry",
+  "startedAt": "2026-11-06T15:02:07.981Z",
+  "tests": {
+    "failed": 0,
+    "passed": 1,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T15:04:31.311Z",
+        "durationMs": 3214,
+        "featureArea": "smoke",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\smoke.test.ts",
+        "fullTitle": "默认启动后应进入可交互的工作区主界面",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "默认启动后应进入可交互的工作区主界面"
+      }
+    ],
+    "skipped": 0,
+    "total": 1
+  }
+}

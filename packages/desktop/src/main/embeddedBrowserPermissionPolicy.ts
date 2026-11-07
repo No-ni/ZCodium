@@ -1,5 +1,10 @@
 import type { Session, Streams } from "electron";
 import type { EmbeddedBrowserPermissionDeviceOption } from "@zcode/shared";
+import type { EmbeddedBrowserSitePermissionStore } from "./embedded-browser-permission-contract/site-permissions.js";
+export type {
+  EmbeddedBrowserSitePermissionRecord,
+  EmbeddedBrowserSitePermissionStore,
+} from "./embedded-browser-permission-contract/site-permissions.js";
 import { readDeviceOptions } from "./embeddedBrowserDeviceOptions.js";
 import {
   getEmbeddedBrowserSitePermission,
@@ -62,15 +67,6 @@ export interface EmbeddedBrowserPermissionPromptRequest {
   hostWebContentsId?: number;
   /** 发起请求的 guest 自身 webContents id，renderer 据此只在归属 tab 渲染。 */
   guestWebContentsId?: number;
-}
-
-export interface EmbeddedBrowserSitePermissionRecord {
-  [origin: string]: { [permission: string]: "allow" | "deny" };
-}
-
-export interface EmbeddedBrowserSitePermissionStore {
-  load(): Promise<EmbeddedBrowserSitePermissionRecord>;
-  persist(record: EmbeddedBrowserSitePermissionRecord): Promise<void>;
 }
 
 export interface EmbeddedBrowserPermissionLogger {
@@ -147,8 +143,11 @@ export async function applyEmbeddedBrowserPermissionPolicy(
     warn = false,
   ): void => {
     const message = `${LOG_TAG} decision=${decision}`;
-    if (warn) logger.warn(message, meta);
-    else logger.info(message, meta);
+    // 授权键仍使用 origin；生产审计只输出能力与决策分类，避免激活策略后泄露站点。
+    const { permission, source, action } = meta;
+    const safeMeta = { permission, source, ...(action ? { action } : {}) };
+    if (warn) logger.warn(message, safeMeta);
+    else logger.info(message, safeMeta);
   };
 
   targetSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
@@ -225,8 +224,8 @@ export async function applyEmbeddedBrowserPermissionPolicy(
           }
           callback(granted);
         },
-        (error: unknown) => {
-          logger.warn(`${LOG_TAG} permission prompt failed: ${String(error)}`);
+        () => {
+          logger.warn(`${LOG_TAG} permission prompt failed`);
           callback(false);
         },
       );
@@ -305,7 +304,6 @@ export async function applyEmbeddedBrowserPermissionPolicy(
       // 诊断蓝牙/USB 渐进枚举：热更新时记录可见设备数（列表为空可据此定位 TCC 权限问题）
       logger.info(`${LOG_TAG} device list updated`, {
         permission,
-        origin: input.origin,
         deviceCount: input.devices.length,
       });
       existing.updateDevices(input.devices);
@@ -314,15 +312,14 @@ export async function applyEmbeddedBrowserPermissionPolicy(
     let session: EmbeddedBrowserDevicePickerSession;
     try {
       session = options.devicePicker({ ...input, permission });
-    } catch (error) {
-      logger.warn(`${LOG_TAG} device picker failed: ${String(error)}`);
+    } catch {
+      logger.warn(`${LOG_TAG} device picker failed`);
       callback(cancel);
       return;
     }
     devicePickerSessions.set(permission, session);
     logger.info(`${LOG_TAG} device picker opened`, {
       permission,
-      origin: input.origin,
       deviceCount: input.devices.length,
     });
     void session.result.then(
@@ -336,9 +333,9 @@ export async function applyEmbeddedBrowserPermissionPolicy(
         logDecision("granted", { permission, origin: input.origin, source: "device-picker" });
         callback(picked.deviceId);
       },
-      (error: unknown) => {
+      () => {
         devicePickerSessions.delete(permission);
-        logger.warn(`${LOG_TAG} device picker failed: ${String(error)}`);
+        logger.warn(`${LOG_TAG} device picker failed`);
         callback(cancel);
       },
     );

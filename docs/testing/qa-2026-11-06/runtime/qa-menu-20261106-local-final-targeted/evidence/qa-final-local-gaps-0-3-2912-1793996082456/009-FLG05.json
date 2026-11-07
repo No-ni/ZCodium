@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-11-06T20:15:19.393Z",
+  "evidenceKind": "isolated synthetic public inputs; real UI; mocked native/clipboard exits",
+  "status": "passed",
+  "state": {
+    "activeTag": "BUTTON",
+    "clipboardLengths": [
+      39
+    ],
+    "dpr": 1.5,
+    "headings": [
+      "Command palette",
+      "Memory"
+    ],
+    "section": null
+  }
+}

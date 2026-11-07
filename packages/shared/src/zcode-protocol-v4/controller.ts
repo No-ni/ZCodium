@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { zcodeTaskMetaSchema } from "../validation.js";
-import { pendingInteractionSummarySchema } from "./sessions-index.js";
+import {
+  pendingInteractionSummarySchema,
+  sessionPendingInteractionSummarySchema,
+} from "./sessions-index.js";
 import { sessionWorkflowActivitySchema } from "./sessions-index-workflow-activity.js";
 import { sessionPhaseSchema } from "./snapshot.js";
 import { subscribeAckSchema } from "./transport.js";
@@ -93,7 +96,11 @@ export type WindowHostControllerTaskActivity = z.infer<
 export const windowHostControllerTaskRowSchema = z
   .object({
     address: windowHostTaskAddressSchema,
-    meta: zcodeTaskMetaSchema,
+    // Host 已用当前 sessions-index 详情覆盖旧 meta；Controller wire 不能再静默剥离它。
+    // 仅扩展只读投影，持久化 meta schema 不承接这份实时交互事实。
+    meta: zcodeTaskMetaSchema.extend({
+      pendingInteraction: sessionPendingInteractionSummarySchema.optional(),
+    }),
     membership: z
       .object({
         pinned: z.boolean(),

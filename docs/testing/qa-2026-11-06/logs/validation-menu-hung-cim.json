@@ -1,0 +1,8 @@
+{
+  "command": "node docs/testing/qa-2026-11-06/menu-hung-cim-observation.mjs",
+  "started": "2026-11-06T18:31:00.285Z",
+  "finished": "2026-11-06T18:31:04.326Z",
+  "code": 1,
+  "signal": null,
+  "node": "v24.18.0"
+}

@@ -1,0 +1,288 @@
+{
+  "capturedAt": "2026-11-06T19:25:22.411Z",
+  "evidenceKind": "static source syntax/target/fullTitle registration/synthetic pure matcher; no UI/hooks/Host/Provider server/build",
+  "runtime": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-grp-target-static-344-1793993121507",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-task-groups.test.ts",
+      "sha256": "cafb1ea9730f997efea88b496fe00bc6aa1ab86c650bbf6ec3a9b8285bb5a2cc"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-project-bootstrap.cjs",
+      "sha256": "21216d1a472ad5880ebff67d336cc79339744a03e52d3123b93d2489b5dc6c3c"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\run-menu-tests.ps1",
+      "sha256": "909a1a1f4dcfc7340428b7f795958f9017d2f1eaba01067c3f369f7aafda6293"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\upstream-replay-server.ts",
+      "sha256": "04e4e073761ad298f8a4c9ddafad859e7ba2448f021fccc6e948254b2e883661"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-task-groups.json",
+      "sha256": "5329045860b91fd2b876210b3c8ba1f1935467accd6d429a03470836225234c5"
+    }
+  ],
+  "grep": "(?:^| )GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员$",
+  "targetProbes": [
+    {
+      "name": "exact Windows",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "name": "exact slash",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "name": "different title",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "prefix title",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "suffix title",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "other file",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "undefined",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "relative file",
+      "expected": false,
+      "actual": false
+    }
+  ],
+  "fixtureProbes": [
+    {
+      "name": "canonical first send",
+      "expected": "grp06-first-send",
+      "actual": "grp06-first-send"
+    },
+    {
+      "name": "title sidecar",
+      "expected": "conversation-session-task-groups-title-sidecar",
+      "actual": "conversation-session-task-groups-title-sidecar"
+    },
+    {
+      "name": "title excludes main",
+      "expected": "conversation-session-task-groups-title-sidecar",
+      "actual": "conversation-session-task-groups-title-sidecar"
+    },
+    {
+      "name": "main maxMatches exhausted",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "name": "unselected pending case only",
+      "expected": "grp06-pending-placement",
+      "actual": "grp06-pending-placement"
+    },
+    {
+      "name": "wrong HTTP method",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "name": "unrelated marker",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "name": "last user guards old marker",
+      "expected": null,
+      "actual": null
+    }
+  ],
+  "browserCallbacks": [
+    {
+      "keepNames": true,
+      "parse": true,
+      "injectedNameHelper": false,
+      "callback": "() => ({\n      groupedViewPresent: Boolean(document.querySelector('[data-testid=\"task-grouped-view\"]')),\n      groupAddCount: document.querySelectorAll('[data-testid=\"task-group-add\"]').length,\n      radioCount: document.querySelectorAll('[data-testid=\"sidebar-view-grouped\"]').length,\n      radioState: document.querySelector('[data-testid=\"sidebar-view-grouped\"]')?.getAttribute(\"data-state\") ?? null,\n      radioChecked: document.querySelector('[data-testid=\"sidebar-view-grouped\"]')?.getAttribute(\"aria-checked\") ?? null,\n    })"
+    }
+  ],
+  "registered": [
+    {
+      "title": "GRP02：旧分组偏好迁移，新选择在重载后优先",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP02：旧分组偏好迁移，新选择在重载后优先"
+    },
+    {
+      "title": "GRP02/03/11：三视图、创建改色改名、重载与取消空组",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP02/03/11：三视图、创建改色改名、重载与取消空组"
+    },
+    {
+      "title": "GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员"
+    },
+    {
+      "title": "GRP06/CR-01：组织登记挂起时取消首发仍可刷新目录，释放后只入组一次",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP06/CR-01：组织登记挂起时取消首发仍可刷新目录，释放后只入组一次"
+    },
+    {
+      "title": "GRP11：整组拖拽取消恢复展开，释放只调整顶层顺序",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP11：整组拖拽取消恢复展开，释放只调整顶层顺序"
+    },
+    {
+      "title": "GRP10：千行分组虚拟滚动、吸顶和折叠重载",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP10：千行分组虚拟滚动、吸顶和折叠重载"
+    }
+  ],
+  "excluded": [
+    {
+      "title": "GRP02：旧分组偏好迁移，新选择在重载后优先",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP02：旧分组偏好迁移，新选择在重载后优先"
+    },
+    {
+      "title": "GRP02/03/11：三视图、创建改色改名、重载与取消空组",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP02/03/11：三视图、创建改色改名、重载与取消空组"
+    },
+    {
+      "title": "GRP06/CR-01：组织登记挂起时取消首发仍可刷新目录，释放后只入组一次",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP06/CR-01：组织登记挂起时取消首发仍可刷新目录，释放后只入组一次"
+    },
+    {
+      "title": "GRP11：整组拖拽取消恢复展开，释放只调整顶层顺序",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP11：整组拖拽取消恢复展开，释放只调整顶层顺序"
+    },
+    {
+      "title": "GRP10：千行分组虚拟滚动、吸顶和折叠重载",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP10：千行分组虚拟滚动、吸顶和折叠重载"
+    }
+  ],
+  "earlyReturns": [
+    {
+      "name": "default disabled target",
+      "uiCalls": 0
+    },
+    {
+      "name": "unselected",
+      "uiCalls": 0
+    },
+    {
+      "name": "GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员",
+      "uiCalls": 0
+    },
+    {
+      "name": "undefined",
+      "uiCalls": 0
+    },
+    {
+      "name": "wrong run refused",
+      "uiCalls": 0
+    }
+  ],
+  "runnerStatic": {
+    "probes": [
+      {
+        "expected": true,
+        "reason": null,
+        "actual": true,
+        "name": "exact target fresh"
+      },
+      {
+        "expected": false,
+        "reason": "GroupedTarget requires its reviewed canonical case and unique run",
+        "actual": false,
+        "name": "old run"
+      },
+      {
+        "expected": false,
+        "reason": "GroupedTarget requires its reviewed canonical case and unique run",
+        "actual": false,
+        "name": "extra spec"
+      },
+      {
+        "expected": false,
+        "reason": "GroupedTarget requires its reviewed canonical case and unique run",
+        "actual": false,
+        "name": "wrong grep"
+      },
+      {
+        "expected": false,
+        "reason": "Final QA controls require a new runtime",
+        "actual": false,
+        "name": "runtime exists"
+      },
+      {
+        "expected": false,
+        "reason": "GroupedTarget requires its reviewed canonical case and unique run",
+        "actual": false,
+        "name": "Bootstrap absent"
+      },
+      {
+        "expected": true,
+        "reason": null,
+        "actual": true,
+        "name": "default off"
+      }
+    ],
+    "syntaxErrors": 0
+  },
+  "selected": [
+    {
+      "title": "GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员",
+      "suites": [
+        "任务分组独立视图"
+      ],
+      "fullTitle": "任务分组独立视图 GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员"
+    }
+  ],
+  "hooksRegisteredNotRun": [
+    "afterEach",
+    "before"
+  ],
+  "accepted": true
+}

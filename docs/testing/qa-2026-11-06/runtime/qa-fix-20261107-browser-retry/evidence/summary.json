@@ -1,0 +1,224 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence",
+  "completedAt": "2026-11-06T21:45:54.768Z",
+  "containerE2E": false,
+  "durationMs": 245517,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-fix-20261107-browser-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.4,
+            "peak": 1.17,
+            "p95": 1.17,
+            "sampleCount": 12
+          },
+          "memoryWorkingSetMb": {
+            "mean": 166.06,
+            "peak": 169.07,
+            "p95": 169.07,
+            "sampleCount": 12
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.32,
+            "peak": 2.02,
+            "p95": 2.02,
+            "sampleCount": 12
+          },
+          "memoryWorkingSetMb": {
+            "mean": 135.41,
+            "peak": 139.33,
+            "p95": 139.33,
+            "sampleCount": 12
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.1,
+            "peak": 0.42,
+            "p95": 0.42,
+            "sampleCount": 12
+          },
+          "memoryWorkingSetMb": {
+            "mean": 348.7,
+            "peak": 405.89,
+            "p95": 405.89,
+            "sampleCount": 12
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.45,
+            "peak": 2.54,
+            "p95": 2.54,
+            "sampleCount": 12
+          },
+          "memoryWorkingSetMb": {
+            "mean": 409.63,
+            "peak": 463.93,
+            "p95": 463.93,
+            "sampleCount": 12
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 1.27,
+        "peak": 6.1,
+        "p95": 6.1,
+        "sampleCount": 12
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-20261107-browser-retry\\evidence\\perf\\process-samples-0-1.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1059.81,
+        "peak": 1130.73,
+        "p95": 1130.73,
+        "sampleCount": 12
+      },
+      "sampleCount": 12
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 108334,
+        "p95Ms": 108334,
+        "totalMs": 108334
+      },
+      "before-session": {
+        "count": 2,
+        "p50Ms": 986,
+        "p95Ms": 1204,
+        "totalMs": 2190
+      },
+      "before-suite": {
+        "count": 4,
+        "p50Ms": 20,
+        "p95Ms": 57,
+        "totalMs": 127
+      },
+      "after": {
+        "count": 2,
+        "p50Ms": 10,
+        "p95Ms": 10,
+        "totalMs": 20
+      },
+      "after-session": {
+        "count": 2,
+        "p50Ms": 818,
+        "p95Ms": 858,
+        "totalMs": 1676
+      },
+      "worker": {
+        "count": 2,
+        "p50Ms": 62456,
+        "p95Ms": 66904,
+        "totalMs": 129360
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2645,
+        "p95Ms": 2645,
+        "totalMs": 2645
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0,
+    "firstTimePassRate": 0,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 245517,
+    "caseDurationP50Ms": 11367,
+    "caseDurationP95Ms": 11377,
+    "slowestCases": [
+      {
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "durationMs": 11377
+      },
+      {
+        "fullTitle": "BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问",
+        "durationMs": 11367
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 2
+  },
+  "requestedSpecs": [
+    "./test/e2e/browser-permission/browser-permission-site-settings.test.ts",
+    "./test/e2e/manual-review/pending/qa-browser-permission-bugfix-20261107.test.ts"
+  ],
+  "runId": "qa-fix-20261107-browser-retry",
+  "startedAt": "2026-11-06T21:41:49.251Z",
+  "tests": {
+    "failed": 2,
+    "passed": 0,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T21:44:38.986Z",
+        "durationMs": 11377,
+        "error": "页面没有可点击的 test id: site-permission-setting-geolocation",
+        "errorCategory": "unknown",
+        "errorStack": "Error: 页面没有可点击的 test id: site-permission-setting-geolocation\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10494:24)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async clickTestIdByWebDriver (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\helpers\\desktop-app.ts:289:3)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts:91:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts",
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问"
+      },
+      {
+        "capturedAt": "2026-11-06T21:45:46.475Z",
+        "durationMs": 11367,
+        "error": "BUG005 product permission prompt is missing",
+        "errorCategory": "unknown",
+        "errorStack": "Error: BUG005 product permission prompt is missing\n    at <anonymous> (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:6474:15)\n    at async Browser.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\manual-review\\pending\\qa-browser-permission-bugfix-20261107.test.ts:108:7)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\manual-review\\pending\\qa-browser-permission-bugfix-20261107.test.ts",
+        "fullTitle": "BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问"
+      }
+    ],
+    "skipped": 0,
+    "total": 2
+  }
+}

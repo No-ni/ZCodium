@@ -54,8 +54,6 @@ export function registerBrowserDataIpcHandlers(logger: {
       void writeEmbeddedBrowserSitePermission(request.origin, request.permission, request.state);
     }
     logger.info("[embedded-browser-permission] site permission updated from settings", {
-      origin: request.origin,
-      permission: request.permission,
       state: request.state,
     });
     return getEmbeddedBrowserSitePermissionSnapshot();
@@ -72,9 +70,7 @@ export function registerBrowserDataIpcHandlers(logger: {
       return getEmbeddedBrowserSitePermissionSnapshot();
     }
     void removeEmbeddedBrowserSitePermissionOrigin(request.origin);
-    logger.info("[embedded-browser-permission] site permissions reset from settings tab", {
-      origin: request.origin,
-    });
+    logger.info("[embedded-browser-permission] site permissions reset from settings tab");
     return getEmbeddedBrowserSitePermissionSnapshot();
   });
 }

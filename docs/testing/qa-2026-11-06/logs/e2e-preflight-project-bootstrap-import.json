@@ -1,0 +1,9 @@
+{
+  "evidenceKind": "read-only helper import using local tsx; no UI, runtime/cache roots isolated",
+  "helpers": {
+    "desktop-app": 42,
+    "project-sidebar": 19,
+    "occupation-onboarding": 2
+  },
+  "defaultWorkspace": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-bootstrap-import\\ZCodeProject"
+}

@@ -1,0 +1,200 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence",
+  "completedAt": "2026-11-06T22:11:36.535Z",
+  "containerE2E": false,
+  "durationMs": 186759,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 0,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-ui-20261107-command-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 1.16,
+            "peak": 1.99,
+            "p95": 1.99,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 160.33,
+            "peak": 161.19,
+            "p95": 161.19,
+            "sampleCount": 5
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 1.31,
+            "peak": 2.39,
+            "p95": 2.39,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 156.21,
+            "peak": 175.37,
+            "p95": 175.37,
+            "sampleCount": 5
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.44,
+            "peak": 0.71,
+            "p95": 0.71,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 338.05,
+            "peak": 339.27,
+            "p95": 339.27,
+            "sampleCount": 5
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 2.34,
+            "peak": 4.03,
+            "p95": 4.03,
+            "sampleCount": 5
+          },
+          "memoryWorkingSetMb": {
+            "mean": 291.68,
+            "peak": 328.67,
+            "p95": 328.67,
+            "sampleCount": 5
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 5.25,
+        "peak": 7.47,
+        "p95": 7.47,
+        "sampleCount": 5
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-ui-20261107-command-retry\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 946.26,
+        "peak": 983.63,
+        "p95": 983.63,
+        "sampleCount": 5
+      },
+      "sampleCount": 5
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 110165,
+        "p95Ms": 110165,
+        "totalMs": 110165
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 964,
+        "p95Ms": 964,
+        "totalMs": 964
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 19,
+        "p95Ms": 24,
+        "totalMs": 43
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 11,
+        "p95Ms": 11,
+        "totalMs": 11
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 884,
+        "p95Ms": 884,
+        "totalMs": 884
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 68925,
+        "p95Ms": 68925,
+        "totalMs": 68925
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2960,
+        "p95Ms": 2960,
+        "totalMs": 2960
+      }
+    }
+  },
+  "stability": {
+    "passRate": 1,
+    "firstTimePassRate": 1,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 186759,
+    "caseDurationP50Ms": 8321,
+    "caseDurationP95Ms": 8321,
+    "slowestCases": [
+      {
+        "fullTitle": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行",
+        "durationMs": 8321
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-ui-bugfix-20261107.test.ts"
+  ],
+  "runId": "qa-ui-20261107-command-retry",
+  "startedAt": "2026-11-06T22:08:29.776Z",
+  "tests": {
+    "failed": 0,
+    "passed": 1,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T22:11:21.806Z",
+        "durationMs": 8321,
+        "featureArea": "general",
+        "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+        "fullTitle": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行"
+      }
+    ],
+    "skipped": 0,
+    "total": 1
+  }
+}

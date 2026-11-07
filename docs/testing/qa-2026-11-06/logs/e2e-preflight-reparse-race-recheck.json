@@ -1,0 +1,31 @@
+{
+  "probeRoot": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-reparse-race-1ad4957bdcb641fb93d10671b8379619",
+  "capturedAt": "2026-11-06T16:23:08.1208631Z",
+  "evidenceKind": "Bounded QA-only PowerShell dynamic directory deletion and rejection branch probes; no application launched",
+  "results": [
+    {
+      "passed": true,
+      "name": "existing empty directory"
+    },
+    {
+      "passed": true,
+      "name": "directory disappeared after initial Get-Item; native ENOENT skipped"
+    },
+    {
+      "passed": true,
+      "name": "PathNotFound with existing path still rejected"
+    },
+    {
+      "passed": true,
+      "name": "permission error still rejected"
+    },
+    {
+      "passed": true,
+      "name": "outside-worktree queue rejected before read"
+    },
+    {
+      "passed": true,
+      "name": "bounded in-worktree junction rejected before enumeration"
+    }
+  ]
+}

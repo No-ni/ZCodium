@@ -1,0 +1,133 @@
+{
+  "capturedAt": "2026-11-06T19:33:59.702Z",
+  "runId": "qa-menu-20261106-grp-pin-grouped",
+  "evidenceKind": "Read-only existing live sampler snapshot and bounded per-role resource summary; no UI/process query/attach/kill",
+  "source": "docs/testing/qa-2026-11-06/logs/validation-grp-pin-sampler-1793993275811.ndjson",
+  "sourceSnapshotSha256": "27c941705b68fe52323594670d59867d830b5d0a44a4fd56edec748928cd6a32",
+  "samplerSourceSha256": "ad11d09c35475c3859d0acafdc8d9cb880faf694af47bbcf9537d618b0155254",
+  "firstLock": {
+    "kind": "sample",
+    "capturedAt": "2026-11-06T19:31:11.563Z",
+    "cycleMs": 1030,
+    "main": {
+      "pid": 32200,
+      "createdAt": "2026-11-06T19:31:10.7575360Z"
+    },
+    "mainAlive": true,
+    "exactRootFound": true,
+    "perfRoleSnapshotAt": null,
+    "trackedAbsentOrReusedPids": [],
+    "processes": [
+      {
+        "pid": 32200,
+        "ppid": 29972,
+        "name": "electron.exe",
+        "createdAt": "2026-11-06T19:31:10.7575360Z",
+        "role": "main",
+        "roleSource": "exact-main-identity",
+        "cpuPercentOfOneCore": null,
+        "cpuPercentOfSystem": null,
+        "workingSetBytes": 104452096,
+        "threads": 22,
+        "handles": 435,
+        "runMarker": true,
+        "homeMarker": true,
+        "executableInWorktree": true
+      }
+    ]
+  },
+  "windowStart": "2026-11-06T19:32:03.221Z",
+  "windowEnd": "2026-11-06T19:33:58.249Z",
+  "windowSamples": 58,
+  "mainAliveEveryWindowSample": false,
+  "roles": [
+    {
+      "role": "main",
+      "pid": 32200,
+      "ppid": 29972,
+      "createdAt": "2026-11-06T19:31:10.7575360Z",
+      "roleSource": "exact-main-identity",
+      "samples": 55,
+      "cpuPercentOneCore": {
+        "min": 0,
+        "max": 19.876935840707965,
+        "mean": 0.41954320487689817
+      },
+      "workingSetBytes": {
+        "min": 177831936,
+        "max": 177897472
+      }
+    },
+    {
+      "role": "gpu",
+      "pid": 29724,
+      "ppid": 32200,
+      "createdAt": "2026-11-06T19:31:11.4995080Z",
+      "roleSource": "existing-WDIO-perf-type",
+      "samples": 55,
+      "cpuPercentOneCore": {
+        "min": 5.583205717202654,
+        "max": 49.26023230088495,
+        "mean": 16.847655309516192
+      },
+      "workingSetBytes": {
+        "min": 142008320,
+        "max": 165257216
+      }
+    },
+    {
+      "role": "renderer",
+      "pid": 1852,
+      "ppid": 32200,
+      "createdAt": "2026-11-06T19:31:11.6079520Z",
+      "roleSource": "chromium-type",
+      "samples": 55,
+      "cpuPercentOneCore": {
+        "min": 2.344922461230615,
+        "max": 82.1003871681416,
+        "mean": 12.526484945473852
+      },
+      "workingSetBytes": {
+        "min": 250355712,
+        "max": 302436352
+      }
+    },
+    {
+      "role": "host",
+      "pid": 30244,
+      "ppid": 32200,
+      "createdAt": "2026-11-06T19:31:12.4392800Z",
+      "roleSource": "existing-WDIO-perf-service-name",
+      "samples": 55,
+      "cpuPercentOneCore": {
+        "min": 0,
+        "max": 4.321073008849558,
+        "mean": 0.4483155746656494
+      },
+      "workingSetBytes": {
+        "min": 157466624,
+        "max": 163643392
+      }
+    },
+    {
+      "role": "scheduler",
+      "pid": 29152,
+      "ppid": 32200,
+      "createdAt": "2026-11-06T19:31:15.6641570Z",
+      "roleSource": "existing-WDIO-perf-service-name",
+      "samples": 55,
+      "cpuPercentOneCore": {
+        "min": 0,
+        "max": 0.7663070132417852,
+        "mean": 0.013932854786214276
+      },
+      "workingSetBytes": {
+        "min": 127963136,
+        "max": 130244608
+      }
+    }
+  ],
+  "status": "Repeated automation-session timeout symptom after pin/focus confirmed across filtered and grouped; product/driver ownership and root cause not confirmed",
+  "counts": "High priority runtime candidate only; eight confirmed BUGs unchanged",
+  "limit": "Snapshot taken while runner continues; CPU percentage is not proof of infinite loop. Host role comes from last successful same-run existing perf, unknown descendants remain unclassified."
+}

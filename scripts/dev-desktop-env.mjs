@@ -102,7 +102,8 @@ function run(command, args) {
 }
 
 try {
-  if (process.platform === "darwin" && hasComputerUseProducer) {
+  // 修复原因：mac 分支必须复用已声明的 Helper 能力结果；旧变量名会在任何准备步骤前抛错。
+  if (process.platform === "darwin" && hasComputerUseHelperProducer) {
     await run(process.execPath, [
       resolve(repoRoot, "scripts/build-cua-helper-app.mjs"),
       "--allow-unsigned-launcher-local-dev",

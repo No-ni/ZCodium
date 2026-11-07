@@ -1,0 +1,188 @@
+{
+  "capturedAt": "2026-11-06T21:39:26.128Z",
+  "evidenceKind": "QA noEmit/rawJS/keepNames/lint, product owner source guards and real Mocha fullTitle registration only; no UI/hooks/Host/Provider/build/task/history",
+  "diagnostics": [],
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "sha256": "10ac267b006aa47afd301a9c256b649022a6bbaa5d012a8f7972b359106a478f"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-reparse-children.ps1",
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    }
+  ],
+  "products": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\ui\\src\\prompt-editor\\useComposerToolbarFit.ts",
+      "sha256": "39196a83946efa8780f73a97aa7965e58d0828d050453171cc71969d36bce226"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\ui\\src\\prompt-editor\\ChatPromptEditor.tsx",
+      "sha256": "cad6793332ec694a37ad188a58dd8242e01c3d6c5734a292d130eccac899f55d"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\ui\\src\\command-center\\CommandCenterDialog.tsx",
+      "sha256": "68d997e8c2c891e9d3ed59944b20647380a7a2518912c174e9839a2a771723fa"
+    }
+  ],
+  "ownerContracts": [
+    {
+      "id": "BUG006",
+      "accepted": true,
+      "contract": "pure toolbar probe retains full leading/content/trailing skeleton"
+    },
+    {
+      "id": "BUG007",
+      "accepted": true,
+      "contract": "exactly one ref belongs to named toolbar group"
+    },
+    {
+      "id": "BUG008",
+      "accepted": true,
+      "contract": "cmdk command identity uses stable ID independently from matching"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    }
+  ],
+  "callbacks": [],
+  "scripts": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 94
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 133
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 140
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 147
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 149
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 151
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 152
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 154
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 155
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 157
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 165
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 168
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 178
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 182
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "line": 187
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "line": 5
+    }
+  ],
+  "rawErrors": [],
+  "closureErrors": [],
+  "registered": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "title": "UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点",
+      "fullTitle": "UI 修复工具栏与命令身份（外置pending） UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "title": "UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器",
+      "fullTitle": "UI 修复工具栏与命令身份（外置pending） UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "title": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行",
+      "fullTitle": "UI 修复工具栏与命令身份（外置pending） UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行"
+    }
+  ],
+  "hooks": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "kind": "after"
+    }
+  ],
+  "grep": "(?:^| )UIF0[123]:",
+  "selected": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "title": "UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点",
+      "fullTitle": "UI 修复工具栏与命令身份（外置pending） UIF01: 普通工具栏240px压缩和恢复保留骨架菜单焦点与模型节点"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "title": "UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器",
+      "fullTitle": "UI 修复工具栏与命令身份（外置pending） UIF02: 560px浮窗同owner紧凑模型和单行输入保留草稿编辑器"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "title": "UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行",
+      "fullTitle": "UI 修复工具栏与命令身份（外置pending） UIF03: 中英文设置两个command ID唯一选择并由上下键Enter执行"
+    }
+  ],
+  "excluded": [],
+  "sourceCounts": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-ui-bugfix-20261107.test.ts",
+      "expected": 3,
+      "actual": 3
+    }
+  ],
+  "lint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 42ms on 2 files with 94 rules using 16 threads."
+  },
+  "accepted": true,
+  "parameters": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs\\feature-inventory-ui-bugfix-parameters-geometry-final.json"
+}

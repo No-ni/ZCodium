@@ -1,0 +1,11 @@
+✔ BUG004: real storage Worker migrates saved local projects before ready and reopens idempotently (3863.5948ms)
+✔ BUG004: first install without saved projects remains empty (1934.2489ms)
+✔ BUG004: an already committed empty 0005 ledger is not silently replayed (3682.7085ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9491.6531

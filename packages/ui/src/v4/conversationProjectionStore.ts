@@ -149,6 +149,23 @@ export interface SessionOpenRendererTiming {
   snapshotAppliedAt?: number;
 }
 
+/** 仅保存在途历史读取的资格和行水位，不复制 CLI 的行事实。 */
+interface HistoryRowsRead {
+  snapshotIncarnation: number;
+  generation: number;
+  logEpoch: string;
+  firstRowId: number;
+  beforeRowId: number;
+  invalidated: boolean;
+  touchedAtSeq: Map<number, number>;
+}
+
+interface HistoryRowsPage {
+  rows: readonly ConversationRow[];
+  atSeq: number;
+  atLogEpoch: string;
+}
+
 const INITIAL_STATE: ConversationStoreState = {
   turnDirectory: null,
   turnDirectoryLoading: false,
@@ -335,6 +352,8 @@ uiMemoryDiagnosticsRegistry.register("projection", () => {
 
 export class ConversationProjectionStore {
   private state: ConversationStoreState = INITIAL_STATE;
+  private snapshotIncarnation = 0;
+  private historyRowsRead: HistoryRowsRead | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly modelTransitionListeners = new Set<
     (transition: SessionModelTransition) => void
@@ -724,6 +743,8 @@ export class ConversationProjectionStore {
     },
   ): void {
     if (frame.payload.kind === "snapshot") {
+      // 同 epoch/seq/游标的完整恢复也替换权威投影，旧历史查询不能跨这次交接提交。
+      this.snapshotIncarnation += 1;
       const hadAppliedBase = this.subscriptionHasAppliedBase;
       const snapshot = this.shareSnapshotRows(frame.payload.snapshot);
       logSubagentProjectionTransition(this.topic, this.state.snapshot, snapshot, "snapshot");
@@ -785,6 +806,7 @@ export class ConversationProjectionStore {
       }
       return;
     }
+    this.observeHistoryRowsUpdates(frame.payload.deltas, frame.toSeq);
     const applied = applyConversationDeltas(current, frame.payload.deltas);
     // seq 是快照对齐水位，delta 帧应用完推进到帧右端点。
     const next = this.shareDeltaRows({ ...applied, seq: frame.toSeq }, frame.payload.deltas);
@@ -1108,8 +1130,8 @@ export class ConversationProjectionStore {
    * loadOlder：以窗口首行为游标向上拉一窗历史行并前插。
    * - 单飞：在途期间重复调用 no-op（loadingOlder 防重入）；
    * - 陈旧读防护：atLogEpoch ≠ 当前快照 epoch 的结果整体丢弃（跨 CLI 重启）；
-   * - 合并以 rowId 为键：与订阅流的 row.upserted/removed 天然一致，
-   *   在途期间到达的 delta 帧不受影响（它们只动 ≥ 窗口首行的行）。
+   * - 未加载行的 upsert/delta 仍按协议 no-op，但会撤销未覆盖该更新水位的历史页；
+   *   无关尾部流式更新不阻断历史补拉。
    */
   private olderFlight: Promise<void> | null = null;
   loadOlder(limit: number = PROTOCOL_V4_LIMITS.snapshotTailWindowRows): Promise<void> {
@@ -1129,6 +1151,7 @@ export class ConversationProjectionStore {
     if (!sessionId) return;
     const beforeRowId = snapshot.rows.window[0]?.rowId;
     if (beforeRowId === undefined) return;
+    const read = this.beginHistoryRowsRead(snapshot, beforeRowId);
     this.setState({ loadingOlder: true });
     try {
       const result = await this.transport.rowsRange({
@@ -1147,6 +1170,7 @@ export class ConversationProjectionStore {
       // 在途期间游标失效（row.removed 截断 / snapshot resync 整体替换）→ 结果作废，
       // 防止把权威侧已移除的历史行复活；下次触发按新窗口重新拉。
       if (current.rows.window[0]?.rowId !== beforeRowId) return;
+      if (!this.isHistoryRowsPageCurrent(read, result)) return;
       const window = mergeOlderRows(current.rows.window, this.shareRows(result.rows));
       if (window === null) return;
       this.setState({
@@ -1158,8 +1182,62 @@ export class ConversationProjectionStore {
         `[v4-store] rowsRange ${this.topic} 失败: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
+      if (this.historyRowsRead === read) this.historyRowsRead = null;
       if (!this.closed) this.setState({ loadingOlder: false });
     }
+  }
+
+  private beginHistoryRowsRead(
+    snapshot: ConversationSnapshot,
+    beforeRowId: number,
+  ): HistoryRowsRead {
+    const read: HistoryRowsRead = {
+      snapshotIncarnation: this.snapshotIncarnation,
+      generation: this.generation,
+      logEpoch: snapshot.logEpoch,
+      firstRowId: snapshot.rows.firstRowId ?? beforeRowId,
+      beforeRowId,
+      invalidated: false,
+      touchedAtSeq: new Map(),
+    };
+    this.historyRowsRead = read;
+    return read;
+  }
+
+  private observeHistoryRowsUpdates(deltas: readonly ConversationDelta[], atSeq: number): void {
+    const read = this.historyRowsRead;
+    if (!read) return;
+    for (const delta of deltas) {
+      if (delta.op === "row.removed" && delta.fromRowId < read.beforeRowId) {
+        read.invalidated = true;
+      }
+      const rowId =
+        delta.op === "row.upserted"
+          ? delta.row.rowId
+          : delta.op === "row.delta"
+            ? delta.rowId
+            : null;
+      if (rowId !== null && rowId >= read.firstRowId && rowId < read.beforeRowId) {
+        // 协议只给整帧水位：同批中途的 query 不能证明已覆盖该行更新，保守用帧末上界。
+        // 不另存行/delta 事实；重新查询达到帧末水位后即可正常补拉。
+        read.touchedAtSeq.set(rowId, atSeq);
+      }
+    }
+  }
+
+  private isHistoryRowsPageCurrent(read: HistoryRowsRead, page: HistoryRowsPage): boolean {
+    if (
+      this.historyRowsRead !== read ||
+      read.invalidated ||
+      read.snapshotIncarnation !== this.snapshotIncarnation ||
+      read.generation !== this.generation ||
+      page.atLogEpoch !== read.logEpoch ||
+      this.state.snapshot?.logEpoch !== read.logEpoch
+    )
+      return false;
+    // Bug 原因：历史 header/思考行的实时更新可落在尾窗之外，旧查询仍会带回旧状态。
+    // 只比较本页实际命中的行水位；全局 seq 或其他历史行变化不能让无关页面饥饿。
+    return page.rows.every((row) => (read.touchedAtSeq.get(row.rowId) ?? 0) <= page.atSeq);
   }
 
   private directoryFlight: {
@@ -1282,7 +1360,8 @@ export class ConversationProjectionStore {
 
     const initialLogEpoch = snapshot.logEpoch;
     const preserveIncompleteLeadingTurn = shouldAutoLoadIncompleteLeadingTurn(snapshot, false);
-    const pages: ConversationRow[][] = [];
+    const pages: HistoryRowsPage[] = [];
+    const read = this.beginHistoryRowsRead(snapshot, initialBeforeRowId);
     let beforeRowId = initialBeforeRowId;
     let committed = false;
     this.setState({ loadingOlder: true });
@@ -1317,6 +1396,8 @@ export class ConversationProjectionStore {
           return stale(initialLogEpoch);
         }
 
+        if (!this.isHistoryRowsPageCurrent(read, result)) return stale(initialLogEpoch);
+
         const older = result.rows.filter((row) => row.rowId < beforeRowId);
         const nextBeforeRowId = older[0]?.rowId;
         if (nextBeforeRowId === undefined || nextBeforeRowId >= beforeRowId) {
@@ -1327,7 +1408,7 @@ export class ConversationProjectionStore {
           });
           return { status: "retryable-failure", logEpoch: initialLogEpoch };
         }
-        pages.push(older);
+        pages.push({ rows: older, atSeq: result.atSeq, atLogEpoch: result.atLogEpoch });
         beforeRowId = nextBeforeRowId;
         if (!result.hasMore) break;
       }
@@ -1340,7 +1421,10 @@ export class ConversationProjectionStore {
       ) {
         return stale(initialLogEpoch);
       }
-      const olderRows = [...pages].reverse().flat();
+      // 首批返回后仍可能收到针对该页的更新，整批提交前必须按各页原水位再校验。
+      if (pages.some((page) => !this.isHistoryRowsPageCurrent(read, page)))
+        return stale(initialLogEpoch);
+      const olderRows = [...pages].reverse().flatMap((page) => page.rows);
       const realUserQueryCount = [...olderRows, ...current.rows.window].reduce(
         (count, row) => (row.kind === "userInput" && row.origin === "realUser" ? count + 1 : count),
         0,
@@ -1403,6 +1487,7 @@ export class ConversationProjectionStore {
       );
       return { status: "retryable-failure", logEpoch: initialLogEpoch };
     } finally {
+      if (this.historyRowsRead === read) this.historyRowsRead = null;
       if (!this.closed && !committed) this.setState({ loadingOlder: false });
     }
   }

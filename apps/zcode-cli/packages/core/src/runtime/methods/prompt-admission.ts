@@ -5,6 +5,7 @@ import { createRuntimeCommandId } from "../command-queue.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { enqueueCancellableRuntimeCommand } from "./runtime-command-submit.js";
 import { acceptSubmissionModelSelection, captureHighspeedFallbackSelection } from "./turn-model.js";
+import { settleQueuedPromptBeforeStart } from "../helpers/index.js";
 import type {
   ActiveTurnStartReservation,
   ExecuteTurnOptions,
@@ -127,9 +128,13 @@ export async function admitPrompt(
     };
   }
   const executeOptions = options as ExecuteTurnOptions | undefined;
+  const onCancelledBeforeStart = async (error: unknown) => {
+    this.releaseTurnStart(turnId);
+    await settleQueuedPromptBeforeStart(this, executeOptions, error, turnTraceContext);
+  };
   const completion = enqueueCancellableRuntimeCommand<TurnResult, PromptRuntimeCommand>(this, {
     abortSignal: options?.abortSignal,
-    onCommandCancelled: () => this.releaseTurnStart(turnId),
+    onCommandCancelled: onCancelledBeforeStart,
     onCommandAccepted: () => {
       selectionAccepted = acceptSubmissionModelSelection(
         this,
@@ -144,6 +149,7 @@ export async function admitPrompt(
       id: createRuntimeCommandId(),
       input,
       mode: "prompt",
+      onCancelledBeforeStart,
       options: {
         ...executeOptions,
         queryId,

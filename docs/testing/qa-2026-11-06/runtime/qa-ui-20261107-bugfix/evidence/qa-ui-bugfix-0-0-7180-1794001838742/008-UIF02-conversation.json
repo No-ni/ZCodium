@@ -1,0 +1,131 @@
+{
+  "capturedAt": "2026-11-06T21:51:10.207Z",
+  "evidenceKind": "isolated real UI; synthetic preview/draft; no Provider or native clipboard",
+  "status": "step",
+  "editorPreserved": true,
+  "draftPreserved": true,
+  "state": {
+    "active": {
+      "tag": "DIV",
+      "testId": "side-pane-full-view-conversation-tab"
+    },
+    "center": {
+      "input": null,
+      "items": []
+    },
+    "composers": [
+      {
+        "compact": [
+          {
+            "compact": null,
+            "priority": "1"
+          },
+          {
+            "compact": null,
+            "priority": "3"
+          }
+        ],
+        "content": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 440.66668701171875,
+          "right": 659.3541870117188,
+          "top": 500.3333435058594,
+          "width": 218.6875,
+          "x": 440.66668701171875,
+          "y": 500.3333435058594
+        },
+        "editorSame": true,
+        "input": {
+          "bottom": 488.3333435058594,
+          "height": 40,
+          "left": 440.66668701171875,
+          "right": 1087.3333740234375,
+          "top": 448.3333435058594,
+          "width": 646.6666870117188,
+          "x": 440.66668701171875,
+          "y": 448.3333435058594
+        },
+        "layout": "stacked",
+        "leading": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 440.66668701171875,
+          "right": 753.2500305175781,
+          "top": 500.3333435058594,
+          "width": 312.5833435058594,
+          "x": 440.66668701171875,
+          "y": 500.3333435058594
+        },
+        "model": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 765.25,
+          "right": 1055.3333435058594,
+          "top": 500.3333435058594,
+          "width": 290.0833435058594,
+          "x": 765.25,
+          "y": 500.3333435058594
+        },
+        "modelChildren": [
+          {
+            "class": "relative flex min-w-0 flex-1 items-center overflow-hidden",
+            "display": "flex",
+            "tag": "SPAN"
+          }
+        ],
+        "modelText": "Upstream E2E/deepseek-v4-flashHigh",
+        "shell": {
+          "bottom": 541.0000228881836,
+          "height": 105.33333587646484,
+          "left": 428,
+          "right": 1100,
+          "top": 435.66668701171875,
+          "width": 672,
+          "x": 428,
+          "y": 435.66668701171875
+        },
+        "shellData": {
+          "composerLayout": "stacked"
+        },
+        "toolbar": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 440.66668701171875,
+          "right": 1087.3333740234375,
+          "top": 500.3333435058594,
+          "width": 646.6666870117188,
+          "x": 440.66668701171875,
+          "y": 500.3333435058594
+        },
+        "toolbarData": {},
+        "trailing": {
+          "bottom": 528.3333435058594,
+          "height": 28,
+          "left": 765.25,
+          "right": 1087.3333435058594,
+          "top": 500.3333435058594,
+          "width": 322.0833435058594,
+          "x": 765.25,
+          "y": 500.3333435058594
+        }
+      }
+    ],
+    "host": {
+      "bottom": 893.3333549499512,
+      "height": 838.6666870117188,
+      "left": 268.66668701171875,
+      "right": 1273.3333740234375,
+      "top": 54.66666793823242,
+      "width": 1004.6666870117188,
+      "x": 268.66668701171875,
+      "y": 54.66666793823242
+    },
+    "hostMode": "conversation",
+    "viewport": {
+      "dpr": 1.5,
+      "height": 900,
+      "width": 1280
+    }
+  }
+}

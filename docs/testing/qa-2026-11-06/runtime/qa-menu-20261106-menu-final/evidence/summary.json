@@ -1,0 +1,211 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence",
+  "completedAt": "2026-11-06T17:49:19.440Z",
+  "containerE2E": false,
+  "durationMs": 411435,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-menu-final%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.19,
+            "peak": 1.16,
+            "p95": 1.16,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 167.27,
+            "peak": 187.25,
+            "p95": 187.25,
+            "sampleCount": 6
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.39,
+            "peak": 2.35,
+            "p95": 2.35,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 142.06,
+            "peak": 152.04,
+            "p95": 152.04,
+            "sampleCount": 6
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.06,
+            "peak": 0.36,
+            "p95": 0.36,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 375.88,
+            "peak": 495.16,
+            "p95": 495.16,
+            "sampleCount": 6
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.38,
+            "peak": 2.27,
+            "p95": 2.27,
+            "sampleCount": 6
+          },
+          "memoryWorkingSetMb": {
+            "mean": 315.94,
+            "peak": 468.48,
+            "p95": 468.48,
+            "sampleCount": 6
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 1.03,
+        "peak": 6.15,
+        "p95": 6.15,
+        "sampleCount": 6
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\process-samples-0-0.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\process-samples-0-1.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\process-samples-0-2.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\process-samples-0-3.ndjson",
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-menu-final\\evidence\\perf\\process-samples-0-4.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1001.15,
+        "peak": 1159.67,
+        "p95": 1159.67,
+        "sampleCount": 6
+      },
+      "sampleCount": 6
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 109306,
+        "p95Ms": 109306,
+        "totalMs": 109306
+      },
+      "before-session": {
+        "count": 5,
+        "p50Ms": 1204,
+        "p95Ms": 1301,
+        "totalMs": 5959
+      },
+      "before-suite": {
+        "count": 9,
+        "p50Ms": 23,
+        "p95Ms": 30,
+        "totalMs": 216
+      },
+      "after": {
+        "count": 5,
+        "p50Ms": 16,
+        "p95Ms": 25,
+        "totalMs": 88
+      },
+      "after-session": {
+        "count": 5,
+        "p50Ms": 819,
+        "p95Ms": 903,
+        "totalMs": 4151
+      },
+      "worker": {
+        "count": 5,
+        "p50Ms": 55697,
+        "p95Ms": 77774,
+        "totalMs": 294471
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2639,
+        "p95Ms": 2639,
+        "totalMs": 2639
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0,
+    "firstTimePassRate": 0,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 411435,
+    "caseDurationP50Ms": 1038,
+    "caseDurationP95Ms": 1038,
+    "slowestCases": [
+      {
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "durationMs": 1038
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 1,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 0
+  },
+  "requestedSpecs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+    "./test/e2e/ui-shell/side-pane-full-view.test.ts",
+    "./test/e2e/browser-permission/browser-permission-site-settings.test.ts"
+  ],
+  "runId": "qa-menu-20261106-menu-final",
+  "startedAt": "2026-11-06T17:42:28.005Z",
+  "tests": {
+    "failed": 1,
+    "passed": 0,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T17:49:11.280Z",
+        "durationMs": 1038,
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"denied\"\nReceived: \"granted\"",
+        "errorCategory": "assertion",
+        "errorStack": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: \"denied\"\nReceived: \"granted\"\n    at Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts:64:73)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "settings",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\browser-permission\\browser-permission-site-settings.test.ts",
+        "fullTitle": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "滑杆入口打开设置标签页；允许后立即生效，重置后回到询问"
+      }
+    ],
+    "skipped": 0,
+    "total": 1
+  }
+}

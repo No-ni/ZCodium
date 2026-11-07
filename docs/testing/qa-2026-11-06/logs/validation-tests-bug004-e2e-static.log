@@ -1,0 +1,36 @@
+{
+  "capturedAt": "2026-11-06T21:24:43.886Z",
+  "scope": "Static only; 2 registered E2E cases, no hook/body/browser/build execution. Full typecheck is owned by root.",
+  "sourceSha256": "bf335408fe8e786070885b5de81255de66853d9becbb64931290a36f3c795373",
+  "node": "v24.18.0",
+  "transpileErrors": 0,
+  "rawScriptSyntaxCount": 1,
+  "registeredFullTitles": [
+    "BUG004 Desktop 首次旧项目迁移 B4UI01：启动前旧设置经真实 Worker 生成项目和侧栏",
+    "BUG004 Desktop 首次旧项目迁移 B4UI02：完整冷重开保留项目 ID、roots、顺序和账本"
+  ],
+  "registeredHooks": [
+    "before",
+    "afterEach"
+  ],
+  "browserAccesses": 0,
+  "startupSourceHashes": {
+    "packages/desktop/wdio.conf.ts": "485fa52abb1b023389c5fd6e202f25a8aeb7b86c4da5a063a9870f15c9badab0",
+    "packages/desktop/test/e2e/helpers/e2e-before-session.ts": "2089ae33a2e24295475332a2cc30ffaae6b6ee0a35aeb7448cbd6b66dd8b226e"
+  },
+  "startupEvidenceBoundary": "Current default prelaunch seed contract inspected statically; actual UI/runtime evidence is pending root execution.",
+  "lint": {
+    "command": "corepack pnpm exec oxlint docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-bug004-desktop-migration-20261107.test.ts docs/testing/qa-2026-11-06/logs/validation-bug004-e2e-static.mjs",
+    "code": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 9ms on 2 files with 94 rules using 16 threads.\n"
+  }
+}
+✔ BUG004 pending E2E static admission; does not run UI (1962.3762ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2297.9378

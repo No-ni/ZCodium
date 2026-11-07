@@ -1,0 +1,72 @@
+{
+  "capturedAt": "2026-11-06T15:53:31.018Z",
+  "evidenceKind": "read-only synthetic E2E fixture; not real user data",
+  "database": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\.e2e-home-qa-menu-20261106-core-retry\\.zcodium\\v2\\tasks-index.sqlite",
+  "settings": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\.e2e-home-qa-menu-20261106-core-retry\\.zcodium\\v2\\setting.json",
+  "nodeOptions": {
+    "source": "audited installed WDIO tsx injection",
+    "loader": "C:\\vibecoding\\zcodium\\node_modules\\tsx\\dist\\loader.mjs",
+    "loaderCount": 2,
+    "sourceMapsCount": 0
+  },
+  "lastWorkspaceSession": [
+    {
+      "kind": "local",
+      "workspacePath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\.e2e-home-qa-menu-20261106-core-retry\\ZCodeProject",
+      "workspacePurpose": "project"
+    }
+  ],
+  "projects": [],
+  "projectRoots": [],
+  "migrations": [
+    {
+      "id": "0005_projects",
+      "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+      "app_version": "3.12.0",
+      "time_applied": 1793980406062
+    },
+    {
+      "id": "0006_default_workspace_tasks",
+      "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+      "app_version": "3.12.0",
+      "time_applied": 1793980406063
+    },
+    {
+      "id": "0007_initial_workspace_order",
+      "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+      "app_version": "3.16.2",
+      "time_applied": 1793980406063
+    },
+    {
+      "id": "0008_remote_entry_deleted_cache",
+      "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+      "app_version": "3.16.3",
+      "time_applied": 1793980406063
+    },
+    {
+      "id": "0009_session_creation_commands",
+      "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+      "app_version": "3.16.3",
+      "time_applied": 1793980406064
+    }
+  ],
+  "workerId": "0-6",
+  "bootstrapInvocation": {
+    "counter": 1,
+    "processId": 10316,
+    "startedAt": "2026-11-06T15:53:28.042Z",
+    "timestamp": 1793980408042,
+    "hookSourceSha256": "912d0a22a7572303349b35e5d5a8be6f9b5be46a6955edb0468e0792df695488"
+  },
+  "suites": [
+    {
+      "title": "任务列表归档二次确认 E2E",
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\task-list-archive-confirmation.test.ts"
+    }
+  ],
+  "ui": {
+    "activeWorkspacePath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-retry\\.e2e-home-qa-menu-20261106-core-retry\\ZCodeProject",
+    "projectSectionPresent": true,
+    "projects": []
+  }
+}

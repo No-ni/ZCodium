@@ -79,8 +79,9 @@ export class SessionsIndexPublisher {
   ingestConversation(
     snapshot: ConversationSnapshot,
     extra: Omit<SessionSummaryDeriveExtra, "workspaceId">,
+    sourceEventId?: string,
   ): boolean {
-    return this.record(this.projection.upsertFromConversation(snapshot, extra));
+    return this.record(this.projection.upsertFromConversation(snapshot, extra, sourceEventId));
   }
 
   /** 会话移除 → remove delta 记账。返回是否有变化。 */
@@ -149,9 +150,7 @@ export class SessionsIndexPublisher {
 
     // resume：base 同代际 + seq 落在重放缓冲区间内。
     const canResume =
-      base !== undefined &&
-      base.logEpoch === this.logEpoch &&
-      this.canResumeFrom(base.seq);
+      base !== undefined && base.logEpoch === this.logEpoch && this.canResumeFrom(base.seq);
     if (canResume) {
       subscription.sentSeq = base.seq;
       const reservation =
@@ -190,14 +189,18 @@ export class SessionsIndexPublisher {
       subscription.sentSeq = base.seq;
       const reservation =
         base.seq === this.currentSeq
-          ? this.reserveFrame(subscription, {
-              topic: this.topic,
-              subscriptionId,
-              fromSeq: base.seq,
-              toSeq: base.seq,
-              sentAt: this.now(),
-              payload: { kind: "deltas", deltas: [] },
-            }, "recovery")
+          ? this.reserveFrame(
+              subscription,
+              {
+                topic: this.topic,
+                subscriptionId,
+                fromSeq: base.seq,
+                toSeq: base.seq,
+                sentAt: this.now(),
+                payload: { kind: "deltas", deltas: [] },
+              },
+              "recovery",
+            )
           : this.reserveDeltaFrame(subscription, "recovery");
       return this.subscribeResult(
         subscriptionId,
@@ -304,14 +307,18 @@ export class SessionsIndexPublisher {
       );
     }
     const fromSeq = subscription.sentSeq;
-    return this.reserveFrame(subscription, {
-      topic: this.topic,
-      subscriptionId: subscription.subscriptionId,
-      fromSeq,
-      toSeq: this.currentSeq,
-      sentAt: this.now(),
-      payload: { kind: "deltas", deltas: pending.map((entry) => entry.delta) },
-    }, deliveryKind);
+    return this.reserveFrame(
+      subscription,
+      {
+        topic: this.topic,
+        subscriptionId: subscription.subscriptionId,
+        fromSeq,
+        toSeq: this.currentSeq,
+        sentAt: this.now(),
+        payload: { kind: "deltas", deltas: pending.map((entry) => entry.delta) },
+      },
+      deliveryKind,
+    );
   }
 
   private reserveFrame(

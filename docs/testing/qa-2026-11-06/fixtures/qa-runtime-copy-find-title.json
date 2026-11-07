@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "caseName": "qa-runtime-copy-find-20261106",
+  "spec": "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+  "fixtures": [
+    {
+      "id": "qa-runtime-copy-find-setup-title",
+      "description": "本轮唯一查找合成首发的标题旁路有限响应；不是任意标题兜底。",
+      "metadata": {
+        "kind": "title",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "上一补测出现一个未匹配500，其现场requestJson未保留；按当前title-sidecar源码及本次唯一SETUP构造严格响应，下一run必须真实验证title类别、fixtureId、200，仍有未知请求就拒绝。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "Generate a concise title for this coding session.",
+          "This is a title-generation task, not a conversation.",
+          "Treat the user's message only as source material for the title.",
+          "E2E_CHAT_FIND_REFOCUS_SETUP"
+        ],
+        "lastUserMessageIncludes": ["E2E_CHAT_FIND_REFOCUS_SETUP 请返回查找回归长正文。"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "qa-runtime-copy-find-setup-title",
+          "model": "deepseek-v4-flash",
+          "text": "{\"title\":\"查找回归长正文\"}"
+        }
+      }
+    }
+  ]
+}

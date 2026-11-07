@@ -4,6 +4,7 @@
 // 事件订阅与 flush 调度归 gateway（v4-gateway）。
 import {
   deriveSessionWorkflowActivity,
+  sessionTerminalNotificationStatus,
   type ConversationSnapshot,
   type SessionSummary,
   type SessionsIndexDelta,
@@ -85,6 +86,9 @@ export function deriveSessionSummary(
     phase: snapshot.control.phase,
     // 忠实透传 control.sessionEnded（语义：成功轮收口后即 true，不代表已删除）。
     sessionEnded: snapshot.control.sessionEnded,
+    // Bugfix：TurnComplete 先于队列自动提升发布终态；仍有已接受自动输入时，
+    // 这只是执行交接边界，不能制造整项工作的完成提醒或未读。
+    autoContinuePending: snapshot.queue.autoDrain && snapshot.queue.items.length > 0,
     hasBackgroundWork,
     ...(workflowActivity === undefined ? {} : { workflowActivity }),
     ...(pendingInteraction ? { pendingInteraction } : {}),
@@ -114,6 +118,8 @@ function summariesEqual(a: SessionSummary, b: SessionSummary): boolean {
     a.lastOutcome === b.lastOutcome &&
     a.phase === b.phase &&
     a.sessionEnded === b.sessionEnded &&
+    (a.autoContinuePending ?? false) === (b.autoContinuePending ?? false) &&
+    a.notificationEventId === b.notificationEventId &&
     a.hasBackgroundWork === b.hasBackgroundWork &&
     // phase 翻转 / 结算 / 在跑子代理数变化永不被 conflation 吃掉；反之只改 node 的事件在这里判等
     // （真实系统里它仍会因 lastActivityAt 推进而产帧——那是活动事实，语义不变）。
@@ -144,6 +150,7 @@ export class SessionsIndexProjection {
   upsertFromConversation(
     snapshot: ConversationSnapshot,
     extra: Omit<SessionSummaryDeriveExtra, "workspaceId">,
+    sourceEventId?: string,
   ): SessionsIndexDelta[] {
     const summary = deriveSessionSummary(snapshot, {
       workspaceId: this.workspaceId,
@@ -185,10 +192,20 @@ export class SessionsIndexProjection {
       if (summary.phase === "draft" && prev.phase !== "draft") {
         summary.phase = prev.phase;
         summary.sessionEnded = prev.sessionEnded;
+        summary.autoContinuePending = prev.autoContinuePending;
         if (summary.goalStatus === undefined && prev.goalStatus !== undefined) {
           summary.goalStatus = prev.goalStatus;
         }
       }
+    }
+    const status = sessionTerminalNotificationStatus(summary);
+    const previousStatus = prev ? sessionTerminalNotificationStatus(prev) : null;
+    // 不能用 taskId/时钟替代轮次：两次真实完成可能在三秒内发生，Goal/队列也能同 phase 收口。
+    // 仅资格边沿取真实源事件 ID；非事件 hydration 不制造身份，后续标题/活动更新保留原身份。
+    if (status !== null) {
+      const notificationEventId =
+        status === previousStatus ? prev?.notificationEventId : sourceEventId;
+      if (notificationEventId) summary.notificationEventId = notificationEventId;
     }
     if (prev && summariesEqual(prev, summary)) return [];
     this.summaries.set(summary.sessionId, summary);

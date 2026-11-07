@@ -1,0 +1,77 @@
+{
+  "capturedAt": "2026-11-06T19:51:35.485Z",
+  "evidenceKind": "finite synthetic loopback runtime UI; no real clipboard/Git/network provider",
+  "status": "failed",
+  "error": "RFC runtime assistant row copy action missing",
+  "frames": {
+    "format": "PNG/time sequence; unencoded WebM",
+    "frameDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\qa-runtime-copy-find-0-0-9812-1793994678142\\RFC01-frames",
+    "error": "No standard video encoder; PNG/time sequence retained"
+  },
+  "state": {
+    "activePane": "sess_f2e79661-af32-4a03-9f6e-644951ee2b98",
+    "activeTag": "DIV",
+    "clipboardAttempts": [],
+    "clipboardMethods": [],
+    "copiedLengths": [],
+    "dpr": 1.5,
+    "findQuery": null,
+    "headings": [
+      "命令面板",
+      "查找回归长正文"
+    ],
+    "toast": null
+  },
+  "fixtureSource": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+  "fixtureSha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b",
+  "expectedBodyLength": 3930,
+  "expectedBodySha256": "f79b3698c2a748a78ccb2c9623a4685ec1ee66967d262cbf1656cc6dd042d5d6",
+  "requests": [
+    {
+      "fixtureId": "chat-find-refocus-long-body",
+      "status": "complete",
+      "statusCode": 200,
+      "bodyBytes": 11599,
+      "path": "/anthropic/v1/messages",
+      "loopback": true,
+      "queryKind": "main",
+      "markers": {
+        "titleInstruction": false,
+        "setup": true,
+        "exactPrompt": false
+      },
+      "shape": {
+        "object": true,
+        "messageCount": 1,
+        "roles": [
+          "user"
+        ],
+        "systemType": "array",
+        "toolCount": 52
+      }
+    },
+    {
+      "fixtureId": "qa-runtime-copy-find-setup-title",
+      "status": "complete",
+      "statusCode": 200,
+      "bodyBytes": 991,
+      "path": "/anthropic/v1/messages",
+      "loopback": true,
+      "queryKind": "title",
+      "markers": {
+        "titleInstruction": true,
+        "setup": true,
+        "exactPrompt": true
+      },
+      "shape": {
+        "object": true,
+        "messageCount": 1,
+        "roles": [
+          "user"
+        ],
+        "systemType": "array",
+        "toolCount": 0
+      }
+    }
+  ]
+}

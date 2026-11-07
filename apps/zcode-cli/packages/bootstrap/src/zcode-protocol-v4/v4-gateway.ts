@@ -1244,7 +1244,8 @@ export class ConversationV4Gateway {
       this.indexFanoutThrottle.request(sessionId);
       return;
     }
-    this.publishCurrentSummaryToIndex(sessionId);
+    // 普通事实（包括 Goal/queue）携真实事件身份；节流与冷恢复刷新不伪造通知边沿。
+    this.publishCurrentSummaryToIndex(sessionId, event.id);
   }
 
   /**
@@ -1255,7 +1256,7 @@ export class ConversationV4Gateway {
    * hydration 完成后若没有下一条 runtime event，child 就永远停在 draft 基线，
    * task-index syncer 无法观察到 draft→visible，也就不会创建侧栏 task row。
    */
-  private publishCurrentSummaryToIndex(sessionId: string): void {
+  private publishCurrentSummaryToIndex(sessionId: string, sourceEventId?: string): void {
     // 这一次发布带的就是窗内合并后的当前摘要：待发的 trailing 到此被满足，不重复发帧。
     this.indexFanoutThrottle.notePublished(sessionId);
     const getWorkspaceId = this.host.getSessionWorkspaceId;
@@ -1271,6 +1272,7 @@ export class ConversationV4Gateway {
       const changed = indexPublisher.ingestConversation(
         conversationPublisher.getSnapshot(),
         this.resolveIndexMeta(sessionId),
+        sourceEventId,
       );
       if (changed) this.flushIndex(workspaceId);
     } catch (error) {

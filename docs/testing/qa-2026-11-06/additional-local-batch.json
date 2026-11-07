@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "status": "READY_AFTER_STATIC_PREFLIGHT_UI_UNRUN",
+  "expectedSpecs": 2,
+  "expectedCases": 6,
+  "specPathBase": "packages/desktop",
+  "runs": [
+    {
+      "runId": "qa-menu-20261106-archive-final",
+      "bootstrap": true,
+      "openSidePane": false,
+      "expectedCases": 5,
+      "specs": ["./test/e2e/conversation-session/conversation-session-archive-management.test.ts"],
+      "titles": [
+        "ARM08：页面标题与固定文案统一为会话",
+        "ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择",
+        "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+        "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+        "ARM03：全部删除仅作用于当前筛选，分组更多取消归档"
+      ],
+      "grep": "(?:ARM08：页面标题与固定文案统一为会话|ARM07：默认 30 天，关闭时可先保存时长，开启与刷新保留选择|ARM01/05/06：分组折叠、搜索、时间排序和项目选择|ARM02：取消归档、取消删除与确认删除后刷新不复活|ARM03：全部删除仅作用于当前筛选，分组更多取消归档)$",
+      "replayFixtures": [
+        "./test/e2e/fixtures/upstream/common.json",
+        "./test/e2e/fixtures/upstream/conversation-session/conversation-session-archive-management.json"
+      ]
+    },
+    {
+      "runId": "qa-menu-20261106-residency-final",
+      "bootstrap": true,
+      "openSidePane": true,
+      "expectedCases": 1,
+      "specs": ["./test/e2e/browser-tab-residency.test.ts"],
+      "titles": ["BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab"],
+      "grep": "(?:BTL04/BTL12: 第 33 个 tab 关闭最老 tab，完整重启后不恢复任何 tab)$",
+      "replayFixtures": ["./test/e2e/fixtures/upstream/common.json"]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "evidenceKind": "installed @wdio/cli parser only; no UI/app/Launcher execution",
+  "source": "C:\\vibecoding\\zcodium\\node_modules\\@wdio\\cli\\build\\index.js",
+  "capturedAt": "2026-11-06T15:36:23.019Z",
+  "results": [
+    {
+      "name": "previous-with-separator",
+      "args": [
+        "run",
+        "wdio.conf.ts",
+        "--",
+        "--spec=test/e2e/plus-menu.test.ts",
+        "--mochaOpts.require=../../docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs"
+      ],
+      "positional": [
+        "run",
+        "wdio.conf.ts",
+        "--spec=test/e2e/plus-menu.test.ts",
+        "--mochaOpts.require=../../docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs"
+      ],
+      "spec": null,
+      "mochaOpts": null,
+      "loaderWouldHandleRequire": false
+    },
+    {
+      "name": "correct-without-separator",
+      "args": [
+        "run",
+        "wdio.conf.ts",
+        "--spec=test/e2e/plus-menu.test.ts",
+        "--mochaOpts.require=../../docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs"
+      ],
+      "positional": [
+        "run",
+        "wdio.conf.ts"
+      ],
+      "spec": [
+        "test/e2e/plus-menu.test.ts"
+      ],
+      "mochaOpts": {
+        "require": [
+          "../../docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs"
+        ]
+      },
+      "loaderWouldHandleRequire": true
+    }
+  ]
+}

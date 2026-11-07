@@ -94,16 +94,19 @@ test("remaining workflow configuration is local-only and never contacts official
     credentialService: new Proxy({}, { get: () => forbidden }),
   });
 
+  // 修复依据：当前共享快照始终含 offeredMode；无用户选择时它等于生效模式。
   // 未设置 env 时默认 disabled，且 forceRefresh 也不会触发远端读取。
   assert.deepEqual(await service.getDynamicWorkflowClientConfig(), {
     mode: "disabled",
     enabled: false,
     source: "default",
+    offeredMode: "disabled",
   });
   assert.deepEqual(await service.getDynamicWorkflowClientConfig({ forceRefresh: true }), {
     mode: "disabled",
     enabled: false,
     source: "default",
+    offeredMode: "disabled",
   });
 
   // 只有显式 env 覆盖才开启，source 固定为 override。
@@ -112,11 +115,13 @@ test("remaining workflow configuration is local-only and never contacts official
     mode: "alwaysOn",
     enabled: true,
     source: "override",
+    offeredMode: "alwaysOn",
   });
   process.env[key] = "onDemand";
   assert.deepEqual(await service.getDynamicWorkflowClientConfig({ forceRefresh: true }), {
     mode: "onDemand",
     enabled: true,
     source: "override",
+    offeredMode: "onDemand",
   });
 });

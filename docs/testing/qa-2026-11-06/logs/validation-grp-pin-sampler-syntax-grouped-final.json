@@ -1,0 +1,9 @@
+{
+  "command": "node --check docs/testing/qa-2026-11-06/grp-pin-process-sampler.mjs",
+  "started": "2026-11-06T19:27:08.151Z",
+  "finished": "2026-11-06T19:27:08.254Z",
+  "code": 0,
+  "signal": null,
+  "node": "v24.18.0",
+  "metadataCorrection": "Recorded command display corrected to actual node argv; original execution/result unchanged"
+}

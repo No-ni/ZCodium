@@ -1,13 +1,55 @@
 import { createHash } from "node:crypto";
 import type { TurnAttachment } from "@zcode/core";
+import { CoreErrorType, SessionEventType, createSessionEvent } from "@zcode/contracts";
 import type {
   InputHistoryAttachment,
   InputHistoryEntry,
   SessionId,
   ToolArtifactStorePort,
   TraceContext,
+  SessionEvent,
+  TurnCompletePayload,
+  TurnErrorPayload,
 } from "@zcode/contracts";
-import type { PromptInput } from "./types.js";
+import type { PromptInput, SubmitPromptOptions } from "./types.js";
+
+export function queuedInputPreparationOutcome(
+  sessionId: SessionId,
+  options: SubmitPromptOptions | undefined,
+  traceContext: TraceContext,
+): SessionEvent | undefined {
+  // Bugfix：queued compact 在 Core admission 前的准备拒绝没有执行终态；
+  // 这里只构造已接受输入的同源事实，未接受的直接输入仍沿调用拒绝语义处理。
+  if (!options?.intent?.queueItemId) return undefined;
+  const inputId = options.inputId ?? options.intent.sourceCommandId;
+  const cancelled = options.abortSignal?.aborted === true;
+  const payload = cancelled
+    ? ({
+        response: "",
+        tokenCount: 0,
+        toolCallCount: 0,
+        historyRoundCount: 0,
+        duration: 0,
+        resultType: "cancelled",
+        inputId,
+      } satisfies TurnCompletePayload)
+    : ({
+        inputId,
+        turnPhase: "input_preparation",
+        error: {
+          type: CoreErrorType.UnknownError,
+          code: "fault.runtime.unknown",
+          message: "Input preparation failed",
+          retryable: false,
+        },
+      } satisfies TurnErrorPayload);
+  return createSessionEvent(
+    cancelled ? SessionEventType.TurnComplete : SessionEventType.TurnError,
+    sessionId,
+    payload,
+    { traceId: traceContext.traceId, turnId: traceContext.turnId },
+  );
+}
 
 export function normalizePromptInput(input: PromptInput): {
   text: string;

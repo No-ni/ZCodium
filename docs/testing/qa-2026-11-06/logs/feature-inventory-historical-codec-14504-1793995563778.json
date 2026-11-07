@@ -1,0 +1,158 @@
+{
+  "capturedAt": "2026-11-06T20:06:04.375Z",
+  "evidenceKind": "Actual public encode/decode in-memory synthetic manifest probe; no UI/Host/provider/build/task/history",
+  "source": {
+    "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+    "sha256": "774f4c92c6f915b465c95d66cde65a5653bb9f4a6f6fc27bbec955f32ad2fd29"
+  },
+  "runtime": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-historical-codec-static-14504-1793995563778",
+  "originalInput": {
+    "title": "QA_HIST_0_0",
+    "selectedProductTurnIds": [
+      "share-product-turn-1"
+    ],
+    "rows": [
+      {
+        "turnId": "share-turn-1",
+        "productTurnId": "share-product-turn-1",
+        "rowId": 1,
+        "entityId": "share-entity-1",
+        "createdAt": 1,
+        "createdAtSeq": 1,
+        "kind": "turnHeader",
+        "origin": "userInput",
+        "state": "completedSuccess",
+        "startedAt": 1,
+        "endedAt": 3
+      },
+      {
+        "turnId": "share-turn-1",
+        "productTurnId": "share-product-turn-1",
+        "rowId": 2,
+        "entityId": "share-entity-2",
+        "createdAt": 2,
+        "createdAtSeq": 2,
+        "kind": "userInput",
+        "origin": "realUser",
+        "text": "QA_HIST_IMPORTED_USER"
+      },
+      {
+        "turnId": "share-turn-1",
+        "productTurnId": "share-product-turn-1",
+        "rowId": 3,
+        "entityId": "share-entity-3",
+        "createdAt": 3,
+        "createdAtSeq": 3,
+        "kind": "assistantText",
+        "state": "complete",
+        "text": "QA_HIST_IMPORTED_ASSISTANT"
+      }
+    ],
+    "artifacts": []
+  },
+  "correctedInput": {
+    "title": "QA_HIST_0_0",
+    "selectedProductTurnIds": [
+      "share-product-turn-1"
+    ],
+    "rows": [
+      {
+        "turnId": "share-turn-1",
+        "productTurnId": "share-product-turn-1",
+        "rowId": 1,
+        "entityId": "share-entity-1",
+        "createdAt": 1,
+        "createdAtSeq": 1,
+        "kind": "turnHeader",
+        "origin": "userInput",
+        "state": "completedSuccess",
+        "startedAt": 1,
+        "endedAt": 3
+      },
+      {
+        "turnId": "share-turn-1",
+        "productTurnId": "share-product-turn-1",
+        "rowId": 2,
+        "entityId": "share-entity-2",
+        "createdAt": 2,
+        "createdAtSeq": 2,
+        "kind": "userInput",
+        "origin": "realUser",
+        "text": "QA_HIST_IMPORTED_USER"
+      },
+      {
+        "turnId": "share-turn-1",
+        "productTurnId": "share-product-turn-1",
+        "rowId": 3,
+        "entityId": "share-entity-3",
+        "createdAt": 3,
+        "createdAtSeq": 3,
+        "kind": "assistantText",
+        "state": "complete",
+        "text": "QA_HIST_IMPORTED_ASSISTANT"
+      }
+    ],
+    "artifacts": []
+  },
+  "original": {
+    "rejected": false,
+    "rowsEqual": true,
+    "selectedIdsEqual": true,
+    "byteLength": 502
+  },
+  "corrected": {
+    "byteLength": 502,
+    "archiveSha256": "48d46b79cbfbab029011c095a40efe286fdc1c756797c8cb5afadfbff2bd51f4",
+    "decodedContent": {
+      "format": "zcodium-conversation",
+      "version": 1,
+      "title": "QA_HIST_0_0",
+      "selectedProductTurnIds": [
+        "share-product-turn-1"
+      ],
+      "rows": [
+        {
+          "rowId": 1,
+          "turnId": "share-turn-1",
+          "entityId": "share-entity-1",
+          "productTurnId": "share-product-turn-1",
+          "createdAt": 1,
+          "createdAtSeq": 1,
+          "kind": "turnHeader",
+          "origin": "userInput",
+          "state": "completedSuccess",
+          "startedAt": 1,
+          "endedAt": 3
+        },
+        {
+          "rowId": 2,
+          "turnId": "share-turn-1",
+          "entityId": "share-entity-2",
+          "productTurnId": "share-product-turn-1",
+          "createdAt": 2,
+          "createdAtSeq": 2,
+          "kind": "userInput",
+          "text": "QA_HIST_IMPORTED_USER",
+          "origin": "realUser"
+        },
+        {
+          "rowId": 3,
+          "turnId": "share-turn-1",
+          "entityId": "share-entity-3",
+          "productTurnId": "share-product-turn-1",
+          "createdAt": 3,
+          "createdAtSeq": 3,
+          "kind": "assistantText",
+          "text": "QA_HIST_IMPORTED_ASSISTANT",
+          "state": "complete"
+        }
+      ],
+      "artifacts": []
+    },
+    "artifacts": 0,
+    "rowsEqual": true,
+    "selectedIdsEqual": true
+  },
+  "mode": "current-source-roundtrip",
+  "accepted": true
+}

@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-11-06T19:59:17.043Z",
+  "evidenceKind": "isolated synthetic public inputs; real UI; mocked native/clipboard exits",
+  "status": "evidence-limited",
+  "reason": "Standard encoder unavailable; PNG/time sequence retained",
+  "encodedVideo": false,
+  "state": {
+    "activeTag": "BODY",
+    "clipboardLengths": [],
+    "dpr": 1.5,
+    "headings": [
+      "Command palette"
+    ],
+    "section": null
+  }
+}

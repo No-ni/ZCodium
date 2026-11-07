@@ -1,0 +1,574 @@
+{
+  "capturedAt": "2026-11-06T20:45:14.613Z",
+  "input": "docs/testing/qa-2026-11-06/logs/validation-lint-final.log",
+  "inputSha256": "cf425feb667bdf57f5587b8ca2923ca10f73baeec1ee093e934cb91cef96738e",
+  "originalExitCode": 1,
+  "warnings": 38388,
+  "errors": 76,
+  "files": 16053,
+  "parsedDiagnostics": 16308,
+  "parsedWarnings": 16232,
+  "parsedErrors": 76,
+  "allErrorsWithinQaRuntime": true,
+  "errorRules": [
+    "eslint(max-lines)"
+  ],
+  "errorsByFile": [
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-final/.e2e-home-qa-menu-20261106-local-actions-final/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement-retry/.e2e-home-qa-menu-20261106-local-supplement-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-filtered/.e2e-home-qa-menu-20261106-filtered/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-grouped/.e2e-home-qa-menu-20261106-grp-pin-grouped/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement/.e2e-home-qa-menu-20261106-local-supplement/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions/.e2e-home-qa-menu-20261106-local-actions/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions/.e2e-home-qa-menu-20261106-local-actions/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-browser/.e2e-home-qa-menu-20261106-browser/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-ps7/.e2e-home-qa-menu-20261106-local-actions-ps7/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-canonical/.e2e-home-qa-menu-20261106-local-canonical/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-final/.e2e-home-qa-menu-20261106-menu-final/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core-retry/.e2e-home-qa-menu-20261106-core-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-filtered/.e2e-home-qa-menu-20261106-filtered/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-filtered/.e2e-home-qa-menu-20261106-filtered/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-settings-retry/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-settings-retry/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-settings-retry/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-canonical/.e2e-home-qa-menu-20261106-local-canonical/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-browser/.e2e-home-qa-menu-20261106-browser/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-final/.e2e-home-qa-menu-20261106-local-actions-final/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-final-targeted/.e2e-home-qa-menu-20261106-local-final-targeted/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-final/.e2e-home-qa-menu-20261106-local-actions-final/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-final-targeted/.e2e-home-qa-menu-20261106-local-final-targeted/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-final-targeted/.e2e-home-qa-menu-20261106-local-final-targeted/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-final/.e2e-home-qa-menu-20261106-local-actions-final/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core-retry/.e2e-home-qa-menu-20261106-core-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-retry/.e2e-home-qa-menu-20261106-local-actions-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-repro-retry/.e2e-home-qa-menu-20261106-grp-pin-repro-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-grouped/.e2e-home-qa-menu-20261106-grp-pin-grouped/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement/.e2e-home-qa-menu-20261106-local-supplement/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-archive-list-retry/.e2e-home-qa-menu-20261106-archive-list-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement/.e2e-home-qa-menu-20261106-local-supplement/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-copy-history-final/.e2e-home-qa-menu-20261106-copy-history-final/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-browser/.e2e-home-qa-menu-20261106-browser/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-ps7/.e2e-home-qa-menu-20261106-local-actions-ps7/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-ps7/.e2e-home-qa-menu-20261106-local-actions-ps7/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement-retry/.e2e-home-qa-menu-20261106-local-supplement-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-grouped/.e2e-home-qa-menu-20261106-grp-pin-grouped/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-filtered/.e2e-home-qa-menu-20261106-filtered/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement-retry/.e2e-home-qa-menu-20261106-local-supplement-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-copy-history-final/.e2e-home-qa-menu-20261106-copy-history-final/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-copy-history-final/.e2e-home-qa-menu-20261106-copy-history-final/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-archive-list-retry/.e2e-home-qa-menu-20261106-archive-list-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-retry/.e2e-home-qa-menu-20261106-local-actions-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-retry/.e2e-home-qa-menu-20261106-local-actions-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-retry/.e2e-home-qa-menu-20261106-local-actions-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-final-targeted/.e2e-home-qa-menu-20261106-local-final-targeted/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-final/.e2e-home-qa-menu-20261106-menu-final/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-repro-retry/.e2e-home-qa-menu-20261106-grp-pin-repro-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-final/.e2e-home-qa-menu-20261106-menu-final/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-final/.e2e-home-qa-menu-20261106-menu-final/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement/.e2e-home-qa-menu-20261106-local-supplement/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-grouped/.e2e-home-qa-menu-20261106-grp-pin-grouped/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-browser/.e2e-home-qa-menu-20261106-browser/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-canonical/.e2e-home-qa-menu-20261106-local-canonical/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-canonical/.e2e-home-qa-menu-20261106-local-canonical/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions-ps7/.e2e-home-qa-menu-20261106-local-actions-ps7/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core-retry/.e2e-home-qa-menu-20261106-core-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-core-retry/.e2e-home-qa-menu-20261106-core-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-repro-retry/.e2e-home-qa-menu-20261106-grp-pin-repro-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-reviewed/.e2e-home-qa-menu-20261106-menu-reviewed/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-supplement-retry/.e2e-home-qa-menu-20261106-local-supplement-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-reviewed/.e2e-home-qa-menu-20261106-menu-reviewed/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-archive-list-retry/.e2e-home-qa-menu-20261106-archive-list-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/superpowers/0.1.0/skills/brainstorming/scripts/server.cjs",
+      "line": 723,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-grp-pin-repro-retry/.e2e-home-qa-menu-20261106-grp-pin-repro-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-reviewed/.e2e-home-qa-menu-20261106-menu-reviewed/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-settings-retry/app-home/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions/.e2e-home-qa-menu-20261106-local-actions/.zcodium/cli/plugins/cache/zcode-plugins-official/pdf/0.2.2/skills/pdf/scripts/html2pdf-next.js",
+      "line": 754,
+      "column": 6
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-local-actions/.e2e-home-qa-menu-20261106-local-actions/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-copy-history-final/.e2e-home-qa-menu-20261106-copy-history-final/.zcodium/cli/plugins/cache/zcode-plugins-official/browser-use/0.5.1/scripts/browser-client.mjs",
+      "line": 2233,
+      "column": 3
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-archive-list-retry/.e2e-home-qa-menu-20261106-archive-list-retry/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    },
+    {
+      "severity": "error",
+      "rule": "eslint(max-lines)",
+      "file": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-menu-reviewed/.e2e-home-qa-menu-20261106-menu-reviewed/.zcodium/cli/plugins/cache/zcode-plugins-official/visualize/0.1.1/skills/visualize/assets/vendor/lucide-1.17.0.js",
+      "line": 19522,
+      "column": 35
+    }
+  ],
+  "diagnosticsOutsideRuntime": [
+    {
+      "severity": "warning",
+      "rule": "eslint-plugin-unicorn(prefer-string-starts-ends-with)",
+      "file": "docs/testing/qa-2026-11-06/logs/validation-e2e-counts.mjs",
+      "line": 26,
+      "column": 32
+    },
+    {
+      "severity": "warning",
+      "rule": "eslint-plugin-unicorn(prefer-string-starts-ends-with)",
+      "file": "docs/testing/qa-2026-11-06/logs/feature-inventory-update-browser-matrix.cjs",
+      "line": 108,
+      "column": 53
+    },
+    {
+      "severity": "warning",
+      "rule": "eslint-plugin-unicorn(prefer-string-starts-ends-with)",
+      "file": "docs/testing/qa-2026-11-06/logs/feature-inventory-matrix-links.cjs",
+      "line": 15,
+      "column": 57
+    }
+  ],
+  "scope": "Original unmodified root lint fails; compiled Jiti/plugin vendor copies in QA runtime are generated evidence, not production edits. No files deleted and no config changed. A separate lint command excluding only this runtime can establish source diagnostics, without overriding original failure."
+}

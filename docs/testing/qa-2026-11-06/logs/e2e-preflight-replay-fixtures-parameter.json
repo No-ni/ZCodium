@@ -1,0 +1,36 @@
+{
+  "capturedAt": "2026-11-06T17:15:15.7109907Z",
+  "evidenceKind": "Actual QA runner preflight prefix only; no runtime creation, build or UI",
+  "sourceSha": "ccd6879b8afd0951e6c1466ce67c508a2d3494c5e511114edac9619025f9bb7f",
+  "results": [
+    {
+      "name": "valid finite 7 fixtures",
+      "accepted": true,
+      "expected": true,
+      "matched": true,
+      "reason": null
+    },
+    {
+      "name": "empty token rejected",
+      "accepted": false,
+      "expected": false,
+      "matched": true,
+      "reason": "Empty QA replay fixture path"
+    },
+    {
+      "name": "missing JSON rejected",
+      "accepted": false,
+      "expected": false,
+      "matched": true,
+      "reason": "QA replay fixture must be an existing workspace .json file"
+    },
+    {
+      "name": "outside workspace rejected",
+      "accepted": false,
+      "expected": false,
+      "matched": true,
+      "reason": "QA path escapes workspace"
+    }
+  ],
+  "allPassed": true
+}

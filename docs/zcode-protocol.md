@@ -58,15 +58,15 @@ epoch、CAS 和 product guard 裁决。
 
 当前命令全集以 `packages/shared/src/zcode-protocol-v4/command.ts` 为唯一类型事实源，主要分组如下：
 
-| 分组          | 命令                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------- |
+| 分组          | 命令                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
 | 会话/输入     | `createSession`、`createSelectionSideSession`、`sendText`、`sendGoalCommand`、`renameSession`、`deleteSession` |
-| 生成控制      | `stop`、`compact`、`retryTurn`、`editUserQuery`、`forkAssistant`                        |
-| 文件回退      | `applyFileRewind`                                                                       |
-| 队列          | `sendQueuedNow`、`editQueueItem`、`reorderQueueItem`、`deleteQueueItem`、`setAutoDrain` |
-| 配置          | `switchModelConfig`、`switchCollaborationMode`、`setFollowupMode`                       |
-| Goal/后台工作 | `pauseGoal`、`resumeGoal`、`cancelBackgroundWork`                                       |
-| 阻塞交互      | `resolveInteraction`、`snoozeInteractionAutoResolution`                                |
+| 生成控制      | `stop`、`compact`、`retryTurn`、`editUserQuery`、`forkAssistant`                                               |
+| 文件回退      | `applyFileRewind`                                                                                              |
+| 队列          | `sendQueuedNow`、`editQueueItem`、`reorderQueueItem`、`deleteQueueItem`、`setAutoDrain`                        |
+| 配置          | `switchModelConfig`、`switchCollaborationMode`、`setFollowupMode`                                              |
+| Goal/后台工作 | `pauseGoal`、`resumeGoal`、`cancelBackgroundWork`                                                              |
+| 阻塞交互      | `resolveInteraction`、`snoozeInteractionAutoResolution`                                                        |
 
 `session/steer`、`session/rewind` 和独立 rewind 命令已经删除。引导输入由 `sendText` + `inputRouting`/follow-up mode 裁决；重试和编辑分别使用 `retryTurn`、`editUserQuery`；workspace 文件撤销使用 `applyFileRewind`，不会隐式截断会话历史。
 
@@ -83,6 +83,8 @@ ACK 状态为 `accepted | rejected | stale | duplicate | noop | failed`。ACK �
 
 二者各自拥有 seq/logEpoch/subscription recovery，不能共享 conversation 的水位或把 workspacePath
 替代远程 workspaceIdentity。
+
+`SessionSummary.autoContinuePending?: boolean` 由 CLI 从自动队列是否仍有 queued/reserved/promoting 输入派生；旧字段缺省等价于 false。成功摘要带 true 时仅抑制完成通知和未读，phase 与 terminal/ready 仍沿用原执行边界。Host 已应用摘要及其 logEpoch 是边沿基线，subscribe ACK 不覆盖它；新 epoch 冷 snapshot 静默建立基线，同 epoch recovery 可以补投有效完成。详见[会话工作连续性](specs/session-work-status-continuity.md)。
 
 ## 队列语义
 

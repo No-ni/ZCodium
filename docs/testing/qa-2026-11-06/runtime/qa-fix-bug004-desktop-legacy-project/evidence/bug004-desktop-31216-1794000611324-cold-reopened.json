@@ -1,0 +1,123 @@
+{
+  "capturedAt": "2026-11-06T21:30:39.237Z",
+  "phase": "cold-restart",
+  "runId": "qa-fix-bug004-desktop-legacy-project",
+  "sourceHashes": {
+    "packages/desktop/wdio.conf.ts": "485fa52abb1b023389c5fd6e202f25a8aeb7b86c4da5a063a9870f15c9badab0",
+    "packages/desktop/test/e2e/helpers/e2e-before-session.ts": "2089ae33a2e24295475332a2cc30ffaae6b6ee0a35aeb7448cbd6b66dd8b226e",
+    "packages/desktop/src/host/database-startup/tasksStorageWorker.ts": "e98e4316bb241992bd1119d0cd95afbf3b5b0465f71751ee702546ebcaf05a1c",
+    "packages/services/src/project-storage/startup.ts": "a588f96039ca7b374d88099d39ddba191ca7da465216c9521015d54bbd494b8d",
+    "packages/services/src/project-storage/index.ts": "e0354a6cdf5fc91edcf6839c6b82bba298ebf60fe157ebe76937be47c1bd9d1c",
+    "docs/testing/qa-2026-11-06/manual-review/pending/qa-bug004-desktop-migration-20261107.test.ts": "bf335408fe8e786070885b5de81255de66853d9becbb64931290a36f3c795373"
+  },
+  "node": "v24.18.0",
+  "details": {
+    "oldMain": {
+      "pid": 31836,
+      "userDataDir": "C:\\vibecoding\\zcodium\\packages\\desktop\\.e2e-cache\\qa-fix-bug004-desktop-legacy-project\\chromium-profiles\\0-0",
+      "homeMatches": true,
+      "dataMatches": true,
+      "runMatches": true
+    },
+    "main": {
+      "pid": 25700,
+      "userDataDir": "C:\\vibecoding\\zcodium\\packages\\desktop\\.e2e-cache\\qa-fix-bug004-desktop-legacy-project\\chromium-profiles\\0-0",
+      "homeMatches": true,
+      "dataMatches": true,
+      "runMatches": true
+    },
+    "state": {
+      "projects": [
+        {
+          "project_id": "bf1ca0b8-c27e-425c-80d4-849884b12152",
+          "host_id": "local",
+          "name": "ZCodeProject",
+          "name_overridden": 0,
+          "position": 0,
+          "pinned": 0,
+          "pinned_at": null,
+          "deleted": 0,
+          "deleted_at": null,
+          "created_at": 1794000613701,
+          "updated_at": 1794000613701
+        }
+      ],
+      "roots": [
+        {
+          "project_id": "bf1ca0b8-c27e-425c-80d4-849884b12152",
+          "root_path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-fix-bug004-desktop-legacy-project\\.e2e-home-qa-fix-bug004-desktop-legacy-project\\ZCodeProject",
+          "position": 0,
+          "is_primary": 1
+        }
+      ],
+      "projectLedger": [
+        {
+          "id": "0005_projects",
+          "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+          "app_version": "3.12.0",
+          "time_applied": 1794000613705
+        },
+        {
+          "id": "0006_default_workspace_tasks",
+          "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+          "app_version": "3.12.0",
+          "time_applied": 1794000613705
+        },
+        {
+          "id": "0007_initial_workspace_order",
+          "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+          "app_version": "3.16.2",
+          "time_applied": 1794000613706
+        },
+        {
+          "id": "0008_remote_entry_deleted_cache",
+          "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+          "app_version": "3.16.3",
+          "time_applied": 1794000613707
+        },
+        {
+          "id": "0009_session_creation_commands",
+          "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+          "app_version": "3.16.3",
+          "time_applied": 1794000613707
+        }
+      ],
+      "tasksLedger": [
+        {
+          "id": "0001_adopt_task_schema",
+          "checksum": "3e8337b015d94b05dd31a6003f3acc649e821794cfa288bc0af3022698bd4d17",
+          "time_applied": 1794000613674
+        },
+        {
+          "id": "0002_provider_selection",
+          "checksum": "7244ef7c351f8d02750ab1953fff09f493a71befbf1b6e2d4bab726b0c6b48fc",
+          "time_applied": 1794000613674
+        },
+        {
+          "id": "0003_official_glm_selection",
+          "checksum": "8987adb50ae412a46c294141c1af89ccfc252f22d41351bdf4c7528f56edc8b4",
+          "time_applied": 1794000613674
+        },
+        {
+          "id": "0004_project_execution_scopes",
+          "checksum": "caae5e91fc3abfeee6508f782890ad8d67cebeb80611775d39dc13a7e6fea3f0",
+          "time_applied": 1794000613677
+        },
+        {
+          "id": "0006_task_group_admissions",
+          "checksum": "0af559d04bb3f1a1dab12d6533d59292d232b09ea3ef3ef6ca3c9373bd663019",
+          "time_applied": 1794000613677
+        }
+      ],
+      "foreignKeyErrors": []
+    },
+    "sidebar": [
+      {
+        "name": "ZCodeProject",
+        "projectId": "bf1ca0b8-c27e-425c-80d4-849884b12152",
+        "rowText": "ZCodeProject",
+        "rowVisible": true
+      }
+    ]
+  }
+}

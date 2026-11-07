@@ -1,0 +1,57 @@
+{
+  "capturedAt": "2026-11-06T19:03:18.471Z",
+  "evidenceKind": "NoEmit/static parser plus actual module registration; no UI/Host/provider/build or synthetic historical data writing",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "sha256": "44857be6e3dbfe5e9c9afc4372dd67ceb43046bc496ce4d94e5d7ab89037ba8c"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-reparse-children.ps1",
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    }
+  ],
+  "diagnostics": [],
+  "imports": [
+    "node:child_process",
+    "node:crypto",
+    "node:fs",
+    "node:fs/promises",
+    "node:module",
+    "node:path",
+    "node:url",
+    "@zcode/shared",
+    "../../../../../packages/services/src/node.js",
+    "../../../../../packages/desktop/test/e2e/helpers/desktop-app.js",
+    "../../../../../packages/desktop/test/e2e/helpers/v4-conversation.js",
+    "../../../../../packages/desktop/test/e2e/helpers/conversation-session-network.js",
+    "../../../../../packages/desktop/test/e2e/helpers/electron-window-recorder.js",
+    "../../qa-menu-dom.js"
+  ],
+  "cases": [
+    "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+    "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+  ],
+  "fullTitles": [
+    "QA historical model trajectory (public import, no automatic recorder) HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+    "QA historical model trajectory (public import, no automatic recorder) HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+  ],
+  "hooks": [
+    "before",
+    "afterEach",
+    "after"
+  ],
+  "rawScripts": 15,
+  "rawErrors": [],
+  "callbacks": 0,
+  "closureErrors": [],
+  "lint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 13ms on 2 files with 94 rules using 16 threads."
+  },
+  "accepted": true
+}

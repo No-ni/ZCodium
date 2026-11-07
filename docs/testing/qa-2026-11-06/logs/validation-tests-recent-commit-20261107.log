@@ -1,0 +1,32 @@
+✔ Composer 异步提交不能越过会话 scope (4642.884ms)
+ℹ 22 tests; C:\vibecoding\zcodium\.run-logs\project-only-validation\source-tests-RWQrnP\logs\source-tests.log
+✔ darwin Helper=false bytecode=false 按能力与显式选项串行调度 (2.7161ms)
+✔ darwin Helper=false bytecode=true 按能力与显式选项串行调度 (0.9295ms)
+✔ darwin Helper=true bytecode=false 按能力与显式选项串行调度 (1.8076ms)
+✔ darwin Helper=true bytecode=true 按能力与显式选项串行调度 (1.3605ms)
+✔ win32 Helper=false bytecode=false 按能力与显式选项串行调度 (1.0198ms)
+✔ win32 Helper=false bytecode=true 按能力与显式选项串行调度 (0.9524ms)
+✔ win32 Helper=true bytecode=false 按能力与显式选项串行调度 (1.0107ms)
+✔ win32 Helper=true bytecode=true 按能力与显式选项串行调度 (1.4044ms)
+✔ 任一准备阶段拒绝后停止调度并保留失败出口 (9.2765ms)
+✔ getEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (74.1301ms)
+✔ setEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (34.0686ms)
+✔ clearEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (22.5582ms)
+✔ resetEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (24.1929ms)
+✔ 权限 prompt 从实际 preload 进入 adapter 订阅，并注销同一 listener (15.7197ms)
+✔ 权限 resolve 沿实际 adapter/preload send 回传原请求，不改成 invoke (11.658ms)
+✔ 旧 preload 缺六能力时实际 adapter 保持 undefined，不伪造支持或成功 (5.2833ms)
+✔ 旧 preload 只提供读取时能力逐项保留，设置与气泡不能被兜底启用 (6.124ms)
+✔ 内置浏览器启动在窗口入口前等待唯一权限装配 (1.6747ms)
+✔ 历史查询与实时帧的同源陈旧读防护 (6858.4197ms)
+ℹ 30 scenarios; sandbox=C:\vibecoding\zcodium\.run-logs\project-only-validation\source-tests-mbFWAL
+✔ 会话自动续跑提醒与思考工时的真实投影、Host 摄入回归 (5114.9601ms)
+ℹ 38 scenarios; sandbox=C:\vibecoding\zcodium\.run-logs\project-only-validation\source-tests-tPQyoP
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17933.624

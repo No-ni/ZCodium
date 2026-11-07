@@ -1,5 +1,7 @@
 # Conversation Session Case Catalog
 
+2026-11-06 工作状态连续性补充：WSC01-17 已接受的产品语义和剪枝见 [工作状态连续性 spec](specs/session-work-status-continuity.md)。覆盖两个运行会话切换、挂载/隐藏恢复、无投影时钟、固定工时与新段、中断与 Goal/自动队列最终通知、订阅 epoch 冷基线、陈旧恢复帧和 Reasoning 稳定工时。第二轮新增 WSC11 会话切换首帧的目标租约门禁、WSC12 语言切换保留通知基线、WSC13 手机列表在 Goal/队列续跑期间保持运行展示。第三轮新增 WSC14 历史等待详情不得遮盖实时侧栏、WSC15 完成/失败按真实源事件隔离去重、WSC16 跨会话迟到发送回执只结算原草稿生命周期并隔离错误/滚动副作用、WSC17 历史补拉不得覆盖晚于该页的行更新或跨越完整 snapshot 替换。普通/导航分页、两种 delivery profile、未加载 header/Reasoning/工具行、无关尾部更新与鲜读恢复纳入场景。修正展示、通知与队列提升期间的投影交接，不改变 terminal/ready、队列 admission 和两种 delivery contract。定向证据与完整链路的未验证范围统一见 spec 和 coverage matrix。
+
 ## CUSTOM-MERGE：定制功能合并回归（2026-11-05 accepted）
 
 CUSTOM-MERGE-01–07 的设置、动作、断言与剪枝见 [修复 spec](specs/custom-feature-merge-regressions.md#已接受场景与剪枝)。恢复现有 Markdown、环境配置、独立 cwd、任务文件树、fork 总结偏好、常驻恢复保活和导入重放契约；运行时与浏览器夹具证据分别记录，不等价于打包桌面/手机真机验收。
@@ -5011,6 +5013,8 @@ SHARE34 重构收尾：旧 scope/stage/view、正文勾选、遮罩和 reopen ta
 | SPT06 | 44 个项目，桌面/手机、深浅主题；一个任务持续更新活动时间，再完成、改名和操作项目 | 活动更新只渲染所属项目；其他项目内容零渲染；侧栏与消息区 loading 保持旋转但不逐帧重算样式；完成后 loading 消失，标题、未读与项目操作继续使用最新数据。                                                |
 
 规格见 [Side Pane tabs](ui/side-pane-tabs.md)。SPT01/04 使用真实 Dev App 的多项目现场，SPT02/03/05/06 使用真实 hook/组件的独立浏览器夹具。SPT03 的 Host 与手机 bridge 响应使用 fixture；不覆盖远端传输、业务数据迁移或模型请求。SPT04 不发送 prompt，保留既有草稿预热；原生菜单链路只适用于桌面，手机共享边界由 SPT03 验证。
+
+2026-11-07 BUG-006/007 回归补充：SPT02 的纯工具栏副本必须保留 leading/content/trailing 布局骨架；live ref 与消费紧凑属性的 named group 同一 owner。普通缩窄/恢复保留菜单、焦点和按钮实例；560px 浮窗 iconOnly 隐藏模型文字并维持空输入单行，切到对话 tab 后恢复普通布局，编辑器/草稿不重挂。复用既有 SPT02 与 SPFV-E2E-002 契约，外置 pending 为 `docs/testing/qa-2026-11-06/manual-review/pending/qa-ui-bugfix-20261107.test.ts`；不扩大 Provider、权限、远程或手机链路，不将修前失败或静态准入改写为通过。CC-SELECT-03 的命令身份回归见 [命令中心](ui/command-center-cmd-k.md#回归用例)。
 
 ## VP13 手机任务列表触摸交互（2026-10-14）
 

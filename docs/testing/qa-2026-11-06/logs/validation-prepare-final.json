@@ -1,0 +1,11 @@
+{
+  "command": "node .run-logs/qa-2026-11-06/validation/run-validation.mjs prepare",
+  "startedUtc": "2026-11-06 20:32:26 UTC",
+  "finishedUtc": "2026-11-06 20:32:35 UTC",
+  "chunk_id": "29c32b",
+  "wall_time_seconds": 9.0186126,
+  "exit_code": 0,
+  "original_token_count": 32,
+  "output": "Safety review passed: 18 TypeScript projects; output parents contain no reparse points; test HOME/TEMP/caches under workspace.\n",
+  "scope": "Final preflight only: output paths/tooling plus workspace HOME/TEMP/cache; no UI or product test"
+}

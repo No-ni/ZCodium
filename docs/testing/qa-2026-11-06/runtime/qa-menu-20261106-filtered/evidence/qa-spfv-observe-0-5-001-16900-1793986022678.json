@@ -1,0 +1,16 @@
+{
+  "evidenceKind": "read-only actual SPFV-E2E-002 afterEach DOM and PNG; synthetic E2E only",
+  "capturedAt": "2026-11-06T17:27:02.678Z",
+  "worker": "0-5",
+  "counter": 1,
+  "test": {
+    "title": "SPFV-E2E-002 对话 tab 全宽，面板 tab 显示浮窗",
+    "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\ui-shell\\side-pane-full-view.test.ts",
+    "state": "failed",
+    "assertionError": null
+  },
+  "artifacts": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-filtered\\evidence",
+  "observerSourceSha256": "b1ef292c325f92b8ae1fd4e69309afecb68f455053426fe05330fe99d0306c59",
+  "hookSourceSha256": "29942faa65955e801d1227e30cfe69abaea721b560a3e316301cfa7672996ec0",
+  "observationError": "WebDriverError: javascript error: __name2 is not defined\n  (Session info: chrome=152.0.7977.130) when running \"execute/sync\" with method \"POST\""
+}

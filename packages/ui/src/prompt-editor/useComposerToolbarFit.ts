@@ -60,13 +60,9 @@ export function fitComposerToolbar(root: HTMLElement, { iconOnly = false } = {})
 }
 
 const createComposerToolbarProbe = (root: HTMLElement): HTMLElement => {
-  // 完整输入壳含 Lexical 与附件；测量副本只能包含纯工具栏控件，不能复制输入节点或草稿。
-  const probe = root.cloneNode(false) as HTMLElement;
-  for (const controls of root.querySelectorAll<HTMLElement>(
-    "[data-composer-action-menu], [data-composer-controls]",
-  ))
-    probe.append(controls.cloneNode(true));
-  return probe;
+  // Bugfix：ref 仅指向纯工具栏行，必须保留 leading/content/trailing 骨架才能测量溢出。
+  // 该行不含 Lexical、附件或草稿；深复制不会重建真实控件或影响打开菜单与焦点。
+  return root.cloneNode(true) as HTMLElement;
 };
 
 export function useComposerToolbarFit({ iconOnly = false } = {}) {
@@ -124,18 +120,14 @@ export function useComposerToolbarFit({ iconOnly = false } = {}) {
       resize?.disconnect();
       resize?.observe(root);
       for (const element of root.querySelectorAll<HTMLElement>(
-        "[data-composer-layout], [data-composer-action-menu], [data-composer-input], [data-composer-controls], [data-composer-leading-actions], [data-composer-leading-content], [data-composer-trailing-actions]",
+        "[data-composer-action-menu], [data-composer-leading-actions], [data-composer-leading-content], [data-composer-trailing-actions]",
       ))
         resize?.observe(element);
       update();
     };
-    // 布局属性只观察外壳枚举；不观察 compact 输出或编辑器原文，避免递归测量与逐字克隆控件。
+    // Bugfix：工具栏内容会包含异步模型/模式入口，不只观察 action menu；不观察 compact 属性输出。
     const mutations = new MutationObserver(observe);
-    mutations.observe(root, { attributes: true, attributeFilter: ["data-composer-layout"] });
-    for (const controls of root.querySelectorAll<HTMLElement>(
-      "[data-composer-action-menu], [data-composer-controls]",
-    ))
-      mutations.observe(controls, { childList: true, subtree: true, characterData: true });
+    mutations.observe(root, { childList: true, subtree: true, characterData: true });
     observe();
     return () => {
       resize?.disconnect();

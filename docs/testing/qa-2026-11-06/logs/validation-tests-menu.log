@@ -1,0 +1,120 @@
+✔ official control-plane and OAuth fallbacks stay removed (3119.5789ms)
+✔ official account providers and purchase webviews stay removed (3649.7366ms)
+✔ unconnected official mobile-push and ARMS entrypoints stay removed (658.3534ms)
+✔ BYO API-key quota is the only remaining provider quota path (691.3039ms)
+✔ product links point at this fork (1.2508ms)
+✔ official plugin defaults match the CLI definitions (0.3832ms)
+✔ maintenance commands and release defaults preserve official-only ownership (43.6807ms)
+✔ document plugin license and seed versions match their source manifests (744.5023ms)
+✔ AstrBot uses the existing platform callback and this fork's documentation (1.9306ms)
+✔ background resource and network sampling is opt-in and local-only (2.6529ms)
+✔ renderer mount does not start background performance sampling (0.882ms)
+✔ help config is local, validates link protocols and preserves locale boundaries (4.4233ms)
+✔ Desktop packaged/development and Web help use the same bundled links without requests (32.3472ms)
+✔ desktop prompt is derived from Host facts with a local opt-out, never enabled on manual servers (0.2849ms)
+✔ command palette keeps local settings and workspace actions without official account commands (1.5046ms)
+✔ application dependencies contain no telemetry SDK or workspace package (203.6507ms)
+✖ product code cannot enable official or proprietary telemetry collectors (2218.7489ms)
+✔ locale zh-CN 与 en-US 键集一致 (10.5216ms)
+✔ appHeader.goToProviderConfig 双语齐备 (16.8264ms)
+✔ 物化路径派生单一来源：resolve 与 materialize 落点一致 (49.538ms)
+✔ WINUI15 shared eligibility requires production flavor and a configured own source (1.0787ms)
+✔ WINUI15 renderer update entry follows source availability (0.3926ms)
+✔ WINUI15 native menus hide unavailable update actions on Windows and macOS (2.8098ms)
+✔ WINUI15 Windows tray uses the same update eligibility (1.0895ms)
+✔ WINUI16 help actions observe rejected platform calls, localize failures and allow retry (1.5315ms)
+✔ WINUI20 forward skips deleted aliases sharing the same identity admitted by the history API (34.703ms)
+✔ WINUI20 backward retains its predecessor when cleanup removes earlier duplicates (21.8619ms)
+✔ WINUI21 task selection locked preserves behavior without sensitive logs (13.865ms)
+✔ WINUI21 task selection disconnected preserves behavior without sensitive logs (10.8399ms)
+✔ WINUI21 task selection rejected preserves behavior without sensitive logs (15.4162ms)
+✔ WINUI20 back preserves another workspace with the same task ID (17.3209ms)
+✔ WINUI20 back never selects the reverse target when all candidates are deleted (13.8681ms)
+✔ WINUI21 back lock logs omit workspace paths (11.4317ms)
+✔ WINUI20 forward preserves another workspace with the same task ID (17.1332ms)
+✔ WINUI20 forward never selects the reverse target when all candidates are deleted (9.6167ms)
+✔ WINUI21 forward lock logs omit workspace paths (12.4683ms)
+✔ WINUI07 forward keeps the successor after 1 deleted entries (13.6014ms)
+✔ WINUI07 forward keeps the successor after 2 deleted entries (13.3453ms)
+✔ WINUI07 a deleted final entry never navigates backward (9.8505ms)
+✔ WINUI07 backward skips deleted entries without losing the predecessor (12.1551ms)
+✔ WINUI07 scoped history cleanup retains other workspace identities and non-task entries (0.3177ms)
+✔ WINUI07 forward preserves a automations successor after a deleted task (9.9806ms)
+✔ WINUI07 forward preserves a plugin-store successor after a deleted task (9.8572ms)
+✔ WINUI08 back respects the active remote workspace restart lock (9.5166ms)
+✔ WINUI08 forward respects the active remote workspace restart lock (17.0267ms)
+✔ WINUI13 active remote task without cached metadata uses the matching tab path and identity (3.1257ms)
+✔ WINUI13 a remote task with no tab uses the shared identity parser (0.8708ms)
+✔ WINUI13 wsl notification restores path and identity without metadata or a tab (0.4493ms)
+✔ WINUI13 ssh notification restores path and identity without metadata or a tab (0.2622ms)
+✔ WINUI13 matching tab preserves an opaque identity and original directory (0.3651ms)
+✔ WINUI13 task metadata takes priority over the workspace tab (0.6289ms)
+✔ WINUI13 local fallback and unknown notification behavior remain intact (0.4278ms)
+✔ WINUI14 native subscription tracks intl changes without a tab change (0.6442ms)
+✔ WINUI14 native subscription tracks allowOpenWorkspace changes without a tab change (0.369ms)
+✔ WINUI14 native subscription tracks openWorkspacePath changes without a tab change (0.3297ms)
+✔ WINUI14 native subscription tracks startNewTaskFromActiveWorkspace changes without a tab change (0.2263ms)
+✔ WINUI14 subscription cleanup releases each native listener exactly once (0.2326ms)
+✔ WINUI13 native navigation logs contain no task ID, directory or identity (0.2453ms)
+✔ WINUI06 handleTerminalInheritSystemProfileChange writes only to the base Host (76.0489ms)
+✔ WINUI06 handleTerminalFontFamilyChange writes only to the base Host (26.622ms)
+✔ WINUI06 handleIntegratedTerminalShellChange writes only to the base Host (16.1598ms)
+✔ WINUI06 handleHttpProxyChange writes only to the base Host (14.3867ms)
+✔ WINUI06 handleHttpProxyNoProxyChange writes only to the base Host (16.6364ms)
+✔ WINUI06 handleHttpProxyCaCertPathChange writes only to the base Host (11.2229ms)
+✔ WINUI06 handleTaskAutoArchiveEnabledChange writes only to the base Host (11.2545ms)
+✔ WINUI06 handleTaskAutoArchiveOlderThanDaysChange writes only to the base Host (10.5418ms)
+✔ WINUI06 handleCloseToTrayOnWindowsChange writes only to the base Host (10.9283ms)
+✔ WINUI06 handleDesktopChromiumHardwareAccelerationChange writes only to the base Host (13.5127ms)
+✔ WINUI06 handleEmbeddedBrowserAllowInsecureCertificatesChange writes only to the base Host (9.9261ms)
+✔ WINUI11 hook save refreshes after a pending old read (7.0604ms)
+✔ WINUI11 helper save refreshes after a pending old read (5.2467ms)
+✔ WINUI11 concurrent committed saves share the post-write read (3.238ms)
+✔ WINUI11 save stays pending until the new read completes (1.5391ms)
+✔ WINUI11 a later commit during the post-write read gets a newer read (1.5558ms)
+✔ WINUI11 CAS failure reloads current facts before rejecting (1.535ms)
+✔ WINUI11 ordinary concurrent refreshes remain single flight (0.5971ms)
+✔ WINUI11 a platform change during a pending read refreshes its newer facts (1.8327ms)
+✔ WINUI11 an idle save needs only one read (0.7404ms)
+✔ WINUI11 separate service snapshots never join one another (0.5982ms)
+✔ WINUI11 failed reads retain the last usable snapshot and error (0.5078ms)
+✔ WINUI17 restore refuses an occupied second default, including Windows physical aliases (65.976ms)
+✔ WINUI17 first-default occupancy and an explicitly unassigned command are guarded (21.7681ms)
+✔ WINUI17 released defaults restore both keys without changing other overrides (21.5403ms)
+✔ WINUI17 default restoration preserves macOS Ctrl separation and scope isolation (44.1747ms)
+✔ WINUI19 restore, append and replace run once in the key event instead of the React updater (98.7405ms)
+✔ WINUI19 escape, noise, duplicate, invalid and occupied keys do not save (133.6058ms)
+✔ WINUI18 reopening a workspace shows its original window after Windows close to tray (8.0018ms)
+✔ WINUI18 visible/minimized windows retain restore, focus and tab ordering (17.1604ms)
+✔ WINUI18 activation skips its sender, removes stale registrations and preserves unmatched fallback (5.2164ms)
+ℹ tests 89
+ℹ suites 0
+ℹ pass 88
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21247.0927
+
+✖ failing tests:
+
+test at scripts\ci\no-telemetry.test.mjs:52:1
+✖ product code cannot enable official or proprietary telemetry collectors (2218.7489ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'packages\\desktop\\test\\e2e\\manual-review\\pending\\mobile-remote-onboarding.mjs'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///C:/vibecoding/zcodium/scripts/ci/no-telemetry.test.mjs:66:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'packages\\desktop\\test\\e2e\\manual-review\\pending\\mobile-remote-onboarding.mjs' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

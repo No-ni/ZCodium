@@ -1,0 +1,55 @@
+{
+  "capturedAt": "2026-11-06T18:13:31.439Z",
+  "evidenceKind": "No browser, Electron, React mounting or UI. Production source transpiled in memory; non-rendered synthetic DOM structure and geometry from real protected240 snapshots. Not new E2E case evidence.",
+  "sourcePath": "C:\\vibecoding\\zcodium\\packages\\ui\\src\\prompt-editor\\useComposerToolbarFit.ts",
+  "sourceSha256": "9b6562cdbc303acb8dbd5f9422334ec4ce6e37abc688898a7e2e85709df64e45",
+  "observationPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\evidence\\qa-composer-fit-0-6-001-30916-1793988522119.json",
+  "observationSha256": "19162b28f2db2a36c9df2352ec1d8a167483a7d8f8bd2294f945da8b6ca22b6a",
+  "protected240": [
+    {
+      "elapsedMs": 2258.9,
+      "toolbarWidth": 240,
+      "toolbarScrollWidth": 348,
+      "toolbarDataset": {},
+      "shellDataset": {
+        "composerLayout": "stacked"
+      },
+      "modelWidth": 271.94793701171875,
+      "labelDisplay": "block",
+      "iconDisplay": "none",
+      "thoughtDisplay": "none",
+      "leadingWidth": 0,
+      "leadingContentWidth": 157.33334350585938,
+      "trailingWidth": 335.94793701171875
+    },
+    {
+      "elapsedMs": 2268.1,
+      "toolbarWidth": 240,
+      "toolbarScrollWidth": 348,
+      "toolbarDataset": {},
+      "shellDataset": {
+        "composerLayout": "stacked"
+      },
+      "modelWidth": 271.94793701171875,
+      "labelDisplay": "block",
+      "iconDisplay": "none",
+      "thoughtDisplay": "none",
+      "leadingWidth": 0,
+      "leadingContentWidth": 157.33334350585938,
+      "trailingWidth": 335.94793701171875
+    }
+  ],
+  "probeChildren": 1,
+  "probeMissing": [
+    "[data-composer-leading-actions]",
+    "[data-composer-leading-content]",
+    "[data-composer-trailing-actions]",
+    "[data-composer-combined-model]"
+  ],
+  "probeDataset": {},
+  "directLiveDataset": {
+    "composerModelIcon": "true"
+  },
+  "confirmedStructureMismatch": true,
+  "limits": "Synthetic geometry cannot prove React ref.current owner, ResizeObserver execution, real-width window reproduction, open-picker aria-expanded or focus/node persistence. Actual JSON did not record aria-expanded; Tooltip data-state closed is not proof menu closed."
+}

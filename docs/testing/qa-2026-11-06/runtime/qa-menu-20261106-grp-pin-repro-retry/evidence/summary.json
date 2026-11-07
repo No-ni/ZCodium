@@ -1,0 +1,203 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence",
+  "completedAt": "2026-11-06T19:09:58.714Z",
+  "containerE2E": false,
+  "durationMs": 189672,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-grp-pin-repro-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.12,
+            "peak": 0.24,
+            "p95": 0.24,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 159.42,
+            "peak": 159.91,
+            "p95": 159.91,
+            "sampleCount": 3
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.03,
+            "peak": 0.05,
+            "p95": 0.05,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 133.1,
+            "peak": 138.68,
+            "p95": 138.68,
+            "sampleCount": 3
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.05,
+            "peak": 0.15,
+            "p95": 0.15,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 350.24,
+            "peak": 368.04,
+            "p95": 368.04,
+            "sampleCount": 3
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.08,
+            "peak": 0.14,
+            "p95": 0.14,
+            "sampleCount": 3
+          },
+          "memoryWorkingSetMb": {
+            "mean": 252.36,
+            "peak": 272.63,
+            "p95": 272.63,
+            "sampleCount": 3
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 0.28,
+        "peak": 0.44,
+        "p95": 0.44,
+        "sampleCount": 3
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-grp-pin-repro-retry\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 895.13,
+        "peak": 930.82,
+        "p95": 930.82,
+        "sampleCount": 3
+      },
+      "sampleCount": 3
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 115417,
+        "p95Ms": 115417,
+        "totalMs": 115417
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 985,
+        "p95Ms": 985,
+        "totalMs": 985
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 24,
+        "p95Ms": 25,
+        "totalMs": 49
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 9,
+        "p95Ms": 9,
+        "totalMs": 9
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 862,
+        "p95Ms": 862,
+        "totalMs": 862
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 65800,
+        "p95Ms": 65800,
+        "totalMs": 65800
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2745,
+        "p95Ms": 2745,
+        "totalMs": 2745
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0,
+    "firstTimePassRate": 0,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 189672,
+    "caseDurationP50Ms": 5091,
+    "caseDurationP95Ms": 5091,
+    "slowestCases": [
+      {
+        "fullTitle": "GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员",
+        "durationMs": 5091
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 1
+  },
+  "requestedSpecs": [
+    "./test/e2e/conversation-session/conversation-session-task-groups.test.ts"
+  ],
+  "runId": "qa-menu-20261106-grp-pin-repro-retry",
+  "startedAt": "2026-11-06T19:06:49.042Z",
+  "tests": {
+    "failed": 1,
+    "passed": 0,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T19:09:44.144Z",
+        "durationMs": 5091,
+        "error": "Can't call click on element with selector \"[data-testid=\"task-group-add\"]\" because element wasn't found",
+        "errorCategory": "unknown",
+        "errorStack": "Error: Can't call click on element with selector \"[data-testid=\"task-group-add\"]\" because element wasn't found\n    at implicitWait (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:743:13)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10490:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.testOverride (C:\\vibecoding\\zcodium\\node_modules\\wdio-electron-service\\dist\\esm\\index.js:1900:32)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-task-groups.test.ts:218:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-task-groups.test.ts",
+        "fullTitle": "GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "GRP04/05/06：组内首发、三视图菜单、置顶/归档和恢复保持成员"
+      }
+    ],
+    "skipped": 0,
+    "total": 1
+  }
+}

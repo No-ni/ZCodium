@@ -1,0 +1,58 @@
+
+packages/desktop/wdio.conf.ts
+1949: function seedE2EStartupState(specs: string[] = []) {
+1992:               lastWorkspaceSession: [legacyDefaultProjectPath, ...passiveWorkspacePaths].map(
+1996:                   workspacePurpose: "project" as const,
+2004:                 lastWorkspaceSession: passiveWorkspacePaths.map((workspacePath) => ({
+2007:                   workspacePurpose: "project" as const,
+2013:                   lastWorkspaceSession: [
+2016:                       workspacePath: legacyDefaultProjectPath,
+2017:                       workspacePurpose: "project",
+
+packages/desktop/src/host/database-startup/contract.ts
+8: export const tasksStorageWorkerDataSchema = z.object({ path: z.string().min(1) }).strict();
+
+packages/desktop/src/host/database-startup/storagePreparationProcesses.ts
+33: export function prepareHostStorage(
+40:       workerData: { path },
+
+packages/desktop/src/host/database-startup/tasksStorageWorker.ts
+3: import { prepareTasksIndexStorage } from "@zcode/services/storage-startup";
+13:   await prepareTasksIndexStorage(data.path, (phase, migration) =>
+
+packages/services/src/project-storage/startup.ts
+110:     new TaskIndexRepo(undefined, undefined, path, BUSINESS_BUSY_TIMEOUT_MS),
+
+packages/services/src/session/taskIndexRepo.ts
+333:     private readonly migrationSettings?: ProjectMigrationContext["settings"],
+406:     const migration = await projectStorage.migrate(this.getDatabase(), {
+407:       settings: this.migrationSettings,
+
+packages/services/src/project-storage/migrate-projects.ts
+93: export function migrateProjects(db: DatabaseSync, context: ProjectMigrationContext): void {
+106:   for (const entry of settings?.lastWorkspaceSession ?? []) {
+108:       workspaces.set(entry.workspacePath, {
+142:       (settings?.lastWorkspaceSession ?? []).flatMap((entry) =>
+154:         workspaces.set(row.root_path, { path: row.root_path, hostId: context.hostId! });
+
+packages/services/src/project-storage/index.ts
+44:           id: "0005_projects",
+52:             migrateProjects(database, context);
+
+packages/desktop/test/e2e/helpers/browser-side-pane.ts
+51:             key: "b",
+53:             altKey: true,
+54:             metaKey: true,
+65:       timeoutMsg: "切换右侧面板后没有出现 Open Tab 或 add trigger",
+
+packages/shared/src/shortcutCommands.ts
+74:   { id: "toggleSidePane", channel: "window", defaultBindings: ["CmdOrCtrl+Alt+b"] },
+
+packages/ui/src/shortcuts/bindings.ts
+152:     const ok = isApple ? meta && !ctrl : ctrl && !meta;
+
+node_modules/@wdio/mocha-framework/build/index.js
+5: import { handleRequires } from "mocha/lib/cli/run-helpers.js";
+188:     if (Array.isArray(mochaOpts.require)) {
+189:       const plugins = await handleRequires(
+192:       Object.assign(mochaOpts, plugins);

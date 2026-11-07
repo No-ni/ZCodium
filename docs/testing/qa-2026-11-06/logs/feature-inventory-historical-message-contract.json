@@ -1,0 +1,36 @@
+{
+  "capturedAt": "2026-11-06T20:01:23.831Z",
+  "evidenceKind": "Read-only seed evidence and frozen source generator reconstructed to exact captured JSONL hash, plus extracted current pure UI functions; no UI/Host/Provider/build/history writes",
+  "sourceFile": "C:\\vibecoding\\zcodium\\packages\\ui\\src\\ModelTrajectoryTimeline.tsx",
+  "sourceSha256": "d006e6d3fe424532b6d9974e1cdc7b8a11df13ba64ace9bf9fda3929b1cf06bb",
+  "rawPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\.e2e-home-qa-menu-20261106-local-supplement-retry\\.zcodium\\cli\\debug\\model-io-share-import-3c698cfe-4dcf-47c7-b0e6-13d878160cab.jsonl",
+  "rawSha256": "6025502d1652a05573831ebc95ff58414f0b787ad5065b8a1515fe06106b1d99",
+  "evidenceFile": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-supplement-retry\\evidence\\qa-historical-trajectory-0-1-13508-1793994788354\\002-synthetic-history-created.json",
+  "qaSourceFile": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+  "qaSourceSha256": "44857be6e3dbfe5e9c9afc4372dd67ceb43046bc496ce4d94e5d7ab89037ba8c",
+  "originalFilePresent": false,
+  "originalFileRead": false,
+  "reconstructionMatchesCapturedSha256": true,
+  "extractedFunctions": [
+    "resolveTrajectoryTimelineItems",
+    "resolveTrajectoryInputMessages",
+    "shouldUseConversationDelta",
+    "computeDeltaMessages"
+  ],
+  "diagnostics": 0,
+  "recordCount": 80,
+  "rawMarkerIndices": [
+    1,
+    42
+  ],
+  "currentFixtureProjectedMarkerIndices": [
+    1
+  ],
+  "proposedCumulativeProjectedMarkerIndices": [
+    1,
+    42
+  ],
+  "observedUiCounter": "1/1",
+  "accepted": true,
+  "conclusion": "Independent one-message synthetic main requests violate cumulative main history contract; equal message count suppresses the second marker at 42. Cumulative fixture preserves both markers without changing product delta or assertions. The worker reset removed the original path before this probe; no files were restored."
+}

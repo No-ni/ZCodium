@@ -1,0 +1,15 @@
+{
+  "command": "node --test --test-concurrency=1 scripts/ci/embedded-browser-permission-adapter.test.mjs scripts/ci/embedded-browser-permission-startup.test.mjs scripts/ci/dev-desktop-env-dispatch.test.mjs scripts/ci/composer-submission-scope-race.test.mjs scripts/ci/session-work-status-projection.test.mjs scripts/ci/session-history-query.test.mjs",
+  "started": "2026-11-07T04:53:02.543Z",
+  "finished": "2026-11-07T04:53:20.591Z",
+  "code": 0,
+  "signal": null,
+  "outerNode": "v24.18.0",
+  "pinnedNode": "C:/Program Files/nodejs/node.exe",
+  "pinnedPnpm": "10.33.2",
+  "shimPath": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin\\pnpm.cmd",
+  "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd;C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\WindowsPowerShell\\v1.0",
+  "cacheNetworkDisabled": true,
+  "packageManagerAutoManagementDisabled": true,
+  "compileCachesDisabled": true
+}

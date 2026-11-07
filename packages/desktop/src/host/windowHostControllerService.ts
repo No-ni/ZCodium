@@ -85,6 +85,13 @@ function mutationParams(address: WindowHostTaskAddress) {
 function sessionOverlay(
   summary: import("@zcode/shared/zcode-protocol-v4").SessionSummary,
 ): WindowHostControllerSessionOverlay {
+  // Bug 原因：成功轮结束早于 Goal 验证/自动队列接续；手机把中间边界显示为“已完成”。
+  // 仅派生列表 liveStatus，保留 CLI phase 与暂停、held queue、后台工作的既有语义。
+  const successContinues =
+    summary.phase === "completedSuccess" &&
+    (summary.autoContinuePending === true ||
+      summary.goalStatus === "active" ||
+      summary.goalStatus === "verifying");
   const liveStatus: WindowHostControllerSessionOverlay["liveStatus"] =
     summary.pendingInteraction ||
     (summary.pendingInteractionSummary &&
@@ -92,7 +99,7 @@ function sessionOverlay(
         summary.pendingInteractionSummary.userInputCount >
         0)
       ? "waiting"
-      : summary.phase === "prewarming" || summary.phase === "running"
+      : summary.phase === "prewarming" || summary.phase === "running" || successContinues
         ? "running"
         : summary.phase === "error"
           ? "error"

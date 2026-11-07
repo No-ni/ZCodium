@@ -1,0 +1,58 @@
+
+> zcode@3.17.1 architecture:context C:\vibecoding\zcodium
+> node scripts/architecture/architecture-check.mjs context "embedded-browser-permission"
+
+# Architecture context: embedded-browser-permission
+owner: desktop
+managed: true
+requires: desktop, shared
+layers: adapters
+
+## Files
+- packages/desktop/src/main/embedded-browser-permission-contract/module.ts
+- packages/desktop/src/main/embedded-browser-permission-contract/contract.example.ts
+- packages/desktop/src/main/embedded-browser-permission-contract/contract.ts
+- public: packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts
+- public: packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts
+- public: packages/desktop/src/main/embeddedBrowserSitePermissions.ts
+- public: packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts
+- public: packages/desktop/src/main/embedded-browser-permission-contract/contract.ts
+
+## Contract
+### packages/desktop/src/main/embedded-browser-permission-contract/CONTRACT.md
+
+# 内置浏览器权限契约
+
+现有 `applyEmbeddedBrowserPermissionPolicy` 是 Electron partition 的装配入口。初始化等待站点权限记录加载，再注册 request/check/device handler；每个 partition 只装配一次。
+
+Main 的 `whenReady` 在网络策略之后、更新初始化及窗口创建之前等待该入口：复用现有 UI bridge 与独立 JSON store，不新增授权 owner。弹窗回执只接受实际接收该申请的宿主 webContents；重复装配监听不得造成重复结算。生产日志只保留决策、能力枚举、来源和数量，不记录 origin、路径、设备内容或原始错误。
+
+站点权限管理器持有持久授权，当前 policy 实例持有会话授权和待决请求。request 与 check 都按标准 URL origin 查询；路径和尾斜杠不改变站点，协议或主机不同则隔离。未授权敏感权限交给注入的 prompt，未知权限拒绝。
+
+```text
+Electron request/check → 标准 origin → 同一授权记录 → 允许 / 拒绝 / 用户决策
+```
+
+设备选项与持久化通过已有 desktop 模块完成。本模块不改变权限清理、主窗口路由或跨进程协议。现行 E2E 入口为 `packages/desktop/test/e2e/browser-permission-prompt.test.ts`。原 App 单测已退役，其独立 policy 边界断言不再计入覆盖。
+
+权限策略、UI bridge、站点授权管理器与 JSON store 统一登记在 `embedded-browser-permission` 的 adapters 层；Main 可调用 bridge/store 工厂，既有浏览器数据 IPC 经授权管理器公开读写方法更新同一记录。设备选项仍通过 desktop adapter，协议类型仍由 shared 持有，不建立新缓存或第二条授权写入路径。
+
+站点记录/store 的纯接口由 `site-permissions.ts` 叶子定义，不反向依赖 policy；policy 保留原类型重导出，既有消费者兼容。这样 manager 不再通过类型导入依赖调用它的 policy，运行时 owner 和写入路径不变。
+
+
+### packages/desktop/src/main/embedded-browser-permission-contract/contract.ts
+
+```ts
+/** 既有入口的类型契约；不创建第二份状态或转发实现。 */
+export interface EmbeddedBrowserPermissionContract {
+  applyEmbeddedBrowserPermissionPolicy: typeof import("@desktop/main/embeddedBrowserPermissionPolicy.js").applyEmbeddedBrowserPermissionPolicy;
+}
+```
+
+## Direct dependency contracts
+- none discovered
+
+## Boundaries
+- Cross-module imports must use declared requirements and public entrypoints.
+- Add a contract example and document invariants before exposing a new capability.
+- New source files must live inside a managed module (rule: unmanaged-new-file).

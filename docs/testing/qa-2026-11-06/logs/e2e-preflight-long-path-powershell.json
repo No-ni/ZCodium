@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-11-06T17:09:31.9723619Z",
+  "evidenceKind": "Read-only live long-path comparison; no build or UI; synthetic failed QA home only",
+  "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\.e2e-home-qa-menu-20261106-local-actions-final\\.zcodium\\cli\\plugins\\cache\\zcode-plugins-official\\restore-legacy-sessions\\0.1.0\\skills\\restore-legacy-sessions\\scripts",
+  "legacy": {
+    "version": "5.1.26100.9711",
+    "exists": true,
+    "directoryExists": true,
+    "length": 259,
+    "success": false,
+    "exceptionType": "System.IO.DirectoryNotFoundException",
+    "errorId": "DirIOError,Microsoft.PowerShell.Commands.GetChildItemCommand",
+    "target": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-actions-final\\.e2e-home-qa-menu-20261106-local-actions-final\\.zcodium\\cli\\plugins\\cache\\zcode-plugins-official\\restore-legacy-sessions\\0.1.0\\skills\\restore-legacy-sessions\\scripts"
+  },
+  "modern": {
+    "version": "7.6.9",
+    "exists": true,
+    "directoryExists": true,
+    "length": 259,
+    "success": true,
+    "entries": 2
+  },
+  "node": {
+    "node": "v24.18.0",
+    "exists": true,
+    "isDirectory": true,
+    "isLink": false,
+    "entries": 2,
+    "length": 259
+  },
+  "conclusion": "PS5.1 enumeration falsely reports DirectoryNotFound for existing long path; PS7 and Node enumerate successfully; do not swallow errors on existing paths"
+}

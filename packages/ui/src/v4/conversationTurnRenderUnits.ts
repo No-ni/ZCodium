@@ -265,6 +265,15 @@ function materializeDraftUnit(
     workDurationMs,
     isInterrupted,
   );
+  // Bugfix：空的运行轮尚无工作段时，loading 也必须沿用稳定主轮起点，不能从组件挂载计时。
+  if (
+    workStatus?.state === "running" &&
+    draft.header?.activeMs === undefined &&
+    draft.header?.endedAt === undefined &&
+    draft.header?.startedAt !== undefined
+  ) {
+    workStatus.liveStartedAt = draft.header.startedAt;
+  }
   const browserTurnEndRowIds = new Set(browserTurnEndRows.map((row) => row.rowId));
   const orderedBodyRows = visibleOrderedRows.filter(
     // main 的 workSegments 会从 orderedRows 重建 flow；如果这里只从

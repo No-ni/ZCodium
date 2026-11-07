@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-11-06T18:26:21.485Z",
+  "evidenceKind": "all external QA noEmit; actual QLA 12 registration; callback syntax and pure path boundary probes only; no hooks/cases/Main/Host/UI execution",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-local-menu-actions-20261106.test.ts",
+      "sha256": "fb3c4976fb123617561f22e6de64b02e428070ec29f1510be1c45298aad98b2d"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\config\\default.json",
+      "sha256": "8540f76782cf74d436dacd0f9d8bbd612a713dc951da9e1a1d38d9fef0882a86"
+    }
+  ],
+  "diagnostics": [],
+  "checkedCallbacks": 11,
+  "closureFindings": [],
+  "checkedRawScripts": 1,
+  "rawSyntaxErrors": [],
+  "boundaryProbe": {
+    "allowedRunConfig": true,
+    "rejectedSharedConfig": true,
+    "rejectedSiblingRun": true,
+    "rejectedProjectOutside": true
+  },
+  "registeredCases": [
+    "QLA01: 底部偏好语言英文/中文/系统即时保存并恢复",
+    "QLA02: 底部主题浅色/深色/系统生效并恢复",
+    "QLA03: 底部办公/编码模式选择保存并恢复",
+    "QLA04: 底部缩放实际大小/放大/缩小与原值恢复",
+    "QLA05: 帮助四个fork链接只请求mock openExternal",
+    "QLA06: 无自有更新源隐藏入口，About ZCodium显示版本并关闭",
+    "QLA07: 记忆开关即时保存，scope/refresh或明确空catalog范围",
+    "QLA08: 自动归档关闭时可设30天、开关保存并恢复",
+    "QLA09: Browser总开关就绪后切换恢复，Windows不展示Chrome导入",
+    "QLA10: Windows Computer Use总开关/composer显隐切换恢复",
+    "QLA11: Hooks收敛后空态/列表、新建草稿填写取消不保存",
+    "QLA12: 商店当前列表/空态、新增市场源risk gate输入后取消"
+  ],
+  "targetedLint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 12ms on 2 files with 94 rules using 16 threads."
+  }
+}

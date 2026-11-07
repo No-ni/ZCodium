@@ -1,0 +1,50 @@
+{
+  "capturedAt": "2026-11-06T19:28:50.416Z",
+  "source": "docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-residency-final/evidence/qa-reload-observe-0-0-2-29932-1793993175977.json",
+  "sourceSha256": "b8f30c2607109b5094ec4272697f9bbb3dbb8ccf881d04ff38ab9fbd71c4f438",
+  "evidenceKind": "Read-only existing reload evidence summary; no UI or process query",
+  "casePassed": true,
+  "oldMainPid": 10640,
+  "initialPidCount": 13,
+  "allInitialAbsent": true,
+  "newMain": {
+    "pid": 31192,
+    "ppid": 29664,
+    "name": "electron.exe",
+    "createdAt": "2026-11-06T19:26:25.7978360Z",
+    "executableInWorktree": true,
+    "runMarker": true,
+    "homeMarker": true,
+    "chromeDriver": false
+  },
+  "originalDeleteEvents": [
+    {
+      "phase": "original-delete-call",
+      "capturedAt": "2026-11-06T19:26:23.259Z"
+    },
+    {
+      "phase": "original-delete-return",
+      "capturedAt": "2026-11-06T19:26:25.004Z"
+    },
+    {
+      "phase": "original-delete-call",
+      "capturedAt": "2026-11-06T19:26:25.777Z"
+    },
+    {
+      "phase": "original-delete-return",
+      "capturedAt": "2026-11-06T19:26:25.785Z"
+    }
+  ],
+  "observerErrors": [
+    {
+      "phase": "observer-read-error",
+      "error": {
+        "name": "Error",
+        "message": "WebSocket is not connected. Call 'CdpBridge.connect()' before using this method",
+        "code": null,
+        "cause": null
+      }
+    }
+  ],
+  "boundary": "One reused real guest and 33 logical tabs; existing main coordinator registration and complete cold restart; not 32 live guests, installer or macOS verification"
+}

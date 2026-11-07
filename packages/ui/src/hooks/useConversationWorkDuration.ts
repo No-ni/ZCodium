@@ -3,15 +3,26 @@ import type { ConversationTurnWorkStatus } from "@/v4/conversationTurnWorkSegmen
 
 export function useConversationWorkDuration(
   status: ConversationTurnWorkStatus | undefined,
+  refreshIntervalMs = 1000,
 ): number | undefined {
   const startedAt = status?.state === "running" ? status.liveStartedAt : undefined;
-  const [now, setNow] = useState(Date.now);
+  const [, refresh] = useState(0);
   useEffect(() => {
     if (startedAt === undefined) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
+    const tick = () => refresh((revision) => revision + 1);
+    const onVisibilityChange = () => {
+      if (!document.hidden) tick();
+    };
+    const timer = setInterval(tick, refreshIntervalMs);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [startedAt, refreshIntervalMs]);
   // 秒级时钟只订阅文案叶子，避免整条 Timeline 为显示耗时重新分组全部历史。
-  return startedAt === undefined ? status?.durationMs : Math.max(0, now - startedAt);
+  // Bugfix：props 切换时旧 now 会短暂串用另一会话；直接读当前时钟，挂载和唤醒均沿用 CLI 起点。
+  return startedAt === undefined ? status?.durationMs : Math.max(0, Date.now() - startedAt);
 }

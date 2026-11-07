@@ -1,0 +1,142 @@
+{
+  "capturedAt": "2026-11-06T20:38:48.3730578Z",
+  "accepted": true,
+  "ancestorChecks": [
+    {
+      "path": "C:\\Program Files\\nodejs\\node.exe",
+      "exists": true,
+      "attributes": "Archive",
+      "linkType": null
+    },
+    {
+      "path": "C:\\Program Files\\nodejs",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\Program Files",
+      "exists": true,
+      "attributes": "ReadOnly, Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\",
+      "exists": true,
+      "attributes": "Hidden, System, Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\Program Files\\nodejs\\node_modules\\corepack\\dist\\corepack.js",
+      "exists": true,
+      "attributes": "Archive",
+      "linkType": null
+    },
+    {
+      "path": "C:\\Program Files\\nodejs\\node_modules\\corepack\\dist",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\Program Files\\nodejs\\node_modules\\corepack",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\Program Files\\nodejs\\node_modules",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bin",
+      "exists": false
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\corepack\\v1\\pnpm\\10.33.2",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\corepack\\v1\\pnpm",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\corepack\\v1",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\corepack",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    },
+    {
+      "path": "C:\\vibecoding\\zcodium\\docs",
+      "exists": true,
+      "attributes": "Directory",
+      "linkType": null
+    }
+  ],
+  "cacheEntries": 1316,
+  "cacheReparsePoints": 0,
+  "nodeVersion": "v24.18.0",
+  "nodeSha256": "9A4EB5F1C29C6A2E93852EAD46B999E284A6A5CA8BAB4D4E241D587D025A52DE",
+  "corepackSha256": "4BD305443B25CCB4C11B0C3F9EEFE65D755AF39F3545BFEC24AF428A1F9451B5",
+  "cachedPnpmVersion": "10.33.2"
+}

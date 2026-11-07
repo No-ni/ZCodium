@@ -1,0 +1,20 @@
+{
+  "evidenceKind": "read-only live isolated fixture snapshot; no UI launched by audit agent",
+  "capturedAt": "2026-11-06T15:17:24.091Z",
+  "database": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-features/app-home/.zcodium/v2/tasks-index.sqlite",
+  "settings": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-features/app-home/.zcodium/v2/setting.json",
+  "legacyWorkspaces": [
+    {
+      "kind": "local",
+      "workspacePath": "C:/vibecoding/zcodium/docs/testing/qa-2026-11-06/runtime/qa-menu-20261106-features/app-home/ZCodeProject",
+      "workspacePurpose": "project"
+    }
+  ],
+  "projectRelatedSettingKeys": ["recentProjects", "lastWorkspaceSession", "lastActiveTabIndex"],
+  "projectRows": [],
+  "projectRoots": [],
+  "migrationColumns": ["id", "checksum", "app_version", "time_applied"],
+  "migrationIds": ["0005_projects", "0006_default_workspace_tasks", "0007_initial_workspace_order", "0008_remote_entry_deleted_cache", "0009_session_creation_commands"],
+  "hosts": [{"host_id": "local", "kind": "local"}],
+  "limitations": ["Synthetic E2E profile only", "No real user data inspected", "No macOS migration runtime tested", "No source fix made"]
+}

@@ -580,6 +580,7 @@ export function SessionPane({
     leaseBinding,
     layer,
     sessionId === null ? draftRuntimeInvalidationVersion : undefined,
+    sessionId ?? undefined,
   );
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
@@ -1147,6 +1148,8 @@ export function SessionPane({
   // Composer 保存下一次 Submission 的 renderer intent；prewarm session 仅承载草稿预热。
   const {
     composerDraft,
+    composerDraftScopeToken,
+    captureComposerSubmissionDraftTransaction,
     modelSelectionRead,
     draftConfig,
     draftConfigRef,
@@ -1167,6 +1170,9 @@ export function SessionPane({
     agentStartupAllowed: draftAgentStartupAllowed,
     modelSelectionService,
   });
+  // 发送尾部副作用复用草稿 owner 的 incarnation；渲染切换时立即撤销旧回调资格。
+  const composerDraftScopeTokenRef = useRef(composerDraftScopeToken);
+  composerDraftScopeTokenRef.current = composerDraftScopeToken;
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const draftModelSelectionRevisionRef = useRef<number | null>(null);
@@ -2394,13 +2400,14 @@ export function SessionPane({
     setLeaseBinding({
       lease: nextLease,
       layer,
-      draftInvalidationVersion: draftRuntimeInvalidationVersion,
+      // Bugfix：草稿代只标记预热 lease；回到草稿的首帧不能借用上一正式会话的事实。
+      draftInvalidationVersion: sessionId === null ? draftRuntimeInvalidationVersion : undefined,
     });
     return () => {
       offOnlineModelTransition();
       nextLease.release();
     };
-  }, [layer, effectiveSessionId, draftRuntimeInvalidationVersion]);
+  }, [layer, effectiveSessionId, draftRuntimeInvalidationVersion, sessionId]);
 
   useEffect(() => {
     if (!sessionId || !lease || snapshot?.sessionId !== sessionId) return;
@@ -2940,12 +2947,19 @@ export function SessionPane({
         if (sendResult === "blocked" || sendResult === "confirmationRequired") {
           return sendResult;
         }
-        setSendSubmissionError(null);
-        if (shouldFocusLatest) {
-          focusTimelineToLatest();
+        // 旧会话 ACK 不能清除新 scope 的错误或滚动它的时间线；Root 转正沿用 token。
+        if (composerDraftScopeTokenRef.current === composerDraftScopeToken) {
+          setSendSubmissionError(null);
+          if (shouldFocusLatest) {
+            focusTimelineToLatest();
+          }
         }
         return "sent";
       } catch (error) {
+        if (composerDraftScopeTokenRef.current !== composerDraftScopeToken) {
+          // 继续抛回原 Composer transaction，让失败正文恢复到原 scope。
+          throw error;
+        }
         const detail = error instanceof Error ? error.message : String(error);
         const runtimeModelUnavailable = detail.includes("provider.notInRegistry");
         // 首发前 switchModelConfig 失败只会抛回 Composer；Composer 为了保留草稿
@@ -2963,7 +2977,7 @@ export function SessionPane({
         throw error;
       }
     },
-    [dispatchSendText, focusTimelineToLatest, intl, sessionId],
+    [composerDraftScopeToken, dispatchSendText, focusTimelineToLatest, intl, sessionId],
   );
 
   const handleComposerDraftStateChange = useCallback(
@@ -4305,6 +4319,8 @@ export function SessionPane({
       draftMode={isDraft}
       draftConfig={draftConfig}
       composerDraft={composerDraft}
+      composerDraftScopeToken={composerDraftScopeToken}
+      captureComposerSubmissionDraftTransaction={captureComposerSubmissionDraftTransaction}
       replaceComposerDraft={replaceComposerDraft}
       submissionReady={composerSubmissionReady}
       updateComposerContent={updateComposerContent}
@@ -4312,7 +4328,7 @@ export function SessionPane({
       contextHeader={isDraft && !isFloatingPresentation ? draftComposerHeader : undefined}
       centered={isDraft && !isFloatingPresentation}
       floating={isFloatingPresentation}
-      workingDurationMs={floatingSummary?.running ? floatingSummary.workDurationMs : undefined}
+      workingStatus={floatingSummary?.running ? floatingSummary.workStatus : undefined}
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}

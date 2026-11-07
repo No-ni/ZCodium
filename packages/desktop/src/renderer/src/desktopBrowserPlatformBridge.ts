@@ -20,6 +20,12 @@ type DesktopBrowserPlatformBridge = Pick<
   | "browserViewUpdateViewport"
   | "importChromeBrowserData"
   | "clearEmbeddedBrowserData"
+  | "getEmbeddedBrowserSitePermissions"
+  | "setEmbeddedBrowserSitePermission"
+  | "clearEmbeddedBrowserSitePermissions"
+  | "resetEmbeddedBrowserSitePermission"
+  | "onEmbeddedBrowserPermissionPrompt"
+  | "resolveEmbeddedBrowserPermissionPrompt"
   | "getPathForFile"
   | "saveFile"
   | "printPageToPdf"
@@ -28,6 +34,26 @@ type DesktopBrowserPlatformBridge = Pick<
 // Rebase 集成：browser bridge 若继续内联在 renderer 入口，会让入口越过 max-lines 门禁。
 // 独立对象只做 preload 委托与旧 bridge 兼容兜底，不持有 Browser 业务状态。
 export const desktopBrowserPlatformBridge = {
+  // BUG-005：Main 已安装权限策略，但平台漏委托会使设置页判为不支持、气泡无法订阅。
+  // 只补既有 preload 能力；旧 preload 缺方法时保持 undefined，不能伪造授权快照或成功。
+  getEmbeddedBrowserSitePermissions: window.zcode.getEmbeddedBrowserSitePermissions
+    ? () => window.zcode.getEmbeddedBrowserSitePermissions!()
+    : undefined,
+  setEmbeddedBrowserSitePermission: window.zcode.setEmbeddedBrowserSitePermission
+    ? (request) => window.zcode.setEmbeddedBrowserSitePermission!(request)
+    : undefined,
+  clearEmbeddedBrowserSitePermissions: window.zcode.clearEmbeddedBrowserSitePermissions
+    ? () => window.zcode.clearEmbeddedBrowserSitePermissions!()
+    : undefined,
+  resetEmbeddedBrowserSitePermission: window.zcode.resetEmbeddedBrowserSitePermission
+    ? (request) => window.zcode.resetEmbeddedBrowserSitePermission!(request)
+    : undefined,
+  onEmbeddedBrowserPermissionPrompt: window.zcode.onEmbeddedBrowserPermissionPrompt
+    ? (handler) => window.zcode.onEmbeddedBrowserPermissionPrompt!(handler)
+    : undefined,
+  resolveEmbeddedBrowserPermissionPrompt: window.zcode.resolveEmbeddedBrowserPermissionPrompt
+    ? (request) => window.zcode.resolveEmbeddedBrowserPermissionPrompt!(request)
+    : undefined,
   getPathForFile: (file) => window.zcode.getPathForFile?.(file) ?? null,
   saveFile: (payload) =>
     window.zcode.saveFile?.(payload) ?? Promise.resolve({ success: false, error: "not_supported" }),

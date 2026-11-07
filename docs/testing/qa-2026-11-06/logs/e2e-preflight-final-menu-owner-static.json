@@ -1,0 +1,210 @@
+{
+  "capturedAt": "2026-11-06T20:05:51.686Z",
+  "evidenceKind": "all external QA noEmit; actual module imports/fullTitle registrations; static serialized callback syntax only; no UI/Host/provider execution",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "sha256": "edac99520b453037354c81f065dd1987a6dab2a55c8e1660c99bb25455d1f5bb"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-preview-dom.ts",
+      "sha256": "3646eaec8b75953d7944c864fde82d65770bef502b3cb049a1e366183a99d01d"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-local-rpc-probe.ts",
+      "sha256": "d75cfa0bd781b866ffd3d19ae3152995c1b724a7f6944817df2257dc7a53416a"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "sha256": "5cff511dc4b82153fb71ff9d6e2bac8c229ec18cef4b171bac5bcb39174ad4af"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "sha256": "acf14bbe6cd5e59618603798371bf5ae70c25a2badbaf734ff36777a5df4ff81"
+    }
+  ],
+  "diagnostics": [],
+  "registeredCases": [
+    {
+      "title": "FLG01: 交互Queue和Guide设置持久化重开并恢复",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG01: 交互Queue和Guide设置持久化重开并恢复"
+    },
+    {
+      "title": "FLG02: 六项回答消息和工具分组开关保存重开与恢复",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG02: 六项回答消息和工具分组开关保存重开与恢复"
+    },
+    {
+      "title": "FLG03: 数据目录浏览取消及本树选择草稿取消无迁移",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG03: 数据目录浏览取消及本树选择草稿取消无迁移"
+    },
+    {
+      "title": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接"
+    },
+    {
+      "title": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG05: 本run合成记忆catalog切scope搜索清空与刷新"
+    },
+    {
+      "title": "FLG06: 无commit合成Git index未暂存diff与四个文件菜单",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG06: 无commit合成Git index未暂存diff与四个文件菜单"
+    },
+    {
+      "title": "FLG07: 项目管理51个合成项目分页筛选排序与选择恢复",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG07: 项目管理51个合成项目分页筛选排序与选择恢复"
+    },
+    {
+      "title": "SLM01: 原生帮助更新日志只请求本fork mock链接",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM01: 原生帮助更新日志只请求本fork mock链接"
+    },
+    {
+      "title": "SLM02: 原生开发者工具真实打开关闭并恢复",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM02: 原生开发者工具真实打开关闭并恢复"
+    },
+    {
+      "title": "SLM03: 原生清除所有数据受控取消保留本地数据",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM03: 原生清除所有数据受控取消保留本地数据"
+    },
+    {
+      "title": "SLM04: 两个合成项目键盘排序持久化并反向恢复",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM04: 两个合成项目键盘排序持久化并反向恢复"
+    },
+    {
+      "title": "SLM05: 公开completed归档真实导入并复制assistant正文",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM05: 公开completed归档真实导入并复制assistant正文"
+    },
+    {
+      "title": "SLM06: 引导侧栏和通用页两个入口进入退出",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM06: 引导侧栏和通用页两个入口进入退出"
+    },
+    {
+      "title": "SLM07: 机器人管理新增渠道选择前取消无新增Bot",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM07: 机器人管理新增渠道选择前取消无新增Bot"
+    },
+    {
+      "title": "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM08: 文件树绝对相对路径复制只写mock剪贴板"
+    },
+    {
+      "title": "SLM09: 文件加入聊天及另存为取消保留源文件",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM09: 文件加入聊天及另存为取消保留源文件"
+    },
+    {
+      "title": "SLM10: Review真实Git入口空态或列表与tab关闭",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM10: Review真实Git入口空态或列表与tab关闭"
+    },
+    {
+      "title": "SLM11: 办公模式隐藏新Review终端且保留已有Review",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM11: 办公模式隐藏新Review终端且保留已有Review"
+    },
+    {
+      "title": "SLM12: 真实侧栏launcher不提供Whiteboard入口",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM12: 真实侧栏launcher不提供Whiteboard入口"
+    },
+    {
+      "title": "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留"
+    },
+    {
+      "title": "SLM14: 公开长会话三命中查找导航与重开居中",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM14: 公开长会话三命中查找导航与重开居中"
+    },
+    {
+      "title": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM15: 长text真实预览滚动与当前无局部Find边界"
+    },
+    {
+      "title": "RLM-01: 四种任务路径/ID复制及文件管理器出口",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-01: 四种任务路径/ID复制及文件管理器出口"
+    },
+    {
+      "title": "RLM-02: Markdown完整复制、受控拒绝后恢复重试",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-02: Markdown完整复制、受控拒绝后恢复重试"
+    },
+    {
+      "title": "RLM-03: 真实标记未读与同任务清除、返回不反弹",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-03: 真实标记未读与同任务清除、返回不反弹"
+    },
+    {
+      "title": "RLM-04: Command Center操作范围键盘进入设置",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-04: Command Center操作范围键盘进入设置"
+    },
+    {
+      "title": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-05: Command Center任务范围查询唯一ID并重开最近"
+    },
+    {
+      "title": "RLM-06: Command Center文件范围索引实际中文空格文件",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-06: Command Center文件范围索引实际中文空格文件"
+    },
+    {
+      "title": "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-07: All前缀操作/任务/文件选择、历史恢复和清空"
+    },
+    {
+      "title": "RLM-08: 文件选择取消与pending入口busy不启动第二事务",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-08: 文件选择取消与pending入口busy不启动第二事务"
+    },
+    {
+      "title": "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-09: 有效归档真实Host导入与重复复用、草稿保留"
+    },
+    {
+      "title": "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复"
+    },
+    {
+      "title": "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-11: MCP真实新建填写取消不保存或启动服务器"
+    },
+    {
+      "title": "RLM-12: Commands真实新建名称/prompt取消无文件新增",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-12: Commands真实新建名称/prompt取消无文件新增"
+    },
+    {
+      "title": "RLM-13: Skills新建真实进入skill-creator草稿，无发送",
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-13: Skills新建真实进入skill-creator草稿，无发送"
+    }
+  ],
+  "checkedCallbacks": 67,
+  "closureFindings": [],
+  "checkedRawScripts": 9,
+  "rawSyntaxErrors": [],
+  "fixture": {
+    "id": "chat-find-refocus-long-body",
+    "metadata": {
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实发送长正文，用于单命中反复导航和滚动定位；不验证模型文本质量。"
+    },
+    "expectedBodyLength": 3930,
+    "expectedBodySha256": "f79b3698c2a748a78ccb2c9623a4685ec1ee66967d262cbf1656cc6dd042d5d6",
+    "markerCount": 1,
+    "pureText": true
+  },
+  "targetedLint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 11ms on 6 files with 94 rules using 16 threads."
+  },
+  "canonicalFixtureCheck": {
+    "exitCode": 0,
+    "output": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\manual-review\\pending\\conversation-session-chat-find-refocus.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-chat-find-refocus.test.ts\nCase: conversation-session-chat-find-refocus\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-chat-find-refocus.json\nSpec markers: E2E_CHAT_FIND_REFOCUS_NEEDLE, E2E_CHAT_FIND_REFOCUS_SETUP, E2E_FILE_CHANGE_FIND_REFOCUS_NEEDLE\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json (1 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_CHAT_FIND_REFOCUS_NEEDLE\n- Spec marker is not covered by fixture matchers: E2E_FILE_CHANGE_FIND_REFOCUS_NEEDLE\n\nFixture check passed."
+  },
+  "mode": "FLG04/05 owner retry static only",
+  "grep": "(?:^| )FLG0[45]:",
+  "filtered": [
+    {
+      "title": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接"
+    },
+    {
+      "title": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG05: 本run合成记忆catalog切scope搜索清空与刷新"
+    }
+  ]
+}

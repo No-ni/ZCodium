@@ -1,0 +1,3 @@
+23: const hasComputerUseHelperProducer = isComputerUseHelperProducerInstalled({
+26: const computerUseDevEnv = hasComputerUseHelperProducer ? await resolveComputerUseDevEnv() : {};
+105:   if (process.platform === "darwin" && hasComputerUseProducer) {

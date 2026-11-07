@@ -5,17 +5,21 @@ import type { SessionDataLayer, SessionLease } from "@/v4/sessionDataLayer.js";
 export interface PaneSessionProjectionBinding {
   lease: SessionLease;
   layer: SessionDataLayer;
-  draftInvalidationVersion: number;
+  draftInvalidationVersion?: number;
 }
 
 export function resolvePaneSessionProjectionLease(
   binding: PaneSessionProjectionBinding | null,
   layer: SessionDataLayer,
   draftInvalidationVersion?: number,
+  sessionId?: string,
 ): SessionLease | null {
   // 会话 id 只在所属 Host/workspace 内唯一；effect 换租约前不能向新 pane 投影旧来源。
   // 草稿重建也必须先屏蔽旧代，否则镜像预热 id 仍能命中刚失效的 cwd 和配置。
+  // Bugfix：同来源切会话时 effect 尚未换 lease，必须先拒绝旧 session，
+  // 否则 Composer 与回调 ref 会读取上一会话的完成/运行状态。预热转正同 id 仍可复用。
   return binding?.layer === layer &&
+    (sessionId === undefined || binding.lease.sessionId === sessionId) &&
     (draftInvalidationVersion === undefined ||
       binding.draftInvalidationVersion === draftInvalidationVersion)
     ? binding.lease

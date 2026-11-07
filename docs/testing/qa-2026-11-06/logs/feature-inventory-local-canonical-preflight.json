@@ -1,0 +1,442 @@
+{
+  "capturedAt": "2026-11-06T17:30:59.262Z",
+  "evidenceKind": "Read-only source/title/fixture/reparse preflight; no hooks, UI, build, Electron or product mutation",
+  "nodeVersion": "v24.18.0",
+  "misePinnedNode": "24.14.0",
+  "specCount": 9,
+  "selectedCaseCount": 13,
+  "excludedCaseCount": 14,
+  "selected": [
+    {
+      "key": "MPS",
+      "spec": "./test/e2e/conversation-session/conversation-session-markdown-preview-selection.test.ts",
+      "titles": [
+        "MPS01/02/06/08/09: 预览选区加入草稿，去重、移除且不自动发送"
+      ],
+      "count": 1
+    },
+    {
+      "key": "SSC",
+      "spec": "./test/e2e/conversation-session/conversation-session-selection-side-chat.test.ts",
+      "titles": [
+        "SSC01/02/08/14/15/17/19/25/26/27/28/29/30/31: 隐藏历史、多开、关闭隔离、active 路由与 /side 命令"
+      ],
+      "count": 1
+    },
+    {
+      "key": "PIA",
+      "spec": "./test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts",
+      "titles": [
+        "PIA01: 各格式与非 UTF-8 SVG 另存为保留原始字节，取消保存不报错",
+        "PIA02: 只追加文件引用，保留空/非空草稿和附件，不发送"
+      ],
+      "count": 2
+    },
+    {
+      "key": "FTS",
+      "spec": "./test/e2e/workspace-file-tree/workspace-file-tree-shared-search.test.ts",
+      "titles": [
+        "未展开深层 Java 文件可以通过左侧文件树搜索命中并打开预览",
+        "搜索结果中的深层目录点击后会回到树态并逐级展开定位"
+      ],
+      "count": 2
+    },
+    {
+      "key": "OPS",
+      "spec": "./test/e2e/manual-review/pending/office-preview-security.test.ts",
+      "titles": [
+        "OPS01：PPTX 气泡 tooltip 把 HTML 系列名显示为文本",
+        "OPS02：XLSX Canvas、形状、图片外链经过统一校验"
+      ],
+      "count": 2
+    },
+    {
+      "key": "TRJ",
+      "spec": "./test/e2e/conversation-session/conversation-session-model-trajectory-viewer.test.ts",
+      "titles": [
+        "TRJ01-TRJ09: 写入、投影、交互、虚拟搜索、窄布局与有界尾读"
+      ],
+      "count": 1
+    },
+    {
+      "key": "TOOLBAR",
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "titles": [
+        "keeps the open model picker responsive when the composer shrinks and expands"
+      ],
+      "count": 1
+    },
+    {
+      "key": "SE",
+      "spec": "./test/e2e/settings/settings-subagent-create-edit-persistence.test.ts",
+      "titles": [
+        "SE-02: 切换模型时物化 catalog 默认档位",
+        "SE-03: 删除已选模型后显示选择模型且不恢复候选"
+      ],
+      "count": 2
+    },
+    {
+      "key": "TSL08",
+      "spec": "./test/e2e/conversation-session/conversation-session-unavailable-project-draft.test.ts",
+      "titles": [
+        "冷启动默认项目被移动后，直接显示可输入的无项目草稿，刷新后保持"
+      ],
+      "count": 1
+    }
+  ],
+  "excluded": [
+    {
+      "spec": "./test/e2e/workspace-file-tree/workspace-file-tree-shared-search.test.ts",
+      "title": "显式收起目录后，其他文件与 App 重启沿用同一 workspace 偏好"
+    },
+    {
+      "spec": "./test/e2e/manual-review/pending/office-preview-security.test.ts",
+      "title": "OPS03：主窗口拒绝危险 popup，合法外链不创建原生窗口"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "slash 面板：/ 触发目录候选，过滤后选中插入命令"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "模型选择器/思考深度/模式切换 → config 投影更新；usage 投影非零"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "合并模型/思考弹层与模式 picker 互斥"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "slider dots grow on hover and remain white on the filled track"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "模型管理入口位于 Provider 子菜单并打开模型设置"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "completed task 的 picker 不跨 scope 自动弹到新 draft"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "completed task → draft 后独立重新水合自定义 slash command"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "draft → 已知 completed task 后保留自定义 slash command"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "model tooltip describes the action and closes when the menu opens"
+    },
+    {
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "title": "dismisses with one outside click after using the effort slider"
+    },
+    {
+      "spec": "./test/e2e/settings/settings-subagent-create-edit-persistence.test.ts",
+      "title": "SE-01: builtin、user 与 workspace 保存后写入精确 model/reasoning 配置"
+    },
+    {
+      "spec": "./test/e2e/settings/settings-subagent-create-edit-persistence.test.ts",
+      "title": "SE-04: 内置官方插件 subagent 可见并按 agent id 持久化 model/effort 覆盖"
+    }
+  ],
+  "fixtureCheckResults": [
+    {
+      "key": "MPS",
+      "spec": "./test/e2e/conversation-session/conversation-session-markdown-preview-selection.test.ts",
+      "exitCode": 0,
+      "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-markdown-preview-selection.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-markdown-preview-selection.test.ts\nCase: conversation-session-markdown-preview-selection\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-markdown-preview-selection.json\nSpec markers: E2E_MARKDOWN_DRAFT_KEEP, E2E_MARKDOWN_MAIN_KEEP, E2E_MARKDOWN_PREVIEW_SELECTED_PARAGRAPH, E2E_MARKDOWN_SIDE_PARENT, E2E_MARKDOWN_SIDE_READY\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-markdown-preview-selection.json (1 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_MARKDOWN_DRAFT_KEEP\n- Spec marker is not covered by fixture matchers: E2E_MARKDOWN_MAIN_KEEP\n- Spec marker is not covered by fixture matchers: E2E_MARKDOWN_PREVIEW_SELECTED_PARAGRAPH\n- Spec marker is not covered by fixture matchers: E2E_MARKDOWN_SIDE_READY\n\nFixture check passed.\n",
+      "stderr": ""
+    },
+    {
+      "key": "SSC",
+      "spec": "./test/e2e/conversation-session/conversation-session-selection-side-chat.test.ts",
+      "exitCode": 0,
+      "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-selection-side-chat.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-selection-side-chat.test.ts\nCase: conversation-session-selection-side-chat\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-selection-side-chat.json\nSpec markers: E2E_SSC_MAIN_DRAFT_DONE, E2E_SSC_MAIN_DRAFT_KEEP, E2E_SSC_PARENT, E2E_SSC_PARENT_SELECTION_MARKER, E2E_SSC_RUNNING_PARENT, E2E_SSC_SIBLING_DRAFT, E2E_SSC_SIDE_ARGUMENT_IDLE, E2E_SSC_SIDE_ARGUMENT_RUNNING, E2E_SSC_SIDE_DRAFT_KEEP\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-selection-side-chat.json (6 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_SSC_MAIN_DRAFT_DONE\n- Spec marker is not covered by fixture matchers: E2E_SSC_SIBLING_DRAFT\n- Spec marker is not covered by fixture matchers: E2E_SSC_SIDE_DRAFT_KEEP\n\nFixture check passed.\n",
+      "stderr": ""
+    },
+    {
+      "key": "PIA",
+      "spec": "./test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts",
+      "exitCode": 0,
+      "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-preview-image-actions.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-preview-image-actions.test.ts\nCase: conversation-session-preview-image-actions\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-preview-image-actions.json\nSpec markers: E2E_IMAGE_ACTION_SCREENSHOTS, E2E_PIA_KEEP_DRAFT\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-preview-image-actions.json (0 fixtures)\n\nFixture check passed.\n",
+      "stderr": ""
+    },
+    {
+      "key": "TRJ",
+      "spec": "./test/e2e/conversation-session/conversation-session-model-trajectory-viewer.test.ts",
+      "exitCode": 0,
+      "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-model-trajectory-viewer.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-model-trajectory-viewer.test.ts\nCase: conversation-session-model-trajectory-viewer\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-model-trajectory-viewer.json\nSpec markers: E2E_TRJ02_DELTA_BASELINE, E2E_TRJ02_DELTA_USER, E2E_TRJ02_ERROR_VALUE, E2E_TRJ02_OLD_ASSISTANT_INPUT, E2E_TRJ02_RECORD_ERROR, E2E_TRJ06_NO_MATCH, E2E_TRJ06_SHARED_MATCH, E2E_TRJ07_VIRTUAL_FOLDED_TARGET, E2E_TRJ09_RECENT_TAIL, E2E_TRJ_ACTUAL_REASONING, E2E_TRJ_TASK_READY, E2E_TRJ_TASK_SEED\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-model-trajectory-viewer.json (2 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_TRJ02_DELTA_BASELINE\n- Spec marker is not covered by fixture matchers: E2E_TRJ02_DELTA_USER\n- Spec marker is not covered by fixture matchers: E2E_TRJ02_ERROR_VALUE\n- Spec marker is not covered by fixture matchers: E2E_TRJ02_OLD_ASSISTANT_INPUT\n- Spec marker is not covered by fixture matchers: E2E_TRJ02_RECORD_ERROR\n- Spec marker is not covered by fixture matchers: E2E_TRJ06_NO_MATCH\n- Spec marker is not covered by fixture matchers: E2E_TRJ06_SHARED_MATCH\n- Spec marker is not covered by fixture matchers: E2E_TRJ07_VIRTUAL_FOLDED_TARGET\n- Spec marker is not covered by fixture matchers: E2E_TRJ09_RECENT_TAIL\n- Spec marker is not covered by fixture matchers: E2E_TRJ_ACTUAL_REASONING\n- Spec marker is not covered by fixture matchers: E2E_TRJ_TASK_READY\n\nFixture check passed.\n",
+      "stderr": ""
+    },
+    {
+      "key": "TOOLBAR",
+      "spec": "./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "exitCode": 0,
+      "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-composer-toolbar.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-v4-composer-toolbar.test.ts\nCase: conversation-session-v4-composer-toolbar\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-v4-composer-toolbar.json\nSpec markers: E2E_COMPOSER_ANIMATION_MODEL, E2E_COMPOSER_EXPECT_HIGHSPEED, E2E_V4_COMPOSER_TOOLBAR_SEED\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-v4-composer-toolbar.json (2 fixtures)\n\nWarnings:\n- Spec marker is not covered by fixture matchers: E2E_COMPOSER_ANIMATION_MODEL\n- Spec marker is not covered by fixture matchers: E2E_COMPOSER_EXPECT_HIGHSPEED\n\nFixture check passed.\n",
+      "stderr": ""
+    },
+    {
+      "key": "TSL08",
+      "spec": "./test/e2e/conversation-session/conversation-session-unavailable-project-draft.test.ts",
+      "exitCode": 0,
+      "stdout": "Spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-unavailable-project-draft.test.ts\nCanonical formal spec: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-unavailable-project-draft.test.ts\nCase: conversation-session-unavailable-project-draft\nManifest: C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\cases\\conversation-session\\conversation-session-unavailable-project-draft.json\nSpec markers: E2E_UNAVAILABLE_PROJECT, E2E_UNAVAILABLE_PROJECT_DRAFT\nFixtures:\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json (1 fixtures)\n- C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-unavailable-project-draft.json (0 fixtures)\n\nFixture check passed.\n",
+      "stderr": ""
+    }
+  ],
+  "nonConversationFixtureChecker": [
+    {
+      "key": "FTS",
+      "status": "NOT-APPLICABLE",
+      "reason": "checker supports conversation/plugin domains; selected cases do not send Provider requests"
+    },
+    {
+      "key": "OPS",
+      "status": "NOT-APPLICABLE",
+      "reason": "checker does not support generic pending Office domain; selected cases use local copied documents and loopback link"
+    },
+    {
+      "key": "SE",
+      "status": "NOT-APPLICABLE",
+      "reason": "prepareV4ConversationE2E initializes local Provider registry and model controls; selected user-scope forms do not send prompts"
+    }
+  ],
+  "fixturePathCount": 7,
+  "aggregateFixtureIdCount": 12,
+  "duplicateFixtureIds": [],
+  "fixtureParentTreeAudit": "all selected JSON parent trees and Office fixture tree checked; no symlink/redirect",
+  "auditedExistingPaths": 565,
+  "plannedTargetsAreInsideWorktree": true,
+  "plannedRuntimeDoesNotExistYet": true,
+  "writeTargets": [
+    {
+      "owner": "common app/CLI/config",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\.zcodium",
+      "currentlyExists": false
+    },
+    {
+      "owner": "MPS markdown",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\ZCodeProject\\.zcode-e2e\\markdown-preview-selection",
+      "currentlyExists": false
+    },
+    {
+      "owner": "SSC diagnostics",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\evidence\\selection-events.json",
+      "currentlyExists": false
+    },
+    {
+      "owner": "PIA source/saved images",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\ZCodeProject\\.zcode-e2e\\image-actions",
+      "currentlyExists": false
+    },
+    {
+      "owner": "PIA screenshots",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\evidence\\image-actions",
+      "currentlyExists": false
+    },
+    {
+      "owner": "FTS",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\ZCodeProject\\E2E_FILE_TREE_SHARED_SEARCH",
+      "currentlyExists": false
+    },
+    {
+      "owner": "OPS copied documents",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\ZCodeProject\\E2E_OFFICE_SECURITY",
+      "currentlyExists": false
+    },
+    {
+      "owner": "OPS PDF export",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\evidence\\office-preview-export.pdf",
+      "currentlyExists": false
+    },
+    {
+      "owner": "TRJ model IO",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\.zcodium\\cli",
+      "currentlyExists": false
+    },
+    {
+      "owner": "SE user agents and builtin override",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\.zcodium\\agents",
+      "currentlyExists": false
+    },
+    {
+      "owner": "TOOLBAR legacy synthetic command before/after",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\.zcode\\commands\\e2e-draft-catalog.md",
+      "currentlyExists": false
+    },
+    {
+      "owner": "TSL08 moved root",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\E2E_UNAVAILABLE_PROJECT-moved",
+      "currentlyExists": false
+    },
+    {
+      "owner": "TSL08 screenshots/state and reload observer",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\evidence",
+      "currentlyExists": false
+    },
+    {
+      "owner": "tool HOME/cache/temp",
+      "path": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical",
+      "currentlyExists": false
+    }
+  ],
+  "pendingRuntimeChecks": [
+    "re-run reparse audit on actual run HOME/profile/temp/cache/network tree and verify child env",
+    "QA root hooks/reload observer must execute and record final TSL08 PID/cause if barrier fails",
+    "common-only is forbidden; explicit finite 7 fixture paths must be active",
+    "CFR English synthetic Git commit excluded by root; no direct git commit selected",
+    "no true clipboard API; PIA paste is synthetic ClipboardEvent and TRJ copy captures navigator.clipboard.writeText",
+    "TOOLBAR completed-to-draft uses stale group DIV click helper; do not classify resulting draft timeout as product failure",
+    "No OpenSidePane bootstrap for this batch; SE has its own Provider initialization and no prompts"
+  ],
+  "sourceHashes": [
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-markdown-preview-selection.test.ts",
+      "bytes": 11177,
+      "sha256": "49dd16d7142e77fe15636b0c2286992fcf242ee6e40b380d3cc001f7729b49a9"
+    },
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-selection-side-chat.test.ts",
+      "bytes": 32566,
+      "sha256": "f0da8465170b5897a175c0aed44a44b8e079e29020ffac80f6af462a3a684a10"
+    },
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts",
+      "bytes": 9546,
+      "sha256": "78682bb7fecb90083a8bb582d3d3f01f098b28baadc762d0b73ee9c07716f29a"
+    },
+    {
+      "path": "packages/desktop/test/e2e/workspace-file-tree/workspace-file-tree-shared-search.test.ts",
+      "bytes": 11249,
+      "sha256": "878f5e9d26d4b40b34659d85ce037493f1cf60dc8e6dc4efead9dec5fac6b920"
+    },
+    {
+      "path": "packages/desktop/test/e2e/manual-review/pending/office-preview-security.test.ts",
+      "bytes": 12068,
+      "sha256": "ba4401f723d155901c0c2874de732ddfd7c7d475715ef762146036c11d0600a2"
+    },
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-model-trajectory-viewer.test.ts",
+      "bytes": 29456,
+      "sha256": "b0c1476423fe525cb41f8393d43be7ee98a53b248249d052410ff3f1b08a327d"
+    },
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts",
+      "bytes": 49852,
+      "sha256": "4b1292547823b405ea4203ceb99fbf5e412defb8d67a692c3eeaa6de13fc686b"
+    },
+    {
+      "path": "packages/desktop/test/e2e/settings/settings-subagent-create-edit-persistence.test.ts",
+      "bytes": 24335,
+      "sha256": "8b81da91e42b710a4a1bd8742ea48988532555a0ed5e9998a97aebdb592b8fc4"
+    },
+    {
+      "path": "packages/desktop/test/e2e/conversation-session/conversation-session-unavailable-project-draft.test.ts",
+      "bytes": 4057,
+      "sha256": "436351e78de10df1ac9211f12bc1223d38d53d49f597dfd5e31a1da45516efe9"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/common.json",
+      "bytes": 2339,
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-markdown-preview-selection.json",
+      "bytes": 2008,
+      "sha256": "ff9fdd440c4fcef795caccd9ac215ad99b3dd7b29cfe13bc92be525da4a2def3"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-selection-side-chat.json",
+      "bytes": 8607,
+      "sha256": "785cdffbdfa8d3ea71f96a5561de68dc06682e86bdff645e38007fdb63a80fba"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-preview-image-actions.json",
+      "bytes": 193,
+      "sha256": "9e55dcd296830268515e5d4f241ba7ba77808445f6392176984ec823076518a0"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-model-trajectory-viewer.json",
+      "bytes": 3386,
+      "sha256": "f6e3b4a558a177678087798484ab9612d81f1f4120ce5da1abd6857520e1360f"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-v4-composer-toolbar.json",
+      "bytes": 2106,
+      "sha256": "b864b215b6eb405207d2003a557ed29d4552e7266201b9408a70e64e601bf2a0"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-unavailable-project-draft.json",
+      "bytes": 201,
+      "sha256": "e9811ce283c3849b27b370fd09eb069293c8d1639e68a45d22b944216a92172d"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/fs/office-preview-security/tooltip.pptx",
+      "bytes": 26104,
+      "sha256": "b3c20a80b4622357d29a04e36c048dcc872f4679af61f8df73c34884373438b9"
+    },
+    {
+      "path": "packages/desktop/test/e2e/fixtures/fs/office-preview-security/links.xlsx",
+      "bytes": 3488,
+      "sha256": "5e5005e1319b912101ec6d5153d78237720723f2ee720c347a9785ab43469175"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/desktop-app.ts",
+      "bytes": 54331,
+      "sha256": "cca3fb6cc94d69445d1886090f640972a50d218ba2f0ccc9b7b07b1d5a81472d"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/e2e-runtime-paths.ts",
+      "bytes": 3672,
+      "sha256": "2388b0131323bd949ed56311f434e624088594b962625d31ad4b004c0367506d"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/v4-conversation.ts",
+      "bytes": 104910,
+      "sha256": "9387b0fd0f6ddd9bd2e577865e9eadf15c6c9adfbdfb600759d406d0d2ab16b8"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/e2e-electron-reload.ts",
+      "bytes": 12342,
+      "sha256": "127cac8625524c4f459d031200f37d765ec7967a2a832d8847b4e7f5f4b1bbad"
+    },
+    {
+      "path": "packages/desktop/test/e2e/helpers/upstream-replay-fixture-resolution.ts",
+      "bytes": 7882,
+      "sha256": "dfe91dcdb63c581ea6037272ade637358eb270509c780c80d7fbbb95b1b2f770"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/run-menu-tests.ps1",
+      "bytes": 10793,
+      "sha256": "e04fd689315787ecd9b747532b134fad55468a02cf20aeb10329df00cb9789ff"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs",
+      "bytes": 14372,
+      "sha256": "29942faa65955e801d1227e30cfe69abaea721b560a3e316301cfa7672996ec0"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-reparse-children.ps1",
+      "bytes": 1260,
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/reload-observation.cjs",
+      "bytes": 1668,
+      "sha256": "51d8b3778d6d848dc705c835a425c54947814f66200f958f19163ff31918be4b"
+    },
+    {
+      "path": "docs/testing/qa-2026-11-06/qa-reload-observer.ts",
+      "bytes": 7414,
+      "sha256": "8f014b418da448a5ae22f7fa29cdf5c4299fd752ff40f05333082933e61ccf7b"
+    }
+  ],
+  "runnerParameterEvidence": {
+    "path": "logs/e2e-preflight-replay-fixtures-parameter.json",
+    "allPassed": true,
+    "sourceSha": "ccd6879b8afd0951e6c1466ce67c508a2d3494c5e511114edac9619025f9bb7f"
+  },
+  "allPassed": true
+}

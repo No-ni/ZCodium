@@ -1,0 +1,8 @@
+{
+  "command": "node --test --test-concurrency=1 scripts/ci/update-source-ownership.test.mjs scripts/ci/retired-web-oauth.test.mjs scripts/ci/no-official-purchase.test.mjs scripts/ci/local-usage.test.mjs scripts/ci/local-onboarding.test.mjs scripts/ci/feedback-boundary.test.mjs scripts/ci/summary-model-selection.test.mjs scripts/ci/astrbot-bridge-selection.test.mjs scripts/ci/desktop-workspace-deep-link.test.mjs",
+  "started": "2026-11-06T15:03:01.327Z",
+  "finished": "2026-11-06T15:03:13.093Z",
+  "code": 1,
+  "signal": null,
+  "node": "v24.18.0"
+}

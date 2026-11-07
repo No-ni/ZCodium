@@ -1,0 +1,43 @@
+apps/zcode-cli                           |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.0","pnpm":"10.33.2"})
+
+> @zcode/desktop@ pretest:e2e C:\vibecoding\zcodium\packages\desktop
+> pnpm --filter @zcode/e2e-report build:node
+
+../../apps/zcode-cli                     |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.0","pnpm":"10.33.2"})
+
+> @zcode/e2e-report@ build:node C:\vibecoding\zcodium\packages\e2e-report
+> tsc -p tsconfig.json
+
+
+> @zcode/desktop@ test:e2e C:\vibecoding\zcodium\packages\desktop
+> node scripts/run-windows-e2e-shards.mjs "--shards=1" "--spec" "./test/e2e/conversation-session/conversation-session-plus-menu.test.ts,./test/e2e/conversation-session/conversation-session-project-composer.test.ts,./test/e2e/settings/settings-personalization.test.ts,./test/e2e/ui-shell/side-pane-tabs-responsive-interactions.test.ts,./test/e2e/ui-shell/side-pane-full-view.test.ts,./test/e2e/workspace-file-tree-refresh.test.ts,./test/e2e/task-list-archive-confirmation.test.ts,./test/e2e/git/git-commit-dialog-ui-flow.test.ts,./test/e2e/automations-create-manage.test.ts,./test/e2e/conversation-session/conversation-session-first-send.test.ts,./test/e2e/conversation-session/conversation-session-v4-stop-queue.test.ts,./test/e2e/conversation-session/conversation-session-v4-queue.test.ts,./test/e2e/conversation-session/conversation-session-v4-attachment.test.ts,./test/e2e/conversation-session/conversation-session-v4-attachment-layout.test.ts,./test/e2e/conversation-session/conversation-session-v4-edit.test.ts,./test/e2e/conversation-session/conversation-session-v4-rename.test.ts,./test/e2e/conversation-session/conversation-session-v4-fork.test.ts,./test/e2e/conversation-session/conversation-session-workspace-file-search-filter.test.ts,./test/e2e/settings/provider-settings-write-recovery.test.ts,./test/e2e/settings/provider-model-smart-config.test.ts,./test/e2e/settings/provider-connectivity-prompt.test.ts" "--mochaOpts.require=../../docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs"
+
+(node:30536) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+../../apps/zcode-cli                     |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.0","pnpm":"10.33.2"})
+2026-11-06T15:41:17.210Z WARN @wdio/config:ConfigParser: pattern C:/vibecoding/zcodium/packages/desktop/test/e2e/conversation-session/conversation-session-plus-menu.test.ts,./test/e2e/conversation-session/conversation-session-project-composer.test.ts,./test/e2e/settings/settings-personalization.test.ts,./test/e2e/ui-shell/side-pane-tabs-responsive-interactions.test.ts,./test/e2e/ui-shell/side-pane-full-view.test.ts,./test/e2e/workspace-file-tree-refresh.test.ts,./test/e2e/task-list-archive-confirmation.test.ts,./test/e2e/git/git-commit-dialog-ui-flow.test.ts,./test/e2e/automations-create-manage.test.ts,./test/e2e/conversation-session/conversation-session-first-send.test.ts,./test/e2e/conversation-session/conversation-session-v4-stop-queue.test.ts,./test/e2e/conversation-session/conversation-session-v4-queue.test.ts,./test/e2e/conversation-session/conversation-session-v4-attachment.test.ts,./test/e2e/conversation-session/conversation-session-v4-attachment-layout.test.ts,./test/e2e/conversation-session/conversation-session-v4-edit.test.ts,./test/e2e/conversation-session/conversation-session-v4-rename.test.ts,./test/e2e/conversation-session/conversation-session-v4-fork.test.ts,./test/e2e/conversation-session/conversation-session-workspace-file-search-filter.test.ts,./test/e2e/settings/provider-settings-write-recovery.test.ts,./test/e2e/settings/provider-model-smart-config.test.ts,./test/e2e/settings/provider-connectivity-prompt.test.ts did not match any file
+Error: spec file(s) C:\vibecoding\zcodium\packages\desktop\test\e2e\conversation-session\conversation-session-plus-menu.test.ts,.\test\e2e\conversation-session\conversation-session-project-composer.test.ts,.\test\e2e\settings\settings-personalization.test.ts,.\test\e2e\ui-shell\side-pane-tabs-responsive-interactions.test.ts,.\test\e2e\ui-shell\side-pane-full-view.test.ts,.\test\e2e\workspace-file-tree-refresh.test.ts,.\test\e2e\task-list-archive-confirmation.test.ts,.\test\e2e\git\git-commit-dialog-ui-flow.test.ts,.\test\e2e\automations-create-manage.test.ts,.\test\e2e\conversation-session\conversation-session-first-send.test.ts,.\test\e2e\conversation-session\conversation-session-v4-stop-queue.test.ts,.\test\e2e\conversation-session\conversation-session-v4-queue.test.ts,.\test\e2e\conversation-session\conversation-session-v4-attachment.test.ts,.\test\e2e\conversation-session\conversation-session-v4-attachment-layout.test.ts,.\test\e2e\conversation-session\conversation-session-v4-edit.test.ts,.\test\e2e\conversation-session\conversation-session-v4-rename.test.ts,.\test\e2e\conversation-session\conversation-session-v4-fork.test.ts,.\test\e2e\conversation-session\conversation-session-workspace-file-search-filter.test.ts,.\test\e2e\settings\provider-settings-write-recovery.test.ts,.\test\e2e\settings\provider-model-smart-config.test.ts,.\test\e2e\settings\provider-connectivity-prompt.test.ts not found
+    at _ConfigParser.setFilePathToFilterOptions (file:///C:/vibecoding/zcodium/node_modules/@wdio/config/build/node/index.js:534:13)
+    at _ConfigParser.merge (file:///C:/vibecoding/zcodium/node_modules/@wdio/config/build/node/index.js:390:33)
+    at _ConfigParser.initialize (file:///C:/vibecoding/zcodium/node_modules/@wdio/config/build/node/index.js:291:10)
+    at async Launcher.initialize (file:///C:/vibecoding/zcodium/node_modules/@wdio/cli/build/index.js:931:5)
+    at async Launcher.run (file:///C:/vibecoding/zcodium/node_modules/@wdio/cli/build/index.js:853:5)
+[e2e-shards] {
+  "runId": "qa-menu-20261106-core-final",
+  "shardTotal": 1,
+  "distributionKind": "wdio-native",
+  "wallDurationMs": 32912,
+  "manifestPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-final\\evidence\\shard-manifest.json",
+  "children": [
+    {
+      "shardId": "1/1",
+      "exitCode": 1,
+      "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-final\\evidence",
+      "summaryPath": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-core-final\\evidence\\summary.json"
+    }
+  ]
+}
+[e2e-shards] shard 1/1 exited with code 1
+C:\vibecoding\zcodium\packages\desktop:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @zcode/desktop@ test:e2e: `node scripts/run-windows-e2e-shards.mjs "--shards=1" "--spec" "./test/e2e/conversation-session/conversation-session-plus-menu.test.ts,./test/e2e/conversation-session/conversation-session-project-composer.test.ts,./test/e2e/settings/settings-personalization.test.ts,./test/e2e/ui-shell/side-pane-tabs-responsive-interactions.test.ts,./test/e2e/ui-shell/side-pane-full-view.test.ts,./test/e2e/workspace-file-tree-refresh.test.ts,./test/e2e/task-list-archive-confirmation.test.ts,./test/e2e/git/git-commit-dialog-ui-flow.test.ts,./test/e2e/automations-create-manage.test.ts,./test/e2e/conversation-session/conversation-session-first-send.test.ts,./test/e2e/conversation-session/conversation-session-v4-stop-queue.test.ts,./test/e2e/conversation-session/conversation-session-v4-queue.test.ts,./test/e2e/conversation-session/conversation-session-v4-attachment.test.ts,./test/e2e/conversation-session/conversation-session-v4-attachment-layout.test.ts,./test/e2e/conversation-session/conversation-session-v4-edit.test.ts,./test/e2e/conversation-session/conversation-session-v4-rename.test.ts,./test/e2e/conversation-session/conversation-session-v4-fork.test.ts,./test/e2e/conversation-session/conversation-session-workspace-file-search-filter.test.ts,./test/e2e/settings/provider-settings-write-recovery.test.ts,./test/e2e/settings/provider-model-smart-config.test.ts,./test/e2e/settings/provider-connectivity-prompt.test.ts" "--mochaOpts.require=../../docs/testing/qa-2026-11-06/qa-project-bootstrap.cjs"`
+Exit status 1

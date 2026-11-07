@@ -1,0 +1,70 @@
+{
+  "capturedAt": "2026-11-06T20:40:42.538Z",
+  "evidenceKind": "Read-only independent merge of classified validation counts032 and three final NDJSON cases; no UI, no reclassification of prior skipped cases",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs\\validation-e2e-counts-032.json",
+      "sha256": "681c5d1770491fb7c1c103c1559307eff1488ffd8fb7e77ce1891013bd275670"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\test-results.ndjson",
+      "sha256": "1471057a0861bd565691130d910a99fd293503c9c2d24e1ea3fd7fac63b35147"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-copy-history-final\\evidence\\summary.json",
+      "sha256": "4577ba9687de66be682a50e03ccb5a6973d2c63182558b29b58f6960e8dac0de"
+    }
+  ],
+  "finalRun": {
+    "run": "qa-menu-20261106-copy-history-final",
+    "completedAt": "2026-11-06T20:31:06.809Z",
+    "exitCode": 1,
+    "actual": 3,
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0
+  },
+  "unique": 188,
+  "uniqueExecuted": 183,
+  "attempts": 250,
+  "executedAttempts": 244,
+  "latestPassed": 151,
+  "latestFailed": 31,
+  "latestSkipped": 6,
+  "attemptPassed": 174,
+  "attemptFailed": 70,
+  "attemptSkipped": 6,
+  "scopeBoundary": "Includes canceled core VP30 once as baseline counts032 did; unique identity remains file+fullTitle; menu functional groups are not case identities or fully passed groups.",
+  "additions": [
+    {
+      "run": "qa-menu-20261106-copy-history-final",
+      "line": 1,
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+      "key": "docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts|RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "fullTitle": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "capturedAt": "2026-11-06T20:29:11.538Z",
+      "outcome": "passed",
+      "classificationSource": "final no-skip case with passed boolean/error; summary corroborates"
+    },
+    {
+      "run": "qa-menu-20261106-copy-history-final",
+      "line": 2,
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts",
+      "key": "docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts|HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+      "fullTitle": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+      "capturedAt": "2026-11-06T20:30:24.447Z",
+      "outcome": "passed",
+      "classificationSource": "final no-skip case with passed boolean/error; summary corroborates"
+    },
+    {
+      "run": "qa-menu-20261106-copy-history-final",
+      "line": 3,
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts",
+      "key": "docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts|HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+      "fullTitle": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+      "capturedAt": "2026-11-06T20:30:57.333Z",
+      "outcome": "failed",
+      "classificationSource": "final no-skip case with passed boolean/error; summary corroborates"
+    }
+  ]
+}

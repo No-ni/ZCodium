@@ -1,13 +1,30 @@
 "use client";
 
-import { useEffect, useState, type ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { formatRunningWorkDuration } from "@/lib/workDuration.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useConversationWorkDuration } from "@/hooks/useConversationWorkDuration.js";
+import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
+import type { ConversationTurnWorkStatus } from "@/v4/conversationTurnWorkSegments.js";
+
+/** 独立刷新浮动输入框文案，避免秒钟触发整个 Composer 与 Lexical 重渲染。 */
+export function ConversationWorkingPlaceholder({
+  status,
+  fallback,
+}: {
+  status: ConversationTurnWorkStatus | undefined;
+  fallback: string;
+}) {
+  const { intl, locale } = useZCodeIntl();
+  const durationMs = useConversationWorkDuration(status);
+  const duration = formatConversationWorkDuration(durationMs, intl, locale);
+  return duration ? intl.formatMessage({ id: "chat.history.workingFor" }, { duration }) : fallback;
+}
 
 export interface ChatLoadingProps extends ComponentPropsWithoutRef<"div"> {
   loading: boolean;
-  initialElapsedMs?: number;
+  elapsedMs?: number;
   size?: "default" | "sm";
 }
 
@@ -37,22 +54,13 @@ export function ChatLoadingPixels() {
 
 export function ChatLoading({
   loading,
-  initialElapsedMs = 0,
+  elapsedMs,
   className,
   size: _size,
   ...props
 }: ChatLoadingProps) {
   const { intl, locale } = useZCodeIntl();
-  const [elapsedMs, setElapsedMs] = useState(initialElapsedMs);
-  useEffect(() => {
-    if (!loading) return;
-    // 本轮已有耗时作为起点；独立刷新小组件，避免整个对话每 100ms 重渲染。
-    const started = performance.now();
-    const timer = window.setInterval(() => {
-      setElapsedMs(initialElapsedMs + performance.now() - started);
-    }, 100);
-    return () => window.clearInterval(timer);
-  }, [loading, initialElapsedMs]);
+  // 会话切换、交互等待与重试会重挂载反馈；耗时由调用方按权威工作起点派生，不能从挂载时重计。
   if (!loading) return null;
   return (
     <div
@@ -66,16 +74,18 @@ export function ChatLoading({
       <span className="zcode-loading-label text-ui-base font-medium">
         {intl.formatMessage({ id: "chat.loading.working" })}
       </span>
-      <span
-        aria-hidden="true"
-        className="font-mono text-ui-caption tabular-nums text-foreground-subtle"
-      >
-        {formatRunningWorkDuration(
-          elapsedMs,
-          (descriptor) => intl.formatMessage(descriptor),
-          locale,
-        )}
-      </span>
+      {elapsedMs !== undefined ? (
+        <span
+          aria-hidden="true"
+          className="font-mono text-ui-caption tabular-nums text-foreground-subtle"
+        >
+          {formatRunningWorkDuration(
+            elapsedMs,
+            (descriptor) => intl.formatMessage(descriptor),
+            locale,
+          )}
+        </span>
+      ) : null}
     </div>
   );
 }

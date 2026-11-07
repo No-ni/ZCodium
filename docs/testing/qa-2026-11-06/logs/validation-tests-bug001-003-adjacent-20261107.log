@@ -1,0 +1,49 @@
+✔ official control-plane and OAuth fallbacks stay removed (3048.5243ms)
+✔ official account providers and purchase webviews stay removed (3059.2259ms)
+✔ unconnected official mobile-push and ARMS entrypoints stay removed (386.6039ms)
+✔ BYO API-key quota is the only remaining provider quota path (809.0406ms)
+✔ product links point at this fork (0.8987ms)
+✔ official plugin defaults match the CLI definitions (0.1618ms)
+✔ maintenance commands and release defaults preserve official-only ownership (32.7293ms)
+✔ document plugin license and seed versions match their source manifests (732.9366ms)
+✔ AstrBot uses the existing platform callback and this fork's documentation (1.2985ms)
+✔ background resource and network sampling is opt-in and local-only (2.0661ms)
+✔ renderer mount does not start background performance sampling (0.5354ms)
+✔ Renderer public imports bind existing diagnostics and Source service owners (275.5553ms)
+✔ Native tar extracts a cached archive outside the extraction cwd (142.2587ms)
+✔ CUA dev staging skips legacy producers without Sharp (53.6328ms)
+[sharp-package-assets] staged sharp -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-x64-1KraZx\plugin\node_modules\sharp
+[sharp-package-assets] staged detect-libc -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-x64-1KraZx\plugin\node_modules\detect-libc
+[sharp-package-assets] staged semver -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-x64-1KraZx\plugin\node_modules\semver
+[sharp-package-assets] staged @img/colour -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-x64-1KraZx\plugin\node_modules\@img\colour
+[sharp-package-assets] staged @img/sharp-win32-x64 -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-x64-1KraZx\plugin\node_modules\@img\sharp-win32-x64
+[sharp-package-assets] staged sharp -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-arm64-24o4k1\plugin\node_modules\sharp
+[sharp-package-assets] staged detect-libc -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-arm64-24o4k1\plugin\node_modules\detect-libc
+[sharp-package-assets] staged semver -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-arm64-24o4k1\plugin\node_modules\semver
+[sharp-package-assets] staged @img/colour -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-arm64-24o4k1\plugin\node_modules\@img\colour
+[sharp-package-assets] staged @img/sharp-win32-arm64 -> C:\vibecoding\zcodium\.run-logs\project-only-validation\cua-sharp-staging-arm64-24o4k1\plugin\node_modules\@img\sharp-win32-arm64
+✔ CUA dev staging honors ZCodium plugin manifests and Windows architectures (282.3271ms)
+✔ Agent bundle staging preserves ZCodium node-repl-host metadata (83.8624ms)
+✔ 旧后端下真实 Builder 配置可加载，Windows/mac 均无官方 Helper 资源 (1441.5035ms)
+✔ 产品与工具链版本对齐官方 3.17.1 (0.3927ms)
+✔ 根 typecheck 入口合法且不减检查 (1.9236ms)
+✔ 根 prepare 不再调用不存在的 CUA build 脚本 (0.5234ms)
+✔ Linux 发行资源与官方远端部署入口不恢复 (0.3012ms)
+✔ 官方遥测/账号面不编译进构建 (0.4444ms)
+✔ 官方遥测/云/营销归因工具在本域保持剥离 (0.7235ms)
+✔ ZCodium 身份、自有更新源与 macOS 下限 (1.5298ms)
+✔ 桌面产物只有 Windows exe 与 macOS dmg，且只手动触发 (0.4528ms)
+✔ 旧电脑操作后端与 Windows/mac 原生包资产入口保留，且不接 Linux (1.2083ms)
+✔ 测试态构建 define 不含官方上报端点 (0.2501ms)
+✔ 自建遥测与内建 Provider 配置只走显式 opt-in，不逼发布构建填官方凭证 (0.5609ms)
+✔ 开发态 Electron runtime 与 macOS dev 副本身份 (0.3509ms)
+✔ macOS release doctor 跟随 ZCodium 身份与 .zcodium 数据根 (4.8869ms)
+✔ legacy prepare-prebuilds 仍按本仓保留（退役需 CI fixture 归属方一起处理） (0.3346ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11974.853

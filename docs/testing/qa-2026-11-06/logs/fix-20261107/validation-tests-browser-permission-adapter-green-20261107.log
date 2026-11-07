@@ -1,0 +1,17 @@
+✔ getEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (72.2618ms)
+✔ setEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (33.5162ms)
+✔ clearEmbeddedBrowserSitePermissions 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (23.4527ms)
+✔ resetEmbeddedBrowserSitePermission 实际 adapter/preload 委托唯一 channel，保留快照及 Promise 拒绝 (22.4113ms)
+✔ 权限 prompt 从实际 preload 进入 adapter 订阅，并注销同一 listener (16.6866ms)
+✔ 权限 resolve 沿实际 adapter/preload send 回传原请求，不改成 invoke (10.4532ms)
+✔ 旧 preload 缺六能力时实际 adapter 保持 undefined，不伪造支持或成功 (4.5093ms)
+✔ 旧 preload 只提供读取时能力逐项保留，设置与气泡不能被兜底启用 (5.0227ms)
+✔ 内置浏览器启动在窗口入口前等待唯一权限装配 (1.7368ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 637.5896

@@ -1,0 +1,171 @@
+{
+  "capturedAt": "2026-11-06T17:21:56.890Z",
+  "evidenceKind": "Read-only WMI filtered-run identity snapshot after worker0-0 protocol timeouts; no UI/CDP requests, kill, timeout changes or product edits",
+  "runId": "qa-menu-20261106-filtered",
+  "oldMainPid": 19716,
+  "oldPids": [
+    19716,
+    31144,
+    31336,
+    19060,
+    12968,
+    14172
+  ],
+  "helperEquivalentPids": [
+    32548,
+    32200,
+    31384,
+    30204,
+    27436,
+    23584,
+    20144,
+    17580,
+    15260,
+    5728,
+    4640,
+    4216,
+    424
+  ],
+  "oldPidsAbsentNow": [
+    19716,
+    31144,
+    31336,
+    19060,
+    12968,
+    14172
+  ],
+  "oldDriverPort": 60521,
+  "driverPids": [],
+  "processes": [
+    {
+      "pid": 27436,
+      "ppid": 16432,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:12.6982670Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": true,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 15260,
+      "ppid": 27436,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:13.3035360Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": false,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 23584,
+      "ppid": 27436,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:13.3519180Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": false,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 4216,
+      "ppid": 27436,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:13.3895130Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": false,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 32548,
+      "ppid": 27436,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:14.0772510Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": false,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 5728,
+      "ppid": 27436,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:16.6841310Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": false,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 4640,
+      "ppid": 32548,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:16.9395950Z",
+      "executableInWorktree": true,
+      "runMarker": false,
+      "homeMarker": false,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 30204,
+      "ppid": 4640,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:21.4060620Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": true,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 17580,
+      "ppid": 4640,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:23.6984660Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": true,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 20144,
+      "ppid": 4640,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:23.8084450Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": true,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 424,
+      "ppid": 4640,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:23.8522450Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": true,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 32200,
+      "ppid": 4640,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:23.9125170Z",
+      "executableInWorktree": true,
+      "runMarker": true,
+      "homeMarker": true,
+      "oldDriverPort": false
+    },
+    {
+      "pid": 31384,
+      "ppid": 32548,
+      "name": "electron.exe",
+      "createdAt": "2026-11-06T17:20:45.0451170Z",
+      "executableInWorktree": true,
+      "runMarker": false,
+      "homeMarker": false,
+      "oldDriverPort": false
+    }
+  ]
+}

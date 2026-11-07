@@ -53,6 +53,8 @@ export interface TaskNotificationPayload {
   taskId: string;
   status: "completed" | "failed" | "permission_request" | "elicitation_request";
   requestId?: string;
+  /** Renderer 从 CLI 事实与 workspace/endpoint/epoch 构造的不透明终态通知身份。 */
+  notificationId?: string;
   title: string;
   body: string;
 }

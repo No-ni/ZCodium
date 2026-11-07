@@ -1,0 +1,349 @@
+{
+  "capturedAt": "2026-11-06T20:46:37.664Z",
+  "input": "docs/testing/qa-2026-11-06/logs/validation-e2e-counts-033.json",
+  "inputSha256": "4cf63d14a87914b0461a7e879a20d7774550e03662221cd5db824892232d4d1c",
+  "unique": 188,
+  "uniqueExecuted": 183,
+  "latestExecuted": 182,
+  "attempts": 250,
+  "executedAttempts": 244,
+  "latest": {
+    "passed": 151,
+    "failed": 31,
+    "skipped": 6
+  },
+  "attemptsByOutcome": {
+    "passed": 174,
+    "failed": 70,
+    "skipped": 6
+  },
+  "layers": {
+    "canonical": {
+      "unique": 109,
+      "passed": 83,
+      "failed": 26,
+      "skipped": 0
+    },
+    "repositoryPending": {
+      "unique": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "externalQa": {
+      "unique": 77,
+      "passed": 66,
+      "failed": 5,
+      "skipped": 6
+    }
+  },
+  "completedNonCancelled": {
+    "runsWithCaseRecords": 19,
+    "attempts": 249,
+    "passed": 173,
+    "failed": 70,
+    "skipped": 6
+  },
+  "cancelledPartial": {
+    "run": "qa-menu-20261106-core",
+    "attempts": 1,
+    "scope": "One real VP30 PASS preserved; same case later rerun, not a new unique case and not a completed batch."
+  },
+  "zeroCaseBoundary": "No-case config/build/hook failures are execution-history entries, not invented PASS/FAIL/SKIP cases. BLOCKED describes unreached actions or prerequisite guards; no separate blocked count is available from reporter NDJSON.",
+  "confirmedFindings": {
+    "total": 8,
+    "product": 6,
+    "deterministicTestGate": 2,
+    "runtimePinCandidate": 1,
+    "runtimePinCandidateIncludedInConfirmedTotal": false
+  },
+  "deterministicTests": {
+    "unique": 133,
+    "passed": 131,
+    "failed": 2,
+    "attemptsIncludingIndependentReproductions": 138,
+    "reproductionAttempts": 5,
+    "reproductionPassed": 3,
+    "reproductionFailed": 2
+  },
+  "actualRuns": [
+    {
+      "run": "qa-menu-20261106-archive-actions-final",
+      "source": "runtime/qa-menu-20261106-archive-actions-final/evidence/test-results.ndjson",
+      "exitCode": 0,
+      "completionEvidence": "exit-code file present",
+      "attempts": 2,
+      "executed": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-archive-list-retry",
+      "source": "runtime/qa-menu-20261106-archive-list-retry/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 3,
+      "executed": 3,
+      "passed": 1,
+      "failed": 2,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-browser",
+      "source": "runtime/qa-menu-20261106-browser/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 4,
+      "executed": 4,
+      "passed": 2,
+      "failed": 2,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-copy-history-final",
+      "source": "runtime/qa-menu-20261106-copy-history-final/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 3,
+      "executed": 3,
+      "passed": 2,
+      "failed": 1,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-core",
+      "source": "runtime/qa-menu-20261106-core/evidence/test-results.ndjson",
+      "exitCode": null,
+      "completionEvidence": "no exit-code file; running or externally canceled, consult report",
+      "attempts": 1,
+      "executed": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-core-retry",
+      "source": "runtime/qa-menu-20261106-core-retry/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 56,
+      "executed": 56,
+      "passed": 49,
+      "failed": 7,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-features",
+      "source": "runtime/qa-menu-20261106-features/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 21,
+      "executed": 21,
+      "passed": 13,
+      "failed": 8,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-filtered",
+      "source": "runtime/qa-menu-20261106-filtered/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 19,
+      "executed": 19,
+      "passed": 11,
+      "failed": 8,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-grp-pin-grouped",
+      "source": "runtime/qa-menu-20261106-grp-pin-grouped/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 1,
+      "executed": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-grp-pin-repro-retry",
+      "source": "runtime/qa-menu-20261106-grp-pin-repro-retry/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 1,
+      "executed": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-local-canonical",
+      "source": "runtime/qa-menu-20261106-local-canonical/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 13,
+      "executed": 13,
+      "passed": 8,
+      "failed": 5,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-local-final-targeted",
+      "source": "runtime/qa-menu-20261106-local-final-targeted/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 6,
+      "executed": 6,
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-local-supplement",
+      "source": "runtime/qa-menu-20261106-local-supplement/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 19,
+      "executed": 18,
+      "passed": 11,
+      "failed": 7,
+      "skipped": 1,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-local-supplement-retry",
+      "source": "runtime/qa-menu-20261106-local-supplement-retry/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 15,
+      "executed": 14,
+      "passed": 9,
+      "failed": 5,
+      "skipped": 1,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-menu-final",
+      "source": "runtime/qa-menu-20261106-menu-final/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 1,
+      "executed": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-menu-reviewed",
+      "source": "runtime/qa-menu-20261106-menu-reviewed/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 37,
+      "executed": 33,
+      "passed": 18,
+      "failed": 15,
+      "skipped": 4,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-residency-final",
+      "source": "runtime/qa-menu-20261106-residency-final/evidence/test-results.ndjson",
+      "exitCode": 0,
+      "completionEvidence": "exit-code file present",
+      "attempts": 1,
+      "executed": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-settings-final",
+      "source": "runtime/qa-menu-20261106-settings-final/evidence/test-results.ndjson",
+      "exitCode": 0,
+      "completionEvidence": "exit-code file present",
+      "attempts": 23,
+      "executed": 23,
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-settings-retry",
+      "source": "runtime/qa-menu-20261106-settings-retry/evidence/test-results.ndjson",
+      "exitCode": 1,
+      "completionEvidence": "exit-code file present",
+      "attempts": 23,
+      "executed": 23,
+      "passed": 19,
+      "failed": 4,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    },
+    {
+      "run": "qa-menu-20261106-smoke-retry",
+      "source": "runtime/qa-menu-20261106-smoke-retry/evidence/test-results.ndjson",
+      "exitCode": 0,
+      "completionEvidence": "exit-code file present",
+      "attempts": 1,
+      "executed": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "incompleteTrailingRecord": false
+    }
+  ],
+  "latestSkipped": [
+    {
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-local-menu-actions-20261106.test.ts",
+      "fullTitle": "QLA07: 记忆开关即时保存，scope/refresh或明确空catalog范围",
+      "run": "qa-menu-20261106-menu-reviewed",
+      "classificationSource": "current-reporter-legacy-empty-error-compatibility"
+    },
+    {
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+      "fullTitle": "SLM05: 公开completed归档真实导入并复制assistant正文",
+      "run": "qa-menu-20261106-menu-reviewed",
+      "classificationSource": "current-reporter-legacy-empty-error-compatibility"
+    },
+    {
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+      "fullTitle": "SLM07: 机器人管理新增渠道选择前取消无新增Bot",
+      "run": "qa-menu-20261106-menu-reviewed",
+      "classificationSource": "current-reporter-legacy-empty-error-compatibility"
+    },
+    {
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+      "fullTitle": "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+      "run": "qa-menu-20261106-local-supplement",
+      "classificationSource": "current-reporter-legacy-empty-error-compatibility"
+    },
+    {
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts",
+      "fullTitle": "SLM14: 公开长会话三命中查找导航与重开居中",
+      "run": "qa-menu-20261106-menu-reviewed",
+      "classificationSource": "current-reporter-legacy-empty-error-compatibility"
+    },
+    {
+      "file": "docs/testing/qa-2026-11-06/manual-review/pending/qa-final-local-gaps-20261106.test.ts",
+      "fullTitle": "FLG06: 无commit合成Git index未暂存diff与四个文件菜单",
+      "run": "qa-menu-20261106-local-supplement-retry",
+      "classificationSource": "current-reporter-legacy-empty-error-compatibility"
+    }
+  ]
+}

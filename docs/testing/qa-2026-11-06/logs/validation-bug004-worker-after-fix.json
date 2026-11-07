@@ -1,0 +1,885 @@
+{
+  "capturedAt": "2026-11-06T21:09:58.349Z",
+  "scope": "Actual source Worker module loaded by tsx, original SettingService/startup/Repo/migrations, project-owned synthetic profile. Not Electron UI, installer, macOS, phone, remote, or real-user migration.",
+  "invocation": "after-fix",
+  "cases": [
+    {
+      "label": "saved-projects",
+      "frames": [
+        {
+          "type": "progress",
+          "phase": "checking"
+        },
+        {
+          "type": "progress",
+          "phase": "checking",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 0,
+            "committedCount": 0
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "migrating",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 0,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "migrating",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 1,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "migrating",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 2,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "migrating",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 3,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "migrating",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 4,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "committing",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 5,
+            "committedCount": 0,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "maintaining",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 5,
+            "committedCount": 5,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "progress",
+          "phase": "ready",
+          "migration": {
+            "kind": "upgrade",
+            "executedCount": 5,
+            "committedCount": 5,
+            "lastAppliedMigrationId": null
+          }
+        },
+        {
+          "type": "done"
+        }
+      ],
+      "before": {
+        "tables": [
+          "fixture_unrelated",
+          "task_group_members",
+          "task_group_view_node_orders",
+          "task_group_workspace_bootstraps",
+          "task_groups",
+          "tasks"
+        ],
+        "hashes": {
+          "fixture_unrelated": "546d6a4da5cfe3d10e999527312cffc35ad962450b367525a53e7eb851beff75",
+          "task_group_members": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_view_node_orders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_workspace_bootstraps": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_groups": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks": "086055d404f41a9b0a901316a37c0cdaf8f2a360a02deb6bab9af7c82ce2fb36"
+        },
+        "projects": [],
+        "roots": [],
+        "tasks": [
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "workspace_identity": null,
+            "task_id": "fixture-0",
+            "title": "legacy-0",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 10,
+            "updated_at": 20,
+            "unread_at": 30,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}"
+          },
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "workspace_identity": null,
+            "task_id": "fixture-1",
+            "title": "legacy-1",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 11,
+            "updated_at": 21,
+            "unread_at": 31,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}"
+          },
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "workspace_identity": null,
+            "task_id": "fixture-2",
+            "title": "legacy-2",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 12,
+            "updated_at": 22,
+            "unread_at": 32,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}"
+          }
+        ],
+        "ledger": []
+      },
+      "after": {
+        "tables": [
+          "automation_runs",
+          "automations",
+          "fixture_unrelated",
+          "hosts",
+          "off_peak_tasks",
+          "project_roots",
+          "projects",
+          "remote_project_entries",
+          "schema_migration",
+          "session_creation_commands",
+          "task_group_admissions",
+          "task_group_members",
+          "task_group_view_node_orders",
+          "task_group_workspace_bootstraps",
+          "task_groups",
+          "tasks",
+          "tasks_schema_migration"
+        ],
+        "hashes": {
+          "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "automations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "fixture_unrelated": "546d6a4da5cfe3d10e999527312cffc35ad962450b367525a53e7eb851beff75",
+          "hosts": "3777774e6a41de529c98e5cb9d51f2a3f29f852cc8c58a05d5a5a390bae56e51",
+          "off_peak_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "project_roots": "70488527a90ece54721501ca3ecf0c873a71cb71bd211661ad857d38c2097425",
+          "projects": "77421b0e7b198ebcfac01d52ddace9e22d906ad8d859139626fe50461b1a46be",
+          "remote_project_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "schema_migration": "d25de1280ed64591afc739ad8a37e893904b29726ddfe63e05a54a8a83f52bb8",
+          "session_creation_commands": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_admissions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_members": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_view_node_orders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_workspace_bootstraps": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_groups": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks": "81051d4768dfe27562885dd33c1d8fa04177a824805f26f6c5e14d3dc94a87c3",
+          "tasks_schema_migration": "7e4f88ba368fbbf4c8fb79e95ec4cbb826c0d3f5ebbb69d6918c6b99141c0ef1"
+        },
+        "projects": [
+          {
+            "project_id": "3f99c4b6-451d-4895-a937-263610de3d25",
+            "host_id": "local",
+            "name": "saved-a",
+            "name_overridden": 0,
+            "position": 0,
+            "pinned": 0,
+            "pinned_at": null,
+            "deleted": 0,
+            "deleted_at": null,
+            "created_at": 1793999390902,
+            "updated_at": 1793999390902
+          },
+          {
+            "project_id": "d08d7452-4db2-44b8-a1b9-af057bd89a45",
+            "host_id": "local",
+            "name": "empty-saved",
+            "name_overridden": 0,
+            "position": 1,
+            "pinned": 0,
+            "pinned_at": null,
+            "deleted": 0,
+            "deleted_at": null,
+            "created_at": 1793999390902,
+            "updated_at": 1793999390902
+          }
+        ],
+        "roots": [
+          {
+            "project_id": "3f99c4b6-451d-4895-a937-263610de3d25",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "position": 0,
+            "is_primary": 1
+          },
+          {
+            "project_id": "d08d7452-4db2-44b8-a1b9-af057bd89a45",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\empty-saved",
+            "position": 0,
+            "is_primary": 1
+          }
+        ],
+        "tasks": [
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "workspace_identity": null,
+            "task_id": "fixture-0",
+            "title": "legacy-0",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 10,
+            "updated_at": 20,
+            "unread_at": 30,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}",
+            "searchable_text": "",
+            "cron_automation_id": null,
+            "off_peak_task_id": null,
+            "host_id": "local",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "project_id": "3f99c4b6-451d-4895-a937-263610de3d25",
+            "execution_directories": null,
+            "sort_order": null,
+            "cli_title": "legacy-0",
+            "handoff_pending": 8,
+            "cli_title_source": "default",
+            "cli_created_at": 10,
+            "cli_updated_at": 20,
+            "cli_last_outcome": "completed",
+            "cli_deleted": 0
+          },
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "workspace_identity": null,
+            "task_id": "fixture-1",
+            "title": "legacy-1",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 11,
+            "updated_at": 21,
+            "unread_at": 31,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}",
+            "searchable_text": "",
+            "cron_automation_id": null,
+            "off_peak_task_id": null,
+            "host_id": "local",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "project_id": null,
+            "execution_directories": null,
+            "sort_order": null,
+            "cli_title": "legacy-1",
+            "handoff_pending": 8,
+            "cli_title_source": "default",
+            "cli_created_at": 11,
+            "cli_updated_at": 21,
+            "cli_last_outcome": "completed",
+            "cli_deleted": 0
+          },
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "workspace_identity": null,
+            "task_id": "fixture-2",
+            "title": "legacy-2",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 12,
+            "updated_at": 22,
+            "unread_at": 32,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}",
+            "searchable_text": "",
+            "cron_automation_id": null,
+            "off_peak_task_id": null,
+            "host_id": "local",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "project_id": null,
+            "execution_directories": null,
+            "sort_order": null,
+            "cli_title": "legacy-2",
+            "handoff_pending": 8,
+            "cli_title_source": "default",
+            "cli_created_at": 12,
+            "cli_updated_at": 22,
+            "cli_last_outcome": "completed",
+            "cli_deleted": 0
+          }
+        ],
+        "ledger": [
+          {
+            "id": "0005_projects",
+            "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+            "app_version": "3.12.0",
+            "time_applied": 1793999390906
+          },
+          {
+            "id": "0006_default_workspace_tasks",
+            "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+            "app_version": "3.12.0",
+            "time_applied": 1793999390906
+          },
+          {
+            "id": "0007_initial_workspace_order",
+            "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+            "app_version": "3.16.2",
+            "time_applied": 1793999390907
+          },
+          {
+            "id": "0008_remote_entry_deleted_cache",
+            "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+            "app_version": "3.16.3",
+            "time_applied": 1793999390907
+          },
+          {
+            "id": "0009_session_creation_commands",
+            "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+            "app_version": "3.16.3",
+            "time_applied": 1793999390907
+          }
+        ]
+      }
+    },
+    {
+      "label": "saved-projects-reopen",
+      "reopened": {
+        "tables": [
+          "automation_runs",
+          "automations",
+          "fixture_unrelated",
+          "hosts",
+          "off_peak_tasks",
+          "project_roots",
+          "projects",
+          "remote_project_entries",
+          "schema_migration",
+          "session_creation_commands",
+          "task_group_admissions",
+          "task_group_members",
+          "task_group_view_node_orders",
+          "task_group_workspace_bootstraps",
+          "task_groups",
+          "tasks",
+          "tasks_schema_migration"
+        ],
+        "hashes": {
+          "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "automations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "fixture_unrelated": "546d6a4da5cfe3d10e999527312cffc35ad962450b367525a53e7eb851beff75",
+          "hosts": "3777774e6a41de529c98e5cb9d51f2a3f29f852cc8c58a05d5a5a390bae56e51",
+          "off_peak_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "project_roots": "70488527a90ece54721501ca3ecf0c873a71cb71bd211661ad857d38c2097425",
+          "projects": "77421b0e7b198ebcfac01d52ddace9e22d906ad8d859139626fe50461b1a46be",
+          "remote_project_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "schema_migration": "d25de1280ed64591afc739ad8a37e893904b29726ddfe63e05a54a8a83f52bb8",
+          "session_creation_commands": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_admissions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_members": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_view_node_orders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_workspace_bootstraps": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_groups": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks": "81051d4768dfe27562885dd33c1d8fa04177a824805f26f6c5e14d3dc94a87c3",
+          "tasks_schema_migration": "7e4f88ba368fbbf4c8fb79e95ec4cbb826c0d3f5ebbb69d6918c6b99141c0ef1"
+        },
+        "projects": [
+          {
+            "project_id": "3f99c4b6-451d-4895-a937-263610de3d25",
+            "host_id": "local",
+            "name": "saved-a",
+            "name_overridden": 0,
+            "position": 0,
+            "pinned": 0,
+            "pinned_at": null,
+            "deleted": 0,
+            "deleted_at": null,
+            "created_at": 1793999390902,
+            "updated_at": 1793999390902
+          },
+          {
+            "project_id": "d08d7452-4db2-44b8-a1b9-af057bd89a45",
+            "host_id": "local",
+            "name": "empty-saved",
+            "name_overridden": 0,
+            "position": 1,
+            "pinned": 0,
+            "pinned_at": null,
+            "deleted": 0,
+            "deleted_at": null,
+            "created_at": 1793999390902,
+            "updated_at": 1793999390902
+          }
+        ],
+        "roots": [
+          {
+            "project_id": "3f99c4b6-451d-4895-a937-263610de3d25",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "position": 0,
+            "is_primary": 1
+          },
+          {
+            "project_id": "d08d7452-4db2-44b8-a1b9-af057bd89a45",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\empty-saved",
+            "position": 0,
+            "is_primary": 1
+          }
+        ],
+        "tasks": [
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "workspace_identity": null,
+            "task_id": "fixture-0",
+            "title": "legacy-0",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 10,
+            "updated_at": 20,
+            "unread_at": 30,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}",
+            "searchable_text": "",
+            "cron_automation_id": null,
+            "off_peak_task_id": null,
+            "host_id": "local",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\saved-a",
+            "project_id": "3f99c4b6-451d-4895-a937-263610de3d25",
+            "execution_directories": null,
+            "sort_order": null,
+            "cli_title": "legacy-0",
+            "handoff_pending": 8,
+            "cli_title_source": "default",
+            "cli_created_at": 10,
+            "cli_updated_at": 20,
+            "cli_last_outcome": "completed",
+            "cli_deleted": 0
+          },
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "workspace_identity": null,
+            "task_id": "fixture-1",
+            "title": "legacy-1",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 11,
+            "updated_at": 21,
+            "unread_at": 31,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}",
+            "searchable_text": "",
+            "cron_automation_id": null,
+            "off_peak_task_id": null,
+            "host_id": "local",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\removed-project",
+            "project_id": null,
+            "execution_directories": null,
+            "sort_order": null,
+            "cli_title": "legacy-1",
+            "handoff_pending": 8,
+            "cli_title_source": "default",
+            "cli_created_at": 11,
+            "cli_updated_at": 21,
+            "cli_last_outcome": "completed",
+            "cli_deleted": 0
+          },
+          {
+            "workspace_key": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "workspace_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "workspace_identity": null,
+            "task_id": "fixture-2",
+            "title": "legacy-2",
+            "task_status": "completed",
+            "provider": "glm",
+            "mode": "build",
+            "model": null,
+            "migration_source": null,
+            "forked_from_task_id": null,
+            "created_at": 12,
+            "updated_at": 22,
+            "unread_at": 32,
+            "last_unread_at": 0,
+            "pinned": 1,
+            "archived": 0,
+            "deleted": 0,
+            "title_overridden": 0,
+            "meta_json": "{}",
+            "searchable_text": "",
+            "cron_automation_id": null,
+            "off_peak_task_id": null,
+            "host_id": "local",
+            "root_path": "C:\\vibecoding\\zcodium\\.run-logs\\qa-2026-11-06\\validation\\bug004\\after-fix-saved-projects\\workspaces\\conversation",
+            "project_id": null,
+            "execution_directories": null,
+            "sort_order": null,
+            "cli_title": "legacy-2",
+            "handoff_pending": 8,
+            "cli_title_source": "default",
+            "cli_created_at": 12,
+            "cli_updated_at": 22,
+            "cli_last_outcome": "completed",
+            "cli_deleted": 0
+          }
+        ],
+        "ledger": [
+          {
+            "id": "0005_projects",
+            "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+            "app_version": "3.12.0",
+            "time_applied": 1793999390906
+          },
+          {
+            "id": "0006_default_workspace_tasks",
+            "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+            "app_version": "3.12.0",
+            "time_applied": 1793999390906
+          },
+          {
+            "id": "0007_initial_workspace_order",
+            "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+            "app_version": "3.16.2",
+            "time_applied": 1793999390907
+          },
+          {
+            "id": "0008_remote_entry_deleted_cache",
+            "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+            "app_version": "3.16.3",
+            "time_applied": 1793999390907
+          },
+          {
+            "id": "0009_session_creation_commands",
+            "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+            "app_version": "3.16.3",
+            "time_applied": 1793999390907
+          }
+        ]
+      }
+    },
+    {
+      "label": "fresh-install",
+      "after": {
+        "tables": [
+          "automation_runs",
+          "automations",
+          "fixture_unrelated",
+          "hosts",
+          "off_peak_tasks",
+          "project_roots",
+          "projects",
+          "remote_project_entries",
+          "schema_migration",
+          "session_creation_commands",
+          "task_group_admissions",
+          "task_group_members",
+          "task_group_view_node_orders",
+          "task_group_workspace_bootstraps",
+          "task_groups",
+          "tasks",
+          "tasks_schema_migration"
+        ],
+        "hashes": {
+          "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "automations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "fixture_unrelated": "546d6a4da5cfe3d10e999527312cffc35ad962450b367525a53e7eb851beff75",
+          "hosts": "3777774e6a41de529c98e5cb9d51f2a3f29f852cc8c58a05d5a5a390bae56e51",
+          "off_peak_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "project_roots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "projects": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "remote_project_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "schema_migration": "4f69f36de1e2be6c1071fdaf373ac33488b15ebef2a12af8b533221ce05fa982",
+          "session_creation_commands": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_admissions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_members": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_view_node_orders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_workspace_bootstraps": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_groups": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks_schema_migration": "48811dd0179f151720a363b5f73f387e4d84eeb6cc05ca0f5e4bac85b525d1c9"
+        },
+        "projects": [],
+        "roots": [],
+        "tasks": [],
+        "ledger": [
+          {
+            "id": "0005_projects",
+            "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+            "app_version": "3.12.0",
+            "time_applied": 1793999394640
+          },
+          {
+            "id": "0006_default_workspace_tasks",
+            "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+            "app_version": "3.12.0",
+            "time_applied": 1793999394640
+          },
+          {
+            "id": "0007_initial_workspace_order",
+            "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+            "app_version": "3.16.2",
+            "time_applied": 1793999394641
+          },
+          {
+            "id": "0008_remote_entry_deleted_cache",
+            "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+            "app_version": "3.16.3",
+            "time_applied": 1793999394641
+          },
+          {
+            "id": "0009_session_creation_commands",
+            "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+            "app_version": "3.16.3",
+            "time_applied": 1793999394641
+          }
+        ]
+      }
+    },
+    {
+      "label": "existing-ledger",
+      "before": {
+        "tables": [
+          "automation_runs",
+          "automations",
+          "fixture_unrelated",
+          "hosts",
+          "off_peak_tasks",
+          "project_roots",
+          "projects",
+          "remote_project_entries",
+          "schema_migration",
+          "session_creation_commands",
+          "task_group_admissions",
+          "task_group_members",
+          "task_group_view_node_orders",
+          "task_group_workspace_bootstraps",
+          "task_groups",
+          "tasks",
+          "tasks_schema_migration"
+        ],
+        "hashes": {
+          "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "automations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "fixture_unrelated": "546d6a4da5cfe3d10e999527312cffc35ad962450b367525a53e7eb851beff75",
+          "hosts": "3777774e6a41de529c98e5cb9d51f2a3f29f852cc8c58a05d5a5a390bae56e51",
+          "off_peak_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "project_roots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "projects": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "remote_project_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "schema_migration": "76a1b7806f6f3816f0e2d14f1d726e27014da63f09ed104efb87f39a3db71210",
+          "session_creation_commands": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_admissions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_members": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_view_node_orders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_workspace_bootstraps": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_groups": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks_schema_migration": "205dd99bd80684f30a9405e8c3f99e8be37df2ad75c4f3dd3a054abb9518765d"
+        },
+        "projects": [],
+        "roots": [],
+        "tasks": [],
+        "ledger": [
+          {
+            "id": "0005_projects",
+            "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+            "app_version": "3.12.0",
+            "time_applied": 1793999396544
+          },
+          {
+            "id": "0006_default_workspace_tasks",
+            "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+            "app_version": "3.12.0",
+            "time_applied": 1793999396544
+          },
+          {
+            "id": "0007_initial_workspace_order",
+            "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+            "app_version": "3.16.2",
+            "time_applied": 1793999396545
+          },
+          {
+            "id": "0008_remote_entry_deleted_cache",
+            "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+            "app_version": "3.16.3",
+            "time_applied": 1793999396545
+          },
+          {
+            "id": "0009_session_creation_commands",
+            "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+            "app_version": "3.16.3",
+            "time_applied": 1793999396546
+          }
+        ]
+      },
+      "after": {
+        "tables": [
+          "automation_runs",
+          "automations",
+          "fixture_unrelated",
+          "hosts",
+          "off_peak_tasks",
+          "project_roots",
+          "projects",
+          "remote_project_entries",
+          "schema_migration",
+          "session_creation_commands",
+          "task_group_admissions",
+          "task_group_members",
+          "task_group_view_node_orders",
+          "task_group_workspace_bootstraps",
+          "task_groups",
+          "tasks",
+          "tasks_schema_migration"
+        ],
+        "hashes": {
+          "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "automations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "fixture_unrelated": "546d6a4da5cfe3d10e999527312cffc35ad962450b367525a53e7eb851beff75",
+          "hosts": "3777774e6a41de529c98e5cb9d51f2a3f29f852cc8c58a05d5a5a390bae56e51",
+          "off_peak_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "project_roots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "projects": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "remote_project_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "schema_migration": "76a1b7806f6f3816f0e2d14f1d726e27014da63f09ed104efb87f39a3db71210",
+          "session_creation_commands": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_admissions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_members": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_view_node_orders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_group_workspace_bootstraps": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "task_groups": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "tasks_schema_migration": "205dd99bd80684f30a9405e8c3f99e8be37df2ad75c4f3dd3a054abb9518765d"
+        },
+        "projects": [],
+        "roots": [],
+        "tasks": [],
+        "ledger": [
+          {
+            "id": "0005_projects",
+            "checksum": "ac00a61c7c45a5ceb3814b1487901372c5580eb6eb8d31bde5bcdfbd1ed0f0da",
+            "app_version": "3.12.0",
+            "time_applied": 1793999396544
+          },
+          {
+            "id": "0006_default_workspace_tasks",
+            "checksum": "688bfe3cb7548ffb5ccbade2f5d71c05b14452a2aa32e5ace2e60f313680eaa4",
+            "app_version": "3.12.0",
+            "time_applied": 1793999396544
+          },
+          {
+            "id": "0007_initial_workspace_order",
+            "checksum": "cac45e440b4b54f588d7611bd1512232e18dda3c87144949568e45251edbcf1b",
+            "app_version": "3.16.2",
+            "time_applied": 1793999396545
+          },
+          {
+            "id": "0008_remote_entry_deleted_cache",
+            "checksum": "ecb3ae060f6fe3b2e8e40da94055c2b053ef6a0434f3afc4b433c0111c4bedea",
+            "app_version": "3.16.3",
+            "time_applied": 1793999396545
+          },
+          {
+            "id": "0009_session_creation_commands",
+            "checksum": "961b30b1391ea81139ffda2dc8e42ef1ddc5a5fcc46b20de44b62f53ee5d09fb",
+            "app_version": "3.16.3",
+            "time_applied": 1793999396546
+          }
+        ]
+      }
+    }
+  ]
+}

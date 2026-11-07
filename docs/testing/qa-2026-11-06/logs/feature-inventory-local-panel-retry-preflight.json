@@ -1,0 +1,840 @@
+{
+  "capturedAt": "2026-11-06T19:41:05.440Z",
+  "evidenceKind": "NoEmit and real registration/filter only; no UI/hooks/Host/Provider/build/test task/history writes",
+  "includeResidual": false,
+  "includeShort": false,
+  "archiveOnly": false,
+  "archiveActions": false,
+  "panelRetry": true,
+  "finalLocalCount": 7,
+  "shortPreviewReviewed": true,
+  "titleFixture": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\fixtures\\qa-runtime-copy-find-title.json",
+  "grep": "(?:^| )(?:HIST0[12]:|RFC0[12]:|RMC03:|FLG0[1-7]:|RLM-0[56]:|SLM15:)",
+  "sources": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "sha256": "e5066f5ccf1fe6686ad4c69903fb53d654ebe4c2c00ccdfec9adef7a4461d50e"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "sha256": "44857be6e3dbfe5e9c9afc4372dd67ceb43046bc496ce4d94e5d7ab89037ba8c"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "sha256": "eaebe0c7aaf09d13946e99827db1960a1808ac1dacfbca496dcf71c75100c152"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "sha256": "673cb61cee52884b4028003aac2daadfd30198393c0b9a97dd1e16ec4f46b933"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "sha256": "5cff511dc4b82153fb71ff9d6e2bac8c229ec18cef4b171bac5bcb39174ad4af"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-menu-dom.ts",
+      "sha256": "dba3eca2867cccac260b285dd7e82463ce021df7d879c32dc692852d7b74c493"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-preview-dom.ts",
+      "sha256": "3646eaec8b75953d7944c864fde82d65770bef502b3cb049a1e366183a99d01d"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-local-rpc-probe.ts",
+      "sha256": "d75cfa0bd781b866ffd3d19ae3152995c1b724a7f6944817df2257dc7a53416a"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\qa-reparse-children.ps1",
+      "sha256": "5245bd140015d58448cd4bb03b6034ea2ee44701d25da0eaccf1ff365b969315"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\common.json",
+      "sha256": "60f4898eb393afc84f86d9d492af910928658a954b1a777d7d5d5cb537033210",
+      "fixtures": [
+        {
+          "id": "upstream-conversation-readonly-tool-call",
+          "metadata": {
+            "kind": "common",
+            "timingPolicy": "fast-text",
+            "source": "synthetic",
+            "syntheticReason": "只读工具首段用于构造稳定 tool_use/tool_result 历史；工具业务由本地文件 fixture 决定，不依赖真实模型选择。"
+          }
+        }
+      ]
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\fixtures\\upstream\\conversation-session\\conversation-session-chat-find-refocus.json",
+      "sha256": "923ba7e0bd67592b79ee3b5c2eca589f81ba6fa578d6c3598ab9cd01b417e50b",
+      "fixtures": [
+        {
+          "id": "chat-find-refocus-long-body",
+          "metadata": {
+            "kind": "main",
+            "source": "synthetic",
+            "timingPolicy": "fast-text",
+            "syntheticReason": "真实发送长正文，用于单命中反复导航和滚动定位；不验证模型文本质量。"
+          }
+        }
+      ]
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\fixtures\\qa-runtime-copy-find-title.json",
+      "sha256": "742c1eb7c965f428eb95709ec7ec8e3619bc2dc37b2be5b00ea6390c62c75631",
+      "fixtures": [
+        {
+          "id": "qa-runtime-copy-find-setup-title",
+          "metadata": {
+            "kind": "title",
+            "source": "synthetic",
+            "timingPolicy": "fast-text",
+            "syntheticReason": "上一补测出现一个未匹配500，其现场requestJson未保留；按当前title-sidecar源码及本次唯一SETUP构造严格响应，下一run必须真实验证title类别、fixtureId、200，仍有未知请求就拒绝。"
+          }
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "registered": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "suites": [
+        "RFC finite runtime assistant复制与会话查找（外置pending）"
+      ],
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+      "suites": [
+        "RFC finite runtime assistant复制与会话查找（外置pending）"
+      ],
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC02: runtime会话唯一命中滚离后四种导航与重开居中"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+      "suites": [
+        "RFC finite runtime assistant复制与会话查找（外置pending）"
+      ],
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+      "suites": [
+        "QA historical model trajectory (public import, no automatic recorder)"
+      ],
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+      "suites": [
+        "QA historical model trajectory (public import, no automatic recorder)"
+      ],
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-01: 四种任务路径/ID复制及文件管理器出口",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-01: 四种任务路径/ID复制及文件管理器出口"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-02: Markdown完整复制、受控拒绝后恢复重试",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-02: Markdown完整复制、受控拒绝后恢复重试"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-03: 真实标记未读与同任务清除、返回不反弹",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-03: 真实标记未读与同任务清除、返回不反弹"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-04: Command Center操作范围键盘进入设置",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-04: Command Center操作范围键盘进入设置"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-05: Command Center任务范围查询唯一ID并重开最近"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-06: Command Center文件范围索引实际中文空格文件",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-06: Command Center文件范围索引实际中文空格文件"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-07: All前缀操作/任务/文件选择、历史恢复和清空"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-08: 文件选择取消与pending入口busy不启动第二事务",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-08: 文件选择取消与pending入口busy不启动第二事务"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-09: 有效归档真实Host导入与重复复用、草稿保留"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-11: MCP真实新建填写取消不保存或启动服务器"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-12: Commands真实新建名称/prompt取消无文件新增",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-12: Commands真实新建名称/prompt取消无文件新增"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-13: Skills新建真实进入skill-creator草稿，无发送",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-13: Skills新建真实进入skill-creator草稿，无发送"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG01: 交互Queue和Guide设置持久化重开并恢复",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG01: 交互Queue和Guide设置持久化重开并恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG02: 六项回答消息和工具分组开关保存重开与恢复",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG02: 六项回答消息和工具分组开关保存重开与恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG03: 数据目录浏览取消及本树选择草稿取消无迁移",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG03: 数据目录浏览取消及本树选择草稿取消无迁移"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG05: 本run合成记忆catalog切scope搜索清空与刷新"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG06: 无commit合成Git index未暂存diff与四个文件菜单",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG06: 无commit合成Git index未暂存diff与四个文件菜单"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG07: 项目管理51个合成项目分页筛选排序与选择恢复",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG07: 项目管理51个合成项目分页筛选排序与选择恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM01: 原生帮助更新日志只请求本fork mock链接",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM01: 原生帮助更新日志只请求本fork mock链接"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM02: 原生开发者工具真实打开关闭并恢复",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM02: 原生开发者工具真实打开关闭并恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM03: 原生清除所有数据受控取消保留本地数据",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM03: 原生清除所有数据受控取消保留本地数据"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM04: 两个合成项目键盘排序持久化并反向恢复",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM04: 两个合成项目键盘排序持久化并反向恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM05: 公开completed归档真实导入并复制assistant正文",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM05: 公开completed归档真实导入并复制assistant正文"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM06: 引导侧栏和通用页两个入口进入退出",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM06: 引导侧栏和通用页两个入口进入退出"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM07: 机器人管理新增渠道选择前取消无新增Bot",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM07: 机器人管理新增渠道选择前取消无新增Bot"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM08: 文件树绝对相对路径复制只写mock剪贴板"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM09: 文件加入聊天及另存为取消保留源文件",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM09: 文件加入聊天及另存为取消保留源文件"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM10: Review真实Git入口空态或列表与tab关闭",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM10: Review真实Git入口空态或列表与tab关闭"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM11: 办公模式隐藏新Review终端且保留已有Review",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM11: 办公模式隐藏新Review终端且保留已有Review"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM12: 真实侧栏launcher不提供Whiteboard入口",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM12: 真实侧栏launcher不提供Whiteboard入口"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM14: 公开长会话三命中查找导航与重开居中",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM14: 公开长会话三命中查找导航与重开居中"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM15: 长text真实预览滚动与当前无局部Find边界"
+    }
+  ],
+  "hooks": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "kind": "after"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "kind": "after"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "kind": "after"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "kind": "after"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "kind": "before"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "kind": "afterEach"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "kind": "after"
+    }
+  ],
+  "grepTarget": "Mocha describe stack + it.title fullTitle",
+  "selected": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC01: finite runtime assistant正文真实复制并恢复勾选反馈",
+      "suites": [
+        "RFC finite runtime assistant复制与会话查找（外置pending）"
+      ],
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC01: finite runtime assistant正文真实复制并恢复勾选反馈"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RFC02: runtime会话唯一命中滚离后四种导航与重开居中",
+      "suites": [
+        "RFC finite runtime assistant复制与会话查找（外置pending）"
+      ],
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RFC02: runtime会话唯一命中滚离后四种导航与重开居中"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "title": "RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试",
+      "suites": [
+        "RFC finite runtime assistant复制与会话查找（外置pending）"
+      ],
+      "fullTitle": "RFC finite runtime assistant复制与会话查找（外置pending） RMC03: runtime任务Markdown完整复制、受控拒绝与恢复重试"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy",
+      "suites": [
+        "QA historical model trajectory (public import, no automatic recorder)"
+      ],
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST01: public imported synthetic history renders six roles, collapse, expansion and captured copy"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "title": "HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh",
+      "suites": [
+        "QA historical model trajectory (public import, no automatic recorder)"
+      ],
+      "fullTitle": "QA historical model trajectory (public import, no automatic recorder) HIST02: historical virtual matches navigate, retain expansion and bounded tail refresh"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-05: Command Center任务范围查询唯一ID并重开最近"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-06: Command Center文件范围索引实际中文空格文件",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-06: Command Center文件范围索引实际中文空格文件"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG01: 交互Queue和Guide设置持久化重开并恢复",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG01: 交互Queue和Guide设置持久化重开并恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG02: 六项回答消息和工具分组开关保存重开与恢复",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG02: 六项回答消息和工具分组开关保存重开与恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG03: 数据目录浏览取消及本树选择草稿取消无迁移",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG03: 数据目录浏览取消及本树选择草稿取消无迁移"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG04: 合成已有AstrBot管理名称Escape及路径复制不连接"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG05: 本run合成记忆catalog切scope搜索清空与刷新",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG05: 本run合成记忆catalog切scope搜索清空与刷新"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG06: 无commit合成Git index未暂存diff与四个文件菜单",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG06: 无commit合成Git index未暂存diff与四个文件菜单"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "title": "FLG07: 项目管理51个合成项目分页筛选排序与选择恢复",
+      "suites": [
+        "FLG 最后本地设置与菜单缺口（外置pending）"
+      ],
+      "fullTitle": "FLG 最后本地设置与菜单缺口（外置pending） FLG07: 项目管理51个合成项目分页筛选排序与选择恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM15: 长text真实预览滚动与当前无局部Find边界",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM15: 长text真实预览滚动与当前无局部Find边界"
+    }
+  ],
+  "excluded": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-01: 四种任务路径/ID复制及文件管理器出口",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-01: 四种任务路径/ID复制及文件管理器出口"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-02: Markdown完整复制、受控拒绝后恢复重试",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-02: Markdown完整复制、受控拒绝后恢复重试"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-03: 真实标记未读与同任务清除、返回不反弹",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-03: 真实标记未读与同任务清除、返回不反弹"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-04: Command Center操作范围键盘进入设置",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-04: Command Center操作范围键盘进入设置"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-07: All前缀操作/任务/文件选择、历史恢复和清空"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-08: 文件选择取消与pending入口busy不启动第二事务",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-08: 文件选择取消与pending入口busy不启动第二事务"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-09: 有效归档真实Host导入与重复复用、草稿保留"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-11: MCP真实新建填写取消不保存或启动服务器"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-12: Commands真实新建名称/prompt取消无文件新增",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-12: Commands真实新建名称/prompt取消无文件新增"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "title": "RLM-13: Skills新建真实进入skill-creator草稿，无发送",
+      "suites": [
+        "RLM 当前fork剩余本地菜单与离线导入（外置pending）"
+      ],
+      "fullTitle": "RLM 当前fork剩余本地菜单与离线导入（外置pending） RLM-13: Skills新建真实进入skill-creator草稿，无发送"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM01: 原生帮助更新日志只请求本fork mock链接",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM01: 原生帮助更新日志只请求本fork mock链接"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM02: 原生开发者工具真实打开关闭并恢复",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM02: 原生开发者工具真实打开关闭并恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM03: 原生清除所有数据受控取消保留本地数据",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM03: 原生清除所有数据受控取消保留本地数据"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM04: 两个合成项目键盘排序持久化并反向恢复",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM04: 两个合成项目键盘排序持久化并反向恢复"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM05: 公开completed归档真实导入并复制assistant正文",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM05: 公开completed归档真实导入并复制assistant正文"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM06: 引导侧栏和通用页两个入口进入退出",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM06: 引导侧栏和通用页两个入口进入退出"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM07: 机器人管理新增渠道选择前取消无新增Bot",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM07: 机器人管理新增渠道选择前取消无新增Bot"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM08: 文件树绝对相对路径复制只写mock剪贴板",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM08: 文件树绝对相对路径复制只写mock剪贴板"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM09: 文件加入聊天及另存为取消保留源文件",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM09: 文件加入聊天及另存为取消保留源文件"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM10: Review真实Git入口空态或列表与tab关闭",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM10: Review真实Git入口空态或列表与tab关闭"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM11: 办公模式隐藏新Review终端且保留已有Review",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM11: 办公模式隐藏新Review终端且保留已有Review"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM12: 真实侧栏launcher不提供Whiteboard入口",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM12: 真实侧栏launcher不提供Whiteboard入口"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM13: 安全门禁后的本地Terminal读取echo与办公PTY保留"
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "title": "SLM14: 公开长会话三命中查找导航与重开居中",
+      "suites": [
+        "SLM 当前fork最短剩余本地菜单（外置pending）"
+      ],
+      "fullTitle": "SLM 当前fork最短剩余本地菜单（外置pending） SLM14: 公开长会话三命中查找导航与重开居中"
+    }
+  ],
+  "oldAnchoredTitleOnlyCount": 15,
+  "oldAnchoredFullTitleCount": 0,
+  "count": 15,
+  "accepted": true,
+  "sourceSelectedCounts": [
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-runtime-copy-find-20261106.test.ts",
+      "expected": 3,
+      "actual": 3
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-historical-trajectory-20261106.test.ts",
+      "expected": 2,
+      "actual": 2
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+      "expected": 2,
+      "actual": 2
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-final-local-gaps-20261106.test.ts",
+      "expected": 7,
+      "actual": 7
+    },
+    {
+      "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-short-local-menus-20261106.test.ts",
+      "expected": 1,
+      "actual": 1
+    }
+  ],
+  "parameters": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs\\feature-inventory-local-panel-retry-parameters.json"
+}

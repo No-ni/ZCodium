@@ -1,0 +1,238 @@
+{
+  "artifactDir": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence",
+  "completedAt": "2026-11-06T19:19:55.085Z",
+  "containerE2E": false,
+  "durationMs": 231516,
+  "environment": {
+    "arch": "x64",
+    "cpuModel": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "totalMemoryBytes": 16365854720
+  },
+  "exitCode": 1,
+  "files": {
+    "containerSamples": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\perf\\container-samples.ndjson",
+    "lifecycleEvents": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\lifecycle-events.ndjson",
+    "manifest": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\manifest.json",
+    "processSamplesGlob": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\perf\\process-samples-*.ndjson",
+    "summaryJson": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\summary.json",
+    "summaryMd": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\summary.md",
+    "tests": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\test-results.ndjson",
+    "viewerUrl": "http://127.0.0.1:4173/?summary=%2F%40fs%2FC%3A%2Fvibecoding%2Fzcodium%2Fdocs%2Ftesting%2Fqa-2026-11-06%2Fruntime%2Fqa-menu-20261106-archive-list-retry%2Fevidence%2Fsummary.json"
+  },
+  "coverage": {},
+  "performance": {
+    "processSamples": {
+      "byType": {
+        "Browser": {
+          "cpuPercent": {
+            "mean": 0.25,
+            "peak": 0.79,
+            "p95": 0.79,
+            "sampleCount": 10
+          },
+          "memoryWorkingSetMb": {
+            "mean": 169.04,
+            "peak": 186.14,
+            "p95": 186.14,
+            "sampleCount": 10
+          }
+        },
+        "GPU": {
+          "cpuPercent": {
+            "mean": 0.39,
+            "peak": 1.8,
+            "p95": 1.8,
+            "sampleCount": 10
+          },
+          "memoryWorkingSetMb": {
+            "mean": 133.82,
+            "peak": 139.28,
+            "p95": 139.28,
+            "sampleCount": 10
+          }
+        },
+        "Utility": {
+          "cpuPercent": {
+            "mean": 0.09,
+            "peak": 0.36,
+            "p95": 0.36,
+            "sampleCount": 10
+          },
+          "memoryWorkingSetMb": {
+            "mean": 405.26,
+            "peak": 499.03,
+            "p95": 499.03,
+            "sampleCount": 10
+          }
+        },
+        "Tab": {
+          "cpuPercent": {
+            "mean": 0.76,
+            "peak": 2.8,
+            "p95": 2.8,
+            "sampleCount": 10
+          },
+          "memoryWorkingSetMb": {
+            "mean": 316.26,
+            "peak": 392.06,
+            "p95": 392.06,
+            "sampleCount": 10
+          }
+        }
+      },
+      "cpuTotalPercent": {
+        "mean": 1.49,
+        "peak": 5.24,
+        "p95": 5.24,
+        "sampleCount": 10
+      },
+      "files": [
+        "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-list-retry\\evidence\\perf\\process-samples-0-0.ndjson"
+      ],
+      "memoryWorkingSetMb": {
+        "mean": 1024.38,
+        "peak": 1214.34,
+        "p95": 1214.34,
+        "sampleCount": 10
+      },
+      "sampleCount": 10
+    }
+  },
+  "lifecycle": {
+    "byPhase": {
+      "prepare": {
+        "count": 1,
+        "p50Ms": 112655,
+        "p95Ms": 112655,
+        "totalMs": 112655
+      },
+      "before-session": {
+        "count": 1,
+        "p50Ms": 1003,
+        "p95Ms": 1003,
+        "totalMs": 1003
+      },
+      "before-suite": {
+        "count": 2,
+        "p50Ms": 28,
+        "p95Ms": 33,
+        "totalMs": 61
+      },
+      "after": {
+        "count": 1,
+        "p50Ms": 13,
+        "p95Ms": 13,
+        "totalMs": 13
+      },
+      "after-session": {
+        "count": 1,
+        "p50Ms": 783,
+        "p95Ms": 783,
+        "totalMs": 783
+      },
+      "worker": {
+        "count": 1,
+        "p50Ms": 110943,
+        "p95Ms": 110943,
+        "totalMs": 110943
+      },
+      "complete": {
+        "count": 1,
+        "p50Ms": 2610,
+        "p95Ms": 2610,
+        "totalMs": 2610
+      }
+    }
+  },
+  "stability": {
+    "passRate": 0.3333,
+    "firstTimePassRate": 0.3333,
+    "flakyCount": 0,
+    "flakyRate": 0,
+    "infraFailureCount": 0,
+    "infraFailureRate": 0
+  },
+  "timing": {
+    "totalDurationMs": 231516,
+    "caseDurationP50Ms": 5014,
+    "caseDurationP95Ms": 10297,
+    "slowestCases": [
+      {
+        "fullTitle": "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+        "durationMs": 10297
+      },
+      {
+        "fullTitle": "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+        "durationMs": 5014
+      },
+      {
+        "fullTitle": "ARM03：全部删除仅作用于当前筛选，分组更多取消归档",
+        "durationMs": 1488
+      }
+    ]
+  },
+  "failureBreakdown": {
+    "assertion": 0,
+    "timeout": 0,
+    "crash": 0,
+    "infra": 0,
+    "unknown": 2
+  },
+  "requestedSpecs": [
+    "./test/e2e/conversation-session/conversation-session-archive-management.test.ts"
+  ],
+  "runId": "qa-menu-20261106-archive-list-retry",
+  "startedAt": "2026-11-06T19:16:03.569Z",
+  "tests": {
+    "failed": 2,
+    "passed": 1,
+    "results": [
+      {
+        "capturedAt": "2026-11-06T19:19:07.602Z",
+        "durationMs": 10297,
+        "error": "Can't call scrollIntoView on element with selector \"[data-testid=\"archive-auto-archive-switch\"]\" because element wasn't found",
+        "errorCategory": "unknown",
+        "errorStack": "Error: Can't call scrollIntoView on element with selector \"[data-testid=\"archive-auto-archive-switch\"]\" because element wasn't found\n    at implicitWait (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:743:13)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10490:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async captureArchiveLayouts (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts:452:9)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts:316:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+        "fullTitle": "ARM01/05/06：分组折叠、搜索、时间排序和项目选择",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "ARM01/05/06：分组折叠、搜索、时间排序和项目选择"
+      },
+      {
+        "capturedAt": "2026-11-06T19:19:26.675Z",
+        "durationMs": 5014,
+        "error": "Can't call $ on element with selector \"[data-testid=\"archive-task\"][data-task-id=\"arm-alpha\"]\" because element wasn't found",
+        "errorCategory": "unknown",
+        "errorStack": "Error: Can't call $ on element with selector \"[data-testid=\"archive-task\"][data-task-id=\"arm-alpha\"]\" because element wasn't found\n    at implicitWait (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:743:13)\n    at async Element.elementErrorHandlerCallbackFn (C:\\vibecoding\\zcodium\\node_modules\\webdriverio\\build\\node.js:10490:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Element.wrapCommandFn (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1100:23)\n    at async Context.<anonymous> (C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts:320:5)\n    at async Context.executeAsync (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1231:20)\n    at async Context.testFrameworkFnWrapper (C:\\vibecoding\\zcodium\\node_modules\\@wdio\\utils\\build\\index.js:1312:14)",
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+        "fullTitle": "ARM02：取消归档、取消删除与确认删除后刷新不复活",
+        "passed": false,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "ARM02：取消归档、取消删除与确认删除后刷新不复活"
+      },
+      {
+        "capturedAt": "2026-11-06T19:19:42.021Z",
+        "durationMs": 1488,
+        "featureArea": "conversation",
+        "file": "C:\\vibecoding\\zcodium\\packages\\desktop\\test\\e2e\\conversation-session\\conversation-session-archive-management.test.ts",
+        "fullTitle": "ARM03：全部删除仅作用于当前筛选，分组更多取消归档",
+        "passed": true,
+        "passedOnRetry": false,
+        "retryIndex": 0,
+        "retryLimit": -1,
+        "title": "ARM03：全部删除仅作用于当前筛选，分组更多取消归档"
+      }
+    ],
+    "skipped": 0,
+    "total": 3
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "RunId": "qa-menu-20261106-local-supplement-retry",
+  "Specs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-residual-local-menus-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-final-local-gaps-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-short-local-menus-20261106.test.ts"
+  ],
+  "Grep": "(?:^| )(?:HIST0[12]:|RFC0[12]:|RMC03:|FLG0[1-7]:|RLM-0[56]:|SLM15:)",
+  "ReplayFixtures": "test/e2e/fixtures/upstream/common.json,test/e2e/fixtures/upstream/conversation-session/conversation-session-chat-find-refocus.json,../../docs/testing/qa-2026-11-06/fixtures/qa-runtime-copy-find-title.json",
+  "Bootstrap": true,
+  "OpenSidePane": false,
+  "SafeTerminal": false,
+  "SafeGit": true,
+  "selected": 15,
+  "sourceEvidence": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs\\feature-inventory-local-panel-retry-preflight.json"
+}

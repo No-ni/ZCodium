@@ -40,7 +40,7 @@ SBV07：桌面验证菜单、更新时间顺序、分页、重载偏好、已读
 
 ### 被动标记未读
 
-- 入口：Host 明确携带 `background_terminal` 的实时完成信号；普通 status、历史读取和 replay 不制造未读。仅 `completedSuccess`（且 Goal 已验证/无 Goal）与 `error` 产生该信号；`completedInterrupted` 表示用户主动停止、发新消息打断或新建对话时中断旧执行，不产生未读提醒。
+- 入口：Host 明确携带 `background_terminal` 的实时完成信号；普通 status、历史读取和 replay 不制造未读。仅 `completedSuccess`（且 Goal 已验证/无 Goal、`autoContinuePending !== true`）与 `error` 产生该信号；`completedInterrupted` 表示用户主动停止、发新消息打断或新建对话时中断旧执行，不产生未读提醒。自动队列清空或 Goal 验证通过只改变摘要资格时，也通过同一资格边沿产生一次完成提醒，不重复发出 terminal/ready 执行事件。
 - 动作：desktop base 的唯一目录 writer 判断查看状态，再经原 mutation 路由写 tasks-index；持久成功后刷新树，不先制造 UI 独有的未读。
 - v4 sessions-index 重构后，后台运行态不再由旧 renderer monitor 持有；host
   `taskIndexSyncer` 只负责把 phase 终态收敛成 `task_status_changed`，不判断某个 renderer

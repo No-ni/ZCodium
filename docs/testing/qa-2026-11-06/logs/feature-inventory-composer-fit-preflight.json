@@ -1,0 +1,24 @@
+{
+  "capturedAt": "2026-11-06T17:53:45.172Z",
+  "evidenceKind": "Target-only TypeScript noEmit, lint, raw JS parse and TSX excluded-case guards; no UI/build/hook integration",
+  "node": "v24.18.0",
+  "sourceSha256": "da80835824645e1790c9acf66cef27949028d25e2553cf80831153bc3f5579be",
+  "diagnostics": [],
+  "lint": {
+    "exitCode": 0,
+    "stdout": "Found 0 warnings and 0 errors.\nFinished in 10ms on 1 file with 94 rules using 16 threads.\n",
+    "stderr": ""
+  },
+  "rawScriptsParsed": true,
+  "scriptLengths": [
+    5743,
+    182
+  ],
+  "excludedCases": 3,
+  "excludedHookCalls": 6,
+  "forbiddenCalls": 0,
+  "excludedCasesCreatedNoArtifacts": true,
+  "runtime": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-composer-fit-static",
+  "artifacts": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-composer-fit-static\\artifacts",
+  "allPassed": true
+}

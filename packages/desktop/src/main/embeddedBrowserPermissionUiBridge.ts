@@ -102,16 +102,19 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
 }): EmbeddedBrowserPermissionUiBridge {
   const { logger } = deps;
   const timeoutMs = deps.promptTimeoutMs ?? 20_000;
-  const pending = new Map<string, (resolution: unknown) => void>();
+  const pending = new Map<string, { hostWebContentsId: number; resolve(resolution: unknown): void }>();
+  let resolveListenerRegistered = false;
+
+  const getPromptHost = (hostWebContentsId: number | undefined) =>
+    hostWebContentsId !== undefined
+      ? webContents.fromId(hostWebContentsId)
+      : (BrowserWindow.getFocusedWindow()?.webContents ?? BrowserWindow.getAllWindows()[0]?.webContents);
 
   const sendPrompt = (
     hostWebContentsId: number | undefined,
     event: { requestId: string; kind: "permission" | "screen-share" | "device" } & Record<string, unknown>,
   ): boolean => {
-    const host =
-      (hostWebContentsId !== undefined ? webContents.fromId(hostWebContentsId) : undefined) ??
-      BrowserWindow.getFocusedWindow()?.webContents ??
-      BrowserWindow.getAllWindows()[0]?.webContents;
+    const host = getPromptHost(hostWebContentsId);
     if (!host || host.isDestroyed()) {
       logger.warn("[embedded-browser-permission] prompt target window unavailable");
       return false;
@@ -128,6 +131,9 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
     fallbackValue: T,
   ): Promise<T> => {
     const { requestId } = event;
+    // 申请绑定实际宿主，不能在宿主消失后漂移到另一个窗口或接受其他 renderer 的回执。
+    const host = getPromptHost(hostWebContentsId);
+    if (!host || host.isDestroyed()) return Promise.resolve(fallbackValue);
     return new Promise<T>((resolve) => {
       let settled = false;
       const finish = (value: T) => {
@@ -144,8 +150,8 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
         });
         finish(fallbackValue);
       }, timeoutMs);
-      pending.set(requestId, (resolution) => finish(settle(resolution)));
-      if (!sendPrompt(hostWebContentsId, event)) finish(fallbackValue);
+      pending.set(requestId, { hostWebContentsId: host.id, resolve: (resolution) => finish(settle(resolution)) });
+      if (!sendPrompt(host.id, event)) finish(fallbackValue);
     });
   };
 
@@ -203,7 +209,7 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
         result,
         updateDevices: (devices) => {
           if (!pending.has(requestId)) return;
-          sendPrompt(input.hostWebContentsId, {
+          sendPrompt(pending.get(requestId)?.hostWebContentsId, {
             requestId,
             kind: "device",
             origin: input.origin,
@@ -244,21 +250,23 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
           const source = picked ? sources.find((candidate) => candidate.id === picked) : undefined;
           invokeDisplayMediaCallback(callback, source ? { video: source } : {});
         })
-        .catch((error: unknown) => {
-          logger.warn("[embedded-browser-permission] screen share sources unavailable:", error);
+        .catch(() => {
+          logger.warn("[embedded-browser-permission] screen share sources unavailable");
           invokeDisplayMediaCallback(callback, {});
         });
     },
 
     registerResolveListener() {
-      ipcMain.on(PlatformChannels.EmbeddedBrowserPermissionResolve, (_event, payload: unknown) => {
+      if (resolveListenerRegistered) return;
+      resolveListenerRegistered = true;
+      ipcMain.on(PlatformChannels.EmbeddedBrowserPermissionResolve, (event, payload: unknown) => {
         const parsed = parseEmbeddedBrowserPermissionResolveRequest(payload);
-        const resolver = parsed ? pending.get(parsed.requestId) : undefined;
-        if (!parsed || !resolver) {
+        const request = parsed ? pending.get(parsed.requestId) : undefined;
+        if (!parsed || !request || event.sender.id !== request.hostWebContentsId) {
           logger.warn("[embedded-browser-permission] ignored malformed or unknown resolve payload");
           return;
         }
-        resolver(parsed.resolution);
+        request.resolve(parsed.resolution);
       });
     },
   };

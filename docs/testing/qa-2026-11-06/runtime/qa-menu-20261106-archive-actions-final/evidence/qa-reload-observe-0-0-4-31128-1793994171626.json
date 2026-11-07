@@ -1,0 +1,338 @@
+{
+  "capturedAt": "2026-11-06T19:43:04.968Z",
+  "evidenceKind": "read-only Windows E2E reload process identity and Error.cause; no timeout override, no process termination, no product change",
+  "test": {
+    "file": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-archive-actions-20261106.test.ts",
+    "title": "QAR02: 删除取消不改库、确认仅删除一条且冷重启不复活",
+    "state": "passed",
+    "error": null
+  },
+  "artifacts": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-archive-actions-final\\evidence",
+  "hookSourceSha256": "21216d1a472ad5880ebff67d336cc79339744a03e52d3123b93d2489b5dc6c3c",
+  "observerSourceSha256": "8f014b418da448a5ae22f7fa29cdf5c4299fd752ff40f05333082933e61ccf7b",
+  "facadeSourceSha256": "51d8b3778d6d848dc705c835a425c54947814f66200f958f19163ff31918be4b",
+  "events": [
+    {
+      "phase": "before-delete",
+      "capturedAt": "2026-11-06T19:42:55.145Z",
+      "oldMainPid": 30896,
+      "helperEquivalentCollectedPids": [
+        31736,
+        31180,
+        30896,
+        29496,
+        28920,
+        27856,
+        18272,
+        16568,
+        10780,
+        10452,
+        9084,
+        1492
+      ],
+      "initialPidsAbsentNow": [],
+      "processes": [
+        {
+          "pid": 30896,
+          "ppid": 25192,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:18.4598540Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 27856,
+          "ppid": 30896,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:19.0618100Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 10780,
+          "ppid": 30896,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:19.1019570Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 29496,
+          "ppid": 30896,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:19.1359950Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 31180,
+          "ppid": 30896,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:19.8522790Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 31736,
+          "ppid": 30896,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:22.1582090Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 28920,
+          "ppid": 31180,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:22.3799080Z",
+          "executableInWorktree": true,
+          "runMarker": false,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 18272,
+          "ppid": 28920,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:24.8820390Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 16568,
+          "ppid": 28920,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:24.9844650Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 1492,
+          "ppid": 28920,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:25.0358530Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 9084,
+          "ppid": 28920,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:25.1028720Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 10452,
+          "ppid": 28920,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:25.2748890Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        }
+      ]
+    },
+    {
+      "phase": "original-delete-call",
+      "capturedAt": "2026-11-06T19:42:55.146Z"
+    },
+    {
+      "phase": "original-delete-return",
+      "capturedAt": "2026-11-06T19:42:57.163Z"
+    },
+    {
+      "phase": "observer-read-error",
+      "error": {
+        "name": "Error",
+        "message": "WebSocket is not connected. Call 'CdpBridge.connect()' before using this method",
+        "code": null,
+        "cause": null
+      }
+    },
+    {
+      "phase": "original-delete-call",
+      "capturedAt": "2026-11-06T19:42:57.164Z"
+    },
+    {
+      "phase": "original-delete-return",
+      "capturedAt": "2026-11-06T19:42:57.167Z"
+    },
+    {
+      "phase": "after-test",
+      "capturedAt": "2026-11-06T19:43:04.965Z",
+      "oldMainPid": 30896,
+      "helperEquivalentCollectedPids": [
+        31376,
+        31312,
+        29780,
+        29080,
+        25592,
+        17416,
+        16292,
+        15392,
+        13596,
+        12640,
+        12052,
+        11452
+      ],
+      "initialPidsAbsentNow": [
+        31736,
+        31180,
+        30896,
+        29496,
+        28920,
+        27856,
+        18272,
+        16568,
+        10780,
+        10452,
+        9084,
+        1492
+      ],
+      "processes": [
+        {
+          "pid": 31376,
+          "ppid": 25192,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:57.1802700Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 16292,
+          "ppid": 31376,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:57.7106830Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 25592,
+          "ppid": 31376,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:57.7475180Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 12052,
+          "ppid": 31376,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:57.7783250Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 17416,
+          "ppid": 31376,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:42:58.5063150Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 29080,
+          "ppid": 31376,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:00.7943020Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 13596,
+          "ppid": 17416,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:01.0098200Z",
+          "executableInWorktree": true,
+          "runMarker": false,
+          "homeMarker": false,
+          "chromeDriver": false
+        },
+        {
+          "pid": 29780,
+          "ppid": 13596,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:03.4188520Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 12640,
+          "ppid": 13596,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:03.5056060Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 31312,
+          "ppid": 13596,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:03.5630430Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 15392,
+          "ppid": 13596,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:03.6644660Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        },
+        {
+          "pid": 11452,
+          "ppid": 13596,
+          "name": "electron.exe",
+          "createdAt": "2026-11-06T19:43:03.8427140Z",
+          "executableInWorktree": true,
+          "runMarker": true,
+          "homeMarker": true,
+          "chromeDriver": false
+        }
+      ]
+    }
+  ]
+}

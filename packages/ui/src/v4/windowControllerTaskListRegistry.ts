@@ -23,6 +23,7 @@ export interface WindowControllerTaskListRegistry {
   readActivities(): Array<{
     address: WindowHostControllerTaskRow["address"];
     activity: NonNullable<WindowHostControllerTaskRow["activity"]>;
+    pendingInteraction?: WindowHostControllerTaskRow["meta"]["pendingInteraction"];
   }>;
   list(
     queryKey: string,
@@ -281,7 +282,13 @@ export function getWindowControllerTaskListRegistry(
     readActivities() {
       return Array.from(taskRows.values()).flatMap((row) =>
         row.sourceAvailability === "online" && row.activity
-          ? [{ address: row.address, activity: row.activity }]
+          ? [
+              {
+                address: row.address,
+                activity: row.activity,
+                pendingInteraction: row.meta.pendingInteraction,
+              },
+            ]
           : [],
       );
     },

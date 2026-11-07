@@ -1,0 +1,8 @@
+{
+  "command": "node --test --test-concurrency=1 scripts/ci/audit-boundaries.test.mjs scripts/ci/no-telemetry.test.mjs scripts/ci/bundled-help-config.test.mjs scripts/ci/provider-config-menu-entry.test.mjs scripts/ci/local-preferences.test.mjs scripts/ci/windows-ui-help-menu-regressions.test.mjs scripts/ci/windows-ui-navigation-regressions.test.mjs scripts/ci/windows-ui-root-events-regressions.test.mjs scripts/ci/windows-ui-shortcut-window-regressions.test.mjs scripts/ci/windows-ui-settings-owner-regressions.test.mjs scripts/ci/windows-ui-settings-refresh-regressions.test.mjs",
+  "started": "2026-11-06T14:56:43.762Z",
+  "finished": "2026-11-06T14:57:05.125Z",
+  "code": 1,
+  "signal": null,
+  "node": "v24.18.0"
+}

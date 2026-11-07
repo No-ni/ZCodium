@@ -1,0 +1,22 @@
+{
+  "case": "QSM20-zai-light-zh-CN-plugin-store",
+  "status": "passed",
+  "snapshot": {
+    "automationsSelected": "false",
+    "controlIds": [],
+    "headings": [],
+    "navigation": [],
+    "pluginStoreSelected": "true",
+    "pluginStoreVisible": true,
+    "primaryNavigationVisible": true,
+    "settingsVisible": false,
+    "themeClasses": [
+      "platform-windows-desktop",
+      "theme-zai-light"
+    ],
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    }
+  }
+}

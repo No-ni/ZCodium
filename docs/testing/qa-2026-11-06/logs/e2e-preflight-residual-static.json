@@ -1,0 +1,73 @@
+{
+  "capturedAt": "2026-11-06T18:40:26.492Z",
+  "evidenceKind": "TypeScript noEmit, actual tsx import/13-case registration, public archive encode+decode only; no hooks/cases/UI/Host import executed",
+  "source": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\manual-review\\pending\\qa-residual-local-menus-20261106.test.ts",
+  "sourceSha256": "2eb73bb1cb66625d0d074c71ecfe68649c43d29b0e1c57442c12d8499fa70ab7",
+  "declarationSources": [
+    "C:\\vibecoding\\zcodium\\packages\\services\\src\\types\\yazl.d.ts",
+    "C:\\vibecoding\\zcodium\\packages\\services\\src\\runtime-tools\\node-forge.d.ts"
+  ],
+  "diagnostics": [],
+  "registeredCases": [
+    "RLM-01: 四种任务路径/ID复制及文件管理器出口",
+    "RLM-02: Markdown完整复制、受控拒绝后恢复重试",
+    "RLM-03: 真实标记未读与同任务清除、返回不反弹",
+    "RLM-04: Command Center操作范围键盘进入设置",
+    "RLM-05: Command Center任务范围查询唯一ID并重开最近",
+    "RLM-06: Command Center文件范围索引实际中文空格文件",
+    "RLM-07: All前缀操作/任务/文件选择、历史恢复和清空",
+    "RLM-08: 文件选择取消与pending入口busy不启动第二事务",
+    "RLM-09: 有效归档真实Host导入与重复复用、草稿保留",
+    "RLM-10: 空文件/nonZIP/version/hash错误映射与逐次恢复",
+    "RLM-11: MCP真实新建填写取消不保存或启动服务器",
+    "RLM-12: Commands真实新建名称/prompt取消无文件新增",
+    "RLM-13: Skills新建真实进入skill-creator草稿，无发送"
+  ],
+  "publicEntry": "C:\\vibecoding\\zcodium\\packages\\services\\src\\node.ts",
+  "fixture": {
+    "byteLength": 516,
+    "title": "RLM_TASK_中文_01",
+    "rows": [
+      {
+        "rowId": 1,
+        "turnId": "share-turn-1",
+        "entityId": "share-entity-1",
+        "productTurnId": "share-product-turn-1",
+        "createdAt": 1,
+        "createdAtSeq": 1,
+        "kind": "turnHeader",
+        "origin": "userInput",
+        "state": "completedSuccess",
+        "startedAt": 1,
+        "endedAt": 3
+      },
+      {
+        "rowId": 2,
+        "turnId": "share-turn-1",
+        "entityId": "share-entity-2",
+        "productTurnId": "share-product-turn-1",
+        "createdAt": 2,
+        "createdAtSeq": 2,
+        "kind": "userInput",
+        "text": "RLM_TASK_USER_中文",
+        "origin": "realUser"
+      },
+      {
+        "rowId": 3,
+        "turnId": "share-turn-1",
+        "entityId": "share-entity-3",
+        "productTurnId": "share-product-turn-1",
+        "createdAt": 3,
+        "createdAtSeq": 3,
+        "kind": "assistantText",
+        "text": "RLM_TASK_ASSISTANT_中文",
+        "state": "complete"
+      }
+    ],
+    "artifacts": 0
+  },
+  "targetedLint": {
+    "exitCode": 0,
+    "output": "Found 0 warnings and 0 errors.\nFinished in 11ms on 1 file with 94 rules using 16 threads."
+  }
+}

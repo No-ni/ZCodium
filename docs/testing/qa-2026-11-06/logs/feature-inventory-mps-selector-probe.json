@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-06T18:07:12.035Z",
+  "evidenceKind": "Local non-rendered DOM/CSS parser proof for a synthetic attribute only; not Electron UI or file-tree rendering evidence.",
+  "node": "v24.18.0",
+  "sourceSha256": "49dd16d7142e77fe15636b0c2286992fcf242ee6e40b380d3cc001f7729b49a9",
+  "rawSelector": "[data-testid=\"workspace-file-tree-row-C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\ZCodeProject\\.zcode-e2e\\markdown-preview-selection\"]",
+  "escapedSelector": "[data-testid=\"workspace-file-tree-row-C:\\\\vibecoding\\\\zcodium\\\\docs\\\\testing\\\\qa-2026-11-06\\\\runtime\\\\qa-menu-20261106-local-canonical\\\\.e2e-home-qa-menu-20261106-local-canonical\\\\ZCodeProject\\\\.zcode-e2e\\\\markdown-preview-selection\"]",
+  "cssParserDecodedValue": "workspace-file-tree-row-C:vibecodingzcodium\rocstestingqa-2026-11-06runtimeqa-menu-20261106-local-canonical.e2e-home-qa-menu-20261106-local-canonicalZCodeProject.zcode-e2emarkdown-preview-selection",
+  "attributeValue": "workspace-file-tree-row-C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\runtime\\qa-menu-20261106-local-canonical\\.e2e-home-qa-menu-20261106-local-canonical\\ZCodeProject\\.zcode-e2e\\markdown-preview-selection",
+  "rawSelectorMatched": false,
+  "escapedSelectorMatched": true,
+  "confirmedQaSelectorMismatch": true
+}

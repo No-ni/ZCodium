@@ -183,7 +183,7 @@ function isTerminalPhase(phase: SessionPhase): boolean {
 }
 
 function resolveTerminalUnreadSignal(
-  summary: Pick<SessionSummary, "phase" | "goalStatus">,
+  summary: Pick<SessionSummary, "phase" | "goalStatus" | "autoContinuePending">,
 ): ZCodeWorkspaceTaskListChanged["unreadSignal"] {
   if (summary.phase === "error") {
     return "background_terminal";
@@ -194,6 +194,8 @@ function resolveTerminalUnreadSignal(
   if (summary.phase === "completedInterrupted") return undefined;
   if (
     summary.phase === "completedSuccess" &&
+    // 自动队列的中间成功态仍是 terminal/ready，但工作尚未结束，不制造未读。
+    summary.autoContinuePending !== true &&
     (summary.goalStatus === undefined || summary.goalStatus === "verified")
   ) {
     return "background_terminal";
@@ -594,13 +596,14 @@ export function createZCodeTaskIndexSyncer(
   function applyTerminalTransition(
     target: ZCodeAgentSessionTarget,
     summary: SessionSummary,
-    _options?: { captureRepoSnapshot?: boolean },
+    options?: { emitLifecycleEvents?: boolean },
   ): void {
-    emitTerminalAndReady(target, summary);
+    if (options?.emitLifecycleEvents !== false) emitTerminalAndReady(target, summary);
     const failed = summary.phase === "error";
     const unreadSignal = resolveTerminalUnreadSignal(summary);
     logger.debug(undefined, "task 终态未读裁决", {
       goalStatus: summary.goalStatus ?? null,
+      autoContinuePending: summary.autoContinuePending ?? false,
       phase: summary.phase,
       taskId: target.sessionId,
       unreadSignal: unreadSignal ?? null,
@@ -683,11 +686,17 @@ export function createZCodeTaskIndexSyncer(
     // 进入基线（gateway 每个事件都 fan-out），不会漏掉真实收口。
     const becameTerminal =
       previous !== undefined && !isTerminalPhase(previous.phase) && isTerminalPhase(next.phase);
-    if (becameTerminal) {
+    // Bugfix：Goal 验证完成或自动队列清空可能只改变摘要资格，phase 仍是成功态。
+    // 以已有摘要的资格边沿补一次提醒，不能再次发 terminal/ready 放行同一输入。
+    const becameUnreadEligible =
+      previous !== undefined &&
+      resolveTerminalUnreadSignal(previous) === undefined &&
+      resolveTerminalUnreadSignal(next) !== undefined;
+    if (becameTerminal || becameUnreadEligible) {
       applyTerminalTransition(target, next, {
         // Bug 根因：deliveryKind 只描述传输方式，不能证明完成副作用已经执行。state.summaries
         // 已提供 workspace 生命周期幂等边界；running -> terminal 的 recovery 必须补投。
-        captureRepoSnapshot: true,
+        emitLifecycleEvents: becameTerminal,
       });
       return;
     }
@@ -1013,17 +1022,24 @@ export function createZCodeTaskIndexSyncer(
       return;
     }
     if (frame.payload.kind === "snapshot") {
-      if (deliveryKind === "online" && state.indexHasAppliedBase && frame.toSeq <= state.indexSeq) {
+      const previousEpoch = state.indexLogEpoch;
+      const nextEpoch = frame.payload.snapshot.logEpoch;
+      const epochChanged = previousEpoch !== null && previousEpoch !== nextEpoch;
+      if (!epochChanged && state.indexHasAppliedBase && frame.toSeq <= state.indexSeq) {
+        // Bugfix：同 epoch 的迟到恢复 snapshot 也不能倒退基线；完整帧仍确认恢复交付。
+        completeIndexRecoveryFrame(state, deliveryKind);
         return;
       }
-      state.indexLogEpoch = frame.payload.snapshot.logEpoch;
+      state.indexLogEpoch = nextEpoch;
       state.indexSeq = frame.toSeq;
       state.indexHasAppliedBase = true;
       const nextSummaries = new Map<string, SessionSummary>();
       for (const summary of frame.payload.snapshot.sessions) {
         nextSummaries.set(summary.sessionId, summary);
       }
-      if (!state.seeded) {
+      if (!state.seeded || epochChanged) {
+        // Bugfix：新 runtime 的低水位冷 snapshot 不能与旧运行/Goal 摘要比较，
+        // 否则会回放历史 terminal/ready 或未读。仅同 epoch recovery 补投真实边沿。
         // 首帧 = 静默基线：不回放历史终态、不发列表广播；仅原子补齐缺失行，
         // 防止远端/新安装的空 sqlite 因纯 V4 路径永远没有存量。
         state.summaries = nextSummaries;
@@ -1333,10 +1349,10 @@ export function createZCodeTaskIndexSyncer(
       return;
     }
     state.indexSubscriptionId = result.ack.subscriptionId;
-    state.indexLogEpoch = result.ack.logEpoch;
     state.indexSeq = 0;
     // subscribe ACK 的 epoch/seq0 只是 admission metadata；initial physical
     // frame 可能尚未齐片或校验失败。只有 logical snapshot/delta 原子 apply 后才有 base。
+    // Bugfix：保留旧摘要的已应用 epoch，才能在新 snapshot 到达时识别冷换代。
     state.indexHasAppliedBase = false;
     discardIndexRecovery(state);
     state.indexRetryAttempt = 0;
@@ -1550,7 +1566,7 @@ export function createZCodeTaskIndexSyncer(
    * gap 帧到达（订阅静默失活），ensureWorkspaceSubscription 的占位早退也不会重订。
    * 这里按 workspaceKey 重发 subscribe：帧监听挂在 workspace 级持久 emitter 上
    * （agentService wireClient 换代自动重接），只需刷新 subscriptionId 闸门；
-   * 新 snapshot 帧对已 seeded 基线走既有“断档降级 snapshot” diff 路径收敛。
+   * 新 epoch snapshot 静默重建摘要基线；同 epoch snapshot 仍按 diff 补投断档边沿。
    */
   function resubscribeWorkspaceAfterRuntimeRestart(workspaceKey: string): void {
     if (disposed) return;

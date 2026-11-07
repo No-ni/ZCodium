@@ -36,7 +36,7 @@ latest main turn enters running
 - 只对最后一个 render turn 判断，历史轮残留的 running row 不显示 `ChatLoading`。
 - turn 存在 `turnHeader` 时，`turnHeader.state` 是 running/terminal 的权威事实；已终态 header 不能被同轮残留或迟到的 running 工作行重新推成 running。
 - 兼容旧投影缺失 `turnHeader` 时，才允许从工作行兜底推导 running；`backgrounded=true` 的 tool/subagent 属于 background-only work，不参与该兜底。
-- `ChatLoading` 视觉上只渲染 loading 动画，不展示“正在思考”或其它可见文案；无障碍名称使用通用“加载中”语义。
+- `ChatLoading` 展示 loading 动画、“工作中”和已有工作时长；无障碍名称使用通用“加载中”语义。时长使用 CLI 的稳定工作段起点，无可靠事实时省略时长。
 - 最后一个主轮为 `running` 且无 blocker 时立即显示 `ChatLoading`，不等待静默窗口。
 - assistant text、reasoning、普通 tool、Explore、Agent/SubAgent 以及它们的 descendant tool 都不终止 loading；新的 projection revision 到达时保持当前 loading 可见性。
 - 当前 snapshot 存在普通 permission pending interaction，或 `toolName="AskUserQuestion"` 的 userInput pending interaction 时隐藏 `ChatLoading`。权限弹窗/问答框已经表达“正在等待用户”，不应同时展示“正在思考”。
@@ -47,6 +47,7 @@ latest main turn enters running
 - 主轮进入成功、失败、取消或停止等终态后隐藏 `ChatLoading`。
 - background task 仍运行但主轮已经 idle 时不显示 `ChatLoading`。后台任务由 background control UI 表达，不能把主聊天区永久维持在 loading。
 - 普通 assistant turn 与结构化 background-result turn 使用相同的 running 生命周期规则。
+- 切会话、重挂载、恢复可见、解除 blocker 或 retry 文案切回 loading 均不重新计时；底部、折叠工作摘要和浮动输入框复用同一工作事实。细节与回归证据见 [工作状态连续性](../specs/session-work-status-continuity.md)。
 
 ## 布局与滚动时序
 

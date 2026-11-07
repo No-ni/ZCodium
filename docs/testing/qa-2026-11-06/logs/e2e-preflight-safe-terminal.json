@@ -1,0 +1,61 @@
+{
+  "capturedAt": "2026-11-06T17:23:01.5061751Z",
+  "evidenceKind": "Actual QA runner SafeTerminal setup prefix and isolated NoProfile probe; no PTY, UI, build, profile execution or external writes",
+  "sourceSha": "e04fd689315787ecd9b747532b134fad55468a02cf20aeb10329df00cb9789ff",
+  "result": {
+    "version": "7.6.9",
+    "modulePathExact": false,
+    "moduleCacheInWorktree": true,
+    "profiles": [
+      {
+        "label": "AllUsersAllHosts",
+        "exists": false,
+        "inWorktree": false
+      },
+      {
+        "label": "AllUsersCurrentHost",
+        "exists": false,
+        "inWorktree": false
+      },
+      {
+        "label": "CurrentUserAllHosts",
+        "exists": false,
+        "inWorktree": true
+      },
+      {
+        "label": "CurrentUserCurrentHost",
+        "exists": false,
+        "inWorktree": true
+      }
+    ],
+    "externalExistingProfileCount": 0
+  },
+  "terminalApproved": false,
+  "remaining": "Suite must recheck actual launched Electron/Host environment and profiles before PTY",
+  "moduleStartupRows": [
+    {
+      "knownSystemIndex": -1,
+      "inWorktree": true,
+      "exists": false,
+      "underProgramFiles": false
+    },
+    {
+      "knownSystemIndex": 3,
+      "inWorktree": false,
+      "exists": false,
+      "underProgramFiles": true
+    },
+    {
+      "knownSystemIndex": 0,
+      "inWorktree": false,
+      "exists": true,
+      "underProgramFiles": true
+    },
+    {
+      "knownSystemIndex": 1,
+      "inWorktree": false,
+      "exists": true,
+      "underProgramFiles": false
+    }
+  ]
+}

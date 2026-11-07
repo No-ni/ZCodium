@@ -1,0 +1,143 @@
+{
+  "capturedAt": "2026-11-06T20:48:50.209Z",
+  "evidenceKind": "Read-only current matrix text and gap classification; no UI or product validation",
+  "groups": 87,
+  "notRun": [
+    "GIT-02",
+    "SET-13"
+  ],
+  "blocked": [
+    "NAV-12",
+    "GIT-02",
+    "TERM-01",
+    "SET-12",
+    "SET-13",
+    "SET-15",
+    "REM-01",
+    "REM-02",
+    "REM-03",
+    "BOT-02"
+  ],
+  "unionCount": 10,
+  "localGapGroups": [
+    {
+      "id": "GIT-02",
+      "anchor": "git-02",
+      "line": 132,
+      "entry": "diff右键：路径/定位/代码评论",
+      "evidence": "SUP-retry FLG06在任何git init/add/modify与diff UI前被inheritedGitKey安全门禁拒绝，CLI/summary实际SKIP",
+      "status": "NOT-RUN（diff交互）；BLOCKED（本树Git子进程安全前置）",
+      "remaining": "[独占门禁JSON](runtime/qa-menu-20261106-local-supplement-retry/evidence/qa-final-local-gaps-0-3-30892-1793995010062/023-FLG06.json)；不放宽环境门禁，不计Git菜单FAIL或PASS。左右行号/deleted、路径/定位/评论、移除引用与跨workspace仍缺"
+    },
+    {
+      "id": "TERM-01",
+      "anchor": "term-01",
+      "line": 135,
+      "entry": "集成终端tab/输入输出/字体/shell/profile",
+      "evidence": "C-retry TERM-TAB05关闭重开新terminal步骤通过；V-M设置owner合同；MR门禁parse失败；SUP SLM13真实门禁报profile probe unknown keys而pending，未启动PTY/echo/read",
+      "status": "partial（tab生命周期/设置合同）；BLOCKED（QA profile分类前置）",
+      "remaining": "[SLM13状态](runtime/qa-menu-20261106-local-supplement/evidence/qa-short-local-menus-0-4-31192-1793991767933/019-SLM13.json)；不得放宽外树profile边界，修QA类型合同后核shell/cwd/echo/read/office PTY。IME/resize/断线/隔离仍缺"
+    }
+  ],
+  "externalConditionGroups": [
+    {
+      "id": "NAV-12",
+      "anchor": "nav-12",
+      "line": 85,
+      "entry": "macOS 应用/文件/编辑/视图/窗口/帮助菜单",
+      "evidence": "V-M/V-L仅mock原生菜单/shortcut scope；BUG-001精确mac条件VM复现，不是mac启动验收",
+      "status": "BLOCKED（macOS真机）；partial（合同）",
+      "remaining": "需获准mac工作树修复启动分支后验证所有原生菜单、剪贴板/撤销、全屏/缩放/隐藏/退出、语言和改键"
+    },
+    {
+      "id": "SET-12",
+      "anchor": "set-12",
+      "line": 160,
+      "entry": "Source服务器：SSH/WSL/Docker配置、镜像",
+      "evidence": "QSM04标题/刷新及空态或不支持文案通过，没有配置保存/远端请求",
+      "status": "partial（入口）；BLOCKED（真实远端环境）",
+      "remaining": "本树mock补必填/port/generation/mirror确认；实际SSH/WSL/Docker需获准环境，禁止自动下载Linux运行资源"
+    },
+    {
+      "id": "SET-13",
+      "anchor": "set-13",
+      "line": 161,
+      "entry": "Source服务器：连接/断开/重启/停止/身份确认/移除",
+      "evidence": "QSM04仅父页；没有生命周期按钮动作/远端执行",
+      "status": "NOT-RUN；BLOCKED（真实远端环境）",
+      "remaining": "mock先验版本门禁、runningTasks/旧generation、取消及offline/needs-\\*；再获准远端验生命周期"
+    },
+    {
+      "id": "SET-15",
+      "anchor": "set-15",
+      "line": 163,
+      "entry": "电脑控制：开关/输入入口/权限/OS能力",
+      "evidence": "QSM14入口；MR QLA10 Windows Computer Use总开关与composer显隐标志真实持久化/切换恢复通过，未申请系统权限或操作电脑",
+      "status": "partial（Windows开关/composer显隐）；BLOCKED（macOS/权限条件）",
+      "remaining": "Win/mac能力、未知失效/缺权限、重复请求、开关写失败与子Agent禁用仍缺；真机权限和动作独立列证据"
+    },
+    {
+      "id": "REM-01",
+      "anchor": "rem-01",
+      "line": 183,
+      "entry": "手机远控弹窗：启停/QR/link/copy/refresh/连接状态",
+      "evidence": "V-M fork官方relay删除边界、V-R旧mobile fixture空遥测方法失败；没有弹窗启停与配对执行",
+      "status": "partial（审计合同）；BLOCKED（自建relay/设备）",
+      "remaining": "先用隔离mock验无配置提示/无官方回退、QR过期/refresh撤销、attachment复用；真实配对需获准自建端"
+    },
+    {
+      "id": "REM-02",
+      "anchor": "rem-02",
+      "line": 184,
+      "entry": "手机设备/项目/聊天权限/终端/未读恢复",
+      "evidence": "V-L retired-web-oauth内存bundle通过；不代表手机/Web交互或恢复链路",
+      "status": "partial（审计合同）；BLOCKED（真实手机/网络）",
+      "remaining": "320/390px真实触控与隐藏菜单；设备切换、断网replay/snapshot、未读/终端、desktop-continuous和web-remote-replayable分别验"
+    },
+    {
+      "id": "REM-03",
+      "anchor": "rem-03",
+      "line": 185,
+      "entry": "远程连接：线路/凭据目录/日志/重试取消历史",
+      "evidence": "V-M root identity/path解析合同通过；没有远程连接阶段动作",
+      "status": "partial（identity合同）；BLOCKED（获准远端）",
+      "remaining": "逐phase mock先验stale generation/身份不匹配/错误重试取消与日志净化，再真实连接；不下载Linux资源"
+    },
+    {
+      "id": "BOT-02",
+      "anchor": "bot-02",
+      "line": 187,
+      "entry": "绑定码/QR、渠道群组主题、private retry/自动化投递",
+      "evidence": "V-L AstrBot seq回放/群聊路由/权限恢复结束归属模拟通过，没有配对或真实投递",
+      "status": "partial（桥接合同）；BLOCKED（渠道/发送授权）",
+      "remaining": "补过期/拒绝/失败、task删除/remote断开/owner、mock投递去重；真实渠道需环境及明确发送授权"
+    }
+  ],
+  "failureLabels": [
+    "NAV-04",
+    "NAV-05",
+    "NAV-14",
+    "PRJ-02",
+    "PRJ-05",
+    "TSK-01",
+    "TSK-02",
+    "TSK-03",
+    "TSK-05",
+    "CMD-01",
+    "CMD-02",
+    "CMD-03",
+    "CHAT-02",
+    "CHAT-03",
+    "CHAT-05",
+    "CHAT-07",
+    "PANE-01",
+    "FILE-03",
+    "BROW-01",
+    "BROW-02",
+    "EXTRA-03",
+    "SET-03",
+    "SET-11",
+    "SET-26",
+    "AUTO-03"
+  ]
+}

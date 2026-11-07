@@ -1,0 +1,10 @@
+{
+  "capturedAt": "2026-11-06T18:36:33.3376596Z",
+  "evidenceKind": "Readonly launch readiness only; no sampler, WMI or UI",
+  "runId": "qa-menu-20261106-grp-pin-repro",
+  "runtimeExists": false,
+  "exitEvidenceExists": false,
+  "samplerSHA256": "60f647800a062a7221c9d7195d0a6d44b64b73dfd0c78ca34066aa00ecc624c7",
+  "command": "node .run-logs/qa-2026-11-06/validation/run-validation.mjs grp-pin-sampler",
+  "order": "sampler start confirmed before root wrapper; do not create runtime first"
+}

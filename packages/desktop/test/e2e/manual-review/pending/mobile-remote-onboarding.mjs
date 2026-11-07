@@ -82,7 +82,8 @@ import { ZCodeIntlProvider } from '@/i18n/IntlProvider.js';
 import { OccupationOnboarding } from '@/onboarding/OccupationOnboarding.js';
 import '@/styles.css';
 const h = React.createElement;
-const platform = { getDeviceId: () => 'browser-onboarding', reportTelemetryEvent: async () => {} };
+// 修复依据：当前平台合同已退休官方遥测端口，夹具也不能保留空方法使源码审计误报。
+const platform = { getDeviceId: () => 'browser-onboarding' };
 const broadcast = { onMessage: Event.None, send: async () => {} };
 function Fixture() {
   const [bridge, setBridge] = useState(null);

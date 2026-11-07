@@ -15,6 +15,7 @@ import {
   materializeInputHistoryEntry,
   normalizePromptInput,
   projectInputHistoryAttachments,
+  queuedInputPreparationOutcome,
 } from "./prompt-input.js";
 import type { PrepareUserExecutionBoundary, SubmitPromptOptions, ZCodeApp } from "./types.js";
 import type { CliDefaultSelection } from "./cli-default-selection.js";
@@ -101,6 +102,7 @@ export function createInputFacade(deps: CreateInputFacadeDeps): InputFacade {
   const runPromptTurn = async (
     promptInput: ReturnType<typeof normalizePromptInput>,
     options?: SubmitPromptOptions,
+    onCoreSubmitted?: () => void,
   ): Promise<TurnResult> => {
     const storedAttachments = await externalizePromptAttachments(promptInput.attachments, {
       artifactStore: deps.artifactStore,
@@ -119,6 +121,7 @@ export function createInputFacade(deps: CreateInputFacadeDeps): InputFacade {
     });
     const runtimePromptText = resolvedCommandPrompt ?? promptInput.text;
     const turnAttribution = options?.automationId ? { automationId: options.automationId } : {};
+    onCoreSubmitted?.();
     return await deps.runtime.executeTurn(runtimePromptText, storedAttachments, {
       abortSignal: options?.abortSignal,
       browserAmbientContext: options?.browserAmbientContext,
@@ -369,10 +372,21 @@ export function createInputFacade(deps: CreateInputFacadeDeps): InputFacade {
       const unsubscribe = options?.onEvent
         ? deps.runtime.subscribeEvents({ onSessionEvent: options.onEvent })
         : undefined;
+      let coreSubmitted = false;
       try {
         await preparePromptBoundary(options);
         options = deps.cliDefaultSelection?.prepareInput(options) ?? options;
-        return await runPromptTurn(promptInput, options);
+        return await runPromptTurn(promptInput, options, () => {
+          coreSubmitted = true;
+        });
+      } catch (error) {
+        // Bugfix：Core 前的已接受输入准备失败归 App；交接后只由 Core 发布终态。
+        if (!coreSubmitted) {
+          const traceContext = options?.traceContext ?? deps.traceContext;
+          const outcome = queuedInputPreparationOutcome(deps.sessionId, options, traceContext);
+          if (outcome) await deps.runtime.appendEvent(outcome, traceContext);
+        }
+        throw error;
       } finally {
         unsubscribe?.();
       }

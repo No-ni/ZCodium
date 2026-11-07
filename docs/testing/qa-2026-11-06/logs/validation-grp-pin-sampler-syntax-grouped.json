@@ -1,0 +1,8 @@
+{
+  "command": "node --check docs/testing/qa-2026-11-06/grp-pin-process-sampler.mjs",
+  "started": "2026-11-06T19:20:39.261Z",
+  "finished": "2026-11-06T19:20:39.351Z",
+  "code": 0,
+  "signal": null,
+  "node": "v24.18.0"
+}

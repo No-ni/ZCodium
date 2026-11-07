@@ -1,0 +1,15 @@
+{
+  "RunId": "qa-menu-20261106-copy-history-final",
+  "Specs": [
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-runtime-copy-find-20261106.test.ts",
+    "../../docs/testing/qa-2026-11-06/manual-review/pending/qa-historical-trajectory-20261106.test.ts"
+  ],
+  "Grep": "(?:^| )(?:RFC01:|HIST0[12]:)",
+  "ReplayFixtures": "test/e2e/fixtures/upstream/common.json,test/e2e/fixtures/upstream/conversation-session/conversation-session-chat-find-refocus.json,../../docs/testing/qa-2026-11-06/fixtures/qa-runtime-copy-find-title.json",
+  "Bootstrap": true,
+  "OpenSidePane": false,
+  "SafeTerminal": false,
+  "SafeGit": false,
+  "selected": 3,
+  "sourceEvidence": "C:\\vibecoding\\zcodium\\docs\\testing\\qa-2026-11-06\\logs\\feature-inventory-copy-history-final-preflight.json"
+}

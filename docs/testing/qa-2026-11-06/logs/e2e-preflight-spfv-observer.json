@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-06T16:17:06.024Z",
+  "evidenceKind": "TypeScript noEmit/actual tsx import/root hook registration/non-selected-case guards; no matching observer, tests or UI executed",
+  "diagnostics": [],
+  "forbiddenCalls": 0,
+  "originalBeforeAllPreserved": true,
+  "observerAfterEachRegistered": true,
+  "reloadObserverHooksRegistered": true,
+  "sha256": {
+    "observer": "b1ef292c325f92b8ae1fd4e69309afecb68f455053426fe05330fe99d0306c59",
+    "bootstrap": "709dc7e7babce08d2fa3f522fd7e0130d9af64a188f2a57b4e8a0860d07120a1"
+  }
+}

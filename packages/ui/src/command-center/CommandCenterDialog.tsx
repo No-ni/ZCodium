@@ -790,7 +790,8 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
           return (
             <CommandItem
               key={command.id}
-              value={`${title} ${command.keywords.join(" ")}`}
+              // Bugfix：建议与常规设置可同名，cmdk 选择身份必须使用命令 ID，搜索仍走 matchesCommand。
+              value={`command:${command.id}`}
               disabled={command.disabled}
               className={quickPickItemClassName}
               onSelect={() => runCommand(command)}

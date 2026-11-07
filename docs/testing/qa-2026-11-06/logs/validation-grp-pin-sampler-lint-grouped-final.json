@@ -1,0 +1,8 @@
+{
+  "command": "corepack pnpm exec oxlint docs/testing/qa-2026-11-06/grp-pin-process-sampler.mjs docs/testing/qa-2026-11-06/logs/validation-grp-pin-grouped-prelaunch.mjs",
+  "started": "2026-11-06T19:27:10.220Z",
+  "finished": "2026-11-06T19:27:10.727Z",
+  "code": 0,
+  "signal": null,
+  "node": "v24.18.0"
+}
