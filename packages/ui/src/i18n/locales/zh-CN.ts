@@ -3588,6 +3588,12 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.readOnlyField": "{field}（只读）",
   "settings.modelProvider.endpointPath": "接口路径：{format}",
   "settings.modelProvider.apiFormat": "API 格式",
+  "settings.modelProvider.requestCompression": "请求压缩",
+  "settings.modelProvider.requestCompression.off": "关闭",
+  "settings.modelProvider.requestCompression.brotli": "brotli（体积更小）",
+  "settings.modelProvider.requestCompression.gzip": "gzip（兼容性最好）",
+  "settings.modelProvider.requestCompressionDescription":
+    "只压缩上传的请求正文，不影响响应。若该渠道的网关不接受压缩请求，请关闭。",
   "settings.modelProvider.apiFormat.chatCompletions": "Chat Completions (/v1/chat/completions)",
   "settings.modelProvider.apiFormat.responses": "Responses (/responses)",
   "settings.modelProvider.apiFormat.anthropicMessages":
@@ -4422,6 +4428,7 @@ const zhCN: Record<string, string> = {
   "settings.hooks.statusMessage": "状态消息",
   "settings.hooks.statusMessagePlaceholder": "例如 正在检查工作区",
   "settings.hooks.timeoutHint": "超时时间，单位秒。",
+  "settings.hooks.timeoutInvalid": "超时时间必须是大于 0 的秒数。",
   "settings.hooks.customJson": "自定义字段 JSON",
   "settings.hooks.customJsonObjectError": "自定义字段必须是 JSON object。",
   "settings.hooks.customJsonParseError": "自定义字段 JSON 解析失败。",

@@ -1,4 +1,4 @@
-import type { ProviderApiType } from "@zcode/provider";
+import type { ProviderApiType, ProviderRequestCompression } from "@zcode/provider";
 import {
   Select,
   SelectContent,
@@ -10,6 +10,8 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   TID_MODEL_PROVIDER_API_FORMAT_ITEM,
   TID_MODEL_PROVIDER_API_FORMAT_TRIGGER,
+  TID_MODEL_PROVIDER_REQUEST_COMPRESSION_ITEM,
+  TID_MODEL_PROVIDER_REQUEST_COMPRESSION_TRIGGER,
   testId,
 } from "@zcode/shared/test-ids";
 
@@ -47,6 +49,66 @@ export function resolveProviderConnectionApiFormatDisplayLabel(
     id: PROVIDER_CONNECTION_API_FORMAT_TITLE_IDS[format],
   });
   return `${title} (${PROVIDER_CONNECTION_API_FORMAT_PATHS[format]})`;
+}
+
+// 请求压缩与 API 格式同属"渠道连接"级选择，集中在本文件维护，避免为单个下拉新增受管模块。
+export const PROVIDER_REQUEST_COMPRESSION_VALUES: readonly ProviderRequestCompression[] = [
+  "off",
+  "brotli",
+  "gzip",
+];
+
+const PROVIDER_REQUEST_COMPRESSION_TITLE_IDS: Record<ProviderRequestCompression, string> = {
+  off: "settings.modelProvider.requestCompression.off",
+  brotli: "settings.modelProvider.requestCompression.brotli",
+  gzip: "settings.modelProvider.requestCompression.gzip",
+};
+
+export function resolveProviderRequestCompressionOptions(): ProviderRequestCompression[] {
+  return [...PROVIDER_REQUEST_COMPRESSION_VALUES];
+}
+
+export function resolveProviderRequestCompressionLabel(
+  intl: { formatMessage: (descriptor: { id: string }) => string },
+  value: ProviderRequestCompression,
+): string {
+  return intl.formatMessage({ id: PROVIDER_REQUEST_COMPRESSION_TITLE_IDS[value] });
+}
+
+export function ProviderRequestCompressionSelect({
+  value,
+  onChange,
+}: {
+  value: ProviderRequestCompression;
+  onChange: (value: ProviderRequestCompression) => void;
+}) {
+  const { intl } = useZCodeIntl();
+
+  return (
+    <Select
+      value={value}
+      onValueChange={(nextValue) => onChange(nextValue as ProviderRequestCompression)}
+    >
+      <SelectTrigger
+        data-testid={TID_MODEL_PROVIDER_REQUEST_COMPRESSION_TRIGGER}
+        size="lg"
+        className="w-full justify-between"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start">
+        {PROVIDER_REQUEST_COMPRESSION_VALUES.map((option) => (
+          <SelectItem
+            key={option}
+            value={option}
+            data-testid={testId(TID_MODEL_PROVIDER_REQUEST_COMPRESSION_ITEM, option)}
+          >
+            {resolveProviderRequestCompressionLabel(intl, option)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 export function ProviderApiFormatSelect({

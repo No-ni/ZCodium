@@ -15,6 +15,7 @@ import {
   type zhipuAccountAccessDataSchema,
   type providerAccessDataSchema,
   type providerApiDataSchema,
+  type providerRequestCompressionDataSchema,
   type providerConfigDataSchema,
   type providerTemplateNameMapDataSchema,
   type providerTemplateDataSchema,
@@ -24,6 +25,8 @@ import type { ModelId, ProviderId, ProviderTemplateId } from "./ids.js";
 import type { ProviderConfigRuleData } from "./rule-data-schema.js";
 
 export type ProviderApiType = z.infer<typeof providerApiTypeDataSchema>;
+/** 渠道级请求压缩：off 关闭；brotli/gzip 压缩上传正文。 */
+export type ProviderRequestCompression = z.infer<typeof providerRequestCompressionDataSchema>;
 export type ProviderGroup = z.infer<typeof providerGroupDataSchema>;
 export type ZhipuAccountMode = z.infer<typeof zhipuAccountModeDataSchema>;
 
@@ -132,12 +135,14 @@ export class ProviderApiConfig extends ConfigOverlay<ProviderApiConfig> {
   readonly type?: ProviderApiConfigInput["type"];
   readonly baseUrl?: ProviderApiConfigInput["baseUrl"];
   readonly headers?: ProviderApiConfigInput["headers"];
+  readonly requestCompression?: ProviderApiConfigInput["requestCompression"];
 
   constructor(input: ProviderApiConfigInput = {}) {
     super();
     this.type = input.type;
     this.baseUrl = input.baseUrl;
     this.headers = input.headers ? Object.freeze({ ...input.headers }) : input.headers;
+    this.requestCompression = input.requestCompression;
     Object.freeze(this);
   }
 
@@ -146,6 +151,7 @@ export class ProviderApiConfig extends ConfigOverlay<ProviderApiConfig> {
       type: this.overlayValue(this.type, next.type),
       baseUrl: this.overlayValue(this.baseUrl, next.baseUrl),
       headers: this.overlayValue(this.headers, next.headers),
+      requestCompression: this.overlayValue(this.requestCompression, next.requestCompression),
     });
   }
 
@@ -159,6 +165,8 @@ export class ProviderApiConfig extends ConfigOverlay<ProviderApiConfig> {
       type: this.type,
       baseUrl: this.baseUrl,
       headers: this.headers,
+      // 只有用户显式选择时才落盘；off 也写出来，避免"没配过"与"明确关闭"无法区分。
+      requestCompression: this.requestCompression,
     });
   }
 }

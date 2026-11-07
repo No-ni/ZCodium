@@ -12,8 +12,9 @@ import type {
   ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
-import type { ProviderApiType } from "@zcode/provider";
+import type { ProviderApiType, ProviderRequestCompression } from "@zcode/provider";
 import { isApiKeyAccess } from "@zcode/provider";
+
 import type { ProviderModelCatalogMetadata, ProviderModelCatalogResult } from "@zcode/services";
 import {
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
@@ -55,7 +56,9 @@ import { ProviderModelMetadataDialog } from "@/settings/model-provider-section/P
 import {
   PROVIDER_CONNECTION_API_FORMATS,
   ProviderApiFormatSelect,
+  ProviderRequestCompressionSelect,
   resolveProviderConnectionApiFormatDisplayLabel,
+  resolveProviderRequestCompressionLabel,
 } from "@/settings/model-provider-section/ProviderApiFormatSelect.js";
 import { SortableProviderModelList } from "@/settings/model-provider-section/SortableProviderModelList.js";
 import { useProviderModelDraft } from "@/settings/model-provider-section/useProviderModelDraft.js";
@@ -207,9 +210,11 @@ export function ProviderConnectionSection({
   readOnly,
   apiFormat,
   baseUrlValue,
+  requestCompression,
   onApiFormatChange,
   onBaseUrlChange,
   onBaseUrlBlur,
+  onRequestCompressionChange,
   onBaseUrlKeyDown,
   onBaseUrlCompositionStart,
   onBaseUrlCompositionEnd,
@@ -218,7 +223,9 @@ export function ProviderConnectionSection({
   readOnly?: boolean;
   apiFormat: ProviderApiType;
   baseUrlValue: string;
+  requestCompression: ProviderRequestCompression;
   onApiFormatChange: (value: ProviderApiType) => void;
+  onRequestCompressionChange: (value: ProviderRequestCompression) => void;
   onBaseUrlChange: (value: string) => void;
   onBaseUrlBlur: () => void;
   onBaseUrlKeyDown?: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
@@ -262,6 +269,10 @@ export function ProviderConnectionSection({
               resolveProviderConnectionApiFormatDisplayLabel(intl, resolvedApiFormat),
             )
           : null}
+        {renderReadOnlyField(
+          intl.formatMessage({ id: "settings.modelProvider.requestCompression" }),
+          resolveProviderRequestCompressionLabel(intl, requestCompression),
+        )}
       </>
     );
   }
@@ -296,6 +307,19 @@ export function ProviderConnectionSection({
           <ProviderApiFormatSelect value={apiFormat} onChange={onApiFormatChange} />
         </div>
       ) : null}
+      {/* 压缩是渠道级传输行为：网关不支持压缩正文时只影响这一个渠道，因此和连接设置放在一起。 */}
+      <div>
+        <label className="mb-1 block text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.modelProvider.requestCompression" })}
+        </label>
+        <ProviderRequestCompressionSelect
+          value={requestCompression}
+          onChange={onRequestCompressionChange}
+        />
+        <p className="mt-1 text-ui-sm text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.modelProvider.requestCompressionDescription" })}
+        </p>
+      </div>
     </>
   );
 }

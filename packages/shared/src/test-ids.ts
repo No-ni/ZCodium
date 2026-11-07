@@ -510,6 +510,12 @@ export const TID_MODEL_PROVIDER_BASE_URL_INPUT = "model-provider-base-url-input"
 export const TID_MODEL_PROVIDER_API_FORMAT_TRIGGER = "model-provider-api-format-trigger";
 /** 模型供应商 API 格式下拉项（动态后缀为 API 格式） */
 export const TID_MODEL_PROVIDER_API_FORMAT_ITEM = "model-provider-api-format-item";
+/** 模型供应商请求压缩下拉触发器 */
+export const TID_MODEL_PROVIDER_REQUEST_COMPRESSION_TRIGGER =
+  "model-provider-request-compression-trigger";
+/** 模型供应商请求压缩下拉项（动态后缀为 off/brotli/gzip） */
+export const TID_MODEL_PROVIDER_REQUEST_COMPRESSION_ITEM =
+  "model-provider-request-compression-item";
 /** 模型供应商模型输入框（动态后缀为模型行号） */
 export const TID_MODEL_PROVIDER_MODEL_INPUT = "model-provider-model-input";
 /** 模型供应商模型删除按钮（动态后缀为模型行号） */

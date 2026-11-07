@@ -20,11 +20,15 @@ import {
   ModelErrorCode,
   ModelProtocolError,
 } from "@zcode/contracts";
-import type { RegistryProviderConfig } from "@zcode/provider";
+import type { ProviderRequestCompression, RegistryProviderConfig } from "@zcode/provider";
 import { withOpenRouterAttributionHeaders } from "@zcode/shared";
 import { createAnthropicCompatFetch } from "./anthropic-stream-compat.js";
 import { createOpenAIResponsesJsonCompatFetch } from "./openai-responses-json-compat.js";
 import { createModelOptionMapFetch, type RawRequestBodyCapture } from "./model-option-map-fetch.js";
+import {
+  createRequestCompressionFetch,
+  type RequestCompressionState,
+} from "./request-compression/index.js";
 import { createNetworkProxyFetch } from "../network/proxy-fetch.js";
 import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
@@ -41,6 +45,8 @@ interface AiSdkProviderConfig {
   headers?: Record<string, string>;
   providerOptions?: Record<string, unknown>;
   name?: string;
+  /** 渠道级请求压缩；省略等同于 off，旧配置不需要迁移。 */
+  requestCompression?: ProviderRequestCompression;
 }
 
 export interface AiSdkModelExecutionConfig {
@@ -162,6 +168,8 @@ export class AiSdkModelExecution {
   private readonly baseTransport?: ProviderFetch;
   private readonly observeTransport?: AiSdkModelExecutionOptions["observeTransport"];
   private readonly providerTransports = new Map<string, ProviderFetch>();
+  /** 「该渠道网关拒绝 brotli」的进程内记忆；不进配置、不落盘。 */
+  private readonly requestCompressionStates = new Map<string, RequestCompressionState>();
 
   constructor(config: AiSdkModelExecutionConfig = {}, options: AiSdkModelExecutionOptions = {}) {
     this.env = config.env ?? process.env;
@@ -294,13 +302,23 @@ export class AiSdkModelExecution {
             values: optionValues,
           })
         : fetch;
+    // 压缩必须包在 option map 与协议兼容层之外：那两层要读写明文 JSON 正文。
+    // off 时 createRequestCompressionFetch 直接返回内层 transport，不产生任何开销。
+    const compressing = (inner: ProviderFetch): ProviderFetch =>
+      createRequestCompressionFetch({
+        fetch: inner,
+        providerId,
+        algorithm: providerConfig.requestCompression ?? "off",
+        state: this.resolveRequestCompressionState(providerId),
+        ...(this.logger ? { logger: this.logger } : {}),
+      });
 
     switch (providerConfig.kind) {
       case "openai": {
         const provider = createOpenAI({
           apiKey,
           baseURL: providerConfig.baseURL,
-          fetch: createOpenAIResponsesJsonCompatFetch(optionFetch),
+          fetch: compressing(createOpenAIResponsesJsonCompatFetch(optionFetch)),
           headers,
         });
         return provider.responses as LanguageModelFactory;
@@ -310,7 +328,7 @@ export class AiSdkModelExecution {
         const provider = createAnthropic({
           apiKey,
           baseURL: normalizeAnthropicBaseURL(providerConfig.baseURL),
-          fetch: createAnthropicCompatFetch(optionFetch),
+          fetch: compressing(createAnthropicCompatFetch(optionFetch)),
           headers: withAnthropicAuthorizationHeader(apiKey, headers),
         });
         return provider as LanguageModelFactory;
@@ -322,7 +340,7 @@ export class AiSdkModelExecution {
         const provider = createGoogleGenerativeAI({
           apiKey,
           baseURL: providerConfig.baseURL,
-          fetch: optionFetch,
+          fetch: compressing(optionFetch),
           headers,
         });
         return provider as LanguageModelFactory;
@@ -333,7 +351,7 @@ export class AiSdkModelExecution {
           name: providerConfig.name ?? providerId,
           baseURL: providerConfig.baseURL,
           apiKey,
-          fetch: optionFetch,
+          fetch: compressing(optionFetch),
           headers,
           // OpenAI Compatible 流式 usage 需要显式请求，Usage 是执行结果的一部分。
           includeUsage: true,
@@ -348,6 +366,17 @@ export class AiSdkModelExecution {
 
   private resolveApiKey(providerConfig: AiSdkProviderConfig): string | undefined {
     return providerConfig.apiKey;
+  }
+
+  /** 同一渠道共享压缩记忆：brotli 被拒一次后不再反复尝试。 */
+  private resolveRequestCompressionState(providerId: string): RequestCompressionState {
+    const current = this.requestCompressionStates.get(providerId);
+    if (current) {
+      return current;
+    }
+    const created: RequestCompressionState = { brotliUnsupported: false };
+    this.requestCompressionStates.set(providerId, created);
+    return created;
   }
 
   private resolveProviderTransport(providerId: string): ProviderFetch {
@@ -389,6 +418,9 @@ function toAiSdkProviderConfig(
     ...(config.api.headers ? { headers: { ...config.api.headers } } : {}),
     providerOptions: { apiFormat: config.api.type },
     access: config.access,
+    ...(config.api.requestCompression
+      ? { requestCompression: config.api.requestCompression }
+      : {}),
   };
   switch (config.api.type) {
     case "anthropic-messages":

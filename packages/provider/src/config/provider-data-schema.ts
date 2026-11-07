@@ -21,6 +21,8 @@ export const zhipuAccountModeDataSchema = z.enum([
   // 加速卡访问类别；与 zcodeProviderAccountAccessSchema.mode 同值，改动需同步两处。
   "highspeed",
 ]);
+// 渠道级请求压缩：off 默认关闭；brotli/gzip 只压缩上传正文，由 CLI 传输层执行。
+export const providerRequestCompressionDataSchema = z.enum(["off", "brotli", "gzip"]);
 export const providerVisibilityDataSchema = z.enum(["visible", "hidden"]);
 export const providerLogoDataSchema = z
   .object({ type: z.literal("builtin"), key: z.string().min(1) })
@@ -70,6 +72,8 @@ export const completeProviderApiDataSchema = z
     type: providerApiTypeDataSchema,
     baseUrl: nonBlankRequiredString.pipe(z.string().url()),
     headers: z.record(z.string(), z.string()).readonly().nullable().optional(),
+    // 旧配置没有该键；省略即等同于 off，不能让既有 provider 因新增字段变不合法。
+    requestCompression: providerRequestCompressionDataSchema.optional(),
   })
   .strict();
 export const providerApiDataSchema = z

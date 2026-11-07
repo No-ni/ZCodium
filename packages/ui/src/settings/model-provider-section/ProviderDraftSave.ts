@@ -1,4 +1,8 @@
-import { isApiKeyAccess, type ProviderApiType } from "@zcode/provider";
+import {
+  isApiKeyAccess,
+  type ProviderApiType,
+  type ProviderRequestCompression,
+} from "@zcode/provider";
 import {
   getProviderFormLabel,
   type ProviderSettingsFormProvider,
@@ -9,6 +13,8 @@ export interface ProviderDraftValues {
   apiFormat: ProviderApiType;
   baseUrlValue: string;
   apiKeyValue: string;
+  /** 渠道级请求压缩；缺省展示与比较都按 off 处理。 */
+  requestCompression: ProviderRequestCompression;
 }
 
 function normalizeConfiguredBaseUrl(value: string): string {
@@ -50,19 +56,27 @@ export function resolvePendingProviderDraftSave({
   const typeChanged =
     !readOnlyEndpoints && draft.apiFormat !== (provider.config.api?.type ?? "anthropic-messages");
   const urlChanged = !readOnlyEndpoints && baseURL !== (provider.config.api?.baseUrl ?? "");
+  const compressionChanged =
+    !readOnlyEndpoints &&
+    draft.requestCompression !== (provider.config.api?.requestCompression ?? "off");
   const keyChanged =
     isApiKeyAccess(provider.config.access) &&
     draft.apiKeyValue !== (provider.config.access.apiKey ?? "");
-  if (!labelChanged && !typeChanged && !urlChanged && !keyChanged) return null;
+  if (!labelChanged && !typeChanged && !urlChanged && !compressionChanged && !keyChanged) {
+    return null;
+  }
 
   // 表单只拥有名称、连接类型、地址和 Key；重建整个 api 会删除隐藏 headers，
   // 保存 Effective 对象又会把继承字段物化。分别在各自基线上只应用修改过的叶子。
   const apiChanges = {
     ...(typeChanged || (urlChanged && !provider.config.api?.type) ? { type: draft.apiFormat } : {}),
     ...(urlChanged ? { baseUrl: baseURL || undefined } : {}),
+    ...(compressionChanged ? { requestCompression: draft.requestCompression } : {}),
   };
   const api =
-    typeChanged || urlChanged ? { ...provider.config.api, ...apiChanges } : provider.config.api;
+    typeChanged || urlChanged || compressionChanged
+      ? { ...provider.config.api, ...apiChanges }
+      : provider.config.api;
   const access =
     keyChanged && isApiKeyAccess(provider.config.access)
       ? { ...provider.config.access, apiKey: draft.apiKeyValue }
@@ -84,7 +98,7 @@ export function resolvePendingProviderDraftSave({
           },
         }
       : {}),
-    ...(typeChanged || urlChanged
+    ...(typeChanged || urlChanged || compressionChanged
       ? { api: { ...provider.personalConfig.api, ...apiChanges } }
       : {}),
   };

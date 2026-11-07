@@ -11,6 +11,7 @@ import type { ProviderModelCatalogResult } from "@zcode/services";
 import {
   isApiKeyAccess,
   type ProviderApiType,
+  type ProviderRequestCompression,
   type SavePersonalModelDraftInput,
 } from "@zcode/provider";
 import { logger } from "@/logger.js";
@@ -195,6 +196,9 @@ export function InlineEditableProviderCard({
     provider.config.api?.type ?? "anthropic-messages",
   );
   const [baseUrlValue, setBaseUrlValue] = useState(provider.config.api?.baseUrl ?? "");
+  const [requestCompression, setRequestCompression] = useState<ProviderRequestCompression>(
+    provider.config.api?.requestCompression ?? "off",
+  );
   const [apiKeyValue, setApiKeyValue] = useState(getProviderFormApiKey(provider));
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [savingEnabled, setSavingEnabled] = useState(false);
@@ -237,6 +241,7 @@ export function InlineEditableProviderCard({
     apiFormat: provider.config.api?.type ?? "anthropic-messages",
     baseUrlValue: provider.config.api?.baseUrl ?? "",
     apiKeyValue: getProviderFormApiKey(provider),
+    requestCompression: provider.config.api?.requestCompression ?? "off",
   });
 
   useEffect(() => {
@@ -244,6 +249,7 @@ export function InlineEditableProviderCard({
     const resolvedBaseUrl = provider.config.api?.baseUrl ?? "";
     const resolvedApiKey = getProviderFormApiKey(provider);
     const resolvedLabel = getProviderFormLabel(provider);
+    const resolvedCompression = provider.config.api?.requestCompression ?? "off";
     if (providerIdRef.current !== provider.providerId) {
       providerIdRef.current = provider.providerId;
       nameEditProviderIdRef.current = null;
@@ -267,6 +273,7 @@ export function InlineEditableProviderCard({
     syncField("apiFormat", resolvedApiFormat, setApiFormat);
     syncField("baseUrlValue", resolvedBaseUrl, setBaseUrlValue);
     syncField("apiKeyValue", resolvedApiKey, setApiKeyValue);
+    syncField("requestCompression", resolvedCompression, setRequestCompression);
   }, [provider]);
 
   const markDraftDirty = useCallback((field: keyof ProviderDraftValues) => {
@@ -579,6 +586,17 @@ export function InlineEditableProviderCard({
     [commitPendingDraft, markDraftDirty],
   );
 
+  const handleRequestCompressionChange = useCallback(
+    (value: ProviderRequestCompression) => {
+      markDraftDirty("requestCompression");
+      draftRef.current.requestCompression = value;
+      setRequestCompression(value);
+      // 与 API 格式一致：下拉是即时选择，选完立刻落盘，不等失焦。
+      void commitPendingDraft("request-compression-change").catch(() => undefined);
+    },
+    [commitPendingDraft, markDraftDirty],
+  );
+
   const handleApiKeyBlur = useCallback(() => {
     void commitPendingDraft("api-key-blur").catch(() => undefined);
   }, [commitPendingDraft]);
@@ -805,9 +823,11 @@ export function InlineEditableProviderCard({
           readOnly={readOnlyEndpoints}
           apiFormat={apiFormat}
           baseUrlValue={baseUrlValue}
+          requestCompression={requestCompression}
           onApiFormatChange={handleApiFormatChange}
           onBaseUrlChange={handleBaseUrlValueChange}
           onBaseUrlBlur={saveConnection}
+          onRequestCompressionChange={handleRequestCompressionChange}
           onBaseUrlKeyDown={handleTextCommitKeyDown}
           onBaseUrlCompositionStart={handleTechnicalInputCompositionStart}
           onBaseUrlCompositionEnd={handleTechnicalInputCompositionEnd}

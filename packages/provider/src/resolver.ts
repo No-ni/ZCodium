@@ -61,6 +61,10 @@ export function serializeRegistryProviderConfig(
       type: config.api.type,
       baseUrl: config.api.baseUrl,
       ...(config.api.headers == null ? {} : { headers: config.api.headers }),
+      // 压缩选择必须随 Registry 快照进入 CLI，否则传输层拿不到该渠道的开关。
+      ...(config.api.requestCompression == null
+        ? {}
+        : { requestCompression: config.api.requestCompression }),
     },
     ...(config.builtinModelIds == null ? {} : { builtinModelIds: [...config.builtinModelIds] }),
     ...(config.personalModelIds == null ? {} : { personalModelIds: [...config.personalModelIds] }),

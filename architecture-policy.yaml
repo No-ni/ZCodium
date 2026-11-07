@@ -1413,6 +1413,19 @@ modules:
       - contract
       - adapters
 
+  - id: model-request-compression
+    roots:
+      - apps/zcode-cli/packages/adapters/src/model/request-compression
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/model/request-compression/contract.ts
+      - apps/zcode-cli/packages/adapters/src/model/request-compression/index.ts
+    layers:
+      adapters: .
+    owner: model-provider
+
 global:
   acceptedUpstreamCommits:
     - commit: a60ba6a7e5a06742270ca605f5d2cc2766afa7e1
