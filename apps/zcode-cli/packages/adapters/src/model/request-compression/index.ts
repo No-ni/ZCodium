@@ -38,9 +38,10 @@ const brotliCompressAsync = promisify(brotliCompress);
 const gzipAsync = promisify(gzip);
 
 /**
- * 在最外层包一层请求压缩。
+ * 在传输层之前包一层请求压缩。
  *
- * 必须位于 option map 与协议兼容层之外：那些层要读写明文 JSON 正文，先压缩会让它们 fail-closed。
+ * 必须位于 option map 与协议兼容层之内（更贴近 wire）：那些层要读写明文 JSON 正文，
+ * 先压缩会让它们 fail-closed（option map 抛 "Model option maps require a JSON text request body."）。
  */
 export function createRequestCompressionFetch(options: RequestCompressionFetchOptions): ProviderFetch {
   if (options.algorithm === "off") {
@@ -58,8 +59,9 @@ export function createRequestCompressionFetch(options: RequestCompressionFetchOp
       return options.fetch(input, init);
     }
 
-    // 必须接住抛错而不是让异常直接冒泡：内层 business-error 层把非 2xx 转成了异常，
-    // 若异常冒泡，下面的 brotli 降级分支永远不会执行，用户只会看到一个无法归因的 4xx。
+    // 内层既可能是纯 transport（返回 415 响应），也可能被 business-error 层包住而把非 2xx
+    // 转成异常（装配顺序变化时会这样）。两种形态都必须接住，否则 brotli 降级分支永远不执行，
+    // 用户只会看到一个无法归因的 4xx。
     const outcome = await sendCompressedAttempt(attempt, options);
     if (attempt.algorithm !== "brotli") {
       return unwrapAttempt(outcome);

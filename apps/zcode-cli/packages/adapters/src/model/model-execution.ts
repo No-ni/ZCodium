@@ -287,8 +287,20 @@ export class AiSdkModelExecution {
     // 修复依据：用户自带 Key 的请求沿用配置地址和静态头，不恢复官方账号网关或请求归因。
     const headers = providerConfig.headers;
     const providerTransport = this.resolveProviderTransport(providerId);
-    const fetch = createProviderBusinessErrorFetch({
+    // 修复依据：option map 与协议兼容层都要读写明文 JSON 正文。压缩若包在它们外层，它们
+    // 拿到的就是 ArrayBuffer，option map 会 fail-closed 抛
+    // "Model option maps require a JSON text request body."，请求根本发不出去。
+    // 因此压缩只能贴在最靠近 wire 的一层：option map 改完正文之后才压成字节。
+    // off 时 createRequestCompressionFetch 直接返回内层 transport，不产生任何开销。
+    const compressedTransport = createRequestCompressionFetch({
       fetch: providerTransport,
+      providerId,
+      algorithm: providerConfig.requestCompression ?? "off",
+      state: this.resolveRequestCompressionState(providerId),
+      ...(this.logger ? { logger: this.logger } : {}),
+    });
+    const fetch = createProviderBusinessErrorFetch({
+      fetch: compressedTransport,
       providerId,
       providerKind: providerConfig.kind,
       streamTiming,
@@ -302,23 +314,13 @@ export class AiSdkModelExecution {
             values: optionValues,
           })
         : fetch;
-    // 压缩必须包在 option map 与协议兼容层之外：那两层要读写明文 JSON 正文。
-    // off 时 createRequestCompressionFetch 直接返回内层 transport，不产生任何开销。
-    const compressing = (inner: ProviderFetch): ProviderFetch =>
-      createRequestCompressionFetch({
-        fetch: inner,
-        providerId,
-        algorithm: providerConfig.requestCompression ?? "off",
-        state: this.resolveRequestCompressionState(providerId),
-        ...(this.logger ? { logger: this.logger } : {}),
-      });
 
     switch (providerConfig.kind) {
       case "openai": {
         const provider = createOpenAI({
           apiKey,
           baseURL: providerConfig.baseURL,
-          fetch: compressing(createOpenAIResponsesJsonCompatFetch(optionFetch)),
+          fetch: createOpenAIResponsesJsonCompatFetch(optionFetch),
           headers,
         });
         return provider.responses as LanguageModelFactory;
@@ -328,7 +330,7 @@ export class AiSdkModelExecution {
         const provider = createAnthropic({
           apiKey,
           baseURL: normalizeAnthropicBaseURL(providerConfig.baseURL),
-          fetch: compressing(createAnthropicCompatFetch(optionFetch)),
+          fetch: createAnthropicCompatFetch(optionFetch),
           headers: withAnthropicAuthorizationHeader(apiKey, headers),
         });
         return provider as LanguageModelFactory;
@@ -340,7 +342,7 @@ export class AiSdkModelExecution {
         const provider = createGoogleGenerativeAI({
           apiKey,
           baseURL: providerConfig.baseURL,
-          fetch: compressing(optionFetch),
+          fetch: optionFetch,
           headers,
         });
         return provider as LanguageModelFactory;
@@ -351,7 +353,7 @@ export class AiSdkModelExecution {
           name: providerConfig.name ?? providerId,
           baseURL: providerConfig.baseURL,
           apiKey,
-          fetch: compressing(optionFetch),
+          fetch: optionFetch,
           headers,
           // OpenAI Compatible 流式 usage 需要显式请求，Usage 是执行结果的一部分。
           includeUsage: true,

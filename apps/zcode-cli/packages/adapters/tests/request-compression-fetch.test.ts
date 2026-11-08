@@ -1,5 +1,13 @@
+import { readFile } from "node:fs/promises";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
+import {
+  createRegistryModelConfig,
+  createRegistryProviderConfig,
+  parseProviderConfig,
+  parseZCodeBuiltinModelConfigRules,
+} from "@zcode/provider";
+import { AiSdkModelAdapter } from "../src/model/runner.js";
 import {
   createRequestCompressionFetch,
   type RequestCompressionState,
@@ -186,5 +194,89 @@ describe("request compression fetch", () => {
     const request = captured[0]!.request;
     expect(request.headers.has("content-encoding")).toBe(false);
     await expect(request.text()).resolves.toBe("not-json");
+  });
+});
+
+// 回归：压缩层曾被错误地放在 option map 之外，导致 map 层拿不到明文正文而 fail-closed，
+// 报 "Model option maps require a JSON text request body."，请求根本发不出去。
+// 这里贯通到 SDK 序列化与 wire 字节，锁定「map 先改写明文、压缩最后上网」的顺序。
+describe("compression layered under model option maps", () => {
+  it("keeps the plaintext body available to option maps and compresses only afterwards", async () => {
+    const provider = createRegistryProviderConfig(
+      parseProviderConfig({
+        group: "standard-personal",
+        access: { type: "api-key", apiKey: "fixture" },
+        api: {
+          type: "openai-chat-completions",
+          baseUrl: "https://fixture.invalid/v1",
+          requestCompression: "brotli",
+        },
+      }),
+    );
+    if (!provider.ok) throw new Error("invalid fixture");
+
+    let encoding: string | null | undefined;
+    let wireBody: unknown;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      const bytes = new Uint8Array(await request.arrayBuffer());
+      encoding = request.headers.get("content-encoding");
+      wireBody =
+        encoding === "br" ? JSON.parse(brotliDecompressSync(bytes).toString("utf8")) : undefined;
+      return Response.json({
+        id: "fixture",
+        object: "chat.completion",
+        created: 1,
+        model: "glm-5.3-flash",
+        choices: [
+          { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      });
+    });
+
+    const release = JSON.parse(
+      await readFile(
+        new URL("../../../../../config/provider/zcode-builtin.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const rules = parseZCodeBuiltinModelConfigRules(release.config.modelConfigRules);
+    const builtin = createRegistryModelConfig(
+      rules.resolve({
+        providerId: "fixture",
+        modelId: "glm-5.3-flash",
+        apiType: "openai-chat-completions",
+        baseUrl: "https://fixture.invalid/v1",
+      }),
+    );
+    if (!builtin.ok) throw new Error("invalid fixture");
+    // 只替换 optionSpecs：其余字段保持真实 Model 配置，避免把契约定死在测试里。
+    const modelConfig = {
+      ...builtin.config,
+      optionSpecs: {
+        reasoningLevel: { values: ["high"], map: "{}" },
+        maxOutputTokens: { max: 8192, map: "{}" },
+      },
+    } as typeof builtin.config;
+
+    try {
+      const adapter = new AiSdkModelAdapter({ env: {}, retry: { maxAttempts: 1 } });
+      const model = adapter.createModel({
+        providerId: "fixture",
+        modelId: "glm-5.3-flash",
+        modelConfig,
+        providerConfig: provider.config,
+        options: { reasoningLevel: "high", maxOutputTokens: 4096 },
+      });
+      await model.generateText({
+        messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(encoding).toBe("br");
+    expect(wireBody).toMatchObject({ model: "glm-5.3-flash" });
   });
 });

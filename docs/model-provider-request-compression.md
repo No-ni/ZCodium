@@ -41,7 +41,7 @@ providerRequestCompressionDataSchema = z.enum(["off", "brotli", "gzip"]);
 
 ```ts
 createRequestCompressionFetch({
-  fetch,      // 内层 transport（已完成代理、证书、路由、option map、协议兼容）
+  fetch,      // 内层 transport（已完成代理与证书；压缩层紧贴其上）
   providerId, // 只用于日志与记忆分桶
   algorithm,  // off 时直接返回 fetch 本体
   state,      // 跨请求共享的按渠道记忆
@@ -51,10 +51,13 @@ createRequestCompressionFetch({
 装配顺序（`model-execution.ts` 的 `createFactory`，由内到外）：
 
 ```text
-proxy/CA transport → business-error → option-map → 协议兼容层 → 压缩层 → SDK
+proxy/CA transport → 压缩层 → business-error → option-map → 协议兼容层 → SDK
 ```
 
-压缩层必须在最外层：option map 与协议兼容层都要读取**明文** JSON 正文，先压会导致它们 fail-closed。
+压缩层必须位于 option map 与协议兼容层**之内**（更贴近 wire）：那两层要读写**明文** JSON 正文，
+把压过的 `ArrayBuffer` 交给它们会 fail-closed（option map 直接抛
+`Model option maps require a JSON text request body.`，请求发不出去）。
+压缩只能发生在正文改写完成之后、真正上网之前。
 
 设置页入口（`ProviderRequestCompressionSelect`，定义在
 `packages/ui/src/settings/model-provider-section/ProviderApiFormatSelect.tsx`，在渠道卡片「连接」区块渲染）：
@@ -64,6 +67,7 @@ proxy/CA transport → business-error → option-map → 协议兼容层 → 压
 
 ```text
 SDK 发起请求
+  → option map / 协议兼容层按明文 JSON 改写正文（压缩层在其内侧，因此看到的是改写后的正文）
   → 压缩层读取正文（非文本则直接透传）
   → brotli/gzip 压缩 + 写 content-encoding，丢弃旧 content-length
   → 内层 transport 发送（返回 Response，或抛错）
@@ -84,6 +88,8 @@ SDK 发起请求
 8. 内层以 `ProviderBusinessError`（`statusCode: 415`）抛错时：仍先试 br、再以 gzip 重发一次，
    最终把 gzip 那次的错误原样抛出；该渠道同样被记为 brotli 不可用。
 9. 调用方已带 `content-encoding`：正文与头部原样发送，不再叠加压缩。
+10. 渠道同时配置 option map（如 `reasoningLevel.map`）与压缩：option map 仍能改写明文正文，
+    改完的正文才被压缩上网；不会出现 `Model option maps require a JSON text request body.`。
 
 ## 已知限制
 
