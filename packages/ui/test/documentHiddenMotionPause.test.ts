@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DOCUMENT_HIDDEN_ATTRIBUTE,
+  DOCUMENT_MOTION_PERSISTENT_ATTRIBUTE,
   installDocumentHiddenMotionPause,
 } from "../src/lib/documentHiddenMotionPause.js";
 
@@ -56,6 +57,11 @@ test("dispose removes its listener and marker, and reinstall owns future updates
   assert.equal(doc.attributes.has(DOCUMENT_HIDDEN_ATTRIBUTE), true);
   doc.setVisibility("visible");
   assert.equal(doc.attributes.has(DOCUMENT_HIDDEN_ATTRIBUTE), false);
+});
+
+test("hidden 与常驻动画标记各自独立，避免复用同一个属性名", () => {
+  assert.equal(DOCUMENT_HIDDEN_ATTRIBUTE, "data-document-hidden");
+  assert.equal(DOCUMENT_MOTION_PERSISTENT_ATTRIBUTE, "data-motion-persistent");
 });
 
 test("each document reads and writes only its own visibility", (t) => {

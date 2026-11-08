@@ -8,7 +8,7 @@ const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("document visibility, cleanup and isolation regressions execute", async () => {
   const { tests } = await runSourceTests(["packages/ui/test/documentHiddenMotionPause.test.ts"]);
-  assert.equal(tests, 3);
+  assert.equal(tests, 4);
 });
 
 test("desktop, web and independent mobile entry install before any React root", async () => {
@@ -34,9 +34,27 @@ test("desktop, web and independent mobile entry install before any React root", 
 test("hidden CSS suppresses transitions and animations for descendants and pseudo elements", async () => {
   const css = await read("packages/ui/src/styles.css");
   assert.ok(
-    /html\[data-document-hidden\] \*,\s*html\[data-document-hidden\] \*::before,\s*html\[data-document-hidden\] \*::after\s*\{\s*transition: none !important;\s*animation: none !important;\s*\}/.test(
+    /html\[data-document-hidden\] \*:not\(\[data-motion-persistent\], \[data-motion-persistent\] \*\),\s*html\[data-document-hidden\] \*:not\(\[data-motion-persistent\], \[data-motion-persistent\] \*\)::before,\s*html\[data-document-hidden\] \*:not\(\[data-motion-persistent\], \[data-motion-persistent\] \*\)::after\s*\{\s*transition: none !important;\s*animation: none !important;\s*\}/.test(
       css,
     ),
     "Hidden descendants and pseudo elements must disable CSS motion",
   );
+});
+
+test("常驻动画子树不参与 hidden 暂停，侧栏展开动画不会在恢复可见时重播", async () => {
+  const css = await read("packages/ui/src/styles.css");
+  const lib = await read("packages/ui/src/lib/documentHiddenMotionPause.ts");
+  const sidebar = await read("packages/ui/src/project-sidebar/index.tsx");
+  assert.match(
+    lib,
+    /export const DOCUMENT_MOTION_PERSISTENT_ATTRIBUTE = "data-motion-persistent";/,
+    "常驻动画标记必须有唯一来源",
+  );
+  assert.match(
+    sidebar,
+    /data-motion-persistent=""/,
+    "侧栏折叠动画是常驻进入动画，必须排除在 hidden 暂停之外",
+  );
+  // 豁免必须写在隐藏规则的选择器里：另一条规则无法「还原」被 !important 清掉的动画。
+  assert.match(css, /:not\(\[data-motion-persistent\], \[data-motion-persistent\] \*\)/);
 });

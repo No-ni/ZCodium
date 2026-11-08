@@ -208,7 +208,14 @@ export const ProjectSidebar = memo(function ProjectSidebar(props: ProjectSidebar
   return (
     <ProjectTaskListContext.Provider value={taskPresentation}>
       <SidebarTooltipProvider>
-        <aside data-testid={TID_SIDEBAR} className="flex h-full min-h-0 flex-col overflow-hidden">
+        {/* Bug 根因：侧栏展开动画是常驻挂载的进入动画，hidden 暂停会在恢复可见时把它从 0 重播，
+            表现为每次切回窗口项目列表像被清空重载；侧栏因此不参与后台动画暂停。见
+            packages/ui/src/lib/documentHiddenMotionPause.ts。 */}
+        <aside
+          data-testid={TID_SIDEBAR}
+          data-motion-persistent=""
+          className="flex h-full min-h-0 flex-col overflow-hidden"
+        >
           <div
             className={`h-12 shrink-0 [app-region:drag] ${props.isWebRemoteControl ? "max-md:hidden" : ""}`}
           />

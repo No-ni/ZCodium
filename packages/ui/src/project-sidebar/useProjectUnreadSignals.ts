@@ -5,6 +5,10 @@ import type {
   WebRemoteControlStatus,
   WindowHostTaskUnreadSignal,
 } from "@/project-sidebar/contract.js";
+import {
+  planForegroundCompletionFlush,
+  type ForegroundCompletionRecord,
+} from "@/project-sidebar/foregroundCompletionPlan.js";
 import { mutateProjectTask, readProjectTaskMeta } from "@/project-sidebar/task-mutation.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
@@ -13,13 +17,10 @@ import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { onTaskNavigationCommitted } from "@/store/zcodeSessionStoreNavigation.js";
 import { logger } from "@/logger.js";
 
-/** 前台完成补记记录：written=已补写，marker=补写回包的未读版本（自动清除的 CAS 凭据）。 */
-interface ForegroundCompletionEntry {
-  target: WindowHostTaskUnreadSignal["address"];
-  written: boolean;
-  marker?: number;
-}
-type ForegroundCompletionMap = Map<string, ForegroundCompletionEntry>;
+type ForegroundCompletionMap = Map<
+  string,
+  ForegroundCompletionRecord<WindowHostTaskUnreadSignal["address"]>
+>;
 
 /** 目录 Provider 是唯一消费者；只保存接收水位与在途命令，不另存一份未读状态。 */
 export function useProjectUnreadSignals(
@@ -83,8 +84,15 @@ export function useProjectUnreadSignals(
     // 后旧实例未完成的命令由新实例按共享记录继续，不会静默跳过或重复写入。
     const flushOnLeave = () => {
       const writes: Array<Promise<void>> = [];
-      for (const [key, entry] of foregroundCompletions) {
-        if (entry.written) continue;
+      // 只有「离开这一刻仍在面前」的前台完成才补写未读：用户已在窗口内导航离开
+      // （切换任务、新开会话）说明结果早被看到，记录直接作废。旧实现无条件补写，
+      // 会让早已离开的任务在下次失焦/回窗口时被点亮成自动清除覆盖不到的未读。
+      // 见 foregroundCompletionPlan.ts 与 docs/ui/task-unread-state.md。
+      const plan = planForegroundCompletionFlush(foregroundCompletions, (target) =>
+        isDesktopViewing(target) || isRemoteViewing(target),
+      );
+      for (const key of plan.drop) foregroundCompletions.delete(key);
+      for (const [key, entry] of plan.flush) {
         // 已有在途补写：等待它完成（而不是跳过）。跳过会让紧随其后的
         // 自动清除读不到 marker，未读会永久卡在正打开的任务上。
         const pendingWrite = foregroundPendingWritesRef.current.get(key);
