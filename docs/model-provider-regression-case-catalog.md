@@ -179,3 +179,26 @@ SR87-06 的旧自动化 fixture 在 Electron/Host 退出后同时回退该记录
 
 F-OFFPEAK-002 使用隔离网关的确定性文本响应与请求记录场景：真实表单创建、取票和 scheduler 仍完整执行，验证 Team headers、ticket 与模型身份，不依赖真实上游或管理场景的排队窗口。
 此例不能开启 `ZCODE_OFFPEAK_MOCK`：该开关会固定返回个人假凭证。网关由测试 launcher 独立启动，控制面代理票据请求并给出闲时曝光配置，Host 仍通过真实账号选择解析 Team 身份。
+
+## 渠道出站压缩保存回归（2026-11-10）
+
+产品规则见 [渠道级模型请求压缩](model-provider-request-compression.md)。以下行为 accepted；自动化候选
+保持 `settings/manual-review/pending/provider-request-compression-save.test.ts`，不自动转正或加入 CI。
+
+| Case ID       | 优先级 | 场景与操作                                                                                        | 预期结果                                                             | 不应发生                                              |
+| ------------- | ------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- |
+| PCOMP-SAVE-01 | P1     | 延迟第一次保存，依次选择 off → brotli → off，以及 off → brotli → gzip；释放保存后关闭并重开设置。 | 等待期间显示最后选择；持久化和重开后的 UI 一致；一次只提交一个草稿。 | UI 显示 off/gzip，实际保存 Brotli；旧成功覆盖新草稿。 |
+| PCOMP-SAVE-02 | P1     | 延迟 Brotli 保存，继续选 gzip；使第一次 RPC 保存失败，点击重试。                                  | 显示失败和重试入口；重试保存最新 gzip 草稿；失败不改写文件。         | 失败被旧 revision 丢弃；重试再次提交过期 Brotli。     |
+
+PCOMP-SAVE-03/04 同样 accepted：保存期间打开删除确认，取消后恢复最新 off 草稿；确认删除后再释放
+被延迟的旧保存回执，渠道仍不存在，不再提交第二份草稿。两条均由同一候选验证，不借运行时延时猜测顺序。
+
+PCOMP-SAVE-05 同样 accepted：延迟启停保存，继续修改压缩为 Brotli，释放后只有一条串行补保存；
+最终启停值与最新压缩在真实配置文件、当前 UI 和关闭重开后的 UI 中一致。
+
+用例只操作隔离 HOME 的合成渠道，不发模型请求。保存时序由测试拦截该渠道的一条 RPC 帧控制，
+释放后仍经过真实配置服务与持久化；失败场景注入协议错误回执，不改生产代码或引入测试专用写入入口。
+
+2026-11-11 最终 Windows Electron 运行 PCOMP-SAVE-01 两种选择及 PCOMP-SAVE-02–05 共 **6/6** 通过，
+证据见 [004 运行报告](../packages/desktop/.e2e-artifacts/desktop-e2e-compression-20261111-004/summary.md)。
+状态为 `covered / pending-review`；未执行真实网关、macOS 或实体手机验收。

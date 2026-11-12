@@ -1,12 +1,6 @@
-// 渠道级请求压缩：只压缩上传正文，不改变响应处理。
-// 参考 No-ni/dsh-plugin-model-request-accelerator 的请求体压缩思路，按本仓传输层装配方式重写。
-
-import { brotliCompress, gzip } from "node:zlib";
+// 渠道级请求压缩：只编码上传正文，明文改写与响应处理仍由外层负责。
 import { promisify } from "node:util";
-import type {
-  RequestCompressionAlgorithm,
-  RequestCompressionFetchOptions,
-} from "./contract.js";
+import type { RequestCompressionAlgorithm, RequestCompressionFetchOptions } from "./contract.js";
 
 type ProviderFetch = typeof globalThis.fetch;
 
@@ -16,100 +10,137 @@ export type {
   RequestCompressionState,
 } from "./contract.js";
 
-/** 已解析出的实际压缩方式：只在开启时才存在。 */
 type ActiveCompressionAlgorithm = Exclude<RequestCompressionAlgorithm, "off">;
-
 const CONTENT_ENCODING_HEADER = "content-encoding";
 const CONTENT_LENGTH_HEADER = "content-length";
 const CONTENT_TYPE_HEADER = "content-type";
-// 只压缩 JSON 正文：multipart、二进制媒体和流式正文由调用方原样发送。
-const JSON_CONTENT_TYPE_PATTERN = /\bapplication\/(?:[\w.+-]*\+)?json\b/iu;
-// 网关拒绝压缩正文时通常先落到这两个状态码，用来触发一次 gzip 降级重发。
-const COMPRESSION_REJECTED_STATUSES = new Set([400, 415]);
-// 内层 business-error 层对非 2xx 会直接抛错，HTTP 状态只能从这些结构化字段读回。
-// 只读结构化字段、不读错误文本，避免按文案做流程判断。
+const JSON_CONTENT_TYPE_PATTERN = /^application\/(?:[\w.+-]+\+)?json(?:\s*;|$)/iu;
+const UNSUPPORTED_MEDIA_TYPE_STATUS = 415;
+const BROTLI_QUALITY = 4;
 const ERROR_HTTP_STATUS_FIELDS = ["responseStatus", "statusCode"] as const;
 const CONTENT_ENCODING_BY_ALGORITHM: Record<ActiveCompressionAlgorithm, string> = {
   brotli: "br",
   gzip: "gzip",
 };
 
-const brotliCompressAsync = promisify(brotliCompress);
-const gzipAsync = promisify(gzip);
-
-/**
- * 在传输层之前包一层请求压缩。
- *
- * 必须位于 option map 与协议兼容层之内（更贴近 wire）：那些层要读写明文 JSON 正文，
- * 先压缩会让它们 fail-closed（option map 抛 "Model option maps require a JSON text request body."）。
- */
-export function createRequestCompressionFetch(options: RequestCompressionFetchOptions): ProviderFetch {
-  if (options.algorithm === "off") {
-    return options.fetch;
-  }
-
-  return async (input, init) => {
-    const attempt = await createCompressedAttempt(
-      input,
-      init,
-      resolveActiveAlgorithm(options),
-      options,
-    );
-    if (!attempt) {
-      return options.fetch(input, init);
-    }
-
-    // 内层既可能是纯 transport（返回 415 响应），也可能被 business-error 层包住而把非 2xx
-    // 转成异常（装配顺序变化时会这样）。两种形态都必须接住，否则 brotli 降级分支永远不执行，
-    // 用户只会看到一个无法归因的 4xx。
-    const outcome = await sendCompressedAttempt(attempt, options);
-    if (attempt.algorithm !== "brotli") {
-      return unwrapAttempt(outcome);
-    }
-    const rejectedStatus = readRejectedStatus(outcome);
-    if (rejectedStatus === undefined || !COMPRESSION_REJECTED_STATUSES.has(rejectedStatus)) {
-      return unwrapAttempt(outcome);
-    }
-
-    // 网关不认 br 时必须自己降级，否则用户只会看到一个无法归因的 4xx。
-    // 正文仍在内存里，因此重发是安全的；只重发一次，避免把真正的报文错误放大成两条请求。
-    await discardAttemptBody(outcome);
-    if (options.state) {
-      options.state.brotliUnsupported = true;
-    }
-    options.logger?.warn("provider request compression downgraded to gzip", {
-      providerId: options.providerId,
-      // 不能用 status：LogContext 的 status 是生命周期枚举，这里要表达的是 HTTP 状态码。
-      responseStatus: rejectedStatus,
-    });
-
-    const gzipAttempt = await createCompressedAttempt(input, init, "gzip", options);
-    if (!gzipAttempt) {
-      return options.fetch(input, init);
-    }
-    return unwrapAttempt(await sendCompressedAttempt(gzipAttempt, options));
-  };
+interface RequestBodySnapshot {
+  readonly input: RequestInfo | URL;
+  readonly init: RequestInit;
+  readonly headers: Headers;
+  readonly bodyText: string;
+  readonly signal?: AbortSignal | null;
 }
 
 interface CompressedAttempt {
   readonly request: RequestInfo | URL;
   readonly init?: RequestInit;
-  readonly algorithm: ActiveCompressionAlgorithm;
 }
 
-/** 一次发送的结果：把「返回响应」和「抛出错误」统一成一个值，供降级判断读取状态码。 */
 type AttemptOutcome =
   | { readonly kind: "response"; readonly response: Response }
   | { readonly kind: "failure"; readonly error: unknown };
 
-function resolveActiveAlgorithm(options: RequestCompressionFetchOptions): ActiveCompressionAlgorithm {
-  return options.algorithm === "brotli" && !options.state?.brotliUnsupported ? "brotli" : "gzip";
+/** 压缩层位于 option map / 协议兼容层之内，紧贴 transport。 */
+export function createRequestCompressionFetch(
+  options: RequestCompressionFetchOptions,
+): ProviderFetch {
+  if (options.algorithm === "off") return options.fetch;
+
+  return async (input, init) => {
+    const signal =
+      init?.signal === undefined && input instanceof Request ? input.signal : init?.signal;
+    // 根因：原实现直到底层 fetch 才看 signal，已取消的请求仍执行昂贵压缩。
+    signal?.throwIfAborted();
+    const snapshot = captureRequestBody(input, init, signal);
+    if (!snapshot) return options.fetch(input, init);
+
+    const algorithm =
+      options.algorithm === "brotli" && !options.state?.brotliUnsupported ? "brotli" : "gzip";
+    const attempt = await createCompressedAttempt(snapshot, algorithm, options);
+    const outcome = await sendCompressedAttempt(attempt, options, signal);
+    rejectCancelledOutcome(outcome, signal);
+    const rejectedStatus = readRejectedStatus(outcome);
+    // 普通 400 包含参数/上下文错误，不能证明 br 不可用，也不能丢弃原错误体重发。
+    if (algorithm !== "brotli" || rejectedStatus !== UNSUPPORTED_MEDIA_TYPE_STATUS) {
+      return unwrapAttempt(outcome);
+    }
+
+    discardAttemptBody(outcome);
+    signal?.throwIfAborted();
+    // 重发复用首个 await 前捕获的正文和头；不能重新读取已被调用方改写的 init。
+    const gzipAttempt = await createCompressedAttempt(snapshot, "gzip", options);
+    const retried = await sendCompressedAttempt(gzipAttempt, options, signal);
+    rejectCancelledOutcome(retried, signal);
+    // gzip 仍失败不能证明成功降级，否则参数错误会把整个渠道永久降为 gzip。
+    if (retried.kind === "response" && retried.response.ok) {
+      if (options.state) options.state.brotliUnsupported = true;
+      options.logger?.warn("provider request compression downgraded to gzip", {
+        providerId: options.providerId,
+        responseStatus: rejectedStatus,
+      });
+    }
+    return unwrapAttempt(retried);
+  };
+}
+
+function captureRequestBody(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  signal: AbortSignal | null | undefined,
+): RequestBodySnapshot | undefined {
+  // Request 自带的正文已统一为流，无法确认来自字符串还是无限流；不能 clone().text() 无界读取。
+  if (typeof init?.body !== "string" || init.body.length === 0) return undefined;
+  const headers = new Headers(
+    init.headers ?? (input instanceof Request ? input.headers : undefined),
+  );
+  if (
+    headers.has(CONTENT_ENCODING_HEADER) ||
+    !isJsonContentType(headers.get(CONTENT_TYPE_HEADER))
+  ) {
+    return undefined;
+  }
+  return {
+    input: input instanceof URL ? new URL(input.href) : input,
+    init: { ...init },
+    headers,
+    bodyText: init.body,
+    signal,
+  };
+}
+
+async function createCompressedAttempt(
+  snapshot: RequestBodySnapshot,
+  algorithm: ActiveCompressionAlgorithm,
+  options: RequestCompressionFetchOptions,
+): Promise<CompressedAttempt> {
+  snapshot.signal?.throwIfAborted();
+  const body = await waitForCompressionOrAbort(
+    compressBodyText(snapshot.bodyText, algorithm, snapshot.signal),
+    snapshot.signal,
+  );
+  snapshot.signal?.throwIfAborted();
+  const headers = new Headers(snapshot.headers);
+  headers.set(CONTENT_ENCODING_HEADER, CONTENT_ENCODING_BY_ALGORITHM[algorithm]);
+  headers.delete(CONTENT_LENGTH_HEADER);
+  options.logger?.debug("provider request compressed", {
+    providerId: options.providerId,
+    algorithm,
+    originalBytes: Buffer.byteLength(snapshot.bodyText, "utf8"),
+    compressedBytes: body.byteLength,
+  });
+  const init = { ...snapshot.init, body, headers };
+  return snapshot.input instanceof Request
+    ? { request: new Request(snapshot.input, init) }
+    : { request: snapshot.input, init };
 }
 
 async function sendCompressedAttempt(
   attempt: CompressedAttempt,
   options: RequestCompressionFetchOptions,
+  signal?: AbortSignal | null,
 ): Promise<AttemptOutcome> {
+  // await 压缩结果到调用 transport 之间仍可能取消，发送入口必须再次检查，不能只靠原生 fetch。
+  signal?.throwIfAborted();
   try {
     return { kind: "response", response: await options.fetch(attempt.request, attempt.init) };
   } catch (error) {
@@ -118,134 +149,81 @@ async function sendCompressedAttempt(
 }
 
 function unwrapAttempt(outcome: AttemptOutcome): Response {
-  if (outcome.kind === "response") {
-    return outcome.response;
-  }
+  if (outcome.kind === "response") return outcome.response;
   throw outcome.error;
 }
 
 function readRejectedStatus(outcome: AttemptOutcome): number | undefined {
-  return outcome.kind === "response" ? outcome.response.status : readErrorHttpStatus(outcome.error);
-}
-
-function readErrorHttpStatus(error: unknown): number | undefined {
-  if (typeof error !== "object" || error === null) {
-    return undefined;
-  }
+  if (outcome.kind === "response") return outcome.response.status;
+  const error = outcome.error;
+  if (typeof error !== "object" || error === null) return undefined;
   const record = error as Record<string, unknown>;
   for (const field of ERROR_HTTP_STATUS_FIELDS) {
     const value = record[field];
-    if (typeof value === "number" && Number.isInteger(value)) {
-      return value;
-    }
+    if (typeof value === "number" && Number.isInteger(value)) return value;
   }
   return undefined;
 }
 
-async function discardAttemptBody(outcome: AttemptOutcome): Promise<void> {
-  if (outcome.kind !== "response") {
-    return;
-  }
-  try {
-    await outcome.response.body?.cancel();
-  } catch {
-    // 少数运行时不支持取消已开始的响应流；丢弃失败不影响重发。
-  }
+function discardAttemptBody(outcome: AttemptOutcome): void {
+  if (outcome.kind !== "response") return;
+  // 不等待取消流的底层清理，否则迟迟未结束的错误流会阻塞重发/取消。
+  void outcome.response.body?.cancel().catch(() => undefined);
 }
 
-async function createCompressedAttempt(
-  input: RequestInfo | URL,
-  init: RequestInit | undefined,
-  algorithm: ActiveCompressionAlgorithm,
-  options: RequestCompressionFetchOptions,
-): Promise<CompressedAttempt | undefined> {
-  const headers = new Headers(resolveHeaders(input, init));
-  // 调用方已自行编码正文时不能再压：二次编码会把正文写坏，此时跳过压缩、原样发送。
-  if (headers.has(CONTENT_ENCODING_HEADER)) {
-    return undefined;
-  }
-
-  const bodyText = await readJsonBodyText(input, init, headers);
-  if (bodyText === undefined) {
-    return undefined;
-  }
-
-  const compressedBody = await compressBodyText(bodyText, algorithm);
-  // 只记录字节数与算法：足以判断压缩是否生效，且不落任何正文、URL 或凭据。
-  options.logger?.debug("provider request compressed", {
-    providerId: options.providerId,
-    algorithm,
-    originalBytes: Buffer.byteLength(bodyText, "utf8"),
-    compressedBytes: compressedBody.byteLength,
-  });
-  headers.set(CONTENT_ENCODING_HEADER, CONTENT_ENCODING_BY_ALGORITHM[algorithm]);
-  // 压缩后长度必然变化；清掉旧值让运行时按新字节数重算，避免 content-length 与正文不符。
-  headers.delete(CONTENT_LENGTH_HEADER);
-
-  if (input instanceof Request) {
-    return {
-      request: new Request(input, { ...init, body: compressedBody, headers }),
-      algorithm,
-    };
-  }
-  return {
-    request: input,
-    init: { ...init, body: compressedBody, headers },
-    algorithm,
-  };
-}
-
-async function readJsonBodyText(
-  input: RequestInfo | URL,
-  init: RequestInit | undefined,
-  headers: Headers,
-): Promise<string | undefined> {
-  if (typeof init?.body === "string") {
-    if (!isJsonContentType(headers.get(CONTENT_TYPE_HEADER))) {
-      return undefined;
-    }
-    return init.body.length > 0 ? init.body : undefined;
-  }
-  // FormData、二进制与流式正文没有可重放的文本形态，一律原样发送。
-  if (init?.body !== undefined && init.body !== null) {
-    return undefined;
-  }
-  if (!(input instanceof Request)) {
-    return undefined;
-  }
-  if (!isJsonContentType(headers.get(CONTENT_TYPE_HEADER))) {
-    return undefined;
-  }
-  try {
-    const text = await input.clone().text();
-    return text.length > 0 ? text : undefined;
-  } catch {
-    // 正文不可重放（已被消费或为流）时不压缩，请求继续按原样发出。
-    return undefined;
-  }
-}
-
-function resolveHeaders(input: RequestInfo | URL, init: RequestInit | undefined): Headers {
-  if (init?.headers !== undefined) {
-    return new Headers(init.headers);
-  }
-  return input instanceof Request ? new Headers(input.headers) : new Headers();
+function rejectCancelledOutcome(outcome: AttemptOutcome, signal?: AbortSignal | null): void {
+  if (!signal?.aborted) return;
+  discardAttemptBody(outcome);
+  signal.throwIfAborted();
 }
 
 function isJsonContentType(value: string | null): boolean {
-  return value !== null && JSON_CONTENT_TYPE_PATTERN.test(value);
+  return value !== null && JSON_CONTENT_TYPE_PATTERN.test(value.trim());
 }
 
 async function compressBodyText(
   text: string,
   algorithm: ActiveCompressionAlgorithm,
+  signal?: AbortSignal | null,
 ): Promise<ArrayBuffer> {
+  // off 不加载 zlib；默认最高质量曾让 5.6MB 图片正文压缩超过 5 秒，固定 quality=4 限制成本。
+  const { brotliCompress, gzip, constants } = await import("node:zlib");
+  signal?.throwIfAborted();
   const source = Buffer.from(text, "utf8");
   const compressed =
-    algorithm === "brotli" ? await brotliCompressAsync(source) : await gzipAsync(source);
-  // 交给 fetch 的必须是 ArrayBuffer 支撑的视图：Buffer 的 buffer 类型是 ArrayBufferLike，
-  // 在 DOM BodyInit 下不可赋值，因此复制到独立的 ArrayBuffer。
+    algorithm === "brotli"
+      ? await promisify(brotliCompress)(source, {
+          params: { [constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY },
+        })
+      : await promisify(gzip)(source);
   const copy = new Uint8Array(compressed.byteLength);
   copy.set(compressed);
   return copy.buffer;
+}
+
+function waitForCompressionOrAbort<T>(
+  pending: Promise<T>,
+  signal?: AbortSignal | null,
+): Promise<T> {
+  if (!signal) return pending;
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    // 先观察原 Promise 再检查取消，避免迟到的 zlib reject 变成 unhandled rejection。
+    pending.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      },
+    );
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
 }

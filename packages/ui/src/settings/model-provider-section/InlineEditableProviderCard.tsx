@@ -19,7 +19,11 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Switch } from "@/components/ui/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
-import { resolvePendingProviderDraftSave, type ProviderDraftValues } from "./ProviderDraftSave.js";
+import {
+  getProviderDraftValues,
+  resolvePendingProviderDraftSave,
+  type ProviderDraftValues,
+} from "./ProviderDraftSave.js";
 import {
   ProviderApiKeySection,
   ProviderCardHeader,
@@ -38,6 +42,7 @@ interface ProviderSaveNotificationTarget {
   operation?: "delete";
   /** 显式弹窗在原草稿中重试，不让外部通知另起一次脱离编辑事务的保存。 */
   draftOwnsRetry?: boolean;
+  retry?: () => void;
 }
 
 export const PROVIDER_TEXT_INPUT_IDLE_SAVE_MS = MODEL_PROVIDER_TEXT_IDLE_TRIGGER_MS;
@@ -57,43 +62,29 @@ export function resolveProviderDraftCleanupAction({
   return deleteRequested ? "skip-delete" : "commit";
 }
 
-function isPromiseLike(value: unknown): value is PromiseLike<void> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "then" in value &&
-    typeof (value as { then?: unknown }).then === "function"
-  );
-}
-
-export function runProviderDeleteWithDraftCleanupGuard({
+export async function runProviderDeleteWithDraftCleanupGuard({
   deleteRequestedRef,
   onDelete,
+  isCurrent = () => true,
 }: {
   deleteRequestedRef: { current: boolean };
-  onDelete?: () => void | Promise<void>;
-}) {
+  onDelete?: () => boolean | void | Promise<boolean | void>;
+  isCurrent?: () => boolean;
+}): Promise<boolean> {
   if (!onDelete) {
-    return;
+    return false;
   }
 
   deleteRequestedRef.current = true;
   try {
-    const result = onDelete();
-    if (isPromiseLike(result)) {
-      void Promise.resolve(result)
-        .catch(() => undefined)
-        .finally(() => {
-          deleteRequestedRef.current = false;
-        });
-      return;
-    }
+    const deleted = (await onDelete()) === true;
+    // 已删除的卡片保留终止标记；原 finally 无条件清零会让迟到保存重新创建 Provider。
+    if (isCurrent()) deleteRequestedRef.current = deleted;
+    return deleted;
   } catch (error) {
-    deleteRequestedRef.current = false;
+    if (isCurrent()) deleteRequestedRef.current = false;
     throw error;
   }
-
-  deleteRequestedRef.current = false;
 }
 
 export function resolveProviderNameEditKeyAction(event: {
@@ -160,7 +151,7 @@ export function InlineEditableProviderCard({
   settingsRevision,
 }: {
   provider: ProviderSettingsFormProvider;
-  onSave: (config: ProviderSettingsFormProvider) => void | Promise<void>;
+  onSave: (config: ProviderSettingsFormProvider) => Promise<ProviderSettingsFormProvider>;
   onAddPersonalModel?: (
     providerId: string,
     modelId: string,
@@ -174,7 +165,7 @@ export function InlineEditableProviderCard({
     enabled: boolean,
   ) => Promise<unknown>;
   onDeletePersonalModel?: (providerId: string, modelId: string) => Promise<unknown>;
-  onDelete?: () => void | Promise<void>;
+  onDelete?: () => Promise<boolean>;
   onTestModel?: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
   /** 拉取该 Provider 的模型目录；仅 API Key 型自定义 Provider 装配。 */
   onFetchModels?: (providerId: string) => Promise<ProviderModelCatalogResult>;
@@ -220,7 +211,15 @@ export function InlineEditableProviderCard({
   const providerIdRef = useRef(provider.providerId);
   const dirtyProviderFieldsRef = useRef(new Set<keyof ProviderDraftValues>());
   const draftRevisionRef = useRef(0);
-  const lastSubmittedDraftSignatureRef = useRef<string | null>(null);
+  const pendingDraftSaveRef = useRef<Promise<ProviderSettingsFormProvider> | null>(null);
+  const pendingEnabledUpdateRef = useRef<boolean | undefined>(undefined);
+  const nameConfirmedForSaveRef = useRef(false);
+  const latestProviderRef = useRef(provider);
+  latestProviderRef.current = provider;
+  const activeSaveOwnerRef = useRef(onSave);
+  activeSaveOwnerRef.current = onSave;
+  const draftSaveOwnerRef = useRef(onSave);
+  const saveScopeGenerationRef = useRef(0);
   const providerDisplayName = resolveModelProviderDisplayName(provider);
   const saveNotificationRef = useRef({
     providerId: provider.providerId,
@@ -236,45 +235,55 @@ export function InlineEditableProviderCard({
     dismissFeedback,
     showFeedback,
   };
-  const draftRef = useRef<ProviderDraftValues>({
-    nameValue: getProviderFormLabel(provider),
-    apiFormat: provider.config.api?.type ?? "anthropic-messages",
-    baseUrlValue: provider.config.api?.baseUrl ?? "",
-    apiKeyValue: getProviderFormApiKey(provider),
-    requestCompression: provider.config.api?.requestCompression ?? "off",
-  });
+  const draftRef = useRef<ProviderDraftValues>(getProviderDraftValues(provider));
+  const syncProviderDraft = useCallback(
+    (values: ProviderDraftValues, submitted?: ProviderDraftValues, nameConfirmed = false) => {
+      const syncField = <TKey extends keyof ProviderDraftValues>(
+        key: TKey,
+        value: ProviderDraftValues[TKey],
+        apply: (next: ProviderDraftValues[TKey]) => void,
+      ) => {
+        if (submitted) {
+          if ((key === "nameValue" && !nameConfirmed) || draftRef.current[key] !== submitted[key])
+            return;
+        } else if (
+          dirtyProviderFieldsRef.current.has(key) &&
+          (pendingDraftSaveRef.current || draftRef.current[key] !== value)
+        ) {
+          return;
+        }
+        dirtyProviderFieldsRef.current.delete(key);
+        draftRef.current[key] = value;
+        apply(value);
+      };
+      syncField("nameValue", values.nameValue, setNameValue);
+      syncField("apiFormat", values.apiFormat, setApiFormat);
+      syncField("baseUrlValue", values.baseUrlValue, setBaseUrlValue);
+      syncField("apiKeyValue", values.apiKeyValue, setApiKeyValue);
+      syncField("requestCompression", values.requestCompression, setRequestCompression);
+    },
+    [],
+  );
 
   useEffect(() => {
-    const resolvedApiFormat = provider.config.api?.type ?? "anthropic-messages";
-    const resolvedBaseUrl = provider.config.api?.baseUrl ?? "";
-    const resolvedApiKey = getProviderFormApiKey(provider);
-    const resolvedLabel = getProviderFormLabel(provider);
-    const resolvedCompression = provider.config.api?.requestCompression ?? "off";
-    if (providerIdRef.current !== provider.providerId) {
+    if (providerIdRef.current !== provider.providerId || draftSaveOwnerRef.current !== onSave) {
+      // 同一所有者切走再切回也已换代；只比较 ID/回调会重新接纳旧失败和名称确认标记。
+      saveScopeGenerationRef.current += 1;
       providerIdRef.current = provider.providerId;
+      draftSaveOwnerRef.current = onSave;
       nameEditProviderIdRef.current = null;
       nameCompositionActiveRef.current = false;
       setEditingName(false);
       draftRevisionRef.current += 1;
       dirtyProviderFieldsRef.current.clear();
-      lastSubmittedDraftSignatureRef.current = null;
+      pendingDraftSaveRef.current = null;
+      pendingEnabledUpdateRef.current = undefined;
+      nameConfirmedForSaveRef.current = false;
+      deleteRequestedRef.current = false;
+      setSavingEnabled(false);
     }
-    const syncField = <TKey extends keyof ProviderDraftValues>(
-      key: TKey,
-      value: ProviderDraftValues[TKey],
-      apply: (next: ProviderDraftValues[TKey]) => void,
-    ) => {
-      if (dirtyProviderFieldsRef.current.has(key) && draftRef.current[key] !== value) return;
-      dirtyProviderFieldsRef.current.delete(key);
-      draftRef.current[key] = value;
-      apply(value);
-    };
-    syncField("nameValue", resolvedLabel, setNameValue);
-    syncField("apiFormat", resolvedApiFormat, setApiFormat);
-    syncField("baseUrlValue", resolvedBaseUrl, setBaseUrlValue);
-    syncField("apiKeyValue", resolvedApiKey, setApiKeyValue);
-    syncField("requestCompression", resolvedCompression, setRequestCompression);
-  }, [provider]);
+    syncProviderDraft(getProviderDraftValues(provider));
+  }, [provider, onSave, syncProviderDraft]);
 
   const markDraftDirty = useCallback((field: keyof ProviderDraftValues) => {
     dirtyProviderFieldsRef.current.add(field);
@@ -289,6 +298,12 @@ export function InlineEditableProviderCard({
       const revision = draftRevisionRef.current + 1;
       draftRevisionRef.current = revision;
       const notification = saveNotificationRef.current;
+      const saveOwner = activeSaveOwnerRef.current;
+      const scopeGeneration = saveScopeGenerationRef.current;
+      const isCurrent = () =>
+        saveScopeGenerationRef.current === scopeGeneration &&
+        activeSaveOwnerRef.current === saveOwner &&
+        latestProviderRef.current.providerId === notification.providerId;
       const dedupeKey = target.modelId
         ? `model-save:${notification.providerId}:${target.modelId}`
         : `provider-save:${notification.providerId}`;
@@ -324,13 +339,19 @@ export function InlineEditableProviderCard({
         });
       try {
         await operation();
-        if (!shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision)) return;
+        if (!isCurrent() || !shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision))
+          return;
         // 成功由输入值、模型列表和弹窗关闭体现，自动保存不堆叠横幅干扰编辑。
         // 失败反馈仍保留；显式连通性测试由独立入口展示结果。
         notification.dismissFeedback(dedupeKey);
       } catch (error) {
-        selfSaveRequestedRef.current = false;
-        if (shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision)) {
+        if (isCurrent()) selfSaveRequestedRef.current = false;
+        // 串行草稿仍承载最新编辑；仅靠 revision 会吞掉保存期间再次编辑后的失败和重试入口。
+        // 迟到错误只在原 Provider/Service 内反馈，重试回调重新读取当前草稿。
+        if (
+          isCurrent() &&
+          (shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision) || target.retry)
+        ) {
           notification.showFeedback({
             key: dedupeKey,
             message: notification.formatMessage(
@@ -349,7 +370,8 @@ export function InlineEditableProviderCard({
               : {
                   actionLabel: notification.formatMessage({ id: "common.retry" }),
                   onAction: () => {
-                    void runSaveOperation(operation, target).catch(() => undefined);
+                    if (target.retry) target.retry();
+                    else void runSaveOperation(operation, target).catch(() => undefined);
                   },
                 }),
             dismissible: true,
@@ -387,18 +409,22 @@ export function InlineEditableProviderCard({
   );
 
   const saveProviderWithCleanupGuard = useCallback(
-    async (nextProvider: ProviderSettingsFormProvider, onFailure?: () => void): Promise<void> => {
+    async (
+      nextProvider: ProviderSettingsFormProvider,
+      retry?: () => void,
+    ): Promise<ProviderSettingsFormProvider> => {
+      let savedProvider: ProviderSettingsFormProvider | undefined;
       const operation = async () => {
-        await onSave(nextProvider);
+        savedProvider = await onSave(nextProvider);
       };
-      await runSaveOperation(operation).catch((error) => {
+      await runSaveOperation(operation, { retry }).catch((error) => {
         logger.warn("[ModelProviderSection] 自动保存 Provider 草稿失败", {
           providerId: provider.providerId,
           error,
         });
-        onFailure?.();
         throw error;
       });
+      return savedProvider!;
     },
     [onSave, provider.providerId, runSaveOperation],
   );
@@ -406,39 +432,80 @@ export function InlineEditableProviderCard({
   const cancelIdleDraftSaveRef = useRef<() => void>(() => undefined);
 
   const commitPendingDraft = useCallback(
-    async (reason: string, nameConfirmed = false): Promise<void> => {
+    (
+      reason: string,
+      nameConfirmed = false,
+      enabledUpdate?: boolean,
+    ): Promise<ProviderSettingsFormProvider> => {
       cancelIdleDraftSaveRef.current();
-      const nextProvider = resolvePendingProviderDraftSave({
-        provider,
-        draft: draftRef.current,
-        readOnlyEndpoints,
-        nameConfirmed,
-        now: Date.now,
-      });
-      if (!nextProvider) {
-        return;
-      }
-      const signature = JSON.stringify({
-        ...draftRef.current,
-        nameValue: nameConfirmed ? draftRef.current.nameValue : getProviderFormLabel(provider),
-      });
-      if (lastSubmittedDraftSignatureRef.current === signature) return;
-      lastSubmittedDraftSignatureRef.current = signature;
-
-      // Linux 下点击左侧供应商切换时，输入框 blur 与 Popover 关闭顺序不稳定，
-      // 连接草稿可能在组件卸载前还没走到 blur 保存。这里在切换/卸载前兜底提交，
-      // 避免“新供应商接口地址一切走就恢复为空”。
-      logger.info("[ModelProviderSection] 切换前保存未提交的供应商草稿", {
-        providerId: provider.providerId,
-        reason,
-      });
-      await saveProviderWithCleanupGuard(nextProvider, () => {
-        if (lastSubmittedDraftSignatureRef.current === signature) {
-          lastSubmittedDraftSignatureRef.current = null;
+      nameConfirmedForSaveRef.current ||= nameConfirmed;
+      if (enabledUpdate !== undefined) pendingEnabledUpdateRef.current = enabledUpdate;
+      if (pendingDraftSaveRef.current) return pendingDraftSaveRef.current;
+      const owner = onSave;
+      const providerId = provider.providerId;
+      const scopeGeneration = saveScopeGenerationRef.current;
+      const isCurrent = () =>
+        saveScopeGenerationRef.current === scopeGeneration &&
+        activeSaveOwnerRef.current === owner &&
+        latestProviderRef.current.providerId === providerId;
+      // 根因：保存期间切回旧值会被旧 props 判为“无变化”。只保留最新草稿，串行等待权威返回值再比较。
+      const operation = Promise.resolve().then(async () => {
+        let baseline = latestProviderRef.current;
+        while (isCurrent() && !deleteRequestedRef.current) {
+          const submitted = { ...draftRef.current };
+          const confirmed = nameConfirmedForSaveRef.current;
+          const submittedEnabled = pendingEnabledUpdateRef.current;
+          nameConfirmedForSaveRef.current = false;
+          pendingEnabledUpdateRef.current = undefined;
+          const draftProvider = resolvePendingProviderDraftSave({
+            provider: baseline,
+            draft: submitted,
+            readOnlyEndpoints,
+            nameConfirmed: confirmed,
+            now: Date.now,
+          });
+          // 启停也保存 Provider Overlay；若另起请求，其旧连接配置会覆盖并发提交的最新压缩。
+          const nextProvider =
+            submittedEnabled === undefined
+              ? draftProvider
+              : { ...(draftProvider ?? baseline), enabledUpdate: submittedEnabled };
+          if (!nextProvider) return baseline;
+          logger.info("[ModelProviderSection] 保存供应商草稿", { providerId, reason });
+          try {
+            baseline = await saveProviderWithCleanupGuard(nextProvider, () => {
+              void commitPendingDraft("retry").catch(() => undefined);
+            });
+          } catch (error) {
+            // 旧保存失败只能恢复原代次的确认意图，不能让新环境的未确认名称被连接保存夹带。
+            if (isCurrent()) {
+              if (draftRef.current.nameValue === submitted.nameValue)
+                nameConfirmedForSaveRef.current ||= confirmed;
+              pendingEnabledUpdateRef.current ??= submittedEnabled;
+            }
+            throw error;
+          }
+          if (!isCurrent())
+            throw new DOMException("供应商设置已切换，本次操作已取消", "AbortError");
+          // 只确认提交后未再编辑的字段；旧成功不能覆盖保存期间的新选择。
+          syncProviderDraft(getProviderDraftValues(baseline), submitted, confirmed);
         }
+        // 依赖 flush 的启停/连通性操作不能把过期结果当作成功后继续执行。
+        throw new DOMException("供应商设置已切换或正在删除，本次操作已取消", "AbortError");
       });
+      pendingDraftSaveRef.current = operation;
+      const clearPending = () => {
+        if (pendingDraftSaveRef.current === operation) pendingDraftSaveRef.current = null;
+      };
+      void operation.then(clearPending, clearPending);
+      return operation;
     },
-    [provider, readOnlyEndpoints, saveProviderWithCleanupGuard],
+    [
+      onSave,
+      provider.providerId,
+      readOnlyEndpoints,
+      saveProviderWithCleanupGuard,
+      syncProviderDraft,
+    ],
   );
 
   const idleDraftSave = useIdleTrigger(() => {
@@ -450,22 +517,16 @@ export function InlineEditableProviderCard({
 
   const handleProviderEnabledChange = async (enabled: boolean) => {
     if (savingEnabled) return;
+    const scopeGeneration = saveScopeGenerationRef.current;
     cancelIdleDraftSave();
     setSavingEnabled(true);
     // 同一次保存带上尚未提交的连接草稿，避免开关保存把刚输入的 Key 覆盖回旧值。
-    const draft =
-      resolvePendingProviderDraftSave({
-        provider,
-        draft: draftRef.current,
-        readOnlyEndpoints,
-        now: Date.now,
-      }) ?? provider;
     try {
-      await saveProviderWithCleanupGuard({ ...draft, enabledUpdate: enabled });
+      await commitPendingDraft("provider-enabled", false, enabled);
     } catch {
       // 统一保存入口已记录错误及可重试反馈；不乐观覆盖权威 enabled。
     } finally {
-      setSavingEnabled(false);
+      if (saveScopeGenerationRef.current === scopeGeneration) setSavingEnabled(false);
     }
   };
 
@@ -752,11 +813,25 @@ export function InlineEditableProviderCard({
   );
 
   const handleDeleteProvider = useCallback(() => {
-    runProviderDeleteWithDraftCleanupGuard({
+    if (deleteRequestedRef.current) return;
+    const owner = onSave;
+    const providerId = provider.providerId;
+    const scopeGeneration = saveScopeGenerationRef.current;
+    const isCurrent = () =>
+      saveScopeGenerationRef.current === scopeGeneration &&
+      activeSaveOwnerRef.current === owner &&
+      latestProviderRef.current.providerId === providerId;
+    const resumeDraft = (deleted: boolean) => {
+      // 确认框期间可能暂停了最新草稿；取消/失败后仍要保存，已删除或换代则停止。
+      if (!deleted && isCurrent())
+        void commitPendingDraft("delete-cancelled").catch(() => undefined);
+    };
+    void runProviderDeleteWithDraftCleanupGuard({
       deleteRequestedRef,
       onDelete,
-    });
-  }, [onDelete]);
+      isCurrent,
+    }).then(resumeDraft, () => resumeDraft(false));
+  }, [onDelete, onSave, provider.providerId, commitPendingDraft]);
 
   const headerProviderName = providerDisplayName;
   const isApiKeyProvider = isApiKeyAccess(provider.config.access);

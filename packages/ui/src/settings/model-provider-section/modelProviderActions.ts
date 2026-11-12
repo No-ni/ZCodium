@@ -12,10 +12,10 @@ export async function confirmAndDeleteModelProvider({
   provider: ProviderSettingsFormProvider;
   confirmDialog: (payload: ConfirmDialogRequest) => Promise<boolean>;
   intl: IntlInstance;
-  deleteProvider: (providerId: string) => Promise<void>;
+  deleteProvider: (providerId: string) => Promise<boolean | void>;
 }) {
   if (provider.config.group === "zai-family" || provider.config.group === "bigmodel-family") {
-    return;
+    return false;
   }
 
   logger.info("[ModelProviderSection] 请求删除自定义模型供应商", {
@@ -42,11 +42,13 @@ export async function confirmAndDeleteModelProvider({
       providerId: provider.providerId,
       providerName: getProviderFormLabel(provider),
     });
-    return;
+    return false;
   }
 
   try {
-    await deleteProvider(provider.providerId);
+    const deleted = await deleteProvider(provider.providerId);
+    // 卡片需区分取消与已删除；删除完成后不能恢复迟到的自动保存链。
+    return deleted !== false;
   } catch (error) {
     logger.error("[ModelProviderSection] 删除模型供应商失败", error);
     throw error;

@@ -296,7 +296,7 @@ export class AiSdkModelExecution {
       fetch: providerTransport,
       providerId,
       algorithm: providerConfig.requestCompression ?? "off",
-      state: this.resolveRequestCompressionState(providerId),
+      state: this.resolveRequestCompressionState(providerId, providerConfig),
       ...(this.logger ? { logger: this.logger } : {}),
     });
     const fetch = createProviderBusinessErrorFetch({
@@ -370,14 +370,18 @@ export class AiSdkModelExecution {
     return providerConfig.apiKey;
   }
 
-  /** 同一渠道共享压缩记忆：brotli 被拒一次后不再反复尝试。 */
-  private resolveRequestCompressionState(providerId: string): RequestCompressionState {
-    const current = this.requestCompressionStates.get(providerId);
+  /** 换网关或协议后必须重新探测；旧 binding 的迟到结果只能写回旧作用域。 */
+  private resolveRequestCompressionState(
+    providerId: string,
+    config: AiSdkProviderConfig,
+  ): RequestCompressionState {
+    const scopeKey = JSON.stringify([providerId, config.baseURL, config.kind]);
+    const current = this.requestCompressionStates.get(scopeKey);
     if (current) {
       return current;
     }
     const created: RequestCompressionState = { brotliUnsupported: false };
-    this.requestCompressionStates.set(providerId, created);
+    this.requestCompressionStates.set(scopeKey, created);
     return created;
   }
 
@@ -420,9 +424,7 @@ function toAiSdkProviderConfig(
     ...(config.api.headers ? { headers: { ...config.api.headers } } : {}),
     providerOptions: { apiFormat: config.api.type },
     access: config.access,
-    ...(config.api.requestCompression
-      ? { requestCompression: config.api.requestCompression }
-      : {}),
+    ...(config.api.requestCompression ? { requestCompression: config.api.requestCompression } : {}),
   };
   switch (config.api.type) {
     case "anthropic-messages":

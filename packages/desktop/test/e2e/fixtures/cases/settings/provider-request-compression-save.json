@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "caseName": "provider-request-compression-save",
+  "spec": "./test/e2e/settings/provider-request-compression-save.test.ts",
+  "providerRequestPolicy": "none",
+  "noProviderRequests": true,
+  "providerFixtures": [],
+  "fileFixtures": [
+    {
+      "kind": "app-data-seed",
+      "path": "provider_config.json",
+      "purpose": "隔离 HOME 的 E2E_COMPRESSION_SAVE_PROVIDER，压缩初始 off；真实 UI 保存并读盘验证，模型地址为 fixture.invalid，不发模型请求。"
+    }
+  ],
+  "requests": []
+}

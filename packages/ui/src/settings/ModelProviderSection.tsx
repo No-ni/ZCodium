@@ -148,12 +148,14 @@ export function ModelProviderSection({
   const [deleteFailedId, setDeleteFailedId] = useState<string | null>(null);
   const deleteInFlightRef = useRef(false);
   const performDelete = async (id: string) => {
-    if (deleteInFlightRef.current) return;
+    // 其他渠道仍在删除时，本次没有执行；必须明确返回 false，不能让卡片永久终止自动保存。
+    if (deleteInFlightRef.current) return false;
     deleteInFlightRef.current = true;
     setDeleteFailedId(null);
     try {
       await deleteProvider(id);
       setSelectedProviderId((current) => (current === id ? null : current));
+      return true;
     } catch (error) {
       // 删除失败保留当前连接与输入；重试复用已经确认的删除意图，不再弹第二次确认。
       setDeleteFailedId(id);
@@ -163,7 +165,7 @@ export function ModelProviderSection({
     }
   };
   const removeProvider = async (provider: ProviderSettingsFormProvider) => {
-    await confirmAndDeleteModelProvider({
+    return confirmAndDeleteModelProvider({
       provider,
       confirmDialog,
       intl,
@@ -172,7 +174,10 @@ export function ModelProviderSection({
   };
   const handleSave = useCallback(
     async (provider: ProviderSettingsFormProvider) => {
-      await saveProvider(provider);
+      const savedProviders = await saveProvider(provider);
+      const savedProvider = savedProviders.find((item) => item.providerId === provider.providerId);
+      if (!savedProvider) throw new Error("保存后的 Provider 不在权威设置视图中");
+      return savedProvider;
     },
     [saveProvider],
   );

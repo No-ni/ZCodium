@@ -101,7 +101,12 @@ describe("request compression fetch", () => {
 
   it("downgrades to gzip once when the gateway rejects brotli, and remembers it", async () => {
     const state = createState();
-    const { captured, impl } = captureFetch(() => new Response("unsupported", { status: 415 }));
+    let rejected = false;
+    const { captured, impl } = captureFetch(() => {
+      if (rejected) return new Response("ok");
+      rejected = true;
+      return new Response("unsupported", { status: 415 });
+    });
     const fetch = createRequestCompressionFetch({
       fetch: impl,
       providerId: "demo",
@@ -116,7 +121,7 @@ describe("request compression fetch", () => {
 
     const response = await fetch(ENDPOINT, init);
 
-    expect(response.status).toBe(415);
+    expect(response.status).toBe(200);
     expect(state.brotliUnsupported).toBe(true);
     expect(captured.map((entry) => entry.request.headers.get("content-encoding"))).toEqual([
       "br",
@@ -152,7 +157,7 @@ describe("request compression fetch", () => {
     ).rejects.toThrow("provider business error");
 
     expect(encodings).toEqual(["br", "gzip"]);
-    expect(state.brotliUnsupported).toBe(true);
+    expect(state.brotliUnsupported).toBe(false);
   });
 
   it("skips a request whose body the caller already encoded", async () => {

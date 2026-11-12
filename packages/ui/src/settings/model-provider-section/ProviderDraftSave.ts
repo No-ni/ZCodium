@@ -5,6 +5,7 @@ import {
 } from "@zcode/provider";
 import {
   getProviderFormLabel,
+  getProviderFormApiKey,
   type ProviderSettingsFormProvider,
 } from "@/lib/providerSettingsFormTypes.js";
 
@@ -15,6 +16,19 @@ export interface ProviderDraftValues {
   apiKeyValue: string;
   /** 渠道级请求压缩；缺省展示与比较都按 off 处理。 */
   requestCompression: ProviderRequestCompression;
+}
+
+/** 初始化、权威回写与保存确认共用一份字段投影，缺省压缩始终按 off 展示。 */
+export function getProviderDraftValues(
+  provider: ProviderSettingsFormProvider,
+): ProviderDraftValues {
+  return {
+    nameValue: getProviderFormLabel(provider),
+    apiFormat: provider.config.api?.type ?? "anthropic-messages",
+    baseUrlValue: provider.config.api?.baseUrl ?? "",
+    apiKeyValue: getProviderFormApiKey(provider),
+    requestCompression: provider.config.api?.requestCompression ?? "off",
+  };
 }
 
 function normalizeConfiguredBaseUrl(value: string): string {

@@ -6,7 +6,7 @@ export type RequestCompressionAlgorithm = "off" | "brotli" | "gzip";
 /**
  * 单个渠道在本次进程内的压缩事实。
  *
- * 由执行器按 providerId 持有并复用，因此"网关拒绝 brotli"不会被下一次请求忘掉；
+ * 由执行器按 providerId / Base URL / 协议持有并复用；只有 gzip 重发成功才更新，
  * 它是纯运行时事实，不落盘、不进配置，进程重启后允许重新尝试 brotli。
  */
 export interface RequestCompressionState {
@@ -14,7 +14,7 @@ export interface RequestCompressionState {
 }
 
 export interface RequestCompressionFetchOptions {
-  /** 内层 transport：已完成代理、证书、路由、option map 与协议兼容。 */
+  /** 内层 transport：代理/证书已装配；调用前外层已完成明文 option map 与协议兼容。 */
   readonly fetch: typeof globalThis.fetch;
   /** 只用于日志与记忆分桶，不参与请求构造。 */
   readonly providerId: string;
