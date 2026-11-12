@@ -141,6 +141,40 @@ CREATE TABLE model_usage (
         provider_metadata_json text
       );
 
+CREATE TABLE native_context_observation (
+      session_id text not null references session(id) on delete cascade,
+      id text not null,
+      logical_request_id text not null,
+      attempt_index integer not null check(attempt_index >= 0),
+      purpose text not null,
+      sequence integer not null check(sequence > 0),
+      active_generation integer not null check(active_generation >= 0),
+      segment_id text not null,
+      data text not null,
+      primary key(session_id, id),
+      unique(session_id, logical_request_id, attempt_index, purpose),
+      unique(session_id, sequence)
+    );
+
+CREATE TABLE native_context_operation (
+      session_id text not null references session(id) on delete cascade,
+      operation_id text not null,
+      sequence integer not null check(sequence > 0),
+      active_generation integer not null check(active_generation >= 0),
+      segment_id text not null,
+      data text not null,
+      primary key(session_id, operation_id),
+      unique(session_id, sequence)
+    );
+
+CREATE TABLE native_context_state (
+      session_id text primary key references session(id) on delete cascade,
+      revision integer not null check(revision >= 0),
+      generation integer not null check(generation >= 0),
+      history_version text not null,
+      data text not null
+    );
+
 CREATE TABLE part (
         id text primary key,
         message_id text not null references message(id) on delete cascade,
@@ -218,6 +252,16 @@ CREATE TABLE "session_target" (
         time_created integer not null,
         time_updated integer not null
       , summary_title text, active_input_id text, active_run_started_at integer, active_run_last_seen_at integer);
+
+CREATE TABLE session_target_usage_receipt (
+      session_id text not null references session(id) on delete cascade,
+      target_id text not null,
+      usage_id text not null,
+      tokens_used_delta integer not null check(tokens_used_delta >= 0),
+      time_used_seconds_delta integer not null check(time_used_seconds_delta >= 0),
+      time_accounted integer not null,
+      primary key(session_id, target_id, usage_id)
+    );
 
 CREATE TABLE session_task_link (
         id text primary key,
@@ -445,6 +489,24 @@ CREATE INDEX model_usage_started_model_idx
 CREATE INDEX model_usage_trace_idx
         on model_usage(trace_id);
 
+CREATE INDEX native_context_observation_page_idx
+      on native_context_observation(session_id, active_generation, sequence desc);
+
+CREATE INDEX native_context_observation_purpose_idx
+      on native_context_observation(session_id, active_generation, purpose, sequence desc);
+
+CREATE INDEX native_context_observation_purpose_segment_idx
+      on native_context_observation(session_id, active_generation, purpose, segment_id, sequence desc);
+
+CREATE INDEX native_context_observation_segment_idx
+      on native_context_observation(session_id, active_generation, segment_id, sequence desc);
+
+CREATE INDEX native_context_operation_page_idx
+      on native_context_operation(session_id, active_generation, sequence desc);
+
+CREATE INDEX native_context_operation_segment_idx
+      on native_context_operation(session_id, active_generation, segment_id, sequence desc);
+
 CREATE INDEX part_message_id_id_idx on part(message_id, id);
 
 CREATE INDEX part_message_sequence_idx
@@ -546,60 +608,3 @@ CREATE TRIGGER part_sequence_autofill
         )
         where id = new.id;
       end;
-
-CREATE TABLE native_context_state (
-  session_id text primary key references session(id) on delete cascade,
-  revision integer not null check(revision >= 0),
-  generation integer not null check(generation >= 0),
-  history_version text not null,
-  data text not null
-);
-
-CREATE TABLE native_context_operation (
-  session_id text not null references session(id) on delete cascade,
-  operation_id text not null,
-  sequence integer not null check(sequence > 0),
-  active_generation integer not null check(active_generation >= 0),
-  segment_id text not null,
-  data text not null,
-  primary key(session_id, operation_id),
-  unique(session_id, sequence)
-);
-
-CREATE INDEX native_context_operation_page_idx
-  on native_context_operation(session_id, active_generation, sequence desc);
-CREATE INDEX native_context_operation_segment_idx
-  on native_context_operation(session_id, active_generation, segment_id, sequence desc);
-
-CREATE TABLE native_context_observation (
-  session_id text not null references session(id) on delete cascade,
-  id text not null,
-  logical_request_id text not null,
-  attempt_index integer not null check(attempt_index >= 0),
-  purpose text not null,
-  sequence integer not null check(sequence > 0),
-  active_generation integer not null check(active_generation >= 0),
-  segment_id text not null,
-  data text not null,
-  primary key(session_id, id),
-  unique(session_id, logical_request_id, attempt_index, purpose),
-  unique(session_id, sequence)
-);
-
-CREATE INDEX native_context_observation_page_idx
-  on native_context_observation(session_id, active_generation, sequence desc);
-CREATE INDEX native_context_observation_segment_idx
-  on native_context_observation(session_id, active_generation, segment_id, sequence desc);
-CREATE INDEX native_context_observation_purpose_idx
-  on native_context_observation(session_id, active_generation, purpose, sequence desc);
-CREATE INDEX native_context_observation_purpose_segment_idx
-  on native_context_observation(session_id, active_generation, purpose, segment_id, sequence desc);
-CREATE TABLE session_target_usage_receipt (
-      session_id text not null references session(id) on delete cascade,
-      target_id text not null,
-      usage_id text not null,
-      tokens_used_delta integer not null check(tokens_used_delta >= 0),
-      time_used_seconds_delta integer not null check(time_used_seconds_delta >= 0),
-      time_accounted integer not null,
-      primary key(session_id, target_id, usage_id)
-    );

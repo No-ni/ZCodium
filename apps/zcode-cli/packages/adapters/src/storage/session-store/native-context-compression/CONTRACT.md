@@ -42,6 +42,8 @@ sequenceDiagram
 
 迁移为追加的 0024_native_context_compression，只触碰三张新表。旧 25 项 ledger ID/SQL/checksum 保持不变；新增 touchedTables、schema guard 和 schema baseline 同步。验证以逐表内容 hash、PRAGMA foreign_key_check、事务失败与分支分页等可观测结果为准，不使用真实用户目录或系统临时目录。
 
+审查基线使用实际启动迁移后的完整 `dumpSqliteSchema` 输出。手工追加新表 SQL 会使对象顺序和 SQLite 保留的缩进与导出结果不同，即使结构一致也会触发基线精确匹配失败。规范化前须双向通过 `assertAdditiveSchema`，确认既有表、列、索引和约束等价；规范化不修改迁移 SQL、checksum 或运行时结构。
+
 独立追加的 0025_native_context_goal_usage_receipt 只创建 session_target_usage_receipt。此表属于既有 Goal 存储，迁移代码在本受管模块登记，计数单写者仍是 session-target.ts 的 accountSessionTargetUsage。accountTargetUsage 的可选 usageID 按 session_id/target_id/usage_id 隔离，receipt 插入、Goal 数字更新和 session 时间更新在同一同步 BEGIN IMMEDIATE 事务中提交。重复键返回当前 Goal，不重复累计、不覆盖首次结算数字；真实零也持有 receipt。未提供 usageID 的旧调用维持原契约。
 
 receipt 不依赖有 30 天保留期的 model_usage，不随 fork 复制，并通过 session 外键 ON DELETE CASCADE 清理。已结算的 receipt 不因清 Goal或替换丢失；迟到调用只可命中冻结 targetID，当前 Goal 不存在或已被替换时不插入 receipt、不计入新 Goal。任一插入、计数或 session 更新失败整组回滚并向调用者抛错，不能留下误去重 receipt。旧 25 项和 0024 的 SQL/checksum 均不改写，schema baseline、guard 和备份 touchedTables 一同追加。
