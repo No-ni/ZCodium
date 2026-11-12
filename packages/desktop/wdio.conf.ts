@@ -886,13 +886,17 @@ function assertDesktopE2EBuildReady(context: string) {
 }
 
 async function stageDesktopE2EAppOutput() {
-  await rm(E2E_APP_OUTPUT_DIR, { force: true, recursive: true });
   // 修复原因：开发态 pre-dev/tsup watch 会重建共享 packages/desktop/out；长批次若直接
   // 从 out 启动，运行中目录被清空后后续 loadFile 会进入 chrome-error://。构建完成后
   // 按 runId 复制不可变应用产物，让 E2E 与并行开发进程彻底隔离。
   // 使用写时复制降低多 shard 的准备成本；不能使用共享 inode 的硬链接，否则类型检查
   // 原地覆盖 out/host 时会同时破坏已经启动的隔离副本。
-  await stageE2EAppOutput(DESKTOP_BUILD_OUTPUT_DIR, E2E_APP_OUTPUT_DIR);
+  // 原因：隔离 Main 仍按 ../../build 读取开发图标；只复制 out 会产生空托盘图像，
+  // 未读红点合成触发原生错误框并阻塞 Main。资源与应用一起固定到同一个 run。
+  await stageE2EAppOutput(DESKTOP_BUILD_OUTPUT_DIR, E2E_APP_OUTPUT_DIR, {
+    replace: true,
+    developmentIcons: { sourceDir: resolve(DESKTOP_DIR, "build"), platform: process.platform },
+  });
   if (
     hasRequiredSshE2EEnvironment(process.env) ||
     process.env.ZCODE_E2E_SSH_HOST?.trim() ||

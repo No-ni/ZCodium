@@ -18,11 +18,17 @@ let trayUnreadImage: ReturnType<typeof nativeImage.createFromPath> | undefined;
 
 function trayImage(hasUnread: boolean) {
   const base = (trayBaseImage ??= nativeImage.createFromPath(resolveDesktopTrayIconPath()));
-  if (!hasUnread) return base;
+  // 原因：缺失 ICO 返回空图；用 0 字节构造 32×32 位图会弹出原生异常框并阻塞 Main。
+  if (!hasUnread || base.isEmpty()) return base;
   if (trayUnreadImage) return trayUnreadImage;
   const size = 32;
   const badgeSize = 10;
-  const bitmap = base.resize({ width: size, height: size }).toBitmap();
+  const resized = base.resize({ width: size, height: size });
+  const dimensions = resized.getSize(1);
+  if (resized.isEmpty() || dimensions.width !== size || dimensions.height !== size) return base;
+  const bitmap = resized.toBitmap({ scaleFactor: 1 });
+  // 原因：仅 2x 的 NativeImage 可返回更大的物理位图，显式 scaleFactor 也不能代替字节校验。
+  if (bitmap.byteLength !== size * size * 4) return base;
   blendBadgeIntoBitmap({
     base: bitmap,
     size,
@@ -31,7 +37,11 @@ function trayImage(hasUnread: boolean) {
     originX: size - badgeSize,
     originY: size - badgeSize,
   });
-  return (trayUnreadImage ??= nativeImage.createFromBitmap(bitmap, { width: size, height: size }));
+  return (trayUnreadImage ??= nativeImage.createFromBitmap(bitmap, {
+    width: size,
+    height: size,
+    scaleFactor: 1,
+  }));
 }
 
 export function syncWindowsDesktopTrayUnread(count: number) {

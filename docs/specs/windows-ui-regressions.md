@@ -1,5 +1,35 @@
 # 桌面界面回归修复（2026-11-03）
 
+## Windows 托盘空图回归（2026-11-12）
+
+- 原生压缩重点 E2E 的手机启动会使桌面失焦；前台完成任务补记未读后，Main 在 `trayImage` 的 `createFromBitmap` 抛出 `invalid buffer size`，Electron 默认原生错误框阻塞 Main，导致手机 bootstrap、桌面 IPC 和 teardown 一起超时。
+- 已确认的测试资源缺口是隔离应用只复制 `out`，没有复制开发态图标。隔离 Main 的 `../../build/icon.ico` 指向当前 run 的 `build/icon.ico`，缺失路径由 NativeImage 返回空图。真实 Electron 44.7.0 在 150% 显示缩放下验证：仓库 ICO 缩至 32×32 后为 4096 字节，可以重建；缺失 ICO 为 0×0、0 字节，按 32×32 重建复现相同错误。不能把默认 scaleFactor 单独写成根因。
+- Main 只派生托盘图像：空图保持基础图像；非空图在混合前校验实际尺寸与 `width × height × 4` 字节数，再按同一 scaleFactor 重建。表示尺寸不匹配也保持基础图像，不缓存无效红点图像。有效资源继续使用已发布 ICO、现有红点和缓存，未读数量、菜单、tooltip 与清零语义保持。
+- E2E 按当前运行平台复制开发态需要的图标到同一个 run 的 `build`：Windows 为 `icon.ico`、`icon_windows.png`，macOS 为 `icon.png`。复制使用独立文件，与 `out` 一起固定在当前工作树；缺失资源拒绝准备，链接或重解析点越界拒绝复制。不加入 Linux 图标、安装包或远端资源。
+- Host 仍唯一持有 `unreadAt` 与 compare-and-clear，ProjectDirectory 仍唯一发送窗口投影，Main 按现有身份去重。图像校验不修改 desktop continuous / mobile replayable 的事件、admission 或恢复 owner，也不通过延长超时绕过原生异常。
+
+```mermaid
+sequenceDiagram
+  participant H as Host 未读 owner
+  participant D as ProjectDirectory 窗口投影
+  participant M as Main 未读图像派生
+  participant W as Windows 托盘
+  H-->>D: 失焦补记 / 已读后的现有树
+  D->>M: 现有身份快照
+  M->>M: 基础图像 → 非空、尺寸与字节校验
+  alt 位图满足构造契约
+    M->>W: 有未读用红点缓存；清零用基础图
+  else 空图或表示尺寸不匹配
+    M->>W: 基础图；继续响应 IPC 和菜单
+  end
+```
+
+| ID      | 操作                                                            | 断言                                                                                                                                                         |
+| ------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| WINUI22 | 有效、缺失和仅 2x 图像，未读 0→1→多条→0→1；隔离应用图标 staging | 有效 ICO 红点与缓存可用；空图或尺寸不匹配不构造无效位图；清零恢复基础图；平台图标按原字节独立复制，缺失/越界拒绝；桌面失焦后手机 bootstrap 和桌面 IPC 可继续 |
+
+数字 probe 只证明 NativeImage 表示与字节契约，不代表安装包、全部 DPI 或 macOS 真机验收。真实产品回放与最终静态检查另记实际结果。
+
 ## 提交前验证入口修复（2026-11-04）
 
 - Provider 播种、读取与默认草稿就绪的工程夹具跟随当前 `.zcodium` 数据根；不恢复 `.zcode` 写入或旧 Provider store。
