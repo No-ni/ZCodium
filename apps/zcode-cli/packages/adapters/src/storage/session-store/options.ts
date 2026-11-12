@@ -3,6 +3,7 @@ export type ForkCommitFaultStage =
   | "afterMessages"
   | "afterGoal"
   | "afterEntries"
+  | "afterNativeContext"
   | "afterInput"
   | "afterCommandFact"
   | "beforeCommit";

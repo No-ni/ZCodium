@@ -47,6 +47,12 @@ const touchedTables: Readonly<Record<string, readonly string[]>> = {
   // 合并新增迁移后必须补齐备份范围，否则模块装载即失败；ID 与冻结 SQL 均沿用既有合同。
   "0023_session_soft_delete_outcome": ["session"],
   [SESSION_DATABASE_IDENTITY_MIGRATION.id]: ["zcode_database_identity"],
+  "0024_native_context_compression": [
+    "native_context_state",
+    "native_context_operation",
+    "native_context_observation",
+  ],
+  "0025_native_context_goal_usage_receipt": ["session_target_usage_receipt"],
 };
 
 export const SESSION_DATABASE_MIGRATIONS: readonly SqliteMigration[] = SQLITE_MIGRATIONS.map(

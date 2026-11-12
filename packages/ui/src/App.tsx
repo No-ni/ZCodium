@@ -118,6 +118,9 @@ export function App({
   onReturnToWorkspace,
   allowOpenWorkspace = true,
   webRemoteControlWorkspaceSwitcher,
+  initialSidebarFileTreeOpen,
+  initialWebRemoteControlMobileNavigationIntent,
+  webRemoteControlTerminalTransportState,
   allowRemoteWorkspace = true,
   workspaceAbsPath,
   workspaceRemoteSessionId,
@@ -1272,6 +1275,13 @@ export function App({
           onOpenRemoteWorkspace={onOpenRemoteWorkspace}
           remoteConnectionInProgress={remoteConnectionInProgress}
           allowOpenWorkspace={allowOpenWorkspace}
+          // 修复原因：远控能力曾在 App → Shell 断开，窄屏仍走桌面布局且未挂载实际查看 Reporter。
+          webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
+          initialSidebarFileTreeOpen={initialSidebarFileTreeOpen}
+          initialWebRemoteControlMobileNavigationIntent={
+            initialWebRemoteControlMobileNavigationIntent
+          }
+          webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
           allowRemoteWorkspace={allowRemoteWorkspace}
           remoteWorkspaceSessions={remoteWorkspaceSessions}
           workspaceAbsPath={workspaceAbsPath}

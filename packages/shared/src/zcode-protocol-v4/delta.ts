@@ -1,4 +1,5 @@
 import { mcpAppInstanceSchema } from "../mcp-apps/instance.js";
+import { nativeContextStatusSchema } from "../native-context-compression/index.js";
 // ConversationDelta：快照增量与插件 UI 的 live-only 通知，操作集合封闭。
 // ConversationDelta：快照增量与插件 UI 的 live-only 通知，操作集合封闭（10-protocol-spec §4.5）。
 // 没有 row.inserted（中间插入）、没有 row.moved、没有字段级 JSON patch——
@@ -51,6 +52,7 @@ export const statePatchSchema = z.object({
   config: sessionConfigStateSchema.optional(),
   modelTransition: sessionModelTransitionSchema.nullable().optional(),
   usage: sessionUsageStateSchema.optional(),
+  nativeContextCompression: nativeContextStatusSchema.optional(),
   queue: queueStateSchema.optional(),
   pendingInteractions: z.array(pendingInteractionSchema).optional(),
   pendingCommands: z.array(commandStateSummarySchema).optional(),

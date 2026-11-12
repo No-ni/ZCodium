@@ -345,6 +345,19 @@ export interface AttachmentRef {
   sizeBytes?: number;
   sha256?: string;
   placeholder?: string;
+  /** 原图先于发送副本写入不可变 artifact；只保存溯源，原 bytes 不进入事件。 */
+  originalImage?: {
+    artifactUri: string;
+    sha256: string;
+    bytes: number;
+    mediaType: string;
+    width?: number;
+    height?: number;
+    sourceKind: "attachment" | "read" | "bash" | "mcp" | "browser" | "other";
+    /** 可信宿主签发的精确栅格必须保持原编码；第三方 metadata 不得赋予此标记。 */
+    preserveRaster?: boolean;
+  };
+  canonicalPartId?: string;
 }
 
 export interface ModelTextContentBlock {

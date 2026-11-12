@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": [
+    "native-context-maintenance-media.test.ts",
+    "native-context-maintenance-media-fixture.ts"
+  ]
+}

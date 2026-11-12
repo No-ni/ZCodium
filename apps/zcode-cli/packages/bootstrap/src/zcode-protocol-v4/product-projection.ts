@@ -1,5 +1,6 @@
 import { normalizeGenUiInput } from "@zcode/core";
 import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@zcode/shared/zcode-protocol-v4";
+import { nativeContextStatusSchema, type NativeContextStatus } from "@zcode/shared/native-context-compression";
 // ProductProjection —— CLI 权威投影第二 reducer。
 // 输入：CLI 事件日志（SessionEvent，权威事实源）；输出：ConversationDelta[]。
 // 快照推进复用协议规范 apply（applyConversationDeltas）——投影演进与 delta 流
@@ -60,7 +61,6 @@ import {
   AMEND_WORKFLOW_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
   CoreErrorType,
-  ModelErrorCode,
   SessionEventType,
   getModelUsageContextTokens,
 } from "@zcode/contracts";
@@ -534,6 +534,73 @@ export class ProductProjection {
     return this.snapshot;
   }
 
+  /** 原生 revision 属于 Runtime；冷种子只填空或推进，不能覆盖同 revision 的 live phase。 */
+  seedNativeContextCompression(seed: NativeContextStatus): void {
+    const status = nativeContextStatusSchema.parse(seed);
+    if (!this.acceptsNativeContextStatus(status, true)) return;
+    const patch = this.nativeContextPatch(status);
+    this.snapshot = { ...this.snapshot, ...patch };
+    // 原因：在途种子会改变 compact/fork 门禁；必须同时物化 actions，不能让冷订阅保留旧可操作入口。
+    if (patch.control) this.snapshot = applyConversationDeltas(this.snapshot, this.materializeCommandRowActions([]));
+  }
+
+  private acceptsNativeContextStatus(status: NativeContextStatus, seed: boolean): boolean {
+    const current = this.snapshot.nativeContextCompression;
+    if (!current) return true;
+    if (status.revision < current.revision || status.generation < current.generation) return false;
+    if (status.revision === current.revision) {
+      if (seed || status.generation !== current.generation || status.historyVersion !== current.historyVersion) return false;
+      return JSON.stringify(status) !== JSON.stringify(current);
+    }
+    return true;
+  }
+
+  private nativeContextPatch(status: NativeContextStatus): StatePatch {
+    const current = this.snapshot.control;
+    const previous = current.activeWorks.find((work) => work.kind === "nativeContextCompression");
+    const otherWorks = current.activeWorks.filter((work) => work.kind !== "nativeContextCompression");
+    const primary = otherWorks.find((work) => work.kind === "primaryTurn" || work.kind === "goalContinuation");
+    const maintenance = status.activeMaintenance;
+    const active = maintenance && (!primary?.foregroundExecutionId || primary.foregroundExecutionId === maintenance.foregroundExecutionId)
+      ? maintenance
+      : undefined;
+    const patch: StatePatch = { nativeContextCompression: status };
+    if (active) {
+      // 原因：独立维护没有 assistant turn；统一 control 持有 Stop 和输入准入，执行身份仍来自 Runtime。
+      const sameExecution = previous?.foregroundExecutionId === active.foregroundExecutionId;
+      return {
+        ...patch,
+        ...this.controlPatch({
+          activeWorks: [...otherWorks, {
+            kind: "nativeContextCompression",
+            foregroundExecutionId: active.foregroundExecutionId,
+            startedAt: sameExecution ? previous.startedAt : active.startedAt,
+            ...(status.lastOperation?.commandId ? { sourceCommandId: status.lastOperation.commandId } : {}),
+          }],
+          canStop: true,
+          stopState: sameExecution && current.stopState === "stopping" ? "stopping" : "stoppable",
+          stopTargetKind: otherWorks.length > 0 ? "mixed" : "nativeContextCompression",
+        }),
+      };
+    }
+    if (!previous) return patch;
+    const targets: Record<SessionControl["activeWorks"][number]["kind"], SessionControl["stopTargetKind"]> = {
+      primaryTurn: "assistant", foregroundSubagent: "subagent", compact: "compact",
+      nativeContextCompression: "nativeContextCompression", goalVerifier: "goalVerifier",
+      goalContinuation: "goalContinuation", turnSteer: "turnSteer",
+    };
+    // 原因：自动维护终态只撤回自身 work，不能清除同一轮仍在运行的 primaryTurn 或 goal continuation。
+    return {
+      ...patch,
+      ...this.controlPatch({
+        activeWorks: otherWorks,
+        canStop: otherWorks.length > 0,
+        stopState: otherWorks.length === 0 ? "idle" : current.stopState === "stopping" ? "stopping" : "stoppable",
+        stopTargetKind: otherWorks.length === 0 ? "unknown" : otherWorks.length === 1 ? targets[otherWorks[0]!.kind] : "mixed",
+      }),
+    };
+  }
+
   /** 生命周期状态独立于 run phase；更新必须推进水位，避免旧 base 漏掉门禁。 */
   setRuntimeInitialization(
     state: NonNullable<ConversationSnapshot["runtimeInitialization"]>,
@@ -964,7 +1031,7 @@ export class ProductProjection {
    * orderedMessageIds 由 host 再用 session store 权威顺序补齐并持久化 anchor。
    */
   resolveStableForkCandidate(rowId: number): StableForkCandidateResolution {
-    if (this.snapshot.control.activeWorks.some((work) => work.kind === "compact")) {
+    if (this.snapshot.control.activeWorks.some((work) => work.kind === "compact" || work.kind === "nativeContextCompression")) {
       return { ok: false, reasonCode: "guard.compactOperationLock" };
     }
     const row = this.findRow(rowId);
@@ -1304,7 +1371,7 @@ export class ProductProjection {
         latestAssistantRowIdByTurn.set(row.turnId, row.rowId);
       }
     }
-    const compactActive = prospective.control.activeWorks.some((work) => work.kind === "compact");
+    const compactActive = prospective.control.activeWorks.some((work) => work.kind === "compact" || work.kind === "nativeContextCompression");
     const completionBlockingActive = prospective.control.activeWorks.length > 0;
     let latestEditable: ConversationRow | undefined;
     let latestAssistant: AssistantTextRow | undefined;
@@ -1471,6 +1538,11 @@ export class ProductProjection {
         return this.onStreamRecoveryRetryStarted(event);
       case SessionEventType.ModelSelected:
         return this.onModelSelected(event);
+      case SessionEventType.NativeContextCompressionUpdated: {
+        const status = nativeContextStatusSchema.parse(event.payload);
+        if (!this.acceptsNativeContextStatus(status, false)) return [];
+        return [{ op: "state.updated", patch: this.nativeContextPatch(status) }];
+      }
       case SessionEventType.ModelComplete:
         return this.onModelComplete(event);
       case SessionEventType.ToolCallScheduled:
@@ -5617,7 +5689,7 @@ export class ProductProjection {
       phase: next.phase,
       goalStatus: nextGoal?.status ?? null,
       // compacting 不是独立 phase（封闭枚举），从 activeWorks 派生。
-      compacting: next.activeWorks.some((work) => work.kind === "compact"),
+      compacting: next.activeWorks.some((work) => work.kind === "compact" || work.kind === "nativeContextCompression"),
       goalVerifying: next.activeWorks.some((work) => work.kind === "goalVerifier"),
       queueLength: nextQueue.items.length,
       autoDrain: nextQueue.autoDrain,
@@ -5658,7 +5730,7 @@ export class ProductProjection {
     return {
       phase: this.snapshot.control.phase,
       goalStatus: goal?.status ?? null,
-      compacting: this.snapshot.control.activeWorks.some((work) => work.kind === "compact"),
+      compacting: this.snapshot.control.activeWorks.some((work) => work.kind === "compact" || work.kind === "nativeContextCompression"),
       goalVerifying: this.snapshot.control.activeWorks.some((work) => work.kind === "goalVerifier"),
       queueLength: queue.items.length,
       autoDrain: queue.autoDrain,

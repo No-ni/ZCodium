@@ -4915,15 +4915,15 @@ SPT05：manual-review pending。`packages/ui/test/browser/manual-review/pending/
 
 2026-10-16：SPT05 浏览器 4/4、macOS Electron 独立 renderer 深浅主题 2/2 通过；134 个收起工具每次挂载的隐藏尺寸读取从 134 降到 0，样式重算中位数从 136 降到 2，同机浏览器夹具主线程耗时中位数约 139ms → 121ms（12 次采样，开发模式，不代表用户原 trace 的端到端收益）。ESM/CommonJS 6 项测量回归通过。SRM10 普通长会话与含 134 工具的后台结果轮各 4/4 通过，覆盖跟随、离底、会话记忆和定位；重工具模式使用 `ZCODE_RESIZE_HEAVY_TOOLS=1`。SPT03 项目侧栏四项通过，相关单测共 6 文件/144 项；affected 选中并通过新增测量测试 1 文件/6 项。根类型、E2E 类型、浏览器夹具类型、lint、架构、代码格式和 frozen lockfile 检查通过。Electron 回放可通过 `ZCODE_COLLAPSIBLE_ELECTRON_PATH` 指定可执行文件，证据目录可用 `ZCODE_E2E_ARTIFACT_DIR` 指定。候选保持 pending；未验证完整应用原会话、Windows/Linux 整机或手机真实传输。
 
-| Case  | 自动化路径                                                                     | 验证边界                                                                                                                                                                         |
-| ----- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SPT01 | `packages/ui/test/browser/manual-review/pending/side-pane-toggle.test.mjs`     | 连接已有 ZCode Dev；空草稿、多项目、深浅主题，真实点击与 React commit 采样。回归断言项目内容零更新，耗时仅作为证据。无 provider 请求。                                           |
-| SPT02 | `packages/ui/test/browser/manual-review/pending/composer-toolbar-fit.test.mjs` | 独立浏览器夹具；430/1250px、中英、深浅主题，几何、文案更新、菜单焦点与 DOM 稳定性。                                                                                              |
+| Case  | 自动化路径                                                                     | 验证边界                                                                                                                               |
+| ----- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| SPT01 | `packages/ui/test/browser/manual-review/pending/side-pane-toggle.test.mjs`     | 连接已有 ZCode Dev；空草稿、多项目、深浅主题，真实点击与 React commit 采样。回归断言项目内容零更新，耗时仅作为证据。无 provider 请求。 |
+| SPT02 | `packages/ui/test/browser/manual-review/pending/composer-toolbar-fit.test.mjs` | 独立浏览器夹具；430/1250px、中英、深浅主题，几何、文案更新、菜单焦点与 DOM 稳定性。                                                    |
 
 2026-11-07 BUG-006/007/008 修复回归 pending：外置 `qa-2026-11-06/manual-review/pending/qa-ui-bugfix-20261107.test.ts`（UIF01–03）复用 SPT02、SPFV-E2E-002 和 CC-SELECT-03 的已接受契约。工具栏 ref/纯副本同 owner、普通240px人工縮窄/恢复、560px浮窗单行与草稿节点保持、不同设置command ID的唯一选中和键盘执行；前置/动作/断言见 [修复计划](qa-2026-11-06/test-plan-ui-bugfix-20261107.md)。修前 QA 失败证据保留，当前尚未执行新UI，不作为通过或正式CI准入。
-| SPT03 | `packages/ui/test/browser/manual-review/pending/new-task-rendering.test.mjs`   | 独立浏览器夹具；44 项目、桌面/手机、深浅主题。实际新建与远端导航 hook、目录 Provider、RPC 方法代理；Host/bridge 响应使用 fixture。                                               |
-| SPT04 | `packages/ui/test/browser/manual-review/pending/new-task-shortcut.test.mjs`    | 真实 Electron Dev App；多项目、深浅主题、Cmd/Ctrl+N 菜单事件、项目归属、回选会话与项目行渲染次数；保留 trace 和首帧采样。不发送 prompt。                                         |
-| SPT06 | `packages/ui/test/browser/manual-review/pending/new-task-rendering.test.mjs`   | 独立浏览器夹具；实际目录投影、Context 和项目组件，fixture 注入实时活动；44 项目、桌面/手机、深浅主题。运行态更新、两处 loading 合成动画与操作回归，pending，不覆盖真实远端传输。 |
+| SPT03 | `packages/ui/test/browser/manual-review/pending/new-task-rendering.test.mjs` | 独立浏览器夹具；44 项目、桌面/手机、深浅主题。实际新建与远端导航 hook、目录 Provider、RPC 方法代理；Host/bridge 响应使用 fixture。 |
+| SPT04 | `packages/ui/test/browser/manual-review/pending/new-task-shortcut.test.mjs` | 真实 Electron Dev App；多项目、深浅主题、Cmd/Ctrl+N 菜单事件、项目归属、回选会话与项目行渲染次数；保留 trace 和首帧采样。不发送 prompt。 |
+| SPT06 | `packages/ui/test/browser/manual-review/pending/new-task-rendering.test.mjs` | 独立浏览器夹具；实际目录投影、Context 和项目组件，fixture 注入实时活动；44 项目、桌面/手机、深浅主题。运行态更新、两处 loading 合成动画与操作回归，pending，不覆盖真实远端传输。 |
 
 运行：`node --test packages/ui/test/browser/manual-review/pending/side-pane-toggle.test.mjs`（可通过 `ZCODE_E2E_CDP_URL` 指定 Dev CDP）；`node --test packages/ui/test/browser/manual-review/pending/composer-toolbar-fit.test.mjs`；`node --test packages/ui/test/browser/manual-review/pending/new-task-rendering.test.mjs`；`ZCODE_E2E_TRACE=1 node --test packages/ui/test/browser/manual-review/pending/new-task-shortcut.test.mjs`。SPT04 需已运行且至少有 40 个项目的 Dev App；macOS 使用原生按键，`ZCODE_E2E_ARTIFACT_DIR` 可指定证据目录。保持 pending，不自动晋级 CI。
 
@@ -6131,3 +6131,57 @@ AGA01 为 accepted 组件浏览器候选：关闭时可先保存时长再开启�
 ### 本 fork 3.17.1 分组与任务右键菜单
 
 GTM01 为 covered / pending-review（组件场景）：scripts/ci/official317-grouped-menu-browser.test.mjs 实际通过 1/1，日志 .run-logs/project-only-validation/source-tests-NG8dcW/logs/source-tests.log；四组合截图位于同运行 children/official317-grouped-menu-YvQKgX。断言真实分组重命名的 IME/Enter/Escape、任务行右键动作与 dnd aria，页面异常和外部请求均为空。未晋升 formal/CI；完整 Electron、实体手机、实际拖拽和跨 Host 场景未覆盖。
+
+### 渠道出站压缩保存（2026-11-10）
+
+规则与验收见 [请求压缩 spec](../model-provider-request-compression.md) 和
+[Provider 回归目录](../model-provider-regression-case-catalog.md#渠道出站压缩保存回归2026-11-10)。
+候选为 `packages/desktop/test/e2e/settings/manual-review/pending/provider-request-compression-save.test.ts`，
+使用合成渠道、受控 RPC 保存延迟和真实持久化，不调用模型 API；不自动转正或加入 CI。
+
+| Case ID       | 状态                     | 断言                                                                | 执行证据                                                                                           |
+| ------------- | ------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| PCOMP-SAVE-01 | covered / pending-review | off → brotli → off/gzip；串行保存、最后 UI 和文件一致、关闭重开恢复 | [004，2/2](../../packages/desktop/.e2e-artifacts/desktop-e2e-compression-20261111-004/summary.md)  |
+| PCOMP-SAVE-02 | covered / pending-review | 保存期间继续编辑后失败仍可重试；重试最新 gzip，文件与 UI 一致       | [004，通过](../../packages/desktop/.e2e-artifacts/desktop-e2e-compression-20261111-004/summary.md) |
+| PCOMP-SAVE-03 | covered / pending-review | 删除确认期间暂停，取消后恢复最新 off 草稿                           | [004，通过](../../packages/desktop/.e2e-artifacts/desktop-e2e-compression-20261111-004/summary.md) |
+| PCOMP-SAVE-04 | covered / pending-review | 删除完成后释放旧保存回执，渠道不复活，不再提交第二份草稿            | [004，通过](../../packages/desktop/.e2e-artifacts/desktop-e2e-compression-20261111-004/summary.md) |
+| PCOMP-SAVE-05 | covered / pending-review | 启停保存与压缩编辑严格串行，最终启停与压缩落盘并可重开恢复          | [004，通过](../../packages/desktop/.e2e-artifacts/desktop-e2e-compression-20261111-004/summary.md) |
+
+CLI 压缩、取消与网关/协议隔离的定向测试独立记录在 spec；不能代替桌面交互或手机/真实网关验收。
+
+## 原生上下文压缩 NCTX（2026-11-12）
+
+规则由[实施契约](../specs/native-context-compression-implementation.md)接受。完整 32 场 setup/action/assert、完整轮历史与 R7 中断结果、source 60 项子集与未验规则见[NCTX 独立验收表](native-context-compression-e2e-coverage.md)，本节不改其它 Provider/会话行。
+
+最新完整轮仍为第六轮 **32 场、28 pass / 4 fail / 0 skip**，[R6 报告][NCTX-R6]与[逐场结果][NCTX-results]保留。第七轮 [FzMwnE][NCTX-R7]已中断（interrupted），实际 **10 场、9 pass / 1 timeout / 0 skip，22 场未执行**；[逐场结果][NCTX-R7-results]只记录这 10 条。首 9 场同名子集通过，第 10 场手动维护 180001ms 超时后断链，原因仍在调查；没有到达手机、账本、图片、自动维护/中断或冷重启场。第八轮 [部分证据][NCTX-R8-partial]仅有 25 场：21 pass / 4 fail / 0 recorded skip，7 场未执行；[逐场记录][NCTX-R8-results]已保存，没有 summary/退出收据，退出值和终止原因未知。桌面 3000 账本分页、实际 SVG 与点详情已通过；在途 mode 主断言后 teardown 失败，手机通过 Home/首启后进入聊天出现已释放数据层错误，后两手机场未完成。最多两名协助者先补真实源码红绿回归，再共享环境重点复测 13 场；不重复全 32 场，不给未选择项登记本轮 pass 或 skip。
+
+共享 pending 候选计划使用真实 Windows Desktop/同 Host/CLI、确定性 Provider 回放、一次手机 Page 与唯一一次 Electron 冷重启；有源码改动统一重编译并复用驱动。没有人审、promotion 或 CI admission。`covered` 仅表示下列明确产品子集，绝不表示 NCTX-01..60 全量完成；source 不提升为 Desktop/mobile covered。
+
+| Case ID                                  | 当前状态                           | 已实际验证的子集与未验边界                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NCTX-01/03/20/23/24/27/60                | covered 子集 / pending-review      | 空态、Read 新建 auto、90 表单/JSON/独立草稿、两作用域 ACK+fresh、future 默认捕获、导出取消 [R6][NCTX-R6]，R7 首 9 场的对应子集再次通过 [R7][NCTX-R7]；不是全部字段值/参数组合                                                                                                                                                                                                             |
+| NCTX-04/06/07/11/16/25                   | covered 子集 / pending-review      | 真实 manual/auto offered ranges、独立 usage、原文引用及后续主请求；Stop/关闭/参数保存使候选作废、费用保留 [R6][NCTX-R6]；R7 手动维护超时，auto/中断未执行；A/B/C 模型冻结、无收益/全保护等另计 source                                                                                                                                                                                     |
+| NCTX-10/19/28/29/31/32/35/38/39/41       | partial / pending-review           | PNG/alpha/同 bytes 稳定 part、发送/原图 hash、记录/主观察关联、分页/跨任务/stale revision、manual 冷恢复 [R6][NCTX-R6]；动画/缓存/全部工具输入/同 path 跨 Host 不是本轮产品覆盖                                                                                                                                                                                                           |
+| NCTX-12/13/14/15/36/44/53/54             | partial / pending-review           | stable old/latest fork、唯一冷恢复、首个恢复主请求、compact 当前段空态 [R6][NCTX-R6]；长文本编辑/rewind、跨范围 fork、父并行/删除和事务故障仅 source 子集                                                                                                                                                                                                                                 |
+| NCTX-30/33/34/40/42/43                   | partial / pending-review           | 模型 context_read_image 原 PNG 一次、成功 receipt/省略保护、manual/omitSeen/改码；同 Provider 非 vision/硬容量明确失败并真实新 turn 继续 [R6][NCTX-R6]；首次失败/取消/CAS/换模型等 source-only                                                                                                                                                                                            |
+| NCTX-21/45/46/47/48/49/50/51/52/56/57/59 | partial / pending-review           | 桌面四宽/中英/浅深、三图/键盘/返回、真实 SVG 与未知/零/缓存、维护费用及图片 bytes [R6][NCTX-R6]；手机、所有模型/预算/计数器分段、多 attempt/负收益/未知 partial 不按标题推定覆盖                                                                                                                                                                                                          |
+| NCTX-18/26/55；手机 NCTX-21/23/56        | failing / blocked / pending-review | R6 首场 Home/chat 超时、Main mobileTaskView=null；后两场没有已准入 Page 被 blocked [R6][NCTX-R6]。pane/session 可见不替代 Main 查看，App→Shell source 修复后仍待真实 reload/hide/show/设置                                                                                                                                                                                                |
+| NCTX-58                                  | failing / partial / pending-review | R6 desktop 已到达 seed/resume 前置，在旧页 envelope 误比 seed 中止；大 SVG/极值/缺口/点详情未执行，mobile blocked [R6][NCTX-R6]。[页版本 4/4][NCTX-page]只是 source                                                                                                                                                                                                                       |
+| NCTX-02/05/08/09/17/22/37                | source-only / product missing      | 旧任务 L3、全保护 A4、候选故障 S1、A/B/C S3、Goal S9/S10/G1/完整 compact D2 见[source 索引][NCTX-source]。新[Core 工具 batch 1/1][NCTX-core]与 [Bootstrap 2/2](../../.run-logs/project-only-validation/nctx-bootstrap-tool-batch-final-evidence-2DCxEf/children/nctx-bootstrap-tool-batch-freeze-index-xgq4Uq/freeze-evidence-index.md)是 Runtime/SQLite source，不是产品 FIFO 重复 click |
+
+第六轮四个失败不合并成四个生产 bug：大账本是 helper 对 query envelope/冻结 item 版本的错误比较；手机首场暴露共享 App 未透传 switcher 的生产链路，后两场为前置级联。修后的 source/静态结果不改变旧 artifact，R7 没有执行这些后续场，仍保留 R6 的 failing/partial 与 source-only 边界；第 10 场超时/断链也不据此归因为已确认生产 bug。
+
+即使下一轮 32 场全通过，维护 accepted ACK 丢失→手机重连/重复命令、双设备旧 policy 冲突、迟到 native 页/旧 owner、同 path 不同 identity/remoteSessionId 的跨 Host 读取，仍缺该完整产品组合的执行证据。旧任务/Goal/事务/模型 A/B/C/真工具 batch 与长文本编辑已有各自 source 子集，不能混作 Desktop 或手机覆盖。macOS、实体触摸、真实视觉摘要质量、生产远端和完整性能验收继续人工 pending。
+
+历史首轮 19 场 1/18、第二至五轮 32 场分别 13/19、18/14、22/10、27/5，均 0 skip，报告在独立表；onPrepare 失败的 az7Uil 是 0 产品场。初期 17/18 场静态与 52/61 项解析只是当时快照。source 计数沿完结日志：不相加重跑/nested/重合，不把旧 20/21 或 projector 280/281 改为整组重跑全绿；[新增 source/static 补充索引][NCTX-supplement]只补对应层级子集；[Core 1/1][NCTX-core]与旧 C7、Bootstrap 两 delivery 分别登记。
+
+[NCTX-R6]: ../../.run-logs/project-only-validation/native-context-desktop-e2e-kU95iV/artifacts/summary.md
+[NCTX-results]: ../../.run-logs/project-only-validation/native-context-desktop-e2e-kU95iV/artifacts/test-results.ndjson
+[NCTX-source]: ../../.run-logs/project-only-validation/nctx-final-source-evidence-audit-final-Ab3M7L/children/nctx-final-source-evidence-index-BTGRnv/source-evidence-index.md
+[NCTX-core]: ../../.run-logs/project-only-validation/nctx-core-tool-batch-final-evidence-aHaiJd/fixtures/nctx-core-tool-batch-evidence-G02sbX/evidence.json
+[NCTX-page]: ../../.run-logs/project-only-validation/nctx-r7-ledger-page-freeze-4bgp3g/children/nctx-r7-ledger-page-freeze-index-Hz3Iqe/freeze-index.md
+[NCTX-R7]: ../../.run-logs/project-only-validation/native-context-desktop-e2e-FzMwnE/artifacts/summary.md
+[NCTX-R7-results]: ../../.run-logs/project-only-validation/native-context-desktop-e2e-FzMwnE/artifacts/test-results.ndjson
+[NCTX-supplement]: ../../.run-logs/project-only-validation/nctx-source-supplement-index-final-1W6hom/children/nctx-source-supplement-index-bTzqXt/source-supplement-index.md
+[NCTX-R8-partial]: ../../.run-logs/project-only-validation/nctx-r8-partial-evidence-D8t7HP/round8-partial-evidence.md
+[NCTX-R8-results]: ../../.run-logs/project-only-validation/native-context-desktop-e2e-ZkX0pP/artifacts/test-results.ndjson

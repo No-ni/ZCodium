@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": [
+    "native-context-main-request.test.ts",
+    "native-context-main-request-fixture.ts",
+    "native-context-main-request-model-fixture.ts"
+  ]
+}

@@ -1,9 +1,6 @@
 import { genUiModelContextSchema, type GenUiModelContext } from "@zcode/shared/gen-ui";
 import { attachGenUiContext, normalizeGenUiInput } from "./message-history.js";
-import {
-  hydrateCompactDiscovery,
-  hydrateToolSearchAnnouncement,
-} from "./tool-search-hydration.js";
+import { hydrateCompactDiscovery, hydrateToolSearchAnnouncement } from "./tool-search-hydration.js";
 import { parseToolSearchHiddenNames } from "../tool/search/history.js";
 import { parseAgentListingDelta } from "./agent-listing-metadata.js";
 import { parseEnvironmentAnnouncement } from "../context/sections/env-info.js";
@@ -52,6 +49,8 @@ import {
   todoReminderRuntimeMetadata,
   type MessageHistory,
   type RuntimeMessageEntry,
+  type RuntimeCanonicalMessageIdentity,
+  withRuntimeCanonicalEntries,
   type RuntimeMessageMetadata,
   type RuntimeMessageSource,
   type ToolCallInput,
@@ -94,6 +93,17 @@ export async function hydrateMessageHistoryFromSession(input: {
     partCount = 0;
 
   for (const message of activeMessages) {
+    const canonicalIdentity: RuntimeCanonicalMessageIdentity = {
+      messageId: message.info.id,
+      createdAt: message.info.time.created,
+    };
+    let nextEntryIndex = 0;
+    const commitMessageEntries = (entries: readonly RuntimeMessageEntry[]) => {
+      input.history.addEntries(
+        withRuntimeCanonicalEntries(entries, canonicalIdentity, nextEntryIndex),
+      );
+      nextEntryIndex += entries.length;
+    };
     // 旧话题背景已由可查看文本附件替代；保留存储记录，但恢复时不能重新隐藏注入。
     if (
       message.info.role === "user" &&
@@ -131,7 +141,17 @@ export async function hydrateMessageHistoryFromSession(input: {
       // user <system-reminder>，后续 mid-conversation system projection 会失去 attachment source。
       const syntheticAttachment = syntheticSystemReminderAttachmentFromParts(parts);
       if (syntheticAttachment) {
-        input.history.addEntries([syntheticAttachment]);
+        const part = parts.find((part) => part.type === "text" && !part.ignored)!;
+        commitMessageEntries([
+          {
+            ...syntheticAttachment,
+            canonical: {
+              ...canonicalIdentity,
+              entryIndex: 0,
+              partId: part.id,
+            },
+          },
+        ]);
         appliedMessageCount++;
         continue;
       }
@@ -152,6 +172,7 @@ export async function hydrateMessageHistoryFromSession(input: {
         context.success ? context.data : undefined,
         // 空闲整批的每条通知是一个文本 part，按块读回，与 live 写入的 content 相同。
         presentation?.inputPresentation === "task_notification",
+        canonicalIdentity,
       );
       if (entries.length === 0) continue;
       const boundaryPart = parts.find(isActiveCompactionBoundaryPart);
@@ -169,7 +190,7 @@ export async function hydrateMessageHistoryFromSession(input: {
           },
         };
       }
-      input.history.addEntries(
+      commitMessageEntries(
         presentation
           ? entries.map((entry) =>
               entry.kind === "attachment"
@@ -204,7 +225,7 @@ export async function hydrateMessageHistoryFromSession(input: {
     const { rounds: providerRounds, remainingParts } = splitProviderToolRoundParts(assistantParts);
     // 这条消息拆出的所有 assistant entry 共用分组键：compact 按数据库消息定持久化边界，两边组数才一致。
     const compactGroupKey = providerRounds.length > 0 ? message.info.id : undefined;
-    input.history.addEntries(
+    commitMessageEntries(
       withCompactGroupKey(
         providerRounds.flatMap((round) => {
           const toolPart = round.toolPart;
@@ -224,6 +245,8 @@ export async function hydrateMessageHistoryFromSession(input: {
                   ? toolPart.state.error
                   : INTERRUPTED_TOOL_RESULT,
               toolPart.state.status === "error",
+              undefined,
+              { ...canonicalIdentity, entryIndex: 0, partId: toolPart.id },
             ),
           ];
         }),
@@ -256,10 +279,12 @@ export async function hydrateMessageHistoryFromSession(input: {
         modelCallWrapper: modelCallWrapperFromPart(part),
         name: historyToolNameFromPart(part),
         // 冷恢复与热态共用原生工具签名，压缩分组不得丢失该字段。
-        ...(isRecord(part.metadata?.providerOptions) ? { providerOptions: part.metadata.providerOptions } : {}),
+        ...(isRecord(part.metadata?.providerOptions)
+          ? { providerOptions: part.metadata.providerOptions }
+          : {}),
       }),
     );
-    input.history.addEntries(
+    commitMessageEntries(
       withCompactGroupKey(
         [
           createRuntimeAssistantEntry(
@@ -298,10 +323,23 @@ export async function hydrateMessageHistoryFromSession(input: {
               )
             : undefined;
         const content =
-          restoredToolSearchContent(part) ??
-          projectedMediaContent ??
-          part.state.output;
-        input.history.addToolResult(part.callID, toolName, content, true, false, modelCallWrapper);
+          restoredToolSearchContent(part) ?? projectedMediaContent ?? part.state.output;
+        const imagePartIds = Array.isArray(projectedMediaContent)
+          ? projectedMediaContent
+              .filter((block) => block.type === "image")
+              .map((block) => block.source?.id)
+          : [];
+        commitMessageEntries([
+          createRuntimeToolResultEntry(part.callID, toolName, content, false, modelCallWrapper, {
+            ...canonicalIdentity,
+            entryIndex: 0,
+            partId: part.id,
+            ...(imagePartIds.length > 0 &&
+            imagePartIds.every((id): id is string => id !== undefined)
+              ? { imagePartIds }
+              : {}),
+          }),
+        ]);
         continue;
       }
 
@@ -309,26 +347,30 @@ export async function hydrateMessageHistoryFromSession(input: {
         const persistedModelContent = part.state.metadata?.modelContent;
         // 实时链路使用 ToolExecutionResult.modelContent，但旧恢复逻辑只重放
         // 面向 UI / 日志的 state.error；优先使用持久化字符串并兼容旧 session。
-        input.history.addToolResult(
-          part.callID,
-          toolName,
-          typeof persistedModelContent === "string" ? persistedModelContent : part.state.error,
-          false,
-          true,
-          modelCallWrapper,
-        );
+        commitMessageEntries([
+          createRuntimeToolResultEntry(
+            part.callID,
+            toolName,
+            typeof persistedModelContent === "string" ? persistedModelContent : part.state.error,
+            true,
+            modelCallWrapper,
+            { ...canonicalIdentity, entryIndex: 0, partId: part.id },
+          ),
+        ]);
         continue;
       }
 
       interruptedToolCount++;
-      input.history.addToolResult(
-        part.callID,
-        toolName,
-        INTERRUPTED_TOOL_RESULT,
-        false,
-        true,
-        modelCallWrapper,
-      );
+      commitMessageEntries([
+        createRuntimeToolResultEntry(
+          part.callID,
+          toolName,
+          INTERRUPTED_TOOL_RESULT,
+          true,
+          modelCallWrapper,
+          { ...canonicalIdentity, entryIndex: 0, partId: part.id },
+        ),
+      ]);
     }
   }
 
@@ -410,16 +452,23 @@ async function userEntriesFromParts(
   artifactStore: ToolArtifactStorePort | undefined,
   genUiContext?: GenUiModelContext,
   keepTextBlocks = false,
+  canonicalIdentity?: RuntimeCanonicalMessageIdentity,
 ): Promise<RuntimeMessageEntry[]> {
   const attachments: UserMessageAttachment[] = [];
   const promptBlocks: ModelMessageContentBlock[] = [];
   const syntheticAttachmentEntries: RuntimeMessageEntry[] = [];
+  const userContentPartIds: string[] = [];
 
   for (const part of parts) {
     if (part.type === "text" && !part.ignored) {
       const syntheticAttachment = syntheticSystemReminderAttachmentFromTextPart(part);
       if (syntheticAttachment) {
-        syntheticAttachmentEntries.push(syntheticAttachment);
+        syntheticAttachmentEntries.push({
+          ...syntheticAttachment,
+          ...(canonicalIdentity
+            ? { canonical: { ...canonicalIdentity, entryIndex: 0, partId: part.id } }
+            : {}),
+        });
         continue;
       }
       const input = part.synthetic
@@ -427,6 +476,7 @@ async function userEntriesFromParts(
         : normalizeGenUiInput(part.text, genUiContext);
       if (input.genUiContext !== undefined) genUiContext = input.genUiContext;
       promptBlocks.push({ type: "text", text: input.text });
+      userContentPartIds.push(part.id);
       continue;
     }
 
@@ -440,6 +490,7 @@ async function userEntriesFromParts(
 
     if (part.type === "agent") {
       promptBlocks.push({ type: "text", text: `[Selected agent: ${part.name}]` });
+      userContentPartIds.push(part.id);
     }
   }
 
@@ -450,7 +501,16 @@ async function userEntriesFromParts(
           .map((block) => (block.type === "text" ? block.text : ""))
           .filter(Boolean)
           .join("\n\n");
-  const [userEntry, ...promptAttachmentEntries] = buildUserMessageEntries(prompt, attachments);
+  const [userEntry, ...promptAttachmentEntries] = buildUserMessageEntries(
+    prompt,
+    attachments,
+    canonicalIdentity
+      ? {
+          ...canonicalIdentity,
+          ...(userContentPartIds.length === 1 ? { partId: userContentPartIds[0] } : {}),
+        }
+      : undefined,
+  );
   const content = userEntry.message.content;
   const hasUserContent = modelMessageContentToText(content).trim().length > 0;
   const userMetadata = metadataFromUserParts(parts);
@@ -469,12 +529,7 @@ async function userEntriesFromParts(
   // 页面状态挂回所属输入，与热态同形；输入本身没有恢复时，状态也不发出。
   return [
     ...(shouldRestoreRealUserEnvelope
-      ? [
-          attachGenUiContext(
-            { message: { role: "user" as const, content }, metadata: userMetadata },
-            genUiContext,
-          ),
-        ]
+      ? [attachGenUiContext({ ...userEntry, metadata: userMetadata }, genUiContext)]
       : []),
     ...syntheticAttachmentEntries,
     ...promptAttachmentEntries,

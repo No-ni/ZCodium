@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": [
+    "native-context-current-segment.test.ts",
+    "native-context-boundary-fixture.ts"
+  ]
+}

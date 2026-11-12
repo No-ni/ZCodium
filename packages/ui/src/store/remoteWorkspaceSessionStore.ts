@@ -27,7 +27,7 @@ interface RemoteWorkspaceSessionState {
   // 这里补充 workspaceIdentity -> session 的映射，保证远程会话按“主机+路径”唯一绑定。
   sessionIdByWorkspaceIdentity: Record<string, string>;
   connectionOverlayByWorkspaceKey: Record<string, RemoteWorkspaceConnectionOverlay>;
-  registerBaseServices: (services: IServiceAccessor) => void;
+  registerBaseServices: (services: IServiceAccessor | null) => void;
   registerSession: (session: RemoteWorkspaceSession) => void;
   unregisterSession: (sessionId: string) => void;
   bindWorkspacePath: (workspacePath: string, sessionId: string) => void;
@@ -160,7 +160,8 @@ export function registerRemoteWorkspaceSession(session: RemoteWorkspaceSession):
   useRemoteWorkspaceSessionStore.getState().registerSession(session);
 }
 
-export function registerBaseWorkspaceServices(services: IServiceAccessor): void {
+// 手机桥失效时需清退其 accessor；沿用同一注册 action，避免首次渲染借用已释放的旧代理。
+export function registerBaseWorkspaceServices(services: IServiceAccessor | null): void {
   useRemoteWorkspaceSessionStore.getState().registerBaseServices(services);
 }
 

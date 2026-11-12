@@ -174,18 +174,6 @@
     "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
   },
   {
-    "package": "@napi-rs/canvas-linux-x64-gnu@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
-    "package": "@napi-rs/canvas-linux-x64-musl@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
     "package": "@napi-rs/canvas-win32-arm64-msvc@0.1.100",
     "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
     "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
@@ -198,19 +186,7 @@
     "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
   },
   {
-    "package": "@napi-rs/canvas-linux-arm64-musl@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
     "package": "@napi-rs/canvas-darwin-x64@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
-    "package": "@napi-rs/canvas-linux-arm64-gnu@0.1.100",
     "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
     "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
     "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
@@ -421,5 +397,100 @@
     "package": "khroma@2.1.0",
     "license": "MIT",
     "evidence": "The package does not declare a license field; its license contains the MIT grant and copyright notice."
+  },
+  {
+    "package": "@trycua/cua-driver@0.28.2",
+    "file": "third-party/upstream/c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9.txt",
+    "sha256": "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9",
+    "source": "https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md",
+    "license": "MIT",
+    "referenceRevision": "fc188250b4ca8549b8e61f937fdb1fb560770e86",
+    "provenance": "Original repository MIT license at the official 0.28.2 tag commit; the TypeScript manifest matches the installed package name/version. npm metadata does not provide a gitHead.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@trycua%2fcua-driver/0.28.2",
+      "npmGitHead": null,
+      "sourceTag": "cua-driver-rs-v0.28.2",
+      "sourceManifest": "https://github.com/trycua/cua/blob/fc188250b4ca8549b8e61f937fdb1fb560770e86/libs/cua-driver/typescript/package.json",
+      "sourceManifestSha256": "e8fef4d6e1965b7c89ede6f701d8471041dbf08d0118f7d84835897bd3d5e9e2",
+      "sourceManifestVersion": "0.28.2"
+    }
+  },
+  {
+    "package": "@ubjs/core@0.31.0-3",
+    "file": "third-party/upstream/d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d.txt",
+    "sha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/49bc59194d183a05855ed4104c18eb92fb465e02/LICENSE",
+    "license": "MPL-2.0",
+    "referenceRevision": "49bc59194d183a05855ed4104c18eb92fb465e02",
+    "provenance": "Original repository LICENSE at the exact npm publication gitHead; the publisher notice is retained verbatim and the standard MPL-2.0 text is separately included.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@ubjs%2fcore/0.31.0-3",
+      "npmGitHead": "49bc59194d183a05855ed4104c18eb92fb465e02"
+    }
+  },
+  {
+    "package": "@ubjs/node@0.31.0-3",
+    "file": "third-party/upstream/d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d.txt",
+    "sha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "license": "MPL-2.0",
+    "referenceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    "provenance": "Original repository LICENSE at the exact npm publication gitHead; the publisher notice is retained verbatim and the standard MPL-2.0 text is separately included.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@ubjs%2fnode/0.31.0-3",
+      "npmGitHead": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449"
+    }
+  },
+  {
+    "package": "@ubjs/node-darwin-arm64@0.31.0-3",
+    "file": "third-party/upstream/d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d.txt",
+    "sha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "license": "MPL-2.0",
+    "referenceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    "provenance": "Original repository LICENSE at the exact npm publication gitHead; the publisher notice is retained verbatim and the standard MPL-2.0 text is separately included.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@ubjs%2fnode-darwin-arm64/0.31.0-3",
+      "npmGitHead": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449"
+    }
+  },
+  {
+    "package": "@ubjs/node-darwin-x64@0.31.0-3",
+    "file": "third-party/upstream/d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d.txt",
+    "sha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "license": "MPL-2.0",
+    "referenceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    "provenance": "Original repository LICENSE at the exact npm publication gitHead; the publisher notice is retained verbatim and the standard MPL-2.0 text is separately included.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@ubjs%2fnode-darwin-x64/0.31.0-3",
+      "npmGitHead": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449"
+    }
+  },
+  {
+    "package": "@ubjs/node-win32-arm64-msvc@0.31.0-3",
+    "file": "third-party/upstream/d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d.txt",
+    "sha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "license": "MPL-2.0",
+    "referenceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    "provenance": "Original repository LICENSE at the exact npm publication gitHead; the publisher notice is retained verbatim and the standard MPL-2.0 text is separately included.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@ubjs%2fnode-win32-arm64-msvc/0.31.0-3",
+      "npmGitHead": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449"
+    }
+  },
+  {
+    "package": "@ubjs/node-win32-x64-msvc@0.31.0-3",
+    "file": "third-party/upstream/d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d.txt",
+    "sha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "license": "MPL-2.0",
+    "referenceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    "provenance": "Original repository LICENSE at the exact npm publication gitHead; the publisher notice is retained verbatim and the standard MPL-2.0 text is separately included.",
+    "versionEvidence": {
+      "metadataUrl": "https://registry.npmjs.org/@ubjs%2fnode-win32-x64-msvc/0.31.0-3",
+      "npmGitHead": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449"
+    }
   }
 ]

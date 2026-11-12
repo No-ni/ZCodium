@@ -54,6 +54,16 @@ modules:
   - id: web
     roots: [packages/web/src]
     managed: false
+  - id: mobile-shared-root
+    roots: [packages/web/src/mobile/shared-root]
+    managed: true
+    requires: [shared, client, ui]
+    publicEntrypoints:
+      - packages/web/src/mobile/shared-root/contract.ts
+      - packages/web/src/mobile/shared-root/index.ts
+    layers: { domain: domain, app: app, adapters: adapters, ui: ui }
+    layerOrder: [domain, app, adapters, ui]
+    owner: web-remote-control
   - id: desktop
     roots: [packages/desktop/src]
     managed: false
@@ -70,6 +80,103 @@ modules:
     roots: [apps/zcode-cli]
     managed: false
     requires: [shared, sqlite-migrations]
+
+  # 原生上下文压缩：Runtime 持有事实；CLI 库持久化；UI 只持草稿和选择。
+  - id: native-context-protocol
+    roots:
+      [
+        packages/shared/src/native-context-compression,
+        packages/shared/src/zcode-protocol-v4/create-session-config.ts,
+      ]
+    managed: true
+    requires: [shared]
+    publicEntrypoints:
+      [
+        packages/shared/src/native-context-compression/contract.ts,
+        packages/shared/src/native-context-compression/index.ts,
+      ]
+    layers: { domain: "." }
+    owner: conversation
+  - id: native-context-runtime
+    roots: [apps/zcode-cli/packages/core/src/runtime/native-context-compression]
+    managed: true
+    requires:
+      [
+        zcode-cli,
+        shared,
+        native-context-protocol,
+        native-context-original-image,
+        model-usage-observability,
+      ]
+    publicEntrypoints:
+      [
+        apps/zcode-cli/packages/core/src/runtime/native-context-compression/contract.ts,
+        apps/zcode-cli/packages/core/src/runtime/native-context-compression/index.ts,
+      ]
+    layers: { app: "." }
+    owner: agent-runtime
+  - id: native-context-store
+    roots: [apps/zcode-cli/packages/adapters/src/storage/session-store/native-context-compression]
+    managed: true
+    requires: [zcode-cli, shared, native-context-protocol, sqlite-migrations]
+    publicEntrypoints:
+      [
+        apps/zcode-cli/packages/adapters/src/storage/session-store/native-context-compression/contract.ts,
+        apps/zcode-cli/packages/adapters/src/storage/session-store/native-context-compression/index.ts,
+      ]
+    layers: { adapters: "." }
+    owner: conversation
+  - id: native-context-image
+    roots: [apps/zcode-cli/packages/adapters/src/image/native-context-compression]
+    managed: true
+    requires: [zcode-cli, shared, native-context-protocol]
+    publicEntrypoints:
+      [
+        apps/zcode-cli/packages/adapters/src/image/native-context-compression/contract.ts,
+        apps/zcode-cli/packages/adapters/src/image/native-context-compression/index.ts,
+      ]
+    layers: { adapters: "." }
+    owner: agent-runtime
+  - id: native-context-original-image
+    roots: [apps/zcode-cli/packages/core/src/media/original-image]
+    managed: true
+    requires: [zcode-cli]
+    publicEntrypoints:
+      [
+        apps/zcode-cli/packages/core/src/media/original-image/contract.ts,
+        apps/zcode-cli/packages/core/src/media/original-image/index.ts,
+      ]
+    layers: { app: "." }
+    owner: agent-runtime
+  - id: native-context-ui
+    roots:
+      - packages/ui/src/native-context-compression
+      - packages/ui/src/hooks/useNativeContextCompression.ts
+      - packages/ui/src/hooks/useNativeContextCompressionDefaults.ts
+      - packages/ui/src/store/nativeContextCompressionDraftStore.ts
+    managed: true
+    requires: [shared, native-context-protocol, ui, services, rpc]
+    publicEntrypoints:
+      - packages/ui/src/native-context-compression/contract.ts
+      - packages/ui/src/native-context-compression/index.ts
+      - packages/ui/src/hooks/useNativeContextCompression.ts
+      - packages/ui/src/hooks/useNativeContextCompressionDefaults.ts
+      - packages/ui/src/store/nativeContextCompressionDraftStore.ts
+    layers: { ui: "." }
+    owner: conversation
+
+  - id: native-context-bootstrap
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/native-context-compression
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/native-context.ts
+    managed: true
+    requires: [shared, native-context-protocol, zcode-cli]
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/native-context-compression/contract.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/native-context-compression/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/native-context.ts
+    layers: { app: "." }
+    owner: conversation
 
   - id: side-pane-full-view
     roots: [packages/ui/src/side-pane-full-view]
@@ -1424,6 +1531,31 @@ modules:
       - apps/zcode-cli/packages/adapters/src/model/request-compression/index.ts
     layers:
       adapters: .
+    owner: model-provider
+  # model-usage-observability：由 architecture:adopt 登记
+  - id: model-usage-observability
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/model-usage-observability
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/model-usage-observability/index.ts
+      - apps/zcode-cli/packages/core/src/runtime/model-usage-observability/contract.ts
+    layers:
+      app: .
+    owner: agent-runtime
+
+  - id: model-stream-usage
+    roots:
+      - apps/zcode-cli/packages/adapters/src/model/stream-usage
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/model/stream-usage/contract.ts
+      - apps/zcode-cli/packages/adapters/src/model/stream-usage/index.ts
+    layers:
+      domain: .
     owner: model-provider
 
 global:

@@ -126,6 +126,9 @@ function formatReadImageOutput(output: ReadImageOutput): ModelMessageContent {
       mimeType: output.mimeType,
       placeholder: "Read image",
       sizeBytes: output.originalSize,
+      ...(output.originalImage
+        ? { originalImage: output.originalImage, sha256: output.originalImage.sha256 }
+        : {}),
     },
   };
   // 尺寸提示拼进 tool result 会让 provider-visible content 随是否缩放而改变；

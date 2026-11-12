@@ -8,6 +8,10 @@ import {
   WebRemoteControlRpcReplayBuffer,
   WEB_REMOTE_CONTROL_RPC_LIMITS,
   type WebRemoteControlAppPayload,
+  type WebRemoteControlBootstrapResult,
+  type WebRemoteControlWorkspaceListResult,
+  type WebRemoteControlTaskTarget,
+  type IPlatformService,
   type ZCodeStreamEvent,
 } from "@zcode/shared";
 import { V4_WIRE_PROTOCOL_VERSION } from "@zcode/shared/zcode-protocol-v4";
@@ -15,6 +19,10 @@ import { SessionDataLayer } from "@zcode/ui/conversation-client";
 import { MobileRemoteControlClient, readPairingParamsFromLocation } from "./protocol.js";
 import { TaskConversationLifecycle } from "./taskConversationLifecycle.js";
 import { conversationReducer, initialConversationState } from "./conversationReducer.js";
+import { SharedMobileRootController } from "./shared-root/app/controller.js";
+import { createMobileRootSlot } from "./shared-root/app/root-slot.js";
+import { registerMobileRootWorkspace } from "./shared-root/adapters/workspace-registry.js";
+import { getRegisteredBaseWorkspaceServices } from "@zcode/ui/remote-workspace-session-store";
 
 // 与真实 Channel RPC 公共序列化格式一致；不 mock ChannelClient/RemoteServiceAccess。
 const EVENT_LISTEN = 102;
@@ -151,6 +159,154 @@ function client(onPayload = vi.fn<(payload: WebRemoteControlAppPayload) => void>
   return { c, socket, onPayload, onStateChange };
 }
 const access = { workspaceKey: "A", taskId: "task-a", workspacePath: "/workspace" };
+const rootControllers: SharedMobileRootController[] = [];
+// 此处不渲染 UI 或调用平台；真实 browser adapter 另有其 port 回归。
+const unusedPlatform = {} as IPlatformService;
+function rootBootstrap(
+  windowId = "source-window-a",
+  workspacePath = "/workspace",
+): WebRemoteControlBootstrapResult {
+  return {
+    windowControlSessionId: windowId,
+    desktopAppVersion: "3.17.1",
+    workspaces: [{ workspaceKey: workspacePath, workspacePath, kind: "local" }],
+    tasks: [{ workspaceKey: workspacePath, taskId: "source-task", title: "source fixture" }],
+    mobileViewState: { activeWorkspaceKey: workspacePath, activeTaskId: "source-task" },
+  };
+}
+function rootController(
+  c: MobileRemoteControlClient,
+  bootstrap = rootBootstrap(),
+  onListUpdated: (result: WebRemoteControlWorkspaceListResult) => void = () => {},
+) {
+  const controller = new SharedMobileRootController(
+    c,
+    {
+      registerWorkspace: registerMobileRootWorkspace,
+      createPlatform: () => unusedPlatform,
+    },
+    onListUpdated,
+  );
+  rootControllers.push(controller);
+  controller.start();
+  controller.update("paired", bootstrap);
+  return controller;
+}
+function rootReady(
+  socket: FakeWebSocket,
+  opened: BridgeOpen,
+  workspacePath = opened.workspaceKey,
+  scope: { kind: "local" | "remote"; workspaceIdentity?: string; remoteSessionId?: string } = {
+    kind: "local",
+  },
+  withWindowDirectory = false,
+) {
+  socket.receive({
+    zcode_type: "workspace-bridge-ready",
+    requestId: opened.requestId,
+    bridgeSessionId: opened.bridgeSessionId,
+    bridge: {
+      bridgeSessionId: opened.bridgeSessionId,
+      bridgeGeneration: opened.bridgeGeneration,
+      workspaceKey: opened.workspaceKey,
+      workspacePath,
+      ...scope,
+      entryKind: "task",
+      ...(withWindowDirectory ? { capabilities: { windowProjectDirectory: { version: 1 } } } : {}),
+    },
+  });
+}
+function rootTask(): WebRemoteControlTaskTarget {
+  return {
+    workspacePath: "/workspace",
+    workspaceLabel: "source fixture",
+    workspaceKind: "local",
+    taskId: "source-task",
+    title: "source fixture",
+    unreadAt: 41,
+    createdAt: 1,
+    updatedAt: 2,
+  };
+}
+function rootList(bootstrap = rootBootstrap()): WebRemoteControlWorkspaceListResult {
+  return {
+    workspaces: bootstrap.workspaces,
+    tasks: bootstrap.tasks,
+    activeWorkspaceKey: bootstrap.workspaces[0]!.workspaceKey,
+  };
+}
+function rootRemoteBootstrap() {
+  const bootstrap = rootBootstrap();
+  bootstrap.workspaces.push({
+    workspaceKey: "remote:source-b",
+    workspaceIdentity: "remote:source-b",
+    workspacePath: "/workspace-b",
+    remoteSessionId: "source-remote-b",
+    kind: "remote",
+    connectionState: "connected",
+  });
+  bootstrap.tasks.push({
+    workspaceKey: "remote:source-b",
+    taskId: "source-task-b",
+    title: "source fixture",
+  });
+  return bootstrap;
+}
+
+async function rootProjectOwner(
+  c: MobileRemoteControlClient,
+  socket: FakeWebSocket,
+  bootstrap = rootBootstrap(),
+) {
+  const controller = rootController(c, bootstrap);
+  await flush();
+  const opened = socket.opens()[0]!;
+  const source = host(socket, opened.bridgeSessionId);
+  source.send([INITIALIZE]);
+  rootReady(socket, opened, opened.workspaceKey, { kind: "local" }, true);
+  await flush();
+  const capability = requests(socket, opened.bridgeSessionId).find(
+    (request) =>
+      request.header[2] === "window-project-changes" && request.header[3] === "getCapabilities",
+  );
+  expect(capability).toBeDefined();
+  source.send([SUCCESS, Number(capability!.header[1])], { version: 1 });
+  await flush();
+  return { controller, opened, source };
+}
+
+async function replyProjectDraftPreparation(
+  socket: FakeWebSocket,
+  opened: BridgeOpen,
+  source: ReturnType<typeof host>,
+  beforeListReply: () => void = () => {},
+  workspacePath = "/workspace",
+  bootstrap = rootBootstrap(),
+) {
+  await flush();
+  const prepare = requests(socket, opened.bridgeSessionId).find(
+    (request) => request.header[2] === "window-project" && request.header[3] === "prepareSession",
+  );
+  expect(prepare).toBeDefined();
+  expect(prepare!.body).toEqual([{ projectId: "source-project" }]);
+  source.send([SUCCESS, Number(prepare!.header[1])], {
+    workspacePath,
+    additionalDirectories: [],
+    projectId: "source-project",
+  });
+  await flush();
+  const list = socket.sent.findLast((payload) => payload.zcode_type === "workspace-list-request");
+  expect(list?.zcode_type).toBe("workspace-list-request");
+  if (list?.zcode_type !== "workspace-list-request") throw new Error("source-list-not-requested");
+  beforeListReply();
+  socket.receive({
+    zcode_type: "workspace-list-response",
+    requestId: list.requestId,
+    success: true,
+    result: rootList(bootstrap),
+  });
+  await flush();
+}
 const chunk: ZCodeStreamEvent = {
   type: "agent_message_chunk",
   taskId: access.taskId,
@@ -167,6 +323,7 @@ beforeEach(() => {
   FakeWebSocket.instances = [];
 });
 afterEach(() => {
+  for (const controller of rootControllers.splice(0)) controller.dispose();
   for (const c of clients.splice(0)) c.dispose();
   vi.clearAllTimers();
   vi.restoreAllMocks();
@@ -175,6 +332,733 @@ afterEach(() => {
 });
 
 describe("MobileRemoteControlClient fake WebSocket", () => {
+  it.each([false, true])(
+    "shared Root owner settles a current handoff failure once with sender unmounted=%s",
+    async (unmounted) => {
+      const { c, socket } = client();
+      const bootstrap = rootBootstrap();
+      bootstrap.workspaces.push({
+        workspaceKey: "/workspace-b",
+        workspacePath: "/workspace-b",
+        kind: "local",
+      });
+      const { controller, opened, source } = await rootProjectOwner(c, socket, bootstrap);
+      const origin = controller.getSnapshot().slot!;
+      let callerCurrent = true;
+      const unsubscribe = controller.subscribe(() => {
+        if (unmounted && !controller.getSnapshot().slot) callerCurrent = false;
+      });
+      const error = vi.fn();
+      const complete = vi.fn();
+      const opening = origin.rootProps.webRemoteControlWorkspaceSwitcher!.openProjectDraft!({
+        projectId: "source-project",
+        isCurrent: () => callerCurrent,
+        onError: error,
+        onComplete: complete,
+      }).then(
+        () => "opened",
+        (cause: Error) => cause.message,
+      );
+      await replyProjectDraftPreparation(
+        socket,
+        opened,
+        source,
+        () => {},
+        "/workspace-b",
+        bootstrap,
+      );
+      const target = socket.opens()[1]!;
+      expect(target.workspaceKey).toBe("/workspace-b");
+      rootReady(socket, target, "/unproved-target");
+      expect(await opening).toBe("mobile-workspace-navigation-unavailable");
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls[0]![0]).toBeInstanceOf(Error);
+      expect(complete).not.toHaveBeenCalled();
+      expect(callerCurrent).toBe(!unmounted);
+      expect(controller.getSnapshot()).toMatchObject({ slot: null, loading: false, error: true });
+      unsubscribe();
+    },
+  );
+
+  it.each(["window", "target"] as const)(
+    "shared Root owner does not notify an old handoff failure after its %s is invalidated",
+    async (change) => {
+      const { c, socket } = client();
+      const bootstrap = rootBootstrap();
+      bootstrap.workspaces.push({
+        workspaceKey: "/workspace-b",
+        workspacePath: "/workspace-b",
+        kind: "local",
+      });
+      const { controller, opened, source } = await rootProjectOwner(c, socket, bootstrap);
+      const error = vi.fn();
+      const complete = vi.fn();
+      const opening = controller.getSnapshot().slot!.rootProps.webRemoteControlWorkspaceSwitcher!
+        .openProjectDraft!({
+        projectId: "source-project",
+        isCurrent: () => true,
+        onError: error,
+        onComplete: complete,
+      }).then(
+        () => "opened",
+        (cause: Error) => cause.message,
+      );
+      await replyProjectDraftPreparation(
+        socket,
+        opened,
+        source,
+        () => {},
+        "/workspace-b",
+        bootstrap,
+      );
+      const abandoned = socket.opens()[1]!;
+      if (change === "window") controller.update("paired", rootBootstrap("source-window-new"));
+      else controller.update("paired", rootBootstrap());
+      await flush();
+      rootReady(socket, abandoned, "/workspace-b");
+      await flush();
+      const replacement = socket
+        .opens()
+        .findLast((candidate) => candidate.workspaceKey === "/workspace");
+      if (replacement && replacement !== opened) {
+        rootReady(socket, replacement);
+        await flush();
+      }
+      expect(await opening).not.toBe("opened");
+      expect(error).not.toHaveBeenCalled();
+      expect(complete).not.toHaveBeenCalled();
+      expect(controller.getSnapshot().slot?.access.descriptor.workspaceKey).toBe("/workspace");
+    },
+  );
+
+  it("shared Root owner reports an actual preparation error once while retaining the current task", async () => {
+    const { c, socket } = client();
+    const { controller, opened, source } = await rootProjectOwner(c, socket);
+    const origin = controller.getSnapshot().slot!;
+    const error = vi.fn();
+    const complete = vi.fn();
+    const opening = origin.rootProps.webRemoteControlWorkspaceSwitcher!.openProjectDraft!({
+      projectId: "source-project",
+      isCurrent: () => true,
+      onError: error,
+      onComplete: complete,
+    }).then(
+      () => "opened",
+      (cause: Error) => cause.message,
+    );
+    await flush();
+    const prepare = requests(socket, opened.bridgeSessionId).find(
+      (request) => request.header[3] === "prepareSession",
+    )!;
+    source.send([202, Number(prepare.header[1])], {
+      name: "Error",
+      message: "project.primaryRootUnavailable",
+    });
+    expect(await opening).toBe("project.primaryRootUnavailable");
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(complete).not.toHaveBeenCalled();
+    expect(controller.getSnapshot()).toMatchObject({ slot: origin, loading: false, error: true });
+    expect(socket.opens()).toHaveLength(1);
+    expect(socket.sent.some((payload) => payload.zcode_type === "workspace-list-request")).toBe(
+      false,
+    );
+  });
+
+  it("shared Root owner consumes the sender lease before a draft handoff unmounts the old Root", async () => {
+    const { c, socket } = client();
+    const { controller, opened, source } = await rootProjectOwner(c, socket);
+    const origin = controller.getSnapshot().slot!;
+    const complete = vi.fn();
+    const error = vi.fn();
+    let callerCurrent = true;
+    const unsubscribe = controller.subscribe(() => {
+      if (!controller.getSnapshot().slot) callerCurrent = false;
+    });
+    const opening = origin.rootProps.webRemoteControlWorkspaceSwitcher!.openProjectDraft!({
+      projectId: "source-project",
+      isCurrent: () => callerCurrent,
+      onComplete: complete,
+      onError: error,
+    });
+    await replyProjectDraftPreparation(socket, opened, source);
+    await expect(opening).resolves.toBeUndefined();
+    const target = controller.getSnapshot().slot!;
+    expect(callerCurrent).toBe(false);
+    expect(origin.rootProps.initialTaskDraft!.isCurrent!()).toBe(false);
+    expect(target.access.services).toBe(origin.access.services);
+    expect(socket.opens()).toHaveLength(1);
+    expect(target.rootProps.initialTaskId).toBeUndefined();
+    expect(target.rootProps.initialTaskDraft!.isCurrent!()).toBe(true);
+    expect(complete).not.toHaveBeenCalled();
+    target.rootProps.initialTaskDraft!.onComplete!();
+    target.rootProps.initialTaskDraft!.onComplete!();
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(error).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it("shared Root owner rejects a cancelled sender before any project preparation", async () => {
+    const { c, socket } = client();
+    const { controller, opened } = await rootProjectOwner(c, socket);
+    const origin = controller.getSnapshot().slot!;
+    const complete = vi.fn();
+    await expect(
+      origin.rootProps.webRemoteControlWorkspaceSwitcher!.openProjectDraft!({
+        projectId: "source-project",
+        isCurrent: () => false,
+        onComplete: complete,
+      }),
+    ).rejects.toThrow("project.navigation-cancelled");
+    expect(controller.getSnapshot().slot).toBe(origin);
+    expect(
+      requests(socket, opened.bridgeSessionId).some(
+        (request) => request.header[3] === "prepareSession",
+      ),
+    ).toBe(false);
+    expect(socket.opens()).toHaveLength(1);
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("shared Root owner rejects sender cancellation after the last preparation IO", async () => {
+    const { c, socket } = client();
+    const { controller, opened, source } = await rootProjectOwner(c, socket);
+    const origin = controller.getSnapshot().slot!;
+    const complete = vi.fn();
+    let callerCurrent = true;
+    const opening = origin.rootProps.webRemoteControlWorkspaceSwitcher!.openProjectDraft!({
+      projectId: "source-project",
+      isCurrent: () => callerCurrent,
+      onComplete: complete,
+    }).then(
+      () => "opened",
+      (error: Error) => error.message,
+    );
+    await replyProjectDraftPreparation(socket, opened, source, () => {
+      callerCurrent = false;
+    });
+    expect(await opening).toBe("project.navigation-cancelled");
+    expect(controller.getSnapshot().slot).toBe(origin);
+    expect(socket.opens()).toHaveLength(1);
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it.each(["navigation", "target-invalidated"] as const)(
+    "shared Root owner cancels a handed-off draft when %s replaces its target",
+    async (change) => {
+      const { c, socket } = client();
+      const { controller, opened, source } = await rootProjectOwner(c, socket);
+      const origin = controller.getSnapshot().slot!;
+      const complete = vi.fn();
+      const opening = origin.rootProps.webRemoteControlWorkspaceSwitcher!.openProjectDraft!({
+        projectId: "source-project",
+        isCurrent: () => true,
+        onComplete: complete,
+      });
+      await replyProjectDraftPreparation(socket, opened, source);
+      await opening;
+      const target = controller.getSnapshot().slot!;
+      expect(target.rootProps.initialTaskDraft!.isCurrent!()).toBe(true);
+      if (change === "navigation") {
+        await target.rootProps.webRemoteControlWorkspaceSwitcher!.startDraft!("/workspace");
+        expect(controller.getSnapshot().slot).not.toBe(target);
+      } else {
+        controller.update("waiting", null);
+        expect(controller.getSnapshot().slot).toBeNull();
+      }
+      expect(target.rootProps.initialTaskDraft!.isCurrent!()).toBe(false);
+      target.rootProps.initialTaskDraft!.onComplete!();
+      expect(complete).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, "source-remote-b", "wrong-remote"])(
+    "shared Root owner routes a remote project row unread CAS with provided sessionId=%s",
+    async (providedSessionId) => {
+      const { c, socket } = client();
+      const bootstrap = rootRemoteBootstrap();
+      bootstrap.mobileViewState = {
+        activeWorkspaceKey: "remote:source-b",
+        activeTaskId: "source-task-b",
+      };
+      const controller = rootController(c, bootstrap);
+      await flush();
+      const opened = socket.opens()[0]!;
+      const source = host(socket, opened.bridgeSessionId);
+      source.send([INITIALIZE]);
+      rootReady(socket, opened, "/workspace-b", {
+        kind: "remote",
+        workspaceIdentity: "remote:source-b",
+        remoteSessionId: "source-remote-b",
+      });
+      await flush();
+      const marking = controller.getSnapshot().slot!.rootProps.webRemoteControlWorkspaceSwitcher!
+        .markTaskRead!({
+        ...rootTask(),
+        workspacePath: "/workspace-b",
+        workspaceIdentity: "remote:source-b",
+        workspaceKind: "remote",
+        taskId: "source-task-b",
+        ...(providedSessionId === undefined ? {} : { remoteSessionId: providedSessionId }),
+      }).then(
+        () => "marked",
+        (error: Error) => error.message,
+      );
+      await flush();
+      const mutations = requests(socket, opened.bridgeSessionId).filter(
+        (request) =>
+          request.header[2] === "window-controller" && request.header[3] === "mutateTask",
+      );
+      if (providedSessionId === "wrong-remote") {
+        expect(mutations).toEqual([]);
+        expect(await marking).toBe("mobile-workspace-scope-unavailable");
+      } else {
+        expect(mutations).toHaveLength(1);
+        expect(mutations[0]!.body).toEqual([
+          {
+            address: {
+              workspacePath: "/workspace-b",
+              workspaceIdentity: "remote:source-b",
+              remoteSessionId: "source-remote-b",
+              taskId: "source-task-b",
+            },
+            mutation: { kind: "mark-read", expectedUnreadAt: 41 },
+          },
+        ]);
+        source.send([SUCCESS, Number(mutations[0]!.header[1])], null);
+        expect(await marking).toBe("marked");
+      }
+    },
+  );
+
+  it("shared Root owner registers before slot delivery and keeps a stable Root on inventory refresh", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    controller.subscribe(() => {
+      const slot = controller.getSnapshot().slot;
+      if (slot) expect(getRegisteredBaseWorkspaceServices()).toBe(slot.access.services);
+    });
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const slot = controller.getSnapshot().slot!;
+    expect(slot).toBeTruthy();
+    expect(slot.rootProps.services).toBe(slot.access.services);
+    expect(slot.rootProps.initialTaskId).toBe("source-task");
+    controller.update("paired", { ...rootBootstrap(), tasks: [] });
+    expect(controller.getSnapshot().slot).toBe(slot);
+    expect(socket.opens()).toHaveLength(1);
+    controller.dispose();
+    expect(getRegisteredBaseWorkspaceServices()).toBeNull();
+    expect(slot.access.isCurrent()).toBe(true);
+  });
+
+  it("shared Root owner rejects late window admission and publishes only the new paired target", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    const old = socket.opens()[0]!;
+    controller.update("paired", rootBootstrap("source-window-b", "/workspace-b"));
+    await flush();
+    expect(socket.opens()).toHaveLength(2);
+    rootReady(socket, old);
+    await flush();
+    expect(controller.getSnapshot().slot).toBeNull();
+    rootReady(socket, socket.opens()[1]!);
+    await flush();
+    expect(controller.getSnapshot().slot?.key).toMatch(/^source-window-b:/u);
+    expect(controller.getSnapshot().slot?.rootProps.initialWorkspaceAbsPath).toBe("/workspace-b");
+    expect(getRegisteredBaseWorkspaceServices()).toBe(
+      controller.getSnapshot().slot?.access.services,
+    );
+  });
+
+  it("shared Root owner hands an initialization lease to existing task and empty draft before effects run", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const task = controller.getSnapshot().slot!;
+    expect(task.rootProps.initialTaskDraft?.isCurrent?.()).toBe(true);
+    await task.rootProps.webRemoteControlWorkspaceSwitcher!.startDraft!("/workspace");
+    const draft = controller.getSnapshot().slot!;
+    expect(draft.rootProps.initialTaskId).toBeUndefined();
+    expect(draft.rootProps.initialTaskDraft?.isCurrent?.()).toBe(true);
+    expect(task.rootProps.initialTaskDraft?.isCurrent?.()).toBe(false);
+    socket.close();
+    expect(draft.rootProps.initialTaskDraft?.isCurrent?.()).toBe(false);
+    expect(controller.getSnapshot().slot).toBeNull();
+  });
+
+  it("shared Root owner ignores an old Reporter when the same bridge changes slot", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const old = controller.getSnapshot().slot!;
+    const switcher = old.rootProps.webRemoteControlWorkspaceSwitcher!;
+    await switcher.startDraft!("/workspace", { mobileNavigationIntent: "chat" });
+    const current = controller.getSnapshot().slot!;
+    expect(current.access.services).toBe(old.access.services);
+    expect(current.access.descriptor).toBe(old.access.descriptor);
+    expect(old.access.isCurrent()).toBe(true);
+    expect(socket.opens()).toHaveLength(1);
+    const sent = socket.sent.length;
+    await switcher.updateMobileTaskView!(null);
+    await switcher.updateMobileViewState!("/workspace", "source-task");
+    expect(socket.sent).toHaveLength(sent);
+    expect(controller.getSnapshot().slot).toBe(current);
+  });
+
+  it("shared Root owner rejects old mark-read without sending a task RPC on a reused bridge", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    const open = socket.opens()[0]!;
+    host(socket, open.bridgeSessionId).send([INITIALIZE]);
+    rootReady(socket, open);
+    await flush();
+    const switcher = controller.getSnapshot().slot!.rootProps.webRemoteControlWorkspaceSwitcher!;
+    await switcher.startDraft!("/workspace");
+    const marking = switcher.markTaskRead!(rootTask()).catch((error: Error) => error.message);
+    await flush();
+    expect(requests(socket, open.bridgeSessionId)).toEqual([]);
+    expect(await marking).toBe("mobile-workspace-superseded");
+  });
+
+  it("shared Root owner rejects old user navigation and reconnect before sending after a slot change", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const switcher = controller.getSnapshot().slot!.rootProps.webRemoteControlWorkspaceSwitcher!;
+    await switcher.startDraft!("/workspace");
+    const sent = socket.sent.length;
+    const reconnecting = switcher.reconnectWorkspace!("/workspace").catch(
+      (error: Error) => error.message,
+    );
+    await flush();
+    expect(socket.sent).toHaveLength(sent);
+    expect(await reconnecting).toBe("mobile-workspace-superseded");
+    await expect(switcher.switchWorkspace("/workspace")).rejects.toThrow(
+      "mobile-workspace-superseded",
+    );
+    await expect(switcher.openProjectDraft!({})).rejects.toThrow("mobile-workspace-superseded");
+  });
+
+  it("shared Root owner rejects a late list and ignores old subscribers after same-access slot replacement", async () => {
+    const { c, socket } = client();
+    const onListUpdated = vi.fn();
+    const controller = rootController(c, rootBootstrap(), onListUpdated);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const switcher = controller.getSnapshot().slot!.rootProps.webRemoteControlWorkspaceSwitcher!;
+    const listened = vi.fn();
+    const unsubscribe = switcher.onWorkspaceListUpdated!(listened);
+    const listing = switcher.listWorkspaces().catch((error: Error) => error.message);
+    await flush();
+    const request = socket.sent.find((payload) => payload.zcode_type === "workspace-list-request")!;
+    if (request.zcode_type !== "workspace-list-request") throw new Error("missing-list-request");
+    await switcher.startDraft!("/workspace");
+    socket.receive({
+      zcode_type: "workspace-list-response",
+      requestId: request.requestId,
+      success: true,
+      result: rootList(),
+    });
+    expect(await listing).toBe("mobile-workspace-superseded");
+    expect(onListUpdated).not.toHaveBeenCalled();
+    controller.update("paired", rootBootstrap());
+    expect(listened).not.toHaveBeenCalled();
+    unsubscribe();
+    await expect(switcher.listWorkspaces()).rejects.toThrow("mobile-workspace-superseded");
+  });
+
+  it("shared Root owner discards an in-flight reconnect response after another slot wins", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const switcher = controller.getSnapshot().slot!.rootProps.webRemoteControlWorkspaceSwitcher!;
+    const reconnecting = switcher.reconnectWorkspace!("/workspace").catch(
+      (error: Error) => error.message,
+    );
+    await flush();
+    const request = socket.sent.find(
+      (payload) => payload.zcode_type === "workspace-reconnect-request",
+    )!;
+    if (request.zcode_type !== "workspace-reconnect-request")
+      throw new Error("missing-reconnect-request");
+    await switcher.startDraft!("/workspace");
+    const current = controller.getSnapshot().slot;
+    socket.receive({
+      zcode_type: "workspace-reconnect-response",
+      requestId: request.requestId,
+      workspaceKey: "/workspace",
+      success: true,
+    });
+    await flush();
+    expect(
+      socket.sent.filter((payload) => payload.zcode_type === "workspace-list-request"),
+    ).toEqual([]);
+    expect(await reconnecting).toBe("mobile-workspace-superseded");
+    expect(controller.getSnapshot().slot).toBe(current);
+  });
+
+  it("shared Root owner permits successful reconnect to replace the bridge within the original navigation", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    const oldOpen = socket.opens()[0]!;
+    rootReady(socket, oldOpen);
+    await flush();
+    const old = controller.getSnapshot().slot!;
+    const reconnecting =
+      old.rootProps.webRemoteControlWorkspaceSwitcher!.reconnectWorkspace!("/workspace");
+    await flush();
+    const request = socket.sent.find(
+      (payload) => payload.zcode_type === "workspace-reconnect-request",
+    )!;
+    if (request.zcode_type !== "workspace-reconnect-request")
+      throw new Error("missing-reconnect-request");
+    socket.receive({
+      zcode_type: "bridge-degraded",
+      bridgeSessionId: oldOpen.bridgeSessionId,
+      reason: "source-host-closed",
+    });
+    await flush();
+    rootReady(socket, socket.opens()[1]!);
+    await flush();
+    socket.receive({
+      zcode_type: "workspace-reconnect-response",
+      requestId: request.requestId,
+      workspaceKey: "/workspace",
+      success: true,
+    });
+    await flush();
+    const list = socket.sent.find((payload) => payload.zcode_type === "workspace-list-request")!;
+    if (list.zcode_type !== "workspace-list-request") throw new Error("missing-list-request");
+    socket.receive({
+      zcode_type: "workspace-list-response",
+      requestId: list.requestId,
+      success: true,
+      result: rootList(),
+    });
+    await reconnecting;
+    expect(controller.getSnapshot().slot?.rootProps.initialTaskId).toBe("source-task");
+    expect(controller.getSnapshot().slot?.access).not.toBe(old.access);
+    expect(socket.opens()).toHaveLength(2);
+  });
+
+  it.each([false, true])(
+    "shared Root owner sends target unread CAS after ready and keeps task open when mutation fails=%s",
+    async (fail) => {
+      const { c, socket } = client();
+      const controller = rootController(c, rootRemoteBootstrap());
+      await flush();
+      const oldOpen = socket.opens()[0]!;
+      rootReady(socket, oldOpen);
+      await flush();
+      const opening = controller
+        .getSnapshot()
+        .slot!.rootProps.webRemoteControlWorkspaceSwitcher!.switchWorkspace("remote:source-b", {
+          taskId: "source-task-b",
+          markTaskReadExpectedUnreadAt: 41,
+        });
+      await flush();
+      expect(requests(socket, oldOpen.bridgeSessionId)).toEqual([]);
+      const target = socket.opens()[1]!;
+      const source = host(socket, target.bridgeSessionId);
+      source.send([INITIALIZE]);
+      rootReady(socket, target, "/workspace-b", {
+        kind: "remote",
+        workspaceIdentity: "remote:source-b",
+        remoteSessionId: "source-remote-b",
+      });
+      await flush();
+      const mutation = requests(socket, target.bridgeSessionId).find(
+        (request) =>
+          request.header[2] === "window-controller" && request.header[3] === "mutateTask",
+      );
+      expect(mutation).toBeDefined();
+      expect(mutation!.body).toEqual([
+        {
+          address: {
+            workspacePath: "/workspace-b",
+            workspaceIdentity: "remote:source-b",
+            remoteSessionId: "source-remote-b",
+            taskId: "source-task-b",
+          },
+          mutation: { kind: "mark-read", expectedUnreadAt: 41 },
+        },
+      ]);
+      source.send(
+        [fail ? 202 : SUCCESS, Number(mutation!.header[1])],
+        fail ? { name: "Error", message: "controlled-cas-failure" } : null,
+      );
+      await expect(opening).resolves.toBeUndefined();
+      expect(controller.getSnapshot().slot?.rootProps.initialTaskId).toBe("source-task-b");
+      expect(requests(socket, oldOpen.bridgeSessionId)).toEqual([]);
+    },
+  );
+
+  it("shared Root owner does not mark unread from a target slot invalidated during publication", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c, rootRemoteBootstrap());
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const opening = controller
+      .getSnapshot()
+      .slot!.rootProps.webRemoteControlWorkspaceSwitcher!.switchWorkspace("remote:source-b", {
+        taskId: "source-task-b",
+        markTaskReadExpectedUnreadAt: 41,
+      });
+    await flush();
+    const target = socket.opens()[1]!;
+    const unsubscribe = controller.subscribe(() => {
+      if (controller.getSnapshot().slot?.access.descriptor.workspaceKey === "remote:source-b")
+        controller.update("waiting", null);
+    });
+    host(socket, target.bridgeSessionId).send([INITIALIZE]);
+    rootReady(socket, target, "/workspace-b", {
+      kind: "remote",
+      workspaceIdentity: "remote:source-b",
+      remoteSessionId: "source-remote-b",
+    });
+    await opening;
+    expect(requests(socket, target.bridgeSessionId)).toEqual([]);
+    expect(controller.getSnapshot().slot).toBeNull();
+    unsubscribe();
+  });
+
+  it("shared Root owner does not complete a draft on slot publication and fences late target notifications", async () => {
+    const { c, socket } = client();
+    const controller = rootController(c);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const current = controller.getSnapshot().slot!;
+    const complete = vi.fn();
+    let targetCurrent = true;
+    const slot = createMobileRootSlot(
+      current.access,
+      {
+        workspaceKey: "/workspace",
+        revision: 1,
+        draft: { onComplete: complete, isCurrent: () => false },
+      },
+      "source-window-a",
+      unusedPlatform,
+      current.rootProps.webRemoteControlWorkspaceSwitcher!,
+      () => targetCurrent && current.access.isCurrent(),
+    );
+    expect(complete).not.toHaveBeenCalled();
+    targetCurrent = false;
+    slot.rootProps.initialTaskDraft?.onComplete?.();
+    expect(complete).not.toHaveBeenCalled();
+    targetCurrent = true;
+    slot.rootProps.initialTaskDraft?.onComplete?.();
+    slot.rootProps.initialTaskDraft?.onComplete?.();
+    expect(complete).toHaveBeenCalledTimes(1);
+    socket.close();
+    expect(slot.rootProps.initialTaskDraft?.isCurrent?.()).toBe(false);
+  });
+
+  it("shared Root owner rejects a forced navigation when descriptor path cannot prove the trusted target", async () => {
+    const { c, socket } = client();
+    const bootstrap = rootBootstrap();
+    bootstrap.workspaces.push({
+      workspaceKey: "/workspace-b",
+      workspacePath: "/workspace-b",
+      kind: "local",
+    });
+    const controller = rootController(c, bootstrap);
+    await flush();
+    rootReady(socket, socket.opens()[0]!);
+    await flush();
+    const old = controller.getSnapshot().slot!;
+    const navigation = old.rootProps
+      .webRemoteControlWorkspaceSwitcher!.switchWorkspace("/workspace-b")
+      .catch((error: Error) => error.message);
+    await flush();
+    rootReady(socket, socket.opens()[1]!, "/unproved-workspace");
+    expect(await navigation).toBe("mobile-workspace-navigation-unavailable");
+    expect(controller.getSnapshot()).toMatchObject({ slot: null, error: true });
+    expect(getRegisteredBaseWorkspaceServices()).toBeNull();
+    expect(old.access.isCurrent()).toBe(false);
+  });
+
+  it("shared Root borrows the same ready accessor across tasks and invalidates it synchronously", async () => {
+    const { c, socket } = client();
+    const opening = c.openSharedWorkspace(access);
+    await flush();
+    const open = socket.opens()[0]!;
+    socket.ready(open);
+    const first = await opening;
+    const nextTask = await c.openSharedWorkspace({ ...access, taskId: "task-a2" });
+    expect(nextTask.services).toBe(first.services);
+    expect(nextTask.descriptor).toBe(first.descriptor);
+    expect(socket.opens()).toHaveLength(1);
+    expect(first.isCurrent()).toBe(true);
+    const invalidated = vi.fn(() => expect(first.isCurrent()).toBe(false));
+    const unsubscribe = c.onSharedWorkspaceInvalidated(invalidated);
+    socket.close();
+    expect(invalidated).toHaveBeenCalledTimes(1);
+    await expect(c.openSharedWorkspace(access)).rejects.toThrow();
+    expect(socket.opens()).toHaveLength(1);
+    unsubscribe();
+    c.dispose();
+    expect(invalidated).toHaveBeenCalledTimes(1);
+  });
+
+  it("the same remote identity with a new Host route receives a new accessor", async () => {
+    const { c, socket } = client();
+    const firstOpening = c.openSharedWorkspace({ ...access, remoteSessionId: "remote-a" });
+    await flush();
+    socket.ready(socket.opens()[0]!, { kind: "remote", remoteSessionId: "remote-a" });
+    const first = await firstOpening;
+    const secondOpening = c.openSharedWorkspace({ ...access, remoteSessionId: "remote-b" });
+    expect(first.isCurrent()).toBe(false);
+    await flush();
+    socket.ready(socket.opens()[1]!, { kind: "remote", remoteSessionId: "remote-b" });
+    const second = await secondOpening;
+    expect(second.services).not.toBe(first.services);
+    expect(second.generation).toBeGreaterThan(first.generation);
+    expect(second.isCurrent()).toBe(true);
+  });
+
+  it.each(["workspaceKey", "bridgeSessionId", "bridgeGeneration"] as const)(
+    "shared Root rejects a mismatched ready %s before capability or task RPC",
+    async (field) => {
+      const { c, socket } = client();
+      const opening = c.openSharedWorkspace(access).catch((error: Error) => error.message);
+      await flush();
+      const open = socket.opens()[0]!;
+      socket.receive({
+        zcode_type: "workspace-bridge-ready",
+        requestId: open.requestId,
+        bridgeSessionId: open.bridgeSessionId,
+        bridge: {
+          bridgeSessionId: open.bridgeSessionId,
+          bridgeGeneration: open.bridgeGeneration,
+          workspaceKey: open.workspaceKey,
+          workspacePath: "/workspace",
+          kind: "local",
+          entryKind: "task",
+          capabilities: { windowProjectDirectory: { version: 1 } },
+          [field]: field === "bridgeGeneration" ? Number(open.bridgeGeneration) + 1 : "other",
+        },
+      });
+      expect(await opening).toMatch(/scope mismatch/u);
+      expect(requests(socket, open.bridgeSessionId)).toEqual([]);
+    },
+  );
+
   it("window directory capability uses the pre-open RPC reader and preserves early Initialize", async () => {
     const { c, socket } = client();
     let finished = false;
@@ -207,19 +1091,14 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     expect(capability).toBeDefined();
     source.send([SUCCESS, Number(capability!.header[1])], { version: 1 });
     await opening;
-    const reading = c.readWindowProjectDirectory(access);
-    await flush();
-    const read = requests(socket, open.bridgeSessionId).find(
-      (request) => request.header[2] === "window-project" && request.header[3] === "readDirectory",
-    );
-    expect(read?.seq).toBeGreaterThan(capability!.seq);
-    const directory = {
-      version: 1,
-      generation: 4,
-      workspaces: [{ workspaceKey: "/workspace", workspacePath: "/workspace", kind: "local" }],
-    };
-    source.send([SUCCESS, Number(read!.header[1])], directory);
-    expect(await reading).toEqual(directory);
+    // 旧测试给 filesystem readDirectory 伪造 tab snapshot，掩盖了真实服务契约错误。
+    // 手机目录由共享 Root 读取，这里只验证能力校验保留早到的 Initialize 和原 RPC reader。
+    expect(finished).toBe(true);
+    expect(
+      requests(socket, open.bridgeSessionId).filter((request) =>
+        String(request.header[2]).startsWith("window-"),
+      ),
+    ).toEqual([capability]);
   });
 
   it("an advertised but missing window directory fails bridge readiness instead of falling back", async () => {
@@ -286,7 +1165,11 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     await flush();
     socket.ready(socket.opens()[0]!);
     await opening;
-    expect(await c.readWindowProjectDirectory(access)).toBeNull();
+    expect(
+      requests(socket, socket.opens()[0]!.bridgeSessionId).some((request) =>
+        String(request.header[2]).startsWith("window-"),
+      ),
+    ).toBe(false);
   });
 
   it("changing bridge during a directory capability request rejects the old generation", async () => {
@@ -322,7 +1205,11 @@ describe("MobileRemoteControlClient fake WebSocket", () => {
     source.send([SUCCESS, Number(capability!.header[1])], { version: 1 });
     socket.ready(nextOpen);
     await second;
-    expect(await c.readWindowProjectDirectory({ workspaceKey: "B" })).toBeNull();
+    expect(
+      requests(socket, nextOpen.bridgeSessionId).some((request) =>
+        String(request.header[2]).startsWith("window-"),
+      ),
+    ).toBe(false);
   });
 
   it("损坏的 wire 和应用载荷不进入 UI，后续有效请求仍能完成", async () => {

@@ -9,6 +9,7 @@ import {
   promptAttachmentInputForResolvedAttachment,
   isFailedTextAttachmentPlaceholder,
   type RuntimeMessageEntry,
+  type RuntimeCanonicalMessageIdentity,
 } from "../../agent/message-history.js";
 import type {
   MessageId,
@@ -130,11 +131,13 @@ export function buildRuntimeUserEntriesFromTurn(
   options: {
     browserAmbientContext?: { tabCount: number; currentUrl?: string };
     genUiContext?: GenUiModelContext;
+    canonical?: RuntimeCanonicalMessageIdentity & { partId?: string };
   } = {},
 ): RuntimeMessageEntry[] {
   const [userEntry, ...attachmentEntries] = buildUserMessageEntries(
     input.length > 0 ? formatBrowserAmbientUserInput(input, options.browserAmbientContext) : input,
     attachments,
+    options.canonical,
   );
   return [attachGenUiContext(userEntry, options.genUiContext), ...attachmentEntries];
 }

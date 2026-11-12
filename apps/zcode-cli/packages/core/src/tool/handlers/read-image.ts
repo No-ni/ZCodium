@@ -13,6 +13,7 @@ import {
   type TraceContext,
 } from "@zcode/contracts";
 import type { ToolExecutionContext } from "../types.js";
+import { persistOriginalImage } from "../../media/original-image/index.js";
 
 type SupportedReadImageMime = ReadImageOutput["mimeType"];
 
@@ -35,20 +36,6 @@ export async function readImageFile(
       },
     );
   }
-  if (!context.imageProcessorPort) {
-    throw createCoreError(
-      CoreErrorType.ConfigurationError,
-      "ImageProcessorPort is not configured for image Read",
-      {
-        context: {
-          toolCallId: context.toolCallId,
-          toolName: "Read",
-        },
-        recoverable: false,
-      },
-    );
-  }
-
   const trace = createToolTrace(context);
   let read;
   try {
@@ -77,6 +64,35 @@ export async function readImageFile(
     throw error;
   }
 
+  if (read.content.byteLength === 0) {
+    throw createCoreError(CoreErrorType.ToolExecutionFailed, "Image file is empty", {
+      context: { code: "read_image_empty", toolCallId: context.toolCallId, toolName: "Read" },
+      recoverable: true,
+    });
+  }
+  const original = await persistOriginalImage({
+    data: read.content,
+    mediaType: mimeType,
+    sourceKind: "read",
+    artifactStore: context.artifactStore,
+    sessionId: context.sessionId,
+    turnId: context.turnId,
+    toolCallId: context.toolCallId,
+    toolName: "Read",
+    trace,
+    signal: context.abortSignal,
+  });
+  // 原生策略在最终请求才处理副本；未配置持久化也保原 bytes，避免伪造可恢复原图。
+  if (!original || !context.imageProcessorPort || context.nativeContextCompression) {
+    return {
+      type: "image",
+      base64: Buffer.from(read.content).toString("base64"),
+      mimeType,
+      originalSize: read.content.byteLength,
+      originalImage: original?.originalImage,
+    };
+  }
+
   try {
     const prepared = await context.imageProcessorPort.prepareForModel(
       {
@@ -98,6 +114,11 @@ export async function readImageFile(
       base64: Buffer.from(prepared.data).toString("base64"),
       mimeType: outputMimeType,
       originalSize: read.sizeBytes,
+      originalImage: {
+        ...original.originalImage,
+        ...(prepared.originalWidth !== undefined ? { width: prepared.originalWidth } : {}),
+        ...(prepared.originalHeight !== undefined ? { height: prepared.originalHeight } : {}),
+      },
       transformedSize: prepared.transformedSizeBytes,
       resized: prepared.resized,
       compressed: prepared.compressed,

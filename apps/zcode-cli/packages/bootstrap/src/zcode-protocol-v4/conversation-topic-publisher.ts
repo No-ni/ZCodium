@@ -21,6 +21,7 @@ import type {
 // - 重订阅 = 替换：同 connectionId 重复 subscribe 即作废旧订阅并清其
 //   flush buffer，旧 subscriptionId 不再产帧，客户端按 subId 丢弃旧代际帧。
 import { SessionEventType, type SessionEvent } from "@zcode/contracts";
+import type { NativeContextStatus } from "@zcode/shared/native-context-compression";
 import type {
   CommandEnvelope,
   ConversationDelta,
@@ -325,6 +326,12 @@ export class ConversationTopicPublisher {
   /** config 种子注入：直改投影初值，不产 delta / 不进事件日志。语义见 ProductProjection.seedConfig。 */
   seedConfig(seed: SessionConfigSeed): void {
     this.projection.seedConfig(seed);
+    this.wireSnapshotBytesUpperBound = this.measureWireSnapshotBytes(this.getWireSnapshot());
+  }
+
+  /** 小型策略/状态读面；不把原文、来源或原图加入 topic。 */
+  seedNativeContextCompression(seed: NativeContextStatus): void {
+    this.projection.seedNativeContextCompression(seed);
     this.wireSnapshotBytesUpperBound = this.measureWireSnapshotBytes(this.getWireSnapshot());
   }
 

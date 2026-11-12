@@ -30,6 +30,32 @@ import type { SessionGoal, GoalStatus } from "../tools/target.js";
 import type { PermissionRuleset } from "./permission.port.js";
 import type { CollaborationMode } from "./session.port.js";
 import type { EnvInfo } from "./context-source.port.js";
+import type {
+  NativeContextCommit,
+  NativeContextForkBundle,
+  NativeContextObservation,
+  NativeContextOperation,
+  NativeContextOperationSummary,
+  NativeContextPage,
+  NativeContextPageRequest,
+  NativeContextStoredState,
+} from "@zcode/shared/native-context-compression";
+
+export type NativeContextStoreConflictReason =
+  | "revision"
+  | "generation"
+  | "record"
+  | "missing-session";
+
+/** CAS、分支及冻结记录冲突只返回稳定代码，不暴露来源内容或数据库路径。 */
+export class NativeContextStoreConflictError extends Error {
+  readonly code = "native_context_store_conflict" as const;
+
+  constructor(readonly reason: NativeContextStoreConflictReason) {
+    super("Native context storage conflict");
+    this.name = "NativeContextStoreConflictError";
+  }
+}
 
 export const SESSION_TASK_TYPES = [
   "interactive",
@@ -226,6 +252,8 @@ export interface ForkCommitBundle {
   child: CreateSessionInput;
   messages: MessageWithParts[];
   entries: SessionEntryInfo[];
+  /** 已由 core 筛选并映射的分叉压缩快照；与 child/transcript/command fact 同事务。 */
+  nativeContext?: NativeContextForkBundle;
   /** 存储复制来源（目标 ID -> 父记录 ID）；只保留旧磁盘快照，不参与模型选择。 */
   copySources?: { messages: Record<string, string>; parts: Record<string, string> };
   goal?: { source: SessionGoal; status: GoalStatus };
@@ -490,6 +518,12 @@ export interface AttachmentStorageMetadata {
     height?: number;
     resized?: boolean;
     transformedSizeBytes?: number;
+    originalArtifactUri?: string;
+    originalSha256?: string;
+    originalBytes?: number;
+    originalMediaType?: string;
+    sourceKind?: "attachment" | "read" | "bash" | "mcp" | "browser" | "other";
+    preserveRaster?: boolean;
   };
   storageKind?: "inline" | "artifact" | "local_ref" | "remote_ref" | "metadata_only";
   artifactUri?: string;
@@ -1127,6 +1161,26 @@ export interface SessionStorePort {
   commitSharedContextImportBundle?(bundle: SharedContextImportCommitBundle): Promise<SessionInfo>;
   /** 一组消息的唯一事务入口；未实现时调用方逐条写入。 */
   commitMessageBundle?(bundle: MessageCommitBundle): Promise<void>;
+  /** 原生压缩方法可选仅为旧 store 兼容；SQLite 实现必须提供完整集合。 */
+  getNativeContextState?(sessionID: SessionId): Promise<NativeContextStoredState | null>;
+  commitNativeContext?(sessionID: SessionId, commit: NativeContextCommit): Promise<void>;
+  listNativeContextObservations?(
+    sessionID: SessionId,
+    request: Omit<NativeContextPageRequest, "sessionId">,
+  ): Promise<NativeContextPage<NativeContextObservation>>;
+  listNativeContextOperations?(
+    sessionID: SessionId,
+    request: Omit<NativeContextPageRequest, "sessionId">,
+  ): Promise<NativeContextPage<NativeContextOperationSummary>>;
+  getNativeContextOperation?(
+    sessionID: SessionId,
+    operationId: string,
+  ): Promise<NativeContextOperation | null>;
+  /** 仅 Runtime 冷恢复可读取旧 membership；产品查询始终使用默认严格分支校验。 */
+  getNativeContextForkBundle?(
+    sessionID: SessionId,
+    options?: { allowStaleGeneration?: boolean },
+  ): Promise<NativeContextForkBundle | null>;
   transitionSharedContextImport?(input: SharedContextImportTransition): Promise<boolean>;
   updateSession(input: UpdateSessionInput): Promise<SessionInfo>;
   /** 只写一次删除时间；正文保留，普通列表永不返回软删除行。 */
@@ -1277,6 +1331,8 @@ export interface SessionStorePort {
   accountTargetUsage(input: {
     sessionID: SessionId;
     targetID: string;
+    /** 可选的稳定物理用量键；与 Goal 数字同事务去重，清 Goal 后迟到费用不得归新目标。 */
+    usageID?: string;
     tokensUsedDelta?: number;
     timeUsedSecondsDelta?: number;
   }): Promise<SessionGoal | null>;

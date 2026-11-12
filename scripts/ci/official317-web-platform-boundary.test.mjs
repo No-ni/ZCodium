@@ -82,6 +82,17 @@ test("web platform proxy routes exactly the shared remote-control method whiteli
     import.meta.url,
   );
   const whitelist = [...webRemoteControlPlatformMethodSchema.options].sort();
+  assert.deepEqual(whitelist, [
+    "createTempTextAttachment",
+    "getSystemLocale",
+    "isDockerAvailable",
+    "listDockerContainers",
+    "listSSHConfigAliases",
+    "listWSLDistros",
+    "loadMcpFromUserDirectory",
+    "migrateLegacyCommonMcp",
+    "saveMcpToUserDirectory",
+  ]);
 
   const contract = read(PLATFORM_CONTRACT);
   assert.match(

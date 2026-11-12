@@ -78,6 +78,20 @@ export interface RuntimeMessageMetadata {
   genUiState?: string;
 }
 
+/** 只接受持久化消息的真实身份；请求投影、正文 hash 与 latest 指针不能代替它。 */
+export interface RuntimeCanonicalMessageIdentity {
+  messageId: string;
+  createdAt: number;
+  turnNumber?: number;
+}
+
+export interface RuntimeCanonicalEntryIdentity extends RuntimeCanonicalMessageIdentity {
+  partId?: string;
+  entryIndex: number;
+  /** 按实际 image block 顺序排列；PDF/video/文字附件不占位。 */
+  imagePartIds?: readonly string[];
+}
+
 export interface RuntimeMessageMessageEntry {
   kind?: "message";
   message: ModelInputMessage;
@@ -91,6 +105,7 @@ export interface RuntimeMessageMessageEntry {
    * compact 按它把这些 entry 视为一组，与按数据库消息分组的持久化边界保持一致；不会发送到 provider。
    */
   compactGroupKey?: string;
+  canonical?: RuntimeCanonicalEntryIdentity;
 }
 
 export interface RuntimeAttachmentEntry {
@@ -98,6 +113,7 @@ export interface RuntimeAttachmentEntry {
   content: string;
   cacheControl?: ModelCacheControl;
   metadata: RuntimeMessageMetadata;
+  canonical?: RuntimeCanonicalEntryIdentity;
 }
 
 export type RuntimeMessageEntry = RuntimeMessageMessageEntry | RuntimeAttachmentEntry;
@@ -125,6 +141,12 @@ export interface MessageHistory {
 
   // Add already-built runtime entries while preserving their source metadata.
   addEntries(entries: readonly RuntimeMessageEntry[]): void;
+
+  // 工具媒体成功持久化后只补来源证明，不重复添加正文或更改缓存/用量。
+  completeCanonicalImagePartIds(
+    identity: Pick<RuntimeCanonicalEntryIdentity, "messageId" | "entryIndex" | "partId">,
+    imagePartIds: readonly string[],
+  ): void;
 
   // Add assistant message (may include tool calls)
   addAssistant(
@@ -212,6 +234,13 @@ export class MessageHistoryImpl implements MessageHistory {
   addEntries(entries: readonly RuntimeMessageEntry[]): void {
     this.entries.push(...entries.map(cloneRuntimeMessageEntry));
     this.cacheStats.totalMessages = this.entries.length;
+  }
+
+  completeCanonicalImagePartIds(
+    identity: Pick<RuntimeCanonicalEntryIdentity, "messageId" | "entryIndex" | "partId">,
+    imagePartIds: readonly string[],
+  ): void {
+    this.entries = withRuntimeCanonicalImagePartIds(this.entries, identity, imagePartIds);
   }
 
   addAssistant(
@@ -341,6 +370,7 @@ export function systemReminderAttachmentEntry(
 export function createRuntimeUserEntry(
   content: ModelMessageContent,
   metadata?: RuntimeMessageMetadata,
+  canonical?: RuntimeCanonicalEntryIdentity,
 ): RuntimeMessageMessageEntry {
   return {
     message: {
@@ -348,6 +378,7 @@ export function createRuntimeUserEntry(
       content,
     },
     metadata: cloneRuntimeMessageMetadata(metadata),
+    ...(canonical ? { canonical: cloneRuntimeCanonicalIdentity(canonical) } : {}),
   };
 }
 
@@ -357,6 +388,7 @@ export function createRuntimeAssistantEntry(
   reasoning?: readonly ReasoningContentInput[],
   model?: Pick<Model, "providerId" | "modelId">,
   tokens?: TokenUsageInfo,
+  canonical?: RuntimeCanonicalEntryIdentity,
 ): RuntimeMessageMessageEntry {
   const reasoningBlocks = reasoning?.map((block) => cloneReasoningBlock(block)) ?? [];
   return {
@@ -385,6 +417,7 @@ export function createRuntimeAssistantEntry(
       ...(model ? { providerId: model.providerId, modelId: model.modelId } : {}),
     },
     ...(tokens ? { tokens: cloneTokenUsageInfo(tokens) } : {}),
+    ...(canonical ? { canonical: cloneRuntimeCanonicalIdentity(canonical) } : {}),
   };
 }
 
@@ -394,6 +427,7 @@ export function createRuntimeToolResultEntry(
   content: ModelMessageContent,
   isError: boolean,
   modelCallWrapper?: ModelCallWrapper,
+  canonical?: RuntimeCanonicalEntryIdentity,
 ): RuntimeMessageMessageEntry {
   return {
     message: {
@@ -404,6 +438,7 @@ export function createRuntimeToolResultEntry(
       ...(modelCallWrapper ? { modelCallWrapper } : {}),
       isError,
     },
+    ...(canonical ? { canonical: cloneRuntimeCanonicalIdentity(canonical) } : {}),
   };
 }
 
@@ -427,6 +462,7 @@ export function cloneRuntimeMessageEntry(entry: RuntimeMessageEntry): RuntimeMes
       content: entry.content,
       cacheControl: entry.cacheControl ? { ...entry.cacheControl } : undefined,
       metadata: cloneRuntimeMessageMetadata(entry.metadata)!,
+      ...(entry.canonical ? { canonical: cloneRuntimeCanonicalIdentity(entry.canonical) } : {}),
     };
   }
   return {
@@ -435,7 +471,49 @@ export function cloneRuntimeMessageEntry(entry: RuntimeMessageEntry): RuntimeMes
     ...(entry.tokens ? { tokens: cloneTokenUsageInfo(entry.tokens) } : {}),
     ...(entry.queryScope ? { queryScope: entry.queryScope } : {}),
     ...(entry.compactGroupKey ? { compactGroupKey: entry.compactGroupKey } : {}),
+    ...(entry.canonical ? { canonical: cloneRuntimeCanonicalIdentity(entry.canonical) } : {}),
   };
+}
+
+function cloneRuntimeCanonicalIdentity(
+  identity: RuntimeCanonicalEntryIdentity,
+): RuntimeCanonicalEntryIdentity {
+  return {
+    ...identity,
+    ...(identity.imagePartIds ? { imagePartIds: [...identity.imagePartIds] } : {}),
+  };
+}
+
+/** 同一条持久化消息展开的所有 entry 共用顺序，热态提交与 hydration 使用同一规则。 */
+export function withRuntimeCanonicalEntries(
+  entries: readonly RuntimeMessageEntry[],
+  identity: RuntimeCanonicalMessageIdentity | undefined,
+  firstEntryIndex = 0,
+): RuntimeMessageEntry[] {
+  if (!identity) return [...entries];
+  return entries.map((entry, index) => ({
+    ...entry,
+    canonical: {
+      ...identity,
+      entryIndex: firstEntryIndex + index,
+      ...(entry.canonical?.partId ? { partId: entry.canonical.partId } : {}),
+      ...(entry.canonical?.imagePartIds ? { imagePartIds: [...entry.canonical.imagePartIds] } : {}),
+    },
+  }));
+}
+
+export function withRuntimeCanonicalImagePartIds(
+  entries: readonly RuntimeMessageEntry[],
+  identity: Pick<RuntimeCanonicalEntryIdentity, "messageId" | "entryIndex" | "partId">,
+  imagePartIds: readonly string[],
+): RuntimeMessageEntry[] {
+  return entries.map((entry) =>
+    entry.canonical?.messageId === identity.messageId &&
+    entry.canonical.entryIndex === identity.entryIndex &&
+    entry.canonical.partId === identity.partId
+      ? { ...entry, canonical: { ...entry.canonical, imagePartIds: [...imagePartIds] } }
+      : entry,
+  );
 }
 
 /**
@@ -567,7 +645,13 @@ function cloneModelMessageContentBlock(block: ModelMessageContentBlock): ModelMe
     return cloneReasoningBlock(block);
   }
   if ("source" in block && block.source) {
-    return { ...block, source: { ...block.source } };
+    return {
+      ...block,
+      source: {
+        ...block.source,
+        ...(block.source.originalImage ? { originalImage: { ...block.source.originalImage } } : {}),
+      },
+    };
   }
   return { ...block };
 }
@@ -582,6 +666,8 @@ export function createMessageHistory(): MessageHistory {
 
 /** 用户附件的已解析内容及持久化来源；不依赖 runtime 或文件读取。 */
 export type UserMessageAttachment = Pick<FilePart, "filename" | "mime" | "source" | "metadata"> & {
+  /** persistUserPrompt 或 hydration 提供的实际 FilePart.id。 */
+  id?: string;
   contentBlock: ModelMessageContentBlock;
 };
 
@@ -590,23 +676,38 @@ export type UserMessageAttachment = Pick<FilePart, "filename" | "mime" | "source
 export function buildUserMessageEntries(
   input: ModelMessageContent,
   attachments: readonly UserMessageAttachment[],
+  identity?: RuntimeCanonicalMessageIdentity & { partId?: string },
 ): [RuntimeMessageMessageEntry, ...RuntimeAttachmentEntry[]] {
   const realUserBlocks: ModelMessageContentBlock[] = [];
   const pastedImageBlocks: ModelMessageContentBlock[] = [];
+  const realUserImagePartIds: Array<string | undefined> = [];
+  const pastedImagePartIds: Array<string | undefined> = [];
   const promptAttachmentEntries: RuntimeAttachmentEntry[] = [];
 
   for (const attachment of attachments) {
     if (isPastedInlineImageAttachment(attachment)) {
       pastedImageBlocks.push(attachment.contentBlock);
+      if (attachment.contentBlock.type === "image") pastedImagePartIds.push(attachment.id);
       continue;
     }
 
     const promptAttachmentInput = promptAttachmentInputForResolvedAttachment(attachment);
     if (promptAttachmentInput) {
       const reminderBody = buildPromptAttachmentReminderBodies(promptAttachmentInput).join("\n");
-      promptAttachmentEntries.push(
-        systemReminderAttachmentEntry("prompt_attachment", reminderBody),
-      );
+      promptAttachmentEntries.push({
+        ...systemReminderAttachmentEntry("prompt_attachment", reminderBody),
+        ...(identity
+          ? {
+              canonical: {
+                messageId: identity.messageId,
+                createdAt: identity.createdAt,
+                ...(identity.turnNumber === undefined ? {} : { turnNumber: identity.turnNumber }),
+                entryIndex: promptAttachmentEntries.length + 1,
+                ...(attachment.id ? { partId: attachment.id } : {}),
+              },
+            }
+          : {}),
+      });
       continue;
     }
 
@@ -615,6 +716,7 @@ export function buildUserMessageEntries(
     }
 
     realUserBlocks.push(attachment.contentBlock);
+    if (attachment.contentBlock.type === "image") realUserImagePartIds.push(attachment.id);
   }
 
   const blocks: ModelMessageContentBlock[] = [];
@@ -624,6 +726,14 @@ export function buildUserMessageEntries(
     blocks.push(...input.filter((block) => block.type !== "text" || block.text.length > 0));
   }
   blocks.push(...realUserBlocks, ...pastedImageBlocks);
+  // input 自带的图片没有 FilePart 证据，缺项时整列缺席，不能错移后续图片的真实身份。
+  const imagePartIds = [
+    ...(typeof input === "string"
+      ? []
+      : input.filter((block) => block.type === "image").map(() => undefined)),
+    ...realUserImagePartIds,
+    ...pastedImagePartIds,
+  ];
 
   return [
     {
@@ -632,6 +742,18 @@ export function buildUserMessageEntries(
         content: normalizeRealUserContent(blocks),
       },
       metadata: realUserRuntimeMetadata(),
+      ...(identity
+        ? {
+            canonical: {
+              ...identity,
+              entryIndex: 0,
+              ...(imagePartIds.length > 0 &&
+              imagePartIds.every((id): id is string => id !== undefined)
+                ? { imagePartIds }
+                : {}),
+            },
+          }
+        : {}),
     },
     ...promptAttachmentEntries,
   ];

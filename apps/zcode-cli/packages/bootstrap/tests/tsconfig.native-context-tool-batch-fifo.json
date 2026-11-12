@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2024",
+    "noEmit": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "@zcode/contracts": ["../../contracts/src/index.ts"],
+      "@zcode/core": ["../../core/src/index.ts"],
+      "@zcode/adapters/*": ["../../adapters/src/*/index.ts"],
+      "@zcode/provider": ["../../../../../packages/provider/src/index.ts"],
+      "@zcode/shared": ["../../../../../packages/shared/src/index.ts"],
+      "@zcode/shared/*": ["../../../../../packages/shared/src/*"]
+    }
+  },
+  "include": [
+    "native-context-tool-batch-fifo.test.ts",
+    "native-context-tool-batch-fifo-fixture.ts",
+    "native-context-tool-batch-model.ts",
+    "native-context-tool-batch-registry.ts",
+    "native-context-tool-batch-tools.ts"
+  ]
+}

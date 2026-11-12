@@ -42,6 +42,7 @@ import type {
 import type { AgentRuntimeInternal } from "../internal.js";
 import { rebuildContextPrefix, refreshRestoredAnnouncements } from "./context-refresh.js";
 import { mainTurnCacheHitAggregateFromMessages } from "./turn-model-step-usage.js";
+import { rebaseNativeContext } from "../native-context-compression/index.js";
 
 export async function rewindToMessage(
   this: AgentRuntimeInternal,
@@ -588,6 +589,7 @@ async function applyConversationRewindPlan(
     targetMessageId: options.targetMessageId,
     traceContext: options.traceContext,
   });
+  await rebaseNativeContext(this);
 
   const event = this.createEvent(
     SessionEventType.RewindTriggered,

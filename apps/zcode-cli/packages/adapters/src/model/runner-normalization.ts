@@ -13,7 +13,10 @@ import type { AiSdkGenerateTextResult } from "./runner-runtime.js";
 import { asRecord, isRecord, numberProperty, stringProperty } from "./runner-record.js";
 import { normalizeModelToolName } from "./tool-call-validation.js";
 
-export function normalizeUsage(usage?: Partial<LanguageModelUsage>): ModelUsage {
+export function normalizeUsage(
+  usage?: Partial<LanguageModelUsage>,
+  providerKind?: string,
+): ModelUsage {
   const rawUsage = isRecord(usage?.raw) ? usage.raw : undefined;
   const rawServerToolUse = isRecord(rawUsage?.server_tool_use)
     ? rawUsage.server_tool_use
@@ -25,8 +28,7 @@ export function normalizeUsage(usage?: Partial<LanguageModelUsage>): ModelUsage 
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
-    cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
-    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+    ...normalizeCacheUsage(usage, providerKind),
     reasoningTokens: usage?.outputTokenDetails?.reasoningTokens,
     ...(webSearchRequests !== undefined || webFetchRequests !== undefined
       ? {
@@ -37,6 +39,71 @@ export function normalizeUsage(usage?: Partial<LanguageModelUsage>): ModelUsage 
         }
       : {}),
   };
+}
+
+function normalizeCacheUsage(
+  usage: Partial<LanguageModelUsage> | undefined,
+  providerKind?: string,
+) {
+  const raw = isRecord(usage?.raw) ? usage.raw : undefined;
+  // SDK 的 ??0 会把未报告缓存伪造成真实零；按实际协议恢复 raw 字段存在性，不能猜 Provider。
+  if (raw && providerKind === "anthropic") {
+    return {
+      cacheReadTokens: numberProperty(raw, "cache_read_input_tokens"),
+      cacheWriteTokens: numberProperty(raw, "cache_creation_input_tokens"),
+    };
+  }
+  if (raw && providerKind === "google") {
+    return {
+      cacheReadTokens: numberProperty(raw, "cachedContentTokenCount"),
+      cacheWriteTokens: undefined,
+    };
+  }
+  if (raw && (providerKind === "openai" || providerKind === "openai-compatible")) {
+    const details = isRecord(raw.input_tokens_details)
+      ? raw.input_tokens_details
+      : asRecord(raw.prompt_tokens_details);
+    return {
+      cacheReadTokens: numberProperty(details, "cached_tokens"),
+      cacheWriteTokens: undefined,
+    };
+  }
+  return {
+    cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
+    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+  };
+}
+
+export function normalizeUsageFromSteps(
+  stepUsages: readonly (Partial<LanguageModelUsage> | undefined)[],
+  fallback?: Partial<LanguageModelUsage>,
+  providerKind?: string,
+): ModelUsage {
+  if (stepUsages.length === 0) return normalizeUsage(fallback, providerKind);
+  const steps = stepUsages.map((usage) => normalizeUsage(usage, providerKind));
+  // totalUsage 已丢 raw，不能证明每步都报告缓存；完整合计必须逐字段保留未知缺口。
+  const sum = (values: readonly (number | undefined)[]) =>
+    values.every((value) => value !== undefined)
+      ? values.reduce<number>((total, value) => total + (value ?? 0), 0)
+      : undefined;
+  const usage: ModelUsage = {};
+  for (const key of [
+    "inputTokens",
+    "outputTokens",
+    "totalTokens",
+    "cacheReadTokens",
+    "cacheWriteTokens",
+    "reasoningTokens",
+  ] as const) {
+    usage[key] = sum(steps.map((step) => step[key]));
+  }
+  if (steps.some((step) => step.serverToolUse !== undefined)) {
+    usage.serverToolUse = {
+      webSearchRequests: sum(steps.map((step) => step.serverToolUse?.webSearchRequests)),
+      webFetchRequests: sum(steps.map((step) => step.serverToolUse?.webFetchRequests)),
+    };
+  }
+  return usage;
 }
 
 export function normalizeReasoning(
@@ -59,7 +126,10 @@ export function normalizeReasoning(
     }));
 }
 
-export function toModelStreamEvent(chunk: TextStreamPart<ToolSet>): ModelStreamEvent | undefined {
+export function toModelStreamEvent(
+  chunk: TextStreamPart<ToolSet>,
+  usage?: ModelUsage,
+): ModelStreamEvent | undefined {
   switch (chunk.type) {
     case "start":
       return {
@@ -181,7 +251,7 @@ export function toModelStreamEvent(chunk: TextStreamPart<ToolSet>): ModelStreamE
         type: "finish",
         finishReason: chunk.finishReason,
         providerMetadata: buildFinishProviderMetadata(chunk),
-        usage: normalizeUsage(chunk.totalUsage),
+        usage: usage ?? normalizeUsage(chunk.totalUsage),
       };
 
     case "error":

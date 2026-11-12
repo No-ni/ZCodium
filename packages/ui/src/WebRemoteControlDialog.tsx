@@ -155,6 +155,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
           {/* 正文仍使用细窄的浮现滚动条并独立于固定头部；不能让轨道穿过关闭按钮。
               flex 高度随真实头部和视口收缩，避免双栏长文案与最大字号下底部被裁掉。 */}
           <ScrollArea
+            data-testid="web-remote-control-dialog-scroll"
             className="h-[min(640px,calc(100dvh-12rem))] min-h-0"
             type="scroll"
             scrollbarClassName="data-[state=visible]:animate-in data-[state=visible]:fade-in-0 data-[state=hidden]:animate-out data-[state=hidden]:fade-out-0"

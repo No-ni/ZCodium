@@ -118,9 +118,12 @@ export async function waitMobileTaskView(address: UnreadTaskAddress | null) {
 }
 
 export async function showMobileTaskHome(page: Page) {
+  const sidebar = page.getByTestId("sidebar");
   const back = page.getByRole("button", { name: /^(返回任务首页|Back to task home)$/u });
+  // 原因：reload 的 DOM 就绪早于共享 Root；先等待可见导航，避免一次读取漏掉稍后出现的返回按钮。
+  await sidebar.or(back).filter({ visible: true }).first().waitFor();
   if (await back.isVisible()) await back.click();
-  await page.getByTestId("sidebar").waitFor();
+  await sidebar.waitFor();
 }
 
 /** 配对凭据只经内存 loopback receiver，不进入 WebDriver 返回值与日志。 */
@@ -179,6 +182,12 @@ export async function obtainUnreadPairingUrl(
     if (new URL(url).origin !== expectedOrigin)
       throw new Error("MRO03 requires loopback Web frontend");
     await browser.keys("Escape");
+    // 原因：Escape 回包仅表示按键已发送，Dialog 仍可能处于退出动画；
+    // 外层 cleanup 会因此再次关闭并与手机浏览器启动交错。以真实隐藏为关闭屏障。
+    await $('[data-testid="web-remote-control-dialog-scroll"]').waitForDisplayed({
+      reverse: true,
+      timeout: 10_000,
+    });
     return url;
   } finally {
     await browser.execute(() => {

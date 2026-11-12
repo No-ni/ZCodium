@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "compilerOptions": {
+    "paths": {
+      "@zcode/contracts": ["../../contracts/src/index.ts"],
+      "@zcode/shared": ["../../../../../packages/shared/src/index.ts"],
+      "@zcode/shared/*": ["../../../../../packages/shared/src/*"],
+      "@zcode/adapters/*": ["../../adapters/src/*/index.ts"]
+    }
+  },
+  "include": [
+    "native-context-large-ledger.test.ts",
+    "native-context-large-ledger-data.ts",
+    "native-context-large-ledger-message.ts",
+    "native-context-large-ledger-seed.ts",
+    "native-context-ledger-resume-context.ts",
+    "native-context-large-ledger-resume.test.ts",
+    "../../../../../scripts/ci/fixtures/native-context-large-ledger-seed.ts"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.e2e.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "strict": true
+  },
+  "include": [
+    "test/e2e/helpers/native-context-compression/ledger.ts",
+    "test/e2e/helpers/native-context-compression/ledger-seed.ts",
+    "test/e2e/helpers/native-context-compression/ledger-mobile.ts",
+    "test/e2e/helpers/native-context-compression/ledger-chart.ts",
+    "test/e2e/helpers/native-context-compression/ledger-assertions.ts",
+    "test/e2e/helpers/native-context-compression/ledger-fixture-contract.ts"
+  ]
+}

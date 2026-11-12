@@ -30,7 +30,12 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import { ModelConfigSelect, type ModelSelectGroup } from "@/ModelConfigSelect.js";
 import { Button } from "@/components/ui/button.js";
-import { ChatContextUsage } from "@/chat-input-toolbar/display.js";
+import { NativeContextCompressionEntry } from "@/native-context-compression/index.js";
+import type {
+  NativeContextActions,
+  NativeContextConfiguration,
+  NativeContextStatus,
+} from "@/native-context-compression/contract.js";
 import type { ComposerModelOptions } from "@/chat-input-toolbar/ComposerModelMenu.js";
 import {
   getNextThoughtLevelValue,
@@ -114,12 +119,19 @@ export interface V4ComposerToolbarProps {
     sourceModel: ModelSelectionSource | null,
   ) => Promise<void> | void;
   onSendCompressionCommand?: (command: string) => void;
+  nativeContextActions?: NativeContextActions;
+  nativeContextSessionId?: string | null;
+  nativeContextProjection?: NativeContextStatus | null;
+  nativeContextDraftConfiguration?: NativeContextConfiguration;
+  remoteSessionId?: string;
+  onQuoteContextSource?: (ref: string, text: string) => void;
 }
 
 /** 模型 / 思考深度 / context usage 簇（渲染在发送键左侧，与旧 UI 同位）。 */
 function V4ComposerModelControlsImpl({
   workspacePath,
   workspaceIdentity,
+  sessionId,
   modelSelectionView = null,
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
@@ -132,10 +144,15 @@ function V4ComposerModelControlsImpl({
   onConfigPickerOpenChange,
   onSelectModel,
   onSelectThought,
-  onSendCompressionCommand,
+  nativeContextActions,
+  nativeContextSessionId = sessionId ?? null,
+  nativeContextProjection,
+  nativeContextDraftConfiguration,
+  remoteSessionId,
+  onQuoteContextSource,
   onRecoverCustomModelSelection,
 }: V4ComposerToolbarProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl } = useZCodeIntl();
   // 目录重读只保留同一 Host 静态候选；选择事实仍来自当前 Composer，不消费旧 effectiveSelection。
   const menuModelSelectionView = useMemo<ModelSelectionView | null>(() => {
     if (modelSelectionState.status === "ready") return modelSelectionView;
@@ -416,16 +433,6 @@ function V4ComposerModelControlsImpl({
     });
   }, [effectiveConfig, modelSelectionState.status, onSelectThought, thoughtOption]);
 
-  const taskUsage = useMemo(() => {
-    const contextWindow = usage?.contextWindow;
-    if (!contextWindow) return null;
-    return {
-      used: contextWindow.usedTokens,
-      size: contextWindow.maxTokens,
-      ...(contextWindow.cache ? { cache: contextWindow.cache } : {}),
-      ...(contextWindow.breakdown ? { breakdown: contextWindow.breakdown } : {}),
-    };
-  }, [usage?.contextWindow]);
   // 工具条热键已转正为命令表命令：tooltip 快捷键文案读生效表，
   // 改绑后按钮提示即时跟随（不能用硬编码文案）。
   const modelShortcutLabel = useShortcutCommandLabel("openModelMenu");
@@ -517,13 +524,33 @@ function V4ComposerModelControlsImpl({
         data-usage-max={usage?.contextWindow?.maxTokens ?? ""}
         className="hidden"
       />
-      <ChatContextUsage
-        taskUsage={taskUsage}
-        selectedProvider={displayProvider}
-        intl={intl}
-        locale={locale}
-        onSendCompressionCommand={onSendCompressionCommand}
-        compressionDisabled={disabled || recoveryPending}
+      <NativeContextCompressionEntry
+        identity={{
+          workspacePath,
+          workspaceIdentity,
+          remoteSessionId,
+          sessionId: nativeContextSessionId,
+        }}
+        projection={nativeContextProjection}
+        draftConfiguration={nativeContextDraftConfiguration}
+        usage={usage?.contextWindow ?? null}
+        currentModel={draftConfig?.modelSelection ?? null}
+        modelCandidates={
+          modelSelectionView?.providers.flatMap((provider) =>
+            provider.models.map((model) => ({
+              selection: { providerId: provider.providerId, modelId: model.modelId },
+              label: `${provider.providerName?.trim() || provider.providerId} / ${model.modelId}`,
+              supportsImages: model.config.properties?.inputFormat?.supportsImage === true,
+            })),
+          ) ?? []
+        }
+        actions={nativeContextActions}
+        disabled={disabled || recoveryPending}
+        onQuote={onQuoteContextSource ?? noop}
+        onOpenDefaultsSettings={() => {
+          setPendingSettingsSectionIntent("general");
+          openSettingsTab();
+        }}
       />
       {modelSelectionState.status === "error" && modelSelectionReload ? (
         <Button

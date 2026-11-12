@@ -30,6 +30,7 @@ export interface WebRemoteControlWorkspaceSwitcherApi {
     chooseOtherDevice(): void;
   };
   listWorkspaces(): Promise<WebRemoteControlWorkspaceListResult>;
+  /** 手机交接入口消费 sender 租约并拥有调用后的失败反馈；完成只由新 Root 初始化通知。 */
   openProjectDraft?(request: CreateTaskOptions): Promise<void>;
   onWorkspaceListUpdated?(
     listener: (result: WebRemoteControlWorkspaceListResult) => void,

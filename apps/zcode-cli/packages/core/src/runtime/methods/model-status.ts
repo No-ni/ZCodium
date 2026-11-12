@@ -11,7 +11,7 @@ import type { AgentRuntimeInternal } from "../internal.js";
 interface ModelStatusSinkOptions {
   /** Sampling 不投影到主会话；保留网络日志和内存用量事件。 */
   persist?: boolean;
-  onStatus?: (event: ModelNetworkStatusEvent) => void;
+  onStatus?: (event: ModelNetworkStatusEvent) => void | Promise<void>;
   streamRecovery?: ModelStreamRecoveryStatus;
 }
 
@@ -26,15 +26,22 @@ export function createModelStatusSink(
       const eventPayload = options.streamRecovery
         ? { ...statusEvent, streamRecovery: options.streamRecovery }
         : statusEvent;
-      options.onStatus?.(eventPayload);
-      this.logModelNetworkStatus(eventPayload, traceContext);
-      const event = this.createEvent(
-        SessionEventType.ModelNetworkStatus,
-        eventPayload,
-        traceContext,
-      );
-      if (options.persist !== false) await this.appendEvent(event, traceContext);
-      events.push(event);
+      try {
+        await options.onStatus?.(eventPayload);
+      } finally {
+        // 原生观察失败不能吞掉实际网络事件，否则后续用量账本会遗漏已发生的尝试。
+        this.logModelNetworkStatus(eventPayload, traceContext);
+        const event = this.createEvent(
+          SessionEventType.ModelNetworkStatus,
+          eventPayload,
+          traceContext,
+        );
+        try {
+          if (options.persist !== false) await this.appendEvent(event, traceContext);
+        } finally {
+          events.push(event);
+        }
+      }
     },
   };
 }

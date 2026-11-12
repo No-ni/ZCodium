@@ -7,7 +7,7 @@ import {
   exposeWindowHostAttachmentServices,
   resolveWindowHostServiceExposurePolicy,
 } from "../../packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts";
-import { IMcpSyncService } from "@zcode/services";
+import { IMcpSyncService, ISettingsSyncService } from "../../packages/services/src/index.ts";
 import { ServiceChannels, ZCODE_COMPATIBILITY_MANIFEST } from "@zcode/shared";
 
 test("settings scope never connects or falls back when the device is offline", async () => {
@@ -102,7 +102,6 @@ test("mobile exposure rejects newly registered device controls and batch configu
     ServiceChannels.SourceServerManagement,
     ServiceChannels.ProviderProvisioningStatus,
     ServiceChannels.ProviderProvisioningTarget,
-    ServiceChannels.SettingsSync,
     ServiceChannels.SkillSync,
     ServiceChannels.PluginSync,
     "future-device-control",
@@ -136,6 +135,89 @@ test("mobile exposure rejects newly registered device controls and batch configu
   assert.equal(scoped.then, undefined);
   assert.equal(scoped.onFutureEvent, undefined);
   assert.equal(exposed.exposure, policy);
+});
+
+test("mobile first-run lifecycle uses the same Host owner and leaves migration methods disabled", async () => {
+  const calls = [];
+  const owner = {
+    handled: false,
+    async getFirstRunPromptState() {
+      calls.push("get");
+      return { handled: this.handled };
+    },
+    async markFirstRunPromptHandled() {
+      calls.push("mark");
+      this.handled = true;
+    },
+  };
+  let exposed;
+  exposeWindowHostAttachmentServices({
+    server: {},
+    clientMode: "web-remote-replayable",
+    services: {
+      getOptional: (descriptor) => (descriptor === ISettingsSyncService ? owner : undefined),
+      exposeOnChannelServer: (_server, overrides, exposure) => {
+        exposed = { overrides, exposure };
+      },
+    },
+  });
+  assert.equal(exposed.exposure.allowedChannels.has(ServiceChannels.SettingsSync), true);
+  const scoped = exposed.overrides.get(ISettingsSyncService.channelName);
+  assert.deepEqual(await scoped.getFirstRunPromptState(), { handled: false });
+  await scoped.markFirstRunPromptHandled();
+  assert.deepEqual(await scoped.getFirstRunPromptState(), { handled: true });
+  assert.deepEqual(calls, ["get", "mark", "get"]);
+  for (const method of [
+    "detect",
+    "importSelected",
+    "getClaudeAgentsFileMigrationStatus",
+    "copyClaudeAgentsFileToZcodeAgentsFile",
+    "futureBatchImport",
+  ]) {
+    await assert.rejects(scoped[method](), { kind: "feature_disabled" });
+  }
+  assert.deepEqual(calls, ["get", "mark", "get"]);
+  assert.equal(scoped.then, undefined);
+  assert.equal(scoped.onFutureEvent, undefined);
+  assert.equal(scoped[Symbol.iterator], undefined);
+});
+
+test("mobile scopes the selected settings override while Desktop keeps the original capability", async () => {
+  const owner = { getFirstRunPromptState: async () => ({ handled: true }) };
+  const overrides = new Map([[ISettingsSyncService.channelName, owner]]);
+  const exposures = [];
+  const services = {
+    getOptional: () => {
+      throw new Error("an explicit override must keep its owner");
+    },
+    exposeOnChannelServer: (_server, selected, policy) => {
+      exposures.push({ selected, policy });
+    },
+  };
+  // MCP remains absent without replacing the explicit settings owner.
+  services.getOptional = (descriptor) => {
+    assert.equal(descriptor, IMcpSyncService);
+    return undefined;
+  };
+  exposeWindowHostAttachmentServices({
+    server: {},
+    services,
+    clientMode: "web-remote-replayable",
+    overrides,
+  });
+  const scoped = exposures[0].selected.get(ISettingsSyncService.channelName);
+  assert.notEqual(scoped, owner);
+  assert.deepEqual(await scoped.getFirstRunPromptState(), { handled: true });
+  await assert.rejects(scoped.detect(), { kind: "feature_disabled" });
+  assert.equal(overrides.get(ISettingsSyncService.channelName), owner);
+  exposeWindowHostAttachmentServices({
+    server: {},
+    services,
+    clientMode: "desktop-continuous",
+    overrides,
+  });
+  assert.equal(exposures[1].selected, overrides);
+  assert.equal(exposures[1].policy, undefined);
 });
 
 function onlineFixture(disposeFirst = async () => {}) {

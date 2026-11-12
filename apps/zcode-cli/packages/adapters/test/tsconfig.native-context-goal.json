@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.native-context-store.json",
+  "include": [
+    "native-context-goal-receipt.test.ts",
+    "native-context-goal-migration.test.ts",
+    "native-context-migration.test.ts",
+    "fixtures/native-context-store.ts"
+  ]
+}

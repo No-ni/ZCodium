@@ -43,6 +43,7 @@ import {
 } from "./workspace-checkpoint-persistence.js";
 import { mainTurnCacheHitAggregateFromMessages } from "./turn-model-step-usage.js";
 import { refreshRestoredAnnouncements } from "./context-refresh.js";
+import { recoverNativeContext } from "../native-context-compression/index.js";
 
 export function toScheduleState(
   this: AgentRuntimeInternal,
@@ -255,6 +256,7 @@ export async function resumeFromStore(
   const resumedTodos = await this.readSessionTodosForContext(traceContext);
   const resumedTarget = await this.readSessionTargetForContext(traceContext);
   this.injectTargetStateIntoMessageHistory(resumedTarget);
+  await recoverNativeContext(this);
 
   const resumedEvent = this.createEvent(
     SessionEventType.SessionResumed,

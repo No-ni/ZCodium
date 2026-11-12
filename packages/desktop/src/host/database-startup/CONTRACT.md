@@ -7,3 +7,5 @@ Host Worker 是 app 库启动准备的唯一执行者。宿主验证 progress/do
 Worker 自己等待 `@zcode/services/storage-startup` 的 `createSettingService().get()`，经启动入口第三参 `options.settings` 交给原 Repo；不扩展 path-only workerData，不把完整配置写入消息或日志。读取失败沿原 failed 帧退出。已登记 `0005_projects` 不重跑，既有空归属不因此自动分配；坏账恢复另行显式定义。
 
 构建产物仍为 host/tasksStorageWorker.js，取消、超时及进程代际仍由宿主原有管理器负责；不改变历史 SQL、checksum 或 attachment。
+
+CLI session 存储准备复用同一 CLI bundle 的 prepareProtocolStartupStorage。该入口进入时 ref 已有 Worker parentPort，真实迁移、连接关闭和终态帧写回调完成后 finally unref；不关闭端口、不延后 readline 的既有握手边界、不靠延时保活。Host 保持现有取消/终止所有者，child-process 的 null parentPort 不改变 stdio 契约。

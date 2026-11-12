@@ -6,6 +6,10 @@ import {
   createRuntimeAssistantEntry,
   createRuntimeUserEntry,
   type RuntimeMessageEntry,
+  type RuntimeCanonicalEntryIdentity,
+  type RuntimeCanonicalMessageIdentity,
+  withRuntimeCanonicalEntries,
+  withRuntimeCanonicalImagePartIds,
 } from "../../agent/message-history.js";
 import {
   createProviderToolRoundEntries,
@@ -111,11 +115,23 @@ export function commitTurnRequestEntries(
   appendTurnRequestEntries(state, entries);
 }
 
+/** 媒体持久化成功后补来源；只更新已有 entry 的元数据，两份历史都不再 append。 */
+export function completeTurnRequestCanonicalImagePartIds(
+  runtime: AgentRuntimeInternal,
+  state: TurnRequestState,
+  identity: Pick<RuntimeCanonicalEntryIdentity, "messageId" | "entryIndex" | "partId">,
+  imagePartIds: readonly string[],
+): void {
+  runtime.messageHistory.completeCanonicalImagePartIds(identity, imagePartIds);
+  state.entries = withRuntimeCanonicalImagePartIds(state.entries, identity, imagePartIds);
+}
+
 export function commitAssistantToTurnRequest(
   runtime: AgentRuntimeInternal,
   state: RegularTurnLoopState,
   result: RuntimeModelTextResult,
   toolCalls: Parameters<typeof createRuntimeAssistantEntry>[1],
+  identity?: RuntimeCanonicalMessageIdentity,
 ): boolean {
   const reasoning = result.reasoning?.filter(hasAssistantReasoningContent);
   const hasFinalRoundContent =
@@ -131,6 +147,26 @@ export function commitAssistantToTurnRequest(
     modelRef,
     hasAssistantReasoningContent,
   );
+  // 结果 entry 顺序由同一轮次 builder 确定；重复 callID 也按真实轮序配 part，不能用 Map 合并。
+  const completedProviderRounds =
+    result.providerToolRounds?.filter((round) => round.result !== undefined) ?? [];
+  let providerResultIndex = 0;
+  const identifiedProviderEntries = providerRoundEntries.map((entry) => {
+    if (entry.kind === "attachment" || entry.message.role !== "tool") return entry;
+    const round = completedProviderRounds[providerResultIndex++];
+    return identity && round?.toolPartId
+      ? { ...entry, canonical: { ...identity, entryIndex: 0, partId: round.toolPartId } }
+      : entry;
+  });
+  const firstEntryIndex = identity
+    ? state.turnRequestState.entries.reduce(
+        (next, entry) =>
+          entry.canonical?.messageId === identity.messageId
+            ? Math.max(next, entry.canonical.entryIndex + 1)
+            : next,
+        0,
+      )
+    : 0;
   // 前序轮次与最后一轮同属一条持久化 assistant，compact 必须把它们算作一组。
   const compactGroupKey = providerToolRoundsCompactGroupKey(result.providerToolRounds);
   // 有服务端内置工具轮次时，provider usage 是服务端内部多轮请求的合计（约为单次上下文的轮数倍），
@@ -140,25 +176,33 @@ export function commitAssistantToTurnRequest(
     commitTurnRequestEntries(
       runtime,
       state.turnRequestState,
-      withCompactGroupKey(providerRoundEntries, compactGroupKey),
+      withRuntimeCanonicalEntries(
+        withCompactGroupKey(identifiedProviderEntries, compactGroupKey),
+        identity,
+        firstEntryIndex,
+      ),
     );
     return true;
   }
   commitTurnRequestEntries(
     runtime,
     state.turnRequestState,
-    withCompactGroupKey(
-      [
-        ...providerRoundEntries,
-        createRuntimeAssistantEntry(
-          state.modelResponse,
-          toolCalls,
-          reasoning,
-          modelRef,
-          contextUsage,
-        ),
-      ],
-      compactGroupKey,
+    withRuntimeCanonicalEntries(
+      withCompactGroupKey(
+        [
+          ...identifiedProviderEntries,
+          createRuntimeAssistantEntry(
+            state.modelResponse,
+            toolCalls,
+            reasoning,
+            modelRef,
+            contextUsage,
+          ),
+        ],
+        compactGroupKey,
+      ),
+      identity,
+      firstEntryIndex,
     ),
   );
   return true;

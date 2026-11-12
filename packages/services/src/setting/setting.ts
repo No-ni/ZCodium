@@ -7,12 +7,14 @@ export interface ISettingService {
   /** 完整连接映射写入必须传入原快照和操作版本；服务在锁内比较并递增版本。 */
   update(
     patch: Partial<AppSettings>,
-    expectedAccountSettings?: Pick<
-      AppSettings,
-      | "providerFamilyDomain"
-      | "providerFamilyConnectionSelections"
-      | "providerFamilyDomainUpdatedAt"
-    >,
+    expectedAccountSettings?: Partial<
+      Pick<
+        AppSettings,
+        | "providerFamilyDomain"
+        | "providerFamilyConnectionSelections"
+        | "providerFamilyDomainUpdatedAt"
+      >
+    > & { expectedNativeContextCompressionVersion?: number },
   ): Promise<void>;
   /** Change the data base directory: copy data from old → new location, then persist the setting. */
   updateDataBaseDir(newDir: string | undefined): Promise<void>;

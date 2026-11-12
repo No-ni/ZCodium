@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": ["native-context-attempts.test.ts", "runtime-model-status.test.ts"]
+}

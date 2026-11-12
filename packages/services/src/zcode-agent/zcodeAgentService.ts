@@ -34,6 +34,14 @@ import {
   type DiagnosticRecord,
 } from "@zcode/shared";
 import { sessionActivitySchema, type SessionActivity } from "@zcode/shared/zcode-protocol-v4";
+import {
+  nativeContextImageSchema,
+  nativeContextObservationsPageSchema,
+  nativeContextOperationDetailSchema,
+  nativeContextRecordsPageSchema,
+  nativeContextSourcePageSchema,
+  nativeContextStatusSchema,
+} from "@zcode/shared/native-context-compression";
 import { requestPluginReferenceCatalog } from "#src/zcode-agent/pluginReferenceCatalogRequest.js";
 import {
   localTtftFactsSchema,
@@ -3574,6 +3582,93 @@ export function createZCodeAgentService(
         V4_METHODS.conversationUsage,
         { sessionId: params.sessionId },
         v4ConversationUsageResultSchema,
+      );
+    },
+
+    async getContextCompression(params) {
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.contextCompressionGet,
+        { sessionId: params.sessionId },
+        nativeContextStatusSchema,
+      );
+    },
+
+    async listContextObservations(params) {
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.contextCompressionObservations,
+        {
+          sessionId: params.sessionId,
+          cursor: params.cursor,
+          limit: params.limit,
+          segmentId: params.segmentId,
+          purpose: params.purpose,
+          operationId: params.operationId,
+          expectedRevision: params.expectedRevision,
+        },
+        nativeContextObservationsPageSchema,
+      );
+    },
+
+    async listContextCompressionRecords(params) {
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.contextCompressionRecords,
+        {
+          sessionId: params.sessionId,
+          cursor: params.cursor,
+          limit: params.limit,
+          expectedRevision: params.expectedRevision,
+        },
+        nativeContextRecordsPageSchema,
+      );
+    },
+
+    async readContextCompressionRecord(params) {
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.contextCompressionRecord,
+        {
+          sessionId: params.sessionId,
+          operationId: params.operationId,
+          sourceCursor: params.sourceCursor,
+          sourceLimit: params.sourceLimit,
+          summaryOffset: params.summaryOffset,
+          summaryLimitChars: params.summaryLimitChars,
+          expectedRevision: params.expectedRevision,
+        },
+        nativeContextOperationDetailSchema,
+      );
+    },
+
+    async readContextSource(params) {
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.contextCompressionSource,
+        {
+          sessionId: params.sessionId,
+          ref: params.ref,
+          offset: params.offset,
+          limitTokens: params.limitTokens,
+          expectedRevision: params.expectedRevision,
+        },
+        nativeContextSourcePageSchema,
+      );
+    },
+
+    async readContextImage(params) {
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        V4_METHODS.contextCompressionImage,
+        {
+          sessionId: params.sessionId,
+          ref: params.ref,
+          offset: params.offset,
+          maxBytes: params.maxBytes,
+          expectedRevision: params.expectedRevision,
+        },
+        nativeContextImageSchema,
       );
     },
 

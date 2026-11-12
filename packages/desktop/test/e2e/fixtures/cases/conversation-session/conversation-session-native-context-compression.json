@@ -1,0 +1,306 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-native-context-compression",
+  "spec": "./test/e2e/conversation-session/conversation-session-native-context-compression.test.ts",
+  "providerFixtures": [
+    "./test/e2e/fixtures/upstream/common.json",
+    "./test/e2e/fixtures/upstream/conversation-session/conversation-session-native-context-compression.json"
+  ],
+  "fileFixtures": [],
+  "requests": [
+    {
+      "id": "upstream-conversation-readonly-tool-call",
+      "kind": "common",
+      "timingPolicy": "fast-text",
+      "source": "synthetic",
+      "syntheticReason": "只读工具首段用于构造稳定 tool_use/tool_result 历史；工具业务由本地文件 fixture 决定，不依赖真实模型选择。"
+    },
+    {
+      "id": "native-context-title",
+      "kind": "common",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-history-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-summary-source-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实主请求保存长合成事实；固定文本与usage只控制维护前置，不证明真实模型摘要质量。"
+    },
+    {
+      "id": "native-maintenance-ready-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "新的真实用户轮仅建立完整可压缩历史的前置；固定主响应不冒充maintenance或摘要提交。"
+    },
+    {
+      "id": "native-maintenance-summary",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定摘要仅复述合成来源事实，refs取自真实维护请求的完整offered range；拒绝未知/超限输入，不证明真实模型摘要质量。"
+    },
+    {
+      "id": "native-after-summary-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "下一真实主请求检查已提交摘要和独立主用量；固定响应不代替原文可回取及projection断言。"
+    },
+    {
+      "id": "native-auto-summary-source-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实主请求保存自动场景长合成事实；固定响应和usage只控制安全点前置，不证明真实模型摘要质量。"
+    },
+    {
+      "id": "native-auto-maintenance-ready-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "新的真实用户轮解除长来源latest保护；固定主响应独立核对已提交自动摘要，不冒充maintenance请求。"
+    },
+    {
+      "id": "native-auto-maintenance-summary",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定摘要只复述自动场景合成事实，refs来自真实安全点维护的完整offered range；拒绝手动串用和未知/超限输入，不证明模型摘要质量。"
+    },
+    {
+      "id": "native-auto-after-summary-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "后续真实主请求核对自动摘要持续投影与独立主input；固定响应不代替原文引用及实际安全点断言。"
+    },
+    {
+      "id": "native-opaque-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-duplicate-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-transparent-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-zero-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-unknown-cache-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-default-new-task-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-mobile-share-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "controlled-stream",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-after-restart-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+    },
+    {
+      "id": "native-cache-after-unknown-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实主请求构造 known→unknown→known 缓存序列；固定明确零字段只用于计量和 SVG 断线验证，不证明模型质量。"
+    },
+    {
+      "id": "native-read-original-tool",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定tool_use只驱动真实Runtime原图回取和下一主请求；核对完整原PNG字节与计量，不证明模型视觉质量。"
+    },
+    {
+      "id": "native-read-original-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定主响应只控制完整原图提供后的终态usage；工具结果、原图hash、尺寸与receipt均由真实产品产生。"
+    },
+    {
+      "id": "native-deep-compact",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "复用本 case 的真实 compact 请求与 FIFO，固定合成摘要只控制完成和分段边界，不证明真实模型摘要质量。"
+    },
+    {
+      "id": "native-interrupt-stop-source",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+    },
+    {
+      "id": "native-interrupt-stop-ready",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+    },
+    {
+      "id": "native-interrupt-stop-maintenance",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "controlled-stream",
+      "syntheticReason": "真实维护SSE声明输入用量后受控等待，产品Stop/自动开关/参数保存终止同一执行；空候选仅用于失败清理，不冒充成功摘要。"
+    },
+    {
+      "id": "native-interrupt-mode-source",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+    },
+    {
+      "id": "native-interrupt-mode-ready",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+    },
+    {
+      "id": "native-interrupt-mode-maintenance",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "controlled-stream",
+      "syntheticReason": "真实维护SSE声明输入用量后受控等待，产品Stop/自动开关/参数保存终止同一执行；空候选仅用于失败清理，不冒充成功摘要。"
+    },
+    {
+      "id": "native-interrupt-parameters-source",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+    },
+    {
+      "id": "native-interrupt-parameters-ready",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+    },
+    {
+      "id": "native-interrupt-parameters-maintenance",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "controlled-stream",
+      "syntheticReason": "真实维护SSE声明输入用量后受控等待，产品Stop/自动开关/参数保存终止同一执行；空候选仅用于失败清理，不冒充成功摘要。"
+    },
+    {
+      "id": "native-image-omission-prime-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+    },
+    {
+      "id": "native-image-omission-new-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+    },
+    {
+      "id": "native-image-omission-manual-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+    },
+    {
+      "id": "native-image-omission-disabled-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+    },
+    {
+      "id": "native-image-omission-reencoded-main",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+    },
+    {
+      "id": "native-image-unsupported-tool",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定tool_use仅控制真实非vision原图回取；ToolPart、restore记录、明确错误、原图hash与无第二wire由真实产品验证。"
+    },
+    {
+      "id": "native-image-capacity-source",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定主响应只控制上传成功和用量；原PNG与小副本从真实CLI/encoder/Provider捕获对账，不伪造模型小预算。"
+    },
+    {
+      "id": "native-image-capacity-tool",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "固定tool_use驱动真实原图回取与硬限；成功读取记录不当作成功发送或维护用量，原图bytes/hash必须仍完整。"
+    },
+    {
+      "id": "native-image-unsupported-recovery",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "仅固定恢复主响应；新用户行、实际终态、正确模型wire、未删除的旧ToolPart、原图hash与无双计维护由同产品owner验证。"
+    },
+    {
+      "id": "native-image-capacity-recovery",
+      "kind": "main",
+      "source": "synthetic",
+      "timingPolicy": "fast-text",
+      "syntheticReason": "恢复fixture只有真实模型请求存在才消费；新turn失败且零wire会立即作为owner不可用证据，不能靠删ToolPart/重启通过。"
+    }
+  ]
+}

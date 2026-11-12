@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.native-context-store.json",
+  "compilerOptions": {
+    "paths": {
+      "@zcode/shared": ["../../../../../packages/shared/src/index.ts"],
+      "@zcode/shared/*": ["../../../../../packages/shared/src/*"],
+      "@zcode/contracts": ["../../contracts/src/index.ts"]
+    }
+  },
+  "include": ["model-cache-usage.test.ts", "fixtures/model-cache-usage.ts"]
+}

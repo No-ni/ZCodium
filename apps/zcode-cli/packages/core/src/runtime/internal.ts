@@ -59,9 +59,10 @@ import type { ProjectMemoryRecallPrefetch } from "./helpers/project-memory-recal
 import type { ProjectMemoryExtractionScheduler } from "./helpers/project-memory-extraction.js";
 import type { ProjectMemoryUpdate } from "./helpers/project-memory-dream.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
+import type { NativeContextRuntimeMethods } from "./native-context-compression/contract.js";
 
 export interface AgentRuntimeInternal
-  extends AgentRuntimeCoreMethods, AgentRuntimeTurnMethods, AgentRuntimeHookMethods {
+  extends AgentRuntimeCoreMethods, AgentRuntimeTurnMethods, AgentRuntimeHookMethods, NativeContextRuntimeMethods {
   sessionId: SessionId;
   turnNumber: number;
   config: AgentRuntimeConfig;

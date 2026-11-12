@@ -328,8 +328,10 @@ function RootInner({
     // 跨 workspace 任务列表需要一个稳定的“本地/root services”入口。
     // 桌面端 renderer 启动时会注册一次，但 Web 和测试入口也会直接挂 Root；
     // 这里再以 Root props 兜底注册，避免当前激活远端 workspace 时本地列表误用远端 host。
+    // 手机 bridge 已同步清退后，旧 passive effect 不能复活旧 accessor 或覆盖新槽登记。
+    if (initialTaskDraft?.isCurrent?.() === false) return;
     registerBaseWorkspaceServices(services);
-  }, [services]);
+  }, [services, initialTaskDraft]);
 
   const handleOpenRemoteConnection = useCallback((preference?: RemoteConnectionOpenPreference) => {
     setRemoteConnectionOpenPreference(preference ?? null);

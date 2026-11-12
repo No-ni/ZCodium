@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- 手机配对协议客户端：鉴权/信封收发/装配重传都在同一条 WebSocket 生命周期里，拆分会让序号、缓冲与定时器所有者分叉（与 rpcTransport.ts 同一口径）。 */
-import { MobileWindowProjectDirectory } from "./windowProjectDirectory.js";
+import { prepareMobileWindowProjectDirectory } from "./windowProjectDirectory.js";
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha256";
 import { RemoteServiceAccess } from "@zcode/client";
@@ -77,6 +77,14 @@ export interface TaskStreamSubscription {
   dispose(): void;
 }
 
+/** 只借用已就绪配对桥；页面不能创建第二个 ChannelClient 或扩大 workspace scope。 */
+export interface MobileSharedWorkspaceAccess {
+  readonly services: RemoteServiceAccess;
+  readonly descriptor: WebRemoteControlBridgeDescriptor;
+  readonly generation: number;
+  isCurrent(): boolean;
+}
+
 /** 读 task 快照 / 发 prompt 的公共参数（路径与身份由 task 反查传入）。 */
 export interface TaskAccessParams {
   workspaceKey: string;
@@ -151,7 +159,7 @@ export class MobileRemoteControlClient {
   /** 当前 socket/bridge 生命周期内的任务事件流订阅；换代际时统一释放。 */
   private taskStreamSubscriptions = new Set<{ generation: number; dispose(): void }>();
   private serviceAccessorInstance: RemoteServiceAccess | null = null;
-  private readonly windowDirectory = new MobileWindowProjectDirectory();
+  private sharedWorkspaceInvalidated = new Set<() => void>();
   private onRpcMessage: ((data: unknown) => void) | null = null;
   private disposed = false;
   private mobileTaskViewEpoch: string | undefined;
@@ -290,8 +298,11 @@ export class MobileRemoteControlClient {
    * 保证旧订阅回调（迟到事件）无法写进新会话。
    */
   private releaseBridge(): void {
-    this.readyViewBridge = null;
+    // 修复依据：Root 清理可能迟于下一桥挂载；先用旧 descriptor 撤销实际查看，
+    // 随后的旧 callback 再由 accessor/generation 围栏拒绝，不能清掉新任务查看。
     this.displayedTaskView = null;
+    this.publishMobileTaskView();
+    this.readyViewBridge = null;
     // 切目标与降级都释放旧 open；否则旧 ready 丢失会堵住串行队列直到 30 秒超时。
     for (const [requestId, pending] of this.pending) {
       if (pending.bridgeSessionId !== this.rpcStreamId) continue;
@@ -311,11 +322,11 @@ export class MobileRemoteControlClient {
     this.channelClient?.dispose(new Error("连接已中断，请连接后重试"));
     this.channelClient = null;
     this.serviceAccessorInstance = null;
-    this.windowDirectory.clear();
     this.onRpcMessage = null;
     this.rpcAssembler = new WebRemoteControlRpcAssembler();
     this.rpcReplayBuffer.clear();
     this.rpcAckScheduler.clear();
+    for (const listener of this.sharedWorkspaceInvalidated) listener();
   }
 
   /**
@@ -430,34 +441,32 @@ export class MobileRemoteControlClient {
     });
   }
 
-  async readWindowProjectDirectory(params: WorkspaceBridgeTarget) {
+  async openSharedWorkspace(params: WorkspaceBridgeTarget): Promise<MobileSharedWorkspaceAccess> {
+    if (this.state !== "paired") throw new Error("手机尚未连接，请连接后重试");
     await this.ensureWorkspaceBridge(params);
     const generation = this.bridge.version;
-    return this.windowDirectory.read(() => {
-      this.bridge.assertCurrent(generation);
-      if (!this.bridge.isReady(params)) throw new Error("workspace bridge superseded");
-    });
+    const services = this.createServiceAccessor(params);
+    const descriptor = this.readyViewBridge;
+    if (!descriptor || this.state !== "paired") throw new Error("workspace bridge superseded");
+    return {
+      services,
+      descriptor,
+      generation,
+      isCurrent: () =>
+        !this.disposed &&
+        this.state === "paired" &&
+        this.bridge.isCurrent(generation) &&
+        this.bridge.isReady(params) &&
+        this.serviceAccessorInstance === services &&
+        this.readyViewBridge === descriptor,
+    };
   }
 
-  async subscribeWindowProjectDirectory(
-    params: WorkspaceBridgeTarget,
-    listener: () => void,
-  ): Promise<{ dispose(): void }> {
-    await this.ensureWorkspaceBridge(params);
-    const generation = this.bridge.version;
-    const subscription = this.windowDirectory.listen(
-      listener,
-      () => this.bridge.isCurrent(generation) && this.bridge.isReady(params),
-    );
-    const retained = {
-      generation,
-      dispose: () => {
-        subscription.dispose();
-        this.taskStreamSubscriptions.delete(retained);
-      },
+  onSharedWorkspaceInvalidated(listener: () => void): () => void {
+    this.sharedWorkspaceInvalidated.add(listener);
+    return () => {
+      this.sharedWorkspaceInvalidated.delete(listener);
     };
-    this.taskStreamSubscriptions.add(retained);
-    return retained;
   }
 
   getState(): MobileConnectionState {
@@ -657,6 +666,12 @@ export class MobileRemoteControlClient {
     }
     // 清单与 open 之间可能再次重连；必须按 Host 实际返回的 scope 校验，不能把 B 桥记成 A。
     const descriptor = response.bridge;
+    if (
+      descriptor.workspaceKey !== params.workspaceKey ||
+      descriptor.bridgeSessionId !== this.rpcStreamId ||
+      (descriptor.bridgeGeneration !== undefined && descriptor.bridgeGeneration !== generation)
+    )
+      throw new Error("workspace bridge scope mismatch");
     const scopeMatches =
       params.remoteSessionId === undefined
         ? (descriptor.kind === "local" || descriptor.kind === "conversation") &&
@@ -666,7 +681,7 @@ export class MobileRemoteControlClient {
     const client = this.channelClient;
     const accessor = this.serviceAccessorInstance;
     if (!client || !accessor) throw new Error("workspace bridge superseded");
-    await this.windowDirectory.prepare(
+    await prepareMobileWindowProjectDirectory(
       accessor,
       client,
       descriptor.capabilities?.windowProjectDirectory.version,

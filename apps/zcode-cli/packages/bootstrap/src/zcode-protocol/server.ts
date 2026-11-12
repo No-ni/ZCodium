@@ -1,5 +1,6 @@
 import { sessionLifecycleParamsSchema, sessionLifecycleSnapshotSchema } from "@zcode/shared";
 import { querySessionDebug } from "./session-debug.js";
+import { queryNativeContextCompression } from "./native-context-compression/index.js";
 import {
   zcodePluginsCancelOperationParamsSchema,
   zcodeProtocolMethods,
@@ -143,6 +144,7 @@ import {
   ProtocolRequestError,
   type ParamsSchema,
   parseParams,
+  requireSession,
   toProtocolError,
   type ZCodeProtocolClientRequestOptions,
   type ZCodeProtocolAgentDependencies,
@@ -669,6 +671,18 @@ export class ZCodeProtocolAgentServer {
         return await getUsageStats(this.context, request.params);
       case V4_METHODS.conversationUsage:
         return await getTaskTokenUsage(this.context, request.params);
+      case V4_METHODS.contextCompressionGet:
+      case V4_METHODS.contextCompressionObservations:
+      case V4_METHODS.contextCompressionRecords:
+      case V4_METHODS.contextCompressionRecord:
+      case V4_METHODS.contextCompressionSource:
+      case V4_METHODS.contextCompressionImage:
+        return await queryNativeContextCompression({
+          getRuntime: async (sessionId) => {
+            await getSessionLifecycle(this.context).ensureReady(sessionId);
+            return requireSession(this.context, sessionId, { operation: request.method }).app.runtime;
+          },
+        }, request.method, request.params);
       // 项目数据彻底删除：不经 v4Gateway 会话投影，直接操作本进程的 store 与会话注册表。
       case V4_METHODS.sessionDataMeasure:
         return await measureSessionData(this.context, request.params);

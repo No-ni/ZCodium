@@ -119,6 +119,7 @@ export const SessionEventType = {
   SystemMessage: "system_message",
   ModelRequest: "model_request",
   ModelSelected: "model_selected",
+  NativeContextCompressionUpdated: "native_context_compression_updated",
   TurnExecutionModelFallback: "turn_execution_model_fallback",
   ModelStreaming: "model_streaming",
   StreamingToolLedgerUpdated: "streaming_tool_ledger_updated",

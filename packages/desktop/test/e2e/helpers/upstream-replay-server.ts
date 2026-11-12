@@ -13,10 +13,28 @@ import type {
 import { writeE2EJsonFileAtomically } from "./e2e-atomic-json-file.js";
 import {
   redactE2ENetworkCaptureJson,
-  redactE2ENetworkCaptureJsonText,
   sanitizeE2ENetworkCaptureHeaders,
 } from "./e2e-network-capture-redaction.js";
 import { resolveUpstreamModels } from "./upstream-recorded-models.js";
+import {
+  createReplayResponseCapture,
+  failPendingReplayCapture,
+} from "./upstream-replay-response-capture.js";
+import {
+  nativeContextSummaryReplayVariable,
+  NATIVE_CONTEXT_SUMMARY_TOKEN,
+  type NativeContextMaintenanceReplayMode,
+} from "./native-context-compression/replay-summary.js";
+import {
+  nativeContextReadImageReplayRef,
+  NATIVE_CONTEXT_READ_IMAGE_REF_TOKEN,
+  NATIVE_CONTEXT_READ_IMAGE_REPLAY,
+} from "./native-context-compression/replay-read-image.js";
+import {
+  nativeContextImageNegativeReplayRef,
+  NATIVE_CONTEXT_IMAGE_NEGATIVE_CASES,
+  NATIVE_CONTEXT_IMAGE_NEGATIVE_REF_TOKEN,
+} from "./native-context-compression/replay-image-negative.js";
 
 // 夹具未写模型时，回放响应使用与 E2E 供应商相同的模型（环境变量或录制模型）。
 const DEFAULT_REPLAY_MODEL = resolveUpstreamModels().model;
@@ -96,6 +114,9 @@ interface UpstreamReplayFixture {
 }
 
 interface ReplayVariables {
+  nativeContextSummaryJson?: string;
+  nativeContextReadImageRef?: string;
+  nativeContextImageNegativeRef?: string;
   browserFixtureUrl?: string;
   latestBrowserTabAId?: string;
   latestBrowserTabBId?: string;
@@ -133,6 +154,9 @@ interface UpstreamReplayToolUseResponse {
 }
 
 type MutableCaptureRecord = E2ENetworkCaptureRecord;
+
+// Source 回归直接执行同一请求 owner，用内存 request/response 核对中断捕获，不启动 Provider。
+export { handleReplayRequest as handleE2EReplayRequest };
 
 export async function startUpstreamReplayServer(
   options: StartUpstreamReplayServerOptions,
@@ -314,106 +338,128 @@ async function handleReplayRequest(
   context.records.push(record);
   await context.writeArtifact();
 
-  const fixtureIndex = findFixtureIndex(
-    context.fixtures,
-    record,
-    requestText,
-    requestJson,
-    context.fixtureMatchCounts,
-  );
-  const fixture = fixtureIndex >= 0 ? context.fixtures[fixtureIndex] : undefined;
-  if (!fixture) {
-    const body = JSON.stringify(
-      {
-        error: {
-          message: `Missing Upstream e2e fixture for ${record.method} ${record.path}`,
-        },
-      },
-      null,
-      2,
+  try {
+    const fixtureIndex = findFixtureIndex(
+      context.fixtures,
+      record,
+      requestText,
+      requestJson,
+      context.fixtureMatchCounts,
     );
-    await writeResponse(response, record, {
-      body,
-      headers: { "content-type": "application/json; charset=utf-8" },
-      statusCode: 500,
-      statusMessage: "Missing Fixture",
-    });
-    await context.writeArtifact();
-    return;
-  }
-  context.fixtureMatchCounts.set(fixture.id, (context.fixtureMatchCounts.get(fixture.id) ?? 0) + 1);
-  record.replay = {
-    closeMode: fixture.response.closeMode ?? "end",
-    fixtureId: fixture.id,
-  };
-  await context.writeArtifact();
-
-  if (fixture.response.delayMs && fixture.response.delayMs > 0) {
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, fixture.response.delayMs));
-  }
-
-  if (fixture.response.events?.length) {
-    await writeEventStreamResponse(response, record, {
-      events: fixture.response.events,
-      closeMode: fixture.response.closeMode ?? "end",
-      headers: fixture.response.headers ?? {},
-      statusCode: fixture.response.statusCode,
-      statusMessage: fixture.response.statusMessage ?? "OK",
-    });
-  } else {
-    const resolvedBody = resolveFixtureResponseBody(
-      fixture.response,
-      extractReplayVariables(requestText, requestJson),
-      isStreamingRequest(requestJson),
-    );
-    if (
-      resolvedBody.body.includes(BROWSER_FIXTURE_URL_REPLAY_TOKEN) ||
-      resolvedBody.body.includes(LATEST_WORKFLOW_RUN_ID_REPLAY_TOKEN)
-    ) {
-      // 修复原因：动态 URL marker 缺失或格式错误时保留模板会让 Browser tool
-      // 导航到字面量 `{{browserFixtureUrl}}`，随后可能被 compact 摘要掩盖成成功。
-      // replay 必须 fail closed，让 fixture/request 契约错误直接可见。
-      await writeResponse(response, record, {
-        body: JSON.stringify({
+    const fixture = fixtureIndex >= 0 ? context.fixtures[fixtureIndex] : undefined;
+    if (!fixture) {
+      const body = JSON.stringify(
+        {
           error: {
-            message: resolvedBody.body.includes(BROWSER_FIXTURE_URL_REPLAY_TOKEN)
-              ? "Missing E2E_BROWSER_FIXTURE_URL replay variable"
-              : "Missing workflow-hole run ID replay variable",
+            message: `Missing Upstream e2e fixture for ${record.method} ${record.path}`,
           },
-        }),
+        },
+        null,
+        2,
+      );
+      await writeResponse(response, record, {
+        body,
         headers: { "content-type": "application/json; charset=utf-8" },
         statusCode: 500,
-        statusMessage: "Missing Replay Variable",
+        statusMessage: "Missing Fixture",
       });
-      // Bug 根因：artifact 写入改为异步后，这个 fail-closed 分支仍然 fire-and-forget；
-      // Windows 原子替换最终失败时 rejection 会逃出统一 handler catch。返回前等待，
-      // 让诊断落盘失败按请求生命周期收口，且不覆盖已经返回的 500 业务证据。
-      await context.writeArtifact();
       return;
     }
-    await writeResponse(response, record, {
-      body: resolvedBody.body,
-      chunks: fixture.response.chunks,
-      closeMode: fixture.response.closeMode,
-      ...(fixture.response.releaseAfterChunks === undefined
-        ? {}
-        : {
-            releaseAfterChunks: fixture.response.releaseAfterChunks,
-            release: () => {
-              if (fixture.metadata?.timingPolicy !== "controlled-stream")
-                throw new Error("仅 controlled-stream 允许显式释放");
-              return context.holdStream(fixture.id, response);
+    context.fixtureMatchCounts.set(
+      fixture.id,
+      (context.fixtureMatchCounts.get(fixture.id) ?? 0) + 1,
+    );
+    record.replay = {
+      closeMode: fixture.response.closeMode ?? "end",
+      fixtureId: fixture.id,
+    };
+    await context.writeArtifact();
+
+    if (fixture.response.delayMs && fixture.response.delayMs > 0) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, fixture.response.delayMs));
+    }
+
+    if (fixture.response.events?.length) {
+      await writeEventStreamResponse(response, record, {
+        events: fixture.response.events,
+        closeMode: fixture.response.closeMode ?? "end",
+        headers: fixture.response.headers ?? {},
+        statusCode: fixture.response.statusCode,
+        statusMessage: fixture.response.statusMessage ?? "OK",
+      });
+    } else {
+      const resolvedBody = resolveFixtureResponseBody(
+        fixture.response,
+        extractReplayVariables(
+          requestText,
+          requestJson,
+          fixture.id === "native-maintenance-summary"
+            ? "manual"
+            : fixture.id === "native-auto-maintenance-summary"
+              ? "automatic"
+              : undefined,
+          fixture.id === NATIVE_CONTEXT_READ_IMAGE_REPLAY.toolFixtureId,
+          Object.values(NATIVE_CONTEXT_IMAGE_NEGATIVE_CASES).some(
+            (item) => item.fixtureId === fixture.id,
+          )
+            ? fixture.id
+            : undefined,
+        ),
+        isStreamingRequest(requestJson),
+      );
+      if (
+        resolvedBody.body.includes(BROWSER_FIXTURE_URL_REPLAY_TOKEN) ||
+        resolvedBody.body.includes(LATEST_WORKFLOW_RUN_ID_REPLAY_TOKEN)
+      ) {
+        // 修复原因：动态 URL marker 缺失或格式错误时保留模板会让 Browser tool
+        // 导航到字面量 `{{browserFixtureUrl}}`，随后可能被 compact 摘要掩盖成成功。
+        // replay 必须 fail closed，让 fixture/request 契约错误直接可见。
+        await writeResponse(response, record, {
+          body: JSON.stringify({
+            error: {
+              message: resolvedBody.body.includes(BROWSER_FIXTURE_URL_REPLAY_TOKEN)
+                ? "Missing E2E_BROWSER_FIXTURE_URL replay variable"
+                : "Missing workflow-hole run ID replay variable",
             },
           }),
-      headers: resolvedBody.headers,
-      statusCode: fixture.response.statusCode,
-      statusMessage: fixture.response.statusMessage ?? "OK",
-    });
+          headers: { "content-type": "application/json; charset=utf-8" },
+          statusCode: 500,
+          statusMessage: "Missing Replay Variable",
+        });
+        // Bug 根因：artifact 写入改为异步后，这个 fail-closed 分支仍然 fire-and-forget；
+        // Windows 原子替换最终失败时 rejection 会逃出统一 handler catch。统一 finally 等待，
+        // 让诊断落盘失败按请求生命周期收口，且不覆盖已经返回的 500 业务证据。
+        return;
+      }
+      await writeResponse(response, record, {
+        body: resolvedBody.body,
+        chunks: fixture.response.chunks,
+        closeMode: fixture.response.closeMode,
+        ...(fixture.response.releaseAfterChunks === undefined
+          ? {}
+          : {
+              releaseAfterChunks: fixture.response.releaseAfterChunks,
+              release: () => {
+                if (fixture.metadata?.timingPolicy !== "controlled-stream")
+                  throw new Error("仅 controlled-stream 允许显式释放");
+                return context.holdStream(fixture.id, response);
+              },
+            }),
+        headers: resolvedBody.headers,
+        statusCode: fixture.response.statusCode,
+        statusMessage: fixture.response.statusMessage ?? "OK",
+      });
+    }
+    if (fixture.replay?.consumeOnce) {
+      context.fixtures.splice(fixtureIndex, 1);
+    }
+  } catch (error) {
+    failPendingReplayCapture(record);
+    throw error;
+  } finally {
+    // 中断同样沿唯一串行 writer 落盘；捕获写失败仍交原 handler 收口，不伪造成功证据。
+    await context.writeArtifact();
   }
-  if (fixture.replay?.consumeOnce) {
-    context.fixtures.splice(fixtureIndex, 1);
-  }
-  await context.writeArtifact();
 }
 
 function closeReplayResponseAfterHandlerError(response: ServerResponse, error: unknown): void {
@@ -495,10 +541,34 @@ function isStreamingRequest(requestJson: unknown): boolean {
   );
 }
 
-function extractReplayVariables(requestText: string, requestJson: unknown): ReplayVariables {
+function extractReplayVariables(
+  requestText: string,
+  requestJson: unknown,
+  nativeSummary?: NativeContextMaintenanceReplayMode,
+  readOriginalImage = false,
+  negativeImageFixtureId?: string,
+): ReplayVariables {
   const requestContent = `${requestText}\n${JSON.stringify(requestJson ?? {})}`;
   const browserTabIds = readLatestBrowserTabIds(requestJson);
   return {
+    ...(nativeSummary
+      ? {
+          nativeContextSummaryJson: nativeContextSummaryReplayVariable(requestJson, nativeSummary),
+        }
+      : {}),
+    ...(readOriginalImage
+      ? {
+          nativeContextReadImageRef: nativeContextReadImageReplayRef(requestJson),
+        }
+      : {}),
+    ...(negativeImageFixtureId
+      ? {
+          nativeContextImageNegativeRef: nativeContextImageNegativeReplayRef(
+            requestJson,
+            negativeImageFixtureId,
+          ),
+        }
+      : {}),
     browserFixtureUrl: readBrowserFixtureUrl(requestContent),
     ...browserTabIds,
     latestAgentId: readLatestAgentId(requestContent),
@@ -676,6 +746,30 @@ function applyReplayVariables(value: unknown, variables: ReplayVariables): unkno
 
 function applyReplayVariablesToString(value: string, variables: ReplayVariables): string {
   let resolved = value;
+  if (resolved.includes(NATIVE_CONTEXT_IMAGE_NEGATIVE_REF_TOKEN)) {
+    // 原因：负向原图测试也必须绑定实际最新用户ref，不能使用历史图片或字面量模板。
+    if (variables.nativeContextImageNegativeRef === undefined)
+      throw new Error("E2E_NATIVE_CONTEXT_IMAGE_NEGATIVE_VARIABLE_MISSING");
+    resolved = resolved
+      .split(NATIVE_CONTEXT_IMAGE_NEGATIVE_REF_TOKEN)
+      .join(variables.nativeContextImageNegativeRef);
+  }
+  if (resolved.includes(NATIVE_CONTEXT_READ_IMAGE_REF_TOKEN)) {
+    // 原因：引用由本轮 Runtime 分配，只允许指定工具夹具从最新严格用户输入提取。
+    if (variables.nativeContextReadImageRef === undefined)
+      throw new Error("E2E_NATIVE_CONTEXT_READ_IMAGE_VARIABLE_MISSING");
+    resolved = resolved
+      .split(NATIVE_CONTEXT_READ_IMAGE_REF_TOKEN)
+      .join(variables.nativeContextReadImageRef);
+  }
+  if (resolved.includes(NATIVE_CONTEXT_SUMMARY_TOKEN)) {
+    // Native refs 每次由真实 owner 分配；缺少合法 offered range 时必须拒绝，不能发送模板或猜 ref。
+    if (variables.nativeContextSummaryJson === undefined)
+      throw new Error("E2E_NATIVE_CONTEXT_SUMMARY_VARIABLE_MISSING");
+    resolved = resolved
+      .split(NATIVE_CONTEXT_SUMMARY_TOKEN)
+      .join(variables.nativeContextSummaryJson);
+  }
   if (variables.latestBrowserTabId !== undefined) {
     resolved = resolved
       .split(LATEST_BROWSER_TAB_ID_REPLAY_TOKEN)
@@ -942,11 +1036,10 @@ async function writeResponse(
 ) {
   const responseChunks = normalizeReplayChunks(fixtureResponse.chunks);
   const destroyStream = fixtureResponse.closeMode === "destroy";
-  // 同时带 text/chunks 的 fixture 实际发送 chunks，证据也必须记录真正发出的字节。
-  const responseBody =
-    responseChunks.length > 0
-      ? Buffer.concat(responseChunks.map((chunk) => chunk.body))
-      : Buffer.from(fixtureResponse.body, "utf-8");
+  // 同时带 text/chunks 的 fixture 只发送 chunks；尚未释放的后缀不能先计入捕获。
+  const responseBody = responseChunks.length
+    ? Buffer.alloc(0)
+    : Buffer.from(fixtureResponse.body, "utf-8");
   const responseHeaders = sanitizeResponseHeaders(fixtureResponse.headers);
   if (responseChunks.length === 0 && !destroyStream) {
     responseHeaders["content-length"] = String(responseBody.length);
@@ -954,36 +1047,39 @@ async function writeResponse(
     delete responseHeaders["content-length"];
   }
   response.writeHead(fixtureResponse.statusCode, fixtureResponse.statusMessage, responseHeaders);
-  let actualOffsets: number[] | undefined;
-  if (responseChunks.length > 0) {
-    // 边界已在加载时统一校验；同一响应逐段创建 gate，释放前一段不预放行后一段。
-    actualOffsets = await writeReplayChunks(response, responseChunks, fixtureResponse);
+  const capture = createReplayResponseCapture(record, {
+    ...fixtureResponse,
+    headers: responseHeaders,
+  });
+  let finished = false;
+  try {
+    if (responseChunks.length > 0) {
+      // 边界已在加载时统一校验；同一响应逐段创建 gate，释放前一段不预放行后一段。
+      await writeReplayChunks(
+        response,
+        responseChunks,
+        (chunk, offsetMs) => capture.chunk(chunk.body, offsetMs),
+        fixtureResponse,
+      );
+    } else {
+      await writeResponseChunk(response, responseBody);
+      capture.body(responseBody);
+    }
     if (!destroyStream) response.end();
-  } else if (destroyStream) {
-    await writeResponseChunk(response, responseBody);
-  } else {
-    response.end(responseBody);
-  }
-
-  record.status = destroyStream ? "error" : "complete";
-  record.completedAt = new Date().toISOString();
-  record.durationMs = durationMs(record.startedAt, record.completedAt);
-  record.statusCode = fixtureResponse.statusCode;
-  record.statusMessage = fixtureResponse.statusMessage;
-  record.responseBodyBytes = responseBody.length;
-  record.responseHeaders = sanitizeE2ENetworkCaptureHeaders(responseHeaders);
-  record.responseTextPreview = redactE2ENetworkCaptureJsonText(responseBody.toString("utf-8"));
-  if (responseChunks.length > 0) {
-    record.responseChunkTimeline = responseChunks.map((chunk, index) => ({
-      base64: chunk.body.toString("base64"),
-      byteLength: chunk.byteLength,
-      offsetMs: fixtureResponse.release ? actualOffsets![index]! : chunk.offsetMs,
-    }));
+    finished = true;
+  } finally {
+    capture.finish(
+      finished && !destroyStream ? "complete" : "error",
+      !finished
+        ? "Replay response stream interrupted"
+        : destroyStream
+          ? "Replay fixture destroyed SSE response stream"
+          : undefined,
+    );
   }
   if (destroyStream) {
     // chunks/body 与 events 必须执行相同的故障合同；只在 artifact 标 destroy
     // 却正常 end 会把网络中断测试变成正常 EOF，并制造“产品假完成”的错误结论。
-    record.error = "Replay fixture destroyed SSE response stream";
     response.destroy();
   }
 }
@@ -991,11 +1087,14 @@ async function writeResponse(
 async function writeReplayChunks(
   response: ServerResponse,
   chunks: NormalizedReplayChunk[],
-  control?: { releaseAfterChunks?: number | number[]; release?: () => Promise<void> },
+  onWritten: (chunk: NormalizedReplayChunk, offsetMs: number) => void,
+  control?: {
+    releaseAfterChunks?: number | number[];
+    release?: () => Promise<void>;
+  },
 ) {
   let previousOffsetMs = 0;
   const startedAt = Date.now();
-  const actualOffsets: number[] = [];
   for (const [index, chunk] of chunks.entries()) {
     const boundary = control?.releaseAfterChunks;
     if (
@@ -1011,11 +1110,11 @@ async function writeReplayChunks(
       await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
     }
     previousOffsetMs = chunk.offsetMs;
-    actualOffsets.push(Date.now() - startedAt);
+    const actualOffsetMs = Date.now() - startedAt;
     // 等待写入完成后再进入下一帧/销毁连接，避免最后一帧只进用户态队列就被丢弃。
     await writeResponseChunk(response, chunk.body);
+    onWritten(chunk, control?.release ? actualOffsetMs : chunk.offsetMs);
   }
-  return actualOffsets;
 }
 
 interface NormalizedReplayChunk {
@@ -1058,43 +1157,45 @@ async function writeEventStreamResponse(
   const responseHeaders = sanitizeResponseHeaders(fixtureResponse.headers);
   delete responseHeaders["content-length"];
   response.writeHead(fixtureResponse.statusCode, fixtureResponse.statusMessage, responseHeaders);
-
+  const capture = createReplayResponseCapture(record, {
+    ...fixtureResponse,
+    headers: responseHeaders,
+  });
   const startedAtMs = Date.now();
   const sortedEvents = [...fixtureResponse.events].sort(
     (left, right) => left.offsetMs - right.offsetMs || left.sequence - right.sequence,
   );
-  const chunks: string[] = [];
-  const replayedEvents: E2ENetworkCaptureResponseEvent[] = [];
+  let finished = false;
+  try {
+    for (const event of sortedEvents) {
+      const elapsedMs = Date.now() - startedAtMs;
+      const waitMs = Math.max(0, event.offsetMs - elapsedMs);
+      if (waitMs > 0) {
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, waitMs));
+      }
 
-  for (const event of sortedEvents) {
-    const elapsedMs = Date.now() - startedAtMs;
-    const waitMs = Math.max(0, event.offsetMs - elapsedMs);
-    if (waitMs > 0) {
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, waitMs));
+      const text = event.text;
+      await writeResponseChunk(response, text);
+      capture.event({
+        byteLength: Buffer.byteLength(text, "utf-8"),
+        offsetMs: Math.max(0, Date.now() - startedAtMs),
+        ...(event.partial ? { partial: true } : {}),
+        sequence: event.sequence,
+        text,
+      });
     }
-
-    const text = event.text;
-    await writeResponseChunk(response, text);
-    chunks.push(text);
-    replayedEvents.push({
-      byteLength: Buffer.byteLength(text, "utf-8"),
-      offsetMs: Math.max(0, Date.now() - startedAtMs),
-      ...(event.partial ? { partial: true } : {}),
-      sequence: replayedEvents.length,
-      text,
-    });
+    if (fixtureResponse.closeMode !== "destroy") response.end();
+    finished = true;
+  } finally {
+    capture.finish(
+      finished && fixtureResponse.closeMode !== "destroy" ? "complete" : "error",
+      !finished
+        ? "Replay response stream interrupted"
+        : fixtureResponse.closeMode === "destroy"
+          ? "Replay fixture destroyed SSE response stream"
+          : undefined,
+    );
   }
-
-  const body = chunks.join("");
-  record.status = fixtureResponse.closeMode === "destroy" ? "error" : "complete";
-  record.completedAt = new Date().toISOString();
-  record.durationMs = durationMs(record.startedAt, record.completedAt);
-  record.statusCode = fixtureResponse.statusCode;
-  record.statusMessage = fixtureResponse.statusMessage;
-  record.responseBodyBytes = Buffer.byteLength(body, "utf-8");
-  record.responseEvents = replayedEvents;
-  record.responseHeaders = sanitizeE2ENetworkCaptureHeaders(responseHeaders);
-  record.responseTextPreview = redactE2ENetworkCaptureJsonText(body);
   record.replay = {
     ...record.replay,
     closeMode: fixtureResponse.closeMode,
@@ -1104,12 +1205,9 @@ async function writeEventStreamResponse(
     // 修复原因：SSE fault case 需要区分“provider 正常 EOF 但内容不完整”和
     // “连接在流式响应中异常断开”。这里按 fixture 显式销毁 socket，artifact 也标记为 error，
     // 让后续 E2E 能稳定构造断流语义，而不是依赖真实网络抖动。
-    record.error = "Replay fixture destroyed SSE response stream";
     response.destroy();
     return;
   }
-
-  response.end();
 }
 
 function writeResponseChunk(response: ServerResponse, text: string | Buffer): Promise<void> {
@@ -1411,10 +1509,6 @@ function captureContainsText(value: unknown, expected: string): boolean {
 
 function serializeRecord(record: MutableCaptureRecord): E2ENetworkCaptureRecord {
   return record;
-}
-
-function durationMs(startedAt: string, completedAt: string): number {
-  return Math.max(0, Date.parse(completedAt) - Date.parse(startedAt));
 }
 
 async function stopServer(server: Server, writeArtifact: () => Promise<void>): Promise<void> {

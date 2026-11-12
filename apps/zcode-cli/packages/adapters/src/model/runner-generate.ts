@@ -14,7 +14,7 @@ import {
   normalizeSources,
   normalizeToolCalls,
   normalizeToolResults,
-  normalizeUsage,
+  normalizeUsageFromSteps,
 } from "./runner-normalization.js";
 import {
   getGenerateTextResultMetadata,
@@ -43,7 +43,10 @@ import type {
   AiSdkModelTextRequest,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { nextUnrecognizedCodeStreak, retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
+import {
+  nextUnrecognizedCodeStreak,
+  retryAllowedByFailurePolicy,
+} from "./workflow-model-failure-policy.js";
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-failure-status.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
@@ -188,7 +191,11 @@ export async function runGenerateText(input: {
       if (providerBusinessFinishError) {
         throw providerBusinessFinishError;
       }
-      const usage = normalizeUsage(result.totalUsage ?? result.usage);
+      const usage = normalizeUsageFromSteps(
+        result.steps?.map((step) => step.usage) ?? [],
+        result.totalUsage ?? result.usage,
+        resolved.providerKind,
+      );
       const toolCalls = normalizeToolCalls(result, input.logger);
       const toolResults = normalizeToolResults(result, toolCalls);
       const sources = normalizeSources(result);
@@ -309,7 +316,9 @@ export async function runGenerateText(input: {
       const failure = classifyModelFailure(error, input.request.abortSignal);
       // 供应商未知错误码的恢复复用当前预算，不恢复官方账号重试路径。
       unrecognizedCodeStreak = nextUnrecognizedCodeStreak(
-        unrecognizedCodeStreak, failure, inspectProviderFailure(error).providerErrorCode,
+        unrecognizedCodeStreak,
+        failure,
+        inspectProviderFailure(error).providerErrorCode,
       );
       const responseHeaders = sanitizeModelNetworkHeaders(
         getResponseHeaders(unwrapRetryError(error)),

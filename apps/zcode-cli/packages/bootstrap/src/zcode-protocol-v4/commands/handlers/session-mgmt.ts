@@ -60,18 +60,18 @@ async function createSession(
   });
   // createSession.config 消费——草稿态 UI 的先行选择（模型/思考深度/
   // 模式）在首发之前应用并补发事件，首条 turn 即用所选配置。必须在 firstInput 之前。
-  // 普通配置保留既有 warn 降级；Guarded 是明确的授权选择，失败不得用缺省模式执行。
+  // 普通配置保留既有 warn 降级；Guarded/原生压缩明确配置失败不得用缺省策略执行首发。
   if (payload.config) {
     const record = requireRecord(host, sessionId);
     try {
       await applyRequestedSessionConfig(host, record, payload.config);
     } catch (error) {
-      if (payload.config.mode === "guarded" || payload.firstInput?.mode === "guarded") {
-        // 根因：旧 catch 吞掉模式应用失败后仍提交首轮，Guarded 会静默退化。
+      if (payload.config.nativeContextCompression || payload.config.mode === "guarded" || payload.firstInput?.mode === "guarded") {
+        // 根因：吞掉明确配置应用失败后仍提交首轮，会静默改用缺省授权/压缩策略。
         try {
           await host.deleteSession?.(sessionId);
-        } catch (closeError) {
-          host.logger?.warn?.("v4 guarded draft cleanup failed", { sessionId, closeError });
+        } catch {
+          host.logger?.warn?.("v4 explicit config draft cleanup failed", { cleanupFailed: true });
         }
         throw error;
       }

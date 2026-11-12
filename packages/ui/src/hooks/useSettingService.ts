@@ -182,6 +182,15 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
     await refreshSharedSettings(cacheKey, () => settingService.get());
   }, [cacheKey, settingService]);
 
+  const readFresh = useCallback(async (): Promise<AppSettings> => {
+    // 原因：写入 ACK 前捕获的读取不能证明保存成功；确认结果也必须发布到同一共享缓存。
+    await refreshSharedSettings(cacheKey, () => settingService.get(), true);
+    const confirmed = getSettingsSnapshot(cacheKey);
+    if (!confirmed.settings || confirmed.error !== null)
+      throw new Error("settings-read-unconfirmed");
+    return confirmed.settings;
+  }, [cacheKey, settingService]);
+
   useEffect(() => {
     const listener = (nextSnapshot: SettingsSnapshot) => {
       setSnapshot(nextSnapshot);
@@ -255,6 +264,7 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
     error: snapshot.error,
     update,
     refresh,
+    readFresh,
   };
 }
 

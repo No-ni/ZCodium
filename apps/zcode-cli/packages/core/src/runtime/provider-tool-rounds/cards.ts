@@ -127,9 +127,10 @@ export async function finishProviderToolCard(
   const endedAt = Date.now();
   const display = providerToolDisplay(toolCall.name);
   const input = toRecord(toolCall.input);
+  const toolPartId = createPartId();
   await runtime.persistPart(
     {
-      id: createPartId(),
+      id: toolPartId,
       sessionID: runtime.sessionId,
       messageID: context.assistantMessageId,
       type: "tool",
@@ -155,6 +156,7 @@ export async function finishProviderToolCard(
     },
     context.traceContext,
   );
+  round.toolPartId = toolPartId;
   await appendEvent(runtime, context, SessionEventType.ToolCallResult, {
     toolCallId,
     result: result.isError

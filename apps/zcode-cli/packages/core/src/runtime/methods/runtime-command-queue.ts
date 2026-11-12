@@ -213,9 +213,22 @@ async function runRuntimeCommand(
     await runTaskNotificationBatch.call(this, [command]);
     return;
   }
+  if (command.mode === "native-context-maintenance" && command.branchGeneration !== this.branchGeneration) {
+    command.reject(new Error("native-context-obsolete-generation"));
+    return;
+  }
   if (isStaleBranchRuntimeCommand(this, command)) return;
   const foregroundExecution = beginForegroundExecution.call(this, command);
   try {
+    if (command.mode === "native-context-maintenance") {
+      if (this.runtimeCommandQueue.consumeCancelPending(command.id)) {
+        command.reject(createTurnCancelledError(command.abortSignal.reason));
+        return;
+      }
+      try { command.resolve(await command.run(foregroundExecution.controller.signal)); }
+      finally { this.runtimeCommandQueue.clearCancelPending(command.id); }
+      return;
+    }
     if (command.mode === "prompt") {
       if (this.runtimeCommandQueue.consumeCancelPending(command.id)) {
         if (command.startReservation && !command.onCancelledBeforeStart) {
@@ -324,6 +337,7 @@ async function runRuntimeCommand(
       command.mode === "prompt" ||
       command.mode === "target-continuation" ||
       command.mode === "target-continuation-loop"
+      || command.mode === "native-context-maintenance"
     ) {
       command.reject(error);
       return;
@@ -466,6 +480,7 @@ function finishForegroundExecution(
 }
 
 function runtimeCommandAbortSignal(command: RuntimeCommand): AbortSignal | undefined {
+  if (command.mode === "native-context-maintenance") return command.abortSignal;
   if (
     command.mode === "prompt" ||
     command.mode === "target-continuation" ||

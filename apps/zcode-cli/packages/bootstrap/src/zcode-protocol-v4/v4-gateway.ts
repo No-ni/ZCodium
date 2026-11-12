@@ -40,6 +40,7 @@ import type {
   FileSystemErrorCode,
 } from "@zcode/contracts";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import type { NativeContextStatus } from "@zcode/shared/native-context-compression";
 import { SessionEventType, isFileSystemPortError } from "@zcode/contracts";
 import type { ZCodeWorkspaceRef } from "@zcode/shared";
 import { extractMarkdownArtifactImageRefs } from "@zcode/shared";
@@ -273,6 +274,8 @@ export interface V4GatewayHost {
    * 会话不在册返回 null（gateway 跳过，保持空初值）；未实现（旧宿主/测试桩）同。
    */
   getSessionConfigSeed?(sessionId: string): SessionConfigSeed | null;
+  /** 当前 record 的原生策略/状态；无 Runtime 的 history-first 首帧不隐式激活。 */
+  getSessionNativeContextSeed?(sessionId: string): Promise<NativeContextStatus | null>;
   /** 只读会话创建期 App 开关，不读取实时设置或推断 Memory 工具使用。 */
   getSessionMemoryEnabled?(sessionId: string): boolean | undefined;
   /**
@@ -716,10 +719,11 @@ export class ConversationV4Gateway {
           throw new Error("fault.sessionLifecycle.stopping");
         if (
           envelope.sessionId &&
-          (envelope.type === "renameSession" || envelope.type === "deleteSession") &&
+          (envelope.type === "renameSession" || envelope.type === "deleteSession" ||
+            envelope.type === "contextCompression.setPolicy" || envelope.type === "contextCompression.compress") &&
           !this.host.sessionExists(envelope.sessionId)
         ) {
-          // 历史行的重命名 / 删除仍由 CLI 原命令写持久事实；只在真实命令 admission 后冷恢复。
+          // 明确会话写命令仍由同一 CLI owner 写持久事实；只在真实命令 admission 后冷恢复。
           await this.ensureColdReadyPublisher(envelope.sessionId);
         }
       },
@@ -2728,6 +2732,10 @@ export class ConversationV4Gateway {
         this.inbox.pinLiveInput(outcome.envelope.sessionId, durableInputIntent);
       }
       const result = await this.host.executeCommand(outcome.envelope, admission);
+      if (result?.type === "createSession") {
+        // deferred 创建不发持久事件；首个 snapshot 必须显示创建实际捕获的完整策略。
+        await this.seedPublisherNativeContext(result.sessionId, this.ensurePublisher(result.sessionId));
+      }
       // Bug 根因：首输入标题先于 deferred 提升发出，列表会过滤它；ACK 后若初始化/Hook
       // 尚未结束便没有下一事件。沿用成功执行边界补发当前摘要，不等待 TurnStarted。
       const admittedSessionId =
@@ -3206,6 +3214,23 @@ export class ConversationV4Gateway {
     }
   }
 
+  private async seedPublisherNativeContext(
+    sessionId: string,
+    publisher: ConversationTopicPublisher,
+  ): Promise<void> {
+    const getSeed = this.host.getSessionNativeContextSeed;
+    if (!getSeed) return;
+    try {
+      const seed = await getSeed.call(this.host, sessionId);
+      // 根因：异步读返回前 record/publisher 可能已回收；迟到种子不能进入下一次会话投影。
+      if (!this.disposed && this.publishers.get(sessionId) === publisher && seed) {
+        publisher.seedNativeContextCompression(seed);
+      }
+    } catch (error) {
+      this.host.onError?.("v4.nativeContextSeed", error);
+    }
+  }
+
   /**
    * 生命周期 owner 只复用历史结果，直接执行实例激活；不能等待投影的激活回调。
    * 旧实现复用 opening 时丢弃新回调，ensureReady 因而永远等不到 activated。
@@ -3488,6 +3513,7 @@ export class ConversationV4Gateway {
       this.hydrationBuffers.delete(sessionId);
       this.seedPublisherConfig(sessionId, latestPublisher);
       this.seedPublisherWorkspacePath(sessionId, latestPublisher);
+      await this.seedPublisherNativeContext(sessionId, latestPublisher);
       if (loaded.sharedContextImport) {
         latestPublisher.seedSharedContextImport(loaded.sharedContextImport);
       }
@@ -3607,6 +3633,7 @@ export class ConversationV4Gateway {
     // 种子只填事件未触碰的字段，日志有值时以日志为准（冷恢复口径）。
     this.seedPublisherConfig(sessionId, publisher);
     this.seedPublisherWorkspacePath(sessionId, publisher);
+    await this.seedPublisherNativeContext(sessionId, publisher);
     if (loaded.usageSeed === undefined) {
       await this.seedPublisherUsage(sessionId, publisher, persistedMessages);
     }

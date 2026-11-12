@@ -24,7 +24,10 @@ import { completedToolPartMetadata, mcpToolPartMetadata } from "./tool-part-meta
 import { projectToolNameForNonEmptyBoundary } from "./tool-part-persistence.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
 import { emitNestedModelUsageEvents } from "./turn-nested-model-usage.js";
-import { commitTurnRequestEntries } from "./turn-output-token-continuation.js";
+import {
+  commitTurnRequestEntries,
+  completeTurnRequestCanonicalImagePartIds,
+} from "./turn-output-token-continuation.js";
 import { persistAnnouncements } from "./context-refresh.js";
 import { recordToolUsageFromResult } from "./turn-tool-usage.js";
 
@@ -45,7 +48,9 @@ export async function settleToolResults(
     toolParts: ReadonlyMap<string, ToolResultPart>;
     toolCallById: ReadonlyMap<string, ToolCall>;
     streamedResultsById: ReadonlyMap<ToolCallId, StreamedToolExecutionResult>;
-    providerOptionsOf: (toolCallId: string) => import("@zcode/contracts").ModelToolCall["providerOptions"];
+    providerOptionsOf: (
+      toolCallId: string,
+    ) => import("@zcode/contracts").ModelToolCall["providerOptions"];
   },
 ): Promise<void> {
   const { results, toolParts, toolCallById, streamedResultsById } = options;
@@ -53,10 +58,48 @@ export async function settleToolResults(
     registry: this.registry,
     modelCallWrapperOf: (toolCallId) => toolCallById.get(toolCallId)?.modelCallWrapper,
   });
+  const assistantIdentity = state.turnRequestState.entries.find(
+    (entry) => entry.canonical?.messageId === options.assistantMessageId,
+  )?.canonical;
+  const firstToolEntryIndex = state.turnRequestState.entries.reduce(
+    (next, entry) =>
+      entry.canonical?.messageId === options.assistantMessageId
+        ? Math.max(next, entry.canonical.entryIndex + 1)
+        : next,
+    0,
+  );
+  const toolEntryPositions = new Map(
+    results
+      .filter((result) => toolParts.has(result.toolCallId))
+      .toSorted(
+        (left, right) =>
+          toolParts.get(left.toolCallId)!.declarationIndex -
+          toolParts.get(right.toolCallId)!.declarationIndex,
+      )
+      .map((result, index) => [result.toolCallId, firstToolEntryIndex + index]),
+  );
+  const toolEntries = batchEntries.toolResults.map((entry) => {
+    const persisted = toolParts.get(entry.message.toolCallId!);
+    const entryIndex = toolEntryPositions.get(entry.message.toolCallId!);
+    return assistantIdentity && persisted && entryIndex !== undefined
+      ? {
+          ...entry,
+          canonical: {
+            messageId: options.assistantMessageId,
+            createdAt: assistantIdentity.createdAt,
+            ...(assistantIdentity.turnNumber === undefined
+              ? {}
+              : { turnNumber: assistantIdentity.turnNumber }),
+            partId: persisted.partID,
+            entryIndex,
+          },
+        }
+      : entry;
+  });
   // 根因：工具调用已进入历史，但旧逻辑在异步保存之后逐项加入结果；中途失败会
   // 留下缺失结果的调用。整批真实结果必须在任何异步收尾之前同步进入两份模型历史。
   // 这只保证当前进程历史完整，恢复锚点仍以各项持久化成功为前提。
-  commitTurnRequestEntries(this, state.turnRequestState, batchEntries.toolResults);
+  commitTurnRequestEntries(this, state.turnRequestState, toolEntries);
   for (const result of results) {
     recordBrowserTurnToolResult({
       output: result.output,
@@ -123,7 +166,9 @@ export async function settleToolResults(
           metadata: {
             ...projectedResultToolName.metadata,
             // 分离结果结算后，调用的原生签名仍随唯一工具 part 持久化。
-            ...(options.providerOptionsOf(result.toolCallId) ? { providerOptions: options.providerOptionsOf(result.toolCallId) } : {}),
+            ...(options.providerOptionsOf(result.toolCallId)
+              ? { providerOptions: options.providerOptionsOf(result.toolCallId) }
+              : {}),
             ...(toolCallById.get(result.toolCallId)?.modelCallWrapper
               ? { modelCallWrapper: toolCallById.get(result.toolCallId)?.modelCallWrapper }
               : {}),
@@ -168,6 +213,22 @@ export async function settleToolResults(
         },
         options.modelTraceContext,
       );
+      const canonical = toolEntries.find(
+        (entry) => entry.message.toolCallId === result.toolCallId,
+      )?.canonical;
+      if (canonical && mediaPersistence) {
+        const imagePartIds = mediaPersistence.attachments
+          .filter((attachment) => attachment.mime.startsWith("image/"))
+          .map((attachment) => attachment.id);
+        if (imagePartIds.length > 0) {
+          completeTurnRequestCanonicalImagePartIds(
+            this,
+            state.turnRequestState,
+            canonical,
+            imagePartIds,
+          );
+        }
+      }
     }
     this.logger?.debug("addToolResult", {
       toolCallId: result.toolCallId,

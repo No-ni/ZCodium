@@ -11,6 +11,7 @@ import { sessionFlowHandlers } from "./session-flow.js";
 import { sessionMgmtHandlers } from "./session-mgmt.js";
 import { selectionSideSessionHandlers } from "./selection-side-session.js";
 import { assistantFeedbackHandlers } from "./assistant-feedback.js";
+import { nativeContextHandlers } from "./native-context.js";
 
 export const NATIVE_HANDLERS = {
   ...sessionFlowHandlers,
@@ -23,6 +24,7 @@ export const NATIVE_HANDLERS = {
   ...forkEditRetryHandlers,
   ...fileRewindHandlers,
   ...assistantFeedbackHandlers,
+  ...nativeContextHandlers,
 } as const;
 
 export type NativeCommandType = keyof typeof NATIVE_HANDLERS;

@@ -23,6 +23,7 @@ import { isStaleBranchRuntimeTaskEvent } from "../methods/runtime-command-genera
 import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
 import { workspaceLevelRootOf, workspaceScopeRootOf } from "./workspace-scope.js";
 import { sessionHasLoadedSkill } from "../../agent/loaded-skills.js";
+import { registerNativeContextTools, nativeImagePolicy } from "../native-context-compression/index.js";
 
 const DEFAULT_SUBAGENT_BACKGROUND_BASH_MAX_MS = 3_600_000;
 const EMPTY_RUNTIME_HOOK_CONFIG = {
@@ -38,6 +39,7 @@ export function initializeRuntimeTooling(
   sessionId: SessionId,
 ): { executor: ToolExecutor; hookRunner?: HookRunner } {
   registerRuntimeBuiltInTools(runtime, deps);
+  registerNativeContextTools(runtime);
   const hookRunner = createRuntimeHookRunner(runtime, deps, sessionId);
   return {
     executor: deps.toolExecutor ?? createRuntimeToolExecutor(runtime, deps, hookRunner),
@@ -178,6 +180,7 @@ function createRuntimeToolExecutor(
     fileSystemPort: deps.fileSystemPort,
     httpClientPort: deps.httpClientPort,
     imageProcessorPort: deps.imageProcessorPort,
+    nativeContextCompression: deps.sessionStore?.commitNativeContext ? { getImagePolicy: () => nativeImagePolicy(runtime) } : undefined,
     // 合并删除旧模型连接时曾漏掉此端口；Read 分页渲染与整份 PDF 页数检查仍依赖宿主注入。
     pdfDocumentPort: deps.pdfDocumentPort,
     embeddedSearchBackend: runtime.config.embeddedSearchBackend,

@@ -48,6 +48,7 @@ import type {
   RuntimeModelTextResult,
 } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { nativeContextTokenEstimate } from "../native-context-compression/index.js";
 import { executeToolCallsForModelStep } from "./turn-tools.js";
 import {
   captureAssistantPersistenceAnchor,
@@ -104,6 +105,7 @@ export async function runModelBackedTurnStep(
   this: AgentRuntimeInternal,
   state: RegularTurnLoopState,
   options: {
+    nativeContextComparison?: RunModelTextRequestOptions["nativeContextComparison"];
     drainedSteerForNextRequest?: DrainedPendingInputDiagnostics;
     latestRealUserMessageIndex?: number;
     messages: RunModelTextRequestOptions["messages"];
@@ -122,6 +124,7 @@ async function runModelBackedTurnStepImpl(
   this: AgentRuntimeInternal,
   state: RegularTurnLoopState,
   options: {
+    nativeContextComparison?: RunModelTextRequestOptions["nativeContextComparison"];
     drainedSteerForNextRequest?: DrainedPendingInputDiagnostics;
     latestRealUserMessageIndex?: number;
     messages: RunModelTextRequestOptions["messages"];
@@ -223,16 +226,16 @@ async function runModelBackedTurnStepImpl(
       modelMaxOutputTokens: executionMaxOutputTokens,
     });
     result = await this.runModelTextRequest({
+      nativeContextComparison: options.nativeContextComparison,
       abortSignal: state.turnAbortSignal,
       assistantMessageId,
       events: state.events,
       maxOutputTokens: resolveModelStepMaxOutputTokens({
         baselineMaxOutputTokens,
         contextWindow: executionContextWindow,
-        estimatedCurrentUsage: estimateCurrentModelInputTokens(
-          options.messages,
-          options.sourceEntries,
-        ),
+        estimatedCurrentUsage:
+          nativeContextTokenEstimate(this, options.messages, options.tools, model) ??
+          estimateCurrentModelInputTokens(options.messages, options.sourceEntries),
         modelContextBudgetStrategy: this.config.modelContextBudgetStrategy,
       }),
       latestRealUserMessageIndex: options.latestRealUserMessageIndex,
@@ -810,7 +813,13 @@ async function runModelBackedTurnStepImpl(
   state.toolCallCount += executableToolCalls.length;
   // 合并修复：工具调用 assistant 必须同时进入 canonical history 与本轮 request history。
   // 只写 canonical history 会让紧随其后的工具结果失去对应 assistant tool-call。
-  if (commitAssistantToTurnRequest(this, state, result, executableToolCalls)) {
+  if (
+    commitAssistantToTurnRequest(this, state, result, executableToolCalls, {
+      messageId: assistantMessageId,
+      createdAt: assistantCreatedAt,
+      turnNumber: this.turnNumber,
+    })
+  ) {
     recordModelHistoryRound(state);
   }
   const toolStepResult = await executeToolCallsForModelStep.call(this, state, {

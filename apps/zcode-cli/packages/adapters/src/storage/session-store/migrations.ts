@@ -2,6 +2,10 @@ import type { SqliteMigration } from "@zcode/shared/sqlite-migrations";
 export type { SqliteMigration } from "@zcode/shared/sqlite-migrations";
 import { PROVIDER_MODEL_SELECTION_MIGRATION_SQL } from "./migrations/0020-provider-model-selection.js";
 import { SESSION_DATABASE_IDENTITY_MIGRATION } from "@zcode/shared/sqlite-migrations";
+import {
+  NATIVE_CONTEXT_COMPRESSION_MIGRATION,
+  NATIVE_CONTEXT_GOAL_USAGE_RECEIPT_MIGRATION,
+} from "./native-context-compression/index.js";
 
 import { OFFICIAL_GLM_SELECTION_MIGRATION_SQL } from "./migrations/0021-official-glm-selection.js";
 import { BACKFILLED_SESSION_REASONING_MIGRATION_SQL } from "./migrations/0022-backfilled-session-reasoning.js";
@@ -991,5 +995,7 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
     `,
   },
   { ...SESSION_DATABASE_IDENTITY_MIGRATION, touchedTables: ["zcode_database_identity"] },
+  NATIVE_CONTEXT_COMPRESSION_MIGRATION,
+  NATIVE_CONTEXT_GOAL_USAGE_RECEIPT_MIGRATION,
 ];
 import { REPAIR_INVALID_MODEL_SELECTION_MIGRATION_SQL } from "./migrations/0023-repair-invalid-model-selection.js";

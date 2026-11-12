@@ -18,6 +18,7 @@ import { toolCallDisplaySchema } from "./toolDisplay.js";
 import { workspaceHookReviewRequestPayloadSchema } from "./workspace-hook-review.js";
 import { workflowRunsStateSchema } from "./workflow-runs.js";
 import { sessionConfigStateSchema, sessionModelTransitionSchema } from "./session-config.js";
+import { nativeContextStatusSchema } from "../native-context-compression/index.js";
 export {
   sessionConfigStateSchema,
   sessionModelTransitionSchema,
@@ -42,6 +43,7 @@ export const stopTargetKindSchema = z.enum([
   "tool",
   "subagent",
   "compact",
+  "nativeContextCompression",
   "goalVerifier",
   "goalContinuation",
   "turnSteer",
@@ -55,6 +57,7 @@ export const activeWorkSummarySchema = z.object({
     "primaryTurn",
     "foregroundSubagent",
     "compact",
+    "nativeContextCompression",
     "goalVerifier",
     "goalContinuation",
     "turnSteer",
@@ -525,6 +528,7 @@ export const conversationSnapshotSchema = z.object({
   // 持久化稳定事实供 live 客户端识别一次性提示；旧快照缺字段时不触发。
   modelTransition: sessionModelTransitionSchema.nullable().default(null),
   usage: sessionUsageStateSchema,
+  nativeContextCompression: nativeContextStatusSchema.optional(),
   queue: queueStateSchema,
   pendingInteractions: z.array(pendingInteractionSchema),
   pendingCommands: z.array(commandStateSummarySchema),

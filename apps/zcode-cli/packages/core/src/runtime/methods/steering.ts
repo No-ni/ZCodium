@@ -1253,6 +1253,7 @@ async function drainPendingInputUnlocked(
       artifactStore: this.artifactStore,
       fileSystemPort: this.fileSystemPort,
       imageProcessorPort: this.imageProcessorPort,
+      nativeContextImages: this.sessionStore?.commitNativeContext ? nativeImagePolicy(this) : undefined,
       sessionId: this.sessionId,
       traceContext: inputTraceContext,
       turnId: options.activeTurn.turnId,
@@ -1474,3 +1475,4 @@ export async function discardPersistedPendingSteerInputs(
 
   return pendingInputs.length;
 }
+import { nativeImagePolicy } from "../native-context-compression/index.js";

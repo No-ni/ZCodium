@@ -70,7 +70,10 @@ import type {
   AiSdkModelTextRequest,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { nextUnrecognizedCodeStreak, retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
+import {
+  nextUnrecognizedCodeStreak,
+  retryAllowedByFailurePolicy,
+} from "./workflow-model-failure-policy.js";
 import {
   modelFailureStatusFields,
   providerRequestIdFromHeaders,
@@ -319,6 +322,7 @@ export async function* runStreamText(input: {
             attempt,
             chunk: next.value,
             diagnostics,
+            usageProviderKind: resolved.providerKind,
             emittedRetryBoundaryEvent,
             input,
             pendingRetrySafeEvents,
@@ -474,12 +478,11 @@ export async function* runStreamText(input: {
         if (isSuspiciousStreamDiagnostics(diagnostics)) {
           // 403 JSON 等业务错误有时不会让 AI SDK 抛出 error chunk，流会以空 completion 结束；
           // 若不在 adapter 层终止，core 会误报 “Model returned no text...”。
-          const streamEndedWithoutOutputError =
-            detectProviderBusinessFinishError({
-              providerId: String(statusContext.providerId),
-              providerKind: statusContext.providerKind,
-              source: diagnostics.lastErrorChunk ?? diagnostics.lastFinishChunk,
-            });
+          const streamEndedWithoutOutputError = detectProviderBusinessFinishError({
+            providerId: String(statusContext.providerId),
+            providerKind: statusContext.providerKind,
+            source: diagnostics.lastErrorChunk ?? diagnostics.lastFinishChunk,
+          });
           if (streamEndedWithoutOutputError) {
             const failure = classifyModelFailure(
               streamEndedWithoutOutputError,
@@ -649,6 +652,11 @@ export async function* runStreamText(input: {
         logger: input.logger,
         statusContext,
       });
+      // finish-step 已报告的费用不依赖最终 finish；断流/取消仍复用本 attempt 的用量事实。
+      const usage =
+        error instanceof AiSdkModelAdapterError
+          ? (error.usage ?? diagnostics.usage)
+          : diagnostics.usage;
       await publishModelStatus(
         {
           ...statusContext,
@@ -666,7 +674,7 @@ export async function* runStreamText(input: {
           ...modelFailureStatusFields(error, failure, errorPhase),
           timestamp: new Date(completedAt).toISOString(),
           type: "model_request_failed",
-          ...(error instanceof AiSdkModelAdapterError && error.usage ? { usage: error.usage } : {}),
+          ...(usage ? { usage } : {}),
         },
         {
           ...statusPublishOptions(input, admission),
@@ -895,6 +903,7 @@ async function handleStreamChunk(input: {
   attempt: number;
   chunk: TextStreamPart<ToolSet>;
   diagnostics: ReturnType<typeof createStreamDiagnostics>;
+  usageProviderKind: ResolvedAiSdkModel["providerKind"];
   emittedRetryBoundaryEvent: boolean;
   input: {
     logger?: Logger;
@@ -921,7 +930,7 @@ async function handleStreamChunk(input: {
   terminalError?: TerminalStreamChunkError;
   visibleEvents: ModelStreamEvent[];
 }> {
-  recordStreamChunkDiagnostic(input.diagnostics, input.chunk);
+  recordStreamChunkDiagnostic(input.diagnostics, input.chunk, input.usageProviderKind);
   const providerEventObserved =
     input.input.request.preserveProviderStreamBoundaries === true &&
     isRawProviderRetryBoundaryEvent(input.chunk);
@@ -943,13 +952,15 @@ async function handleStreamChunk(input: {
   const contextError = createEmptyContextExceededError({
     finishReason: input.diagnostics.finishReason,
     rawFinishReason: input.diagnostics.rawFinishReason,
-    hasAssistantContent: input.diagnostics.textDeltaChars > 0 || input.diagnostics.reasoningDeltaChars > 0,
+    hasAssistantContent:
+      input.diagnostics.textDeltaChars > 0 || input.diagnostics.reasoningDeltaChars > 0,
     toolCallCount: input.diagnostics.toolCallCount,
     usage: input.diagnostics.usage,
   });
   // finish 是成功提交边界，必须先把明确空超窗沿既有错误链结算，不能先给 Core 发成功。
-  if (contextError) return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, contextError);
-  const event = toModelStreamEvent(input.chunk);
+  if (contextError)
+    return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, contextError);
+  const event = toModelStreamEvent(input.chunk, input.diagnostics.usage);
   if (event?.type === "error") {
     return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, event.error);
   }
@@ -1136,6 +1147,10 @@ async function handleStreamErrorEvent(
   if (retryWithRepairedHistory) {
     failureDecision.canRetry = true;
   }
+  const usage =
+    error instanceof AiSdkModelAdapterError
+      ? (error.usage ?? input.diagnostics.usage)
+      : input.diagnostics.usage;
   await publishModelStatus(
     {
       ...statusContext,
@@ -1153,6 +1168,7 @@ async function handleStreamErrorEvent(
       ...modelFailureStatusFields(error, failure, "stream"),
       timestamp: new Date().toISOString(),
       type: "model_request_failed",
+      ...(usage ? { usage } : {}),
     },
     {
       ...statusPublishOptions(input.input, input.admission),

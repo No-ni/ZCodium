@@ -1,5 +1,6 @@
 import type { TraceContext, TurnState } from "./deps.js";
 import type { BackgroundResultOriginMeta, WorkflowLaunchMeta } from "@zcode/contracts";
+import type { NativeContextOutcome } from "./native-context-compression/contract.js";
 import type {
   ActiveTurnStartReservation,
   ContinueActiveTargetLoopOptions,
@@ -14,7 +15,8 @@ export type RuntimeCommandMode =
   | "target-continuation-loop"
   | "task-notification"
   | "subagent-message"
-  | "control-only-turn";
+  | "control-only-turn"
+  | "native-context-maintenance";
 export type RuntimeCommandId = string & {
   readonly __runtimeCommandId: unique symbol;
 };
@@ -114,7 +116,18 @@ export type RuntimeCommand =
   | TargetContinuationLoopRuntimeCommand
   | TaskNotificationRuntimeCommand
   | SubagentMessageRuntimeCommand
-  | ControlOnlyTurnRuntimeCommand;
+  | ControlOnlyTurnRuntimeCommand
+  | NativeContextMaintenanceRuntimeCommand;
+
+/** 与普通前台任务共用 FIFO、lease 与 Stop；不另建压缩工作队列。 */
+export interface NativeContextMaintenanceRuntimeCommand extends RuntimeCommandBase {
+  readonly mode: "native-context-maintenance";
+  readonly branchGeneration: number;
+  readonly abortSignal: AbortSignal;
+  readonly run: (signal: AbortSignal) => Promise<NativeContextOutcome>;
+  readonly resolve: (result: NativeContextOutcome) => void;
+  readonly reject: (error: unknown) => void;
+}
 
 export interface RuntimeCommandQueue {
   clearCancelPending(id: RuntimeCommandId): void;

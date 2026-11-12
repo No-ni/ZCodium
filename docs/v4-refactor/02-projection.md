@@ -42,6 +42,11 @@ snapshot 的 A 区显式承载：
 UI 不得再从消息数组、最后一条消息、tool 状态或本地 task runtime 推导这些字段。renderer 只拥有
 draft、焦点、滚动、布局以及按 `commandId` 关联的临时 optimistic overlay。
 
+API retry 按当前模型事件的稳定 `reason` 投影；`network_error` 对应
+`fault.network.unreachable`，桌面 continuous 与手机 replayable 消费相同状态。
+本 fork 已退休官方 RequestVerification 的配置读取重试 stub，回归 fixture 使用普通
+Provider 网络重试，不继续要求该已退休路径的错误类别；保留 strict snapshot 与双投递断言。
+
 ## 五种 delta
 
 增量集合是封闭的：
@@ -91,7 +96,8 @@ live 日志只覆盖部分 transcript，gateway 会按 footprint 检查选择完
   messageId / entityId / edit target / turnHeader 四张侧表；输出行 `actions` 并更新当前可编辑目标。
   `row.delta` 只追加文本字段，流式追加路径也不写这些侧表，所以物化结果必为空、可编辑目标不变。
 - 前提：事件到达前 actions 已与当前状态一致。现在由三点保证：其他 live 事件都会物化；cold batch
-  结束时收敛一次；事件之外的写入方（`seed*`、`setRuntimeInitialization`）都不改写上述输入。
+  结束时收敛一次；事件之外的写入方不改写上述输入，原生维护在途种子改变 activeWorks 的唯一例外
+  在 `seedNativeContextCompression` 内同步物化 actions。
 - 原因：此前每个 token 都整窗物化，长会话流式输出时每个事件的 CLI 成本随历史线性增长。以下数字来自
   Node 合成回放（每轮 3 行，临时脚本未入库，只作量级参考），`ProductProjection.applyEvent` 处理一个
   text_delta：3000 行 473µs → 16µs，8100 行 1319µs → 36µs，24000 行 4924µs → 166µs。剩余成本基本是

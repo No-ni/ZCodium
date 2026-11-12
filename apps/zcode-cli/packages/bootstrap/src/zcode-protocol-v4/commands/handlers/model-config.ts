@@ -176,14 +176,17 @@ async function switchCollaborationMode(
  * 「首发用什么模型」这个事实进日志（冷恢复重放可复原）。首次选型 prev 为空时
  * reducer 不产 modelChange marker（onModelSelected「首次选型不算切换」），无噪音行。
  *
- * 部分失败语义：会话已创建成功，config 应用失败不应连坐 createSession（record 泄漏
- * 换一个 failed ACK 不值当）——调用方捕获后降级为 warn，会话保持 runtime 缺省。
+ * 明确授权配置（Guarded/原生压缩）必须在 firstInput 前生效；失败由 createSession 清理
+ * deferred record 并拒绝首发。其余已发布配置保留既有 warn 兼容行为。
  */
 export async function applyRequestedSessionConfig(
   host: V4CommandCoreHost,
   record: V4SessionRecordView,
   config: NonNullable<CommandPayloadMap["createSession"]["config"]>,
 ): Promise<void> {
+  if (config.nativeContextCompression) {
+    await record.app.runtime.configureNativeContextCompression(config.nativeContextCompression);
+  }
   await runSessionModelConfigMutation(record.app, async () => {
     const previousSelection = record.app.runtime.getSessionModelSelection();
     const previousModelSelection =

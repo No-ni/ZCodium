@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.native-context-large-ledger.json",
+  "compilerOptions": {
+    "paths": {
+      "@zcode/contracts": ["../../contracts/src/index.ts"],
+      "@zcode/shared": ["../../../../../packages/shared/src/index.ts"],
+      "@zcode/shared/*": ["../../../../../packages/shared/src/*"],
+      "@zcode/adapters/*": ["../../adapters/src/*/index.ts"]
+    }
+  },
+  "include": [
+    "native-context-large-ledger-resume.test.ts",
+    "native-context-ledger-resume-context.ts"
+  ]
+}

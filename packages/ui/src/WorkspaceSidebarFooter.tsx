@@ -132,7 +132,8 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               type="button"
               variant="ghost"
               size={"lg"}
-              className="min-w-0 w-fit justify-start gap-2 overflow-hidden border-0"
+              // 原因：Button 默认 shrink-0，窄侧栏的长偏好文案会把设置/远控挤出裁切区；仅此触发器允许收缩。
+              className="min-w-0 w-fit shrink justify-start gap-2 overflow-hidden border-0"
               data-testid={TID_SIDEBAR_PREFERENCES_TRIGGER}
               aria-label={preferencesLabel}
             >

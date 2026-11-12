@@ -346,11 +346,17 @@ export function useRootWorkspaceActions({
         if (workbenchGroupClientMode === "web-remote-replayable") {
           if (!openMobileProjectDraft) throw new Error("project.remote-navigation-unavailable");
           // 归属先在共享入口解析，目录仍只由 bridge owner 准备；旧 Root 不写交接后的草稿。
-          await openMobileProjectDraft({
-            ...requestOptions,
-            ...(projectId ? { projectId } : {}),
-            ...(hostId ? { hostId } : {}),
-          });
+          try {
+            await openMobileProjectDraft({
+              ...requestOptions,
+              ...(projectId ? { projectId } : {}),
+              ...(hostId ? { hostId } : {}),
+              isCurrent,
+            });
+          } catch {
+            // 原因：共享入口已借目标租约结算失败；旧 Root 的 mounted/catch 会漏报或双通知。
+            // 归属与调用前错误仍走外层 catch，交接后的反馈只由当前 controller 发出。
+          }
           return;
         }
         if (!projectService) throw new Error("project.service-unavailable");

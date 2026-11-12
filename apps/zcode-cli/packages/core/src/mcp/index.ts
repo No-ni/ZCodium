@@ -31,6 +31,7 @@ import {
   normalizeMcpToolResultForModel,
 } from "./image-normalization.js";
 import { toMcpToolName, toModelVisibleMcpNamePart } from "./name.js";
+import { getHostOriginalImageProvenance } from "../media/original-image/index.js";
 
 export {
   createMcpAppProvidedToolEntry,
@@ -293,8 +294,7 @@ export function createMcpToolEntry(
             : {}),
         },
       );
-      // MCP server 会返回大 base64 图片；resultBudget 只看到图片占位文本，
-      // 必须在 handler 阶段保存副本并替换模型可见内容，避免 provider 请求体被打爆。
+      // 原图先持久化；原生模式保留 canonical 图片供最终请求预算处理，旧模式仍使用 inline gate。
       return normalizeMcpToolResultForModel({
         compressOversizedImages: isHostNodeReplExecution,
         context,
@@ -488,6 +488,7 @@ function formatContentBlock(block: Record<string, unknown>): ModelMessageContent
             mimeType: block.mimeType,
             placeholder: "MCP image",
             sizeBytes: estimateBase64Bytes(block.data),
+            originalImage: getHostOriginalImageProvenance(block),
           },
         },
       ];

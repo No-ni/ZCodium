@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { modelSelectionSchema } from "../model-selection.js";
+import { nativeContextConfigurationSchema } from "../native-context-compression/index.js";
 
 export const createSessionRequestedConfigSchema = z.object({
+  nativeContextCompression: nativeContextConfigurationSchema.optional(),
   modelSelection: modelSelectionSchema.optional(),
   provider: z.string().optional(),
   model: z.string().optional(),

@@ -105,9 +105,9 @@ export function createStreamTextOptions(input: {
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,
     maxRetries: 0,
-    // AI SDK 会吞掉 Anthropic message_start 等 metadata 事件；compact 需要
-    // 在 adapter 内观察 raw event 才能精确结束 SSE retry，raw chunk 不会上送 Core/UI。
-    includeRawChunks: input.request.preserveProviderStreamBoundaries ? true : undefined,
+    // SDK 在 finish-step 前取消时不交付 message_start 等已报用量；adapter 本地观察数字，
+    // compact 的 retry/可见边界仍只由 preserveProviderStreamBoundaries 裁决，raw 不上送 Core/UI。
+    includeRawChunks: true,
   }) as AiSdkStreamTextOptions;
 }
 

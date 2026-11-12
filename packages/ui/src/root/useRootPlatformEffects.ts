@@ -79,6 +79,12 @@ export function useRootPlatformEffects({
     }
 
     didBootstrapInitialWorkspaceRef.current = true;
+    // 原因：手机旧 Root 的 passive effect 可能在桥已失效、组件尚未卸载时执行。
+    // 同一初始导航租约必须在任何 tab/任务/草稿写入前复检，不能只挡完成通知。
+    if (initialTaskDraft?.isCurrent?.() === false) {
+      setIsBootstrappingInitialWorkspace(false);
+      return;
+    }
     if (initialWorkspaceAbsPath) {
       addTab(
         initialWorkspaceAbsPath,
@@ -99,6 +105,9 @@ export function useRootPlatformEffects({
         // 抢回历史会话；同一 renderer reload 则保留当前 session 续流资格。
         // 手机目录准入已经完成；交接原草稿才能保留项目、分组与附件，不重复准备目录。
         startDraftInWorkspace(initialWorkspaceAbsPath, initialWorkspaceIdentity, initialTaskDraft);
+        // 原因：目录准备完成后遗漏通知会让手机发起界面一直等待。
+        // 依据公开 onComplete 契约，在真实草稿提交成功后通知；初始化 ref 防止重复执行。
+        initialTaskDraft?.onComplete?.();
       }
     }
     // Dock 最近项目会通过 initialWorkspaceAbsPath 直达工作区。

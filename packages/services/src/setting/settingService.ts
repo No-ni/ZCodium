@@ -323,7 +323,10 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
           Object.hasOwn(validatedPatch, "providerFamilyConnectionSelections") ||
           Object.hasOwn(validatedPatch, "providerFamilyDomain");
         const current = projectSettings(await readSettings(resolveSettingsFile()));
-        if (expectedAccountSettings) {
+        if (
+          expectedAccountSettings &&
+          Object.hasOwn(expectedAccountSettings, "providerFamilyDomain")
+        ) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。
           const expected = appSettingsPatchSchema.parse(expectedAccountSettings);
           if (
@@ -342,6 +345,18 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
           ...current,
           ...validatedPatch,
         });
+
+        if (Object.hasOwn(validatedPatch, "nativeContextCompression")) {
+          const expectedVersion = expectedAccountSettings?.expectedNativeContextCompressionVersion;
+          const currentVersion = current.nativeContextCompression?.version ?? 0;
+          // 根因：多个窗口编辑完整参数快照时，普通 patch 会静默覆盖另一窗口的已保存值。
+          // 版本只由同一设置写锁递增，调用方不能通过 JSON 导入改写它。
+          if (expectedVersion === undefined || expectedVersion !== currentVersion) {
+            throw new Error("NATIVE_CONTEXT_DEFAULTS_CONFLICT");
+          }
+          if (merged.nativeContextCompression)
+            merged.nativeContextCompression.version = currentVersion + 1;
+        }
 
         if (writesConnections) {
           // 即使选择值相同也代表一次新操作，版本由同一写锁保证单调递增。

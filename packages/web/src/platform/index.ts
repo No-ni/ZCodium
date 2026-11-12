@@ -18,6 +18,15 @@ export function createWebPlatform(options?: {
     canSelectFilePath: false,
     canOpenLocalFiles: false,
     saveFile: saveBrowserFile,
+    // 仅已有 desktop attachment 提供 Host 的实时系统语言；普通 Web 保持浏览器自身解析入口。
+    getSystemLocale: platformProxy
+      ? async () => {
+          const locale = await platformProxy.requestPlatformMethod("getSystemLocale");
+          if (locale !== "zh-CN" && locale !== "en-US")
+            throw new Error("web-platform-response-invalid");
+          return locale;
+        }
+      : undefined,
     // Web 端无法打开系统目录选择框
     selectDirectory: () => Promise.resolve(null),
     // Web 端无法打开系统文件选择框

@@ -26,6 +26,33 @@ bridge-ready 显式声明能力，Web 只在声明支持时创建和校验整组
 
 普通桌面继续读取本机 base 目录；Web 本地 bridge 沿用原服务。远端 scope 的文件 IO、任务正文、提及与配置维持 Source 身份隔离。手机 home/chat 与宽屏布局仅决定展示，不决定目录 owner。
 
+## 2026-11-12 手机入口与目录契约修复
+
+手机 `mobile.html` 的产品入口接入共享 Root，由已有 `ProjectDirectoryProvider` 读取同一个 accessor 的 `windowProjectDirectory` 服务组。移除手机专用的目录快照读取、bootstrap 标签合并和独立目录状态；不同时保留第二套目录呈现路径。项目树和保留远端入口分别沿公开 `projectService.readTree` 与 `remoteProjectService.readDirectory` 返回既有 `ProjectTree` / `RemoteProjectDirectory`。
+
+根因：旧手机调用 `window-project.readDirectory` 后用严格 `WindowProjectDirectorySnapshot` 校验，但该公共方法已是文件系统选目录入口，真实响应为 `{path, entries}`。修复不能把文件项拼成窗口工作区、编造 generation、放宽 schema 或失败后借 Source 目录。Main→Host 仍使用的旧标签页投影 DTO 保留严格校验，不作为项目服务的响应契约。
+
+就绪仍先在 pre-open ChannelClient 安装整组代理，再校验 `window-project-changes.getCapabilities`；Initialize、RPC ACK 与 replay 序号保持原链路。能力缺席不冒充目录可用；声明支持却缺服务或版本错误必须显式失败。能力校验迟到时先检查 bridge generation，provider 的真实目录查询继续用现有请求序号、服务身份和卸载围栏。
+
+```mermaid
+sequenceDiagram
+    participant Mobile as 手机 protocol
+    participant Accessor as 同实例 RPC accessor
+    participant Host as 现有窗口 Host
+    participant Provider as 共享 ProjectDirectoryProvider
+    Mobile->>Accessor: pre-open client 安装整组代理
+    Accessor->>Host: window-project-changes.getCapabilities
+    Host-->>Mobile: capability version
+    Mobile->>Mobile: assertCurrent(bridge generation)
+    Mobile-->>Provider: 发布当前就绪 accessor
+    Provider->>Host: window-project.readTree
+    Provider->>Host: window-remote-projects.readDirectory
+    Host-->>Provider: 既有 ProjectTree / RemoteProjectDirectory
+    Provider->>Provider: 核对请求序号、服务身份、未卸载再发布
+```
+
+回归要求：能力校验不调用文件系统读目录、不改 ChannelClient 或 reader；旧 bridge 的就绪结果不能发布到新 bridge。真实项目读取验证同组 tree/remote owner、Source 隔离和迟到响应；严格旧 tab DTO 继续拒绝文件系统响应。共享手机界面须经现有 shared-host attachment 展示同一任务与目录，参数、趋势和原文入口按原生压缩 spec 验证。源码回归不能代替手机产品结果，整轮产品复测由统一 E2E 执行。
+
 ## 验证边界
 
 - 契约和 RPC 测试验证能力组、读写 owner、事件过滤、旧版兼容、就绪失败与订阅释放。

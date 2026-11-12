@@ -61,7 +61,7 @@ export interface WorkspaceShellZCodeState {
 }
 
 export interface CreateTaskOptions {
-  /** Renderer 发起方租约；异步准备期间取消或换草稿后不得导航。 */
+  /** Renderer 发起方租约；准备期间取消不得导航，手机交接前消费后改由目标 Root 租约保护。 */
   isCurrent?: () => boolean;
   remoteProjectMembershipId?: string;
   /** 只在目标准备和新草稿导航完成后通知发起界面；不自动发送。 */

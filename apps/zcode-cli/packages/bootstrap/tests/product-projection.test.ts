@@ -9,7 +9,7 @@ import type {
   TraceId,
   TurnId,
 } from "@zcode/contracts";
-import { HookEventName, SessionEventType, ModelErrorCode } from "@zcode/contracts";
+import { HookEventName, SessionEventType } from "@zcode/contracts";
 import type {
   ConversationDelta,
   ConversationSnapshot,
@@ -26,6 +26,11 @@ import {
   workflowRunStepCounts,
 } from "@zcode/shared/zcode-protocol-v4";
 import { ProductProjection } from "../src/zcode-protocol-v4/index.js";
+import {
+  createRecommendedNativeContextConfiguration,
+  nativeContextStatusSchema,
+  type NativeContextStatus,
+} from "@zcode/shared/native-context-compression";
 
 // ── 事件序列构造器 ──
 
@@ -127,6 +132,134 @@ function inputTextAppends(deltas: readonly ConversationDelta[]): string[] {
     delta.op === "row.delta" && delta.path === "inputText" ? [delta.append] : [],
   );
 }
+
+function maintenanceStatus(overrides: Partial<NativeContextStatus> = {}): NativeContextStatus {
+  return nativeContextStatusSchema.parse({
+    policy: { ...createRecommendedNativeContextConfiguration("manual"), policyVersion: 1 },
+    revision: 1,
+    generation: 0,
+    historyVersion: "native-history-1",
+    currentSegmentId: "initial",
+    phase: "compressing",
+    inputBudget: 10000,
+    effectiveBlocks: 0,
+    referencedOutputs: 0,
+    unavailableReason: "busy",
+    lastObservation: null,
+    lastOperation: null,
+    activeMaintenance: { foregroundExecutionId: "native-execution-1", startedAt: 1700000010000 },
+    ...overrides,
+  });
+}
+
+describe("原生维护复用 canonical Stop 控制", () => {
+  it("独立维护可由现有 Stop 寻址，不创建 assistant turn，终态撤回自身 work", () => {
+    const log = new EventLog();
+    basicTurnEvents(log);
+    const { projection } = runAll(log.events);
+    const stable = projection.getSnapshot();
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus()));
+    const active = conversationSnapshotSchema.parse(projection.getSnapshot());
+    expect(active.control).toMatchObject({
+      phase: stable.control.phase,
+      canStop: true,
+      stopState: "stoppable",
+      stopTargetKind: "nativeContextCompression",
+      activeWorks: [{ kind: "nativeContextCompression", foregroundExecutionId: "native-execution-1", startedAt: 1700000010000 }],
+    });
+    expect(active.inputRouting.mode).toBe("enqueue");
+    expect(active.rows.window.filter((row) => row.kind === "turnHeader")).toHaveLength(1);
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus({
+      revision: 2, phase: "idle", activeMaintenance: undefined, unavailableReason: null,
+    })));
+    expect(projection.getSnapshot().control).toMatchObject({ canStop: false, stopState: "idle", stopTargetKind: "unknown", activeWorks: [] });
+    expect(projection.getSnapshot().inputRouting).toEqual(stable.inputRouting);
+  });
+
+  it("自动维护结束保留当前 primaryTurn 的执行标识、停止能力和输入路由", () => {
+    const log = new EventLog();
+    const projection = new ProductProjection("session-1", "epoch-1");
+    projection.applyEvent(log.push(SessionEventType.SessionCreated, { mode: "default" }));
+    projection.applyEvent(log.push(SessionEventType.TurnStarted, {
+      turnNumber: 1, input: "work", foregroundExecutionId: "primary-execution", inputId: "primary-command",
+    }, { turnId: "turn-1" }));
+    const primary = projection.getSnapshot();
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus({
+      activeMaintenance: { foregroundExecutionId: "primary-execution", startedAt: 1700000010000 },
+    })));
+    expect(projection.getSnapshot().control.activeWorks.map((work) => work.kind)).toEqual(["primaryTurn", "nativeContextCompression"]);
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus({
+      revision: 2, phase: "idle", activeMaintenance: undefined, unavailableReason: null,
+    })));
+    expect(projection.getSnapshot().control).toEqual(primary.control);
+    expect(projection.getSnapshot().inputRouting).toEqual(primary.inputRouting);
+  });
+
+  it("重复 live 状态不重复登记 work，过期状态不能恢复已经结束的 Stop", () => {
+    const log = new EventLog();
+    const projection = new ProductProjection("session-1", "epoch-1");
+    const running = maintenanceStatus({ revision: 4 });
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, running));
+    expect(projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, running))).toEqual([]);
+    expect(projection.getSnapshot().control.activeWorks).toHaveLength(1);
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus({
+      revision: 5, phase: "idle", activeMaintenance: undefined,
+    })));
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, running));
+    expect(projection.getSnapshot().nativeContextCompression?.revision).toBe(5);
+    expect(projection.getSnapshot().control.canStop).toBe(false);
+    expect(projection.getSnapshot().control.activeWorks).toEqual([]);
+  });
+
+  it("排队 receipt 和冷恢复持久记录没有执行证明，不制造可停 work", () => {
+    const log = new EventLog();
+    const projection = new ProductProjection("session-1", "epoch-1");
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus({ activeMaintenance: undefined })));
+    expect(projection.getSnapshot().control.canStop).toBe(false);
+    expect(projection.getSnapshot().control.activeWorks).toEqual([]);
+    projection.seedNativeContextCompression(maintenanceStatus({ revision: 2, phase: "idle", activeMaintenance: undefined }));
+    expect(projection.getSnapshot().control.canStop).toBe(false);
+  });
+
+  it("运行种子与 live 共用控制投影，并按相同围栏物化行 actions", () => {
+    const log = new EventLog();
+    basicTurnEvents(log);
+    // 真实 fork authority 要求持久 message 身份；仅有文本的 legacy fixture 没有这个能力。
+    (log.events.find((event) => event.type === SessionEventType.TurnStarted)!.payload as Record<string, unknown>).messageId = "native-user-1";
+    (log.events.find((event) => event.type === SessionEventType.ModelStreaming)!.payload as Record<string, unknown>).assistantMessageId = "native-assistant-1";
+    const { projection } = runAll(log.events);
+    const assistant = () => projection.getSnapshot().rows.window.find((row) => row.kind === "assistantText");
+    expect(assistant()?.actions?.canFork).toBe(true);
+    const running = maintenanceStatus();
+    projection.seedNativeContextCompression(running);
+    expect(projection.getSnapshot().control.canStop).toBe(true);
+    expect(assistant()?.actions?.canFork).not.toBe(true);
+    projection.seedNativeContextCompression(maintenanceStatus({ revision: 2, phase: "idle", activeMaintenance: undefined }));
+    expect(projection.getSnapshot().control.canStop).toBe(false);
+    expect(assistant()?.actions?.canFork).toBe(true);
+    projection.seedNativeContextCompression(running);
+    expect(projection.getSnapshot().nativeContextCompression?.revision).toBe(2);
+    expect(projection.getSnapshot().control.canStop).toBe(false);
+  });
+
+  it("idle 不接受瞬态执行标识，执行结构仍严格校验", () => {
+    expect(() => maintenanceStatus({ phase: "idle" })).toThrow();
+    expect(() => nativeContextStatusSchema.parse({ ...maintenanceStatus(), activeMaintenance: { foregroundExecutionId: "", startedAt: -1 } })).toThrow();
+  });
+
+  it("迟到维护的执行标识不能替换已经开始的新 primaryTurn", () => {
+    const log = new EventLog();
+    const projection = new ProductProjection("session-1", "epoch-1");
+    projection.applyEvent(log.push(SessionEventType.SessionCreated, { mode: "default" }));
+    projection.applyEvent(log.push(SessionEventType.TurnStarted, {
+      turnNumber: 1, input: "new work", foregroundExecutionId: "new-primary", inputId: "new-primary-command",
+    }, { turnId: "new-turn" }));
+    const primary = projection.getSnapshot();
+    projection.applyEvent(log.push(SessionEventType.NativeContextCompressionUpdated, maintenanceStatus()));
+    expect(projection.getSnapshot().control).toEqual(primary.control);
+    expect(projection.getSnapshot().inputRouting).toEqual(primary.inputRouting);
+  });
+});
 
 // ── A 组：基础 turn 生命周期 ──
 
@@ -4038,15 +4171,16 @@ describe("V4 API 重试状态投影", () => {
     };
   }
 
-  it("配置读取重试保留错误类别，桌面与手机使用同一状态", () => {
+  // 原因：官方 RequestVerification stub 已退休；HEAD 仍因旧 expectation 失败，按普通 Provider 网络重试验收。
+  it("网络失败重试保留当前错误类别，桌面与手机使用同一状态", () => {
     const { log, projection } = runningProjection();
     const deltas = projection.applyEvent(log.push(
       SessionEventType.ModelNetworkStatus,
       modelStatus({ type: "model_retry_scheduled", delayMs: 2000, nextAttempt: 2,
-        reason: "network_error", errorCode: ModelErrorCode.ModelRequestVerificationConfigNetwork }),
+        reason: "network_error" }),
       { turnId: "turn-retry-1" },
     ));
-    expect(projection.getSnapshot().control.apiRetry?.reasonCode).toBe("request_verification_config_network");
+    expect(projection.getSnapshot().control.apiRetry?.reasonCode).toBe("fault.network.unreachable");
     expect(() => conversationSnapshotSchema.parse(projection.getSnapshot())).not.toThrow();
     for (const profile of [DELIVERY_PROFILES.continuous, DELIVERY_PROFILES.replayable]) {
       expect(filterConversationDeltasForProfile(deltas, profile)).toEqual(deltas);

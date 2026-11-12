@@ -38,6 +38,11 @@ import { runModelBackedTurnStep } from "./turn-model-step.js";
 import { querySourceForTask } from "./turn-model-step-usage.js";
 import { inputRoleOf } from "../helpers/provider-entry-origins.js";
 import {
+  prepareNativeContext,
+  synchronizeNativeRequestSources,
+  nativeProjectionForRequest,
+} from "../native-context-compression/index.js";
+import {
   evaluateRapidRefill,
   MAX_CONSECUTIVE_RAPID_REFILLS,
   RAPID_REFILL_TOOL_TURN_THRESHOLD,
@@ -119,6 +124,13 @@ export async function runRegularTurnLoop(
 
     const compactPhase =
       state.modelStepCount === 0 ? CompactPhase.PreRequest : CompactPhase.MidTurn;
+    await prepareNativeContext(this, {
+      entries: state.turnRequestState.entries,
+      model: state.model,
+      tools,
+      signal: state.turnAbortSignal,
+      traceContext: state.turnTraceContext,
+    });
     await this.microcompactIfNeeded(state.turnTraceContext, state.events, state.turnAbortSignal, {
       model: state.model,
       modelStepIndex: state.modelStepCount,
@@ -166,11 +178,13 @@ export async function runRegularTurnLoop(
       state.turnAbortSignal,
     );
     const requestEntries = [...state.turnRequestState.entries];
+    await synchronizeNativeRequestSources(this, requestEntries);
+    const native = nativeProjectionForRequest(this, requestEntries, state.model, tools);
     const prepared = prepareRuntimeProviderRequest(this, {
       model: state.model,
       tools,
       registry: this.getToolRegistry(),
-      entries: requestEntries,
+      entries: native.entries,
     });
     this.logger?.debug("ToolSearch request exposure", {
       event: "tool.search.exposure",
@@ -222,6 +236,7 @@ export async function runRegularTurnLoop(
       recordedMessages: recordableProjection.messages,
       tools: prepared.request.tools,
       toolSearch: prepared.toolSearch,
+      nativeContextComparison: native.comparison,
     });
 
     if (result === "break") {

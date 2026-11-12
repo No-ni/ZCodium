@@ -19,7 +19,6 @@ const files = [
   "packages/ui/src/lib/taskSidePaneMemory.test.ts",
   "packages/ui/src/components/ui/collapsible-measurement.test.tsx",
   "packages/desktop/src/host/windowRemoteConnectionRegistry.test.ts",
-  "packages/web/src/mobile/windowDirectoryPresentation.test.ts",
 ];
 for (const file of files) await assertProjectPath(join(projectRoot, file));
 const sandbox = await createProjectTestSandbox("adoption-ui-units");

@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": ["native-context-auto-safe-point.test.ts", "native-context-maintenance-fixture.ts"]
+}

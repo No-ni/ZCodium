@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": ["native-context-image-fixture.ts", "native-context-image-receipts.test.ts"]
+}

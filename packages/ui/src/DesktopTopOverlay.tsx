@@ -156,11 +156,13 @@ export function DesktopTopOverlay({
               </DesktopTopOverlayActionButton>
             )}
 
+            {/* Mac 分支同样是实际侧栏入口；共享验收不能只定位 Windows 的按钮。 */}
             {isMacDesktop && (
               <DesktopTopOverlayActionButton
                 title={toggleSidebarTitle}
                 shortcut={toggleSidebarShortcutLabel}
                 ariaLabel={toggleSidebarTitle}
+                testId="desktop-top-logo-sidebar-toggle"
                 onClick={onToggleSidebar}
               >
                 <SidebarToggleIcon className="size-4" />

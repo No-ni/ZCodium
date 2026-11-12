@@ -483,6 +483,9 @@ importers:
       '@zcode/zcode-cua':
         specifier: workspace:*
         version: link:../../../../packages/zcode-cua
+      acp-kernel:
+        specifier: file:../../../../vendor/acp-kernel-0.0.195.tgz
+        version: file:vendor/acp-kernel-0.0.195.tgz
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
@@ -6689,6 +6692,10 @@ packages:
     resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  acp-kernel@file:vendor/acp-kernel-0.0.195.tgz:
+    resolution: {integrity: sha512-cNMROQVBqQm2y1sVngmtSSR2mYCpaf9nXTDGWrqyeZKnUsV2z/iPKtV2Cqx7p8XAaCg+HANZKvHZFXizxspJIg==, tarball: file:vendor/acp-kernel-0.0.195.tgz}
+    version: 0.0.195
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -17954,6 +17961,8 @@ snapshots:
       acorn: 8.16.0
 
   acorn@8.16.0: {}
+
+  acp-kernel@file:vendor/acp-kernel-0.0.195.tgz: {}
 
   agent-base@7.1.4: {}
 

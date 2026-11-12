@@ -1640,6 +1640,12 @@ export function createConversationV4Gateway(
     // createSession.config（handler 先应用到 runtime 再种）、历史会话 resume
     // （App 恢复结果可以只有模型身份，不能为了投影而绑定半成品执行模型）。
     getSessionMemoryEnabled: (sessionId) => context.sessions.get(sessionId)?.memoryEnabled,
+    getSessionNativeContextSeed: async (sessionId) => {
+      const record = context.sessions.get(sessionId);
+      if (!record) return null;
+      const status = await record.app.runtime.getNativeContextCompression();
+      return context.sessions.get(sessionId) === record ? status : null;
+    },
     getSessionConfigSeed: (sessionId) => {
       const record = context.sessions.get(sessionId);
       if (!record) return null;
@@ -1732,7 +1738,9 @@ export function createConversationV4Gateway(
           envelope.type === "resumeGoal" ||
           envelope.type === "sendQueuedNow" ||
           envelope.type === "forkAssistant" ||
-          envelope.type === "createSelectionSideSession")
+          envelope.type === "createSelectionSideSession" ||
+          envelope.type === "contextCompression.setPolicy" ||
+          envelope.type === "contextCompression.compress")
       ) {
         const taskType =
           context.sessions.get(envelope.sessionId)?.taskType ??

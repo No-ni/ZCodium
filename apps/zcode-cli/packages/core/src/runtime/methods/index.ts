@@ -1,4 +1,6 @@
 import type { AgentRuntimeInternal } from "../internal.js";
+import { getNativeContextCompression, configureNativeContextCompression, setNativeContextPolicy, compressNativeContext,
+  listNativeContextObservations, listNativeContextRecords, readNativeContextRecord, readNativeContextSource, readNativeContextImage } from "../native-context-compression/index.js";
 import { sampleModel } from "./sample-model.js";
 import { grantPermissionFullAccess } from "../permission-full-access.js";
 import {
@@ -201,6 +203,8 @@ type AgentRuntimeConstructor = { prototype: object };
 
 export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void {
   const proto = ctor.prototype as Record<string, unknown>;
+  Object.assign(proto, { getNativeContextCompression, configureNativeContextCompression, setNativeContextPolicy, compressNativeContext,
+    listNativeContextObservations, listNativeContextRecords, readNativeContextRecord, readNativeContextSource, readNativeContextImage });
   proto.updateConfig = updateConfig;
   proto.setExecutionState = setExecutionState;
   proto.grantPermissionFullAccess = grantPermissionFullAccess;

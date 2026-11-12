@@ -1,6 +1,7 @@
 import { prepareWebRemoteControlSessionEventsFixture } from "./web-remote-control-session-events-fixture.js";
 
 const MOBILE_SESSION_SPECS = new Set([
+  "conversation-session-native-context-compression.test.ts",
   "conversation-session-virtual-project-mobile.test.ts",
   "conversation-session-composer-settlement.test.ts",
   "conversation-session-switch-stability.test.ts",

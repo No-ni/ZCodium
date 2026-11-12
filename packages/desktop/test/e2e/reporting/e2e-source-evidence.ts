@@ -27,7 +27,15 @@ export async function captureWorkspaceSources(repoRoot: string): Promise<Sources
   ].sort();
   const result: Sources = {};
   // 串行小文件读取控制内存；只保存指纹，不将源码或凭据复制到报告。
-  for (const file of files) result[file] = hash(await readFile(join(repoRoot, file)));
+  for (const file of files) {
+    try {
+      result[file] = hash(await readFile(join(repoRoot, file)));
+    } catch (error) {
+      // 原因：Git 索引仍列出工作树已删除的文件；其缺失应由前后指纹集合反映。
+      // 只忽略 ENOENT，读取权限或其它 IO 错误仍须阻断证据采集。
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
   return result;
 }
 

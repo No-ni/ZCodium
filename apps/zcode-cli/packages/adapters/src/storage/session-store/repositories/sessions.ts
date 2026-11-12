@@ -15,6 +15,7 @@ import {
 } from "@zcode/contracts";
 import { decodeSessionRow } from "../codecs.js";
 import { encodeJson } from "../json.js";
+import { readFilePartOriginalImageArtifactUri } from "../native-context-compression/index.js";
 import type { SessionRow } from "../rows.js";
 
 export function createSession(db: DatabaseSync, input: CreateSessionInput): SessionInfo {
@@ -208,14 +209,25 @@ export function listArtifactReferrers(
   const rows = db
     .prepare(
       `select p.session_id, p.data from part p join session s on s.id = p.session_id
-       where s.time_deleted is null and instr(p.data, ?) > 0`,
+       where s.time_deleted is null and (
+         instr(p.data, ?) > 0 or
+         case when json_valid(p.data) then
+           json_extract(p.data, '$.type') = 'file' and
+           instr(json_extract(p.data, '$.metadata.image.originalArtifactUri'), ?) > 0
+         else 0 end
+       )`,
     )
-    .iterate(ARTIFACT_URI_SCHEME) as Iterable<{ session_id: SessionId; data: string }>;
+    .iterate(ARTIFACT_URI_SCHEME, ARTIFACT_URI_SCHEME) as Iterable<{ session_id: SessionId; data: string }>;
   for (const row of rows) {
-    for (const match of row.data.matchAll(ARTIFACT_URI_SESSION)) {
-      const target = decodeURIComponent(match[1]!) as SessionId;
-      if (target === row.session_id || !targets.has(target)) continue;
-      referrers.set(target, (referrers.get(target) ?? new Set()).add(row.session_id));
+    // 原图属于 canonical FilePart；显式解码该字段也覆盖旧 JSON 对斜杠的转义，
+    // 不扫描压缩内核 JSON、摘要或任意来源对象来扩大引用范围。
+    for (const data of [row.data, readFilePartOriginalImageArtifactUri(row.data)]) {
+      if (data === null) continue;
+      for (const match of data.matchAll(ARTIFACT_URI_SESSION)) {
+        const target = decodeURIComponent(match[1]!) as SessionId;
+        if (target === row.session_id || !targets.has(target)) continue;
+        referrers.set(target, (referrers.get(target) ?? new Set()).add(row.session_id));
+      }
     }
   }
   return new Map([...referrers].map(([target, ids]) => [target, [...ids]]));

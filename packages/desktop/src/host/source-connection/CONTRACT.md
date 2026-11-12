@@ -37,3 +37,8 @@ sequenceDiagram
 ```
 
 Main 远控 bridge 的 managerTypes 仅描述窗口目标、平台回调与原 factory 端口，不保存配对、任务或 attachment 事实；runtime、deviceSid 路由、生命周期 symbol 和授权均由原 Main factory 独占。
+
+手机 attachment 的 SettingsSync 仅按方法开放 `getFirstRunPromptState` 与
+`markFirstRunPromptHandled`，转发给已登记的同一个 Host 设置 owner。发现、导入、Agents
+文件复制、其它同步与未来方法仍返回 `feature_disabled`；source-settings attachment 仍为
+Desktop-only。首启 UI 关闭后沿该 owner 持久化，reload 只能重新读取，不能再保存第二份状态。

@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.native-context-maintenance-goal.json",
+  "include": [
+    "native-context-compact-persistence.test.ts",
+    "native-context-compact-persistence-fixture.ts"
+  ]
+}

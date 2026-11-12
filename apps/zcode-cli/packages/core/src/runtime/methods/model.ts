@@ -9,18 +9,14 @@ import {
   isContentFilteredEmptyModelResult,
   isContextExceededFinishReason,
   isSuspiciousEmptyModelResult,
-  logModelRequestMediaSummary,
-  logMediaBudgetProjection,
-  logMediaCapabilityProjection,
   normalizeStreamError,
   normalizeModelToolCallsForRuntime,
-  projectMessagesWithMediaAttachmentPaths,
-  projectMessagesForInputFormat,
-  projectMessagesForMediaBudget,
   readRawFinishReason,
 } from "../helpers/index.js";
 import type { RunModelTextRequestOptions, RuntimeModelTextResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { prepareNativeModelRequest } from "../native-context-compression/index.js";
+import type { NativeContextAttemptTracker } from "../native-context-compression/contract.js";
 import { modelRequestTokenLimitLogContext } from "./model-token-limits.js";
 import { createModelStreamingEventQueue } from "./model-streaming-event-queue.js";
 import { getOrCreateReasoningBlock } from "./reasoning-stream.js";
@@ -48,43 +44,43 @@ export async function runModelTextRequest(
   options: RunModelTextRequestOptions,
 ): Promise<RuntimeModelTextResult> {
   const finishAssembly = beginLocalTurnPreparation(options.traceContext, "request_assembly");
-  const model = options.model;
+  let tracker: NativeContextAttemptTracker | undefined;
+  try {
+    const prepared = await prepareNativeModelRequest(this, options);
+    tracker = prepared.tracker;
+    const result = await runPreparedModelTextRequest.call(this, prepared.options, finishAssembly);
+    options.abortSignal?.throwIfAborted();
+    await tracker?.finish({ status: "completed", usage: result.usage });
+    return tracker &&
+      options.nativeContextComparison &&
+      tracker.successfulReceipts === prepared.sentImages
+      ? {
+          ...result,
+          nativeImageCommit: {
+            receipts: prepared.sentImages,
+            comparison: options.nativeContextComparison,
+          },
+        }
+      : result;
+  } catch (error) {
+    await tracker?.finish({ status: options.abortSignal?.aborted ? "cancelled" : "error", error });
+    throw error;
+  } finally {
+    finishAssembly();
+  }
+}
+
+async function runPreparedModelTextRequest(
+  this: AgentRuntimeInternal,
+  projectedOptions: RunModelTextRequestOptions,
+  finishAssembly: () => void,
+): Promise<RuntimeModelTextResult> {
+  const options = projectedOptions;
+  const model = projectedOptions.model;
   const executionModelSelection = {
     providerId: model.providerId,
     modelId: model.modelId,
   };
-  // 闲时 turn 只覆盖了父 runtime 的默认模型，foreground child 重新建
-  // request 时仍读取 session 配置，导致 provider options/capability 与本轮模型分叉。
-  // turn 快照存在时必须整体采用快照，不能用 `??` 回退到用户模型的字段。
-  const mediaPathMessages = await projectMessagesWithMediaAttachmentPaths(
-    options.messages,
-    this.artifactStore,
-  );
-  const capabilityProjection = projectMessagesForInputFormat(
-    mediaPathMessages,
-    model.properties.inputFormat,
-  );
-  logMediaCapabilityProjection(this.logger, options.traceContext, capabilityProjection, {
-    event: "model.request.media_capability_projection",
-    message: "Model request media capability projection",
-    model: `${model.providerId}/${model.modelId}`,
-  });
-  const mediaProjection = projectMessagesForMediaBudget(capabilityProjection.messages, {
-    latestRealUserMessageIndex: options.latestRealUserMessageIndex,
-  });
-  logMediaBudgetProjection(this.logger, options.traceContext, mediaProjection, {
-    event: "model.request.media_projection",
-    message: "Model request media budget projection",
-  });
-  const projectedOptions =
-    mediaProjection.messages === options.messages
-      ? options
-      : { ...options, messages: mediaProjection.messages };
-  logModelRequestMediaSummary(this.logger, projectedOptions.traceContext, {
-    incomingMessages: options.messages,
-    mediaProjection,
-    providerMessages: projectedOptions.messages,
-  });
   // 正常请求传递模型级 effective 预算，Compact 传递 min(effective, 20K) 的 summary
   // 任务预算；adapter 只做 provider 兼容映射，不再施加独立 global cap。
   const modelInvocationContext = {
@@ -151,6 +147,7 @@ export async function runModelTextRequest(
   this.logContextUsageSnapshot(projectedOptions, contextUsageSnapshot);
 
   if (!this.shouldStreamModelText()) {
+    finishAssembly();
     const result = await runWithModelInvocationContext(modelInvocationContext, () =>
       model.generateText(modelRequest),
     );

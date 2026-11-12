@@ -108,6 +108,12 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     "Apache-2.0 licensed components",
     "Apache License, Version 2.0",
   );
+  // 原因：精确发布源码的 MPL LICENSE 只含原始授权头与全文链接；保留该原文并随包提供标准全文。
+  addText(
+    await readInput("scripts/license-texts/MPL-2.0.txt"),
+    "MPL-2.0 licensed components",
+    "Mozilla Public License, Version 2.0",
+  );
   const patches = [];
   for (const [name, file] of Object.entries(pkg.pnpm?.patchedDependencies ?? {})) {
     patches.push({ package: name, file, sha256: hashBytes(await readInput(file)) });
@@ -131,7 +137,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     ...overrides
       .filter((item) => item.evidenceKind)
       .map((item) => `- ${item.package}: ${item.source}`),
-    "The original import revisions of copied components are not recorded in the current checkout. Pinned license references below do not establish the original copy revision. They cover upstream-derived portions only; local adaptations do not change the upstream terms.",
+    "Some copied components do not have an original import revision recorded in the current checkout; for those entries a pinned license reference does not establish the original copy revision. Recorded import revisions and archive hashes identify the exact imported version where available. These notices cover upstream-derived portions only; local adaptations do not change the upstream terms.",
     "## Copied source and assets",
     ...copied.map(
       (item) =>

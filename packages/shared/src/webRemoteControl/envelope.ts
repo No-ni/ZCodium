@@ -147,6 +147,7 @@ export const webRemoteControlPlatformMethodSchema = z.enum([
   "loadMcpFromUserDirectory",
   "saveMcpToUserDirectory",
   "migrateLegacyCommonMcp",
+  "getSystemLocale",
 ]);
 export type WebRemoteControlPlatformMethod = z.infer<typeof webRemoteControlPlatformMethodSchema>;
 

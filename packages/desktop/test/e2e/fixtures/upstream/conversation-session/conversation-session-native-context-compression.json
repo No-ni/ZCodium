@@ -1,0 +1,1252 @@
+{
+  "version": 1,
+  "caseName": "conversation-session-native-context-compression",
+  "spec": "./test/e2e/conversation-session/conversation-session-native-context-compression.test.ts",
+  "fixtures": [
+    {
+      "id": "native-context-title",
+      "description": "仅隔离原生E2E的标题辅助请求，不参与主请求或维护用量断言。",
+      "metadata": {
+        "kind": "common",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["Generate a concise title", "E2E_NCTX"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "inputTokens": 120,
+          "outputTokens": 20,
+          "text": "{\"title\":\"Native Context E2E\"}"
+        }
+      }
+    },
+    {
+      "id": "native-history-main",
+      "description": "common Read真实执行后完成首个历史；保留ToolPart/FilePart和调用结果配对。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_NCTX_HISTORY", "E2E_READONLY_TOOL_FILE_CONTENT"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-history-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 1800,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-summary-source-main",
+      "description": "真实主请求保存超过16K字符的合成事实，供完整范围维护与原文读取复用。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实主请求保存长合成事实；固定文本与usage只控制维护前置，不证明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_SUMMARY_SOURCE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-summary-source-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4000,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-maintenance-ready-main",
+      "description": "新的真实用户轮让合成来源离开latest硬保护；仍使用同一会话与CLI。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "新的真实用户轮仅建立完整可压缩历史的前置；固定主响应不冒充maintenance或摘要提交。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_MAINTENANCE_READY"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-maintenance-ready-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4200,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-maintenance-summary",
+      "description": "真实维护请求的有界offered ranges经过严格校验后动态展开完整refs；没有工具调用。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定摘要仅复述合成来源事实，refs取自真实维护请求的完整offered range；拒绝未知/超限输入，不证明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_NCTX_MAINTENANCE:",
+          "Use only complete offered ranges",
+          "E2E_NCTX_SUMMARY_SOURCE"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-maintenance-summary",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4800,
+          "outputTokens": 110,
+          "text": "{{nativeContextSummaryJson}}"
+        }
+      }
+    },
+    {
+      "id": "native-after-summary-main",
+      "description": "下一真实主请求独立核对摘要投影与原长来源移除，主input不沿用维护费用。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "下一真实主请求检查已提交摘要和独立主用量；固定响应不代替原文可回取及projection断言。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_AFTER_SUMMARY"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-after-summary-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4500,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-auto-summary-source-main",
+      "description": "auto策略下首个真实主请求保存独立长合成来源；latest硬保护不允许提前付费摘要。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实主请求保存自动场景长合成事实；固定响应和usage只控制安全点前置，不证明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_AUTO_SUMMARY_SOURCE"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "Use only complete offered ranges"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-auto-summary-source-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4000,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-auto-maintenance-ready-main",
+      "description": "第二个真实用户轮触发请求前安全点自动维护；主请求必须已携带成功摘要。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "新的真实用户轮解除长来源latest保护；固定主响应独立核对已提交自动摘要，不冒充maintenance请求。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_AUTO_MAINTENANCE_READY"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "Use only complete offered ranges"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-auto-maintenance-ready-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4200,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-auto-maintenance-summary",
+      "description": "真实自动维护请求只展开对应system/source标记的完整offered refs，独立计费且没有工具调用。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定摘要只复述自动场景合成事实，refs来自真实安全点维护的完整offered range；拒绝手动串用和未知/超限输入，不证明模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_NCTX_AUTO_MAINTENANCE:",
+          "Use only complete offered ranges",
+          "E2E_NCTX_AUTO_SUMMARY_SOURCE"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-auto-maintenance-summary",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4800,
+          "outputTokens": 110,
+          "text": "{{nativeContextSummaryJson}}"
+        }
+      }
+    },
+    {
+      "id": "native-auto-after-summary-main",
+      "description": "后续真实主请求持续使用自动摘要，无原长来源且费用不沿用维护用量。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "后续真实主请求核对自动摘要持续投影与独立主input；固定响应不代替原文引用及实际安全点断言。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_AUTO_AFTER_SUMMARY"],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "Use only complete offered ranges"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-auto-after-summary-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4500,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-opaque-main",
+      "description": "E2E_NCTX_IMAGE_OPAQUE 的真实主请求：固定使用量用于冻结请求观察与恢复对账。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_OPAQUE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-opaque-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 2600,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-duplicate-main",
+      "description": "E2E_NCTX_IMAGE_DUPLICATE 的真实主请求：固定使用量用于冻结请求观察与恢复对账。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_DUPLICATE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-duplicate-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 2700,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-transparent-main",
+      "description": "E2E_NCTX_IMAGE_TRANSPARENT 的真实主请求：固定使用量用于冻结请求观察与恢复对账。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_TRANSPARENT"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-transparent-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 2800,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-zero-main",
+      "description": "E2E_NCTX_ZERO 的真实主请求：固定使用量用于冻结请求观察与恢复对账。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_ZERO"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-zero-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 0,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-unknown-cache-main",
+      "description": "显式Anthropic SSE省略cache字段；未知cache不得被text builder的默认0伪装。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_UNKNOWN_CACHE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"native-unknown-cache-main\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"deepseek-v4-flash\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":3100,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"upstream-e2e-ok\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":3100,\"output_tokens\":12}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+      }
+    },
+    {
+      "id": "native-default-new-task-main",
+      "description": "E2E_NCTX_DEFAULT_NEW_TASK 的真实主请求：固定使用量用于冻结请求观察与恢复对账。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_DEFAULT_NEW_TASK"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-default-new-task-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 3300,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-mobile-share-main",
+      "description": "同一桌面CLI主请求在正文前受控等待，期间手机真实reload/hide/show验证replayable恢复。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "controlled-stream",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_MOBILE_SHARE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "chunks": [
+          {
+            "text": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"native-mobile-share-main\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"deepseek-v4-flash\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":3400,\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"upstream-e2e-ok\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":3400,\"output_tokens\":12,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+            "offsetMs": 0
+          }
+        ],
+        "releaseAfterChunks": 2
+      }
+    },
+    {
+      "id": "native-after-restart-main",
+      "description": "E2E_NCTX_AFTER_RESTART 的真实主请求：固定使用量用于冻结请求观察与恢复对账。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "验证原生Runtime、真实上传、会话持久化、分页和三图计量；固定Provider响应只控制usage/时序，不声明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_AFTER_RESTART"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-after-restart-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 3500,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-cache-after-unknown-main",
+      "description": "缺失缓存字段后恢复明确零缓存；真实趋势必须保留中间未知缺口。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实主请求构造 known→unknown→known 缓存序列；固定明确零字段只用于计量和 SVG 断线验证，不证明模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_CACHE_AFTER_UNKNOWN"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"native-cache-after-unknown-main\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"deepseek-v4-flash\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":3200,\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"upstream-e2e-ok\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":3200,\"output_tokens\":12,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+      }
+    },
+    {
+      "id": "native-read-original-tool",
+      "description": "模型实际调用原图工具；仅从最新有界严格用户JSON提取本次owned ref。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定tool_use只驱动真实Runtime原图回取和下一主请求；核对完整原PNG字节与计量，不证明模型视觉质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_READ_ORIGINAL:", "E2E_NCTX_READ_ORIGINAL_INPUT="],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "toolu_e2e_nctx_read_original"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUse": {
+          "id": "toolu_e2e_nctx_read_original",
+          "messageId": "native-read-original-tool",
+          "name": "context_read_image",
+          "input": {
+            "ref": "{{nativeContextReadImageRef}}"
+          },
+          "inputTokens": 3600,
+          "outputTokens": 16
+        }
+      }
+    },
+    {
+      "id": "native-read-original-main",
+      "description": "原图工具真实完成后，下一主请求携带原PNG，核对同callId与一次原字节发送。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定主响应只控制完整原图提供后的终态usage；工具结果、原图hash、尺寸与receipt均由真实产品产生。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_NCTX_READ_ORIGINAL:", "toolu_e2e_nctx_read_original", "tool_result"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-read-original-main",
+          "inputTokens": 3650,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-deep-compact",
+      "description": "唯一冷恢复及四张既有图片发送验收后，真实深度整理建立新的当前历史段。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "复用本 case 的真实 compact 请求与 FIFO，固定合成摘要只控制完成和分段边界，不证明真实模型摘要质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "CRITICAL: Respond with TEXT ONLY",
+          "Do NOT call any tools",
+          "\"stream\":true",
+          "E2E_NCTX"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-deep-compact",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 256,
+          "outputTokens": 64,
+          "text": "<analysis>The synthetic native context test history was summarized without tools.</analysis>\n\n<summary>The user completed E2E_NCTX_HISTORY and E2E_NCTX_IMAGE_OPAQUE, configured native context parameters, reviewed compression records and trends, and verified cold recovery. Preserve these synthetic test markers and continue the same task.</summary>"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-stop-source",
+      "description": "维护在途中断的独立长来源与完成轮前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_INTERRUPT_STOP_SOURCE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-interrupt-stop-source",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4000,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-stop-ready",
+      "description": "维护在途中断的独立长来源与完成轮前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_INTERRUPT_STOP_READY"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-interrupt-stop-ready",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4200,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-stop-maintenance",
+      "description": "真实维护请求在首个用量帧之后等待产品中断。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "controlled-stream",
+        "syntheticReason": "真实维护SSE声明输入用量后受控等待，产品Stop/自动开关/参数保存终止同一执行；空候选仅用于失败清理，不冒充成功摘要。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_NCTX_INTERRUPT_STOP:",
+          "Use only complete offered ranges",
+          "E2E_NCTX_INTERRUPT_STOP_SOURCE"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "chunks": [
+          {
+            "text": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"native-interrupt-stop-maintenance\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"deepseek-v4-flash\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":4800,\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"{\\\"ranges\\\":[],\\\"outputs\\\":[]}\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":4800,\"output_tokens\":12,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+            "offsetMs": 0
+          }
+        ],
+        "releaseAfterChunks": 2
+      }
+    },
+    {
+      "id": "native-interrupt-mode-source",
+      "description": "维护在途中断的独立长来源与完成轮前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_INTERRUPT_MODE_SOURCE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-interrupt-mode-source",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4000,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-mode-ready",
+      "description": "维护在途中断的独立长来源与完成轮前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_INTERRUPT_MODE_READY"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-interrupt-mode-ready",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4200,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-mode-maintenance",
+      "description": "真实维护请求在首个用量帧之后等待产品中断。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "controlled-stream",
+        "syntheticReason": "真实维护SSE声明输入用量后受控等待，产品Stop/自动开关/参数保存终止同一执行；空候选仅用于失败清理，不冒充成功摘要。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_NCTX_INTERRUPT_MODE:",
+          "Use only complete offered ranges",
+          "E2E_NCTX_INTERRUPT_MODE_SOURCE"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "chunks": [
+          {
+            "text": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"native-interrupt-mode-maintenance\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"deepseek-v4-flash\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":4800,\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"{\\\"ranges\\\":[],\\\"outputs\\\":[]}\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":4800,\"output_tokens\":12,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+            "offsetMs": 0
+          }
+        ],
+        "releaseAfterChunks": 2
+      }
+    },
+    {
+      "id": "native-interrupt-parameters-source",
+      "description": "维护在途中断的独立长来源与完成轮前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_INTERRUPT_PARAMETERS_SOURCE"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-interrupt-parameters-source",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4000,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-parameters-ready",
+      "description": "维护在途中断的独立长来源与完成轮前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实普通主请求建立完整长来源和latest边界；固定用量只用于在途取消前置，不代表维护或模型质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_INTERRUPT_PARAMETERS_READY"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-interrupt-parameters-ready",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4200,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-interrupt-parameters-maintenance",
+      "description": "真实维护请求在首个用量帧之后等待产品中断。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "controlled-stream",
+        "syntheticReason": "真实维护SSE声明输入用量后受控等待，产品Stop/自动开关/参数保存终止同一执行；空候选仅用于失败清理，不冒充成功摘要。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "bodyIncludes": [
+          "E2E_NCTX_INTERRUPT_PARAMETERS:",
+          "Use only complete offered ranges",
+          "E2E_NCTX_INTERRUPT_PARAMETERS_SOURCE"
+        ],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "chunks": [
+          {
+            "text": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"native-interrupt-parameters-maintenance\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"deepseek-v4-flash\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":4800,\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"{\\\"ranges\\\":[],\\\"outputs\\\":[]}\"}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":4800,\"output_tokens\":12,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}\n\n",
+            "offsetMs": 0
+          },
+          {
+            "text": "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+            "offsetMs": 0
+          }
+        ],
+        "releaseAfterChunks": 2
+      }
+    },
+    {
+      "id": "native-image-omission-prime-main",
+      "description": "NCTX-34/40：先让相同任务按新图片策略真实发送并完成响应提交。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_OMISSION_PRIME"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-omission-prime-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 3600,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-omission-new-main",
+      "description": "NCTX-34/40/41：成功证明授权旧图占位，同 bytes 的最新新 FilePart 仍实际发送。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_OMISSION_NEW"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-omission-new-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 3700,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-omission-manual-main",
+      "description": "NCTX-38/43：manual 保存不同编码参数后，已提交的省略和发送副本保持。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_OMISSION_MANUAL"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-omission-manual-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 3800,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-omission-disabled-main",
+      "description": "NCTX-43：auto 关闭 omitSeen 后，同一编码的旧图重新出现在真实请求中。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_OMISSION_DISABLED"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-omission-disabled-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 3900,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-omission-reencoded-main",
+      "description": "NCTX-43：auto 开启 omitSeen 并改变最长边，旧证明不能授权新表示，真实发送新副本。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "真实UI保存策略、成功主响应和Provider wire对账图片来源/省略/编码；固定文本与usage只控制回放，不注入图片证明或声明真实模型视觉质量。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_OMISSION_REENCODED"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-omission-reencoded-main",
+          "model": "deepseek-v4-flash",
+          "inputTokens": 4000,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-unsupported-tool",
+      "description": "同一Provider真实text-only模型调用原图工具后，最终vision能力gate明确拒绝且不发送第二请求。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定tool_use仅控制真实非vision原图回取；ToolPart、restore记录、明确错误、原图hash与无第二wire由真实产品验证。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": [
+          "E2E_NCTX_IMAGE_UNSUPPORTED:",
+          "E2E_NCTX_IMAGE_UNSUPPORTED_INPUT="
+        ],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "toolu_e2e_nctx_image_unsupported"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUse": {
+          "id": "toolu_e2e_nctx_image_unsupported",
+          "messageId": "native-image-unsupported-tool",
+          "name": "context_read_image",
+          "input": {
+            "ref": "{{nativeContextImageNegativeRef}}"
+          },
+          "inputTokens": 3700,
+          "outputTokens": 16
+        }
+      }
+    },
+    {
+      "id": "native-image-capacity-source",
+      "description": "真实上传大于3.75MiB但边≤2000px的PNG；原图先存，发送合格缩小副本，为原字节硬预算负向作前置。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定主响应只控制上传成功和用量；原PNG与小副本从真实CLI/encoder/Provider捕获对账，不伪造模型小预算。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_CAPACITY_SOURCE:"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-capacity-source",
+          "inputTokens": 3750,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-capacity-tool",
+      "description": "模型真实回取已持有的大PNG后，最终raw/base64硬预算拒绝；不能降原图或fallback。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "固定tool_use驱动真实原图回取与硬限；成功读取记录不当作成功发送或维护用量，原图bytes/hash必须仍完整。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_CAPACITY:", "E2E_NCTX_IMAGE_CAPACITY_INPUT="],
+        "bodyExcludes": [
+          "Generate a concise title",
+          "CRITICAL: Respond with TEXT ONLY",
+          "toolu_e2e_nctx_image_capacity"
+        ]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUse": {
+          "id": "toolu_e2e_nctx_image_capacity",
+          "messageId": "native-image-capacity-tool",
+          "name": "context_read_image",
+          "input": {
+            "ref": "{{nativeContextImageNegativeRef}}"
+          },
+          "inputTokens": 3800,
+          "outputTokens": 16
+        }
+      }
+    },
+    {
+      "id": "native-image-unsupported-recovery",
+      "description": "能力拒绝后选择恢复的真实vision模型，向同一失败owner发送新text prompt，保留旧ToolPart与restore intent验证后续可用。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "仅固定恢复主响应；新用户行、实际终态、正确模型wire、未删除的旧ToolPart、原图hash与无双计维护由同产品owner验证。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_UNSUPPORTED_RECOVERY:"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-unsupported-recovery",
+          "inputTokens": 3900,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    },
+    {
+      "id": "native-image-capacity-recovery",
+      "description": "原字节硬预算拒绝后直接向同一owner发送新text prompt，不清restore intent；若Provider前仍失败，报告poisoning。",
+      "maxMatches": 1,
+      "metadata": {
+        "kind": "main",
+        "source": "synthetic",
+        "timingPolicy": "fast-text",
+        "syntheticReason": "恢复fixture只有真实模型请求存在才消费；新turn失败且零wire会立即作为owner不可用证据，不能靠删ToolPart/重启通过。"
+      },
+      "match": {
+        "method": "POST",
+        "pathIncludes": "/messages",
+        "lastUserMessageIncludes": ["E2E_NCTX_IMAGE_CAPACITY_RECOVERY:"],
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": {
+          "id": "native-image-capacity-recovery",
+          "inputTokens": 3950,
+          "outputTokens": 12,
+          "text": "upstream-e2e-ok"
+        }
+      }
+    }
+  ]
+}

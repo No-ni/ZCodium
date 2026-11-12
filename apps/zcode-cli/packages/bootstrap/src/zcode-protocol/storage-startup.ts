@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { parentPort } from "node:worker_threads";
 import { SqliteSessionStore, type SqliteMigrationProgress } from "@zcode/adapters/storage";
 import {
   classifyDatabaseStartupError,
@@ -62,6 +63,19 @@ export async function prepareProtocolStartupStorage(options: {
   input: NodeJS.ReadableStream;
   output: NodeJS.WritableStream;
 }): Promise<void> {
+  // 原因：Worker 的 stdio 确认结束后可能不再保活，异步迁移会在 checking 后提前退出。
+  // 同源 Worker/子进程对照证明须持有 transport 到数据库关闭与 prepared 写回调结束。
+  parentPort?.ref();
+  try {
+    await runProtocolStartupStoragePreparation(options);
+  } finally {
+    parentPort?.unref();
+  }
+}
+
+async function runProtocolStartupStoragePreparation(
+  options: Parameters<typeof prepareProtocolStartupStorage>[0],
+): Promise<void> {
   const { createInterface } = await import("node:readline");
   const { zcodeStoragePathReadySchema, classifyDatabaseStartupError } =
     await import("@zcode/shared");

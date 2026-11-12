@@ -42,6 +42,7 @@ import type {
   V4ConversationFileChangesResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
+import type { NativeContextActions } from "@/native-context-compression/contract.js";
 import { useConversationPanePresentation } from "@/side-pane-full-view/index.js";
 import type { ConversationLatestTurnSummary } from "@/v4/conversationTimelineLiveTail.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
@@ -1154,6 +1155,7 @@ export function SessionPane({
     draftConfig,
     draftConfigRef,
     resolveInitialDraftConfig,
+    nativeContextDefaultsReady,
     handleDraftSelectModel,
     handleDraftSelectThought,
     handleDraftSwitchMode,
@@ -1203,8 +1205,8 @@ export function SessionPane({
     [draftConfigRef, modelSelectionView],
   );
   const composerSubmissionReady = useMemo(
-    () => createComposerSubmissionConfig(draftConfig, modelSelectionView) !== null,
-    [draftConfig, modelSelectionView],
+    () => (sessionId !== null || nativeContextDefaultsReady) && createComposerSubmissionConfig(draftConfig, modelSelectionView) !== null,
+    [draftConfig, modelSelectionView, nativeContextDefaultsReady, sessionId],
   );
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
   const projectDirectory = useOptionalProjectDirectoryActions();
@@ -2243,7 +2245,7 @@ export function SessionPane({
   // pane 未绑定会话时后台建 phase=draft 会话作预热载体：配置写 CAS 直达、首发复用。
   // 对外绑定语义不变（shell activeTaskId 仍 null），预热会话只是 pane 内部 effective 订阅目标。
   const { binding: prewarmBinding } = useDraftSessionPrewarm({
-    enabled: sessionId === null && draftAgentStartupAllowed,
+    enabled: sessionId === null && draftAgentStartupAllowed && nativeContextDefaultsReady,
     workspaceKey,
     paneId,
     invalidationVersion: draftRuntimeInvalidationVersion,
@@ -2672,7 +2674,7 @@ export function SessionPane({
           }
         }
         const draftConfigPayload = buildDraftCreateConfigPayload(
-          { ...draftConfigRef.current, modelSelection: submission.modelSelection },
+          { ...resolveInitialDraftConfig(), ...draftConfigRef.current, modelSelection: submission.modelSelection },
           appFollowupMode,
         );
         const createAck = await dispatchCommand(
@@ -2749,7 +2751,7 @@ export function SessionPane({
         // fallback 有 prewarm 投影时必须以 Agent 当前配置为 base；只有从未拿到投影
         // 才使用冻结的初始化元组。否则 provider fallback 后会把 localStorage 旧模型重新写回。
         const draftConfigPayload = buildDraftCreateConfigPayload(
-          { ...draftConfigRef.current, modelSelection: submission.modelSelection },
+          { ...resolveInitialDraftConfig(), ...draftConfigRef.current, modelSelection: submission.modelSelection },
           appFollowupMode,
         );
         if (readyAttachments.length === 0 && !sharedContextRefs?.length) {
@@ -3524,13 +3526,25 @@ export function SessionPane({
   // context usage 面板的压缩入口（命令文本 = "/compact"，复用 slash 解析路径）。
   const handleSendCompressionCommand = useCallback(
     (command: string) => {
-      if (!sessionId) return;
+      if (!effectiveSessionId) return;
       const parsed = parseV4VisibleSlashCommand(command);
       if (!parsed) return;
-      void dispatchSlashCommand(parsed, sessionId, snapshotRef.current?.revision, undefined);
+      void dispatchSlashCommand(parsed, effectiveSessionId, snapshotRef.current?.revision, undefined);
     },
-    [dispatchSlashCommand, sessionId],
+    [dispatchSlashCommand, effectiveSessionId],
   );
+
+  const nativeContextActions = useMemo<NativeContextActions>(() => ({
+    setPolicy(configuration, expectedPolicyVersion) {
+      if (!effectiveSessionId) return Promise.reject(new Error("native-context-session-unavailable"));
+      return dispatchCommand("contextCompression.setPolicy", { configuration, expectedPolicyVersion }, effectiveSessionId);
+    },
+    compress(model) {
+      if (!effectiveSessionId) return Promise.reject(new Error("native-context-session-unavailable"));
+      return dispatchCommand("contextCompression.compress", { model }, effectiveSessionId);
+    },
+    deepCompact() { handleSendCompressionCommand("/compact"); },
+  }), [dispatchCommand, effectiveSessionId, handleSendCompressionCommand]);
 
   // 误停排障需要区分按钮与 Esc；普通 info 在生产禁用，必须走生命周期日志。
   const handleStop = useCallback(
@@ -3809,7 +3823,7 @@ export function SessionPane({
     workspaceIdentity,
     workspacePath,
   ]);
-  const initialDraftConfigForDiagnostics = isDraft ? resolveInitialDraftConfig() : undefined;
+  const initialDraftConfigForDiagnostics = isDraft ? draftConfig : undefined;
   // CLI V4 projection 是 running/count/manifest 的唯一权威；renderer 不再在 spawn
   // 事件后另发查询拼接第二份状态，避免并发 child 的 in-flight refresh 丢更新。
   const subagents = snapshot?.subagents ?? EMPTY_SUBAGENT_PROJECTION;
@@ -4372,6 +4386,9 @@ export function SessionPane({
       runningSubagentCount={runningAgentCount}
       onRecoverCustomModelSelection={handleRecoverCustomModelSelection}
       onSendCompressionCommand={handleSendCompressionCommand}
+      nativeContextActions={nativeContextActions}
+      nativeContextSessionId={effectiveSessionId}
+      nativeContextDraftConfiguration={draftConfig.nativeContextCompression}
       error={composerError}
       onDismissError={handleDismissComposerError}
       onOpenModelSettings={handleOpenModelSettings}

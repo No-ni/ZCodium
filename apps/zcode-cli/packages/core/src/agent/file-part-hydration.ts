@@ -4,6 +4,7 @@ import type {
   ModelMessageContentBlock,
   ToolArtifactStorePort,
 } from "@zcode/contracts";
+import { originalImageFromStorageMetadata } from "../media/original-image/index.js";
 
 export async function filePartToContentBlock(
   part: FilePart,
@@ -153,6 +154,10 @@ function attachmentRefFromFilePart(part: FilePart): AttachmentRef {
     sizeBytes: part.metadata?.sizeBytes,
     sha256: part.metadata?.sha256,
     placeholder: part.source?.text.value ?? part.filename,
+    canonicalPartId: part.id,
+    ...(isImageMime(part.mime)
+      ? { originalImage: originalImageFromStorageMetadata(part.metadata?.image) }
+      : {}),
   };
 }
 

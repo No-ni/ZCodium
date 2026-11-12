@@ -3,6 +3,7 @@ import type { MessageId, Model, TraceContext } from "../deps.js";
 import { emptyTokenUsageInfo, toTokenUsageInfo } from "../helpers/index.js";
 import type { RuntimeModelTextResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { commitNativeModelResultImages } from "../native-context-compression/index.js";
 import { drainInlineGuideForNextRequest } from "./turn-guide-drain.js";
 import { recordModelHistoryRound, type RegularTurnLoopState } from "./turn-loop-state.js";
 import {
@@ -44,7 +45,11 @@ export async function persistCompletedAssistantStep(
   if (!model) {
     throw new Error("Model-backed assistant persistence requires the loop Model");
   }
-  let committed = commitAssistantToTurnRequest(runtime, state, options.result, undefined);
+  let committed = commitAssistantToTurnRequest(runtime, state, options.result, undefined, {
+    messageId: options.assistantMessageId,
+    createdAt: options.assistantCreatedAt,
+    turnNumber: runtime.turnNumber,
+  });
   if (!committed && options.includeEmptyAssistant) {
     commitTurnRequestEntries(runtime, state.turnRequestState, [
       createRuntimeAssistantEntry(
@@ -53,6 +58,13 @@ export async function persistCompletedAssistantStep(
         undefined,
         model,
         toTokenUsageInfo(options.result.usage),
+        // 空成功回复也已持久化真实 message；与冷恢复使用同一个 canonical 身份。
+        {
+          messageId: options.assistantMessageId,
+          entryIndex: 0,
+          createdAt: options.assistantCreatedAt,
+          turnNumber: runtime.turnNumber,
+        },
       ),
     ]);
     committed = true;
@@ -100,6 +112,7 @@ export async function persistCompletedAssistantStep(
     options.modelTraceContext,
     model,
   );
+  await commitNativeModelResultImages(runtime, options.result);
   return committed;
 }
 

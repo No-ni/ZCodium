@@ -12,6 +12,19 @@ import type {
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
 import type { AppUsageRange, AppUsageSnapshot, ZCodeTaskTokenUsageResult } from "@zcode/shared";
+import type {
+  NativeContextImage,
+  NativeContextImageRequest,
+  NativeContextObservation,
+  NativeContextOperationDetail,
+  NativeContextOperationSummary,
+  NativeContextPage,
+  NativeContextPageRequest,
+  NativeContextRecordRequest,
+  NativeContextSourcePage,
+  NativeContextSourceRequest,
+  NativeContextStatus,
+} from "@zcode/shared/native-context-compression";
 import type { DynamicWorkflowMode } from "@zcode/shared";
 import type { ZCodeAutomation, ZCodeAutomationRun } from "@zcode/shared";
 import type {
@@ -269,6 +282,17 @@ export interface ZCodeAgentAppUsageParams {
 }
 
 export interface ZCodeAgentTaskTokenUsageParams extends ZCodeAgentSessionTarget {}
+
+export type ZCodeAgentNativeContextPageParams = ZCodeAgentWorkspaceTarget &
+  NativeContextPageRequest;
+export type ZCodeAgentNativeContextRecordsParams = ZCodeAgentWorkspaceTarget &
+  Pick<NativeContextPageRequest, "sessionId" | "cursor" | "limit" | "expectedRevision">;
+export type ZCodeAgentNativeContextRecordParams = ZCodeAgentWorkspaceTarget &
+  NativeContextRecordRequest;
+export type ZCodeAgentNativeContextSourceParams = ZCodeAgentWorkspaceTarget &
+  NativeContextSourceRequest;
+export type ZCodeAgentNativeContextImageParams = ZCodeAgentWorkspaceTarget &
+  NativeContextImageRequest;
 
 export interface ZCodeAgentReadSessionParams extends ZCodeAgentSessionTarget {
   deliveryKind?: ZCodeDeliveryKind;
@@ -674,6 +698,19 @@ export interface IZCodeAgentService {
     params: V4SessionDataParams & { workspace: ZCodeAgentWorkspaceTarget },
   ): Promise<V4SessionDataPurgeResult>;
   getTaskTokenUsage(params: ZCodeAgentTaskTokenUsageParams): Promise<ZCodeTaskTokenUsageResult>;
+  /** 原生上下文只读面沿会话 workspace attachment 查询；事实与分页均由 CLI 持有。 */
+  getContextCompression(params: ZCodeAgentSessionTarget): Promise<NativeContextStatus>;
+  listContextObservations(
+    params: ZCodeAgentNativeContextPageParams,
+  ): Promise<NativeContextPage<NativeContextObservation>>;
+  listContextCompressionRecords(
+    params: ZCodeAgentNativeContextRecordsParams,
+  ): Promise<NativeContextPage<NativeContextOperationSummary>>;
+  readContextCompressionRecord(
+    params: ZCodeAgentNativeContextRecordParams,
+  ): Promise<NativeContextOperationDetail>;
+  readContextSource(params: ZCodeAgentNativeContextSourceParams): Promise<NativeContextSourcePage>;
+  readContextImage(params: ZCodeAgentNativeContextImageParams): Promise<NativeContextImage>;
   readSession(params: ZCodeAgentReadSessionParams): Promise<ZCodeSessionStateSnapshot>;
   readSessionMessages(
     params: ZCodeAgentReadSessionMessagesParams,

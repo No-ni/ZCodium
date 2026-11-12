@@ -136,6 +136,7 @@ export interface BackgroundTaskControlPort {
 }
 
 export interface ToolExecutionContext {
+  nativeContextCompression?: { getImagePolicy(): import("@zcode/shared/native-context-compression").NativeContextParameters["images"] };
   toolCallId: string;
   /** 当前工具调用是否属于 automation 派发轮；写工具 handler 用它做最终权限校验。 */
   automationTurn?: boolean;

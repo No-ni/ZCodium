@@ -1,4 +1,8 @@
 import { beginLocalTurnPreparation, type LocalTtftDetail } from "@zcode/contracts";
+import {
+  createRuntimeUserEntry,
+  type RuntimeCanonicalMessageIdentity,
+} from "../../agent/message-history.js";
 import { runtimeInputMetadata } from "../../agent/runtime-input-presentation.js";
 import { refreshWorkspaceTrustAdmission } from "./mcp.js";
 import { withConversationQuotes } from "../helpers/conversation-quotes.js";
@@ -24,6 +28,7 @@ import type {
   HookRunResult,
   MessageId,
   MessagePart,
+  MessageWithParts,
   Model,
   ModelSelection,
   QueryId,
@@ -91,6 +96,31 @@ const TARGET_RUN_HEARTBEAT_MS = 15_000;
 const MODEL_CREATION_FAILED_MESSAGE = "Model creation failed";
 const MODEL_CREATION_TURN_PHASE = "model_creation";
 const TURN_EXECUTION_FAILED_MESSAGE = "Turn execution failed";
+
+function canonicalUserIdentity(
+  message: MessageWithParts | null | undefined,
+): (RuntimeCanonicalMessageIdentity & { partId?: string }) | undefined {
+  if (!message || message.info.role !== "user") return undefined;
+  const textParts = message.parts.filter((part) => part.type === "text" && !part.ignored);
+  return {
+    messageId: message.info.id,
+    createdAt: message.info.time.created,
+    ...(textParts.length === 1 ? { partId: textParts[0]!.id } : {}),
+  };
+}
+
+async function readPersistedUserMessage(
+  runtime: AgentRuntimeInternal,
+  messageId: MessageId,
+): Promise<MessageWithParts | null> {
+  const store = runtime.sessionStore;
+  if (!store?.messageWithParts) return null;
+  const message = await store.messageWithParts({
+    sessionID: runtime.sessionId,
+    messageID: messageId,
+  });
+  return message?.info.id === messageId ? message : null;
+}
 
 export async function executeTurn(
   this: AgentRuntimeInternal,
@@ -624,6 +654,7 @@ export async function executeTurnCommand(
           artifactStore: this.artifactStore,
           fileSystemPort: this.fileSystemPort,
           imageProcessorPort: this.imageProcessorPort,
+          nativeContextImages: this.sessionStore?.commitNativeContext ? nativeImagePolicy(this) : undefined,
           sessionId: this.sessionId,
           traceContext: turnTraceContext,
           turnId,
@@ -663,21 +694,20 @@ export async function executeTurnCommand(
               .join("\n")
               .trim();
             if (!contextText) throw new Error("shared context content is unavailable");
-            this.messageHistory.addUser(
-              contextText,
-              runtimeMetadataForSyntheticUserMessageSource("shared_context"),
-            );
+            const identity = canonicalUserIdentity(contextMessage);
+            this.messageHistory.addEntries([
+              createRuntimeUserEntry(
+                contextText,
+                runtimeMetadataForSyntheticUserMessageSource("shared_context"),
+                identity ? { ...identity, entryIndex: 0 } : undefined,
+              ),
+            ]);
           }
         }
         await this.persistPendingModelChangeTimeline(turnTraceContext);
         if (options?.skipInputRecord !== true && options?.inputVisibility === "model-only") {
           const inputSource = options.inputSource ?? "goal-continuation";
           const userContent = buildUserContentFromTurn(input, resolvedAttachments);
-          this.messageHistory.addUser(
-            userContent,
-            runtimeInputMetadata(options.inputPresentation) ??
-              runtimeMetadataForSyntheticUserMessageSource(inputSource),
-          );
           // /goal 自动续跑是 runtime 注入给模型的内部 user-role 输入，
           // 不是用户在聊天里新发的一条消息。持久化时保留 raw 输入供恢复/排查使用，
           // 但用 model-only 语义阻止 UI-facing snapshot 把它渲染成用户气泡。
@@ -696,29 +726,17 @@ export async function executeTurnCommand(
             traceContext: turnTraceContext,
             visibility: "model-only",
           });
+          const persistedUser = await readPersistedUserMessage(this, userMessageId);
+          const identity = canonicalUserIdentity(persistedUser);
+          this.messageHistory.addEntries([
+            createRuntimeUserEntry(
+              userContent,
+              runtimeInputMetadata(options.inputPresentation) ??
+                runtimeMetadataForSyntheticUserMessageSource(inputSource),
+              identity ? { ...identity, entryIndex: 0 } : undefined,
+            ),
+          ]);
         } else if (options?.skipInputRecord !== true) {
-          this.messageHistory.addEntries(
-            buildRuntimeUserEntriesFromTurn(
-              withConversationQuotes(
-                input,
-                options?.intent?.conversationQuotes,
-                options?.intent?.botGroupSource,
-              ),
-              resolvedAttachments,
-              {
-                browserAmbientContext: options?.browserAmbientContext,
-                genUiContext: options?.intent?.genUiContext,
-              },
-            ).map((entry) => {
-              const metadata = runtimeInputMetadata(options?.inputPresentation);
-              // 合并而不是替换：输入 entry 上还挂着页面状态（genUiState）。
-              // 修复原因：整体替换会删掉它，抢占运行中轮次的立即发送在热态请求里丢失页面状态，
-              // 冷恢复按合并恢复又带上，前后请求不一致。写法与冷恢复相同。
-              return entry.kind !== "attachment" && metadata
-                ? { ...entry, metadata: { ...entry.metadata, ...metadata } }
-                : entry;
-            }),
-          );
           // /init 和自定义 slash command 会把模型输入展开成较长的内部
           // prompt。模型可见的历史必须使用展开后的 input，但 UI 展示、会话标题和
           // 恢复快照只能展示用户真实提交的原始 query。
@@ -736,6 +754,38 @@ export async function executeTurnCommand(
                 ? {}
                 : { epilogueStart: options.epilogueStart }),
             },
+          );
+          // 实际 part ID 在 persistUserPrompt 内创建；只按其原附件顺序读取，不按内容猜身份。
+          const persistedUser = await readPersistedUserMessage(this, userMessageId);
+          const persistedFiles = persistedUser?.parts.filter((part) => part.type === "file") ?? [];
+          const attachmentsWithIdentity = resolvedAttachments.map((attachment, index) => ({
+            ...attachment,
+            ...(persistedFiles.length === resolvedAttachments.length && persistedFiles[index]
+              ? { id: persistedFiles[index]!.id }
+              : {}),
+          }));
+          this.messageHistory.addEntries(
+            buildRuntimeUserEntriesFromTurn(
+              withConversationQuotes(
+                input,
+                options?.intent?.conversationQuotes,
+                options?.intent?.botGroupSource,
+              ),
+              attachmentsWithIdentity,
+              {
+                browserAmbientContext: options?.browserAmbientContext,
+                genUiContext: options?.intent?.genUiContext,
+                canonical: canonicalUserIdentity(persistedUser),
+              },
+            ).map((entry) => {
+              const metadata = runtimeInputMetadata(options?.inputPresentation);
+              // 合并而不是替换：输入 entry 上还挂着页面状态（genUiState）。
+              // 修复原因：整体替换会删掉它，抢占运行中轮次的立即发送在热态请求里丢失页面状态，
+              // 冷恢复按合并恢复又带上，前后请求不一致。写法与冷恢复相同。
+              return entry.kind !== "attachment" && metadata
+                ? { ...entry, metadata: { ...entry.metadata, ...metadata } }
+                : entry;
+            }),
           );
           // 提示读取跟随真实新输入，不随模型续步重复；首输入复用 MCP 初始化的读取。
           if (
@@ -1160,3 +1210,4 @@ function injectReferencedSessionContextReminderIntoMessageHistory(
   if (!reminderBody) return;
   this.messageHistory.addAttachment("referenced_session_context", reminderBody);
 }
+import { nativeImagePolicy } from "../native-context-compression/index.js";

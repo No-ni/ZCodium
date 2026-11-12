@@ -18,12 +18,18 @@ import { inferImageMimeFromPath, prepareImageDataUrl } from "./attachment-image.
 import { inferVideoMimeFromPath, parseInlineVideoDataUrl } from "./attachment-video.js";
 import { isPdfBytes, parseInlinePdfDataUrl, PDF_INPUT_MAX_BYTES } from "./attachment-pdf.js";
 import { resolvedPathReferenceAttachment } from "./attachment-path-reference.js";
+import {
+  OriginalImagePersistenceError,
+  originalImageFromStorageMetadata,
+} from "../../media/original-image/index.js";
+import type { NativeContextParameters } from "@zcode/shared/native-context-compression";
 
 interface InlineMediaResolverOptions {
   abortSignal?: AbortSignal;
   artifactStore?: ToolArtifactStorePort;
   existingArtifactUri?: string;
   imageProcessorPort?: ImageProcessorPort;
+  nativeContextImages?: NativeContextParameters["images"];
   sessionId?: SessionId;
   traceContext: TraceContext;
   turnId?: TurnId;
@@ -58,8 +64,13 @@ export async function resolveInlineMediaAttachment(
   if (attachment.type === "image" && attachment.content && parsedMediaType?.startsWith("image/")) {
     let prepared: PreparedImageData | undefined;
     try {
-      prepared = await prepareImageDataUrl(attachment.content, parsedMediaType, options);
-    } catch {
+      prepared = await prepareImageDataUrl(attachment.content, parsedMediaType, {
+        ...options,
+        toolCallId: `attachment-${index + 1}`,
+      });
+    } catch (error) {
+      if (error instanceof OriginalImagePersistenceError || options.abortSignal?.aborted)
+        throw error;
       return resolvedPlaceholderAttachment(
         attachment,
         placeholder,
@@ -72,7 +83,9 @@ export async function resolveInlineMediaAttachment(
     const resource = await persistAttachmentDataUrl(prepared.dataUrl, index, prepared.mediaType, {
       abortSignal: options.abortSignal,
       artifactStore: options.artifactStore,
-      existingArtifactUri: options.existingArtifactUri,
+      // 上传 artifact 保存的是原字节，不能把它标成重编码后的发送副本供冷恢复使用。
+      existingArtifactUri:
+        prepared.dataUrl === attachment.content ? options.existingArtifactUri : undefined,
       sessionId: options.sessionId,
       traceContext: options.traceContext,
       turnId: options.turnId,
@@ -85,7 +98,8 @@ export async function resolveInlineMediaAttachment(
         source: {
           id: `turn-attachment-${index + 1}`,
           kind: "inline",
-          mimeType: options.existingArtifactUri ? parsedMediaType : prepared.mediaType,
+          mimeType: prepared.mediaType,
+          originalImage: originalImageFromStorageMetadata(prepared.metadata),
           placeholder,
           ...(resource.metadata.artifactUri ? { uri: resource.metadata.artifactUri } : {}),
         },
@@ -93,7 +107,10 @@ export async function resolveInlineMediaAttachment(
       metadata: {
         ...(prepared.metadata ? { image: prepared.metadata } : {}),
         recoverability: resource.metadata.recoverability,
-        sizeBytes: Buffer.byteLength(attachment.content, "utf8"),
+        sizeBytes: Buffer.from(
+          attachment.content.slice(attachment.content.indexOf(",") + 1),
+          "base64",
+        ).byteLength,
         storageKind: resource.metadata.storageKind,
         ...(resource.metadata.artifactUri ? { artifactUri: resource.metadata.artifactUri } : {}),
       },
@@ -353,20 +370,38 @@ async function resolveLocalImageAttachment(
       reason: "image_too_large",
     });
   }
-  let read: Awaited<ReturnType<FileSystemPort["readTextFile"]>>;
+  let read: Awaited<ReturnType<FileSystemPort["readBinaryFile"]>>;
   try {
-    read = await options.fileSystemPort.readTextFile(
-      { path: absolutePath, encoding: "base64", trace: options.traceContext },
+    read = await options.fileSystemPort.readBinaryFile(
+      {
+        path: absolutePath,
+        maxBytes: INLINE_MEDIA_ATTACHMENT_MAX_BYTES,
+        trace: options.traceContext,
+      },
       { signal: options.abortSignal },
     );
-  } catch {
+  } catch (error) {
+    if (options.abortSignal?.aborted) throw error;
+    if (isFileSystemPortError(error) && error.code === "too_large") {
+      // stat 后文件仍可能增长，最终大小边界必须由读取端保证。
+      return resolvedPathReferenceAttachment(attachment, attachment.path!, {
+        filename,
+        mime,
+        source,
+        reason: "image_too_large",
+      });
+    }
     return localMediaReadFailure(attachment, filename, mime, source);
   }
-  const dataUrl = `data:${mime};base64,${read.content}`;
+  const dataUrl = `data:${mime};base64,${Buffer.from(read.content).toString("base64")}`;
   let prepared: PreparedImageData | undefined;
   try {
-    prepared = await prepareImageDataUrl(dataUrl, mime, options);
-  } catch {
+    prepared = await prepareImageDataUrl(dataUrl, mime, {
+      ...options,
+      toolCallId: `attachment-${index + 1}`,
+    });
+  } catch (error) {
+    if (error instanceof OriginalImagePersistenceError || options.abortSignal?.aborted) throw error;
     return resolvedPlaceholderAttachment(
       attachment,
       attachment.path!,
@@ -398,9 +433,11 @@ async function resolveLocalImageAttachment(
         id: `turn-attachment-${index + 1}`,
         kind: "local_file",
         mimeType: prepared.mediaType,
+        originalImage: originalImageFromStorageMetadata(prepared.metadata),
+        uri: resource.metadata.artifactUri,
         path: absolutePath,
         placeholder: attachment.path,
-        sizeBytes: stat.sizeBytes,
+        sizeBytes: read.sizeBytes,
         sha256: read.revision?.hash,
       },
     },
@@ -410,7 +447,7 @@ async function resolveLocalImageAttachment(
       originalUrl: attachment.path,
       recoverability: resource.metadata.recoverability,
       sha256: read.revision?.hash,
-      sizeBytes: stat.sizeBytes,
+      sizeBytes: read.sizeBytes,
       storageKind: resource.metadata.storageKind,
       ...(resource.metadata.artifactUri ? { artifactUri: resource.metadata.artifactUri } : {}),
     },

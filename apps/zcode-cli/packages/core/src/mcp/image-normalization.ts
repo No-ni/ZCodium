@@ -11,6 +11,11 @@ import {
   OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY,
 } from "@zcode/zcode-cua/frame-contract";
 import type { ToolExecutionContext } from "../tool/types.js";
+import {
+  persistOriginalImage,
+  withHostOriginalImageProvenance,
+  type OriginalImagePersistenceResult,
+} from "../media/original-image/index.js";
 // 帧像素契约（integrity gate + inline 上限）的唯一定义在 producer；宿主经
 // plugin re-export 消费，不再镜像实现。core 对 CUA 的感知收敛为：authority
 // 分支调用 producer gate，非 authority 分支用 contracts scanner 剥伪造引用。
@@ -37,11 +42,21 @@ export async function normalizeMcpToolResultForModel(input: {
   // exact-raster 路径，既保留 CUA 帧，又不影响同一 server 的 Browser Use 图片。
   const isSharedNodeRepl =
     input.descriptor.serverName === "node_repl" || input.toolName === "mcp__node_repl__js";
-  if (input.preserveOfficialCuaFrames || (isSharedNodeRepl && hasOfficialCuaFrameAuthority(input.result))) {
-    return await preserveOfficialCuaFrameResult(input.result, {
+  if (
+    input.preserveOfficialCuaFrames ||
+    (isSharedNodeRepl && hasOfficialCuaFrameAuthority(input.result))
+  ) {
+    const preserved = await preserveOfficialCuaFrameResult(input.result, {
       imageProcessorPort: input.context.imageProcessorPort,
       signal: input.context.abortSignal,
     });
+    const content = await Promise.all(
+      preserved.content.map(async (block) => {
+        const original = await persistMcpOriginalImage(block, input, true);
+        return original ? withHostOriginalImageProvenance(block, original.originalImage) : block;
+      }),
+    );
+    return { ...preserved, content };
   }
 
   let changed = false;
@@ -51,12 +66,19 @@ export async function normalizeMcpToolResultForModel(input: {
     : new Set<number>();
 
   for (const [index, block] of input.result.content.entries()) {
-    const browserScreenshotArtifact = browserScreenshotIndices.has(index)
-      ? await persistBrowserScreenshotArtifact(block, input)
-      : undefined;
+    const originalImage = await persistMcpOriginalImage(block, input);
+    const browserScreenshotArtifact =
+      browserScreenshotIndices.has(index) && originalImage?.path
+        ? {
+            absolutePath: isAbsolute(originalImage.path)
+              ? originalImage.path
+              : resolve(originalImage.path),
+          }
+        : undefined;
     const normalized = await normalizeMcpContentBlockForModel(block, {
       ...input,
       browserScreenshotArtifact,
+      originalImage,
     });
     // 纵深防御：非 authority 验证的 MCP 结果不得携带官方帧引用文本——第三方
     // 伪造的 actionable frame_id 即使会被 producer registry 拒绝，也不应进入
@@ -73,7 +95,12 @@ export async function normalizeMcpToolResultForModel(input: {
       continue;
     }
     changed ||= normalized !== block;
-    content.push(normalized);
+    content.push(
+      originalImage && normalized.type === "image"
+        ? withHostOriginalImageProvenance(normalized, originalImage.originalImage)
+        : normalized,
+    );
+    changed ||= originalImage !== undefined;
     // 提示文本插在 image 之前会把 node_repl 特意排成 image-first 的
     // tool_result.content 重新变成 text-first；Anthropic 兼容网关只解析开头的连续 image，
     // text 一领先后面的图就被丢弃，模型又看不到截图。落在 image 之后即可保持 image-first。
@@ -95,19 +122,20 @@ export function hasOfficialCuaFrameAuthority(result: unknown): result is McpTool
     content?: unknown;
     _meta?: Record<string, unknown>;
   };
-  if (!Array.isArray(candidate.content) || !candidate._meta?.[OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY]) {
+  if (
+    !Array.isArray(candidate.content) ||
+    !candidate._meta?.[OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY]
+  ) {
     return false;
   }
   const blocks = candidate.content;
-  return blocks.some(
-    (block, index) => {
-      if (!block || typeof block !== "object" || (block as { type?: unknown }).type !== "image") {
-        return false;
-      }
-      const nextText = (blocks[index + 1] as { text?: unknown } | undefined)?.text;
-      return typeof nextText === "string" && isOfficialCuaImageRefText(nextText);
-    },
-  );
+  return blocks.some((block, index) => {
+    if (!block || typeof block !== "object" || (block as { type?: unknown }).type !== "image") {
+      return false;
+    }
+    const nextText = (blocks[index + 1] as { text?: unknown } | undefined)?.text;
+    return typeof nextText === "string" && isOfficialCuaImageRefText(nextText);
+  });
 }
 
 async function normalizeMcpContentBlockForModel(
@@ -118,6 +146,7 @@ async function normalizeMcpContentBlockForModel(
     descriptor: McpToolDescriptor;
     toolName: string;
     browserScreenshotArtifact?: BrowserScreenshotArtifact;
+    originalImage?: OriginalImagePersistenceResult;
   },
 ): Promise<McpContentBlock> {
   if (block.type !== "image") return block;
@@ -126,11 +155,14 @@ async function normalizeMcpContentBlockForModel(
   const mimeType = typeof block.mimeType === "string" ? block.mimeType : undefined;
   if (!data || !mimeType) return block;
 
+  // 原生投影拥有预算和图片身份；旧 inline gate 先替换成文本会丢失后续压缩入口。
+  if (input.context.nativeContextCompression) return block;
+
   const base64Payload = base64PayloadFromMcpImageData(data);
   const base64Bytes = Buffer.byteLength(base64Payload, "utf8");
   if (base64Bytes <= MCP_IMAGE_INLINE_BASE64_BYTES) return block;
 
-  if (input.compressOversizedImages) {
+  if (input.compressOversizedImages && input.originalImage) {
     // browser screenshot 由可信宿主 node_repl 产生，不能和第三方 MCP 图片一样直接
     // 落 artifact，导致模型失去视觉结果；这里复用统一图片端口压到 200 KiB，而不另造编解码器。
     const compressed = await tryCompressHostNodeReplImage({
@@ -140,12 +172,6 @@ async function normalizeMcpContentBlockForModel(
     });
     if (compressed) return compressed;
   }
-
-  const summary = {
-    base64Bytes,
-    inlineLimitBytes: MCP_IMAGE_INLINE_BASE64_BYTES,
-    mimeType,
-  };
 
   if (input.browserScreenshotArtifact) {
     return {
@@ -157,31 +183,24 @@ async function normalizeMcpContentBlockForModel(
     };
   }
 
-  if (!input.context.artifactStore) {
+  if (!input.originalImage) {
     return {
       type: "text",
       text: [
         `MCP image content omitted: ${mimeType}, base64=${formatByteSize(base64Bytes)} exceeds inline limit ${formatByteSize(MCP_IMAGE_INLINE_BASE64_BYTES)}.`,
-        "No artifact store is configured, so the original image could not be saved.",
+        "Original image persistence is unavailable, so the original image could not be saved.",
       ].join("\n"),
     };
   }
 
-  const artifact = await writeMcpImageArtifact({
-    base64Payload,
-    context: input.context,
-    dataUrl: asDataUrl(data, mimeType),
-    descriptor: input.descriptor,
-    summary,
-    toolName: input.toolName,
-  });
+  const artifact = input.originalImage;
 
   return {
     type: "text",
     text: [
       `MCP image content saved instead of being inlined: ${mimeType}, base64=${formatByteSize(base64Bytes)}, inlineLimit=${formatByteSize(MCP_IMAGE_INLINE_BASE64_BYTES)}.`,
-      `Artifact: ${artifact.path ?? artifact.uri}`,
-      `Artifact URI: ${artifact.uri}`,
+      `Artifact: ${artifact.path ?? artifact.originalImage.artifactUri}`,
+      `Artifact URI: ${artifact.originalImage.artifactUri}`,
     ].join("\n"),
   };
 }
@@ -201,48 +220,34 @@ function readBrowserScreenshotContentIndices(result: McpToolCallResult): Set<num
   );
 }
 
-async function persistBrowserScreenshotArtifact(
+async function persistMcpOriginalImage(
   block: McpContentBlock,
   input: {
     context: ToolExecutionContext;
     toolName: string;
   },
-): Promise<BrowserScreenshotArtifact | undefined> {
+  preserveRaster?: boolean,
+): Promise<OriginalImagePersistenceResult | undefined> {
   if (block.type !== "image") return undefined;
   const data = typeof block.data === "string" ? block.data : undefined;
   const mimeType = typeof block.mimeType === "string" ? block.mimeType : undefined;
-  const artifactStore = input.context.artifactStore;
-  const writeBinary = artifactStore?.writeToolResultBinaryArtifact;
-  if (!data || !mimeType || !artifactStore || !writeBinary) return undefined;
+  if (!data || !mimeType) return undefined;
 
   const content = Buffer.from(base64PayloadFromMcpImageData(data), "base64");
   if (content.byteLength === 0) return undefined;
-  try {
-    const artifact = await writeBinary.call(
-      artifactStore,
-      {
-        sessionId: input.context.sessionId,
-        turnId: input.context.turnId,
-        toolCallId: input.context.toolCallId,
-        toolName: input.toolName,
-        content,
-        contentType: mimeType,
-        extension: extensionForMimeType(mimeType),
-        retention: "session",
-        trace: traceFromToolContext(input.context),
-      },
-      { signal: input.context.abortSignal },
-    );
-    if (!artifact.path) return undefined;
-    return {
-      absolutePath: isAbsolute(artifact.path) ? artifact.path : resolve(artifact.path),
-    };
-  } catch (error) {
-    // 额外截图路径写入失败不应覆盖已成功的 Browser 结果；
-    // 但工具取消时仍需立即退出，不继续处理大图。
-    if (input.context.abortSignal.aborted) throw error;
-    return undefined;
-  }
+  return persistOriginalImage({
+    data: content,
+    mediaType: mimeType,
+    sourceKind: "mcp",
+    preserveRaster,
+    artifactStore: input.context.artifactStore,
+    sessionId: input.context.sessionId,
+    turnId: input.context.turnId,
+    toolCallId: input.context.toolCallId,
+    toolName: input.toolName,
+    trace: traceFromToolContext(input.context),
+    signal: input.context.abortSignal,
+  });
 }
 
 async function tryCompressHostNodeReplImage(input: {
@@ -288,72 +293,6 @@ async function tryCompressHostNodeReplImage(input: {
   }
 }
 
-async function writeMcpImageArtifact(input: {
-  base64Payload: string;
-  context: ToolExecutionContext;
-  dataUrl: string;
-  descriptor: McpToolDescriptor;
-  summary: {
-    base64Bytes: number;
-    inlineLimitBytes: number;
-    mimeType: string;
-  };
-  toolName: string;
-}): Promise<{
-  bytes: number;
-  contentType: string;
-  path?: string;
-  uri: string;
-}> {
-  const artifactStore = input.context.artifactStore;
-  if (!artifactStore) {
-    throw new Error("MCP image artifact store is not configured");
-  }
-
-  if (artifactStore.writeToolResultBinaryArtifact) {
-    return artifactStore.writeToolResultBinaryArtifact(
-      {
-        sessionId: input.context.sessionId,
-        turnId: input.context.turnId,
-        toolCallId: input.context.toolCallId,
-        toolName: input.toolName,
-        content: Buffer.from(input.base64Payload, "base64"),
-        contentType: input.summary.mimeType,
-        extension: extensionForMimeType(input.summary.mimeType),
-        retention: "session",
-        trace: traceFromToolContext(input.context),
-      },
-      { signal: input.context.abortSignal },
-    );
-  }
-
-  return artifactStore.writeToolResultArtifact(
-    {
-      sessionId: input.context.sessionId,
-      turnId: input.context.turnId,
-      toolCallId: input.context.toolCallId,
-      toolName: input.toolName,
-      content: JSON.stringify(
-        {
-          type: "mcp-image-artifact",
-          createdAt: new Date().toISOString(),
-          dataUrl: input.dataUrl,
-          registeredToolName: input.toolName,
-          serverName: input.descriptor.serverName,
-          toolName: input.descriptor.toolName,
-          ...input.summary,
-        },
-        null,
-        2,
-      ),
-      contentType: "application/json",
-      retention: "session",
-      trace: traceFromToolContext(input.context),
-    },
-    { signal: input.context.abortSignal },
-  );
-}
-
 export function asDataUrl(data: string, mimeType: string): string {
   return data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`;
 }
@@ -362,23 +301,6 @@ export function base64PayloadFromMcpImageData(data: string): string {
   if (!data.startsWith("data:")) return data;
   const commaIndex = data.indexOf(",");
   return commaIndex >= 0 ? data.slice(commaIndex + 1) : data;
-}
-
-function extensionForMimeType(mimeType: string): string {
-  const mime = mimeType.split(";")[0]?.trim().toLowerCase() ?? "";
-  switch (mime) {
-    case "image/png":
-      return ".png";
-    case "image/jpeg":
-    case "image/jpg":
-      return ".jpg";
-    case "image/gif":
-      return ".gif";
-    case "image/webp":
-      return ".webp";
-    default:
-      return ".bin";
-  }
 }
 
 function traceFromToolContext(context: ToolExecutionContext): TraceContext {

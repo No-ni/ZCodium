@@ -1,5 +1,9 @@
 import type { FilePart } from "@zcode/contracts";
 import { createPartId } from "../deps.js";
+import {
+  originalImageToStorageMetadata,
+  persistOriginalImage,
+} from "../../media/original-image/index.js";
 import type {
   MessageId,
   ModelMessageContent,
@@ -45,6 +49,24 @@ export async function persistToolResultMediaAttachments(input: {
 
   const attachments: FilePart[] = [];
   for (const [index, block] of projection.mediaBlocks.entries()) {
+    // 已完成结果的原图与发送副本一起收尾；Stop 不应让成功工具丢失冷恢复来源。
+    const originalImage =
+      block.type === "image"
+        ? (block.source?.originalImage ??
+          (
+            await persistOriginalImage({
+              data: Buffer.from(block.dataUrl.slice(block.dataUrl.indexOf(",") + 1), "base64"),
+              mediaType: block.mediaType,
+              sourceKind: "other",
+              artifactStore: input.artifactStore,
+              sessionId: input.sessionId,
+              turnId: input.turnId,
+              toolCallId: `${input.toolCallId}-media-${index + 1}`,
+              toolName: input.toolName,
+              trace: input.traceContext,
+            })
+          )?.originalImage)
+        : undefined;
     const existingArtifactUri = block.source?.uri?.startsWith("zcode-artifact://")
       ? block.source.uri
       : undefined;
@@ -77,6 +99,7 @@ export async function persistToolResultMediaAttachments(input: {
           : {}),
       url: artifactUri,
       metadata: {
+        ...(originalImage ? { image: originalImageToStorageMetadata(originalImage) } : {}),
         artifactUri,
         recoverability: "provider_ready",
         storageKind: "artifact",

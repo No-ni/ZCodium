@@ -29,6 +29,11 @@ import {
 import type { TurnResult, RunModelTextRequestOptions } from "../types.js";
 import type { Model } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import {
+  nativeProjectionForRequest,
+  nativeContextOwnsProjection,
+  nativeContextUsageTokenOverride,
+} from "../native-context-compression/index.js";
 import { autoCompactDecisionLogContext } from "./compact-log-context.js";
 import { resolveNormalRequestMaxOutputTokens } from "./model-token-limits.js";
 import type {
@@ -200,20 +205,24 @@ export async function autoCompactIfNeeded(
     modelContextBudgetStrategy: this.config.modelContextBudgetStrategy,
   };
   const activeEntries = context.turnRequestState.entries;
+  const tools = this.getTools(context.model);
+  const native = nativeProjectionForRequest(this, activeEntries, context.model, tools);
   const activeProjection = buildRuntimeProviderRequestMessages(this, {
     entries: buildToolExposure({
       model: context.model,
       mode: this.config.toolSearch?.mode,
       registry: this.registry,
-      tools: this.getTools(context.model),
-      entries: activeEntries,
+      tools,
+      entries: native.entries,
     }).entries,
     applyCacheControl: false,
     model: context.model,
     toolSearchProjected: true,
   });
   const { messages: activeMessages, sourceEntries } = activeProjection;
-  const tokenOverride = buildProviderUsageTokenOverride(activeMessages, sourceEntries);
+  const tokenOverride = nativeContextOwnsProjection(this)
+    ? nativeContextUsageTokenOverride(this, activeMessages, tools, context.model)
+    : buildProviderUsageTokenOverride(activeMessages, sourceEntries);
   const decision = shouldAutoCompact({
     messages: activeMessages,
     config,

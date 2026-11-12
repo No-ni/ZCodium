@@ -51,6 +51,50 @@ export {
 import { DYNAMIC_WORKFLOW_MODES } from "../dynamic-workflow-feature.js";
 export { attachmentSourceKindSchema, type AttachmentSourceKind } from "../attachment-source.js";
 import { PROTOCOL_V4_LIMITS } from "../zcode-protocol-v4/core.js";
+import {
+  nativeContextImageRequestSchema,
+  nativeContextImageSchema,
+  nativeContextObservationsPageSchema,
+  nativeContextOperationDetailSchema,
+  nativeContextPageRequestSchema,
+  nativeContextRecordRequestSchema,
+  nativeContextRecordsPageSchema,
+  nativeContextSourcePageSchema,
+  nativeContextSourceRequestSchema,
+  nativeContextStatusSchema,
+} from "../native-context-compression/contract.js";
+
+// 原生压缩 query 只消费当前可信 workspace attachment 的 session 身份；正文与原图分页读取。
+export const zcodeNativeContextGetParamsSchema = nativeContextPageRequestSchema.pick({
+  sessionId: true,
+});
+export type ZCodeNativeContextGetParams = z.infer<typeof zcodeNativeContextGetParamsSchema>;
+export const zcodeNativeContextGetResultSchema = nativeContextStatusSchema;
+export const zcodeNativeContextObservationsParamsSchema = nativeContextPageRequestSchema;
+export const zcodeNativeContextObservationsResultSchema = nativeContextObservationsPageSchema;
+export const zcodeNativeContextRecordsParamsSchema = nativeContextPageRequestSchema;
+export const zcodeNativeContextRecordsResultSchema = nativeContextRecordsPageSchema;
+export const zcodeNativeContextRecordParamsSchema = nativeContextRecordRequestSchema;
+export const zcodeNativeContextRecordResultSchema = nativeContextOperationDetailSchema;
+export const zcodeNativeContextSourceParamsSchema = nativeContextSourceRequestSchema;
+export const zcodeNativeContextSourceResultSchema = nativeContextSourcePageSchema;
+export const zcodeNativeContextImageParamsSchema = nativeContextImageRequestSchema;
+export const zcodeNativeContextImageResultSchema = nativeContextImageSchema;
+export type ZCodeNativeContextGetResult = z.infer<typeof zcodeNativeContextGetResultSchema>;
+export type ZCodeNativeContextObservationsParams = z.infer<
+  typeof zcodeNativeContextObservationsParamsSchema
+>;
+export type ZCodeNativeContextObservationsResult = z.infer<
+  typeof zcodeNativeContextObservationsResultSchema
+>;
+export type ZCodeNativeContextRecordsParams = z.infer<typeof zcodeNativeContextRecordsParamsSchema>;
+export type ZCodeNativeContextRecordsResult = z.infer<typeof zcodeNativeContextRecordsResultSchema>;
+export type ZCodeNativeContextRecordParams = z.infer<typeof zcodeNativeContextRecordParamsSchema>;
+export type ZCodeNativeContextRecordResult = z.infer<typeof zcodeNativeContextRecordResultSchema>;
+export type ZCodeNativeContextSourceParams = z.infer<typeof zcodeNativeContextSourceParamsSchema>;
+export type ZCodeNativeContextSourceResult = z.infer<typeof zcodeNativeContextSourceResultSchema>;
+export type ZCodeNativeContextImageParams = z.infer<typeof zcodeNativeContextImageParamsSchema>;
+export type ZCodeNativeContextImageResult = z.infer<typeof zcodeNativeContextImageResultSchema>;
 
 export const zcodeTopicResourceReadParamsSchema = z
   .object({
@@ -4020,6 +4064,12 @@ export const zcodeProtocolMethods = {
   // ZCode Protocol 对 agent 只暴露 session-first 方法；task 是 UI 投影概念，不能泄露进协议方法名。
   // @deprecated：host 已改走 v4/conversation/usage；后续与 usage/stats 一并移除。
   sessionUsage: "session/usage",
+  contextCompressionGet: "contextCompression.get",
+  contextCompressionObservations: "contextCompression.observations",
+  contextCompressionRecords: "contextCompression.records",
+  contextCompressionRecord: "contextCompression.record",
+  contextCompressionSource: "contextCompression.source",
+  contextCompressionImage: "contextCompression.image",
   // 资源管理器：CLI 回报其 MCP 子进程 pid 与插件归属（纯内存，无 I/O），采样在 Host 侧完成。
   processChildProcesses: "process/childProcesses",
   interactionRequestPermission: "interaction/requestPermission",
@@ -4036,6 +4086,30 @@ export const zcodeProtocolEmptyResultSchema = z.object({}).strict();
 // 最新 V4 主链已不再依赖旧版全量方法表；这里仅保留仍被兼容测试和 browser broker
 // 消费的最小契约集合，避免重新引入已移除的 legacy 方法。
 export const zcodeProtocolSessionMethodContracts = {
+  [zcodeProtocolMethods.contextCompressionGet]: {
+    params: zcodeNativeContextGetParamsSchema,
+    result: zcodeNativeContextGetResultSchema,
+  },
+  [zcodeProtocolMethods.contextCompressionObservations]: {
+    params: zcodeNativeContextObservationsParamsSchema,
+    result: zcodeNativeContextObservationsResultSchema,
+  },
+  [zcodeProtocolMethods.contextCompressionRecords]: {
+    params: zcodeNativeContextRecordsParamsSchema,
+    result: zcodeNativeContextRecordsResultSchema,
+  },
+  [zcodeProtocolMethods.contextCompressionRecord]: {
+    params: zcodeNativeContextRecordParamsSchema,
+    result: zcodeNativeContextRecordResultSchema,
+  },
+  [zcodeProtocolMethods.contextCompressionSource]: {
+    params: zcodeNativeContextSourceParamsSchema,
+    result: zcodeNativeContextSourceResultSchema,
+  },
+  [zcodeProtocolMethods.contextCompressionImage]: {
+    params: zcodeNativeContextImageParamsSchema,
+    result: zcodeNativeContextImageResultSchema,
+  },
   [zcodeProtocolMethods.mcpUiOpenInstance]: {
     params: zcodeMcpUiOpenInstanceParamsSchema,
     result: zcodeMcpUiOpenInstanceResultSchema,

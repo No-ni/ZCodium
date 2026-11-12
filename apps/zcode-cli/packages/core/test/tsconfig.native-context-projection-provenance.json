@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": [
+    "native-context-projection-provenance.test.ts",
+    "native-context-projection-producers.test.ts",
+    "native-context-projection-provenance-fixture.ts",
+    "native-context-maintenance-fixture.ts"
+  ]
+}

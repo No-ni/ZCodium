@@ -142,6 +142,7 @@ import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-
 import { disposeNodeReplSession } from "../tool/handlers/node-repl.js";
 import { cloneModelSelection } from "./model-selection.js";
 import type { ToolSearchMode } from "@zcode/contracts";
+import type { NativeContextRuntimeMethods } from "./native-context-compression/contract.js";
 
 // oxlint-disable typescript-eslint/no-unsafe-declaration-merging
 export class AgentRuntime {
@@ -471,7 +472,7 @@ export class AgentRuntime {
   }
 }
 
-export interface AgentRuntime {
+export interface AgentRuntime extends NativeContextRuntimeMethods {
   lastPermissionGrantId?: string;
   retire(): Promise<void>;
   close(): Promise<void>;

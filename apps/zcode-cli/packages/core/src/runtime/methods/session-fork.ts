@@ -58,6 +58,7 @@ import type {
 } from "../types.js";
 import { cloneModelSelection } from "../model-selection.js";
 import type { ModelSelection } from "@zcode/contracts";
+import { buildNativeContextForkBundle } from "../native-context-compression/index.js";
 
 function stableForkError(message: string, context: Record<string, unknown> = {}): Error {
   return createCoreError(CoreErrorType.InvalidStateTransition, message, {
@@ -591,6 +592,7 @@ async function commitAtomicConversationFork(
     commandFact?: ForkCommitBundle["commandFact"];
     modelSelection?: ModelSelection;
     forkedSessionId?: SessionId;
+    executionState?: ExecutionState;
     goalBoundary: StableConversationForkGoalBoundary;
     initialInput?: ForkCommitBundle["initialInput"];
     messages: readonly MessageWithParts[];
@@ -615,9 +617,10 @@ async function commitAtomicConversationFork(
     .find((message) => message.info.role === "assistant")?.info;
   // 保留原 stable fork 的历史权限选择，不能让新增 entry 把它覆盖成父任务当前权限。
   const executionState =
-    kind === "selection_side_chat" || historicalInfo?.role !== "assistant"
+    options.executionState ??
+    (kind === "selection_side_chat" || historicalInfo?.role !== "assistant"
       ? currentExecutionState
-      : resolveExecutionState(historicalInfo);
+      : resolveExecutionState(historicalInfo));
   // 辅助对话明确不复制 Goal target/verifier entries，不能仍将
   // 父消息的 goalBoundary 交给 strict fork clone，否则任意 Goal 状态都会要求不存在的
   // child-local identity。只移除用于 Goal 恢复的 boundary，保留父对话正文作为模型上下文。
@@ -748,6 +751,16 @@ async function commitAtomicConversationFork(
           status: options.goalBoundary.target.status,
         }
       : undefined;
+  const nativeContext = await buildNativeContextForkBundle(
+    runtime,
+    {
+      childSessionId: String(childSessionId),
+      messageIds: identities.messageIds,
+      partIds: identities.partIds,
+      toolCallIds: identities.toolCallIds,
+    },
+    sourceMessages.map((message) => String(message.info.id)),
+  );
   const committedChild = await store.commitForkBundle({
     child: buildForkedSessionInput(runtime, options.parentSession, childSessionId, kind),
     messages: copiedMessages,
@@ -768,6 +781,7 @@ async function commitAtomicConversationFork(
       buildExecutionStateEntry(childSessionId, executionState),
     ],
     ...(goal ? { goal } : {}),
+    ...(nativeContext ? { nativeContext } : {}),
     ...(options.initialInput ? { initialInput: options.initialInput } : {}),
     commandFact,
   });
@@ -965,98 +979,53 @@ export async function forkConversationFromMessage(
         legacyForkHistoryEndIndex,
       );
 
-  const forkedSessionId = await createForkedSession(this, {
-    forkedSessionId: options.forkedSessionId,
-    parentSession,
-  });
-  const { copiedMessageCount, messageIdMap } = await this.copySessionMessagesForFork({
-    forkedSessionId,
+  const childSessionId = options.forkedSessionId ?? createSessionId();
+  const goalBoundary = await legacyConversationForkGoalBoundary(this, forkHistoryMessages);
+  // 根因：逐条复制会留下 transcript 已存在而 native/Goal 尚未写入的 child；共用完整事务关闭窗口。
+  return await commitAtomicConversationFork(this, {
+    executionState: readRuntimeExecutionState(this),
+    forkedSessionId: childSessionId,
+    goalBoundary,
     messages: forkHistoryMessages,
+    parentSession,
+    sourceCommandId: `legacy-fork:${String(childSessionId)}`,
+    targetMessageId: options.targetMessageId,
     traceContext: options.traceContext,
   });
-  await copyGoalStateForFork.call(this, {
-    forkedSessionId,
-    messageIdMap,
-    traceContext: options.traceContext,
+}
+
+async function legacyConversationForkGoalBoundary(
+  runtime: AgentRuntimeInternal,
+  messages: readonly MessageWithParts[],
+): Promise<StableConversationForkGoalBoundary> {
+  const store = runtime.sessionStore!;
+  const target = await store.readTarget({ sessionID: runtime.sessionId });
+  if (!target) return { kind: "none" };
+  const messageIds = new Set(messages.map((message) => String(message.info.id)));
+  const entries =
+    (await store.sessionEntries?.({
+      sessionID: runtime.sessionId,
+      type: SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
+    })) ?? [];
+  const keptEntries = entries.filter((entry) => {
+    const payload = asRecord(asRecord(entry.data).payload);
+    return (
+      payload.targetId === target.targetID &&
+      (typeof payload.anchorAssistantMessageId !== "string" ||
+        messageIds.has(payload.anchorAssistantMessageId))
+    );
   });
-  // 纯对话 fork 没有 workspace checkpoint，但 UI 仍需要一条结构化 fork notice 渲染分割线。
-  // 之前只复制历史消息，导致 forked session 首屏看不到来源边界。
-  const copiedTargetMessageId = messageIdMap.get(options.targetMessageId);
-  const forkTimelineCreated = Date.now();
-  await this.persistAssistantTimelinePartForSession({
-    sessionId: forkedSessionId,
-    messageID: createMessageId(),
-    partID: createPartId(
-      `fork_${String(this.sessionId)}_${String(options.targetMessageId)}_timeline`,
+  const status = deriveForkedGoalStatusFromCopiedVerifications(
+    target.status,
+    keptEntries.map(
+      (entry) =>
+        asRecord(asRecord(entry.data).payload) as unknown as TargetCompletionVerificationPayload,
     ),
-    parentID: copiedTargetMessageId,
-    created: forkTimelineCreated,
-    completed: forkTimelineCreated,
-    finish: "completed",
-    timeline: {
-      timelineType: "session_fork",
-      display: "separator",
-      status: "completed",
-      anchorMessageId: copiedTargetMessageId,
-      parentSessionId: this.sessionId,
-      targetMessageId: options.targetMessageId,
-      restoredFileCount: 0,
-      time: {
-        start: forkTimelineCreated,
-        end: forkTimelineCreated,
-      },
-    },
-    traceContext: options.traceContext,
-  });
-  await this.persistSyntheticUserNoticeForSession({
-    messageID: createMessageId(),
-    sessionId: forkedSessionId,
-    source: "fork",
-    text: formatConversationForkNoticeBody({
-      parentSessionId: this.sessionId,
-      targetMessageId: options.targetMessageId,
-    }),
-    metadata: {
-      forkContext: {
-        kind: "session_fork",
-        parentSessionId: this.sessionId,
-        targetMessageId: options.targetMessageId,
-        restoredFileCount: 0,
-      },
-    },
-    traceContext: options.traceContext,
-  });
-  this.logger?.debug("Conversation fork notice persisted", {
-    ...traceContextToLogContext(options.traceContext),
-    event: "session.fork.notice.persisted",
-    forkedSessionId,
-    module: "core.runtime",
-    parentSessionId: this.sessionId,
-    status: "completed",
-    targetMessageId: options.targetMessageId,
-  });
-
-  const forkedEvent = this.createEvent(
-    SessionEventType.SessionForked,
-    {
-      originalSessionId: this.sessionId,
-      forkedSessionId,
-      forkPoint: legacyForkHistoryEndIndex,
-      targetMessageId: options.targetMessageId,
-      restoredFileCount: 0,
-      strategy: RewindStrategy.ForkRequired,
-    },
-    options.traceContext,
   );
-  await this.appendEvent(forkedEvent, options.traceContext);
-
   return {
-    copiedMessageCount,
-    forkedSessionId,
-    parentSessionId: this.sessionId,
-    targetMessageId: options.targetMessageId,
-    restoredFiles: [],
-    response: `Forked session ${forkedSessionId} from message ${options.targetMessageId}: copied ${copiedMessageCount} messages.`,
+    kind: "snapshot",
+    target: { ...target, status },
+    verificationEntryIds: keptEntries.map((entry) => entry.id),
   };
 }
 

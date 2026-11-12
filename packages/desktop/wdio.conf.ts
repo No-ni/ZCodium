@@ -2778,11 +2778,12 @@ async function seedUpstreamE2EModelConfig(specs: string[] = []) {
   ): PersonalProviderConfigSeed["models"][number] => ({
     id,
     contextWindow: appContextWindow,
-    // 图片布局和 Stop 收尾用例必须检查真实图片 wire 内容，限定这些 fixture 支持图片输入。
+    // 图片布局、Stop 和原生图片压缩验证真实 wire；仅这些夹具明确声明视觉能力。
     ...(specs.some(
       (spec) =>
         spec.includes("conversation-session-v4-attachment-layout.test.ts") ||
-        spec.includes("conversation-session-stop-tool-results.test.ts"),
+        spec.includes("conversation-session-stop-tool-results.test.ts") ||
+        spec.includes("conversation-session-native-context-compression.test.ts"),
     )
       ? { inputModalities: ["text", "image"] as const }
       : {}),
@@ -2815,6 +2816,12 @@ async function seedUpstreamE2EModelConfig(specs: string[] = []) {
       models: [
         model(e2eProviderPreset.model),
         ...(e2eProviderPresetName === "env" ? [model(E2E_PROVIDER_SECONDARY_MODEL)] : []),
+        // 原生回取负向用例真实选择同一 Provider 的纯文本模型，不能伪造 Runtime 能力或换连接。
+        ...(specs.some((spec) =>
+          spec.includes("conversation-session-native-context-compression.test.ts"),
+        )
+          ? [{ ...model("E2E_NCTX_TEXT_ONLY"), inputModalities: ["text"] as const }]
+          : []),
       ],
     }),
     ...(e2eProviderPresetName === "env"

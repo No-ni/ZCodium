@@ -382,6 +382,13 @@ export const V4_METHODS = {
   // 故收敛为 v4 query 而非 host 直连；旧词 usage/stats、session/usage 就此消费清零。
   usageStats: "v4/usage/stats",
   conversationUsage: "v4/conversation/usage",
+  // 原生压缩的同一只读协议面；保留产品约定方法名，不复制另一套压缩状态。
+  contextCompressionGet: "contextCompression.get",
+  contextCompressionObservations: "contextCompression.observations",
+  contextCompressionRecords: "contextCompression.records",
+  contextCompressionRecord: "contextCompression.record",
+  contextCompressionSource: "contextCompression.source",
+  contextCompressionImage: "contextCompression.image",
   // 项目数据彻底删除（schema 在 session-data.ts）：measure 只读；purge 幂等，已不存在的会话按 0 字节成功。
   // 新方法偏斜安全：旧 CLI 返回 method-not-found，Host 据此不显示「删除数据」选项。
   sessionDataMeasure: "v4/storage/sessionData/measure",

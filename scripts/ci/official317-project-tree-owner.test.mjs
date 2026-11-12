@@ -3,6 +3,178 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
 import { loadComponentCallback } from "./fixtures/component-callback.mjs";
+import { tsImport } from "tsx/esm/api";
+const { ChannelClient, ChannelServer, Emitter, ProxyChannel } = await tsImport(
+  "../../packages/rpc/src/index.ts",
+  import.meta.url,
+);
+
+const { RemoteServiceAccess } = await tsImport(
+  "../../packages/client/src/remoteServiceAccess.ts",
+  import.meta.url,
+);
+const { ServiceChannels, windowProjectDirectorySnapshotSchema } = await tsImport(
+  "../../packages/shared/src/index.ts",
+  import.meta.url,
+);
+const mobilePreparation = () =>
+  loadComponentCallback(
+    "packages/web/src/mobile/windowProjectDirectory.ts",
+    "prepareMobileWindowProjectDirectory",
+    {},
+  );
+
+// 使用真实 Channel RPC 和公开 accessor；服务边界样本严格遵守各自的真实返回形状。
+function directoryBridge(capability = async () => ({ version: 1 })) {
+  const inbound = new Emitter();
+  const outbound = new Emitter();
+  const client = new ChannelClient({
+    onMessage: inbound.event,
+    send: (message) => queueMicrotask(() => outbound.fire(message)),
+  });
+  const server = new ChannelServer(
+    {
+      onMessage: outbound.event,
+      send: (message) => queueMicrotask(() => inbound.fire(message)),
+    },
+    "mobile-directory-fixture",
+  );
+  const calls = [];
+  const tree = { projects: [], tasks: [] };
+  const remote = { hosts: [], entries: [] };
+  const filesystem = { path: "/fixture", entries: [] };
+  server.registerChannel(
+    ServiceChannels.WindowProject,
+    ProxyChannel.fromService({
+      readTree: async (params) => {
+        calls.push(["window-tree", params]);
+        return tree;
+      },
+      readDirectory: async () => {
+        calls.push(["filesystem"]);
+        return filesystem;
+      },
+    }),
+  );
+  server.registerChannel(
+    ServiceChannels.WindowRemoteProjects,
+    ProxyChannel.fromService({
+      readDirectory: async () => {
+        calls.push(["window-remote"]);
+        return remote;
+      },
+    }),
+  );
+  server.registerChannel(
+    ServiceChannels.WindowProjectChanges,
+    ProxyChannel.fromService({
+      getCapabilities: async () => {
+        calls.push(["capability"]);
+        return capability();
+      },
+    }),
+  );
+  return {
+    accessor: new RemoteServiceAccess(client),
+    client,
+    calls,
+    tree,
+    remote,
+    filesystem,
+    dispose() {
+      client.dispose();
+      server.dispose();
+      inbound.dispose();
+      outbound.dispose();
+    },
+  };
+}
+
+test("手机只准备同一 RPC 的窗口能力；公开 tree/remote 与 filesystem 返回不混用", async () => {
+  const prepare = await mobilePreparation();
+  const f = directoryBridge();
+  try {
+    let verified = 0;
+    await prepare(f.accessor, f.client, 1, () => verified++);
+    assert.equal(verified, 1);
+    assert.deepEqual(f.calls, [["capability"]], "就绪不得读取或合成目录快照");
+    const group = f.accessor.windowProjectDirectory;
+    assert.ok(group);
+    assert.equal(f.accessor.attachWindowProjectDirectory(f.client), group);
+    const params = { includeDeleted: true, includeDeletedTasks: true };
+    const [tree, remote] = await Promise.all([
+      group.projectService.readTree(params),
+      group.remoteProjectService.readDirectory(),
+    ]);
+    assert.deepEqual(tree, f.tree);
+    assert.deepEqual(remote, f.remote);
+    assert.deepEqual(f.calls, [["capability"], ["window-tree", params], ["window-remote"]]);
+    const filesystem = await group.projectService.readDirectory();
+    assert.deepEqual(filesystem, f.filesystem);
+    assert.equal(windowProjectDirectorySnapshotSchema.safeParse(filesystem).success, false);
+    assert.equal(windowProjectDirectorySnapshotSchema.safeParse(tree).success, false);
+  } finally {
+    f.dispose();
+  }
+});
+
+test("手机能力缺席和不支持版本不借 Source 目录，也不发能力或文件查询", async () => {
+  const prepare = await mobilePreparation();
+  const f = directoryBridge();
+  try {
+    await prepare(f.accessor, f.client, undefined, () => assert.fail("缺能力无就绪发布"));
+    assert.equal(f.accessor.windowProjectDirectory, undefined);
+    await assert.rejects(
+      prepare(f.accessor, f.client, 2, () => {}),
+      /capability/,
+    );
+    assert.equal(f.accessor.windowProjectDirectory, undefined);
+    assert.deepEqual(f.calls, []);
+  } finally {
+    f.dispose();
+  }
+});
+
+test("窗口能力版本错误或服务失败必须拒绝，不能静默跳过", async () => {
+  const prepare = await mobilePreparation();
+  for (const capability of [
+    async () => ({ version: 2 }),
+    async () => {
+      throw new Error("fixture capability unavailable");
+    },
+  ]) {
+    const f = directoryBridge(capability);
+    try {
+      await assert.rejects(
+        prepare(f.accessor, f.client, 1, () => {}),
+        /capability/,
+      );
+      assert.deepEqual(f.calls, [["capability"]]);
+    } finally {
+      f.dispose();
+    }
+  }
+});
+
+test("能力查询迟到时先检查 bridge generation，旧就绪不可完成", async () => {
+  const prepare = await mobilePreparation();
+  let reply;
+  const f = directoryBridge(() => new Promise((resolve) => (reply = resolve)));
+  try {
+    let current = true;
+    const preparing = prepare(f.accessor, f.client, 1, () => {
+      if (!current) throw new Error("fixture bridge superseded");
+    });
+    for (let index = 0; index < 20 && !reply; index++) await Promise.resolve();
+    assert.equal(typeof reply, "function");
+    current = false;
+    reply({ version: 1 });
+    await assert.rejects(preparing, /superseded/);
+    assert.deepEqual(f.calls, [["capability"]]);
+  } finally {
+    f.dispose();
+  }
+});
 
 const hookPath = "packages/ui/src/project-sidebar/useProjectTree.ts";
 // 等价比较器已搬到同目录纯模块；readOnce/commitCreatedTask 仍按 hook 源码执行。

@@ -15,6 +15,7 @@ import type {
 import { maybeLocalMicrocompactRuntimeEntries, throwIfTurnAborted } from "../helpers/index.js";
 import { shouldUseMidConversationSystem } from "../helpers/runtime-provider-request-messages.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { nativeContextOwnsProjection } from "../native-context-compression/index.js";
 import { resolveNormalRequestMaxOutputTokens } from "./model-token-limits.js";
 import type { TurnRequestState } from "./turn-loop-state.js";
 import {
@@ -34,7 +35,7 @@ export async function microcompactIfNeeded(
     turnRequestState: TurnRequestState;
   },
 ): Promise<void> {
-  if (this.config.compact?.enabled === false) return;
+  if (this.config.compact?.enabled === false || nativeContextOwnsProjection(this)) return;
   throwIfTurnAborted(abortSignal);
 
   const autoConfig: AutoCompactPolicyConfig = {

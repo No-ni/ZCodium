@@ -337,6 +337,11 @@ export interface AppSettings {
   askUserQuestionAutoResolutionEnabled?: boolean;
   /** 实验性工具搜索偏好；缺失默认关闭，不改变工具审批。 */
   toolSearchMode?: AppToolSearchMode;
+  /** 本机 Host 持有的新任务默认压缩快照；创建意图捕获完整配置，旧任务不追随。 */
+  nativeContextCompression?: {
+    version: number;
+    configuration: import("./native-context-compression/index.js").NativeContextConfiguration;
+  };
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   /**
    * 用户选的动态工作流模式（docs/dynamic-workflow/launch.md「The user's choice」）。缺席 = 跟随服务端

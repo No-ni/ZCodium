@@ -83,6 +83,7 @@ import { recordModelUsageFact } from "./usage-observability.js";
 import { resetProjectMemoryRecall } from "../helpers/project-memory-recall.js";
 import { createRuntimeModel } from "./runtime-model.js";
 import { workspaceScopeRootOf } from "../helpers/workspace-scope.js";
+import { resetNativeContextAfterCompact } from "../native-context-compression/index.js";
 import {
   filterOutputTokenContinuationEntries,
   preserveCanonicalContextPrefix,
@@ -572,11 +573,11 @@ async function compactActiveConversationImpl(
             summaryMessageId,
           })
         : { keptMessageCount: countCompactPreservedRuntimeMessages(recordablePreservedEntries) };
-      const summaryEntry = {
+      const summaryEntry: RuntimeMessageEntry = {
         message: { role: "user" as const, content: summaryMessageContent },
         metadata: { ...legacySyntheticRuntimeMetadata(), compactBoundary: discovery },
       };
-      const postCompactEntries = buildPostCompactRuntimeEntries(activeEntries, summaryEntry, {
+      let postCompactEntries = buildPostCompactRuntimeEntries(activeEntries, summaryEntry, {
         leadingReminderEntries,
         postCompactReminderEntries,
         preservedEntries,
@@ -625,6 +626,27 @@ async function compactActiveConversationImpl(
           postCompactReminderEntries,
         },
       );
+      if (this.sessionStore) {
+        const savedSummary = await this.sessionStore.messageWithParts({
+          sessionID: this.sessionId,
+          messageID: summaryMessageId,
+        });
+        const savedText = savedSummary?.parts.find((part) => part.type === "text");
+        if (savedSummary && savedText) {
+          // summary 的热态身份必须与落盘 hydration 相同，不能用当前时间猜 message/part 来源。
+          summaryEntry.canonical = {
+            messageId: savedSummary.info.id,
+            partId: savedText.id,
+            entryIndex: 0,
+            createdAt: savedSummary.info.time.created,
+          };
+          postCompactEntries = buildPostCompactRuntimeEntries(activeEntries, summaryEntry, {
+            leadingReminderEntries,
+            postCompactReminderEntries,
+            preservedEntries,
+          });
+        }
+      }
 
       const compactBoundaryEvent = this.createEvent(
         SessionEventType.CompactBoundary,
@@ -665,6 +687,7 @@ async function compactActiveConversationImpl(
       );
       replaceReadFileStateAfterCompact(this.readFileState, fileRestore.readFileStateEntries);
       resetProjectMemoryRecall(this);
+      await resetNativeContextAfterCompact(this, compactBoundary.boundaryId);
 
       return {
         displayText: "Compacted",

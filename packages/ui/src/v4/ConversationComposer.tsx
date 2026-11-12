@@ -126,6 +126,10 @@ import {
 } from "@/v4/composer/composerAutoFocus.js";
 import { V4_DRAFT_SCOPE_ROOT, type V4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
 import type { ComposerSubmissionDraftTransaction } from "@/v4/composer/useDraftConfigControl.js";
+import type {
+  NativeContextActions,
+  NativeContextConfiguration,
+} from "@/native-context-compression/contract.js";
 import {
   resolveOppositeFollowupDelivery,
   resolveFollowupModifierTooltip,
@@ -462,6 +466,9 @@ interface ConversationComposerProps {
   ) => Promise<void> | void;
   /** context usage 面板的 /compact 入口（宿主走 v4 compact 命令）。 */
   onSendCompressionCommand?: (command: string) => void;
+  nativeContextActions?: NativeContextActions;
+  nativeContextSessionId?: string | null;
+  nativeContextDraftConfiguration?: NativeContextConfiguration;
   /** v4 会话级错误（snapshot.control.lastError），展示在输入框上方。 */
   error?: ZCodeUiError | null;
   onDismissError?: () => void;
@@ -547,6 +554,9 @@ function ConversationComposerImpl({
   runningSubagentCount = 0,
   onRecoverCustomModelSelection,
   onSendCompressionCommand,
+  nativeContextActions,
+  nativeContextSessionId = sessionId,
+  nativeContextDraftConfiguration,
   error,
   onDismissError,
   onOpenModelSettings,
@@ -2034,6 +2044,16 @@ function ConversationComposerImpl({
       onSelectModel(nextProvider, nextModel, sourceModel),
     [onSelectModel],
   );
+  const handleQuoteContextSource = useCallback(
+    (ref: string, originalText: string) => {
+      if (composerDraftScopeTokenRef.current !== composerDraftScopeToken || disabled || pending)
+        return;
+      const quote = `\n\n[${intl.formatMessage({ id: "nativeContext.originalText" })}: ${ref}]\n> ${originalText.replaceAll("\r\n", "\n").split("\n").join("\n> ")}\n`;
+      // 引用只进入现有 Composer 草稿；appendText 保留尚未发送的 mention 和附件意图。
+      inputApiRef.current?.appendText(quote);
+    },
+    [composerDraftScopeToken, disabled, intl, pending],
+  );
   const submitControlNode = useMemo(
     () => (
       <div className="flex min-w-0 items-center gap-1">
@@ -2058,6 +2078,16 @@ function ConversationComposerImpl({
             onSwitchMode={onSwitchMode}
             onRecoverCustomModelSelection={onRecoverCustomModelSelection}
             onSendCompressionCommand={onSendCompressionCommand}
+            nativeContextActions={nativeContextActions}
+            nativeContextSessionId={nativeContextSessionId}
+            nativeContextProjection={
+              snapshot?.sessionId === nativeContextSessionId
+                ? snapshot.nativeContextCompression
+                : null
+            }
+            nativeContextDraftConfiguration={nativeContextDraftConfiguration}
+            remoteSessionId={remoteSessionId}
+            onQuoteContextSource={handleQuoteContextSource}
           />
         </span>
         {showStopControl ? (
@@ -2116,6 +2146,13 @@ function ConversationComposerImpl({
       onSelectThought,
       onRecoverCustomModelSelection,
       onSendCompressionCommand,
+      nativeContextActions,
+      nativeContextSessionId,
+      nativeContextDraftConfiguration,
+      snapshot?.nativeContextCompression,
+      snapshot?.sessionId,
+      remoteSessionId,
+      handleQuoteContextSource,
       onSwitchMode,
       pending,
       provider,

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": [
+    "native-context-maintenance-goal.test.ts",
+    "native-context-maintenance-goal-boundaries.test.ts",
+    "native-context-maintenance-goal-callback.test.ts",
+    "native-context-maintenance-goal-fixture.ts"
+  ]
+}

@@ -2,6 +2,7 @@ import { createPartId } from "../deps.js";
 import type { MessageId, TraceContext } from "../deps.js";
 import { toTokenUsageInfo } from "../helpers/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { commitNativeModelResultImages } from "../native-context-compression/index.js";
 import type { RuntimeModelTextResult } from "../types.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
 
@@ -43,4 +44,5 @@ export async function persistToolModelStepFinish(
     options.modelTraceContext,
     model,
   );
+  await commitNativeModelResultImages(runtime, options.result);
 }

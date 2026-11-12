@@ -23,6 +23,8 @@ import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
 import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePrepare.js";
 import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { useNativeContextCompressionDefaults } from "@/hooks/useNativeContextCompressionDefaults.js";
+import type { NativeContextConfiguration } from "@zcode/shared/native-context-compression";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
 import { resolveDraftInitialModelSelection } from "@/lib/composerRecent.js";
 import { initializeNewTaskDraft } from "@/v4/composer/newTaskDraft.js";
@@ -93,11 +95,12 @@ export interface ComposerSubmissionDraftTransaction {
 export interface DraftConfigControl {
   modelSelectionRead: ModelSelectionRead;
   /** Renderer 下一次提交的配置；恢复采用当前权限，在线授权只同步对应字段。 */
-  draftConfig: Partial<SessionConfigState>;
+  draftConfig: DraftSessionConfig;
   /** 草稿已选 config（partial）；createSession 时经 buildDraftCreateConfigPayload 携带。 */
-  draftConfigRef: React.RefObject<Partial<SessionConfigState>>;
+  draftConfigRef: React.RefObject<DraftSessionConfig>;
   /** 当前草稿生命周期冻结的初始化 config；只供 prewarm/createSession 建立时使用。 */
-  resolveInitialDraftConfig: () => Partial<SessionConfigState> | undefined;
+  resolveInitialDraftConfig: () => DraftSessionConfig | undefined;
+  nativeContextDefaultsReady: boolean;
   composerDraft: V4ComposerDraft;
   /** 当前 scope incarnation；Root promotion 沿用同一 token，离开再返回会生成新 token。 */
   composerDraftScopeToken: symbol;
@@ -124,6 +127,10 @@ export interface DraftConfigControl {
   handleDraftSelectThought: (thought: string) => void;
   handleDraftSwitchMode: (mode: string) => void;
 }
+
+export type DraftSessionConfig = Partial<SessionConfigState> & {
+  nativeContextCompression?: NativeContextConfiguration;
+};
 
 interface ComposerDraftPersistenceTarget {
   scopeKey: string;
@@ -176,6 +183,13 @@ export function useDraftConfigControl(params: {
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   const zcodeSessionService = useZCodeSessionService(workspacePath, null, workspaceIdentity);
   const { settings: sharedSettings } = useSettings();
+  const nativeContextDefaults = useNativeContextCompressionDefaults();
+  const nativeContextDefaultsRef = useRef(nativeContextDefaults);
+  nativeContextDefaultsRef.current = nativeContextDefaults;
+  const capturedNativeContextRef = useRef<{
+    incarnation: symbol;
+    configuration: NativeContextConfiguration;
+  } | null>(null);
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const scopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const clientNamespace = useComposerClientNamespace();
@@ -318,7 +332,16 @@ export function useDraftConfigControl(params: {
     modelSelectionView && !sessionConfigPending
       ? (modelSelectionView.effectiveSelection ?? undefined)
       : draft.modelSelection;
-  const draftConfig = useMemo<Partial<SessionConfigState>>(
+  const capturedNativeContext =
+    capturedNativeContextRef.current?.incarnation === currentState.incarnation
+      ? capturedNativeContextRef.current.configuration
+      : undefined;
+  const nativeContextConfiguration =
+    capturedNativeContext ??
+    (sessionId === null && !nativeContextDefaults.unavailable
+      ? nativeContextDefaults.configuration
+      : undefined);
+  const draftConfig = useMemo<DraftSessionConfig>(
     () => ({
       mode:
         currentState.initialization === "session" && !currentState.observedConfig
@@ -329,6 +352,9 @@ export function useDraftConfigControl(params: {
       provider: effectiveSelection?.providerId ?? "",
       model: effectiveSelection?.modelId ?? "",
       thought: effectiveSelection?.options?.reasoningLevel ?? "",
+      ...(nativeContextConfiguration
+        ? { nativeContextCompression: nativeContextConfiguration }
+        : {}),
     }),
     [
       draft.mode,
@@ -336,6 +362,7 @@ export function useDraftConfigControl(params: {
       effectiveSelection,
       currentState.initialization,
       currentState.observedConfig,
+      nativeContextConfiguration,
     ],
   );
   const draftConfigRef = useRef(draftConfig);
@@ -506,6 +533,9 @@ export function useDraftConfigControl(params: {
         provider: selection?.providerId ?? "",
         model: selection?.modelId ?? "",
         thought: selection?.options?.reasoningLevel ?? "",
+        ...(draftConfigRef.current.nativeContextCompression
+          ? { nativeContextCompression: draftConfigRef.current.nativeContextCompression }
+          : {}),
       };
       setStoredState(nextState);
       persistDraft(next);
@@ -550,9 +580,20 @@ export function useDraftConfigControl(params: {
     },
     [scopeKey, updateComposerDraft],
   );
-  const resolveInitialDraftConfig = useCallback((): Partial<SessionConfigState> | undefined => {
+  const resolveInitialDraftConfig = useCallback((): DraftSessionConfig | undefined => {
     if (!draftConfigRef.current.mode) return undefined;
+    const incarnation = stateRef.current.incarnation;
+    let captured = capturedNativeContextRef.current;
+    if (!captured || captured.incarnation !== incarnation) {
+      const defaults = nativeContextDefaultsRef.current;
+      if (defaults.unavailable) return undefined;
+      // 原因：预热后默认值可能变化，首发必须复用首次创建意图捕获的完整快照。
+      captured = { incarnation, configuration: defaults.configuration };
+      capturedNativeContextRef.current = captured;
+    }
     const config = { ...draftConfigRef.current };
+    config.nativeContextCompression = captured.configuration;
+    draftConfigRef.current = config;
     if (appFollowupMode) {
       config.followupMode = appFollowupMode;
     }
@@ -985,6 +1026,8 @@ export function useDraftConfigControl(params: {
     draftConfig,
     draftConfigRef,
     resolveInitialDraftConfig,
+    nativeContextDefaultsReady:
+      capturedNativeContext !== undefined || !nativeContextDefaults.unavailable,
     composerDraft: draft,
     composerDraftScopeToken: incarnation,
     stageComposerContent,
@@ -1003,10 +1046,10 @@ export function useDraftConfigControl(params: {
 
 /** createSession payload 的草稿 config 片段（无选择时返回空对象，不携带 config 键）。 */
 export function buildDraftCreateConfigPayload(
-  draftConfig: Partial<SessionConfigState>,
+  draftConfig: DraftSessionConfig,
   appFollowupMode?: SessionConfigState["followupMode"] | null,
-): { config?: Partial<SessionConfigState> } {
-  const config: Partial<SessionConfigState> = { ...draftConfig };
+): { config?: DraftSessionConfig } {
+  const config: DraftSessionConfig = { ...draftConfig };
   if (appFollowupMode) {
     config.followupMode = appFollowupMode;
   }

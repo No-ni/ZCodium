@@ -1,4 +1,5 @@
 import { genUiModelContextSchema } from "../gen-ui/contract.js";
+import { nativeContextConfigurationSchema } from "../native-context-compression/index.js";
 import { createSessionRequestedConfigSchema } from "./create-session-config.js";
 import { localTtftContextSchema, localTtftClockSchema } from "../local-ttft/contract.js";
 import { conversationQuotesSchema } from "../conversationSelection.js";
@@ -50,6 +51,13 @@ function requireModelSelectionForExecution(
 
 // ── §6.4 命令 payload 全集 ──
 export const commandPayloadSchemas = {
+  "contextCompression.setPolicy": z
+    .object({
+      configuration: nativeContextConfigurationSchema,
+      expectedPolicyVersion: z.number().int().nonnegative(),
+    })
+    .strict(),
+  "contextCompression.compress": z.object({ model: modelSelectionSchema }).strict(),
   // firstInput 缺省 → phase=draft 空会话；携带 → 直接 turnHeader+userInput rows。
   createSession: z.object({
     // Host 预留归属使用稳定 ID；CLI 仍负责拒绝覆盖既有会话。

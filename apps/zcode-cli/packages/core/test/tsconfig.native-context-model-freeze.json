@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-maintenance-goal.json",
+  "include": ["native-context-model-freeze.test.ts", "native-context-model-freeze-fixture.ts"]
+}

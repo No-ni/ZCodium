@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": ["native-context-history-lifetime.test.ts"]
+}

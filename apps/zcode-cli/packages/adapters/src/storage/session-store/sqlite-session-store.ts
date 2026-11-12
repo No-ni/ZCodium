@@ -4,6 +4,21 @@ import { dirname } from "node:path";
 import * as permissionFullAccessRepository from "./repositories/permission-full-access.js";
 import { DatabaseSync } from "node:sqlite";
 import type {
+  NativeContextCommit,
+  NativeContextForkBundle,
+  NativeContextObservation,
+  NativeContextOperation,
+  NativeContextOperationSummary,
+  NativeContextPage,
+  NativeContextPageRequest,
+  NativeContextStoredState,
+} from "@zcode/shared/native-context-compression";
+import {
+  createSqliteNativeContextRepository,
+  NativeContextStoreConflictError,
+  type NativeContextSqliteRepository,
+} from "./native-context-compression/index.js";
+import type {
   CollaborationMode,
   ClaimLegacySessionWorkspaceInput,
   RepairLegacyRemoteSessionWorkspaceInput,
@@ -227,6 +242,37 @@ function assertForkBundleChildLocal(bundle: ForkCommitBundle): void {
       throw new Error("Fork bundle verifier target is not child-local");
     }
   }
+  if (bundle.nativeContext) {
+    const partOwners = new Map(
+      bundle.messages.flatMap((message) =>
+        message.parts.flatMap((part) => [
+          [String(part.id), String(message.info.id)] as const,
+          ...(part.type === "tool" && part.state.status === "completed"
+            ? (part.state.attachments ?? []).map(
+                (attachment) => [String(attachment.id), String(message.info.id)] as const,
+              )
+            : []),
+        ]),
+      ),
+    );
+    const assertSource = (source: { messageId: string; partId: string | null }) => {
+      if (
+        !messageIds.has(source.messageId) ||
+        (source.partId !== null && partOwners.get(source.partId) !== source.messageId)
+      ) {
+        throw new NativeContextStoreConflictError("record");
+      }
+    };
+    for (const source of bundle.nativeContext.state.sources) assertSource(source);
+    for (const operation of bundle.nativeContext.operations) {
+      for (const source of operation.sources) assertSource(source);
+    }
+    for (const receipt of bundle.nativeContext.state.imageReceipts) {
+      if (!messageIds.has(receipt.responseMessageId)) {
+        throw new NativeContextStoreConflictError("record");
+      }
+    }
+  }
 }
 
 export class SqliteSessionStore
@@ -241,6 +287,7 @@ export class SqliteSessionStore
   private readonly dbPath: string;
   private readonly forkCommitFaultAt?: ForkCommitFaultStage;
   private dwfJournalStore?: JournalStorePort;
+  private readonly nativeContext: NativeContextSqliteRepository;
 
   private constructor(
     db: DatabaseSync,
@@ -251,6 +298,7 @@ export class SqliteSessionStore
     this.db = db;
     this.dbPath = dbPath;
     this.forkCommitFaultAt = options.forkCommitFaultAt;
+    this.nativeContext = createSqliteNativeContextRepository(db);
   }
 
   static async open(
@@ -307,6 +355,43 @@ export class SqliteSessionStore
 
   getDatabasePath(): string {
     return this.dbPath;
+  }
+
+  async getNativeContextState(sessionID: SessionId): Promise<NativeContextStoredState | null> {
+    return this.nativeContext.getState(sessionID);
+  }
+
+  async commitNativeContext(sessionID: SessionId, commit: NativeContextCommit): Promise<void> {
+    this.throwBeforeWrite();
+    this.nativeContext.commit(sessionID, commit);
+  }
+
+  async listNativeContextObservations(
+    sessionID: SessionId,
+    request: Omit<NativeContextPageRequest, "sessionId">,
+  ): Promise<NativeContextPage<NativeContextObservation>> {
+    return this.nativeContext.listObservations(sessionID, request);
+  }
+
+  async listNativeContextOperations(
+    sessionID: SessionId,
+    request: Omit<NativeContextPageRequest, "sessionId">,
+  ): Promise<NativeContextPage<NativeContextOperationSummary>> {
+    return this.nativeContext.listOperations(sessionID, request);
+  }
+
+  async getNativeContextOperation(
+    sessionID: SessionId,
+    operationId: string,
+  ): Promise<NativeContextOperation | null> {
+    return this.nativeContext.getOperation(sessionID, operationId);
+  }
+
+  async getNativeContextForkBundle(
+    sessionID: SessionId,
+    options?: { allowStaleGeneration?: boolean },
+  ): Promise<NativeContextForkBundle | null> {
+    return this.nativeContext.getForkBundle(sessionID, options);
   }
 
   close(): void {
@@ -460,6 +545,10 @@ export class SqliteSessionStore
       for (const entry of bundle.entries) {
         sessionEntryRepository.saveSessionEntry(this.db, entry);
       }
+      if (bundle.nativeContext) {
+        this.nativeContext.writeForkBundleInTransaction(child.id, bundle.nativeContext);
+      }
+      this.maybeThrowForkCommitFault("afterNativeContext");
       this.maybeThrowForkCommitFault("afterEntries");
       if (initialInput) {
         sessionInputRepository.saveSessionInput(this.db, initialInput);
@@ -883,6 +972,7 @@ export class SqliteSessionStore
   async accountTargetUsage(input: {
     sessionID: SessionId;
     targetID: string;
+    usageID?: string;
     tokensUsedDelta?: number;
     timeUsedSecondsDelta?: number;
   }): Promise<SessionGoal | null> {

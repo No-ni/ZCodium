@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch.js";
 import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
 import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
+import { NativeContextDefaultsSetting } from "@/native-context-compression/index.js";
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
@@ -451,6 +452,8 @@ export function GeneralSectionContent({
         onTaskAutoArchiveEnabledChange={onTaskAutoArchiveEnabledChange}
         onTaskAutoArchiveOlderThanDaysChange={onTaskAutoArchiveOlderThanDaysChange}
       />
+
+      {hasServices ? <NativeContextDefaultsSetting /> : null}
 
       <SettingsGroupCard>
         <SettingsRow

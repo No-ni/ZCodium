@@ -72,6 +72,7 @@ export type ShouldEnqueueBackgroundTaskNotification = (
 ) => boolean;
 
 export interface ToolExecutorOptions {
+  nativeContextCompression?: { getImagePolicy(): import("@zcode/shared/native-context-compression").NativeContextParameters["images"] };
   registry: ToolRegistry;
   permissionService: PermissionService;
   permissionBroker?: PermissionBrokerPort;
@@ -208,6 +209,7 @@ export interface ToolBatchExecuteOptions extends ToolExecuteOptions {
 }
 
 export interface ToolExecutorDeps {
+  nativeContextCompression?: ToolExecutorOptions["nativeContextCompression"];
   registry: ToolRegistry;
   permissionService: PermissionService;
   permissionBroker: PermissionBrokerPort;

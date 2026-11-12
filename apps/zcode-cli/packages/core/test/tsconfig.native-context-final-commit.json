@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-maintenance-goal.json",
+  "include": ["native-context-final-commit.test.ts", "native-context-final-commit-fixture.ts"]
+}

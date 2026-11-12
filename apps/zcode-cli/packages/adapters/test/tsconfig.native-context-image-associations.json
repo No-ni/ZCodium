@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.native-context-store.json",
+  "include": ["native-context-image-associations.test.ts", "fixtures/native-context-store.ts"]
+}

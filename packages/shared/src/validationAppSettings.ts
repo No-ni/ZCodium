@@ -1,5 +1,9 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import {
+  nativeContextConfigurationSchema,
+  createRecommendedNativeContextConfiguration,
+} from "./native-context-compression/index.js";
 import { sourceServerDirectorySchema } from "./source-server/index.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
@@ -419,6 +423,13 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 }
 
 const appSettingsObjectSchema = z.object({
+  nativeContextCompression: z
+    .object({
+      version: z.number().int().nonnegative(),
+      configuration: nativeContextConfigurationSchema,
+    })
+    .strict()
+    .default(() => ({ version: 0, configuration: createRecommendedNativeContextConfiguration() })),
   sourceServerDirectory: sourceServerDirectorySchema.optional(),
   recentProjects: z.array(z.string()).default([]),
   locale: localeSchema.default("zh-CN"),
@@ -490,8 +501,7 @@ const appSettingsObjectSchema = z.object({
     .strict()
     .optional(),
   // 手机远控：端点模式。默认 lan（仅同网可达）；custom 时读取用户自备隧道 / relay 地址。
-  // patch 侧保持 optional：update() 只覆盖调用方显式提供的字段，不把默认值写回每次补丁。
-  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.optional(),
+  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.default("lan"),
   // 手机远控：用户自备端点地址（custom 模式必填，如 wss://域名/ws）。
   webRemoteControlCustomEndpointUrl: z.string().trim().optional(),
   // 手机远控：本机设备标识（首次开启时生成，写入 QR 的 mid 参数）。
@@ -515,6 +525,13 @@ export const appSettingsSchema = z.preprocess(
 );
 
 export const appSettingsPatchSchema = z.object({
+  nativeContextCompression: z
+    .object({
+      version: z.number().int().nonnegative(),
+      configuration: nativeContextConfigurationSchema,
+    })
+    .strict()
+    .optional(),
   sourceServerDirectory: sourceServerDirectorySchema.optional(),
   recentProjects: z.array(z.string()).optional(),
   locale: localeSchema.optional(),
@@ -599,7 +616,8 @@ export const appSettingsPatchSchema = z.object({
     .strict()
     .optional(),
   // 手机远控：端点模式。默认 lan（仅同网可达）；custom 时读取用户自备隧道 / relay 地址。
-  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.default("lan"),
+  // 原因：patch 补默认值会让压缩参数等无关保存重置 custom；只在完整读取时提供默认值。
+  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.optional(),
   // 手机远控：用户自备端点地址（custom 模式必填，如 wss://域名/ws）。
   webRemoteControlCustomEndpointUrl: z.string().trim().optional(),
   // 手机远控：本机设备标识（首次开启时生成，写入 QR 的 mid 参数）。

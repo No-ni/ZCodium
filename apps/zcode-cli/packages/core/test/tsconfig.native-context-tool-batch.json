@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "compilerOptions": {
+    "paths": {
+      "@zcode/contracts": ["../../contracts/src/index.ts"],
+      "@zcode/shared": ["../../../../../packages/shared/src/index.ts"],
+      "@zcode/shared/*": ["../../../../../packages/shared/src/*"],
+      "@zcode/adapters/*": ["../../adapters/src/*/index.ts"]
+    }
+  },
+  "include": [
+    "native-context-tool-batch-admission.test.ts",
+    "native-context-tool-batch-fixture.ts",
+    "native-context-tool-batch-model.ts"
+  ]
+}

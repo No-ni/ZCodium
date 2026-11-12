@@ -8,12 +8,15 @@ import {
 } from "@zcode/contracts";
 import { prepareJimpImageForModel } from "./jimp-compression.js";
 import { jimpOutputMediaType, throwIfAborted } from "./jimp-media.js";
+import { createNativeContextImagePreparer } from "./native-context-compression/index.js";
 
 export function createJimpImageProcessorAdapter(): ImageProcessorPort {
   return new JimpImageProcessorAdapter();
 }
 
 class JimpImageProcessorAdapter implements ImageProcessorPort {
+  private readonly nativeContextPreparer = createNativeContextImagePreparer();
+
   async resizeToFit(
     request: ImageResizeRequest,
     options: { signal?: AbortSignal } = {},
@@ -75,6 +78,6 @@ class JimpImageProcessorAdapter implements ImageProcessorPort {
     request: ImagePrepareForModelRequest,
     options: { signal?: AbortSignal } = {},
   ): Promise<ImagePrepareForModelResult> {
-    return prepareJimpImageForModel(request, options);
+    return prepareJimpImageForModel(request, options, this.nativeContextPreparer);
   }
 }

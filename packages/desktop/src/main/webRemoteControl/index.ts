@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import { app, BrowserWindow, type WebContents } from "electron";
 import { PlatformChannels } from "@zcode/shared";
 import type { WebRemoteControlPlatformMethod } from "@zcode/shared";
+import { resolveSystemApplicationLocale } from "../desktopApplicationMenu.js";
 import {
   isDockerDaemonAvailable,
   listAvailableDockerContainers,
@@ -81,6 +82,9 @@ export async function createWebRemoteControl(
     args: unknown,
   ): Promise<unknown> {
     switch (method) {
+      case "getSystemLocale":
+        // 手机 navigator 和已保存的 locale 都不是桌面实时 OS 语言，复用菜单同一解析入口。
+        return resolveSystemApplicationLocale();
       case "isDockerAvailable":
         return isDockerDaemonAvailable();
       case "listWSLDistros":

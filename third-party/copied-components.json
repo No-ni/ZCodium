@@ -300,5 +300,32 @@
     "provenance": "Bundled font name table identifies Hack 3.003 and retains Source Foundry, Bitstream Vera, and DejaVu license statements. The upstream v3.003 license is retained verbatim, including the DejaVu public-domain statement.",
     "importRevision": null,
     "sha256": "1f61bb7c790c59b4b0ecdf304628b94e42ae4c8020094a8c3da73381ab212623"
+  },
+  {
+    "id": "acp-kernel",
+    "version": "0.0.195",
+    "referenceRevision": "dc041dd1ab1a014efa352ba47a6f31fc47f55284",
+    "source": "https://github.com/ranxianglei/billion-context/blob/dc041dd1ab1a014efa352ba47a6f31fc47f55284/kernel/LICENSE",
+    "file": "third-party/upstream/5f82d3c8724c30a0ece8819b23babc4587a50eddf350273c6c8f0c936bad2a74.txt",
+    "sha256": "5f82d3c8724c30a0ece8819b23babc4587a50eddf350273c6c8f0c936bad2a74",
+    "importRevision": "dc041dd1ab1a014efa352ba47a6f31fc47f55284",
+    "provenance": "The exact billion-context kernel revision is retained as a deterministic, kernel-entry-only archive with one CommonJS loading compatibility patch. The original LICENSE includes MIT terms and an additional product-surface attribution term; package metadata alone does not represent the complete license.",
+    "roots": ["vendor/acp-kernel-0.0.195.tgz", "vendor/acp-kernel-0.0.195.tgz.integrity"],
+    "scope": "Upstream kernel library entry and reachable declarations with a local CommonJS createRequire anchor compatibility patch. LICENSE, token estimates and optional BPE fallback are unchanged. No upstream host, proxy, panel or external storage services are bundled.",
+    "license": "MIT + Additional Term — Attribution on Product Surfaces",
+    "packageMetadataLicense": "MIT",
+    "attributionSources": [
+      "https://github.com/ranxianglei/acp-kernel",
+      "https://github.com/ranxianglei/billion-context"
+    ],
+    "archive": {
+      "file": "vendor/acp-kernel-0.0.195.tgz",
+      "sha256": "4f81410c2e267127e757a26bb4a13cbfaf885e850d168dbb37211eb1ca34996b",
+      "integrity": "sha512-cNMROQVBqQm2y1sVngmtSSR2mYCpaf9nXTDGWrqyeZKnUsV2z/iPKtV2Cqx7p8XAaCg+HANZKvHZFXizxspJIg==",
+      "licenseMember": "package/LICENSE",
+      "provenanceMember": "package/PROVENANCE.md",
+      "provenanceSha256": "43487ae2acfb07c0b90a26befec3c78e6ee7d73707ec3e634cbe1c47bdeeb3e2",
+      "rebuildScript": "scripts/vendor-native-context-kernel.mjs"
+    }
   }
 ]

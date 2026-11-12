@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.native-context-boundaries.json",
+  "include": [
+    "native-context-request.test.ts",
+    "native-context-budget.test.ts",
+    "native-context-guidance.test.ts",
+    "native-context-tool-priority.test.ts",
+    "native-context-maintenance-prompts.test.ts",
+    "native-context-usage-source.test.ts",
+    "native-context-search.test.ts"
+  ]
+}

@@ -18,6 +18,8 @@ export interface ProviderToolRound {
    * 配对，不保证会话内唯一（有的实现每次响应都从 call_1 编号），不能代替响应身份。
    */
   messageId: string;
+  /** 持久化完成后回填，供直播与冷恢复共享真实 ToolPart 身份。 */
+  toolPartId?: string;
   reasoning: ModelReasoningContentBlock[];
   text: string;
   toolCall: ModelToolCall;

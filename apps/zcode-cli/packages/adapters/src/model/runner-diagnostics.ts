@@ -2,10 +2,14 @@ import type { LanguageModelUsage } from "ai";
 import type { Logger, ModelUsage } from "@zcode/contracts";
 import { ModelFailureReason as ModelFailureReasonValue } from "@zcode/contracts";
 import { isSuspiciousModelCompletion } from "./model-completion-policy.js";
-export { createEmptyContextExceededError, isZeroOutputModelCompletion } from "./model-completion-policy.js";
+export {
+  createEmptyContextExceededError,
+  isZeroOutputModelCompletion,
+} from "./model-completion-policy.js";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import type { AiSdkGenerateTextResult } from "./runner-runtime.js";
-import { normalizeUsage } from "./runner-normalization.js";
+import { normalizeUsageFromSteps } from "./runner-normalization.js";
+import { mergePartialStreamUsage } from "./stream-usage/index.js";
 import { asRecord, stringProperty } from "./runner-record.js";
 import { modelStatusContextToLogContext, type ModelStatusContext } from "./runner-status.js";
 
@@ -34,6 +38,8 @@ interface StreamDiagnostics {
   hasReasoningContent: boolean;
   textDeltaChars: number;
   toolCallCount: number;
+  stepUsages: Array<Partial<LanguageModelUsage> | undefined>;
+  partialUsage?: Partial<LanguageModelUsage>;
   usage?: ModelUsage;
 }
 
@@ -45,14 +51,38 @@ export function createStreamDiagnostics(): StreamDiagnostics {
     hasReasoningContent: false,
     textDeltaChars: 0,
     toolCallCount: 0,
+    stepUsages: [],
   };
 }
 
-export function recordStreamChunkDiagnostic(diagnostics: StreamDiagnostics, chunk: unknown): void {
+export function recordStreamChunkDiagnostic(
+  diagnostics: StreamDiagnostics,
+  chunk: unknown,
+  providerKind?: string,
+): void {
   const record = asRecord(chunk);
   const chunkType = safeChunkType(record.type);
   diagnostics.lastChunkType = chunkType;
   diagnostics.chunkCounts[chunkType] = (diagnostics.chunkCounts[chunkType] ?? 0) + 1;
+
+  if (chunkType === "start-step") {
+    diagnostics.partialUsage = undefined;
+    return;
+  }
+  if (chunkType === "raw") {
+    diagnostics.partialUsage = mergePartialStreamUsage({
+      previous: diagnostics.partialUsage,
+      rawValue: record.rawValue,
+      providerKind,
+    });
+    if (diagnostics.partialUsage)
+      diagnostics.usage = normalizeUsageFromSteps(
+        [...diagnostics.stepUsages, diagnostics.partialUsage],
+        undefined,
+        providerKind,
+      );
+    return;
+  }
 
   if (chunkType === "text-delta") {
     diagnostics.textDeltaChars += stringProperty(record, "text")?.length ?? 0;
@@ -75,13 +105,23 @@ export function recordStreamChunkDiagnostic(diagnostics: StreamDiagnostics, chun
     return;
   }
 
+  if (chunkType === "finish-step") {
+    diagnostics.stepUsages.push(record.usage as Partial<LanguageModelUsage> | undefined);
+    diagnostics.partialUsage = undefined;
+    // 已报告 step 后仍可能断流；费用出口必须保留它，不能只等最终 finish。
+    diagnostics.usage = normalizeUsageFromSteps(diagnostics.stepUsages, undefined, providerKind);
+    return;
+  }
+
   if (chunkType === "finish") {
     diagnostics.finishReason = stringProperty(record, "finishReason") ?? diagnostics.finishReason;
     diagnostics.rawFinishReason =
       record.rawFinishReason ?? asRecord(record.providerMetadata).rawFinishReason;
     diagnostics.lastFinishChunk = chunk;
-    diagnostics.usage = normalizeUsage(
+    diagnostics.usage = normalizeUsageFromSteps(
+      diagnostics.stepUsages,
       (record.totalUsage ?? record.usage) as Partial<LanguageModelUsage> | undefined,
+      providerKind,
     );
     return;
   }

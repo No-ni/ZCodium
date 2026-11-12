@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { VIDEO_INPUT_MAX_BYTES } from "@zcode/shared";
 import type { ToolCallId, TraceId } from "../interfaces/shared.js";
+import type { AttachmentRef } from "../model/index.js";
 import { toToolJsonSchema } from "./json-schema.js";
 import { getReadPdfPagesValidationFailure, READ_PDF_PAGES_DESCRIPTION } from "./read-pdf.js";
 
@@ -183,6 +184,7 @@ export interface ReadImageOutput {
   base64: string;
   mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
   originalSize: number;
+  originalImage?: AttachmentRef["originalImage"];
   transformedSize?: number;
   resized?: boolean;
   compressed?: boolean;
@@ -288,6 +290,19 @@ export const ReadImageOutputSchema = z
     base64: z.string(),
     mimeType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"]),
     originalSize: z.number().int().nonnegative(),
+    originalImage: z
+      .object({
+        artifactUri: z.string().regex(/^zcode-artifact:\/\//),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/i),
+        bytes: z.number().int().positive(),
+        mediaType: z.string().startsWith("image/"),
+        sourceKind: z.enum(["attachment", "read", "bash", "mcp", "browser", "other"]),
+        width: z.number().int().positive().optional(),
+        height: z.number().int().positive().optional(),
+        preserveRaster: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
     transformedSize: z.number().int().nonnegative().optional(),
     resized: z.boolean().optional(),
     compressed: z.boolean().optional(),

@@ -348,6 +348,7 @@ export function accountSessionTargetUsage(
   input: {
     sessionID: SessionId;
     targetID: string;
+    usageID?: string;
     tokensUsedDelta?: number;
     timeUsedSecondsDelta?: number;
   },
@@ -355,13 +356,12 @@ export function accountSessionTargetUsage(
   const now = Date.now();
   const tokenDelta = Math.max(0, input.tokensUsedDelta ?? 0);
   const timeDelta = Math.max(0, input.timeUsedSecondsDelta ?? 0);
-  if (tokenDelta === 0 && timeDelta === 0) {
-    return readSessionTarget(db, { sessionID: input.sessionID });
-  }
-
-  const result = db
-    .prepare(
-      `
+  const account = () => {
+    if (tokenDelta === 0 && timeDelta === 0)
+      return readSessionTarget(db, { sessionID: input.sessionID });
+    const result = db
+      .prepare(
+        `
       update session_target
       set
         tokens_used = tokens_used + ?,
@@ -373,11 +373,41 @@ export function accountSessionTargetUsage(
         time_updated = ?
       where session_id = ? and target_id = ?
       `,
-    )
-    .run(tokenDelta, timeDelta, tokenDelta, now, input.sessionID, input.targetID);
-  if (result.changes === 0) return readSessionTarget(db, { sessionID: input.sessionID });
-  touchSessionForTarget(db, input.sessionID, now);
-  return mustReadTarget(db, input.sessionID);
+      )
+      .run(tokenDelta, timeDelta, tokenDelta, now, input.sessionID, input.targetID);
+    if (result.changes === 0) return readSessionTarget(db, { sessionID: input.sessionID });
+    touchSessionForTarget(db, input.sessionID, now);
+    return mustReadTarget(db, input.sessionID);
+  };
+  if (input.usageID === undefined) return account();
+  if (!input.usageID.trim()) throw new TypeError("GOAL_USAGE_ID_INVALID");
+
+  // receipt 和唯一 Goal 计数必须同步提交；不能依赖可裁剪模型账本或内存 Set 防止重复扣费。
+  db.exec("begin immediate");
+  try {
+    const current = readSessionTarget(db, { sessionID: input.sessionID });
+    if (!current || current.targetID !== input.targetID) {
+      db.exec("commit");
+      return current;
+    }
+    const inserted = db
+      .prepare(`
+      insert into session_target_usage_receipt(session_id,target_id,usage_id,tokens_used_delta,time_used_seconds_delta,time_accounted)
+      values(?,?,?,?,?,?) on conflict(session_id,target_id,usage_id) do nothing
+    `)
+      .run(input.sessionID, input.targetID, input.usageID, tokenDelta, timeDelta, now);
+    if (inserted.changes === 0) {
+      db.exec("commit");
+      return current;
+    }
+    const target = account();
+    if (target?.targetID !== input.targetID) throw new Error("GOAL_USAGE_TARGET_CHANGED");
+    db.exec("commit");
+    return target;
+  } catch (error) {
+    db.exec("rollback");
+    throw error;
+  }
 }
 
 export function updateSessionTargetSummaryTitle(

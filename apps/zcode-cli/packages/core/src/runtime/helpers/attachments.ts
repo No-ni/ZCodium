@@ -1,5 +1,6 @@
 import { basename, resolvePath } from "../deps.js";
 import { READ_DEFAULT_MAX_LINES, READ_MAX_FILE_SIZE_BYTES } from "@zcode/contracts";
+import type { NativeContextParameters } from "@zcode/shared/native-context-compression";
 import type {
   FilePartSource,
   FileSystemPort,
@@ -35,6 +36,7 @@ type ResolveAttachmentOptions = {
   artifactStore?: ToolArtifactStorePort;
   fileSystemPort?: FileSystemPort;
   imageProcessorPort?: ImageProcessorPort;
+  nativeContextImages?: NativeContextParameters["images"];
   sessionId?: SessionId;
   traceContext: TraceContext;
   turnId?: TurnId;
@@ -208,6 +210,7 @@ async function resolvedInlineAttachment(
     artifactStore?: ToolArtifactStorePort;
     existingArtifactUri?: string;
     imageProcessorPort?: ImageProcessorPort;
+    nativeContextImages?: NativeContextParameters["images"];
     sessionId?: SessionId;
     traceContext: TraceContext;
     turnId?: TurnId;

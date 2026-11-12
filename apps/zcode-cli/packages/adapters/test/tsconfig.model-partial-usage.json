@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.model-cache-usage.json",
+  "include": ["model-partial-usage.test.ts", "fixtures/model-partial-usage.ts"]
+}

@@ -2,6 +2,7 @@ import { type IChannelServer } from "@zcode/rpc";
 import {
   ServiceCollection,
   IMcpSyncService,
+  ISettingsSyncService,
   type ServiceExposurePolicy,
   type ZCodeAgentV4ClientMode,
 } from "@zcode/services";
@@ -16,6 +17,7 @@ const WEB_REMOTE_REPLAYABLE_EXPOSURE_POLICY: ServiceExposurePolicy = {
     ServiceChannels.Git,
     ServiceChannels.GitCheckpoint,
     ServiceChannels.Setting,
+    ServiceChannels.SettingsSync,
     ServiceChannels.OnboardingRecord,
     ServiceChannels.Credential,
     ServiceChannels.CuaPermission,
@@ -82,6 +84,27 @@ function scopeMcpSyncServiceForMobile(service: IMcpSyncService): IMcpSyncService
   });
 }
 
+const MOBILE_FIRST_RUN_ALLOWED_METHODS = new Set<string>([
+  "getFirstRunPromptState",
+  "markFirstRunPromptHandled",
+] satisfies ReadonlyArray<keyof ISettingsSyncService>);
+
+function scopeSettingsSyncServiceForMobile(service: ISettingsSyncService): ISettingsSyncService {
+  const rejectMobileMigration = async (): Promise<never> => {
+    throw Object.assign(new Error("Settings migration is only available from Desktop"), {
+      kind: "feature_disabled" as const,
+    });
+  };
+  return new Proxy({} as ISettingsSyncService, {
+    get: (_target, key) => {
+      if (typeof key !== "string" || key === "then" || /^on[A-Z]/.test(key)) return undefined;
+      if (!MOBILE_FIRST_RUN_ALLOWED_METHODS.has(key)) return rejectMobileMigration;
+      const method = service[key as keyof ISettingsSyncService] as (...args: unknown[]) => unknown;
+      return (...args: unknown[]) => method.apply(service, args);
+    },
+  });
+}
+
 export function exposeWindowHostAttachmentServices(params: {
   server: IChannelServer;
   services: ServiceCollection;
@@ -97,6 +120,15 @@ export function exposeWindowHostAttachmentServices(params: {
       overrides = new Map(overrides).set(
         IMcpSyncService.channelName,
         scopeMcpSyncServiceForMobile(mcpSync),
+      );
+    // 共享引导读取被整体拒绝时会反复弹窗；仅转发首启生命周期，导入/发现能力仍默认拒绝。
+    const settingsSync =
+      (overrides?.get(ISettingsSyncService.channelName) as ISettingsSyncService | undefined) ??
+      params.services.getOptional(ISettingsSyncService);
+    if (settingsSync)
+      overrides = new Map(overrides).set(
+        ISettingsSyncService.channelName,
+        scopeSettingsSyncServiceForMobile(settingsSync),
       );
   }
   params.services.exposeOnChannelServer(

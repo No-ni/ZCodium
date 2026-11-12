@@ -114,6 +114,7 @@ import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-
 // -----------------------------------------------
 
 export interface AgentRuntimeConfig {
+  nativeContextCompression?: import("@zcode/shared/native-context-compression").NativeContextConfiguration;
   toolSearch?: { mode?: ToolSearchMode };
   /** shared-host CUA request routing metadata; desktop is the safe default. */
   clientMode?: "desktop-continuous" | "web-remote-replayable";
@@ -842,6 +843,7 @@ export interface ProviderContextUsageSnapshot {
 }
 
 export interface RunModelTextRequestOptions {
+  nativeContextComparison?: import("./native-context-compression/contract.js").NativeContextRequestComparison;
   toolSearch?: ToolSearchExecutionContext;
   toolSearchEnabled?: boolean;
   abortSignal?: AbortSignal;
@@ -857,7 +859,7 @@ export interface RunModelTextRequestOptions {
   onStreamReasoningDelta?: (text: string) => void;
   onStreamTextDelta?: (text: string) => void;
   onStreamToolCall?: (toolCall: ModelToolCall) => void;
-  onModelNetworkStatus?: (event: ModelNetworkStatusEvent) => void;
+  onModelNetworkStatus?: (event: ModelNetworkStatusEvent) => void | Promise<void>;
   streamRecovery?: ModelStreamRecoveryStatus;
   tools: ModelToolContract[];
   traceContext: TraceContext;
@@ -879,6 +881,11 @@ export interface StreamedToolExecutionResult {
 }
 
 export interface RuntimeModelTextResult {
+  /** 请求内暂存证明；只有完整 assistant 落盘之后交给原生 owner 提交。 */
+  nativeImageCommit?: {
+    receipts: import("@zcode/shared/native-context-compression").NativeContextImageReceipt[];
+    comparison: import("./native-context-compression/contract.js").NativeContextRequestComparison;
+  };
   contextUsageBreakdown?: ContextUsageBreakdownItem[];
   finishReason: string;
   providerMetadata?: Record<string, unknown>;
