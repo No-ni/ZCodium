@@ -7,7 +7,10 @@ import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import { applyGoalCommand } from "./goal-compact.js";
 import type { ConversationEditTarget } from "../../product-projection.js";
 
-type SubmissionOverride = Pick<CommandPayloadMap["editUserQuery"], "modelSelection" | "mode" | "planEnabled">;
+type SubmissionOverride = Pick<
+  CommandPayloadMap["editUserQuery"],
+  "modelSelection" | "mode" | "planEnabled"
+>;
 const EDIT_QUEUE_FALLBACK_REASON = "edit.admissionRace";
 
 export function stableAttachmentRefs(editTarget: ConversationEditTarget) {
@@ -24,25 +27,39 @@ function buildCanonicalIntent(
   override: SubmissionOverride | undefined,
   requireQueue: boolean,
 ) {
-  const intent = inputIntentMetadataFromCanonical(envelope, {
-    kind: editTarget.intent.kind,
-    conversationQuotes: envelope.type === "editUserQuery"
-      ? ((envelope.payload as CommandPayloadMap["editUserQuery"]).conversationQuotes ?? editTarget.intent.conversationQuotes)
-      : editTarget.intent.conversationQuotes,
-    text: editTarget.intent.text,
-    genUiContext: editTarget.intent.genUiContext,
-    sourceCommandId: editTarget.intent.sourceCommandId,
-    clientId: editTarget.intent.clientId,
-    queueItemId: editTarget.intent.queueItemId,
-    requestedDelivery: editTarget.intent.requestedDelivery,
-    admittedDelivery: editTarget.intent.admittedDelivery,
-    fallbackReasonCode: editTarget.intent.fallbackReasonCode,
-    modelSelection: override?.modelSelection ?? editTarget.intent.modelSelection,
-    mode: override?.mode ?? editTarget.intent.mode,
-    planEnabled: override?.planEnabled ?? editTarget.intent.planEnabled,
-    attachmentRefs,
-    provenance: editTarget.intent.provenance,
-  }, text);
+  // composer 编辑态复用普通发送的工具栏：edit 携带的模型/模式/Plan 是本次重跑的提交配置，
+  // 与 sendText 同语义；缺省（旧客户端、retry）沿用原 canonical intent。
+  const editPayload =
+    envelope.type === "editUserQuery"
+      ? (envelope.payload as CommandPayloadMap["editUserQuery"])
+      : undefined;
+  const intent = inputIntentMetadataFromCanonical(
+    envelope,
+    {
+      kind: editTarget.intent.kind,
+      conversationQuotes:
+        envelope.type === "editUserQuery"
+          ? ((envelope.payload as CommandPayloadMap["editUserQuery"]).conversationQuotes ??
+            editTarget.intent.conversationQuotes)
+          : editTarget.intent.conversationQuotes,
+      text: editTarget.intent.text,
+      genUiContext: editTarget.intent.genUiContext,
+      sourceCommandId: editTarget.intent.sourceCommandId,
+      clientId: editTarget.intent.clientId,
+      queueItemId: editTarget.intent.queueItemId,
+      requestedDelivery: editTarget.intent.requestedDelivery,
+      admittedDelivery: editTarget.intent.admittedDelivery,
+      fallbackReasonCode: editTarget.intent.fallbackReasonCode,
+      modelSelection:
+        override?.modelSelection ?? editPayload?.modelSelection ?? editTarget.intent.modelSelection,
+      mode: override?.mode ?? editPayload?.mode ?? editTarget.intent.mode,
+      planEnabled:
+        override?.planEnabled ?? editPayload?.planEnabled ?? editTarget.intent.planEnabled,
+      attachmentRefs,
+      provenance: editTarget.intent.provenance,
+    },
+    text,
+  );
   if (requireQueue) {
     intent.requestedDelivery = "queue";
     intent.admittedDelivery = "queue";
@@ -83,9 +100,16 @@ export async function startCanonicalIntent(
   options?: { requireQueue?: boolean },
 ): Promise<void> {
   const requireQueue = options?.requireQueue === true;
-  const intent = buildCanonicalIntent(envelope, editTarget, text, attachmentRefs, override, requireQueue);
+  const intent = buildCanonicalIntent(
+    envelope,
+    editTarget,
+    text,
+    attachmentRefs,
+    override,
+    requireQueue,
+  );
   if (editTarget.intent.kind === "sendGoalCommand") {
-    await applyGoalCommand(host, record, {inputId: envelope.commandId, objective: text, intent});
+    await applyGoalCommand(host, record, { inputId: envelope.commandId, objective: text, intent });
     return;
   }
   // 修复依据：branch cut 之后重查可变 Registry 会丢失 replacement input；只消费事先通过的预检。

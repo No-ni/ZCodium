@@ -1,20 +1,14 @@
 # Maintainer guidance: .agents/skills/feature-boundary-planner/SKILL.md
-# Search aliases and IDs first; read only the relevant nodes and one-hop relationships.
+# ZCodium: 三方结构融合；本仓改变的产品规则优先，新增普通能力依当前入口核验。
 schemaVersion: 1
 graphId: zcode-feature-relationships
-purpose:
-  Curated source discovery seeds, not an exhaustive feature catalog or a product authority. Verify
-  matched nodes and relationships against the current checkout.
+purpose: Curated source discovery seeds, not an exhaustive feature catalog or a product authority.
+  Verify matched nodes and relationships against the current checkout.
 rules:
-  semanticExpansion:
-    Load matched nodes and one meaningful semantic hop; expand only for unresolved owners
-    or callers.
-  driftPolicy:
-    Report missing paths, symbols or changed semantics as graph-drift-candidate; do not infer
-    product rules from reachability.
-  stableIdPolicy:
-    Keep existing IDs when the semantic boundary is unchanged; use aliases for terminology
-    changes.
+  semanticExpansion: Load matched nodes and one meaningful semantic hop; expand only for unresolved owners or callers.
+  driftPolicy: Report missing paths, symbols or changed semantics as graph-drift-candidate; do not
+    infer product rules from reachability.
+  stableIdPolicy: Keep existing IDs when the semantic boundary is unchanged; use aliases for terminology changes.
   persistencePolicy:
     Impact-only reports proposed graph changes. Planning or implementation may update
     verified entries within the requested scope.
@@ -28,21 +22,25 @@ nodes:
   - id: capability.projectless-task-workspaces
     kind: capability
     label: Independent directories for ordinary projectless tasks
-    aliases: [无项目独立目录, 任务独立文件夹, projectless task workspace, shared CLI task cwd]
+    aliases:
+      - 无项目独立目录
+      - 任务独立文件夹
+      - projectless task workspace
+      - shared CLI task cwd
     sourceDocs:
-      [
-        docs/specs/projectless-task-workspaces.md,
-        docs/ui/project-task-draft-lifecycle.md,
-        docs/shared-task-cli.md,
-      ]
+      - docs/specs/projectless-task-workspaces.md
+      - docs/ui/project-task-draft-lifecycle.md
+      - docs/shared-task-cli.md
     codeSeeds:
       - file: packages/ui/src/root/useRootWorkspaceActions.ts
         symbol: startNewTaskFromActiveWorkspace
       - file: packages/shared/src/node/genUiPaths.ts
         symbol: getGenUiOutputDirectory
     invariants:
-      - Ordinary task creation shares the existing pending draft owner; first accepted input consumes its directory reference.
-      - Shared process cwd never determines session cwd or artifact ownership; saved task paths are restored unchanged.
+      - Ordinary task creation shares the existing pending draft owner; first accepted input
+        consumes its directory reference.
+      - Shared process cwd never determines session cwd or artifact ownership; saved task paths are
+        restored unchanged.
       - Only the exact legacy default root enables the CLI date/session directory allocator.
   - id: surface.projectless-startup
     kind: ui-surface
@@ -102,13 +100,20 @@ nodes:
       - file: apps/zcode-cli/packages/core/src/runtime/helpers/gen-ui-output.ts
         symbol: resolveGenUiOutputDirectory
     invariants:
-      - Only trusted app-managed local task paths use cwd/visualizations; ordinary projects and remote identities keep global scope outputs.
-      - Local file authorization requires a matching persisted session, contained initial cwd and nonsymlink path components.
-      - Managed task outputs survive project membership changes and process restarts; legacy global documents remain readable.
+      - Only trusted app-managed local task paths use cwd/visualizations; ordinary projects and
+        remote identities keep global scope outputs.
+      - Local file authorization requires a matching persisted session, contained initial cwd and
+        nonsymlink path components.
+      - Managed task outputs survive project membership changes and process restarts; legacy global
+        documents remain readable.
   - id: capability.desktop-startup-motion
     kind: capability
     label: Continuous desktop startup presentation
-    aliases: [启动动画, 启动动效, startup animation, startup overlay]
+    aliases:
+      - 启动动画
+      - 启动动效
+      - startup animation
+      - startup overlay
     codeSeeds:
       - file: packages/ui/src/root/startupPresentation.ts
         symbol: finishStartupPresentation
@@ -121,7 +126,11 @@ nodes:
   - id: capability.task-auto-archive
     kind: capability
     label: Host task auto archive
-    aliases: [自动归档, 保留期, auto archive, task retention]
+    aliases:
+      - 自动归档
+      - 保留期
+      - auto archive
+      - task retention
     codeSeeds:
       - file: packages/services/src/session/taskAutoArchiveMaintenance.ts
         symbol: createTaskAutoArchiveMaintenance
@@ -156,8 +165,8 @@ nodes:
       - file: packages/ui/src/hooks/useModelSelectionView.ts
         symbol: useModelSelectionView
     invariants:
-      - "Shared model controls do not share commit effects: conversation commands, automation records
-        and Subagent configuration have separate owners."
+      - "Shared model controls do not share commit effects: conversation commands, automation
+        records and Subagent configuration have separate owners."
   - id: surface.conversation-model-control
     kind: ui-surface
     label: Conversation composer model control
@@ -305,8 +314,8 @@ nodes:
       - file: packages/ui/src/v4/conversationProjectionStore.ts
         symbol: ConversationProjectionStore
     invariants:
-      - Snapshots replace state; only contiguous deltas apply. Gaps require resync, and pending optimistic
-        commands are not accepted runtime facts.
+      - Snapshots replace state; only contiguous deltas apply. Gaps require resync, and pending
+        optimistic commands are not accepted runtime facts.
   - id: capability.workspace-identity
     kind: capability
     label: Workspace identity and remote runtime isolation
@@ -337,8 +346,8 @@ nodes:
       - file: packages/services/src/session/taskIndexRepo.ts
         symbol: workspaceKey
     invariants:
-      - Use workspaceIdentity?.trim() || workspacePath for isolation; workspacePath remains the execution
-        and display path.
+      - Use workspaceIdentity?.trim() || workspacePath for isolation; workspacePath remains the
+        execution and display path.
   - id: persistence.task-index
     kind: persistence
     label: Task sqlite index
@@ -471,9 +480,12 @@ nodes:
         symbol: initializeNewTaskDraft
       - file: packages/ui/src/v4/SessionPane.tsx
     invariants:
-      - Recent is keyed by client namespace, stable target Host and project ID; cwd does not infer project membership.
-      - Only accepted user submissions update the complete model and mode tuple through the existing receipt writer.
-      - Pending command recovery preserves the original scope and order; late receipts cannot replace newer accepted defaults.
+      - Recent is keyed by client namespace, stable target Host and project ID; cwd does not infer
+        project membership.
+      - Only accepted user submissions update the complete model and mode tuple through the existing
+        receipt writer.
+      - Pending command recovery preserves the original scope and order; late receipts cannot
+        replace newer accepted defaults.
       - Existing text drafts and current Session state remain independent from Recent.
   - id: service.conversation-submission
     kind: service
@@ -490,14 +502,18 @@ nodes:
   - id: capability.personal-coding-plan-quota
     kind: capability
     label: Personal Coding Plan remaining quota
-    aliases: [个人套餐额度, Coding Plan quota, remaining quota]
+    aliases:
+      - 个人套餐额度
+      - Coding Plan quota
+      - remaining quota
     codeSeeds:
       - file: packages/services/src/usage-stats/usageStatsService.ts
         symbol: createUsageStatsService
       - file: packages/ui/src/hooks/useCodingPlanQuota.ts
         symbol: useCodingPlanQuota
     invariants:
-      - The Host owns credentials and issues opaque context IDs; no credential enters quota RPC payloads.
+      - The Host owns credentials and issues opaque context IDs; no credential enters quota RPC
+        payloads.
       - Changing credentials or Host invalidates the prior snapshot and late requests.
       - Queries do not poll or persist quota and do not replace local usage statistics.
   - id: surface.personal-coding-plan-quota
@@ -509,57 +525,80 @@ nodes:
   - id: capability.native-gemini-provider
     kind: capability
     label: Native Gemini provider and model catalog
-    aliases: [Gemini 原生, google-generative-ai, Google native protocol]
+    aliases:
+      - Gemini 原生
+      - google-generative-ai
+      - Google native protocol
     codeSeeds:
       - file: packages/services/src/model-provider/providerModelCatalog.ts
         symbol: fetchProviderModelCatalog
       - file: packages/ui/src/settings/model-provider-section/providerModelCatalogSelection.ts
         symbol: withCatalogMetadata
     invariants:
-      - Explicit catalog token limits use the existing personal model save path; manual overrides remain authoritative.
-      - Tool thought signatures stay attached to their tool call through existing history and persistence.
+      - Explicit catalog token limits use the existing personal model save path; manual overrides
+        remain authoritative.
+      - Tool thought signatures stay attached to their tool call through existing history and
+        persistence.
       - OpenCode preset limits apply only to the exact OpenCode native endpoints.
   - id: surface.remote-control-dialog
     kind: ui-surface
     label: Responsive QR and Bot remote-control dialog
-    aliases: [远控弹窗, 双栏, remote control dialog]
+    aliases:
+      - 远控弹窗
+      - 双栏
+      - remote control dialog
     codeSeeds:
       - file: packages/ui/src/WebRemoteControlDialog.tsx
         symbol: WebRemoteControlDialog
     invariants:
-      - The dialog owns only presentation and Bot entry drafts, not task synchronization or attachment state.
+      - The dialog owns only presentation and Bot entry drafts, not task synchronization or
+        attachment state.
       - Desktop continuous and mobile replayable delivery retain their existing owners.
       - Header remains outside the body ScrollArea; opening Bot settings closes the outer dialog.
   - id: capability.terminal-local-quit
     kind: capability
     label: Local terminal graceful quit
-    aliases: [/quit, 终端退出, graceful terminal exit]
+    aliases:
+      - /quit
+      - 终端退出
+      - graceful terminal exit
     codeSeeds:
       - file: apps/zcode-cli/packages/tui/src/app-quit.ts
         symbol: useLocalQuit
     invariants:
-      - Local quit is intercepted before business admission and never clears accepted runtime commands.
+      - Local quit is intercepted before business admission and never clears accepted runtime
+        commands.
       - Exit sets a terminal local state before cancellation and approval rejection.
   - id: surface.composer-model-effort-menu
     kind: ui-surface
     label: Combined composer model and effort menu
-    aliases: [统一模型菜单, 思考档位, model effort menu, reasoning slider]
+    aliases:
+      - 统一模型菜单
+      - 思考档位
+      - model effort menu
+      - reasoning slider
     codeSeeds:
       - file: packages/ui/src/chat-input-toolbar/ComposerModelMenu.tsx
         symbol: ComposerModelMenu
     invariants:
       - The menu is a controlled projection of the existing next-submission draft owner.
-      - Pending target reads keep controls mounted but disable selection; no local fallback is allowed.
+      - Pending target reads keep controls mounted but disable selection; no local fallback is
+        allowed.
   - id: capability.source-server
     kind: capability
     label: Authenticated Source Server connection management
-    aliases: [Source Server, 常驻 daemon, Source Profile, 连接管理]
+    aliases:
+      - Source Server
+      - 常驻 daemon
+      - Source Profile
+      - 连接管理
     codeSeeds:
       - file: packages/desktop/src/host/sourceServerConnectionManager.ts
         symbol: SourceServerConnectionManager
     invariants:
       - A verified Source identity is distinct from its connection profile and logical session route.
-      - Only user-deployed compatible servers are connected; this seed does not imply Linux resource deployment.
+      - Only user-deployed compatible servers are connected; this seed does not imply Linux resource
+        deployment.
   - id: persistence.source-server-directory
     kind: persistence
     label: Source and connection profile directory
@@ -581,53 +620,77 @@ nodes:
   - id: persistence.source-data-roots
     kind: persistence
     label: Source-owned settings, provider, tasks and CLI persistence roots
-    aliases: [Source 数据根, standalone persistence, server root]
+    aliases:
+      - Source 数据根
+      - standalone persistence
+      - server root
     codeSeeds:
       - file: packages/shared/src/node/sourceDataRoots.ts
         symbol: resolveSourceDataRoots
       - file: packages/shared/src/node/sourceDataRoots.ts
         symbol: createSourcePersistenceEnv
     invariants:
-      - One selected Source root fixes settings, provider, tasks, CLI config, storage and session database paths.
-      - Source persistence values override inherited aliases without rewriting HOME or reading Desktop data.
+      - One selected Source root fixes settings, provider, tasks, CLI config, storage and session
+        database paths.
+      - Source persistence values override inherited aliases without rewriting HOME or reading
+        Desktop data.
   - id: service.source-workspace-inspection
     kind: service
     label: Production Source history presence-only admission guard
-    aliases: [Source 历史阻断, history-present, Source inspection]
+    aliases:
+      - Source 历史阻断
+      - history-present
+      - Source inspection
     codeSeeds:
       - file: packages/services/src/source-server-workspace/node.ts
         symbol: createNodeSourceWorkspaceInspectionService
     invariants:
-      - Any potential history medium in the Source root blocks admission; presence does not prove key ownership.
-      - Existing media also block reattachment after first use; this is not completed history migration support.
+      - Any potential history medium in the Source root blocks admission; presence does not prove
+        key ownership.
+      - Existing media also block reattachment after first use; this is not completed history
+        migration support.
   - id: capability.workspace-alias-migration-framework
     kind: capability
     label: Explicit workspace alias migration framework
-    aliases: [旧身份迁移框架, alias preview, alias confirm, workspace alias restore]
+    aliases:
+      - 旧身份迁移框架
+      - alias preview
+      - alias confirm
+      - workspace alias restore
     codeSeeds:
       - file: packages/services/src/source-server-workspace/node.ts
         symbol: createNodeSourceServerWorkspaceService
       - file: packages/services/src/source-server-workspace/contract.ts
         symbol: SourceServerWorkspaceService
     invariants:
-      - Preview and confirmation are separate from execute, retry and restore; durable phases own recovery.
-      - Production lacks a full-data-root stopped-writer lease, native committed snapshot and migration UI wiring.
+      - Preview and confirmation are separate from execute, retry and restore; durable phases own
+        recovery.
+      - Production lacks a full-data-root stopped-writer lease, native committed snapshot and
+        migration UI wiring.
   - id: boundary.workspace-committed-snapshot
     kind: delivery-boundary
     label: Committed database snapshot proof boundary
-    aliases: [WAL 零写, snapshot-unproven, committed snapshot]
+    aliases:
+      - WAL 零写
+      - snapshot-unproven
+      - committed snapshot
     codeSeeds:
       - file: packages/services/src/source-server-workspace/node.ts
         symbol: createNodeCommittedSnapshotPort
       - file: packages/services/src/source-server-workspace/contract.ts
         symbol: WorkspaceCommittedSnapshotPort
     invariants:
-      - Without native whole-capture consistency proof the Node port rejects and never invokes the consumer.
+      - Without native whole-capture consistency proof the Node port rejects and never invokes the
+        consumer.
       - Opening original WAL or SHM through SQLite is not a zero-write inspection.
   - id: capability.sqlite-startup-migrations
     kind: capability
     label: Async SQLite startup migration, backup and restore infrastructure
-    aliases: [数据库迁移, SQLite startup, checksum, schema guard]
+    aliases:
+      - 数据库迁移
+      - SQLite startup
+      - checksum
+      - schema guard
     codeSeeds:
       - file: packages/shared/src/sqlite-migrations/index.ts
         symbol: migrate
@@ -636,47 +699,70 @@ nodes:
       - file: apps/zcode-cli/packages/adapters/src/storage/session-store/sqlite-session-store.ts
         symbol: openStartupSqliteSessionStore
     invariants:
-      - Host and CLI each use one async startup owner; synchronous constructors only validate ready ledgers.
-      - Published Host JSON and CLI SQL checksums stay frozen; backup failures block migration writes.
+      - Host and CLI each use one async startup owner; synchronous constructors only validate ready
+        ledgers.
+      - Published Host JSON and CLI SQL checksums stay frozen; backup failures block migration
+        writes.
       - Restore requires stopped writers and verified identity, schema, rows, hashes and ledger.
   - id: capability.window-project-directory
     kind: capability
     label: Optional window project directory shared with mobile attachment
-    aliases: [窗口项目目录, 手机项目目录, window directory]
+    aliases:
+      - 窗口项目目录
+      - 手机项目目录
+      - window directory
     codeSeeds:
-      - file: packages/services/src/window-project-directory/app/windowProjectDirectory.ts
+      - file: packages/web/src/mobile/windowProjectDirectory.ts
         symbol: createWindowProjectDirectoryRuntime
       - file: packages/web/src/mobile/windowProjectDirectory.ts
         symbol: MobileWindowProjectDirectory
     invariants:
-      - The directory accepts newer window projections and never manufactures task membership or another Agent.
-      - Optional capability preparation reuses the existing reader, acknowledgement sequence and attachment.
+      - The directory accepts newer window projections and never manufactures task membership or
+        another Agent.
+      - Optional capability preparation reuses the existing reader, acknowledgement sequence and
+        attachment.
   - id: capability.side-pane-full-view
     kind: capability
     label: Desktop side pane full view with one conversation host
-    aliases: [侧栏完整视图, 浮动输入, 全屏面板, floating composer]
+    aliases:
+      - 侧栏完整视图
+      - 浮动输入
+      - 全屏面板
+      - floating composer
     codeSeeds:
       - file: packages/ui/src/side-pane-full-view/app/useSidePaneFullView.ts
         symbol: useSidePaneFullView
       - file: packages/ui/src/side-pane-full-view/components/ConversationHost.tsx
         symbol: SidePaneFullViewConversationHost
     invariants:
-      - Full view reuses the same SessionPane, composer and Lexical DOM rather than copying or reparenting them.
-      - Floating presentation and preferences never replace runtime ownership or mobile delivery semantics.
+      - Full view reuses the same SessionPane, composer and Lexical DOM rather than copying or
+        reparenting them.
+      - Floating presentation and preferences never replace runtime ownership or mobile delivery
+        semantics.
   - id: capability.office-common-reading
     kind: capability
     label: Read-only DOCX, XLSX, PPTX and PDF common reading
-    aliases: [文档共同阅读, office viewer, 文档锚点, MCP Apps]
+    aliases:
+      - 文档共同阅读
+      - office viewer
+      - 文档锚点
+      - MCP Apps
     codeSeeds:
       - file: apps/zcode-cli/packages/office-runtime/src/app/documents.ts
         symbol: createDocumentOwner
     invariants:
-      - One document owner provides parsing, revisions, bounded handles and view reports to tools and the panel.
-      - Files are read-only and workspace-scoped; anchors, resource limits, CSP and local fonts keep existing boundaries.
+      - One document owner provides parsing, revisions, bounded handles and view reports to tools
+        and the panel.
+      - Files are read-only and workspace-scoped; anchors, resource limits, CSP and local fonts keep
+        existing boundaries.
   - id: capability.tool-search
     kind: capability
     label: Experimental deferred tool discovery and exposure
-    aliases: [ToolSearch, 按需工具发现, deferred tools, Native Local Off]
+    aliases:
+      - ToolSearch
+      - 按需工具发现
+      - deferred tools
+      - Native Local Off
     codeSeeds:
       - file: apps/zcode-cli/packages/core/src/tool/search/exposure.ts
         symbol: buildToolExposure
@@ -690,7 +776,10 @@ nodes:
   - id: capability.workflow-stop-admission
     kind: capability
     label: Workflow model stop errors without quota cooldown
-    aliases: [工作流额度停止, workflow stop, quota recovery]
+    aliases:
+      - 工作流额度停止
+      - workflow stop
+      - quota recovery
     codeSeeds:
       - file: apps/zcode-cli/packages/adapters/src/model/workflow-model-failure-policy.ts
         symbol: resolveWorkflowModelFailurePolicy
@@ -700,36 +789,50 @@ nodes:
   - id: capability.model-completion-classification
     kind: capability
     label: Shared zero-output model completion classification
-    aliases: [空响应, context exceeded finish, 模型结束原因]
+    aliases:
+      - 空响应
+      - context exceeded finish
+      - 模型结束原因
     codeSeeds:
       - file: apps/zcode-cli/packages/adapters/src/model/model-completion-policy.ts
         symbol: createEmptyContextExceededError
     invariants:
-      - Streaming and generated completions share one classification contract while retaining partial output and usage.
+      - Streaming and generated completions share one classification contract while retaining
+        partial output and usage.
   - id: boundary.bash-output-preparation
     kind: delivery-boundary
     label: Execution output path preparation before process launch
-    aliases: [Bash 输出隔离, bashOutputTempDir]
+    aliases:
+      - Bash 输出隔离
+      - bashOutputTempDir
     codeSeeds:
       - file: apps/zcode-cli/packages/adapters/src/exec/node-execution-adapter-output-preparation.ts
         symbol: NodeExecutionAdapterOutputPreparation
     invariants:
-      - Output paths are published before launch and filesystem fallback does not swallow logic failures.
+      - Output paths are published before launch and filesystem fallback does not swallow logic
+        failures.
   - id: surface.windows-unread-overlay
     kind: ui-surface
     label: Windows unread taskbar overlay and tray projection
-    aliases: [Windows 未读, taskbar badge, 任务栏提示]
+    aliases:
+      - Windows 未读
+      - taskbar badge
+      - 任务栏提示
     codeSeeds:
       - file: packages/desktop/src/main/unreadBadge.ts
         symbol: syncUnreadBadgeForPlatform
       - file: packages/desktop/src/main/unreadBadge.ts
         symbol: applyTaskbarOverlayToWindows
     invariants:
-      - Main projects deduplicated unread task identity and clears zero counts without owning task business state.
+      - Main projects deduplicated unread task identity and clears zero counts without owning task
+        business state.
   - id: boundary.source-rebind-admission
     kind: delivery-boundary
     label: Remote workspace rebind ready and failed barrier
-    aliases: [Source rebind, bind-ready, 工作区接纳屏障]
+    aliases:
+      - Source rebind
+      - bind-ready
+      - 工作区接纳屏障
     codeSeeds:
       - file: packages/desktop/src/main/desktopRemoteSessions.ts
         symbol: createRemoteWorkspaceSessionManager
@@ -739,7 +842,10 @@ nodes:
   - id: persistence.bundled-model-catalog
     kind: persistence
     label: Local bundled model templates and public option maps
-    aliases: [MiMo v2.6, 随包模型目录, model catalog]
+    aliases:
+      - MiMo v2.6
+      - 随包模型目录
+      - model catalog
     codeSeeds:
       - file: packages/provider-node/src/zcode-builtin-provider-config-source.ts
         symbol: NodeZCodeBuiltinProviderConfigSource
@@ -749,7 +855,10 @@ nodes:
   - id: boundary.office-runtime-distribution
     kind: delivery-boundary
     label: Shared Office runtime build and required asset distribution
-    aliases: [Office 分发, viewer assets, Office dev build]
+    aliases:
+      - Office 分发
+      - viewer assets
+      - Office dev build
     codeSeeds:
       - file: packages/shared/src/builtinPluginAssets.ts
         symbol: BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT
@@ -759,20 +868,93 @@ nodes:
         symbol: buildOfficeDevPluginRuntimes
     invariants:
       - Desktop, development, prebuild and SEA consumers use the same four-plugin asset contract.
-      - Stale dist presence never replaces a current-source build or required viewer asset validation.
+      - Stale dist presence never replaces a current-source build or required viewer asset
+        validation.
   - id: boundary.project-only-validation
     kind: delivery-boundary
     label: Project-owned verification home temp data and cache authority
-    aliases: [项目内测试, 项目外禁止写入, project sandbox]
+    aliases:
+      - 项目内测试
+      - 项目外禁止写入
+      - project sandbox
     codeSeeds:
       - file: scripts/ci/project-test-sandbox.mjs
         symbol: createProjectTestSandbox
       - file: scripts/ci/source-test-runner.mjs
         symbol: runSourceTests
     invariants:
-      - Verification binds a fresh in-project home, temp, data and cache before loading business modules.
-      - Project paths and junctions are validated and test run roots are retained without recursive cleanup.
-      - Node write permissions complement reviewed command boundaries and are not a complete native system sandbox.
+      - Verification binds a fresh in-project home, temp, data and cache before loading business
+        modules.
+      - Project paths and junctions are validated and test run roots are retained without recursive
+        cleanup.
+      - Node write permissions complement reviewed command boundaries and are not a complete native
+        system sandbox.
+  - id: capability.archive-permanent-deletion
+    kind: capability
+    label: Permanent deletion of archived conversations
+    aliases:
+      - 永久删除归档会话
+      - 归档真正删除
+      - archive permanent deletion
+    docs:
+      - docs/superpowers/specs/2026-09-11-archive-management.md
+    codeSeeds:
+      - file: packages/ui/src/project-sidebar/useArchiveManagement.ts
+        symbol: useArchiveManagement
+      - file: apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/permanent-deletion.ts
+        symbol: executeSessionDeletionWith
+      - file: apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/sessions.ts
+        symbol: purgeSessions
+    invariants:
+      - Archive deletion performs physical session cleanup; retain independent forks and
+        still-referenced artifacts, with itemized confirmation.
+      - Reject running work; revalidate archive membership, identity and retained artifacts before
+        destructive effects.
+      - Published shares, workspace files and directory-level data stay independent; partial cleanup
+        must not be reported as complete.
+  - id: capability.agent-plugin-discovery
+    kind: capability
+    label: Agent discovers official plugins and requests explicit installation
+    aliases:
+      - Agent 插件推荐
+      - SearchPlugins
+      - SuggestPluginInstall
+    docs:
+      - docs/plugins/agent-plugin-discovery.md
+    codeSeeds:
+      - file: apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-discovery-port.ts
+        symbol: createProtocolPluginDiscoveryPort
+      - file: packages/ui/src/v4/PluginInstallCard.tsx
+        symbol: PluginInstallCard
+    invariants:
+      - Only visible zcode-plugins-official entries are discoverable; model input never supplies
+        download locations.
+      - CLI owns confirmation and installation; no automatic approval, even in yolo mode.
+      - Installation does not refresh session capabilities; the activation port is a separate
+        boundary.
+  - id: capability.plugin-startup-budget
+    kind: capability
+    label: Plugin startup timeout without plugin capabilities
+    aliases:
+      - 插件启动预算
+      - 无插件启动
+      - plugin startup degraded
+    docs:
+      - docs/workspace-capability-discovery-cache.md
+    codeSeeds:
+      - file: apps/zcode-cli/packages/bootstrap/src/app/bundled-plugins.ts
+        symbol: createOfficialPluginPreparation
+      - file: packages/services/src/zcode-agent/zcodeAgentService.ts
+        symbol: onDynamicPluginStartupDegraded
+      - file: packages/ui/src/v4/composer/useDraftConfigControl.ts
+        symbol: useDraftConfigControl
+    invariants:
+      - The Agent process owns the shared budget and degraded latch; queries do not rescan or alter
+        enablement after timeout.
+      - Existing Runtime snapshots stay frozen; restart creates a new owner. Desktop and mobile
+        subscribe to the same workspace-scoped notification.
+      - An in-flight directory publication finishes or rolls back before releasing its lock; late
+        results cannot restore capabilities.
 edges:
   - from: capability.projectless-task-workspaces
     to: surface.projectless-startup
@@ -863,7 +1045,9 @@ edges:
     to: surface.composer-model-effort-menu
     type: renders-combined-model-effort
     rank: must-inspect
-    condition: Only Composer enables the combined menu inside ModelConfigSelect; other consumers keep legacy selection.
+    condition:
+      Only Composer enables the combined menu inside ModelConfigSelect; other consumers keep
+      legacy selection.
   - from: surface.composer-model-effort-menu
     to: state.composer-submission-intent
     type: edits-controlled-draft
@@ -897,7 +1081,8 @@ edges:
     to: capability.personal-coding-plan-quota
     type: resolves-target-authority
     rank: should-inspect
-    condition: Quota and model configuration come from the prepared target Source; no Controller credential fallback.
+    condition: Quota and model configuration come from the prepared target Source; no Controller
+      credential fallback.
   - from: persistence.source-data-roots
     to: capability.sqlite-startup-migrations
     type: supplies-startup-database-paths
@@ -914,7 +1099,9 @@ edges:
     to: persistence.source-data-roots
     type: requires-full-root-writer-lease
     rank: must-inspect
-    condition: Both complete databases and every declared configuration writer must be stopped by a real owner lease.
+    condition:
+      Both complete databases and every declared configuration writer must be stopped by a real
+      owner lease.
   - from: capability.workspace-alias-migration-framework
     to: capability.sqlite-startup-migrations
     type: preserves-frozen-ledgers
@@ -1049,9 +1236,8 @@ edges:
     to: service.automation
     type: commits-to
     rank: must-inspect
-    condition:
-      Trace onSubmit through AutomationsSection and the automation management store to the selected
-      service; editing a field alone does not mutate a conversation.
+    condition: Trace onSubmit through AutomationsSection and the automation management store to the
+      selected service; editing a field alone does not mutate a conversation.
   - from: service.automation
     to: persistence.automation-record
     type: persists-to
@@ -1203,12 +1389,15 @@ edges:
     to: persistence.composer-recent
     type: persists-to
     rank: must-inspect
-    condition: The renderer freezes scope and order before async work; ACK, query and authoritative recovery settle the same receipt.
+    condition: The renderer freezes scope and order before async work; ACK, query and authoritative
+      recovery settle the same receipt.
   - from: persistence.composer-recent
     to: state.composer-submission-intent
     type: initializes-new-draft
     rank: must-inspect
-    condition: A fresh empty project draft reads the same scope; existing text drafts and Sessions keep their own selections.
+    condition:
+      A fresh empty project draft reads the same scope; existing text drafts and Sessions keep
+      their own selections.
   - from: service.conversation-submission
     to: service.conversation-command-inbox
     type: requires-admission-through
@@ -1218,11 +1407,14 @@ edges:
     to: service.runtime-submission-execution
     type: schedules-selection-for
     rank: must-inspect
-    condition:
-      CLI applies admitted configuration when execution starts, or when a Guide reaches the next
-      model step.
+    condition: CLI applies admitted configuration when execution starts, or when a Guide reaches the
+      next model step.
   - from: service.runtime-submission-execution
     to: state.conversation-product-projection
     type: emits-model-selection-for
     rank: must-inspect
     condition: Applied runtime model selection is projected through ModelSelected events.
+  - from: capability.agent-plugin-discovery
+    to: boundary.web-remote-replayable
+    type: recovers-via
+    rank: must-inspect

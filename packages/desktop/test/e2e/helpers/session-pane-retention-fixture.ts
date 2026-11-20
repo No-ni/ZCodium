@@ -12,16 +12,20 @@ import {
 export async function seedSessionPaneRetentionFixture(options: {
   e2eHomeDir: string;
   cliEntryPoint: string;
+  crossWorkspace?: boolean;
 }) {
   const home = resolve(options.e2eHomeDir);
   if (home === resolve(homedir())) throw new Error("不能向用户 HOME 写入合成历史");
   const workspacePath = join(home, "Workspace");
   await mkdir(workspacePath, { recursive: true });
   await mkdir(join(home, ".zcode/v2"), { recursive: true });
+  const workspaceFor = (index: number) =>
+    options.crossWorkspace ? join(home, `Workspace-${index}`) : workspacePath;
   for (let index = 0; index < 8; index++) {
+    await mkdir(workspaceFor(index), { recursive: true });
     await seedProviderReadinessHistoryFixture({
       ...options,
-      workspacePath,
+      workspacePath: workspaceFor(index),
       history: {
         sessionId: `sess_probe_retention_${index}`,
         title: `Retention Probe ${index}`,
@@ -36,7 +40,7 @@ export async function seedSessionPaneRetentionFixture(options: {
     });
   }
   // node:sqlite 只有同步 API；此处仅离线播种测试 fixture，不在产品 IO 路径执行。
-  const db = new DatabaseSync(join(home, ".zcode/cli/db/db.sqlite"));
+  const db = new DatabaseSync(join(home, ".zcodium/cli/db/db.sqlite"));
   try {
     for (let index = 0; index < 8; index++) {
       const sessionId = `sess_probe_retention_${index}`;
@@ -52,7 +56,7 @@ export async function seedSessionPaneRetentionFixture(options: {
         tool: "Write",
         state: {
           status: "completed",
-          input: { file_path: join(workspacePath, `fixture-${index}.txt`), content },
+          input: { file_path: join(workspaceFor(index), `fixture-${index}.txt`), content },
           output: `Synthetic write completed for session ${index}.`,
           title: "Write",
           time: { start: at, end: at + 10 },

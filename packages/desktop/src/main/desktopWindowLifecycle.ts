@@ -9,6 +9,7 @@ import { createBrowserWindow } from "./desktopWindowChrome.js";
 import type { HostInitMessage, WindowBootstrapOptions } from "./desktopHostProcess.js";
 import type { StartupWorkspaceWarmupTarget } from "./startupWorkspace.js";
 import { handleDarwinWindowCloseRequest } from "./desktopDarwinCloseBehavior.js";
+import { supportsNativeWindowsRoundedCorners } from "./desktopWindowChromeState.js";
 import {
   parseWindowUnreadCount,
   parseWindowUnreadProjection,
@@ -371,12 +372,7 @@ export function configureDockMenu(getLabel: () => string, onShowCurrentWindow: (
     return;
   }
 
-  const dockMenu = Menu.buildFromTemplate([
-    {
-      label: getLabel(),
-      click: onShowCurrentWindow,
-    },
-  ]);
+  const dockMenu = Menu.buildFromTemplate([{ label: getLabel(), click: onShowCurrentWindow }]);
 
   app.dock.setMenu(dockMenu);
 }
@@ -391,6 +387,11 @@ export function handleDesktopWindowCloseRequest(options: {
   logger: { info: (...args: unknown[]) => void };
   shouldConfirmQuit?: boolean;
   confirmQuit: () => boolean;
+  /**
+   * 只关窗口（不退出应用）时的确认：该窗口的 Host 有关闭后无法恢复的事项时返回用户的选择，
+   * 没有这类事项时直接返回 true（docs/git/worktree.md §3.9）。缺省视为无需确认。
+   */
+  confirmWindowClose?: () => boolean;
   requestQuit: () => void;
   hideWindow?: () => void;
 }) {
@@ -405,7 +406,13 @@ export function handleDesktopWindowCloseRequest(options: {
     return true;
   }
 
-  if (options.platform === "darwin" || options.forceQuit || !options.isLastWindow) {
+  if (options.forceQuit) return false;
+  if (options.platform === "darwin" || !options.isLastWindow) {
+    // 关闭窗口会结束该窗口的 Host；Host 内正在进行、无法恢复的事项需要用户确认。
+    if (options.confirmWindowClose && !options.confirmWindowClose()) {
+      options.logger.info(`[createWindow] window close canceled by user (${options.label})`);
+      return true;
+    }
     return false;
   }
 

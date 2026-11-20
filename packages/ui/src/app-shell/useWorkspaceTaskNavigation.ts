@@ -1,9 +1,11 @@
 /* eslint-disable max-lines -- workspace 的 task、自动化与插件市场共享浏览器式历史，集中处理才能保证前进/后退目标一致。 */
-import { useCallback } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import {
   canGoBack as navCanGoBack,
   canGoForward as navCanGoForward,
+  goBack,
+  goForward,
   isAutomationsNavEntry,
   isPluginStoreNavEntry,
   type AutomationsNavigationTab,
@@ -11,7 +13,7 @@ import {
 import { shouldBlockTaskSelectionDuringModelRestart } from "@/lib/taskSwitchGuard.js";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
-import { getVisibleTaskMetas, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { buildTaskEntityKey, buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
   markTaskQueryCacheScopesStale,
@@ -20,7 +22,6 @@ import {
   setTaskQueryCacheUnreadOverlay,
   useTaskQueryCacheStore,
 } from "@/store/taskQueryCacheStore.js";
-import { taskNavigationTargetExists } from "@/lib/taskNavigationTarget.js";
 import { getRemoteWorkspaceSession } from "@/store/remoteWorkspaceSessionStore.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
@@ -29,6 +30,11 @@ import {
   ensureTaskNavigationWorkspace,
   findTaskNavigationWorkspaceTab,
 } from "@/app-shell/taskNavigationWorkspace.js";
+import {
+  onTaskNavigationCommitted,
+  onTaskNavigationRequested,
+} from "@/store/zcodeSessionStoreNavigation.js";
+import { selectWorkbenchSession } from "@/v4/workbenchSessionPlacement.js";
 
 export interface AutomationsNavigationTarget {
   workspacePath: string;
@@ -41,6 +47,7 @@ export function useWorkspaceTaskNavigation({
   intl,
   workspaceAbsPath,
   workspaceIdentity,
+  isWebRemoteControl = false,
   activateTabByPath,
   onNavigateToTask,
   onNavigateToAutomations,
@@ -49,6 +56,7 @@ export function useWorkspaceTaskNavigation({
   intl: { formatMessage: (descriptor: { id: string }) => string };
   workspaceAbsPath: string;
   workspaceIdentity?: string;
+  isWebRemoteControl?: boolean;
   activateTabByPath: (workspacePath: string, options?: { workspaceIdentity?: string }) => boolean;
   onNavigateToTask?: () => void;
   onNavigateToAutomations?: (target: AutomationsNavigationTarget) => void;
@@ -63,9 +71,16 @@ export function useWorkspaceTaskNavigation({
   const taskNavHistory = useZCodeSessionStore((s) => s.taskNavHistory);
   const taskNavPushAutomations = useZCodeSessionStore((s) => s.taskNavPushAutomations);
   const taskNavPushPluginStore = useZCodeSessionStore((s) => s.taskNavPushPluginStore);
-  const taskNavGoBack = useZCodeSessionStore((s) => s.taskNavGoBack);
-  const taskNavGoForward = useZCodeSessionStore((s) => s.taskNavGoForward);
-  const removeTaskFromNavHistory = useZCodeSessionStore((s) => s.removeTaskFromNavHistory);
+  const navigationVersion = useRef(0);
+  useEffect(() => {
+    const subscription = onTaskNavigationCommitted(() => {
+      navigationVersion.current += 1;
+    });
+    return () => {
+      navigationVersion.current += 1;
+      subscription.dispose();
+    };
+  }, []);
 
   const handleSelectTask = useCallback(
     (
@@ -185,11 +200,7 @@ export function useWorkspaceTaskNavigation({
           logger.warn("[App] 选择 task 时跳过未读持久化，远程 workspace 未连接");
         } else {
           void targetServices.zcodeTaskService
-            .setTaskUnread({
-              ...targetTask,
-              unread: false,
-              expectedUnreadAt,
-            })
+            .setTaskUnread({ ...targetTask, unread: false, expectedUnreadAt })
             .then((meta) => {
               reconcileTaskQueryCacheUnread(targetTask, meta.unreadAt);
               bumpTaskListMembershipVersion();
@@ -241,199 +252,182 @@ export function useWorkspaceTaskNavigation({
     onNavigateToPluginStore?.({ workspacePath: workspaceAbsPath, workspaceIdentity });
   }, [onNavigateToPluginStore, taskNavPushPluginStore, workspaceAbsPath, workspaceIdentity]);
 
+  const navigateHistory = useCallback(
+    async (direction: "back" | "forward") => {
+      const sessionStore = useZCodeSessionStore.getState();
+      const origin = sessionStore.getWorkspaceState(workspaceAbsPath, workspaceIdentity);
+      if (
+        shouldBlockTaskSelectionDuringModelRestart(
+          origin.modelSwitchPending,
+          origin.modelSwitchStage,
+        )
+      ) {
+        toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
+        return;
+      }
+      const request = ++navigationVersion.current;
+      const originalHistory = sessionStore.taskNavHistory;
+      const originalTabId = tabStoreApi.getState().activeTabId;
+      const isCurrent = () => {
+        const state = useZCodeSessionStore.getState();
+        const current = state.getWorkspaceState(workspaceAbsPath, workspaceIdentity);
+        return (
+          request === navigationVersion.current &&
+          state.taskNavHistory === originalHistory &&
+          tabStoreApi.getState().activeTabId === originalTabId &&
+          current.activeTaskId === origin.activeTaskId &&
+          current.draftFocusVersion === origin.draftFocusVersion
+        );
+      };
+      const step = direction === "back" ? goBack : goForward;
+      let history = originalHistory;
+      try {
+        for (let next = step(history); next; next = step(history)) {
+          const { entry } = next;
+          if (isAutomationsNavEntry(entry) || isPluginStoreNavEntry(entry)) {
+            if (!isCurrent()) return;
+            useZCodeSessionStore.setState({ taskNavHistory: next.history });
+            activateTabByPath(entry.workspacePath, { workspaceIdentity: entry.workspaceIdentity });
+            if (isAutomationsNavEntry(entry)) onNavigateToAutomations?.(entry);
+            else onNavigateToPluginStore?.(entry);
+            return;
+          }
+          const targetTab = findTaskNavigationWorkspaceTab(
+            tabStoreApi.getState().tabs.filter(isWorkspaceTab),
+            {
+              workspacePath: entry.workspacePath,
+              workspaceIdentity: entry.workspaceIdentity,
+            },
+          );
+          const remoteSessionId =
+            targetTab && isWorkspaceTab(targetTab) ? targetTab.remoteSessionId : undefined;
+          const remote = Boolean(
+            entry.workspaceIdentity ||
+            (targetTab && isWorkspaceTab(targetTab) && targetTab.remoteTarget),
+          );
+          const services = remoteSessionId
+            ? getRemoteWorkspaceSession(remoteSessionId)?.services
+            : remote
+              ? undefined
+              : baseServices;
+          if (!services) throw new Error("Navigation target is disconnected");
+          // 侧栏已迁到项目树，旧缓存未命中不代表删除；只信 Host 索引的明确空结果。
+          // 查询期间不移动真实游标，新选择、草稿或连接换代会使迟到结果失效。
+          const meta = await services.zcodeTaskService.getTaskMeta({
+            workspacePath: entry.workspacePath,
+            workspaceIdentity: entry.workspaceIdentity,
+            taskId: entry.taskId,
+          });
+          if (
+            !isCurrent() ||
+            (remoteSessionId && getRemoteWorkspaceSession(remoteSessionId)?.services !== services)
+          )
+            return;
+          if (!meta) {
+            // 只删除本次查询的精确条目，保持当前位置；批量删除重复 task 会跳过相邻目标。
+            history = {
+              entries: history.entries.filter((_, index) => index !== next.history.cursor),
+              cursor: history.cursor - (next.history.cursor < history.cursor ? 1 : 0),
+            };
+            continue;
+          }
+          const targetState = useZCodeSessionStore
+            .getState()
+            .getWorkspaceState(entry.workspacePath, entry.workspaceIdentity);
+          if (
+            shouldBlockTaskSelectionDuringModelRestart(
+              targetState.modelSwitchPending,
+              targetState.modelSwitchStage,
+            )
+          ) {
+            toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
+            return;
+          }
+          const workspace = ensureTaskNavigationWorkspace({
+            workspacePath: entry.workspacePath,
+            workspaceIdentity: entry.workspaceIdentity,
+            activateTabByPath,
+            addLocalWorkspaceTab: (path) => {
+              tabStoreApi.getState().addTab(path);
+            },
+          });
+          if (!workspace.accepted) throw new Error("Navigation target is disconnected");
+          // 与侧栏选择共用工作台 owner，避免只改 shell activeTaskId 而分屏仍显示原会话。
+          if (!isWebRemoteControl)
+            selectWorkbenchSession(
+              origin.activeTaskId
+                ? {
+                    sessionId: origin.activeTaskId,
+                    workspaceScope: { workspacePath: workspaceAbsPath, workspaceIdentity },
+                  }
+                : null,
+              {
+                workspacePath: entry.workspacePath,
+                workspaceIdentity: entry.workspaceIdentity,
+                remoteSessionId,
+                sessionId: entry.taskId,
+              },
+            );
+          useZCodeSessionStore.setState({ taskNavHistory: next.history });
+          handleSelectTask(
+            entry.workspacePath,
+            entry.taskId,
+            entry.workspaceIdentity,
+            meta.unreadAt,
+          );
+          return;
+        }
+        if (isCurrent()) {
+          useZCodeSessionStore.setState({ taskNavHistory: history });
+          toast(
+            intl.formatMessage({
+              id: direction === "back" ? "taskNav.noMoreBack" : "taskNav.noMoreForward",
+            }),
+          );
+        }
+      } catch {
+        if (!isCurrent()) return;
+        logger.warn("[task-navigation] 历史目标查询或打开失败，保留当前选择和历史", {
+          direction,
+        });
+        toast(intl.formatMessage({ id: "automations.runs.openSessionFailed" }));
+      }
+    },
+    [
+      activateTabByPath,
+      baseServices,
+      handleSelectTask,
+      intl,
+      isWebRemoteControl,
+      onNavigateToAutomations,
+      onNavigateToPluginStore,
+      tabStoreApi,
+      workspaceAbsPath,
+      workspaceIdentity,
+    ],
+  );
   const handleTaskNavBack = useCallback(() => {
-    const currentWorkspaceState = useZCodeSessionStore
-      .getState()
-      // 门禁属于当前完整 workspace 身份，不能读同路径的本机桶。
-      .getWorkspaceState(workspaceAbsPath, workspaceIdentity);
-    if (
-      shouldBlockTaskSelectionDuringModelRestart(
-        currentWorkspaceState.modelSwitchPending,
-        currentWorkspaceState.modelSwitchStage,
-      )
-    ) {
-      logger.info("[App] 模型运行时重建中，忽略任务后退导航", {
-        stage: currentWorkspaceState.modelSwitchStage,
-      });
-      toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
-      return;
-    }
-
-    let entry = taskNavGoBack();
-    // 性能修复：task meta 恢复/流式同步会高频刷新 query cache。
-    // 历史导航只在命令执行时需要存在性快照，避免 hook 订阅整张 meta 表导致 shell 重渲染。
-    const taskMetaByEntityKey = useTaskQueryCacheStore.getState().taskMetaByEntityKey;
-    while (entry) {
-      const currentEntry = entry;
-      if (isAutomationsNavEntry(currentEntry)) {
-        activateTabByPath(
-          currentEntry.workspacePath,
-          currentEntry.workspaceIdentity
-            ? { workspaceIdentity: currentEntry.workspaceIdentity }
-            : undefined,
-        );
-        onNavigateToAutomations?.({
-          workspacePath: currentEntry.workspacePath,
-          ...(currentEntry.workspaceIdentity
-            ? { workspaceIdentity: currentEntry.workspaceIdentity }
-            : {}),
-          ...(currentEntry.automationId ? { automationId: currentEntry.automationId } : {}),
-          ...(currentEntry.automationTab ? { automationTab: currentEntry.automationTab } : {}),
-        });
-        return;
-      }
-      if (isPluginStoreNavEntry(currentEntry)) {
-        activateTabByPath(
-          currentEntry.workspacePath,
-          currentEntry.workspaceIdentity
-            ? { workspaceIdentity: currentEntry.workspaceIdentity }
-            : undefined,
-        );
-        onNavigateToPluginStore?.(currentEntry);
-        return;
-      }
-      const navWorkspaceState = useZCodeSessionStore
-        .getState()
-        .getWorkspaceState(currentEntry.workspacePath, currentEntry.workspaceIdentity);
-      const exists = taskNavigationTargetExists({
-        entry: currentEntry,
-        visibleTasks: getVisibleTaskMetas(navWorkspaceState),
-        taskMetaByEntityKey,
-      });
-      if (exists) {
-        handleSelectTask(
-          currentEntry.workspacePath,
-          currentEntry.taskId,
-          currentEntry.workspaceIdentity,
-        );
-        return;
-      }
-
-      // 原因：批量清理会同时删除更早的重复记录，沿用旧下标再后退会选回当前任务。
-      // 先沿原方向越过同一失效目标，保留下一条对象身份，再一次清理全部重复记录。
-      do {
-        entry = taskNavGoBack();
-      } while (
-        entry?.kind === "task" &&
-        buildTaskEntityKey(entry) === buildTaskEntityKey(currentEntry)
-      );
-      removeTaskFromNavHistory(
-        currentEntry.taskId,
-        currentEntry.workspacePath,
-        currentEntry.workspaceIdentity,
-      );
-    }
-
-    toast(intl.formatMessage({ id: "taskNav.noMoreBack" }));
-  }, [
-    activateTabByPath,
-    handleSelectTask,
-    intl,
-    onNavigateToAutomations,
-    onNavigateToPluginStore,
-    removeTaskFromNavHistory,
-    taskNavGoBack,
-    workspaceAbsPath,
-    workspaceIdentity,
-  ]);
-
+    void navigateHistory("back");
+  }, [navigateHistory]);
   const handleTaskNavForward = useCallback(() => {
-    const currentWorkspaceState = useZCodeSessionStore
-      .getState()
-      // 前进和后退必须读取同一身份的重启状态。
-      .getWorkspaceState(workspaceAbsPath, workspaceIdentity);
-    if (
-      shouldBlockTaskSelectionDuringModelRestart(
-        currentWorkspaceState.modelSwitchPending,
-        currentWorkspaceState.modelSwitchStage,
-      )
-    ) {
-      logger.info("[App] 模型运行时重建中，忽略任务前进导航", {
-        stage: currentWorkspaceState.modelSwitchStage,
-      });
-      toast(intl.formatMessage({ id: "taskList.switchBlockedByModelRestart" }));
-      return;
-    }
-
-    let entry = taskNavGoForward();
-    // 性能修复：只在前进命令触发时读取最新 query cache，避免 task meta 小更新订阅整棵导航 hook。
-    const taskMetaByEntityKey = useTaskQueryCacheStore.getState().taskMetaByEntityKey;
-    while (entry) {
-      const currentEntry = entry;
-      if (isAutomationsNavEntry(currentEntry)) {
-        activateTabByPath(
-          currentEntry.workspacePath,
-          currentEntry.workspaceIdentity
-            ? { workspaceIdentity: currentEntry.workspaceIdentity }
-            : undefined,
-        );
-        onNavigateToAutomations?.({
-          workspacePath: currentEntry.workspacePath,
-          ...(currentEntry.workspaceIdentity
-            ? { workspaceIdentity: currentEntry.workspaceIdentity }
-            : {}),
-          ...(currentEntry.automationId ? { automationId: currentEntry.automationId } : {}),
-          ...(currentEntry.automationTab ? { automationTab: currentEntry.automationTab } : {}),
-        });
-        return;
-      }
-      if (isPluginStoreNavEntry(currentEntry)) {
-        activateTabByPath(
-          currentEntry.workspacePath,
-          currentEntry.workspaceIdentity
-            ? { workspaceIdentity: currentEntry.workspaceIdentity }
-            : undefined,
-        );
-        onNavigateToPluginStore?.(currentEntry);
-        return;
-      }
-      const navWorkspaceState = useZCodeSessionStore
-        .getState()
-        .getWorkspaceState(currentEntry.workspacePath, currentEntry.workspaceIdentity);
-      const exists = taskNavigationTargetExists({
-        entry: currentEntry,
-        visibleTasks: getVisibleTaskMetas(navWorkspaceState),
-        taskMetaByEntityKey,
-      });
-      if (exists) {
-        handleSelectTask(
-          currentEntry.workspacePath,
-          currentEntry.taskId,
-          currentEntry.workspaceIdentity,
-        );
-        return;
-      }
-
-      // 原因：只前进一步可能仍拿到同一任务的重复记录，批量删除后该记录已不在栈内。
-      // 清理前沿原方向越过同一失效目标，保证保留的后继不会因数组收缩被跳过。
-      do {
-        entry = taskNavGoForward();
-      } while (
-        entry?.kind === "task" &&
-        buildTaskEntityKey(entry) === buildTaskEntityKey(currentEntry)
-      );
-      removeTaskFromNavHistory(
-        currentEntry.taskId,
-        currentEntry.workspacePath,
-        currentEntry.workspaceIdentity,
-      );
-    }
-
-    toast(intl.formatMessage({ id: "taskNav.noMoreForward" }));
-  }, [
-    activateTabByPath,
-    handleSelectTask,
-    intl,
-    onNavigateToAutomations,
-    onNavigateToPluginStore,
-    removeTaskFromNavHistory,
-    taskNavGoForward,
-    workspaceAbsPath,
-    workspaceIdentity,
-  ]);
+    void navigateHistory("forward");
+  }, [navigateHistory]);
 
   const canGoBack = navCanGoBack(taskNavHistory);
   const canGoForward = navCanGoForward(taskNavHistory);
+  // 深层组件的跳转请求（规格 0.13）在这里落地：本 hook 是 handleSelectTask 的唯一持有者，
+  // 订阅放在它这儿才不会出现第二条导航路径。App 只挂一次，所以订阅者唯一。
+  const selectTaskRef = useRef(handleSelectTask);
+  useLayoutEffect(() => {
+    selectTaskRef.current = handleSelectTask;
+  });
+  useEffect(() => {
+    const subscription = onTaskNavigationRequested((request) => {
+      selectTaskRef.current(request.workspacePath, request.taskId, request.workspaceIdentity);
+    });
+    return () => subscription.dispose();
+  }, []);
+
   // getState 不订阅锁变化，按钮会等历史栈变更才更新；只订阅当前身份的门禁布尔值。
   const isTaskSwitchLockedByModelRestart = useZCodeSessionStore((state) => {
     const current = state.getWorkspaceState(workspaceAbsPath, workspaceIdentity);

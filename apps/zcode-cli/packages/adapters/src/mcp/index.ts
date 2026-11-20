@@ -42,7 +42,7 @@ import type { McpServerFailureKind } from "@zcode/shared";
 import { buildMcpAppsClientCapabilities } from "@zcode/shared/mcp-apps";
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { isDeepStrictEqual } from "node:util";
+import { isDeepStrictEqual, stripVTControlCharacters } from "node:util";
 import {
   createSharedZCodeCredentialStore,
   type SharedZCodeCredentialStore,
@@ -105,6 +105,7 @@ const DEFAULT_MCP_TIMEOUT_MS = 30_000;
 const MCP_PING_TIMEOUT_MS = 5_000;
 const MAX_MCP_VERSION_PROBE_TIMEOUT_MS = 5_000;
 const MCP_STDIO_STDERR_LOG_MAX_CHARS = 4_000;
+const MCP_STDIO_ERROR_MESSAGE_MAX_CHARS = 512;
 export interface CreateMcpAdapterOptions {
   clientName?: string;
   clientVersion?: string;
@@ -120,6 +121,11 @@ export interface CreateMcpAdapterOptions {
   mcpOAuth?: McpOAuthRuntimeOptions;
   network?: NetworkEgressEnvPolicy;
   workingDirectory?: string;
+  /**
+   * 会话所属 workspace 的 key，官方 MCP 授权头请求以它为身份发往 Host。受管 worktree 会话 =
+   * 项目，不等于 workingDirectory（docs/git/worktree.md §9.3）。
+   */
+  workspaceKey?: string;
   /** 有此端口才向 server 宣告 elicitation 能力；缺省时 server 的 elicitation/create 收到 method not found。 */
   elicitation?: McpElicitationPort;
   /** server → client 通知（资源更新 / 列表变化 / 工具列表变化 / 日志）的出口；缺省只记 debug。 */
@@ -179,11 +185,12 @@ export function createMcpAdapterConnectionPool(
   return createMcpConnectionPool({
     logger: options.logger,
     processTracker: options.processTracker,
-    createAdapter: ({ connectionContext, workingDirectory }) =>
+    createAdapter: ({ connectionContext, workingDirectory, workspaceKey }) =>
       createMcpAdapter({
         ...options,
         connectionContext,
         workingDirectory: workingDirectory ?? options.workingDirectory,
+        ...(workspaceKey ? { workspaceKey } : {}),
       }),
   });
 }
@@ -234,6 +241,7 @@ class NodeMcpAdapter implements McpPort {
   private closePromise?: Promise<void>;
   private readonly closeClientAndTransport: ReturnType<typeof createMcpResourceCloser>;
   private readonly workingDirectory?: string;
+  private readonly workspaceKey?: string;
   private readonly elicitation?: McpElicitationPort;
   private readonly notifications?: McpNotificationPort;
   /** 资源订阅登记表 serverName → uri → subscriberKey；唯一 owner，连接层计数。 */
@@ -248,10 +256,7 @@ class NodeMcpAdapter implements McpPort {
     this.clientVersion = options.clientVersion ?? "0.0.0";
     this.connectionContext = options.connectionContext;
     this.env = options.env;
-    this.logger = options.logger?.child({
-      ...this.connectionContext,
-      module: "adapters.mcp",
-    });
+    this.logger = options.logger?.child({ ...this.connectionContext, module: "adapters.mcp" });
     this.mcpOAuth = options.mcpOAuth;
     this.network = options.network;
     this.processTracker = options.processTracker;
@@ -262,6 +267,7 @@ class NodeMcpAdapter implements McpPort {
       processTracker: this.processTracker,
     });
     this.workingDirectory = options.workingDirectory;
+    this.workspaceKey = options.workspaceKey;
     this.elicitation = options.elicitation;
     this.notifications = options.notifications;
   }
@@ -322,10 +328,7 @@ class NodeMcpAdapter implements McpPort {
       statusCounts,
       toolCount: tools.length,
     });
-    return {
-      statuses,
-      tools,
-    };
+    return { statuses, tools };
   }
 
   async connectServer(
@@ -1009,11 +1012,7 @@ class NodeMcpAdapter implements McpPort {
       timeoutMs,
     };
     const argumentKeys = Object.keys(request.arguments ?? {}).sort();
-    this.logger?.debug("MCP tool call started", {
-      ...logBase,
-      argumentKeys,
-      status: "started",
-    });
+    this.logger?.debug("MCP tool call started", { ...logBase, argumentKeys, status: "started" });
 
     const startedAt = Date.now();
     try {
@@ -1349,9 +1348,7 @@ class NodeMcpAdapter implements McpPort {
             return;
           }
           abortHandler = () => resolvePromise(currentStatus());
-          options.signal?.addEventListener("abort", abortHandler, {
-            once: true,
-          });
+          options.signal?.addEventListener("abort", abortHandler, { once: true });
         }),
       );
     }
@@ -1415,10 +1412,7 @@ class NodeMcpAdapter implements McpPort {
       this.assertConnectionActive(name, generation, signal);
       getRecentStderr = this.attachStdioLogging(name, transport);
       client = new Client(
-        {
-          name: this.clientName,
-          version: this.clientVersion,
-        },
+        { name: this.clientName, version: this.clientVersion },
         {
           versionNegotiation: resolveVersionNegotiation(config, timeoutMs),
           capabilities: {
@@ -1432,10 +1426,7 @@ class NodeMcpAdapter implements McpPort {
       );
       this.installElicitationHandler(client, name);
       this.installNotificationHandlers(client, name);
-      this.updateCurrentRecord(name, generation, {
-        client,
-        transport,
-      });
+      this.updateCurrentRecord(name, generation, { client, transport });
 
       const connectStartedAt = Date.now();
       sdkConnecting = client.connect(transport, { signal, timeout: timeoutMs });
@@ -1578,10 +1569,7 @@ class NodeMcpAdapter implements McpPort {
           trigger,
         });
         if (outcome.status === "authorized" || outcome.status === "already-authorized") {
-          return await this.openServerConnection({
-            ...input,
-            oauthAuthorizationAttempted: true,
-          });
+          return await this.openServerConnection({ ...input, oauthAuthorizationAttempted: true });
         }
         // client/transport 已在进入 Phase 2 前关闭，这里不再传入；failureKind 沿用
         // 诊断分类，让设置页把"授权没完成"与网络/进程类失败区分开。
@@ -1737,11 +1725,18 @@ class NodeMcpAdapter implements McpPort {
         : undefined) ??
       fallbackFailureKind ??
       "connection_failed";
-    const status = this.createStatus(config, "failed", {
-      error: message,
-      failureKind,
-    });
     const recentStderr = getRecentStderr?.();
+    // 子进程诊断只在 stdio 失败时展示同次连接的净化证据，不改变重试或失败分类。
+    const statusMessage =
+      config.type === "stdio"
+        ? [
+            sanitizeMcpStdioStderr(message).slice(0, MCP_STDIO_ERROR_MESSAGE_MAX_CHARS),
+            recentStderr,
+          ]
+            .filter(Boolean)
+            .join("\n\n")
+        : message;
+    const status = this.createStatus(config, "failed", { error: statusMessage, failureKind });
     const mcpTransportPid = getStdioTransportPid(transport);
     await this.closeClientAndTransport(name, client, transport);
     if (!this.isCurrentConnection(name, generation)) {
@@ -1786,10 +1781,7 @@ class NodeMcpAdapter implements McpPort {
             : (workingDirectory ?? this.workingDirectory),
           // PATH 里已有 node/npm 时用户环境优先；只有缺失时才把 shim 目录追加到 PATH 末尾。
           env: applyMcpNodeFallbackEnv(
-            {
-              ...buildMcpStdioEnv({ env: this.env, network: this.network }),
-              ...config.env,
-            },
+            { ...buildMcpStdioEnv({ env: this.env, network: this.network }), ...config.env },
             nodeFallback,
           ),
           stderr: "pipe",
@@ -1797,10 +1789,7 @@ class NodeMcpAdapter implements McpPort {
       };
     }
 
-    const fetch = createMcpTransportFetch({
-      env: this.env,
-      network: this.network,
-    });
+    const fetch = createMcpTransportFetch({ env: this.env, network: this.network });
     if (config.type === "http") {
       return {
         transport: new StreamableHTTPClientTransport(new URL(config.url), {
@@ -1887,9 +1876,7 @@ class NodeMcpAdapter implements McpPort {
   private attachStdioLogging(name: string, transport: McpTransport): () => string | undefined {
     const stderrBuffer = createBoundedTextBuffer(MCP_STDIO_STDERR_LOG_MAX_CHARS);
     const stderr = (
-      transport as {
-        stderr?: { on(event: "data", handler: (chunk: Buffer) => void): void };
-      }
+      transport as { stderr?: { on(event: "data", handler: (chunk: Buffer) => void): void } }
     ).stderr;
     stderr?.on("data", (chunk) => {
       const text = chunk.toString("utf8");
@@ -1993,11 +1980,7 @@ class NodeMcpAdapter implements McpPort {
     if (!this.isCurrentConnection(name, generation)) return;
     const record = this.records.get(name);
     if (!record) return;
-    record.status = {
-      ...record.status,
-      ...patch,
-      updatedAt: new Date().toISOString(),
-    };
+    record.status = { ...record.status, ...patch, updatedAt: new Date().toISOString() };
   }
 
   private createStatus(
@@ -2045,10 +2028,7 @@ function mcpRequestMeta(request: McpCallToolRequest): Record<string, unknown> {
     ...(request.deliveryKind ? { delivery_kind: request.deliveryKind } : {}),
     ...(request.turnId && !request.trace?.turnId ? { turn_id: request.turnId } : {}),
   };
-  return {
-    ...requestContext,
-    "com.zcode/request-context": requestContext,
-  };
+  return { ...requestContext, "com.zcode/request-context": requestContext };
 }
 
 function resolveVersionNegotiationMode(config: McpServerConfig): VersionNegotiationMode {
@@ -2128,9 +2108,7 @@ function resolveAuthorizationCodeOAuthConfig(
 
   // 新建 HTTP/SSE MCP 常只保存 URL；OAuth 支持应由服务端
   // WWW-Authenticate / discovery 触发，不能要求配置里预先写 oauth 字段。
-  return {
-    type: "authorization_code",
-  };
+  return { type: "authorization_code" };
 }
 
 function hasAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
@@ -2138,27 +2116,35 @@ function hasAuthorizationHeader(headers: Record<string, string> | undefined): bo
   return Object.keys(headers).some((name) => name.toLowerCase() === "authorization");
 }
 
-function createBoundedTextBuffer(maxChars: number): {
-  append(text: string): void;
-  read(): string;
-} {
+function createBoundedTextBuffer(maxChars: number): { append(text: string): void; read(): string } {
   let value = "";
+  let truncated = false;
   return {
     append(text: string) {
       if (!text) return;
       value = `${value}${text}`;
       if (value.length > maxChars) {
         value = value.slice(-maxChars);
+        truncated = true;
       }
     },
     read() {
-      return value;
+      // 尾部截断可能把 VE_SPEECH_MCP_TOKEN=... 切成 KEN=...，键名正则匹配不到会泄露值。
+      // 截断后丢弃第一行残片，保证脱敏看到的每一行都完整。
+      // 行边界含 \r（进度条只用 \r 刷新）。尾部完全没有换行时（单个超长行），
+      // 空白/分隔符可能位于带引号的凭证值内部（KEN="a b" 的 b），从那里恢复会丢失键名和引号上下文而泄露后缀，
+      // 没有可靠的字段边界就不输出，只保留传输错误。
+      if (!truncated) return value;
+      const lineEnd = value.search(/[\r\n]/);
+      return lineEnd < 0 ? "" : value.slice(lineEnd + 1);
     },
   };
 }
 
 function sanitizeMcpStdioStderr(text: string): string {
-  const sensitiveKey = String.raw`(?:api[_-]?key|access[_-]?key|secret(?:[_-]?key)?|private[_-]?key|token|password|passwd|pass|mysql_pass|mysql_password)`;
+  text = stripVTControlCharacters(text);
+  // 插件常给敏感环境变量加前缀，例如 API_TOKEN、VE_SPEECH_MCP_TOKEN，不能只匹配裸 token。
+  const sensitiveKey = String.raw`(?:[a-z0-9_.-]*[_-])?(?:api[_-]?key|access[_-]?key|secret(?:[_-]?key)?|private[_-]?key|token|password|passwd|pass|mysql_pass|mysql_password)`;
   let result = text.replace(/(bearer\s+)[^\s"']+/gi, "$1[Redacted]");
   result = result.replace(
     /(\bauthorization\b\s*[:=]\s*)(bearer\s+)?[^\r\n]+/gi,
@@ -2166,8 +2152,14 @@ function sanitizeMcpStdioStderr(text: string): string {
       `${prefix}${bearer ? "Bearer " : ""}[Redacted]`,
   );
   result = result.replace(new RegExp(`([?&]${sensitiveKey}=)[^&\\s]+`, "gi"), "$1[Redacted]");
+  // 引号中的凭证可能包含空格或转义引号，必须整体替换，不能只遮住第一个词。
+  const quotedValue = String.raw`(["'])(?:\\.|(?!\2)[^\\\r\n])*\2`;
   result = result.replace(
-    new RegExp(`(["']${sensitiveKey}["']\\s*:\\s*)(["'])(?:(?!\\2).)*\\2`, "gi"),
+    new RegExp(String.raw`(["']${sensitiveKey}["']\s*:\s*)${quotedValue}`, "gi"),
+    "$1$2[Redacted]$2",
+  );
+  result = result.replace(
+    new RegExp(String.raw`(\b${sensitiveKey}\b\s*[:=]\s*)${quotedValue}`, "gi"),
     "$1$2[Redacted]$2",
   );
   result = result.replace(
@@ -2183,12 +2175,9 @@ function getStdioTransportPid(transport?: McpTransport): number | undefined {
   return typeof pid === "number" && Number.isInteger(pid) && pid > 0 ? pid : undefined;
 }
 
-function getStdioTransportExitInfo(transport?: McpTransport):
-  | {
-      exitCode: number | null;
-      signal: NodeJS.Signals | null;
-    }
-  | undefined {
+function getStdioTransportExitInfo(
+  transport?: McpTransport,
+): { exitCode: number | null; signal: NodeJS.Signals | null } | undefined {
   return transport instanceof ProcessTreeStdioClientTransport ? transport.processExit : undefined;
 }
 

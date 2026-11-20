@@ -1,4 +1,8 @@
-
+import { createNodePluginAdapter } from "@zcode/adapters/plugins";
+import { createOfficialPluginPreparation } from "./app/bundled-plugins.js";
+import { resolveZCodePlugins } from "./plugins.js";
+import { createSharedZCodeCredentialStore } from "@zcode/adapters/auth";
+import { ZCODE_WORKSPACE_IDENTITY_ENV } from "@zcode/shared";
 import type { McpElicitationPort, McpNotificationPort } from "@zcode/contracts";
 import { createConfig, resolvePath } from "@zcode/adapters/config";
 import { createNodeModelSelectionFacade } from "@zcode/provider-node";
@@ -31,7 +35,7 @@ import {
 } from "./zcode-protocol/storage-startup.js";
 import { closeSessionStore, getSessionDbPath } from "./app/session-store.js";
 import { resolveMcpNodeFallbackProvider } from "./app/mcp-node-fallback.js";
-import { getCliStorageRoot, getProjectMemoryRoot } from "./app/paths.js";
+import { getCliStorageRoot, getPluginStorageRoot, getProjectMemoryRoot } from "./app/paths.js";
 import { startProcessProviderRegistryRuntime } from "./app/process-provider-registry-runtime.js";
 import { scheduleStartupLogRetentionCleanup } from "./log-retention.js";
 import { resolveProcessProviderEndpointRoutingPort } from "./provider-endpoint-routing.js";
@@ -45,18 +49,16 @@ import {
   type ProtocolMaintenance,
 } from "./zcode-protocol/maintenance.js";
 import { acquireProtocolStartupResource } from "./zcode-protocol/startup-resource.js";
+import {
+  type ProtocolCredentialContext,
+  createProtocolCredentialCipher,
+} from "./protocol-credential-cipher.js";
 
 export function applyProtocolPresentationSurface(
   options: Omit<ZCodeAppOptions, "providerRegistry">,
   presentationSurface: PresentationSurface,
 ): Omit<ZCodeAppOptions, "providerRegistry"> {
-  return {
-    ...options,
-    runtimeConfig: {
-      ...options.runtimeConfig,
-      presentationSurface,
-    },
-  };
+  return { ...options, runtimeConfig: { ...options.runtimeConfig, presentationSurface } };
 }
 
 /**
@@ -97,15 +99,10 @@ export async function runZCodeProtocolAgent(
     env: options.env,
     onDiagnostic: (record) => diagnosticSink?.(record),
   });
-  const traceContext = createRootTraceContext({
-    attributes: {
-      entrypoint: "zcode_protocol",
-    },
-  });
-  const logger = loggerFactory.createLogger("zcode").child({
-    ...traceContextToLogContext(traceContext),
-    module: "bootstrap.zcode_protocol",
-  });
+  const traceContext = createRootTraceContext({ attributes: { entrypoint: "zcode_protocol" } });
+  const logger = loggerFactory
+    .createLogger("zcode")
+    .child({ ...traceContextToLogContext(traceContext), module: "bootstrap.zcode_protocol" });
   installZCodeProtocolAiSdkWarningLogger(logger);
   const startupTimer = new StartupTimer(
     logger,
@@ -122,10 +119,17 @@ export async function runZCodeProtocolAgent(
     stage: "start",
   });
 
+  // 修复原因：原先给 seed+discovery 共 3 秒预算，超时后整个进程到重启前都不加载插件。
+  // Windows 实测冷启动 seed 官方插件约 3.0~3.1 秒，插件版本升级后的首次启动必然超时。
+  // 先停用启动预算：seed 等锁仍由 15 秒共享锁预算兜住，超时按单插件降级回退旧缓存。
+  const pluginPreparation = createOfficialPluginPreparation();
+  let pluginDiscovery: ReturnType<typeof createNodePluginAdapter> | undefined;
+  let pluginPrewarm: Promise<void> | undefined;
   let sessionStore: SqliteSessionStore | undefined;
   let serverForCleanup: ZCodeProtocolAgentServer | undefined;
   let nodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let mcpConnectionPool: McpConnectionPool | undefined;
+  let credentialCipherBridge: ReturnType<typeof createProtocolCredentialCipher> | undefined;
   let mcpPort: McpPort | undefined;
   let mcpProcessesTracker: McpProcessTracker | undefined;
   let mcpResourceSink: ((samples: ZCodeMcpResourceSample[]) => void) | undefined;
@@ -152,6 +156,28 @@ export async function runZCodeProtocolAgent(
             }),
         }),
     });
+    pluginDiscovery = createNodePluginAdapter({
+      storageRoot: getPluginStorageRoot(
+        getCliStorageRoot(resolvePath(configResult.config.storage.dir)),
+      ),
+    });
+    pluginPrewarm = resolveZCodePlugins({
+      pluginDiscovery,
+      workspaceIdentity: (options.env ?? process.env)[ZCODE_WORKSPACE_IDENTITY_ENV]?.trim(),
+      env: options.env,
+      logger,
+      workingDirectory: options.cwd,
+      pluginPreparation,
+    }).then(
+      () => undefined,
+      (error: unknown) => {
+        if (!pluginPreparation.signal.aborted)
+          logger.warn("Plugin startup preparation failed", {
+            event: "zcode_protocol.plugins.prewarm.failed",
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+      },
+    );
     const runtimeEnv = options.env ?? process.env;
     options.lifecycle?.signal.throwIfAborted();
     providerRegistryRuntime = await acquireProtocolStartupResource({
@@ -162,7 +188,6 @@ export async function runZCodeProtocolAgent(
     });
     options.lifecycle?.signal.throwIfAborted();
     logger.info("Worker Provider Registry 已就绪", {
-      accountRevision: providerRegistryRuntime.snapshot.sourceRevisions.account,
       configRevision: providerRegistryRuntime.snapshot.sourceRevisions.config,
       event: "zcode_protocol.provider_registry.ready",
       module: "bootstrap.zcode_protocol",
@@ -175,9 +200,19 @@ export async function runZCodeProtocolAgent(
             onEvent: (event) => mcpDiagnosticSink?.(event),
             onResourceSamples: (samples) => mcpResourceSink?.(samples),
           });
+    // 官方 MCP 身份头端口（spec §7.1/§7.2）：连接池构造早于 server，故用惰性 holder 回填。
+    // server 就绪前该端口返回 official_auth_unavailable；HTTP tools/call 会匿名交给服务端
+    // 返回结构化权限错误，stdio 则把 reason 下发给插件。连接与工具发现都不受影响。
+    let credentialContext: ProtocolCredentialContext | undefined;
+    credentialCipherBridge = createProtocolCredentialCipher(() => credentialContext);
+    const mcpCredentialStore = createSharedZCodeCredentialStore({
+      env: options.env,
+      cipher: credentialCipherBridge.cipher,
+    });
     const providerEndpointRoutingPort =
       options.providerEndpointRoutingPort ??
       resolveProcessProviderEndpointRoutingPort({
+        credentialStore: mcpCredentialStore,
         appVersion: options.version,
         env: options.env,
         logger,
@@ -192,6 +227,7 @@ export async function runZCodeProtocolAgent(
       configResult.config.features.mcp === false
         ? undefined
         : createMcpAdapterConnectionPool({
+            mcpOAuth: { credentialStore: mcpCredentialStore },
             elicitation: {
               requestElicitation: (request, elicitationOptions) =>
                 elicitationServer
@@ -242,10 +278,7 @@ export async function runZCodeProtocolAgent(
               selectionIssue: view.selectionIssue,
             };
           },
-          env: {
-            ...runtimeEnv,
-            ...appOptions.env,
-          },
+          env: { ...runtimeEnv, ...appOptions.env },
           ...(nodeReplBrowserBroker ? { nodeReplBrowserBroker } : {}),
           ...(mcpConnectionPool
             ? {
@@ -260,6 +293,8 @@ export async function runZCodeProtocolAgent(
           onToolExecResource: (params) =>
             connection.send({ method: zcodeProtocolNotifications.toolExecResource, params }),
         }),
+      pluginPreparation,
+      pluginDiscovery,
       cwd: options.cwd,
       env: options.env,
       loggerFactory,
@@ -278,6 +313,9 @@ export async function runZCodeProtocolAgent(
       version: options.version,
     }));
     elicitationServer = server;
+    credentialContext = {
+      requestClient: (_method, params) => server.requestCredentialCipher(params),
+    };
     if (configResult.config.features.mcp !== false) {
       nodeReplBrowserBroker = createNodeReplBrowserBroker({
         browserControlPort: server.browserControlPort,
@@ -345,6 +383,7 @@ export async function runZCodeProtocolAgent(
     });
     throw error;
   } finally {
+    credentialCipherBridge?.dispose();
     options.lifecycle?.requestShutdown();
     await cleanupProtocolRuntime({
       logger,
@@ -352,6 +391,13 @@ export async function runZCodeProtocolAgent(
       server: serverForCleanup,
       protocolMaintenance,
       mcpProcessesTracker,
+      pluginPreparation: {
+        dispose: async () => {
+          pluginDiscovery?.dispose();
+          await pluginPreparation.dispose();
+          await pluginPrewarm;
+        },
+      },
       nodeReplBrowserBroker,
       mcpPort,
       mcpConnectionPool,

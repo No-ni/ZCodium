@@ -27,6 +27,7 @@ export function useRecommendedUiPlugins(target: {
   workspacePath: string;
   workspaceIdentity?: string;
   sessionId: string | null;
+  paneId?: string;
   remoteSessionId?: string | null;
 }) {
   const {
@@ -40,6 +41,7 @@ export function useRecommendedUiPlugins(target: {
     target.workspacePath,
     target.workspaceIdentity,
     target.sessionId,
+    target.paneId,
     target.remoteSessionId,
   ]);
   const context = useMemo(() => ({ key, service }), [key, service]);

@@ -1,12 +1,15 @@
 // 插件 MCP skill 生命周期 e2e helper。
 // 仅在 conversation-session/manual-review/pending/conversation-session-plugin-mcp-skill-*.test.ts
 // 这几个 spec 里被使用；wdio 启动前在 seedE2EStartupState 阶段会把对应的
-// plugin 安装记录落到 <E2E_HOME>/.zcode/cli/plugins/，并 patch cli config。
+// plugin 安装记录落到 <E2E_HOME>/.zcodium/cli/plugins/，并 patch cli config。
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
+// 修复原因：Windows 上 URL.pathname 是 `/C:/...`，resolve 后变成 `C:\C:\...`，
+// 与 wdio 写入工作区配置的真实插件路径不一致；必须用 fileURLToPath 转本机路径。
 const FIXTURES_ROOT = resolve(
-  dirname(new URL(import.meta.url).pathname),
+  dirname(fileURLToPath(import.meta.url)),
   "..",
   "fixtures",
   "plugin-mcp-skill",

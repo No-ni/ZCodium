@@ -5,10 +5,14 @@ import type { Logger, SkillContent, SkillDiagnostic, SkillLoadOutcome } from "@z
 import { resolveBundledSkillRoots } from "./app/bundled-skills.js";
 import { getCliStorageRoot } from "./app/paths.js";
 import { filterVisualizeSkillRoots } from "./app/visualize-skill-gate.js";
-import { resolveZCodePlugins } from "./plugins.js";
+import { resolveZCodePlugins, type ResolveZCodePluginsOptions } from "./plugins.js";
 import { collectDisabledPaths } from "./skill-command-overrides.js";
 
 export interface ListZCodeSkillsOptions {
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  pluginPreparation?: ResolveZCodePluginsOptions["pluginPreparation"];
+  pluginDiscovery?: ResolveZCodePluginsOptions["pluginDiscovery"];
   env?: NodeJS.ProcessEnv;
   /** 协议宿主草稿目录使用；CLI 命令缺省关闭。 */
   includeVisualize?: boolean;
@@ -87,7 +91,7 @@ async function createSkillDiscovery(options: ListZCodeSkillsOptions): Promise<
     }
 > {
   const workingDirectory = resolve(options.workingDirectory ?? process.cwd());
-  const configResult = createConfig({
+  const configResult = await createConfig({
     env: options.env,
     projectConfigPath: options.projectConfigPath,
     workingDirectory,
@@ -101,7 +105,11 @@ async function createSkillDiscovery(options: ListZCodeSkillsOptions): Promise<
       workingDirectory,
     };
   }
-  const pluginOutcome = resolveZCodePlugins({
+  const pluginOutcome = await resolveZCodePlugins({
+    pluginPreparation: options.pluginPreparation,
+    pluginDiscovery: options.pluginDiscovery,
+    workspaceIdentity: options.workspaceIdentity,
+    remoteSessionId: options.remoteSessionId,
     configResult,
     env: options.env,
     logger: options.logger,

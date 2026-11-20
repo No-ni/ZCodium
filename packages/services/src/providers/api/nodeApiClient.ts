@@ -97,6 +97,7 @@ export class NodeApiClient implements ApiClient {
         headers: requestHeaders,
         ...(signal ? { signal } : {}),
       });
+      if (signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError");
       return response;
     } catch (error) {
       if (error instanceof ApiError) {

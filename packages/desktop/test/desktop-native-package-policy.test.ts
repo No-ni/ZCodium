@@ -55,7 +55,6 @@ describe("desktop native package policy", () => {
     ["win32-x64", ["sharp-win32-x64"]],
     ["win32-arm64", ["sharp-win32-arm64"]],
     ["darwin-arm64", ["sharp-darwin-arm64", "sharp-libvips-darwin-arm64"]],
-    ["linux-x64", ["sharp-linux-x64", "sharp-libvips-linux-x64"]],
   ])("应只保留目标平台的 @img/sharp 变体（%s）", (targetPlatformKey, keepVariants) => {
     const patterns = createDesktopNativePackagePrunePatterns(targetPlatformKey);
 
@@ -103,4 +102,29 @@ describe("desktop native package policy", () => {
 
     expect(findDesktopNativePackageViolations(entries, "win32-x64")).toEqual([]);
   });
+});
+
+it("keyring keeps the target native package and prunes other variants", () => {
+  const patterns = createDesktopNativePackagePrunePatterns("darwin-arm64");
+  expect(patterns).toContain("!node_modules/@napi-rs/keyring-win32-x64-msvc/**");
+  expect(patterns).not.toContain("!node_modules/@napi-rs/keyring-darwin-arm64/**");
+  expect(
+    findDesktopNativePackageViolations(
+      [
+        {
+          packState: "unpack",
+          path: "/node_modules/@napi-rs/keyring-win32-x64-msvc/keyring.win32-x64-msvc.node",
+        },
+      ],
+      "darwin-arm64",
+    ),
+  ).toEqual([expect.stringContaining("keyring")]);
+});
+
+it("拒绝 Linux 桌面目标，且 Windows 包裁剪 Linux prebuild", () => {
+  expect(() => createDesktopNativePackagePrunePatterns("linux-x64")).toThrow("不支持");
+  expect(() => findDesktopNativePackageViolations([], "linux-arm64")).toThrow("不支持");
+  const patterns = createDesktopNativePackagePrunePatterns("win32-x64");
+  expect(patterns).toContain("!node_modules/node-pty/prebuilds/linux-x64/**");
+  expect(patterns).toContain("!node_modules/node-pty/prebuilds/linux-arm64/**");
 });

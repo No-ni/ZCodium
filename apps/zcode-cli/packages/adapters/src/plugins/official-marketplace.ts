@@ -1,4 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
 
@@ -9,12 +11,12 @@ interface BundledMarketplacePartition {
   version: 1;
 }
 
-export function writeBundledOfficialMarketplacePartitionSync(input: {
+export async function writeBundledOfficialMarketplacePartition(input: {
   manifest: Record<string, unknown>;
   storageRoot: string;
-}): Record<string, unknown> {
+}): Promise<Record<string, unknown>> {
   assertOfficialManifest(input.manifest);
-  writeJsonFileSync(partitionPath(input.storageRoot, BUNDLED_PARTITION_FILE), {
+  await writeJsonFile(partitionPath(input.storageRoot, BUNDLED_PARTITION_FILE), {
     manifest: input.manifest,
     version: 1,
   } satisfies BundledMarketplacePartition);
@@ -119,20 +121,76 @@ function readJsonRecord(path: string): Record<string, unknown> | undefined {
   }
 }
 
-function writeJsonFileSync(path: string, value: unknown): void {
+async function writeJsonFile(path: string, value: unknown): Promise<void> {
   const contents = `${JSON.stringify(value, null, 2)}\n`;
-  mkdirSync(dirname(path), { recursive: true });
-  try {
-    // 官方目录在每次启动都会重建；同内容反复写盘会增加 Windows 上
-    // marketplace 文件被杀毒/索引器占用的概率。只跳过字节完全相同的单文件写入，
-    // 读取失败或内容变化仍执行写入并保留原有失败语义。
-    if (readFileSync(path, "utf8") === contents) return;
-  } catch {
-    // 文件不存在或暂时不可读时继续写，让真实更新失败继续向调用方暴露。
-  }
-  writeFileSync(path, contents, "utf8");
+  // 写入由分片文件锁串行发布；同内容不落盘，失败保留上一份完整 seed。
+  await withFileLock(path, async () => {
+    try {
+      if ((await readFile(path, "utf8")) === contents) return;
+    } catch {
+      /* 读取失败继续实际写入。 */
+    }
+    await atomicWritePrivateTextFile(path, contents);
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export async function loadBundledOfficialMarketplace(
+  storageRoot: string,
+): Promise<Record<string, unknown> | undefined> {
+  return (await readBundledPartitionAsync(storageRoot))?.manifest;
+}
+
+export async function loadBundledOfficialPluginRoots(
+  storageRoot: string,
+): Promise<string[] | undefined> {
+  const bundledPartition = await readBundledPartitionAsync(storageRoot);
+  if (!bundledPartition) return undefined;
+
+  const officialCacheRoot = resolve(storageRoot, "cache", ZCODE_OFFICIAL_PLUGIN_MARKETPLACE);
+  return readPluginEntries(bundledPartition.manifest).flatMap((plugin) => {
+    const name = readPluginName(plugin);
+    const cachePath = typeof plugin.cachePath === "string" ? plugin.cachePath : undefined;
+    if (!name || !cachePath) return [];
+
+    const pluginCacheRoot = resolve(officialCacheRoot, name);
+    const resolvedCachePath = resolve(cachePath);
+    if (
+      !isStrictDescendant(officialCacheRoot, pluginCacheRoot) ||
+      !isStrictDescendant(pluginCacheRoot, resolvedCachePath)
+    ) {
+      return [];
+    }
+    return [resolvedCachePath];
+  });
+}
+
+async function readBundledPartitionAsync(
+  storageRoot: string,
+): Promise<BundledMarketplacePartition | undefined> {
+  const value = await readJsonRecordAsync(partitionPath(storageRoot, BUNDLED_PARTITION_FILE));
+  if (
+    !value ||
+    value.version !== 1 ||
+    !isRecord(value.manifest) ||
+    value.manifest.name !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE ||
+    !Array.isArray(value.manifest.plugins)
+  )
+    return undefined;
+  return {
+    manifest: value.manifest,
+    version: 1,
+  };
+}
+
+async function readJsonRecordAsync(path: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const value = JSON.parse(await readFile(path, "utf8")) as unknown;
+    return isRecord(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }

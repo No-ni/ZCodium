@@ -22,15 +22,9 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 const EDIT_TOOL_ICON = <PencilIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
-const EDIT_SINGLE_LAYOUT = {
-  canToggle: true,
-  forceOpen: false,
-} as const;
+const EDIT_SINGLE_LAYOUT = { canToggle: true, forceOpen: false } as const;
 
-const EDIT_CHILD_LAYOUT = {
-  canToggle: true,
-  forceOpen: false,
-} as const;
+const EDIT_CHILD_LAYOUT = { canToggle: true, forceOpen: false } as const;
 
 function isRawToolCallFailed(raw: unknown) {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -55,11 +49,7 @@ export function buildEditCodeViewerSource(
 ): CodeViewerSource {
   const resolvedPath = resolveToolCallFilePath(summary.path, fileReferenceRootPath);
   if (!summary.patch) {
-    return {
-      type: "file",
-      title: summary.fileName,
-      path: resolvedPath,
-    };
+    return { type: "file", title: summary.fileName, path: resolvedPath };
   }
 
   return {
@@ -87,10 +77,7 @@ function buildEditInlinePreview(
     return undefined;
   }
 
-  return {
-    type: "patch",
-    source,
-  };
+  return { type: "patch", source };
 }
 
 export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
@@ -171,10 +158,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
     [rawFileSummaries],
   );
   const diffCount = useMemo(
-    () =>
-      renderDiffCount(totalChangeStat, {
-        animateInitial: context.animateDiffCountOnMount,
-      }),
+    () => renderDiffCount(totalChangeStat, { animateInitial: context.animateDiffCountOnMount }),
     [context.animateDiffCountOnMount, totalChangeStat],
   );
   const kindLabel = intl.formatMessage({
@@ -192,11 +176,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
     ),
   });
   const layoutConfig = hasMultipleFiles
-    ? {
-        canToggle: true,
-        forceOpen: false,
-        autoOpen: false,
-      }
+    ? { canToggle: true, forceOpen: false, autoOpen: false }
     : EDIT_SINGLE_LAYOUT;
   const expandedPrimaryText = useMemo(
     () =>
@@ -358,7 +338,6 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
         primaryText={primaryText}
         prioritizePrimaryText
         expandedPrimaryText={expandedPrimaryText}
-        secondaryText={secondaryText}
         diffCount={context.isOfficeMode ? undefined : diffCount}
         hideDiffCountWhenOpen={hasMultipleFiles}
         statusLabel={effectiveStatusLabel}
@@ -450,10 +429,7 @@ function EditFileSummaryBlock({
     [displayBasePath, summary.path],
   );
   const diffCount = useMemo(
-    () =>
-      renderDiffCount(summary.changeStat, {
-        animateInitial: animateDiffCountOnMount,
-      }),
+    () => renderDiffCount(summary.changeStat, { animateInitial: animateDiffCountOnMount }),
     [animateDiffCountOnMount, summary.changeStat],
   );
   const title = useMemo(
@@ -516,7 +492,6 @@ function EditFileSummaryBlock({
         sourceLabel={sourceLabel}
         primaryText={primaryText}
         prioritizePrimaryText
-        secondaryText={secondaryText}
         diffCount={diffCount}
         statusLabel={statusLabel}
         statusTooltip={isFailed ? errorText : undefined}

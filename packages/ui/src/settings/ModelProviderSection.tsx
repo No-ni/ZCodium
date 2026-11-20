@@ -134,7 +134,10 @@ export function ModelProviderSection({
     const navigationIntent = ++navigationIntentRef.current;
     setCreating(true);
     try {
-      const created = await createPersonalProvider({ ...input, locale });
+      const created = await createPersonalProvider({
+        ...input,
+        locale: locale === "zh-CN" ? "zh-CN" : "en-US",
+      });
       // 新建结果已由 Hook 提交配置，但不能覆盖等待期间用户更新的导航意图。
       if (navigationIntentRef.current !== navigationIntent) return;
       setPendingCreatedProviderId(created.providerId);

@@ -26,6 +26,18 @@ export const WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME = cn(
 /* ------------------------------------------------------------------ */
 
 /**
+ * 布局百分比之和应为 100。组宽极窄的某一帧，多个 collapsible 面板可能被一起折叠成全 0；
+ * 这种布局一旦持久化，库每次挂载都会原样恢复且无法自愈（文件面板黑屏），读写时都要丢弃。
+ */
+function isUsableLayout(layout: Layout | undefined): layout is Layout {
+  if (!layout) return false;
+  const sizes = Object.values(layout);
+  if (sizes.length === 0 || !sizes.every(Number.isFinite)) return false;
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  return total > 99 && total < 101;
+}
+
+/**
  * 带 localStorage 持久化的 PanelGroup 封装。
  * 传入 layoutId 即可自动保存/恢复布局；不传则不持久化。
  * panelIds 用于支持条件渲染的面板（面板数量会变化时必须传）。
@@ -69,12 +81,9 @@ function ResizablePanelGroup({
     }),
     [layoutIdentity],
   );
-  const { defaultLayout, onLayoutChange } = useDefaultLayout({
-    id: layoutId,
-    panelIds,
-    storage,
-  });
-  if (!normalLayoutRef.current && defaultLayout) normalLayoutRef.current = defaultLayout;
+  const { defaultLayout, onLayoutChange } = useDefaultLayout({ id: layoutId, panelIds, storage });
+  if (!normalLayoutRef.current && isUsableLayout(defaultLayout))
+    normalLayoutRef.current = defaultLayout;
   const setGroupRef = useCallback(
     (value: GroupImperativeHandle | null) => {
       groupRef.current = value;
@@ -98,7 +107,9 @@ function ResizablePanelGroup({
   }, [layoutIdentity, suspendLayoutPersistence]);
   const handleLayoutChange = useCallback(
     (layout: Layout) => {
-      if (suspendedRef.current || identityRef.current !== layoutIdentity) return;
+      // 全零布局不能保存，也不能覆盖用于退出完整视图的普通比例。
+      if (!isUsableLayout(layout) || suspendedRef.current || identityRef.current !== layoutIdentity)
+        return;
       normalLayoutRef.current = layout;
       onLayoutChange(layout);
     },
@@ -109,7 +120,7 @@ function ResizablePanelGroup({
     <Group
       groupRef={setGroupRef}
       className={cn("flex h-full w-full", className)}
-      defaultLayout={defaultLayout}
+      defaultLayout={isUsableLayout(defaultLayout) ? defaultLayout : undefined}
       // onLayoutChanged 会在每次布局变化后立刻写 localStorage。
       // 窗口 resize 时 PanelGroup 会连续产生成百上千次 layout 更新，必须走库内置
       // debounce 的 onLayoutChange，避免同步持久化放大主线程压力。

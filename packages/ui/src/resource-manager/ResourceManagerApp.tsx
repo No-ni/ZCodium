@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  type ResourceUsageCategory,
-  type ResourceUsageSnapshot,
-  type StorageManagementBridge,
-} from "@zcode/shared";
+import type { ResourceManagerAppProps, ResourceManagerTab } from "@/resource-manager/contract.js";
+import { type ResourceUsageCategory, type ResourceUsageSnapshot } from "@zcode/shared";
 import { TID_RESOURCE_MANAGER_TAB, testId } from "@zcode/shared/test-ids";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { useZCodeIntl } from "@/i18n/index.js";
@@ -17,18 +14,8 @@ import {
   type ResourceUsageGroupView,
 } from "./resourceUsageView.js";
 
-export interface ResourceManagerAppProps {
-  /** 缺省表示桥接不可用（例如非桌面环境） */
-  getSnapshot?: () => Promise<ResourceUsageSnapshot>;
-  setSamplingActive?: (active: boolean) => void;
-  /** 存储管理桥（window.resourceManager.storage）；缺省时「存储」tab 显示接口不可用 */
-  storage?: StorageManagementBridge;
-  refreshIntervalMs?: number;
-  /** 初始 tab，默认 CPU */
-  initialTab?: ResourceManagerTab;
-}
+export type { ResourceManagerAppProps, ResourceManagerTab } from "@/resource-manager/contract.js";
 
-export type ResourceManagerTab = "cpu" | "memory" | "storage";
 const RESOURCE_MANAGER_TABS: ResourceManagerTab[] = ["cpu", "memory", "storage"];
 const TAB_LABEL_IDS: Record<ResourceManagerTab, string> = {
   cpu: "resourceManager.cpu",
@@ -39,6 +26,7 @@ const TAB_LABEL_IDS: Record<ResourceManagerTab, string> = {
 const DEFAULT_REFRESH_INTERVAL_MS = 1_000;
 const CATEGORY_LABEL_IDS: Record<ResourceUsageCategory, string> = {
   base: "resourceManager.category.base",
+  task: "resourceManager.category.task",
   "builtin-plugin": "resourceManager.category.builtinPlugin",
   "community-plugin": "resourceManager.category.communityPlugin",
 };
@@ -62,6 +50,7 @@ export function ResourceManagerApp({
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<ResourceUsageCategory, boolean>>({
     base: true,
+    task: true,
     "builtin-plugin": true,
     "community-plugin": true,
   });

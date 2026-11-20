@@ -1,9 +1,11 @@
+import type { SharedZCodeCredentialStore } from "@zcode/adapters/auth";
 import { createProviderEndpointRoutingPort } from "@zcode/adapters/model";
 import type { ConfigResult } from "@zcode/adapters/config";
 import type { Logger, LoggerFactory, ProviderEndpointRoutingPort } from "@zcode/contracts";
 import type { ModelProviderSourceTitle } from "./model-config.js";
 
 export interface ResolveProcessProviderEndpointRoutingPortOptions {
+  credentialStore?: SharedZCodeCredentialStore;
   appVersion?: string;
   env?: NodeJS.ProcessEnv;
   logger: Logger;

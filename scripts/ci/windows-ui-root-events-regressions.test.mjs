@@ -98,7 +98,7 @@ function fixture() {
     setWorkspaceActionError: noop,
     allowOpenWorkspace: true,
   };
-  function render(patch = {}) {
+  function Render(patch = {}) {
     Object.assign(props, patch);
     effects = [];
     useHook(props);
@@ -106,7 +106,7 @@ function fixture() {
   }
   let active, cleanup;
   function commit(patch = {}) {
-    const next = render(patch);
+    const next = Render(patch);
     if (!active || next.deps.some((value, index) => !Object.is(value, active.deps[index]))) {
       cleanup?.();
       cleanup = next.run();
@@ -131,7 +131,7 @@ function fixture() {
   };
 }
 function mount(run) {
-  return run.render().run();
+  return run.Render().run();
 }
 
 test("WINUI13 active remote task without cached metadata uses the matching tab path and identity", () => {

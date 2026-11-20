@@ -70,14 +70,17 @@ export function createTuiSubmitPrompt(
     object,
     NonNullable<ReturnType<typeof createCliHeadlessBrowserRuntime>>
   >();
-  let activeRequestPermission: TuiRequestPermission | undefined;
+  // Bug 根因：审批入口原先只在单次 submitPrompt/sendInput 调用内有效，调用结束即恢复为空；
+  // 通知驱动的回合和 CreateSession 建的后台会话在这之外询问，只能被 fail closed 拒绝。
+  // 现在由 TUI 挂载时登记、卸载时注销，入口只有这一个 owner，不再按提交切换。
+  let registeredRequestPermission: TuiRequestPermission | undefined;
   const cleanupTimeoutMs = Math.max(
     1,
     Math.trunc(deps.shutdownCleanupTimeoutMs ?? DEFAULT_CLI_CLEANUP_TIMEOUT_MS),
   );
   const permissionBroker: NonNullable<ZCodeAppOptions["permissionBroker"]> = {
     requestPermission: async (request, requestOptions) => {
-      const requestPermission = activeRequestPermission;
+      const requestPermission = registeredRequestPermission;
       if (!requestPermission) {
         return {
           decision: "deny",
@@ -148,6 +151,7 @@ export function createTuiSubmitPrompt(
       createdApp = await createAppFactory({
         loggerFactory: deps.loggerFactory,
         modelSelectionMode: "cli-default",
+        standaloneSessionControl: true,
         browserControlPort: browserRuntime?.browserControlPort,
         env: appEnv,
         projectConfigPath: deps.projectConfigPath,
@@ -301,57 +305,50 @@ export function createTuiSubmitPrompt(
   });
 
   const submitPrompt: TuiPromptHandler = async (input, options) => {
-    const previousRequestPermission = activeRequestPermission;
-    activeRequestPermission = options.requestPermission;
-
-    try {
-      const result = await commandCenter(input, options);
-      return app ? { ...result, ...(await readTuiSessionMetadata(await getApp())) } : result;
-    } finally {
-      activeRequestPermission = previousRequestPermission;
-    }
+    const result = await commandCenter(input, options);
+    return app ? { ...result, ...(await readTuiSessionMetadata(await getApp())) } : result;
   };
 
   submitPrompt.setMode = async (nextMode) => ({ mode: await setCliMode(nextMode) });
 
+  submitPrompt.registerPermissionRequester = (requestPermission) => {
+    registeredRequestPermission = requestPermission;
+    return () => {
+      // 只注销自己：重新挂载时新入口先登记，旧入口的迟到注销不能把它清掉。
+      if (registeredRequestPermission === requestPermission)
+        registeredRequestPermission = undefined;
+    };
+  };
+
   submitPrompt.sendInput = async (input, options) => {
-    const previousRequestPermission = activeRequestPermission;
-    // busy-turn or resumed input can start a new turn through sendInput,
-    // bypassing submitPrompt's scoped approval handler and leaving approvals invisible.
-    activeRequestPermission = options?.requestPermission;
-
-    try {
-      // Model/effort changes configure subsequent requests, including during an active turn.
-      const command = parseSlashCommand(typeof input === "string" ? input : input.text);
-      // busy 输入绕过普通 submit；旧登录参数可能含密钥，必须交回命令入口拒绝，不能进入模型队列。
-      if (
-        command &&
-        (isRetiredAccountCommand(command.rawName) ||
-          (command.type === "known" && (command.name === "model" || command.name === "effort")))
-      ) {
-        return {
-          kind: "command_result",
-          result: await submitPrompt(input, {
-            ...options,
-            abortSignal: options?.abortSignal ?? new AbortController().signal,
-          }),
-        };
-      }
-      const activeApp = await getApp();
-      if (activeApp.sendInput) {
-        const result = await activeApp.sendInput(input, options);
-        if (result.kind !== "started_turn") return result;
-        return withTuiMetadata(result.result, activeApp, currentCliMode(modeState));
-      }
-
-      return withTuiMetadata(
-        await activeApp.submitPrompt(input, options),
-        activeApp,
-        currentCliMode(modeState),
-      );
-    } finally {
-      activeRequestPermission = previousRequestPermission;
+    // Model/effort changes configure subsequent requests, including during an active turn.
+    const command = parseSlashCommand(typeof input === "string" ? input : input.text);
+    // busy 输入绕过普通 submit；旧登录参数可能含密钥，必须交回命令入口拒绝，不能进入模型队列。
+    if (
+      command &&
+      (isRetiredAccountCommand(command.rawName) ||
+        (command.type === "known" && (command.name === "model" || command.name === "effort")))
+    ) {
+      return {
+        kind: "command_result",
+        result: await submitPrompt(input, {
+          ...options,
+          abortSignal: options?.abortSignal ?? new AbortController().signal,
+        }),
+      };
     }
+    const activeApp = await getApp();
+    if (activeApp.sendInput) {
+      const result = await activeApp.sendInput(input, options);
+      if (result.kind !== "started_turn") return result;
+      return withTuiMetadata(result.result, activeApp, currentCliMode(modeState));
+    }
+
+    return withTuiMetadata(
+      await activeApp.submitPrompt(input, options),
+      activeApp,
+      currentCliMode(modeState),
+    );
   };
 
   attachTuiAppQueries(submitPrompt, getApp);

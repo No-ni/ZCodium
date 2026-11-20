@@ -65,6 +65,8 @@ export interface WebRemoteControlManager {
   ): Promise<WebRemoteControlStatusSnapshot>;
   getStatus(windowId: number): WebRemoteControlStatusSnapshot;
   syncWorkspaces(windowId: number, workspaces: WebRemoteControlWorkspaceRef[]): void;
+  /** 路由确认不可恢复关闭后，撤销匹配身份的手机 attachment。 */
+  failRemoteSession(remoteSessionId: string): void;
   syncTasks(windowId: number, tasks: WebRemoteControlTaskRef[]): void;
   disposeWindow(windowId: number): Promise<void>;
 }

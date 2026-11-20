@@ -10,6 +10,8 @@ import type { HelloMessage } from "@zcode/shared";
 import { createStdioTransport } from "./stdio.js";
 import { waitForStdioAck } from "./stdio-ack.js";
 import { startStdioProcess } from "./stdio-lifecycle.js";
+import { prepareServerCredentialStorage } from "@zcode/shared/credential-security";
+import { join } from "node:path";
 import { createStdioServices } from "./stdioServices.js";
 import {
   materializeBundledZCodeBuiltinProviderConfig,
@@ -54,6 +56,10 @@ async function main() {
   const ack = await waitForStdioAck(process.stdin);
   log(`client connected: ${ack.clientId} (v${ack.version})`);
 
+  if (process.argv.includes("--prepare-credentials")) {
+    await prepareServerCredentialStorage({ filePath: join(getAppConfigDir(), "credentials.json") });
+  }
+
   // Phase 3: Initialize services and start stdio RPC server
   await startStdioProcess({
     stdin: process.stdin,
@@ -65,8 +71,8 @@ async function main() {
         environmentConfigRoot: getAppConfigDir(),
         content: readBundledZCodeBuiltinProviderConfig(),
       }),
-    createRuntime: (zcodeBuiltinProviderConfigFilePath, transport) => {
-      const { authorityModeParseResult, services } = createStdioServices({
+    createRuntime: async (zcodeBuiltinProviderConfigFilePath, transport) => {
+      const { authorityModeParseResult, services } = await createStdioServices({
         env: process.env,
         zcodeBuiltinProviderConfigFilePath,
       });

@@ -28,7 +28,10 @@ function parseEmbeddedMcpResult(value: string): EmbeddedMcpResult | undefined {
     if (!Array.isArray(candidate.content)) return undefined;
     if (
       candidate.content.some(
-        (block) => !block || typeof block !== "object" || typeof (block as { type?: unknown }).type !== "string",
+        (block) =>
+          !block ||
+          typeof block !== "object" ||
+          typeof (block as { type?: unknown }).type !== "string",
       )
     ) {
       return undefined;
@@ -73,10 +76,7 @@ function keepLatestCuaFrame(blocks: EmbeddedContentBlock[]): EmbeddedContentBloc
   return blocks.filter((_, index) => !dropped.has(index));
 }
 
-const NO_CALL_FACTS: NodeReplCallFacts = {
-  cuaApps: [],
-  browserScreenshots: [],
-};
+const NO_CALL_FACTS: NodeReplCallFacts = { cuaApps: [], browserScreenshots: [] };
 
 /**
  * 组装 MCP 工具结果。run 来自 Worker 的结果消息，cell 能冒充它，所以只当作内容；
@@ -104,7 +104,7 @@ export function toMcpRunResult(
   delete responseMeta[ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY];
   // 同款处置：producer 的应用元数据决定工具卡显示哪个 App 的名称和图标。它经
   // `projectToHost` -> `nodeRepl.emitStructuredResult` 到达上面的合并循环，而那个 API 挂在模型
-  // 可见的 sandbox globals 上 —— cell 里自己 emit 一份就能让卡片声称操作了别的应用。因此这里
+  // 可见的 REPL globals 上 —— cell 里自己 emit 一份就能让卡片声称操作了别的应用。因此这里
   // 无条件丢弃，只接受主线程 CUA broker 记进账本的身份。
   // 修复原因（MR !3207 评审 CR-01）：原来取 run.cuaApp、run.browserScreenshotImageIndices，而 run 是
   // Worker 的结果消息，cell 能经 worker_threads 冒充它；这两个字段现在一律忽略。
@@ -165,8 +165,7 @@ export function toMcpRunResult(
             (image) =>
               !structuredContent.some(
                 (block) =>
-                  block.type === "image" &&
-                  (block as { data?: string }).data === image.base64,
+                  block.type === "image" && (block as { data?: string }).data === image.base64,
               ),
           )
           .map((image) => ({
@@ -193,7 +192,8 @@ export function toMcpRunResult(
       ? {
           _meta: {
             ...responseMeta,
-            ...((run.images?.length ?? 0) > 0 || structuredContent.some((block) => block.type === "image")
+            ...((run.images?.length ?? 0) > 0 ||
+            structuredContent.some((block) => block.type === "image")
               ? { "zcode/nodeReplEmittedImage": true }
               : {}),
             ...(browserScreenshotContentIndices && browserScreenshotContentIndices.length > 0

@@ -1,6 +1,6 @@
-import {
-  createDefaultFileWorkspaceHookTrustStore,
-} from "@zcode/adapters/storage";
+import { createDefaultFileWorkspaceHookTrustStore } from "@zcode/adapters/storage";
+import { resolveWorkspaceHookTrustIdentityForWorkspace } from "@zcode/adapters/config";
+import { isRemoteWorkspaceIdentity } from "@zcode/shared";
 import {
   InMemoryWorkspaceHookPolicyProvider,
   WorkspaceHookTrustCoordinator,
@@ -78,6 +78,14 @@ export function createWorkspaceHookRuntimeSecurity(input: {
     payload: WorkspaceHookAdmissionUpdatedPayload;
   }) => Promise<void>;
   emitReviewEvent?: (event: WorkspaceHookReviewLifecycleEvent) => Promise<void>;
+  /** 解析受管 worktree 数据根目录用（ZCODE_DATA_BASE_DIR）；缺省 process.env。 */
+  env?: Record<string, string | undefined>;
+  /**
+   * 会话 workspaceKey（本地 = workspacePath，远程 = identity）。AdmissionUpdated 与审核 request
+   * 对外只发它；snapshot.workspaceIdentity 是 Trust identity，只用于 record/policy/revision（D23）。
+   * 缺省回落 snapshot.workspaceIdentity。
+   */
+  workspaceKey?: string;
   logger: Logger;
   projectConfigPath?: string;
   policy?: WorkspaceHookPolicy;
@@ -93,6 +101,7 @@ export function createWorkspaceHookRuntimeSecurity(input: {
   homeDir?: string;
 }): WorkspaceHookRuntimeSecurity | undefined {
   if (!input.snapshot) return undefined;
+  const externalWorkspaceIdentity = input.workspaceKey ?? input.snapshot.workspaceIdentity;
   const policyProvider =
     input.policyProvider ?? new InMemoryWorkspaceHookPolicyProvider(input.policy);
   const coordinator = new WorkspaceHookTrustCoordinator({
@@ -118,28 +127,27 @@ export function createWorkspaceHookRuntimeSecurity(input: {
   let controller: WorkspaceHookReviewController | undefined;
   // 软门禁:onAdmissionStateChanged → 发射 WorkspaceHookAdmissionUpdated 会话事件。
   // activate() 完成 evaluate 后、replaceSnapshot 后均会触发,供投影层写入 snapshot 字段。
-  const onAdmissionStateChanged:
-    | ((state: WorkspaceHookAdmissionState) => void)
-    | undefined = input.emitAdmissionEvent
-    ? (state) => {
-        void input.emitAdmissionEvent!({
-          type: SessionEventType.WorkspaceHookAdmissionUpdated,
-          payload: {
-            pendingCount: state.pendingCount,
-            bundleDigest: state.bundleDigest,
-            ...(state.workspaceIdentity
-              ? { workspaceIdentity: state.workspaceIdentity }
-              : {}),
-          },
-        }).catch((error: unknown) => {
-          input.logger.warn("Failed to emit WorkspaceHookAdmissionUpdated", {
-            errorType: error instanceof Error ? error.name : typeof error,
-            event: "workspace_hook.admission_event_emit_failed",
-            module: "bootstrap.workspace_hook_trust",
+  const onAdmissionStateChanged: ((state: WorkspaceHookAdmissionState) => void) | undefined =
+    input.emitAdmissionEvent
+      ? (state) => {
+          void input.emitAdmissionEvent!({
+            type: SessionEventType.WorkspaceHookAdmissionUpdated,
+            payload: {
+              pendingCount: state.pendingCount,
+              bundleDigest: state.bundleDigest,
+              // 修复原因（D23）：state.workspaceIdentity 来自 snapshot，是 Trust identity；受管 worktree 中
+              // 它是源仓库路径。UI Banner 用 workspaceKey 比较，发 Trust identity 会让提示条被隐藏。
+              workspaceIdentity: externalWorkspaceIdentity,
+            },
+          }).catch((error: unknown) => {
+            input.logger.warn("Failed to emit WorkspaceHookAdmissionUpdated", {
+              errorType: error instanceof Error ? error.name : typeof error,
+              event: "workspace_hook.admission_event_emit_failed",
+              module: "bootstrap.workspace_hook_trust",
+            });
           });
-        });
-      }
-    : undefined;
+        }
+      : undefined;
   const admission = createWorkspaceHookRuntimeAdmission({
     coordinator,
     enabled: trustEnabled,
@@ -168,6 +176,14 @@ export function createWorkspaceHookRuntimeSecurity(input: {
       }),
       sessionId: input.sessionId,
       store: store as NonNullable<typeof store>,
+      // target 的 workspaceIdentity 是 workspaceKey：远程 identity 原样，本地按路径解析 Trust identity。
+      workspaceKey: externalWorkspaceIdentity,
+      resolveTargetTrustIdentity: (workspaceKey) =>
+        resolveWorkspaceHookTrustIdentityForWorkspace({
+          workspacePath: workspaceKey,
+          ...(isRemoteWorkspaceIdentity(workspaceKey) ? { workspaceIdentity: workspaceKey } : {}),
+          ...(input.env ? { env: input.env } : {}),
+        }),
     });
   }
 
@@ -189,9 +205,7 @@ export function createWorkspaceHookRuntimeSecurity(input: {
       await admission.activate("resume");
     },
     requestReview: (target) =>
-      controller
-        ? controller.requestReview(target)
-        : Promise.resolve(unavailable()),
+      controller ? controller.requestReview(target) : Promise.resolve(unavailable()),
     respond: (target, decision) =>
       controller ? controller.respond(target, decision) : Promise.resolve(unavailable()),
     toggle: (target, reviewItemId, enabled) =>

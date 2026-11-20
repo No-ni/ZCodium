@@ -13,6 +13,10 @@ export async function prepareWebRemoteControlSessionEventsFixture(options: {
   settingsFile: string;
   workspacePath: string;
   webUrl?: string;
+  additionalRelayUsers?: Record<string, string>;
+  /** 上次启用远控时的 workspace；缺省为启动后会恢复的 workspacePath。 */
+  lastEnabledWorkspacePath?: string;
+  regionalDesktop?: boolean;
 }): Promise<() => Promise<void>> {
   await Promise.all([
     assertProjectPath(resolve(options.credentialsFile)),

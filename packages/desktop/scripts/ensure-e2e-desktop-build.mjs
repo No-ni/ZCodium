@@ -14,86 +14,54 @@ import {
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import {
+  DEFAULT_E2E_DESKTOP_BUILD_INPUTS,
+  E2E_DESKTOP_BUILD_ENV_NAMES,
+  normalizeE2EDesktopBuildEnv,
+} from "./e2e-desktop-build-env.mjs";
+export {
+  DEFAULT_E2E_DESKTOP_BUILD_INPUTS,
+  E2E_DESKTOP_BUILD_ENV_NAMES,
+  E2E_DESKTOP_BUILD_INHERITED_ENV_NAMES,
+  normalizeE2EDesktopBuildEnv,
+} from "./e2e-desktop-build-env.mjs";
 
 const DESKTOP_DIR = resolve(import.meta.dirname, "..");
+
 const REPO_ROOT = resolve(DESKTOP_DIR, "../..");
+
 const CACHE_DIR = resolve(DESKTOP_DIR, ".e2e-cache");
+
 const STAMP_PATH = resolve(CACHE_DIR, "desktop-build-stamp.json");
+
 const LOCK_PATH = resolve(CACHE_DIR, "desktop-build.lock");
+
 const LOCK_OWNER_FILE = "owner.json";
+
 const BUILD_LOCK_TIMEOUT_MS = 20 * 60_000;
+
 const BUILD_LOCK_RETRY_MS = 100;
+
 const MISSING_OWNER_GRACE_MS = 5_000;
+
 const DEAD_OWNER_GRACE_MS = 10 * 60_000;
+
 const SYNC_WAIT_BUFFER = new Int32Array(new SharedArrayBuffer(4));
 
 export const E2E_DESKTOP_REQUIRED_OUTPUT_PATHS = [
   "out/main/index.js",
   "out/host/index.js",
   "out/scheduler/index.js",
+  "out/extension-host/index.js",
   "out/preload/index.cjs",
   "out/preload/resourceManager.cjs",
   "out/renderer/index.html",
   "out/renderer/resource-manager.html",
 ];
+
 const REQUIRED_OUTPUTS = E2E_DESKTOP_REQUIRED_OUTPUT_PATHS.map((path) =>
   resolve(DESKTOP_DIR, path),
 );
-
-export const DEFAULT_E2E_DESKTOP_BUILD_INPUTS = [
-  ".env",
-  ".env.local",
-  ".env.production",
-  ".env.production.local",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "tsconfig.base.json",
-  "packages/desktop/scripts/build-metadata.mjs",
-  "scripts/builtin-provider-config.mjs",
-  "config/provider/zcode-builtin.json",
-  "packages/provider-node/src/zcode-builtin-release.ts",
-  "packages/desktop/scripts/run-production-build.mjs",
-  "packages/desktop/tsconfig.json",
-  "packages/desktop/tsconfig.host.json",
-  "packages/desktop/tsconfig.main.json",
-  "packages/desktop/tsconfig.preload.json",
-  "packages/desktop/tsconfig.renderer.json",
-  "packages/desktop/tsconfig.scheduler.json",
-  "packages/desktop/tsup.config.ts",
-  "packages/desktop/vite.config.ts",
-];
-
-export const E2E_DESKTOP_BUILD_ENV_NAMES = [
-  "CDN_DOMAIN",
-  // Bugfix: tsup 会根据 CI 分支或 Tag 判断是否为正式发布构建；这些值必须参与缓存指纹，
-  // 否则可能把未注入 Agent OTLP 配置的普通构建错误复用到发布场景。
-  "CI",
-  "CI_COMMIT_BRANCH",
-  "CI_COMMIT_TAG",
-  "NODE_ENV",
-  "OSS_PATH_PREFIX",
-  "VITE_ZCODE_BASE_URL",
-  "VITE_ZCODE_E2E_STORE_BRIDGE",
-  "VITE_ZCODE_ENDPOINT_ORIGIN",
-  // 本 fork 无官方账号/套餐/邀请 webview 面：这些 define 已从 tsup/vite 移除，
-  // 继续参与指纹只会让缓存清单声称不存在的构建输入。
-  "ZCODE_AUTO_UPDATE",
-  "ZCODE_BASE_URL",
-  "ZCODE_COMMIT",
-  "ZCODE_CUA_HELPER_BUILD_ID",
-  "ZCODE_ENDPOINT_ORIGIN",
-  "ZCODE_ENV",
-  "ZCODE_E2E_COVERAGE",
-  "ZCODE_E2E_KEEP_BUILD_CACHE",
-  "ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT",
-  "ZCODE_PACKAGED_AGENT_OTEL_HEADERS",
-  "ZCODE_PACKAGED_AGENT_OTEL_SERVICE_NAME",
-  "ZCODE_PRODUCTION_BASE_URL",
-  "ZCODE_TEST_BASE_URL",
-  // 自有更新源与显式自动更新开关会改变注入产物，必须让缓存失效，否则换源后复用旧 bundle。
-  "ZCODIUM_UPDATE_ORIGIN",
-];
 
 const WORKSPACE_DEPENDENCY_FIELDS = [
   "dependencies",
@@ -246,7 +214,8 @@ export function ensureE2EDesktopBuild({
   return withE2EDesktopBuildLock({ ...lockOptions, lockPath }, () => {
     // Bug 根因：两个 full runner 会在锁外同时观察 miss，随后递归清理并重写同一个
     // packages/desktop/out。fingerprint 与 cache hit 必须在获得共享写锁后重新计算和检查。
-    const fingerprint = createE2EDesktopBuildFingerprint({ ...fingerprintOptions, env });
+    const buildEnv = normalizeE2EDesktopBuildEnv(env);
+    const fingerprint = createE2EDesktopBuildFingerprint({ ...fingerprintOptions, env: buildEnv });
     const forceBuild = env.ZCODE_E2E_FORCE_DESKTOP_BUILD === "1";
     if (
       !forceBuild &&
@@ -269,7 +238,7 @@ export function ensureE2EDesktopBuild({
     } else {
       execFileSync("pnpm", ["--filter", "@zcode/desktop", "build:no-runtime-assets"], {
         cwd: REPO_ROOT,
-        env,
+        env: buildEnv,
         shell: process.platform === "win32",
         stdio: "inherit",
       });

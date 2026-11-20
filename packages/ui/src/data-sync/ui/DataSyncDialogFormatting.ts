@@ -1,3 +1,4 @@
+import type { DataSyncModelOverrideSummary } from "@zcode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { DATA_SYNC_STOPPED_ERROR } from "@/data-sync/app/marketplacePluginSync.js";
 import {
@@ -55,4 +56,18 @@ export function formatMissingDependencies(
     );
   }
   return groups.join(formatMessage({ id: "remoteSync.dependency.groupSeparator" }));
+}
+
+/** 内置智能体模型覆盖行：说明行用 builtInModel，「差异」行的远端模型用 targetModel；没有档位时省略档位。 */
+export function formatModelOverride(
+  formatMessage: FormatMessage,
+  id: "remoteSync.subagents.builtInModel" | "remoteSync.subagents.targetModel",
+  summary: DataSyncModelOverrideSummary,
+): string {
+  return summary.reasoningLevel
+    ? formatMessage(
+        { id: `${id}WithReasoning` },
+        { model: summary.modelId, level: summary.reasoningLevel },
+      )
+    : formatMessage({ id }, { model: summary.modelId });
 }

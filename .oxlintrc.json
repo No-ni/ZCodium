@@ -2,10 +2,115 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": null,
   "categories": {},
-  "rules": {
-    "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }]
-  },
+  "rules": { "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }] },
   "overrides": [
+    {
+      // 在 override 中只增加 Hooks 规则，保留原插件，避免开启全部 React 默认规则。
+      "files": ["**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+      "plugins": ["unicorn", "typescript", "oxc", "react"],
+      "rules": { "react/rules-of-hooks": "error", "react/exhaustive-deps": "warn" }
+    },
+    {
+      // 首次扫描的 20 条存量调用位置诊断仍告警；逐文件修复后删除例外，不扩大到目录。
+      // 依赖诊断与其他规则不降级，详见 docs/testing/react-hooks-lint.md。
+      "files": [
+        "**/packages/desktop/test/e2e/helpers/web-remote-visibility-browser.ts",
+        "**/packages/ui/src/ToolCallBlocks/renderers/resume-workflow-run.tsx",
+        "**/packages/ui/src/hooks/useOnboardingRecordService.ts",
+        "**/packages/ui/src/hooks/useZCodeAgentService.ts",
+        "**/packages/ui/src/hooks/useZCodeSessionService.ts",
+        "**/packages/ui/src/hooks/useZCodeTaskService.ts",
+        "**/packages/ui/src/project-sidebar/grouped/task-row.tsx"
+      ],
+      "plugins": ["unicorn", "typescript", "oxc", "react"],
+      "rules": { "react/rules-of-hooks": "warn" }
+    },
+    {
+      // 会话控制核心只依赖契约和注入端口，禁止把运行环境重新耦合进用例。
+      "files": ["packages/session-control/src/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "node:*",
+                  "node:*/**",
+                  "fs",
+                  "fs/**",
+                  "child_process",
+                  "worker_threads",
+                  "net",
+                  "http",
+                  "https",
+                  "http2",
+                  "dgram",
+                  "dns",
+                  "dns/**",
+                  "tls",
+                  "os",
+                  "path",
+                  "path/**",
+                  "crypto",
+                  "stream",
+                  "stream/**",
+                  "timers",
+                  "timers/**",
+                  "process",
+                  "module",
+                  "vm",
+                  "electron",
+                  "react",
+                  "react/**",
+                  "react-dom",
+                  "react-dom/**",
+                  "zustand",
+                  "zustand/**",
+                  "@zcode/services",
+                  "@zcode/services/**",
+                  "@zcode/shared",
+                  "@zcode/shared/**",
+                  "@zcode/core",
+                  "@zcode/core/**",
+                  "@zcode/bootstrap",
+                  "@zcode/bootstrap/**",
+                  "@zcode/adapters",
+                  "@zcode/adapters/**",
+                  "**/services/src/**",
+                  "**/apps/zcode-cli/**"
+                ],
+                "message": "Session control uses injected ports; environment and host implementations belong in adapters."
+              },
+              {
+                "group": [
+                  "../cli/**",
+                  "../app/**",
+                  "../../cli/**",
+                  "../../app/**",
+                  "@zcode/session-control/cli",
+                  "@zcode/session-control/app",
+                  "#src/application/cli/**",
+                  "#src/application/app/**",
+                  "#session-control/application/cli/**",
+                  "#session-control/application/app/**"
+                ],
+                "message": "CLI and App use cases are independent; share contracts or pure domain rules instead."
+              }
+            ]
+          }
+        ],
+        "no-restricted-globals": [
+          "error",
+          "process",
+          "window",
+          "fetch",
+          "setTimeout",
+          "setInterval",
+          "Date"
+        ]
+      }
+    },
     {
       // 这两处专门过滤文件名/协议字段里的控制字符，匹配控制字符是安全边界本身。
       // managed 模块不增加内联 lint disable，例外仅限此规则与这两个文件。
@@ -13,9 +118,7 @@
         "packages/ui/src/plugin-ui/domain/pluginUiDownloadFile.ts",
         "packages/shared/src/zcode-protocol-v4/transport.ts"
       ],
-      "rules": {
-        "no-control-regex": "off"
-      }
+      "rules": { "no-control-regex": "off" }
     },
     {
       // 测试文件天然会堆叠大量场景与断言，继续复用生产代码的行数上限会造成误报，
@@ -32,42 +135,33 @@
         "**/*.test.js",
         "**/*.spec.js"
       ],
-      "rules": {
-        "max-lines": "off"
-      }
+      "rules": { "max-lines": "off" }
     },
-    {
-      "files": ["**/i18n/locales/*.ts"],
-      "rules": {
-        "max-lines": "off"
-      }
-    },
+    { "files": ["**/i18n/locales/*.ts"], "rules": { "max-lines": "off" } },
     {
       // 这些无 test/spec 后缀的文件仅为验收夹具和 E2E helper，与已有测试使用同一行数规则。
       // 精确列举，避免把相邻生产入口或未来 scripts 文件误当测试。
       "files": [
-        "packages/web/test/e2e/manual-review/pending/remote-submit-lifecycle.mjs",
-        "packages/web/test/e2e/manual-review/pending/remote-login-v2.mjs",
-        "packages/web/test/e2e/manual-review/pending/remote-large-rpc.mjs",
+        "packages/web/test/e2e/remote-control/transport/manual-review/pending/remote-submit-lifecycle.mjs",
+        "packages/web/test/e2e/remote-control/authentication/manual-review/pending/remote-login-v2.mjs",
+        "packages/web/test/e2e/remote-control/transport/manual-review/pending/remote-large-rpc.mjs",
         "packages/desktop/test/e2e/helpers/project-sidebar.ts",
         "packages/desktop/scripts/mcp-apps-host-fixture/managed-renderer.tsx",
         "packages/desktop/scripts/mcp-apps-host-fixture/background-main.ts",
-        "packages/desktop/scripts/gen-ui-fixture/main.ts"
+        "packages/desktop/scripts/gen-ui-fixture/main.ts",
+        "packages/desktop/scripts/auto-update-network-smoke.mjs",
+        "packages/desktop/scripts/auto-update-ca-constraints-smoke.mjs",
+        "packages/desktop/test/e2e/helpers/model-provider-restart.ts",
+        "packages/ui/test/browser/manual-review/pending/tool-summary-spacing.fixture.tsx",
+        "packages/ui/test/browser/manual-review/pending/conversation-timeline-resize.fixture.tsx",
+        "packages/ui/test/browser/manual-review/pending/new-task-rendering.fixture.tsx"
       ],
-      "rules": {
-        "max-lines": "off"
-      }
+      "rules": { "max-lines": "off" }
     }
   ],
   "settings": {
-    "jsx-a11y": {
-      "polymorphicPropName": null,
-      "components": {},
-      "attributes": {}
-    },
-    "next": {
-      "rootDir": []
-    },
+    "jsx-a11y": { "polymorphicPropName": null, "components": {}, "attributes": {} },
+    "next": { "rootDir": [] },
     "react": {
       "formComponents": [],
       "linkComponents": [],
@@ -84,13 +178,9 @@
       "exemptDestructuredRootsFromChecks": false,
       "tagNamePreference": {}
     },
-    "vitest": {
-      "typecheck": false
-    }
+    "vitest": { "typecheck": false }
   },
-  "env": {
-    "builtin": true
-  },
+  "env": { "builtin": true },
   "globals": {},
   "ignorePatterns": [
     "dist-release",

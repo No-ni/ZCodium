@@ -456,5 +456,5 @@ function buildRemoteServerCommand(
       );
     }
   }
-  return `${envParts.join(" ")} ~/.zcodium/server/node ~/.zcodium/server/zcode-server.cjs`;
+  return `${envParts.join(" ")} ~/.zcodium/server/node ~/.zcodium/server/zcode-server.cjs --prepare-credentials`;
 }

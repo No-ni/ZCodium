@@ -76,6 +76,7 @@ export function WorkspaceFileTreeRowView({
   installedEditors,
   isRemoteWorkspaceFileTree,
   remoteTarget,
+  htmlClickOpensBrowser = false,
   workspacePath,
   workspaceScopePath,
   workspaceIdentity,
@@ -98,6 +99,7 @@ export function WorkspaceFileTreeRowView({
   installedEditors: EditorInfo[];
   isRemoteWorkspaceFileTree: boolean;
   remoteTarget?: OpenInEditorRemoteTarget;
+  htmlClickOpensBrowser?: boolean;
   /** 浏览根：行标题/复制相对路径按它计算。 */
   workspacePath: string;
   /** 工作区身份路径（tab 的 workspacePath）：拖拽 / Add to chat payload 的归属，必须与 composer 匹配。 */
@@ -128,10 +130,7 @@ export function WorkspaceFileTreeRowView({
   const isDirectory = row.type === "directory";
   const isDeletedFile = isWorkspaceFileTreeDeletedFile(row, gitStatus);
   const wslFileManagerEditor = resolveWorkspaceFileManagerEditor(installedEditors, remoteTarget);
-  const rowStyle = {
-    ...style,
-    "--workspace-file-tree-depth": row.depth,
-  } as CSSProperties;
+  const rowStyle = { ...style, "--workspace-file-tree-depth": row.depth } as CSSProperties;
   const hierarchyGuideStyle = getWorkspaceFileTreeHierarchyGuideStyle(row.depth);
   const fileIconSrc = isDirectory ? null : resolveFileDisplayDescriptor(row.path).fileIconSrc;
   const gitStatusLabel = gitStatus ? gitStatusLabelByStatus[gitStatus] : null;
@@ -163,6 +162,11 @@ export function WorkspaceFileTreeRowView({
     name: row.name,
   };
 
+  const canOpenInBrowser =
+    !isDeletedFile &&
+    !isRemoteWorkspaceFileTree &&
+    Boolean(onOpenBrowserUrl) &&
+    isWorkspaceFileTreeHtmlFile(row);
   const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
     onSelect(row.path);
     if (event.detail > 1) {
@@ -175,6 +179,12 @@ export function WorkspaceFileTreeRowView({
     if (isDeletedFile) {
       // 修复：Git deleted 行是从状态里补出来的虚拟文件，真实文件已不存在。
       // 点击时只保留选中能力，避免继续打开预览导致文件读取失败。
+      return;
+    }
+    // 用户开了「单击 HTML 在内置浏览器打开」时，本地 .html 单击进浏览器；
+    // 条件与右键「在浏览器中打开」相同（远端 workspace 的文件不在本机磁盘，仍走源码预览）。
+    if (htmlClickOpensBrowser && canOpenInBrowser) {
+      handleOpenInBrowser();
       return;
     }
     // 文件树单击文件之前只更新选中态，必须双击才打开预览。
@@ -365,16 +375,8 @@ export function WorkspaceFileTreeRowView({
   // 转成 UNC；因此它和“打开方式 → 资源管理器”必须共享相同的可用性与执行路径。
   const canRevealInFileManager =
     (!isDeletedFile && Boolean(wslFileManagerEditor)) ||
-    fileActions.canRevealInFileManager({
-      path: row.path,
-      deleted: isDeletedFile,
-    });
+    fileActions.canRevealInFileManager({ path: row.path, deleted: isDeletedFile });
   const canOpenPrimary = !isDeletedFile;
-  const canOpenInBrowser =
-    !isDeletedFile &&
-    !isRemoteWorkspaceFileTree &&
-    Boolean(onOpenBrowserUrl) &&
-    isWorkspaceFileTreeHtmlFile(row);
 
   return (
     <div

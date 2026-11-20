@@ -93,6 +93,8 @@ export interface V4ComposerToolbarProps {
   draftConfig?: Partial<SessionConfigState>;
   usage: SessionUsageState | null;
   disabled: boolean;
+  modelSelectionPending?: boolean;
+  onConnectionPendingChange?: (pending: boolean) => void;
   /** 单个 composer 内的配置 picker 排他 owner；只属于 renderer-local presentation。 */
   activeConfigPicker: V4ComposerConfigPicker | null;
   onConfigPickerOpenChange: (picker: V4ComposerConfigPicker, open: boolean) => void;
@@ -104,7 +106,8 @@ export interface V4ComposerToolbarProps {
     provider: string,
     model: string,
     sourceModel: ModelSelectionSource | null,
-  ) => void;
+    reasoningLevel?: string,
+  ) => void | Promise<void>;
   /** 选中思考深度；modelContext 固定本次用户操作的目标模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
@@ -128,6 +131,8 @@ function V4ComposerModelControlsImpl({
   draftConfig,
   usage,
   disabled,
+  modelSelectionPending = false,
+  onConnectionPendingChange,
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSelectModel,
@@ -155,6 +160,12 @@ function V4ComposerModelControlsImpl({
   // Ctrl+M 热键：递增 openRequestKey 请求 ModelConfigSelect 打开菜单（旧 handleOpenModelMenuShortcut 语义）。
   const [modelMenuOpenRequestKey, setModelMenuOpenRequestKey] = useState(0);
   const [recoveryPending, setRecoveryPending] = useState(false);
+  // 独立档位下拉沿用选中关闭；合并模型面板不能因 ACK 等待收起，否则选模和滑杆都会中断。
+  useEffect(() => {
+    if (modelSelectionPending) {
+      onConfigPickerOpenChange("thought", false);
+    }
+  }, [modelSelectionPending, onConfigPickerOpenChange]);
   const handleOpenModelMenuShortcut = useCallback(() => {
     setModelMenuOpenRequestKey((current) => current + 1);
   }, []);
@@ -204,9 +215,7 @@ function V4ComposerModelControlsImpl({
       codingPlanBadgeLabel: intl.formatMessage({
         id: "settings.modelProvider.connectionMode.codingPlanBadge",
       }),
-      startPlanLabel: intl.formatMessage({
-        id: "settings.modelProvider.connectionMode.startPlan",
-      }),
+      startPlanLabel: intl.formatMessage({ id: "settings.modelProvider.connectionMode.startPlan" }),
       startPlanBadgeLabel: intl.formatMessage({
         id: "settings.modelProvider.connectionMode.startPlanBadge",
       }),
@@ -225,9 +234,7 @@ function V4ComposerModelControlsImpl({
     openSettingsTab();
   }, [openSettingsTab]);
   const showManageModelsAction = shouldShowManageModelsAction(handleOpenModelProviderSettings);
-  const manageModelsLabel = intl.formatMessage({
-    id: "chat.toolbar.model.manageModels",
-  });
+  const manageModelsLabel = intl.formatMessage({ id: "chat.toolbar.model.manageModels" });
 
   // 当前投影模型的编码值：provider 命中目录则按自定义模型编码，否则回落裸 model id。
   const rawModelValue = useMemo(() => {
@@ -280,17 +287,14 @@ function V4ComposerModelControlsImpl({
     triggerDisplay.placeholder,
   ]);
   const handleModelValueChange = useCallback(
-    (value: string) => {
+    (value: string, reasoningLevel?: string) => {
       if (modelSelectionState.status !== "ready") return;
       const decoded = decodeCustomModelValue(value);
       // 草稿的点击时可见模型可能只存在于 catalog，或已经被最新 draft
       // intent 覆盖，不能让 SessionPane 再从迟到的 prewarm projection 反推。
       const sourceModel =
         effectiveConfig?.provider && effectiveConfig.model
-          ? {
-              provider: effectiveConfig.provider,
-              model: effectiveConfig.model,
-            }
+          ? { provider: effectiveConfig.provider, model: effectiveConfig.model }
           : null;
       // debug 日志（草稿态切模型排障）：点击值 + 解码分支。
       logger.debug("[v4-toolbar] model select onValueChange", {
@@ -325,16 +329,21 @@ function V4ComposerModelControlsImpl({
         return;
       }
       if (decoded) {
-        onSelectModel(decoded.providerId, decoded.modelName ?? "", sourceModel);
-        return;
+        if (reasoningLevel !== undefined)
+          return onSelectModel(
+            decoded.providerId,
+            decoded.modelName ?? "",
+            sourceModel,
+            reasoningLevel,
+          );
+        else return onSelectModel(decoded.providerId, decoded.modelName ?? "", sourceModel);
       }
       const slashIndex = value.indexOf("/");
       if (slashIndex > 0) {
-        onSelectModel(value.slice(0, slashIndex), value.slice(slashIndex + 1), sourceModel);
-        return;
+        return onSelectModel(value.slice(0, slashIndex), value.slice(slashIndex + 1), sourceModel);
       }
       // 裸 model id：provider 沿用当前（宿主从最新投影补齐）。
-      onSelectModel("", value, sourceModel);
+      return onSelectModel("", value, sourceModel);
     },
     [
       configOptionsError,
@@ -388,10 +397,7 @@ function V4ComposerModelControlsImpl({
         });
         return;
       }
-      onSelectThought(value, {
-        provider: effectiveConfig.provider,
-        model: effectiveConfig.model,
-      });
+      onSelectThought(value, { provider: effectiveConfig.provider, model: effectiveConfig.model });
     },
     [effectiveConfig, modelSelectionState.status, onSelectThought],
   );

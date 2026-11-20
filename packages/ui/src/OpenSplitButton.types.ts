@@ -8,6 +8,8 @@ export type OpenSplitButtonTarget =
       type: "website";
       url: string;
       localPath?: string;
+      /** 本轮本机预览文件，仅供定位，不参与打开。 */
+      sourcePath?: string;
       workspacePath?: string;
     }
   | {

@@ -214,7 +214,6 @@ export function ComputerUseSection({
     }
   }, [platform, intl]);
 
-
   const onTogglePlugin = useCallback(
     async (next: boolean) => {
       if (!pluginManagementService) return;
@@ -327,7 +326,6 @@ export function ComputerUseSection({
     );
   };
 
-
   const acc = statusView(availableStatus?.accessibility);
   const screenPerm = statusView(availableStatus?.screenRecording);
 
@@ -428,6 +426,7 @@ export function ComputerUseSection({
       {/* 总开关：开/关 zcode-cua 插件（同步其 MCP + skill） */}
       <SettingsGroupCard>
         <SettingsRow
+          searchId="settings.computerUse.toggleLabel"
           label={intl.formatMessage({ id: "settings.computerUse.toggleLabel" })}
           description={intl.formatMessage({
             id: "settings.computerUse.toggleDescription",
@@ -448,6 +447,7 @@ export function ComputerUseSection({
             电脑控制关闭时按钮无论如何都不渲染（cuaComposerEntryState 的插件门），
             此时把开关置灰并改文案说明前置条件——留一个可点却看不到效果的开关会被当成坏了。 */}
         <SettingsRow
+          searchId="settings.computerUse.composerEntry.label"
           label={intl.formatMessage({ id: "settings.computerUse.composerEntry.label" })}
           description={intl.formatMessage({
             id: cuaEnabled

@@ -121,6 +121,7 @@ export type {
   WindowHostControllerTaskListItem,
   WindowHostControllerTaskListResult,
   WindowHostTaskUnreadSignal,
+  WindowHostTasksRemovedSignal,
 } from "./window-controller/windowController.js";
 
 // ZCode agent service — IZCodeAgentService is both a type (interface) and value (descriptor)
@@ -130,6 +131,8 @@ export {
   ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE,
 } from "./zcode-agent/zcodeAgent.js";
 export {
+  isZCodeAgentModelSelectionBasisUnsupportedError,
+  ZCodeAgentModelSelectionBasisUnsupportedError,
   isZCodeAgentMcpStatusModeUnsupportedError,
   ZCODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED_ERROR_CODE,
   ZCodeAgentMcpStatusModeUnsupportedError,
@@ -151,6 +154,7 @@ export type {
   ZCodeAgentCuaPermissionObservation,
   ZCodeAgentInitializeResult,
   ZCodeAgentStorageStartupSnapshot,
+  ZCodeAgentRuntimeExitedEvent,
   ZCodeAgentRuntimeLifecycleEvent,
   ZCodeAgentRuntimePolicy,
   ZCodeAgentReadSessionParams,
@@ -242,6 +246,12 @@ export { ISkillSyncService } from "./skill-sync/skillSync.js";
 export { IDeviceSyncStateService, IUserConfigSyncService } from "./data-sync/index.js";
 export type { IDataSyncCategoryService } from "./data-sync/index.js";
 export { IProviderProvisioningStatusService } from "./provider-provisioning-status/index.js";
+export {
+  IExtensionGrantsService,
+  IExtensionsService,
+  IExtensionViewsService,
+  type ExtensionsContributionsMessage,
+} from "./extensions/index.js";
 export { IMcpSyncService } from "./mcp-sync/mcpSync.js";
 export { IPluginSyncService } from "./plugin-sync/pluginSync.js";
 export {
@@ -275,6 +285,12 @@ export type {
   PromptAttachmentTransferProgress,
 } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
 export { IProjectService, LEGACY_SINGLE_ROOT_PROJECT_PREFIX } from "#src/project/contract.js";
+export {
+  IManagedWorktreeService,
+  type ManagedWorktreeGroup,
+  type ManagedWorktreeWorkspace,
+  type StartManagedWorktreeCreationResult,
+} from "#src/managed-worktree-tasks/contract.js";
 export type {
   ProjectTree,
   ProjectTask,

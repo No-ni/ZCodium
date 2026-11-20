@@ -227,10 +227,7 @@ export function createMcpToolEntry(
       denyPriority: "beforeAsk",
     },
     resultBudget,
-    timeout: {
-      defaultMs: timeoutMs,
-      allowCallOverride: false,
-    },
+    timeout: { defaultMs: timeoutMs, allowCallOverride: false },
     cancellation: {
       supported: true,
       cleanup: "bestEffort",
@@ -273,7 +270,7 @@ export function createMcpToolEntry(
                 workspaceIdentity: context.workspaceIdentity.trim(),
                 workspaceKey: context.workspaceIdentity.trim(),
               }
-            : { workspaceKey: resolve(context.workspaceScopeRoot) }),
+            : { workspaceKey: context.workspaceKey ?? resolve(context.workspaceScopeRoot) }),
           ...(context.turnId ? { turnId: context.turnId } : {}),
           clientMode: context.clientMode ?? "desktop-continuous",
           deliveryKind: context.deliveryKind ?? "desktop-continuous",
@@ -356,32 +353,17 @@ export const McpToolOutputJsonSchema = {
   type: "object",
   required: ["content"],
   properties: {
-    content: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: true,
-      },
-    },
+    content: { type: "array", items: { type: "object", additionalProperties: true } },
     structuredContent: {},
-    isError: {
-      type: "boolean",
-    },
-    _meta: {
-      type: "object",
-      additionalProperties: true,
-    },
+    isError: { type: "boolean" },
+    _meta: { type: "object", additionalProperties: true },
   },
   additionalProperties: false,
 } satisfies JsonSchema;
 
 function normalizeInputSchema(schema: JsonSchema | undefined): JsonSchema {
   if (!schema || typeof schema !== "object") {
-    return {
-      type: "object",
-      properties: {},
-      additionalProperties: true,
-    };
+    return { type: "object", properties: {}, additionalProperties: true };
   }
 
   return {
@@ -412,10 +394,7 @@ function createModelFacingMcpInputSchema(
   // 叠加必填字段，runtime dispatch 再剥离，既让模型稳定生成可读标题，也保持上游严格 schema 兼容。
   return {
     ...schema,
-    properties: {
-      ...properties,
-      title: CUA_USER_TITLE_SCHEMA,
-    },
+    properties: { ...properties, title: CUA_USER_TITLE_SCHEMA },
     required: [...new Set([...required, "title"])],
   };
 }

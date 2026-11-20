@@ -1,26 +1,21 @@
+import { initialManagedPageSnapshot } from "./pluginUiManagedPageDisplay.js";
+import { syncManagedPageDisplayModes } from "./pluginUiManagedPageDisplay.js";
 import { buildManagedPageController } from "./pluginUiManagedPageController.js";
 import { readPluginUiStyleVariables } from "./readPluginUiStyleVariables.js";
+import { retainPluginUiSession } from "@/plugin-ui/adapters/pluginUiPaneSession.js";
+import { clearPluginUiModelContexts } from "@/plugin-ui/adapters/pluginUiModelContextEvents.js";
 import { pluginUiStateKey } from "@/plugin-ui/adapters/pluginUiStateKey.js";
-
 import { logger } from "@/logger.js";
-
 import type {
   PluginUiHostController,
   PluginUiHostPhase,
 } from "@/plugin-ui/app/pluginUiHostController.js";
-
 import { clearPluginUiWidgetState } from "@/plugin-ui/app/pluginUiWidgetStateStore.js";
 import type { McpUiAppCapabilities } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { PluginSandboxHandle } from "@zcode/shared/mcp-apps";
 import { buildPluginSandboxScopeId } from "@zcode/shared/mcp-apps";
 import { clearPluginUiSurfaceFeed } from "../app/pluginUiSurfaceFeedStore.js";
-import { PLUGIN_UI_CARD_DEFAULT_HEIGHT_PX } from "../contract.js";
-
-import {
-  appAllowsDisplayMode,
-  buildPluginUiHostContext,
-} from "@/plugin-ui/domain/buildPluginUiHostContext.js";
-
+import { buildPluginUiHostContext } from "@/plugin-ui/domain/buildPluginUiHostContext.js";
 import { acquireWorkspaceConnection } from "@/v4/workspaceConnectionRegistry.js";
 import type { IServiceAccessor } from "@zcode/services";
 import type { IPlatformService } from "@zcode/shared";
@@ -46,6 +41,7 @@ export function createPage(
   let controller: PluginUiHostController | null = null;
   let releaseFeed: (() => void) | undefined;
   let releaseLease: (() => void) | undefined;
+  let releaseDraft: (() => void) | undefined;
   let executionKey = "";
   let disposed = false;
   let starting = false;
@@ -60,19 +56,10 @@ export function createPage(
   const notify = () => {
     for (const listener of listeners) listener();
   };
-  let snapshot: UsePluginUiHostResult = {
-    pageKey: key,
-    supported: true,
-    phase: "idle",
-    handle: null,
-    height: PLUGIN_UI_CARD_DEFAULT_HEIGHT_PX,
-    error: null,
-    appCapabilities: undefined,
-    reload: () => {
-      clearPluginUiWidgetState(key);
-      void page.suspend(true).then(ensure);
-    },
-  };
+  let snapshot: UsePluginUiHostResult = initialManagedPageSnapshot(key, () => {
+    clearPluginUiWidgetState(key);
+    void page.suspend(true).then(ensure);
+  });
   const patch = (value: Partial<UsePluginUiHostResult>) => {
     snapshot = { ...snapshot, ...value };
     notify();
@@ -90,20 +77,8 @@ export function createPage(
   };
   const setHeight = (height: number) => patch({ height });
   const setError = (error: string) => patch({ error });
-  const syncDisplayModes = (appCapabilities: McpUiAppCapabilities | undefined) => {
-    // 能力只有握手后才可知；之前在后台加载，避免 fullscreen-only 页面先闪现 inline。
-    plane.setAllowedDisplayModes(
-      appCapabilities === undefined
-        ? []
-        : (["inline", "fullscreen"] as const).filter((mode) =>
-            appAllowsDisplayMode(
-              appCapabilities,
-              mode,
-              latest.current.presentation.preferredDisplayMode,
-            ),
-          ),
-    );
-  };
+  const syncDisplayModes = (caps: McpUiAppCapabilities | undefined) =>
+    syncManagedPageDisplayModes(plane, latest, caps);
   const setAppCapabilities = (appCapabilities: McpUiAppCapabilities | undefined) => {
     syncDisplayModes(appCapabilities);
     patch({ appCapabilities });
@@ -175,6 +150,7 @@ export function createPage(
     }
     starting = false;
     try {
+      retainDraft();
       // 页面独立持有已有 workspace 连接租约；卡片或 pane 退出不会让后台页面失联。
       const connection = acquireWorkspaceConnection(
         latest.current.scope,
@@ -184,6 +160,9 @@ export function createPage(
       releaseLease = () => connection.release();
       const lease = connection.layer.acquire(latest.current.scope.sessionId);
       const runtimeStopped = () => {
+        releaseDraft?.();
+        releaseDraft = undefined;
+        // 页面失效不等于 session 失效，已附加的各插件上下文仍属于待发送输入。
         void page.suspend(true);
         patch({ phase: "error", error: "MCP App runtime is no longer available" });
       };
@@ -234,8 +213,10 @@ export function createPage(
       event.type === "workspace_task_list_changed" &&
       event.reason === "task_deleted" &&
       event.taskId === input.scope.sessionId
-    )
+    ) {
+      clearPluginUiModelContexts(input.scope);
       pluginUiPages.removeTask(task);
+    }
   });
   const page: Page = {
     kind: "mcp",
@@ -252,6 +233,13 @@ export function createPage(
     },
     busy: () => controller?.isBusy() ?? false,
     running: () => controller !== null || starting,
+    callPanelTool(toolName: string, args?: Record<string, unknown>) {
+      if (!controller) return Promise.reject(new Error("MCP App page is not running"));
+      return controller.callPanelTool(toolName, args);
+    },
+    notifyPanelToolResult(result: import("@zcode/shared/mcp-apps").McpAppsToolResultPayload) {
+      controller?.notifyToolResult(result);
+    },
     bind(node, sidebar) {
       const off = plane.bind({
         node,
@@ -376,15 +364,27 @@ export function createPage(
       return true;
     },
     destroy() {
+      if (disposed) return;
       document.removeEventListener("visibilitychange", onWindowVisibility);
       workspaceEvents.dispose();
       clearPluginUiSurfaceFeed(key);
       disposed = true;
-      void page.suspend(true).finally(() => plane.dispose());
+      void page.suspend(true).finally(() => {
+        plane.dispose();
+        releaseDraft?.();
+        releaseDraft = undefined;
+      });
       clearPluginUiWidgetState(key);
       listeners.clear();
     },
   };
+  function retainDraft() {
+    releaseDraft ??= retainPluginUiSession(input.scope, () => {
+      clearPluginUiModelContexts(input.scope);
+      pluginUiPages.removeTask(task);
+    });
+  }
+  retainDraft();
   plane.setAllowedDisplayModes([]);
   document.addEventListener("visibilitychange", onWindowVisibility);
   return page;

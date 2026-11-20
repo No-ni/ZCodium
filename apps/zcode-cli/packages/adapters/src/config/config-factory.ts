@@ -1,5 +1,3 @@
-// Config Factory - Load and merge all config sources
-
 import { resolve } from "node:path";
 import type {
   ConfigPort,
@@ -14,7 +12,10 @@ import {
   DefaultRuntimeConfig,
   createWorkspaceHookBundleSnapshot,
 } from "@zcode/contracts";
-import { resolveSourcePersistenceRoots, assertSourceUserConfigPathAllowed } from "./source-persistence.js";
+import {
+  resolveSourcePersistenceRoots,
+  assertSourceUserConfigPathAllowed,
+} from "./source-persistence.js";
 import {
   buildWorkspaceHookBundleSnapshot,
   resolveWorkspaceHookRuntimeRoot,
@@ -25,7 +26,6 @@ import { loadFileConfig, getDefaultConfigPath, type LoadedConfig } from "./file-
 import { parseEnvConfig } from "./env-config.adapter.js";
 import { mergeConfigs, createPrioritizedConfig } from "./config-merger.js";
 import { withHookConfigSource } from "./config-hook-source.js";
-import { createNodeLoggerFactory } from "../logging/index.js";
 import {
   loadProjectConfigFile,
   loadProjectConfigs,
@@ -33,6 +33,14 @@ import {
   type ProjectConfigDiscovery,
   type ProjectConfigFile,
 } from "./project-config.adapter.js";
+import { logConfigDiagnostics } from "./config-diagnostics.js";
+
+export {
+  resolveZCodeDataBaseDir,
+  resolveWorkspaceHookTrustIdentityForWorkspace,
+  type LocalSessionDirectoryRelation,
+  classifyLocalSessionDirectory,
+} from "./workspace-trust-identity.js";
 
 export interface ConfigFactoryOptions {
   /** Path to user config file (default: ~/.zcodium/cli/config.json) */
@@ -43,6 +51,12 @@ export interface ConfigFactoryOptions {
   workingDirectory?: string;
   /** Opaque workspace identity supplied by the existing Host resolver; local callers fall back to workspacePath. */
   workspaceIdentity?: string;
+  /**
+   * Hook Trust identity（D23），由调用方经 resolveWorkspaceHookTrustIdentityForWorkspace 预先算好。
+   * createConfig 是同步函数，而 resolver 需要异步读取 .git 链接，所以不在这里解析。
+   * 缺省时沿用旧规则（远程 identity 优先，否则工作目录）。
+   */
+  workspaceHookTrustIdentity?: string;
   /** Environment variables (default: process.env) */
   env?: Record<string, string | undefined>;
   /** CLI overrides (highest priority) */
@@ -88,33 +102,67 @@ export interface ConfigResult {
       workspaceHookRuntimeRoot?: WorkspaceHookRuntimeRoot;
     };
     plugins: PluginConfigSources;
-    mcp: {
-      serverSources: Record<string, McpServerConfigSource>;
-    };
+    mcp: { serverSources: Record<string, McpServerConfigSource> };
     env: boolean;
     cli: boolean;
   };
 }
 
-type OptionalPathLoadedConfig = Omit<LoadedConfig, "path"> & {
-  path: string | undefined;
-};
+type OptionalPathLoadedConfig = Omit<LoadedConfig, "path"> & { path: string | undefined };
 
 export type McpServerConfigSource = "system" | "project" | "user" | "env" | "cli";
+
 export type PluginConfigScope = "user" | "workspace";
 
 export interface PluginConfigSources {
-  dirs: {
-    user: string[];
-    workspace: string[];
-  };
+  dirs: { user: string[]; workspace: string[] };
   enabled: Record<string, PluginConfigScope>;
   marketplaces: Record<string, PluginConfigScope>;
   options: Record<string, Record<string, PluginConfigScope>>;
-  paths: {
-    user: string;
-    workspace: string | undefined;
-  };
+  /**
+   * 插件选项的原始配置层，按优先级从低到高（user，再按发现顺序的项目配置文件）。
+   * 合并后的 options 分不出值来自哪一层；敏感选项要按层叠加私有文件，所以保留原始层。
+   */
+  optionLayers: PluginOptionLayer[];
+  paths: { user: string; workspace: string | undefined };
+}
+
+export interface PluginOptionLayer {
+  scope: PluginConfigScope;
+  path: string;
+  /** workspace 层配置文件的 baseDir；私有文件按它找 workspace 条目。user 层没有。 */
+  workspaceRoot?: string;
+  options: Record<string, Record<string, string | number | boolean>>;
+}
+
+interface LoadedConfigSources {
+  userConfigResult: LoadedConfig;
+  discoveredProjectConfigs: ProjectConfigDiscovery;
+}
+
+function loadConfigSources(options: ConfigFactoryOptions): LoadedConfigSources {
+  const sourceRoots = resolveSourcePersistenceRoots(options.env ?? process.env);
+  if (sourceRoots) assertSourceUserConfigPathAllowed(options.userConfigPath, sourceRoots);
+  // Source 的用户配置由 Source 持有，skipUserConfig 也必须先拒绝非法显式路径。
+  const userConfigResult: LoadedConfig = options.skipUserConfig
+    ? {
+        config: {},
+        diagnostics: [],
+        path: sourceRoots?.cliConfigFile ?? getDefaultConfigPath(),
+        loaded: false,
+      }
+    : loadFileConfig(options.userConfigPath ?? sourceRoots?.cliConfigFile);
+  const discoveredProjectConfigs: ProjectConfigDiscovery = options.workingDirectory
+    ? loadProjectConfigs(options.workingDirectory, options.projectConfigPath)
+    : options.projectConfigPath
+      ? summarizeProjectConfigs([
+          loadProjectConfigFile(options.projectConfigPath, {
+            discoveryOrder: 0,
+            explicitProjectConfig: true,
+          }),
+        ])
+      : summarizeProjectConfigs([]);
+  return { userConfigResult, discoveredProjectConfigs };
 }
 
 /**
@@ -128,27 +176,18 @@ export interface PluginConfigSources {
  * 5. CLI overrides
  */
 export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
+  return assembleConfig(options, loadConfigSources(options));
+}
+
+function assembleConfig(options: ConfigFactoryOptions, sources: LoadedConfigSources): ConfigResult {
+  const { userConfigResult, discoveredProjectConfigs } = sources;
   const sourceRoots = resolveSourcePersistenceRoots(options.env ?? process.env);
-  if (sourceRoots) {
-    assertSourceUserConfigPathAllowed(options.userConfigPath, sourceRoots);
-  }
   // 1. System defaults
   const configs: ReturnType<typeof createPrioritizedConfig>[] = [
     createPrioritizedConfig(DefaultRuntimeConfig, ConfigScope.System),
   ];
 
   // 2. User config file
-  // Source 分支默认 user config 是 Source 拥有的 cliConfigFile，不是 Desktop bootstrap home；
-  // skipUserConfig 仅跳过读取，显式非法路径已在上面先行拒绝。
-  const userConfigResult: LoadedConfig = options.skipUserConfig
-    ? {
-        config: {},
-        diagnostics: [],
-        path: sourceRoots?.cliConfigFile ?? getDefaultConfigPath(),
-        loaded: false,
-      }
-    : loadFileConfig(options.userConfigPath ?? sourceRoots?.cliConfigFile);
-
   if (userConfigResult.loaded) {
     configs.push(
       createPrioritizedConfig(
@@ -162,16 +201,6 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
   }
 
   // 3. Project config files
-  const discoveredProjectConfigs: ProjectConfigDiscovery = options.workingDirectory
-    ? loadProjectConfigs(options.workingDirectory, options.projectConfigPath)
-    : options.projectConfigPath
-      ? summarizeProjectConfigs([
-          loadProjectConfigFile(options.projectConfigPath, {
-            discoveryOrder: 0,
-            explicitProjectConfig: true,
-          }),
-        ])
-      : summarizeProjectConfigs([]);
   // explicit 配置曾在 auto-discovery 之后手工追加并自行编号，绕过 shared
   // canonical-path dedup；同一文件会进入 snapshot 两次并使既有 Trust 全部 stale。
   // 修法：有 workspace 时由 loadProjectConfigs 统一走 discoverWorkspaceHookConfigPaths，
@@ -230,7 +259,10 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
   ]);
   const workspacePath = resolve(options.workingDirectory ?? process.cwd());
   const workspaceHookSnapshotData = buildWorkspaceHookBundleSnapshot({
-    workspaceIdentity: options.workspaceIdentity?.trim() || workspacePath,
+    workspaceIdentity:
+      options.workspaceHookTrustIdentity?.trim() ||
+      options.workspaceIdentity?.trim() ||
+      workspacePath,
     workspacePath,
     sources: projectSummary.hookCandidates,
     runtimeRoot: workspaceHookRuntimeRoot,
@@ -256,7 +288,9 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
 
   const pluginConfigSources = resolvePluginConfigSources({
     projectConfig: projectConfigResult.config,
+    projectFiles: projectConfigFiles,
     projectPath: projectConfigResult.path,
+    skipUserConfig: options.skipUserConfig === true,
     userConfig: userConfigResult.config,
     userPath: userConfigResult.path,
   });
@@ -266,10 +300,7 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
     projectConfig: projectConfigResult.config,
     userConfig: userConfigResult.config,
   });
-  merged.mcp = {
-    ...merged.mcp,
-    servers: mcpServerResolution.servers,
-  };
+  merged.mcp = { ...merged.mcp, servers: mcpServerResolution.servers };
 
   // Create ConfigPort with merged config
   const configPort = createConfigPort(merged);
@@ -302,9 +333,7 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
         workspaceHookRuntimeRoot,
       },
       plugins: pluginConfigSources,
-      mcp: {
-        serverSources: mcpServerResolution.sources,
-      },
+      mcp: { serverSources: mcpServerResolution.sources },
       env: Object.keys(envConfig).length > 0,
       cli: !!options.cliOverrides,
     },
@@ -313,7 +342,9 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
 
 function resolvePluginConfigSources(input: {
   projectConfig: RuntimeConfigPatch;
+  projectFiles: readonly ProjectConfigFile[];
   projectPath: string | undefined;
+  skipUserConfig: boolean;
   userConfig: RuntimeConfigPatch;
   userPath: string;
 }): PluginConfigSources {
@@ -350,10 +381,24 @@ function resolvePluginConfigSources(input: {
     enabled,
     marketplaces,
     options,
-    paths: {
-      user: input.userPath,
-      workspace: input.projectPath,
-    },
+    optionLayers: [
+      ...(input.skipUserConfig
+        ? []
+        : [
+            {
+              scope: "user" as const,
+              path: input.userPath,
+              options: input.userConfig.plugins?.options ?? {},
+            },
+          ]),
+      ...input.projectFiles.map((file) => ({
+        scope: "workspace" as const,
+        path: file.path,
+        workspaceRoot: file.baseDir,
+        options: file.config.plugins?.options ?? {},
+      })),
+    ],
+    paths: { user: input.userPath, workspace: input.projectPath },
   };
 }
 
@@ -379,10 +424,7 @@ function resolveEffectiveMcpServers(input: {
   envConfig: RuntimeConfigPatch;
   projectConfig: RuntimeConfigPatch;
   userConfig: RuntimeConfigPatch;
-}): {
-  servers: Record<string, McpServerConfig>;
-  sources: Record<string, McpServerConfigSource>;
-} {
+}): { servers: Record<string, McpServerConfig>; sources: Record<string, McpServerConfigSource> } {
   const servers: Record<string, McpServerConfig> = {};
   const sources: Record<string, McpServerConfigSource> = {};
   const apply = (source: McpServerConfigSource, patch: RuntimeConfigPatch | undefined) => {
@@ -402,56 +444,6 @@ function resolveEffectiveMcpServers(input: {
   return { servers, sources };
 }
 
-function logConfigDiagnostics(input: {
-  env?: Record<string, string | undefined>;
-  loggerFactory?: LoggerFactory;
-  projectDiagnostics: LoadedConfig["diagnostics"];
-  userDiagnostics: LoadedConfig["diagnostics"];
-}): void {
-  const diagnostics = [
-    ...input.userDiagnostics.map((diagnostic) => ({ ...diagnostic, configScope: "user" })),
-    ...input.projectDiagnostics.map((diagnostic) => ({ ...diagnostic, configScope: "project" })),
-  ];
-  if (diagnostics.length === 0) return;
-
-  const loggerFactory = input.loggerFactory ?? createNodeLoggerFactory({ env: input.env });
-  const logger = loggerFactory.createLogger("zcode").child({
-    module: "adapters.config",
-  });
-
-  for (const diagnostic of diagnostics) {
-    logger.warn(resolveConfigDiagnosticLogMessage(diagnostic.code), {
-      configPath: diagnostic.filePath,
-      configScope: diagnostic.configScope,
-      diagnosticCode: diagnostic.code,
-      diagnosticMessage: diagnostic.message,
-      diagnosticPath: diagnostic.path,
-      event: resolveConfigDiagnosticLogEvent(diagnostic.code),
-      severity: diagnostic.severity,
-    });
-  }
-}
-
-function resolveConfigDiagnosticLogMessage(
-  code: LoadedConfig["diagnostics"][number]["code"],
-): string {
-  if (code === "config_mcp_server_invalid") return "MCP server config skipped";
-  if (code === "config_project_hooks_pending_trust") {
-    return "Project hooks pending workspace trust";
-  }
-  return "Config file failed to load";
-}
-
-function resolveConfigDiagnosticLogEvent(
-  code: LoadedConfig["diagnostics"][number]["code"],
-): string {
-  if (code === "config_mcp_server_invalid") return "config.mcp_server.skipped";
-  if (code === "config_project_hooks_pending_trust") {
-    return "config.project_hooks.pending_trust";
-  }
-  return "config.file.invalid";
-}
-
 function summarizeOptionalProjectConfig(files: ProjectConfigFile[]): OptionalPathLoadedConfig {
   if (files.length === 0) {
     return { config: {}, diagnostics: [], path: undefined, loaded: false };
@@ -462,10 +454,5 @@ function summarizeOptionalProjectConfig(files: ProjectConfigFile[]): OptionalPat
     ...files.map((file) => createPrioritizedConfig(file.config, ConfigScope.Project)),
   );
 
-  return {
-    config,
-    diagnostics: files.flatMap((file) => file.diagnostics),
-    path,
-    loaded: true,
-  };
+  return { config, diagnostics: files.flatMap((file) => file.diagnostics), path, loaded: true };
 }

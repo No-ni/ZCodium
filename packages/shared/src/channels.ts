@@ -28,6 +28,11 @@ import type {
 import type { AppSettings, Locale } from "./protocol.js";
 import type { StorageCleanRequest, StorageCleanResult, StorageUsageSnapshot } from "./storage.js";
 import type {
+  ExtensionNotificationClick,
+  ExtensionNotificationPayload,
+  NotificationsShowResult,
+} from "#src/extension-host/notifications.js";
+import type {
   CancelPendingRemoteConnectionRequest,
   BindRemoteWorkspaceSessionContextRequest,
   BotRemoteWorkspaceReconnectedEvent,
@@ -36,6 +41,7 @@ import type {
   BrowserViewScreenshotSurfaceReleasePayload,
   BrowserViewCloseTabNotification,
   BrowserViewCloseTabRequest,
+  BrowserViewPromoteDraftTabsRequest,
   BrowserViewResidencyReportPayload,
   BrowserViewResidencyTransitionPayload,
   BrowserViewRestoredTabShell,
@@ -52,6 +58,8 @@ import type {
   SaveFileRequest,
   SaveFileResult,
   PrintPageToPdfResult,
+  CaptureBrowserGuestPageRequest,
+  CaptureBrowserGuestPageResult,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
   RemoteSessionClosedEvent,
@@ -106,6 +114,8 @@ export const ServiceChannels = {
   ZCodeAgent: "zcode-agent",
   /** ZCode session 应用服务 */
   ZCodeSession: "zcode-session",
+  /** 仅本地桌面Host拥有受管worktree操作。 */
+  ManagedWorktrees: "managed-worktrees",
   /** 会话分享发布、预览与 continuation API 编排 */
   ConversationShare: "conversation-share",
   /** 文件系统监视服务 */
@@ -117,6 +127,12 @@ export const ServiceChannels = {
   ModelSelection: "model-selection",
   /** 远端 Environment 内部 Provider Provisioning target */
   ProviderProvisioningTarget: "provider-provisioning-target",
+  /** 桌面 Host 的扩展门面（docs/plugins/extension-host.md）：贡献表、扩展进程状态、命令、重新加载（仅本机注册） */
+  Extensions: "extensions",
+  /** 桌面 Host 的扩展视图门面（docs/plugins/extension-host.md §8）：视图实例、页面请求与通知、views.open（仅本机注册） */
+  ExtensionViews: "extension-views",
+  /** 桌面 Host 的扩展授权门面（docs/plugins/extension-host.md §17.7）：授予、撤销、授权状态、启用确认、最近操作（仅本机注册） */
+  ExtensionGrants: "extension-grants",
   /** 本地 usage 统计服务 */
   UsageStats: "usage-stats",
   /** Coding Plan 订阅购买服务 */
@@ -208,6 +224,11 @@ export const PlatformChannels = {
   SaveFile: "zcode:save-file",
   /** Renderer → Main：用 Chromium 打印引擎把当前页面 print 媒体版面导出为 PDF */
   PrintToPdf: "zcode:print-to-pdf",
+  /** Renderer → Main：检查并按需请求系统麦克风权限 */
+  /** Renderer → Main：macOS 重置本 App 的麦克风授权记录并重新请求 */
+  /** Renderer → Main：打开系统麦克风权限 / 声音输入设置页 */
+  /** Renderer → Main：在 main 截取内置浏览器 guest 当前视口为 PNG（renderer 侧 capturePage 会崩溃） */
+  CaptureBrowserGuestPage: "zcode:capture-browser-guest-page",
   /** Main → Renderer：转发远程连接过程日志 */
   RemoteConnectionLog: "zcode:remote-connection-log",
   /** Main → Renderer：远程 workspace session 已关闭 */
@@ -371,6 +392,10 @@ export const PlatformChannels = {
   TaskNotificationSound: "zcode:task-notification-sound",
   /** Main → Preload：用户点击了系统通知，携带 taskId 让 renderer 跳转到对应任务 */
   TaskNotificationClick: "zcode:task-notification-click",
+  /** Renderer → Main：弹扩展的系统通知并返回结果（§18.1 H8） */
+  ShowExtensionNotification: "zcode:show-extension-notification",
+  /** Main → Preload：用户点了扩展通知，携带插件 id 与要打开的视图 */
+  ExtensionNotificationClick: "zcode:extension-notification-click",
   /** Renderer → Main：导出日志（打包 ~/.zcodium/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "zcode:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -380,12 +405,16 @@ export const PlatformChannels = {
    * main 用 BrowserGuestManager attach 该 guest（fire-and-forget）。CDP-on-guest pivot。
    */
   BrowserViewAttachGuest: "zcode:browser-view-attach-guest",
+  /** 可信宿主发起导航；main 将本地 HTML 转成有目录边界的预览地址。 */
+  BrowserViewLoadUrl: "zcode:browser-view-load-url",
   /** Renderer → Main：重建 `<webview>` 前主动断开旧 guest 的 CDP。 */
   BrowserViewDetachGuest: "zcode:browser-view-detach-guest",
   /** Renderer → Main：用户显式关闭 Browser tab。 */
   BrowserViewCloseTabFromRenderer: "zcode:browser-view-close-tab-from-renderer",
   /** Renderer → Main：上报 Browser tab residency/display facts。 */
   BrowserViewReportResidency: "zcode:browser-view-report-residency",
+  /** Renderer → Main：草稿首发后把草稿 human tab 的 owner 升级为新会话。 */
+  BrowserViewPromoteDraftTabs: "zcode:browser-view-promote-draft-tabs",
   /** Renderer → Main：指定 generation 的 guest 已卸载。 */
   BrowserViewSuspendReady: "zcode:browser-view-suspend-ready",
   /** Renderer → Main：用户访问 suspended tab，请求恢复。 */
@@ -508,6 +537,22 @@ export type PlatformChannelName = (typeof PlatformChannels)[keyof typeof Platfor
 export const EmbeddedBrowserWebviewChannels = {
   /** Guest 无法继续消费某方向的滚动时，把二维 delta 转交自由尺寸画布。 */
   WheelBoundary: "zcode:embedded-browser-wheel-boundary",
+  /**
+   * 设计运行时的页面事件（docs/browser-use/2026-11-03-browser-design-mode-spec.md）：页面主世界
+   * `window.postMessage` 带命名空间的信封，preload 校验后把 `events` 数组转给宿主。
+   */
+  DesignEvents: "zcode:embedded-browser-design-events",
+  /**
+   * 页面上按下 Cmd/Ctrl + Z（Shift 为重做），且按键当下的目标不是可编辑元素：preload 隔离世界只认 isTrusted 的按键，
+   * 页面脚本发不出这条，设计工具据此撤销 / 重做源码写回。
+   */
+  DesignUndoShortcut: "zcode:embedded-browser-design-undo-shortcut",
+} as const;
+
+/** 设计运行时 postMessage 信封：`{ [messageKey]: 1, events: unknown[] }`；events 序列化后超过上限（UTF-8 字节）的消息 preload 直接丢弃。 */
+export const EMBEDDED_BROWSER_DESIGN_BRIDGE = {
+  messageKey: "__zcodeDesign",
+  maxMessageBytes: 256 * 1024,
 } as const;
 
 export interface EmbeddedBrowserWheelBoundaryPayload {
@@ -541,6 +586,8 @@ export const InternalChannels = {
   ScopedServicePort: "zcode:scoped-service-port",
   /** renderer → main：scoped MessagePort 已注册，可安全切换 attachment */
   ScopedServicePortReady: "zcode:scoped-service-port-ready",
+  /** main → renderer：ready ACK 到达时 route 已不存在，窗口释放这次 attachment 的登记 */
+  ScopedServicePortReleased: "zcode:scoped-service-port-released",
   /** preload → renderer：主进程已确认系统通知展示，renderer 可播放提示音 */
   TaskNotificationSound: "zcode:task-notification-sound",
   /** main → 宿主 renderer：插件 UI 沙箱的 MessagePort 组（port2[]），payload { sandboxId, initId, names } */
@@ -561,6 +608,10 @@ export const ZCODE_RPC_HOST_CAPABILITY_HEADER = "x-zcode-rpc-host-capability";
 
 /** main → host process 的初始化消息类型 */
 export const HostMessageTypes = {
+  /** Main → Host：仅经已绑定私有通道返回加解密结果，不含系统主密钥。 */
+  CredentialCipherResult: "credential-cipher-result",
+  /** Main → Host：数据存储路径切换时的系统密钥登记结果，只含受控错误码。 */
+  CredentialKeyShareResult: "credential-key-share-result",
   DatabaseStartupControl: "database-startup-control",
   WindowProjectDirectoryProjection: "window-project-directory-projection",
   /** 初始化本地服务 */
@@ -635,6 +686,13 @@ export const HostMessageTypes = {
 
 /** host process → main process 的反馈消息类型 */
 export const HostResponseTypes = {
+  /** Host → Main：对本 Host 绑定的凭据目录执行加解密。 */
+  CredentialCipherRequest: "credential-cipher-request",
+  /**
+   * Host → Main：数据存储路径切换后，请求 Main 把当前绑定目录的系统密钥登记到目标数据根。
+   * 只传目标数据根，Main 自行推导凭据路径；不读出密钥，也不开放对目标目录的加解密。
+   */
+  CredentialKeyShareRequest: "credential-key-share-request",
   DatabaseStartupState: "database-startup-state",
   /** window Host → main：按 requestId 上报远程连接过程日志 */
   RemoteWorkspaceConnectionLog: "remote-workspace-connection-log",
@@ -668,6 +726,8 @@ export const HostResponseTypes = {
   ResourceUsageSnapshotResult: "resource-usage-snapshot-result",
   /** host 内当前正在执行 prompt 的 agent session 数量变化 */
   AgentRunningTaskCountChanged: "agent-running-task-count-changed",
+  /** host 内阻止退出的事项变化（例如正在创建的 worktree） */
+  QuitBlockersChanged: "quit-blockers-changed",
   /** host 内指定 workspace 当前仍未 terminal 的 task 数量变化 */
   WorkspaceRunningTaskCountChanged: "workspace-running-task-count-changed",
   /** host → main：Windows desktop-local CUA turn 的操作提示状态 */
@@ -745,29 +805,18 @@ export interface PlatformChannelMap {
     response: void;
   };
   [PlatformChannels.ReportRendererHeapSample]: { request: RendererHeapSample; response: void };
-  [PlatformChannels.SelectDirectory]: {
-    request: void;
-    response: string | null;
-  };
-  [PlatformChannels.SelectFile]: {
-    request: void;
-    response: string | null;
-  };
-  [PlatformChannels.SelectFiles]: {
-    request: void;
-    response: string[];
-  };
+  [PlatformChannels.SelectDirectory]: { request: void; response: string | null };
+  [PlatformChannels.SelectFile]: { request: void; response: string | null };
+  [PlatformChannels.SelectFiles]: { request: void; response: string[] };
   [PlatformChannels.CreateTempTextAttachment]: {
     request: CreateTempTextAttachmentRequest;
     response: CreateTempTextAttachmentResult;
   };
-  [PlatformChannels.SaveFile]: {
-    request: SaveFileRequest;
-    response: SaveFileResult;
-  };
-  [PlatformChannels.PrintToPdf]: {
-    request: void;
-    response: PrintPageToPdfResult;
+  [PlatformChannels.SaveFile]: { request: SaveFileRequest; response: SaveFileResult };
+  [PlatformChannels.PrintToPdf]: { request: void; response: PrintPageToPdfResult };
+  [PlatformChannels.CaptureBrowserGuestPage]: {
+    request: CaptureBrowserGuestPageRequest;
+    response: CaptureBrowserGuestPageResult;
   };
   [PlatformChannels.RemoteConnectionLog]: {
     request: {
@@ -781,22 +830,13 @@ export interface PlatformChannelMap {
     };
     response: void;
   };
-  [PlatformChannels.RemoteSessionClosed]: {
-    request: RemoteSessionClosedEvent;
-    response: void;
-  };
+  [PlatformChannels.RemoteSessionClosed]: { request: RemoteSessionClosedEvent; response: void };
   [PlatformChannels.BotRemoteWorkspaceReconnected]: {
     request: BotRemoteWorkspaceReconnectedEvent;
     response: void;
   };
-  [PlatformChannels.ActivateOrSetWorkspace]: {
-    request: string;
-    response: { activated: boolean };
-  };
-  [PlatformChannels.OpenWorkspacePath]: {
-    request: string;
-    response: void;
-  };
+  [PlatformChannels.ActivateOrSetWorkspace]: { request: string; response: { activated: boolean } };
+  [PlatformChannels.OpenWorkspacePath]: { request: string; response: void };
   [PlatformChannels.ConnectRemote]: {
     request: ConnectRemoteRequest;
     response: { success: boolean; error?: string; reasonCode?: string; sessionId?: string };
@@ -809,18 +849,12 @@ export interface PlatformChannelMap {
     request: BindRemoteWorkspaceSessionContextRequest;
     response: void;
   };
-  [PlatformChannels.DisposeRemoteSession]: {
-    request: string;
-    response: void;
-  };
+  [PlatformChannels.DisposeRemoteSession]: { request: string; response: void };
   [PlatformChannels.StartWebRemoteControl]: {
     request: WebRemoteControlStartRequest;
     response: WebRemoteControlStatusSnapshot;
   };
-  [PlatformChannels.StopWebRemoteControl]: {
-    request: void;
-    response: void;
-  };
+  [PlatformChannels.StopWebRemoteControl]: { request: void; response: void };
   [PlatformChannels.GetWebRemoteControlStatus]: {
     request: void;
     response: WebRemoteControlStatusSnapshot;
@@ -845,22 +879,10 @@ export interface PlatformChannelMap {
     request: { requestId: string; workspaceKey: string };
     response: { requestId: string; success: boolean; error?: string };
   };
-  [PlatformChannels.IsDockerAvailable]: {
-    request: void;
-    response: boolean;
-  };
-  [PlatformChannels.ListWSLDistros]: {
-    request: void;
-    response: WSLDistro[];
-  };
-  [PlatformChannels.ListDockerContainers]: {
-    request: void;
-    response: DockerContainerInfo[];
-  };
-  [PlatformChannels.ListSSHConfigAliases]: {
-    request: void;
-    response: SSHConfigAliasOption[];
-  };
+  [PlatformChannels.IsDockerAvailable]: { request: void; response: boolean };
+  [PlatformChannels.ListWSLDistros]: { request: void; response: WSLDistro[] };
+  [PlatformChannels.ListDockerContainers]: { request: void; response: DockerContainerInfo[] };
+  [PlatformChannels.ListSSHConfigAliases]: { request: void; response: SSHConfigAliasOption[] };
   [PlatformChannels.LoadMcpFromUserDirectory]: {
     request: LoadCliMcpFromUserDirectoryRequest;
     response: LoadCliMcpFromUserDirectoryResult;
@@ -881,46 +903,16 @@ export interface PlatformChannelMap {
     request: import("./windowUnread.js").WindowUnreadProjection;
     response: void;
   };
-  [PlatformChannels.SyncAppSettings]: {
-    request: Partial<AppSettings>;
-    response: void;
-  };
-  [PlatformChannels.GetResourceUsageSnapshot]: {
-    request: void;
-    response: ResourceUsageSnapshot;
-  };
-  [PlatformChannels.SetResourceUsageSamplingActive]: {
-    request: boolean;
-    response: void;
-  };
-  [PlatformChannels.StorageStartScan]: {
-    request: void;
-    response: { jobId: string };
-  };
-  [PlatformChannels.StorageCancelScan]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.StorageGetSnapshot]: {
-    request: void;
-    response: StorageUsageSnapshot | null;
-  };
-  [PlatformChannels.StorageClean]: {
-    request: StorageCleanRequest;
-    response: StorageCleanResult;
-  };
-  [PlatformChannels.StorageRevealPath]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.OpenExternal]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.OpenBrowserUrl]: {
-    request: EmbeddedBrowserOpenUrlRequest;
-    response: void;
-  };
+  [PlatformChannels.SyncAppSettings]: { request: Partial<AppSettings>; response: void };
+  [PlatformChannels.GetResourceUsageSnapshot]: { request: void; response: ResourceUsageSnapshot };
+  [PlatformChannels.SetResourceUsageSamplingActive]: { request: boolean; response: void };
+  [PlatformChannels.StorageStartScan]: { request: void; response: { jobId: string } };
+  [PlatformChannels.StorageCancelScan]: { request: string; response: void };
+  [PlatformChannels.StorageGetSnapshot]: { request: void; response: StorageUsageSnapshot | null };
+  [PlatformChannels.StorageClean]: { request: StorageCleanRequest; response: StorageCleanResult };
+  [PlatformChannels.StorageRevealPath]: { request: string; response: void };
+  [PlatformChannels.OpenExternal]: { request: string; response: void };
+  [PlatformChannels.OpenBrowserUrl]: { request: EmbeddedBrowserOpenUrlRequest; response: void };
   [PlatformChannels.BrowserViewReady]: {
     request: {
       workspaceKey: string;
@@ -972,10 +964,7 @@ export interface PlatformChannelMap {
     request: BrowserViewResidencyTransitionPayload;
     response: void;
   };
-  [PlatformChannels.CanOpenCommunity]: {
-    request: Locale;
-    response: boolean;
-  };
+  [PlatformChannels.CanOpenCommunity]: { request: Locale; response: boolean };
   [PlatformChannels.OpenInFileManager]: {
     request: string;
     response: { success: boolean; error?: string };
@@ -997,38 +986,25 @@ export interface PlatformChannelMap {
     response: PrepareCuaHelperPermissionDragResult;
   };
   // 单向 send（不是 invoke）：dragstart 必须同步发起，等不了 invoke 的往返。
-  [PlatformChannels.StartCuaHelperPermissionDrag]: {
-    request: undefined;
-    response: void;
-  };
-  [PlatformChannels.NotifyCuaHelperPermissionDragEnded]: {
-    request: undefined;
-    response: void;
-  };
+  [PlatformChannels.StartCuaHelperPermissionDrag]: { request: undefined; response: void };
+  [PlatformChannels.NotifyCuaHelperPermissionDragEnded]: { request: undefined; response: void };
   [PlatformChannels.CancelCuaPermissionOnboarding]: {
     request: { operationId: string };
     response: void;
   };
-  [PlatformChannels.RendererReady]: {
-    request: void;
+  [PlatformChannels.RendererReady]: { request: void; response: void };
+  [PlatformChannels.ShowTaskNotification]: { request: TaskNotificationPayload; response: void };
+  [PlatformChannels.TaskNotificationSound]: { request: void; response: void };
+  [PlatformChannels.TaskNotificationClick]: { request: string; response: void };
+  [PlatformChannels.ShowExtensionNotification]: {
+    request: ExtensionNotificationPayload;
+    response: NotificationsShowResult;
+  };
+  [PlatformChannels.ExtensionNotificationClick]: {
+    request: ExtensionNotificationClick;
     response: void;
   };
-  [PlatformChannels.ShowTaskNotification]: {
-    request: TaskNotificationPayload;
-    response: void;
-  };
-  [PlatformChannels.TaskNotificationSound]: {
-    request: void;
-    response: void;
-  };
-  [PlatformChannels.TaskNotificationClick]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.WindowFullscreenChanged]: {
-    request: boolean;
-    response: void;
-  };
+  [PlatformChannels.WindowFullscreenChanged]: { request: boolean; response: void };
   [PlatformChannels.GetDesktopWindowChromeState]: {
     request: void;
     response: DesktopWindowChromeState;
@@ -1051,12 +1027,7 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.CaptureWindowScreenshot]: {
     request: void;
-    response: {
-      dataBase64: string;
-      filename: string;
-      contentType: string;
-      size: number;
-    } | null;
+    response: { dataBase64: string; filename: string; contentType: string; size: number } | null;
   };
   // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。
   [PlatformChannels.BrowserViewAttachGuest]: {
@@ -1083,6 +1054,10 @@ export interface PlatformChannelMap {
     request: BrowserViewResidencyReportPayload;
     response: void;
   };
+  [PlatformChannels.BrowserViewPromoteDraftTabs]: {
+    request: BrowserViewPromoteDraftTabsRequest;
+    response: string[];
+  };
   [PlatformChannels.BrowserViewSuspendReady]: {
     request: { tabId: string; generation: number };
     response: void;
@@ -1100,99 +1075,38 @@ export interface PlatformChannelMap {
     response: void;
   };
   [PlatformChannels.EmbeddedBrowserJavaScriptDialog]: {
-    request: {
-      type: "alert" | "confirm";
-      message: string;
-    };
-    response: {
-      handled: boolean;
-      value?: boolean;
-    };
+    request: { type: "alert" | "confirm"; message: string };
+    response: { handled: boolean; value?: boolean };
   };
-  [PlatformChannels.UpdateReady]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.UpdateCheckResult]: {
-    request: UpdateCheckResultPayload;
-    response: void;
-  };
-  [PlatformChannels.UpdateStateChanged]: {
-    request: UpdateStatePayload;
-    response: void;
-  };
-  [PlatformChannels.GetUpdateState]: {
-    request: void;
-    response: UpdateStatePayload;
-  };
-  [PlatformChannels.DownloadUpdate]: {
-    request: void;
-    response: void;
-  };
-  [PlatformChannels.CancelUpdateDownload]: {
-    request: void;
-    response: void;
-  };
-  [PlatformChannels.OpenUpdateStatusWindow]: {
-    request: void;
-    response: void;
-  };
+  [PlatformChannels.UpdateReady]: { request: string; response: void };
+  [PlatformChannels.UpdateCheckResult]: { request: UpdateCheckResultPayload; response: void };
+  [PlatformChannels.UpdateStateChanged]: { request: UpdateStatePayload; response: void };
+  [PlatformChannels.GetUpdateState]: { request: void; response: UpdateStatePayload };
+  [PlatformChannels.DownloadUpdate]: { request: void; response: void };
+  [PlatformChannels.CancelUpdateDownload]: { request: void; response: void };
+  [PlatformChannels.OpenUpdateStatusWindow]: { request: void; response: void };
   [PlatformChannels.GetAutoUpdatePreferences]: {
     request: void;
-    response: {
-      autoDownloadAndInstallUpdates: boolean;
-    };
+    response: { autoDownloadAndInstallUpdates: boolean };
   };
-  [PlatformChannels.SetAutoDownloadAndInstallUpdates]: {
-    request: boolean;
-    response: void;
-  };
-  [PlatformChannels.SettingsChanged]: {
-    request: void;
-    response: void;
-  };
-  [PlatformChannels.ApplicationLocaleChanged]: {
-    request: Locale;
-    response: void;
-  };
-  [PlatformChannels.GetSystemLocale]: {
-    request: void;
-    response: Locale;
-  };
+  [PlatformChannels.SetAutoDownloadAndInstallUpdates]: { request: boolean; response: void };
+  [PlatformChannels.SettingsChanged]: { request: void; response: void };
+  [PlatformChannels.ApplicationLocaleChanged]: { request: Locale; response: void };
+  [PlatformChannels.GetSystemLocale]: { request: void; response: Locale };
   [PlatformChannels.GetDesktopSessionActivity]: {
     request: void;
-    response: {
-      runningAgentSessionCount: number;
-    };
+    response: { runningAgentSessionCount: number };
   };
-  [PlatformChannels.GetDesktopZoomLevel]: {
-    request: void;
-    response: DesktopZoomState;
-  };
-  [PlatformChannels.DesktopZoomLevelChanged]: {
-    request: DesktopZoomState;
-    response: void;
-  };
+  [PlatformChannels.GetDesktopZoomLevel]: { request: void; response: DesktopZoomState };
+  [PlatformChannels.DesktopZoomLevelChanged]: { request: DesktopZoomState; response: void };
   [PlatformChannels.PostUpdateReleaseNotes]: {
     request: PostUpdateReleaseNotesPayload;
     response: void;
   };
-  [PlatformChannels.AcknowledgePostUpdateReleaseNotes]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.SkipUpdateVersion]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.QuitAndInstallUpdate]: {
-    request: void;
-    response: void;
-  };
-  [PlatformChannels.GetInstalledEditors]: {
-    request: void;
-    response: EditorInfo[];
-  };
+  [PlatformChannels.AcknowledgePostUpdateReleaseNotes]: { request: string; response: void };
+  [PlatformChannels.SkipUpdateVersion]: { request: string; response: void };
+  [PlatformChannels.QuitAndInstallUpdate]: { request: void; response: void };
+  [PlatformChannels.GetInstalledEditors]: { request: void; response: EditorInfo[] };
   [PlatformChannels.GetApplicationIcon]: {
     request: string | import("./platform.js").ApplicationIconRequest;
     response: import("./platform.js").ApplicationIconInfo | null;
@@ -1201,29 +1115,17 @@ export interface PlatformChannelMap {
     request: { editorId: string; path: string; options?: OpenInEditorOptions };
     response: { success: boolean; error?: string };
   };
-  [PlatformChannels.CloseActiveContextRequest]: {
-    request: void;
-    response: void;
-  };
+  [PlatformChannels.CloseActiveContextRequest]: { request: void; response: void };
   [PlatformChannels.ExecuteDesktopCommand]: {
     request: DesktopCommandId;
     // 返回值直通 main 进程 handler 的 return（GetCuaOsSupport 返回 CuaOsSupport），
     // 与 renderer 侧 IPlatformService.executeDesktopCommand 的 Promise<unknown> 对齐。
     response: unknown;
   };
-  [PlatformChannels.SetApplicationLocale]: {
-    request: Locale;
-    response: void;
-  };
-  [PlatformChannels.SetTitleBarTheme]: {
-    request: DesktopTitleBarTheme;
-    response: void;
-  };
+  [PlatformChannels.SetApplicationLocale]: { request: Locale; response: void };
+  [PlatformChannels.SetTitleBarTheme]: { request: DesktopTitleBarTheme; response: void };
 
-  [PlatformChannels.SelectDirectories]: {
-    request: void;
-    response: string[];
-  };
+  [PlatformChannels.SelectDirectories]: { request: void; response: string[] };
 
   [PlatformChannels.MaterializeWorkflowArtifactFile]: {
     request: MaterializeWorkflowArtifactFileRequest;

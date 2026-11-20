@@ -235,7 +235,7 @@ export async function seedInlineLifecyclePlugin(): Promise<string> {
     ].join("\n"),
   );
 
-  const configPath = join(homeDir, ".zcode", "cli", "config.json");
+  const configPath = join(homeDir, ".zcodium", "cli", "config.json");
   const config = await readJsonRecord(configPath);
   const plugins = isRecord(config.plugins) ? config.plugins : {};
   const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
@@ -563,11 +563,8 @@ export async function configureLifecyclePluginThroughUi(value: string): Promise<
   if (fromStore) {
     await clickPluginControl("plugin-store-detail-back");
     await openManageView();
-    // 管理列表行已改为复用 PluginStoreCard（整卡 role=button），行内第一个 <button> 是更新/菜单等子按钮，
-    // 点它进不了详情；必须点卡片本身。
-    await $(
-      `[data-testid="plugin-settings-plugin-row"][data-plugin-id="${PLUGIN_LIFECYCLE_ID}"] [data-testid="plugin-store-card"]`,
-    ).click();
+    // 整行卡片负责打开详情，行内第一个 button 是菜单，会误打开卸载操作。
+    await clickPluginControl("plugin-store-card", { pluginId: PLUGIN_LIFECYCLE_ID });
   }
   await clickPluginControl("plugin-store-advanced");
   await setPluginControlValue(
@@ -993,7 +990,7 @@ export async function waitUntilPluginList(
 
 export async function readPluginConfigOptions(): Promise<Record<string, unknown>> {
   const config = await readJsonRecord(
-    join(getE2EAppDataPaths().homeDir, ".zcode", "cli", "config.json"),
+    join(getE2EAppDataPaths().homeDir, ".zcodium", "cli", "config.json"),
   );
   const plugins = isRecord(config.plugins) ? config.plugins : {};
   const options = isRecord(plugins.options) ? plugins.options : {};
@@ -1001,7 +998,7 @@ export async function readPluginConfigOptions(): Promise<Record<string, unknown>
 }
 
 export function pluginStoragePath(...segments: string[]): string {
-  return join(getE2EAppDataPaths().homeDir, ".zcode", "cli", "plugins", ...segments);
+  return join(getE2EAppDataPaths().homeDir, ".zcodium", "cli", "plugins", ...segments);
 }
 
 export function pluginDataPath(pluginId: string): string {

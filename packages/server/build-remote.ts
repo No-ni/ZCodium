@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { build, type Plugin } from "esbuild";
-import { validateRemoteServerBundle } from "./buildRemoteValidation.js";
+import {
+  REMOTE_SERVER_NATIVE_EXTERNALS,
+  validateRemoteServerBundle,
+} from "./buildRemoteValidation.js";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
 import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
 import { createRemotePtyBuildPlugin } from "../../scripts/remote-pty-build.mjs";
@@ -25,10 +28,7 @@ const nativeAddonPlugin: Plugin = {
   name: "native-addon",
   setup(build) {
     // Mark all .node files as external — they can't be bundled
-    build.onResolve({ filter: /\.node$/ }, (args) => ({
-      path: args.path,
-      external: true,
-    }));
+    build.onResolve({ filter: /\.node$/ }, (args) => ({ path: args.path, external: true }));
   },
 };
 
@@ -40,6 +40,7 @@ const buildResult = await build({
   format: "cjs",
   target: "node22",
   plugins: [createRemotePtyBuildPlugin(), nativeAddonPlugin],
+  external: REMOTE_SERVER_NATIVE_EXTERNALS,
   // CJS 环境没有 import.meta.url，通过 banner 注入等价变量，
   // 再用 define 全局替换，这样源码无需关心最终打包格式。
   banner: {

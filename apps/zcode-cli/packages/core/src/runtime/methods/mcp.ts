@@ -102,6 +102,7 @@ export function startMcpStartup(
       // （同一个 workspace 起两份 workspace 隔离的 stdio server）。
       workingDirectory: resolve(workspaceLevelRootOf(this)),
       workspaceIdentity: this.config.workspaceIdentity?.toString(),
+      ...(this.config.workspaceKey ? { workspaceKey: this.config.workspaceKey } : {}),
     })
     .then((snapshot) => {
       const statusCounts = Object.values(snapshot.statuses).reduce<Record<string, number>>(

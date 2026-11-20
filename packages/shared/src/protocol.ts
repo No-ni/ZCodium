@@ -73,8 +73,14 @@ export interface SystemInfo {
   platform: string;
 }
 
+/**
+ * 支持的界面语言（BCP-47）。顺序即设置页下拉的展示顺序。
+ * 新增语言的步骤见 docs/i18n/ui-locales.md。
+ */
+export const SUPPORTED_LOCALES = ["zh-CN", "en-US", "ja-JP", "ru-RU", "ko-KR"] as const;
+
 /** 支持的语言 */
-export type Locale = "zh-CN" | "en-US";
+export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 /** 界面语言偏好；system 表示跟随当前运行端系统语言。 */
 export type LocalePreference = "system" | Locale;
@@ -214,8 +220,8 @@ export type PersistedWorkspaceSessionEntry =
 
 // ── Process Monitor ──
 
-/** 资源管理器分类：基础服务 / 内置插件 / 社区插件 */
-export type ResourceUsageCategory = "base" | "builtin-plugin" | "community-plugin";
+/** 资源管理器分类：基础服务 / 任务进程 / 内置插件 / 社区插件 */
+export type ResourceUsageCategory = "base" | "task" | "builtin-plugin" | "community-plugin";
 
 /** 基础服务分组键；插件分组键为插件名或 MCP server name */
 export type ResourceUsageBaseGroupKey = "main" | "gpu" | "renderer" | "host" | "cli" | "utility";
@@ -241,15 +247,8 @@ export type HostResourceUsageProcess = Omit<ResourceUsageProcess, "sampled">;
 export interface ResourceUsageSnapshot {
   sampledAt: number;
   logicalCpuCount: number;
-  system: {
-    cpuPercent: number;
-    memoryTotalBytes: number;
-    memoryUsedBytes: number;
-  };
-  app: {
-    cpuPercent: number;
-    memoryBytes: number;
-  };
+  system: { cpuPercent: number; memoryTotalBytes: number; memoryUsedBytes: number };
+  app: { cpuPercent: number; memoryBytes: number };
   processes: ResourceUsageProcess[];
 }
 
@@ -282,6 +281,8 @@ export interface AppSettings {
    * 只影响内置浏览器出口，不影响 ZCode 自身对后端与模型 API 的请求。默认关闭，重启后生效。
    */
   embeddedBrowserAllowInsecureCertificates?: boolean;
+  /** 文件树单击本地 .html 文件时在内置浏览器打开（默认 false：沿用源码预览）。右键「打开」始终是源码预览。 */
+  fileTreeHtmlClickOpensBrowser?: boolean;
   /** 人类用户主动打开 Browser tab 时的一次性显示偏好；Agent Browser Use 不读写。 */
   embeddedBrowserViewportPreference?: EmbeddedBrowserViewportPreference;
   /**
@@ -300,6 +301,8 @@ export interface AppSettings {
   closeToTrayOnWindows?: boolean;
   /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
   keepAwakeWhileRunning?: boolean;
+  /** 本机 offline push 上报开关，缺省视为开启（spec：docs/web-remote-control/mobile-event-push.md 6.4）。 */
+  mobilePushEnabled?: boolean;
   /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */
   closeToTrayOnWindowsMigrationInitialized?: boolean;
   /**
@@ -311,11 +314,7 @@ export interface AppSettings {
   /** 桌面端全局页面缩放档位；用于重启后恢复界面缩放，Web/手机端忽略。 */
   desktopZoomLevel?: number;
   /** 桌面主窗口最近一次非最大化宽高及最大化状态；Web/手机端忽略。 */
-  desktopWindowSize?: {
-    width: number;
-    height: number;
-    maximized: boolean;
-  };
+  desktopWindowSize?: { width: number; height: number; maximized: boolean };
   /** 桌面端 Chromium 硬件加速开关；只在下次启动 main 进程早期生效，Web/手机端忽略。 */
   desktopChromiumHardwareAccelerationEnabled?: boolean;
   /** 是否在消息流中展示模型思考过程 */
@@ -325,18 +324,18 @@ export interface AppSettings {
   messageStreamShowReasoningMigrationInitialized?: boolean;
   /** 是否在消息流中展示 todo 工具渲染；不影响摘要面板的 todo */
   messageStreamShowTodos?: boolean;
-  /** 是否把连续的只读工具调用聚合成 Explore。 */
-  toolGroupingExploreEnabled?: boolean;
-  /** 是否把连续的非只读 Shell 工具调用聚合成 Terminal。 */
-  toolGroupingTerminalEnabled?: boolean;
-  /** 是否把连续的 Write/Edit/ApplyPatch 工具调用聚合成 Changes。 */
-  toolGroupingChangesEnabled?: boolean;
   /** ZCode 运行中继续输入时，是排队到下一轮，还是引导到下一次工具调用后运行 */
   zcodeInteractionBehavior?: ZCodeInteractionBehavior;
   /** Agent 提问五分钟无人回答时是否允许自动继续；缺失按开启兼容旧配置。 */
   askUserQuestionAutoResolutionEnabled?: boolean;
   /** 实验性工具搜索偏好；缺失默认关闭，不改变工具审批。 */
   toolSearchMode?: AppToolSearchMode;
+  /** 本仓工具分组开关，保持用户设置并由同一行上下文投影。 */
+  toolGroupingExploreEnabled?: boolean;
+  toolGroupingTerminalEnabled?: boolean;
+  toolGroupingChangesEnabled?: boolean;
+  /** 默认关闭，控制对话中的插件发现和推荐；设置页手动安装保持可用。 */
+  pluginAutoRecommendationEnabled?: boolean;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   /**
    * 用户选的动态工作流模式（docs/dynamic-workflow/launch.md「The user's choice」）。缺席 = 跟随服务端
@@ -383,10 +382,7 @@ export interface AppSettings {
   /** 每个 Source Server 已解析的 canonical conversation backing workspace。 */
   remoteConversationWorkspaceBySourceServerId?: Record<
     string,
-    {
-      workspacePath: string;
-      lastResolvedAt: number;
-    }
+    { workspacePath: string; lastResolvedAt: number }
   >;
   /** R3 控制端已识别的 Source Server；运行态仍由远端 Server 权威提供。 */
   sourceServers?: import("./source-server/contract.js").SourceServerRecord[];
@@ -424,15 +420,9 @@ export interface AppSettings {
   /** 首次启动设置同步提示是否已消费；只表示弹窗不再出现，不代表导入成功。 */
   settingsSyncFirstRunPromptHandled?: boolean;
   /** V2 非敏感注册身份；JWT 和一次性 token 不持久化于 AppSettings。 */
-  webRemoteControlRelayV2Device?: {
-    deviceSid: string;
-    userId: string;
-    endpointOrigin: string;
-  };
+  webRemoteControlRelayV2Device?: { deviceSid: string; userId: string; endpointOrigin: string };
   /** 手机远控：外部端点设备注册 Sid；passHash 存 credential store（web-remote-control:external-relay:pass_hash）。 */
-  webRemoteControlExternalRelayDevice?: {
-    deviceSid: string;
-  };
+  webRemoteControlExternalRelayDevice?: { deviceSid: string };
   /** 上次成功开启 Web 远控时的目标；缺失表示用户已明确关闭，不自动恢复。 */
   webRemoteControlLastEnabledContext?: {
     workspacePath: string;

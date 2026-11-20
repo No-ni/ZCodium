@@ -4,7 +4,7 @@ import React, { act } from "react";
 import { testRender } from "@mbears/opentui-react/test-utils";
 import { getZCodeCopy } from "@zcode/i18n";
 import { TuiApp } from "../src/app.js";
-import { LoginRequiredPanel } from "../src/app-components.js";
+import { ModelSetupRequiredPanel } from "../src/app-components.js";
 import { ZCODE_LOGO_LINES } from "../src/app-empty-transcript.js";
 import { InputPane } from "../src/app-input-pane.js";
 import { InputActiveStatus } from "../src/app-input-status.js";
@@ -53,7 +53,7 @@ test("starts without a runtime readiness system message", async () => {
     const transcriptCenterRow = Math.floor((composerTopRow - 1) / 2);
 
     assert.equal(frame.includes("OpenTUI Node runtime loaded."), false);
-    assert.notEqual(firstLogoRow, -1);
+    assert.notEqual(firstLogoRow, -1, frame);
     assert.notEqual(lastLogoRow, -1);
     assert.notEqual(composerTopRow, -1);
     assert.ok(Math.abs(logoCenterRow - transcriptCenterRow) <= 1);
@@ -64,7 +64,7 @@ test("starts without a runtime readiness system message", async () => {
   }
 });
 
-test("places the login notice before the prompt input in the composer area", () => {
+test("places the user model setup notice before the prompt input in the composer area", () => {
   const children = reactElementChildren(
     ComposerInputArea({
       busy: false,
@@ -74,7 +74,7 @@ test("places the login notice before the prompt input in the composer area", () 
       draft: "",
       editorRef: { current: null },
       inputCursorToEndVersion: 0,
-      loginRequired: true,
+      modelSetupRequired: true,
       mode: "build",
       model: "default-deepseek/deepseek-v4-pro",
       queuedInputs: [],
@@ -85,7 +85,7 @@ test("places the login notice before the prompt input in the composer area", () 
     }),
   );
 
-  assert.equal(children[0]?.type, LoginRequiredPanel);
+  assert.equal(children[0]?.type, ModelSetupRequiredPanel);
   assert.equal(children.at(-2)?.type, InputPane);
   assert.equal(children.at(-2)?.props?.model, "default-deepseek/deepseek-v4-pro");
   assert.equal(children.at(-2)?.props?.thoughtLevel, "max");
@@ -103,7 +103,7 @@ test("places composer selections above the prompt input", () => {
       draft: "",
       editorRef: { current: null },
       inputCursorToEndVersion: 0,
-      loginRequired: false,
+      modelSetupRequired: false,
       mode: "build",
       model: "default-deepseek/deepseek-v4-pro",
       queuedInputs: [],
@@ -144,7 +144,7 @@ test("passes the busy active status outside the prompt input", () => {
       draft: "",
       editorRef: { current: null },
       inputCursorToEndVersion: 0,
-      loginRequired: false,
+      modelSetupRequired: false,
       mode: "build",
       model: "default-deepseek/deepseek-v4-pro",
       queuedInputs: [],
@@ -177,7 +177,7 @@ test("places queued input panel immediately above the prompt input", () => {
       draft: "",
       editorRef: { current: null },
       inputCursorToEndVersion: 0,
-      loginRequired: false,
+      modelSetupRequired: false,
       mode: "build",
       model: "default-deepseek/deepseek-v4-pro",
       queuedInputs: [{ id: "pending-1", text: "hello queue" }],

@@ -9,7 +9,6 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type Modifier,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -19,6 +18,8 @@ import {
   TID_V4_QUEUE_ITEM,
   TID_V4_QUEUE_ITEM_DELETE,
   TID_V4_QUEUE_ITEM_EDIT,
+  TID_V4_QUEUE_ITEM_EDIT_LOCK,
+  TID_V4_QUEUE_ITEM_RELEASE_EDIT,
   TID_V4_QUEUE_ITEM_SEND_NOW,
   TID_V4_QUEUE_PAUSED_BANNER,
   TID_V4_QUEUE_RESUME,
@@ -30,15 +31,35 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import {
+  resolveEditLockOwner,
+  resolveV4QueueReorderAnchor,
+  restrictQueueDragToPanel,
+  type QueueItem,
+} from "./ConversationQueueOrder.js";
+export {
+  type V4QueueReorderAnchor,
+  resolveV4QueueReorderAnchor,
+} from "./ConversationQueueOrder.js";
 
 export interface ConversationQueuePanelProps {
   queue: QueueState;
   /** 删除队列项（deleteQueueItem command）。 */
   onDeleteItem?: (queueItemId: string) => void;
-  /** 撤回队列项到发起端 composer；权威删除成功后才恢复草稿。 */
+  /** 在底部 composer 编辑该项：先冻结（lockQueueItemEdit），accepted 后进入编辑态。 */
   onEditItem?: (queueItemId: string) => Promise<void> | void;
-  /** 正在等待 delete ACK / composer restore 的目标项；仅锁该 row。 */
+  /** 正在等待 lock ACK 的目标项；仅锁该 row。 */
   pendingEditQueueItemId?: string | null;
+  /** 本窗口编辑器 id：区分冻结锁属于本端（「正在下方编辑」）还是其他窗口/设备。 */
+  editorId?: string;
+  /** 本端编辑态正在编辑的队列项（无编辑态为 null）；「本端锁」只属于这一项。 */
+  activeEditQueueItemId?: string | null;
+  /** 本端编辑态的锁是否已在投影中确认。 */
+  activeEditLockConfirmed?: boolean;
+  /** 其他窗口或设备持有锁时手动「解除」（发起端离线后不靠超时释放）。 */
+  onReleaseEditLock?: (queueItemId: string) => void;
+  /** 点击本端的「正在下方编辑」占位：只聚焦输入框。 */
+  onFocusEditInComposer?: () => void;
   /** 立即发送队列项（sendQueuedNow command，stop 当前 + 消费该项）。 */
   onSendNow?: (queueItemId: string) => void;
   /** 拖拽排序项（reorderQueueItem，移动到锚点前；null=队尾）。 */
@@ -46,71 +67,6 @@ export interface ConversationQueuePanelProps {
   /** 暂停队列恢复：CLI setAutoDrain(true)，idle 立即消费、busy 仅武装。 */
   onResume?: () => Promise<void> | void;
 }
-
-type QueueItem = QueueState["items"][number];
-
-export interface V4QueueReorderAnchor {
-  beforeQueueItemId: string | null;
-  queueItemId: string;
-}
-
-export function resolveV4QueueReorderAnchor(
-  items: readonly QueueItem[],
-  activeQueueItemId: string,
-  overQueueItemId: string,
-): V4QueueReorderAnchor | null {
-  if (activeQueueItemId === overQueueItemId) {
-    return null;
-  }
-
-  const fromIndex = items.findIndex((item) => item.queueItemId === activeQueueItemId);
-  const overIndex = items.findIndex((item) => item.queueItemId === overQueueItemId);
-  if (fromIndex < 0 || overIndex < 0) {
-    return null;
-  }
-
-  if (fromIndex < overIndex) {
-    const itemsAfterRemoval = items.filter((item) => item.queueItemId !== activeQueueItemId);
-    const overIndexAfterRemoval = itemsAfterRemoval.findIndex(
-      (item) => item.queueItemId === overQueueItemId,
-    );
-    const nextItem = itemsAfterRemoval[overIndexAfterRemoval + 1];
-    return {
-      beforeQueueItemId: nextItem?.queueItemId ?? null,
-      queueItemId: activeQueueItemId,
-    };
-  }
-
-  return {
-    beforeQueueItemId: overQueueItemId,
-    queueItemId: activeQueueItemId,
-  };
-}
-
-const restrictQueueDragToPanel: Modifier = ({
-  transform,
-  draggingNodeRect,
-  activeNodeRect,
-  containerNodeRect,
-  windowRect,
-}) => {
-  const nodeRect = draggingNodeRect ?? activeNodeRect;
-  const boundaryRect = containerNodeRect ?? windowRect;
-  if (!nodeRect || !boundaryRect) {
-    return {
-      ...transform,
-      x: 0,
-    };
-  }
-
-  const minY = boundaryRect.top - nodeRect.top;
-  const maxY = boundaryRect.bottom - nodeRect.bottom;
-  return {
-    ...transform,
-    x: 0,
-    y: Math.min(Math.max(transform.y, minY), maxY),
-  };
-};
 
 interface QueueRowProps {
   item: QueueItem;
@@ -121,6 +77,9 @@ interface QueueRowProps {
   onEditItem?: (queueItemId: string) => Promise<void> | void;
   editPending: boolean;
   onSendNow?: (queueItemId: string) => void;
+  editLockOwner: "self" | "other" | null;
+  onReleaseEditLock?: (queueItemId: string) => void;
+  onFocusEditInComposer?: () => void;
 }
 
 const QueueRow = memo(function QueueRow({
@@ -132,9 +91,14 @@ const QueueRow = memo(function QueueRow({
   onEditItem,
   onSendNow,
   editPending,
+  editLockOwner,
+  onReleaseEditLock,
+  onFocusEditInComposer,
 }: QueueRowProps) {
   const dispatchLocked = item.dispatch.state !== "queued";
-  const rowLocked = dispatchLocked || editPending;
+  // 冻结项（composer 编辑态）在 CLI 拒绝删除、重排与立即发送；UI 同步隐藏这些入口。
+  const editLocked = editLockOwner !== null;
+  const rowLocked = dispatchLocked || editPending || editLocked;
   const isCompact = item.kind === "compact";
   const parsedInput = {
     ...parsePromptConversationSelections(item.text),
@@ -188,6 +152,7 @@ const QueueRow = memo(function QueueRow({
       data-kind={item.kind}
       data-dispatch-state={item.dispatch.state}
       data-edit-pending={editPending ? "true" : "false"}
+      data-edit-locked={editLocked ? "true" : "false"}
       className={cn(
         "relative flex items-center gap-2 rounded-xl px-1.5 py-1 pr-1 transition-colors hover:bg-hover/30",
         isDragging ? "bg-hover/40 shadow-sm" : null,
@@ -240,7 +205,44 @@ const QueueRow = memo(function QueueRow({
           ) : null}
         </span>
       </span>
-      {onSendNow ? (
+      {editLockOwner === "self" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          data-testid={testId(TID_V4_QUEUE_ITEM_EDIT_LOCK, item.queueItemId)}
+          data-edit-lock-owner="self"
+          className="shrink-0 text-ui-sm text-foreground-subtle"
+          onClick={onFocusEditInComposer}
+        >
+          <PencilIcon className="size-3.5" />
+          {intl.formatMessage({ id: "chat.composerEdit.inComposerHint" })}
+        </Button>
+      ) : null}
+      {editLockOwner === "other" ? (
+        <>
+          <span
+            data-testid={testId(TID_V4_QUEUE_ITEM_EDIT_LOCK, item.queueItemId)}
+            data-edit-lock-owner="other"
+            className="shrink-0 truncate text-ui-sm text-foreground-subtle"
+          >
+            {intl.formatMessage({ id: "chat.queue.editLockedByOther" })}
+          </span>
+          {onReleaseEditLock ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid={testId(TID_V4_QUEUE_ITEM_RELEASE_EDIT, item.queueItemId)}
+              className="shrink-0 text-foreground-subtle hover:text-foreground"
+              onClick={() => onReleaseEditLock(item.queueItemId)}
+            >
+              {intl.formatMessage({ id: "chat.queue.releaseEdit" })}
+            </Button>
+          ) : null}
+        </>
+      ) : null}
+      {onSendNow && !editLocked ? (
         <Button
           type="button"
           variant="secondary"
@@ -255,7 +257,7 @@ const QueueRow = memo(function QueueRow({
           {intl.formatMessage({ id: isCompact ? "chat.queue.runNow" : "chat.queue.sendNow" })}
         </Button>
       ) : null}
-      {onEditItem && !isCompact ? (
+      {onEditItem && !isCompact && !editLocked ? (
         <ControlHintTooltip title={intl.formatMessage({ id: "chat.queue.edit" })}>
           <Button
             type="button"
@@ -271,7 +273,7 @@ const QueueRow = memo(function QueueRow({
           </Button>
         </ControlHintTooltip>
       ) : null}
-      {onDeleteItem ? (
+      {onDeleteItem && !editLocked ? (
         <ControlHintTooltip title={intl.formatMessage({ id: "chat.queue.remove" })}>
           <Button
             type="button"
@@ -300,6 +302,11 @@ function ConversationQueuePanelImpl({
   onDeleteItem,
   onEditItem,
   pendingEditQueueItemId = null,
+  editorId,
+  activeEditQueueItemId = null,
+  activeEditLockConfirmed = false,
+  onReleaseEditLock,
+  onFocusEditInComposer,
   onSendNow,
   onMoveItem,
   onResume,
@@ -398,6 +405,14 @@ function ConversationQueuePanelImpl({
                 onEditItem={onEditItem}
                 onSendNow={onSendNow}
                 editPending={pendingEditQueueItemId === item.queueItemId}
+                editLockOwner={resolveEditLockOwner(
+                  item,
+                  editorId,
+                  activeEditQueueItemId,
+                  activeEditLockConfirmed,
+                )}
+                onReleaseEditLock={onReleaseEditLock}
+                onFocusEditInComposer={onFocusEditInComposer}
               />
             ))}
           </ul>

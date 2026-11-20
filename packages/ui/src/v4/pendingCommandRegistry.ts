@@ -1,5 +1,10 @@
+import {
+  remapPendingCreatedSession,
+  prunePendingCommandEntries,
+} from "./pendingCommandRegistryHelpers.js";
 // V4 已提交命令的 renderer 持久账本。
 // 它只保存客户端恢复线索，不参与 conversation projection，也绝不能据此自动重放。
+import { permissionGrantMode } from "@zcode/shared/zcode-protocol-v4";
 import type {
   CommandAck,
   CommandEnvelope,
@@ -10,7 +15,9 @@ import {
   resolvePendingCommandWorkspaceKey,
   type PendingCommandClientContext,
 } from "@/v4/pendingCommandWorkspace.js";
-import { pendingCommandReplayFor } from "@/v4/pendingCommandReplay.js";
+import { pendingCommandReplayFor, type PendingCommandReplay } from "@/v4/pendingCommandReplay.js";
+import { logger } from "@/logger.js";
+import { acceptComposerRecentReceipt, type FullAccessRecentReceipt } from "@/lib/composerRecent.js";
 import {
   acceptPendingComposer,
   ownsPendingCommandDraft,
@@ -22,12 +29,17 @@ import {
   buildPendingReplayRequest,
   findSnapshotSettlements,
   hasPendingEntriesForSession,
-  isEntry,
   isRuntimeLocalDiscard,
   keyOf,
+  loadPendingCommandEntries,
   PENDING_COMMAND_TTL_MS,
-  STORAGE_KEY,
+  writePendingCommandEntries,
 } from "@/v4/pendingCommandRegistryHelpers.js";
+import {
+  notifyPendingResolution,
+  subscribePendingResolution,
+  type PendingResolutionState,
+} from "@/v4/pendingCommandResolutions.js";
 import type {
   PendingCommandEntry,
   PendingCommandRecoveryReason,
@@ -56,11 +68,9 @@ export class PendingCommandRegistry {
   private readonly storage: StorageLike | undefined;
   private readonly now: () => number;
   private readonly entries = new Map<string, PendingCommandEntry>();
+  private readonly preparingGrant = new WeakMap<PendingCommandEntry, Promise<void>>();
   private readonly listeners = new Set<() => void>();
-  private readonly resolutionListeners = new Map<
-    string,
-    Set<(resolution: PendingCommandResolution) => void>
-  >();
+  private readonly resolutions: PendingResolutionState;
   private readonly reconcileInFlight = new Map<string, Promise<void>>();
   private queryBatchDepth = 0;
   private queryBatchChanged = false;
@@ -68,6 +78,7 @@ export class PendingCommandRegistry {
   constructor(options: PendingCommandRegistryOptions = {}) {
     this.storage = options.storage ?? browserStorage();
     this.now = options.now ?? Date.now;
+    this.resolutions = { listeners: new Map(), completed: new Map(), now: this.now };
     this.load();
   }
 
@@ -80,19 +91,13 @@ export class PendingCommandRegistry {
     commandId: string,
     listener: (resolution: PendingCommandResolution) => void,
   ): () => void {
-    const listeners = this.resolutionListeners.get(commandId) ?? new Set();
-    listeners.add(listener);
-    this.resolutionListeners.set(commandId, listeners);
-    return () => {
-      const current = this.resolutionListeners.get(commandId);
-      current?.delete(listener);
-      if (current?.size === 0) this.resolutionListeners.delete(commandId);
-    };
+    return subscribePendingResolution(this.resolutions, commandId, listener);
   }
 
   record(
     envelope: CommandEnvelope,
     clientContext?: PendingCommandClientContext,
+    resolveGrant?: () => Promise<FullAccessRecentReceipt>,
   ): PendingCommandEntry | null {
     this.pruneExpired();
     const replay = pendingCommandReplayFor(envelope);
@@ -100,6 +105,7 @@ export class PendingCommandRegistry {
     const key = keyOf(envelope.sessionId, envelope.commandId);
     const existing = this.entries.get(key);
     if (existing) return existing;
+    this.resolutions.completed.delete(envelope.commandId);
     const entry: PendingCommandEntry = {
       commandId: envelope.commandId,
       clientId: envelope.clientId,
@@ -129,6 +135,24 @@ export class PendingCommandRegistry {
       this.entries.delete(key);
       this.commit();
       throw error;
+    }
+    if (resolveGrant) {
+      // 先登记命令，再并行查询归属。慢查询只影响偏好，不推迟工具审批或错误提示。
+      const ready = Promise.resolve()
+        .then(resolveGrant)
+        .then((grant) => {
+          if (this.entries.get(key) !== entry) return;
+          entry.clientContext = { ...entry.clientContext, fullAccess: grant };
+          this.commit();
+        })
+        .catch((error) => {
+          logger.warn("[v4-interaction] 未能确定项目归属，跳过权限偏好记录", {
+            commandId: envelope.commandId,
+            error,
+          });
+        })
+        .finally(() => this.preparingGrant.delete(entry));
+      this.preparingGrant.set(entry, ready);
     }
     return entry;
   }
@@ -174,30 +198,29 @@ export class PendingCommandRegistry {
     let entry = this.entries.get(keyOf(envelope.sessionId, envelope.commandId));
     if (!entry) return;
     if (entry.replay.kind === "sensitiveDigest") {
-      // 交互答案不可重放；拿到确定 ACK 后其对账职责已结束。
-      this.settle(entry.sessionId, entry.commandId);
+      void this.settleSensitive(entry, ack);
       return;
     }
     entry = this.remapCreatedSession(entry, ack);
     if (ack.status === "accepted" || ack.status === "duplicate") {
       if (!this.acceptComposer(entry)) return;
       this.clearRecovery(entry);
-      this.notifyResolution(entry.commandId, ack.status);
+      notifyPendingResolution(this.resolutions, entry.commandId, ack.status);
       return;
     }
     if (ack.status === "failed" && ack.reasonCode === "fault.command.inputDiscardedOnRestart") {
       this.rejectComposer(entry);
       if (isRuntimeLocalDiscard(ack)) {
-        this.notifyResolution(entry.commandId, "discarded");
+        notifyPendingResolution(this.resolutions, entry.commandId, "discarded");
         this.settle(entry.sessionId, entry.commandId);
         return;
       }
-      this.notifyResolution(entry.commandId, "failed");
+      notifyPendingResolution(this.resolutions, entry.commandId, "failed");
       this.markRecovery(entry, "discarded");
       return;
     }
     this.rejectComposer(entry);
-    this.notifyResolution(entry.commandId, "failed");
+    notifyPendingResolution(this.resolutions, entry.commandId, "failed");
     this.settle(entry.sessionId, entry.commandId);
   }
 
@@ -238,26 +261,26 @@ export class PendingCommandRegistry {
       ) {
         this.rejectComposer(entry);
         if (isRuntimeLocalDiscard(item.result)) {
-          this.notifyResolution(entry.commandId, "discarded");
+          notifyPendingResolution(this.resolutions, entry.commandId, "discarded");
           this.settle(entry.sessionId, entry.commandId);
           continue;
         }
-        this.notifyResolution(entry.commandId, "failed");
+        notifyPendingResolution(this.resolutions, entry.commandId, "failed");
         this.markRecovery(entry, "discarded");
         continue;
       }
       entry = this.remapCreatedSession(entry, item.result);
       if (entry.replay.kind === "sensitiveDigest") {
-        this.settle(entry.sessionId, entry.commandId);
+        void this.settleSensitive(entry, item.result);
         continue;
       }
       if (item.result.status === "accepted" || item.result.status === "duplicate") {
         if (!this.acceptComposer(entry)) continue;
         this.clearRecovery(entry);
-        this.notifyResolution(entry.commandId, item.result.status);
+        notifyPendingResolution(this.resolutions, entry.commandId, item.result.status);
       } else {
         this.rejectComposer(entry);
-        this.notifyResolution(entry.commandId, "failed");
+        notifyPendingResolution(this.resolutions, entry.commandId, "failed");
         this.settle(entry.sessionId, entry.commandId);
       }
     }
@@ -267,7 +290,7 @@ export class PendingCommandRegistry {
     // Bug 根因：每个流式帧都会逐行扫描全部历史来收集 sourceCommandId。只有本会话还有待对账条目、
     // 或有人在等某个命令的结算时，扫描才可能产生效果；两者都没有时直接返回，结果不变。
     if (
-      this.resolutionListeners.size === 0 &&
+      this.resolutions.listeners.size === 0 &&
       !hasPendingEntriesForSession(this.entries.values(), snapshot.sessionId)
     )
       return;
@@ -286,10 +309,33 @@ export class PendingCommandRegistry {
         changed = true;
       }
       if (!this.acceptComposer(entry)) continue;
-      this.notifyResolution(commandId, "authoritative");
+      notifyPendingResolution(this.resolutions, commandId, "authoritative");
       changed = this.entries.delete(keyOf(snapshot.sessionId, commandId)) || changed;
     }
     if (changed) this.commit();
+  }
+
+  private async settleSensitive(entry: PendingCommandEntry, ack: CommandAck): Promise<void> {
+    const resolved = ack.result?.type === "resolveInteraction" ? ack.result.resolvedBy : undefined;
+    if (
+      (ack.status === "accepted" || ack.status === "duplicate") &&
+      resolved?.clientId === entry.clientId
+    ) {
+      const preparing = this.preparingGrant.get(entry);
+      if (preparing) {
+        await preparing;
+        // ACK 和 query 可同时确认同一命令，清账之后不再回写。
+        if (this.entries.get(keyOf(entry.sessionId, entry.commandId)) !== entry) return;
+      }
+      const grant = entry.clientContext?.fullAccess;
+      if (
+        grant &&
+        permissionGrantMode(resolved.optionId) === grant.mode &&
+        !acceptComposerRecentReceipt(grant, this.storage)
+      )
+        return;
+    }
+    this.settle(entry.sessionId, entry.commandId);
   }
 
   private acceptComposer(entry: PendingCommandEntry): boolean {
@@ -372,80 +418,30 @@ export class PendingCommandRegistry {
   }
 
   private remapCreatedSession(entry: PendingCommandEntry, ack: CommandAck): PendingCommandEntry {
-    if (
-      entry.replay.kind !== "input" ||
-      entry.replay.type !== "createSession" ||
-      (ack.status !== "accepted" && ack.status !== "duplicate") ||
-      ack.result?.type !== "createSession" ||
-      entry.sessionId === ack.result.sessionId
-    ) {
-      return entry;
-    }
-    this.entries.delete(keyOf(entry.sessionId, entry.commandId));
-    const remapped = { ...entry, sessionId: ack.result.sessionId };
-    this.entries.set(keyOf(remapped.sessionId, remapped.commandId), remapped);
-    this.commit();
+    const remapped = remapPendingCreatedSession(this.entries, entry, ack);
+    if (remapped !== entry) this.commit();
     return remapped;
   }
 
   private load(): void {
-    if (!this.storage) return;
-    try {
-      const raw = this.storage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return;
-      for (const value of parsed) {
-        if (isEntry(value)) {
-          this.entries.set(keyOf(value.sessionId, value.commandId), value);
-        }
-      }
-      this.pruneExpired();
-    } catch {
-      // storage 损坏不能阻断聊天；丢弃的是客户端恢复线索，不影响 CLI 权威事实。
-      this.entries.clear();
-    }
-  }
-
-  private ownsPendingDraft(entry: PendingCommandEntry): boolean {
-    return ownsPendingCommandDraft(entry);
+    for (const entry of loadPendingCommandEntries(this.storage))
+      this.entries.set(keyOf(entry.sessionId, entry.commandId), entry);
+    this.pruneExpired();
   }
 
   private pruneExpired(): void {
-    const now = this.now();
-    let changed = false;
-    for (const [key, entry] of this.entries) {
-      if (entry.expiresAt <= now && !this.ownsPendingDraft(entry)) {
-        this.entries.delete(key);
-        changed = true;
-      }
-    }
-    if (changed) this.commit();
+    if (
+      prunePendingCommandEntries(this.entries, this.now(), (entry) =>
+        ownsPendingCommandDraft(entry),
+      )
+    )
+      this.commit();
   }
 
   private commit(): boolean {
-    let written = Boolean(this.storage);
-    if (this.storage) {
-      try {
-        if (this.entries.size === 0) {
-          this.storage.removeItem(STORAGE_KEY);
-        } else {
-          this.storage.setItem(STORAGE_KEY, JSON.stringify([...this.entries.values()]));
-        }
-      } catch {
-        // 普通命令保持原有内存降级；首发目录交接由 record 检查写入结果。
-        written = false;
-      }
-    }
+    const written = writePendingCommandEntries(this.storage, this.entries);
     for (const listener of this.listeners) listener();
     return written;
-  }
-
-  private notifyResolution(commandId: string, resolution: PendingCommandResolution): void {
-    const listeners = this.resolutionListeners.get(commandId);
-    if (!listeners) return;
-    this.resolutionListeners.delete(commandId);
-    for (const listener of listeners) listener(resolution);
   }
 }
 

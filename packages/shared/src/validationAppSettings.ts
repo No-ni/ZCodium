@@ -1,6 +1,10 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
 import { sourceServerDirectorySchema } from "./source-server/index.js";
+import { SUPPORTED_LOCALES, type AppSettings } from "./protocol.js";
+import { resolvePersistedUiLocale, resolvePersistedUiLocalePreference } from "./locale.js";
+import { DYNAMIC_WORKFLOW_MODES } from "./dynamic-workflow-feature.js";
+import { ZCODE_ENABLED_AGENT_PROVIDERS } from "./zcode-agent-policy.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
 import { normalizeZCodeEndpointOrigin } from "./zcodeEndpoint.js";
@@ -32,10 +36,14 @@ const appSettingsOccupationSchema = z.enum([
 ]);
 export const appSettingsOccupationEnum = appSettingsOccupationSchema;
 
+const dynamicWorkflowModeSettingSchema = z.enum(DYNAMIC_WORKFLOW_MODES).optional();
+const enabledBuiltinAgentCliProvidersSchema = z
+  .array(z.enum(ZCODE_ENABLED_AGENT_PROVIDERS))
+  .transform((providers) => [...new Set(providers)]);
 const nonEmptyStringSchema = z.string().trim().min(1);
 
-export const localeSchema = z.enum(["zh-CN", "en-US"]);
-const localePreferenceSchema = z.enum(["system", "zh-CN", "en-US"]);
+export const localeSchema = z.enum(SUPPORTED_LOCALES);
+export const localePreferenceSchema = z.enum(["system", ...SUPPORTED_LOCALES]);
 const zcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 const electronReleaseChannelSchema = z.enum(["stable", "preview"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
@@ -45,9 +53,7 @@ const desktopWindowSizeSchema = z.object({
   maximized: z.boolean(),
 });
 export const integratedTerminalShellSelectionSchema = z.discriminatedUnion("mode", [
-  z.object({
-    mode: z.literal("auto"),
-  }),
+  z.object({ mode: z.literal("auto") }),
   z.object({
     mode: z.literal("shell"),
     dialect: z.enum(["cmd", "git-bash"]),
@@ -97,10 +103,7 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
     // 远程历史重连会直接使用 settings 中的 WSL user，必须和连接入口共用校验，避免绕过 UI 后污染 identity/日志。
     user: wslUserSchema.optional(),
   }),
-  z.object({
-    kind: z.literal("docker"),
-    container: nonEmptyStringSchema,
-  }),
+  z.object({ kind: z.literal("docker"), container: nonEmptyStringSchema }),
 ]);
 
 const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
@@ -225,6 +228,27 @@ function migrateMessageStreamShowReasoningDefault(value: unknown): unknown {
   };
 }
 
+/**
+ * setting.json 的 uiLocale / uiLocalePreference（真实界面语言）合并回内存字段 locale / localePreference。
+ * 落盘时旧字段只存中英以兼容旧版本 schema，见 locale.ts「setting.json 界面语言存储格式」。
+ * 新字段不进 appSettingsObjectSchema：内存 AppSettings 只有一份真实语言，由 z.object 默认 strip 掉。
+ */
+function applyPersistedUiLocaleFields(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const raw = value as Record<string, unknown>;
+  if (!("uiLocale" in raw) && !("uiLocalePreference" in raw)) {
+    return value;
+  }
+  const merged: Record<string, unknown> = { ...raw };
+  const locale = resolvePersistedUiLocale(raw);
+  const localePreference = resolvePersistedUiLocalePreference(raw);
+  if (locale !== undefined) merged.locale = locale;
+  if (localePreference !== undefined) merged.localePreference = localePreference;
+  return merged;
+}
+
 function migrateLegacyLocalePreference(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
@@ -340,10 +364,7 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
           if (rawEntry.kind === "remote") {
             if (typeof rawEntry.workspacePath === "string" && rawEntry.target) {
               return [
-                {
-                  ...rawEntry,
-                  target: stripHistoricalRemoteResourcePackages(rawEntry.target),
-                },
+                { ...rawEntry, target: stripHistoricalRemoteResourcePackages(rawEntry.target) },
               ];
             }
 
@@ -378,13 +399,7 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
   const migratedLegacyLocalEntries = Array.isArray(raw.lastOpenTabs)
     ? raw.lastOpenTabs.flatMap((workspacePath) =>
         typeof workspacePath === "string"
-          ? [
-              {
-                kind: "local" as const,
-                workspacePath,
-                workspacePurpose: "project" as const,
-              },
-            ]
+          ? [{ kind: "local" as const, workspacePath, workspacePurpose: "project" as const }]
           : [],
       )
     : [];
@@ -432,6 +447,7 @@ const appSettingsObjectSchema = z.object({
   httpProxyNoProxy: nonEmptyStringSchema.optional(),
   httpProxyCaCertPath: nonEmptyStringSchema.optional(),
   embeddedBrowserAllowInsecureCertificates: z.boolean().default(false),
+  fileTreeHtmlClickOpensBrowser: z.boolean().default(false),
   embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.default(
     DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
   ),
@@ -443,18 +459,24 @@ const appSettingsObjectSchema = z.object({
   closeToTrayOnWindows: z.boolean().default(true),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
   keepAwakeWhileRunning: z.boolean().default(false),
+  // 本机 offline push 上报开关（spec：docs/web-remote-control/mobile-event-push.md 6.4）。
+  // 必须声明在完整 schema，否则合并后显式 false 会被剥离。
+  mobilePushEnabled: z.boolean().default(true),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().default(true),
   messageStreamShowReasoning: z.boolean().default(true),
   messageStreamShowReasoningMigrationInitialized: z.boolean().default(true),
   messageStreamShowTodos: z.boolean().default(false),
-  toolGroupingExploreEnabled: z.boolean().default(true),
-  toolGroupingTerminalEnabled: z.boolean().default(true),
-  toolGroupingChangesEnabled: z.boolean().default(false),
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.default("queue"),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   toolSearchMode: appToolSearchModeSchema.default("off"),
+  pluginAutoRecommendationEnabled: z.boolean().default(false),
+  dynamicWorkflowMode: dynamicWorkflowModeSettingSchema,
+  enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.default([
+    ...ZCODE_ENABLED_AGENT_PROVIDERS,
+  ]),
+  startPlanRecommendationDismissed: z.boolean().default(false),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.default({}),
   providerFamilyDomain: providerFamilyDomainSchema.optional(),
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),
@@ -505,7 +527,9 @@ export const appSettingsSchema = z.preprocess(
         migrateMessageStreamShowReasoningDefault(
           migrateCloseToTrayOnWindowsDefault(
             migrateLegacyLocalePreference(
-              sanitizeZCodeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
+              applyPersistedUiLocaleFields(
+                sanitizeZCodeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
+              ),
             ),
           ),
         ),
@@ -527,12 +551,14 @@ export const appSettingsPatchSchema = z.object({
   httpProxyNoProxy: nonEmptyStringSchema.optional(),
   httpProxyCaCertPath: nonEmptyStringSchema.optional(),
   embeddedBrowserAllowInsecureCertificates: z.boolean().optional(),
+  fileTreeHtmlClickOpensBrowser: z.boolean().optional(),
   embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.optional(),
   computerUseComposerEntryHidden: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
+  mobilePushEnabled: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
@@ -540,12 +566,14 @@ export const appSettingsPatchSchema = z.object({
   messageStreamShowReasoning: z.boolean().optional(),
   messageStreamShowReasoningMigrationInitialized: z.boolean().optional(),
   messageStreamShowTodos: z.boolean().optional(),
-  toolGroupingExploreEnabled: z.boolean().optional(),
-  toolGroupingTerminalEnabled: z.boolean().optional(),
-  toolGroupingChangesEnabled: z.boolean().optional(),
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
   toolSearchMode: appToolSearchModeSchema.optional(),
+  pluginAutoRecommendationEnabled: z.boolean().optional(),
+  // 空串是「删除选择、回到跟随」的哨兵：RPC 会吞掉 undefined，normalizeSettingsPatch 把它归一成删除。
+  dynamicWorkflowMode: z.union([z.enum(DYNAMIC_WORKFLOW_MODES), z.literal("")]).optional(),
+  enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.optional(),
+  startPlanRecommendationDismissed: z.boolean().optional(),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.optional(),
   providerFamilyDomain: z.union([providerFamilyDomainSchema, z.literal("")]).optional(),
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),

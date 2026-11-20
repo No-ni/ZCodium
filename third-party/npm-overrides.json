@@ -174,18 +174,6 @@
     "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
   },
   {
-    "package": "@napi-rs/canvas-linux-x64-gnu@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
-    "package": "@napi-rs/canvas-linux-x64-musl@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
     "package": "@napi-rs/canvas-win32-arm64-msvc@0.1.100",
     "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
     "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
@@ -198,19 +186,7 @@
     "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
   },
   {
-    "package": "@napi-rs/canvas-linux-arm64-musl@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
     "package": "@napi-rs/canvas-darwin-x64@0.1.100",
-    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
-    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
-    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
-  },
-  {
-    "package": "@napi-rs/canvas-linux-arm64-gnu@0.1.100",
     "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
     "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
     "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
@@ -421,5 +397,114 @@
     "package": "khroma@2.1.0",
     "license": "MIT",
     "evidence": "The package does not declare a license field; its license contains the MIT grant and copyright notice."
+  },
+  {
+    "package": "@trycua/cua-driver@0.28.2",
+    "file": "third-party/upstream/c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9.txt",
+    "sha256": "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9",
+    "source": "https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "fc188250b4ca8549b8e61f937fdb1fb560770e86",
+      "publisherLicense": "MIT",
+      "versionedMetadata": "https://registry.npmjs.org/%40trycua%2Fcua-driver/0.28.2",
+      "revisionEvidence": "cua-driver-rs-v0.28.2 tag; source typescript package version/license verified"
+    }
+  },
+  {
+    "package": "@ubjs/core@0.31.0-3",
+    "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+    "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/49bc59194d183a05855ed4104c18eb92fb465e02/LICENSE",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MPL-2.0",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "49bc59194d183a05855ed4104c18eb92fb465e02",
+      "publisherLicense": "MPL-2.0",
+      "versionedMetadata": "https://registry.npmjs.org/%40ubjs%2Fcore/0.31.0-3",
+      "result": "Upstream LICENSE contains only the MPL reference header; preserved verbatim with authoritative standard terms. Full upstream license material remains a review item.",
+      "standardTerms": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt"
+    }
+  },
+  {
+    "package": "@ubjs/node@0.31.0-3",
+    "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+    "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MPL-2.0",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+      "publisherLicense": "MPL-2.0",
+      "versionedMetadata": "https://registry.npmjs.org/%40ubjs%2Fnode/0.31.0-3",
+      "result": "Upstream LICENSE contains only the MPL reference header; preserved verbatim with authoritative standard terms. Full upstream license material remains a review item.",
+      "standardTerms": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt"
+    }
+  },
+  {
+    "package": "@ubjs/node-darwin-arm64@0.31.0-3",
+    "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+    "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MPL-2.0",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+      "publisherLicense": "MPL-2.0",
+      "versionedMetadata": "https://registry.npmjs.org/%40ubjs%2Fnode-darwin-arm64/0.31.0-3",
+      "result": "Upstream LICENSE contains only the MPL reference header; preserved verbatim with authoritative standard terms. Full upstream license material remains a review item.",
+      "standardTerms": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt"
+    }
+  },
+  {
+    "package": "@ubjs/node-darwin-x64@0.31.0-3",
+    "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+    "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MPL-2.0",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+      "publisherLicense": "MPL-2.0",
+      "versionedMetadata": "https://registry.npmjs.org/%40ubjs%2Fnode-darwin-x64/0.31.0-3",
+      "result": "Upstream LICENSE contains only the MPL reference header; preserved verbatim with authoritative standard terms. Full upstream license material remains a review item.",
+      "standardTerms": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt"
+    }
+  },
+  {
+    "package": "@ubjs/node-win32-arm64-msvc@0.31.0-3",
+    "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+    "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MPL-2.0",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+      "publisherLicense": "MPL-2.0",
+      "versionedMetadata": "https://registry.npmjs.org/%40ubjs%2Fnode-win32-arm64-msvc/0.31.0-3",
+      "result": "Upstream LICENSE contains only the MPL reference header; preserved verbatim with authoritative standard terms. Full upstream license material remains a review item.",
+      "standardTerms": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt"
+    }
+  },
+  {
+    "package": "@ubjs/node-win32-x64-msvc@0.31.0-3",
+    "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+    "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+    "source": "https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MPL-2.0",
+    "reviewEvidence": {
+      "checkedOn": "2026-11-21",
+      "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+      "publisherLicense": "MPL-2.0",
+      "versionedMetadata": "https://registry.npmjs.org/%40ubjs%2Fnode-win32-x64-msvc/0.31.0-3",
+      "result": "Upstream LICENSE contains only the MPL reference header; preserved verbatim with authoritative standard terms. Full upstream license material remains a review item.",
+      "standardTerms": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt"
+    }
   }
 ]

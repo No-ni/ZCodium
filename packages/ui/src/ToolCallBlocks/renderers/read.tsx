@@ -1,3 +1,4 @@
+import { renderFileSummaryName } from "@/ToolCallBlocks/renderers.js";
 import { SearchIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import {
@@ -55,10 +56,7 @@ function normalizeReadEntryType(value: string | undefined): "file" | "directory"
   return "file";
 }
 
-function readReadMetadataFromRaw(raw: unknown): {
-  path?: string;
-  entryType: "file" | "directory";
-} {
+function readReadMetadataFromRaw(raw: unknown): { path?: string; entryType: "file" | "directory" } {
   if (!isPlainRecord(raw)) {
     return { entryType: "file" };
   }
@@ -97,10 +95,7 @@ function readReadMetadataFromRaw(raw: unknown): {
     const taggedPath = text ? extractTaggedValue(text, "path") : undefined;
     const taggedType = text ? extractTaggedValue(text, "type") : undefined;
     if (taggedPath) {
-      return {
-        path: taggedPath ?? directPath,
-        entryType: normalizeReadEntryType(taggedType),
-      };
+      return { path: taggedPath ?? directPath, entryType: normalizeReadEntryType(taggedType) };
     }
   }
 
@@ -108,10 +103,7 @@ function readReadMetadataFromRaw(raw: unknown): {
     // 有些模型只在 rawInput 里给 filePath，但会在 rawOutput/content 里补充目录类型。
     // 之前这里一旦先读到 rawInput.filePath 就会提前返回成 file，导致目录卡片图标错误。
     // 现在改成“类型优先看显式输出，路径再回退 rawInput”，只在确实没有输出标签时才用 input 兜底。
-    return {
-      path: directPath,
-      entryType: normalizeReadEntryType(directType),
-    };
+    return { path: directPath, entryType: normalizeReadEntryType(directType) };
   }
 
   return { entryType: "file" };
@@ -133,10 +125,7 @@ function readReadMetadataFromValue(value: unknown): {
 
 function createReadSummary(
   path: string,
-  options: {
-    fileName?: string;
-    entryType?: "file" | "directory";
-  } = {},
+  options: { fileName?: string; entryType?: "file" | "directory" } = {},
 ): ReadSummary {
   const entryType = options.entryType ?? "file";
   const descriptor = resolveFileDisplayDescriptor(path);
@@ -186,10 +175,7 @@ export function buildReadSummary(
       // read 卡片之前只兼容 parsed_cmd 结构。
       // 其他模型常把路径放在 rawInput/filePath 或 rawOutput 的 <path> 标签里，
       // 导致 UI 只能退回 kind/title。这里保留结构化优先，再补原始输出兜底。
-      return createReadSummary(absolutePath, {
-        fileName,
-        entryType: "file",
-      });
+      return createReadSummary(absolutePath, { fileName, entryType: "file" });
     }
   }
 
@@ -205,9 +191,7 @@ export function buildReadSummary(
 
   const rawMetadata = readReadMetadataFromRaw(toolCall.raw);
   return rawMetadata.path
-    ? createReadSummary(rawMetadata.path, {
-        entryType: rawMetadata.entryType,
-      })
+    ? createReadSummary(rawMetadata.path, { entryType: rawMetadata.entryType })
     : null;
 }
 
@@ -224,8 +208,7 @@ export function ReadFileChip({
     return (
       <button
         type="button"
-        className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 text-foreground-subtle hover:underline"
-        title={summary.path}
+        className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 text-foreground hover:underline"
         onMouseDown={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -236,18 +219,15 @@ export function ReadFileChip({
         }}
       >
         <FileDisplayIcon src={summary.fileIconSrc} size={16} className="size-4 shrink-0" />
-        <span className="min-w-0 truncate">{summary.fileName}</span>
+        {renderFileSummaryName(summary.fileName, summary.path)}
       </button>
     );
   }
 
   return (
-    <span
-      className="inline-flex min-w-0 text-foreground-subtle max-w-full items-center gap-1.5"
-      title={summary.path}
-    >
+    <span className="inline-flex min-w-0 text-foreground max-w-full items-center gap-1.5">
       <FileDisplayIcon src={summary.fileIconSrc} size={16} className="size-4 shrink-0" />
-      <span className="min-w-0 truncate">{summary.fileName}</span>
+      {renderFileSummaryName(summary.fileName, summary.path)}
     </span>
   );
 }
@@ -292,7 +272,7 @@ export function ReadToolCallBlock(context: ToolCallBlockRenderContext) {
         showIcon={context.showIcon !== false}
         canToggle={false}
         kindLabel={intl.formatMessage({
-          id: isRunning ? "chat.toolCall.read.reading" : "chat.toolCall.kind.read",
+          id: isRunning ? "chat.toolCall.read.reading" : "chat.toolCall.read.read",
         })}
         sourceLabel={context.sourceLabel}
         primaryText={primaryText}

@@ -1,4 +1,3 @@
-
 export const ModelApiOperation = {
   AgentStep: "agent_step",
   ContextCompaction: "context_compaction",
@@ -8,8 +7,6 @@ export const ModelApiOperation = {
   ProjectMemoryExtract: "project_memory_extract",
   ProjectMemoryDream: "project_memory_dream",
   ProjectMemoryRecall: "project_memory_recall",
-  ReadSessionContextExtract: "read_session_context_extract",
-  ReadSessionContextSynthesize: "read_session_context_synthesize",
   SessionTitle: "session_title_generation",
   ToolInternalModelCall: "tool_internal_model_call",
   WebFetch: "web_fetch_processing",
@@ -167,11 +164,6 @@ function mapQuerySourceToModelApiOperation(querySource: string | undefined): {
       return { operation: ModelApiOperation.WebSearch, actorKind: ModelApiActorKind.Tool };
     case "web_fetch_processing":
       return { operation: ModelApiOperation.WebFetch, actorKind: ModelApiActorKind.Tool };
-    case "read_session_context":
-      return {
-        operation: ModelApiOperation.ReadSessionContextExtract,
-        actorKind: ModelApiActorKind.Tool,
-      };
     case "project_memory_extract":
       return {
         operation: ModelApiOperation.ProjectMemoryExtract,

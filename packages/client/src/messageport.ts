@@ -20,6 +20,8 @@ export interface MessagePortServiceConnection {
 // 修复依据：两个入口曾各自声明重名的 options 形参，合并后统一由一份选项描述装配开关，
 // 避免 connectViaMessagePort 转发时按不同的字段集合丢选项。默认全部关闭。
 interface MessagePortServiceOptions {
+  extensionsService?: boolean;
+  managedWorktreeService?: boolean;
   sourceServerManagementService?: boolean;
   windowProjectDirectory?: boolean;
   deviceSyncStateService?: boolean;

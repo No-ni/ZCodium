@@ -23,12 +23,14 @@ export * from "./interfaces/coordinator-response.port.js";
 export * from "./interfaces/workflow.port.js";
 export * from "./interfaces/workflow-submit.port.js";
 export * from "./interfaces/workflow-escalate.port.js";
+export * from "./interfaces/workflow-web-search-budget.port.js";
 export * from "./interfaces/dynamic-workflow-run.port.js";
 export * from "./interfaces/dynamic-workflow-snippet.port.js";
 export * from "./interfaces/model-catalog.port.js";
 export * from "./interfaces/automation.port.js";
 // 上游的 Off-Peak 时段额度端口属官方账号/套餐权益面，本 fork 不接入，端口随上游剥离。
 export * from "./interfaces/topic-resource.port.js";
+export * from "./interfaces/plugin-discovery.port.js";
 export * from "./interfaces/mcp.port.js";
 
 export * from "./interfaces/runtime-input-presentation.js";

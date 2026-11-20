@@ -56,6 +56,15 @@ export type OpenPluginUiSideTabRequest = PluginUiOpenTarget & {
   remoteSessionId?: string | null;
 };
 
+/** 主导航先选定 surface，根草稿就绪后补入真实 session。 */
+export type DraftPluginUiOpenRequest = Omit<
+  OpenPluginUiSideTabRequest,
+  "parentSessionId" | "toolCallId" | "surfaceId" | "serverName"
+> & {
+  surfaceId: string;
+  serverName: string;
+};
+
 /**
  * 侧栏 tab；工具卡片 id 为 `plugin-ui:<ws>:<session>:<pluginId>:<toolCallId>`，面板为 `plugin-ui:<ws>:<session>:<pluginId>:surface:<surfaceId>`；
  * 按 parentSessionId 作用域可见。
@@ -140,7 +149,7 @@ export interface PluginUiSessionCommandPort {
   sendText(
     prompt: string,
     options: { source: ConversationInputSource; attachments?: AttachmentRef[] },
-  ): Promise<"sent" | "blocked" | "confirmationRequired" | undefined>;
+  ): Promise<"sent" | "pending" | "blocked" | "confirmationRequired" | undefined>;
   /** 内联图片 → 会话附件引用（走 v4 attachmentPut，与 composer 粘贴截图同一条链路）。 */
   uploadAttachment(input: {
     fileName: string;

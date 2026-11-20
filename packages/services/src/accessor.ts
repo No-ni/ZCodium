@@ -1,4 +1,5 @@
 import type { IProjectService } from "./project/contract.js";
+import type { IManagedWorktreeService } from "./managed-worktree-tasks/contract.js";
 import type { IGenUiService } from "./gen-ui/contract.js";
 import type { IPluginUiBridgeService } from "./plugin-ui-bridge/contract.js";
 import type { IPluginUiSamplingService } from "./plugin-ui-bridge/samplingContract.js";
@@ -28,6 +29,11 @@ import type { IClientConfigService } from "./client-config/clientConfig.js";
 import type { IClientScenesService } from "./client-scenes/clientScenes.js";
 import type { ISkillsService } from "./skills/skills.js";
 import type { ISkillSyncService } from "./skill-sync/skillSync.js";
+import type {
+  IExtensionGrantsService,
+  IExtensionsService,
+  IExtensionViewsService,
+} from "./extensions/index.js";
 import type { IMcpSyncService } from "./mcp-sync/mcpSync.js";
 import type { IPluginSyncService } from "./plugin-sync/pluginSync.js";
 import type { IPluginsService } from "./plugins/plugins.js";
@@ -52,6 +58,8 @@ import type { IProviderProvisioningStatusService } from "./provider-provisioning
 export interface IServiceAccessor {
   /** 已部署 Source 的真实项目 owner；旧宿主没有此能力时拒绝远端项目请求。 */
   readonly projectService?: IProjectService;
+  /** 受管 worktree 管理；仅本地桌面 Host 提供，手机与旧 Host 缺省。 */
+  readonly managedWorktreeService?: IManagedWorktreeService;
   readonly fileService: IFileService;
   readonly mediaPreviewService?: IMediaPreviewService;
   readonly gitService: IGitService;
@@ -83,6 +91,12 @@ export interface IServiceAccessor {
   readonly providerSettingsService: IProviderSettingsService;
   /** 当前 Environment Registry 发布的唯一模型选择 View。 */
   readonly modelSelectionService: IModelSelectionService;
+  /** 仅桌面本机 Host 注册：扩展（docs/plugins/extension-host.md）。Web / 手机 / 远端不提供。 */
+  readonly extensionsService?: IExtensionsService;
+  /** 仅桌面本机 Host 注册：扩展视图（与 extensionsService 同一开关）。Web / 手机 / 远端不提供。 */
+  readonly extensionViewsService?: IExtensionViewsService;
+  /** 仅桌面本机 Host 注册：扩展授权（与 extensionsService 同一开关，§17.7）。Web / 手机 / 远端不提供。 */
+  readonly extensionGrantsService?: IExtensionGrantsService;
   readonly usageStatsService: IUsageStatsService;
   readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
   readonly clientConfigService: IClientConfigService;

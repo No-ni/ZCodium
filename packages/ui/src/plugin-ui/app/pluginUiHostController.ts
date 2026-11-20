@@ -1,3 +1,4 @@
+import { buildPluginUiBaseScope, sendFeed } from "./pluginUiHostFeed.js";
 import { createPluginUiSampling } from "./pluginUiSampling.js";
 import type { CallToolResult, Transport } from "@modelcontextprotocol/client";
 import type {
@@ -22,7 +23,6 @@ import type {
   PluginUiHostController,
   PluginUiHostControllerDeps,
   PluginUiHostPhase,
-  PluginUiToolFeed,
 } from "./pluginUiHostControllerContract.js";
 import { resolvePluginUiCreateAppBridge, resolvePluginUiSetTimer } from "./pluginUiHostDefaults.js";
 import { runPluginUiHostTeardown } from "./pluginUiHostTeardown.js";
@@ -76,15 +76,7 @@ export function createPluginUiHostController(
     deps.log?.("[plugin-ui] host failed", { message });
     setPhase("error", { error: message });
   };
-
-  /** 经桥的请求共用的归属范围：workspace + session + 本插件 server。 */
-  const baseScope = () => ({
-    workspacePath: deps.scope.workspacePath,
-    ...(deps.scope.workspaceIdentity ? { workspaceIdentity: deps.scope.workspaceIdentity } : {}),
-    sessionId: deps.scope.sessionId,
-    pluginId: deps.presentation.pluginId,
-    serverName: deps.presentation.serverName,
-  });
+  const baseScope = () => buildPluginUiBaseScope(deps);
 
   const pluginScope = () => {
     if (!boundScope) throw new Error("MCP App is not prepared");
@@ -128,15 +120,6 @@ export function createPluginUiHostController(
         log: deps.log,
       })
     : null;
-
-  const sendFeed = (active: PluginUiHostBridge, feed: PluginUiToolFeed) => {
-    if (feed.toolInput) void active.sendToolInput(feed.toolInput).catch(() => undefined);
-    if (feed.toolCancelled) {
-      void active.sendToolCancelled({}).catch(() => undefined);
-    } else if (feed.toolResult) {
-      void active.sendToolResult(feed.toolResult as CallToolResult).catch(() => undefined);
-    }
-  };
 
   const attachPort = (port: PluginSandboxTransportPort) => {
     sampling?.reset();
@@ -347,6 +330,25 @@ export function createPluginUiHostController(
     notifyToolCancelled() {
       if (disposed || !bridge || !attached) return;
       void bridge.sendToolCancelled({}).catch(() => undefined);
+    },
+    async callPanelTool(toolName: string, args?: Record<string, unknown>) {
+      if (disposed) throw new Error("MCP App instance was closed");
+      // pluginScope 未 prepared 时抛错，与页面 AppBridge 的调用同一语义。
+      const scope = pluginScope();
+      const callId = createCallId();
+      activeCalls.add(callId);
+      deps.onBusyChange?.();
+      try {
+        return await deps.bridge.callTool({
+          ...scope,
+          toolName,
+          ...(args ? { arguments: args } : {}),
+          callId,
+        });
+      } finally {
+        activeCalls.delete(callId);
+        deps.onBusyChange?.();
+      }
     },
     dispose() {
       if (disposal) return disposal;

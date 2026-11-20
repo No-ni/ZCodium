@@ -197,7 +197,8 @@ export function DesktopTopOverlay({
               // 宽度/透明度只会隐藏视觉；inert 同时阻止 Tab/Enter 触发不可见的新建入口。
               inert={!isNewTaskButtonVisible}
               className={cn(
-                "inline-flex overflow-hidden transition-[opacity,width] duration-300 ease-out",
+                // 宽度动画会在侧栏已收敛后继续触发布局，完整视图也受影响；这里只淡入淡出。
+                "inline-flex overflow-hidden transition-opacity duration-300 ease-out",
                 isNewTaskButtonVisible ? "w-7 opacity-100" : "pointer-events-none w-0 opacity-0",
               )}
             >

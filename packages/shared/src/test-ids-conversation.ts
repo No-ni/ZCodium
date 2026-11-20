@@ -156,3 +156,67 @@ export const TID_V4_SUBAGENT_OPEN_SPLIT = "v4-subagent-open-split";
 export const TID_V4_SUBAGENT_OPEN_SIDE_PANE = "v4-subagent-open-side-pane";
 /** v4 userInput 行附件列表（动态后缀为 rowId） */
 export const TID_V4_ROW_ATTACHMENTS = "v4-row-attachments";
+
+/** v4 fork 目的地菜单：在当前目录分叉（动态后缀为 rowId） */
+export const TID_V4_FORK_HERE = "v4-fork-here";
+
+/** v4 fork 目的地菜单：在新 worktree 中分叉（动态后缀为 rowId） */
+export const TID_V4_FORK_TO_WORKTREE = "v4-fork-to-worktree";
+
+/** 新建任务 composer 头部的 worktree 复选框 */
+export const TID_WORKTREE_TOGGLE = "composer-worktree-toggle";
+
+/** worktree 创建视图的进度卡片（data-phase = creating / starting-session / failed） */
+export const TID_WORKTREE_CREATION_CARD = "worktree-creation-card";
+
+/** 创建失败：重试 */
+export const TID_WORKTREE_CREATION_RETRY = "worktree-creation-retry";
+
+/** 创建失败：不使用 worktree */
+export const TID_WORKTREE_CREATION_CONTINUE_LOCAL = "worktree-creation-continue-local";
+
+/** 创建失败：放弃 */
+export const TID_WORKTREE_CREATION_DISMISS = "worktree-creation-dismiss";
+
+/** 会话历史中的"已创建 worktree"标记 */
+export const TID_WORKTREE_CREATED_MARKER = "worktree-created-marker";
+
+/** 侧栏中正在创建 worktree 的任务行 */
+export const TID_WORKTREE_CREATING_ROW = "worktree-creating-row";
+
+/** 侧栏任务行的 worktree 图标 */
+export const TID_TASK_ROW_WORKTREE_ICON = "task-row-worktree-icon";
+
+/**
+ * v4 composer 编辑态状态条。属性：data-edit-target-kind（userQuery|queueItem）、
+ * data-edit-target-id（rowId|queueItemId）、data-edit-state（editing|invalid）、
+ * data-edit-invalid-reason（notLatest|queueItemRemoved|editLockLost）
+ */
+export const TID_V4_COMPOSER_EDIT_BAR = "v4-composer-edit-bar";
+
+/** v4 composer 编辑态「取消」按钮 */
+export const TID_V4_COMPOSER_EDIT_CANCEL = "v4-composer-edit-cancel";
+
+/** v4 composer 编辑态切换目标时的未保存改动确认弹窗（复用 ConfirmDialog，确认按钮为 TID_CONFIRM_DIALOG_CONFIRM） */
+export const TID_V4_COMPOSER_EDIT_SWITCH_DIALOG = "v4-composer-edit-switch-dialog";
+
+/** v4 composer 编辑提交后「是否也应用于所有排队消息」弹窗（复用 ConfirmDialog，确认 = 应用到排队消息） */
+export const TID_V4_COMPOSER_EDIT_APPLY_QUEUE_DIALOG = "v4-composer-edit-apply-queue-dialog";
+
+/** v4 被编辑 user 行的「正在下方编辑」占位（动态后缀为 rowId） */
+export const TID_V4_EDIT_IN_COMPOSER_HINT = "v4-edit-in-composer-hint";
+
+/** v4 文件摘要「撤销」因 session 锁禁用时承接 hover 提示的外层 */
+export const TID_V4_FILE_SUMMARY_UNDO_LOCKED = "v4-file-summary-undo-locked";
+
+/** v4 文件撤销弹窗「撤销文件」因 session 锁禁用时承接 hover 提示的外层 */
+export const TID_V4_FILE_REWIND_CONFIRM_LOCKED = "v4-file-rewind-confirm-locked";
+
+/**
+ * v4 queue 项编辑锁占位（动态后缀为 queueItemId）。data-edit-lock-owner=self 表示本编辑器
+ * 持有，显示「正在下方编辑」；other 表示其他窗口或设备持有。
+ */
+export const TID_V4_QUEUE_ITEM_EDIT_LOCK = "v4-queue-item-edit-lock";
+
+/** v4 queue 项手动解除编辑锁按钮（动态后缀为 queueItemId，仅 owner=other 时出现） */
+export const TID_V4_QUEUE_ITEM_RELEASE_EDIT = "v4-queue-item-release-edit";

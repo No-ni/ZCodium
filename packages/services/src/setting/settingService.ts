@@ -4,6 +4,10 @@ import { homedir } from "node:os";
 import type { AppSettings } from "@zcode/shared";
 import { ZCODE_USER_DATA_DIR_NAME, appSettingsPatchSchema, appSettingsSchema } from "@zcode/shared";
 import type { ISettingService } from "./setting.js";
+import {
+  hasLegacyIncompatiblePersistedLocale,
+  toPersistedSettingsLocaleFields,
+} from "@zcode/shared";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
 import {
   copyDataDirectory,
@@ -91,6 +95,9 @@ function shouldPersistSettingsMigrations(rawValue: unknown): boolean {
   return (
     // 原因：只在内存迁移仍会把磁盘上的 3 留给回滚客户端；必须走现有写锁落盘。
     raw.remoteBoundaryOnboardingVersion === 3 ||
+    // 原因：本特性开发期间内部版本把 ja-JP 等写进了旧字段 locale/localePreference；
+    // 旧版本读到会重置整份设置，所以读到就立即按新格式（旧字段降级 + uiLocale 新字段）落盘。
+    hasLegacyIncompatiblePersistedLocale(raw) ||
     (needsLegacyAccountConnectionMigration(rawValue) &&
       readIncompleteLegacyTeamConnections(rawValue).length === 0) ||
     raw.closeToTrayOnWindowsMigrationInitialized !== true ||
@@ -126,19 +133,13 @@ async function readSettingsWithMeta(settingsFile = getSettingsFile()): Promise<R
       }
       if (rawValue === undefined) {
         await quarantineCorruptSettingsFile(settingsFile);
-        return {
-          settings: defaultSettings(),
-          needsMigrationPersist: false,
-        };
+        return { settings: defaultSettings(), needsMigrationPersist: false };
       }
     }
     const result = appSettingsSchema.safeParse(migrateLegacyAccountConnectionSettings(rawValue));
     if (!result.success) {
       logger.warn(undefined, "settings schema validation failed, returning defaults");
-      return {
-        settings: defaultSettings(),
-        needsMigrationPersist: false,
-      };
+      return { settings: defaultSettings(), needsMigrationPersist: false };
     }
     logger.debug(undefined, "settings read completed");
     return {
@@ -153,18 +154,12 @@ async function readSettingsWithMeta(settingsFile = getSettingsFile()): Promise<R
       (err as { code?: string }).code === "ENOENT"
     ) {
       logger.debug(undefined, "settings file missing, using defaults");
-      return {
-        settings: defaultSettings(),
-        needsMigrationPersist: false,
-      };
+      return { settings: defaultSettings(), needsMigrationPersist: false };
     }
 
     // 文件解析失败等异常兜底返回默认值
     logger.warn(undefined, "settings read failed, returning defaults", err);
-    return {
-      settings: defaultSettings(),
-      needsMigrationPersist: false,
-    };
+    return { settings: defaultSettings(), needsMigrationPersist: false };
   }
 }
 
@@ -190,7 +185,11 @@ async function writeSettings(
   maybeThrowInjectedFsFault({ operation: "writeFile", path: settingsFile });
   const raw = await readLegacyAccountConnectionSettingsFile(settingsFile);
   const rollbackFields = retainLegacyAccountConnectionFields(raw);
-  const persisted = { ...rollbackFields, ...settings };
+  const persisted = {
+    ...rollbackFields,
+    ...settings,
+    ...toPersistedSettingsLocaleFields(settings),
+  };
   // 旧 Team 缺少组织信息，schema 的默认 {} 不是用户的新选择。
   // 联网补全已移除；普通偏好保存仍保留原字段，不伪造或覆盖历史连接。
   if (!commitAccountSelection && readIncompleteLegacyTeamConnections(raw).length > 0) {
@@ -216,6 +215,7 @@ async function writeSettings(
 }
 
 export interface SettingServiceOptions {
+  shareCredentialKeyWithDataRoot?: (targetBaseDir: string) => Promise<void>;
   settingsFilePath?: string;
   fixedDataBaseDir?: string;
 }
@@ -338,10 +338,7 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
             throw new Error("Account connection settings changed");
           }
         }
-        const merged = appSettingsSchema.parse({
-          ...current,
-          ...validatedPatch,
-        });
+        const merged = appSettingsSchema.parse({ ...current, ...validatedPatch });
 
         if (writesConnections) {
           // 即使选择值相同也代表一次新操作，版本由同一写锁保证单调递增。
@@ -388,6 +385,8 @@ export function createSettingService(input: SettingServiceOptions = {}): ISettin
       if (currentBaseDir !== targetBaseDir) {
         logger.info(undefined, "copying data directory");
         await copyDataDirectory(currentBaseDir, targetBaseDir);
+        // 凭据密钥按数据根登记；复制后先共享密钥，失败时不提交新的数据根。
+        await options.shareCredentialKeyWithDataRoot?.(targetBaseDir);
         logger.info(undefined, "data directory copy done");
       }
 

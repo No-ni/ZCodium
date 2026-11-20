@@ -23,15 +23,20 @@ test("create validates inputs and refuses accidental overwrites", async () => {
     assert.equal(created.createdBy, "template");
     assert.ok(created.files.includes(path.join("CounterApp", "gradle.properties")));
     assert.ok(created.files.includes(path.join("CounterApp", "local.properties")));
-    assert.ok((await readFile(path.join("CounterApp", "gradle.properties"), "utf8")).includes(
-      "android.useAndroidX=true",
-    ));
-    assert.ok((await readFile(path.join("CounterApp", "local.properties"), "utf8")).includes(
-      "sdk.dir=",
-    ));
+    assert.ok(
+      (await readFile(path.join("CounterApp", "gradle.properties"), "utf8")).includes(
+        "android.useAndroidX=true",
+      ),
+    );
+    assert.ok(
+      (await readFile(path.join("CounterApp", "local.properties"), "utf8")).includes("sdk.dir="),
+    );
 
     await assert.rejects(create({ name: "Counter App" }), /Refusing to overwrite/);
-    await assert.rejects(create({ name: "Escaped", dir: "../Escaped" }), /Path escapes project root/);
+    await assert.rejects(
+      create({ name: "Escaped", dir: "../Escaped" }),
+      /Path escapes project root/,
+    );
     await assert.rejects(
       create({ name: "Bad Package", packageName: "com.example.bad-package" }),
       /Invalid Android package name/,
@@ -52,7 +57,10 @@ test("discover finds generated Gradle project metadata", async () => {
     assert.equal(found.root, "Demo");
     assert.deepEqual(found.modules, [":app"]);
     assert.ok(found.applicationIds.includes("com.example.demo"));
-    assert.equal(found.manifests.some((item) => item.endsWith("AndroidManifest.xml")), true);
+    assert.equal(
+      found.manifests.some((item) => item.endsWith("AndroidManifest.xml")),
+      true,
+    );
     assert.deepEqual(found.apks, [
       path.join("Demo", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
     ]);
@@ -87,28 +95,30 @@ test("adb devices parser keeps serial, state, and attributes", () => {
     parseAdbDevices(`List of devices attached
 emulator-5554 device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 device:emu64a transport_id:1
 R5CT12345 unauthorized usb:338690048X product:phone model:Pixel_8 device:husky
-`), [
-    {
-      serial: "emulator-5554",
-      state: "device",
-      kind: "emulator",
-      product: "sdk_gphone64_arm64",
-      model: "sdk_gphone64_arm64",
-      device: "emu64a",
-      transportId: "1",
-      raw: "emulator-5554 device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 device:emu64a transport_id:1",
-    },
-    {
-      serial: "R5CT12345",
-      state: "unauthorized",
-      kind: "device",
-      product: "phone",
-      model: "Pixel_8",
-      device: "husky",
-      transportId: undefined,
-      raw: "R5CT12345 unauthorized usb:338690048X product:phone model:Pixel_8 device:husky",
-    },
-  ]);
+`),
+    [
+      {
+        serial: "emulator-5554",
+        state: "device",
+        kind: "emulator",
+        product: "sdk_gphone64_arm64",
+        model: "sdk_gphone64_arm64",
+        device: "emu64a",
+        transportId: "1",
+        raw: "emulator-5554 device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 device:emu64a transport_id:1",
+      },
+      {
+        serial: "R5CT12345",
+        state: "unauthorized",
+        kind: "device",
+        product: "phone",
+        model: "Pixel_8",
+        device: "husky",
+        transportId: undefined,
+        raw: "R5CT12345 unauthorized usb:338690048X product:phone model:Pixel_8 device:husky",
+      },
+    ],
+  );
 });
 
 test("avd parser drops blank lines", () => {
@@ -138,9 +148,10 @@ test("started emulator candidates exclude devices present before launch", () => 
     raw: "R5CT12345 device",
   };
 
-  assert.deepEqual(startedEmulatorCandidates([existing, fresh, physical], new Set([existing.serial])), [
-    fresh,
-  ]);
+  assert.deepEqual(
+    startedEmulatorCandidates([existing, fresh, physical], new Set([existing.serial])),
+    [fresh],
+  );
   assert.deepEqual(startedEmulatorCandidates([existing, physical], new Set([existing.serial])), []);
 });
 
@@ -210,9 +221,7 @@ test("uiautomator parser returns compact elements with bounds centers", () => {
 });
 
 test("adb input text encodes spaces and percent before shell quoting", () => {
-  assert.equal(inputText('100% ready & go; "ok" (now)'), 
-    '100%25%sready%s&%sgo;%s"ok"%s(now)',
-  );
+  assert.equal(inputText('100% ready & go; "ok" (now)'), '100%25%sready%s&%sgo;%s"ok"%s(now)');
 });
 
 test("adb shell command quotes device shell tokens", () => {
@@ -220,16 +229,16 @@ test("adb shell command quotes device shell tokens", () => {
     adbShellCommand(["am", "start", "-d", "https://example.com/path?q=one&next='two'"]),
     "am start -d 'https://example.com/path?q=one&next='\\''two'\\'''",
   );
-  assert.equal(adbShellCommand(["input", "text", "hello%sworld"]), 
-    "input text hello%sworld",
-  );
+  assert.equal(adbShellCommand(["input", "text", "hello%sworld"]), "input text hello%sworld");
 });
 
 async function withCwd(work: () => Promise<void>) {
   const old = process.cwd();
   const sdkPath = process.env.ANDROID_PLUGIN_SDK_PATH;
   const dir = await mkdtemp(path.join(tmpdir(), "android-plugin-test-"));
-  process.chdir(dir);
+  const workspace = path.join(dir, "workspace");
+  await mkdir(workspace);
+  process.chdir(workspace);
   process.env.ANDROID_PLUGIN_SDK_PATH = path.join(dir, "sdk");
   try {
     await mkdir("fixtures", { recursive: true });

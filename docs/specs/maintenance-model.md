@@ -524,3 +524,19 @@ scheduler 陈旧增量产物，`tsc -b --force` 重建声明后通过。CLI 独�
 `max-lines` 错误，根 `fmt:check` 全仓仍有 707 个历史文件不合规；两项均与本次改动文件无关，
 未放宽门槛或刷新 baseline。Windows 真实 Electron UI、wdio E2E、macOS/手机/远端/真实 Provider/
 公网/安装包均未验收。
+
+## 官方 3.18.2 本地同步（2026-11-21）
+
+唯一同步来源 `zai-org/ZCode@fec975905a2abd4c07e35c40d51fa097a2258ec9`，同步分支 `codex/official-3.18.2`，起点 `03f5d4e56c581b11ac59c85fbec3ed0583496f66`（官方 3.17.1 基线）。采用真实 merge，不 rebase、不合并第三方或含已撤回原生上下文功能的 origin/main；产品基线 3.18.2。本次详细融合和验证以 [集成记录](official-3.18.2-integration.md) 为准。
+
+吸收工作树创建/分叉/冷恢复、浏览器设计/本地预览隔离/设备预设/导出、Extension Host、本地 App/会话控制、输入编辑/附件交接、流式历史与上下文公告、子代理/后台通知、语言和 Windows 进程/更新安装、用户凭据安全等兼容改进。逐块保留自有配置/Provider/CUA/工作流、共享 CLI、组织态/队列 owner、identity/cwd 分离、continuous/replayable、提示词与原回退基线；原五份未提交修改有独立字节/哈希/stash 保全，合并提交不吸收这些原改动。
+
+继续剥离官方账号/套餐/额度/分享上传/Sites/ASR、官方市场/凭据/client config/rollout/relay/更新源和手机推送、遥测/默认采样、Linux 桌面安装及远端发行资源。`.zcodium`、ZCodium 身份和自有更新源保持；无源零检查与无官方 fallback 保持，原删除源码模块没有恢复项。个人 Key Provider、普通 MCP OAuth、显式个人插件来源/自建图标/自建 OTLP 和确认后 purge 沿既有契约保留。
+
+根及 CLI typecheck 通过；根 Lint 0 errors / 729 warnings；changed 架构 0 violations。CLI Lint 仍 88 个存量行数错误/133 warnings，合并前 89 个错误中少 1 个，无新增错误。当前适配源码格式通过；最终暂存后全量 fmt:check exit 1，770 个列出历史文件未改；前轮曾在历史 JSON 日志夹具发生 Windows formatter write UNKNOWN，保留失败记录，不能称全量通过。没有抬行数阈值、刷新架构 baseline 或豁免本仓最终 hash。
+
+真实重建公开入口后工作树/Hook Trust 13/13；Core 相邻八文件 169/169、配置 65/65、插件及 Windows 原子目录 124/124、会话库/永久删除两文件 61/61、TUI 10/10、后台审批/主会话投影 11/11、审计/去遥测/本地市场 25/25，新增文案拆分后审计再次 14/14。stdio/投影/附件/扩展/Gen UI 外层 19/19；不同组合重跑和 wrapper 不相加当作全量验收，早期失败与最终覆盖关系见集成记录。
+
+notice/inventory 已重新生成。基础和 strict 许可标识检查均失败：4 个 CUA 平台包和 6 个 UBJS 包未获当前门禁放行；材料清单仍 20 项待核验，其中新六项 UBJS 精确版本材料缺口，严格材料验收未完成，不擅自改 allowlist。此次不发行。
+
+所有验证数据、HOME/TEMP/缓存/日志与子进程目标限定本工作树，固定 Node 24.14.0/Corepack pnpm 10.33.2。未执行完整 Electron/Windows Shell、macOS/钥匙串、手机/真实远端/Provider/IM/Android、完整语料、发行安装或 GitHub Checks。未推送、打安装包、触发 Actions、安装或访问真实用户 `.zcodium`。已做 native-context 迁移的旧数据库仍按原回退规格 fail-closed，不删 ledger 或擅自恢复丢失数据。

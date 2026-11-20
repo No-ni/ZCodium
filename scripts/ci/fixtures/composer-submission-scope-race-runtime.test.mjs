@@ -3,6 +3,7 @@ import { after, afterEach, test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import ts from "typescript";
+import { isComposerEditScopeId } from "../../../packages/ui/src/composer-edit-mode/contract.ts";
 import { projectRoot, assertProjectPath } from "../project-test-sandbox.mjs";
 
 await assertProjectPath(process.env.PROJECT_TEST_SANDBOX_ROOT ?? "");
@@ -113,9 +114,12 @@ function findPaneCallback(node) {
   if (
     ts.isVariableDeclaration(node) &&
     ts.isIdentifier(node.name) &&
-    ["dispatchSendTextAfterConfig", "handleSendText", "focusTimelineToLatest"].includes(
-      node.name.text,
-    )
+    [
+      "dispatchSendTextAfterConfig",
+      "sendComposerText",
+      "handleSendText",
+      "focusTimelineToLatest",
+    ].includes(node.name.text)
   ) {
     assert.ok(
       ts.isCallExpression(node.initializer) &&
@@ -127,7 +131,7 @@ function findPaneCallback(node) {
   ts.forEachChild(node, findPaneCallback);
 }
 findPaneCallback(paneAst);
-assert.equal(paneCallbacks.size, 3);
+assert.equal(paneCallbacks.size, 4);
 assert.ok(paneErrorState && paneErrorReset);
 assert.equal(Boolean(paneScopeTokenRef), Boolean(paneScopeTokenMirror));
 function paneCallback(name, dependencies) {
@@ -193,6 +197,15 @@ for (const statement of composerFunction.body.statements) {
 
 const selection = Object.freeze({ providerId: "fixture-provider", modelId: "fixture-model" });
 const noop = () => {};
+const resolutionListeners = new Map();
+const commandSessions = new Map();
+const registryPort = {
+  findCommand: (id) => commandSessions.get(id),
+  subscribeResolution(id, callback) {
+    resolutionListeners.set(id, callback);
+    return () => resolutionListeners.delete(id);
+  },
+};
 const boundaryNames = new Set([
   ...Object.keys(React),
   "ports",
@@ -203,7 +216,6 @@ const boundaryNames = new Set([
   "composerDraft",
   "composerDraftScopeToken",
   "draftMode",
-  "disabled",
   "submissionReady",
   "createSubmissionFromComposer",
   "draftConfig",
@@ -244,6 +256,12 @@ const boundaryNames = new Set([
   "setPromptHistory",
   "removeCodeCommentContext",
   "removeWebElementContext",
+  "removeSentWebElementContexts",
+  "recordSentConversationSelections",
+  "pendingCommandRegistry",
+  "buildComposerAttachmentScopeKey",
+  "trackUnsettledComposerSubmission",
+  "subscribeComposerSubmissionSettled",
   "removePluginUiContext",
   "removePptxElementReference",
   "removeConversationSelectionReference",
@@ -340,6 +358,8 @@ const ComposerProbe = evaluate(
   {
     ...reactPorts,
     advanceComposerDraftRevision: noop,
+    isComposerEditScopeId,
+    useRemoteConversationAvailable: () => true,
     getLocalTtftObserver: () => undefined,
     V4_DRAFT_SCOPE_ROOT: "__draft__",
     consumeV4ComposerDraftWorkspaceTransferRequest: () => false,
@@ -356,6 +376,12 @@ const ComposerProbe = evaluate(
     setPromptHistory: noop,
     removeCodeCommentContext: noop,
     removeWebElementContext: noop,
+    removeSentWebElementContexts: noop,
+    recordSentConversationSelections: noop,
+    pendingCommandRegistry: registryPort,
+    buildComposerAttachmentScopeKey: (path, identity, id) => `${identity || path}\0${id}`,
+    trackUnsettledComposerSubmission: noop,
+    subscribeComposerSubmissionSettled: () => noop,
     removePluginUiContext: noop,
     removePptxElementReference: noop,
     removeConversationSelectionReference: noop,
@@ -379,6 +405,10 @@ const PaneProbe = evaluate(
   `function PaneProbe(props) {
     const { sessionId, composerDraftScopeToken, dispatchSendText, ports, paneSnapshotRef } = props;
     const snapshotRef = paneSnapshotRef;
+    const workspaceKey = props.workspaceIdentity || props.workspacePath;
+    const composerEditInvalidReasonRef = useRef(null);
+    const [, setDismissedModelUnavailableKey] = useState(null);
+    const submitComposerEdit = () => { throw new Error("unexpected edit submission"); };
     const timelineScrollToBottomRef = useRef(null);
     timelineScrollToBottomRef.current = () => ports.scrolls.push({ sessionId, scopeToken: composerDraftScopeToken });
     const intl = useMemo(() => ({ formatMessage: () => "Fixture send failed" }), []);
@@ -386,12 +416,19 @@ const PaneProbe = evaluate(
     ${paneScopeTokenRef ?? ""}
     ${paneScopeTokenMirror ?? ""}
     const focusTimelineToLatest = ${paneCallbackHooks.get("focusTimelineToLatest")};
+    const sendComposerText = ${paneCallbackHooks.get("sendComposerText")};
     const handleSendText = ${paneCallbackHooks.get("handleSendText")};
     ${paneErrorReset}
     ports.paneCurrent = { sendSubmissionError };
     return createElement(ComposerProbe, { ...props, onSendText: handleSendText });
   }`,
-  { ...reactPorts, ComposerProbe, shouldFocusTimelineAfterComposerSend },
+  {
+    ...reactPorts,
+    ComposerProbe,
+    shouldFocusTimelineAfterComposerSend,
+    getComposerEditSession: () => undefined,
+    composerEditSessionKey: (workspace, session) => workspace + session,
+  },
   "PaneProbe",
 );
 
@@ -422,11 +459,13 @@ async function flushFrames() {
 async function harness() {
   const drafts = new Map();
   const requests = [];
+  const handoffs = new Map();
   const ports = {
     current: null,
     paneCurrent: null,
     scrolls: [],
     inputApi: {
+      clearHistory: noop,
       text: "",
       getEditorState: () => null,
       setText(text) {
@@ -444,6 +483,14 @@ async function harness() {
       hasUnreadyAttachments: false,
       prepareForSend: async () => [],
       adoptSentAttachments: async () => {},
+      reserveSentAttachments: async () => {},
+      releaseSentAttachmentReservations: async () => {},
+      setSubmissionHandoff(key, handoff, owner) {
+        const current = handoffs.get(key);
+        if (current && current.owner !== owner) return;
+        if (handoff) handoffs.set(key, handoff);
+        else handoffs.delete(key);
+      },
       clearAttachments: noop,
     },
     hasAttachments: false,
@@ -545,12 +592,25 @@ async function harness() {
       "callback",
     );
     const runtimeSessionId = sessionId ?? "prewarm";
+    ports.attachmentsApi.scopeKey = `fixture-host\0${sessionId ?? "__draft__"}`;
     const prewarmBinding = { sessionId: "prewarm", beginPromotion: () => true, promote: noop };
-    const dispatchCommand = async (_type, payload, targetSessionId) => {
+    const dispatchCommand = async (
+      _type,
+      payload,
+      targetSessionId,
+      _revision,
+      _epoch,
+      _ttft,
+      onEnvelopeCreated,
+    ) => {
       assert.equal(targetSessionId, runtimeSessionId);
       const gate = deferred();
       const request = { sessionId, prompt: payload.text, options: payload, gate, started: true };
       requests.push(request);
+      request.commandId = `command-${requests.length}`;
+      commandSessions.set(request.commandId, { sessionId: runtimeSessionId });
+      onEnvelopeCreated?.({ commandId: request.commandId, sessionId: runtimeSessionId });
+      request.commandCallbackForwarded = Boolean(onEnvelopeCreated);
       await gate.promise;
       // 当前 V4 handler 使用的相同裁决：不一致的已确认 queue ids 产生真实 stale rejection。
       const record = {
@@ -581,6 +641,28 @@ async function harness() {
     };
     const dispatchAfterConfig = paneCallback("dispatchSendTextAfterConfig", {
       parseV4VisibleSlashCommand: () => null,
+      draftProjectReady: true,
+      workspacePath: "fixture-workspace",
+      workspaceIdentity: "fixture-host",
+      useZCodeSessionStore: {
+        getState: () => ({
+          getWorkspaceState: () => ({
+            draftWorktree: ports.worktree ? { ref: null } : null,
+            draftProjectId: "project",
+          }),
+        }),
+      },
+      baseWorkspaceServices: {
+        get managedWorktreeService() {
+          return ports.worktree;
+        },
+      },
+      workspaceKey: "fixture-host",
+      createCommandEnvelope: (command) => ({ ...command, commandId: "worktree-command" }),
+      captureAcceptedModelSelection: () => noop,
+      viewWorktreeCreation: noop,
+      intl: { formatMessage: (value) => value.id },
+      toast: noop,
       ensureDraftModelReadyForSend: async () => true,
       appSlashCommands: [],
       sessionId,
@@ -625,6 +707,10 @@ async function harness() {
     requests,
     drafts,
     cliQueues,
+    handoffs,
+    resolveCommand(request, resolution) {
+      resolutionListeners.get(request.commandId)?.(resolution);
+    },
     render,
     send,
     settle,
@@ -637,6 +723,8 @@ afterEach(async () => {
   if (root) await act(() => root.unmount());
   root = null;
   rafs = [];
+  resolutionListeners.clear();
+  commandSessions.clear();
 });
 after(() => {
   dom.window.close();
@@ -839,6 +927,121 @@ test("A accepted 后等待附件 adopt，旧 finally 也不能清 B 的 pending"
   await nextSend.completion;
   assert.equal(h.ports.current.pending, false);
 });
+
+test("发送前预留失败不分配命令并恢复原草稿", async () => {
+  const h = await harness();
+  h.ports.attachmentsApi.reserveSentAttachments = async () => {
+    throw new Error("fixture reservation denied");
+  };
+  await h.render("a", "reserved prompt");
+  const send = await h.send("keepQueueAndSend", ["a-one", "a-two"]);
+  await send.completion;
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.drafts.get("a"), "reserved prompt");
+  assert.equal(h.ports.current.pending, false);
+});
+
+test("已接纳附件交接失败只重试交接，正文和命令各结算一次", async () => {
+  const h = await harness();
+  h.ports.attachmentsApi.attachments = [{ id: "attachment-a" }];
+  let adopts = 0;
+  h.ports.attachmentsApi.adoptSentAttachments = async () => {
+    if (++adopts === 1) throw new Error("fixture handoff disconnected");
+  };
+  await h.render("a", "handoff prompt");
+  const send = await h.send("keepQueueAndSend", ["a-one", "a-two"]);
+  assert.equal(h.requests[0].commandCallbackForwarded, true);
+  await h.settle(h.requests[0]);
+  await send.completion;
+  assert.equal(h.drafts.get("a"), "");
+  const handoff = [...h.handoffs.values()][0];
+  assert.equal(handoff.phase, "failed");
+  assert.equal(handoff.displayScopeKey, "fixture-host\0a");
+  await act(async () => {
+    await Promise.all([handoff.retry(), handoff.retry()]);
+  });
+  assert.equal(adopts, 2);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.handoffs.size, 0);
+});
+
+test("未知ACK后原scope卸载，附件owner仍消费权威接纳并交接", async () => {
+  const h = await harness();
+  h.ports.attachmentsApi.attachments = [{ id: "attachment-a" }];
+  let adopts = 0;
+  h.ports.attachmentsApi.adoptSentAttachments = async () => {
+    adopts += 1;
+  };
+  await h.render("a", "unknown prompt");
+  const send = await h.send("keepQueueAndSend", ["a-one", "a-two"]);
+  await h.settle(h.requests[0], new Error("fixture ACK lost"));
+  await send.completion;
+  await act(() => root.unmount());
+  root = null;
+  await act(async () => {
+    h.resolveCommand(h.requests[0], "authoritative");
+    await Promise.resolve();
+  });
+  assert.equal(adopts, 1);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.handoffs.size, 0);
+});
+
+for (const outcome of ["session-started", "dismissed"]) {
+  test(`工作树后台开始不交接附件，跨scope ${outcome} 只结算原提交`, async () => {
+    const h = await harness();
+    const listeners = new Set();
+    let starts = 0,
+      adopts = 0,
+      releases = 0;
+    h.ports.worktree = {
+      onDidSettleCreation(listener) {
+        listeners.add(listener);
+        return { dispose: () => listeners.delete(listener) };
+      },
+      async startNewTask({ envelope }) {
+        starts++;
+        assert.equal(envelope.commandId, "worktree-command");
+        return { ok: true, creationId: "creation" };
+      },
+    };
+    h.ports.attachmentsApi.attachments = [{ id: "original-attachment" }];
+    h.ports.attachmentsApi.adoptSentAttachments = async () => {
+      adopts++;
+    };
+    h.ports.attachmentsApi.releaseSentAttachmentReservations = async () => {
+      releases++;
+    };
+    await h.render(null, "worktree first input");
+    const send = await h.send();
+    await send.completion;
+    assert.equal(starts, 1);
+    assert.equal(adopts, 0);
+    assert.equal(releases, 0);
+    assert.equal(listeners.size, 1);
+    await h.render("b", "B newer draft");
+    await act(async () => {
+      for (const listener of [...listeners])
+        listener({ submissionCommandId: "other", workspacePath: "fixture-workspace", outcome });
+      assert.equal(adopts, 0);
+      assert.equal(releases, 0);
+      for (const listener of [...listeners])
+        listener({
+          submissionCommandId: "worktree-command",
+          workspacePath: "fixture-workspace",
+          outcome,
+          sessionId: "retried-session",
+        });
+      await Promise.resolve();
+    });
+    assert.equal(listeners.size, 0);
+    assert.equal(starts, 1);
+    assert.equal(adopts, outcome === "session-started" ? 1 : 0);
+    assert.equal(releases, outcome === "dismissed" ? 1 : 0);
+    assert.equal(h.ports.inputApi.text, "B newer draft");
+    assert.equal(h.handoffs.size, 0);
+  });
+}
 
 test("旧 A 确认按钮回调不能从 live ref 取 B 正文再发给 A", async () => {
   const h = await harness();

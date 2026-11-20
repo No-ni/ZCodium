@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- BotsDialog 现在保留数据加载、保存和轮询编排；右侧卡片已拆到 BotsDialog/* 子组件，后续再继续下沉状态 hook。 */
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Bot, Loader2, Plus } from "lucide-react";
+import { Bot, LoaderCircle, Plus } from "lucide-react";
 import type {
   BotConfig,
   BotProvider,
@@ -1185,7 +1185,7 @@ export function BotsDialog({
                       >
                         {isCreatingThisProvider ? (
                           <div className="flex size-10 items-center justify-center">
-                            <Loader2 className="size-6 shrink-0 animate-spin text-foreground-subtle" />
+                            <LoaderCircle className="size-6 shrink-0 animate-spin text-foreground-subtle" />
                           </div>
                         ) : (
                           <ProviderIcon
@@ -1264,25 +1264,25 @@ export function BotsDialog({
                     bot={selectedBot}
                     runtime={selectedRuntime}
                     credentialValue={credentialValue}
-                  bindCode={bindCode}
-                  bindExpired={bindExpired}
-                  bindRemainingMs={bindRemainingMs}
-                  bindCountdownProgress={bindCountdownProgress}
-                  feishuRegistration={feishuRegistration}
-                  feishuRegistrationLoading={feishuRegistrationLoading}
-                  weixinRegistration={weixinRegistration}
-                  weixinRegistrationLoading={weixinRegistrationLoading}
-                  weixinActivated={Boolean(selectedBotState?.weixinActivatedAt)}
-                  secretSaving={secretSaving}
-                  onCredentialValueChange={setCredentialValue}
-                  onSaveSecret={() => void handleSaveSecret()}
-                  onRemoveSecret={() => void handleRemoveSecret()}
-                  onOpenTelegramBotFather={handleOpenTelegramBotFather}
-                  onStartWeixinRegistration={() => void handleStartWeixinRegistration()}
-                  onStartFeishuRegistration={() => void handleStartFeishuRegistration()}
-                  onCreateBindCode={() => void handleCreateBindCode()}
-                  onUnbind={() => void handleUnbind()}
-                  onCopyBindCommand={() => void copyBindCommand()}
+                    bindCode={bindCode}
+                    bindExpired={bindExpired}
+                    bindRemainingMs={bindRemainingMs}
+                    bindCountdownProgress={bindCountdownProgress}
+                    feishuRegistration={feishuRegistration}
+                    feishuRegistrationLoading={feishuRegistrationLoading}
+                    weixinRegistration={weixinRegistration}
+                    weixinRegistrationLoading={weixinRegistrationLoading}
+                    weixinActivated={Boolean(selectedBotState?.weixinActivatedAt)}
+                    secretSaving={secretSaving}
+                    onCredentialValueChange={setCredentialValue}
+                    onSaveSecret={() => void handleSaveSecret()}
+                    onRemoveSecret={() => void handleRemoveSecret()}
+                    onOpenTelegramBotFather={handleOpenTelegramBotFather}
+                    onStartWeixinRegistration={() => void handleStartWeixinRegistration()}
+                    onStartFeishuRegistration={() => void handleStartFeishuRegistration()}
+                    onCreateBindCode={() => void handleCreateBindCode()}
+                    onUnbind={() => void handleUnbind()}
+                    onCopyBindCommand={() => void copyBindCommand()}
                   />
                 )}
 

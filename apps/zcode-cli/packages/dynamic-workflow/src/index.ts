@@ -42,6 +42,7 @@ export {
 } from "./analysis/actor-models.js";
 export { collectSites, type SiteTable, type HoleSite } from "./analysis/sites.js";
 // 留白：id 键（名字的 FNV-1a 哈希）、编译规则 9012、补全服务的拼接与稳定性复核。
+export { BUDGET_VALUE_CODE } from "./analysis/actor-budgets.js";
 export {
   HOLE_SITE_ID_PATTERN,
   holePrefixOf,
@@ -209,6 +210,8 @@ export {
   LAST_TOOL_TARGET_MAX_CHARS,
   NUDGE_ATTEMPTS,
   REPAIR_ATTEMPTS,
+  DEFAULT_WEB_SEARCH_BUDGET_PER_ASK,
+  MAX_WEB_SEARCH_BUDGET_PER_ASK,
   canonicalJson,
   fnv1a,
   inputHash,
@@ -242,6 +245,7 @@ export {
   type WorldReadInput,
   WORLD_READ_INPUT_MAX_BYTES,
   type PersonaSpec,
+  type PersonaBudget,
   type RunEvent,
   type RunRecord,
   type RunSettlement,

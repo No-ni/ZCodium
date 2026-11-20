@@ -17,7 +17,7 @@ import {
   extractConversationPreviewFileReferences,
   type ConversationPreviewArtifactCandidate,
 } from "@zcode/shared";
-import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+import type { WireConversationRow as ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import {
   PROTOCOL_V4_LIMITS,
   ZCODE_ATTACHMENT_FAULT_CODES,
@@ -1648,7 +1648,11 @@ export class ConversationShareService implements IConversationShareService {
       }
       logEpoch = result.atLogEpoch;
       revision = result.atRevision;
-      pages.unshift(result.rows);
+      // 本地导出只接受严格 wire 行；未知占位行不能静默丢弃后产出不完整对话。
+      if (result.rows.some((row) => row.kind === "unreadable")) {
+        throwServiceError("invalid_conversation", "Conversation contains unreadable rows");
+      }
+      pages.unshift(result.rows.filter((row): row is ConversationRow => row.kind !== "unreadable"));
       if (!result.hasMore) break;
       const firstRowId = result.rows[0]?.rowId;
       if (firstRowId === undefined || firstRowId === beforeRowId) {

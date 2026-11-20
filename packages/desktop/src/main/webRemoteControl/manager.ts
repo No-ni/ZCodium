@@ -3,6 +3,7 @@ import {
   WEB_REMOTE_CONTROL_RPC_LIMITS,
   type WebRemoteControlAppPayload,
   type WebRemoteControlStatusSnapshot,
+  type WebRemoteControlWorkspaceRef,
 } from "@zcode/shared";
 import { createNodeWebRemoteControlRelayAuthProvider } from "./authProvider.js";
 import { createWebRemoteControlRelayAuthStorageProvider } from "./authStorage.js";
@@ -328,6 +329,38 @@ export function createWebRemoteControlManager(
     });
   }
 
+  function syncWorkspaces(windowId: number, workspaces: WebRemoteControlWorkspaceRef[]) {
+    const runtime = runtimes.get(windowId);
+    if (!runtime) return;
+    const previous = runtime.workspaces.find(
+      (item) => item.workspaceKey === runtime.bridge?.workspaceKey,
+    );
+    runtime.workspaces = workspaces.map((workspace) => {
+      // 带 remoteSessionId 的条目连接态归桌面裁定；UI 传来的值不作为事实。
+      // deps 未注入时不覆盖，也不写假值（保持原始条目）。
+      if (!workspace.remoteSessionId || !deps.resolveRemoteWorkspaceConnectionState) {
+        return workspace;
+      }
+      return {
+        ...workspace,
+        connectionState: deps.resolveRemoteWorkspaceConnectionState(workspace.remoteSessionId),
+      };
+    });
+    const closedBridgeId = closeChangedWorkspaceBridge(runtime, previous);
+    if (closedBridgeId) emitStatus(runtime);
+    pushWorkspaceListIfChanged(runtime, deps.logger);
+    if (closedBridgeId)
+      sendAppPayload(
+        runtime,
+        {
+          zcode_type: "bridge-degraded",
+          bridgeSessionId: closedBridgeId,
+          reason: "workspace-scope-changed",
+        },
+        deps.logger,
+      );
+  }
+
   return {
     authorizeStart(windowId, target) {
       return authorizationStore.issue(windowId, target, workspaceKeyOf(target));
@@ -353,36 +386,20 @@ export function createWebRemoteControlManager(
     getStatus(windowId) {
       return currentStatus(windowId);
     },
-    syncWorkspaces(windowId, workspaces) {
-      const runtime = runtimes.get(windowId);
-      if (!runtime) return;
-      const previous = runtime.workspaces.find(
-        (item) => item.workspaceKey === runtime.bridge?.workspaceKey,
-      );
-      runtime.workspaces = workspaces.map((workspace) => {
-        // 带 remoteSessionId 的条目连接态归桌面裁定；UI 传来的值不作为事实。
-        // deps 未注入时不覆盖，也不写假值（保持原始条目）。
-        if (!workspace.remoteSessionId || !deps.resolveRemoteWorkspaceConnectionState) {
-          return workspace;
-        }
-        return {
-          ...workspace,
-          connectionState: deps.resolveRemoteWorkspaceConnectionState(workspace.remoteSessionId),
-        };
-      });
-      const closedBridgeId = closeChangedWorkspaceBridge(runtime, previous);
-      if (closedBridgeId) emitStatus(runtime);
-      pushWorkspaceListIfChanged(runtime, deps.logger);
-      if (closedBridgeId)
-        sendAppPayload(
-          runtime,
-          {
-            zcode_type: "bridge-degraded",
-            bridgeSessionId: closedBridgeId,
-            reason: "workspace-scope-changed",
-          },
-          deps.logger,
+    syncWorkspaces,
+    failRemoteSession(remoteSessionId) {
+      // 关闭事实来自 Main 路由；复用清单同步的唯一 bridge 释放路径，防止重复通知保留旧端口。
+      for (const runtime of runtimes.values()) {
+        if (!runtime.workspaces.some((item) => item.remoteSessionId === remoteSessionId)) continue;
+        syncWorkspaces(
+          runtime.windowId,
+          runtime.workspaces.map((item) =>
+            item.remoteSessionId === remoteSessionId
+              ? { ...item, connectionState: "disconnected" }
+              : item,
+          ),
         );
+      }
     },
     syncTasks(windowId, tasks) {
       const runtime = runtimes.get(windowId);

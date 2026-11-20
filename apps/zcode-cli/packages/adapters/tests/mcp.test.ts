@@ -645,7 +645,7 @@ describe("createMcpAdapter", () => {
         type: "stdio",
       }),
     ).resolves.toMatchObject({
-      error: "MCP error -32000: Connection closed",
+      error: expect.stringContaining("fatal: database refused connection"),
       status: "failed",
     });
 
@@ -668,7 +668,160 @@ describe("createMcpAdapter", () => {
     expect(warnContext.stderr).toContain("Authorization: Bearer [Redacted]");
     expect(warnContext.stderr).not.toContain("super-secret");
     expect(warnContext.stderr).not.toContain("live-token");
+    const status = (await adapter.status())["mysql-local"];
+    expect(status?.error).toContain("MCP error -32000: Connection closed");
+    expect(status?.error).toContain("MYSQL_PASS=[Redacted]");
+    expect(status?.error).not.toContain("super-secret");
+    expect(status?.error).not.toContain("live-token");
+    await adapter.close();
   });
+
+  it.each([
+    ["python", "ModuleNotFoundError: No module named 'mcp'"],
+    ["node", "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'example-mcp'"],
+    ["path", "ENOENT: no such file or directory"],
+    ["permission", "PermissionError: [Errno 13] Permission denied"],
+  ])(
+    "exposes bounded sanitized %s startup evidence without changing failure kind",
+    async (_name, cause) => {
+      clientConnectMock.mockImplementation(async () => {
+        capturedStdioStderrHandlers[0]?.(
+          Buffer.from(
+            "noise".repeat(1_000) +
+              "\n\u001b[31m" +
+              cause +
+              "\u001b[0m\nAPI_TOKEN=fixture-secret\n",
+          ),
+        );
+        throw new Error("Connection closed");
+      });
+      const adapter = createMcpAdapter();
+      try {
+        const status = await adapter.connectServer("broken", { command: "node", type: "stdio" });
+        expect(status).toMatchObject({ status: "failed", failureKind: "process_start_failed" });
+        expect(status.error).toContain(cause);
+        expect(status.error).toContain("Connection closed");
+        expect(status.error).not.toContain("\u001b");
+        expect(status.error).not.toContain("fixture-secret");
+        expect(status.error!.length).toBeLessThanOrEqual(4_520);
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+
+  it("keeps HTTP failures separate from recent stdio stderr", async () => {
+    clientConnectMock.mockRejectedValue(new Error("network unavailable"));
+    const adapter = createMcpAdapter();
+    try {
+      const status = await adapter.connectServer("http-failure", {
+        type: "http",
+        url: "https://example.com/mcp",
+        headers: { Authorization: "Bearer fixture" },
+      });
+      expect(status.error).toBe("network unavailable");
+      expect(status.failureKind).toBe("network_unreachable");
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it("redacts quoted and escaped credential values before exposing stderr", async () => {
+    clientConnectMock.mockImplementation(async () => {
+      capturedStdioStderrHandlers[0]?.(
+        Buffer.from(
+          [
+            'API_TOKEN="first secret with spaces"',
+            String.raw`VE_SPEECH_MCP_TOKEN="second escaped\" secret"`,
+            String.raw`{"access_token":"third escaped\" secret"}`,
+            "ModuleNotFoundError: No module named 'mcp'",
+          ].join("\n"),
+        ),
+      );
+      throw new Error("Connection closed");
+    });
+    const adapter = createMcpAdapter();
+    try {
+      const status = await adapter.connectServer("quoted-secret", {
+        command: "node",
+        type: "stdio",
+      });
+      expect(status.error).toContain("No module named 'mcp'");
+      expect(status.error).not.toContain("secret");
+      expect(status.error).not.toContain("escaped");
+      expect(status.error).not.toContain("spaces");
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it("does not leak a credential whose key name is cut by stderr tail truncation", async () => {
+    clientConnectMock.mockImplementation(async () => {
+      // 构造保留的 4000 字符尾部恰好从键名 VE_SPEECH_MCP_TOKEN 中间的 KEN 开始。
+      const head = "KEN=fixture-secret\nreal failure\n";
+      const tail = `${head}${"y".repeat(4000 - head.length - 1)}\n`;
+      capturedStdioStderrHandlers[0]?.(Buffer.from(`first line\nVE_SPEECH_MCP_TO${tail}`));
+      throw new Error("Connection closed");
+    });
+    const adapter = createMcpAdapter();
+    try {
+      const status = await adapter.connectServer("cut-key", { command: "node", type: "stdio" });
+      expect(status.error).toContain("real failure");
+      expect(status.error).not.toContain("fixture-secret");
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it("keeps stderr after a CR-only boundary when tail truncation cuts a credential key", async () => {
+    clientConnectMock.mockImplementation(async () => {
+      const tail = `KEN=fixture-secret\rreal failure\r${"y".repeat(4100)}\rreal failure`;
+      capturedStdioStderrHandlers[0]?.(Buffer.from(`VE_SPEECH_MCP_TO${tail}`));
+      throw new Error("Connection closed");
+    });
+    const adapter = createMcpAdapter();
+    try {
+      const status = await adapter.connectServer("cr-only", { command: "node", type: "stdio" });
+      expect(status.error).toContain("real failure");
+      expect(status.error).not.toContain("fixture-secret");
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it.each([" ", ",", ";", "&"])(
+    "fails closed when tail truncation cuts a quoted credential containing %j and no newline remains",
+    async (separator) => {
+      const warnMock = vi.fn();
+      const logger = {
+        child: vi.fn(),
+        debug: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: warnMock,
+      };
+      logger.child.mockReturnValue(logger);
+      clientConnectMock.mockImplementation(async () => {
+        // 保留的 4000 字符尾部从 KEN="..." 开始且没有换行，凭证值内含分隔符。
+        const tail = `KEN="fixture${separator}leaked-suffix"`;
+        // 前缀 16 字符 + 4000 字符，保留的尾部正好从 KEN 开始。
+        const input = `VE_SPEECH_MCP_TO${tail}${"y".repeat(4000 - tail.length)}`;
+        capturedStdioStderrHandlers[0]?.(Buffer.from(input));
+        throw new Error("Connection closed");
+      });
+      const adapter = createMcpAdapter({ logger });
+      try {
+        const status = await adapter.connectServer("long-line", { command: "node", type: "stdio" });
+        expect(status.error).toContain("Connection closed");
+        for (const text of [status.error, JSON.stringify(warnMock.mock.calls)]) {
+          expect(text).not.toContain("fixture");
+          expect(text).not.toContain("leaked-suffix");
+        }
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
 
   it("marks the record disconnected and logs recent stderr when the transport closes unexpectedly", async () => {
     const warnMock = vi.fn();

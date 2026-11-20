@@ -16,6 +16,7 @@ import { useDataSyncProviders } from "@/data-sync/app/useDataSyncProviders.js";
 import { DataSyncProvidersOverviewRow } from "@/data-sync/ui/DataSyncProvidersPanel.js";
 import type { DataSyncCategoryView } from "@/data-sync/app/useDataSyncDialog.js";
 import {
+  formatModelOverride,
   formatItemError,
   formatMissingDependencies,
   formatPushError,
@@ -280,8 +281,26 @@ export function CategoryPanel(props: {
                     <span className="mt-0.5 block break-words text-ui-sm text-foreground-subtle">
                       {row.note.kind === "blocked"
                         ? formatMessage({ id: BLOCKED_REASON_MESSAGE_ID[row.note.reason] })
-                        : (row.description ?? "")}
+                        : row.builtInModelOverride
+                          ? formatModelOverride(
+                              formatMessage,
+                              "remoteSync.subagents.builtInModel",
+                              row.builtInModelOverride.source,
+                            )
+                          : (row.description ?? "")}
                     </span>
+                    {row.builtInModelOverride?.target ? (
+                      <span
+                        data-testid={`remote-sync-row-target-model-${row.key}`}
+                        className="mt-0.5 block break-words text-ui-sm text-foreground-subtle"
+                      >
+                        {formatModelOverride(
+                          formatMessage,
+                          "remoteSync.subagents.targetModel",
+                          row.builtInModelOverride.target,
+                        )}
+                      </span>
+                    ) : null}
                     {missingDependencies ? (
                       <span
                         data-testid={`remote-sync-row-hint-${row.key}`}

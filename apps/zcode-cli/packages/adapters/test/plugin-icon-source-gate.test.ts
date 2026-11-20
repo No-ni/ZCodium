@@ -14,7 +14,7 @@ import { createProjectTestFixture } from "../../../../../scripts/ci/project-test
 import { NodeHttpClientAdapter } from "../src/http/index.js";
 import {
   enrichCachedClaudeMarketplaceIcons,
-  writeBundledOfficialMarketplacePartitionSync,
+  writeBundledOfficialMarketplacePartition,
 } from "../src/plugins/index.js";
 
 const OFFICIAL_MARKETPLACE = "zcode-plugins-official";
@@ -49,14 +49,10 @@ function installStrictIconPort(
     }
   }
   syncBuiltinESMExports();
-  t.mock.method(
-    NodeHttpClientAdapter.prototype,
-    "request",
-    async (request: { url: string }) => {
-      requests.push(request.url);
-      return handler(request.url);
-    },
-  );
+  t.mock.method(NodeHttpClientAdapter.prototype, "request", async (request: { url: string }) => {
+    requests.push(request.url);
+    return handler(request.url);
+  });
   t.after(() => {
     t.mock.restoreAll();
     syncBuiltinESMExports();
@@ -92,7 +88,7 @@ async function fixture(t: TestContext, options: { cache?: boolean } = {}): Promi
   const storageRoot = join(root, ".zcodium", "cli", "plugins");
   await mkdir(storageRoot, { recursive: true });
   // 合法当前 bundled manifest：官方 ID 的权威目录来自随包 seed（缺陷复现前置）。
-  writeBundledOfficialMarketplacePartitionSync({
+  await writeBundledOfficialMarketplacePartition({
     storageRoot,
     manifest: {
       name: OFFICIAL_MARKETPLACE,

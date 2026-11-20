@@ -77,9 +77,9 @@ export function isWorkspaceTab(tab: WindowTabState): tab is WorkspaceTabState {
   return tab.kind === "workspace";
 }
 
-export function isWorkspaceTabReadOnly(tab: WindowTabState): tab is WorkspaceTabState & {
-  availability: "unavailable-local-directory";
-} {
+export function isWorkspaceTabReadOnly(
+  tab: WindowTabState,
+): tab is WorkspaceTabState & { availability: "unavailable-local-directory" } {
   return isWorkspaceTab(tab) && tab.availability === "unavailable-local-directory";
 }
 
@@ -210,20 +210,14 @@ function normalizeRestorableWorkspaceTab(
   tab: string | RestorableWorkspaceTab,
 ): RestorableWorkspaceTab {
   if (typeof tab === "string") {
-    return {
-      workspacePath: tab,
-    };
+    return { workspacePath: tab };
   }
 
   return tab;
 }
 
 function createSettingsTab(): SettingsTabState {
-  return {
-    id: SETTINGS_TAB_ID,
-    kind: "settings",
-    label: "settings",
-  };
+  return { id: SETTINGS_TAB_ID, kind: "settings", label: "settings" };
 }
 
 function moveItem<T>(items: readonly T[], fromIndex: number, toIndex: number): T[] {
@@ -596,10 +590,7 @@ export function createTabStore(storage: StorageLike | null | undefined = undefin
       }
 
       const settingsTab = createSettingsTab();
-      set((state) => ({
-        tabs: [...state.tabs, settingsTab],
-        activeTabId: settingsTab.id,
-      }));
+      set((state) => ({ tabs: [...state.tabs, settingsTab], activeTabId: settingsTab.id }));
     },
 
     toggleWorkspaceExpanded: (path: string) => {

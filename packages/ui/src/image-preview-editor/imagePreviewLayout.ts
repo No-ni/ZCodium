@@ -47,3 +47,75 @@ export function toImagePoint(rect: PreviewRect, natural: Size, client: Point): P
     ),
   };
 }
+/** 屏幕坐标已经包含变换；按真实图形边界定位添加按钮。 */
+export function getDrawingAddPosition(
+  drawing: Pick<DOMRect, "left" | "width" | "bottom">,
+  bounds: Pick<DOMRect, "left" | "top" | "width" | "height">,
+  offset: { left: number; top: number },
+  buttonWidth: number,
+) {
+  const halfWidth = buttonWidth / 2;
+  return {
+    left:
+      offset.left +
+      Math.max(
+        halfWidth,
+        Math.min(bounds.width - halfWidth, drawing.left + drawing.width / 2 - bounds.left),
+      ),
+    top: offset.top + Math.max(8, Math.min(bounds.height + 12, drawing.bottom - bounds.top + 12)),
+  };
+}
+
+import type { Annotation } from "./geometry.js";
+
+export function handleImagePreviewKeyboard(
+  event: KeyboardEvent,
+  state: {
+    editing: boolean;
+    saving: boolean;
+    actionBusy: boolean;
+    pendingExit: boolean;
+    selected: string | null;
+    annotations: readonly Annotation[];
+  },
+  actions: {
+    undo: () => void;
+    redo: () => void;
+    commit: (annotations: Annotation[]) => void;
+    clearSelected: () => void;
+  },
+) {
+  if (
+    !state.editing ||
+    state.saving ||
+    state.actionBusy ||
+    state.pendingExit ||
+    (event.target instanceof Element &&
+      event.target.closest("input,textarea,[contenteditable=true]"))
+  )
+    return;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+    event.preventDefault();
+    if (event.shiftKey) actions.redo();
+    else actions.undo();
+  } else if (state.selected && (event.key === "Delete" || event.key === "Backspace")) {
+    event.preventDefault();
+    actions.commit(state.annotations.filter((a) => a.id !== state.selected));
+    actions.clearSelected();
+  }
+}
+
+export function getVisibleImageAnnotations(
+  annotations: readonly Annotation[],
+  draft: Annotation | null,
+  textDraft: Annotation | null,
+  selected: string | null,
+) {
+  const displayed = annotations.map((a) => (draft?.id === a.id ? draft : a));
+  if (draft && !annotations.some((a) => a.id === draft.id)) displayed.push(draft);
+  if (textDraft?.text?.trim()) displayed.push(textDraft);
+  const activeDrawingId = textDraft?.text?.trim()
+    ? textDraft.id
+    : (draft?.id ?? displayed.find((item) => item.id === selected)?.id ?? displayed.at(-1)?.id);
+  return { displayed, activeDrawingId };
+}

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import {
   type PersonalProviderConfigRepository,
@@ -217,10 +218,7 @@ function appendStateRecord(
     ...(previousState?.records ?? []).filter((record) => record.syncId !== result.syncId),
     { syncId: result.syncId, result },
   ];
-  return {
-    schemaVersion: PROVISIONING_SCHEMA_VERSION,
-    records,
-  };
+  return { schemaVersion: PROVISIONING_SCHEMA_VERSION, records };
 }
 
 function writeStateFile(filePath: string, state: ProvisioningStateFile): Promise<void> {

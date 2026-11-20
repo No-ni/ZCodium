@@ -61,12 +61,18 @@ import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
 import {
+  usePluginUiPaneTarget,
   PluginUiLauncherItems,
   PluginUiSidePane,
   SidePaneLauncherRow,
   useMarketPluginUi,
   useOpenPluginUi,
 } from "@/plugin-ui/index.js";
+import {
+  ExtensionLauncherSection,
+  ExtensionLogsPane,
+  ExtensionViewPane,
+} from "@/extension-slots/index.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
 import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySidePane.js";
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
@@ -77,10 +83,7 @@ import {
   SidePaneTabDragOverlay,
   SortableSidePaneTabTrigger,
 } from "@/app-shell/SidePaneTabTrigger.js";
-import {
-  resolveSidePaneTabsOverflow,
-  SIDE_PANE_DEFAULT_EXPANDED_RATIO,
-} from "@/app-shell/sidePaneLayout.js";
+import { resolveSidePaneTabsOverflow } from "@/app-shell/sidePaneLayout.js";
 import {
   resolveAnimatedSidePanePanelLayout,
   resolveOpenTabLauncherItemIds,
@@ -126,12 +129,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-const SIDE_PANE_CONTENT_WIDTH_LOCK_DURATION_MS = 200;
 const PREVIEW_PANE_RESIZE_SETTLE_DELAY_MS = 220;
-type TabsScrollMaskEdges = {
-  left: boolean;
-  right: boolean;
-};
+type TabsScrollMaskEdges = { left: boolean; right: boolean };
 type OpenTabLauncherItem = {
   id: OpenTabLauncherItemId;
   label: string;
@@ -140,10 +139,7 @@ type OpenTabLauncherItem = {
   onOpen: () => void;
 };
 const EMPTY_SIDE_PANE_TABS: WorkspaceSidePaneState["tabs"] = [];
-const EMPTY_TABS_SCROLL_MASK_EDGES: TabsScrollMaskEdges = {
-  left: false,
-  right: false,
-};
+const EMPTY_TABS_SCROLL_MASK_EDGES: TabsScrollMaskEdges = { left: false, right: false };
 
 function SuspendedBrowserSidePaneContent({
   tab,
@@ -236,10 +232,7 @@ function useViewportInlineIntersectionSize<TElement extends HTMLElement>(
 
     update();
     window.addEventListener("resize", scheduleUpdate, { passive: true });
-    window.addEventListener("scroll", scheduleUpdate, {
-      capture: true,
-      passive: true,
-    });
+    window.addEventListener("scroll", scheduleUpdate, { capture: true, passive: true });
 
     const resizeObserver =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleUpdate);
@@ -287,9 +280,7 @@ function useWindowResizeSettling(enabled: boolean) {
     };
 
     window.addEventListener("resize", markSettling, { passive: true });
-    window.visualViewport?.addEventListener("resize", markSettling, {
-      passive: true,
-    });
+    window.visualViewport?.addEventListener("resize", markSettling, { passive: true });
 
     return () => {
       window.removeEventListener("resize", markSettling);
@@ -308,6 +299,7 @@ export function AnimatedSidePanePanel({
   services,
   isDesktop,
   isWindowsDesktop,
+  isMacDesktop,
   isVisible,
   sidePaneState,
   recentClosedSidePaneTabs,
@@ -464,7 +456,15 @@ export function AnimatedSidePanePanel({
   mobileStacked?: boolean;
 }) {
   const onOpenPluginUi = useOpenPluginUi();
-  const { intl } = useZCodeIntl();
+  const pluginUiTarget = usePluginUiPaneTarget({
+    workspacePath: workspaceAbsPath,
+    workspaceIdentity,
+    remoteSessionId: workspaceRemoteSessionId ?? undefined,
+    sessionId: activeTaskId,
+  });
+  const pluginUiWorkspaceKey =
+    pluginUiTarget.workspaceIdentity?.trim() || pluginUiTarget.workspacePath;
+  const { intl, locale } = useZCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const developerToolsEnabled = useDeveloperToolsVisibility();
   const isMobileTextInputViewport = useIsMobileTextInputViewport();
@@ -491,9 +491,13 @@ export function AnimatedSidePanePanel({
       getVisibleSidePaneTabs(tabs, {
         workspaceKey,
         ownerTaskId: sidePaneOwnerId,
+        pluginUiSessionId: pluginUiTarget.sessionId,
+        pluginUiWorkspaceKey,
       }),
-    [sidePaneOwnerId, tabs, workspaceKey],
+    [sidePaneOwnerId, tabs, workspaceKey, pluginUiTarget.sessionId, pluginUiWorkspaceKey],
   );
+  // 「当前对话」与标签栏可见性共用 scope 判定；后台对话的 guest 据此由 main 静音。
+  const currentTaskTabIds = useMemo(() => new Set(visibleTabs.map((tab) => tab.id)), [visibleTabs]);
   const activeTabId = sidePaneState?.activeTabId ?? "";
   const visibleActiveTabId = visibleTabs.some((tab) => tab.id === activeTabId)
     ? activeTabId
@@ -519,7 +523,6 @@ export function AnimatedSidePanePanel({
   const hasVisibleTabs = visibleTabs.length > 0;
   const tabsScrollViewportRef = useRef<HTMLDivElement | null>(null);
   const tabsScrollContentRef = useRef<HTMLDivElement | null>(null);
-  const [lockedContentWidthPx, setLockedContentWidthPx] = useState<number | null>(null);
   const shouldMountContent = shouldMountSidePaneContent(isVisible, tabs);
   const [hasRenderedSidePane, setHasRenderedSidePane] = useState(shouldMountContent);
   const [isTabsOverflowing, setIsTabsOverflowing] = useState(false);
@@ -533,8 +536,6 @@ export function AnimatedSidePanePanel({
     hasRenderedSidePane,
   );
   const isWindowResizeSettling = useWindowResizeSettling(hasRenderedSidePane);
-  const widthUnlockTimerRef = useRef<number | null>(null);
-  const previousIsVisibleRef = useRef(isVisible);
   const panelLayout = resolveAnimatedSidePanePanelLayout({ mobileOverlay });
   const hasReviewTab = visibleTabs.some((tab) => tab.type === "git");
   const canOpenSelectionSideConversation = shouldOfferSelectionSideConversation({
@@ -554,11 +555,7 @@ export function AnimatedSidePanePanel({
     sessionId: activeTaskId,
   });
   const tabDragSensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 4,
-      },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
 
   const handleTabDragStart = (event: DragStartEvent) => {
@@ -579,75 +576,13 @@ export function AnimatedSidePanePanel({
     setDraggingTabId(null);
   };
 
-  const readInitialExpandedContentWidthPx = () => {
-    const panelElement = panelElementRef.current;
-    const panelGroupElement = panelElement?.parentElement;
-    const panelGroupWidthPx = Math.round(panelGroupElement?.getBoundingClientRect().width ?? 0);
-
-    if (!Number.isFinite(panelGroupWidthPx) || panelGroupWidthPx <= 0) {
-      return null;
-    }
-
-    return Math.round(panelGroupWidthPx * SIDE_PANE_DEFAULT_EXPANDED_RATIO);
-  };
-
   useEffect(() => {
     if (shouldMountContent) {
-      // side pane 收起动画原本依赖外层 panel 的 opacity/flex-grow 过渡，
-      // 但这里之前把内容写成 `isVisible && sidePaneState ? ... : null`，
-      // 一收起就会先把 Tabs/Git/Browser 整块卸载，动画还没走完内容就没了。
-      // 改成首次打开后保持挂载，后续收起只隐藏不卸载，这样动画和内部状态都能一起保留。
+      // 收起时不能卸载 Tabs/Git/Browser，否则再次打开会丢失内容状态并重复初始化。
+      // 尺寸过渡期间也保留实例，避免内容先消失、恢复后重复初始化。
       setHasRenderedSidePane(true);
     }
   }, [shouldMountContent]);
-
-  useEffect(() => {
-    const previousIsVisible = previousIsVisibleRef.current;
-    previousIsVisibleRef.current = isVisible;
-
-    if (widthUnlockTimerRef.current !== null) {
-      window.clearTimeout(widthUnlockTimerRef.current);
-      widthUnlockTimerRef.current = null;
-    }
-
-    if (previousIsVisible && !isVisible) {
-      const currentPanelWidthPx = Math.round(
-        panelElementRef.current?.getBoundingClientRect().width ?? 0,
-      );
-      // side pane 收起时内容层会跟着外层 panel 一起参与过渡，
-      // 这里在收起前锁住当前像素宽度，避免内部 Tabs/Git/Browser 先重新排版后再淡出。
-      setLockedContentWidthPx(currentPanelWidthPx > 0 ? currentPanelWidthPx : null);
-      return;
-    }
-
-    if (!previousIsVisible && isVisible) {
-      // 首次展开没有“上一次收起前宽度”可复用，内容会先以 0 宽度参与布局再被撑开。
-      // 这里用 PanelGroup 的真实像素宽度换算默认展开宽度，先给内容层一个接近最终态的锁宽；
-      // 等 200ms 过渡结束后再移除固定宽度，恢复成普通自适应布局。
-      setLockedContentWidthPx(
-        (currentWidthPx) => currentWidthPx ?? readInitialExpandedContentWidthPx(),
-      );
-      widthUnlockTimerRef.current = window.setTimeout(() => {
-        setLockedContentWidthPx(null);
-        widthUnlockTimerRef.current = null;
-      }, SIDE_PANE_CONTENT_WIDTH_LOCK_DURATION_MS);
-    }
-  }, [isVisible, panelElementRef]);
-
-  useEffect(() => {
-    return () => {
-      if (widthUnlockTimerRef.current !== null) {
-        window.clearTimeout(widthUnlockTimerRef.current);
-      }
-    };
-  }, []);
-
-  const lockedContentStyle: CSSProperties | undefined =
-    lockedContentWidthPx !== null
-      ? {
-          width: `${lockedContentWidthPx}px`,
-        }
-      : undefined;
 
   useEffect(() => {
     const viewport = tabsScrollViewportRef.current;
@@ -708,9 +643,7 @@ export function AnimatedSidePanePanel({
     };
 
     updateOverflowState();
-    viewport.addEventListener("scroll", updateOverflowState, {
-      passive: true,
-    });
+    viewport.addEventListener("scroll", updateOverflowState, { passive: true });
 
     if (typeof ResizeObserver === "undefined") {
       window.addEventListener("resize", debouncedUpdate);
@@ -895,8 +828,8 @@ export function AnimatedSidePanePanel({
               />
             ))}
           </div>
-          {/* 空会话暂不支持应用插件，连同分区入口一起隐藏。 */}
-          {activeTaskId ? (
+          {/* 草稿已有真实预热 session；按正式 task 判断会隐藏整个插件入口。 */}
+          {pluginUiTarget.sessionId ? (
             <>
               <div aria-hidden="true" className="my-4 h-px w-24 self-center bg-border" />
               <section className="min-w-0" data-testid="side-pane-ui-recommendations">
@@ -927,10 +860,11 @@ export function AnimatedSidePanePanel({
                 <div className="mt-2 grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
                   {onOpenPluginUi ? (
                     <PluginUiLauncherItems
-                      workspacePath={workspaceAbsPath}
-                      workspaceIdentity={workspaceIdentity}
-                      remoteSessionId={workspaceRemoteSessionId}
-                      sessionId={activeTaskId}
+                      workspacePath={pluginUiTarget.workspacePath}
+                      workspaceIdentity={pluginUiTarget.workspaceIdentity}
+                      remoteSessionId={pluginUiTarget.remoteSessionId ?? undefined}
+                      sessionId={pluginUiTarget.sessionId}
+                      paneId={pluginUiTarget.paneId}
                       onOpenPluginUi={onOpenPluginUi}
                     />
                   ) : null}
@@ -938,6 +872,11 @@ export function AnimatedSidePanePanel({
               </section>
             </>
           ) : null}
+          {/* 扩展分区不依赖会话（docs/plugins/extension-host.md §6）；没有要显示的行时不渲染。 */}
+          <ExtensionLauncherSection
+            workspacePath={pluginUiTarget.workspacePath}
+            workspaceIdentity={pluginUiTarget.workspaceIdentity}
+          />
         </div>
       </div>
     </div>
@@ -949,13 +888,9 @@ export function AnimatedSidePanePanel({
       recentClosedTabs={recentClosedSidePaneTabs}
       labels={{
         title: intl.formatMessage({ id: "sidePane.tabOverview" }),
-        searchPlaceholder: intl.formatMessage({
-          id: "sidePane.searchTabs",
-        }),
+        searchPlaceholder: intl.formatMessage({ id: "sidePane.searchTabs" }),
         openTabs: intl.formatMessage({ id: "sidePane.openTabs" }),
-        recentlyClosedTabs: intl.formatMessage({
-          id: "sidePane.recentlyClosedTabs",
-        }),
+        recentlyClosedTabs: intl.formatMessage({ id: "sidePane.recentlyClosedTabs" }),
         noResults: intl.formatMessage({ id: "sidePane.noTabsFound" }),
         closeTab: (title) => intl.formatMessage({ id: "sidePane.closeTab" }, { title }),
         relativeTime: (timestamp) => formatTaskRelativeTime(timestamp, intl),
@@ -965,31 +900,23 @@ export function AnimatedSidePanePanel({
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
         treemappingTitle: intl.formatMessage({ id: "treemapping.title" }),
         whiteboardTitle: intl.formatMessage({ id: "whiteboard.title" }),
-        modelTrajectoryTitle: intl.formatMessage({
-          id: "modelTrajectory.title",
-        }),
+        modelTrajectoryTitle: intl.formatMessage({ id: "modelTrajectory.title" }),
         newTabTitle: intl.formatMessage({ id: "sidePane.newTab" }),
         pluginMarketTitle: intl.formatMessage({ id: "workspace.openPluginsSettings" }),
-        developerToolsTitle: intl.formatMessage({
-          id: "developerTools.title",
-        }),
-        browserPermissionsTitle: intl.formatMessage({
-          id: "browser.permission.settings",
-        }),
+        developerToolsTitle: intl.formatMessage({ id: "developerTools.title" }),
+        extensionLogsTitle: intl.formatMessage({ id: "extensions.logs.title" }),
+        browserPermissionsTitle: intl.formatMessage({ id: "browser.permission.settings" }),
         terminalTitle: intl.formatMessage({ id: "terminal.title" }),
         subagentTypeLabel: intl.formatMessage({ id: "sidePane.subagent" }),
-        subagentDirectoryTitle: intl.formatMessage({
-          id: "sidePane.subagentDirectory",
-        }),
-        selectionChatTitle: intl.formatMessage({
-          id: "sidePane.selectionChat",
-        }),
+        subagentDirectoryTitle: intl.formatMessage({ id: "sidePane.subagentDirectory" }),
+        selectionChatTitle: intl.formatMessage({ id: "sidePane.selectionChat" }),
         planTitle: intl.formatMessage({ id: "planTool.panel.planTab" }),
         workflowRunTitle: intl.formatMessage({ id: "sidePane.workflowRun" }),
         workflowDirectoryTitle: intl.formatMessage({ id: "sidePane.workflowDirectory" }),
         workflowActorTitle: intl.formatMessage({ id: "sidePane.workflowActor" }),
         workflowScriptTitle: intl.formatMessage({ id: "sidePane.workflowScript" }),
         workflowArtifactTitle: intl.formatMessage({ id: "sidePane.workflowArtifact" }),
+        locale,
       }}
       onActivateTab={activateSidePaneTab}
       onCloseTab={onCloseTab}
@@ -1007,6 +934,12 @@ export function AnimatedSidePanePanel({
       className={cn(
         // 独立外框放在内容层：关闭仍保留 Browser Guest 和 tab 实例，不改变面板持久化边界。
         "h-full overflow-hidden bg-background",
+        // 开关动画期间保持内容展开宽度；截图、完整视图和手机布局仍由各自宿主定尺寸。
+        !mobileOverlay &&
+          !mobileStacked &&
+          !fullView &&
+          !isScreenshotSurfaceActive &&
+          "w-[var(--side-pane-content-width,100%)]",
         !mobileOverlay && frameClassName,
         !mobileOverlay && "border-[0.5px] shadow-xs",
         mobileStacked && "max-md:rounded-none max-md:border-0",
@@ -1018,7 +951,6 @@ export function AnimatedSidePanePanel({
         // 外框只需 z-0 建立自己的层叠上下文，按 DOM 顺序排在停靠层之下。
         fullView && "absolute inset-0 z-0",
       )}
-      style={mobileOverlay || fullView ? undefined : lockedContentStyle}
     >
       <ScopedErrorBoundary
         scope="workspace-side-pane"
@@ -1110,7 +1042,7 @@ export function AnimatedSidePanePanel({
                             strategy={horizontalListSortingStrategy}
                           >
                             {visibleTabs.map((tab) => {
-                              const title = getSidePaneTabTitle(tab, intl.formatMessage);
+                              const title = getSidePaneTabTitle(tab, intl.formatMessage, locale);
                               return (
                                 <SortableSidePaneTabTrigger
                                   key={tab.id}
@@ -1129,9 +1061,7 @@ export function AnimatedSidePanePanel({
                                   closeAllTabsLabel={intl.formatMessage({
                                     id: "sidePane.closeAllTabs",
                                   })}
-                                  diffBadgeLabel={intl.formatMessage({
-                                    id: "diff.title",
-                                  })}
+                                  diffBadgeLabel={intl.formatMessage({ id: "diff.title" })}
                                   isActive={tab.id === contentActiveTabId}
                                   onActivateTab={activateSidePaneTab}
                                   onCloseTab={onCloseTab}
@@ -1149,10 +1079,8 @@ export function AnimatedSidePanePanel({
                         {draggingTab ? (
                           <SidePaneTabDragOverlay
                             tab={draggingTab}
-                            title={getSidePaneTabTitle(draggingTab, intl.formatMessage)}
-                            diffBadgeLabel={intl.formatMessage({
-                              id: "diff.title",
-                            })}
+                            title={getSidePaneTabTitle(draggingTab, intl.formatMessage, locale)}
+                            diffBadgeLabel={intl.formatMessage({ id: "diff.title" })}
                           />
                         ) : null}
                       </DragOverlay>
@@ -1197,12 +1125,17 @@ export function AnimatedSidePanePanel({
                           onOpenPermissionSettings={onOpenBrowserPermissionSettings}
                           isPanelVisible={isVisible}
                           isSelected={tab.id === contentActiveTabId}
-                          isCurrentTask={tab.sessionId === sidePaneOwnerId}
+                          isCurrentTask={currentTaskTabIds.has(tab.id)}
                           screenshotSurfaceRequest={
                             screenshotSurfaceTab?.id === tab.id ? screenshotSurfaceRequest : null
                           }
                           // restoring guest 的完整 history 由 main 在 did-attach 后写入；
                           // renderer 同时消费 initialUrl 会抢先提交导航，使 Chromium 拒绝 restore。
+                          automaticRestoreUrl={
+                            tab.residency === "restoring"
+                              ? (browserRestoreUrls[tab.id] ?? tab.restoreUrl ?? undefined)
+                              : undefined
+                          }
                           initialUrl={
                             tab.residency === "restoring" ? undefined : browserRestoreUrls[tab.id]
                           }
@@ -1264,6 +1197,16 @@ export function AnimatedSidePanePanel({
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onCloseTab={onCloseTab}
                           />
+                        ) : tab.type === "extension-view" ? (
+                          // 实例作用域跟随侧栏当前目标（焦点窗格的会话，草稿为预热会话）。
+                          <ExtensionViewPane
+                            tab={tab}
+                            visible={isVisible && tab.id === contentActiveTabId}
+                            target={pluginUiTarget}
+                            onOpenExternal={onOpenBrowserUrl}
+                          />
+                        ) : tab.type === "extension-logs" ? (
+                          <ExtensionLogsPane visible={isVisible && tab.id === contentActiveTabId} />
                         ) : tab.type === "plan-detail" ? (
                           <PlanDetailSidePane
                             tab={tab}
@@ -1344,7 +1287,7 @@ export function AnimatedSidePanePanel({
                             canOpenLocalFileManager={Boolean(isDesktop)}
                             onNavigate={(source) => onNavigateFileManager(tab.id, source)}
                             onClose={() => onCloseTab(tab.id)}
-                            workspacePath={workspaceAbsPath}
+                            workspacePath={effectiveWorkspacePath}
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onOpenCodeViewer={onOpenCodeViewer}
                             // inactive/窄条/resize 中的 code preview 不应继续让
@@ -1365,7 +1308,7 @@ export function AnimatedSidePanePanel({
                           />
                         ) : tab.type === "git" ? (
                           <GitPane
-                            workspacePath={workspaceAbsPath}
+                            workspacePath={effectiveWorkspacePath}
                             workspaceIdentity={workspaceIdentity}
                             workspaceRemoteSessionId={workspaceRemoteSessionId}
                             gitState={gitState}
@@ -1432,8 +1375,15 @@ export function AnimatedSidePanePanel({
                               ) : null}
                               <PluginStorePage
                                 onCreateTask={onCreateTask}
-                                workspacePath={workspaceAbsPath}
-                                workspaceIdentity={workspaceIdentity}
+                                workspacePath={pluginUiTarget.workspacePath}
+                                workspaceIdentity={pluginUiTarget.workspaceIdentity}
+                                remoteSessionId={pluginUiTarget.remoteSessionId ?? undefined}
+                                sessionId={pluginUiTarget.sessionId}
+                                paneId={pluginUiTarget.paneId}
+                                isDesktop={isDesktop}
+                                isWindowsDesktop={isWindowsDesktop}
+                                isMacDesktop={isMacDesktop}
+                                isWebRemoteControl={mobileOverlay}
                               />
                             </div>
                           </ServiceProvider>
@@ -1470,9 +1420,14 @@ export function AnimatedSidePanePanel({
                             isResidencyRestore={tab.residency === "restoring"}
                             isVisible={isVisible && isBrowserOpen && tab.id === contentActiveTabId}
                             isSelected={tab.id === contentActiveTabId}
-                            isCurrentTask={tab.ownerTaskId === sidePaneOwnerId}
+                            isCurrentTask={currentTaskTabIds.has(tab.id)}
                             // restoring 只挂载不会提交 document 的 bootstrap URL，
                             // 由 main 独占 pageState/URL 恢复事务。
+                            automaticRestoreUrl={
+                              tab.residency === "restoring"
+                                ? (browserRestoreUrls[tab.id] ?? tab.initialUrl)
+                                : undefined
+                            }
                             initialUrl={
                               tab.residency === "restoring"
                                 ? undefined
@@ -1563,7 +1518,7 @@ export function AnimatedSidePanePanel({
         // 收起后禁用面板 resize target，避免用户绕过显式开关从右侧边缘拖出面板。
         disabled={isResizeDisabled}
         className={cn(
-          "!overflow-hidden transition-opacity duration-200 ease-out",
+          "!overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none",
           mobileOverlay &&
             "max-md:!h-full max-md:!w-full max-md:!min-w-0 max-md:!max-w-none max-md:!flex-1 max-md:!basis-auto max-md:border-l",
           mobileStacked &&

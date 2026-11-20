@@ -1,27 +1,30 @@
 import type { ProjectTask as ZCodeTaskMeta } from "@/project-sidebar/contract.js";
-import { memo, useRef, useState } from "react";
+import { memo, useContext, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent, MouseEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { UniqueIdentifier } from "@dnd-kit/core";
 import { isCronTask, isOffPeakTask } from "@zcode/shared";
-import { Cloud, Folder } from "lucide-react";
 import { ContextMenu } from "@/components/ui/context-menu.js";
-import { Tooltip, TooltipContent } from "@/components/ui/tooltip.js";
+import { formatWorktreeLabel } from "@/managed-worktrees/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   deriveTaskLeadingIndicator,
   formatTaskRelativeTime,
+  isTaskRowRenameBlockedTarget,
 } from "@/lib/taskListItemPresentation.js";
-import { getTaskChangeSummary } from "@/lib/taskChangeSummary.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { getTaskListAttention, getTaskListRowActivity } from "@/v4/taskListRowActivity.js";
+import {
+  getTaskListAttention,
+  getTaskListRowActivity,
+  isTaskListRowRunning,
+} from "@/v4/taskListRowActivity.js";
 import { GroupedTaskContextMenuContent } from "@/project-sidebar/grouped/task-context-menu-content.js";
 import { TaskRowContent } from "@/project-sidebar/grouped/TaskRowContent.js";
 import { TaskRowPreview } from "@/project-sidebar/grouped/TaskRowPreview.js";
-import { formatGroupedTaskHoverChangeParts } from "@/project-sidebar/grouped/task-row-tooltip.js";
 import type { TaskGroupMenuItem } from "@/project-sidebar/grouped/types.js";
+import { ProjectTaskListContext } from "@/project-sidebar/ProjectTaskListContext.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
 import { useTaskInteractionAutoResolutionSnooze } from "@/hooks/useTaskInteractionAutoResolutionSnooze.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
@@ -69,6 +72,7 @@ function GroupedTaskRowComponent({
   tooltipsDisabled?: boolean;
 }) {
   const { intl } = useZCodeIntl();
+  const presentation = useContext(ProjectTaskListContext);
   const workspaceActionsDisabled = useOptionalTabStore((state) =>
     isWorkspaceReadOnly(state, task.workspacePath, task.workspaceIdentity),
   );
@@ -109,12 +113,13 @@ function GroupedTaskRowComponent({
     intl.formatMessage({
       id: task.forkedFromTaskId ? "taskList.forkedUntitled" : "taskList.untitled",
     });
-  const taskChangeParts = formatGroupedTaskHoverChangeParts(getTaskChangeSummary(task));
   const taskTimeLabel = formatTaskRelativeTime(task.updatedAt, intl);
   const isTaskCron = isCronTask(task);
   // 月亮身份改为持久 meta 标记判断；off-peak store 反查在任务被删除后会丢失
   // 会话溯源，且让每一行多背一个全局 store 订阅。
   const isTaskOffPeak = isOffPeakTask(task);
+  // worktree 标识只读任务的 worktree 根目录（tasks-index worktree_root，docs/git/worktree.md §3.7）。
+  const worktreeLabel = formatWorktreeLabel(intl, task.worktreeRoot);
   const statusDotClassName =
     leadingIndicator === "error"
       ? "bg-destructive"
@@ -198,10 +203,25 @@ function GroupedTaskRowComponent({
   const handleSelect = () => {
     onSelectTask(task.workspacePath, task.taskId, task.workspaceIdentity);
   };
+  const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
+    // 双击的第二击交给 onDoubleClick 的重命名，避免重复打开任务或重复建立远端连接。
+    if (event.detail > 1) return;
+    handleSelect();
+  };
+  const handleRowDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (workspaceActionsDisabled || dragging || contextMenuOpen) return;
+    if (isHoverNone || event.defaultPrevented) return;
+    if (isTaskRowRenameBlockedTarget(event.target)) return;
+    onStartRenameTask(task);
+  };
+  // 关闭即归档；归档不停止 agent turn，运行中归档后新建的 browser tab 无处可见、无法关闭。
+  const archiveDisabledReason = isTaskListRowRunning(task)
+    ? intl.formatMessage({ id: "taskList.archiveBlockedWhileRunning" })
+    : undefined;
   const handleCloseTask = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (workspaceActionsDisabled) {
+    if (workspaceActionsDisabled || archiveDisabledReason) {
       return;
     }
     onCloseTask(task);
@@ -282,6 +302,8 @@ function GroupedTaskRowComponent({
   const interactiveTaskRow = (
     <TaskRowContent
       tooltipsDisabled={tooltipsDisabled}
+      workspaceLabel={workspaceLabel}
+      remoteSessionId={remoteSessionId}
       rowRef={setTaskRowRef}
       draggable={draggable}
       onSelect={handleSelect}
@@ -320,37 +342,10 @@ function GroupedTaskRowComponent({
   // grouped row 不能用原生 button 承载整行；行内还有菜单、关闭、文件树等 button，外层继续用 role=button，避免嵌套 button 破坏键盘和右键菜单语义。
   return (
     <ContextMenu onOpenChange={setContextMenuOpen}>
-      {tooltipsDisabled ? (
-        // overlay 拖拽时指针下方的真实 row 仍可能被 Radix 识别为 hover，跳过 TooltipTrigger 避免底层 row 或 action 弹出悬浮提示。
-        interactiveTaskRow
-      ) : (
-        <Tooltip>
-          {interactiveTaskRow}
-          <TooltipContent side="right" align="center" sideOffset={6}>
-            {remoteSessionId ? (
-              <Cloud aria-hidden="true" className="size-3.5 shrink-0" />
-            ) : (
-              <Folder aria-hidden="true" className="size-3.5 shrink-0" />
-            )}
-            <span className="min-w-0 max-w-48 truncate">{workspaceLabel}</span>
-            {taskChangeParts.length > 0 ? (
-              <>
-                <span className="text-tooltip-foreground/60">·</span>
-                <span className="inline-flex shrink-0 items-center gap-1">
-                  {taskChangeParts.map((part) => (
-                    <span
-                      key={part}
-                      className={part.startsWith("+") ? "text-diff-added" : "text-diff-removed"}
-                    >
-                      {part}
-                    </span>
-                  ))}
-                </span>
-              </>
-            ) : null}
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {tooltipsDisabled
+        ? // overlay 拖拽时指针下方的真实 row 仍可能被 Radix 识别为 hover，跳过 TooltipTrigger 避免底层 row 或 action 弹出悬浮提示。
+          interactiveTaskRow
+        : interactiveTaskRow}
       {contextMenuOpen ? (
         // 右键菜单内容带 Radix Presence/Portal，拖拽重排时常驻挂载会触发嵌套更新循环；仅在菜单打开时挂载内容，配合路径懒加载避免拖拽过程刷 task path RPC。
         <GroupedTaskContextMenuContent
@@ -375,6 +370,7 @@ function GroupedTaskRowComponent({
           onOpenProviderConfig={() => void handleOpenProviderConfig()}
           onOpenTaskFeedback={() => void handleOpenTaskFeedback()}
           disabledReason={workspaceActionsDisabledReason}
+          archiveDisabledReason={archiveDisabledReason}
         />
       ) : null}
     </ContextMenu>

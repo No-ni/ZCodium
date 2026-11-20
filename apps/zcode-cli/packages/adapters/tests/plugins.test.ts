@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import * as asyncFs from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +13,7 @@ import {
   applyClaudePluginIcons,
   createNodePluginAdapter,
   describeMarketplacePlugin,
-  discoverNodePluginsSync,
+  discoverNodePlugins,
   enrichCachedClaudeMarketplaceIcons,
   installMarketplacePlugin,
   listInstalledPluginRecords,
@@ -23,12 +24,13 @@ import {
   updateMarketplace,
   validateMarketplacePlugin,
   validateMarketplaceSource,
-  writeBundledOfficialMarketplacePartitionSync,
+  writeBundledOfficialMarketplacePartition,
 } from "../src/plugins/index.js";
 import { NodeHttpClientAdapter } from "../src/http/index.js";
 import {
   activateDirectoryAtomically,
   recoverAtomicTargetSync,
+  resolveAtomicReadPath,
   replaceDirectoryAtomically,
 } from "../src/plugins/atomic-directory.js";
 import { createArchiveFetchError } from "../src/plugins/source-errors.js";
@@ -37,11 +39,15 @@ import {
   buildGitHubArchiveUrl,
   parsePublicGitHubRepositoryUrl,
 } from "../src/plugins/github-archive-source.js";
-import { buildMarketplaceGitEnv } from "../src/plugins/marketplace.js";
+import {
+  listInstalledPluginRecordsAsync,
+  buildMarketplaceGitEnv,
+} from "../src/plugins/marketplace.js";
 import { resolveZipPluginSource } from "../src/plugins/zip-source.js";
 import {
   appendPluginSourceCleanupError,
   cleanupPluginSourceBestEffort,
+  PluginMaterialCache,
 } from "../src/plugins/helpers.js";
 import { createNodeCustomCommandAdapter } from "../src/commands/index.js";
 import { createNodeSkillAdapter } from "../src/skills/index.js";
@@ -52,9 +58,24 @@ import {
   ZCODE_NO_PROXY_ENV_KEY,
   ZCODE_TOOL_ENV_PASSTHROUGH_ENV_KEY,
 } from "@zcode/shared";
-import { createProjectTestFixture } from "../../../../../scripts/ci/project-test-sandbox.mjs";
+import {
+  createProjectTestFixture,
+  createProjectTestSymlink,
+} from "../../../../../scripts/ci/project-test-sandbox.mjs";
 
 const execFileAsync = promisify(execFile);
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    readFile: vi.fn(actual.readFile),
+    readdir: vi.fn(actual.readdir),
+    lstat: vi.fn(actual.lstat),
+    stat: vi.fn(actual.stat),
+    realpath: vi.fn(actual.realpath),
+  };
+});
 
 describe("NodePluginAdapter", () => {
   it.each(["known_marketplaces", "installed_plugins"] as const)(
@@ -241,6 +262,740 @@ describe("NodePluginAdapter", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+  it("shares concurrent path checks and reuses their type in Skill scanning", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcode-shared-path-check-"));
+    const file = join(root, "SKILL.md");
+    const cache = new PluginMaterialCache();
+    try {
+      await writeFile(file, "# first");
+      const reader = cache.reader("scope");
+      vi.mocked(asyncFs.stat).mockClear();
+      vi.mocked(asyncFs.realpath).mockClear();
+      await Promise.all(Array.from({ length: 8 }, () => reader.observe(file)));
+      expect(vi.mocked(asyncFs.stat).mock.calls.filter(([path]) => path === file)).toHaveLength(1);
+      expect(vi.mocked(asyncFs.realpath).mock.calls.filter(([path]) => path === file)).toHaveLength(
+        1,
+      );
+      await reader.observe(root);
+      vi.mocked(asyncFs.stat).mockClear();
+      vi.mocked(asyncFs.lstat).mockClear();
+      expect(await reader.skillFiles(root)).toEqual([file]);
+      expect(asyncFs.stat).not.toHaveBeenCalled();
+      expect(asyncFs.lstat).toHaveBeenCalledTimes(2);
+      await writeFile(file, "# changed content");
+      expect(await reader.validate()).toBe(false);
+    } finally {
+      cache.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses directory absence without probing each candidate and detects later creation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcode-directory-absence-"));
+    const cache = new PluginMaterialCache();
+    try {
+      const reader = cache.reader("scope");
+      await reader.directory(root);
+      vi.mocked(asyncFs.stat).mockClear();
+      vi.mocked(asyncFs.realpath).mockClear();
+      for (const name of [
+        ".mcp.json",
+        "hooks/hooks.json",
+        ".claude-plugin/plugin.json",
+        "skills",
+        "agents",
+      ]) {
+        const path = join(root, name);
+        expect(await reader.missing(path)).toBe(true);
+        await expect(reader.json(path)).rejects.toMatchObject({ code: "ENOENT" });
+      }
+      expect(asyncFs.stat).not.toHaveBeenCalled();
+      expect(asyncFs.realpath).not.toHaveBeenCalled();
+      expect(await reader.validate()).toBe(true);
+      expect(vi.mocked(asyncFs.stat).mock.calls.map(([path]) => path)).toEqual([root]);
+      await mkdir(join(root, "hooks"));
+      await writeFile(join(root, "hooks", "hooks.json"), "{}");
+      expect(await reader.validate()).toBe(false);
+      const next = cache.reader("scope");
+      await next.directory(root);
+      expect(await next.json(join(root, "hooks", "hooks.json"))).toEqual({});
+      const moved = `${root}-old`;
+      try {
+        await rename(root, moved);
+        await mkdir(root);
+        expect(await next.validate()).toBe(false);
+        const replaced = cache.reader("scope");
+        await replaced.directory(root);
+        expect(await replaced.missing(join(root, "hooks", "hooks.json"))).toBe(true);
+      } finally {
+        await rm(moved, { recursive: true, force: true });
+      }
+    } finally {
+      cache.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps real checks for case-equivalent and nonstandard directory entries", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcode-directory-case-"));
+    const cache = new PluginMaterialCache();
+    try {
+      await mkdir(join(root, "SKILLS"));
+      const reader = cache.reader("scope");
+      await reader.directory(root);
+      vi.mocked(asyncFs.stat).mockClear();
+      await reader.directoryExists(join(root, "skills"));
+      await reader.missing(join(root, "CUSTOM~1"));
+      expect(vi.mocked(asyncFs.stat).mock.calls.map(([path]) => path)).toEqual([
+        join(root, "skills"),
+        join(root, "CUSTOM~1"),
+      ]);
+      await mkdir(join(root, "技能"));
+      const uncertain = cache.reader("scope");
+      await uncertain.directory(root);
+      vi.mocked(asyncFs.stat).mockClear();
+      await uncertain.missing(join(root, "hooks", "hooks.json"));
+      expect(vi.mocked(asyncFs.stat).mock.calls.map(([path]) => path)).toEqual([
+        join(root, "hooks", "hooks.json"),
+      ]);
+    } finally {
+      cache.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to normal discovery when the plugin root cannot be listed", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcode-root-listing-denied-"));
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const adapter = createNodePluginAdapter({ storageRoot: join(root, "storage") });
+    try {
+      await writePluginManifest(root, { name: "listing-denied", skills: ["./skill"] });
+      await mkdir(join(root, "skill"));
+      await writeFile(join(root, "skill", "SKILL.md"), "---\nname: kept\n---\nbody");
+      vi.mocked(asyncFs.readdir).mockImplementation(async (...args) => {
+        if (args[0] === root) throw Object.assign(new Error("denied"), { code: "EACCES" });
+        return actual.readdir(...args);
+      });
+      const result = await adapter.discoverPlugins({
+        config: { dirs: [root], enabled: true, enabledPlugins: {}, options: {} },
+        env: {},
+        storageRoot: join(root, "storage"),
+        workingDirectory: root,
+      });
+      expect(
+        result.plugins.find((plugin) => plugin.id === "listing-denied@inline")?.skillCount,
+      ).toBe(1);
+      expect(vi.mocked(asyncFs.readdir).mock.calls.some(([path]) => path === root)).toBe(true);
+    } finally {
+      vi.mocked(asyncFs.readdir).mockReset();
+      adapter.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    { skills: ["./entry"], expected: ["entry"] },
+    { skills: "./entry", expected: ["entry"] },
+    { skills: ["./entry", "./entry/child"], expected: ["child", "entry"] },
+    { skills: [], expected: [] },
+    { skills: "./collection", expected: ["collection-item"] },
+    { skills: ["./collection", "./collection/item"], expected: ["collection-item"] },
+    { skills: undefined, expected: ["default"] },
+  ])("uses only declared Skill entries: $skills", async ({ skills, expected }) => {
+    const dir = await mkdtemp(join(tmpdir(), "zcode-declared-skills-"));
+    const root = join(dir, "plugin");
+    const storageRoot = join(dir, "storage");
+    const adapter = createNodePluginAdapter({ storageRoot });
+    try {
+      await writePluginManifest(root, { name: "declared", skills });
+      for (const [path, name] of [
+        ["entry", "entry"],
+        ["entry/child", "child"],
+        ["collection/item", "collection-item"],
+        ["skills/default", "default"],
+      ]) {
+        const skill = join(root, path!);
+        await mkdir(skill, { recursive: true });
+        await writeFile(
+          join(skill, "SKILL.md"),
+          `---\nname: ${name}\ndescription: demo\n---\nbody`,
+        );
+      }
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        vi.mocked(asyncFs.readdir).mockClear();
+        const outcome = await adapter.discoverPlugins({
+          config: { dirs: [root], enabled: true, enabledPlugins: {}, options: {} },
+          env: {},
+          storageRoot,
+          workingDirectory: dir,
+        });
+        const plugin = outcome.plugins.find((item) => item.id === "declared@inline");
+        expect(plugin?.skillCount).toBe(expected.length);
+        expect(componentNames(plugin?.components ?? [], "skill").sort()).toEqual(expected);
+        const standalone = await enumeratePluginComponents(root, { name: "declared", skills });
+        expect(componentNames(standalone, "skill").sort()).toEqual(expected);
+        const runtime = await createNodeSkillAdapter().discoverSkills({
+          roots: outcome.skillRoots,
+          workingDirectory: dir,
+        });
+        expect(runtime.skills.map((skill) => skill.name).sort()).toEqual(expected);
+        // 声明单技能后，不应再枚举附属目录；未声明默认根也不应被补扫。
+        const reads = vi.mocked(asyncFs.readdir).mock.calls.map(([path]) => String(path));
+        expect(reads).not.toContain(join(root, "entry"));
+        if (skills !== undefined) expect(reads).not.toContain(join(root, "skills"));
+      }
+    } finally {
+      adapter.dispose();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("shares each Skill root scan across diagnostics, counts and component metadata", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-scan-reuse-"));
+    const root = join(directory, "plugin");
+    await writePluginManifest(root, { name: "scan-reuse", skills: ["./skills"] });
+    const files = ["first", "second"].map((name) => join(root, "skills", name, "SKILL.md"));
+    for (const path of files) {
+      await mkdir(join(path, ".."), { recursive: true });
+      await writeFile(path, "---\nname: duplicate-name\n---\nbody");
+    }
+    const adapter = createNodePluginAdapter({ storageRoot: join(directory, "storage") });
+    const request = {
+      storageRoot: join(directory, "storage"),
+      workingDirectory: directory,
+      config: {
+        dirs: [root],
+        enabled: true,
+        enabledPlugins: {},
+        options: {},
+        suppressedBuiltins: [],
+      },
+    };
+    try {
+      for (let query = 0; query < 2; query += 1) {
+        vi.mocked(asyncFs.lstat).mockClear();
+        const result = await adapter.discoverPlugins(request);
+        expect(result.plugins[0]?.skillCount).toBe(2);
+        expect(
+          result.plugins[0]?.components.find((group) => group.kind === "skill")?.items,
+        ).toEqual([{ name: "duplicate-name" }]);
+        for (const file of files)
+          expect(
+            vi.mocked(asyncFs.lstat).mock.calls.filter(([path]) => path === file),
+          ).toHaveLength(1);
+      }
+    } finally {
+      adapter.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("avoids reads for missing materials and detects later creation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-missing-material-"));
+    const path = join(directory, "optional.json");
+    const parentFile = join(directory, "not-a-directory");
+    await writeFile(parentFile, "file");
+    const nested = join(parentFile, "child.json");
+    const cache = new PluginMaterialCache();
+    try {
+      const reader = cache.reader("scope");
+      vi.mocked(asyncFs.readFile).mockClear();
+      for (let i = 0; i < 2; i += 1) {
+        await expect(reader.json(path)).rejects.toMatchObject({ code: "ENOENT" });
+        await expect(reader.json(nested)).rejects.toMatchObject({
+          code: process.platform === "win32" ? "ENOENT" : "ENOTDIR",
+        });
+      }
+      expect(
+        vi.mocked(asyncFs.readFile).mock.calls.filter(([file]) => file === path || file === nested),
+      ).toHaveLength(0);
+      expect(await reader.validate()).toBe(true);
+      await writeFile(path, '{"created":true}');
+      expect(await reader.validate()).toBe(false);
+      expect(await cache.reader("scope").json(path)).toEqual({ created: true });
+    } finally {
+      cache.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reads component Markdown concurrently with a four-read owner limit and stable name precedence", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-parallel-markdown-"));
+    const root = join(directory, "plugin");
+    const commandRoot = join(root, "commands");
+    await mkdir(commandRoot, { recursive: true });
+    for (let i = 0; i < 8; i += 1)
+      await writeFile(
+        join(commandRoot, `${i}.md`),
+        `---\nname: ${i < 2 ? "duplicate" : `command-${i}`}\ndescription: file-${i}\n---\nbody`,
+      );
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const first = Promise.withResolvers<void>();
+    const rest = Promise.withResolvers<void>();
+    let active = 0;
+    let peak = 0;
+    let completed = 0;
+    vi.mocked(asyncFs.readFile).mockImplementation(async (...args) => {
+      if (!String(args[0]).startsWith(commandRoot)) return actual.readFile(...args);
+      active += 1;
+      peak = Math.max(peak, active);
+      try {
+        await (String(args[0]).endsWith("0.md") ? first.promise : rest.promise);
+        return await actual.readFile(...args);
+      } finally {
+        active -= 1;
+        completed += 1;
+      }
+    });
+    const cache = new PluginMaterialCache();
+    const reads = ["a", "b"].map((scope) =>
+      enumeratePluginComponents(root, null, {
+        loaded: {
+          id: "parallel@inline",
+          manifest: { name: "parallel" },
+          manifestPath: join(root, ".zcodium-plugin/plugin.json"),
+          rootPath: root,
+          marketplace: "inline",
+          source: "inline",
+          materials: cache.reader(scope),
+        },
+      }),
+    );
+    const done = Promise.all(reads);
+    try {
+      await vi.waitFor(() => expect(active).toBe(4));
+      expect(peak).toBe(4);
+      rest.resolve();
+      await vi.waitFor(() => expect(completed).toBeGreaterThan(0));
+      first.resolve();
+      const results = await done;
+      expect(peak).toBe(4);
+      expect(results[0]).toEqual(results[1]);
+      expect(results[0].find((group) => group.kind === "command")?.items).toEqual([
+        { name: "duplicate", description: "file-0" },
+        ...[2, 3, 4, 5, 6, 7].map((i) => ({ name: `command-${i}`, description: `file-${i}` })),
+      ]);
+    } finally {
+      first.resolve();
+      rest.resolve();
+      await Promise.allSettled(reads);
+      cache.dispose();
+      vi.mocked(asyncFs.readFile).mockReset();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["invalidate", "dispose"] as const)(
+    "does not start queued material IO after %s",
+    async (action) => {
+      const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-read-limit-"));
+      const paths = Array.from({ length: 9 }, (_, i) => join(directory, `${i}.json`));
+      for (const path of paths) await writeFile(path, "{}");
+      const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+      const release = Promise.withResolvers<void>();
+      let started = 0;
+      vi.mocked(asyncFs.readFile).mockImplementation(async (...args) => {
+        if (paths.includes(String(args[0]))) {
+          started += 1;
+          await release.promise;
+        }
+        return actual.readFile(...args);
+      });
+      const cache = new PluginMaterialCache();
+      const reader = cache.reader("scope");
+      const done = Promise.allSettled(paths.map((path) => reader.json(path)));
+      try {
+        await vi.waitFor(() => expect(started).toBe(4));
+        cache[action]();
+        release.resolve();
+        const results = await done;
+        expect(started).toBe(4);
+        for (const result of results) {
+          expect(result.status).toBe("rejected");
+          if (result.status === "rejected")
+            expect(result.reason).toMatchObject(
+              action === "dispose"
+                ? { name: "AbortError" }
+                : { code: "ZCODE_PLUGIN_SOURCES_CHANGED" },
+            );
+        }
+      } finally {
+        release.resolve();
+        await done;
+        cache.dispose();
+        vi.mocked(asyncFs.readFile).mockReset();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("shares concurrent Skill scans without sharing mutable results or link policies", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-scan-policy-"));
+    const root = join(directory, "real");
+    await mkdir(root);
+    const file = join(root, "SKILL.md");
+    await writeFile(file, "# skill");
+    const link = join(directory, "linked");
+    // 测试只在当前项目沙箱的已核验两端建链接，不放宽 Node 写入边界。
+    await createProjectTestSymlink(root, link, "dir");
+    const cache = new PluginMaterialCache();
+    try {
+      const reader = cache.reader("scope");
+      vi.mocked(asyncFs.lstat).mockClear();
+      const [first, second] = await Promise.all([reader.skillFiles(root), reader.skillFiles(root)]);
+      expect(first).toEqual([file]);
+      first.length = 0;
+      expect(second).toEqual([file]);
+      expect(vi.mocked(asyncFs.lstat).mock.calls.filter(([path]) => path === file)).toHaveLength(1);
+      expect(await reader.skillFiles(link)).toEqual([]);
+      expect(await reader.skillFiles(link, true)).toEqual([join(link, "SKILL.md")]);
+      cache.invalidate();
+      await expect(reader.skillFiles(root)).rejects.toMatchObject({
+        code: "ZCODE_PLUGIN_SOURCES_CHANGED",
+      });
+    } finally {
+      cache.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("releases material read slots after IO and parse failures", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-failed-reads-"));
+    const paths = Array.from({ length: 9 }, (_, i) => join(directory, `${i}.json`));
+    for (const path of paths) await writeFile(path, path === paths[4] ? "{" : "{}");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    vi.mocked(asyncFs.readFile).mockImplementation(async (...args) => {
+      if (paths.slice(0, 4).includes(String(args[0])))
+        throw Object.assign(new Error("denied"), { code: "EACCES" });
+      return actual.readFile(...args);
+    });
+    const cache = new PluginMaterialCache();
+    try {
+      const reader = cache.reader("scope");
+      const results = await Promise.allSettled(paths.map((path) => reader.json(path)));
+      expect(results.slice(0, 5).map((result) => result.status)).toEqual(Array(5).fill("rejected"));
+      expect(results.slice(5).map((result) => result.status)).toEqual(Array(4).fill("fulfilled"));
+      vi.mocked(asyncFs.readFile).mockReset();
+      await writeFile(paths[4]!, "{}");
+      expect(await Promise.all(paths.map((path) => cache.reader("scope").json(path)))).toEqual(
+        paths.map(() => ({})),
+      );
+    } finally {
+      cache.dispose();
+      vi.mocked(asyncFs.readFile).mockReset();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses parsed materials across sequential queries but reprojects configuration and isolates scopes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-material-reuse-"));
+    const root = join(directory, "plugin");
+    const storageRoot = join(directory, "storage");
+    await writePluginManifest(root, { name: "material-fixture", version: "1.0.0" });
+    const skillFile = join(root, "skills", "one", "SKILL.md");
+    await mkdir(join(root, "skills", "one"), { recursive: true });
+    await writeFile(skillFile, "---\nname: one\ndescription: first\n---\nbody");
+    const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
+    const sources = new Set([manifestPath, skillFile]);
+    const sourceReads = () =>
+      vi
+        .mocked(asyncFs.readFile)
+        .mock.calls.filter(([path]) => typeof path === "string" && sources.has(path)).length;
+    const adapter = createNodePluginAdapter({ storageRoot });
+    const request = {
+      storageRoot,
+      workingDirectory: directory,
+      workspaceIdentity: "workspace-a",
+      remoteSessionId: "attachment-a",
+      config: {
+        dirs: [root],
+        enabled: true,
+        enabledPlugins: {},
+        options: {},
+        suppressedBuiltins: [],
+      },
+    };
+    try {
+      const first = await adapter.discoverPlugins(request);
+      expect(first.plugins[0]?.name).toBe("material-fixture");
+      first.plugins[0]!.name = "changed-by-caller";
+      vi.mocked(asyncFs.readFile).mockClear();
+      vi.mocked(asyncFs.readdir).mockClear();
+      const second = await adapter.discoverPlugins({
+        ...request,
+        config: { ...request.config, enabledPlugins: { "material-fixture@inline": false } },
+      });
+      expect(second.plugins[0]?.name).toBe("material-fixture");
+      expect(second.plugins[0]?.enabled).toBe(false);
+      expect(sourceReads()).toBe(0);
+      await adapter.discoverPlugins(request);
+      expect(sourceReads()).toBe(0);
+      expect(
+        vi.mocked(asyncFs.readdir).mock.calls.filter(([path]) => path === join(root, "skills")),
+      ).toEqual([]);
+      await adapter.discoverPlugins({ ...request, workspaceIdentity: "workspace-b" });
+      expect(sourceReads()).toBeGreaterThan(0);
+      vi.mocked(asyncFs.readFile).mockClear();
+      await adapter.discoverPlugins({ ...request, remoteSessionId: "attachment-b" });
+      expect(sourceReads()).toBeGreaterThan(0);
+      const before = await asyncFs.stat(manifestPath);
+      await writePluginManifest(root, { name: "material-fixture", version: "2.0.0" });
+      await asyncFs.utimes(manifestPath, before.atime, before.mtime);
+      const refreshed = await adapter.discoverPlugins(request);
+      expect(refreshed.plugins[0]?.version).toBe("2.0.0");
+      await mkdir(join(root, "skills", "two"));
+      await writeFile(join(root, "skills", "two", "SKILL.md"), "---\nname: two\n---\nbody");
+      expect((await adapter.discoverPlugins(request)).plugins[0]?.skillCount).toBe(2);
+    } finally {
+      adapter.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("parses once and returns independent values while validating current file metadata", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-parser-cache-"));
+    const path = join(directory, "data.json");
+    const cache = new PluginMaterialCache();
+    const parse = vi.fn(JSON.parse);
+    await writeFile(path, '{"value":1}');
+    try {
+      const first = await cache.reader("scope").parsed(path, "json", parse);
+      first.value = 9;
+      expect(await cache.reader("scope").parsed(path, "json", parse)).toEqual({ value: 1 });
+      expect(parse).toHaveBeenCalledOnce();
+      cache.invalidate();
+      expect(await cache.reader("scope").parsed(path, "json", parse)).toEqual({ value: 1 });
+      expect(parse).toHaveBeenCalledTimes(2);
+      const inFlight = cache.reader("scope");
+      await inFlight.json(path);
+      await writeFile(path, '{"value":2}');
+      expect(await inFlight.validate()).toBe(false);
+      expect(await cache.reader("scope").json(path)).toEqual({ value: 2 });
+    } finally {
+      cache.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("shares a read without letting one cancelled query abort another", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-shared-material-"));
+    const root = join(directory, "plugin");
+    await writePluginManifest(root, { name: "shared", version: "1.0.0" });
+    const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let reads = 0;
+    vi.mocked(asyncFs.readFile).mockImplementation(async (...args) => {
+      const bytes = await actual.readFile(...args);
+      if (args[0] === manifestPath) {
+        reads += 1;
+        entered.resolve();
+        await release.promise;
+      }
+      return bytes;
+    });
+    const adapter = createNodePluginAdapter({ storageRoot: join(directory, "storage") });
+    const request = {
+      storageRoot: join(directory, "storage"),
+      workingDirectory: directory,
+      config: {
+        dirs: [root],
+        enabled: true,
+        enabledPlugins: {},
+        options: {},
+        suppressedBuiltins: [],
+      },
+    };
+    const controller = new AbortController();
+    const first = adapter.discoverPlugins(request, { signal: controller.signal });
+    const cancelled = expect(first).rejects.toMatchObject({ name: "AbortError" });
+    await entered.promise;
+    const second = adapter.discoverPlugins(request);
+    try {
+      controller.abort();
+      await cancelled;
+      release.resolve();
+      expect((await second).plugins[0]?.name).toBe("shared");
+      expect(reads).toBe(1);
+    } finally {
+      release.resolve();
+      await Promise.allSettled([first, second]);
+      adapter.dispose();
+      vi.mocked(asyncFs.readFile).mockReset();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("discards material read before a source change and rejects new queries after dispose", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-stale-material-"));
+    const root = join(directory, "plugin");
+    await writePluginManifest(root, { name: "changing", version: "1.0.0" });
+    const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let firstRead = true;
+    vi.mocked(asyncFs.readFile).mockImplementation(async (...args) => {
+      const bytes = await actual.readFile(...args);
+      if (args[0] === manifestPath && firstRead) {
+        firstRead = false;
+        entered.resolve();
+        await release.promise;
+      }
+      return bytes;
+    });
+    const adapter = createNodePluginAdapter({ storageRoot: join(directory, "storage") });
+    const request = {
+      storageRoot: join(directory, "storage"),
+      workingDirectory: directory,
+      config: {
+        dirs: [root],
+        enabled: true,
+        enabledPlugins: {},
+        options: {},
+        suppressedBuiltins: [],
+      },
+    };
+    const pending = adapter.discoverPlugins(request);
+    try {
+      await entered.promise;
+      await writePluginManifest(root, { name: "changing", version: "2.0.0" });
+      release.resolve();
+      expect((await pending).plugins[0]?.version).toBe("2.0.0");
+      adapter.dispose();
+      await expect(adapter.discoverPlugins(request)).rejects.toMatchObject({ name: "AbortError" });
+    } finally {
+      release.resolve();
+      await Promise.allSettled([pending]);
+      adapter.dispose();
+      vi.mocked(asyncFs.readFile).mockReset();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["dispose", "invalidate"] as const)(
+    "bounds in-flight %s without publishing a stale result",
+    async (action) => {
+      const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-owner-change-"));
+      const root = join(directory, "plugin");
+      await writePluginManifest(root, { name: "changing", version: "1.0.0" });
+      const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
+      const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+      const adapter = createNodePluginAdapter({ storageRoot: join(directory, "storage") });
+      let reads = 0;
+      vi.mocked(asyncFs.readFile).mockImplementation(async (...args) => {
+        const bytes = await actual.readFile(...args);
+        if (args[0] === manifestPath) {
+          reads += 1;
+          adapter[action]();
+        }
+        return bytes;
+      });
+      try {
+        await expect(
+          adapter.discoverPlugins({
+            storageRoot: join(directory, "storage"),
+            workingDirectory: directory,
+            config: {
+              dirs: [root],
+              enabled: true,
+              enabledPlugins: {},
+              options: {},
+              suppressedBuiltins: [],
+            },
+          }),
+        ).rejects.toMatchObject(
+          action === "dispose" ? { name: "AbortError" } : { code: "ZCODE_PLUGIN_SOURCES_CHANGED" },
+        );
+        expect(reads).toBe(action === "dispose" ? 1 : 3);
+      } finally {
+        adapter.dispose();
+        vi.mocked(asyncFs.readFile).mockReset();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("does not retain parse failures or materials above its byte budget", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-material-budget-"));
+    const path = join(directory, "source.json");
+    const cache = new PluginMaterialCache();
+    try {
+      await writeFile(path, "{");
+      await expect(cache.reader("scope").json(path)).rejects.toBeInstanceOf(SyntaxError);
+      await writeFile(path, '{"ready":true}');
+      expect(await cache.reader("scope").json(path)).toEqual({ ready: true });
+      await writeFile(path, "x".repeat(4 * 1024 * 1024 + 1));
+      const parse = vi.fn((contents: string) => contents.length);
+      await cache.reader("scope").parsed(path, "text", parse);
+      await cache.reader("scope").parsed(path, "text", parse);
+      expect(parse).toHaveBeenCalledTimes(2);
+    } finally {
+      cache.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("waits for asynchronous manifest IO while unrelated work can run and avoids rewriting commands", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "zcode-plugin-async-discovery-"));
+    const root = join(directory, "plugin");
+    await writePluginManifest(root, {
+      name: "async-fixture",
+      version: "1.0.0",
+      commands: { probe: { content: "# probe" } },
+    });
+    const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const originalRead = (
+      await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises")
+    ).readFile;
+    let intercepted = false;
+    const read = vi.spyOn(asyncFs, "readFile").mockImplementation(async (...args) => {
+      if (args[0] === manifestPath) {
+        intercepted = true;
+        entered.resolve();
+        await release.promise;
+      }
+      return originalRead(...args);
+    });
+    const request = {
+      config: {
+        dirs: [root],
+        enabled: true,
+        enabledPlugins: {},
+        options: {},
+        suppressedBuiltins: [],
+      },
+      storageRoot: join(directory, "storage"),
+      workingDirectory: directory,
+    };
+    let settled = false;
+    const pending = discoverNodePlugins(request).finally(() => {
+      settled = true;
+    });
+    try {
+      await Promise.race([entered.promise, pending]);
+      expect(intercepted).toBe(true);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(settled).toBe(false);
+      release.resolve();
+      const outcome = await pending;
+      expect(outcome.plugins.map((plugin) => plugin.name)).toEqual(["async-fixture"]);
+      const commandPath = join(outcome.commandRoots[0]!.path, "probe.md");
+      const first = await asyncFs.stat(commandPath, { bigint: true });
+      await discoverNodePlugins(request);
+      const second = await asyncFs.stat(commandPath, { bigint: true });
+      expect([second.ino, second.mtimeNs]).toEqual([first.ino, first.mtimeNs]);
+    } finally {
+      release.resolve();
+      await pending;
+      read.mockRestore();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("retains the first discovered agent source and rejects paths outside the plugin", async () => {
     const temporaryRoot = await mkdtemp(join(tmpdir(), "zcode-agent-component-source-"));
     const root = join(temporaryRoot, "plugin");
@@ -267,7 +1022,7 @@ describe("NodePluginAdapter", () => {
         join(root, "custom", "other.md"),
         "---\nname: researcher\ndescription: Research\n---\nResearch prompt",
       );
-      const groups = enumeratePluginComponents(root, {
+      const groups = await enumeratePluginComponents(root, {
         name: "fixture",
         agents: ["custom", "agents", "custom", "../outside", join(root, "absolute")],
       });
@@ -276,10 +1031,12 @@ describe("NodePluginAdapter", () => {
         { name: "researcher", description: "Research", path: join(root, "custom", "other.md") },
       ]);
       expect(
-        enumeratePluginComponents(root, {
-          name: "fixture",
-          agents: { reviewer: { description: "Declared" } },
-        }).find((group) => group.kind === "agent")?.items,
+        (
+          await enumeratePluginComponents(root, {
+            name: "fixture",
+            agents: { reviewer: { description: "Declared" } },
+          })
+        ).find((group) => group.kind === "agent")?.items,
       ).toEqual([{ name: "reviewer", description: "Declared" }]);
     } finally {
       await rm(temporaryRoot, { force: true, recursive: true });
@@ -352,21 +1109,14 @@ describe("NodePluginAdapter", () => {
     const proxyRequests: Array<{ token: string | undefined; url: string }> = [];
     const proxy = createServer((request, response) => {
       const url = request.url ?? "";
-      proxyRequests.push({
-        token: request.headers["x-marketplace-token"],
-        url,
-      });
+      proxyRequests.push({ token: request.headers["x-marketplace-token"], url });
       if (url === "http://marketplace.test/marketplace.json") {
-        response.writeHead(302, {
-          location: "http://cdn.test/marketplace-redirect.json",
-        });
+        response.writeHead(302, { location: "http://cdn.test/marketplace-redirect.json" });
         response.end();
         return;
       }
       if (url === "http://cdn.test/marketplace-redirect.json") {
-        response.writeHead(307, {
-          location: "http://cdn.test/marketplace.json",
-        });
+        response.writeHead(307, { location: "http://cdn.test/marketplace.json" });
         response.end();
         return;
       }
@@ -399,25 +1149,13 @@ describe("NodePluginAdapter", () => {
         JSON.stringify({ HTTP_PROXY: await listenServer(proxy) }),
       );
 
-      const updated = await updateMarketplace({
-        marketplace: "proxy-market",
-        storageRoot,
-      });
+      const updated = await updateMarketplace({ marketplace: "proxy-market", storageRoot });
 
       expect(updated.map((record) => record.id)).toEqual(["proxy-market"]);
       expect(proxyRequests).toEqual([
-        {
-          token: "marketplace-secret",
-          url: "http://marketplace.test/marketplace.json",
-        },
-        {
-          token: undefined,
-          url: "http://cdn.test/marketplace-redirect.json",
-        },
-        {
-          token: undefined,
-          url: "http://cdn.test/marketplace.json",
-        },
+        { token: "marketplace-secret", url: "http://marketplace.test/marketplace.json" },
+        { token: undefined, url: "http://cdn.test/marketplace-redirect.json" },
+        { token: undefined, url: "http://cdn.test/marketplace.json" },
       ]);
       expect(loadMarketplaceManifestSync(storageRoot, "proxy-market")?.plugins[0]?.name).toBe(
         "proxied",
@@ -455,7 +1193,7 @@ describe("NodePluginAdapter", () => {
       });
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("QA-BUG-004 network")));
     try {
-      writeBundledOfficialMarketplacePartitionSync({
+      await writeBundledOfficialMarketplacePartition({
         storageRoot,
         manifest: {
           name: "zcode-plugins-official",
@@ -475,9 +1213,7 @@ describe("NodePluginAdapter", () => {
         ),
       ) as { plugins: Array<{ icon?: string }> };
       // 自建来源的相对图标按自建基址解析，不能重写回官方 CDN。
-      expect(enriched.plugins[0]?.icon).toBe(
-        "https://icons.example.invalid/mirror/figma/icon.png",
-      );
+      expect(enriched.plugins[0]?.icon).toBe("https://icons.example.invalid/mirror/figma/icon.png");
     } finally {
       port.mockRestore();
       await rm(dir, { force: true, recursive: true });
@@ -490,7 +1226,7 @@ describe("NodePluginAdapter", () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("QA-BUG-004 network"));
     vi.stubGlobal("fetch", fetchMock);
     try {
-      writeBundledOfficialMarketplacePartitionSync({
+      await writeBundledOfficialMarketplacePartition({
         storageRoot,
         manifest: {
           name: "zcode-plugins-official",
@@ -506,7 +1242,9 @@ describe("NodePluginAdapter", () => {
 
       expect(fetchMock).not.toHaveBeenCalled();
       expect(
-        existsSync(join(storageRoot, "marketplaces", "claude-plugins-official", "marketplace.json")),
+        existsSync(
+          join(storageRoot, "marketplaces", "claude-plugins-official", "marketplace.json"),
+        ),
       ).toBe(false);
       expect(
         await readFile(
@@ -530,7 +1268,7 @@ describe("NodePluginAdapter", () => {
         join(storageRoot, "icon-sources.json"),
         JSON.stringify([{ name: "figma", icon: "figma/icon.png", mimeType: "image/png" }]),
       );
-      writeBundledOfficialMarketplacePartitionSync({
+      await writeBundledOfficialMarketplacePartition({
         storageRoot,
         manifest: {
           name: "zcode-plugins-official",
@@ -564,21 +1302,19 @@ describe("NodePluginAdapter", () => {
       http_proxy: "http://ambient-proxy:8080",
     });
 
-    expect(env).toMatchObject({
-      ALL_PROXY: "http://127.0.0.1:7890",
-      CURL_CA_BUNDLE: "/tmp/root-ca.pem",
-      GIT_SSL_CAINFO: "/tmp/root-ca.pem",
-      HTTPS_PROXY: "http://127.0.0.1:7890",
-      HTTP_PROXY: "http://127.0.0.1:7890",
-      NODE_EXTRA_CA_CERTS: "/tmp/root-ca.pem",
-      NO_PROXY: "localhost,127.0.0.1",
-      PATH: "/usr/bin:/bin",
-      REQUESTS_CA_BUNDLE: "/tmp/root-ca.pem",
-      SSL_CERT_FILE: "/tmp/root-ca.pem",
+    expect(
+      Object.fromEntries(Object.entries(env).map(([key, value]) => [key.toLowerCase(), value])),
+    ).toMatchObject({
       all_proxy: "http://127.0.0.1:7890",
-      http_proxy: "http://127.0.0.1:7890",
+      curl_ca_bundle: "/tmp/root-ca.pem",
+      git_ssl_cainfo: "/tmp/root-ca.pem",
       https_proxy: "http://127.0.0.1:7890",
+      http_proxy: "http://127.0.0.1:7890",
+      node_extra_ca_certs: "/tmp/root-ca.pem",
       no_proxy: "localhost,127.0.0.1",
+      path: "/usr/bin:/bin",
+      requests_ca_bundle: "/tmp/root-ca.pem",
+      ssl_cert_file: "/tmp/root-ca.pem",
     });
   });
 
@@ -606,7 +1342,20 @@ describe("NodePluginAdapter", () => {
         version: "0.1.0",
       });
 
-      const outcome = discoverNodePluginsSync({
+      await writeBundledOfficialMarketplacePartition({
+        storageRoot,
+        manifest: {
+          name: "zcode-plugins-official",
+          plugins: [
+            {
+              name: "document-skills",
+              source: "filesystem",
+              cachePath: join(officialCacheRoot, "document-skills", "0.1.0"),
+            },
+          ],
+        },
+      });
+      const outcome = await discoverNodePlugins({
         config: {
           dirs: [],
           enabled: true,
@@ -639,30 +1388,19 @@ describe("NodePluginAdapter", () => {
 
     try {
       // 真实升级现场会保留旧目录，bundled partition 必须继续只认当前发布版本。
-      await writePluginManifest(staleRoot, {
-        name: "browser-use",
-        version: "0.2.1",
-      });
-      await writePluginManifest(currentRoot, {
-        name: "browser-use",
-        version: "0.4.1",
-      });
-      writeBundledOfficialMarketplacePartitionSync({
+      await writePluginManifest(staleRoot, { name: "browser-use", version: "0.2.1" });
+      await writePluginManifest(currentRoot, { name: "browser-use", version: "0.4.1" });
+      await writeBundledOfficialMarketplacePartition({
         manifest: {
           name: "zcode-plugins-official",
           plugins: [
-            {
-              cachePath: currentRoot,
-              name: "browser-use",
-              source: "filesystem",
-              version: "0.4.1",
-            },
+            { cachePath: currentRoot, name: "browser-use", source: "filesystem", version: "0.4.1" },
           ],
         },
         storageRoot,
       });
 
-      const outcome = discoverNodePluginsSync({
+      const outcome = await discoverNodePlugins({
         config: {
           dirs: [],
           enabled: true,
@@ -677,10 +1415,7 @@ describe("NodePluginAdapter", () => {
 
       expect(
         outcome.plugins.find((plugin) => plugin.id === "browser-use@zcode-plugins-official"),
-      ).toMatchObject({
-        rootPath: currentRoot,
-        version: "0.4.1",
-      });
+      ).toMatchObject({ rootPath: currentRoot, version: "0.4.1" });
       expect(
         outcome.diagnostics.filter(
           (diagnostic) =>
@@ -702,7 +1437,7 @@ describe("NodePluginAdapter", () => {
     try {
       await writePluginManifest(pluginRoot, { name: "skill-creator" });
 
-      const outcome = discoverNodePluginsSync({
+      const outcome = await discoverNodePlugins({
         config: {
           dirs: [pluginRoot],
           enabled: true,
@@ -831,12 +1566,7 @@ describe("NodePluginAdapter", () => {
       ]);
       await writeMarketplaceManifest(marketplaceRoot, {
         name: "lazy-market",
-        plugins: [
-          {
-            name: "hello",
-            source: "./plugins/hello",
-          },
-        ],
+        plugins: [{ name: "hello", source: "./plugins/hello" }],
       });
       await writePluginManifest(pluginRoot, { name: "hello", skills: "skills" }, ".claude-plugin");
       await mkdir(join(pluginRoot, "skills", "hello"), { recursive: true });
@@ -863,6 +1593,59 @@ describe("NodePluginAdapter", () => {
     }
   });
 
+  // 扩展摘要只属于目录（docs/plugins/plugin-publishing.md §4.2）：没有 plugin.json 的条目合成清单时
+  // 必须剔除，否则一份不完整的扩展信息会被当成清单内容。
+  it("strips the catalog extension summary when it synthesizes a manifest", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-synth-extension-summary-"));
+    const storageRoot = join(dir, "storage");
+    const marketplaceRoot = join(dir, "marketplace");
+    const pluginRoot = join(marketplaceRoot, "plugins", "ext-entry");
+
+    try {
+      await writeKnownMarketplaces(storageRoot, [
+        {
+          id: "ext-market",
+          source: { source: "directory", path: marketplaceRoot },
+          name: "ext-market",
+          addedAt: "2026-01-01T00:00:00.000Z",
+          pluginCount: 0,
+        },
+      ]);
+      await writeMarketplaceManifest(marketplaceRoot, {
+        name: "ext-market",
+        plugins: [
+          {
+            name: "ext-entry",
+            source: "./plugins/ext-entry",
+            strict: false,
+            skills: "skills",
+            displayName: "Ext Entry",
+            componentTypes: ["extension"],
+            extensionSummary: { engines: { zcode: "^1.4.0" }, grants: ["sessions.read"] },
+          },
+        ],
+      });
+      await mkdir(join(pluginRoot, "skills", "ext-entry"), { recursive: true });
+      await writeFile(join(pluginRoot, "skills", "ext-entry", "SKILL.md"), "# ext");
+
+      const install = await installMarketplacePlugin({
+        marketplace: "ext-market",
+        name: "ext-entry",
+        storageRoot,
+      });
+      const installPath = install.installed[0]?.installPath;
+      expect(installPath).toBeDefined();
+      const manifest = JSON.parse(
+        await readFile(join(installPath!, ".claude-plugin", "plugin.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect(manifest).toMatchObject({ name: "ext-entry", skills: "skills" });
+      expect(manifest).not.toHaveProperty("extensionSummary");
+      expect(manifest).not.toHaveProperty("displayName");
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
   it("loads Claude-compatible local plugin components", async () => {
     const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-"));
     const pluginRoot = join(dir, "ios-plugin");
@@ -873,12 +1656,7 @@ describe("NodePluginAdapter", () => {
         hooks: "hooks/hooks.json",
         name: "ios-dev",
         skills: "skills",
-        userConfig: {
-          default_device: {
-            default: "iPhone 16",
-            type: "string",
-          },
-        },
+        userConfig: { default_device: { default: "iPhone 16", type: "string" } },
       });
       await mkdir(join(pluginRoot, "skills", "ios-dev"), { recursive: true });
       await mkdir(join(pluginRoot, "skills", "pdf-dev"), { recursive: true });
@@ -895,10 +1673,7 @@ describe("NodePluginAdapter", () => {
               {
                 matcher: "startup",
                 hooks: [
-                  {
-                    type: "command",
-                    command: '"${CLAUDE_PLUGIN_ROOT}/hooks/session-start"',
-                  },
+                  { type: "command", command: '"${CLAUDE_PLUGIN_ROOT}/hooks/session-start"' },
                 ],
               },
             ],
@@ -925,12 +1700,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -965,10 +1735,7 @@ describe("NodePluginAdapter", () => {
       });
       expect(outcome.hooks.SessionStart?.[0]?.hooks[0]).toMatchObject({
         command: '"${CLAUDE_PLUGIN_ROOT}/hooks/session-start"',
-        plugin: {
-          id: "ios-dev@inline",
-          rootPath: pluginRoot,
-        },
+        plugin: { id: "ios-dev@inline", rootPath: pluginRoot },
         type: "command",
       });
 
@@ -988,12 +1755,7 @@ describe("NodePluginAdapter", () => {
       expect(disabledOutcome.hooks).toEqual({});
       expect(disabledOutcome.plugins[0]).toMatchObject({
         enabled: false,
-        hookDetails: [
-          {
-            event: "SessionStart",
-            runnable: true,
-          },
-        ],
+        hookDetails: [{ event: "SessionStart", runnable: true }],
       });
     } finally {
       await rm(dir, { force: true, recursive: true });
@@ -1010,7 +1772,7 @@ describe("NodePluginAdapter", () => {
     try {
       await mkdir(workingDirectory, { recursive: true });
       await writeMarketplaceManifest(marketplaceRoot, {
-        name: "claude-plugins-official",
+        name: "user-claude-fixture",
         plugins: cases.map((fixture) => ({
           name: fixture.name,
           source: `./plugins/${fixture.name}`,
@@ -1020,20 +1782,20 @@ describe("NodePluginAdapter", () => {
         await writeTripletPluginFixture(join(marketplaceRoot, "plugins", fixture.name), fixture);
       }
 
-      // trusted: this fixture legitimately stands up the official catalog from a local dir,
-      // mirroring the internal refresh path; the official-id lock only blocks untrusted adds.
+      // 用户显式选择本地 Claude 兼容目录；保留技能/命令/MCP 格式合同。
+      // 内置 ID 的禁止网络安装由独立守卫覆盖。
       await addMarketplace({
         source: { source: "directory", path: marketplaceRoot },
         storageRoot,
-        trustedId: "claude-plugins-official",
+        trustedId: "user-claude-fixture",
       });
       for (const fixture of cases) {
         const install = await installMarketplacePlugin({
-          marketplace: "claude-plugins-official",
+          marketplace: "user-claude-fixture",
           name: fixture.name,
           storageRoot,
         });
-        expect(install.installed[0]?.id).toBe(`${fixture.name}@claude-plugins-official`);
+        expect(install.installed[0]?.id).toBe(`${fixture.name}@user-claude-fixture`);
       }
 
       const outcome = await createNodePluginAdapter({ storageRoot }).discoverPlugins({
@@ -1041,7 +1803,7 @@ describe("NodePluginAdapter", () => {
           dirs: [],
           enabled: true,
           enabledPlugins: Object.fromEntries(
-            cases.map((fixture) => [`${fixture.name}@claude-plugins-official`, true]),
+            cases.map((fixture) => [`${fixture.name}@user-claude-fixture`, true]),
           ),
           options: {},
         },
@@ -1059,7 +1821,7 @@ describe("NodePluginAdapter", () => {
 
       for (const fixture of cases) {
         const plugin = outcome.plugins.find(
-          (candidate) => candidate.id === `${fixture.name}@claude-plugins-official`,
+          (candidate) => candidate.id === `${fixture.name}@user-claude-fixture`,
         );
         expect(plugin).toMatchObject({
           commandRootCount: 1,
@@ -1076,7 +1838,7 @@ describe("NodePluginAdapter", () => {
           {
             command: "node",
             env: {
-              PLUGIN_DATA: expect.stringContaining(`${fixture.name}@claude-plugins-official`),
+              PLUGIN_DATA: expect.stringContaining(`${fixture.name}@user-claude-fixture`),
               PROJECT_DIR: workingDirectory,
             },
             type: "stdio",
@@ -1130,17 +1892,17 @@ describe("NodePluginAdapter", () => {
     try {
       await mkdir(workingDirectory, { recursive: true });
       await writeMarketplaceManifest(marketplaceRoot, {
-        name: "claude-plugins-official",
+        name: "user-claude-fixture",
         plugins: [{ name: fixture.name, source: `./plugins/${fixture.name}` }],
       });
       await writeTripletPluginFixture(join(marketplaceRoot, "plugins", fixture.name), fixture);
       await addMarketplace({
         source: { source: "directory", path: marketplaceRoot },
         storageRoot,
-        trustedId: "claude-plugins-official",
+        trustedId: "user-claude-fixture",
       });
       await installMarketplacePlugin({
-        marketplace: "claude-plugins-official",
+        marketplace: "user-claude-fixture",
         name: fixture.name,
         storageRoot,
       });
@@ -1150,7 +1912,7 @@ describe("NodePluginAdapter", () => {
           dirs: [],
           enabled: true,
           // 显式停用该插件。
-          enabledPlugins: { "superpowers@claude-plugins-official": false },
+          enabledPlugins: { "superpowers@user-claude-fixture": false },
           options: {},
         },
         env: {},
@@ -1159,7 +1921,7 @@ describe("NodePluginAdapter", () => {
       });
 
       const plugin = outcome.plugins.find(
-        (candidate) => candidate.id === "superpowers@claude-plugins-official",
+        (candidate) => candidate.id === "superpowers@user-claude-fixture",
       );
       expect(plugin?.enabled).toBe(false);
       // 停用：runtime 不注入技能根（skillCount=0、skillRootCount=0）……
@@ -1200,17 +1962,16 @@ describe("NodePluginAdapter", () => {
         );
       }
       // seeded marketplace.json：source 为裸 "filesystem"，并带 cachePath（模拟 bundled-plugins 写入）。
-      await mkdir(marketplaceRoot, { recursive: true });
-      await writeFile(
-        join(marketplaceRoot, "marketplace.json"),
-        JSON.stringify({
+      await writeBundledOfficialMarketplacePartition({
+        storageRoot,
+        manifest: {
           name: "zcode-plugins-official",
           version: 1,
           plugins: [
             { name: "superpowers", version: "5.1.0", source: "filesystem", cachePath: cacheRoot },
           ],
-        }),
-      );
+        },
+      });
 
       const result = await describeMarketplacePlugin({
         marketplace: "zcode-plugins-official",
@@ -1239,24 +2000,13 @@ describe("NodePluginAdapter", () => {
 
     try {
       await writeMarketplaceManifest(marketplaceRoot, {
-        name: "claude-plugins-official",
-        plugins: [
-          {
-            name: "airtable",
-            source: "./plugins/airtable",
-          },
-        ],
+        name: "user-claude-fixture",
+        plugins: [{ name: "airtable", source: "./plugins/airtable" }],
       });
       await writePluginManifest(
         pluginRoot,
         {
-          hooks: {
-            PreToolUse: [
-              {
-                hooks: [{ command: "echo pre", type: "command" }],
-              },
-            ],
-          },
+          hooks: { PreToolUse: [{ hooks: [{ command: "echo pre", type: "command" }] }] },
           name: "airtable",
           skills: "skills",
         },
@@ -1281,32 +2031,21 @@ describe("NodePluginAdapter", () => {
       await writeFile(
         join(pluginRoot, "hooks", "hooks.json"),
         JSON.stringify({
-          hooks: {
-            Stop: [
-              {
-                hooks: [{ command: "echo stop", type: "command" }],
-              },
-            ],
-          },
+          hooks: { Stop: [{ hooks: [{ command: "echo stop", type: "command" }] }] },
         }),
       );
       await writeFile(
         join(pluginRoot, ".mcp.json"),
-        JSON.stringify({
-          airtable: {
-            type: "http",
-            url: "https://mcp.airtable.test/mcp",
-          },
-        }),
+        JSON.stringify({ airtable: { type: "http", url: "https://mcp.airtable.test/mcp" } }),
       );
       await addMarketplace({
         source: { source: "directory", path: marketplaceRoot },
         storageRoot,
-        trustedId: "claude-plugins-official",
+        trustedId: "user-claude-fixture",
       });
 
       const sourceDescribe = await describeMarketplacePlugin({
-        marketplace: "claude-plugins-official",
+        marketplace: "user-claude-fixture",
         name: "airtable",
         storageRoot,
       });
@@ -1318,12 +2057,12 @@ describe("NodePluginAdapter", () => {
       expect(componentNames(sourceDescribe.components, "mcp")).toEqual(["airtable"]);
 
       await installMarketplacePlugin({
-        marketplace: "claude-plugins-official",
+        marketplace: "user-claude-fixture",
         name: "airtable",
         storageRoot,
       });
       const cacheDescribe = await describeMarketplacePlugin({
-        marketplace: "claude-plugins-official",
+        marketplace: "user-claude-fixture",
         name: "airtable",
         storageRoot,
       });
@@ -1334,9 +2073,7 @@ describe("NodePluginAdapter", () => {
         config: {
           dirs: [],
           enabled: true,
-          enabledPlugins: {
-            "airtable@claude-plugins-official": true,
-          },
+          enabledPlugins: { "airtable@user-claude-fixture": true },
           options: {},
         },
         env: {},
@@ -1405,28 +2142,14 @@ describe("NodePluginAdapter", () => {
       await writeMarketplaceManifest(marketplaceRoot, {
         name: "third-party",
         plugins: [
-          {
-            name: "hello",
-            version: "1.2.3",
-            source: "./plugins/hello",
-            dependencies: ["dep"],
-          },
-          {
-            name: "dep",
-            version: "0.1.0",
-            source: "./plugins/dep",
-          },
+          { name: "hello", version: "1.2.3", source: "./plugins/hello", dependencies: ["dep"] },
+          { name: "dep", version: "0.1.0", source: "./plugins/dep" },
         ],
       });
       await writePluginManifest(
         pluginRoot,
         {
-          mcpServers: {
-            local: {
-              command: "node",
-              args: ["${CLAUDE_PLUGIN_ROOT}/server.js"],
-            },
-          },
+          mcpServers: { local: { command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/server.js"] } },
           name: "hello",
           skills: "skills",
         },
@@ -1464,9 +2187,7 @@ describe("NodePluginAdapter", () => {
         config: {
           dirs: [],
           enabled: true,
-          enabledPlugins: {
-            "hello@third-party": true,
-          },
+          enabledPlugins: { "hello@third-party": true },
           options: {},
         },
         env: {},
@@ -1499,10 +2220,7 @@ describe("NodePluginAdapter", () => {
       await execFileAsync("git", ["init"], { cwd: repoRoot });
       await writePluginManifest(
         pluginRoot,
-        {
-          commands: "commands",
-          name: "wrong-name",
-        },
+        { commands: "commands", name: "wrong-name" },
         ".claude-plugin",
       );
       await execFileAsync("git", ["add", "."], { cwd: repoRoot });
@@ -1521,10 +2239,7 @@ describe("NodePluginAdapter", () => {
       );
       await writePluginManifest(
         pluginRoot,
-        {
-          commands: "commands",
-          name: "atomic-agents",
-        },
+        { commands: "commands", name: "atomic-agents" },
         ".claude-plugin",
       );
       await mkdir(join(pluginRoot, "commands"), { recursive: true });
@@ -1548,10 +2263,7 @@ describe("NodePluginAdapter", () => {
       ).stdout.trim();
       await writePluginManifest(
         pluginRoot,
-        {
-          commands: "commands",
-          name: "wrong-name-after-pin",
-        },
+        { commands: "commands", name: "wrong-name-after-pin" },
         ".claude-plugin",
       );
       await execFileAsync("git", ["add", "."], { cwd: repoRoot });
@@ -1602,9 +2314,7 @@ describe("NodePluginAdapter", () => {
         config: {
           dirs: [],
           enabled: true,
-          enabledPlugins: {
-            "atomic-agents@official-like-url-path": true,
-          },
+          enabledPlugins: { "atomic-agents@official-like-url-path": true },
           options: {},
         },
         env: {},
@@ -1667,28 +2377,25 @@ describe("NodePluginAdapter", () => {
       ).stdout.trim();
 
       await writeMarketplaceManifest(marketplaceRoot, {
-        name: "claude-plugins-official",
+        name: "user-claude-fixture",
         plugins: [
-          {
-            name: "superpowers",
-            source: { source: "url", url: repoRoot, sha: pinnedCommit },
-          },
+          { name: "superpowers", source: { source: "url", url: repoRoot, sha: pinnedCommit } },
         ],
       });
 
       await addMarketplace({
         source: { source: "directory", path: marketplaceRoot },
         storageRoot,
-        trustedId: "claude-plugins-official",
+        trustedId: "user-claude-fixture",
       });
       const install = await installMarketplacePlugin({
-        marketplace: "claude-plugins-official",
+        marketplace: "user-claude-fixture",
         name: "superpowers",
         storageRoot,
       });
 
       const record = install.installed.find(
-        (item) => item.id === "superpowers@claude-plugins-official",
+        (item) => item.id === "superpowers@user-claude-fixture",
       );
       expect(record?.version).toBe("6.0.3");
       expect(record?.installPath).toContain(join("superpowers", "6.0.3"));
@@ -1698,7 +2405,7 @@ describe("NodePluginAdapter", () => {
         join(
           storageRoot,
           "cache",
-          "claude-plugins-official",
+          "user-claude-fixture",
           "superpowers",
           "6.0.3",
           ".claude-plugin",
@@ -1725,11 +2432,7 @@ describe("NodePluginAdapter", () => {
       const zipBuffer = createStoredZip([
         {
           path: "cdn-plugin-1.2.3/.claude-plugin/plugin.json",
-          content: JSON.stringify({
-            commands: "commands",
-            name: "cdn-plugin",
-            version: "1.2.3",
-          }),
+          content: JSON.stringify({ commands: "commands", name: "cdn-plugin", version: "1.2.3" }),
         },
         {
           path: "cdn-plugin-1.2.3/commands/deploy.md",
@@ -1796,9 +2499,7 @@ describe("NodePluginAdapter", () => {
         config: {
           dirs: [],
           enabled: true,
-          enabledPlugins: {
-            "cdn-plugin@cdn-market": true,
-          },
+          enabledPlugins: { "cdn-plugin@cdn-market": true },
           options: {},
         },
         env: {},
@@ -1806,9 +2507,7 @@ describe("NodePluginAdapter", () => {
         workingDirectory: dir,
       });
       expect(outcome.plugins.find((plugin) => plugin.id === "cdn-plugin@cdn-market")).toMatchObject(
-        {
-          version: "1.2.3",
-        },
+        { version: "1.2.3" },
       );
       expect(outcome.commandRoots[0]?.path).toContain(join("cdn-plugin", "1.2.3", "commands"));
     } finally {
@@ -1828,11 +2527,7 @@ describe("NodePluginAdapter", () => {
         plugins: [
           {
             name: "invalid-url-plugin",
-            source: {
-              source: "url",
-              type: "zip",
-              sha256: "0".repeat(64),
-            },
+            source: { source: "url", type: "zip", sha256: "0".repeat(64) },
           },
         ],
       });
@@ -1940,6 +2635,94 @@ describe("NodePluginAdapter", () => {
     expect(primaryError.message).toContain("temporary directory is locked");
   });
 
+  it.each([
+    { persistent: false, proxied: true },
+    { persistent: true, proxied: true },
+    { persistent: false, proxied: false },
+    { persistent: true, proxied: false },
+  ])(
+    "retries a reset ZIP connection once ($persistent, proxy=$proxied)",
+    async ({ persistent, proxied }) => {
+      const zipBuffer = createStoredZip([
+        {
+          path: ".claude-plugin/plugin.json",
+          content: JSON.stringify({ name: "reset-zip", version: "1.0.0" }),
+        },
+      ]);
+      let requestCount = 0;
+      const proxy = createServer((request, response) => {
+        requestCount += 1;
+        if (persistent || requestCount === 1) {
+          request.socket.destroy();
+          return;
+        }
+        response.writeHead(200, { "content-type": "application/zip" });
+        response.end(zipBuffer);
+      });
+      let resolved: Awaited<ReturnType<typeof resolveZipPluginSource>> | undefined;
+      try {
+        const proxyBaseUrl = await listenLoopbackServer(proxy);
+        vi.stubEnv(ZCODE_HTTP_PROXY_ENV_KEY, proxied ? proxyBaseUrl : "");
+        vi.stubEnv(ZCODE_TOOL_ENV_PASSTHROUGH_ENV_KEY, "{}");
+        vi.stubEnv(ZCODE_NO_PROXY_ENV_KEY, "");
+        const download = resolveZipPluginSource({
+          sha256: sha256Buffer(zipBuffer),
+          url: proxied ? "http://127.0.0.2/reset.zip" : `${proxyBaseUrl}/reset.zip`,
+        });
+        if (persistent) {
+          await expect(download).rejects.toMatchObject({
+            code: proxied ? "proxy_error" : "network_error",
+          });
+        } else {
+          resolved = await download;
+          expect(
+            JSON.parse(await readFile(join(resolved.path, ".claude-plugin/plugin.json"), "utf8")),
+          ).toEqual({ name: "reset-zip", version: "1.0.0" });
+        }
+        expect(requestCount).toBe(2);
+      } finally {
+        await resolved?.cleanup();
+        await closeServer(proxy);
+      }
+    },
+  );
+
+  it.each(["CERT_HAS_EXPIRED", "ERR_TLS_CERT_ALTNAME_INVALID", "ENOTFOUND"])(
+    "does not retry ZIP failures with code %s",
+    async (code) => {
+      const fetchMock = vi.fn().mockRejectedValue(
+        new TypeError("fetch failed", {
+          cause: Object.assign(new Error("download failed"), { code }),
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(
+        resolveZipPluginSource({
+          sha256: "0".repeat(64),
+          url: "https://cdn.example.com/plugin.zip",
+        }),
+      ).rejects.toMatchObject({ code: "network_error" });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("cancels ZIP download without retrying a reset connection", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn(async () => {
+      controller.abort();
+      throw Object.assign(new Error("connection reset"), { code: "ECONNRESET" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      resolveZipPluginSource({
+        sha256: "0".repeat(64),
+        url: "https://cdn.example.com/plugin.zip",
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: "cancelled" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("downloads a zip through captured user proxy env", async () => {
     const zipBuffer = createStoredZip([
       {
@@ -1965,10 +2748,7 @@ describe("NodePluginAdapter", () => {
       vi.stubEnv(ZCODE_TOOL_ENV_PASSTHROUGH_ENV_KEY, JSON.stringify({ HTTP_PROXY: proxyBaseUrl }));
 
       const sourceUrl = "http://127.0.0.2/captured-proxy.zip";
-      resolved = await resolveZipPluginSource({
-        sha256: sha256Buffer(zipBuffer),
-        url: sourceUrl,
-      });
+      resolved = await resolveZipPluginSource({ sha256: sha256Buffer(zipBuffer), url: sourceUrl });
 
       expect(existsSync(join(resolved.path, ".claude-plugin", "plugin.json"))).toBe(true);
       expect(proxyRequests).toEqual([sourceUrl]);
@@ -2034,10 +2814,7 @@ describe("NodePluginAdapter", () => {
       vi.stubEnv(ZCODE_NO_PROXY_ENV_KEY, "127.0.0.1");
 
       await expect(
-        resolveZipPluginSource({
-          sha256: "0".repeat(64),
-          url: `${originBaseUrl}/redirect.zip`,
-        }),
+        resolveZipPluginSource({ sha256: "0".repeat(64), url: `${originBaseUrl}/redirect.zip` }),
       ).rejects.toThrow(/must be HTTPS/u);
     } finally {
       await closeServer(origin);
@@ -2059,10 +2836,7 @@ describe("NodePluginAdapter", () => {
 
     try {
       const zipBuffer = createStoredZip([
-        {
-          path: "bundle-a/README.md",
-          content: "First top-level directory.",
-        },
+        { path: "bundle-a/README.md", content: "First top-level directory." },
         {
           path: "bundle-b/.claude-plugin/plugin.json",
           content: JSON.stringify({ name: "invalid-root", version: "1.0.0" }),
@@ -2138,11 +2912,7 @@ describe("NodePluginAdapter", () => {
       await addMarketplace({ source: { source: "directory", path: marketplaceRoot }, storageRoot });
 
       await expect(
-        installMarketplacePlugin({
-          marketplace: "bad-zip-market",
-          name: "bad-zip",
-          storageRoot,
-        }),
+        installMarketplacePlugin({ marketplace: "bad-zip-market", name: "bad-zip", storageRoot }),
       ).rejects.toThrow("sha256 mismatch");
       expect(listInstalledPluginRecords(storageRoot)).toEqual([]);
       expect(existsSync(join(storageRoot, "cache", "bad-zip-market", "bad-zip"))).toBe(false);
@@ -2160,10 +2930,7 @@ describe("NodePluginAdapter", () => {
 
     try {
       const zipBuffer = createStoredZip([
-        {
-          path: "../escape.txt",
-          content: "escape",
-        },
+        { path: "../escape.txt", content: "escape" },
         {
           path: ".claude-plugin/plugin.json",
           content: JSON.stringify({ name: "zip-slip", version: "1.0.0" }),
@@ -2189,11 +2956,7 @@ describe("NodePluginAdapter", () => {
       await addMarketplace({ source: { source: "directory", path: marketplaceRoot }, storageRoot });
 
       await expect(
-        installMarketplacePlugin({
-          marketplace: "zip-slip-market",
-          name: "zip-slip",
-          storageRoot,
-        }),
+        installMarketplacePlugin({ marketplace: "zip-slip-market", name: "zip-slip", storageRoot }),
       ).rejects.toThrow(/Unsafe plugin zip path|invalid relative path/u);
       expect(listInstalledPluginRecords(storageRoot)).toEqual([]);
       expect(existsSync(join(storageRoot, "cache", "zip-slip-market", "zip-slip"))).toBe(false);
@@ -2343,11 +3106,7 @@ describe("NodePluginAdapter", () => {
         plugins: [
           {
             name: "lfs-plugin",
-            source: {
-              source: "github",
-              repo: "acme/lfs-plugin",
-              path: "packages/plugin",
-            },
+            source: { source: "github", repo: "acme/lfs-plugin", path: "packages/plugin" },
           },
         ],
       });
@@ -2359,10 +3118,7 @@ describe("NodePluginAdapter", () => {
         "fetch",
         vi.fn(
           async () =>
-            new Response(archive, {
-              headers: { "content-type": "application/zip" },
-              status: 200,
-            }),
+            new Response(archive, { headers: { "content-type": "application/zip" }, status: 200 }),
         ),
       );
 
@@ -2470,10 +3226,7 @@ describe("NodePluginAdapter", () => {
         plugins: [
           {
             name: "private-plugin",
-            source: {
-              source: "git",
-              url: "ssh://git@example.test/private/plugin.git",
-            },
+            source: { source: "git", url: "ssh://git@example.test/private/plugin.git" },
           },
         ],
       });
@@ -2514,7 +3267,9 @@ describe("NodePluginAdapter", () => {
       expect(await updateMarketplace({ marketplace: "credential-market", storageRoot })).toEqual(
         [],
       );
-      const message = loadKnownMarketplacesSync(storageRoot)[0]?.lastRefreshFailure?.message ?? "";
+      const message =
+        loadKnownMarketplacesSync(storageRoot).find((record) => record.id === "credential-market")
+          ?.lastRefreshFailure?.message ?? "";
       expect(message).toContain("https://example.test/plugins.git");
       expect(message).not.toContain("private-user");
       expect(message).not.toContain("private-secret");
@@ -2582,10 +3337,7 @@ describe("NodePluginAdapter", () => {
       await writeMarketplaceManifest(marketplaceRoot, {
         name: "private-github-market",
         plugins: [
-          {
-            name: "private-github",
-            source: { source: "github", repo: "acme/private-github" },
-          },
+          { name: "private-github", source: { source: "github", repo: "acme/private-github" } },
         ],
       });
       await addMarketplace({ source: { source: "directory", path: marketplaceRoot }, storageRoot });
@@ -2729,33 +3481,33 @@ describe("NodePluginAdapter", () => {
     }
   });
 
-  it("keeps the previous Claude settings snapshot when timeout fires during manifest persistence", async () => {
-    vi.useFakeTimers();
+  it("keeps the previous Claude settings snapshot when cancellation arrives during manifest persistence", async () => {
+    const controller = new AbortController();
     const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-claude-settings-timeout-"));
     const storageRoot = join(dir, "storage");
-    const marketplaceRoot = join(storageRoot, "marketplaces", "claude-plugins-official");
+    const marketplaceRoot = join(storageRoot, "marketplaces", "user-settings-fixture");
 
     try {
       await mkdir(marketplaceRoot, { recursive: true });
       await writeFile(
         join(marketplaceRoot, "marketplace.json"),
         JSON.stringify({
-          name: "claude-plugins-official",
+          name: "user-settings-fixture",
           plugins: [{ name: "cached", source: "./cached" }],
         }),
       );
       await writeKnownMarketplaces(storageRoot, [
         {
-          id: "claude-plugins-official",
+          id: "user-settings-fixture",
           source: {
             source: "settings",
             marketplace: {
-              name: "claude-plugins-official",
+              name: "user-settings-fixture",
               plugins: [],
-              raw: { name: "claude-plugins-official", plugins: [] },
+              raw: { name: "user-settings-fixture", plugins: [] },
             },
           },
-          name: "claude-plugins-official",
+          name: "user-settings-fixture",
           addedAt: "2026-01-01T00:00:00.000Z",
           lastUpdated: "2026-01-02T00:00:00.000Z",
           pluginCount: 1,
@@ -2781,13 +3533,13 @@ describe("NodePluginAdapter", () => {
       );
 
       const freshRaw = {
-        name: "claude-plugins-official",
+        name: "user-settings-fixture",
         plugins: [{ name: "fresh", source: "./fresh" }],
         // 回归触发点：旧实现会在序列化 active manifest 时触发 deadline，但仍覆盖旧文件。
         toJSON: () => {
-          vi.advanceTimersByTime(30_000);
+          controller.abort();
           return {
-            name: "claude-plugins-official",
+            name: "user-settings-fixture",
             plugins: [{ name: "fresh", source: "./fresh" }],
           };
         },
@@ -2798,36 +3550,29 @@ describe("NodePluginAdapter", () => {
           source: {
             source: "settings",
             marketplace: {
-              name: "claude-plugins-official",
+              name: "user-settings-fixture",
               plugins: [
-                {
-                  name: "fresh",
-                  source: "./fresh",
-                  raw: { name: "fresh", source: "./fresh" },
-                },
+                { name: "fresh", source: "./fresh", raw: { name: "fresh", source: "./fresh" } },
               ],
               raw: freshRaw,
             },
           },
           storageRoot,
-          trustedId: "claude-plugins-official",
+          trustedId: "user-settings-fixture",
+          signal: controller.signal,
         }),
-      ).rejects.toThrow("30 seconds");
+      ).rejects.toThrow(/cancelled/i);
 
       expect(
-        loadMarketplaceManifestSync(storageRoot, "claude-plugins-official")?.plugins[0]?.name,
+        loadMarketplaceManifestSync(storageRoot, "user-settings-fixture")?.plugins[0]?.name,
       ).toBe("cached");
       expect(
         loadKnownMarketplacesSync(storageRoot).find(
-          (record) => record.id === "claude-plugins-official",
+          (record) => record.id === "user-settings-fixture",
         ),
-      ).toMatchObject({
-        lastUpdated: "2026-01-02T00:00:00.000Z",
-        pluginCount: 1,
-      });
+      ).toMatchObject({ lastUpdated: "2026-01-02T00:00:00.000Z", pluginCount: 1 });
     } finally {
       await rm(dir, { force: true, recursive: true });
-      vi.useRealTimers();
     }
   });
 
@@ -2872,10 +3617,7 @@ describe("NodePluginAdapter", () => {
           if (serializationCount === 2) {
             throw new Error("known state persistence failed");
           }
-          return {
-            name: "settings-market",
-            plugins: [{ name: "fresh", source: "./fresh" }],
-          };
+          return { name: "settings-market", plugins: [{ name: "fresh", source: "./fresh" }] };
         },
       };
 
@@ -2886,11 +3628,7 @@ describe("NodePluginAdapter", () => {
             marketplace: {
               name: "settings-market",
               plugins: [
-                {
-                  name: "fresh",
-                  source: "./fresh",
-                  raw: { name: "fresh", source: "./fresh" },
-                },
+                { name: "fresh", source: "./fresh", raw: { name: "fresh", source: "./fresh" } },
               ],
               raw: freshRaw,
             },
@@ -2904,42 +3642,39 @@ describe("NodePluginAdapter", () => {
       );
       expect(
         loadKnownMarketplacesSync(storageRoot).find((record) => record.id === "settings-market"),
-      ).toMatchObject({
-        lastUpdated: "2026-01-02T00:00:00.000Z",
-        pluginCount: 1,
-      });
+      ).toMatchObject({ lastUpdated: "2026-01-02T00:00:00.000Z", pluginCount: 1 });
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
   });
 
-  it("rolls back Claude manifest and known state when timeout fires during authority persistence", async () => {
-    vi.useFakeTimers();
+  it("rolls back Claude manifest and known state when cancellation arrives during authority persistence", async () => {
+    const controller = new AbortController();
     const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-claude-authority-timeout-"));
     const storageRoot = join(dir, "storage");
-    const marketplaceRoot = join(storageRoot, "marketplaces", "claude-plugins-official");
+    const marketplaceRoot = join(storageRoot, "marketplaces", "user-settings-fixture");
 
     try {
       await mkdir(marketplaceRoot, { recursive: true });
       await writeFile(
         join(marketplaceRoot, "marketplace.json"),
         JSON.stringify({
-          name: "claude-plugins-official",
+          name: "user-settings-fixture",
           plugins: [{ name: "cached", source: "./cached" }],
         }),
       );
       await writeKnownMarketplaces(storageRoot, [
         {
-          id: "claude-plugins-official",
+          id: "user-settings-fixture",
           source: {
             source: "settings",
             marketplace: {
-              name: "claude-plugins-official",
+              name: "user-settings-fixture",
               plugins: [],
-              raw: { name: "claude-plugins-official", plugins: [] },
+              raw: { name: "user-settings-fixture", plugins: [] },
             },
           },
-          name: "claude-plugins-official",
+          name: "user-settings-fixture",
           addedAt: "2026-01-01T00:00:00.000Z",
           lastUpdated: "2026-01-02T00:00:00.000Z",
           pluginCount: 1,
@@ -2966,16 +3701,16 @@ describe("NodePluginAdapter", () => {
 
       let serializationCount = 0;
       const freshRaw = {
-        name: "claude-plugins-official",
+        name: "user-settings-fixture",
         plugins: [{ name: "fresh", source: "./fresh" }],
         toJSON: () => {
           serializationCount += 1;
           // 第一次序列化 staging manifest，第二次序列化 authority state。
           if (serializationCount === 2) {
-            vi.advanceTimersByTime(30_000);
+            controller.abort();
           }
           return {
-            name: "claude-plugins-official",
+            name: "user-settings-fixture",
             plugins: [{ name: "fresh", source: "./fresh" }],
           };
         },
@@ -2986,44 +3721,36 @@ describe("NodePluginAdapter", () => {
           source: {
             source: "settings",
             marketplace: {
-              name: "claude-plugins-official",
+              name: "user-settings-fixture",
               plugins: [
-                {
-                  name: "fresh",
-                  source: "./fresh",
-                  raw: { name: "fresh", source: "./fresh" },
-                },
+                { name: "fresh", source: "./fresh", raw: { name: "fresh", source: "./fresh" } },
               ],
               raw: freshRaw,
             },
           },
           storageRoot,
-          trustedId: "claude-plugins-official",
+          trustedId: "user-settings-fixture",
+          signal: controller.signal,
         }),
-      ).rejects.toThrow("30 seconds");
+      ).rejects.toThrow(/cancelled/i);
 
       expect(
-        loadMarketplaceManifestSync(storageRoot, "claude-plugins-official")?.plugins[0]?.name,
+        loadMarketplaceManifestSync(storageRoot, "user-settings-fixture")?.plugins[0]?.name,
       ).toBe("cached");
       expect(
         loadKnownMarketplacesSync(storageRoot).find(
-          (record) => record.id === "claude-plugins-official",
+          (record) => record.id === "user-settings-fixture",
         ),
-      ).toMatchObject({
-        lastUpdated: "2026-01-02T00:00:00.000Z",
-        pluginCount: 1,
-      });
+      ).toMatchObject({ lastUpdated: "2026-01-02T00:00:00.000Z", pluginCount: 1 });
       expect(
-        existsSync(join(storageRoot, "marketplaces", ".claude-plugins-official.transaction.json")),
+        existsSync(join(storageRoot, "marketplaces", ".user-settings-fixture.transaction.json")),
       ).toBe(false);
     } finally {
       await rm(dir, { force: true, recursive: true });
-      vi.useRealTimers();
     }
   });
 
-  it("fails Claude marketplace refresh after 30 seconds without blocking other markets", async () => {
-    vi.useFakeTimers();
+  it("skips retired official sources while refreshing an explicitly selected personal market", async () => {
     const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-claude-marketplace-timeout-"));
     const storageRoot = join(dir, "storage");
     const claudeSnapshot = join(storageRoot, "marketplaces", "claude-plugins-official");
@@ -3090,33 +3817,22 @@ describe("NodePluginAdapter", () => {
         ),
       );
 
-      const refresh = updateMarketplace({ storageRoot });
-      for (let turn = 0; turn < 10 && vi.mocked(fetch).mock.calls.length === 0; turn += 1) {
-        await Promise.resolve();
-        await vi.advanceTimersByTimeAsync(0);
-      }
-      await vi.advanceTimersByTimeAsync(30_000);
-      const updated = await refresh;
-
+      const before = await readFile(join(claudeSnapshot, "marketplace.json"), "utf8");
+      const updated = await updateMarketplace({ storageRoot });
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
       expect(updated.map((record) => record.id)).toContain("good-market");
       expect(updated.map((record) => record.id)).not.toContain("claude-plugins-official");
-      expect(
-        loadMarketplaceManifestSync(storageRoot, "claude-plugins-official")?.plugins[0]?.name,
-      ).toBe("cached");
+      expect(await readFile(join(claudeSnapshot, "marketplace.json"), "utf8")).toBe(before);
       expect(
         loadKnownMarketplacesSync(storageRoot).find(
           (record) => record.id === "claude-plugins-official",
-        )?.lastRefreshFailure,
-      ).toMatchObject({
-        code: "plugin_archive_fetch_failed",
-        message: expect.stringContaining("30 seconds"),
-      });
+        ),
+      ).toBeUndefined();
       expect(loadMarketplaceManifestSync(storageRoot, "good-market")?.plugins[0]?.name).toBe(
         "good-v2",
       );
     } finally {
       await rm(dir, { force: true, recursive: true });
-      vi.useRealTimers();
     }
   });
 
@@ -3128,10 +3844,7 @@ describe("NodePluginAdapter", () => {
       await writeFile(join(targetPath, "keep.txt"), "v1");
 
       await expect(
-        replaceDirectoryAtomically({
-          sourcePath: join(dir, "missing-source"),
-          targetPath,
-        }),
+        replaceDirectoryAtomically({ sourcePath: join(dir, "missing-source"), targetPath }),
       ).rejects.toThrow();
 
       expect(await readFile(join(targetPath, "keep.txt"), "utf8")).toBe("v1");
@@ -3175,6 +3888,9 @@ describe("NodePluginAdapter", () => {
       await rename(installedPath, join(storageRoot, ".installed_plugins.json.backup"));
       await rename(marketplacePath, join(storageRoot, "marketplaces", ".recover-market.backup"));
 
+      expect(
+        (await listInstalledPluginRecordsAsync(storageRoot)).map((record) => record.id),
+      ).toEqual(["recover-plugin@recover-market"]);
       expect(listInstalledPluginRecords(storageRoot).map((record) => record.id)).toEqual([
         "recover-plugin@recover-market",
       ]);
@@ -3206,6 +3922,9 @@ describe("NodePluginAdapter", () => {
         targetPath,
       });
 
+      expect(
+        await readFile(join(await resolveAtomicReadPath(targetPath), "version.txt"), "utf8"),
+      ).toBe("v1");
       const readablePath = recoverAtomicTargetSync(targetPath);
       expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("v2");
       expect(await readFile(join(readablePath, "version.txt"), "utf8")).toBe("v1");
@@ -3226,6 +3945,7 @@ describe("NodePluginAdapter", () => {
           plugins: [{ cacheTransactionId: committedActivation.transactionId }],
         }),
       );
+      expect(await resolveAtomicReadPath(targetPath)).toBe(targetPath);
       const committedReadablePath = recoverAtomicTargetSync(targetPath);
       expect(await readFile(join(committedReadablePath, "version.txt"), "utf8")).toBe("v2");
       expect(existsSync(join(dir, ".active.backup"))).toBe(true);
@@ -3260,13 +3980,12 @@ describe("NodePluginAdapter", () => {
       });
 
       await expect(
-        activateDirectoryAtomically({
-          authorityPath,
-          sourcePath: secondSourcePath,
-          targetPath,
-        }),
+        activateDirectoryAtomically({ authorityPath, sourcePath: secondSourcePath, targetPath }),
       ).rejects.toThrow("already active");
 
+      expect(
+        await readFile(join(await resolveAtomicReadPath(targetPath), "version.txt"), "utf8"),
+      ).toBe("v1");
       const readablePath = recoverAtomicTargetSync(targetPath);
       expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("v2");
       expect(await readFile(join(readablePath, "version.txt"), "utf8")).toBe("v1");
@@ -3308,12 +4027,9 @@ describe("NodePluginAdapter", () => {
         }),
       );
 
-      await expect(
-        activateDirectoryAtomically({
-          sourcePath,
-          targetPath,
-        }),
-      ).rejects.toThrow("already active");
+      await expect(activateDirectoryAtomically({ sourcePath, targetPath })).rejects.toThrow(
+        "already active",
+      );
 
       expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("v1");
       expect(JSON.parse(await readFile(transactionPath, "utf8"))).toMatchObject({
@@ -3356,8 +4072,11 @@ describe("NodePluginAdapter", () => {
       await writeFile(authorityPath, JSON.stringify({ version: 1, plugins: [] }));
       await writeTransaction();
 
-      recoverAtomicTargetSync(targetPath);
+      // 已死亡事务：读取先按权威代际恢复，再返回稳定 target；未提交 → 回滚到 backup 的 v1。
+      expect(await resolveAtomicReadPath(targetPath)).toBe(targetPath);
       expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("v1");
+      expect(existsSync(backupPath)).toBe(false);
+      expect(existsSync(transactionPath)).toBe(false);
 
       await rm(targetPath, { force: true, recursive: true });
       await mkdir(targetPath, { recursive: true });
@@ -3366,13 +4085,14 @@ describe("NodePluginAdapter", () => {
       await writeFile(join(backupPath, "version.txt"), "v1");
       await writeFile(
         authorityPath,
-        JSON.stringify({
-          version: 1,
-          plugins: [{ cacheTransactionId: transactionId }],
-        }),
+        JSON.stringify({ version: 1, plugins: [{ cacheTransactionId: transactionId }] }),
       );
       await writeTransaction();
 
+      // 已提交 → 保留 target 的 v2，清理 backup。
+      expect(await resolveAtomicReadPath(targetPath)).toBe(targetPath);
+      expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("v2");
+      expect(existsSync(backupPath)).toBe(false);
       recoverAtomicTargetSync(targetPath);
       expect(await readFile(join(targetPath, "version.txt"), "utf8")).toBe("v2");
       expect(existsSync(backupPath)).toBe(false);
@@ -3421,11 +4141,7 @@ describe("NodePluginAdapter", () => {
       await rm(badSource, { force: true, recursive: true });
 
       await expect(
-        installMarketplacePlugin({
-          marketplace: "transaction-market",
-          name: "root",
-          storageRoot,
-        }),
+        installMarketplacePlugin({ marketplace: "transaction-market", name: "root", storageRoot }),
       ).rejects.toThrow(/does not exist/u);
       expect(await readFile(join(goodRecord?.installPath ?? "", "marker.txt"), "utf8")).toBe("v1");
       expect(
@@ -3468,7 +4184,7 @@ describe("NodePluginAdapter", () => {
         "fetch",
         vi.fn(async () => Promise.reject(new Error("offline"))),
       );
-      const outcome = discoverNodePluginsSync({
+      const outcome = await discoverNodePlugins({
         config: {
           dirs: [],
           enabled: true,
@@ -3481,15 +4197,175 @@ describe("NodePluginAdapter", () => {
       });
 
       expect(outcome.plugins).toContainEqual(
-        expect.objectContaining({
-          id: "offline-plugin@offline-cache-market",
-          source: "cache",
-        }),
+        expect.objectContaining({ id: "offline-plugin@offline-cache-market", source: "cache" }),
       );
       expect(outcome.skillRoots).toContainEqual(
         expect.objectContaining({ path: expect.stringContaining(join("offline-plugin", "1.0.0")) }),
       );
     } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  it("recovers a crashed cache replacement before discovery publishes runtime paths", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-crashed-cache-discovery-"));
+    const storageRoot = join(dir, "storage");
+    const marketplaceRoot = join(dir, "marketplace");
+    const pluginRoot = join(marketplaceRoot, "plugins", "crash-plugin");
+    const config = {
+      dirs: [],
+      enabled: true,
+      enabledPlugins: { "crash-plugin@crash-market": true },
+      options: {},
+    };
+
+    try {
+      await writeMarketplaceManifest(marketplaceRoot, {
+        name: "crash-market",
+        plugins: [{ name: "crash-plugin", source: "./plugins/crash-plugin" }],
+      });
+      await writePluginManifest(
+        pluginRoot,
+        { hooks: "hooks/hooks.json", name: "crash-plugin", skills: "skills", version: "1.0.0" },
+        ".claude-plugin",
+      );
+      await mkdir(join(pluginRoot, "skills", "crash"), { recursive: true });
+      await mkdir(join(pluginRoot, "hooks"), { recursive: true });
+      await writeFile(join(pluginRoot, "skills", "crash", "SKILL.md"), "# crash");
+      await writeFile(join(pluginRoot, "hooks", "session-start"), "echo start");
+      await writeFile(
+        join(pluginRoot, "hooks", "hooks.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { command: '"${CLAUDE_PLUGIN_ROOT}/hooks/session-start"', type: "command" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      await addMarketplace({ source: { source: "directory", path: marketplaceRoot }, storageRoot });
+      await installMarketplacePlugin({
+        marketplace: "crash-market",
+        name: "crash-plugin",
+        storageRoot,
+      });
+      const [record] = listInstalledPluginRecords(storageRoot);
+      const cachePath = record!.installPath!;
+      const cacheParent = join(cachePath, "..");
+      const backupPath = join(cacheParent, ".1.0.0.backup");
+      // 模拟替换在 target→backup 之后、staging→target 之前崩溃：target 缺失，只剩 backup 和死亡 owner 的 marker。
+      await rename(cachePath, backupPath);
+      await writeFile(
+        join(cacheParent, ".1.0.0.transaction.json"),
+        JSON.stringify({
+          hadTarget: true,
+          mode: "standalone",
+          ownerId: "dead-owner",
+          ownerPid: 999_999_999,
+          stageName: ".1.0.0.stage-dead",
+          transactionId: "dead-transaction",
+          version: 2,
+        }),
+      );
+
+      const outcome = await discoverNodePlugins({
+        config,
+        env: {},
+        storageRoot,
+        workingDirectory: dir,
+      });
+
+      // 发布给会话的是稳定 target，而不是会被后续恢复改名走的 backup。
+      const skillRoot = outcome.skillRoots.find((root) => root.path.includes("crash-plugin"));
+      expect(skillRoot?.path).toBe(join(cachePath, "skills"));
+      const hook = outcome.hooks.SessionStart?.[0]?.hooks[0];
+      expect(hook).toMatchObject({ plugin: { rootPath: cachePath } });
+      expect(existsSync(backupPath)).toBe(false);
+      expect(existsSync(join(cacheParent, ".1.0.0.transaction.json"))).toBe(false);
+
+      // 会话持有路径期间打开详情，不能再把会话正在用的目录移走。
+      await describeMarketplacePlugin({
+        marketplace: "crash-market",
+        name: "crash-plugin",
+        storageRoot,
+      });
+      expect(await readFile(join(skillRoot!.path, "crash", "SKILL.md"), "utf8")).toBe("# crash");
+      expect(
+        await readFile(
+          join(
+            (hook as { plugin: { rootPath: string } }).plugin.rootPath,
+            "hooks",
+            "session-start",
+          ),
+          "utf8",
+        ),
+      ).toBe("echo start");
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps reading the committed generation of a live replacement during discovery", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-live-cache-discovery-"));
+    const storageRoot = join(dir, "storage");
+    const marketplaceRoot = join(dir, "marketplace");
+    const pluginRoot = join(marketplaceRoot, "plugins", "live-plugin");
+    const nextSource = join(dir, "next-source");
+    let activation: Awaited<ReturnType<typeof activateDirectoryAtomically>> | undefined;
+
+    try {
+      await writeMarketplaceManifest(marketplaceRoot, {
+        name: "live-market",
+        plugins: [{ name: "live-plugin", source: "./plugins/live-plugin" }],
+      });
+      await writePluginManifest(
+        pluginRoot,
+        { name: "live-plugin", skills: "skills", version: "1.0.0" },
+        ".claude-plugin",
+      );
+      await mkdir(join(pluginRoot, "skills", "live"), { recursive: true });
+      await writeFile(join(pluginRoot, "skills", "live", "SKILL.md"), "# v1");
+      await addMarketplace({ source: { source: "directory", path: marketplaceRoot }, storageRoot });
+      await installMarketplacePlugin({
+        marketplace: "live-market",
+        name: "live-plugin",
+        storageRoot,
+      });
+      const [record] = listInstalledPluginRecords(storageRoot);
+      const cachePath = record!.installPath!;
+      await cp(cachePath, nextSource, { recursive: true });
+      await writeFile(join(nextSource, "skills", "live", "SKILL.md"), "# v2");
+
+      // 同进程 writer 已激活但未 finalize：读者不能接管它的 backup。
+      activation = await activateDirectoryAtomically({
+        sourcePath: nextSource,
+        targetPath: cachePath,
+      });
+      const outcome = await discoverNodePlugins({
+        config: {
+          dirs: [],
+          enabled: true,
+          enabledPlugins: { "live-plugin@live-market": true },
+          options: {},
+        },
+        env: {},
+        storageRoot,
+        workingDirectory: dir,
+      });
+
+      const backupPath = join(cachePath, "..", ".1.0.0.backup");
+      const skillRoot = outcome.skillRoots.find((root) => root.path.includes("live-plugin"));
+      expect(skillRoot?.path).toBe(join(backupPath, "skills"));
+      expect(existsSync(backupPath)).toBe(true);
+      await activation.rollback();
+      activation = undefined;
+      expect(await readFile(join(cachePath, "skills", "live", "SKILL.md"), "utf8")).toBe("# v1");
+    } finally {
+      await activation?.rollback().catch(() => {});
       await rm(dir, { force: true, recursive: true });
     }
   });
@@ -3522,12 +4398,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
@@ -3560,33 +4431,16 @@ describe("NodePluginAdapter", () => {
     try {
       await writeMarketplaceManifest(marketplaceRoot, {
         name: "dry-run-market",
-        plugins: [
-          {
-            name: "risky",
-            source: "./plugins/risky",
-          },
-        ],
+        plugins: [{ name: "risky", source: "./plugins/risky" }],
       });
       await writePluginManifest(
         pluginRoot,
         {
           agents: "./agents/risky.md",
           hooks: "./hooks/hooks.json",
-          mcpServers: {
-            risky: {
-              command: "node",
-              env: {
-                TOKEN: "${ZCODE_MISSING_TOKEN}",
-              },
-            },
-          },
+          mcpServers: { risky: { command: "node", env: { TOKEN: "${ZCODE_MISSING_TOKEN}" } } },
           name: "risky",
-          userConfig: {
-            api_key: {
-              sensitive: true,
-              type: "string",
-            },
-          },
+          userConfig: { api_key: { sensitive: true, type: "string" } },
         },
         ".claude-plugin",
       );
@@ -3627,18 +4481,12 @@ describe("NodePluginAdapter", () => {
               sha: "abc123",
             },
           },
-          {
-            name: "local-risky",
-            source: "./plugins/local-risky",
-          },
+          { name: "local-risky", source: "./plugins/local-risky" },
         ],
       });
       await writePluginManifest(
         localRoot,
-        {
-          hooks: "hooks/hooks.json",
-          name: "local-risky",
-        },
+        { hooks: "hooks/hooks.json", name: "local-risky" },
         ".claude-plugin",
       );
 
@@ -3680,32 +4528,18 @@ describe("NodePluginAdapter", () => {
     try {
       await writeMarketplaceManifest(marketplaceRoot, {
         name: "hook-market",
-        plugins: [
-          {
-            name: "hooked",
-            source: "./plugins/hooked",
-          },
-        ],
+        plugins: [{ name: "hooked", source: "./plugins/hooked" }],
       });
       await writePluginManifest(
         pluginRoot,
-        {
-          hooks: "hooks/hooks.json",
-          name: "hooked",
-        },
+        { hooks: "hooks/hooks.json", name: "hooked" },
         ".claude-plugin",
       );
       await mkdir(join(pluginRoot, "hooks"), { recursive: true });
       await writeFile(
         join(pluginRoot, "hooks", "hooks.json"),
         JSON.stringify({
-          hooks: {
-            SessionStart: [
-              {
-                hooks: [{ command: "echo hooked", type: "command" }],
-              },
-            ],
-          },
+          hooks: { SessionStart: [{ hooks: [{ command: "echo hooked", type: "command" }] }] },
         }),
       );
       await addMarketplace({ source: { source: "directory", path: marketplaceRoot }, storageRoot });
@@ -3715,9 +4549,7 @@ describe("NodePluginAdapter", () => {
         config: {
           dirs: [],
           enabled: true,
-          enabledPlugins: {
-            "hooked@hook-market": true,
-          },
+          enabledPlugins: { "hooked@hook-market": true },
           options: {},
         },
         env: {},
@@ -3727,12 +4559,7 @@ describe("NodePluginAdapter", () => {
       // 三方 marketplace 插件 hook 现在默认放行（与内置/官方一致）。
       expect(outcome.hooks.SessionStart).toBeDefined();
       expect(outcome.plugins[0]?.hookDetails).toMatchObject([
-        {
-          command: "echo hooked",
-          event: "SessionStart",
-          runnable: true,
-          type: "command",
-        },
+        { command: "echo hooked", event: "SessionStart", runnable: true, type: "command" },
       ]);
       expect(outcome.diagnostics).not.toContainEqual(
         expect.objectContaining({
@@ -3753,13 +4580,8 @@ describe("NodePluginAdapter", () => {
 
     try {
       await writeMarketplaceManifest(marketplaceRoot, {
-        name: "claude-plugins-official",
-        plugins: [
-          {
-            name: "hookify",
-            source: "./plugins/hookify",
-          },
-        ],
+        name: "user-claude-fixture",
+        plugins: [{ name: "hookify", source: "./plugins/hookify" }],
       });
       await writePluginManifest(pluginRoot, { name: "hookify" }, ".claude-plugin");
       await mkdir(join(pluginRoot, "hooks"), { recursive: true });
@@ -3783,10 +4605,10 @@ describe("NodePluginAdapter", () => {
       await addMarketplace({
         source: { source: "directory", path: marketplaceRoot },
         storageRoot,
-        trustedId: "claude-plugins-official",
+        trustedId: "user-claude-fixture",
       });
       await installMarketplacePlugin({
-        marketplace: "claude-plugins-official",
+        marketplace: "user-claude-fixture",
         name: "hookify",
         storageRoot,
       });
@@ -3795,9 +4617,7 @@ describe("NodePluginAdapter", () => {
         config: {
           dirs: [],
           enabled: true,
-          enabledPlugins: {
-            "hookify@claude-plugins-official": true,
-          },
+          enabledPlugins: { "hookify@user-claude-fixture": true },
           options: {},
         },
         env: {},
@@ -3807,7 +4627,7 @@ describe("NodePluginAdapter", () => {
       expect(outcome.hooks.PreToolUse?.[0]?.hooks[0]).toMatchObject({
         command: 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse.py"',
         plugin: {
-          id: "hookify@claude-plugins-official",
+          id: "hookify@user-claude-fixture",
           rootPath: expect.stringContaining(join("hookify", "0.0.0")),
         },
         type: "command",
@@ -3823,7 +4643,7 @@ describe("NodePluginAdapter", () => {
       expect(outcome.diagnostics).not.toContainEqual(
         expect.objectContaining({
           code: "plugin_unsupported_component",
-          pluginId: "hookify@claude-plugins-official",
+          pluginId: "hookify@user-claude-fixture",
         }),
       );
     } finally {
@@ -3837,26 +4657,14 @@ describe("NodePluginAdapter", () => {
 
     try {
       await writePluginManifest(pluginRoot, {
-        mcpServers: {
-          local: {
-            command: "node",
-            env: {
-              TOKEN: "${ZCODE_PLUGIN_TOKEN}",
-            },
-          },
-        },
+        mcpServers: { local: { command: "node", env: { TOKEN: "${ZCODE_PLUGIN_TOKEN}" } } },
         name: "env-plugin",
       });
 
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
@@ -3882,16 +4690,12 @@ describe("NodePluginAdapter", () => {
           local: {
             command: "node",
             args: ["${TOKEN_PLAN_API_TOKEN}"],
-            env: {
-              AUTHORIZATION: "Bearer ${TOKEN_PLAN_API_TOKEN}",
-            },
+            env: { AUTHORIZATION: "Bearer ${TOKEN_PLAN_API_TOKEN}" },
           },
           remote: {
             type: "http",
             url: "https://mcp.example.test/${TOKEN_PLAN_API_TOKEN}",
-            headers: {
-              Authorization: "Bearer ${TOKEN_PLAN_API_TOKEN}",
-            },
+            headers: { Authorization: "Bearer ${TOKEN_PLAN_API_TOKEN}" },
           },
         },
         name: "secret-env-plugin",
@@ -3900,29 +4704,18 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
-        env: {
-          TOKEN_PLAN_API_TOKEN: "secret-from-process-env",
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
+        env: { TOKEN_PLAN_API_TOKEN: "secret-from-process-env" },
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
       });
 
       expect(outcome.mcpServers["plugin:secret-env-plugin:local"]).toMatchObject({
         args: ["${TOKEN_PLAN_API_TOKEN}"],
-        env: {
-          AUTHORIZATION: "Bearer secret-from-process-env",
-        },
+        env: { AUTHORIZATION: "Bearer secret-from-process-env" },
       });
       expect(outcome.mcpServers["plugin:secret-env-plugin:remote"]).toMatchObject({
-        headers: {
-          Authorization: "Bearer secret-from-process-env",
-        },
+        headers: { Authorization: "Bearer secret-from-process-env" },
         url: "https://mcp.example.test/${TOKEN_PLAN_API_TOKEN}",
       });
       expect(outcome.diagnostics).not.toContainEqual(
@@ -3939,26 +4732,14 @@ describe("NodePluginAdapter", () => {
 
     try {
       await writePluginManifest(pluginRoot, {
-        mcpServers: {
-          local: {
-            command: "node",
-            env: {
-              TOKEN: "${TOKEN_PLAN_API_TOKEN}",
-            },
-          },
-        },
+        mcpServers: { local: { command: "node", env: { TOKEN: "${TOKEN_PLAN_API_TOKEN}" } } },
         name: "missing-secret-env-plugin",
       });
 
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
@@ -3983,16 +4764,8 @@ describe("NodePluginAdapter", () => {
     try {
       await writePluginManifest(pluginRoot, {
         mcpServers: {
-          skillContext: {
-            command: "node",
-            args: ["${CLAUDE_SKILL_DIR}/server.js"],
-          },
-          sessionContext: {
-            command: "node",
-            env: {
-              SESSION_ID: "${CLAUDE_SESSION_ID}",
-            },
-          },
+          skillContext: { command: "node", args: ["${CLAUDE_SKILL_DIR}/server.js"] },
+          sessionContext: { command: "node", env: { SESSION_ID: "${CLAUDE_SESSION_ID}" } },
         },
         name: "missing-context-plugin",
       });
@@ -4000,12 +4773,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
@@ -4041,12 +4809,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
@@ -4073,12 +4836,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: dir,
@@ -4197,12 +4955,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -4210,9 +4963,8 @@ describe("NodePluginAdapter", () => {
 
       const plugin = outcome.plugins.find((item) => item.id === "mattpocock-skills@inline");
       expect(plugin).toBeDefined();
-      // 每个数组项命中且只命中该技能；skills/ 目录存在还会注册默认根（3 个根），
-      // 但默认根的子目录（engineering/productivity）下无 SKILL.md，不会产生重复计数。
-      expect(plugin).toMatchObject({ skillCount: 2, skillRootCount: 3 });
+      // 显式声明后只注册声明入口，不补扫默认 skills/。
+      expect(plugin).toMatchObject({ skillCount: 2, skillRootCount: 2 });
       const skillNames = componentNames(plugin?.components ?? [], "skill").sort();
       expect(skillNames).toEqual(["tdd", "writing"]);
 
@@ -4261,12 +5013,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -4293,9 +5040,7 @@ describe("NodePluginAdapter", () => {
     }
   });
 
-  // 跨根去重：声明项（根自身即技能）与默认 skills/ 根（一层子目录布局）会命中同一个
-  // SKILL.md，计数必须按文件路径去重，不能翻倍。
-  it("dedupes skill files across overlapping declared and default skill roots", async () => {
+  it("does not add the default root alongside a declared skill", async () => {
     const dir = await mkdtemp(join(tmpdir(), "zcode-plugin-overlap-skills-"));
     const pluginRoot = join(dir, "overlap");
 
@@ -4314,20 +5059,14 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
       });
 
-      // 默认根 <root>/skills 与声明根 ./skills/foo 都指向含同一 SKILL.md 的目录树。
       const plugin = outcome.plugins.find((item) => item.id === "overlap@inline");
-      expect(plugin).toMatchObject({ skillCount: 1, skillRootCount: 2 });
+      expect(plugin).toMatchObject({ skillCount: 1, skillRootCount: 1 });
 
       const skillOutcome = await createNodeSkillAdapter().discoverSkills({
         roots: outcome.skillRoots,
@@ -4353,10 +5092,7 @@ describe("NodePluginAdapter", () => {
     try {
       await writePluginManifest(
         pluginRoot,
-        {
-          name: "path-escape",
-          skills: ["../../outside-skill", absoluteOutside, "./skills/legit"],
-        },
+        { name: "path-escape", skills: ["../../outside-skill", absoluteOutside, "./skills/legit"] },
         ".claude-plugin",
       );
       await mkdir(outsideSkill, { recursive: true });
@@ -4372,12 +5108,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -4429,10 +5160,7 @@ describe("NodePluginAdapter", () => {
     try {
       await writePluginManifest(
         pluginRoot,
-        {
-          name: "file-symlink-escape",
-          skills: ["./skills", "./bundle-root"],
-        },
+        { name: "file-symlink-escape", skills: ["./skills", "./bundle-root"] },
         ".claude-plugin",
       );
       await writeFile(outsideFile, "---\nname: leaked-secret\ndescription: x\n---\nleaked");
@@ -4441,7 +5169,11 @@ describe("NodePluginAdapter", () => {
       // 其余错误如实抛出；finally 保证临时目录清理。
       await mkdir(join(pluginRoot, "skills", "foo"), { recursive: true });
       try {
-        await symlink(outsideFile, join(pluginRoot, "skills", "foo", "SKILL.md"));
+        await createProjectTestSymlink(
+          outsideFile,
+          join(pluginRoot, "skills", "foo", "SKILL.md"),
+          "file",
+        );
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
         ctx.skip();
@@ -4449,7 +5181,11 @@ describe("NodePluginAdapter", () => {
       }
       // 形态 2：声明根（bundle-root）自身目录真实，SKILL.md 是外部文件链接。
       await mkdir(join(pluginRoot, "bundle-root"), { recursive: true });
-      await symlink(outsideFile, join(pluginRoot, "bundle-root", "SKILL.md"));
+      await createProjectTestSymlink(
+        outsideFile,
+        join(pluginRoot, "bundle-root", "SKILL.md"),
+        "file",
+      );
       // 对照组：真实文件技能正常发现。
       await mkdir(join(pluginRoot, "skills", "legit"), { recursive: true });
       await writeFile(
@@ -4460,12 +5196,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -4502,10 +5233,7 @@ describe("NodePluginAdapter", () => {
     try {
       await writePluginManifest(
         pluginRoot,
-        {
-          name: "symlink-escape",
-          skills: ["./skills/linked-root", "./skills"],
-        },
+        { name: "symlink-escape", skills: ["./skills/linked-root", "./skills"] },
         ".claude-plugin",
       );
       await mkdir(outsideSkill, { recursive: true });
@@ -4524,12 +5252,7 @@ describe("NodePluginAdapter", () => {
       const outcome = await createNodePluginAdapter({
         storageRoot: join(dir, "plugins"),
       }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -4571,12 +5294,7 @@ describe("NodePluginAdapter", () => {
     async function discover(pluginRoot: string, manifest: Record<string, unknown>) {
       await writePluginManifest(pluginRoot, manifest, ".claude-plugin");
       return await createNodePluginAdapter({ storageRoot: join(dir, "plugins") }).discoverPlugins({
-        config: {
-          dirs: [pluginRoot],
-          enabled: true,
-          enabledPlugins: {},
-          options: {},
-        },
+        config: { dirs: [pluginRoot], enabled: true, enabledPlugins: {}, options: {} },
         env: {},
         storageRoot: join(dir, "plugins"),
         workingDirectory: join(dir, "workspace"),
@@ -4614,9 +5332,7 @@ describe("NodePluginAdapter", () => {
       ).toBe(true);
 
       // 场景 3：纯默认目录为空（manifest 未声明 skills）不告警，避免空插件误报。
-      const silentOutcome = await discover(join(dir, "default-only"), {
-        name: "default-only",
-      });
+      const silentOutcome = await discover(join(dir, "default-only"), { name: "default-only" });
       expect(
         silentOutcome.diagnostics.every(
           (diagnostic) => diagnostic.code !== "plugin_skill_root_empty",
@@ -4779,13 +5495,13 @@ function crc32(buffer: Buffer): number {
 
 /** 创建指向目录的链接：Windows 用 junction（无需特权），POSIX 忽略 type 参数。 */
 async function symlinkDir(target: string, linkPath: string): Promise<void> {
-  await symlink(target, linkPath, process.platform === "win32" ? "junction" : undefined);
+  await createProjectTestSymlink(target, linkPath, "dir");
 }
 
 async function writePluginManifest(
   pluginRoot: string,
   manifest: Record<string, unknown>,
-  manifestDir = ".zcode-plugin",
+  manifestDir = ".zcodium-plugin",
 ): Promise<void> {
   await mkdir(join(pluginRoot, manifestDir), { recursive: true });
   await writeFile(join(pluginRoot, manifestDir, "plugin.json"), JSON.stringify(manifest));
@@ -4876,11 +5592,7 @@ async function writeTripletPluginFixture(
     pluginRoot,
     {
       ...(fixture.manifestPaths
-        ? {
-            commands: "./commands/",
-            mcpServers: `./${mcpFileName}`,
-            skills: "./skills/",
-          }
+        ? { commands: "./commands/", mcpServers: `./${mcpFileName}`, skills: "./skills/" }
         : {}),
       name: fixture.name,
       version: "1.0.0",
@@ -4931,10 +5643,7 @@ async function writeTripletPluginFixture(
         [fixture.mcpServerName]: {
           args: ["${CLAUDE_PLUGIN_ROOT}/mcp/server.js"],
           command: "node",
-          env: {
-            PLUGIN_DATA: "${CLAUDE_PLUGIN_DATA}",
-            PROJECT_DIR: "${ZCODE_PROJECT_DIR}",
-          },
+          env: { PLUGIN_DATA: "${CLAUDE_PLUGIN_DATA}", PROJECT_DIR: "${ZCODE_PROJECT_DIR}" },
         },
       },
     }),

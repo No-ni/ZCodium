@@ -32,7 +32,11 @@ provider-visible output 以本文“模型 result 映射规则”为基线。
 `"30000"`、`"true"`、`"false"`、`"1"`、`"0"`。
 
 `argv`、`cwd` 和 `env` 不属于 Bash tool 的模型可见输入。模型只负责拼 shell command；工作目录
-来自 session cwd，环境变量使用执行 adapter 的默认继承策略。`ExecutionPort` 可以继续保留
+来自 session cwd，环境变量使用执行 adapter 的默认继承策略，并在其上固定设置会话上下文变量：
+`CLAUDE_CODE_SESSION_ID`、`CLAUDE_SESSION_ID`、`ZCODE_SESSION_ID` 为当前会话 ID，
+`CLAUDE_PROJECT_DIR`、`ZCODE_PROJECT_DIR` 为会话工作区根目录（会话创建时的工作目录，不随 `cd`
+变化）。这组变量与 hooks 的插件环境一致，自定义命令 `!` 块转交给 Bash 后、以及插件脚本在
+自身进程里读取时都依赖它们。`ExecutionPort` 可以继续保留
 `argv/cwd/env` 给 hooks、内部 runner 或后续非模型调用使用，但不得通过 Bash tool schema 暴露给模型。
 
 `_simulatedSedEdit` 一类内部字段不进入模型 schema。ZCode 如支持内部扩展字段，必须与模型可见 schema 分离，防止绕过权限或 sandbox。
@@ -165,6 +169,14 @@ ZCode 应把 shell permission 拆成三个层次：
 
 ### read-only Bash allowlist
 
+运行时明确选择 `cmd` 或 `legacy-shell` 时，Bash AST 不能证明实际命令只读：例如
+`type # & python script.py` 在 Bash AST 中只剩 `type`，CMD 却仍执行后面的 Python。
+这两种 shell 不授予只读免审批，也不使用 Bash AST 推导 prefix/wildcard allow；建议授权只保存
+完整命令。Build/Edit 默认请求审批，Plan 拒绝（完整命令 allow 也不能越过 Plan）。完整命令和
+工具级明确授权、yolo/guarded、已有 deny/ask 匹配保留。此最小修复不增加 CMD 解析能力，
+CMD 子命令 deny 匹配仍有原有语法边界；POSIX/Git Bash 及未传 selection 的旧内部调用不变。
+`ToolCallStarted` 的副作用能力必须携带同一 shell 上下文计算，避免将经审批的 CMD 再标成只读。
+
 `Bash` 只有在 AST 可安全解析、每条 simple command 的参数、赋值和重定向均通过
 readonly policy，且没有 command substitution 等不支持的动态结构时，才会把运行时 capability 降级为
 `readOnly=true`、`sideEffectScope="none"`、`riskLevel="low"`、`needsApproval=false`。
@@ -238,7 +250,7 @@ flowchart LR
 | `command.mode = "shell"` | Bash tool 使用的执行模式。模型提供的 `command` 作为 shell command 执行 |
 | `command.mode = "argv"` | ExecutionPort 的内部执行模式。hooks、配置 runner 或后续非模型调用可用，不暴露给 Bash tool schema |
 | `cwd` | Bash tool 必须传入 session cwd 解析出的绝对路径；不得从 tool input 接收 cwd，也不允许 adapter 隐式回退宿主进程当前目录 |
-| `env` | Bash tool 不从模型输入接收 env overlay。ExecutionPort 仍保留该字段给内部调用，adapter 负责 Windows 环境变量大小写差异 |
+| `env` | Bash tool 不从模型输入接收 env overlay。handler 固定设置会话 ID 与会话工作区根目录变量（见上文），其余继承默认策略。ExecutionPort 仍保留该字段给内部调用，adapter 负责 Windows 环境变量大小写差异 |
 | `timeoutMs` | 普通 `run()` 的单次执行超时；Bash background lifecycle 会把它解释为前台等待预算，并在后台提交时清除 |
 | `signal` | 取消信号。取消必须进入结构化 `cancelled` 状态并触发进程树清理 |
 | `sandbox` | sandbox 策略请求。第一版可以是 no-op，但字段必须贯穿 trace 和审计 |
@@ -319,6 +331,25 @@ background commit 由 execution adapter 内的 Bash lifecycle 持有。commit �
   - output limit / timeout / user cancel 之外的“宿主正在退出”场景。
 - adapter 应优先走结构化 cancel/terminate 路径，再 fallback 到平台相关的进程树 kill；不能只丢弃内部引用，留下 detached shell 继续运行。
 - Bugfix 记录：POSIX 上 `ExecutionPort` 使用 detached spawn / 独立进程组是为了能通过负 PID 终止整棵命令进程树；如果 CLI 在没有 signal cleanup 的路径中退出，OS 不会自动杀掉该进程组，`npm dev`、Vite、Node server 等长跑子进程会继续存活。因此 `detached` 必须和全局 shutdown cleanup 成对出现。
+
+### 子进程诊断日志
+
+系统侧记录（任务管理器、Windows 资源耗尽事件 2004 等）只认 pid。为了把占用内存或 CPU 的
+进程对回具体的工具调用，Bash 在 CLI 日志里按 info 级写两条结构化记录：
+
+| event                              | 写入时机                       | 字段                                                                        |
+| ---------------------------------- | ------------------------------ | --------------------------------------------------------------------------- |
+| `tool.bash.process.started`        | 子进程 spawn 后（前台和后台）  | `toolCallId`、`pid`、`runInBackground`                                      |
+| `tool.bash.process.exited`         | 前台命令结束                   | `toolCallId`、`pid`、`exitCode`、`signal`、`durationMs`、`executionStatus`、`timedOut`、`cancelled` |
+| `background_task.tracking.terminal` | 已转后台的命令结束（既有日志） | 在既有字段上补 `toolCallId`、`pid`、`exitCode`、`signal`、`durationMs`      |
+
+pid 是 adapter spawn 的根进程：POSIX 上是 `-c` 启动的 shell（也是进程组 id）；Windows 上是
+Git Bash 的 `bash.exe` 或 `cmd.exe` 外壳，命令本身是它的子孙进程，需要按进程树对应。
+日志不写命令文本，命令仍只在 trace/transcript 中。
+
+显式后台（`run_in_background: true`）时，adapter 在 `started` 事件里就提交后台，之后
+不再把事件转发给 handler，所以这条启动日志由 handler 在拿到 `backgrounded` 结果后用
+`task.pid` 补写；`auto_on_timeout` 在前台阶段已收到 `started`，同一次调用只写一条。
 
 ## 分阶段目标
 

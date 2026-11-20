@@ -2,6 +2,9 @@ import type { RemoteConnectionOpenPreference } from "@/app-shell/types.js";
 import { useConversationArchiveImport } from "@/root/useConversationArchiveImport.js";
 import { ConversationImportProvider } from "@/hooks/useConversationImport.js";
 import { setUiDiagnosticReporter } from "@/lib/diagnostics/recorder.js";
+import { DataSyncDialogProvider } from "@/data-sync/index.js";
+import { WebRemoteControlFeatureProvider } from "@/WebRemoteControlFeatureProvider.js";
+import { RemoteConnectionProgressProvider } from "@/remote-connection-flow/ui/RemoteConnectionProgress.js";
 import {
   readRendererLaunchTimings,
   shouldReportLaunchToInput,
@@ -22,10 +25,13 @@ import { ServiceProvider } from "@/hooks/useServices.js";
 import { useDynamicWorkflowAvailabilityLoader } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { useTabPersistence } from "@/hooks/useTabPersistence.js";
+import { useRemoteWorkspaceConnectionGate } from "@/project-sidebar/index.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/root/LazySettingsPage.js";
+import { CredentialStoreRecovery } from "@/settings-scope/index.js";
+import { useCredentialStoreRecovery } from "@/hooks/useCredentials.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
 
 import {
@@ -74,8 +80,7 @@ import { StartupPresentationReady } from "@/root/StartupPresentationReady.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT } from "@/lib/closeActiveContext.js";
 import { AssistantCodeCommentFeatureProvider } from "@/AssistantCodeCommentFeatureProvider.js";
-
-const DEFAULT_LUCIDE_STROKE_WIDTH = 1.5;
+import { DEFAULT_LUCIDE_STROKE_WIDTH } from "@/components/icons/windowIcons.js";
 
 /**
  * Root —— 应用根组件
@@ -107,11 +112,17 @@ export function Root(props: RootProps) {
                 {/* 上游 3.17.1 目录归属提供者：项目侧栏 / roots 的目录状态唯一持有者。 */}
                 <ProjectDirectoryProvider isDesktop={props.isDesktop}>
                   <DiffsWorkerPoolProvider>
-                    <AssistantCodeCommentFeatureProvider
-                      enabled={props.assistantCodeCommentCardsEnabled}
-                    >
-                      <RootInner {...props} />
-                    </AssistantCodeCommentFeatureProvider>
+                    <WebRemoteControlFeatureProvider enabled={props.webRemoteControlFeatureEnabled}>
+                      <AssistantCodeCommentFeatureProvider
+                        enabled={props.assistantCodeCommentCardsEnabled}
+                      >
+                        <RemoteConnectionProgressProvider>
+                          <DataSyncDialogProvider>
+                            <RootInner {...props} />
+                          </DataSyncDialogProvider>
+                        </RemoteConnectionProgressProvider>
+                      </AssistantCodeCommentFeatureProvider>
+                    </WebRemoteControlFeatureProvider>
                   </DiffsWorkerPoolProvider>
                 </ProjectDirectoryProvider>
               </TabStoreProvider>
@@ -147,6 +158,7 @@ function RootInner({
   allowRemoteWorkspace = true,
   initialWorkspaceLoadingFallback,
 }: RootProps) {
+  const credentialRecovery = useCredentialStoreRecovery(isDesktop === true);
   useEffect(() => {
     setMcpStorePlatform(platform);
     setUiDiagnosticReporter(
@@ -164,7 +176,7 @@ function RootInner({
   // 工作区级 ServiceProvider 内（远程 Host 的 accessor），由它们取数会拿到另一台 Host 的答案。
   useDynamicWorkflowAvailabilityLoader(services.codingPlanSubscriptionService);
 
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale, localeResolved } = useZCodeIntl();
   const theme = useZCodeStore((state) => state.theme);
   const { settings: appSettings, refresh: refreshAppSettings } = useSettings();
   const rootModelSelectionRead = useModelSelectionServiceView(services.modelSelectionService);
@@ -230,10 +242,9 @@ function RootInner({
         if (!isCodeCommentPayload(message.payload) || !message.payload.id) {
           return;
         }
-        useCodeCommentPreviewStore.getState().restoreCommentFromAttachment({
-          ...message.payload,
-          id: message.payload.id,
-        });
+        useCodeCommentPreviewStore
+          .getState()
+          .restoreCommentFromAttachment({ ...message.payload, id: message.payload.id });
         return;
       }
 
@@ -265,13 +276,26 @@ function RootInner({
         askUserQuestionAutoResolutionEnabled:
           appSettings.askUserQuestionAutoResolutionEnabled !== false,
         toolSearchMode: appSettings.toolSearchMode ?? "off",
+        pluginAutoRecommendationEnabled: appSettings.pluginAutoRecommendationEnabled === true,
       })
       .catch((error) => {
         logger.warn("[settings] 初始化运行时偏好失败", error);
       });
+    void services.botsService
+      .syncAppRuntimePreferences({
+        askUserQuestionAutoResolutionEnabled:
+          appSettings.askUserQuestionAutoResolutionEnabled !== false,
+        toolSearchMode: appSettings.toolSearchMode ?? "off",
+        pluginAutoRecommendationEnabled: appSettings.pluginAutoRecommendationEnabled === true,
+      })
+      .catch(() => {
+        logger.warn("[settings] 初始化 Bot 运行时偏好失败");
+      });
   }, [
     appSettings?.askUserQuestionAutoResolutionEnabled,
     appSettings?.toolSearchMode,
+    appSettings?.pluginAutoRecommendationEnabled,
+    services.botsService,
     services.zcodeAgentService,
   ]);
 
@@ -427,6 +451,9 @@ function RootInner({
         ? remoteConnectionOpenPreference?.preferredWorkspaceTabId
         : undefined,
   });
+  const waitForRemoteWorkspaceConnection = useRemoteWorkspaceConnectionGate(
+    reconnectingRemoteWorkspaceKeys,
+  );
 
   async function openPreparedRemoteProjectWorkspace(target: {
     hostId: string;
@@ -448,6 +475,7 @@ function RootInner({
         Object.values(useRemoteWorkspaceSessionStore.getState().sessionsById).find(
           (session) => session.workspaceIdentity === identity,
         ),
+      waitForPendingConnection: waitForRemoteWorkspaceConnection,
       connect: handleConnectRemote,
       cancel: handleCancelRemoteProject,
       bind: async (remoteSessionId, path, isCurrent) => {
@@ -573,6 +601,7 @@ function RootInner({
     allowOpenWorkspace,
     isDesktop,
     locale,
+    localeResolved,
     tabs,
     activeWorkspacePath,
     activeWorkspaceIdentity,
@@ -619,15 +648,10 @@ function RootInner({
         void platform
           .acknowledgePostUpdateReleaseNotes(payload.version)
           .then(() => {
-            logger.info("[Root] 更新说明已静默确认", {
-              version: payload.version,
-            });
+            logger.info("[Root] 更新说明已静默确认", { version: payload.version });
           })
           .catch((error) => {
-            logger.error("[Root] 更新说明静默确认失败", {
-              version: payload.version,
-              error,
-            });
+            logger.error("[Root] 更新说明静默确认失败", { version: payload.version, error });
           })
           .finally(() => {
             if (acknowledgingReleaseNotesVersionRef.current === payload.version) {
@@ -668,10 +692,7 @@ function RootInner({
 
   useEffect(() => {
     if (
-      shouldBlockRootRender({
-        isRestoring,
-        isBootstrappingInitialWorkspace,
-      }) ||
+      shouldBlockRootRender({ isRestoring, isBootstrappingInitialWorkspace }) ||
       workspaceShellPath ||
       isSettingsTabActive ||
       !allowOpenWorkspace ||
@@ -789,6 +810,8 @@ function RootInner({
     onOpenWorkspace: handleOpenWorkspace,
     allowOpenWorkspace,
   };
+
+  if (credentialRecovery.state) return <CredentialStoreRecovery recovery={credentialRecovery} />;
 
   if (isStartupRenderBlocked) {
     const loadingLabel = intl.formatMessage({ id: "common.loading" });

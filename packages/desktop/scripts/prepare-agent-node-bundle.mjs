@@ -173,10 +173,7 @@ function buildOfficialPluginRuntimeForBootstrap(plugin, root = repoRoot, run = r
       env: process.env,
     });
   }
-  run(process.execPath, [plugin.runtimeBuildScript], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
+  run(process.execPath, [plugin.runtimeBuildScript], { cwd: pluginRoot, env: process.env });
 }
 
 async function assertOfficialPluginRuntime(plugin, root = repoRoot) {
@@ -193,10 +190,10 @@ async function assertOfficialPluginRuntime(plugin, root = repoRoot) {
   }
 }
 
-function stageBundle() {
+async function stageBundle() {
   // 实现已抽到 stage-agent-bundle.mjs：dev 链（scripts/build-desktop-agent-cli.mjs）
   // 必须用同一份，否则 dev 会继续跑上一次打包留下的陈旧 agent。
-  stageAgentBundle({ repoRoot, platformKey });
+  await stageAgentBundle({ repoRoot, platformKey });
 }
 
 export async function stageOfficialPlugins(
@@ -221,10 +218,7 @@ export async function stageOfficialPlugins(
         // 完整 dist 是一个发布单元；先清旧树再递归复制，移除过期 worker/font/许可残留。
         await rm(targetPath, { recursive: true, force: true });
       }
-      await cp(sourcePath, targetPath, {
-        recursive: true,
-        filter: shouldCopyOfficialPluginAsset,
-      });
+      await cp(sourcePath, targetPath, { recursive: true, filter: shouldCopyOfficialPluginAsset });
     }
     if (plugin.directory === "node-repl-host") {
       await stageCuaDriverRuntime(targetRoot, { platform, arch });
@@ -341,7 +335,7 @@ const entryHref = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href
 if (entryHref === import.meta.url) {
   buildCliBundle();
   await buildOfficialPluginRuntimes();
-  stageBundle();
+  await stageBundle();
   await stageOfficialPlugins();
   await stageBundledSkillPack();
   // 吸收上游：MCP 的 Node/npm fallback 与 CUA / node-repl 的原生运行时必须随 Agent bundle 一起 stage，

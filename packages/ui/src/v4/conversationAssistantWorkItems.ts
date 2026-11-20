@@ -14,6 +14,15 @@ import {
   prepareCuaGroups,
   type ConversationCuaGroupRenderItem,
 } from "@/v4/conversationCuaGroups.js";
+import {
+  isToolCallRow,
+  isAgentToolCallRow,
+  isExploreToolCallRow,
+  isExecuteToolCallRow,
+  isChangesToolCallRow,
+  shouldDeferUnclassifiedShellToolCall,
+  resolveGroupStageStatus,
+} from "./conversationAssistantWorkPredicates.js";
 
 export type ConversationAssistantWorkRenderItem =
   | {
@@ -51,8 +60,11 @@ export type ConversationAssistantWorkRenderItem =
     };
 
 export const ENABLE_EXPLORE_TOOL_CALL_GROUPING = true;
+
 export { ENABLE_CUA_TOOL_CALL_GROUPING } from "@/v4/conversationCuaGroups.js";
+
 export const ENABLE_TERMINAL_TOOL_CALL_GROUPING = true;
+
 export const ENABLE_CHANGES_TOOL_CALL_GROUPING = false;
 
 export interface ConversationAssistantWorkRenderOptions {
@@ -61,55 +73,6 @@ export interface ConversationAssistantWorkRenderOptions {
   enableExploreGrouping?: boolean;
   enableTerminalGrouping?: boolean;
   enableChangesGrouping?: boolean;
-}
-
-const SUBAGENT_TOOL_NAMES = new Set(["Agent", "Task", "subagent"]);
-
-const isToolCallRow = (row: AssistantWorkRow): row is ToolCallRow => row.kind === "toolCall";
-
-const isAgentToolCallRow = (row: AssistantWorkRow): row is ToolCallRow =>
-  isToolCallRow(row) && SUBAGENT_TOOL_NAMES.has(row.toolName);
-
-function isExploreToolCallRow(
-  row: AssistantWorkRow,
-  derive: ToolCallRowDerivationResolver,
-): row is ToolCallRow {
-  return derive(row)?.isExplore === true;
-}
-
-function isExecuteToolCallRow(
-  row: AssistantWorkRow,
-  derive: ToolCallRowDerivationResolver,
-): row is ToolCallRow {
-  return derive(row)?.isExecute === true;
-}
-
-function isChangesToolCallRow(
-  row: AssistantWorkRow,
-  derive: ToolCallRowDerivationResolver,
-): row is ToolCallRow {
-  return derive(row)?.isChanges === true;
-}
-
-function shouldDeferUnclassifiedShellToolCall(
-  row: AssistantWorkRow,
-  derive: ToolCallRowDerivationResolver,
-): boolean {
-  if (!isToolCallRow(row) || (row.status !== "inputStreaming" && row.status !== "running")) {
-    return false;
-  }
-  return derive(row)?.awaitingCommand === true;
-}
-
-function resolveGroupStageStatus(
-  rows: readonly ToolCallRow[],
-  stageTailIsRunning: boolean,
-): string {
-  // Explore/Execute 父节点表达的是当前工作阶段，不是子工具执行状态的汇总。
-  // 子工具可能已经全部完成，但只要当前运行工作段尚未出现下一条可见边界，父阶段仍在继续；
-  // 反之，后续非当前分组内容已经出现时，即使迟到的子状态仍是 running，父阶段也必须结束。
-  if (stageTailIsRunning) return "in_progress";
-  return rows.some((row) => row.status === "cancelled") ? "stopped" : "completed";
 }
 
 function buildExploreGroup(
@@ -273,7 +236,7 @@ function pairSubagentRows(rows: readonly AssistantWorkRow[]): {
 
 export function buildAssistantWorkRenderItems(
   rows: readonly AssistantWorkRow[],
-  reasoningVisibility: ConversationReasoningVisibility,
+  reasoningVisibility: ConversationReasoningVisibility & { messageStreamShowTodos?: boolean },
   options?: ConversationAssistantWorkRenderOptions,
 ): ConversationAssistantWorkRenderItem[] {
   const items: ConversationAssistantWorkRenderItem[] = [];
@@ -289,10 +252,17 @@ export function buildAssistantWorkRenderItems(
   const visibleRows = rows.filter((row) => {
     if (
       row.kind === "reasoning" &&
-      !isConversationReasoningRowVisible(row.rowId, reasoningVisibility)
+      ((row.state === "streaming" && row.text.length === 0) ||
+        !isConversationReasoningRowVisible(row.rowId, reasoningVisibility))
     ) {
       return false;
     }
+    if (
+      row.kind === "toolCall" &&
+      reasoningVisibility.messageStreamShowTodos !== true &&
+      deriveToolCallRow(row)?.identity.family === "todo"
+    )
+      return false;
     return !shouldDeferUnclassifiedShellToolCall(row, deriveToolCallRow);
   });
   const { subagentByAgentToolRowId, claimedSubagentRowIds } = pairSubagentRows(visibleRows);

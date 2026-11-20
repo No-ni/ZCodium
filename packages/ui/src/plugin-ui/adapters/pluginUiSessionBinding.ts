@@ -32,7 +32,7 @@ export function createPluginUiSessionActions(
         ...(attachments.length > 0 ? { attachments } : {}),
       });
       // 修复：原发送入口正常 ACK 后返回 undefined；不能把已发送消息误报为失败。
-      if (result === "blocked" || result === "confirmationRequired")
+      if (result === "blocked" || result === "confirmationRequired" || result === "pending")
         throw new Error("Session is not ready to accept input");
     },
   };

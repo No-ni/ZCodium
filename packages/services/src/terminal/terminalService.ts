@@ -1,7 +1,7 @@
 import { accessSync, chmodSync, constants, existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, release } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Emitter, Event } from "@zcode/rpc";
 import type { IPty } from "node-pty";
 import type { ISettingService } from "../setting/setting.js";
@@ -12,18 +12,24 @@ import {
   type TerminalThemeProfile,
 } from "./terminalProfile.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
+import { resolveTerminalEnv } from "./terminalEnvironment.js";
 
 const require = createRequire(import.meta.url);
+
 type NodePtyModule = typeof import("node-pty");
+
 type PtySpawnOptions = Parameters<NodePtyModule["spawn"]>[2];
 
 interface TerminalInstance {
   pty: IPty;
   dataEmitter: Emitter<string>;
   exitEmitter: Emitter<number>;
+  /** 启动时的工作目录；shell 内 cd 之后的目录无法追踪（docs/git/worktree.md §12 第 4 项）。 */
+  cwd: string;
 }
 
 let hasEnsuredNodePtyHelper = false;
+
 let nodePtyModulePromise: Promise<NodePtyModule> | null = null;
 
 async function loadNodePtyModule(): Promise<NodePtyModule> {
@@ -58,10 +64,7 @@ function resolveTerminalWindowsPtyInfo(
 ): TerminalWindowsPtyInfo | undefined {
   if (platform !== "win32") return undefined;
 
-  return {
-    backend: "conpty",
-    buildNumber: parseWindowsBuildNumber(releaseText),
-  };
+  return { backend: "conpty", buildNumber: parseWindowsBuildNumber(releaseText) };
 }
 
 function isExecutable(command: string): boolean {
@@ -148,89 +151,6 @@ function shouldFallbackFromConptyDll(error: unknown): boolean {
   );
 }
 
-function isUtf8Locale(value: string | undefined): boolean {
-  return /utf-?8/i.test(value ?? "");
-}
-
-function isMissingOrCLocale(value: string | undefined): boolean {
-  const normalized = (value ?? "").trim().toUpperCase();
-  return normalized === "" || normalized === "C" || normalized === "POSIX";
-}
-
-const DARWIN_GUI_FALLBACK_PATHS = [
-  "/opt/homebrew/bin",
-  "/opt/homebrew/sbin",
-  "/usr/local/bin",
-  "/usr/local/sbin",
-  "/usr/bin",
-  "/bin",
-  "/usr/sbin",
-  "/sbin",
-] as const;
-
-function mergePathEntries(entries: readonly (string | undefined)[]): string {
-  const seen = new Set<string>();
-  const merged: string[] = [];
-
-  for (const value of entries) {
-    for (const entry of value?.split(delimiter) ?? []) {
-      const trimmed = entry.trim();
-      if (!trimmed || seen.has(trimmed)) continue;
-      seen.add(trimmed);
-      merged.push(trimmed);
-    }
-  }
-
-  return merged.join(delimiter);
-}
-
-function resolveDarwinTerminalPath(env: NodeJS.ProcessEnv): string {
-  return mergePathEntries([env.PATH, ...DARWIN_GUI_FALLBACK_PATHS]);
-}
-
-function resolveFallbackUtf8Locale(env: NodeJS.ProcessEnv): string {
-  const inheritedUtf8Locale = [env.LC_ALL, env.LC_CTYPE, env.LANG].find(isUtf8Locale);
-  if (inheritedUtf8Locale) return inheritedUtf8Locale;
-
-  return process.platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8";
-}
-
-function resolveTerminalEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const nextEnv = { ...env };
-  const fallbackLocale = resolveFallbackUtf8Locale(env);
-
-  // macOS 从 Dock/Finder/登录项启动 Electron 时，父进程通常只带 /usr/bin:/bin:/usr/sbin:/sbin，
-  // 甚至缺失 PATH；内置终端虽然打开了登录 shell，但 zsh/bash 仍会先继承这个过窄 PATH，
-  // 导致 ls 以外的 npm/node/pnpm 等常用命令找不到，部分用户的 profile 又不会重新补齐。
-  // 这里仅在传给 terminal 的环境里补常见 Homebrew 与系统路径，不改全局 process.env，并保留用户已有顺序。
-  if (process.platform === "darwin") {
-    nextEnv.PATH = resolveDarwinTerminalPath(env);
-  }
-
-  // runtime 登录 shell 环境采集会用 TERM=dumb / CI=1 来避免 profile 脚本进入交互分支，
-  // 但真实 terminal panel 必须作为交互终端启动，否则 starship、p10k、颜色能力检测等会降级成无样式输出。
-  nextEnv.TERM = "xterm-256color";
-  nextEnv.COLORTERM = nextEnv.COLORTERM?.trim() || "truecolor";
-  if (nextEnv.CI === "1" && env.TERM === "dumb") {
-    delete nextEnv.CI;
-  }
-
-  // Electron 从 GUI 启动时 host process 可能继承不到登录 shell 的 UTF-8 locale，
-  // 子 shell 会落到 C/POSIX locale，中文路径会被 zsh/bash 显示成 \M-^ 这类转义乱码。
-  // 这里只在 locale 缺失或明确为 C/POSIX 时补 UTF-8，保留用户已经配置好的 UTF-8 locale。
-  if (isMissingOrCLocale(nextEnv.LANG)) {
-    nextEnv.LANG = fallbackLocale;
-  }
-  if (isMissingOrCLocale(nextEnv.LC_CTYPE)) {
-    nextEnv.LC_CTYPE = fallbackLocale;
-  }
-  if (nextEnv.LC_ALL !== undefined && isMissingOrCLocale(nextEnv.LC_ALL)) {
-    nextEnv.LC_ALL = fallbackLocale;
-  }
-
-  return nextEnv;
-}
-
 function spawnTerminalProcess(params: {
   nodePty: NodePtyModule;
   shell: string;
@@ -263,10 +183,7 @@ function spawnTerminalProcess(params: {
   } satisfies PtySpawnOptions;
 
   try {
-    return nodePty.spawn(shell, [], {
-      ...windowsBaseOptions,
-      useConptyDll: true,
-    });
+    return nodePty.spawn(shell, [], { ...windowsBaseOptions, useConptyDll: true });
   } catch (error) {
     if (!shouldFallbackFromConptyDll(error)) {
       throw error;
@@ -275,10 +192,7 @@ function spawnTerminalProcess(params: {
     // Windows 下开启 node-pty 的实验性 useConptyDll 时，某些 Electron/安装包环境会在 shell 真正启动前
     // 就因为 conpty.node / conpty.dll 的原生模块定位失败直接报错，导致终端整个打不开。
     // 这里仅在命中这类 DLL 加载错误时回退到系统内置 ConPTY，既保留新版路径的优先级，也避免把普通启动失败误判成可重试。
-    return nodePty.spawn(shell, [], {
-      ...windowsBaseOptions,
-      useConptyDll: false,
-    });
+    return nodePty.spawn(shell, [], { ...windowsBaseOptions, useConptyDll: false });
   }
 }
 
@@ -372,6 +286,8 @@ function createBufferedTerminalOutputEmitter(): {
 
 export function createTerminalService(dependencies: {
   settingService: ISettingService;
+  /** cwd 位于删除中的受管 worktree 时返回 true（docs/git/worktree.md §8.3）。 */
+  isCwdBlocked?: (cwd: string) => boolean;
 }): ITerminalService {
   const terminals = new Map<string, TerminalInstance>();
   let nextId = 0;
@@ -421,10 +337,9 @@ export function createTerminalService(dependencies: {
       const shell = resolveTerminalShell();
       const cwd = resolveTerminalCwd(params.cwd);
       const env = resolveTerminalEnv();
-      const terminalProfileSettings = await dependencies.settingService.get().catch(() => ({
-        terminalFontFamily: undefined,
-        terminalInheritSystemProfile: true,
-      }));
+      const terminalProfileSettings = await dependencies.settingService
+        .get()
+        .catch(() => ({ terminalFontFamily: undefined, terminalInheritSystemProfile: true }));
       ensureActive();
       const fontProfile = resolveTerminalFontProfile({
         settings: terminalProfileSettings,
@@ -437,6 +352,8 @@ export function createTerminalService(dependencies: {
       const dataEmitter = terminalOutput.emitter;
       const exitEmitter = new Emitter<number>();
 
+      // 检查、启动与登记在同一段同步代码中：删除方取得租约后列出的终端一定包含已启动的终端。
+      if (dependencies.isCwdBlocked?.(cwd)) throw new Error("worktree.removing");
       let p: IPty;
       try {
         p = spawnTerminalProcess({
@@ -461,7 +378,7 @@ export function createTerminalService(dependencies: {
         terminals.delete(id);
       });
 
-      terminals.set(id, { pty: p, dataEmitter, exitEmitter });
+      terminals.set(id, { pty: p, dataEmitter, exitEmitter, cwd });
       return {
         id,
         shell,
@@ -483,6 +400,16 @@ export function createTerminalService(dependencies: {
 
     async dispose(params: { id: string }): Promise<void> {
       cleanupTerminal(params.id);
+    },
+
+    async listTerminalIdsUnderPath(params: { path: string }): Promise<string[]> {
+      const root = resolve(params.path);
+      return [...terminals.entries()]
+        .filter(([, terminal]) => {
+          const rel = relative(root, resolve(terminal.cwd));
+          return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
+        })
+        .map(([id]) => id);
     },
 
     onDynamicData(id: string): Event<string> {

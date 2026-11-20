@@ -82,6 +82,10 @@ const STABLE_ERROR_ATTRIBUTION: Readonly<
     source: "provider",
     reason: "rate_limited",
   },
+  ProviderBusyAutoRetryExhaustedError: {
+    source: "provider",
+    reason: "rate_limited",
+  },
 };
 
 const NETWORK_FAILURE_REASONS = new Set([

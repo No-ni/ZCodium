@@ -27,6 +27,7 @@ export function resolvePaneSessionProjectionLease(
 }
 
 const CLOSED_STATE: ConversationStoreState = {
+  runtimeLifecycle: null,
   turnDirectory: null,
   turnDirectoryLoading: false,
   status: "closed",
@@ -34,6 +35,7 @@ const CLOSED_STATE: ConversationStoreState = {
   subscriptionId: null,
   lastError: null,
   optimisticCommands: [],
+  editPresentation: null,
   loadingOlder: false,
   sessionPlans: [],
   planDirectoryRevision: 0,

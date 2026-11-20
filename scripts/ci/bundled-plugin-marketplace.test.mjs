@@ -45,7 +45,7 @@ async function fixture(t) {
   const directory = join(storageRoot, "marketplaces", official);
   await mkdir(directory, { recursive: true });
   const seed = (plugins) =>
-    bundled.writeBundledOfficialMarketplacePartitionSync({
+    bundled.writeBundledOfficialMarketplacePartition({
       storageRoot,
       manifest: { name: official, plugins },
     });
@@ -120,7 +120,7 @@ test("bundled catalog overrides neither seed nor identity with historical CDN da
     ],
   });
   const plugins = [{ name: "fixture-local", source: "filesystem", version: "1.0.0" }];
-  seed(plugins);
+  await seed(plugins);
   assert.deepEqual(
     marketplace.loadMarketplaceManifestSync(storageRoot, official).raw.plugins,
     plugins,
@@ -147,7 +147,7 @@ test("bundled catalog overrides neither seed nor identity with historical CDN da
     marketplace.loadMarketplaceManifestSync(storageRoot, official).raw.plugins,
     plugins,
   );
-  seed([{ name: "replacement", source: "filesystem", version: "2.0.0" }]);
+  await seed([{ name: "replacement", source: "filesystem", version: "2.0.0" }]);
   assert.deepEqual(
     marketplace.loadMarketplaceManifestSync(storageRoot, official).plugins.map((item) => item.name),
     ["replacement"],
@@ -192,7 +192,7 @@ test("a seeded plugin can be described and installed without fetching a catalog 
     join(cachePath, "skills", "fixture-skill", "SKILL.md"),
     "---\nname: fixture-skill\ndescription: Offline fixture\n---\nUse local files.\n",
   );
-  seed([{ name: "fixture-local", source: "filesystem", version: "1.0.0", cachePath }]);
+  await seed([{ name: "fixture-local", source: "filesystem", version: "1.0.0", cachePath }]);
   const result = await marketplace.installMarketplacePlugin({
     storageRoot,
     marketplace: official,
@@ -215,7 +215,7 @@ test("a seeded plugin can be described and installed without fetching a catalog 
 
 test("personal URL refresh remains explicit, preserves the last good snapshot, and rejects reserved identity takeover", async (t) => {
   const { storageRoot, requests, seed } = await fixture(t);
-  seed([]);
+  await seed([]);
   let manifest = { name: "personal-fixture", plugins: [{ name: "one", source: "./one" }] };
   let fail = false;
   globalThis.fetch = async (url) => {
@@ -272,7 +272,7 @@ test("personal URL refresh remains explicit, preserves the last good snapshot, a
 
 test("personal local sources keep their own directory contents and can be removed independently", async (t) => {
   const { storageRoot, requests, seed } = await fixture(t);
-  seed([]);
+  await seed([]);
   const path = join(storageRoot, "personal-source");
   await mkdir(join(path, ".claude-plugin"), { recursive: true });
   const file = join(path, ".claude-plugin", "marketplace.json");
@@ -298,7 +298,7 @@ test("personal local sources keep their own directory contents and can be remove
 
 test("runtime discovery does not adopt uninstalled legacy cache directories when seed is absent", async (t) => {
   const { storageRoot, requests, seed, directory } = await fixture(t);
-  const { discoverNodePluginsSync } = await tsImport(
+  const { discoverNodePlugins } = await tsImport(
     "../../apps/zcode-cli/packages/adapters/src/plugins/index.ts",
     import.meta.url,
   );
@@ -310,7 +310,7 @@ test("runtime discovery does not adopt uninstalled legacy cache directories when
     description: "Fixture",
   });
   const discover = () =>
-    discoverNodePluginsSync({
+    discoverNodePlugins({
       storageRoot,
       workingDirectory: storageRoot,
       config: {
@@ -322,15 +322,15 @@ test("runtime discovery does not adopt uninstalled legacy cache directories when
         extraKnownMarketplaces: {},
       },
     });
-  assert.deepEqual(discover().plugins, []);
-  seed([{ name: "old-plugin", source: "filesystem", version: "1.0.0", cachePath: root }]);
+  assert.deepEqual((await discover()).plugins, []);
+  await seed([{ name: "old-plugin", source: "filesystem", version: "1.0.0", cachePath: root }]);
   await marketplace.installMarketplacePlugin({
     storageRoot,
     marketplace: official,
     name: "old-plugin",
   });
   await rm(join(directory, "bundled-marketplace.json"));
-  const outcome = discover();
+  const outcome = await discover();
   assert.deepEqual(
     outcome.plugins.map((item) => item.id),
     [`old-plugin@${official}`],

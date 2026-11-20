@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Loader2Icon } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { ProviderStatusIndicator } from "./ProviderStatusIndicator.js";
 
 import { TID_MODEL_PROVIDER_NAV_ITEM, testId } from "@zcode/shared";
@@ -126,10 +126,7 @@ function SortableModelProviderNavigationButton({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: providerId,
   });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const style = { transform: CSS.Transform.toString(transform), transition };
   const isSelected = item.key === selectedNodeKey;
   const inactiveItemClassName = "border-transparent text-foreground hover:border-border-hover/60";
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -304,9 +301,7 @@ export function ModelProviderSectionNavigation({
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   return (
@@ -319,7 +314,7 @@ export function ModelProviderSectionNavigation({
               <div className="flex h-7 items-center justify-between px-2 py-1 max-md:hidden">
                 <h3 className="text-ui-sm font-semibold text-foreground-subtlest">{group.title}</h3>
                 {customLoading ? (
-                  <Loader2Icon className="size-3 animate-spin text-foreground-subtlest" />
+                  <LoaderCircle className="size-3 animate-spin text-foreground-subtlest" />
                 ) : null}
               </div>
 

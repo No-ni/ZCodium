@@ -156,12 +156,15 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
   const withConfirmedDiscard = async (discard: () => void | Promise<void>) => {
     return runWithConfirmedDiscard(getContext(), discard);
   };
-  const handleCloseRequest = () =>
+  const handleCloseRequest = (beforeClose?: () => void) =>
     withConfirmedDiscard(() => {
       const background = state.minimizedRef.current;
       closeDialog();
       state.onCancelled?.(background);
     });
+  const handleDismissRequest = () => {
+    void handleCloseRequest();
+  };
 
   const startRemoteConnection = async (
     target: RemoteTarget,
@@ -331,7 +334,7 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
       return;
     }
 
-    void handleCloseRequest();
+    handleDismissRequest();
   };
 
   const stepCopy = getRemoteWizardStepCopy(state.intl, state.currentStep, state.kind, {

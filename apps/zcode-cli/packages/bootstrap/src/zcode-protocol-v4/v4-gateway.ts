@@ -5,6 +5,7 @@ import {
 // 上游把 LocalTtftRecorder 移到 local-ttft/ 目录，这里按新入口取 contract.js；
 // 同时保留本仓的会话回合目录命令（v4ConversationTurnDirectory*）与上游插件 UI 工具结果通知。
 import { LocalTtftRecorder } from "./local-ttft/contract.js";
+import { deriveLocalGenerationFact } from "./local-generation/contract.js";
 import {
   pluginUiToolResultNotificationSchema,
   type PluginUiToolResultNotification,
@@ -40,7 +41,11 @@ import type {
   FileSystemErrorCode,
 } from "@zcode/contracts";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
-import { SessionEventType, isFileSystemPortError } from "@zcode/contracts";
+import {
+  SessionEventType,
+  isFileSystemPortError,
+  slimRetainedModelRequest,
+} from "@zcode/contracts";
 import type { ZCodeWorkspaceRef } from "@zcode/shared";
 import { extractMarkdownArtifactImageRefs } from "@zcode/shared";
 import type {
@@ -249,6 +254,7 @@ export interface V4GatewayHost {
   emitWireFrame(frame: RoutedTopicWireFrame): void;
   emitSessionActivity?(activity: { sessionId: string; state: "running" | "idle" }): void;
   emitLocalTtftFacts?(facts: import("@zcode/shared").LocalTtftFacts): void;
+  emitLocalGenerationFact?(fact: import("@zcode/shared/extension-host").LocalGenerationFact): void;
   /** 当前进程 live request_access 权限事实；不缓存、不进入 topic replay。 */
   emitCuaPermissionObservation?(observation: CuaPermissionObservation): void;
   /** 成功 UI 工具结果的窗口副作用；与 conversation 订阅、历史 hydration 无关。 */
@@ -318,6 +324,14 @@ export interface V4GatewayHost {
     legacyTaskIds: readonly string[],
   ): Promise<SessionSummary[] | null> | SessionSummary[] | null;
   /**
+   * 本地 workspace 下 cwd 位于受管 worktree 的会话摘要（docs/git/worktree.md §6.6.2）。
+   * id 由 Host 从 tasks-index 精确提供；只读，宿主校验归属后才返回。
+   */
+  getWorktreeSessionSummaries?(
+    workspaceId: string,
+    sessionIds: readonly string[],
+  ): Promise<SessionSummary[]> | SessionSummary[];
+  /**
    * workspace-config：某 workspace 的配置目录（config options + slash 命令）。
    * 订阅时的种子与 invalidateWorkspaceConfig 重拉都走这里。
    * 未实现（旧宿主 / 测试桩）→ workspace-config 路径退化为空目录快照。
@@ -374,22 +388,12 @@ export interface V4GatewayHost {
   /** Share 选择阶段的 userInput 附件 metadata stat；gateway 先完成 row/index 授权。 */
   statSessionAttachment?(
     sessionId: string,
-    input: {
-      ref: string;
-      mime: string;
-      messageId?: string;
-      attachmentIndex?: number;
-    },
+    input: { ref: string; mime: string; messageId?: string; attachmentIndex?: number },
   ): Promise<{ totalBytes: number; mediaType: string; mtimeMs?: number }>;
   /** Desktop local 已发送视频路径；gateway 完成 row/index 授权后才允许进入宿主。 */
   resolveSessionAttachmentPreviewSource?(
     sessionId: string,
-    input: {
-      ref: string;
-      mime: string;
-      messageId?: string;
-      attachmentIndex?: number;
-    },
+    input: { ref: string; mime: string; messageId?: string; attachmentIndex?: number },
   ): Promise<V4AttachmentPreviewSourceResult>;
   getConversationFileChanges?(
     sessionId: string,
@@ -702,6 +706,50 @@ export class ConversationV4Gateway {
     }
   }
 
+  /** durable session_input 已提交后、Core 启动前发布；仍由原 owner 控制生命周期。 */
+  admitPendingInput(sessionId: string, envelope: CommandEnvelope, admittedAt: number): void {
+    const publisher = this.ensurePublisher(sessionId);
+    const snapshot = publisher.getSnapshot();
+    if (
+      snapshot.pendingCommands.some((command) => command.commandId === envelope.commandId) ||
+      snapshot.queue.items.some((item) => item.sourceCommandId === envelope.commandId)
+    )
+      return;
+    this.updatePendingInputs(sessionId, publisher, [
+      ...snapshot.pendingCommands,
+      {
+        commandId: envelope.commandId,
+        clientId: envelope.clientId,
+        type: envelope.type,
+        state: "accepted",
+        at: admittedAt,
+      },
+    ]);
+  }
+
+  cancelPendingInput(sessionId: string, commandId: string): void {
+    const publisher = this.publishers.get(sessionId);
+    if (!publisher) return;
+    const pending = publisher.getSnapshot().pendingCommands;
+    const remaining = pending.filter((command) => command.commandId !== commandId);
+    if (remaining.length !== pending.length)
+      this.updatePendingInputs(sessionId, publisher, remaining);
+  }
+
+  private updatePendingInputs(
+    sessionId: string,
+    publisher: ConversationTopicPublisher,
+    pending: ConversationSnapshot["pendingCommands"],
+  ): void {
+    publisher.setPendingCommands(pending);
+    const sequence = this.getOrCreateRawSequenceState(sessionId);
+    sequence.lastTransportSeq = publisher.getSnapshot().seq;
+    sequence.offset = sequence.lastTransportSeq - sequence.sourceEventSeq;
+    for (const [routeKey, state] of this.flushStates) {
+      if (state.sessionId === sessionId) this.scheduleFlush(routeKey, state, publisher);
+    }
+  }
+
   constructor(
     private readonly host: V4GatewayHost,
     options: ConversationV4GatewayOptions = {},
@@ -720,7 +768,13 @@ export class ConversationV4Gateway {
           !this.host.sessionExists(envelope.sessionId)
         ) {
           // 历史行的重命名 / 删除仍由 CLI 原命令写持久事实；只在真实命令 admission 后冷恢复。
-          await this.ensureColdReadyPublisher(envelope.sessionId);
+          // 身份取 Host 注入的 workspace（docs/git/worktree.md §9.3），否则 worktree 会话的 key
+          // 会按存储 cwd 重建为 worktree 路径。
+          // 旧标题交接可能先于订阅启动恢复。复用两阶段 opening，让后到的历史订阅
+          // 可读首帧；迁移命令仍等待同一个 READY，不另建 publisher 或执行实例。
+          if (this.host.loadPersistedMessages)
+            await this.prepareSessionHistory(envelope.sessionId, envelope.workspace);
+          await this.ensureColdReadyPublisher(envelope.sessionId, undefined, envelope.workspace);
         }
       },
       getRevision: (sessionId) => {
@@ -873,6 +927,14 @@ export class ConversationV4Gateway {
       hydrationBuffer.rawEvents.push(event);
     }
     this.emitLiveCuaPermissionObservation(sessionId, event);
+    if (this.host.emitLocalGenerationFact) {
+      try {
+        const fact = deriveLocalGenerationFact(this.localTtft.instanceId, sessionId, event);
+        if (fact) this.host.emitLocalGenerationFact(fact);
+      } catch {
+        // 本地扩展数值投递失败不能阻断实际对话流或 admission。
+      }
+    }
     for (const normalizedEvent of this.normalizeRuntimeEventSequence(sessionId, event)) {
       if (
         normalizedEvent.type === SessionEventType.TurnStarted ||
@@ -1120,10 +1182,7 @@ export class ConversationV4Gateway {
         this.host.invalidatePersistentCommandFacts?.(sessionId);
       }
       for (const item of removedQueueItems) {
-        this.inbox.releaseLiveInput({
-          sessionId,
-          commandId: item.sourceCommandId,
-        });
+        this.inbox.releaseLiveInput({ sessionId, commandId: item.sourceCommandId });
       }
     }
     if (event.type === SessionEventType.SessionInputPromoted) {
@@ -1345,17 +1404,17 @@ export class ConversationV4Gateway {
     if (workspaceId === null) {
       throw new Error(`Not a sessions-index topic: ${params.topic}`);
     }
-    const publisher = await this.ensureIndexPublisher(workspaceId, params.legacyTaskIds);
+    const publisher = await this.ensureIndexPublisher(
+      workspaceId,
+      params.legacyTaskIds,
+      params.worktreeSessionIds,
+    );
     // ensure 内部可能跨异步 store/claim；dispose 发生在 await 返回前时禁止继续登记订阅。
     this.indexPublishers.ensureActive();
     const result = publisher.subscribeReserved(params.connectionId, params.base);
     try {
       return this.subscribeDispatch(
-        {
-          subscriptionId: result.subscriptionId,
-          mode: result.mode,
-          logEpoch: publisher.logEpoch,
-        },
+        { subscriptionId: result.subscriptionId, mode: result.mode, logEpoch: publisher.logEpoch },
         result.reservation,
         () => this.flushIndex(workspaceId),
       );
@@ -1371,14 +1430,17 @@ export class ConversationV4Gateway {
   private async ensureIndexPublisher(
     workspaceId: string,
     legacyTaskIds?: readonly string[],
+    worktreeSessionIds?: readonly string[],
   ): Promise<SessionsIndexPublisher> {
     const existing = this.indexPublishers.get(workspaceId);
     const shouldRefreshLegacy =
       Boolean(legacyTaskIds?.length) && Boolean(this.host.refreshLegacySessionSummaries);
-    if (existing && !shouldRefreshLegacy) return existing;
+    const shouldLoadWorktree =
+      Boolean(worktreeSessionIds?.length) && Boolean(this.host.getWorktreeSessionSummaries);
+    if (existing && !shouldRefreshLegacy && !shouldLoadWorktree) return existing;
 
     return this.indexPublishers.runExclusive(workspaceId, () =>
-      this.ensureIndexPublisherExclusive(workspaceId, legacyTaskIds),
+      this.ensureIndexPublisherExclusive(workspaceId, legacyTaskIds, worktreeSessionIds),
     );
   }
 
@@ -1386,18 +1448,25 @@ export class ConversationV4Gateway {
   private async ensureIndexPublisherExclusive(
     workspaceId: string,
     legacyTaskIds?: readonly string[],
+    worktreeSessionIds?: readonly string[],
   ): Promise<SessionsIndexPublisher> {
     const refreshed =
       legacyTaskIds && legacyTaskIds.length > 0
         ? ((await this.host.refreshLegacySessionSummaries?.(workspaceId, legacyTaskIds)) ?? null)
         : null;
+    // 受管 worktree 会话不在目录扫描结果里；每次带 id 订阅都补读一次（只补缺失项）。
+    const worktreeSummaries =
+      worktreeSessionIds && worktreeSessionIds.length > 0
+        ? ((await this.host.getWorktreeSessionSummaries?.(workspaceId, worktreeSessionIds)) ?? [])
+        : [];
     const existing = this.indexPublishers.get(workspaceId);
     if (existing) {
       // claim 不能绑定到首次构造：空种子一旦进 Map 就永久挡住重试。
       // 重读只补缺失项，避免冷存储默认态覆盖已有 live projection。
-      if (refreshed && existing.mergeMissingStoredSummaries(refreshed)) {
-        this.flushIndex(workspaceId);
-      }
+      const mergedLegacy = refreshed ? existing.mergeMissingStoredSummaries(refreshed) : false;
+      const mergedWorktree =
+        worktreeSummaries.length > 0 && existing.mergeMissingStoredSummaries(worktreeSummaries);
+      if (mergedLegacy || mergedWorktree) this.flushIndex(workspaceId);
       return existing;
     }
     const publisher = new SessionsIndexPublisher(
@@ -1408,6 +1477,7 @@ export class ConversationV4Gateway {
     // 种子 1：store 里全部会话的轻量摘要（未加载的靠它进列表）。
     const stored = refreshed ?? (await this.host.getStoredSessionSummaries?.(workspaceId)) ?? [];
     for (const summary of stored) publisher.seed(summary);
+    for (const summary of worktreeSummaries) publisher.seed(summary);
     // 种子 2：已加载会话用 live 投影覆盖（更准的 phase/preview/backgroundWork）。
     const liveIds = this.host.listWorkspaceSessionIds?.(workspaceId) ?? [...this.publishers.keys()];
     for (const sessionId of liveIds) {
@@ -1448,11 +1518,7 @@ export class ConversationV4Gateway {
     const result = publisher.subscribeReserved(params.connectionId, params.base);
     try {
       return this.subscribeDispatch(
-        {
-          subscriptionId: result.subscriptionId,
-          mode: result.mode,
-          logEpoch: publisher.logEpoch,
-        },
+        { subscriptionId: result.subscriptionId, mode: result.mode, logEpoch: publisher.logEpoch },
         result.reservation,
         () => this.flushConfig(workspaceId),
       );
@@ -1611,6 +1677,7 @@ export class ConversationV4Gateway {
       // 与 clientMode 同族的可信注入：能力位来自该连接的 clientHello，缺席一律按旧消费者办
       // （整键 patch + 旧界裁剪）。resync / rehydrate 沿用订阅上已记下的这一位，不再重取。
       workflowRunDeltas: params.workflowRunDeltas === true,
+      pluginDiscoveryUi: params.pluginDiscoveryUi === true,
     });
     const routeKey = subscriptionRouteKey(
       params.topic,
@@ -1786,7 +1853,7 @@ export class ConversationV4Gateway {
         : existingReady
           ? await existingReady
           : !this.hasLiveConversation(params.sessionId)
-            ? await this.ensureColdReadyPublisher(params.sessionId)
+            ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
             : await this.hydratePublisher(params.sessionId);
     return publisher.getRowsRange(
       {
@@ -1805,7 +1872,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.hasLiveConversation(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     return publisher.getPlans();
   }
@@ -1836,7 +1903,7 @@ export class ConversationV4Gateway {
     if (!this.host.listDynamicWorkflowRunEvents) {
       throw new V4CapabilityUnsupportedError("listDynamicWorkflowRunEvents", params.sessionId);
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const page = await this.host.listDynamicWorkflowRunEvents(params.sessionId, {
       runId: params.runId,
       ...(params.afterSequence === undefined ? {} : { afterSequence: params.afterSequence }),
@@ -1856,7 +1923,7 @@ export class ConversationV4Gateway {
     if (!this.host.listDynamicWorkflowRuns) {
       throw new V4CapabilityUnsupportedError("listDynamicWorkflowRuns", params.sessionId);
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const runs = await this.host.listDynamicWorkflowRuns(params.sessionId, {
       ...(params.limit === undefined ? {} : { limit: params.limit }),
     });
@@ -1880,7 +1947,7 @@ export class ConversationV4Gateway {
     if (!this.host.listDynamicWorkflowRunArtifacts) {
       throw new V4CapabilityUnsupportedError("listDynamicWorkflowRunArtifacts", params.sessionId);
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const artifacts = await this.host.listDynamicWorkflowRunArtifacts(params.sessionId, {
       runId: params.runId,
     });
@@ -1910,7 +1977,7 @@ export class ConversationV4Gateway {
         params.sessionId,
       );
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const limit = Math.max(
       1,
       Math.min(
@@ -1948,7 +2015,7 @@ export class ConversationV4Gateway {
     if (!this.host.readDynamicWorkflowRunArtifact) {
       throw new V4CapabilityUnsupportedError("readDynamicWorkflowRunArtifact", params.sessionId);
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const artifact = await this.readWorkflowArtifactPayload(params);
     const totalBytes = artifact.bytes.byteLength;
     const start = Math.min(params.offset, totalBytes);
@@ -1980,7 +2047,7 @@ export class ConversationV4Gateway {
         params.sessionId,
       );
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const nodes =
       (await this.host.listDynamicWorkflowRunWorkspaceNodes(params.sessionId, {
         runId: params.runId,
@@ -2009,7 +2076,7 @@ export class ConversationV4Gateway {
     if (!this.host.readDynamicWorkflowRunNodeResult) {
       throw new V4CapabilityUnsupportedError("readDynamicWorkflowRunNodeResult", params.sessionId);
     }
-    await this.ensureHostRecordForJournalRead(params.sessionId);
+    await this.ensureHostRecordForJournalRead(params.sessionId, params.workspace);
     const maxBytes = Math.max(
       1,
       Math.min(
@@ -2121,13 +2188,16 @@ export class ConversationV4Gateway {
    * runtime：它向同一份事件日志追加 SessionResumed、丢弃 pending steer、重放 resume hooks，
    * 双写把序列账搞乱，transcript 从此定格（症状是直播冻结在「已工作 xx 秒」）。
    */
-  private async ensureHostRecordForJournalRead(sessionId: string): Promise<void> {
+  private async ensureHostRecordForJournalRead(
+    sessionId: string,
+    workspace?: ZCodeWorkspaceRef,
+  ): Promise<void> {
     const ready = this.readyFlights.get(sessionId);
     if (ready) await ready;
     if (this.publishers.get(sessionId)?.getSnapshot().runtimeInitialization?.status === "failed")
       throw new Error("fault.subscribe.resumeFailed");
     if (this.hasLiveConversation(sessionId)) return;
-    await this.coldResume.ensureResumed(sessionId);
+    await this.coldResume.ensureResumed(sessionId, undefined, workspace);
   }
 
   async fileChanges(rawParams: unknown): Promise<V4ConversationFileChangesResult> {
@@ -2139,7 +2209,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.hasLiveConversation(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     const resolution = this.resolveQueryRowTarget(publisher, params, "fileChanges");
     const messageIds = resolution.messageIds ?? [];
@@ -2170,7 +2240,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.host.sessionExists(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     const resolution = this.resolveQueryRowTarget(publisher, params, "fileRewindPreview");
     const messageIds = resolution.messageIds ?? [];
@@ -2185,11 +2255,7 @@ export class ConversationV4Gateway {
 
   private resolveQueryRowTarget(
     publisher: ConversationTopicPublisher,
-    params: {
-      target: ConversationRowTarget;
-      baseRevision: number;
-      baseLogEpoch: string;
-    },
+    params: { target: ConversationRowTarget; baseRevision: number; baseLogEpoch: string },
     action: "fileChanges" | "fileRewindPreview",
   ): Extract<ReturnType<ConversationTopicPublisher["resolveRowActionTarget"]>, { ok: true }> {
     const snapshot = publisher.getSnapshot();
@@ -2207,7 +2273,7 @@ export class ConversationV4Gateway {
       throw new Error("fault.attachment.putUnsupported");
     }
     if (!this.host.sessionExists(params.sessionId)) {
-      await this.coldResume.ensureResumed(params.sessionId);
+      await this.coldResume.ensureResumed(params.sessionId, undefined, params.workspace);
     }
     return this.attachmentUploads.begin(params);
   }
@@ -2233,7 +2299,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.host.sessionExists(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     const resolution = this.resolveReadableMediaAttachment(
       publisher,
@@ -2279,7 +2345,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.host.sessionExists(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     const row = publisher
       .getSnapshot()
@@ -2332,7 +2398,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.host.sessionExists(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     const row = publisher
       .getSnapshot()
@@ -2376,7 +2442,7 @@ export class ConversationV4Gateway {
     const publisher = existingReady
       ? await existingReady
       : !this.host.sessionExists(params.sessionId)
-        ? await this.ensureColdReadyPublisher(params.sessionId)
+        ? await this.ensureColdReadyPublisher(params.sessionId, undefined, params.workspace)
         : await this.hydratePublisher(params.sessionId);
     const resolution = this.resolveReadableMediaAttachment(
       publisher,
@@ -2441,11 +2507,7 @@ export class ConversationV4Gateway {
       // 热态 renderer 可能还持有 original ref，而 hydrate 后的权威 row 已补
       // previewRef；两者属于同一个 row/index，授权不能因投影时序不同而误判为跨行读取。
       const messageId = publisher.getMessageIdForRow(row.rowId);
-      return {
-        attachment,
-        attachmentIndex,
-        ...(messageId ? { messageId } : {}),
-      };
+      return { attachment, attachmentIndex, ...(messageId ? { messageId } : {}) };
     }
 
     // 旧 renderer 没有 row target，无法按消息定位持久 artifact；一旦
@@ -2468,14 +2530,7 @@ export class ConversationV4Gateway {
         // 自报的任意 artifact/path。Markdown 是模型可控文本，所以 URI authority
         // 还必须与当前请求 session 精确匹配；仅“当前投影里出现过”不能证明它有权
         // 读取另一个 session 的 artifact。
-        return {
-          attachment: {
-            ref,
-            fileName: "assistant-image",
-            mime: "image/*",
-            bytes: 0,
-          },
-        };
+        return { attachment: { ref, fileName: "assistant-image", mime: "image/*", bytes: 0 } };
       }
     }
     return null;
@@ -2683,10 +2738,7 @@ export class ConversationV4Gateway {
       if (!durableInputIntent || outcome.envelope.sessionId === null) return;
       try {
         this.inbox.releaseLiveInput(
-          {
-            sessionId: outcome.envelope.sessionId,
-            commandId: durableInputIntent.sourceCommandId,
-          },
+          { sessionId: outcome.envelope.sessionId, commandId: durableInputIntent.sourceCommandId },
           { ...outcome.ack, ...final },
         );
       } catch (releaseError) {
@@ -2751,10 +2803,7 @@ export class ConversationV4Gateway {
       // noop 不是失败（同值切换收口）：不进 onError，noop ACK 返回。
       if (error instanceof V4CommandNoopError) {
         await cancelDurableInput(error.reasonCode);
-        const final = {
-          status: "noop" as const,
-          reasonCode: error.reasonCode,
-        };
+        const final = { status: "noop" as const, reasonCode: error.reasonCode };
         releaseDurableInput(final);
         return settleOnce(final);
       }
@@ -2807,9 +2856,31 @@ export class ConversationV4Gateway {
         return ready;
       }),
     );
+    const results = await this.inbox.query(params.commands);
     return commandsQueryResultSchema.parse({
-      results: await this.inbox.query(params.commands),
+      results: results.map((item) => {
+        const turn = this.commandTurn(item.key);
+        return turn ? { ...item, turn } : item;
+      }),
     });
+  }
+
+  /**
+   * 修复原因：Host 只能在快照尾窗（60 行）里按 sourceCommandId 找 turnHeader，长回合的 header
+   * 滚出窗口后 wait 拿到 unknown、审批匹配不到回合。投影内部快照保留全量行，由 owner 直接回答。
+   * 取第一个匹配的 header，与客户端在尾窗中的匹配规则一致。
+   */
+  private commandTurn(key: { sessionId: string | null; commandId: string }) {
+    if (key.sessionId === null) return undefined;
+    const header = this.publishers
+      .get(key.sessionId)
+      ?.getSnapshot()
+      .rows.window.find(
+        (row) => row.kind === "turnHeader" && row.sourceCommandId === key.commandId,
+      );
+    return header?.kind === "turnHeader"
+      ? { turnId: header.turnId, state: header.state }
+      : undefined;
   }
 
   getQueueItem(sessionId: string, queueItemId: string): QueueItem | null {
@@ -2848,6 +2919,7 @@ export class ConversationV4Gateway {
   getQueueHead(sessionId: string): {
     autoDrain: boolean;
     dispatchState: QueueItem["dispatch"]["state"];
+    editLocked: boolean;
     kind: QueueItem["kind"];
     queueItemId: string;
     text: string;
@@ -2858,6 +2930,7 @@ export class ConversationV4Gateway {
     return {
       autoDrain: snapshot.queue.autoDrain,
       dispatchState: item.dispatch.state,
+      editLocked: item.editLock !== undefined,
       kind: item.kind,
       queueItemId: item.queueItemId,
       text: item.text,
@@ -2973,10 +3046,7 @@ export class ConversationV4Gateway {
    * 保留，再次订阅经冷恢复透明重建。
    */
   deactivateSession(sessionId: string): void {
-    this.cleanupSessionRuntime(sessionId, {
-      clearCommandInbox: true,
-      notifyIndexRemoved: false,
-    });
+    this.cleanupSessionRuntime(sessionId, { clearCommandInbox: true, notifyIndexRemoved: false });
   }
 
   /**
@@ -3003,6 +3073,10 @@ export class ConversationV4Gateway {
       detachedLive: this.detachedLiveSessions.size,
       detachedTerminal: this.detachedTerminalAt.size,
       rawSeqStates: this.rawSequenceStates.size,
+      hydrations: this.hydrationInFlight.size,
+      historyOpenings: this.historyOpenings.size,
+      binaryCacheEntries: this.binaryReadCache.size,
+      binaryCacheBytes: this.binaryReadCacheBytes,
     };
   }
 
@@ -3210,11 +3284,14 @@ export class ConversationV4Gateway {
    * 生命周期 owner 只复用历史结果，直接执行实例激活；不能等待投影的激活回调。
    * 旧实现复用 opening 时丢弃新回调，ensureReady 因而永远等不到 activated。
    */
-  async prepareSessionHistory(sessionId: string): Promise<MessageWithParts[]> {
+  async prepareSessionHistory(
+    sessionId: string,
+    workspace?: ZCodeWorkspaceRef,
+  ): Promise<MessageWithParts[]> {
     const history = this.ensureHistoryReadyPublisher(
       sessionId,
       undefined,
-      undefined,
+      workspace,
       undefined,
       this.publishers.get(sessionId)?.getSnapshot().runtimeInitialization?.attemptId,
     );
@@ -3646,7 +3723,8 @@ export class ConversationV4Gateway {
     if (state.seenEventIds.has(eventId)) return [];
 
     const rawSeq = event.sequenceNumber;
-    state.recentRawEventsById.set(eventId, event);
+    // EventStore 瘦身会替换对象，无法释放此缓存持有的旧 messages；回放只需元数据与序号。
+    state.recentRawEventsById.set(eventId, slimRetainedModelRequest(event));
     while (state.recentRawEventsById.size > PROTOCOL_V4_LIMITS.eventRetentionPerSession) {
       const oldestEventId = state.recentRawEventsById.keys().next().value;
       if (oldestEventId === undefined) break;

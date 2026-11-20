@@ -1,11 +1,5 @@
-const SUPPORTED_DESKTOP_PLATFORM_KEYS = [
-  "darwin-arm64",
-  "darwin-x64",
-  "linux-arm64",
-  "linux-x64",
-  "win32-arm64",
-  "win32-x64",
-];
+import { keyringPlatformPackage } from "../../../scripts/stage-credential-keyring.mjs";
+const SUPPORTED_DESKTOP_PLATFORM_KEYS = ["darwin-arm64", "darwin-x64", "win32-arm64", "win32-x64"];
 
 // sharp 通过 optionalDependencies 分发全平台二进制变体。electron-builder 26.17 的
 // pnpm 收集器按 lockfile 全平台图收包，会把 darwin/linux/异架构 win32 变体（Mach-O/ELF，
@@ -47,19 +41,38 @@ function assertSupportedTargetPlatformKey(targetPlatformKey) {
 export function createDesktopNativePackagePrunePatterns(targetPlatformKey) {
   assertSupportedTargetPlatformKey(targetPlatformKey);
 
+  const keyringVariants = [
+    "darwin-arm64",
+    "darwin-x64",
+    "win32-arm64",
+    "win32-x64",
+    "linux-arm64",
+    "linux-x64",
+  ].map(keyringPlatformPackage);
+  keyringVariants.push(
+    "@napi-rs/keyring-linux-arm64-musl",
+    "@napi-rs/keyring-linux-x64-musl",
+    "@napi-rs/keyring-win32-ia32-msvc",
+    "@napi-rs/keyring-freebsd-x64",
+    "@napi-rs/keyring-linux-riscv64-gnu",
+    "@napi-rs/keyring-linux-arm-gnueabihf",
+  );
   return [
+    ...keyringVariants
+      .filter((name) => name !== keyringPlatformPackage(targetPlatformKey))
+      .map((name) => `!node_modules/${name}/**`),
     // PDF 预览已经由 Vite 打进 renderer，pdfjs-dist 的 Canvas optional dependency
     // 只服务 Node 渲染；pnpm 跨平台安装的 8 套 Canvas native 不应带进桌面安装包。
     "!node_modules/@napi-rs/canvas/**",
     "!node_modules/@napi-rs/canvas-*/**",
-    // Linux prebuild 会在 beforePack 复制进 node-pty；源平台包本身不属于桌面运行时。
+    // 本仓不准备 Linux 桌面资源；任何平台源包均不得进入桌面运行时。
     "!node_modules/@lydell/node-pty-*/**",
     // 桌面运行时统一使用目标 prebuild，禁止把安装机现场编译物或 ABI bin 缓存带进跨平台包。
     "!node_modules/node-pty/build/**",
     "!node_modules/node-pty/bin/**",
-    ...SUPPORTED_DESKTOP_PLATFORM_KEYS.filter((key) => key !== targetPlatformKey).map(
-      (key) => `!node_modules/node-pty/prebuilds/${key}/**`,
-    ),
+    ...[...SUPPORTED_DESKTOP_PLATFORM_KEYS, "linux-x64", "linux-arm64"]
+      .filter((key) => key !== targetPlatformKey)
+      .map((key) => `!node_modules/node-pty/prebuilds/${key}/**`),
     // 裁剪非目标平台的 @img/sharp 变体；目标平台变体由下方违规检查兜底确认。
     ...SHARP_VARIANT_PACKAGES.filter(
       (name) => !SHARP_VARIANTS_BY_PLATFORM[targetPlatformKey].includes(name),
@@ -104,6 +117,12 @@ export function findDesktopNativePackageViolations(entries, targetPlatformKey) {
       path.startsWith("/node_modules/@napi-rs/canvas-")
     ) {
       violations.push(`不应打包 renderer 无需的 Canvas native: ${path}`);
+      continue;
+    }
+
+    const keyringMatch = /^\/node_modules\/(@napi-rs\/keyring-[a-z0-9-]+)(?:\/|$)/.exec(path);
+    if (keyringMatch && keyringMatch[1] !== keyringPlatformPackage(targetPlatformKey)) {
+      violations.push(`keyring 包含非目标平台变体: ${keyringMatch[1]}`);
       continue;
     }
 

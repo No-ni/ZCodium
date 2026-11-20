@@ -1,4 +1,4 @@
-import { FolderOpen, Loader2 } from "lucide-react";
+import { FolderOpen, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDataBaseDirForbiddenWindowsInstallDirError } from "@zcode/shared";
 import {
@@ -114,7 +114,7 @@ export function DataBaseDirControl({
           onClick={() => void handleSave()}
         >
           {isSaving ? (
-            <Loader2 className="size-4 animate-spin" />
+            <LoaderCircle className="size-4 animate-spin" />
           ) : (
             intl.formatMessage({ id: "settings.dataBaseDirSave" })
           )}

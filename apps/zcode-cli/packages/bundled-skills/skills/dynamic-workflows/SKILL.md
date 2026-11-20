@@ -36,11 +36,11 @@ when a wrong claim costs little or a command has already decided it.
 
 ## 1. Is this the right tool, and how big should it be?
 
-| The request | The tool |
-| --- | --- |
-| One thing delegated to one agent | `Agent` |
-| A few independent lookups, nobody reading anybody's answer | `Agent`, in parallel |
-| Anything else the user did not name a workflow for — however many steps or subagents it needs | `Agent`, or do it yourself |
+| The request                                                                                               | The tool                                                                               |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| One thing delegated to one agent                                                                          | `Agent`                                                                                |
+| A few independent lookups, nobody reading anybody's answer                                                | `Agent`, in parallel                                                                   |
+| Anything else the user did not name a workflow for — however many steps or subagents it needs             | `Agent`, or do it yourself                                                             |
 | The user said "use a workflow" / "使用 workflow" / "用工作流" — any phrasing naming workflow as the means | `CreateWorkflow`, mandatory, even if `Agent` would have done or one reply could answer |
 
 **Only an explicit request starts a workflow.** The request is the whole routing rule: a
@@ -75,7 +75,7 @@ This is the decision that separates a good script from a bad one, and there are 
 to it.
 
 **Fresh subagent per item, or one shared subagent?** Every `agent()` call creates a new context.
-Sharing a context means sharing the *variable*:
+Sharing a context means sharing the _variable_:
 
 ```ts
 // Independent: each judge sees only its own item. Runs concurrently.
@@ -87,36 +87,45 @@ const judge = agent("judge", "You rank consistently across a whole batch.");
 items.map((i) => judge.ask<Verdict>(`Judge ${i.id}`));
 ```
 
-Both are correct for different jobs. Independent is right when the items are unrelated and
-you want parallelism; shared is right when the answers must be consistent with each other,
-and you are paying serialization for that consistency. Choosing shared by accident — by
-hoisting the `agent()` call out of a loop for tidiness — turns a parallel fan-out into a
-queue. Nothing rejects that script; the run simply takes as long as every item in a row.
+Independent is right for unrelated items; shared is right when the answers must be
+consistent with each other, at the price of serialization. Hoisting the `agent()` call out
+of a loop for tidiness turns a fan-out into a queue, and nothing rejects that script.
 
-**A name is an identity, and it has to be unique.** Naming is optional, but no two subagents
-in one run may share a non-empty name — a duplicate fails the whole run. Note what that
-means for the first snippet above: one fixed name inside a fan-out is a duplicate once per
-item, so it is written `` agent(`judge-${i.id}`) ``, per item. The compiler catches the
-literal form (`agent("judge")` inside a `.map`/`for...of`) before you submit; a name built
-at run time it cannot see, so that one costs you the run. Anonymous is always safe: drop
-the name when you have nothing per-item to build one from.
+**A name is an identity, and it has to be unique.** No two subagents in one run may share a
+non-empty name — a duplicate fails the run. One fixed name inside a fan-out is a duplicate
+per item, so write ``agent(`judge-${i.id}`)``; the compiler catches the literal form, a
+name built at run time costs you the run. Anonymous is always safe.
 
-Names are worth giving anyway, because they are how a **revised** re-run finds its cache
-(§13): resubmitting a fixed script with `AmendWorkflow` imports, per named subagent, every ask
-whose instructions did not change — at zero tokens, up to the first ask that has to run
-live. Stable, meaningful names are what makes that hit. Anonymous subagents are legal
-and simply always start with an empty context.
+Names are worth giving anyway: a **revised** re-run finds its cache by them (§13),
+importing every ask whose instructions did not change at zero tokens. Anonymous subagents
+start empty.
 
-**Persona, frozen at creation.** A persona stacks on top of the harness's own workflow
-subagent contract — citing `path:line`, never reporting a check it did not run, saying
-plainly what it could not do, escalating instead of faking — so write the role and the
-standard of judgement, and leave those rules out; they are already there. Every subagent
-has the same tools — reading, searching, editing, running commands — and runs on the
-session's model; there is no per-subagent tool profile or model choice. What a subagent may
-do with its tools is said in the ask: a reviewer that must not touch the code is told "do not
-edit any file", a judge of a string is handed the string and told to judge it as given. A
-subagent asked to run a check runs it; one told not to edit does not. None of this can
-change after `agent()` — there is no per-task override.
+**Persona, frozen at creation.** A persona stacks on the harness's own subagent contract —
+citing `path:line`, never reporting a check it did not run, saying what it could not do,
+escalating instead of faking — so write the role and the standard of judgement and leave
+those rules out. Every subagent has the same tools; what it may do with them is said in the
+ask: a reviewer that must not touch the code is told "do not edit any file".
+
+**Per-subagent model**, only when the user asked for one, with the name they used:
+`agent("judge", { model: "GLM-5.3-Flash" })`, ids from `ListModels`. A literal or a `model()`
+ModelRef; to route, map the router's typed key to a `model()` table (`patterns.md` #13).
+NEVER move a subagent to a model under another provider on your own — not for a judge, not
+because it looks cheaper; another provider is another bill. When a lighter model would
+clearly fit (one-turn judges, routers) and the user has not said, ask them first, before
+the call: name the model and the provider, say what it would save, and go with their answer.
+Their yes is the request; write it as the full `providerId/modelId` (a bare name never
+crosses providers).
+
+**Search budget.** By default each ask may make 128 `WebSearch` calls; past that, `WebSearch`
+refuses and the subagent finishes from what it has. When you anticipate an ask needing more
+searches, which should be rare, set a larger number: `agent("scout", { budget: { webSearch: 512 } })`
+(an integer literal, at most 1024). A result that says its search was cut short means the
+budget was hit: tell the user, and amend with a larger budget if they want more.
+
+**Where each item goes next.** A run with more than one stage is a pipeline: an item leaves
+its stage as soon as it is done, and the next stage takes it while the rest are still being
+worked on. Decide this at every hand-off when you lay out the topology, and let a stage wait
+for all of its items only where the next step needs every one. §7 says how to write each case.
 
 **Loops.** Bound every loop with a round cap, and carry the feedback forward:
 
@@ -143,7 +152,7 @@ workflow, model it as more subagents here.
 
 The author of a plan or a draft cannot see its gaps, because they filled them while
 writing. A reader with a separate context has no such fill, so the gaps show. That is the
-whole method, and it applies at every stage *inside* the workflow where something is
+whole method, and it applies at every stage _inside_ the workflow where something is
 drafted — a plan, a fix, a finding, the final report. It pays most on plans, which are
 cheap to critique and expensive to execute wrongly.
 
@@ -174,7 +183,7 @@ mechanism — a plan gets a reviewer who reads the code, findings get a confirme
 reader. A draft that came out of a planner–reviewer loop and then passed a fresh final
 reviewer has had its fresh eyes; a reader-proxy pass over the same text is a third session
 re-reading work two have already read. Two mechanisms on one deliverable is the ceiling, and
-it needs a reason you can say. And the rules above are about the subagents *inside* the
+it needs a reason you can say. And the rules above are about the subagents _inside_ the
 script, not a gate on submitting it: reading your own script once against the request is
 normally enough, and the run confirmation already puts the plan in front of the user. An
 independent read of the script by a fresh `Agent` is an option for a genuinely hard one — many
@@ -228,7 +237,7 @@ try {
 }
 ```
 
-Reach for `files.read` or `files.grep` only when the *script itself* must shard or branch on
+Reach for `files.read` or `files.grep` only when the _script itself_ must shard or branch on
 content. Deciding which files to hand out is script work; reading them is subagent work.
 
 **`world.run` is the deterministic gate.** When a check is fixed and machine-checkable — the
@@ -306,13 +315,11 @@ result into a container and fishing it out later, or routing it through a clever
 earns an analyzability diagnostic instead.
 
 `Promise.all` is a join, and a join is a barrier: nothing after it starts until the slowest
-item before it has landed. Parallelism comes from *not awaiting yet*:
+item before it has landed. Parallelism comes from _not awaiting yet_:
 
 ```ts
 // Concurrent: nothing is awaited until the join.
-const all = await Promise.all(
-  paths.map((p) => agent(`reviewer-${p}`).ask<Review>(`Review ${p}`)),
-);
+const all = await Promise.all(paths.map((p) => agent(`reviewer-${p}`).ask<Review>(`Review ${p}`)));
 
 // Serial: each await blocks the next call. Only write this when you mean it.
 for (const p of paths) results.push(await agent(`reviewer-${p}`).ask<Review>(`Review ${p}`));
@@ -326,9 +333,13 @@ once at the end:
 
 ```ts
 // ✗ Two barriers: no finding is confirmed until every file has been reviewed.
-const reviews = await Promise.all(paths.map((p) => agent(`reviewer-${p}`).ask<Review>(`Review ${p}`)));
+const reviews = await Promise.all(
+  paths.map((p) => agent(`reviewer-${p}`).ask<Review>(`Review ${p}`)),
+);
 const confirmed = await Promise.all(
-  reviews.flatMap((r) => r.findings).map((f, i) => agent(`confirmer-${i}`).ask<Confirmation>(`Reproduce: ${JSON.stringify(f)}`)),
+  reviews
+    .flatMap((r) => r.findings)
+    .map((f, i) => agent(`confirmer-${i}`).ask<Confirmation>(`Reproduce: ${JSON.stringify(f)}`)),
 );
 
 // ✓ One join: each file's findings go to their confirmers the moment its review lands.
@@ -337,7 +348,9 @@ const confirmed = (
     paths.map(async (p) => {
       const review = await agent(`reviewer-${p}`).ask<Review>(`Review ${p}`);
       return Promise.all(
-        review.findings.map((f, i) => agent(`confirmer-${p}-${i}`).ask<Confirmation>(`Reproduce: ${JSON.stringify(f)}`)),
+        review.findings.map((f, i) =>
+          agent(`confirmer-${p}-${i}`).ask<Confirmation>(`Reproduce: ${JSON.stringify(f)}`),
+        ),
       );
     }),
   )
@@ -347,7 +360,7 @@ const confirmed = (
 The stages that genuinely need everyone — a triage that ranks on one scale, a synthesis that
 deduplicates across findings — are the legitimate barriers, and they are few. A shared,
 calibrated subagent is not one of them: asks on it queue FIFO, so feeding it per item as
-results land keeps it consistent *and* keeps the pipeline moving (§11).
+results land keeps it consistent _and_ keeps the pipeline moving (§11).
 
 One rejection inside `Promise.all` rejects the whole join and the sibling results with it.
 When one bad item should cost one item, catch inside the callback (examples #3) or use
@@ -362,6 +375,7 @@ every stage gets a `phase("...")` marker at its head, and the arrows between the
 are inferred from the same analysis:
 
 <!-- compile -->
+
 ```ts
 interface Attempt {
   /** One sentence: the optimization this round is trying. */
@@ -455,18 +469,18 @@ desk what is happening: say what the work is, in the words the user would use, i
 language the user is speaking in this session. The machinery — fan-out, gate, node, stage,
 pipeline — is yours, not theirs, and so is the numbering.
 
-| Read by the user | Write | Not |
-| --- | --- | --- |
-| Phase name | Review each changed file / 逐个检查改动的文件 | Fan-out review stage / 文件评审阶段 |
-| Phase name | Check that the tests still pass / 确认测试仍然通过 | Gate: test verification / 执行测试验证任务 |
-| Subagent name | Code reviewer / 代码评审员 | reviewer_2 / 节点3 |
-| Subagent name | Benchmark runner / 跑基准测试的人 | runner / 子代理A |
-| Phase name | Independent review of the final plan / 请没看过方案的人再审一遍 | Cold read of the plan / 冷读方案 |
-| Subagent name | Independent reviewer / 独立评审员 | cold-reviewer / 冷眼评审 |
-| `log` line | Reviewing 12 changed files / 正在检查 12 个改动的文件 | Fan-out sized: n=12 / 扇出阶段初始化完成 |
-| Report conclusion | Two of the twelve files have real bugs, both in the parser. / 12 个文件里有 2 个有真问题，都在解析器里。 | The workflow executed successfully and produced findings. / 工作流已成功执行并生成结果。 |
-| Artifact title | Review report / 评审报告 | report-artifact-v1 / 产物输出 |
-| Escalation question | Should the threshold be 94 rather than 96? / 阈值应该是 94 而不是 96 吗？ | Requesting clarification regarding gate configuration parameters / 请求对门控配置参数进行澄清 |
+| Read by the user    | Write                                                                                                    | Not                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Phase name          | Review each changed file / 逐个检查改动的文件                                                            | Fan-out review stage / 文件评审阶段                                                           |
+| Phase name          | Check that the tests still pass / 确认测试仍然通过                                                       | Gate: test verification / 执行测试验证任务                                                    |
+| Subagent name       | Code reviewer / 代码评审员                                                                               | reviewer_2 / 节点3                                                                            |
+| Subagent name       | Benchmark runner / 跑基准测试的人                                                                        | runner / 子代理A                                                                              |
+| Phase name          | Independent review of the final plan / 请没看过方案的人再审一遍                                          | Cold read of the plan / 冷读方案                                                              |
+| Subagent name       | Independent reviewer / 独立评审员                                                                        | cold-reviewer / 冷眼评审                                                                      |
+| `log` line          | Reviewing 12 changed files / 正在检查 12 个改动的文件                                                    | Fan-out sized: n=12 / 扇出阶段初始化完成                                                      |
+| Report conclusion   | Two of the twelve files have real bugs, both in the parser. / 12 个文件里有 2 个有真问题，都在解析器里。 | The workflow executed successfully and produced findings. / 工作流已成功执行并生成结果。      |
+| Artifact title      | Review report / 评审报告                                                                                 | report-artifact-v1 / 产物输出                                                                 |
+| Escalation question | Should the threshold be 94 rather than 96? / 阈值应该是 94 而不是 96 吗？                                | Requesting clarification regarding gate configuration parameters / 请求对门控配置参数进行澄清 |
 
 The method names in this skill — fresh eyes, independent read — are English idioms for you,
 not words for the user. Carry the idea across, not the words: in Chinese that is 独立复核 or
@@ -506,7 +520,7 @@ turns on what only they can do.
 **Gate at the task's scale.** `verified` names the commands that actually decided the
 result, and the reader will hold them against what they asked for. A unit suite in
 `verified` and the end-to-end suite in `notCovered` is not a verified deliverable; it is an
-unverified one with a disclosure attached. `notCovered` is for what *could not* be checked —
+unverified one with a disclosure attached. `notCovered` is for what _could not_ be checked —
 no test exists for it, the environment lacks the tool, the check needs something only the
 user has — never for a check that exists in the repository and was skipped because it is
 slow or because the fast tier already passed. If the strongest check the request implies
@@ -529,6 +543,7 @@ in the order below; what the user themselves keep is the artifact of the next se
 Return this shape (copy the interfaces; they compile as-is) rather than a bare array:
 
 <!-- compile -->
+
 ```ts
 interface Finding {
   /** Workspace-relative path, with a line when it applies: "src/a.ts:42". */
@@ -572,7 +587,7 @@ covered. `notCovered` says what it did not look at and why, which is the differe
 speaking in this session.
 
 **Deliver artifacts.** The `return` is read by the main agent, which retells it. `artifact.*`
-is the other channel: things the *user* opens, shown as cards beside the run while it is
+is the other channel: things the _user_ opens, shown as cards beside the run while it is
 still going and kept after it ends. Two habits:
 
 - **Every run publishes its deliverable.** The deliverable is whatever the user asked for.
@@ -620,6 +635,7 @@ cap — and the honest response is to hand the gap back to a subagent and publis
 than let a run end with nothing the user can open:
 
 <!-- compile -->
+
 ```ts
 interface RoundOutcome {
   /** 1-based round number. */
@@ -656,11 +672,17 @@ for (let round = 1; round <= 3; round += 1) {
 
 phase("Hand the user the profile and the write-up");
 try {
-  await artifact.file("profile", "out/profile.html", { title: "Query profile after the last round" });
+  await artifact.file("profile", "out/profile.html", {
+    title: "Query profile after the last round",
+  });
 } catch {
   const profiler = agent("profiler");
-  await profiler.ask("out/profile.html is missing. Profile the query path as it stands and write the profile there.");
-  await artifact.file("profile", "out/profile.html", { title: "Query profile after the last round" });
+  await profiler.ask(
+    "out/profile.html is missing. Profile the query path as it stands and write the profile there.",
+  );
+  await artifact.file("profile", "out/profile.html", {
+    title: "Query profile after the last round",
+  });
 }
 const latest = rounds[rounds.length - 1]?.queryMs ?? 0;
 await artifact.markdown(
@@ -684,7 +706,7 @@ return {
 };
 ```
 
-One `report` call feeds both surfaces: the tagged item lands on the chart *and* in the run's
+One `report` call feeds both surfaces: the tagged item lands on the chart _and_ in the run's
 progressive results, so tagging costs nothing and adds a picture. Three cards, none repeating
 another: the chart is what the user watched, the profile is what a person opens, the report
 is what they keep. The CSV the bench also wrote stays in the workspace — its rows are the
@@ -700,38 +722,38 @@ and §10 already carry its rules.
 
 ## 12. Anti-patterns
 
-| What you wrote | What it costs you |
-| --- | --- |
-| Hoisted one subagent out of a fan-out for tidiness | The fan-out silently became a FIFO queue |
-| Gave every subagent in a fan-out the same fixed name | Every name in a run must be unique: a literal one is rejected at compile time, a computed one kills the run at the second item. Name per item or stay anonymous |
-| A fresh subagent each loop round | Round five re-learns everything round four knew, at full price |
-| Accumulated findings in an array, returned at the end | A failure on the last task loses all of them; `report` as you go |
-| Interpolated a whole file into the prompt | Paid tokens to tell a subagent something its own tools would have read |
-| A wide `files.grep` with no glob | The call rejects; it does not quietly hand you a partial workspace |
-| An unbounded `while` | The run dies on a cap instead of finishing |
-| Asked a subagent to run the tests and report whether they passed | Paid a session for what `world.run` does as code — and trusted a pass/fail claim the subagent can fake |
-| Built the `world.run` command name from a variable or template hole | Compile fails: the user approves the script's command set, so the command must be a literal; runtime values belong in the args array |
-| Submitted a workflow to find out whether a parse function works | A full run spent on what `EvalWorkflowSnippet` answers synchronously |
-| Dereferenced a `.find()` / `.match()` result or an optional property without a guard | Compile fails: `strict` keeps those `T \| undefined` / `null`; plain `items[i]` needs no guard (`noUncheckedIndexedAccess` is off) |
-| `Date.now()` / `Math.random()` / `fetch` / `fs` | Rejected at compile time; a replayable run cannot contain them |
-| Awaited each call in a loop that had no ordering requirement | Serial wall-clock for concurrent work |
-| Interpolated a tunable constant (a threshold, a cap) into an ask message | Amending that one number rewrites every prompt that mentions it: an `AmendWorkflow` re-run misses cache at the first such ask and re-pays everything downstream |
-| Named a phase or a subagent after the machinery, in either language ("fan-out", "文件评审阶段", "节点3"), or shipped the script with no markers at all | The user approves a graph whose stages say nothing about their work — or thirty cards with no story (§9) |
-| Wrote a persona that says only "make the check pass" | Against a check it cannot pass, faking one is the obedient reading. Tell the subagent to escalate an impossible gate instead (§14) |
-| Asked the reviewer "is this good?" | A reviewer asked for approval approves; ask what would break it and what is missing (§3) |
-| Reported findings nobody confirmed | The user gets a list that cannot tell "seen" from "suspected"; confirm each finding independently and label the ones that failed (§10) |
-| Gated the loop on the unit tests and never ran the integration suite, the end-to-end suite, or the bench the request was about | The work passed the check that was cheap, not the one that decides; the strongest check runs at least once before `return` (§5) |
-| Wrote the gate from habit (`cargo test`, `node --test`) without reading the project's own scripts | The `package.json`, `Makefile` or README already named a stronger check, and the user knows it; survey the repository's checks before you gate (§5) |
-| Put a check that exists into `notCovered` because it was slow | An honest-looking report of unverified work; `notCovered` is for what could not be checked (§10) |
-| Returned a bare array as the run's result | The main agent has to improvise the deliverable, so the user gets a different shape every time; return the report shape (§10) |
-| Returned the report and published nothing | The user gets the main agent's retelling and nothing to keep; publish the deliverable — the file they asked for, or the findings in long form (§10) |
-| Published a CSV and a table of its rows, or a report and a copy of it | Two cards for one fact: the second is noise the user has to look past (§10) |
-| Declared a dashboard for a run nobody watches | Three points on a chart for a run that was over before anyone looked; a dashboard is for the person watching (§10) |
-| Stacked a reviewer loop, a fresh final reviewer, a per-finding confirmer and a reader-proxy read on one deliverable | Four sessions re-reading the same work; one deliverable gets one mechanism, two at most with a reason (§3) |
-| Sent a confirmer after a finding a `world.run` already decided, or let the hunter, the confirmer and the gate each run the suite | The same check paid three times; the exit code is the confirmation, and the gate runs the suite once (§10) |
-| `Promise.all` between two stages whose items map one to one (review every file, *then* confirm every finding) | The slowest reviewer gates every confirmer while the slots idle; chain the stages per item and join once (§7) |
-| Waited for a run you already knew was wrong to finish, or stopped it and left it | Everything after the fix point is re-paid either way; call `AmendWorkflow` on it now, while it runs (§13) |
-| Pasted a whole revised script inline after a diagnostic or an error, instead of editing the file the tool named | Twenty thousand tokens re-streamed to change one line, on a provider that may stall on the resubmit — and a script compaction has dropped is one you can no longer paste; the file is on disk, so the revision is an `Edit` and a `path` (§13) |
+| What you wrote                                                                                                                                         | What it costs you                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hoisted one subagent out of a fan-out for tidiness                                                                                                     | The fan-out silently became a FIFO queue                                                                                                                                                                                                       |
+| Gave every subagent in a fan-out the same fixed name                                                                                                   | Every name in a run must be unique: a literal one is rejected at compile time, a computed one kills the run at the second item. Name per item or stay anonymous                                                                                |
+| A fresh subagent each loop round                                                                                                                       | Round five re-learns everything round four knew, at full price                                                                                                                                                                                 |
+| Accumulated findings in an array, returned at the end                                                                                                  | A failure on the last task loses all of them; `report` as you go                                                                                                                                                                               |
+| Interpolated a whole file into the prompt                                                                                                              | Paid tokens to tell a subagent something its own tools would have read                                                                                                                                                                         |
+| A wide `files.grep` with no glob                                                                                                                       | The call rejects; it does not quietly hand you a partial workspace                                                                                                                                                                             |
+| An unbounded `while`                                                                                                                                   | The run dies on a cap instead of finishing                                                                                                                                                                                                     |
+| Asked a subagent to run the tests and report whether they passed                                                                                       | Paid a session for what `world.run` does as code — and trusted a pass/fail claim the subagent can fake                                                                                                                                         |
+| Built the `world.run` command name from a variable or template hole                                                                                    | Compile fails: the user approves the script's command set, so the command must be a literal; runtime values belong in the args array                                                                                                           |
+| Submitted a workflow to find out whether a parse function works                                                                                        | A full run spent on what `EvalWorkflowSnippet` answers synchronously                                                                                                                                                                           |
+| Dereferenced a `.find()` / `.match()` result or an optional property without a guard                                                                   | Compile fails: `strict` keeps those `T \| undefined` / `null`; plain `items[i]` needs no guard (`noUncheckedIndexedAccess` is off)                                                                                                             |
+| `Date.now()` / `Math.random()` / `fetch` / `fs`                                                                                                        | Rejected at compile time; a replayable run cannot contain them                                                                                                                                                                                 |
+| Awaited each call in a loop that had no ordering requirement                                                                                           | Serial wall-clock for concurrent work                                                                                                                                                                                                          |
+| Interpolated a tunable constant (a threshold, a cap) into an ask message                                                                               | Amending that one number rewrites every prompt that mentions it: an `AmendWorkflow` re-run misses cache at the first such ask and re-pays everything downstream                                                                                |
+| Named a phase or a subagent after the machinery, in either language ("fan-out", "文件评审阶段", "节点3"), or shipped the script with no markers at all | The user approves a graph whose stages say nothing about their work — or thirty cards with no story (§9)                                                                                                                                       |
+| Wrote a persona that says only "make the check pass"                                                                                                   | Against a check it cannot pass, faking one is the obedient reading. Tell the subagent to escalate an impossible gate instead (§14)                                                                                                             |
+| Asked the reviewer "is this good?"                                                                                                                     | A reviewer asked for approval approves; ask what would break it and what is missing (§3)                                                                                                                                                       |
+| Reported findings nobody confirmed                                                                                                                     | The user gets a list that cannot tell "seen" from "suspected"; confirm each finding independently and label the ones that failed (§10)                                                                                                         |
+| Gated the loop on the unit tests and never ran the integration suite, the end-to-end suite, or the bench the request was about                         | The work passed the check that was cheap, not the one that decides; the strongest check runs at least once before `return` (§5)                                                                                                                |
+| Wrote the gate from habit (`cargo test`, `node --test`) without reading the project's own scripts                                                      | The `package.json`, `Makefile` or README already named a stronger check, and the user knows it; survey the repository's checks before you gate (§5)                                                                                            |
+| Put a check that exists into `notCovered` because it was slow                                                                                          | An honest-looking report of unverified work; `notCovered` is for what could not be checked (§10)                                                                                                                                               |
+| Returned a bare array as the run's result                                                                                                              | The main agent has to improvise the deliverable, so the user gets a different shape every time; return the report shape (§10)                                                                                                                  |
+| Returned the report and published nothing                                                                                                              | The user gets the main agent's retelling and nothing to keep; publish the deliverable — the file they asked for, or the findings in long form (§10)                                                                                            |
+| Published a CSV and a table of its rows, or a report and a copy of it                                                                                  | Two cards for one fact: the second is noise the user has to look past (§10)                                                                                                                                                                    |
+| Declared a dashboard for a run nobody watches                                                                                                          | Three points on a chart for a run that was over before anyone looked; a dashboard is for the person watching (§10)                                                                                                                             |
+| Stacked a reviewer loop, a fresh final reviewer, a per-finding confirmer and a reader-proxy read on one deliverable                                    | Four sessions re-reading the same work; one deliverable gets one mechanism, two at most with a reason (§3)                                                                                                                                     |
+| Sent a confirmer after a finding a `world.run` already decided, or let the hunter, the confirmer and the gate each run the suite                       | The same check paid three times; the exit code is the confirmation, and the gate runs the suite once (§10)                                                                                                                                     |
+| `Promise.all` between two stages whose items map one to one (review every file, _then_ confirm every finding)                                          | The slowest reviewer gates every confirmer while the slots idle; chain the stages per item and join once (§7)                                                                                                                                  |
+| Waited for a run you already knew was wrong to finish, or stopped it and left it                                                                       | Everything after the fix point is re-paid either way; call `AmendWorkflow` on it now, while it runs (§13)                                                                                                                                      |
+| Pasted a whole revised script inline after a diagnostic or an error, instead of editing the file the tool named                                        | Twenty thousand tokens re-streamed to change one line, on a provider that may stall on the resubmit — and a script compaction has dropped is one you can no longer paste; the file is on disk, so the revision is an `Edit` and a `path` (§13) |
 
 ## 13. After you submit
 
@@ -753,7 +775,7 @@ reported item. Go do other work, unless the user asked you to wait.
 
 When you genuinely need to look at a run:
 
-- `TaskOutput` blocks until a run *this session started* finishes. That is the waiting tool.
+- `TaskOutput` blocks until a run _this session started_ finishes. That is the waiting tool.
 - `GetWorkflowRun` is an instant snapshot and never waits. Use it when you must not block,
   or for a run another session owns — `TaskOutput` cannot see those.
 - `ListWorkflowRuns` enumerates the project's runs, including other sessions'.
@@ -897,9 +919,9 @@ suspect is waiting on you.
 
 **Write personas that make honesty the cheap move.** A subagent follows the instructions you
 wrote, so a persona that says "make the check pass" and stops there leaves faking a pass as
-the obedient reading. One sentence closes that off; adapt this one: *"If a check is
+the obedient reading. One sentence closes that off; adapt this one: _"If a check is
 impossible to pass, or your instructions contradict each other, escalate and say so plainly
-rather than working around it."*
+rather than working around it."_
 
 One ask gets three escalations. The fourth comes back as an ordinary result telling the
 subagent its escalation allowance is spent and to proceed on its own best judgement — a guard against
@@ -973,6 +995,7 @@ because it is the host's ambient API description — do not imitate it; your scr
 plain interfaces and never uses `declare`.
 
 <!-- facade-dts:start -->
+
 ```ts
 /**
  * A node: one task assigned to an actor, producing a typed result.
@@ -988,6 +1011,10 @@ declare interface Node<T> extends PromiseLike<T> {}
 declare interface AgentPersona {
   /** System prompt describing the actor's role. */
   system?: string;
+  /** Model id literal or ModelRef; omitted = the run's subagent model. */
+  model?: ModelRef | string;
+  /** WebSearch calls per ask (integer literal, at most 1024); omitted = 128. */
+  budget?: { webSearch?: number };
 }
 
 /**
@@ -1071,7 +1098,10 @@ declare function log(message: string): void;
 declare function report(item: unknown, artifactId?: string): void;
 
 /** A published artifact version: the id it was published under, and which version this call minted. */
-declare interface ArtifactRef { id: string; version: number }
+declare interface ArtifactRef {
+  id: string;
+  version: number;
+}
 /** Card metadata every artifact kind accepts. */
 declare interface ArtifactOptions {
   /** Shown as the card title; defaults to the id. In the user's language. */
@@ -1086,12 +1116,16 @@ declare interface ArtifactFileOptions extends ArtifactOptions {
   contentType?: string;
 }
 /** One value taken from a reported item: a dot path into the item ("timing.after"). */
-declare interface ArtifactField { field: string; label?: string; unit?: string }
+declare interface ArtifactField {
+  field: string;
+  label?: string;
+  unit?: string;
+}
 declare interface ChartSpec extends ArtifactOptions {
-  type?: "line" | "bar" | "scatter";        // default "line"
+  type?: "line" | "bar" | "scatter"; // default "line"
   x: ArtifactField;
-  y: ArtifactField | ArtifactField[];        // several = several series
-  scale?: "linear" | "log";                  // y axis, default "linear"
+  y: ArtifactField | ArtifactField[]; // several = several series
+  scale?: "linear" | "log"; // y axis, default "linear"
   /** A reference value drawn as a horizontal rule, taken from the first item that has the field. */
   baseline?: ArtifactField;
 }
@@ -1344,6 +1378,7 @@ declare const world: {
   run(cmd: string, args?: string[], opts?: { timeoutMs?: number }): Promise<WorldRunResult>;
 };
 ```
+
 <!-- facade-dts:end -->
 
 ### 16.3 Rules the compiler and the analyzer enforce
@@ -1446,7 +1481,9 @@ names and call again with `path` — nothing was stopped and nothing was started
 **Confirmation.** A run this session started (through `CreateWorkflow`, a previous
 `AmendWorkflow` or the workflows hub) is amended without a confirmation window, even while
 it is running. A run the user stopped, or a run another session started, asks the user
-first. The result names the run that was superseded (if one was stopped) and the new run's
+first, and so does an amendment that would put subagents on a provider neither the session
+nor the run used (a model you name under another provider, in `subagent_model` or in the
+script): that choice is the user's, and the window is where they make it. Another session's run that is still running cannot be amended or filled from here: the call is refused, and only that session can act on it. The result names the run that was superseded (if one was stopped) and the new run's
 id. The superseded run sends no notification of its own; the new run notifies when it
 settles. Do not wait for it or poll it with `TaskOutput`.
 
@@ -1509,8 +1546,7 @@ there is no `agent()` here.
 
 - `code` or `path`, never both: the snippet inline, or a file holding it, read whole with no
   metadata handling.
-- `timeoutMs`: the wall clock for the whole snippet in milliseconds; default 60000, at most
-  600000.
+- `timeoutMs`: the wall clock for the whole snippet in milliseconds; default 60000, at most 600000.
 - The snippet facade is the `args`, `log`, `files`/`git` and `world.run` parts of the block
   in §16.2; `agent()`, `report()`, `artifact.*` and the `phase` marker do not exist here and
   fail typechecking. The language rules are a script's: plain interfaces, top-level `await`, a

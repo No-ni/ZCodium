@@ -1,4 +1,6 @@
 import type { ToolSearchExecutionContext, ToolSearchMode } from "@zcode/contracts";
+import type { SessionControlBinding } from "../tool/session-control/contract.js";
+import type { ExecutionState } from "@zcode/shared";
 import type { GetAgentDefinitions, LoadAgentDefinitions } from "../subagent/definitions.js";
 import type { RuntimeInputPresentation, TurnExecutionModelFallbackReason } from "@zcode/contracts";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
@@ -16,7 +18,10 @@ import type {
   StableForkGoalBoundaryMetadata,
   StableForkTargetMetadata,
   WorkspaceHookBundleSnapshot,
+  ProjectId,
   WorkspaceId,
+  PendingTurnAttachment,
+  WorktreeCreationFact,
 } from "@zcode/contracts";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
@@ -37,6 +42,7 @@ import type {
   ModelNetworkStatusEvent,
   ModelMessageContentBlock,
   ModelReasoningContentBlock,
+  ModelTextContentBlock,
   ModelStreamRecoveryStatus,
   ModelToolCall,
   ModelToolContract,
@@ -70,6 +76,7 @@ import type {
   ExecutionShellSelection,
   AutomationPort,
   TopicResourcePort,
+  PluginDiscoveryPort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -83,6 +90,7 @@ import type {
   ToolCallId,
   WorkflowPort,
   WorkflowEscalatePort,
+  WorkflowWebSearchBudgetPort,
   WorkflowSubmitPort,
   TraceContext,
   TraceId,
@@ -135,15 +143,17 @@ export interface AgentRuntimeConfig {
   permissionTimeoutMs?: number;
   compact?: AutoCompactPolicyConfig;
   targetCompletionVerification?: { enabled?: boolean };
-  midConversationSystem?: {
-    mode?: "auto" | "force";
-  };
+  midConversationSystem?: { mode?: "auto" | "force" };
   subagents?: {
     enabled?: boolean;
     // foreground subagent 没有任何 child 事件的最大静默时间；默认对齐模型流 idle timeout。
     inactivityTimeoutMs?: number;
     autoBackgroundMs?: number;
     backgroundBashMaxMs?: number;
+    /** 后台 Agent 无进展多久后第一次提醒父会话；之后每次间隔加倍。默认 15 分钟。 */
+    backgroundStallNotifyMs?: number;
+    /** 无进展提醒的最大间隔。默认 4 小时。 */
+    backgroundStallMaxIntervalMs?: number;
     maxTurns?: number;
     outputRootDir?: string;
     profiles?: readonly AgentProfile[];
@@ -200,11 +210,7 @@ export interface AgentRuntimeConfig {
   memory?: MemoryRuntimeConfig;
   /** 历史恢复允许未绑定；只有完整选择才能创建本轮执行 Model。 */
   modelSelection?: ModelSelection;
-  titleGeneration?: {
-    enabled?: boolean;
-    modelSelection?: ModelSelection;
-    timeoutMs?: number;
-  };
+  titleGeneration?: { enabled?: boolean; modelSelection?: ModelSelection; timeoutMs?: number };
   parentSessionId?: SessionId;
   taskType?: SessionTaskType;
   /**
@@ -237,10 +243,7 @@ export interface AgentRuntimeConfig {
    * context snapshot, but assembles provider-visible system sections with the
    * subagent prompt shape instead of the main ContextBuilder stack.
    */
-  subagentContext?: {
-    agentPrompt: string;
-    userInstructions?: ResolvedUserInstructions;
-  };
+  subagentContext?: { agentPrompt: string; userInstructions?: ResolvedUserInstructions };
   language?: string;
   outputStyle?: OutputStylePromptConfig;
   agentName?: string; // Default: "zcode-agent"
@@ -254,6 +257,17 @@ export interface AgentRuntimeConfig {
   workspacePath?: string;
   /** 仅用于持久化隔离；文件与命令执行仍使用 workingDirectory。 */
   workspaceIdentity?: WorkspaceId;
+  /**
+   * 会话所属 workspace 的 key：MCP 工具调用的 `workspace_key`、官方 MCP 授权头等发往 Host 的
+   * 请求都以它为身份。受管 worktree 会话 = 项目，不等于工作目录（docs/git/worktree.md §9.3）；
+   * 缺省按 workspaceIdentity || 工作目录。
+   */
+  workspaceKey?: string;
+  /**
+   * 派生项目身份（权限 project_id、项目记忆目录）使用的目录。受管 worktree 会话映射回
+   * 源仓库中对应路径，与 Hook Trust 继承同一规则（docs/git/worktree.md §6.6.3）；缺省 = 工作区根。
+   */
+  projectDirectory?: string;
   envInfo?: EnvInfo; // Optional, will be auto-detected if not provided
   /**
    * YYYY-MM-DD，缺省由 adapter 解析。只用于 ContextBuilder 日期段的用量统计；
@@ -276,6 +290,11 @@ export interface ResumeSessionOptions {
    * 必须高于历史 session mode；交互式 resume 未指定时保持 undefined，让历史 mode 生效。
    */
   modeOverride?: CollaborationMode;
+  /**
+   * 调用方已算出的完整执行状态（模式与 Plan），覆盖历史 mode 与落盘的执行状态。子会话恢复时传入：
+   * 子会话模式必须按父会话当前状态重算，不能沿用子会话落盘时的模式。
+   */
+  executionStateOverride?: ExecutionState;
 }
 
 export interface MainTurnCacheHitAggregate {
@@ -381,6 +400,11 @@ export interface AgentRuntimeDeps {
    */
   workflowEscalatePort?: WorkflowEscalatePort;
   /**
+   * 工作流 actor 每个 ask 的 WebSearch 预算（计数与重置归 driver）。缺席即无上限，
+   * 所以主会话与 Agent 子代理不受影响。
+   */
+  webSearchBudget?: WorkflowWebSearchBudgetPort;
+  /**
    * 模型请求的进程级准入端口：在场时
    * 每次模型请求尝试先经它拿票据；沿调用上下文到 adapter。dwf actor runtime 拿 driver 的 per-actor
    * 包装（受闸门约束），主 runtime 拿治理器的 observer（只喂信号）；缺席即不设闸门。
@@ -400,8 +424,10 @@ export interface AgentRuntimeDeps {
   modelCatalogPort?: ModelCatalogPort;
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   artifactStore?: ToolArtifactStorePort;
+  sessionControl?: SessionControlBinding;
   automationPort?: AutomationPort;
   topicResourcePort?: TopicResourcePort;
+  pluginDiscoveryPort?: PluginDiscoveryPort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;
   logger?: Logger;
@@ -437,10 +463,7 @@ export interface ModelExecutionContext {
   selectionScope: "execution";
   /** 接纳加速输入前固定的 Session 候选；仅在内存中随本条命令传递。 */
   highspeedFallbackSelection?: ModelSelection;
-  subagents?: {
-    foregroundModel: "submission";
-    background: "deny" | "allow";
-  };
+  subagents?: { foregroundModel: "submission"; background: "deny" | "allow" };
   /**
    * 本次执行的 Selection 失败时，同一 Turn 内退回原模型继续跑完（保留已提交历史，只替换后续请求的
    * 模型），而不是让整轮直接失败。触发条件必须由发起方声明：`providerId` 限定只匹配本轮 execution
@@ -451,10 +474,7 @@ export interface ModelExecutionContext {
    */
   selectionFallback?: {
     providerId: string;
-    rules: Array<{
-      reason: TurnExecutionModelFallbackReason;
-      providerErrorCode?: string;
-    }>;
+    rules: Array<{ reason: TurnExecutionModelFallbackReason; providerErrorCode?: string }>;
     target?: ModelSelection;
   };
 }
@@ -462,10 +482,7 @@ export interface ModelExecutionContext {
 export interface ExecuteTurnOptionsBase {
   executionSelection?: ModelSelection;
   abortSignal?: AbortSignal;
-  browserAmbientContext?: {
-    tabCount: number;
-    currentUrl?: string;
-  };
+  browserAmbientContext?: { tabCount: number; currentUrl?: string };
   continueActiveTargetAfterTurn?: boolean;
   displayInput?: string;
   /**
@@ -517,12 +534,33 @@ export type PromptAdmissionOptions = ExecuteTurnOptions & {
   requireIdle?: boolean;
 };
 
+/** composer 编辑态写回排队项（docs/ui/composer-edit-mode.md）；可选字段缺省 = 保留原值。 */
+export interface EditPendingInputOptions {
+  pendingInputId: string;
+  /**
+   * 缺省 = 保留原输入，只改配置（applyQueueItemsConfig）。不能由调用方用投影 text 回填：
+   * 投影 text 经过 genUi 归一化，写回会丢掉输入里的上下文。
+   */
+  newText?: string;
+  /** 携带时必须持有该编辑器的锁；成功后同一调用释放锁。 */
+  editorId?: string;
+  attachmentRefs?: NonNullable<TurnInputIntentMetadata["attachmentRefs"]>;
+  attachments?: PendingTurnAttachment[];
+  conversationQuotes?: TurnInputIntentMetadata["conversationQuotes"];
+  modelSelection?: ModelSelection;
+  mode?: TurnInputIntentMetadata["mode"];
+  planEnabled?: boolean;
+  /** 用户改了模型：入队时冻结的 Highspeed 卡不能再覆盖用户的新选择。 */
+  dropHighspeed?: boolean;
+}
+
+/** editLocked = 该项被他人锁定且调用方未持锁；lockLost = 调用方声明的锁已不在。 */
+export type EditPendingInputResult = "edited" | "missing" | "editLocked" | "lockLost";
+
+export type LockPendingInputEditResult = "locked" | "missing" | "reserved" | "lockedByOther";
+
 export type PromptAdmissionReceipt =
-  | {
-      kind: "started";
-      completion: Promise<TurnResult>;
-      turnId: TurnId;
-    }
+  | { kind: "started"; completion: Promise<TurnResult>; turnId: TurnId }
   | TurnSteerResult;
 
 export type ActiveTargetLoopTrigger = "manual" | "user-prompt" | "task-notification";
@@ -665,8 +703,23 @@ export type StableConversationForkGoalBoundary = StableForkGoalBoundaryMetadata;
 
 export type StableConversationForkChildMetadata = ForkChildSessionMetadata;
 
+/**
+ * 显式 forkAssistant 把子会话放到同一 workspace 下的另一个 cwd（受管 worktree，
+ * docs/git/worktree.md §8.2）。bootstrap 负责解析并校验；core 只写入子会话。
+ */
+export interface StableConversationForkTargetCwd {
+  /** 子会话 cwd，同时写入 session.directory / path。workspaceID 沿用父会话（本地为空）。 */
+  directory: string;
+  /** 权限与记忆使用的项目 ID：由 cwd 映射回源仓库路径派生（§6.6.3），映射失败时按 cwd。 */
+  projectID: ProjectId;
+  /** 追加在复制历史之后的 "已创建 worktree" 时间线事实。 */
+  worktreeCreation: WorktreeCreationFact;
+}
+
 export interface StableConversationForkOptions {
   forkedSessionId?: SessionId;
+  /** 缺省 = 父会话 cwd（原行为）。 */
+  targetCwd?: StableConversationForkTargetCwd;
   modelSelection?: ModelSelection;
   goalBoundary: StableConversationForkGoalBoundary;
   sourceCommandId: string;
@@ -755,6 +808,7 @@ export interface PermissionDecisionResult {
 
 export interface ExecuteToolsOptions {
   toolSearch?: ToolSearchExecutionContext;
+  pluginDiscoveryUi?: boolean;
   automationTurn?: boolean;
   automationId?: string;
   signal?: AbortSignal;
@@ -798,9 +852,7 @@ export interface ActiveTurnSteeringState {
   // active turn 被 Stop 时，goal reminder 不能插进尚未闭合的 tool results。
   // deferral 只在 regular model/tool loop 内打开，退出 loop 时先关闭再物化 pending。
   goalStateChangeReminderDeferralOpen: boolean;
-  pendingGoalStateChangeReminder?: {
-    text: string;
-  };
+  pendingGoalStateChangeReminder?: { text: string };
   pendingInputs: PendingTurnInput[];
   steerable: boolean;
   traceContext: TraceContext;
@@ -816,6 +868,7 @@ export interface ActiveTurnStartReservation {
 }
 
 export interface DrainedPendingInputDiagnostics {
+  pluginDiscoveryUi?: boolean;
   injectedMessageIds: MessageId[];
   /** 行内 Guide 本身携带的原子 Submission 配置；由下一次 model-step 边界消费。 */
   intent?: TurnInputIntentMetadata;
@@ -826,6 +879,8 @@ export interface DrainedPendingInputDiagnostics {
   runtimeEntries: readonly RuntimeMessageEntry[];
   /** 本次 drain 注入的输入附带的工具隐藏列表，下一次 provider 请求必须继续生效。 */
   toolDisallowlist?: readonly string[];
+  /** 本次取出的输入里至少一条是用户亲手 steer 的（`user_steer`）；信箱、工具跟进、协调者都不算。 */
+  userSteered: boolean;
 }
 
 export interface ProviderContextUsageSnapshot {
@@ -852,6 +907,8 @@ export interface RunModelTextRequestOptions {
   messages: ModelInputMessage[];
   /** 与 messages 按索引对应的 canonical 来源，仅用于本地用量统计。 */
   sourceEntries?: readonly (RuntimeMessageEntry | undefined)[];
+  /** 与 messages 按索引对应的全部来源条目（含 attachment），仅用于 context 组成统计。 */
+  originEntries?: readonly (readonly RuntimeMessageEntry[])[];
   model: Model;
   onStreamSnapshot?: (snapshot: RuntimeModelStreamSnapshot) => void;
   onStreamReasoningDelta?: (text: string) => void;
@@ -867,6 +924,8 @@ export interface RuntimeModelStreamSnapshot {
   /** 当前轮（最后一个服务端内置工具之后）的内容；之前的轮在 providerToolRounds。 */
   reasoning: ModelReasoningContentBlock[];
   text: string;
+  /** 当前轮按到达顺序的文字块；`text` 是它们的直接拼接。 */
+  textBlocks?: ModelTextContentBlock[];
   providerToolRounds?: readonly ProviderToolRound[];
 }
 
@@ -884,34 +943,22 @@ export interface RuntimeModelTextResult {
   providerMetadata?: Record<string, unknown>;
   reasoning?: ModelReasoningContentBlock[];
   text: string;
+  /** 最后一轮按到达顺序的文字块；`text` 是它们的直接拼接。缺失时按旧数据写入和回放。 */
+  textBlocks?: ModelTextContentBlock[];
   toolCalls?: ModelToolCall[];
   /** 服务端内置工具切出的前序轮次；text/reasoning 只保留最后一轮。 */
   providerToolRounds?: ProviderToolRound[];
   usage: ModelUsage;
+  /** 结果来自签名修复后的重试，提交 assistant 时要记 signedReasoningReset。 */
+  signedReasoningReset?: boolean;
 }
 
 export type ParsedRewindCommand =
-  | {
-      action: "apply";
-      targetCheckpointId?: string;
-    }
-  | {
-      action: "fork";
-      targetCheckpointId?: string;
-    }
-  | {
-      action: "cascade-message";
-      scope: RewindScope;
-      targetMessageId: MessageId;
-    }
-  | {
-      action: "message";
-      scope: RewindScope;
-      targetMessageId: MessageId;
-    }
-  | {
-      action: "status";
-    };
+  | { action: "apply"; targetCheckpointId?: string }
+  | { action: "fork"; targetCheckpointId?: string }
+  | { action: "cascade-message"; scope: RewindScope; targetMessageId: MessageId }
+  | { action: "message"; scope: RewindScope; targetMessageId: MessageId }
+  | { action: "status" };
 
 export type ContextUsageTokenMethod = "estimated" | "provider_count" | "proportional_estimate";
 

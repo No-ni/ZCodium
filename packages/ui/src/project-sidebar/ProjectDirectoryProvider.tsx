@@ -107,9 +107,7 @@ function DirectoryOwner({ children, isDesktop }: { children: ReactNode; isDeskto
       refresh,
     ],
   );
-  // 任务栏/托盘角标与侧栏蓝点同源：数权威树的未读任务（过滤与 projectHasUnread 一致）。
-  // 挂在 Provider owner（Root 顶层，常驻不卸载）而不是 ProjectSidebar：侧栏卸载期间
-  // 后台完成的未读变化也要同步到任务栏/托盘。嵌入 pane / 测试环境无 Provider 时跳过。
+  // 系统角标和侧栏共用完整未读集合，由此常驻owner同步。
   const platform = useOptionalPlatform();
   // 任务通知开关同时门控任务栏/托盘角标：关掉通知 = 连常驻提醒一起关闭
   // （同步 0 清空角标），侧栏蓝点作为应用内状态不受影响。
@@ -165,7 +163,12 @@ export function useOptionalProjectDirectoryActions() {
 }
 /** 工作区选择器只读取项目与设备信息，任务状态不属于它的展示输入。 */
 export function useProjectSelectionDirectory() {
-  const selection = useContext(ProjectSelectionContext);
+  const selection = useOptionalProjectSelectionDirectory();
   if (!selection) throw new Error("project.directory-provider-required");
   return selection;
+}
+
+/** 标题只读项目/设备信息；全量目录的展开偏好曾让无关 session 标题重渲染。 */
+export function useOptionalProjectSelectionDirectory() {
+  return useContext(ProjectSelectionContext);
 }

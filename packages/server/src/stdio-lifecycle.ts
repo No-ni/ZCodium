@@ -39,7 +39,7 @@ interface StartStdioProcessOptions<
 > extends Omit<StdioProcessLifecycleOptions, "stopRpc" | "dispose" | "waitForRuntimeCreation"> {
   createTransport?: () => Transport;
   prepare: () => Promise<Prepared>;
-  createRuntime: (prepared: Prepared, transport: Transport) => StdioRuntime;
+  createRuntime: (prepared: Prepared, transport: Transport) => StdioRuntime | Promise<StdioRuntime>;
   ready: () => void;
 }
 
@@ -79,7 +79,18 @@ export async function startStdioProcess<
     }
     const prepared = await options.prepare();
     if (lifecycle.shutdownStarted) return;
-    runtime = createOwned(() => options.createRuntime(prepared, transport as Transport));
+    // 修复原因：凭据准备变为异步后，Promise 曾被当作 ready runtime，退出也漏掉迟到服务。
+    // 必须先登记实际资源再归还创建资格，关闭 owner 才能按原顺序释放它。
+    let finishCreation!: () => void;
+    runtimeCreation = new Promise<void>((resolve) => {
+      finishCreation = resolve;
+    });
+    try {
+      runtime = await options.createRuntime(prepared, transport as Transport);
+    } finally {
+      runtimeCreation = undefined;
+      finishCreation();
+    }
     if (lifecycle.shutdownStarted) return;
     options.stdin.resume();
     if (lifecycle.shutdownStarted) return;

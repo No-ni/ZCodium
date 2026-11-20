@@ -93,13 +93,7 @@ export const migrationBackupSchema = z
     migrations: z.array(migrationIdSchema).nonempty(),
     migrationContracts: z
       .array(
-        z
-          .object({
-            id: migrationIdSchema,
-            checksum: hashSchema,
-            appVersion: z.string(),
-          })
-          .strict(),
+        z.object({ id: migrationIdSchema, checksum: hashSchema, appVersion: z.string() }).strict(),
       )
       .nonempty(),
     schemaObjects: z.array(sqliteSchemaObjectSchema),

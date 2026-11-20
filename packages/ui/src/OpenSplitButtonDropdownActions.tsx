@@ -1,5 +1,5 @@
 import type { EditorInfo } from "@zcode/shared";
-import { CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { CopyIcon, ExternalLinkIcon, FolderOpenIcon } from "lucide-react";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu.js";
 import { FileApplicationChoices, FileSaveAsMenuItem } from "@/file-menu/index.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
@@ -15,6 +15,9 @@ export function OpenSplitButtonDropdownActions({
   handleOpenInEditor,
   handleOpenDefault,
   canOpenWith,
+  canReveal,
+  handleReveal,
+  fileManagerLabel,
 }: {
   target:
     | { type: "website" }
@@ -34,11 +37,20 @@ export function OpenSplitButtonDropdownActions({
   handleOpenInEditor: (editor: EditorInfo) => void;
   handleOpenDefault?: () => void;
   canOpenWith: boolean;
+  canReveal: boolean;
+  handleReveal: () => void;
+  fileManagerLabel: string;
 }) {
   const { intl } = useZCodeIntl();
   const fileActions = useFileContextActions();
   return (
     <>
+      {canReveal && (
+        <DropdownMenuItem onSelect={handleReveal}>
+          <FolderOpenIcon className="size-4" />
+          {fileManagerLabel}
+        </DropdownMenuItem>
+      )}
       {target.type === "website" ? (
         <DropdownMenuItem onSelect={handleOpenExternal}>
           <ExternalLinkIcon className="size-4" />

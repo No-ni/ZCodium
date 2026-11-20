@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { resolveWorkspaceKey } from "@zcode/shared";
 import type { ProjectRepositoryContract, ProjectDirectories } from "./contract.js";
-import { ensureHost, OWNERSHIP_DECIDED } from "./legacy-tasks.js";
+import { ensureHost, OWNERSHIP_DECIDED, readInheritedWorktreePlacement } from "./legacy-tasks.js";
 import { assertRemoteTaskDirectories } from "./remote-policy.js";
 import {
   transaction,
@@ -10,13 +10,17 @@ import {
   readTask,
   resolveDirectories,
   executionDirectoriesSchema,
+  resolveWorktreePlacement,
 } from "./project-repository-queries.js";
 
 /** 仓库显式传入原连接和持库身份，创建 receipt 与 task 仍在同一事务内提交。 */
 export function reserveProjectTask(
   db: DatabaseSync,
   ownerHostId: string | undefined,
-  input: Parameters<ProjectRepositoryContract["reserveCreatedTask"]>[0],
+  input: Exclude<
+    Parameters<ProjectRepositoryContract["reserveCreatedTask"]>[0],
+    { parentTaskId: string }
+  >,
 ): ProjectDirectories & { taskId: string } {
   return transaction(db, () => {
     const key = resolveWorkspaceKey(input.task);
@@ -46,6 +50,18 @@ export function reserveProjectTask(
       if (readTask(db, { ...input.task, taskId: legacyId })) taskId = legacyId;
     }
     const task = { ...input.task, taskId: taskId ?? `sess_${randomUUID()}` };
+    const placement = resolveWorktreePlacement(input);
+    // Bug 原因：App Control 分叉曾在这里按 workspace 写子任务行，之后 CLI 事实到达时行已有归属，
+    // 首次上报的继承被跳过，worktree 中分叉出的子任务 cwd 被记成项目主目录，删除闸门也放行它。
+    // 两个首次写入点共用同一个继承函数（§3.6）。
+    const inherited =
+      !placement && input.forkedFromTaskId
+        ? readInheritedWorktreePlacement(db, {
+            workspaceKey: key,
+            hostId: host,
+            taskId: input.forkedFromTaskId,
+          })
+        : null;
     if (!readTask(db, task)) {
       assertRemoteTaskDirectories(
         ownerHostId,
@@ -65,19 +81,20 @@ export function reserveProjectTask(
           throw new Error("project.cwd-not-in-roots");
       }
       // 创建归属必须先于 CLI 首发；空事实不是假会话，列表只读取已有 CLI 事实的行。
-      db.prepare(`INSERT INTO tasks(workspace_key,workspace_path,workspace_identity,task_id,created_at,updated_at,host_id,root_path,project_id,handoff_pending,execution_directories)
-          VALUES(?,?,?,?,0,0,?,?,?,?,?)`).run(
+      db.prepare(`INSERT INTO tasks(workspace_key,workspace_path,workspace_identity,task_id,created_at,updated_at,host_id,root_path,project_id,handoff_pending,execution_directories,worktree_root)
+          VALUES(?,?,?,?,0,0,?,?,?,?,?,?)`).run(
         key,
         task.workspacePath,
         task.workspaceIdentity ?? null,
         task.taskId,
         host,
-        task.workspacePath,
+        placement?.cwd ?? inherited?.rootPath ?? task.workspacePath,
         input.projectId,
         OWNERSHIP_DECIDED,
         input.additionalDirectories === undefined
-          ? null
+          ? (inherited?.executionDirectories ?? null)
           : JSON.stringify(executionDirectoriesSchema.parse(input.additionalDirectories)),
+        placement?.worktreeRoot ?? inherited?.worktreeRoot ?? null,
       );
     }
     const directories = resolveDirectories(db, task, ownerHostId);

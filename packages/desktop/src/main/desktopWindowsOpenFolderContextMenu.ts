@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
-import type { Locale } from "@zcode/shared";
+import { toZhOrEnLocale, type Locale } from "@zcode/shared";
 
 const MENU_KEY_NAME = "ZCodium.OpenInZCodium";
 const LEGACY_MENU_KEY_NAME = "ZCode.OpenInZCode";
@@ -10,22 +10,20 @@ const LEGACY_MENU_KEYS = [
   `HKCU\\Software\\Classes\\Directory\\shell\\${LEGACY_MENU_KEY_NAME}`,
   `HKCU\\Software\\Classes\\Drive\\shell\\${LEGACY_MENU_KEY_NAME}`,
 ];
-const MENU_LABELS: Record<Locale, string> = {
+// 系统右键菜单只内置中英；其它界面语言用英文。
+const MENU_LABELS: Record<"zh-CN" | "en-US", string> = {
   "zh-CN": "在ZCodium中打开",
   "en-US": "Open in ZCodium",
 };
 
-type Logger = {
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-};
+type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
 
 export interface WindowsOpenFolderRegistryOperation {
   args: string[];
 }
 
 export function getWindowsOpenFolderMenuName(locale: Locale): string {
-  return MENU_LABELS[locale] ?? MENU_LABELS["en-US"];
+  return MENU_LABELS[toZhOrEnLocale(locale)];
 }
 
 function quoteWindowsCommandArg(value: string): string {
@@ -63,10 +61,7 @@ export function buildWindowsOpenFolderRegistryOperations(options: {
 
 function runRegAdd(args: readonly string[]): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn("reg.exe", [...args], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
+    const child = spawn("reg.exe", [...args], { stdio: "ignore", windowsHide: true });
 
     child.on("error", reject);
     child.on("exit", (code) => {

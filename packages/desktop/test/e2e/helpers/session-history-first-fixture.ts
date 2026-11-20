@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { seedProviderReadinessHistoryFixture } from "./provider-readiness-history-fixture.js";
 
@@ -14,8 +14,11 @@ export async function seedSessionHistoryFirstFixture(options: {
   providerId: string;
   modelId: string;
   thoughtLevel?: string;
+  legacyTitleHandoff?: boolean;
 }) {
-  for (const sessionId of [HISTORY_FIRST_SESSION, HISTORY_FIRST_FAILED_SESSION]) {
+  for (const sessionId of options.legacyTitleHandoff
+    ? [HISTORY_FIRST_SESSION]
+    : [HISTORY_FIRST_SESSION, HISTORY_FIRST_FAILED_SESSION]) {
     await seedProviderReadinessHistoryFixture({
       ...options,
       history: {
@@ -35,8 +38,16 @@ export async function seedSessionHistoryFirstFixture(options: {
       },
     });
     // 通用 fixture 用于测试缺失 provider；此处补齐正式会话的 durable 模型选择，验证 ready 后续发。
-    const database = new DatabaseSync(join(options.e2eHomeDir, ".zcode", "cli", "db", "db.sqlite"));
+    const database = new DatabaseSync(
+      join(options.e2eHomeDir, ".zcodium", "cli", "db", "db.sqlite"),
+    );
     try {
+      // 旧版本可能保存不同的词法路径表示；真实 Host 仍从原 attachment 打开，不能靠迁库修正。
+      if (sessionId === HISTORY_FIRST_SESSION) {
+        database
+          .prepare("UPDATE session SET directory = ?, path = ? WHERE id = ?")
+          .run(options.workspacePath + sep, options.workspacePath + sep, sessionId);
+      }
       database
         .prepare(`INSERT INTO session_entry (id, session_id, type, time_created, time_updated, data)
       VALUES (?, ?, 'runtime/model_selection', ?, ?, ?)`)
@@ -59,6 +70,33 @@ export async function seedSessionHistoryFirstFixture(options: {
       database.close();
     }
   }
+  if (!options.legacyTitleHandoff) {
+    // 普通历史不带旧 Host 标题交接；迁移场景在独立 HOME 中保留旧意图并单独验收。
+    const database = new DatabaseSync(
+      join(options.e2eHomeDir, ".zcode", "v2", "tasks-index.sqlite"),
+    );
+    try {
+      database
+        .prepare(`UPDATE tasks SET title_overridden = 0,
+        meta_json = json_set(meta_json, '$.titleOverridden', json('false'))
+        WHERE task_id IN (?, ?)`)
+        .run(HISTORY_FIRST_SESSION, HISTORY_FIRST_FAILED_SESSION);
+    } finally {
+      database.close();
+    }
+  } else {
+    const database = new DatabaseSync(
+      join(options.e2eHomeDir, ".zcodium", "cli", "db", "db.sqlite"),
+    );
+    try {
+      // 两端标题不同，必须观察交接实际落盘，不能用本来相同的标题制造通过。
+      database
+        .prepare("UPDATE session SET title = 'E2E_BEFORE_TITLE_HANDOFF' WHERE id = ?")
+        .run(HISTORY_FIRST_SESSION);
+    } finally {
+      database.close();
+    }
+  }
   const root = join(options.workspacePath, ".zcode", "history-first-e2e");
   await mkdir(root, { recursive: true });
   const script = join(root, "resume-gate.mjs");
@@ -70,16 +108,18 @@ import { writeFile, appendFile, access } from 'node:fs/promises';
 const [entered, release] = process.argv.slice(2);
 await appendFile(${JSON.stringify(join(root, "attempts"))}, 'resume\\n');
 await new Promise((resolve, reject) => {
-  const watcher = watch(${JSON.stringify(root)}, async () => {
+  const checkReleased = async () => {
     try { await access(release); watcher.close(); resolve(); } catch {}
-  });
+  };
+  const watcher = watch(${JSON.stringify(root)}, checkReleased);
   watcher.on('error', reject);
-  writeFile(entered, 'entered').catch(reject);
+  // 重启时 release 可能早已存在；先订阅再读条件，不能只依赖下一次目录事件。
+  writeFile(entered, 'entered').then(checkReleased, reject);
 });
 process.stdout.write('{}');
 `,
   );
-  const config = join(options.e2eHomeDir, ".zcode", "cli", "config.json");
+  const config = join(options.e2eHomeDir, ".zcodium", "cli", "config.json");
   const settings = JSON.parse(await readFile(config, "utf8").catch(() => "{}"));
   await writeFile(
     config,

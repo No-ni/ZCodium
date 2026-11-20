@@ -15,8 +15,7 @@ import {
   resolveMcpFailureMessageId,
 } from "@/settings/McpFailurePresentation.js";
 import { SettingsResourceList } from "@/settings/SettingsResourceGroup.js";
-
-import { CircleIcon, Cable, Loader2Icon, ExternalLink, Plus } from "lucide-react";
+import { CircleIcon, Cable, LoaderCircle, ExternalLink, Plus } from "lucide-react";
 
 export function McpStatusDot({
   status,
@@ -43,7 +42,7 @@ export function McpStatusDot({
 
   const icon =
     !disabled && status === "connecting" ? (
-      <Loader2Icon className={`size-3 shrink-0 animate-spin ${color}`} aria-hidden="true" />
+      <LoaderCircle className={`size-3 shrink-0 animate-spin ${color}`} aria-hidden="true" />
     ) : (
       <CircleIcon className={`size-2.5 shrink-0 fill-current ${color}`} aria-hidden="true" />
     );
@@ -81,9 +80,7 @@ function McpServerItem({
     : (server.config.type ?? (server.config.url ? "http" : "?"));
   const canEdit = !server.location || server.location.source === "zcode";
   const canOpenAuthorization = Boolean(server.authorization?.authorizationUrl);
-  const openAuthorizationLabel = intl.formatMessage({
-    id: "settings.mcp.oauth.openAuthorization",
-  });
+  const openAuthorizationLabel = intl.formatMessage({ id: "settings.mcp.oauth.openAuthorization" });
   const statusReason = intl.formatMessage({
     id:
       server.status === "untrusted"

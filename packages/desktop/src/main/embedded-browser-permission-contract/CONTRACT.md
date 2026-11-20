@@ -10,7 +10,7 @@ Main 的 `whenReady` 在网络策略之后、更新初始化及窗口创建之�
 Electron request/check → 标准 origin → 同一授权记录 → 允许 / 拒绝 / 用户决策
 ```
 
-设备选项与持久化通过已有 desktop 模块完成。本模块不改变权限清理、主窗口路由或跨进程协议。现行 E2E 入口为 `packages/desktop/test/e2e/browser-permission-prompt.test.ts`。原 App 单测已退役，其独立 policy 边界断言不再计入覆盖。
+设备选项与持久化通过已有 desktop 模块完成。本模块不改变权限清理、主窗口路由或跨进程协议。现行 E2E 入口为 `packages/desktop/test/e2e/browser/permissions/browser-permission-prompt.test.ts`。原 App 单测已退役，其独立 policy 边界断言不再计入覆盖。
 
 权限策略、UI bridge、站点授权管理器与 JSON store 统一登记在 `embedded-browser-permission` 的 adapters 层；Main 可调用 bridge/store 工厂，既有浏览器数据 IPC 经授权管理器公开读写方法更新同一记录。设备选项仍通过 desktop adapter，协议类型仍由 shared 持有，不建立新缓存或第二条授权写入路径。
 

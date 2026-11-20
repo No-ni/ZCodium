@@ -88,8 +88,14 @@ async function loadReadOnce({ service, remoteService, reader, accepted, serial =
   const errors = recorder();
   const loading = recorder();
   const reads = [];
+  const navigationListeners = new Set();
+  const sameOnlineHostIds = await loadComponentCallback(hookPath, "sameOnlineHostIds", {});
   const readOnce = await loadComponentCallback(hookPath, "readOnce", {
     serial,
+    onTaskNavigationCommitted: (listener) => {
+      navigationListeners.add(listener);
+      return { dispose: () => navigationListeners.delete(listener) };
+    },
     service,
     remoteService,
     readProjectSidebarTree: async (input) => {
@@ -103,16 +109,31 @@ async function loadReadOnce({ service, remoteService, reader, accepted, serial =
     setTree: trees.push,
     setAvailability: availability.push,
     setDirectory: directories.push,
+    setOnlineHostIds: recorder().push,
     setHostReadErrors: readErrors.push,
     setError: errors.push,
     setLoading: loading.push,
     stabilizeProjectTree: (_previous, next) => next,
     sameAvailability,
     sameReadErrors,
+    sameOnlineHostIds,
     areStabilizedValuesEquivalent: stabilize,
     flushSync: (commit) => commit(),
   });
-  return { readOnce, reads, trees, availability, directories, readErrors, errors, loading };
+  return {
+    readOnce,
+    reads,
+    trees,
+    availability,
+    directories,
+    readErrors,
+    errors,
+    loading,
+    navigate: (target) => {
+      for (const listener of navigationListeners) listener(target);
+    },
+    navigationListeners,
+  };
 }
 
 const task = (taskId, archived) => ({
@@ -129,6 +150,7 @@ const snapshot = (tasks, errors = new Map()) => ({
   availability: new Map(),
   directory: { hosts: [], entries: [] },
   errors,
+  onlineHostIds: new Set(["local"]),
 });
 
 test("the window project directory is the only owner and there is no base service fallback", async () => {
@@ -309,6 +331,7 @@ test("a stale serial response publishes nothing", async () => {
   const logged = recorder({ logged: true });
   const readOnce = await loadComponentCallback(hookPath, "readOnce", {
     serial,
+    onTaskNavigationCommitted: () => ({ dispose() {} }),
     service: { readTree: async () => ({}) },
     remoteService: undefined,
     accepted,
@@ -335,6 +358,25 @@ test("a stale serial response publishes nothing", async () => {
   assert.equal(trees.calls.length, 0);
   assert.equal(accepted.current, null);
   assert.equal(logged.calls.length, 0);
+});
+
+test("navigation during an archived read preserves the newly opened task", async () => {
+  let read = 0;
+  let sidebar;
+  sidebar = await loadReadOnce({
+    service: { readTree: async () => ({}) },
+    accepted: { current: null },
+    reader: async () => {
+      read++;
+      if (read === 2) sidebar.navigate({ workspacePath, workspaceIdentity, taskId: "task-a" });
+      return snapshot([task("task-a", read === 2)]);
+    },
+  });
+  const mark = logMark();
+  await sidebar.readOnce();
+  await sidebar.readOnce();
+  assert.equal(archiveCleanups(logsSince(mark)).length, 0);
+  assert.equal(sidebar.navigationListeners.size, 0, "every read releases its navigation listener");
 });
 
 test("no log payload carries a real workspace path, identity or raw error", async () => {

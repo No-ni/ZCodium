@@ -1,11 +1,6 @@
-# 页面不可见时暂停 CSS 动画
+# 页面可见性与 CSS 动画
 
-## 问题
-
-窗口不可见（最小化、切到其他桌面、锁屏熄屏、手机浏览器切后台）时，Chromium 不再产出动画帧，
-`DocumentTimeline` 上的 CSS transition / animation 无法结算。此时若带动画的元素被移除
-（虚拟列表回收、切 task、流式重挂），`HTMLDocument → DocumentTimeline → CSSTransition`
-仍强引用该元素，并经 parent 指针拖住整棵已卸载的消息子树，直到页面重新可见才释放。
+本fork保留后台暂停策略及有界常驻动画子树例外。官方2026-11-03撤销全局策略的方案未覆盖本仓后台流式内存回归，因此本次不覆盖既有修复；后续验收须同时检查动画不重播和后台DOM保留。
 
 实测（2026-09-29，隔离 HOME + mock provider 流式压测，GC 后）：
 
@@ -66,5 +61,4 @@ visibilitychange ──► document.visibilityState === "hidden"
 - `data-motion-persistent` 子树在 hidden 期间不暂停，其常驻动画对象不在「hidden 期间不创建」的豁免结论范围内；
   只给屏幕上数量有界、动画对象固定的容器打标，不要给消息流等随数据增长的子树打标。
 - 进入 hidden 瞬间正在进行的过渡会被取消（触发 `transitioncancel` 而非 `transitionend`），
-  依赖 `transitionend` 收口的逻辑需自带兜底（现有 `useAnimatedResizablePanel`、
-  `HighspeedActivationVisual` 已有超时兜底）。
+  依赖 `transitionend` 收口的逻辑需自带兜底（现有 `useAnimatedResizablePanel`已有明确结算）。

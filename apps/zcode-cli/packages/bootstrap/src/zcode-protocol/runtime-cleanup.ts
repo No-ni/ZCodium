@@ -20,6 +20,7 @@ export async function cleanupProtocolRuntime(options: {
   mcpConnectionPool?: Pick<McpConnectionPool, "close">;
   sessionStore?: SqliteSessionStore;
   providerRegistryRuntime?: { dispose(): unknown };
+  pluginPreparation?: { dispose(): unknown };
 }): Promise<void> {
   const deadline = options.deadlineAt ?? Date.now() + DEFAULT_CLEANUP_BUDGET_MS;
   const step = async (resource: string, cleanup: () => unknown | Promise<unknown>) => {
@@ -48,6 +49,7 @@ export async function cleanupProtocolRuntime(options: {
   await Promise.all([
     step("maintenance", () => options.protocolMaintenance?.stop()),
     step("mcp_diagnostics", () => options.mcpProcessesTracker?.stop()),
+    step("plugin_preparation", () => options.pluginPreparation?.dispose()),
   ]);
   await step("sessions", () => options.server?.shutdown());
   await step("projections", () => options.server?.disposeProjections());

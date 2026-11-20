@@ -53,9 +53,7 @@ export interface ModelRequestAuthSource {
 
 export interface ModelRequestDependencies {
   /** 属性存在表示当前 Model 必须取得请求级鉴权；Source 缺失同样 fail-closed。 */
-  requestAuth?: {
-    source?: ModelRequestAuthSource;
-  };
+  requestAuth?: { source?: ModelRequestAuthSource };
 }
 
 const modelInvocationStorage = new AsyncLocalStorage<ModelInvocationContext>();

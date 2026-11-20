@@ -9,7 +9,7 @@ import {
   nonEmptyStringSchema,
   type RemoteTarget,
 } from "@zcode/shared";
-import { dispatchTaskNotification } from "./desktopNotifications.js";
+import { dispatchExtensionNotification, dispatchTaskNotification } from "./desktopNotifications.js";
 import { getBuiltinProviderConfigFileInfo } from "./desktopProviderConfig.js";
 import {
   clearWorkspaceDeepLinkStateForWindow,
@@ -32,9 +32,7 @@ function parseOpenExternalRequest(payload: unknown): OpenExternalRequest | null 
   if (typeof record.url !== "string") {
     return null;
   }
-  return {
-    url: record.url,
-  };
+  return { url: record.url };
 }
 
 export function registerRemoteIpcHandlers(options: {
@@ -138,6 +136,9 @@ export function registerRemoteIpcHandlers(options: {
   });
   ipcMain.handle(PlatformChannels.ShowTaskNotification, (event, payload: unknown) =>
     dispatchTaskNotification({ event, payload, logger: options.logger }),
+  );
+  ipcMain.handle(PlatformChannels.ShowExtensionNotification, (event, payload: unknown) =>
+    dispatchExtensionNotification({ event, payload, logger: options.logger }),
   );
 
   app.on("browser-window-created", (_, win) => {
@@ -254,10 +255,7 @@ export function registerRemoteIpcHandlers(options: {
       }
       await options.bindRemoteWorkspaceSessionContext(
         remoteSessionId,
-        {
-          workspacePath,
-          ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        },
+        { workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) },
         event.sender.id,
       );
     },

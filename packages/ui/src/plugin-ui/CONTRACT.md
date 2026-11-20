@@ -2,6 +2,8 @@
 
 Renderer 模块，层序 `domain → app → adapters → components`；公开入口为 `index.ts`。
 
+- 本地草稿复用预热 session。pane 提供有效 session 投影及保活能力，页面 owner 在创建时取得引用，真正销毁时释放；展示卸载不释放，重载连续持有。草稿换代先通知页面失效，首发提升只解除草稿槽位，不销毁原页面。审批、附件与 Composer 上下文使用同一有效 session；普通工具调用不产生聊天回合。范围与验收见 [草稿 UI spec](../../../../docs/plugins/draft-mcp-ui-session-spec.md)。
+
 - 窗口唯一页面管理器统一管理 MCP 与 Gen UI 的容量和回收；`createPage` 持有 MCP controller、AppBridge、独立 workspace/session lease、通知 feed 和内存快照。卡片、侧栏只登记锚点。内联页面位于滚动容器内部，侧栏单独定位；原子移动保留同一 guest，不重读资源、不重新握手。解绑必须在 DOM 卸载前同步移入隐藏承载区。
 - 逻辑键包含 workspace identity（本地 fallback 为路径）、session、plugin、server、resource 和逻辑视图。surface 显式共享；普通工具只按明确的 widgetSessionId 与相同权限范围共享，否则按 toolCallId 隔离。禁止同回合同资源推断合并。
 - UI 不接触插件 HTML、数据库和连接凭据。经 `IPluginUiBridgeService` 获取句柄，平台端口只校验 sandboxId/initId；请求与 live 通知绑定 Agent runtimeId/generation/token/appIdentity。
@@ -9,10 +11,12 @@ Renderer 模块，层序 `domain → app → adapters → components`；公开�
 - App-provided tools 在 initialized 后发现与登记；认领后用官方 SDK AbortSignal 执行，模型取消沿 live-only delta 到页面。callId 去重，终态结果不可再写入。页面调用 MCP 的目标由宿主固定，复用 Agent 的权限和审批路径，原始结果直接返回。
 - 页面 `availableDisplayModes` 是硬约束；inline/fullscreen 对应内联/侧栏，pip 保持当前模式。高度默认 240px、范围 [80,1200]，hostContext 只回传 width/maxHeight，避免高度回环。布局按帧合并。
 - widgetState 仅接受页面主动提交，唯一内存 store 按逻辑键隔离；重建时在 `hostContext["zcode/widgetState"]` 下发。切位置不复制；手动重试、任务淘汰、来源撤销清除；应用重启为空。
-- 连续离屏 5 分钟回收活页面；侧栏展示或有审批/调用时不回收。Agent 原子确认空闲后才释放。最多 30 个任务和 64 个活页面，容量 admission 串行；无法安全回收时返回错误。任务删除同时取消排队创建。
-- 已获准的主动释放先按原 sandboxId 解除导航/崩溃监听，避免 Main 停止页面的 about:blank 导航误报崩溃；真实运行中的导航/崩溃仍进入 error，重试后重建。
-- 释放顺序：失效凭证、取消调用和登记、有界 resource-teardown、关闭端口/guest、释放 feed/lease。迟到 prepare、注销和锚点清理只作用于捕获的原实例。卡片卸载不切断保活页面的订阅。
-- `sendFollowUpMessage` 仍走既有会话动作和手势/可编辑确认；确认完成后验证实例。只读会话不登记动作。`updateModelContext` 只投递到该 workspace/session 的 composer，不是数据库状态。
+- MCP 页面仅在资源 `_meta.ui.backgroundRetention: true` 时申请后台保留；未声明恢复隐藏五分钟/容量回收。每窗口超过四个后台声明页时，按最久未活跃优先回收三十分钟未活跃且不忙的页面。四为软阈值；三十任务/六十四活页面准入保持，容量 admission 串行，任务删除取消排队创建，无可回收候选时拒绝新建。`PluginUiBackgroundRetention` 只持有 MCP 活跃时间与期限；Gen UI 仍使用原五分钟/容量规则。
+- owner 准入后立即启动；能力握手前临时提供非零承载面让 guest 首次挂载，握手后只有声明页保留 inert 后台表面。只有声明页申请目标 guest 活动。可见期、模型/App 工具、sampling 与交付真实工作的 `_meta["zcode/activity"]: true` 更新活跃时间；空轮询、绘制与重复结果不续期。新工具结果可恢复已回收页面，重复投影不能复活它。详见 [后台执行 spec](../../../../docs/plugin-ui-background-execution.md)。
+- 已获准的主动释放先按原 sandboxId 解除导航/崩溃监听，避免 Main 停止页面的 about:blank 导航误报崩溃；真实运行中的导航/崩溃仍进入 error，重试后重建。导航指 shell 主 frame 或插件 frame 自身（`zcode-sandbox:` 文档）的跨文档导航；插件文档内部的子 frame（如 srcdoc 预览）导航不是重载，不进入 error。
+- 自动回收、显式重载、任务删除、窗口关闭和来源/runtime 失效释放 MCP 页面。顺序：失效凭证、取消调用和登记、有界 resource-teardown、关闭端口/guest、释放 feed/lease。迟到 prepare、注销和锚点清理只作用于捕获的原实例。卡片卸载不切断保活页面的订阅。
+- `sendFollowUpMessage` 仍走既有会话动作和手势/可编辑确认；确认完成后验证实例。只读会话不登记动作。`updateModelContext` 只投递到该 workspace/session 的 composer，不是数据库状态。已附加的待发送上下文不随单个页面或连接失效清空；发送、任务删除或草稿 binding 失效才清理对应 session。
+- 上下文图片与网页元素截图共用 `useContextImageAttachments`：同 id 覆盖或移除时撤旧附件；撤销语义按调用方配置：插件上下文用当下的撤销函数（原行为）；网页元素截图切会话用附加当时的撤销函数（切走时撤旧会话里的截图，切回随条目重新附加，不重复；composer 卸载时撤掉它附加的截图，重挂后按条目重新附加一张）。截图选中即作为会话附件上传完成、不走跨机暂存，发送在途时撤销只移除输入框条目，不影响已发出的引用，所以不区分在途附件。
 - `display.ui` 无效、Web/手机/远程、不支持平台或初始化失败继续普通 MCP 卡回退。工具行替代与折叠策略仍由投影派生；不会另建 accepted-input queue 或改变 continuous/replayable 语义。
 - 工具失败、取消或 `display.ui.isError` 只保留普通工具记录，不占用 inline/侧栏区域、不自动开侧栏，手动固定/showInline/最近回合不能越过此门禁；失败不替代已有成功页面。原始错误结果及页面通知语义保持不变。
 

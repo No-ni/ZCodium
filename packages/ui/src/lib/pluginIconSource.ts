@@ -2,6 +2,7 @@ import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
 import androidEmulatorIconUrl from "@/assets/plugin-icons/android-emulator.png";
 import browserUseIconUrl from "@/assets/plugin-icons/browser-use.png";
 import computerUseIconUrl from "@/assets/plugin-icons/computer-use.png";
+import designIconUrl from "@/assets/plugin-icons/design.png";
 import documentsIconUrl from "@/assets/plugin-icons/documents.png";
 import imageSearchIconUrl from "@/assets/plugin-icons/image-search.png";
 import iosSimulatorIconUrl from "@/assets/plugin-icons/ios-simulator.png";
@@ -20,6 +21,7 @@ const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
   "android-emulator@zcode-plugins-official": androidEmulatorIconUrl,
   "browser-use@zcode-plugins-official": browserUseIconUrl,
   "computer-use@zcode-plugins-official": computerUseIconUrl,
+  "design@zcode-plugins-official": designIconUrl,
   "documents@zcode-plugins-official": documentsIconUrl,
   "image-search@zcode-plugins-official": imageSearchIconUrl,
   "ios-simulator@zcode-plugins-official": iosSimulatorIconUrl,

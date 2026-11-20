@@ -171,6 +171,7 @@ export function createMcpEntryRegistry(options: McpConnectionPoolOptions) {
           config,
           serverName,
           workingDirectory: connectOptions.workingDirectory,
+          ...(connectOptions.workspaceKey ? { workspaceKey: connectOptions.workspaceKey } : {}),
         });
       } catch (error) {
         options.processTracker?.unregisterConnection({
@@ -265,7 +266,10 @@ function toTelemetrySource(
 
 function resolveWorkspaceKey(connectOptions: McpConnectOptions): string | undefined {
   return (
-    connectOptions.workspaceIdentity?.trim() || connectOptions.workingDirectory?.trim() || undefined
+    connectOptions.workspaceIdentity?.trim() ||
+    connectOptions.workspaceKey?.trim() ||
+    connectOptions.workingDirectory?.trim() ||
+    undefined
   );
 }
 

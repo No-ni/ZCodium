@@ -95,6 +95,8 @@ export const TID_BROWSER_RESPONSIVE_WIDTH_INPUT = "browser-responsive-width-inpu
 export const TID_BROWSER_RESPONSIVE_HEIGHT_INPUT = "browser-responsive-height-input";
 /** 浏览器自由尺寸缩放选择器 */
 export const TID_BROWSER_RESPONSIVE_ZOOM_SELECT = "browser-responsive-zoom-select";
+export const TID_BROWSER_RESPONSIVE_PRESET_SELECT = "browser-responsive-preset-select";
+export const TID_BROWSER_RESPONSIVE_PRESET_OPTION = "browser-responsive-preset-option";
 /** 浏览器自由尺寸缩放选项（动态后缀为 zoom 值） */
 export const TID_BROWSER_RESPONSIVE_ZOOM_OPTION = "browser-responsive-zoom-option";
 /** 浏览器自由尺寸缩放后的画布占位 */
@@ -126,8 +128,29 @@ export const TID_BROWSER_MORE_BUTTON = "browser-more-button";
 export const TID_BROWSER_OPEN_EXTERNAL_ITEM = "browser-open-external-item";
 /** 浏览器打开调试工具按钮 */
 export const TID_BROWSER_DEVTOOLS_BUTTON = "browser-devtools-button";
+export const TID_BROWSER_EXPORT_PNG_ITEM = "browser-export-png-item";
+export const TID_BROWSER_EXPORT_PDF_ITEM = "browser-export-pdf-item";
+export const TID_BROWSER_SITE_SETTINGS_ITEM = "browser-site-settings-item";
+/** 浏览器设计模式（docs/browser-use/2026-11-03-browser-design-mode-spec.md） */
+export const TID_BROWSER_DESIGN_TOOLBAR = "browser-design-toolbar";
+export const TID_BROWSER_DESIGN_PANEL_BUTTON = "browser-design-panel-button";
+export const TID_BROWSER_DESIGN_VARIANT_SELECT = "browser-design-variant-select";
+export const TID_BROWSER_DESIGN_VARIANT_OPTION = "browser-design-variant-option";
+export const TID_BROWSER_DESIGN_SLIDE_PREV = "browser-design-slide-prev";
+export const TID_BROWSER_DESIGN_SLIDE_NEXT = "browser-design-slide-next";
+export const TID_BROWSER_DESIGN_SLIDE_COUNTER = "browser-design-slide-counter";
+/** 画布右侧的属性面板；字段带 data-design-field（元素属性）或 data-design-variable（页面变量） */
+export const TID_BROWSER_DESIGN_INSPECTOR = "browser-design-inspector";
+export const TID_BROWSER_DESIGN_INSPECTOR_CLOSE = "browser-design-inspector-close";
+export const TID_BROWSER_DESIGN_SELECT_PARENT = "browser-design-select-parent";
+/** 面板里「写回到哪个文件 / 为什么不能写回」那一行（data-writable） */
+export const TID_BROWSER_DESIGN_SOURCE_STATUS = "browser-design-source-status";
+/** 输入框里的网页元素 chip（data-count 为元素数） */
+export const TID_WEB_ELEMENT_CONTEXT_CHIP = "web-element-context-chip";
 /** 浏览器网页视图 */
 export const TID_BROWSER_WEBVIEW = "browser-webview";
+/** 浏览器空白页最近访问列表 */
+export const TID_BROWSER_RECENT_VISITS = "browser-recent-visits";
 /** 内置浏览器权限确认条容器 */
 export const TID_BROWSER_PERMISSION_PROMPTS = "browser-permission-prompts";
 /** 权限确认条「仅本次允许」按钮 */
@@ -640,3 +663,47 @@ export const TID_START_PLAN_RECOMMENDATION_DIALOG = "start-plan-recommendation-d
 
 /** 用户反馈的诊断日志授权开关 */
 export const TID_FEEDBACK_LOGS_OPT_IN = "feedback-logs-opt-in";
+
+/** 扩展插槽（docs/plugins/extension-host.md §6）：输入框 composer.status 条目与启动页「扩展」分区。 */
+export const TID_EXTENSION_COMPOSER_STATUS = "extension-composer-status";
+export const TID_SIDE_PANE_EXTENSIONS = "side-pane-extensions";
+export const TID_SIDE_PANE_EXTENSIONS_STOPPED = "side-pane-extensions-stopped";
+export const TID_SIDE_PANE_EXTENSION_PROBLEM = "side-pane-extension-problem";
+/** 扩展视图（docs/plugins/extension-host.md §8）：启动页的视图条目与 extension-view 标签页。 */
+export const TID_SIDE_PANE_EXTENSION_VIEW_ITEM = "side-pane-extension-view-item";
+export const TID_EXTENSION_VIEW = "extension-view";
+/**
+ * 扩展日志控制台（docs/plugins/extension-host.md §16.8）：启动页「扩展日志」一行与 extension-logs 标签页。
+ * 每行带 `data-seq`、`data-level`、`data-gen`、`data-plugin-id`（扩展进程与监管器的行没有）。
+ */
+export const TID_SIDE_PANE_EXTENSION_LOGS_ITEM = "side-pane-extension-logs-item";
+export const TID_EXTENSION_LOGS = "extension-logs";
+export const TID_EXTENSION_LOGS_ROW = "extension-logs-row";
+export const TID_EXTENSION_LOGS_SOURCE_FILTER = "extension-logs-source-filter";
+export const TID_EXTENSION_LOGS_LEVEL_FILTER = "extension-logs-level-filter";
+export const TID_EXTENSION_LOGS_AUTO_SCROLL = "extension-logs-auto-scroll";
+export const TID_EXTENSION_LOGS_COPY = "extension-logs-copy";
+export const TID_EXTENSION_LOGS_CLEAR = "extension-logs-clear";
+/**
+ * 扩展授权（docs/plugins/extension-host.md §17.7）：启动页「需要授权」一行（`data-side-pane-open-tab-item`
+ * 为 `extension-grant:<pluginId>`）、授权对话框与启用确认（复用 ConfirmDialog，确认按钮为
+ * TID_CONFIRM_DIALOG_CONFIRM）、插件详情页的「权限」区块（带 `data-plugin-id`、`data-grant-status`）。
+ */
+export const TID_SIDE_PANE_EXTENSION_GRANT = "side-pane-extension-grant";
+export const TID_EXTENSION_GRANT_DIALOG = "extension-grant-dialog";
+export const TID_EXTENSION_ENABLE_CONFIRM_DIALOG = "extension-enable-confirm-dialog";
+/**
+ * 从插件商店安装后、激活前的确认（§17.7，P3b）：启动页「需要确认」一行（`data-side-pane-open-tab-item`
+ * 为 `extension-activation:<pluginId>`）与确认框（确认按钮 TID_CONFIRM_DIALOG_CONFIRM，取消即「不激活」）。
+ */
+export const TID_SIDE_PANE_EXTENSION_ACTIVATION = "side-pane-extension-activation";
+export const TID_EXTENSION_ACTIVATION_DIALOG = "extension-activation-dialog";
+export const TID_EXTENSION_PERMISSIONS = "extension-permissions";
+export const TID_EXTENSION_PERMISSIONS_GRANT = "extension-permissions-grant";
+export const TID_EXTENSION_PERMISSIONS_REVOKE = "extension-permissions-revoke";
+/** 插件详情页「权限」区块的「系统通知」开关（§18.1 H8） */
+export const TID_EXTENSION_PERMISSIONS_NOTIFICATIONS = "extension-permissions-notifications";
+/** 「最近操作」的一行：`data-capability`、`data-grant`。 */
+export const TID_EXTENSION_PERMISSIONS_ACTION = "extension-permissions-action";
+/** 左侧主导航的 nav.primary 插槽条目（docs/plugins/extension-host.md §16.4）；`data-extension-item` 是条目全局 id。 */
+export const TID_NAV_PRIMARY_ITEM = "nav-primary-slot-item";

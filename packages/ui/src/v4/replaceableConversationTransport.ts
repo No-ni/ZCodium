@@ -43,9 +43,11 @@ export class ReplaceableConversationTransport implements ConversationTransport {
     (snapshot: SessionLifecycleSnapshot) => void
   >();
   private offSessionLifecycle: (() => void) | null = null;
-  getSessionLifecycle(sessionId: string): Promise<SessionLifecycleSnapshot | null> {
-    if (!this.current.getSessionLifecycle) return Promise.resolve(null);
-    return this.current.getSessionLifecycle(sessionId);
+  async getSessionLifecycle(sessionId: string): Promise<SessionLifecycleSnapshot | null> {
+    const owner = this.current;
+    if (!owner.getSessionLifecycle) return null;
+    const snapshot = await owner.getSessionLifecycle(sessionId);
+    return owner === this.current ? snapshot : null;
   }
   onSessionLifecycle(listener: (snapshot: SessionLifecycleSnapshot) => void): () => void {
     this.sessionLifecycleListeners.add(listener);
@@ -60,8 +62,10 @@ export class ReplaceableConversationTransport implements ConversationTransport {
   }
   private bindSessionLifecycleListener(): void {
     if (this.offSessionLifecycle || this.sessionLifecycleListeners.size === 0) return;
+    const owner = this.current;
     this.offSessionLifecycle =
-      this.current.onSessionLifecycle?.((snapshot) => {
+      owner.onSessionLifecycle?.((snapshot) => {
+        if (owner !== this.current) return;
         if (snapshot.state === "stopping") {
           // 单任务重启已经废弃旧 publisher；Store 会丢弃旧订阅，代理也必须释放对应引用。
           for (const [subscriptionId, subscription] of this.transportBySubscriptionId) {

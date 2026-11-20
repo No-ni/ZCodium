@@ -30,7 +30,7 @@ export function createProviderProvisioningSource(
         options.personalConfigFilePath,
       );
       return providerProvisioningEnvelopeSchema.parse({
-        schemaVersion: 2,
+        schemaVersion: 3,
         syncId,
         personalConfig: encodeProviderConfigFile(personal).config,
       });

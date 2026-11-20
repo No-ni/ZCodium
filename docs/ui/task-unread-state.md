@@ -93,7 +93,10 @@ SBV07：桌面验证菜单、更新时间顺序、分页、重载偏好、已读
 ## UI 读取口径
 
 - 任务列表蓝点：task query row 的 joined `membership.unreadAt`
-- 系统角标与按未读列表：共享 Host `ProjectTree` 未读选择器；角标使用 `countProjectTreeUnreadTasks()`
+- 系统角标与按未读列表：共享 Host `ProjectTree` 未读选择器，但计数语义分叉——蓝点 = 全部
+  未读，角标 = 本次 app 运行新增的未读（`countUnreadTasksSinceBaseline`，基线由
+  `mergeBaselineForHostsInTree` 按 host 建立并吸收迟到上线的远端历史未读）。带历史未读
+  启动时蓝点亮、角标 0 是预期形态，不是 bug。详见 `docs/desktop/windows-taskbar-unread-badge.md`
 
 窗口系统角标由常驻 `ProjectDirectoryProvider` 唯一发送，使用共同未读集合的完整
 `Host + canonical workspace identity + taskId` 快照，Main 跨窗口去重。Root 不再发送旧会话缓存投影。

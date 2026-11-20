@@ -44,20 +44,14 @@ interface FeishuAccessTokenResponse {
 interface FeishuSendMessageResponse {
   code?: number;
   msg?: string;
-  error?: {
-    log_id?: string;
-  };
-  data?: {
-    message_id?: string;
-  };
+  error?: { log_id?: string };
+  data?: { message_id?: string };
 }
 
 interface FeishuReactionResponse {
   code?: number;
   msg?: string;
-  data?: {
-    reaction_id?: string;
-  };
+  data?: { reaction_id?: string };
 }
 
 const FEISHU_ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 30_000;
@@ -69,10 +63,7 @@ interface FeishuAppInfoResponse {
     app?: {
       app_name?: string;
       primary_language?: string;
-      i18n?: Array<{
-        i18n_key?: string;
-        name?: string;
-      }>;
+      i18n?: Array<{ i18n_key?: string; name?: string }>;
     };
   };
 }
@@ -80,13 +71,7 @@ interface FeishuAppInfoResponse {
 interface FeishuUserInfoResponse {
   code?: number;
   msg?: string;
-  data?: {
-    user?: {
-      name?: string;
-      en_name?: string;
-      nickname?: string;
-    };
-  };
+  data?: { user?: { name?: string; en_name?: string; nickname?: string } };
 }
 
 const accessTokenCache = new Map<string, { token: string; expiresAt: number }>();
@@ -113,7 +98,9 @@ function formatSelectionCommand(selection: SelectionPrompt, optionId: string): s
     return optionId;
   }
   if (selection.action === "elicitation.respond") {
-    return selection.token ? `/elicitation ${selection.token} ${optionId}` : `/elicitation ${optionId}`;
+    return selection.token
+      ? `/elicitation ${selection.token} ${optionId}`
+      : `/elicitation ${optionId}`;
   }
   if (selection.action === "model.provider.set") {
     return `/model provider ${optionId}`;
@@ -124,17 +111,11 @@ function formatSelectionCommand(selection: SelectionPrompt, optionId: string): s
   return `/${selection.action.replace(".set", "")} ${optionId}`;
 }
 
-function readElicitationAnswerValues(
-  message: BotOutboundMessage,
-  questionIndex: number,
-): string[] {
+function readElicitationAnswerValues(message: BotOutboundMessage, questionIndex: number): string[] {
   return message.elicitation?.answers?.[String(questionIndex)] ?? [];
 }
 
-function formatElicitationAnswerLabel(
-  message: BotOutboundMessage,
-  questionIndex: number,
-): string {
+function formatElicitationAnswerLabel(message: BotOutboundMessage, questionIndex: number): string {
   const question = message.elicitation?.questions[questionIndex];
   const values = readElicitationAnswerValues(message, questionIndex);
   if (!question || values.length === 0) {
@@ -177,20 +158,11 @@ function buildFeishuElicitationChoiceButton(params: {
   selectedValues: readonly string[];
 }): Record<string, unknown> {
   const selected = params.selectedValues.includes(params.option.value);
-  const marker = params.question.multiSelect
-    ? selected
-      ? "☑"
-      : "☐"
-    : selected
-      ? "●"
-      : "○";
+  const marker = params.question.multiSelect ? (selected ? "☑" : "☐") : selected ? "●" : "○";
   return buildFeishuButtonElement({
     text: `${marker} ${params.option.label}`,
     type: selected ? "primary" : "default",
-    command: buildFeishuElicitationOptionCommand(
-      params.message,
-      params.option.value,
-    ),
+    command: buildFeishuElicitationOptionCommand(params.message, params.option.value),
     originalText: params.message.text,
   });
 }
@@ -218,11 +190,7 @@ function isFeishuElicitationCustomExpanded(
   message: BotOutboundMessage,
   questionIndex: number,
 ): boolean {
-  return (
-    message.elicitation?.expandedCustomAnswerQuestionIndexes?.includes(
-      questionIndex,
-    ) ?? false
-  );
+  return message.elicitation?.expandedCustomAnswerQuestionIndexes?.includes(questionIndex) ?? false;
 }
 
 function buildFeishuElicitationCustomButton(
@@ -230,23 +198,15 @@ function buildFeishuElicitationCustomButton(
   question: NonNullable<BotOutboundMessage["elicitation"]>["questions"][number],
   questionIndex: number,
 ): Record<string, unknown> {
-  const customValues = readFeishuElicitationCustomValues(
-    message,
-    question,
-    questionIndex,
-  );
+  const customValues = readFeishuElicitationCustomValues(message, question, questionIndex);
   const expanded = isFeishuElicitationCustomExpanded(message, questionIndex);
   const selected = expanded || customValues.length > 0;
-  const marker =
-    question.multiSelect ? (selected ? "☑" : "☐") : selected ? "●" : "○";
+  const marker = question.multiSelect ? (selected ? "☑" : "☐") : selected ? "●" : "○";
   const customLabel = formatBotMessage(message.locale, "elicitationCustomOption");
   return buildFeishuButtonElement({
     text: `${marker} ${customLabel}`,
     type: selected ? "primary" : "default",
-    command: buildFeishuElicitationOptionCommand(
-      message,
-      FEISHU_ELICITATION_CUSTOM_OPTION_ID,
-    ),
+    command: buildFeishuElicitationOptionCommand(message, FEISHU_ELICITATION_CUSTOM_OPTION_ID),
     originalText: message.text,
   });
 }
@@ -260,20 +220,13 @@ function buildFeishuElicitationForm(
   if (!selection?.token) {
     return null;
   }
-  const customExpanded = isFeishuElicitationCustomExpanded(
-    message,
-    questionIndex,
-  );
+  const customExpanded = isFeishuElicitationCustomExpanded(message, questionIndex);
   const shouldShowInput = question.options.length === 0 || customExpanded;
   const shouldShowSubmit = question.multiSelect || shouldShowInput;
   if (!shouldShowSubmit) {
     return null;
   }
-  const customValues = readFeishuElicitationCustomValues(
-    message,
-    question,
-    questionIndex,
-  );
+  const customValues = readFeishuElicitationCustomValues(message, question, questionIndex);
   const formElements: Array<Record<string, unknown>> = [];
   if (shouldShowInput) {
     formElements.push({
@@ -293,9 +246,7 @@ function buildFeishuElicitationForm(
   }
   formElements.push({
     tag: "button",
-    text: formatFeishuPlainText(
-      formatBotMessage(message.locale, "elicitationSubmitOption"),
-    ),
+    text: formatFeishuPlainText(formatBotMessage(message.locale, "elicitationSubmitOption")),
     type: "primary",
     form_action_type: "submit",
     name: "submit",
@@ -326,8 +277,7 @@ function buildFeishuElicitationAnswerElements(
     return [];
   }
   const total = elicitation.questions.length;
-  const isCompleted =
-    elicitation.status === "completed" || elicitation.status === "cancelled";
+  const isCompleted = elicitation.status === "completed" || elicitation.status === "cancelled";
   const elements: Array<Record<string, unknown>> = [];
   elicitation.questions.forEach((question, index) => {
     // 修复原因：当前题的多选值只是尚未提交的草稿。如果也放进上方历史区，
@@ -342,14 +292,9 @@ function buildFeishuElicitationAnswerElements(
     elements.push(
       {
         tag: "markdown",
-        content: formatFeishuCardMarkdownContent(
-          `#### ${index + 1}/${total} ${question.question}`,
-        ),
+        content: formatFeishuCardMarkdownContent(`#### ${index + 1}/${total} ${question.question}`),
       },
-      {
-        tag: "markdown",
-        content: formatFeishuCardMarkdownContent(answer),
-      },
+      { tag: "markdown", content: formatFeishuCardMarkdownContent(answer) },
     );
   });
   return elements;
@@ -420,10 +365,7 @@ function buildFeishuElicitationCardPayload(message: BotOutboundMessage): Record<
         },
       );
     }
-    const selectedValues = readElicitationAnswerValues(
-      message,
-      elicitation.currentQuestionIndex,
-    );
+    const selectedValues = readElicitationAnswerValues(message, elicitation.currentQuestionIndex);
     for (const option of currentQuestion.options) {
       const displayOption = planApprovalContent
         ? {
@@ -494,11 +436,7 @@ function buildFeishuElicitationCardPayload(message: BotOutboundMessage): Record<
       ),
     });
   }
-  return {
-    schema: "2.0",
-    config: { wide_screen_mode: true },
-    body: { elements },
-  };
+  return { schema: "2.0", config: { wide_screen_mode: true }, body: { elements } };
 }
 
 function getFeishuDomainProvider(bot: Pick<BotConfig, "provider">): "feishu" | "lark" {
@@ -601,9 +539,7 @@ function readFeishuPostText(content: Record<string, unknown> | null): string {
   }
   const postContent = readFeishuPostLocaleContent(content);
   const lines = Array.isArray(postContent)
-    ? postContent
-        .map((line) => formatFeishuPostToken(line).trim())
-        .filter(Boolean)
+    ? postContent.map((line) => formatFeishuPostToken(line).trim()).filter(Boolean)
     : [];
   const title = readFeishuPostLocaleTitle(content).trim();
   const body = lines.join("\n").trim();
@@ -662,7 +598,10 @@ function readFeishuAttachment(
   };
 }
 
-function readFeishuTextMessage(botId: string, payload: Record<string, unknown>): BotInboundMessage | null {
+function readFeishuTextMessage(
+  botId: string,
+  payload: Record<string, unknown>,
+): BotInboundMessage | null {
   const provider = readFeishuPayloadProvider(payload);
   // Bugfix: 飞书 node-sdk 的 WebSocket EventDispatcher 在不同事件/版本下可能把 event 字段摊平到顶层。
   // 之前只读 payload.event.message，长连接确实收到消息时也会解析成 0 条 inbound。
@@ -673,6 +612,67 @@ function readFeishuTextMessage(botId: string, payload: Record<string, unknown>):
   const content = parseJsonRecord(message?.content);
   const msgType = readString(message, "message_type") || readString(message, "msg_type");
   const attachment = readFeishuAttachment(msgType, content);
+  const attachments: BotInboundAttachment[] = attachment ? [attachment] : [];
+  if (isRecord(payload.zcodeReferencedAttachment)) {
+    const ref = payload.zcodeReferencedAttachment;
+    if (
+      (ref.kind === "image" || ref.kind === "file") &&
+      typeof ref.providerFileId === "string" &&
+      typeof ref.filename === "string" &&
+      typeof ref.mimeType === "string"
+    ) {
+      const metadata = isRecord(ref.providerMetadata) ? ref.providerMetadata : null;
+      const resourceMessageId = readString(metadata, "resourceMessageId");
+      if (resourceMessageId)
+        attachments.push({
+          id: ref.providerFileId,
+          kind: ref.kind,
+          providerFileId: ref.providerFileId,
+          filename: ref.filename,
+          mimeType: ref.mimeType,
+          providerMetadata: { resourceMessageId },
+        });
+    }
+  }
+  if (Array.isArray(payload.zcodeReferencedInlineImages)) {
+    for (const image of payload.zcodeReferencedInlineImages) {
+      if (
+        isRecord(image) &&
+        typeof image.imageKey === "string" &&
+        typeof image.messageId === "string"
+      ) {
+        const item = readFeishuAttachment("image", { image_key: image.imageKey });
+        if (item)
+          attachments.push({ ...item, providerMetadata: { resourceMessageId: image.messageId } });
+      }
+    }
+  }
+  let malformedInlineImage = false;
+  if (msgType === "post" && content) {
+    // 文字与文件一起发送时，文件位于顶层 files；只遍历正文图片会静默丢掉 PDF 等附件。
+    if (Array.isArray(content.files)) {
+      for (const file of content.files) {
+        const attachment = readFeishuAttachment("file", isRecord(file) ? file : null);
+        if (attachment) attachments.push(attachment);
+      }
+    }
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        for (const child of node) visit(child);
+        return;
+      }
+      if (!isRecord(node)) return;
+      if (node.tag === "img") {
+        const image = readFeishuAttachment("image", node);
+        if (image) attachments.push(image);
+        else malformedInlineImage = true;
+      }
+      visit(node.content ?? node.children ?? node.elements);
+    };
+    visit(readFeishuPostLocaleContent(content));
+  }
+  // 缺少图片引用不能静默降级成只执行正文。
+  if (malformedInlineImage) return null;
   // Bugfix: 飞书客户端里看起来像普通文字的富文本/带链接消息会以 message_type=post 推送。
   // 之前只读 content.text，post 消息被解析成空文本并直接丢弃，所以用户侧表现为“发了普通消息但 app 没反应”。
   const rawText =
@@ -690,14 +690,16 @@ function readFeishuTextMessage(botId: string, payload: Record<string, unknown>):
     readString(event, "union_id");
   const chatId = readString(message, "chat_id") || readString(event, "open_chat_id");
   const messageId = readString(message, "message_id");
-  if ((!text && !attachment) || !userId) {
+  if ((!text && attachments.length === 0) || !userId) {
     return null;
   }
-  const chatType = readFeishuChatType(readString(message, "chat_type") || readString(event, "chat_type"));
+  const chatType = readFeishuChatType(
+    readString(message, "chat_type") || readString(event, "chat_type"),
+  );
   return {
     botId,
     text,
-    ...(attachment ? { attachments: [attachment] } : {}),
+    ...(attachments.length ? { attachments } : {}),
     actor: {
       provider,
       botId,
@@ -709,7 +711,10 @@ function readFeishuTextMessage(botId: string, payload: Record<string, unknown>):
   };
 }
 
-function readFeishuCardAction(botId: string, payload: Record<string, unknown>): BotInboundMessage | null {
+function readFeishuCardAction(
+  botId: string,
+  payload: Record<string, unknown>,
+): BotInboundMessage | null {
   const provider = readFeishuPayloadProvider(payload);
   const event = readFeishuCallbackEvent(payload);
   const action = isRecord(event.action) ? event.action : null;
@@ -725,10 +730,7 @@ function readFeishuCardAction(botId: string, payload: Record<string, unknown>): 
   const submittedAnswer = formValue?.[FEISHU_ELICITATION_FORM_FIELD_NAME];
   const command =
     rawCommand && rawCommand.includes(FEISHU_ELICITATION_FORM_VALUE_PREFIX)
-      ? buildFeishuElicitationFormCommand(
-          rawCommand.split(/\s+/u)[1] ?? "",
-          submittedAnswer,
-        )
+      ? buildFeishuElicitationFormCommand(rawCommand.split(/\s+/u)[1] ?? "", submittedAnswer)
       : rawCommand;
   const operator = isRecord(event.operator) ? event.operator : null;
   const operatorId = isRecord(operator?.operator_id) ? operator.operator_id : null;
@@ -740,7 +742,10 @@ function readFeishuCardAction(botId: string, payload: Record<string, unknown>): 
     readString(payload, "open_id") ||
     readString(payload, "user_id");
   const context = isRecord(event.context) ? event.context : null;
-  const contextChatType = readString(context, "chat_type") || readString(event, "chat_type") || readString(payload, "chat_type");
+  const contextChatType =
+    readString(context, "chat_type") ||
+    readString(event, "chat_type") ||
+    readString(payload, "chat_type");
   const chatId = readString(context, "open_chat_id") || readString(context, "chat_id");
   const message = isRecord(event.message) ? event.message : null;
   const header = isRecord(payload.header) ? payload.header : null;
@@ -867,34 +872,20 @@ function buildFeishuButtonElement(params: {
 }): Record<string, unknown> {
   return {
     tag: "button",
-    text: {
-      tag: "plain_text",
-      content: params.text,
-    },
+    text: { tag: "plain_text", content: params.text },
     type: params.type,
     // Bugfix: Card JSON 2.0 不再支持旧版 action/actions 容器。
     // 按钮必须直接作为 body.elements 组件，并通过 behaviors.callback 回传业务值，否则飞书会返回 HTTP 400。
     behaviors: [
-      {
-        type: "callback",
-        value: {
-          command: params.command,
-          zcodeCardText: params.originalText,
-        },
-      },
+      { type: "callback", value: { command: params.command, zcodeCardText: params.originalText } },
     ],
   };
 }
 
-function buildFeishuInteractiveCardPayload(
-  message: BotOutboundMessage,
-): Record<string, unknown> {
+function buildFeishuInteractiveCardPayload(message: BotOutboundMessage): Record<string, unknown> {
   const selection = message.selection;
   const elements: Array<Record<string, unknown>> = [
-    {
-      tag: "markdown",
-      content: formatFeishuCardMarkdownContent(message.text),
-    },
+    { tag: "markdown", content: formatFeishuCardMarkdownContent(message.text) },
   ];
   if (selection) {
     elements.push(
@@ -911,8 +902,7 @@ function buildFeishuInteractiveCardPayload(
         : [
             buildFeishuButtonElement({
               text:
-                selection.cancelLabel ??
-                formatBotMessage(message.locale, "selectionCancelOption"),
+                selection.cancelLabel ?? formatBotMessage(message.locale, "selectionCancelOption"),
               type: "default",
               // Bugfix: 飞书走结构化选项卡，不应复用微信纯文本菜单的 0 取消语义。
               command: "/cancel",
@@ -921,11 +911,7 @@ function buildFeishuInteractiveCardPayload(
           ]),
     );
   }
-  return {
-    schema: "2.0",
-    config: { wide_screen_mode: true },
-    body: { elements },
-  };
+  return { schema: "2.0", config: { wide_screen_mode: true }, body: { elements } };
 }
 
 function formatFeishuStreamingStatus(state: BotStreamingReplyCardState): string {
@@ -959,16 +945,10 @@ function buildFeishuStreamingToolPanel(
     // Bugfix: Tool summaries 之前只是裸 collapsible panel，和正文没有清晰视觉边界。
     // 飞书 Card JSON 2.0 的折叠面板本身支持背景与边框，这里把它作为 <tools> 容器承载 header/content。
     background_color: "grey-50",
-    border: {
-      color: "grey",
-      corner_radius: "8px",
-    },
+    border: { color: "grey", corner_radius: "8px" },
     padding: "8px 8px 8px 8px",
     header: {
-      title: {
-        tag: "plain_text",
-        content: `🛠️ ${options.title} (${summaries.length})`,
-      },
+      title: { tag: "plain_text", content: `🛠️ ${options.title} (${summaries.length})` },
       vertical_align: "center",
       padding: "8px 8px 8px 8px",
       icon: {
@@ -980,43 +960,32 @@ function buildFeishuStreamingToolPanel(
       icon_position: "right",
       icon_expanded_angle: -180,
     },
-    elements: [
-      {
-        tag: "markdown",
-        content: formatFeishuCardMarkdownContent(summaries.join("\n")),
-      },
-    ],
+    elements: [{ tag: "markdown", content: formatFeishuCardMarkdownContent(summaries.join("\n")) }],
   };
 }
 
-function buildFeishuStreamingCardPayload(state: BotStreamingReplyCardState): Record<string, unknown> {
+function buildFeishuStreamingCardPayload(
+  state: BotStreamingReplyCardState,
+): Record<string, unknown> {
   const elements: Array<Record<string, unknown>> = [];
   for (const block of state.blocks) {
     if (block.type === "message") {
       const text = block.text.trim();
       if (text) {
-        elements.push({
-          tag: "markdown",
-          content: formatFeishuCardMarkdownContent(text),
-        });
+        elements.push({ tag: "markdown", content: formatFeishuCardMarkdownContent(text) });
       }
       continue;
     }
     const toolPanel = buildFeishuStreamingToolPanel(block.summaries, {
       expanded: block.expanded ?? state.status === "running",
-      title:
-        block.title?.trim() ||
-        formatBotMessage(state.locale, "streamingToolSummaries"),
+      title: block.title?.trim() || formatBotMessage(state.locale, "streamingToolSummaries"),
     });
     if (toolPanel) {
       elements.push(toolPanel);
     }
   }
   if (elements.length === 0) {
-    elements.push({
-      tag: "markdown",
-      content: " ",
-    });
+    elements.push({ tag: "markdown", content: " " });
   }
   if (state.status !== "sealed") {
     elements.push({
@@ -1024,11 +993,7 @@ function buildFeishuStreamingCardPayload(state: BotStreamingReplyCardState): Rec
       content: formatFeishuCardMarkdownContent(`_${formatFeishuStreamingStatus(state)}_`),
     });
   }
-  return {
-    schema: "2.0",
-    config: { wide_screen_mode: true },
-    body: { elements },
-  };
+  return { schema: "2.0", config: { wide_screen_mode: true }, body: { elements } };
 }
 
 function countTaggedElements(value: unknown): number {
@@ -1039,16 +1004,13 @@ function countTaggedElements(value: unknown): number {
     return 0;
   }
   const record = value as Record<string, unknown>;
-  return (typeof record.tag === "string" ? 1 : 0) +
-    Object.values(record).reduce<number>(
-      (total, item) => total + countTaggedElements(item),
-      0,
-    );
+  return (
+    (typeof record.tag === "string" ? 1 : 0) +
+    Object.values(record).reduce<number>((total, item) => total + countTaggedElements(item), 0)
+  );
 }
 
-export function countFeishuCardTaggedElements(
-  state: BotStreamingReplyCardState,
-): number {
+export function countFeishuCardTaggedElements(state: BotStreamingReplyCardState): number {
   return countTaggedElements(buildFeishuStreamingCardPayload(state));
 }
 
@@ -1063,8 +1025,7 @@ export function splitFeishuStreamingCardStates(
     const candidateState = { ...state, blocks: candidate, status: "running" as const };
     if (
       current.length > 0 &&
-      countFeishuCardTaggedElements(candidateState) >
-        FEISHU_STREAMING_CARD_TAGGED_ELEMENT_BUDGET
+      countFeishuCardTaggedElements(candidateState) > FEISHU_STREAMING_CARD_TAGGED_ELEMENT_BUDGET
     ) {
       blockGroups.push(current);
       current = [block];
@@ -1136,15 +1097,15 @@ async function readTenantAccessToken(
   if (cached && cached.expiresAt > Date.now() + 60_000) {
     return cached.token;
   }
-  const response = await fetchBotProviderJson<FeishuAccessTokenResponse>(`${getFeishuBaseUrl(bot)}/open-apis/auth/v3/tenant_access_token/internal`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      app_id: bot.feishuAppId,
-      app_secret: appSecret,
-    }),
-    signal,
-  });
+  const response = await fetchBotProviderJson<FeishuAccessTokenResponse>(
+    `${getFeishuBaseUrl(bot)}/open-apis/auth/v3/tenant_access_token/internal`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ app_id: bot.feishuAppId, app_secret: appSecret }),
+      signal,
+    },
+  );
   if (!response.ok) {
     throw new Error(`Feishu tenant_access_token failed: HTTP ${response.status}`);
   }
@@ -1196,10 +1157,7 @@ async function sendFeishuInteractiveCard(
     `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages?receive_id_type=${resolveFeishuReceiveIdType(receiveId)}`,
     {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({
         receive_id: receiveId,
         msg_type: "interactive",
@@ -1233,14 +1191,8 @@ async function updateFeishuInteractiveMessage(
     `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(handle.providerMessageId)}`,
     {
       method: "PATCH",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        msg_type: "interactive",
-        content: JSON.stringify(card),
-      }),
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ msg_type: "interactive", content: JSON.stringify(card) }),
       signal,
     },
   );
@@ -1263,12 +1215,7 @@ async function deleteFeishuInteractiveMessage(
 ): Promise<void> {
   const response = await fetchBotProviderJson<FeishuSendMessageResponse>(
     `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(handle.providerMessageId)}`,
-    {
-      method: "DELETE",
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
-    },
+    { method: "DELETE", headers: { authorization: `Bearer ${token}` } },
   );
   if (!response.ok) {
     throw new Error(`Feishu recall interaction card failed: HTTP ${response.status}`);
@@ -1300,11 +1247,10 @@ async function fetchFeishuAppDisplayName(
   token: string,
   appId: string,
 ): Promise<string | null> {
-  const response = await fetchBotProviderJson<FeishuAppInfoResponse>(`${getFeishuBaseUrl(bot)}/open-apis/application/v6/applications/${appId}?lang=zh_cn`, {
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
+  const response = await fetchBotProviderJson<FeishuAppInfoResponse>(
+    `${getFeishuBaseUrl(bot)}/open-apis/application/v6/applications/${appId}?lang=zh_cn`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
   if (!response.ok) {
     throw new Error(`Feishu get application info failed app=${appId}: HTTP ${response.status}`);
   }
@@ -1315,7 +1261,10 @@ async function fetchFeishuAppDisplayName(
   return resolveFeishuAppDisplayName(payload);
 }
 
-async function readFeishuAppDisplayName(bot: BotConfig, deps: FeishuProviderDeps): Promise<string | null> {
+async function readFeishuAppDisplayName(
+  bot: BotConfig,
+  deps: FeishuProviderDeps,
+): Promise<string | null> {
   if (!bot.feishuAppId) {
     return null;
   }
@@ -1376,11 +1325,7 @@ async function readFeishuUserDisplayName(
   const userIdType = resolveFeishuUserIdType(trimmedUserId);
   const response = await fetchBotProviderJson<FeishuUserInfoResponse>(
     `${getFeishuBaseUrl(bot)}/open-apis/contact/v3/users/${encodeURIComponent(trimmedUserId)}?user_id_type=${userIdType}`,
-    {
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
-    },
+    { headers: { authorization: `Bearer ${token}` } },
   );
   if (!response.ok) {
     throw new Error(`Feishu get user info failed user=${trimmedUserId}: HTTP ${response.status}`);
@@ -1392,10 +1337,7 @@ async function readFeishuUserDisplayName(
   const name = resolveFeishuUserDisplayName(payload);
   // Bugfix: 飞书消息事件只稳定携带 sender_id，不携带发送者名称。
   // 这里缓存通讯录查询结果，避免同一个用户连续发消息时每条都请求 contact API。
-  userDisplayNameCache.set(cacheKey, {
-    name,
-    expiresAt: Date.now() + 10 * 60_000,
-  });
+  userDisplayNameCache.set(cacheKey, { name, expiresAt: Date.now() + 10 * 60_000 });
   return name;
 }
 
@@ -1420,15 +1362,8 @@ async function addFeishuTypingReaction(
     `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${messageId}/reactions`,
     {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        reaction_type: {
-          emoji_type: "Typing",
-        },
-      }),
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ reaction_type: { emoji_type: "Typing" } }),
     },
   );
   if (!response.ok) {
@@ -1459,12 +1394,7 @@ async function deleteFeishuTypingReaction(
   }
   const response = await fetchBotProviderJson<FeishuReactionResponse>(
     `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${messageId}/reactions/${reactionId}`,
-    {
-      method: "DELETE",
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
-    },
+    { method: "DELETE", headers: { authorization: `Bearer ${token}` } },
   );
   if (!response.ok) {
     throw new Error(`Feishu delete typing reaction failed: HTTP ${response.status}`);
@@ -1476,7 +1406,10 @@ async function deleteFeishuTypingReaction(
   typingReactionIds.delete(key);
 }
 
-async function readFeishuAppSecret(bot: BotConfig, deps: FeishuProviderDeps): Promise<string | null> {
+async function readFeishuAppSecret(
+  bot: BotConfig,
+  deps: FeishuProviderDeps,
+): Promise<string | null> {
   if (!bot.feishuAppId || !bot.credentialRef) {
     return null;
   }
@@ -1490,7 +1423,11 @@ export function createFeishuWebSocketEventHandlers(params: {
   const { bot, onPayload } = params;
   return {
     "im.message.receive_v1": async (payload: unknown) => {
-      await onPayload({ botId: bot.id, zcodeProvider: bot.provider, ...(isRecord(payload) ? payload : { payload }) });
+      await onPayload({
+        botId: bot.id,
+        zcodeProvider: bot.provider,
+        ...(isRecord(payload) ? payload : { payload }),
+      });
     },
     // Bugfix: 我们用 Typing reaction 模拟输入中状态，飞书会把自己创建的 reaction 再推回长连接。
     // 业务不需要处理这个事件，但不注册 handler 时 SDK 会持续打印 warn 干扰排查。
@@ -1599,13 +1536,10 @@ export async function startFeishuBotWebSocket(params: {
     connectionPoll = setInterval(() => {
       const sdkClient = wsClient as unknown as {
         isConnecting?: boolean;
-        wsConfig?: {
-          getWSInstance?(): { readyState?: number } | null;
-        };
+        wsConfig?: { getWSInstance?(): { readyState?: number } | null };
       };
       const connected =
-        sdkClient.wsConfig?.getWSInstance?.()?.readyState ===
-        WEBSOCKET_OPEN_READY_STATE;
+        sdkClient.wsConfig?.getWSInstance?.()?.readyState === WEBSOCKET_OPEN_READY_STATE;
       if (!connected) {
         if (!startupSettled || clientClosed) return;
         if (!connectionUnavailable) {
@@ -1683,10 +1617,7 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
         return { ok: false, message: "Feishu bot is disabled." };
       }
       if (!bot.feishuAppId || !bot.credentialRef) {
-        return {
-          ok: false,
-          message: "Feishu App ID and App Secret are required.",
-        };
+        return { ok: false, message: "Feishu App ID and App Secret are required." };
       }
       const token = await readTenantAccessToken(bot, deps);
       return token
@@ -1728,11 +1659,7 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
           bot,
           token,
           receiveId,
-          buildFeishuInteractiveCardPayload({
-            ...message,
-            text,
-            selection: undefined,
-          }),
+          buildFeishuInteractiveCardPayload({ ...message, text, selection: undefined }),
         );
       }
     },
@@ -1757,13 +1684,7 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
       if (!token) {
         return;
       }
-      await updateCard(
-        bot,
-        token,
-        handle,
-        buildFeishuStreamingCardPayload(state),
-        signal,
-      );
+      await updateCard(bot, token, handle, buildFeishuStreamingCardPayload(state), signal);
     },
 
     async createTransientInteractionCard(bot, message) {
@@ -1843,32 +1764,32 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
       // 非共享卡片延时更新还需要带 open_ids，否则飞书会返回 300090，旧卡片会继续留在会话里。
       // Bugfix: 用户选择后应保留原问题文案并移除按钮；仅依赖 WebSocket 回调 return 的卡片更新不稳定。
       // 因此即使按钮 value 里带了原文，也必须继续调用 card/update，只是更新文案优先使用原文。
-      const response = await fetchBotProviderJson<FeishuSendMessageResponse>(`${getFeishuBaseUrl(bot)}/open-apis/interactive/v1/card/update`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
+      const response = await fetchBotProviderJson<FeishuSendMessageResponse>(
+        `${getFeishuBaseUrl(bot)}/open-apis/interactive/v1/card/update`,
+        {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          signal,
+          body: JSON.stringify({
+            token: cardUpdateToken,
+            // Bugfix: Card JSON 2.0 根节点不接受 open_ids；把 open_ids 塞进 card 会触发
+            // “unknown property: open_ids” 并导致按钮点击后原卡片无法移除选项。
+            ...(openIds.length > 0 ? { open_ids: openIds } : {}),
+            // 修复原因：新建下一题再撤回旧卡会在飞书会话中显示明显的撤回痕迹。
+            // callback token 是本次点击对应的权威原地更新能力，问答推进和终态都复用同一张卡。
+            card: message?.elicitation
+              ? buildFeishuElicitationCardPayload(message)
+              : buildFeishuInteractiveCardPayload({
+                  botId: bot.id,
+                  provider: bot.provider,
+                  providerUserId: "",
+                  // Bugfix: 飞书按钮点击后业务结果会另发一条消息；原卡片只需要移除选项按钮。
+                  // 之前把原卡片改成结果文案，飞书侧会出现额外状态变化，也不符合用户对“选项消失”的预期。
+                  text: originalText?.trim() || (text ?? ""),
+                }),
+          }),
         },
-        signal,
-        body: JSON.stringify({
-          token: cardUpdateToken,
-          // Bugfix: Card JSON 2.0 根节点不接受 open_ids；把 open_ids 塞进 card 会触发
-          // “unknown property: open_ids” 并导致按钮点击后原卡片无法移除选项。
-          ...(openIds.length > 0 ? { open_ids: openIds } : {}),
-          // 修复原因：新建下一题再撤回旧卡会在飞书会话中显示明显的撤回痕迹。
-          // callback token 是本次点击对应的权威原地更新能力，问答推进和终态都复用同一张卡。
-          card: message?.elicitation
-            ? buildFeishuElicitationCardPayload(message)
-            : buildFeishuInteractiveCardPayload({
-                botId: bot.id,
-                provider: bot.provider,
-                providerUserId: "",
-                // Bugfix: 飞书按钮点击后业务结果会另发一条消息；原卡片只需要移除选项按钮。
-                // 之前把原卡片改成结果文案，飞书侧会出现额外状态变化，也不符合用户对“选项消失”的预期。
-                text: originalText?.trim() || (text ?? ""),
-              }),
-        }),
-      });
+      );
       if (!response.ok) {
         throw new Error(`Feishu update interactive card failed: HTTP ${response.status}`);
       }
@@ -1885,27 +1806,16 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
         return null;
       }
       const controller = new AbortController();
-      const timeout = setTimeout(
-        () => controller.abort(),
-        FEISHU_ATTACHMENT_DOWNLOAD_TIMEOUT_MS,
-      );
+      const timeout = setTimeout(() => controller.abort(), FEISHU_ATTACHMENT_DOWNLOAD_TIMEOUT_MS);
       try {
         const response = await fetch(
           `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(actor.providerMessageId)}/resources/${encodeURIComponent(attachment.providerFileId)}?type=${attachment.kind === "image" ? "image" : attachment.kind === "video" ? "media" : attachment.kind}`,
-          {
-            headers: {
-              authorization: `Bearer ${token}`,
-            },
-            signal: controller.signal,
-          },
+          { headers: { authorization: `Bearer ${token}` }, signal: controller.signal },
         );
         if (!response.ok) {
           throw new Error(`Feishu attachment download failed: HTTP ${response.status}`);
         }
-        return {
-          attachment,
-          data: new Uint8Array(await response.arrayBuffer()),
-        };
+        return { attachment, data: new Uint8Array(await response.arrayBuffer()) };
       } catch (error) {
         if ((error as { name?: unknown })?.name === "AbortError") {
           // Bugfix: 飞书资源接口偶发长时间不返回，必须让 bot 回调在可预期时间内给用户失败提示。

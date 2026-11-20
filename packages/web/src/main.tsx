@@ -1,4 +1,13 @@
 /// <reference types="vite/client" />
+// 远控 / 分享网页运行在用户自己的浏览器里，版本不受我们控制。
+// ZCT-2118215639243444224：Chrome 109 没有 Array.prototype.toSorted，Hook 详情组件渲染时抛
+// TypeError，区域错误边界显示“这块界面出了点问题”。Vite 只降级语法、不补运行时 API，
+// 这里只补产物实际用到、且高于构建语法基线的 API；core-js 会先检测原生实现，不覆盖新版浏览器。
+// 必须放在最前面：ES module 按 import 顺序求值，其他模块执行前 API 需已就绪。
+// 范围与新增规则见 docs/web-remote-control/web-browser-support.md。
+import "core-js/stable/array/to-sorted";
+import "core-js/stable/array/to-reversed";
+import "core-js/stable/object/group-by";
 import {
   selectBrowserFileData,
   writeBrowserClipboardText,
@@ -10,6 +19,8 @@ import { createRoot } from "react-dom/client";
 import { installDocumentHiddenMotionPause } from "@zcode/ui/document-hidden-motion-pause";
 import {
   AppErrorBoundary,
+  readPendingTaskDraft,
+  readComposerWorkspaceScope,
   Root,
   ZCodeIntlProvider,
   playTaskNotificationSound,
@@ -127,12 +138,7 @@ function createWebPlatform(): IPlatformService {
         error: "MCP native directory management requires a desktop attachment",
       }),
     migrateLegacyCommonMcp: () =>
-      Promise.resolve({
-        servers: {},
-        totalCount: 0,
-        importedCount: 0,
-        skippedCount: 0,
-      }),
+      Promise.resolve({ servers: {}, totalCount: 0, importedCount: 0, skippedCount: 0 }),
     openExternal: (url) => {
       window.open(url, "_blank", "noopener,noreferrer");
     },
@@ -167,10 +173,7 @@ function createWebPlatform(): IPlatformService {
       }
 
       try {
-        new window.Notification(payload.title, {
-          body: payload.body,
-          silent: true,
-        });
+        new window.Notification(payload.title, { body: payload.body, silent: true });
         void playTaskNotificationSound();
       } catch {
         // 浏览器通知不可用时静默忽略，避免打断主流程
@@ -245,9 +248,7 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
   }
 
   try {
-    const response = await fetch("/api/server-info", {
-      cache: "no-store",
-    });
+    const response = await fetch("/api/server-info", { cache: "no-store" });
     if (!response.ok) {
       return { wsUrl };
     }
@@ -277,9 +278,7 @@ async function bootstrapWebApp() {
   }
 
   try {
-    const services = await connectViaWebSocket(bootstrap.wsUrl, {
-      onClose: () => {},
-    });
+    const services = await connectViaWebSocket(bootstrap.wsUrl, { onClose: () => {} });
     const platform = createWebPlatform();
     document.title = "ZCodium - Web + Server";
 

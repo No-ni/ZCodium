@@ -11,3 +11,5 @@
 活动命中的索引读取复用 `getFindMatch` 纯函数；负索引和越界仍返回 null，active key、滚动、高亮和历史加载状态继续由原 hook 持有。
 
 产物头部 WorkflowArtifactHeader 只展示父传入的版本、按钮与作者信息；lease、字节读取、当前版本、复制与导航事件均由原 WorkflowArtifactView 持有。
+
+工具摘要的纯分类与统计继续使用原 renderer 规则，拆出的 exploreSummary 不取得工具或会话状态。连续摘要保留专用 CUA/探索/终端/变更分组边界；本地只读导出使用同一分类算法的平坦视图，保留全部工具及正文。摘要字段仍按本仓间距布局，不恢复已移除的装饰分隔符。

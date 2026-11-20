@@ -86,6 +86,9 @@ export function isSameSourceServerUpdateTarget(
   );
 }
 
+/** 取消更新只接收线路身份；是否处于可取消的本机阶段由 Host 判断（R3 §6.3）。 */
+export const sourceServerUpdateCancelProfileIdSchema = z.string().uuid();
+
 /**
  * 设备级生命周期操作（停止、重启远端服务，RDLC-01）只接收设备身份；具体走哪条连接由 Host 路由，
  * Renderer 不传 profileId。
@@ -145,18 +148,12 @@ export const sourceServerMigrationReportSchema = z
 export type SourceServerMigrationReport = z.infer<typeof sourceServerMigrationReportSchema>;
 
 export const sourceServerMigrationPathActionSchema = z
-  .object({
-    workspacePath: nonEmptyStringSchema,
-    migrationId: nonEmptyStringSchema.optional(),
-  })
+  .object({ workspacePath: nonEmptyStringSchema, migrationId: nonEmptyStringSchema.optional() })
   .strict();
 export type SourceServerMigrationPathAction = z.infer<typeof sourceServerMigrationPathActionSchema>;
 
 export const sourceServerResolveWorkspaceRequestSchema = z
-  .object({
-    workspacePath: nonEmptyStringSchema,
-    legacyRouteHint: nonEmptyStringSchema.optional(),
-  })
+  .object({ workspacePath: nonEmptyStringSchema, legacyRouteHint: nonEmptyStringSchema.optional() })
   .strict();
 export type SourceServerResolveWorkspaceRequest = z.infer<
   typeof sourceServerResolveWorkspaceRequestSchema
@@ -196,9 +193,7 @@ export const sourceServerRunningTasksResultSchema = z.discriminatedUnion("availa
 export type SourceServerRunningTasksResult = z.infer<typeof sourceServerRunningTasksResultSchema>;
 
 export const sourceServerManagementSnapshotRequestSchema = z
-  .object({
-    refreshMigrationCounts: z.boolean().optional(),
-  })
+  .object({ refreshMigrationCounts: z.boolean().optional() })
   .strict();
 export type SourceServerManagementSnapshotRequest = z.infer<
   typeof sourceServerManagementSnapshotRequestSchema
@@ -215,9 +210,7 @@ export type SourceServerManagementStateDelta = z.infer<
 >;
 
 export const sourceServerManagementDirectoryDeltaSchema = z
-  .object({
-    generation: z.number().int().positive(),
-  })
+  .object({ generation: z.number().int().positive() })
   .strict();
 export type SourceServerManagementDirectoryDelta = z.infer<
   typeof sourceServerManagementDirectoryDeltaSchema

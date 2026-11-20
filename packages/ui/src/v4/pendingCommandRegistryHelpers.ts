@@ -11,6 +11,33 @@ import type {
 export const PENDING_COMMAND_TTL_MS = 24 * 60 * 60 * 1_000;
 export const STORAGE_KEY = "zcode-v4-pending-commands:v1";
 
+export function loadPendingCommandEntries(storage?: StorageLike): PendingCommandEntry[] {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed.filter(isEntry) : [];
+  } catch {
+    // 损坏的恢复线索不阻断 CLI 权威会话。
+    return [];
+  }
+}
+
+export function writePendingCommandEntries(
+  storage: StorageLike | undefined,
+  entries: ReadonlyMap<string, PendingCommandEntry>,
+): boolean {
+  if (!storage) return false;
+  try {
+    if (entries.size === 0) storage.removeItem(STORAGE_KEY);
+    else storage.setItem(STORAGE_KEY, JSON.stringify([...entries.values()]));
+    return true;
+  } catch {
+    // 普通命令保持内存降级；首发目录交接仍由 record 检查写入结果。
+    return false;
+  }
+}
+
 export function browserStorage(): StorageLike | undefined {
   try {
     return globalThis.localStorage;
@@ -21,6 +48,40 @@ export function browserStorage(): StorageLike | undefined {
 
 export function keyOf(sessionId: string | null, commandId: string): string {
   return `${sessionId ?? "<global>"}\u0000${commandId}`;
+}
+
+/** 对原账本原位操作；提交和草稿所有权仍由调用方唯一持有。 */
+export function remapPendingCreatedSession(
+  entries: Map<string, PendingCommandEntry>,
+  entry: PendingCommandEntry,
+  ack: CommandAck,
+): PendingCommandEntry {
+  if (
+    entry.replay.kind !== "input" ||
+    entry.replay.type !== "createSession" ||
+    (ack.status !== "accepted" && ack.status !== "duplicate") ||
+    ack.result?.type !== "createSession" ||
+    entry.sessionId === ack.result.sessionId
+  )
+    return entry;
+  entries.delete(keyOf(entry.sessionId, entry.commandId));
+  const remapped = { ...entry, sessionId: ack.result.sessionId };
+  entries.set(keyOf(remapped.sessionId, remapped.commandId), remapped);
+  return remapped;
+}
+
+export function prunePendingCommandEntries(
+  entries: Map<string, PendingCommandEntry>,
+  now: number,
+  ownsDraft: (entry: PendingCommandEntry) => boolean,
+): boolean {
+  let changed = false;
+  for (const [key, entry] of entries)
+    if (entry.expiresAt <= now && !ownsDraft(entry)) {
+      entries.delete(key);
+      changed = true;
+    }
+  return changed;
 }
 
 export function clonePayload(payload: unknown): Record<string, unknown> {

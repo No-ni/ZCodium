@@ -1,4 +1,5 @@
-import type { SessionCreateSource } from "@zcode/shared";
+import type { DraftPluginUiOpenRequest } from "@/plugin-ui/contract.js";
+import type { ManagedWorktreeCreation, SessionCreateSource } from "@zcode/shared";
 /* eslint-disable max-lines -- workspace 级状态动作集中在同一 slice，先保持收口便于维护。 */
 import {
   buildNativeSupplierKey,
@@ -251,6 +252,8 @@ export function createWorkspaceSlice(set: SetFn) {
               taskUnreadByTaskId: restTaskUnreadByTaskId,
               optimisticTaskListByTaskId: nextOptimisticTaskListByTaskId,
               activeTaskId: id,
+              // 导航和首发提升共用此入口；配置版本不变也必须取消原草稿的待打开请求。
+              pluginUiOpenRequest: id ? null : current.pluginUiOpenRequest,
               composerInitialization:
                 id && composerConfig
                   ? { taskId: id, config: composerConfig }
@@ -300,12 +303,48 @@ export function createWorkspaceSlice(set: SetFn) {
             ...current,
             // 预热会话只存在于 V4 pane 内；递增版本让 owner 回收并重建能力快照。
             draftRuntimeInvalidationVersion: current.draftRuntimeInvalidationVersion + 1,
+            pluginUiOpenRequest: null,
           }),
           workspaceIdentity,
         ),
       );
     },
 
+    requestPluginUiOpen: (request: DraftPluginUiOpenRequest) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          request.workspacePath,
+          (current) => ({
+            ...current,
+            pluginUiOpenVersion: current.pluginUiOpenVersion + 1,
+            pluginUiOpenRequest: {
+              ...request,
+              requestId: current.pluginUiOpenVersion + 1,
+              invalidationVersion: current.draftRuntimeInvalidationVersion,
+            },
+          }),
+          request.workspaceIdentity,
+        ),
+      );
+    },
+    clearPluginUiOpenRequest: (
+      workspacePath: string,
+      requestId: number,
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) =>
+            current.pluginUiOpenRequest?.requestId === requestId
+              ? { ...current, pluginUiOpenRequest: null }
+              : current,
+          workspaceIdentity,
+        ),
+      );
+    },
     requestComposerTextInsert: (
       workspacePath: string,
       text: string,
@@ -413,6 +452,74 @@ export function createWorkspaceSlice(set: SetFn) {
       );
     },
 
+    setDraftWorktree: (
+      workspacePath: string,
+      worktree: { ref: string | null } | null,
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) => ({ ...current, draftWorktree: worktree }),
+          workspaceIdentity,
+        ),
+      );
+    },
+
+    beginWorktreeHandoff: (
+      workspacePath: string,
+      handoff: { sessionId: string; creation: ManagedWorktreeCreation },
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) => ({ ...current, worktreeHandoff: handoff }),
+          workspaceIdentity,
+        ),
+      );
+    },
+
+    finishWorktreeHandoff: (
+      workspacePath: string,
+      sessionId: string,
+      workspaceIdentity?: string,
+    ) => {
+      // 没有属于该会话的交接时返回原 state，避免 SessionPane 的 effect 引起无效渲染。
+      set((state) =>
+        state.getWorkspaceState(workspacePath, workspaceIdentity).worktreeHandoff?.sessionId !==
+        sessionId
+          ? state
+          : updateWorkspaceState(
+              state,
+              workspacePath,
+              (current) => ({ ...current, worktreeHandoff: null }),
+              workspaceIdentity,
+            ),
+      );
+    },
+
+    viewWorktreeCreation: (
+      workspacePath: string,
+      creationId: string | null,
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) => ({
+            ...current,
+            ...(creationId ? { activeTaskId: null, draftWorktree: null } : {}),
+            draftWorktreeCreationId: creationId,
+          }),
+          workspaceIdentity,
+        ),
+      );
+    },
+
     clearDraftTaskGroup: (workspacePath: string, workspaceIdentity?: string) => {
       // 关闭分组行只撤销组织意图；调用 startDraft 会重置预热、配置和焦点。
       set((state) =>
@@ -484,9 +591,14 @@ export function createWorkspaceSlice(set: SetFn) {
             return {
               ...current,
               activeTaskId: null,
+              // 同项目重入不会递增失效版本；新打开请求由调用方在进入草稿之后投递。
+              pluginUiOpenRequest: null,
               composerInitialization: undefined,
               draftProjectId: options?.projectId,
               draftTaskGroupId: options?.taskGroupId,
+              // 新草稿默认在本地运行，也不再展示之前的 worktree 创建记录（§3.2）。
+              draftWorktree: null,
+              draftWorktreeCreationId: null,
               // 同 cwd 可属于多个项目；换项目不能复用前一个项目的预热 runtime 目录范围。
               draftRuntimeInvalidationVersion:
                 current.draftRuntimeInvalidationVersion +

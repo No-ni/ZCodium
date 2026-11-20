@@ -34,6 +34,7 @@ import type {
 } from "../types.js";
 import type { BackgroundTaskTracker } from "./background-tasks.js";
 import {
+  annotateUnsettledCall,
   createErrorResult,
   createPermissionErrorResult,
   createToolHandlerFailureError,
@@ -116,9 +117,7 @@ async function executeToolCallImpl(
   const registeredEntry = emptyToolName ? undefined : deps.registry.get(toolCall.name);
   const model = options?.model ?? deps.model;
   const entry = registeredEntry
-    ? resolveToolEntryModelContract(registeredEntry, {
-        model,
-      })
+    ? resolveToolEntryModelContract(registeredEntry, { model })
     : undefined;
   const canonicalToolCall =
     entry && toolCall.name !== entry.metadata.name
@@ -127,10 +126,7 @@ async function executeToolCallImpl(
   const traceContext = createChildTraceContext(parentTraceContext, {
     sessionId: deps.sessionId,
     turnId: deps.turnId,
-    attributes: {
-      toolCallId: canonicalToolCall.id,
-      toolName: canonicalToolCall.name,
-    },
+    attributes: { toolCallId: canonicalToolCall.id, toolName: canonicalToolCall.name },
   });
   const traceId = traceContext.traceId;
   const turnId = traceContext.turnId ?? deps.turnId;
@@ -143,10 +139,7 @@ async function executeToolCallImpl(
         emptyToolName
           ? "Model returned an invalid tool call: tool name is empty."
           : `Tool not found: ${toolCall.name}`,
-        {
-          context: { toolCallId: toolCall.id, toolName: toolCall.name },
-          recoverable: false,
-        },
+        { context: { toolCallId: toolCall.id, toolName: toolCall.name }, recoverable: false },
       ),
     );
     // 空名在 admission 阶段停止会让模型永远收不到配对结果。复用
@@ -155,13 +148,7 @@ async function executeToolCallImpl(
     result.modelContent = `<tool_use_error>Error: No such tool available: ${toolCall.name}</tool_use_error>`;
     // registry miss 发生在 handler/ToolCallStarted 之前；旧代码只把失败
     // 返回给 provider，没有发布 ToolCallError，V4 tool row 因而永久停在 inputStreaming。
-    await emitToolCallError(
-      deps,
-      toolCall.id,
-      traceContext,
-      turnId,
-      result.error
-    );
+    await emitToolCallError(deps, toolCall.id, traceContext, turnId, result.error);
     deps.logger?.warn("Tool call rejected because the tool is not registered", {
       ...traceContextToLogContext(traceContext),
       event: "tool.call.not_found",
@@ -184,13 +171,7 @@ async function executeToolCallImpl(
         error instanceof Error ? error.message : "Tool instance is unavailable",
       ),
     );
-    await emitToolCallError(
-      deps,
-      canonicalToolCall.id,
-      traceContext,
-      turnId,
-      result.error
-    );
+    await emitToolCallError(deps, canonicalToolCall.id, traceContext, turnId, result.error);
     return result;
   }
   if (lifetime)
@@ -244,13 +225,7 @@ async function executeToolCallImpl(
       // schema 失败与 registry miss 同属 handler/ToolCallStarted 之前的早退；旧代码
       // 只把失败回灌模型，没有发布 ToolCallError，V4 tool row 因而在整个 turn 里停在
       // inputStreaming（CreateWorkflow 卡持续显示「正在编写工作流」），模型重试后又叠一张。
-      await emitToolCallError(
-        deps,
-        canonicalToolCall.id,
-        traceContext,
-        turnId,
-        result.error
-      );
+      await emitToolCallError(deps, canonicalToolCall.id, traceContext, turnId, result.error);
       return result;
     }
 
@@ -264,13 +239,7 @@ async function executeToolCallImpl(
         canonicalToolCall,
         createToolHandlerFailureError(canonicalToolCall, toolInputValidation),
       );
-      await emitToolCallError(
-        deps,
-        canonicalToolCall.id,
-        traceContext,
-        turnId,
-        result.error
-      );
+      await emitToolCallError(deps, canonicalToolCall.id, traceContext, turnId, result.error);
       return result;
     }
 
@@ -297,13 +266,7 @@ async function executeToolCallImpl(
           canonicalToolCall,
           createToolHandlerFailureError(canonicalToolCall, resolution),
         );
-        await emitToolCallError(
-          deps,
-          canonicalToolCall.id,
-          traceContext,
-          turnId,
-          result.error
-        );
+        await emitToolCallError(deps, canonicalToolCall.id, traceContext, turnId, result.error);
         return result;
       }
       executionInput = resolution.input;
@@ -439,9 +402,7 @@ async function executeToolCallImpl(
       toolName: canonicalToolCall.name,
     });
 
-    const timeoutMs = resolveTimeoutMs(entry, executionInput, deps.defaultTimeoutMs, {
-      model,
-    });
+    const timeoutMs = resolveTimeoutMs(entry, executionInput, deps.defaultTimeoutMs, { model });
     const executionAbortController = new AbortController();
     const unlinkParentAbort = linkAbortSignal(options?.signal, executionAbortController);
     // 可暂停的 deadline：本次调用内部的模型请求在准入闸门前排队时暂停计时。排队的两端
@@ -465,6 +426,7 @@ async function executeToolCallImpl(
       const context: ToolExecutionContext = {
         toolCallId: canonicalToolCall.id,
         toolSearch: options?.toolSearch,
+        logger: deps.logger,
         automationTurn: options?.automationTurn,
         automationId: options?.automationId,
         traceContext,
@@ -497,8 +459,11 @@ async function executeToolCallImpl(
         coordinatorResponsePort: deps.coordinatorResponsePort,
         workflowSubmitPort: deps.workflowSubmitPort,
         workflowEscalatePort: deps.workflowEscalatePort,
+        webSearchBudget: deps.webSearchBudget,
         artifactStore: deps.artifactStore,
+        sessionControl: deps.sessionControl,
         automationPort: deps.automationPort,
+        pluginDiscoveryPort: options?.pluginDiscoveryUi ? deps.pluginDiscoveryPort : undefined,
         topicResourcePort: deps.topicResourcePort,
         sessionStore: deps.sessionStore,
         sessionModePort: deps.sessionModePort,
@@ -523,6 +488,7 @@ async function executeToolCallImpl(
         workspaceRoot: deps.getWorkspaceRoot(),
         workspaceScopeRoot: deps.getWorkspaceScopeRoot(),
         workspaceIdentity: deps.workspaceIdentity,
+        workspaceKey: deps.workspaceKey,
         remoteSessionId: deps.remoteSessionId,
         clientMode: deps.clientMode,
         deliveryKind: deps.deliveryKind,
@@ -662,7 +628,7 @@ async function executeToolCallImpl(
         serialization,
         durationMs,
         display,
-        perf
+        perf,
       );
 
       await backgroundTasks.trackBackgroundTask(canonicalToolCall, output, traceContext, turnId);
@@ -689,25 +655,31 @@ async function executeToolCallImpl(
       );
       // 修复原因：Hook 文本原来以 UI 摘要为底拼进失败结果，有 Hook 与没有 Hook 时模型看到的
       // 错误不同。现在 tool result 只放 createErrorResult 的原文，Hook 文本另成附件。
-      let result = withHookAdditionalContexts(
-        createErrorResult(
-          canonicalToolCall,
-          error instanceof Error ? error : new Error(String(error)),
-          durationMs,
-        ),
-        [
-          // 修复原因：成功路径格式化之后再抛错（例如官方 CUA 帧校验失败、写结果事件失败）时，
-          // 重新格式化会用未过滤的上下文，把被过滤的凭据送进附件，超长上下文还会再落盘一次。
-          ...(formattedSafePreContexts ?? (await formatPreToolHookContexts())),
-          ...(await formatToolHookAdditionalContexts(
-            deps,
-            HookEventName.PostToolUseFailure,
-            canonicalToolCall,
-            failureHookResult.additionalContexts,
-            traceContext,
-          )),
-        ],
+      // 规格 0.15：超时与执行中取消会在「请求可能已被受理」之后打断 handler，回执送不回来；
+      // 让工具把对账身份追加进同一条错误，否则模型只能另起新请求、重复执行。
+      const failure = annotateUnsettledCall(
+        error instanceof Error ? error : new Error(String(error)),
+        entry ?? {},
+        executionInput,
+        canonicalToolCall.id,
       );
+      // 修复原因：同步子代理失败时父模型只收到 provider 原文，拿不到续接用的 agentId。
+      // 工具补充的文本只接在模型可见原文之后；UI 摘要、错误事件和日志都不变。
+      const errorResult = createErrorResult(canonicalToolCall, failure, durationMs, {
+        modelNote: entry?.formatErrorModelContent?.(error),
+      });
+      let result = withHookAdditionalContexts(errorResult, [
+        // 修复原因：成功路径格式化之后再抛错（例如官方 CUA 帧校验失败、写结果事件失败）时，
+        // 重新格式化会用未过滤的上下文，把被过滤的凭据送进附件，超长上下文还会再落盘一次。
+        ...(formattedSafePreContexts ?? (await formatPreToolHookContexts())),
+        ...(await formatToolHookAdditionalContexts(
+          deps,
+          HookEventName.PostToolUseFailure,
+          canonicalToolCall,
+          failureHookResult.additionalContexts,
+          traceContext,
+        )),
+      ]);
       result = withAutomationCreateLimitTurnStop(result, {
         error,
         toolName: canonicalToolCall.name,
@@ -715,13 +687,7 @@ async function executeToolCallImpl(
 
       // Skill 已解析成功后，serialize/post_hook 仍可能失败；错误事件也要保留
       // resolved metadata，否则失败的 Skill agent_step 无法归因到具体 skill。
-      await emitToolCallError(
-        deps,
-        canonicalToolCall.id,
-        traceContext,
-        turnId,
-        result.error
-      );
+      await emitToolCallError(deps, canonicalToolCall.id, traceContext, turnId, result.error);
 
       deps.logger?.error(
         "Tool call failed",

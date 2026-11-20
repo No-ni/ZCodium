@@ -11,6 +11,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "../ui/hover-card.
 import { Progress } from "../ui/progress.js";
 import { cn } from "../lib/utils.js";
 import type { LanguageModelUsage } from "ai";
+import { LoaderCircle } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useContext, useMemo } from "react";
 import { getUsage } from "tokenlens";
@@ -110,9 +111,9 @@ const ContextIcon = () => {
   );
 };
 
-export type ContextTriggerProps = ComponentProps<typeof Button>;
+export type ContextTriggerProps = ComponentProps<typeof Button> & { loading?: boolean };
 
-export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
+export const ContextTrigger = ({ children, loading = false, ...props }: ContextTriggerProps) => {
   return (
     <HoverCardTrigger asChild>
       {children ?? (
@@ -123,7 +124,14 @@ export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
           {...props}
           className={cn(props.className)}
         >
-          <ContextIcon />
+          {loading ? (
+            <LoaderCircle
+              className="size-3.5 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <ContextIcon />
+          )}
         </Button>
       )}
     </HoverCardTrigger>
@@ -152,11 +160,7 @@ export const ContextContentHeader = ({
   ...props
 }: ContextContentHeaderProps & {
   action?: ReactNode;
-  progressSegments?: readonly {
-    className?: string;
-    id: string;
-    percent: number;
-  }[];
+  progressSegments?: readonly { className?: string; id: string; percent: number }[];
 }) => {
   const { usedTokens, maxTokens } = useContextValue();
   const usedPercent = formatUsagePercent(usedTokens, maxTokens);
@@ -213,16 +217,12 @@ export const ContextContentFooter = ({
   const costUSD = modelId
     ? getUsage({
         modelId,
-        usage: {
-          input: usage?.inputTokens ?? 0,
-          output: usage?.outputTokens ?? 0,
-        },
+        usage: { input: usage?.inputTokens ?? 0, output: usage?.outputTokens ?? 0 },
       }).costUSD?.totalUSD
     : undefined;
-  const totalCost = new Intl.NumberFormat(undefined, {
-    currency: "USD",
-    style: "currency",
-  }).format(costUSD ?? 0);
+  const totalCost = new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
+    costUSD ?? 0,
+  );
 
   return (
     <div
@@ -264,10 +264,7 @@ export const ContextInputUsage = ({ className, children, ...props }: ContextInpu
   }
 
   const inputCost = modelId
-    ? getUsage({
-        modelId,
-        usage: { input: inputTokens, output: 0 },
-      }).costUSD?.totalUSD
+    ? getUsage({ modelId, usage: { input: inputTokens, output: 0 } }).costUSD?.totalUSD
     : undefined;
   const inputCostText = new Intl.NumberFormat(undefined, {
     currency: "USD",
@@ -297,10 +294,7 @@ export const ContextOutputUsage = ({ className, children, ...props }: ContextOut
   }
 
   const outputCost = modelId
-    ? getUsage({
-        modelId,
-        usage: { input: 0, output: outputTokens },
-      }).costUSD?.totalUSD
+    ? getUsage({ modelId, usage: { input: 0, output: outputTokens } }).costUSD?.totalUSD
     : undefined;
   const outputCostText = new Intl.NumberFormat(undefined, {
     currency: "USD",
@@ -334,10 +328,7 @@ export const ContextReasoningUsage = ({
   }
 
   const reasoningCost = modelId
-    ? getUsage({
-        modelId,
-        usage: { reasoningTokens },
-      }).costUSD?.totalUSD
+    ? getUsage({ modelId, usage: { reasoningTokens } }).costUSD?.totalUSD
     : undefined;
   const reasoningCostText = new Intl.NumberFormat(undefined, {
     currency: "USD",
@@ -367,10 +358,8 @@ export const ContextCacheUsage = ({ className, children, ...props }: ContextCach
   }
 
   const cacheCost = modelId
-    ? getUsage({
-        modelId,
-        usage: { cacheReads: cacheTokens, input: 0, output: 0 },
-      }).costUSD?.totalUSD
+    ? getUsage({ modelId, usage: { cacheReads: cacheTokens, input: 0, output: 0 } }).costUSD
+        ?.totalUSD
     : undefined;
   const cacheCostText = new Intl.NumberFormat(undefined, {
     currency: "USD",

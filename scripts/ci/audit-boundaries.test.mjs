@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 
@@ -39,6 +39,44 @@ function grepFiles(pattern, paths = ["packages", "apps", "config"]) {
 function readJson(relativePath) {
   return JSON.parse(read(relativePath));
 }
+
+test("retired claim translations and legacy recommendation icons cannot restore official requests", () => {
+  for (const locale of [
+    "zh-CN.ts",
+    "en-US.ts",
+    "ja-JP.messages.json",
+    "ko-KR.messages.json",
+    "ru-RU.messages.json",
+  ]) {
+    assert.doesNotMatch(read(`packages/ui/src/i18n/locales/${locale}`), /"manualClaimPlan\./);
+  }
+  for (const file of [
+    "packages/ui/src/v4/officeSuggestedPrompts.ts",
+    "packages/ui/src/local-prompt-catalog/defaultPrompts.ts",
+  ]) {
+    assert.doesNotMatch(read(file), /iconUrl:\s*"https?:/);
+  }
+});
+
+test("plugin purchase badges and Android official endpoint fallbacks stay removed", () => {
+  for (const source of [
+    "packages/ui/src/settings/PluginStoreCard.tsx",
+    "packages/ui/src/settings/PluginStoreDetailView.tsx",
+  ]) {
+    assert.doesNotMatch(read(source), /PluginStorePaidPlanBadge|requiresPaidPlan/);
+  }
+  for (const source of [
+    "packages/android/app/build.gradle.kts",
+    "packages/android/app/src/main/java/com/example/zcode_mobile/remote/RemoteControlUrlPolicy.kt",
+  ]) {
+    assert.doesNotMatch(read(source), /zcode\.z\.ai/);
+  }
+  const policy = read(
+    "packages/android/app/src/main/java/com/example/zcode_mobile/remote/RemoteControlUrlPolicy.kt",
+  );
+  assert.match(policy, /configured\.isEmpty\(\)\) return null/);
+  assert.match(policy, /configuredUri\.scheme != "https"/);
+});
 
 test("official control-plane and OAuth fallbacks stay removed", () => {
   for (const pattern of [
@@ -227,4 +265,23 @@ test("background resource and network sampling is opt-in and local-only", () => 
 test("renderer mount does not start background performance sampling", () => {
   const root = read("packages/ui/src/Root.tsx");
   assert.doesNotMatch(root, /observeLongTasks|new\s+PerformanceObserver/);
+});
+
+test("retired official Web account and sharing scenarios are not restored", () => {
+  // 官方账号/分享已剥离；保留这些验收入口会继续要求已删除的 OAuth、上传与官方 relay。
+  for (const path of [
+    "packages/web/test/e2e/sharing/authentication/manual-review/pending/share-oauth-callback.mjs",
+    ...["share-not-found", "share-manage", "share-input-images", "share-content"].map(
+      (name) => `packages/web/test/e2e/sharing/content/manual-review/pending/${name}.mjs`,
+    ),
+    ...["share-workflow", "share-workflow-parity"].map(
+      (name) => `packages/web/test/e2e/sharing/workflows/manual-review/pending/${name}.mjs`,
+    ),
+    ...["regional-login", "remote-login-v2", "remote-login-v2.helpers"].map(
+      (name) =>
+        `packages/web/test/e2e/remote-control/authentication/manual-review/pending/${name}.mjs`,
+    ),
+  ]) {
+    assert.equal(existsSync(new URL(path, repoRoot)), false, path);
+  }
 });

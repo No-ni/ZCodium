@@ -1,4 +1,4 @@
-import { Download, Loader2, MoreHorizontal, Power, TriangleAlert, Trash2 } from "lucide-react";
+import { Download, LoaderCircle, MoreHorizontal, Power, TriangleAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import {
@@ -10,18 +10,18 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
-import { PluginStorePaidPlanBadge } from "@/settings/PluginStorePaidPlanBadge.js";
 import type { PluginStoreActions } from "@/settings/pluginStoreActions.js";
 import {
   canUpdatePluginItem,
   isItemBusy,
+  isStoreItemInstallBlocked,
   isUiPluginItem,
   resolveItemDescription,
   resolveItemDisplayName,
   type StorePluginItem,
 } from "@/settings/pluginStoreListing.js";
 
-export { PluginStorePaidPlanBadge, type PluginStoreActions };
+export type { PluginStoreActions };
 /** 已安装条目的「…」菜单：启用/禁用、更新（有更新时）、卸载。卡片与详情页共用。 */
 export function PluginStoreItemMenu({
   item,
@@ -63,7 +63,7 @@ export function PluginStoreItemMenu({
           onClick={(event) => event.stopPropagation()}
         >
           {busy ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
           ) : (
             <MoreHorizontal className="size-4" aria-hidden="true" />
           )}
@@ -114,6 +114,23 @@ export function PluginStoreInstallButton({
   size?: "sm" | "default" | "lg";
 }) {
   const { intl } = useZCodeIntl();
+  // 目录最新版要求更高的插件 API 版本（plugin-publishing.md §4.3）：同一位置换成不能点的提示按钮。
+  if (isStoreItemInstallBlocked(item)) {
+    return (
+      <Button
+        type="button"
+        data-testid="plugin-store-install"
+        data-plugin-id={item.id}
+        data-install-blocked="requires-update"
+        variant="secondary"
+        size={size}
+        className="rounded-full"
+        disabled
+      >
+        {intl.formatMessage({ id: "settings.plugins.store.extension.requiresUpdate" })}
+      </Button>
+    );
+  }
   const installing =
     actions.activeOperations.some(
       (operation) => operation.id === `plugin:install:${item.name}@${item.marketplace}`,
@@ -132,7 +149,7 @@ export function PluginStoreInstallButton({
         actions.onInstall(item);
       }}
     >
-      {installing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
+      {installing ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : null}
       {installing
         ? intl.formatMessage({ id: "settings.plugins.marketplace.installing" })
         : intl.formatMessage({ id: "settings.plugins.store.install" })}
@@ -193,7 +210,7 @@ export function PluginStoreUpdateButton({
       }}
     >
       {updating ? (
-        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+        <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
       ) : (
         <Download className="size-3.5" aria-hidden="true" />
       )}
@@ -229,7 +246,7 @@ export function PluginUpdateAllButton({
       onClick={() => onUpdateAll(pluginIds)}
     >
       {updating ? (
-        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+        <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
       ) : (
         <Download className="size-3.5" aria-hidden="true" />
       )}
@@ -283,7 +300,6 @@ export function PluginStoreCard({
           <span className="min-w-0 truncate text-ui-base font-medium leading-5 text-foreground">
             {displayName}
           </span>
-          <PluginStorePaidPlanBadge item={item} />
           <PluginStoreUpdateBadge item={item} />
         </div>
         {item.orphaned ? (
@@ -315,18 +331,9 @@ export function PluginStoreCard({
                 triggerClassName="text-foreground-subtle opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
               />
             ) : null}
-            {actions.togglingPluginId === item.id ? (
-              <Loader2
-                className="size-3.5 animate-spin text-foreground-subtle"
-                data-testid={
-                  management ? "plugin-settings-enabled-pending" : "plugin-store-enabled-pending"
-                }
-                aria-label={intl.formatMessage(
-                  { id: "settings.plugins.toggle.pending" },
-                  { plugin: displayName },
-                )}
-              />
-            ) : null}
+            {/* 启停中的加载提示只由「…」菜单按钮承担（isItemBusy 含 togglingPluginId）。
+                这里曾另放一个独立 LoaderCircle，点开关时卡片处于 hover/focus-within，菜单按钮显形，
+                同一状态并排出现两个 spinner。开关自身保留 disabled + aria-busy。 */}
             {item.info && actions.onSetEnabled ? (
               <Switch
                 className="after:-inset-x-2"

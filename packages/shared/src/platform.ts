@@ -16,6 +16,11 @@ import type {
 } from "./mcp.js";
 import type { AppSettings, Locale } from "./protocol.js";
 import type {
+  ExtensionNotificationClick,
+  ExtensionNotificationPayload,
+  NotificationsShowResult,
+} from "#src/extension-host/notifications.js";
+import type {
   CuaAccessibilitySettingsResult,
   CuaPermissionRequestResult,
   OpenCuaPermissionOnboardingOptions,
@@ -48,6 +53,19 @@ export interface BuiltinProviderConfigFileInfo {
   readonly path: string | null;
   readonly exists: boolean;
 }
+
+export interface AppNavigationTarget {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  taskId: string;
+}
+export type AppNavigationResult =
+  | { status: "opened"; uiTarget?: string }
+  | { status: "unavailable"; reason?: string; uiTarget?: string };
+export type AppNavigationHandler = (
+  target: AppNavigationTarget,
+  signal: AbortSignal,
+) => Promise<AppNavigationResult>;
 
 export interface TaskNotificationPayload {
   taskId: string;
@@ -117,7 +135,35 @@ export interface BrowserViewCloseTabRequest {
   sessionId: string;
 }
 
+export const BROWSER_VIEW_DRAFT_SESSION_ID = "unscoped";
+
+export interface BrowserViewPromoteDraftTabsRequest {
+  tabIds: string[];
+  workspaceKey: string;
+  remoteSessionId?: string;
+  sessionId: string;
+}
+
 export const LOCAL_MEDIA_PREVIEW_SCHEME = "zcode-media";
+export const BROWSER_LOCAL_PREVIEW_SCHEME = "zcode-html";
+
+/** 仅还原展示/外部打开地址；目录授权和签名校验始终由 main 执行。 */
+export function browserPreviewSourceUrl(input: string): string {
+  try {
+    const url = new URL(input);
+    if (url.protocol !== `${BROWSER_LOCAL_PREVIEW_SCHEME}:`) return input;
+    const [, directory, ...segments] = url.pathname.split("/");
+    const root = new URL(decodeURIComponent(directory ?? ""));
+    if (root.protocol !== "file:" || root.host || !root.pathname.endsWith("/")) return input;
+    const source = new URL(segments.join("/"), root);
+    if (!source.href.startsWith(root.href)) return input;
+    source.search = url.search;
+    source.hash = url.hash;
+    return source.href;
+  } catch {
+    return input;
+  }
+}
 
 export function buildLocalMediaPreviewUrl(path: string): string {
   const url = new URL(`${LOCAL_MEDIA_PREVIEW_SCHEME}://local/preview`);
@@ -263,16 +309,8 @@ export interface CreateTempTextAttachmentResult {
 }
 
 export type SaveFileRequest =
-  | {
-      data: ArrayBuffer;
-      sourceUrl?: never;
-      suggestedName: string;
-    }
-  | {
-      data?: never;
-      sourceUrl: string;
-      suggestedName: string;
-    };
+  | { data: ArrayBuffer; sourceUrl?: never; suggestedName: string }
+  | { data?: never; sourceUrl: string; suggestedName: string };
 
 export interface SelectedFileData {
   name: string;
@@ -298,6 +336,31 @@ export interface PrintPageToPdfResult {
   error?: string;
 }
 
+/** guest 视口内的裁剪区域，全部是 guest CSS px；视口宽高用于换算实际帧的像素比例。 */
+export interface CaptureBrowserGuestPageClip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}
+
+export interface CaptureBrowserGuestPageRequest {
+  /** 内置浏览器 `<webview>` 的 guest webContents id（renderer 由 `getWebContentsId()` 取得） */
+  webContentsId: number;
+  /** 只要视口内某一块（选元素截图）；不传时返回整个可见视口 */
+  clip?: CaptureBrowserGuestPageClip;
+}
+
+export interface CaptureBrowserGuestPageResult {
+  success: boolean;
+  /** PNG 字节；success 时存在 */
+  data?: ArrayBuffer;
+  /** "guest_not_found" | "guest_not_owned" | "capture_in_progress" | "capture_timeout" | "capture_failed" | "clip_out_of_view" */
+  error?: string;
+}
+
 export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEditorRemoteTarget {
   switch (target.kind) {
     case "ssh":
@@ -312,17 +375,10 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
       };
     case "wsl": {
       const user = target.user?.trim();
-      return {
-        kind: "wsl",
-        distro: target.distro,
-        ...(user ? { user } : {}),
-      };
+      return { kind: "wsl", distro: target.distro, ...(user ? { user } : {}) };
     }
     case "docker":
-      return {
-        kind: "docker",
-        container: target.container,
-      };
+      return { kind: "docker", container: target.container };
     case "server":
       // 服务地址没有原生编辑器传输合同，不能把它误拼成 SSH URI。
       throw new Error("Opening an editor requires an SSH, WSL or Docker target");
@@ -394,11 +450,7 @@ export interface ChromeBrowserDataImportOptions {
 /** Chrome 浏览器数据导入只返回数量和状态；Cookie/LocalStorage 值和解密材料不得跨进程。 */
 export interface ChromeBrowserDataImportResult {
   success: boolean;
-  cookies: {
-    imported: number;
-    skipped: number;
-    failed: number;
-  };
+  cookies: { imported: number; skipped: number; failed: number };
   localStorage: {
     originsImported: number;
     entriesImported: number;
@@ -601,6 +653,19 @@ export interface IPlatformService {
   printPageToPdf?(): Promise<PrintPageToPdfResult>;
 
   /**
+   * 麦克风系统权限（仅 Desktop 实现）。macOS 未询问过时弹出系统授权；
+   * openSettings 只打开固定的系统设置地址，返回 false 表示当前系统没有可跳转的页面。
+   */
+
+  /**
+   * 在 main 进程截取内置浏览器 guest 当前可见视口为 PNG。renderer 侧 `<webview>.capturePage()`
+   * 会让 renderer 原生崩溃（V8 FATAL），与 Agent 截图一样只能由 main 取帧；仅 Desktop 实现。
+   */
+  captureBrowserGuestPage?(
+    payload: CaptureBrowserGuestPageRequest,
+  ): Promise<CaptureBrowserGuestPageResult>;
+
+  /**
    * 从浏览器 File 对象解析宿主本地路径；只有 Desktop preload 能安全实现。
    * Web/手机端返回 null，避免 UI 层依赖 Electron 的非标准 File.path。
    */
@@ -635,11 +700,10 @@ export interface IPlatformService {
 
   /** 订阅桌面端请求：请 renderer 重连指定 workspace 的远端会话 */
   onWebRemoteControlReconnectWorkspace(
-    handler: (request: { requestId: string; workspaceKey: string }) => Promise<{
+    handler: (request: {
       requestId: string;
-      success: boolean;
-      error?: string;
-    }>,
+      workspaceKey: string;
+    }) => Promise<{ requestId: string; success: boolean; error?: string }>,
   ): () => void;
 
   /** 检查目录是否已在其他窗口打开；如果是则激活该窗口并切到对应 tab */
@@ -769,6 +833,17 @@ export interface IPlatformService {
 
   /** 触发任务状态对应的系统通知，由宿主环境决定是否真正展示 */
   showTaskNotification(payload: TaskNotificationPayload): void;
+
+  /**
+   * 扩展的系统通知（docs/plugins/extension-host.md §18.1 H8）：Main 判断窗口焦点与平台支持后弹出，
+   * 返回是否弹出与原因。Web 与手机远控不实现。
+   */
+  showExtensionNotification?(
+    payload: ExtensionNotificationPayload,
+  ): Promise<NotificationsShowResult>;
+
+  /** 用户点了扩展通知：Main 恢复并聚焦窗口后回调，带要打开的视图。返回 disposer。 */
+  onExtensionNotificationClick?(handler: (click: ExtensionNotificationClick) => void): () => void;
   reportRendererHeapSample?(sample: RendererHeapSample): void;
   reportDiagnostic?(record: import("./diagnostics.js").DiagnosticRecordInput): void;
   reportLocalTtftBatch?(batch: import("./local-ttft/contract.js").LocalTtftBatch): void;
@@ -893,11 +968,17 @@ export interface IPlatformService {
   /** 注册用户点击系统通知后跳转到对应任务的回调，返回 disposer */
   onTaskNotificationClick(handler: (taskId: string) => void): () => void;
 
+  /** 显式 App 导航能力：只在桌面导航 owner 挂载时注册，返回真实导航提交结果。 */
+  onAppControlNavigation?(handler: AppNavigationHandler): () => void;
+
   /** 导出日志：打包 ~/.zcodium/v2 及外部 agent 日志为 zip 并在系统文件浏览器中显示 */
   exportLogs(): Promise<{ success: boolean; path?: string; error?: string }>;
 
   /** 截取当前窗口，用于错误反馈携带现场画面；Web fallback 可返回 null */
   captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
+
+  /** 可信宿主导航自己承载的 guest；main 负责本地 HTML 的目录授权。 */
+  browserViewLoadUrl?(payload: { webContentsId: number; url: string }): Promise<void>;
 
   /** `<webview>` guest 上报；active=true 表示 agent 无 tabId 命令优先读取当前可见页。 */
   browserViewAttachGuest?(payload: {
@@ -919,6 +1000,9 @@ export interface IPlatformService {
 
   /** 上报 selected/visible/loading 与恢复元数据。 */
   browserViewReportResidency?(payload: BrowserViewResidencyReportPayload): Promise<void>;
+
+  /** 草稿首发：把草稿 human tab 的 main owner 从 unscoped 升级为新会话；返回已升级的 tabId。 */
+  browserViewPromoteDraftTabs?(payload: BrowserViewPromoteDraftTabsRequest): Promise<string[]>;
 
   /** renderer 已按指定 generation 卸载 guest。 */
   browserViewSuspendReady?(payload: { tabId: string; generation: number }): Promise<void>;
@@ -967,9 +1051,7 @@ export interface IPlatformService {
   openUpdateStatusWindow?(): Promise<void>;
 
   /** 读取桌面端自动更新偏好；非桌面端可返回默认值 */
-  getAutoUpdatePreferences?(): Promise<{
-    autoDownloadAndInstallUpdates: boolean;
-  }>;
+  getAutoUpdatePreferences?(): Promise<{ autoDownloadAndInstallUpdates: boolean }>;
 
   /** 写入“以后自动下载并安装更新”偏好；非桌面端可 no-op */
   setAutoDownloadAndInstallUpdates?(enabled: boolean): Promise<void>;
@@ -978,9 +1060,7 @@ export interface IPlatformService {
   skipUpdateVersion(version: string): Promise<void>;
 
   /** 查询桌面端当前正在运行的会话数量；非桌面端可返回 0 */
-  getDesktopSessionActivity?(): Promise<{
-    runningAgentSessionCount: number;
-  }>;
+  getDesktopSessionActivity?(): Promise<{ runningAgentSessionCount: number }>;
 
   /** 开发环境 stdio tap proxy 开关状态；非桌面平台可不实现 */
   getZCodeStdioTapDevState?(): Promise<ZCodeStdioTapDevState>;
@@ -1237,12 +1317,7 @@ export interface BindRemoteWorkspaceSessionContextResult {
 
 export type BindRemoteWorkspaceSessionContextIpcResult =
   | { success: true; result: BindRemoteWorkspaceSessionContextResult }
-  | {
-      success: false;
-      error: string;
-      reasonCode?: string;
-      retryable?: boolean;
-    };
+  | { success: false; error: string; reasonCode?: string; retryable?: boolean };
 
 /**
  * 把 bind IPC 的结构化结果还原成成功结果，或带 code/retryable 的 Error。

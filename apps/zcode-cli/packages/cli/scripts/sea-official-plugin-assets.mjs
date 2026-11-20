@@ -70,6 +70,15 @@ export const officialSeaPlugins = [
   },
   {
     marketplace: "zcode-plugins-official",
+    name: "android-emulator",
+    packageName: "@zcode/android-emulator-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/mcp/server.js"],
+    rootPath: join("packages", "android-emulator-plugin"),
+    version: "0.1.1",
+  },
+  {
+    marketplace: "zcode-plugins-official",
     name: "browser-use",
     packageName: "@zcode/browser-use-plugin",
     requiresRuntime: true,
@@ -81,12 +90,86 @@ export const officialSeaPlugins = [
     // 导致发布产物不 seed browser-use，进而无法装配宿主 node_repl MCP。
     version: "0.5.1",
   },
-  // SEA 按名称与版本匹配 seed；同步当前 package/definition，避免继续匹配旧缓存。
+  {
+    marketplace: "zcode-plugins-official",
+    name: "ios-simulator",
+    packageName: "@zcode/ios-simulator-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/mcp/server.js"],
+    rootPath: join("packages", "ios-simulator-plugin"),
+    version: "0.1.0",
+  },
+  {
+    marketplace: "zcode-plugins-official",
+    name: "restore-legacy-sessions",
+    packageName: "@zcode/restore-legacy-sessions-plugin",
+    requiresRuntime: false,
+    rootPath: join("packages", "restore-legacy-sessions-plugin"),
+    version: "0.1.0",
+  },
+  {
+    marketplace: "zcode-plugins-official",
+    name: "skill-creator",
+    packageName: "@zcode/skill-creator-plugin",
+    requiresRuntime: false,
+    rootPath: join("packages", "skill-creator-plugin"),
+    version: "0.1.0",
+  },
+  {
+    marketplace: "zcode-plugins-official",
+    name: "plugin-creator",
+    packageName: "@zcode/plugin-creator-plugin",
+    requiresRuntime: false,
+    rootPath: join("packages", "plugin-creator-plugin"),
+    version: "0.1.1",
+  },
+  {
+    // 纯内容型（只提供 skills）：requiresRuntime:false，SEA 构建不校验 dist/mcp/server.js。
+    // 版本必须与 package.json / plugin.json / official-plugin-definitions.ts 同步 bump——
+    // runtime 按 (name, version) 精确匹配 SEA 资产，这里落后会让整个插件在 SEA 下不 seed
+    // （browser-use 0.3.1 的既有教训，build-sea.test.mjs:564 钉住四处对齐）。
+    // 0.3.0：`/workflow` 与 dynamic-workflows 技能移出本插件（见 sea-bundled-skill-assets.mjs）。
+    marketplace: "zcode-plugins-official",
+    name: "zcode-guide",
+    packageName: "@zcode/zcode-guide-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["skills/zcode-configuration-guide/SKILL.md"],
+    rootPath: join("packages", "zcode-guide-plugin"),
+    version: "0.3.0",
+  },
+  {
+    // design：纯内容型（技能 + 设计资源 + SessionStart hook），requiresRuntime:false。
+    // requiredSeedPaths 与 official-plugin-definitions.ts 的 OFFICIAL_DESIGN_REQUIRED_SEED_PATHS 一致；
+    // 版本与 package.json / plugin.json / definitions 同步 bump。
+    marketplace: "zcode-plugins-official",
+    name: "design",
+    packageName: "@zcode/design-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "skills/design/SKILL.md",
+      "skills/design/references/catalog.md",
+      "skills/design/references/check.md",
+      "skills/design/references/create.md",
+      "skills/design/references/design-system.md",
+      "skills/design/references/interact.md",
+      "skills/design/references/output.md",
+      "skills/design/references/redesign.md",
+      "skills/design/scripts/adapt-canvas.mjs",
+      "skills/design/scripts/design-lint.mjs",
+      "skills/design/scripts/design-tokens.mjs",
+      "skills/design/scripts/import-design-system.mjs",
+      "hooks/hooks.json",
+      "hooks/run-hook.cmd",
+      "hooks/design-rules",
+    ],
+    rootPath: join("packages", "design-plugin"),
+    version: "0.7.2",
+  },
   ...[
-    { name: "documents", directory: "documents-plugin", version: "0.2.1" },
-    { name: "spreadsheets", directory: "spreadsheets-plugin", version: "0.2.1" },
-    { name: "presentations", directory: "presentations-plugin", version: "0.2.1" },
-    { name: "pdf", directory: "pdf-plugin", version: "0.2.2" },
+    { name: "documents", directory: "documents-plugin", version: "0.2.2" },
+    { name: "spreadsheets", directory: "spreadsheets-plugin", version: "0.2.2" },
+    { name: "presentations", directory: "presentations-plugin", version: "0.2.2" },
+    { name: "pdf", directory: "pdf-plugin", version: "0.2.3" },
   ].map(({ name, directory, version }) => {
     const plugin = BUILTIN_PLUGIN_ASSETS.find((asset) => asset.directory === directory);
     if (!plugin || plugin.runtimeBuildScript !== BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT) {
@@ -103,6 +186,15 @@ export const officialSeaPlugins = [
       version,
     };
   }),
+  {
+    marketplace: "zcode-plugins-official",
+    name: "zcode-site",
+    packageName: "@zcode/sites-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["README.md"],
+    rootPath: join("packages", "sites-plugin"),
+    version: "0.1.0",
+  },
 ];
 
 export const collectSeaOfficialPluginAssets = async ({
@@ -114,10 +206,7 @@ export const collectSeaOfficialPluginAssets = async ({
   const assets = {};
   const plugins = [];
 
-  await rm(stagingDirectory, {
-    force: true,
-    recursive: true,
-  });
+  await rm(stagingDirectory, { force: true, recursive: true });
 
   for (const plugin of officialSeaPlugins) {
     const pluginRoot = resolve(root, plugin.rootPath);
@@ -144,10 +233,7 @@ export const collectSeaOfficialPluginAssets = async ({
         sha256: createHash("sha256").update(bytes).digest("hex"),
       };
       pluginFiles.push(file);
-      files.push({
-        ...file,
-        plugin: plugin.name,
-      });
+      files.push({ ...file, plugin: plugin.name });
     }
 
     pluginFiles.sort((left, right) => left.path.localeCompare(right.path));
@@ -172,22 +258,13 @@ export const collectSeaOfficialPluginAssets = async ({
       ),
     )
     .digest("hex");
-  const manifest = {
-    hash: manifestHash,
-    plugins,
-    version: 1,
-  };
+  const manifest = { hash: manifestHash, plugins, version: 1 };
   const manifestPath = resolve(stagingDirectory, "official-plugins-manifest.json");
-  await mkdir(stagingDirectory, {
-    recursive: true,
-  });
+  await mkdir(stagingDirectory, { recursive: true });
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
   assets[seaOfficialPluginManifestAssetKey] = manifestPath;
 
-  return {
-    assets,
-    manifest,
-  };
+  return { assets, manifest };
 };
 
 function assertPluginRoot(pluginRoot, plugin) {
@@ -219,9 +296,7 @@ function assertPluginRuntime(pluginRoot, plugin) {
 }
 
 async function* walkFiles(directory) {
-  const entries = await readdir(directory, {
-    withFileTypes: true,
-  });
+  const entries = await readdir(directory, { withFileTypes: true });
 
   for (const entry of entries) {
     if (shouldSkipDirectory(entry.name)) continue;

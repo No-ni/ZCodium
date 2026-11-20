@@ -46,6 +46,30 @@ const touchedTables: Readonly<Record<string, readonly string[]>> = {
   "0023_repair_invalid_model_selection": ["session_entry"],
   // 合并新增迁移后必须补齐备份范围，否则模块装载即失败；ID 与冻结 SQL 均沿用既有合同。
   "0023_session_soft_delete_outcome": ["session"],
+  // 永久删除只新增守卫表/触发器，也必须登记触发器所属表，保护已有会话的迁移前备份。
+  "0025_session_permanent_deletion": [
+    "session_purge",
+    "session_runtime_presence",
+    "session",
+    "session_task_link",
+    "message",
+    "part",
+    "session_input",
+    "session_entry",
+    "todo",
+    "model_usage",
+    "session_target",
+    "turn_usage",
+    "tool_usage",
+    "input_history",
+    "dwf_run",
+    "workflow_run",
+    "dwf_node",
+    "dwf_event",
+    "dwf_actor",
+    "workflow_activity",
+    "workflow_event",
+  ],
   [SESSION_DATABASE_IDENTITY_MIGRATION.id]: ["zcode_database_identity"],
 };
 

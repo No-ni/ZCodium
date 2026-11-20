@@ -297,10 +297,7 @@ function resolveManifestFiles(
     const info = linuxExtensions?.includes(".pkg.tar.zst")
       ? { ...fileInfo, url: posix.basename(decodeURIComponent(url.pathname)) }
       : fileInfo;
-    return {
-      url,
-      info,
-    } satisfies ResolvedUpdateFileInfo;
+    return { url, info } satisfies ResolvedUpdateFileInfo;
   });
 
   const packages = isRecord((updateInfo as { packages?: unknown }).packages)
@@ -356,7 +353,6 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     });
     this.resolveBaseUrl = new URL("/", manifestUrl);
     const releaseChannelApiValue = mapReleaseChannelToApiValue(releaseChannel);
-
     const raw = await this.httpRequest(manifestUrl, {
       accept: MANIFEST_ACCEPT_HEADER,
       "X-Platform": this.releasePlatform,

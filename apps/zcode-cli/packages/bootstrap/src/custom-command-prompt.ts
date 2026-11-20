@@ -6,11 +6,8 @@ import {
   type SessionId,
   type TraceContext,
 } from "@zcode/contracts";
-import {
-  loadZCodeCustomCommand,
-  type ListZCodeCustomCommandsOptions,
-} from "./custom-commands.js";
 import { expandCustomCommandShellSyntax } from "./custom-command-shell-expansion.js";
+import { loadZCodeCustomCommand, type ListZCodeCustomCommandsOptions } from "./custom-commands.js";
 import { isReservedZCodeSlashCommandName } from "./slash-command-surface.js";
 
 const CUSTOM_COMMAND_NOT_FOUND_PATTERN = /not found/i;
@@ -39,10 +36,7 @@ export async function resolveZCodeCustomCommandPrompt(
   }
 
   try {
-    const command = await loadZCodeCustomCommand({
-      ...options,
-      name: invocation.name,
-    });
+    const command = await loadZCodeCustomCommand({ ...options, name: invocation.name });
     if (options.executionPort) {
       // 调用 slash command 时先执行并替换输出，避免 unsupported error
       // 在 turn 创建前抛出后让 UI 长时间停在“正在思考”。
@@ -51,10 +45,7 @@ export async function resolveZCodeCustomCommandPrompt(
       // 后者内部 detectUnsupportedDynamicSyntax 会对 `!` 语法直接抛错，而本路径
       // 恰恰要支持 shell 展开，只能在 expandCustomCommandTemplate 与
       // formatCustomCommandPrompt 之间插入 expandCustomCommandShellSyntax。
-      const expanded = expandCustomCommandTemplate({
-        args: invocation.args,
-        command,
-      });
+      const expanded = expandCustomCommandTemplate({ args: invocation.args, command });
       const body = await expandCustomCommandShellSyntax({
         command,
         content: expanded.body,
@@ -72,10 +63,7 @@ export async function resolveZCodeCustomCommandPrompt(
         usedArgumentsPlaceholder: expanded.usedArgumentsPlaceholder,
       }).prompt;
     }
-    return expandCustomCommandPrompt({
-      args: invocation.args,
-      command,
-    }).prompt;
+    return expandCustomCommandPrompt({ args: invocation.args, command }).prompt;
   } catch (error) {
     if (error instanceof Error && CUSTOM_COMMAND_NOT_FOUND_PATTERN.test(error.message)) {
       return undefined;
@@ -89,8 +77,5 @@ function parsePromptCustomCommandInvocation(input: string): { args: string; name
   if (!match?.[1]) {
     return null;
   }
-  return {
-    args: match[2]?.trim() ?? "",
-    name: match[1].toLowerCase(),
-  };
+  return { args: match[2]?.trim() ?? "", name: match[1].toLowerCase() };
 }

@@ -1,4 +1,5 @@
-import { cp, mkdir, readFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
@@ -46,6 +47,14 @@ export const buildNodeReplHostBundle = async ({
   await mkdir(cuaHelperDirTarget, { recursive: true });
   await cp(cuaHelperDirSource, cuaHelperDirTarget, { recursive: true });
   await stageCuaDriverRuntimeFiles(dirname(outfile));
+  // 同版本bundle字节变化也必须重建seed；旧CUA后端不依赖官方Helper身份。
+  const bundleHash = createHash("sha256")
+    .update(await readFile(outfile))
+    .digest("hex");
+  await writeFile(
+    resolve(dirname(outfile), "..", "build-identity.json"),
+    `${JSON.stringify({ bundleHash })}\n`,
+  );
   return { outfile };
 };
 

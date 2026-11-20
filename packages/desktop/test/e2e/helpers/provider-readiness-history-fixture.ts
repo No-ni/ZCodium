@@ -74,7 +74,7 @@ export async function seedProviderReadinessHistoryFixture(
     windowsHide: true,
   });
 
-  const databasePath = join(options.e2eHomeDir, ".zcode", "cli", "db", "db.sqlite");
+  const databasePath = join(options.e2eHomeDir, ".zcodium", "cli", "db", "db.sqlite");
   if (!existsSync(databasePath)) {
     throw new Error(`provider readiness history fixture 没有初始化 CLI DB: ${databasePath}`);
   }

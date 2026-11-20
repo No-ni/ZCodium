@@ -30,7 +30,6 @@ import { recordToolUsageFromResult } from "./turn-tool-usage.js";
 
 export interface ToolResultPart {
   partID: PartId;
-  declarationIndex: number;
   input: Record<string, unknown>;
   startedAt: number;
 }
@@ -45,7 +44,9 @@ export async function settleToolResults(
     toolParts: ReadonlyMap<string, ToolResultPart>;
     toolCallById: ReadonlyMap<string, ToolCall>;
     streamedResultsById: ReadonlyMap<ToolCallId, StreamedToolExecutionResult>;
-    providerOptionsOf: (toolCallId: string) => import("@zcode/contracts").ModelToolCall["providerOptions"];
+    providerOptionsOf: (
+      toolCallId: string,
+    ) => import("@zcode/contracts").ModelToolCall["providerOptions"];
   },
 ): Promise<void> {
   const { results, toolParts, toolCallById, streamedResultsById } = options;
@@ -84,10 +85,7 @@ export async function settleToolResults(
   state.turnMachine = new TurnMachineImpl(state.turnMachine.aggregateResults());
   this.logger?.debug("Tools executed", {
     resultCount: results.length,
-    results: results.map((r) => ({
-      toolName: r.toolName,
-      success: r.success,
-    })),
+    results: results.map((r) => ({ toolName: r.toolName, success: r.success })),
   });
 
   this.logger?.debug("Injecting tool results", { resultCount: results.length });
@@ -97,6 +95,7 @@ export async function settleToolResults(
     const content = stringifyToolResultOutput(result);
     const projectedResultToolName = projectToolNameForNonEmptyBoundary(result.toolName);
     const persisted = toolParts.get(result.toolCallId);
+    const toolCall = toolCallById.get(result.toolCallId);
     if (persisted) {
       const mediaPersistence = result.success
         ? await persistToolResultMediaAttachments({
@@ -118,15 +117,15 @@ export async function settleToolResults(
           messageID: options.assistantMessageId,
           type: "tool",
           callID: result.toolCallId,
-          declarationIndex: persisted.declarationIndex,
+          ...(toolCall?.blockIndex !== undefined ? { blockIndex: toolCall.blockIndex } : {}),
           tool: projectedResultToolName.toolName,
           metadata: {
             ...projectedResultToolName.metadata,
             // 分离结果结算后，调用的原生签名仍随唯一工具 part 持久化。
-            ...(options.providerOptionsOf(result.toolCallId) ? { providerOptions: options.providerOptionsOf(result.toolCallId) } : {}),
-            ...(toolCallById.get(result.toolCallId)?.modelCallWrapper
-              ? { modelCallWrapper: toolCallById.get(result.toolCallId)?.modelCallWrapper }
+            ...(options.providerOptionsOf(result.toolCallId)
+              ? { providerOptions: options.providerOptionsOf(result.toolCallId) }
               : {}),
+            ...(toolCall?.modelCallWrapper ? { modelCallWrapper: toolCall?.modelCallWrapper } : {}),
           },
           state: result.success
             ? {
@@ -140,10 +139,7 @@ export async function settleToolResults(
                     ? { modelContentLayout: mediaPersistence.modelContentLayout }
                     : {}),
                 },
-                time: {
-                  start: result.startedAt.getTime(),
-                  end: result.completedAt.getTime(),
-                },
+                time: { start: result.startedAt.getTime(), end: result.completedAt.getTime() },
                 ...(mediaPersistence ? { attachments: mediaPersistence.attachments } : {}),
               }
             : {
@@ -160,10 +156,7 @@ export async function settleToolResults(
                     ? { modelContent: result.modelContent }
                     : {}),
                 },
-                time: {
-                  start: result.startedAt.getTime(),
-                  end: result.completedAt.getTime(),
-                },
+                time: { start: result.startedAt.getTime(), end: result.completedAt.getTime() },
               },
         },
         options.modelTraceContext,
@@ -191,7 +184,6 @@ export async function settleToolResults(
       deferredCheckpointCancellation ??= error;
       continue;
     }
-    const toolCall = toolCallById.get(result.toolCallId as ToolCallId);
     if (toolCall) {
       const resultPartId = persisted?.partID;
       const recoveryAnchorId = createStreamRecoveryAnchorId(

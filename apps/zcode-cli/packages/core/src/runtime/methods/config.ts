@@ -37,6 +37,7 @@ import { mirrorSubagentInteractionEvent } from "../../subagent/tool-event-mirror
 import { orderProviderVisibleToolContracts } from "../../tool/provider-visible-order.js";
 import { projectToolModelContract } from "../../tool/model-contract.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
+import { supersedeContextComposition } from "../context-composition/state.js";
 import { filterEmbeddedSearchRuntimeVisibleTools } from "./embedded-search-branch.js";
 import {
   getSessionShellSelection as readSessionShellSelection,
@@ -136,7 +137,9 @@ export function getProjectId(this: AgentRuntimeInternal): ProjectId {
   // 三方一致；对话会话的执行 cwd 是会话独立目录，用它会读不到项目级权限模式。
   // `resolve()` 同样是为了对齐 bootstrap：create-app 用 resolve 后的 workspaceDirectory 派生
   // projectID，含 `.`/`..` 段的 workspacePath 不规范化会让两处算出不同 project。
-  return projectIdFromDirectory(resolve(workspaceScopeRootOf(this)));
+  return projectIdFromDirectory(
+    resolve(this.config.projectDirectory ?? workspaceScopeRootOf(this)),
+  );
 }
 
 export function setWorkingDirectory(this: AgentRuntimeInternal, cwd: string): void {
@@ -177,15 +180,13 @@ export function getTools(this: AgentRuntimeInternal, model?: Model): ModelToolCo
           (!model || resolveToolSearchMode(model, this.config.toolSearch.mode) !== "off")),
     )
     .filter((tool) => tool.name !== "WebSearch" || shouldExposeWebSearch.call(this, model))
-    .map((tool) =>
-      projectToolModelContract(tool, this.registry.get(tool.name), {
-        model,
-      }),
-    );
+    .map((tool) => projectToolModelContract(tool, this.registry.get(tool.name), { model }));
 }
 
 export function invalidateToolCache(this: AgentRuntimeInternal): void {
   this.cachedTools = null;
+  // 工具集合变了（MCP、页面工具、注册表改写）：下一个请求的组成随之变化。
+  supersedeContextComposition(this, "tools");
 }
 
 export function getToolRegistry(this: AgentRuntimeInternal): ToolRegistry {
@@ -241,10 +242,7 @@ export async function notifyExternalChildSessionEvent(
   // 再走父 runtime 的 append 链路会造成同一事件在共享 store 里出现两份。
   await this.notifyEventSinks(
     input.event,
-    {
-      ...(input.traceContext ?? this.rootTraceContext),
-      sessionId: input.childSessionId,
-    },
+    { ...(input.traceContext ?? this.rootTraceContext), sessionId: input.childSessionId },
     input.executionWorkspacePath,
   );
 }

@@ -7,6 +7,7 @@
 - `ChatPromptEditor` 只把工具栏行（`group/toolbar`、leading/content/trailing）交给布局 hook；输入外壳保留 `data-composer-layout`，不共享布局 ref。紧凑属性与读取属性的 named group 必须是同一个 DOM owner。
 - 测量副本完整复制工具栏行的布局骨架、样式及控件，保留 leading/content/trailing 的包含关系；工具栏行不包含 Lexical 编辑器、附件、原文或草稿。观察器只观察该行的尺寸和控件内容，不观察紧凑属性输出。
 - 普通入口与合并模型入口沿用各自已有的收缩顺序；桌面与窄屏共用同一布局函数。
+- 收缩档位按 `data-composer-collapse-priority` 依次为 `extension`、`0`、`1`、`2`、`3`：扩展插槽 `composer.status`（`extension`）最先收起为只留图标，之后依次是 Computer、mode、Plan、think 文字（docs/plugins/extension-host.md §6）。
 - `iconOnly`（单行输入框，Side Pane 完整视图浮窗）：工具栏宽度随内容变化，没有可测的可用宽度；不测量、不克隆，按同一收缩顺序直接收到最后一级。关闭后回到正常测量并按实际宽度恢复。
 - 原布局与契约单测已退役。公开布局入口和各档位需由浏览器或桌面验收覆盖，不能沿用旧单测作为现行证据。
 

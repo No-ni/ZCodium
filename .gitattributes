@@ -30,3 +30,9 @@ third-party/inventory.json linguist-generated=true
 # 一旦换行被转换，Windows 检出成 CRLF 后 hash 即不匹配，构建直接失败。
 # 这些文件本身已是 LF，且不需要 diff 语义，整类按字节保存。
 apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text
+
+# design 内置插件：第三方设计资源保持上游原字节（许可登记按原文哈希校验）；
+# SessionStart hook 是 sh/cmd 双写法脚本，CRLF 会让 sh 解析失败，固定 LF。
+apps/zcode-cli/packages/design-plugin/skills/design/design-resources/** -text -whitespace linguist-vendored=true
+apps/zcode-cli/packages/design-plugin/hooks/design-rules text eol=lf
+apps/zcode-cli/packages/design-plugin/hooks/run-hook.cmd text eol=lf

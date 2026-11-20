@@ -58,6 +58,7 @@ import { createTempTextAttachment } from "./tempTextAttachment.js";
 import { materializeWorkflowArtifactFile } from "./workflowArtifactFile.js";
 import { registerDesktopSaveFileIpcHandler } from "./desktopSaveFile.js";
 import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
+import { registerDesktopCaptureBrowserGuestPageIpcHandler } from "./desktopCaptureBrowserGuestPage.js";
 import { registerDesktopCommandIpcHandler } from "./desktopCommandIpc.js";
 
 export function registerPlatformIpcHandlers(options: {
@@ -141,6 +142,7 @@ export function registerPlatformIpcHandlers(options: {
 
   registerDesktopSaveFileIpcHandler(options.logger);
   registerDesktopPrintToPdfIpcHandler(options.logger);
+  registerDesktopCaptureBrowserGuestPageIpcHandler(options.logger);
 
   ipcMain.handle(
     PlatformChannels.CreateTempTextAttachment,
@@ -308,11 +310,15 @@ export function registerPlatformIpcHandlers(options: {
       return;
     }
 
-    const { providerFamilyDomain, ...patch } = result.data;
+    const { providerFamilyDomain, dynamicWorkflowMode, ...patch } = result.data;
     options.syncAppSettings({
       ...patch,
       // 设置清除 Provider family 时用空串表达；main 即时回调只处理有值的业务字段。
       ...(providerFamilyDomain ? { providerFamilyDomain } : {}),
+      // IPC 的空串是清除设置意图，运行回调使用明确 disabled 状态。
+      ...(dynamicWorkflowMode !== undefined
+        ? { dynamicWorkflowMode: dynamicWorkflowMode || "disabled" }
+        : {}),
     });
   });
 

@@ -70,13 +70,19 @@ import type {
   AiSdkModelTextRequest,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { nextUnrecognizedCodeStreak, retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
+import {
+  nextUnrecognizedCodeStreak,
+  retryAllowedByFailurePolicy,
+} from "./workflow-model-failure-policy.js";
 import {
   modelFailureStatusFields,
   providerRequestIdFromHeaders,
   readModelFailureErrorPhase,
 } from "./runner-failure-status.js";
-import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
+import {
+  repairReasoningHistoryAfterSignatureRejection,
+  thinkingSignatureRejectionEvidence,
+} from "./reasoning-history-normalization.js";
 
 type StreamFailurePhase = "request_setup" | "response_body";
 
@@ -106,6 +112,11 @@ export async function* runStreamText(input: {
   });
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
+  // 修复后的重试成功时，在 finish 上告诉 core 记 signedReasoningReset，之后的请求不再发被拒的块。
+  const withRepairMarker = (event: ModelStreamEvent): ModelStreamEvent =>
+    signatureRepairAttempted && event.type === "finish"
+      ? { ...event, signedReasoningReset: true }
+      : event;
   let emptyCompletionRetryCount = 0;
   // 不认识的业务码在本次请求里连续出现的次数：workflow 策略表据此停下，见 workflow-model-failure-policy.ts。
   // 每次失败（外层 catch 与流内错误块两条路径）都经它更新一次。
@@ -147,10 +158,7 @@ export async function* runStreamText(input: {
       messages: requestMessages,
     };
     let statusContext = createAttemptStatusContext(
-      {
-        ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)),
-      },
+      { ...baseStatusContext, maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)) },
       attempt,
     );
     const toolCallAssembler = new StreamingToolCallAssembler({ logger: input.logger });
@@ -193,6 +201,11 @@ export async function* runStreamText(input: {
         nextAttempt: attempt + 1,
         requestId: statusContext.requestId,
         status: "waiting",
+        // 记下 provider 原文和 prefix 不一致响应头：写明哪一块、因为什么被拒，排查前缀变化时用。
+        ...thinkingSignatureRejectionEvidence(
+          error,
+          sanitizeModelNetworkHeaders(getResponseHeaders(unwrapRetryError(error))),
+        ),
       });
       return true;
     };
@@ -241,9 +254,7 @@ export async function* runStreamText(input: {
           timestamp: new Date().toISOString(),
           type: "model_request_failed",
         },
-        {
-          ...statusPublishOptions(input),
-        },
+        { ...statusPublishOptions(input) },
       );
       throw toAdapterError(admitError, admitFailure, statusContext, attempt, {
         errorPhase: "connect",
@@ -253,11 +264,7 @@ export async function* runStreamText(input: {
     try {
       attemptRequest.abortSignal?.throwIfAborted();
       resolved = input.resolveModel();
-      options = createStreamTextOptions({
-        env: input.env,
-        request: attemptRequest,
-        resolved,
-      });
+      options = createStreamTextOptions({ env: input.env, request: attemptRequest, resolved });
       requestHeaders = sanitizeModelNetworkHeaders(options.headers);
       requestHeaderCount = Object.keys(requestHeaders).length;
       await publishModelStatus(
@@ -339,7 +346,7 @@ export async function* runStreamText(input: {
             emittedRetryBoundaryEvent = true;
             for (const pendingEvent of pendingRetrySafeEvents.splice(0)) {
               emittedEvent = true;
-              yield pendingEvent;
+              yield withRepairMarker(pendingEvent);
             }
             // 无 raw message-block provenance 的 provider 可能直接给完整 tool-call。
             // 先把 inferred block stop 交给隐藏 collector，再传播校验错误，避免 HTTP 重放。
@@ -403,7 +410,7 @@ export async function* runStreamText(input: {
             const observation = observeVisibleStreamEvent(visibleEvent, Date.now() - startedAt);
             await publishVisibleMilestones(observation);
             streamOutputCommitted = streamOutputCommitted || observation.outputCommitted;
-            yield visibleEvent;
+            yield withRepairMarker(visibleEvent);
           }
         }
       }
@@ -426,7 +433,7 @@ export async function* runStreamText(input: {
           const observation = observeVisibleStreamEvent(visibleEvent, Date.now() - startedAt);
           await publishVisibleMilestones(observation);
           streamOutputCommitted = streamOutputCommitted || observation.outputCommitted;
-          yield visibleEvent;
+          yield withRepairMarker(visibleEvent);
         }
       }
 
@@ -435,7 +442,7 @@ export async function* runStreamText(input: {
         const observation = observeVisibleStreamEvent(pendingEvent, Date.now() - startedAt);
         await publishVisibleMilestones(observation);
         streamOutputCommitted = streamOutputCommitted || observation.outputCommitted;
-        yield pendingEvent;
+        yield withRepairMarker(pendingEvent);
       }
 
       if (!emittedError) {
@@ -474,12 +481,11 @@ export async function* runStreamText(input: {
         if (isSuspiciousStreamDiagnostics(diagnostics)) {
           // 403 JSON 等业务错误有时不会让 AI SDK 抛出 error chunk，流会以空 completion 结束；
           // 若不在 adapter 层终止，core 会误报 “Model returned no text...”。
-          const streamEndedWithoutOutputError =
-            detectProviderBusinessFinishError({
-              providerId: String(statusContext.providerId),
-              providerKind: statusContext.providerKind,
-              source: diagnostics.lastErrorChunk ?? diagnostics.lastFinishChunk,
-            });
+          const streamEndedWithoutOutputError = detectProviderBusinessFinishError({
+            providerId: String(statusContext.providerId),
+            providerKind: statusContext.providerKind,
+            source: diagnostics.lastErrorChunk ?? diagnostics.lastFinishChunk,
+          });
           if (streamEndedWithoutOutputError) {
             const failure = classifyModelFailure(
               streamEndedWithoutOutputError,
@@ -604,10 +610,7 @@ export async function* runStreamText(input: {
       const retryWithRepairedHistory =
         !emittedRetryBoundaryEvent && repairThinkingSignatureRejection(error);
       if (retryWithRepairedHistory) {
-        statusContext = {
-          ...statusContext,
-          maxAttempts: statusMaxAttempts(1),
-        };
+        statusContext = { ...statusContext, maxAttempts: statusMaxAttempts(1) };
       }
       const failure = classifyModelFailure(error, input.request.abortSignal);
       countUnrecognizedCode(failure, error);
@@ -668,9 +671,7 @@ export async function* runStreamText(input: {
           type: "model_request_failed",
           ...(error instanceof AiSdkModelAdapterError && error.usage ? { usage: error.usage } : {}),
         },
-        {
-          ...statusPublishOptions(input, admission),
-        },
+        { ...statusPublishOptions(input, admission) },
       );
       terminalStatusPublished = true;
 
@@ -680,10 +681,7 @@ export async function* runStreamText(input: {
           statusContext,
           attempt,
           0,
-          {
-            ...failure,
-            retryReason: ModelRetryReason.ReasoningSignatureRepair,
-          },
+          { ...failure, retryReason: ModelRetryReason.ReasoningSignatureRepair },
           requestHeaders,
           responseHeaders,
           admission,
@@ -804,17 +802,11 @@ export async function* runStreamText(input: {
             result,
           });
         } else {
-          void closeStreamIteratorBestEffort(streamIterator, {
-            attempt,
-            logger: input.logger,
-          });
+          void closeStreamIteratorBestEffort(streamIterator, { attempt, logger: input.logger });
         }
       } else if (attemptAbortController.signal.aborted) {
         // 普通 main 保留既有生命周期：只有 caller/idle 已经 abort 时才 best-effort 关闭 iterator。
-        void closeStreamIteratorBestEffort(streamIterator, {
-          attempt,
-          logger: input.logger,
-        });
+        void closeStreamIteratorBestEffort(streamIterator, { attempt, logger: input.logger });
       }
       attemptAbortController.cleanup();
       // 兜底归还（成功 / 抛出 / 消费者提前 return 都到这里）；正常失败路径已在 sleep 前归还，幂等。
@@ -943,12 +935,14 @@ async function handleStreamChunk(input: {
   const contextError = createEmptyContextExceededError({
     finishReason: input.diagnostics.finishReason,
     rawFinishReason: input.diagnostics.rawFinishReason,
-    hasAssistantContent: input.diagnostics.textDeltaChars > 0 || input.diagnostics.reasoningDeltaChars > 0,
+    hasAssistantContent:
+      input.diagnostics.textDeltaChars > 0 || input.diagnostics.reasoningDeltaChars > 0,
     toolCallCount: input.diagnostics.toolCallCount,
     usage: input.diagnostics.usage,
   });
   // finish 是成功提交边界，必须先把明确空超窗沿既有错误链结算，不能先给 Core 发成功。
-  if (contextError) return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, contextError);
+  if (contextError)
+    return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, contextError);
   const event = toModelStreamEvent(input.chunk);
   if (event?.type === "error") {
     return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, event.error);
@@ -1018,11 +1012,7 @@ function applyStreamEventsToRetryBoundary(input: {
     emittedRetryBoundaryEvent = true;
   }
 
-  return streamChunkResult({
-    emittedEvent,
-    emittedRetryBoundaryEvent,
-    visibleEvents,
-  });
+  return streamChunkResult({ emittedEvent, emittedRetryBoundaryEvent, visibleEvents });
 }
 
 function isRawProviderRetryBoundaryEvent(chunk: TextStreamPart<ToolSet>): boolean {
@@ -1050,10 +1040,7 @@ function toProviderStreamBoundaryEvent(
     type?: unknown;
   };
   if (rawEvent.type === "message_start") {
-    return {
-      boundary: "provider_response_start",
-      type: "compact_stream_boundary",
-    };
+    return { boundary: "provider_response_start", type: "compact_stream_boundary" };
   }
   if (rawEvent.type === "content_block_start") {
     return {
@@ -1097,10 +1084,7 @@ function compactDirectToolCallCommitEvent(
   if (!request.preserveProviderStreamBoundaries || chunk.type !== "tool-call") {
     return undefined;
   }
-  return {
-    boundary: "inferred_content_block_stop",
-    type: "compact_stream_boundary",
-  };
+  return { boundary: "inferred_content_block_stop", type: "compact_stream_boundary" };
 }
 
 async function handleStreamErrorEvent(
@@ -1154,9 +1138,7 @@ async function handleStreamErrorEvent(
       timestamp: new Date().toISOString(),
       type: "model_request_failed",
     },
-    {
-      ...statusPublishOptions(input.input, input.admission),
-    },
+    { ...statusPublishOptions(input.input, input.admission) },
   );
 
   if (retryWithRepairedHistory) {
@@ -1165,18 +1147,12 @@ async function handleStreamErrorEvent(
       statusContext,
       input.attempt,
       0,
-      {
-        ...failure,
-        retryReason: ModelRetryReason.ReasoningSignatureRepair,
-      },
+      { ...failure, retryReason: ModelRetryReason.ReasoningSignatureRepair },
       input.requestHeaders,
       responseHeaders,
       input.admission,
     );
-    return streamChunkResult({
-      emittedError: true,
-      retryScheduled: true,
-    });
+    return streamChunkResult({ emittedError: true, retryScheduled: true });
   }
 
   if (!failureDecision.canRetry) {
@@ -1239,10 +1215,7 @@ async function handleStreamErrorEvent(
       errorPhase: "connect",
     });
   }
-  return streamChunkResult({
-    emittedError: true,
-    retryScheduled: true,
-  });
+  return streamChunkResult({ emittedError: true, retryScheduled: true });
 }
 
 function classifyStreamFailurePhase(input: {
@@ -1455,11 +1428,7 @@ function streamChunkResult(
 }
 
 function statusPublishOptions(
-  input: {
-    logger?: Logger;
-    request: AiSdkModelTextRequest;
-    statusSink?: ModelStatusSink;
-  },
+  input: { logger?: Logger; request: AiSdkModelTextRequest; statusSink?: ModelStatusSink },
   admission?: AttemptAdmission,
 ) {
   return {

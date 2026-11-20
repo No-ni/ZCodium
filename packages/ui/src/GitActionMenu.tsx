@@ -58,7 +58,7 @@ import {
   CloudUploadIcon,
   GitBranchIcon,
   GitCommitIcon,
-  LoaderIcon,
+  LoaderCircle,
   SparklesIcon,
 } from "lucide-react";
 
@@ -183,7 +183,7 @@ function CommitCommandActionItem({
       )}
     >
       <span className="flex size-5 shrink-0 items-center justify-center">
-        {loading ? <LoaderIcon className="size-4 animate-spin" /> : icon}
+        {loading ? <LoaderCircle className="size-4 animate-spin" /> : icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {shortcutLabel ? <CommandShortcut>{shortcutLabel}</CommandShortcut> : null}
@@ -395,7 +395,7 @@ function GitCommitDialog({
       >
         {loading ? (
           <div className="flex h-56 items-center justify-center px-5 py-5 text-foreground-subtle">
-            <LoaderIcon className="size-5 animate-spin" />
+            <LoaderCircle className="size-5 animate-spin" />
           </div>
         ) : state ? (
           <form
@@ -467,7 +467,7 @@ function GitCommitDialog({
                       className="absolute right-0 top-1.5 text-foreground-subtle hover:text-foreground"
                     >
                       {generationPending ? (
-                        <LoaderIcon className="size-4 animate-spin" />
+                        <LoaderCircle className="size-4 animate-spin" />
                       ) : (
                         <SparklesIcon className="size-4" />
                       )}
@@ -810,7 +810,7 @@ function GitPushDialog({
                   disabled={mutationPending || !pushEnabled}
                   className="h-10 min-w-0 px-5"
                 >
-                  {mutationPending ? <LoaderIcon className="size-4 animate-spin" /> : null}
+                  {mutationPending ? <LoaderCircle className="size-4 animate-spin" /> : null}
                   {intl.formatMessage({
                     id: "git.actionMenu.pushDialog.confirm",
                   })}
@@ -1354,7 +1354,7 @@ export function GitActionMenu({
         >
           {/* 主按钮进入 pending 时直接替换左侧动作图标，避免在紧凑头部里额外追加 loading 图标把按钮挤宽。*/}
           {triggerPending ? (
-            <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
+            <LoaderCircle className="size-4 animate-spin text-foreground-subtle" />
           ) : primaryActionId === "push" ? (
             <ArrowUpFromLine className="size-4 text-foreground" />
           ) : (

@@ -1,5 +1,6 @@
 import type { Locale } from "@zcode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
+import { LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES } from "@zcode/shared";
 import {
   DesktopCommandIds,
   TID_SIDEBAR_PREFERENCES_TRIGGER,
@@ -149,20 +150,14 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <DropdownMenuSubContent className="w-48">
                 <DropdownMenuRadioGroup value={localeMenuValue} onValueChange={onLocaleChange}>
                   <DropdownMenuRadioItem value="system">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.systemDefault",
-                    })}
+                    {intl.formatMessage({ id: "sidebar.settings.systemDefault" })}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="en-US">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.locale.en-US",
-                    })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="zh-CN">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.locale.zh-CN",
-                    })}
-                  </DropdownMenuRadioItem>
+                  {/* 语言选项显示各语言本名（LOCALE_NATIVE_NAMES），不随界面语言翻译。 */}
+                  {SUPPORTED_LOCALES.map((locale) => (
+                    <DropdownMenuRadioItem key={locale} value={locale} lang={locale}>
+                      {LOCALE_NATIVE_NAMES[locale]}
+                    </DropdownMenuRadioItem>
+                  ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -174,19 +169,13 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <DropdownMenuSubContent className="w-48">
                 <DropdownMenuRadioGroup value={theme} onValueChange={onThemeChange}>
                   <DropdownMenuRadioItem value="system">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.systemDefault",
-                    })}
+                    {intl.formatMessage({ id: "sidebar.settings.systemDefault" })}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="zai-dark">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.zai-dark",
-                    })}
+                    {intl.formatMessage({ id: "sidebar.settings.theme.zai-dark" })}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="zai-light">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.zai-light",
-                    })}
+                    {intl.formatMessage({ id: "sidebar.settings.theme.zai-light" })}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>

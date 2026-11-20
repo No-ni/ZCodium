@@ -42,6 +42,7 @@ import { WorkbenchLeafPane, type WorkbenchShellBinding } from "@/v4/WorkbenchPan
 import { WorkbenchSplitDivider } from "@/v4/WorkbenchSplitDivider.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
+import { type RegisterConversationDropTarget } from "@/v4/composer/conversationDropTarget.js";
 import type {
   ChatSearchResultHighlightRequest,
   ChatViewSummaryPanelVariant,
@@ -90,7 +91,7 @@ export interface V4WorkspaceChatAreaProps {
   activeSelectionSideChatSessionId?: string | null;
   provider?: ZCodeProvider;
   /** primary pane createSession/fork 后接入既有选择路径（handleSelectTask）。 */
-  onSessionCreated?: (sessionId: string) => void;
+  onSessionCreated?: (sessionId: string, origin?: "draft-promotion") => void;
   /** primary pane 会话删除后回 draft（shell 起新草稿）。 */
   onSessionDeleted?: () => void;
   primaryDraftScopeToken?: object;
@@ -104,9 +105,7 @@ export interface V4WorkspaceChatAreaProps {
    */
   draftComposerHeader?: ReactNode;
   /** 桌面轻量草稿标题栏复用主草稿 composer 的 drop controller。 */
-  onPrimaryDraftDropTargetControllerChange?: (
-    controller: ConversationDropTargetController | null,
-  ) => void;
+  onPrimaryDraftDropTargetControllerChange?: RegisterConversationDropTarget;
   gitSummary?: GitRepositorySummary | null;
   gitDirtyFileCount?: number;
   gitWorktreeReviewSourceId?: GitChangeSourceId | null;
@@ -116,7 +115,11 @@ export interface V4WorkspaceChatAreaProps {
   onSummaryPanelVariantOverrideChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
   onRefreshGit?: () => void;
   onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
-  onPaneActiveSessionChange?: (scope: PaneWorkspaceScope, sessionId: string) => void;
+  onPaneActiveSessionChange?: (
+    scope: PaneWorkspaceScope,
+    sessionId: string,
+    origin?: "draft-promotion",
+  ) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenAutomationsMain?: OpenAutomationsMain;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;

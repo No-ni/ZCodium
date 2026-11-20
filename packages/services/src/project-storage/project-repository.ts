@@ -1,3 +1,11 @@
+import { moveProjectTask } from "./project-task-movement.js";
+import { listTasksByWorktree } from "./project-task-recovery.js";
+import {
+  findCreationReceipts,
+  reserveForkedTask,
+  releaseReservedTask,
+} from "./project-task-recovery.js";
+import { pauseAutomationsForArchivedTask } from "#src/session/automationRepo.js";
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -11,13 +19,8 @@ import type {
   SaveProjectInput,
   VirtualProject,
 } from "#src/project-storage/contract.js";
-import { OWNERSHIP_DECIDED } from "#src/project-storage/legacy-tasks.js";
 import type { ProjectDataRepositoryContract } from "#src/project-storage/purge/contract.js";
-import {
-  assertRemoteProjectRoots,
-  assertRemoteTaskDirectories,
-} from "#src/project-storage/remote-policy.js";
-
+import { assertRemoteProjectRoots } from "#src/project-storage/remote-policy.js";
 import {
   transaction,
   readProjects,
@@ -53,6 +56,7 @@ export class ProjectRepository implements ProjectRepositoryContract, ProjectData
         this.db
           .prepare("UPDATE tasks SET archived=1 WHERE workspace_key=? AND task_id=?")
           .run(row.workspace_key!, row.task_id!);
+        pauseAutomationsForArchivedTask(this.db, String(row.workspace_key), String(row.task_id));
         result.push({
           workspacePath: String(row.workspace_path),
           taskId: String(row.task_id),
@@ -308,33 +312,7 @@ export class ProjectRepository implements ProjectRepositoryContract, ProjectData
   }
 
   moveTask(input: { task: ProjectTaskRef; projectId: string; addMissingRoot?: boolean }): void {
-    transaction(this.db, () => {
-      const project = requireProject(this.db, input.projectId);
-      if (project.deleted) throw new Error("project.deleted");
-      const task = readTask(this.db, input.task);
-      if (!task) throw new Error("project.task-not-found");
-      if (project.hostId !== (this.ownerHostId ?? "local") || task.host_id !== project.hostId)
-        throw new Error("project.cross-host-move");
-      assertRemoteTaskDirectories(this.ownerHostId, project, String(task.root_path));
-      if (!project.roots.some((root) => root.rootPath === task.root_path)) {
-        if (!input.addMissingRoot) throw new Error("project.root-confirmation-required");
-        this.db
-          .prepare(
-            "INSERT INTO project_roots(project_id,root_path,position,is_primary) VALUES(?,?,?,?)",
-          )
-          .run(
-            project.id,
-            String(task.root_path),
-            project.roots.length,
-            project.roots.length === 0 ? 1 : 0,
-          );
-      }
-      this.db
-        .prepare(
-          "UPDATE tasks SET project_id=?,handoff_pending=handoff_pending | ? WHERE workspace_key=? AND task_id=?",
-        )
-        .run(project.id, OWNERSHIP_DECIDED, resolveWorkspaceKey(input.task), input.task.taskId);
-    });
+    moveProjectTask(this.db, this.ownerHostId, input);
   }
 
   reorderProjects(ids: string[]): void {
@@ -352,9 +330,41 @@ export class ProjectRepository implements ProjectRepositoryContract, ProjectData
     return transaction(this.db, () => resolveDirectories(this.db, task, this.ownerHostId), false);
   }
 
+  findCreationReceipts(
+    input: Parameters<ProjectRepositoryContract["findCreationReceipts"]>[0],
+  ): Array<{ sessionId: string; directories: ProjectDirectories }> {
+    return findCreationReceipts(this.db, this.ownerHostId, input);
+  }
+
+  private reserveForkedTask(input: {
+    task: ProjectTaskRef;
+    parentTaskId: string;
+  }): ProjectDirectories {
+    return reserveForkedTask(this.db, this.ownerHostId, input);
+  }
+
   reserveCreatedTask(
     input: Parameters<ProjectRepositoryContract["reserveCreatedTask"]>[0],
   ): ProjectDirectories & { taskId: string } {
+    if ("parentTaskId" in input)
+      return { ...this.reserveForkedTask(input), taskId: input.task.taskId };
     return reserveProjectTask(this.db, this.ownerHostId, input);
+  }
+
+  readTaskCwd(task: ProjectTaskRef): string | null {
+    const row = readTask(this.db, task);
+    return row && row.host_id === (this.ownerHostId ?? "local") ? String(row.root_path) : null;
+  }
+
+  releaseReservedTask(
+    input: Parameters<ProjectRepositoryContract["releaseReservedTask"]>[0],
+  ): "released" | "absent" | "kept" {
+    return releaseReservedTask(this.db, this.ownerHostId, input);
+  }
+
+  listTasksByWorktree(
+    input: Parameters<ProjectRepositoryContract["listTasksByWorktree"]>[0],
+  ): ReturnType<ProjectRepositoryContract["listTasksByWorktree"]> {
+    return listTasksByWorktree(this.db, this.ownerHostId, input);
   }
 }

@@ -127,10 +127,7 @@ function splitTurnTailRows(rows: readonly AssistantWorkRow[]): {
   ) {
     tailStart -= 1;
   }
-  return {
-    flowRows: rows.slice(0, tailStart),
-    tailRows: rows.slice(tailStart),
-  };
+  return { flowRows: rows.slice(0, tailStart), tailRows: rows.slice(tailStart) };
 }
 
 function isBrowserTurnEndRow(row: AssistantWorkRow): boolean {

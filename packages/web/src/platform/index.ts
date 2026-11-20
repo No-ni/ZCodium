@@ -1,4 +1,5 @@
 import type { IPlatformService, RemoteTarget, WebRemoteControlStatus } from "@zcode/shared";
+import { resolveLocaleFromLanguageTag, toZhOrEnLocale } from "@zcode/shared";
 import { playTaskNotificationSound } from "@zcode/ui";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "#src/communityUrl.js";
 import type { WebRemoteControlPlatformProxy } from "#src/platform/contract.js";
@@ -67,10 +68,7 @@ export function createWebPlatform(options?: {
     startWebRemoteControl: () =>
       Promise.reject(new Error("Web remote control can only be started from desktop")),
     stopWebRemoteControl: () => Promise.resolve(),
-    getWebRemoteControlStatus: () =>
-      Promise.resolve<WebRemoteControlStatus>({
-        status: "idle",
-      }),
+    getWebRemoteControlStatus: () => Promise.resolve<WebRemoteControlStatus>({ status: "idle" }),
     // 配对刷新与清单同步属于桌面远控运行时；Web 侧不持有配对状态，显式拒绝或空同步。
     refreshWebRemoteControlPairing: () =>
       Promise.reject(new Error("Web remote control can only be started from desktop")),
@@ -107,12 +105,7 @@ export function createWebPlatform(options?: {
     migrateLegacyCommonMcp: (payload) =>
       platformProxy
         ? platformProxy.requestPlatformMethod("migrateLegacyCommonMcp", payload)
-        : Promise.resolve({
-            servers: {},
-            totalCount: 0,
-            importedCount: 0,
-            skippedCount: 0,
-          }),
+        : Promise.resolve({ servers: {}, totalCount: 0, importedCount: 0, skippedCount: 0 }),
     openExternal: (url) => {
       window.open(url, "_blank", "noopener,noreferrer");
     },
@@ -124,7 +117,10 @@ export function createWebPlatform(options?: {
       window.open(feedbackUrl, "_blank", "noopener,noreferrer");
     },
     openCommunity: async () => {
-      const locale = document.documentElement.lang === "en-US" ? "en-US" : "zh-CN";
+      // openCommunity() 不带参数；ZCodeIntlProvider 会把当前界面语言同步到 <html lang>，
+      // 这里按界面语言解析，再收敛成中/英（社群链接只配了中英）。以前要求 lang 精确等于 "en-US"，
+      // Web+Server 的 index.html 是 lang="en"，英/日/俄/韩都会被当成中文。
+      const locale = toZhOrEnLocale(resolveLocaleFromLanguageTag(document.documentElement.lang));
       const communityUrl = await resolveWebCommunityUrl(locale);
       if (!communityUrl) {
         return;
@@ -152,10 +148,7 @@ export function createWebPlatform(options?: {
       }
 
       try {
-        new window.Notification(payload.title, {
-          body: payload.body,
-          silent: true,
-        });
+        new window.Notification(payload.title, { body: payload.body, silent: true });
         void playTaskNotificationSound();
       } catch {
         // 浏览器通知不可用时静默忽略，避免打断主流程

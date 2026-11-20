@@ -1,3 +1,4 @@
+import { isAbsolute, relative } from "node:path";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -71,6 +72,26 @@ export function tableExists(db: DatabaseSync, name: string): boolean {
   );
 }
 
+/**
+ * worktree 任务的放置：workspace 是项目，cwd 位于受管 worktree 内（docs/git/worktree.md §6.6.1）。
+ * 只允许本地、有项目归属、cwd 在 worktree 根内的组合；其他组合说明调用方装配错误，直接拒绝。
+ */
+export function resolveWorktreePlacement(input: {
+  task: { workspaceIdentity?: string };
+  projectId: string | null;
+  cwd?: string;
+  worktreeRoot?: string;
+}): { cwd: string; worktreeRoot: string } | null {
+  if (input.cwd === undefined && input.worktreeRoot === undefined) return null;
+  if (!input.cwd || !input.worktreeRoot) throw new Error("project.worktree-placement-incomplete");
+  if (input.task.workspaceIdentity?.trim()) throw new Error("project.worktree-local-only");
+  if (!input.projectId) throw new Error("project.worktree-requires-project");
+  const relativeCwd = relative(input.worktreeRoot, input.cwd);
+  if (relativeCwd.startsWith("..") || isAbsolute(relativeCwd))
+    throw new Error("project.worktree-cwd-outside-root");
+  return { cwd: input.cwd, worktreeRoot: input.worktreeRoot };
+}
+
 export function readTask(db: DatabaseSync, task: ProjectTaskRef) {
   return db
     .prepare("SELECT * FROM tasks WHERE workspace_key=? AND task_id=?")
@@ -85,25 +106,34 @@ export function resolveDirectories(
   const row = readTask(db, task);
   // 旧远端影子行仍可能保留；行与项目一致不代表当前 Host 有权加载其目录。
   if (row && row.host_id !== ownerHostId) throw new Error("project.host-mismatch");
-  const workspacePath = row ? String(row.root_path) : task.workspacePath;
+  // root_path 是 cwd；worktree 任务的 workspace 是 workspace_path（项目主目录），两者分开返回，
+  // 导航等调用方打开的是 workspace，执行目录只给需要 cwd 的调用方（§6.6.1）。
+  const cwd = row ? String(row.root_path) : task.workspacePath;
+  const workspacePath =
+    row && typeof row.worktree_root === "string" ? String(row.workspace_path) : cwd;
   const project = row?.project_id ? requireProject(db, String(row.project_id)) : null;
   if (project && row?.host_id !== project.hostId) throw new Error("project.host-mismatch");
   assertRemoteTaskDirectories(
     ownerHostId,
     project,
-    workspacePath,
+    cwd,
     typeof row?.execution_directories === "string"
       ? executionDirectoriesSchema.parse(JSON.parse(row.execution_directories))
       : [],
   );
   return {
     workspacePath,
+    ...(workspacePath !== cwd ? { cwd } : {}),
+    ...(typeof row?.workspace_identity === "string"
+      ? { workspaceIdentity: row.workspace_identity }
+      : task.workspaceIdentity
+        ? { workspaceIdentity: task.workspaceIdentity }
+        : {}),
     projectId: project?.id ?? null,
     additionalDirectories:
       typeof row?.execution_directories === "string"
         ? executionDirectoriesSchema.parse(JSON.parse(row.execution_directories))
-        : (project?.roots.map((root) => root.rootPath).filter((path) => path !== workspacePath) ??
-          []),
+        : (project?.roots.map((root) => root.rootPath).filter((path) => path !== cwd) ?? []),
   };
 }
 
@@ -120,7 +150,13 @@ export function readTasks(db: DatabaseSync): ProjectTask[] {
         ...meta,
         taskId: String(row.task_id),
         traceId: meta.traceId ?? generateTraceId(String(row.task_id)),
-        workspacePath: String(row.root_path),
+        // workspacePath 是任务所属 workspace；worktree 任务的 cwd 另由 cwd 给出
+        // （docs/git/worktree.md §6.6.1）。普通任务两列相同，行为不变。
+        workspacePath: String(row.workspace_path),
+        ...(typeof row.worktree_root === "string" ? { worktreeRoot: row.worktree_root } : {}),
+        ...(row.root_path && row.root_path !== row.workspace_path
+          ? { cwd: String(row.root_path) }
+          : {}),
         workspaceIdentity:
           row.workspace_identity === row.workspace_key
             ? String(row.workspace_identity)

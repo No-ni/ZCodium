@@ -15,7 +15,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { ChevronDownIcon, ChevronUpIcon, LoaderIcon, MessageCircleIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, LoaderCircle, MessageCircleIcon } from "lucide-react";
 import { TID_V4_COMPOSER_INPUT } from "@zcode/shared/test-ids";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -91,11 +91,7 @@ export function SidePaneFullViewConversationHost({
   const isExpanded = isFloating && floating === "expanded";
   const [status, setStatus] = useState<
     Pick<ConversationPaneFloatingStatus, "running" | "blockingInteractionId" | "ownerKey">
-  >({
-    running: false,
-    blockingInteractionId: null,
-    ownerKey: "",
-  });
+  >({ running: false, blockingInteractionId: null, ownerKey: "" });
   /** 回答气泡按对话 owner 记录（只在内存里），只有点 × 或点气泡才清除。 */
   const [answerBubbles, setAnswerBubbles] = useState<
     ReadonlyMap<string, FloatingAnswerBubbleState>
@@ -325,7 +321,7 @@ export function SidePaneFullViewConversationHost({
   }, [focusComposer, onFloatingChange]);
 
   const statusIcon = status.running ? (
-    <LoaderIcon className="size-4 animate-spin text-foreground-subtle" aria-hidden="true" />
+    <LoaderCircle className="size-4 animate-spin text-foreground-subtle" aria-hidden="true" />
   ) : (
     <MessageCircleIcon className="size-4 text-foreground-subtle" aria-hidden="true" />
   );

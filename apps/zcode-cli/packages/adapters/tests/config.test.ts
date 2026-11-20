@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { createNodeLoggerFactory } from "../src/logging/index.js";
+import type { Logger, LoggerFactory } from "@zcode/contracts";
+import { withFileLock } from "@zcode/shared/node";
 import {
-  createConfig,
+  createConfig as createConfigWithDiagnostics,
   resolveWorkspaceStorageDir,
   updateUiLocaleInFileConfig,
 } from "../src/config/index.js";
@@ -13,16 +16,101 @@ import {
   updatePluginEnabledInFileConfig,
   updatePluginOptionsInFileConfig,
 } from "../src/config/file-config.adapter.js";
+import * as fsPromises from "node:fs/promises";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, rename: vi.fn(actual.rename) };
+});
+
+vi.mock("../src/config/file-config.adapter.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/config/file-config.adapter.js")>();
+  return { ...actual, loadFileConfig: vi.fn(actual.loadFileConfig) };
+});
+vi.mock("@zcode/shared/node", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@zcode/shared/node")>();
+  return { ...actual, withFileLock: vi.fn(actual.withFileLock) };
+});
+
+function captureConfigLogger() {
+  const warn = vi.fn();
+  const logger: Logger = { debug() {}, info() {}, error() {}, warn, child: () => logger };
+  const loggerFactory: LoggerFactory = {
+    createLogger: () => logger,
+    withContext: () => logger,
+    setLevel() {},
+  };
+  return { loggerFactory, warn };
+}
+
+// 配置语义夹具只用内存日志；显式日志目录的场景继续验证真实诊断出口。
+function createConfig(options: Parameters<typeof createConfigWithDiagnostics>[0]) {
+  return createConfigWithDiagnostics({
+    ...(options?.env?.ZCODE_LOG_DIR ? {} : { loggerFactory: captureConfigLogger().loggerFactory }),
+    ...options,
+  });
+}
+
 describe("config adapters", () => {
-  it.each(["zcode.json", ".zcode/config.json", "explicit-project.json"])(
+  it("does not pass configuration paths or original diagnostic text to an injected logger", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcodium-config-diagnostic-egress-"));
+    const path = join(root, "private-config.json");
+    const { loggerFactory, warn } = captureConfigLogger();
+    try {
+      await writeFile(
+        path,
+        JSON.stringify({
+          mcp: { servers: { broken: { type: "stdio", args: ["private-script.js"] } } },
+        }),
+      );
+      const result = createConfig({ env: {}, userConfigPath: path, loggerFactory });
+      expect(result.sources.user.diagnostics).toHaveLength(1);
+      expect(warn).toHaveBeenCalledWith("MCP server config skipped", {
+        status: "failed",
+        errorCategory: "validation",
+        count: 1,
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(path);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("private-script.js");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves saved visualize choices across repeated configuration reads", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcodium-visualize-config-"));
+    const userConfigPath = join(root, "user.json");
+    const projectConfigPath = join(root, "project.json");
+    const id = "visualize@zcode-plugins-official";
+    try {
+      const user = JSON.stringify({ keep: "unknown", plugins: { enabledPlugins: { [id]: true } } });
+      const project = JSON.stringify({ plugins: { enabledPlugins: { [id]: false } } });
+      await writeFile(userConfigPath, user);
+      await writeFile(projectConfigPath, project);
+      for (let repeat = 0; repeat < 4; repeat++) {
+        expect(createConfig({ env: {}, userConfigPath }).config.plugins.enabledPlugins[id]).toBe(
+          true,
+        );
+        expect(
+          createConfig({ env: {}, userConfigPath, projectConfigPath }).config.plugins
+            .enabledPlugins[id],
+        ).toBe(false);
+      }
+      expect(await readFile(userConfigPath, "utf8")).toBe(user);
+      expect(await readFile(projectConfigPath, "utf8")).toBe(project);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["zcodium.json", ".zcodium/config.json", "explicit-project.json"])(
     "restricts project runtime parameters while retaining extension settings in %s",
     async (fileName) => {
       const root = await mkdtemp(join(tmpdir(), "zcode-project-runtime-boundary-"));
-      const userPath = join(root, ".zcode", "cli", "config.json");
+      const userPath = join(root, ".zcodium", "cli", "config.json");
       const projectPath = join(root, fileName);
       const skillPath = join(root, "skills", "demo", "SKILL.md");
       const commandPath = join(root, "commands", "demo.md");
@@ -74,7 +162,7 @@ describe("config adapters", () => {
         vi.stubEnv("HOME", root);
         vi.stubEnv("USERPROFILE", root);
         await mkdir(join(root, ".git"));
-        await mkdir(join(root, ".zcode", "cli"), { recursive: true });
+        await mkdir(join(root, ".zcodium", "cli"), { recursive: true });
         await writeFile(userPath, JSON.stringify(userConfig));
         await writeFile(projectPath, JSON.stringify(projectConfig));
         const baseline = createConfig({ env: {}, userConfigPath: userPath });
@@ -127,7 +215,7 @@ describe("config adapters", () => {
 
   it("ignores invalid project runtime fields before validating extension settings", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-project-runtime-invalid-"));
-    const projectPath = join(root, "zcode.json");
+    const projectPath = join(root, "zcodium.json");
     const skillPath = join(root, "SKILL.md");
     try {
       await mkdir(join(root, ".git"));
@@ -303,10 +391,10 @@ describe("config adapters", () => {
   it("deep merges Workspace Plugin enablement and options over User config", async () => {
     const dir = await mkdtemp(join(tmpdir(), "zcode-config-workspace-plugins-"));
     const userPath = join(dir, "user.json");
-    const workspacePath = join(dir, ".zcode", "config.json");
+    const workspacePath = join(dir, ".zcodium", "config.json");
 
     try {
-      await mkdir(join(dir, ".zcode"), { recursive: true });
+      await mkdir(join(dir, ".zcodium"), { recursive: true });
       await writeFile(
         userPath,
         JSON.stringify({
@@ -383,14 +471,14 @@ describe("config adapters", () => {
     }
   });
 
-  it.each(["zcode.json", ".zcode/config.json", "explicit-project.json"])(
+  it.each(["zcodium.json", ".zcodium/config.json", "explicit-project.json"])(
     "ignores plugin directories from project config %s",
     async (fileName) => {
       const dir = await mkdtemp(join(tmpdir(), "zcode-project-plugin-dirs-"));
       const projectConfigPath = join(dir, fileName);
       try {
         await mkdir(join(dir, ".git"));
-        await mkdir(join(dir, ".zcode"));
+        await mkdir(join(dir, ".zcodium"));
         await writeFile(
           projectConfigPath,
           JSON.stringify({ plugins: { dirs: ["./plugin", join(dir, "absolute-plugin")] } }),
@@ -1286,6 +1374,7 @@ describe("config adapters", () => {
     const logDir = join(dir, "log");
     const path = join(dir, "config.json");
 
+    const loggerFactory = createNodeLoggerFactory({ logDir });
     try {
       await writeFile(
         path,
@@ -1313,6 +1402,7 @@ describe("config adapters", () => {
       const result = loadFileConfig(path);
       const merged = createConfig({
         env: { ZCODE_LOG_DIR: logDir },
+        loggerFactory,
         userConfigPath: path,
       });
 
@@ -1336,20 +1426,20 @@ describe("config adapters", () => {
       expect(merged.config.plugins.enabledPlugins["android-emulator@zcode-plugins-official"]).toBe(
         true,
       );
-      await expect(readLogEntries(logDir)).resolves.toEqual([
+      await loggerFactory.flush();
+      const entries = await readLogEntries(loggerFactory.getLogDir());
+      expect(entries).toEqual([
         expect.objectContaining({
-          event: "config.mcp_server.skipped",
-          level: "warn",
-          message: "MCP server config skipped",
-          module: "adapters.config",
-          context: expect.objectContaining({
-            configPath: path,
-            configScope: "user",
-            diagnosticCode: "config_mcp_server_invalid",
-            diagnosticPath: "mcp.servers.broken",
+          level: "WARN",
+          diagnostic: expect.objectContaining({
+            name: "log",
+            status: "error",
+            errorCategory: "validation",
           }),
         }),
       ]);
+      expect(JSON.stringify(entries)).not.toContain(path);
+      expect(JSON.stringify(entries)).not.toContain("diagnosticMessage");
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
@@ -1358,8 +1448,9 @@ describe("config adapters", () => {
   it("reports invalid discovered project config diagnostics", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-project-config-"));
     const logDir = join(root, "log");
-    const projectConfigPath = join(root, "zcode.json");
+    const projectConfigPath = join(root, "zcodium.json");
 
+    const loggerFactory = createNodeLoggerFactory({ logDir });
     try {
       await mkdir(join(root, ".git"));
       await writeFile(
@@ -1373,6 +1464,7 @@ describe("config adapters", () => {
 
       const result = createConfig({
         env: { ZCODE_LOG_DIR: logDir },
+        loggerFactory,
         skipUserConfig: true,
         workingDirectory: root,
       });
@@ -1385,19 +1477,20 @@ describe("config adapters", () => {
           severity: "error",
         }),
       ]);
-      await expect(readLogEntries(logDir)).resolves.toEqual([
+      await loggerFactory.flush();
+      const entries = await readLogEntries(loggerFactory.getLogDir());
+      expect(entries).toEqual([
         expect.objectContaining({
-          event: "config.file.invalid",
-          level: "warn",
-          message: "Config file failed to load",
-          module: "adapters.config",
-          context: expect.objectContaining({
-            configPath: projectConfigPath,
-            configScope: "project",
-            diagnosticCode: "config_file_invalid",
+          level: "WARN",
+          diagnostic: expect.objectContaining({
+            name: "log",
+            status: "error",
+            errorCategory: "validation",
           }),
         }),
       ]);
+      expect(JSON.stringify(entries)).not.toContain(projectConfigPath);
+      expect(JSON.stringify(entries)).not.toContain("diagnosticMessage");
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -1411,7 +1504,7 @@ describe("config adapters", () => {
       await mkdir(join(root, ".git"));
       await mkdir(cwd, { recursive: true });
       await writeFile(
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         JSON.stringify({
           mcp: {
             servers: {
@@ -1433,7 +1526,7 @@ describe("config adapters", () => {
       });
 
       expect(result.sources.project.loaded).toBe(true);
-      expect(result.sources.project.paths).toEqual([join(root, "zcode.json")]);
+      expect(result.sources.project.paths).toEqual([join(root, "zcodium.json")]);
       expect(result.sources.project.mcpServerNames).toEqual(["project"]);
       expect(result.config.mcp.servers.project).toMatchObject({
         type: "stdio",
@@ -1448,13 +1541,13 @@ describe("config adapters", () => {
   it("merges project configs from root to cwd with nearest config winning", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-project-config-"));
     const cwd = join(root, "packages", "app");
-    const cwdConfigDir = join(cwd, ".zcode");
+    const cwdConfigDir = join(cwd, ".zcodium");
 
     try {
       await mkdir(join(root, ".git"));
       await mkdir(cwdConfigDir, { recursive: true });
       await writeFile(
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         JSON.stringify({
           mcp: {
             servers: {
@@ -1487,7 +1580,7 @@ describe("config adapters", () => {
       });
 
       expect(result.sources.project.paths).toEqual([
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         join(cwdConfigDir, "config.json"),
       ]);
       expect(result.config.mcp.servers.project).toMatchObject({
@@ -1508,7 +1601,7 @@ describe("config adapters", () => {
       await mkdir(join(root, ".git"));
       await mkdir(join(root, "home"), { recursive: true });
       await writeFile(
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         JSON.stringify({
           mcp: {
             servers: {
@@ -1579,7 +1672,7 @@ describe("config adapters", () => {
       await mkdir(join(root, ".git"), { recursive: true });
       await mkdir(cwd, { recursive: true });
       await writeFile(
-        join(parent, "zcode.json"),
+        join(parent, "zcodium.json"),
         JSON.stringify({
           mcp: {
             servers: {
@@ -1611,7 +1704,7 @@ describe("config adapters", () => {
     try {
       await mkdir(join(root, ".git"));
       await writeFile(
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         JSON.stringify({
           features: {
             mcp: true,
@@ -1693,9 +1786,9 @@ describe("config adapters", () => {
 
     try {
       await mkdir(join(root, ".git"));
-      await mkdir(join(root, ".zcode"), { recursive: true });
+      await mkdir(join(root, ".zcodium"), { recursive: true });
       await writeFile(
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         JSON.stringify({
           hooks: {
             enabled: true,
@@ -1711,7 +1804,7 @@ describe("config adapters", () => {
         }),
       );
       await writeFile(
-        join(root, ".zcode", "config.json"),
+        join(root, ".zcodium", "config.json"),
         JSON.stringify({
           hooks: {
             enabled: true,
@@ -1739,7 +1832,10 @@ describe("config adapters", () => {
           (diagnostic) => diagnostic.code === "config_project_hooks_pending_trust",
         ),
       ).toHaveLength(2);
-      for (const configPath of [join(root, "zcode.json"), join(root, ".zcode", "config.json")]) {
+      for (const configPath of [
+        join(root, "zcodium.json"),
+        join(root, ".zcodium", "config.json"),
+      ]) {
         expect(result.sources.project.diagnostics).toContainEqual(
           expect.objectContaining({
             code: "config_project_hooks_pending_trust",
@@ -1763,7 +1859,7 @@ describe("config adapters", () => {
 
     try {
       await mkdir(join(root, ".git"));
-      await mkdir(join(root, ".zcode"), { recursive: true });
+      await mkdir(join(root, ".zcodium"), { recursive: true });
       await writeFile(
         userConfigPath,
         JSON.stringify({
@@ -1781,7 +1877,7 @@ describe("config adapters", () => {
         }),
       );
       await writeFile(
-        join(root, ".zcode", "config.json"),
+        join(root, ".zcodium", "config.json"),
         JSON.stringify({
           hooks: {
             enabled: true,

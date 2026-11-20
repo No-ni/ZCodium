@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { sqliteMigrations } from "@zcode/shared/sqlite-migrations";
-import { SQLITE_MIGRATIONS } from "../src/storage/session-store/migrations.js";
+import { SESSION_DATABASE_MIGRATIONS } from "../src/storage/session-store/migration-contract.js";
 
 function hashes(db: DatabaseSync) {
   return new Map(
@@ -38,7 +38,7 @@ function seedBase(db: DatabaseSync) {
 }
 
 describe("each CLI migration writes only its declared tables", () => {
-  it.each(SQLITE_MIGRATIONS.map((migration, index) => ({ migration, index })))(
+  it.each(SESSION_DATABASE_MIGRATIONS.map((migration, index) => ({ migration, index })))(
     "$migration.id",
     async ({ migration, index }) => {
       const directory = await mkdtemp(join(tmpdir(), "migration-boundary-"));
@@ -55,13 +55,22 @@ describe("each CLI migration writes only its declared tables", () => {
           appliedAtColumn: "time_applied",
         } as const;
         if (index > 0) {
-          await sqliteMigrations.migrate(db, SQLITE_MIGRATIONS.slice(0, 1), options);
+          await sqliteMigrations.migrate(db, SESSION_DATABASE_MIGRATIONS.slice(0, 1), options);
           seedBase(db);
           if (index > 1)
-            await sqliteMigrations.migrate(db, SQLITE_MIGRATIONS.slice(1, index), options);
+            await sqliteMigrations.migrate(
+              db,
+              SESSION_DATABASE_MIGRATIONS.slice(0, index),
+              options,
+            );
         }
         const before = hashes(db);
-        await sqliteMigrations.migrate(db, [migration], options);
+        // runner 校验完整既有 ledger；提供累积清单，只执行当前尚未应用的迁移，不能用单步跳过历史。
+        await sqliteMigrations.migrate(
+          db,
+          SESSION_DATABASE_MIGRATIONS.slice(0, index + 1),
+          options,
+        );
         const after = hashes(db);
         const changed = [...new Set([...before.keys(), ...after.keys()])].filter(
           (table) => before.get(table) !== after.get(table),

@@ -2,7 +2,7 @@
 // 从 ConversationHost.tsx 拆出：几何测量、拖拽会话、焦点与菜单状态都留在父组件，这里只按 props
 // 渲染同一棵 DOM——不建状态、不调服务、不反向引用父文件，事件顺序与 DOM 结构逐字不变。
 import type { FocusEventHandler, PointerEventHandler, ReactNode, RefObject } from "react";
-import { GripVerticalIcon, LoaderIcon, Maximize2Icon, MinusIcon, XIcon } from "lucide-react";
+import { GripVerticalIcon, LoaderCircle, Maximize2Icon, MinusIcon, XIcon } from "lucide-react";
 import {
   TID_SIDE_PANE_FULL_VIEW_ANSWER_BUBBLE,
   TID_SIDE_PANE_FULL_VIEW_ANSWER_BUBBLE_CLOSE,
@@ -220,7 +220,7 @@ export function ConversationHostFrame({
                     title={statusLabel}
                     className="flex size-6 items-center justify-center"
                   >
-                    <LoaderIcon
+                    <LoaderCircle
                       className="size-4 animate-spin text-foreground-subtle"
                       aria-hidden="true"
                     />

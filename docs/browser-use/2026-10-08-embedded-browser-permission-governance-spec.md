@@ -54,13 +54,13 @@ guest 页面发起请求
 
 ## 权限分级表
 
-| 级别 | 权限 | 记忆策略 |
-|---|---|---|
-| 静默放行 | `clipboard-sanitized-write`、`fullscreen`、`pointerLock`、`mediaKeySystem` | 无 |
-| 弹窗 A：确认气泡 | `media`（按 `details.mediaTypes` 标明摄像头/麦克风）、`clipboard-read`、`geolocation`、`notifications`、`midi`、`midiSysex`、`idle-detection`、`speaker-selection`、`window-management`、`storage-access`、`top-level-storage-access`、`keyboardLock`、`fileSystem` | 见弹窗 A 四态 |
-| 弹窗 B：源选择器 | `display-capture`（屏幕共享） | 每次询问，不记住 |
-| 弹窗 C：设备选择器 | `hid` / `usb` / `serial` / 蓝牙 | 每次询问，不记住 |
-| 显式拒绝 | `openExternal`（外部协议开窗已有独立的"默认浏览器打开"路由）、`unknown`、`deprecated-sync-clipboard-read` | — |
+| 级别               | 权限                                                                                                                                                                                                                                                                | 记忆策略         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 静默放行           | `clipboard-sanitized-write`、`fullscreen`、`pointerLock`、`mediaKeySystem`                                                                                                                                                                                          | 无               |
+| 弹窗 A：确认气泡   | `media`（按 `details.mediaTypes` 标明摄像头/麦克风）、`clipboard-read`、`geolocation`、`notifications`、`midi`、`midiSysex`、`idle-detection`、`speaker-selection`、`window-management`、`storage-access`、`top-level-storage-access`、`keyboardLock`、`fileSystem` | 见弹窗 A 四态    |
+| 弹窗 B：源选择器   | `display-capture`（屏幕共享）                                                                                                                                                                                                                                       | 每次询问，不记住 |
+| 弹窗 C：设备选择器 | `hid` / `usb` / `serial` / 蓝牙                                                                                                                                                                                                                                     | 每次询问，不记住 |
+| 显式拒绝           | `openExternal`（外部协议开窗已有独立的"默认浏览器打开"路由）、`unknown`、`deprecated-sync-clipboard-read`                                                                                                                                                           | —                |
 
 未在上表中的任何 permission 字符串一律显式拒绝并打 warn 日志（fail-closed，防 Electron 后续版本新增枚举）。
 
@@ -89,11 +89,11 @@ guest 页面发起请求
 2026-10-08 实测定稿：不做「永久阻止」按钮——误点后站点异常难以自愈，持久 deny 只保留在
 站点权限设置里管理（弹窗层不提供）。✕ 关闭与「不允许」同为本次拒绝不记忆。
 
-| 操作 | 语义 | 存储 |
-|---|---|---|
-| 访问此网站时允许 | 持久放行，之后不再询问 | 持久层 `origin+permission → allow` |
-| 仅本次允许 | 本次应用运行期间放行，重启失效 | main 内存 `Map<origin, Set<permission>>` |
-| 不允许 / 20s 超时 | 本次拒绝，不记忆，下次再弹 | 无 |
+| 操作              | 语义                           | 存储                                     |
+| ----------------- | ------------------------------ | ---------------------------------------- |
+| 访问此网站时允许  | 持久放行，之后不再询问         | 持久层 `origin+permission → allow`       |
+| 仅本次允许        | 本次应用运行期间放行，重启失效 | main 内存 `Map<origin, Set<permission>>` |
+| 不允许 / 20s 超时 | 本次拒绝，不记忆，下次再弹     | 无                                       |
 
 ### B. 源选择器 Dialog（屏幕共享）
 
@@ -124,6 +124,7 @@ guest 页面发起请求
 - **页面能力**：展示该站点在 main 持久层已记录的各权限状态，逐项可设为 询问/允许/阻止（询问即删除记录回到每次询问）；支持整站重置（main 侧 `resetSite(origin)`，清除该 origin 全部持久决定）；「仅本次」临时态不展示（与设置页区块口径一致）。
 - **数据源唯一**：读写全部经 main 站点权限 store（`getEmbeddedBrowserSitePermissions` / `setEmbeddedBrowserSitePermission` / `resetEmbeddedBrowserSitePermission`），页面持有独立的读取失败/写入失败状态与显式重试，不推测修改后的授权，不加授权缓存、自动重试或操作队列。
 - 地址栏 URL 非编辑态居中，聚焦编辑时左对齐并隐藏左侧图标。
+- 窄面板（地址栏宽度不足 9rem，如 Windows 1280 屏 150% 缩放）：地址栏用小内边距、隐藏左侧滑杆入口，同一入口改在浏览器工具栏「更多」菜单里以「站点权限」出现，点它直接进入同一个设置标签页；宽面板地址栏里有入口，菜单里不重复。仅 http / https 页面有此项。
 
 ## 整合决策记录（2026-10-09）
 
@@ -179,13 +180,13 @@ sequenceDiagram
 
 `qa-fix-20261107-browser-retry` 已确认 Main 默认拒绝生效，但设置页缺少权限控件，通知请求未出现产品气泡。当前 shared 与 client 已声明六个权限接口，Main 也已注册对应数据 IPC 与回执 listener；Desktop platform adapter 和宿主 preload 未提供它们。站点 hook 因此判定 `supported=false`，气泡组件无法订阅申请事件。恢复既有契约只补平台委托，不新增授权状态、IPC channel、UI 状态源或设备能力。
 
-| 既有平台接口 | 宿主 preload 使用的既有 channel / 操作 |
-| --- | --- |
-| `getEmbeddedBrowserSitePermissions()` | `GetEmbeddedBrowserSitePermissions` / `ipcRenderer.invoke` |
-| `setEmbeddedBrowserSitePermission(request)` | `SetEmbeddedBrowserSitePermission` / `ipcRenderer.invoke` |
-| `clearEmbeddedBrowserSitePermissions()` | `ClearEmbeddedBrowserSitePermissions` / `ipcRenderer.invoke` |
-| `resetEmbeddedBrowserSitePermission({ origin })` | `ResetEmbeddedBrowserSitePermission` / `ipcRenderer.invoke` |
-| `onEmbeddedBrowserPermissionPrompt(handler)` | `EmbeddedBrowserPermissionPrompt` / `ipcRenderer.on`，disposer 移除同一 handler |
+| 既有平台接口                                      | 宿主 preload 使用的既有 channel / 操作                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `getEmbeddedBrowserSitePermissions()`             | `GetEmbeddedBrowserSitePermissions` / `ipcRenderer.invoke`                             |
+| `setEmbeddedBrowserSitePermission(request)`       | `SetEmbeddedBrowserSitePermission` / `ipcRenderer.invoke`                              |
+| `clearEmbeddedBrowserSitePermissions()`           | `ClearEmbeddedBrowserSitePermissions` / `ipcRenderer.invoke`                           |
+| `resetEmbeddedBrowserSitePermission({ origin })`  | `ResetEmbeddedBrowserSitePermission` / `ipcRenderer.invoke`                            |
+| `onEmbeddedBrowserPermissionPrompt(handler)`      | `EmbeddedBrowserPermissionPrompt` / `ipcRenderer.on`，disposer 移除同一 handler        |
 | `resolveEmbeddedBrowserPermissionPrompt(request)` | `EmbeddedBrowserPermissionResolve` / `ipcRenderer.send`；Main 保留实际宿主 sender 校验 |
 
 Desktop renderer 的 `desktopBrowserPlatformBridge` 经现有 `createDesktopPlatform` 合并进入 `IPlatformService`。六方法仅在对应 `window.zcode` 能力存在时提供，旧 preload 缺能力时保持 `undefined`；不能用空快照、空 disposer 或成功 fallback 伪造支持。数据 IPC 的实际 Promise、返回快照及拒绝继续交给既有 hook；adapter 不缓存授权、不吞错，不记录载荷、origin、路径或原始错误。宿主 preload 只通过已有 `contextBridge` API 暴露这六方法，guest 网页仍不能直接读写站点授权或提交用户决策。
@@ -220,12 +221,12 @@ sequenceDiagram
 
 ## 兼容性影响面（已逐项验证）
 
-| 链路 | 影响 |
-|---|---|
-| agent browser-use（CDP 截图、虚拟剪贴板） | 零影响——截图走 `Page.captureScreenshot`，粘贴走合成 `ClipboardEvent` + `execCommand`（`browserVirtualClipboardPageScript.ts`），均不触发 permission |
-| 网页复制按钮 / DRM 视频站 / 网页全屏 | 不受影响（白名单） |
-| `window.open` / 新标签路由 / 「默认浏览器打开」 | 不受影响（已有 `setWindowOpenHandler` 独立机制） |
-| 屏幕共享 | 从静默失败变为弹窗可控可用，由源选择器把关 |
+| 链路                                            | 影响                                                                                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agent browser-use（CDP 截图、虚拟剪贴板）       | 零影响——截图走 `Page.captureScreenshot`，粘贴走合成 `ClipboardEvent` + `execCommand`（`browserVirtualClipboardPageScript.ts`），均不触发 permission |
+| 网页复制按钮 / DRM 视频站 / 网页全屏            | 不受影响（白名单）                                                                                                                                  |
+| `window.open` / 新标签路由 / 「默认浏览器打开」 | 不受影响（已有 `setWindowOpenHandler` 独立机制）                                                                                                    |
+| 屏幕共享                                        | 从静默失败变为弹窗可控可用，由源选择器把关                                                                                                          |
 
 ## 测试要求
 
@@ -233,7 +234,7 @@ sequenceDiagram
   `executeJavaScript` 会等待返回的 Promise；发起 `getUserMedia` 时使用 `void`，避免测试自身等待用户决策而无法点击。
   顺序：发起请求 -> 确认条可见 -> 点击允许/拒绝 -> 断言结果与二次请求行为。
 
-- 单测：决策表全枚举（白名单/记录命中/无记录无弹窗能力时拒绝/未知权限 fail-closed）、check 与 request 一致性、持久层读写与原子写、sessionAllow 生命周期、inflight 去重、20s 超时拒绝、select-* 与 displayMedia 的拒绝回调。
+- 单测：决策表全枚举（白名单/记录命中/无记录无弹窗能力时拒绝/未知权限 fail-closed）、check 与 request 一致性、持久层读写与原子写、sessionAllow 生命周期、inflight 去重、20s 超时拒绝、select-\* 与 displayMedia 的拒绝回调。
 - e2e（desktop e2e）：确认气泡出现 → 三种按钮 + ✕ 各自的页面侧结果与二次请求行为；重启后持久记忆生效；设置页改状态后生效；源选择器选源后 `getDisplayMedia` 成功、取消失败；`requestDevice` 弹设备选择器，负向断言"未选择设备时不再静默授权第一个设备"。
 
 ### 权限查询与请求的 origin 一致性

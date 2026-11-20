@@ -1,6 +1,7 @@
-import type { ModelUsageSummary, TodoItem, TurnId } from "@zcode/contracts";
-import { getZCodeCopy } from "@zcode/i18n";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useTuiRuntimeBindings } from "./app-runtime-bindings.js";
+import { useTuiProjectionState } from "./app-projection-state.js";
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppView } from "./app-view.js";
 import { syncTextareaValue, type PromptInputEditor } from "./app-input-pane.js";
 import { useLocalQuit } from "./app-quit.js";
@@ -9,7 +10,7 @@ import { useClipboardImagePaste } from "./app-clipboard-image.js";
 import { useFileMentionController } from "./app-file-mentions.js";
 import { useTuiKeyboardControls } from "./app-keyboard.js";
 import { useTuiModeSwitcher } from "./app-mode.js";
-import { appendAgentResult } from "./app-submit.js";
+
 import { useSubmitValue } from "./app-submit-controller.js";
 import { filterSlashCommands, reconcileSlashSelection } from "./app-input.js";
 import { useEffortCommandController } from "./app-effort-command.js";
@@ -17,23 +18,13 @@ import { useInputHistory } from "./app-input-history.js";
 import { useModeCommandController } from "./app-mode-command.js";
 import { useModelCommandController } from "./app-model-command.js";
 import { useSidebarController } from "./app-sidebar-layout.js";
-import { createSelectionState } from "./app-selection-state.js";
+
 import { useComposerSubmittedText } from "./app-submit-resolver.js";
-import type {
-  CacheStats,
-  ContextUsage,
-  DraftAttachment,
-  Message,
-  ModifiedFileStat,
-  NetworkRequest,
-  QueuedInput,
-  SelectionState,
-  SlashSelectionState,
-} from "./app-model.js";
+import type { DraftAttachment } from "./app-model.js";
 import { useTuiThemeSync } from "./app-theme-sync.js";
-import { useSessionEventApplier } from "./app-session-event-handler.js";
+
 import { useTuiWorkflowRuns } from "./app-workflow-controller.js";
-import { useTuiApplyResult } from "./app-result.js";
+
 import { useSubagents } from "./app-subagents.js";
 import type { TuiOptions } from "./types.js";
 
@@ -50,49 +41,50 @@ export function TuiApp({
   onExit,
   options,
 }: TuiAppProps): React.ReactElement {
-  // Startup sentinels are diagnostics, not user-visible transcript messages.
-  const initialResult = options.initialResult;
   useTuiThemeSync(options);
-  const [messages, setMessages] = useState<Message[]>(() =>
-    initialResult
-      ? appendAgentResult([], initialResult, { workspaceDirectory: options.workspaceDirectory })
-      : [],
-  );
-  const [draft, setDraftState] = useState("");
-  const [, setDraftAttachmentsState] = useState<DraftAttachment[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState(initialResult?.mode ?? options.initialMode ?? "build");
-  const [model, setModel] = useState(initialResult?.model ?? options.initialModel ?? "unknown");
-  const [thoughtLevel, setThoughtLevel] = useState(
-    initialResult?.thoughtLevel ?? options.initialThoughtLevel ?? "",
-  );
-  const [locale, setLocale] = useState(options.locale ?? "en-US");
-  const [lastEvent, setLastEvent] = useState("idle");
-  const [lastError, setLastError] = useState<string | undefined>();
-  const copy = useMemo(() => getZCodeCopy(locale), [locale]);
-  const [modelSetupRequired, setModelSetupRequired] = useState(
-    initialResult?.modelSetupRequired ?? options.modelSetupRequired ?? false,
-  );
-  const [status, setStatus] = useState(
-    initialResult?.selection?.prompt ??
-      (modelSetupRequired ? copy.tui.modelSetupRequired.status : copy.tui.status.ready),
-  );
-  const [statusDetails, setStatusDetails] = useState<string[]>([]);
-  const [traceId, setTraceId] = useState<string | undefined>();
-  const [activeTurnId, setActiveTurnId] = useState<TurnId | undefined>();
-  const [contextUsage, setContextUsage] = useState<ContextUsage>({});
-  const [cacheStats, setCacheStats] = useState<CacheStats | undefined>();
-  const [usage, setUsage] = useState<ModelUsageSummary | undefined>();
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
-  const [modifiedFiles, setModifiedFiles] = useState<ModifiedFileStat[]>([]);
-  const [liveModelText, setLiveModelText] = useState("");
-  const [queuedInputs, setQueuedInputs] = useState<QueuedInput[]>([]);
-  const [selection, setSelection] = useState<SelectionState | undefined>(() =>
-    createSelectionState(initialResult?.selection),
-  );
-  const [slashSelection, setSlashSelection] = useState<SlashSelectionState | undefined>();
-  const [inputCursorToEndVersion, setInputCursorToEndVersion] = useState(0);
+  const projection = useTuiProjectionState(options);
+  const {
+    initialResult,
+    copy,
+    messages,
+    setMessages,
+    draft,
+    setDraftState,
+    setDraftAttachmentsState,
+    busy,
+    setBusy,
+    mode,
+    setMode,
+    model,
+    thoughtLevel,
+    locale,
+    lastEvent,
+    lastError,
+    setLastError,
+    modelSetupRequired,
+    status,
+    setStatus,
+    statusDetails,
+    setStatusDetails,
+    traceId,
+    activeTurnId,
+    contextUsage,
+    cacheStats,
+    usage,
+    todos,
+    networkRequests,
+    modifiedFiles,
+    liveModelText,
+    setLiveModelText,
+    queuedInputs,
+    setQueuedInputs,
+    selection,
+    setSelection,
+    slashSelection,
+    setSlashSelection,
+    inputCursorToEndVersion,
+    setInputCursorToEndVersion,
+  } = projection;
   // dwf 运行态镜像：共享 reducer 逐事件维护 + 冷启动一次性补种，无第二时钟。
   const workflowRuns = useTuiWorkflowRuns({ copy: copy.tui, options, setMessages });
   const sidebar = useSidebarController();
@@ -119,7 +111,9 @@ export function TuiApp({
     onExit,
     setStatus,
   });
-  const { approvalQueue, setApprovalQueue, isExitRequested, slashCommands } = localQuit;
+  // 合并后的后台审批仍复用本地退出 owner，避免挂载入口引用缺失或另建审批队列。
+  const { approvalQueue, setApprovalQueue, isExitRequested, slashCommands, requestPermission } =
+    localQuit;
   const [effortOptions, setEffortOptions] = useState<NonNullable<TuiOptions["effortOptions"]>>(
     () => initialResult?.effortOptions ?? options.effortOptions ?? [],
   );
@@ -177,59 +171,22 @@ export function TuiApp({
     [effortCommand, isExitRequested, modeCommand, modelCommand, setDraftAttachments, slashCommands],
   );
 
-  const applyResult = useTuiApplyResult({
-    fallback: { locale, modelSetupRequired, mode, model },
+  const { applyResult, applySessionEvent } = useTuiRuntimeBindings(projection, options, {
     modifiedFileToolCallIds: modifiedFileToolCallIdsRef.current,
-    setActiveTurnId,
-    setCacheStats,
-    setContextUsage,
+    assistantMessageIdsByToolCallId: assistantMessageIdsByToolCallIdRef.current,
+    toolNamesById: toolNamesByIdRef.current,
     setEffortOptions,
-    setLastEvent,
-    setLiveModelText,
-    setLocale,
-    setModelSetupRequired,
-    setMessages,
-    setMode,
-    setModel,
     setModelOptions: modelCommand.setModelOptions,
-    setModifiedFiles,
-    setNetworkRequests,
-    setQueuedInputs,
-    setSelection,
-    setStatus,
-    setThoughtLevel,
-    setTodos,
-    setTraceId,
-    setUsage,
-    workspaceDirectory: options.workspaceDirectory,
+    observeSessionEvent: subagents.onEvent,
+    setWorkflowMirror: workflowRuns.setMirror,
   });
 
-  const applySessionEvent = useSessionEventApplier({
-    subscribeSessionEvents: options.subscribeSessionEvents,
-    observeSessionEvent: subagents.onEvent,
-    copy: copy.tui,
-    getMainSessionId: options.getMainSessionId,
-    setActiveTurnId,
-    setCacheStats,
-    setContextUsage,
-    setLastError,
-    setLastEvent,
-    setLiveModelText,
-    setMessages,
-    setModel,
-    setThoughtLevel,
-    setModifiedFiles,
-    setNetworkRequests,
-    setQueuedInputs,
-    setStatus,
-    setTodos,
-    setUsage,
-    setWorkflowMirror: workflowRuns.setMirror,
-    assistantMessageIdsByToolCallId: assistantMessageIdsByToolCallIdRef.current,
-    modifiedFileToolCallIds: modifiedFileToolCallIdsRef.current,
-    toolNamesById: toolNamesByIdRef.current,
-    workspaceDirectory: options.workspaceDirectory,
-  });
+  const registerPermissionRequester = options.registerPermissionRequester;
+  // 挂载期间审批入口一直有效：主会话回合之外的询问（后台会话、通知驱动的回合）也进同一队列。
+  useEffect(
+    () => registerPermissionRequester?.(requestPermission),
+    [registerPermissionRequester, requestPermission],
+  );
 
   const resolveSubmittedText = useComposerSubmittedText({
     modelCommand,

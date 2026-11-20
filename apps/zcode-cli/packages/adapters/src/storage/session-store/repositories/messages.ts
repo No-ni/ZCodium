@@ -1,17 +1,22 @@
 import type { DatabaseSync } from "node:sqlite";
-import type {
-  MessageId,
-  MessageInfo,
-  MessagePart,
-  MessageWithParts,
-  PartId,
-  SessionId,
-  SessionStorePort,
+import {
+  assistantBlockParts,
+  isAssistantBlockPart,
+  sortByCompleteIndex,
+  type ForkCommitBundle,
+  type MessageId,
+  type MessageInfo,
+  type MessagePart,
+  type MessageWithParts,
+  type PartId,
+  type SessionId,
+  type SessionStorePort,
 } from "@zcode/contracts";
 import { decodeMessageRow, decodePartRow, partCreatedAt } from "../codecs.js";
 import { encodeJson } from "../json.js";
 import type { MessageRow, PartRow } from "../rows.js";
 import { touchSession } from "./sessions.js";
+import { type CopyGroup, addCopy, insertCopies } from "./message-copy-batches.js";
 
 // 只补回旧版快照字段，不合并整个 JSON：递归 merge 会让已清空的 metadata/options 残留。
 function preserveLegacyMembers(table: "message" | "part", keys: readonly string[]): string {
@@ -30,6 +35,7 @@ const MESSAGE_DATA_UPDATE = preserveLegacyMembers("message", [
   "modelID",
   "variant",
 ]);
+
 const PART_DATA_UPDATE = preserveLegacyMembers("part", ["fromModel", "toModel", "model"]);
 
 // on-conflict 的 sequence 规则：
@@ -248,10 +254,10 @@ export function messages(db: DatabaseSync, input: { sessionID: SessionId }): Mes
     partsByMessage.set(row.message_id, list);
   }
 
-  return messageRows.map((row) => ({
-    info: decodeMessageRow(row),
-    parts: partsByMessage.get(row.id) ?? [],
-  }));
+  return messageRows.map((row) => {
+    const info = decodeMessageRow(row);
+    return { info, parts: orderAssistantBlockParts(info, partsByMessage.get(row.id) ?? []) };
+  });
 }
 
 export async function messageWithParts(
@@ -272,8 +278,127 @@ export async function messageWithParts(
       `,
     )
     .all(input.messageID, input.sessionID) as unknown as PartRow[];
-  return {
-    info: decodeMessageRow(messageRow),
-    parts: partRows.map(decodePartRow),
-  };
+  const info = decodeMessageRow(messageRow);
+  return { info, parts: orderAssistantBlockParts(info, partRows.map(decodePartRow)) };
+}
+
+/**
+ * 有序 assistant 消息的块 part 按 blockIndex 稳定排序，消费方（V4 冷恢复、services、fork）拿到流顺序，
+ * 而不是写库顺序（只读工具在流中写库，reasoning/text 在流结束后写库）。
+ * 只在块 part 占用的位置之间重排；step-start、step-finish、file、截图等其他 part 位置不变。
+ * 旧消息保持物理顺序。见 apps/zcode-cli/docs/design/v2/model/assistant-block-order.md。
+ */
+function orderAssistantBlockParts(info: MessageInfo, parts: MessagePart[]): MessagePart[] {
+  if (info.role !== "assistant") return parts;
+  // 块 part 只筛一次，判定和排序共用；有块缺合法序号（旧消息、混合消息）时保持物理顺序。
+  const blockParts = sortByCompleteIndex(assistantBlockParts(parts), (part) => part.blockIndex);
+  if (!blockParts) return parts;
+  let next = 0;
+  return parts.map((part) => (isAssistantBlockPart(part) ? blockParts[next++]! : part));
+}
+
+/** 正文留在 SQLite；仅将既有 fork 规则需要的元数据交给同步规划器。 */
+export function forkSourceMetadata(db: DatabaseSync, sessionID: SessionId): MessageWithParts[] {
+  const messages = db
+    .prepare(`
+    select id, session_id, json_remove(data, '$.summary.body', '$.summary.diffs', '$.system') as data
+    from message where session_id = ?
+    order by sequence is null, sequence, time_created, rowid
+  `)
+    .all(sessionID) as unknown as MessageRow[];
+  // 旧版隐藏提醒的选型判定仍读文本，不能用截断前缀改变既有语义。
+  const parts = db
+    .prepare(`
+    select p.id, p.message_id, p.session_id,
+      case when json_type(p.data, '$.state.attachments') = 'array' then
+        json_set(projected.data, '$.state.attachments', json((
+          select json_group_array(json_remove(value, '$.url'))
+          from json_each(p.data, '$.state.attachments')
+        ))) else projected.data end as data
+    from part p join (
+      select p0.id, json_remove(case when json_extract(m0.data, '$.role') = 'user'
+          and json_extract(m0.data, '$.semantics.kind') = 'system_reminder'
+          and json_extract(m0.data, '$.semantics.uiVisibility') = 'hidden'
+          then p0.data else json_remove(p0.data, '$.text') end,
+        '$.url', '$.state.input', '$.state.output', '$.state.raw', '$.state.error',
+        '$.prompt', '$.description', '$.files', '$.snapshot'
+      ) as data from part p0 join message m0 on m0.id = p0.message_id and m0.session_id = p0.session_id where p0.session_id = ?
+    ) projected on projected.id = p.id
+    where p.session_id = ?
+    order by p.message_id, p.sequence is null, p.sequence, p.time_created, p.id
+  `)
+    .all(sessionID, sessionID) as unknown as PartRow[];
+  const partsByMessage = new Map<string, MessagePart[]>();
+  for (const row of parts) {
+    const part = decodePartRow(row);
+    const list = partsByMessage.get(row.message_id) ?? [];
+    list.push(part);
+    partsByMessage.set(row.message_id, list);
+  }
+  return messages.map((row) => ({
+    info: decodeMessageRow(row),
+    parts: partsByMessage.get(row.id) ?? [],
+  }));
+}
+
+/** 调用方持有 BEGIN IMMEDIATE；严格 INSERT 防止 ID 冲突把其他会话记录改绑到 child。 */
+export function copyForkMessages(
+  db: DatabaseSync,
+  bundle: ForkCommitBundle,
+  source: MessageWithParts[],
+): void {
+  const sources = new Map(source.map((message) => [String(message.info.id), message]));
+  const messageGroups = new Map<string, CopyGroup>();
+  const partGroups = new Map<string, CopyGroup>();
+  const fresh: { message: MessageWithParts; sequence: number }[] = [];
+  const now = Date.now();
+  bundle.messages.forEach((message, sequence) => {
+    const sourceId = bundle.copySources?.messages[message.info.id];
+    if (!sourceId) {
+      fresh.push({ message, sequence });
+      return;
+    }
+    const original = sources.get(sourceId);
+    if (!original) throw new Error("Fork message copy source is not parent-local");
+    addCopy(messageGroups, original.info, message.info, {
+      source: sourceId,
+      id: message.info.id,
+      sequence,
+      created: message.info.time.created,
+      updated:
+        message.info.role === "assistant"
+          ? (message.info.time.completed ?? now)
+          : message.info.time.created,
+    });
+    const originalParts = new Map(original.parts.map((part) => [String(part.id), part]));
+    message.parts.forEach((part, partSequence) => {
+      const partSourceId = bundle.copySources?.parts[part.id];
+      const originalPart = partSourceId && originalParts.get(partSourceId);
+      if (!originalPart) throw new Error("Fork part copy source is not message-local");
+      addCopy(partGroups, originalPart, part, {
+        source: partSourceId,
+        id: part.id,
+        messageId: part.messageID,
+        sequence: partSequence,
+        created: partCreatedAt(part, now),
+        updated: now,
+      });
+    });
+  });
+  insertCopies(db, "message", messageGroups, bundle.child.parentID!, bundle.child.id);
+  insertCopies(db, "part", partGroups, bundle.child.parentID!, bundle.child.id);
+  for (const { message, sequence } of fresh) {
+    // 新建的边界提示没有复制源；显式保留 bundle 顺序，不依赖分组 INSERT 的执行顺序。
+    if (db.prepare("select 1 from message where id = ?").get(message.info.id)) {
+      throw new Error("Fork new message ID already exists");
+    }
+    saveMessage(db, message.info);
+    db.prepare("update message set sequence = ? where id = ?").run(sequence, message.info.id);
+    for (const part of message.parts) {
+      if (db.prepare("select 1 from part where id = ?").get(part.id)) {
+        throw new Error("Fork new part ID already exists");
+      }
+      savePart(db, part);
+    }
+  }
 }

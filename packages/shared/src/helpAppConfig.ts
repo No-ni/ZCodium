@@ -12,6 +12,9 @@ const helpConfigSchema = z.object({
     .object({
       "zh-CN": helpUrlSchema,
       "en-US": helpUrlSchema,
+      "ja-JP": helpUrlSchema,
+      "ru-RU": helpUrlSchema,
+      "ko-KR": helpUrlSchema,
     })
     .optional()
     .catch(undefined),
@@ -27,6 +30,9 @@ export function resolveHelpAppConfig(local: unknown): HelpAppConfig {
     community_urls: {
       "zh-CN": config?.community_urls?.["zh-CN"],
       "en-US": config?.community_urls?.["en-US"],
+      "ja-JP": config?.community_urls?.["ja-JP"],
+      "ru-RU": config?.community_urls?.["ru-RU"],
+      "ko-KR": config?.community_urls?.["ko-KR"],
     },
     feedback_url: config?.feedback_url,
     // 配置缺失不能意外打开旧官方反馈表单。

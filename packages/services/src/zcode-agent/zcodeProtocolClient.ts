@@ -1,25 +1,30 @@
 import {
   zcodeProtocolMethods,
   sessionLifecycleParamsSchema,
+  sessionLifecycleActivationParamsSchema,
+  zcodeRuntimeCapabilitiesSchema,
+  type ZCodeWorkspaceRef,
   sessionLifecycleSnapshotSchema,
   sessionLifecycleResultSchema,
 } from "@zcode/shared";
 import { ZCodeStorageStartupGate } from "#src/zcode-agent/zcodeStorageStartupGate.js";
 import { Emitter } from "@zcode/rpc";
+import { zcodePluginStartupDegradedSchema, zcodeProtocolNotifications } from "@zcode/shared";
 import type { IDisposable } from "@zcode/rpc";
 import type {
-  ZCodeProtocolMethod,
   ZCodeProtocolNotification,
   ZCodeProtocolRequest,
   ZCodeProtocolRequestId,
   ZCodeProtocolTrace,
 } from "@zcode/shared";
-import type { V4Method } from "@zcode/shared/zcode-protocol-v4";
 import type { z } from "zod";
 import type { ZCodeProtocolTransport } from "./zcodeProtocolTransport.js";
-
-/** 客户端可发的方法名：旧 zcodeProtocolMethods + v4/*（并存，收敛为 v4）。 */
-type ZCodeProtocolClientMethod = ZCodeProtocolMethod | V4Method;
+import {
+  type ZCodeProtocolClientMethod,
+  ZCodeProtocolClientError,
+  ZCodeProtocolRequestTimeoutError,
+} from "./zcodeProtocolClientErrors.js";
+export { ZCodeProtocolRequestTimeoutError } from "./zcodeProtocolClientErrors.js";
 
 interface ZCodeProtocolClientOptions {
   requireStorageStartup?: boolean;
@@ -55,28 +60,6 @@ interface ZCodeProtocolClientRequestOptions {
 
 const DEFAULT_ZCODE_PROTOCOL_REQUEST_TIMEOUT_MS = 3 * 60_000;
 
-class ZCodeProtocolClientError extends Error {
-  constructor(
-    message: string,
-    readonly code?: number,
-    readonly data?: unknown,
-  ) {
-    super(message);
-    this.name = "ZCodeProtocolClientError";
-  }
-}
-
-export class ZCodeProtocolRequestTimeoutError extends Error {
-  constructor(
-    readonly method: ZCodeProtocolClientMethod,
-    readonly requestId: ZCodeProtocolRequestId,
-    readonly timeoutMs: number,
-  ) {
-    super(`ZCode Protocol request timed out: ${method}`);
-    this.name = "ZCodeProtocolRequestTimeoutError";
-  }
-}
-
 export class ZCodeProtocolClient implements IDisposable {
   /** 与已连接 workspace 的 CLI 生命周期 owner 通信；此入口不拉起或重启整个进程。 */
   readonly sessionLifecycle = {
@@ -87,14 +70,12 @@ export class ZCodeProtocolClient implements IDisposable {
         sessionLifecycleSnapshotSchema,
         { lifecycle: "observation" },
       ),
-    ensureReady: async (sessionId: string): Promise<void> => {
-      await this.request(
+    ensureReady: (sessionId: string, workspace?: ZCodeWorkspaceRef) =>
+      this.requestSessionActivation(
         zcodeProtocolMethods.sessionLifecycleEnsureReady,
-        sessionLifecycleParamsSchema.parse({ sessionId }),
-        sessionLifecycleResultSchema,
-        { invalidateConnectionOnTimeout: false },
-      );
-    },
+        sessionId,
+        workspace,
+      ),
     stop: async (sessionId: string): Promise<void> => {
       await this.request(
         zcodeProtocolMethods.sessionLifecycleStop,
@@ -103,15 +84,40 @@ export class ZCodeProtocolClient implements IDisposable {
         { invalidateConnectionOnTimeout: false },
       );
     },
-    restart: async (sessionId: string): Promise<void> => {
-      await this.request(
+    restart: (sessionId: string, workspace?: ZCodeWorkspaceRef) =>
+      this.requestSessionActivation(
         zcodeProtocolMethods.sessionLifecycleRestart,
-        sessionLifecycleParamsSchema.parse({ sessionId }),
-        sessionLifecycleResultSchema,
-        { invalidateConnectionOnTimeout: false },
-      );
-    },
+        sessionId,
+        workspace,
+      ),
   };
+
+  private async requestSessionActivation(
+    method:
+      | typeof zcodeProtocolMethods.sessionLifecycleEnsureReady
+      | typeof zcodeProtocolMethods.sessionLifecycleRestart,
+    sessionId: string,
+    workspace?: ZCodeWorkspaceRef,
+  ) {
+    if (workspace) {
+      // 旧 CLI 的严格参数不接受 workspace；不能退回会丢失归属的重启，也不能重启整个进程。
+      const capabilities = await this.request(
+        zcodeProtocolMethods.runtimeCapabilities,
+        {},
+        zcodeRuntimeCapabilitiesSchema,
+        // 能力查询是观察请求，等待超时不能淘汰共享 CLI 连接。
+        { lifecycle: "observation" },
+      );
+      if (!capabilities.sessionLifecycleWorkspace)
+        throw new Error("fault.sessionLifecycle.unsupported");
+    }
+    return this.request(
+      method,
+      sessionLifecycleActivationParamsSchema.parse({ sessionId, workspace }),
+      sessionLifecycleResultSchema,
+      { invalidateConnectionOnTimeout: false },
+    );
+  }
 
   readonly storageStartup: ZCodeStorageStartupGate;
   private readonly pending = new Map<string, PendingRequest<unknown>>();
@@ -138,6 +144,8 @@ export class ZCodeProtocolClient implements IDisposable {
   }
 
   readonly onNotification = this.notificationEmitter.event;
+  /** 当前连接的降级投影；新进程的新连接自然重置，不跨进程保存。 */
+  pluginStartupDegraded = false;
   readonly onRequest = this.requestEmitter.event;
   readonly onRequestTimeout = this.requestTimeoutEmitter.event;
   readonly onPendingRequestsDrained = this.pendingDrainedEmitter.event;
@@ -290,14 +298,14 @@ export class ZCodeProtocolClient implements IDisposable {
     this.transport.dispose();
   }
 
-  async disposeAndWait(): Promise<void> {
+  async disposeAndWait(options?: { deadlineAtMs?: number }): Promise<void> {
     const wasDisposed = this.disposed;
     if (!wasDisposed) {
       this.disposed = true;
       this.disposeLocalResources();
     }
     if (this.transport.disposeAndWait) {
-      await this.transport.disposeAndWait();
+      await this.transport.disposeAndWait(options);
       return;
     }
     if (!wasDisposed) {
@@ -340,6 +348,13 @@ export class ZCodeProtocolClient implements IDisposable {
     }
 
     if ("method" in message) {
+      if (
+        message.method === zcodeProtocolNotifications.pluginStartupDegraded &&
+        zcodePluginStartupDegradedSchema.safeParse((message as ZCodeProtocolNotification).params)
+          .success
+      ) {
+        this.pluginStartupDegraded = true;
+      }
       if (
         message.method === "startup/storageState" &&
         this.storageStartup.accept((message as ZCodeProtocolNotification).params)

@@ -9,7 +9,6 @@ import type {
 import type { ZCodePromptAttachment } from "@zcode/shared";
 import {
   cleanupRemotePromptAttachment,
-  cleanupStaleRemotePromptAttachments,
   materializeRemotePromptAttachments,
 } from "./remotePromptAttachments.js";
 
@@ -17,6 +16,7 @@ interface TransferRecord {
   controller: AbortController;
   ref?: string;
   bytes: number;
+  submissionReserved?: boolean;
 }
 
 type AttachmentScope = Pick<
@@ -41,9 +41,7 @@ export function createRemotePromptAttachmentTransferService(
   const emitters = new Map<string, Emitter<PromptAttachmentTransferProgress>>();
   let disposed = false;
 
-  void cleanupStaleRemotePromptAttachments(backend).catch((error) => {
-    options.onJanitorError?.(error);
-  });
+  // 年龄不能证明附件未被 CLI 接纳；只清理本 owner 明确仍归 composer 的引用。
 
   const getEmitter = (operationId: string) => {
     const existing = emitters.get(operationId);
@@ -59,6 +57,7 @@ export function createRemotePromptAttachmentTransferService(
   };
 
   const cleanupRecord = async (operationId: string, record: TransferRecord) => {
+    if (record.submissionReserved) return;
     // 先使旧操作失效；跨 await 的旧 cleanup 不能删除重试创建的新 record。
     if (records.get(operationId) === record) records.delete(operationId);
     record.controller.abort();
@@ -66,7 +65,7 @@ export function createRemotePromptAttachmentTransferService(
   };
   const cleanup = async (operationId: string) => {
     const record = records.get(operationId);
-    if (record) {
+    if (record && !record.submissionReserved) {
       emitters
         .get(operationId)
         ?.fire({ operationId, phase: "canceled", uploadedBytes: 0, totalBytes: record.bytes });
@@ -86,6 +85,8 @@ export function createRemotePromptAttachmentTransferService(
         throw new Error("Remote attachment scope mismatch");
       }
       const previous = records.get(params.operationId);
+      if (previous?.submissionReserved)
+        throw new Error("Attachment operation is reserved for submission");
       const record: TransferRecord = {
         controller: new AbortController(),
         bytes: Math.max(0, params.sizeBytes ?? 0),
@@ -175,6 +176,15 @@ export function createRemotePromptAttachmentTransferService(
     },
     async adopt(operationId) {
       if (records.get(operationId)?.ref) records.delete(operationId);
+    },
+    async reserveForSubmission(operationId) {
+      const record = records.get(operationId);
+      if (disposed || !record?.ref) throw new Error("Attachment reservation owner unavailable");
+      record.submissionReserved = true;
+    },
+    async releaseSubmissionReservation(operationId) {
+      const record = records.get(operationId);
+      if (record) record.submissionReserved = false;
     },
     cancel: cleanup,
     cleanup,

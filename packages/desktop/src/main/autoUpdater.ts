@@ -18,6 +18,7 @@ import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 import { logger } from "./logger.js";
+import { verifyWindowsAuthenticodeSignature } from "../../scripts/powershell-command.mjs";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
 
 type AutoUpdaterInstance = typeof pkg.autoUpdater;
@@ -129,10 +130,7 @@ let autoUpdaterDisabledForProductFlavor = false;
 
 type SettingServiceLike = Pick<ISettingService, "get" | "update">;
 
-type ReleaseNoteInfoLike = {
-  note?: string | null;
-  version?: string | null;
-};
+type ReleaseNoteInfoLike = { note?: string | null; version?: string | null };
 
 type UpdateDownloadedInfoLike = {
   version: string;
@@ -182,7 +180,32 @@ interface InitAutoUpdaterOptions {
   updateFeedSource?: RuntimeUpdateFeedSource;
 }
 
-let quitAndInstallInFlight = false;
+let quitAndInstallState: "idle" | "preparing" | "installing" | "recovering" = "idle";
+let pendingDownloadedUpdate: { token: CancellationToken; info: UpdateDownloadedInfoLike } | null =
+  null;
+
+function isUpdateTargetLocked(): boolean {
+  return quitAndInstallState !== "idle";
+}
+
+function recoverFromFailedUpdateInstall(): void {
+  if (quitAndInstallState === "recovering") return;
+  // 退出准备已不可逆地关闭 Host/Agent 和远控服务；安装失败不能只清标记留在失效窗口。
+  // 恢复保持终态直到退出，重复原生错误不得重复安排重启。
+  quitAndInstallState = "recovering";
+  logger.warn("[auto-update] install failed after shutdown started: relaunch app");
+  app.relaunch();
+  app.exit(0);
+}
+function isReadyUpdateCurrentTarget(): boolean {
+  return Boolean(
+    readyUpdateVersion &&
+    menuState.kind === "update-downloaded" &&
+    menuState.version === readyUpdateVersion,
+  );
+}
+let recheckAfterDownload: ((reason: string) => void) | null = null;
+let pendingFailedDownloadRecheck = false;
 let devAutoUpdateVersionOverride: string | null = null;
 
 type MutableAutoUpdaterForDev = AutoUpdaterInstance & {
@@ -330,6 +353,12 @@ function completeAutoUpdateCheck(reason: string, checkId: number | null): void {
   settlingAutoUpdateCheckId = null;
 
   const pendingChannel = pendingManifestReleaseChannelRefresh;
+  const shouldRecheckFailedDownload = pendingFailedDownloadRecheck;
+  pendingFailedDownloadRecheck = false;
+  if (shouldRecheckFailedDownload && !pendingChannel && !activeForceAutoUpdateListener) {
+    // 下载失败发生在本次检查收口前。等标记清掉后再查一次，避免复查被进行中的检查直接丢掉。
+    queueMicrotask(() => recheckAfterDownload?.("download-failed"));
+  }
   if (!pendingChannel) {
     return;
   }
@@ -357,6 +386,7 @@ function settleAutoUpdateCheckResult(
   reason: string,
   work: () => Promise<void> | void,
 ): Promise<void> {
+  if (isUpdateTargetLocked()) return Promise.resolve();
   const checkId = activeAutoUpdateCheckId;
   if (!checkForUpdatesInFlight || checkId === null) {
     return Promise.resolve(work());
@@ -457,6 +487,10 @@ function buildDownloadProgressState(
 }
 
 async function quitAndInstallUpdate(rejectUnavailable = false) {
+  if (quitAndInstallState !== "idle") {
+    logger.info("[auto-update] quitAndInstall already in flight");
+    return;
+  }
   if (
     menuState.kind === "update-downloaded" &&
     readyUpdateVersion &&
@@ -479,10 +513,14 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     return;
   }
 
-  if (menuState.kind !== "update-downloaded" || !readyUpdateVersion) {
-    // renderer 可能因为旧 UpdateReady 缓存残留而展示“重启以更新”，
-    // 但 main 在 staging error 后已经清掉 ready。此时不能再执行退出准备或调用
-    // quitAndInstall，否则会杀掉 host 进程却没有安装器接管，表现成按钮没反应。
+  if (
+    menuState.kind !== "update-downloaded" ||
+    !readyUpdateVersion ||
+    !isReadyUpdateCurrentTarget()
+  ) {
+    // 修复原因：renderer 可能因为旧 UpdateReady 缓存残留而展示“重启以更新”，
+    // 但 main 在 staging error 后已经清掉 ready。目标已经换成更高版本时，
+    // 这里也不能安装仍低于目标的旧包。
     logger.warn(`[auto-update] ignore quitAndInstall request: state=${menuState.kind}`);
     if (rejectUnavailable) {
       throw new Error(`Update is not ready to install: state=${menuState.kind}`);
@@ -490,12 +528,27 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     return;
   }
 
-  if (quitAndInstallInFlight) {
-    logger.info("[auto-update] quitAndInstall already in flight");
-    return;
-  }
-  quitAndInstallInFlight = true;
+  // 安装只读取已下载包，不依赖 manifest 请求。立即锁定 ready，迟到检查不能替换它，
+  // 也不能让一次挂起的后台网络请求扣押用户已经选择的安装。
+  quitAndInstallState = "preparing";
   logger.info("[auto-update] user requested quit and install");
+  if (process.platform === "win32" && app.isPackaged) {
+    try {
+      // 6.8.10 命中已下载缓存时跳过下载 hook；在退出服务前复查实际待安装文件。
+      // 读取既有 updater 的安装路径，避免另存一份路径导致 ready 与安装目标不同步。
+      const installerPath = (
+        resolveAutoUpdater() as unknown as { readonly installerPath: string | null }
+      ).installerPath;
+      if (!installerPath) throw new Error("Windows update installer is missing");
+      const failure = await verifyWindowsAuthenticodeSignature(installerPath);
+      if (failure) throw new Error(failure);
+    } catch (error) {
+      quitAndInstallState = "idle";
+      handleAutoUpdateFailure(error, "Windows update signature verification failed");
+      if (rejectUnavailable) throw error;
+      return;
+    }
+  }
   // macOS 上 quitAndInstall() 在关窗前不会先走 app.before-quit。
   // 如果仍然只靠 before-quit 去放行窗口 close，现有的“红绿灯关闭=隐藏窗口”逻辑会把退出拦住，
   // 表现成点击更新后界面消失但进程没退、安装流程也不再继续。
@@ -509,14 +562,22 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
   } catch (error) {
     // 安装前退出准备是释放 host/agent 与 resources/glm 文件锁的硬前置条件。
     // 如果这里失败后仍启动安装器，Windows 可能在资源仍被占用时覆盖安装目录，形成半更新。
-    quitAndInstallInFlight = false;
     handleAutoUpdateFailure(error, "prepare quit and install failed");
+    recoverFromFailedUpdateInstall();
     if (rejectUnavailable) {
       throw error;
     }
     return;
   }
 
+  if (!readyUpdateVersion || !isReadyUpdateCurrentTarget()) {
+    // 后台结果已锁定，只有原生 staging 错误能使 ready 失效。服务已经清理，
+    // 此时不能仅解除标记停留在旧窗口，必须重启恢复 Host/Agent 和远控连接。
+    recoverFromFailedUpdateInstall();
+    return;
+  }
+
+  quitAndInstallState = "installing";
   try {
     if (shouldRelaunchForDevAutoUpdateInstall()) {
       // 开发态只用于验证服务端 manifest、下载进度和安装入口 UI 闭环，
@@ -532,8 +593,13 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     // 模式下可能只创建 powershell.exe，却没有稳定执行到安装器启动，用户看到应用关闭但版本不变。
     // 这里恢复 electron-updater 原生安装入口，避免把“launcher 进程创建成功”误当成更新已接管。
     resolveAutoUpdater().quitAndInstall();
-  } finally {
-    quitAndInstallInFlight = false;
+    // macOS 安装入口会先返回，原生 staging 完成后才异步触发 before-quit。
+    // 成功交接后保留 installing 到进程退出，阻止迟到的检查、下载结果和重复安装命令重新准入。
+  } catch (error) {
+    handleAutoUpdateFailure(error, "quit and install failed");
+    if (rejectUnavailable) {
+      throw error;
+    }
   }
 }
 
@@ -757,10 +823,7 @@ function readSwitchValue(argv: readonly string[], switchName: string): string | 
 }
 
 export function resolveUpdateFeedSourceFromStartupConfig(
-  options: {
-    argv?: readonly string[];
-    env?: Record<string, string | undefined>;
-  } = {},
+  options: { argv?: readonly string[]; env?: Record<string, string | undefined> } = {},
 ): RuntimeUpdateFeedSource | undefined {
   const argv = options.argv ?? process.argv;
   const env = options.env ?? process.env;
@@ -770,9 +833,7 @@ export function resolveUpdateFeedSourceFromStartupConfig(
   }
   // 更新源覆盖仅供开发构建联调;正式包按 isPackaged 忽略,避免更新请求被环境变量/启动参数改道
   if (app.isPackaged) {
-    logger.warn(
-      `[auto-update] ignore update feed override in packaged app: ${redactUpdateFeedUrlForLog(feedUrl)}`,
-    );
+    logger.warn("[auto-update] ignore update feed override in packaged app");
     return undefined;
   }
   return { url: feedUrl };
@@ -800,7 +861,7 @@ async function syncAutoUpdateCheckChannelFromSettings(
   reason: string,
 ): Promise<void> {
   const nextChannel = await resolveUpdateReleaseChannel(settingService);
-  if (activeAutoUpdateCheckId !== checkId) {
+  if (isUpdateTargetLocked() || activeAutoUpdateCheckId !== checkId) {
     return;
   }
 
@@ -827,8 +888,9 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
     ...(manifestUrl ? { manifestUrl } : {}),
     releasePlatform: getElectronReleasePlatform(),
     resolveReleaseChannel: async () => {
-      availableUpdateChannel = await resolveUpdateReleaseChannel(options.settingService);
-      return availableUpdateChannel;
+      const channel = await resolveUpdateReleaseChannel(options.settingService);
+      if (!isUpdateTargetLocked()) availableUpdateChannel = channel;
+      return channel;
     },
   });
   logger.info(
@@ -1049,6 +1111,9 @@ function shouldIgnoreCancelledDownloadError(error: unknown): boolean {
 }
 
 function handleAutoUpdateFailure(error: unknown, source: string) {
+  if (quitAndInstallState === "recovering") return;
+  if (isUpdateTargetLocked() && source.endsWith("check failed")) return;
+  const failedInstall = quitAndInstallState === "installing";
   const message = error instanceof Error ? error.message : String(error);
   const failedDownload =
     menuState.kind === "download-progress"
@@ -1115,6 +1180,7 @@ function handleAutoUpdateFailure(error: unknown, source: string) {
   }
   notifyForceAutoUpdate({ kind: "error", message });
   sendManualCheckResult({ kind: "error", message });
+  if (failedInstall) recoverFromFailedUpdateInstall();
 }
 
 async function isSkippedUpdateVersion(
@@ -1235,9 +1301,7 @@ async function clearSkippedUpdateVersionForManualCheck(
 
     const nextSkippedVersions = { ...skippedVersions };
     delete nextSkippedVersions[channel];
-    await settingService.update({
-      skippedElectronUpdateVersions: nextSkippedVersions,
-    });
+    await settingService.update({ skippedElectronUpdateVersions: nextSkippedVersions });
     logger.info(
       `[auto-update] manual check cleared skipped update channel=${channel} version=${skippedVersion}`,
     );
@@ -1246,7 +1310,50 @@ async function clearSkippedUpdateVersionForManualCheck(
   }
 }
 
-function downloadAvailableUpdate(reason = "renderer") {
+function publishDownloadedUpdate(info: UpdateDownloadedInfoLike): void {
+  readyUpdateVersion = info.version;
+  readyUpdateRestoredFromPendingReleaseNotes = false;
+  readyUpdateChannel = downloadingUpdateChannel ?? availableUpdateChannel;
+  readyUpdateReleaseNotes = toPostUpdateReleaseNotesPayload(info) ?? downloadingUpdateReleaseNotes;
+  clearAvailableUpdateState();
+  clearDownloadingUpdateState();
+  logger.info(`[auto-update] downloaded: ${info.version}, waiting for explicit install`);
+  setAutoUpdaterMenuState(buildUpdateDownloadedState(info.version));
+  notifyForceAutoUpdate({ kind: "ready", version: info.version });
+  if (!activeForceAutoUpdateListener) {
+    recheckAfterDownload?.("download-finished");
+  }
+
+  if (activeForceAutoUpdateListener) {
+    notifyForceAutoUpdate({ kind: "installing" });
+    void quitAndInstallUpdate();
+  }
+
+  if (autoUpdaterSettingService) {
+    const releaseNotesPayload = readyUpdateReleaseNotes;
+    const persistTask = releaseNotesPayload
+      ? persistPendingPostUpdateReleaseNotes(
+          autoUpdaterSettingService,
+          releaseNotesPayload,
+          "update-downloaded",
+        )
+      : clearPendingPostUpdateReleaseNotes(
+          autoUpdaterSettingService,
+          "update-downloaded-without-release-notes",
+        );
+
+    void persistTask.catch(() => {
+      logger.error("[auto-update] persist post-update release notes failed");
+    });
+  }
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    syncReadyUpdateToWindow(win);
+  }
+}
+
+export function downloadAvailableUpdate(reason = "renderer") {
+  if (isUpdateTargetLocked()) return;
   if (!canUseAutoUpdaterInCurrentRuntime()) {
     logger.info(`[auto-update] skip ${reason} download: not packaged`);
     return;
@@ -1286,8 +1393,22 @@ function downloadAvailableUpdate(reason = "renderer") {
 
   const cancellationToken = new CancellationToken();
   downloadCancellationToken = cancellationToken;
-  void resolveAutoUpdater()
+  pendingDownloadedUpdate = null;
+  resolveAutoUpdater()
     .downloadUpdate(cancellationToken)
+    .then(() => {
+      if (downloadCancellationToken !== cancellationToken) return;
+      const downloaded = pendingDownloadedUpdate;
+      pendingDownloadedUpdate = null;
+      downloadCancellationToken = null;
+      if (
+        downloaded?.token === cancellationToken &&
+        !cancellationToken.cancelled &&
+        !isUpdateTargetLocked()
+      ) {
+        publishDownloadedUpdate(downloaded.info);
+      }
+    })
     .catch((error) => {
       if (isCancelledDownload(cancellationToken, error)) {
         logger.info(`[auto-update] ${reason} download cancelled`);
@@ -1300,12 +1421,13 @@ function downloadAvailableUpdate(reason = "renderer") {
     .finally(() => {
       if (downloadCancellationToken === cancellationToken) {
         downloadCancellationToken = null;
+        pendingDownloadedUpdate = null;
       }
       cancellationToken.dispose();
     });
 }
 
-function cancelDownloadingUpdate(reason = "renderer") {
+export function cancelDownloadingUpdate(reason = "renderer") {
   if (activeForceAutoUpdateListener) {
     logger.info(`[auto-update] skip ${reason} cancel download: force update active`);
     return;
@@ -1332,6 +1454,7 @@ function cancelDownloadingUpdate(reason = "renderer") {
     availableUpdateReleaseNotes = releaseNotes;
     availableUpdateChannel = channel;
     setAutoUpdaterMenuState(buildUpdateAvailableState(version, releaseNotes, channel));
+    recheckAfterDownload?.("download-finished");
     return;
   }
 
@@ -1583,6 +1706,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   applyManifestUpdateProvider(options);
 
   const triggerCheckForUpdates = (reason: string) => {
+    if (isUpdateTargetLocked()) return;
     if (checkForUpdatesInFlight) {
       logger.info(`[auto-update] skip ${reason}: check already in flight`);
       return;
@@ -1601,6 +1725,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
     const checkForUpdatesPromise = options.settingService
       ? (async () => {
           await syncAutoUpdateCheckChannelFromSettings(checkId, options.settingService, reason);
+          if (isUpdateTargetLocked()) return;
           await resolveAutoUpdater().checkForUpdates();
         })()
       : resolveAutoUpdater().checkForUpdates();
@@ -1616,12 +1741,25 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
       });
   };
 
+  recheckAfterDownload = (recheckReason: string) => {
+    // 下载失败需要等当前检查收口。完成和取消的结果已经被这次检查覆盖，不再排队。
+    if (checkForUpdatesInFlight) {
+      if (recheckReason === "download-failed") {
+        pendingFailedDownloadRecheck = true;
+      }
+      return;
+    }
+    triggerCheckForUpdates(recheckReason);
+  };
+
   resolveAutoUpdater().on("checking-for-update", () => {
+    if (isUpdateTargetLocked()) return;
     logger.info("[auto-update] checking for update...");
     setAutoUpdaterMenuState({ kind: "checking", enabled: false });
   });
 
   resolveAutoUpdater().on("update-available", (info: UpdateDownloadedInfoLike) => {
+    if (isUpdateTargetLocked()) return;
     logger.info(`[auto-update] new version available: ${info.version}`);
     const infoChannel = readUpdateInfoReleaseChannel(info);
     if (shouldIgnoreStaleAvailableUpdate(infoChannel)) {
@@ -1694,6 +1832,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   });
 
   resolveAutoUpdater().on("update-not-available", (info) => {
+    if (isUpdateTargetLocked()) return;
     void settleAutoUpdateCheckResult("update not available", () => {
       logger.info(
         `[auto-update] already up to date (local=${getCurrentAppVersionForUpdate()}, remote=${info.version})`,
@@ -1708,10 +1847,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
       clearDownloadingUpdateState();
       setAutoUpdaterMenuState({ kind: "idle", enabled: true });
       // 强制升级弹窗复用启动期检查时，也必须在无可用更新时给出闭环反馈，避免一直停在 checking。
-      notifyForceAutoUpdate({
-        kind: "error",
-        message: getForceAutoUpdateNoUpdateMessage(),
-      });
+      notifyForceAutoUpdate({ kind: "error", message: getForceAutoUpdateNoUpdateMessage() });
       sendManualCheckResult({
         kind: "up-to-date",
         currentVersion: getCurrentAppVersionForUpdate(),
@@ -1720,6 +1856,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   });
 
   resolveAutoUpdater().on("download-progress", (progress) => {
+    if (isUpdateTargetLocked()) return;
     // 用户快速取消下载后，electron-updater 可能还会补发旧下载流的 progress。
     // 如果继续接收这个陈旧事件，UI 会从“可更新”被重新推回“下载中”，看起来像取消后卡住。
     if (!downloadCancellationToken || downloadCancellationToken.cancelled) {
@@ -1752,48 +1889,29 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   });
 
   resolveAutoUpdater().on("update-downloaded", (info: UpdateDownloadedInfoLike) => {
-    readyUpdateVersion = info.version;
-    readyUpdateRestoredFromPendingReleaseNotes = false;
-    readyUpdateChannel = downloadingUpdateChannel ?? availableUpdateChannel;
-    readyUpdateReleaseNotes =
-      toPostUpdateReleaseNotesPayload(info) ?? downloadingUpdateReleaseNotes;
-    clearAvailableUpdateState();
-    clearDownloadingUpdateState();
-    logger.info(
-      `[auto-update] downloaded: ${info.version}, ${process.platform === "win32" ? "waiting for explicit install" : "ready to install on quit or explicit install"}`,
-    );
-    setAutoUpdaterMenuState(buildUpdateDownloadedState(info.version));
-    notifyForceAutoUpdate({ kind: "ready", version: info.version });
-
-    if (activeForceAutoUpdateListener) {
-      notifyForceAutoUpdate({ kind: "installing" });
-      void quitAndInstallUpdate();
+    if (isUpdateTargetLocked()) return;
+    if (downloadCancellationToken) {
+      // updater 会在 downloadUpdate Promise 收口前同步发 ready；缓存写入仍可能失败并清包。
+      // 以下载成功为唯一发布点，避免安装依赖无完成保证的在途下载，也避免失败包被提前安装。
+      if (!downloadCancellationToken.cancelled) {
+        pendingDownloadedUpdate = { token: downloadCancellationToken, info };
+      }
+      return;
     }
-
-    if (options.settingService) {
-      const releaseNotesPayload = readyUpdateReleaseNotes;
-      const persistTask = releaseNotesPayload
-        ? persistPendingPostUpdateReleaseNotes(
-            options.settingService,
-            releaseNotesPayload,
-            "update-downloaded",
-          )
-        : clearPendingPostUpdateReleaseNotes(
-            options.settingService,
-            "update-downloaded-without-release-notes",
-          );
-
-      void persistTask.catch((error) => {
-        logger.error("[auto-update] persist post-update release notes failed:", error);
-      });
-    }
-
-    for (const win of BrowserWindow.getAllWindows()) {
-      syncReadyUpdateToWindow(win);
-    }
+    publishDownloadedUpdate(info);
   });
 
-  resolveAutoUpdater().on("error", (err) => {
+  resolveAutoUpdater().on("error", (err, detail: unknown) => {
+    // 带来源的迟到网络失败不能被误认成原生安装失败。
+    if (typeof detail === "string" && detail.startsWith("Cannot check for updates:")) {
+      handleAutoUpdateFailure(err, "background check failed");
+      return;
+    }
+    // 原生安装错误必须交给同一更新 owner；中央检查结算门禁不能吞掉安装失败。
+    if (isUpdateTargetLocked()) {
+      handleAutoUpdateFailure(err, "error");
+      return;
+    }
     if (shouldIgnoreCancelledDownloadError(err)) {
       // electron-updater 在取消下载后可能异步补发 error("cancelled")。
       // 用户取消已经把状态恢复到可重试的 update-available，迟到取消事件不能再清空入口。
@@ -1830,9 +1948,21 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   });
 
   triggerCheckForUpdates("startup");
+  ensureAutoUpdatePollInterval(triggerCheckForUpdates);
+}
 
+function ensureAutoUpdatePollInterval(check: (reason: string) => void): void {
+  // 未配置自有源不登记轮询；初始化重入也不能创建第二个计时器。
+  if (
+    autoUpdatePollTimer ||
+    autoUpdaterDisabledForProductFlavor ||
+    !ZCODIUM_UPDATE_ORIGIN ||
+    !canUseAutoUpdaterInCurrentRuntime()
+  )
+    return;
   autoUpdatePollTimer = setInterval(() => {
-    triggerCheckForUpdates("poll");
+    // 轮询委托初始化时的唯一检查路径，保留 in-flight、目标锁与频道同步门禁。
+    check("poll");
   }, AUTO_UPDATE_POLL_INTERVAL_MS);
   autoUpdatePollTimer.unref?.();
 }

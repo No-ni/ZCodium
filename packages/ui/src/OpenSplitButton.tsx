@@ -1,5 +1,5 @@
 import type { EditorInfo } from "@zcode/shared";
-import { CopyIcon, ExternalLinkIcon, PanelRightIcon } from "lucide-react";
+import { FolderOpenIcon, CopyIcon, ExternalLinkIcon, PanelRightIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast.js";
 import {
@@ -19,6 +19,7 @@ import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { persistLastSelectedEditorId } from "@/lib/editorPreference.js";
+import { getFileManagerLabel } from "@/workspace-file-tree/helpers.js";
 import { getWorkspaceFileRelativePath } from "@/workspace-file-tree/model.js";
 import { resolveWorkspaceEditorSelection } from "@/lib/workspaceEditorSelection.js";
 import { logger } from "@/logger.js";
@@ -66,6 +67,15 @@ export function OpenSplitButton({
   const workspacePath =
     target.type === "file" ? previewSource?.workspacePath : target.workspacePath;
   const canOpenNative = Boolean(platform.canOpenLocalFiles && !isRemoteSource);
+  // 只有落在本机（或 WSL）的文件产物能定位到所在目录：文件卡用自身路径，file:// HTML 用 localPath，
+  // localhost 预览只有映射到本轮写出的本机 HTML 时才带 sourcePath；纯网址没有文件可找。
+  const revealPath = target.type === "file" ? target.path : (target.localPath ?? target.sourcePath);
+  const canReveal = Boolean(revealPath && fileActions.canRevealInFileManager({ path: revealPath }));
+  const fileManagerLabel = getFileManagerLabel(intl);
+  const handleReveal = () => {
+    // macOS / Windows 定位并选中文件；无系统定位能力时 hook 内部回退为打开所在目录。
+    if (revealPath) void fileActions.revealFileInFileManager({ path: revealPath, kind: "file" });
+  };
   const fileApplications = useFileApplications(
     target.type === "file"
       ? { path: target.path, pathKind: "file", workspaceIdentity: previewSource?.workspaceIdentity }
@@ -192,11 +202,7 @@ export function OpenSplitButton({
 
     if (onOpenCodeViewer) {
       onOpenCodeViewer(
-        target.previewSource ?? {
-          type: "file",
-          title: target.title,
-          path: target.path,
-        },
+        target.previewSource ?? { type: "file", title: target.title, path: target.path },
       );
       return;
     }
@@ -275,9 +281,7 @@ export function OpenSplitButton({
       <>
         <Item disabled={!canPreview} onSelect={handlePreview}>
           <PanelRightIcon className="size-4" />
-          {intl.formatMessage({
-            id: "chat.previewCards.previewInSidePane",
-          })}
+          {intl.formatMessage({ id: "chat.previewCards.previewInSidePane" })}
         </Item>
         {target.type === "website" ? (
           <Item onSelect={handleOpenExternal}>
@@ -309,6 +313,12 @@ export function OpenSplitButton({
           />
         )}
         <Separator />
+        {canReveal && (
+          <Item onSelect={handleReveal}>
+            <FolderOpenIcon className="size-4" />
+            {fileManagerLabel}
+          </Item>
+        )}
         {target.type === "website" && (
           <Item onSelect={() => void fileActions.copyAbsolutePath({ path: target.url })}>
             <CopyIcon className="size-4" />
@@ -363,6 +373,9 @@ export function OpenSplitButton({
           canOpenWith={Boolean(
             platform.canOpenLocalFiles && (!isRemoteSource || openInEditorRemoteTarget),
           )}
+          canReveal={canReveal}
+          handleReveal={handleReveal}
+          fileManagerLabel={fileManagerLabel}
           handleOpenExternal={handleOpenExternal}
           handleOpenInEditor={handleOpenInEditor}
           handleOpenDefault={

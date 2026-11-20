@@ -93,10 +93,7 @@ export function createWindowsDesktopTray(options: {
     );
     desktopTray?.setContextMenu(
       Menu.buildFromTemplate([
-        {
-          label: getLabel(desktopMenuMessageIds.trayOpenZCode),
-          click: showTrayWindow,
-        },
+        { label: getLabel(desktopMenuMessageIds.trayOpenZCode), click: showTrayWindow },
         { type: "separator" },
         {
           label: getLabel(desktopMenuMessageIds.fileNewTask),
@@ -125,10 +122,7 @@ export function createWindowsDesktopTray(options: {
           click: () => executeTrayCommand(DesktopCommandIds.ClearAllData),
         },
         { type: "separator" },
-        {
-          label: getLabel(desktopMenuMessageIds.trayQuit),
-          click: () => options.quitApp(),
-        },
+        { label: getLabel(desktopMenuMessageIds.trayQuit), click: () => options.quitApp() },
       ]),
     );
   };

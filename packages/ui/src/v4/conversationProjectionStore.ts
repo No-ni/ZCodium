@@ -32,6 +32,7 @@ export {
   advanceConversationRowsPartition,
 } from "./conversationRowsPartition.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
+import type { SessionLifecycleSnapshot } from "@zcode/shared";
 
 /**
  * runtime 换代打断 subscribe 后的退避节奏。
@@ -52,10 +53,23 @@ const RUNTIME_RECYCLE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
  * 延迟，又能尽快从“CLI 继续工作、订阅完全静默”的半开通道自愈。超时只恢复订阅，不重放命令。
  */
 const ACCEPTED_INPUT_PROJECTION_GRACE_MS = 2_000;
-const ACCEPTED_INPUT_COMMAND_TYPES = new Set(["sendText"]);
+// edit 的 branch cut 后也必须等替换输入；只用原 watchdog 恢复同一投影。
+const ACCEPTED_INPUT_COMMAND_TYPES = new Set(["sendText", "editUserQuery"]);
+export function requiresAcceptedInputProjection(type: string): boolean {
+  return ACCEPTED_INPUT_COMMAND_TYPES.has(type);
+}
 
 /** 退避耗尽时展示给用户的 lastError（无底层 error 对象可引用的换代路径）。 */
 const RUNTIME_RECYCLED_ERROR = "ZCode agent runtime 已被回收，重连未成功";
+
+/** recovery flight 的起因。只由调用点显式给出，不从状态反推，否则日志会把两种原因混成一个。 */
+type RecoveryReason =
+  | "staleAuthority"
+  | "deltasWithoutBase"
+  | "applyGap"
+  | "contentFault"
+  | "assemblyFault"
+  | "acceptedInputSilent";
 
 function monotonicNow(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -114,6 +128,8 @@ export interface OptimisticCommand {
 }
 
 export interface ConversationStoreState {
+  /** CLI lifecycle owner 的独立只读事实；不从 conversation/status 反推。 */
+  runtimeLifecycle: SessionLifecycleSnapshot | null;
   turnDirectory: readonly ConversationTurnDirectoryEntry[] | null;
   turnDirectoryLoading: boolean;
   status: ConversationStoreStatus;
@@ -125,6 +141,13 @@ export interface ConversationStoreState {
   /** Renderer 首帧 timing；与 snapshot 一起通知，避免 UI 读取到半更新的诊断状态。 */
   rendererTiming?: SessionOpenRendererTiming;
   optimisticCommands: readonly OptimisticCommand[];
+  /** 编辑重发期间仅供显示的旧 rows；不参与权威 snapshot、命令或恢复裁决。 */
+  editPresentation: {
+    commandId: string;
+    logEpoch: string;
+    rows: ConversationSnapshot["rows"];
+    errorAt: number | null;
+  } | null;
   /** loadOlder 在途标记（自动预取防重入）。 */
   loadingOlder: boolean;
   /** CLI 完整有效 projection 返回的终态计划目录。 */
@@ -167,6 +190,7 @@ interface HistoryRowsPage {
 }
 
 const INITIAL_STATE: ConversationStoreState = {
+  runtimeLifecycle: null,
   turnDirectory: null,
   turnDirectoryLoading: false,
   status: "connecting",
@@ -175,6 +199,7 @@ const INITIAL_STATE: ConversationStoreState = {
   lastError: null,
   rendererTiming: undefined,
   optimisticCommands: [],
+  editPresentation: null,
   loadingOlder: false,
   sessionPlans: [],
   planDirectoryRevision: 0,
@@ -389,6 +414,7 @@ export class ConversationProjectionStore {
   private readonly offAssemblyFault: () => void;
   private readonly offRuntimeRestart: (() => void) | null = null;
   private readonly offRuntimeLifecycle: (() => void) | null = null;
+  private readonly offSessionLifecycle: (() => void) | null = null;
   private runtimeRecycleRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private runtimeRecycleRetryAttempt = 0;
   private sessionOpenRendererTiming: SessionOpenRendererTiming = {};
@@ -415,6 +441,8 @@ export class ConversationProjectionStore {
     private readonly rowPool: ConversationRowPool = new ConversationRowPool(),
   ) {
     liveProjectionStores.add(this);
+    this.offSessionLifecycle =
+      transport.onSessionLifecycle?.((snapshot) => this.receiveSessionLifecycle(snapshot)) ?? null;
     this.offAssemblyFault = transport.onAssemblyFault((fault) => {
       if (fault.topic === this.topic) {
         this.handleAssemblyFault(fault.subscriptionId, fault.deliveryKind, fault.reasonCode);
@@ -449,6 +477,74 @@ export class ConversationProjectionStore {
     return this.state;
   }
 
+  private receiveSessionLifecycle(snapshot: SessionLifecycleSnapshot): void {
+    if (this.closed || snapshot.sessionId !== parseConversationTopic(this.topic)) return;
+    const previous = this.state.runtimeLifecycle;
+    if (
+      previous &&
+      (snapshot.generation < previous.generation ||
+        (snapshot.generation === previous.generation && snapshot.revision <= previous.revision))
+    )
+      return;
+    this.setState({ runtimeLifecycle: snapshot });
+    if (snapshot.state === "ready") {
+      if (previous && snapshot.generation !== previous.generation && this.state.subscriptionId) {
+        // 缺失中间 stopping 通知也不能把旧订阅当作新实例的执行事实。
+        const oldSubscription = this.state.subscriptionId;
+        this.generation += 1;
+        this.discardRecovery();
+        this.awaitingInitial = null;
+        this.subscriptionHasAppliedBase = false;
+        this.setState({ status: "connecting", subscriptionId: null });
+        void this.transport.unsubscribe(oldSubscription).catch(() => {});
+        if (this.connectInFlight === 0) void this.connect();
+        return;
+      }
+      // 首次 subscribe 自己触发 ready；现有在途请求继续持有唯一订阅资格。
+      if (
+        previous &&
+        previous.state !== "ready" &&
+        this.connectInFlight === 0 &&
+        !this.state.subscriptionId
+      )
+        void this.connect();
+      return;
+    }
+    if (snapshot.state === "starting" && !this.state.subscriptionId) return;
+    // 明确生命周期终止才能废弃旧订阅；旧 rows 仅用于展示，迟到 ACK 由原 generation 守卫退订。
+    this.clearRuntimeRecycleRetry();
+    this.discardRecovery();
+    this.awaitingInitial = null;
+    this.subscriptionHasAppliedBase = false;
+    this.generation += 1;
+    const oldSubscription = this.state.subscriptionId;
+    this.setState({
+      status:
+        snapshot.state === "starting" || snapshot.state === "stopping" ? "connecting" : "error",
+      subscriptionId: null,
+      editPresentation: null,
+      lastError:
+        snapshot.state === "faulted" || snapshot.state === "unloaded"
+          ? `fault.sessionLifecycle.${snapshot.state}`
+          : null,
+    });
+    if (oldSubscription) void this.transport.unsubscribe(oldSubscription).catch(() => {});
+  }
+
+  private readSessionLifecycle(generation: number): void {
+    const sessionId = parseConversationTopic(this.topic);
+    if (!sessionId || !this.transport.getSessionLifecycle) return;
+    void this.transport
+      .getSessionLifecycle(sessionId)
+      .then((snapshot) => {
+        if (snapshot && !this.closed && generation === this.generation)
+          this.receiveSessionLifecycle(snapshot);
+      })
+      .catch(() => {
+        // 生命周期只读失败不能伪造 faulted，订阅仍按原连接语义处理。
+      });
+  }
+
   getSessionOpenRendererTiming(): SessionOpenRendererTiming {
     return { ...this.sessionOpenRendererTiming };
   }
@@ -473,7 +569,24 @@ export class ConversationProjectionStore {
   }
 
   private setState(patch: Partial<ConversationStoreState>): void {
-    this.state = { ...this.state, ...patch };
+    const next = { ...this.state, ...patch };
+    const edit = next.editPresentation;
+    if (
+      edit &&
+      (next.status === "error" ||
+        next.status === "closed" ||
+        next.snapshot?.logEpoch !== edit.logEpoch ||
+        !next.optimisticCommands.some((command) => command.commandId === edit.commandId) ||
+        hasAcceptedInputProjection(next.snapshot, edit.commandId) ||
+        (next.snapshot.control.lastError !== null &&
+          next.snapshot.control.lastError.at !== edit.errorAt))
+    ) {
+      // Bug 根因：branch cut 和 replacement 分帧到达时，立即显示截断会先缩再撑。
+      // 权威 snapshot 仍即时推进；只在同 commandId 输入或明确失败/换代时交接显示，
+      // 并在同一次通知中释放旧 rows，不能靠 ACK 或定时器猜测 replacement 已到达。
+      next.editPresentation = null;
+    }
+    this.state = next;
     for (const listener of this.listeners) listener();
   }
 
@@ -546,11 +659,9 @@ export class ConversationProjectionStore {
       );
       // 公共 result 已是 ACK-only；initial 与 online 统一走 notification。
       // subscriptionId 必须先入 store，activate 才能同步释放同一 read 中暂存的 own initial。
-      this.awaitingInitial = {
-        subscriptionId: result.ack.subscriptionId,
-        mode: result.ack.mode,
-      };
+      this.awaitingInitial = { subscriptionId: result.ack.subscriptionId, mode: result.ack.mode };
       this.transport.activate(result.ack.subscriptionId);
+      this.readSessionLifecycle(generation);
       logger.lifecycle.info("v4 conversation store connect completed", {
         durationMs: roundedDuration(subscribeStartedAt, monotonicNow()),
         event: "v4.conversation.store.connect.completed",
@@ -602,6 +713,15 @@ export class ConversationProjectionStore {
       this.setState({ status: "error", lastError: message });
     } finally {
       this.connectInFlight -= 1;
+      // 明确停机打断旧 ACK 后 ready 可能先到；等待旧 flight 结束再恢复，不产生第二启动 owner。
+      if (
+        !this.closed &&
+        this.connectInFlight === 0 &&
+        generation !== this.generation &&
+        !this.state.subscriptionId &&
+        this.state.runtimeLifecycle?.state === "ready"
+      )
+        void this.connect();
     }
   }
 
@@ -650,7 +770,12 @@ export class ConversationProjectionStore {
     this.subscriptionHasAppliedBase = false;
     this.generation += 1;
     // 旧 subscriptionId 属于已死 runtime，不得再 unsubscribe（host 侧 owner 已失效）。
-    this.setState({ status: "connecting", subscriptionId: null });
+    this.setState({
+      status: "connecting",
+      subscriptionId: null,
+      editPresentation: null,
+      runtimeLifecycle: null,
+    });
     // 不能只 dormant 等 available：agent 懒启动，dispose 后无人拉起时该信号永不到达，
     // 面板会永久转圈。退避重连自身会拉起 runtime；available 先到则复位计数并即时重连。
     if (this.scheduleRuntimeRecycleReconnect(this.generation)) return;
@@ -683,7 +808,7 @@ export class ConversationProjectionStore {
 
   /** row command/query 的 epoch/entity authority 失效，复用 same-sub recovery 收敛。 */
   recoverFromStaleAuthority(): void {
-    this.requestRecovery();
+    this.requestRecovery(false, { reason: "staleAuthority" });
   }
 
   /** SessionDataLayer 帧路由入口。 */
@@ -722,7 +847,7 @@ export class ConversationProjectionStore {
     if (frame.payload.kind === "deltas" && !this.subscriptionHasAppliedBase) {
       // ACK(snapshot) 不构成 applied base；initial 丢失后即便数值 fromSeq 恰好
       // 对上旧 projection，也不能把新 epoch delta 拼到旧状态。
-      this.requestRecovery(deliveryKind === "recovery");
+      this.requestRecovery(deliveryKind === "recovery", { reason: "deltasWithoutBase" });
       return;
     }
     this.applyFrame(frame, {
@@ -802,7 +927,7 @@ export class ConversationProjectionStore {
         // subscription 的 online/recovery gap 则保持 same-sub。
         void this.connect({ forceSnapshot: true });
       } else {
-        this.requestRecovery(context.recovery);
+        this.requestRecovery(context.recovery, { reason: "applyGap" });
       }
       return;
     }
@@ -826,9 +951,7 @@ export class ConversationProjectionStore {
       // 完整 query 继续负责补回 wire tail 之外、但仍属于当前分支的早期计划。
       ...(removedFromRowId === null
         ? {}
-        : {
-            sessionPlans: this.state.sessionPlans.filter((row) => row.rowId < removedFromRowId),
-          }),
+        : { sessionPlans: this.state.sessionPlans.filter((row) => row.rowId < removedFromRowId) }),
       ...(shouldInvalidatePlanDirectory(frame)
         ? { planDirectoryRevision: this.state.planDirectoryRevision + 1 }
         : {}),
@@ -935,7 +1058,7 @@ export class ConversationProjectionStore {
     // 必然再被拒；deliveryKind 也不改变结论——本端读不懂这份内容。唯一可能产出不同字节的是
     // 强制 snapshot，所以直接跳到它，它再被内容拒绝就停手，不把订阅烧在必然失败的重试上。
     if (isDeterministicContentFault(reasonCode)) {
-      this.requestRecovery(true, { contentFault: true });
+      this.requestRecovery(true, { contentFault: true, reason: "contentFault" });
       return;
     }
     // 缺失/伪 deliveryKind 会以 undefined typed fault 到达；若 recovery 已在途，
@@ -946,10 +1069,13 @@ export class ConversationProjectionStore {
       this.recovery.postRecoveryGapPending ||= this.recovery.validFrameSeen;
       return;
     }
-    this.requestRecovery(recoveryFault);
+    this.requestRecovery(recoveryFault, { reason: "assemblyFault" });
   }
 
-  private requestRecovery(recoveryEvent = false, options: { contentFault?: boolean } = {}): void {
+  private requestRecovery(
+    recoveryEvent = false,
+    options: { contentFault?: boolean; reason?: RecoveryReason } = {},
+  ): void {
     if (this.closed) return;
     const subscriptionId = this.state.subscriptionId;
     if (!subscriptionId) {
@@ -989,6 +1115,18 @@ export class ConversationProjectionStore {
       contentFault,
     };
     this.recovery = recovery;
+    // 每次 recovery flight 的起因都要可归因。此前六个入口都不记录，排查时只能看到一次
+    // resync，分不清是内容拒收、authority 失效还是 apply 断档——2026-11-03 查
+    // contentRejected 时正是卡在这一步。reason 来自调用点，不从状态反推。
+    logger.lifecycle.warn("v4 conversation store recovery started", {
+      contentFault,
+      event: "v4.conversation.store.recovery.started",
+      generation: this.generation,
+      module: "ui.v4.conversation_projection_store",
+      reason: options.reason ?? "unspecified",
+      status: "recovering",
+      topic: this.topic,
+    });
     // 内容失败跳过 resume 档直接强制 snapshot；瞬态失败仍按原阶梯先试 resume。
     this.issueRecovery(recovery, contentFault);
   }
@@ -1106,7 +1244,18 @@ export class ConversationProjectionStore {
     const contentFault = this.recovery.contentFault && options.contentEligible !== false;
     const code = contentFault ? SUBSCRIPTION_CONTENT_REJECTED : reasonCode;
     this.discardRecovery();
-    logger.warn(`[v4-store] ${this.topic} recovery fail-closed: ${code}`);
+    // 这条是订阅走到终态的唯一记录，用户此时看到的是整块错误面板而不是正文。原来用
+    // logger.warn，生产构建下是 no-op，因此打包版出事时日志里既没有拒收也没有终态。
+    // 走 lifecycle 通道保留它；字段与同文件其他 lifecycle 日志同构，便于按 event 聚合。
+    logger.lifecycle.warn("v4 conversation store recovery fail-closed", {
+      contentFault,
+      event: "v4.conversation.store.recovery.fail_closed",
+      generation: this.generation,
+      module: "ui.v4.conversation_projection_store",
+      reasonCode: code,
+      status: "error",
+      topic: this.topic,
+    });
     this.setState({ status: "error", lastError: code });
   }
 
@@ -1118,7 +1267,7 @@ export class ConversationProjectionStore {
     this.discardRecovery();
     this.awaitingInitial = null;
     this.subscriptionHasAppliedBase = false;
-    this.setState({ status: "connecting", subscriptionId: null });
+    this.setState({ status: "connecting", subscriptionId: null, runtimeLifecycle: null });
     // proxy handoff 不等于 CLI runtime 重启；强制 snapshot 会把用户已加载的
     // older rows 替换回 tail window。handoff 保留一致 projection 水位，由服务端按
     // logEpoch/seq 裁决 resume 或 snapshot；真实 runtime restart 仍保持 full subscribe。
@@ -1154,11 +1303,7 @@ export class ConversationProjectionStore {
     const read = this.beginHistoryRowsRead(snapshot, beforeRowId);
     this.setState({ loadingOlder: true });
     try {
-      const result = await this.transport.rowsRange({
-        sessionId,
-        beforeRowId,
-        limit,
-      });
+      const result = await this.transport.rowsRange({ sessionId, beforeRowId, limit });
       if (this.closed) return;
       const current = this.state.snapshot;
       if (!current || result.atLogEpoch !== current.logEpoch) {
@@ -1173,9 +1318,7 @@ export class ConversationProjectionStore {
       if (!this.isHistoryRowsPageCurrent(read, result)) return;
       const window = mergeOlderRows(current.rows.window, this.shareRows(result.rows));
       if (window === null) return;
-      this.setState({
-        snapshot: { ...current, rows: { ...current.rows, window } },
-      });
+      this.setState({ snapshot: { ...current, rows: { ...current.rows, window } } });
     } catch (error) {
       // query 只读且可重发：失败不进 error 态，留给下次触发重试。
       logger.warn(
@@ -1474,11 +1617,7 @@ export class ConversationProjectionStore {
         pages: pages.length,
         sessionId,
       });
-      const result = {
-        status: "hydrated" as const,
-        logEpoch: initialLogEpoch,
-        directoryRevision,
-      };
+      const result = { status: "hydrated" as const, logEpoch: initialLogEpoch, directoryRevision };
       this.turnNavigatorHydrationTerminal = result;
       return result;
     } catch (error) {
@@ -1542,8 +1681,31 @@ export class ConversationProjectionStore {
   /** 命令上行前登记 overlay（pending/stopping 展示用）。 */
   markCommandPending(command: OptimisticCommand): void {
     if (this.closed) return;
+    const snapshot = this.state.snapshot;
     this.setState({
       optimisticCommands: [...this.state.optimisticCommands, command],
+      ...(command.type === "editUserQuery" && snapshot
+        ? {
+            editPresentation: {
+              commandId: command.commandId,
+              logEpoch: snapshot.logEpoch,
+              rows: snapshot.rows,
+              errorAt: snapshot.control.lastError?.at ?? null,
+            },
+          }
+        : {}),
+    });
+  }
+
+  /** ACK 不结束行内提交态；由权威输入交接、失败或 store 关闭唤醒，无时间兜底。 */
+  waitForEditPresentation(commandId: string): Promise<void> {
+    if (this.state.editPresentation?.commandId !== commandId) return Promise.resolve();
+    return new Promise((resolve) => {
+      const unsubscribe = this.subscribe(() => {
+        if (this.state.editPresentation?.commandId === commandId) return;
+        unsubscribe();
+        resolve();
+      });
     });
   }
 
@@ -1575,11 +1737,14 @@ export class ConversationProjectionStore {
         this.settleCommand(commandId);
         return;
       }
-      logger.warn("[v4-store] accepted input projection silent, trigger same-sub recovery", {
+      // 同样原为生产构建下 no-op 的 logger.warn：这条是「已接纳的输入没投影出来」的唯一线索。
+      logger.lifecycle.warn("v4 conversation store accepted input projection silent", {
         commandId,
+        event: "v4.conversation.store.accepted_input.silent",
+        module: "ui.v4.conversation_projection_store",
         topic: this.topic,
       });
-      this.requestRecovery();
+      this.requestRecovery(false, { reason: "acceptedInputSilent" });
     }, ACCEPTED_INPUT_PROJECTION_GRACE_MS);
     this.acceptedInputProjectionTimers.set(commandId, timer);
   }
@@ -1641,7 +1806,7 @@ export class ConversationProjectionStore {
   }
 
   /** 退订并终结本 store（仅 SessionDataLayer 调用）。 */
-  async close(): Promise<void> {
+  async close(options?: { forget?: boolean }): Promise<void> {
     if (this.closed) return;
     liveProjectionStores.delete(this);
     const closeStartedAt = monotonicNow();
@@ -1657,6 +1822,7 @@ export class ConversationProjectionStore {
     this.offAssemblyFault();
     this.offRuntimeRestart?.();
     this.offRuntimeLifecycle?.();
+    this.offSessionLifecycle?.();
     this.clearRuntimeRecycleRetry();
     for (const timer of this.acceptedInputProjectionTimers.values()) clearTimeout(timer);
     this.acceptedInputProjectionTimers.clear();
@@ -1666,7 +1832,11 @@ export class ConversationProjectionStore {
     this.subscriptionHasAppliedBase = false;
     this.generation++;
     const { subscriptionId } = this.state;
-    this.setState({ status: "closed", subscriptionId: null });
+    this.setState({
+      ...(options?.forget ? INITIAL_STATE : {}),
+      status: "closed",
+      subscriptionId: null,
+    });
     if (subscriptionId) {
       try {
         await this.transport.unsubscribe(subscriptionId);

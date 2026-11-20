@@ -8,11 +8,17 @@ export const projectSidebarModule = {
     "conversation-workspace-target",
     "data-sync",
     "remote-connection-flow",
+    "resource-manager",
     "services",
     "shared",
     "source-server-ui",
     "ui",
     "web-remote-control-ui",
+    "managed-worktree-ui",
+    // 分组会话行复用同一张悬停卡片（docs/ui/task-row-hover-details.md）。
+    "task-row-hover",
+    // 主导航挂 nav.primary 插槽组件（docs/plugins/extension-host.md §16.4）。
+    "extension-slots",
   ],
   provides: ["project-sidebar"],
   publicEntrypoints: [

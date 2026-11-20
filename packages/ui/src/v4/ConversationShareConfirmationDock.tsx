@@ -94,9 +94,7 @@ function ConversationShareConfirmationDockImpl({
   onCopyRequestId,
 }: ConversationShareConfirmationDockProps) {
   const { intl, locale } = useZCodeIntl();
-  const errorDetailsLabel = intl.formatMessage({
-    id: "conversationShare.issue.details",
-  });
+  const errorDetailsLabel = intl.formatMessage({ id: "conversationShare.issue.details" });
   const disclosureRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const checkboxRef = useRef<HTMLButtonElement>(null);
@@ -157,9 +155,7 @@ function ConversationShareConfirmationDockImpl({
       : "conversationShare.partial.selectionCount";
   const footerMetaValues: Record<string, string | number> =
     pending && !error
-      ? {
-          selected: selectedCount,
-        }
+      ? { selected: selectedCount }
       : { selected: selectedCount, total: totalCount };
   const formatValue = (value: number | undefined, code: string): string => {
     if (value === undefined) return "—";
@@ -211,9 +207,7 @@ function ConversationShareConfirmationDockImpl({
             </p>
             {error ? (
               <p className="mt-1 text-ui-sm text-foreground-subtle">
-                {intl.formatMessage({
-                  id: "conversationShare.publish.failedDescription",
-                })}
+                {intl.formatMessage({ id: "conversationShare.publish.failedDescription" })}
               </p>
             ) : null}
           </div>
@@ -223,9 +217,7 @@ function ConversationShareConfirmationDockImpl({
               size="icon-sm"
               disabled={pending}
               onClick={onCancel}
-              aria-label={intl.formatMessage({
-                id: "conversationShare.result.dismiss",
-              })}
+              aria-label={intl.formatMessage({ id: "conversationShare.result.dismiss" })}
             >
               <X className="size-4" />
             </Button>
@@ -261,9 +253,7 @@ function ConversationShareConfirmationDockImpl({
                   compactProgress ? "h-1" : "h-1.5",
                 )}
                 role="progressbar"
-                aria-label={intl.formatMessage({
-                  id: "conversationShare.generatingLink",
-                })}
+                aria-label={intl.formatMessage({ id: "conversationShare.generatingLink" })}
                 aria-valuenow={progressPercent}
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -314,10 +304,7 @@ function ConversationShareConfirmationDockImpl({
                     : active && phase === "packing" && totalArtifacts > 0
                       ? intl.formatMessage(
                           { id: "conversationShare.phase.uploadingActive" },
-                          {
-                            completed: completedArtifacts,
-                            total: totalArtifacts,
-                          },
+                          { completed: completedArtifacts, total: totalArtifacts },
                         )
                       : active
                         ? progressLabel
@@ -367,9 +354,7 @@ function ConversationShareConfirmationDockImpl({
                           !compactProgress || active ? "font-medium" : "font-normal",
                         )}
                       >
-                        {intl.formatMessage({
-                          id: SHARE_PHASE_LABEL_IDS[phase],
-                        })}
+                        {intl.formatMessage({ id: SHARE_PHASE_LABEL_IDS[phase] })}
                       </strong>
                       {!compactProgress || active ? (
                         <span
@@ -403,9 +388,7 @@ function ConversationShareConfirmationDockImpl({
               {
                 <div className="grid gap-1 text-ui-base">
                   <span className="text-foreground-subtle">
-                    {intl.formatMessage({
-                      id: "conversationShare.range.label",
-                    })}
+                    {intl.formatMessage({ id: "conversationShare.range.label" })}
                   </span>
                   <Button
                     size="lg"
@@ -486,9 +469,7 @@ function ConversationShareConfirmationDockImpl({
                         className="mt-0.5"
                       />
                       <span className={"leading-5"}>
-                        {intl.formatMessage({
-                          id: "conversationShare.disclosure.checkbox",
-                        })}
+                        {intl.formatMessage({ id: "conversationShare.disclosure.checkbox" })}
                       </span>
                     </label>
                     <div
@@ -502,9 +483,7 @@ function ConversationShareConfirmationDockImpl({
                         data-testid="conversation-share-disclosure-description"
                         className="min-w-0 text-ui-sm leading-5 text-foreground-subtle"
                       >
-                        {intl.formatMessage({
-                          id: "conversationShare.disclosure.description",
-                        })}
+                        {intl.formatMessage({ id: "conversationShare.disclosure.description" })}
                       </span>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -626,9 +605,7 @@ function ConversationShareConfirmationDockImpl({
                       [
                         ["HTTP", error.status],
                         [
-                          intl.formatMessage({
-                            id: "conversationShare.issue.codeLabel",
-                          }),
+                          intl.formatMessage({ id: "conversationShare.issue.codeLabel" }),
                           error.code,
                         ],
                         [
@@ -674,9 +651,7 @@ function ConversationShareConfirmationDockImpl({
                     {error.requestId ? (
                       <div className="grid gap-2">
                         <p className="text-ui-sm text-foreground-subtle">
-                          {intl.formatMessage({
-                            id: "conversationShare.issue.requestIdLabel",
-                          })}
+                          {intl.formatMessage({ id: "conversationShare.issue.requestIdLabel" })}
                         </p>
                         <div className="flex min-w-0 items-start gap-2">
                           <code className="min-w-0 flex-1 break-all font-mono text-ui-base text-foreground select-text">
@@ -693,18 +668,14 @@ function ConversationShareConfirmationDockImpl({
                               onClick={onCopyRequestId}
                               className="shrink-0 px-2"
                             >
-                              {intl.formatMessage({
-                                id: "conversationShare.issue.copyRequestId",
-                              })}
+                              {intl.formatMessage({ id: "conversationShare.issue.copyRequestId" })}
                             </Button>
                           ) : null}
                         </div>
                       </div>
                     ) : (
                       <p className="text-ui-sm text-foreground-subtle">
-                        {intl.formatMessage({
-                          id: "conversationShare.issue.requestIdMissing",
-                        })}
+                        {intl.formatMessage({ id: "conversationShare.issue.requestIdMissing" })}
                       </p>
                     )}
                   </PopoverContent>
@@ -748,9 +719,7 @@ function ConversationShareConfirmationDockImpl({
                           className="w-fit text-ui-sm font-medium text-foreground underline underline-offset-2"
                           onClick={() => onDeselectTurn?.(issue.productTurnId!)}
                         >
-                          {intl.formatMessage({
-                            id: "conversationShare.issue.deselectTurn",
-                          })}
+                          {intl.formatMessage({ id: "conversationShare.issue.deselectTurn" })}
                         </button>
                       ) : null}
                     </li>

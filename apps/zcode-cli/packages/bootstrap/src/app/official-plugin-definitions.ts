@@ -24,6 +24,7 @@ export interface OfficialPluginListingSeed {
 
 export const OFFICIAL_BROWSER_USE_PLUGIN_NAME = "browser-use";
 export const OFFICIAL_BROWSER_USE_PLUGIN_ID = `${OFFICIAL_BROWSER_USE_PLUGIN_NAME}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+export const OFFICIAL_VISUALIZE_PLUGIN_ID = `visualize@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
 /**
  * node_repl 宿主。它不是面向用户的插件：没有 skill、没有 listing、不进市场，唯一职责是
  * 携带 `dist/mcp/server.js` 这个 Browser Use 与 Computer Use 共用的运行时产物。
@@ -54,6 +55,11 @@ export interface OfficialPluginDefinition {
    * 仅用于产品归属和设置页状态展示；运行时仍保留宿主 identity。
    */
   hostMcpServerNames?: readonly string[];
+  /**
+   * 构建产物内嵌每次构建不同、但不改版本号的值时，指向构建脚本写出的身份文件。
+   * seed 把文件内容记入 marker，内容变化按版本变化处理。
+   */
+  buildIdentityPath?: string;
   name: string;
   /** filesystem/SEA seed 缺少任一项时拒绝生成残缺的官方插件缓存。 */
   requiredSeedPaths?: readonly string[];
@@ -72,7 +78,7 @@ const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obr
 
 export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS =
   BUILTIN_PLUGIN_SEED_PATHS["browser-use-plugin"];
-const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = [
+export const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = [
   ...BUILTIN_PLUGIN_SEED_PATHS["node-repl-host"],
   ...cuaRuntimeRequiredPaths(process.platform, process.arch),
 ];
@@ -80,9 +86,37 @@ export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS[
 export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["pdf-plugin"];
 const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-guide-plugin"];
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-cua-plugin"];
+const NODE_REPL_HOST_BUILD_IDENTITY_PATH = "dist/build-identity.json";
+export const OFFICIAL_OFFICE_VIEWER_RUNTIME_PATHS = [
+  "dist/server.mjs",
+  "dist/ui/assets.json",
+  "dist/ui/panel.html",
+] as const;
+
+// design 是纯内容型插件（技能 + 设计资源 + SessionStart hook，无 MCP），技能正文按需读取 references/
+// 与 scripts/；hook 只注入一句指针，正文缺失时 hook 静默退出，会话里就再也触发不到技能。
+// 所以这里钉住入口、7 份规则文件、三个随包脚本和 hook，seed 缺任一项都拒绝生成残缺缓存。
+export const OFFICIAL_DESIGN_REQUIRED_SEED_PATHS = [
+  "skills/design/SKILL.md",
+  "skills/design/references/catalog.md",
+  "skills/design/references/check.md",
+  "skills/design/references/create.md",
+  "skills/design/references/design-system.md",
+  "skills/design/references/interact.md",
+  "skills/design/references/output.md",
+  "skills/design/references/redesign.md",
+  "skills/design/scripts/adapt-canvas.mjs",
+  "skills/design/scripts/design-lint.mjs",
+  "skills/design/scripts/design-tokens.mjs",
+  "skills/design/scripts/import-design-system.mjs",
+  "hooks/hooks.json",
+  "hooks/run-hook.cmd",
+  "hooks/design-rules",
+] as const;
 
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
+    // 本仓协议宿主提供交互视图；保留默认启用和用户开关，普通 CLI 仍由技能发现入口隔离。
     defaultEnabled: true,
     listing: {
       author: ZAI_AUTHOR,
@@ -124,7 +158,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../visualize-plugin",
       "../../../visualize-plugin",
     ],
-    version: "0.1.1",
+    version: "0.1.2",
   },
   {
     // 无 listing：宿主不进市场、不对用户露出。它必须始终可用，因为 node_repl 的注册门禁
@@ -134,6 +168,8 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 约定要防的是「首启即注入整套工具集并拉起 Helper」，而 seed 宿主两件都不做——工具是否
     // 进模型工具池由两个能力插件的启停决定，Helper 由 SDK 首次调用时才拉起。
     defaultEnabled: true,
+    // server.js 内嵌 CUA Helper build id（每条 CI 流水线不同），由 scripts/build.mjs 同步写出。
+    buildIdentityPath: NODE_REPL_HOST_BUILD_IDENTITY_PATH,
     name: OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME,
     runtimeSubtrees: [CUA_RUNTIME_MODULES_PATH],
     requiredSeedPaths: OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS,
@@ -151,9 +187,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "developer-tools",
       displayName: "Android Emulator",
       displayName_i18n: { "zh-CN": "Android 模拟器" },
-      description_i18n: {
-        "zh-CN": "提供 Android 开发工作流与模拟器自动化能力。",
-      },
+      description_i18n: { "zh-CN": "提供 Android 开发工作流与模拟器自动化能力。" },
     },
     name: "android-emulator",
     rootCandidates: [
@@ -162,7 +196,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../android-emulator-plugin",
       "../../../android-emulator-plugin",
     ],
-    version: "0.1.0",
+    version: "0.1.1",
   },
   {
     // manifest 只声明 browser-use skill；宿主 node_repl MCP 独立注入，package 另外携带其 server/client
@@ -174,9 +208,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "productivity",
       displayName: "Browser Use",
       displayName_i18n: { "zh-CN": "浏览器操作" },
-      description_i18n: {
-        "zh-CN": "操作 ZCode 内置浏览器，检查网页并验证交互。",
-      },
+      description_i18n: { "zh-CN": "操作 ZCode 内置浏览器，检查网页并验证交互。" },
     },
     name: OFFICIAL_BROWSER_USE_PLUGIN_NAME,
     requiredSeedPaths: OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS,
@@ -194,10 +226,10 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     [
       // 版本按插件各自升，换新缓存目录：pdf 0.2.1 起面板带中日韩字体回退；0.2.1（pdf 0.2.2）起
       // server 由工作区内各 session 共享，旧缓存的 server 不区分 session，不能沿用。
-      ["documents", "docx", "Documents", "Word文档", "0.2.1"],
-      ["pdf", "pdf", "PDF", "PDF", "0.2.2"],
-      ["presentations", "pptx", "Presentations", "演示文档", "0.2.1"],
-      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.2.1"],
+      ["documents", "docx", "Documents", "Word文档", "0.2.2"],
+      ["pdf", "pdf", "PDF", "PDF", "0.2.3"],
+      ["presentations", "pptx", "Presentations", "演示文档", "0.2.2"],
+      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.2.2"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName, version]): OfficialPluginDefinition => ({
@@ -247,9 +279,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "developer-tools",
       displayName: "iOS Simulator",
       displayName_i18n: { "zh-CN": "iOS 模拟器" },
-      description_i18n: {
-        "zh-CN": "提供 iOS 开发工作流与模拟器自动化能力。",
-      },
+      description_i18n: { "zh-CN": "提供 iOS 开发工作流与模拟器自动化能力。" },
     },
     name: "ios-simulator",
     rootCandidates: [
@@ -266,9 +296,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "utilities",
       displayName: "Restore Legacy Sessions",
       displayName_i18n: { "zh-CN": "恢复旧版会话" },
-      description_i18n: {
-        "zh-CN": "将旧版会话恢复为 ZCode 任务与会话记录。",
-      },
+      description_i18n: { "zh-CN": "将旧版会话恢复为 ZCode 任务与会话记录。" },
     },
     name: "restore-legacy-sessions",
     rootCandidates: [
@@ -289,9 +317,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       displayName: "Plugin Creator",
       // 创建器使用客户端自带图标，不再借用 skill-creator 的远端图片。
       displayName_i18n: { "zh-CN": "插件创建器" },
-      description_i18n: {
-        "zh-CN": "开发、校验 ZCode 插件，完成本地 dev 市场安装、试用与更新。",
-      },
+      description_i18n: { "zh-CN": "开发、校验 ZCode 插件，完成本地 dev 市场安装、试用与更新。" },
     },
     rootCandidates: [
       "packages/plugin-creator-plugin",
@@ -328,9 +354,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "utilities",
       displayName: "ZCode Guide",
       displayName_i18n: { "zh-CN": "ZCode 使用指南" },
-      description_i18n: {
-        "zh-CN": "提供 ZCode 配置指南与插件、技能、MCP、命令和钩子诊断。",
-      },
+      description_i18n: { "zh-CN": "提供 ZCode 配置指南与插件、技能、MCP、命令和钩子诊断。" },
       examplePrompts: [
         "How do I configure MCP servers in ZCode?",
         "Diagnose my current ZCode setup",
@@ -348,6 +372,31 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../../zcode-guide-plugin",
     ],
     version: "0.3.0",
+  },
+  {
+    // 设计工作流（HTML 设计稿、交互原型、HTML 演示稿）。纯内容型，默认关闭；用户可启用、可停用、不可卸载。
+    // 版本与 package.json / 两份 plugin.json / sea-official-plugin-assets.mjs 同步 bump。
+    listing: {
+      author: ZAI_AUTHOR,
+      category: "productivity",
+      displayName: "Design",
+      // 英文名与描述回退到 manifest（displayName / description）；这里只放 zh-CN 覆盖。
+      displayName_i18n: { "zh-CN": "设计" },
+      description_i18n: {
+        "zh-CN": "做网页设计稿、原型和演示稿；桌面端本地工作区可在内置浏览器里点选修改。",
+      },
+      examplePrompts: ["Design a landing page for a budgeting app", "Build an 8-page HTML deck"],
+      examplePrompts_i18n: { "zh-CN": ["给记账 App 设计一个落地页", "做一份 8 页的 HTML 演示稿"] },
+    },
+    name: "design",
+    requiredSeedPaths: OFFICIAL_DESIGN_REQUIRED_SEED_PATHS,
+    rootCandidates: [
+      "packages/design-plugin",
+      "../design-plugin",
+      "../../design-plugin",
+      "../../../design-plugin",
+    ],
+    version: "0.7.2",
   },
   {
     // 产品决策：电脑控制回退为默认关闭，需用户在设置页显式开启。
@@ -414,19 +463,12 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
 // 在 official plugin 定义里标了 defaultEnabled: true 的, 拼成 `<name>@<marketplace>` 形式,
 // 透传给 adapter 让它在用户没显式配置时默认开启 (内容型 plugin 才适用)。
 // 注意: 任何解析 plugin 的入口 (CLI 子命令 resolveZCodePlugins、应用启动 resolveStartupPlugins)
-// 都必须把这个集合传给 discoverNodePluginsSync, 否则 defaultEnabled 不生效。
+// 都必须把这个集合传给 discoverNodePlugins, 否则 defaultEnabled 不生效。
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
   OFFICIAL_PLUGIN_DEFINITIONS.filter((definition) => definition.defaultEnabled).map(
     (definition) => `${definition.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
   ),
 );
-
-export function resolveOfficialPluginHostMcpServerNames(pluginId: string): string[] {
-  const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(
-    (candidate) => `${candidate.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}` === pluginId,
-  );
-  return definition?.hostMcpServerNames ? [...definition.hostMcpServerNames] : [];
-}
 
 /**
  * 官方插件由 host CLI 注入的 MCP（如 browser-use 的 `node_repl`）server name 不带 `plugin:` 前缀，

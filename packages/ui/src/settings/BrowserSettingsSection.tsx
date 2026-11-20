@@ -22,8 +22,10 @@ import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSk
 import { logger } from "@/logger.js";
 
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
+import { FileTreeHtmlOpenSetting } from "@/settings/FileTreeHtmlOpenSetting.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import { useSkillStore } from "@/store/skillStore.js";
+import { clearBrowserRecentVisits } from "@/store/browserRecentVisitsStore.js";
 import { formatImportSummary } from "./browserImportSummary.js";
 
 const OFFICIAL_BROWSER_USE_PLUGIN_ID = "browser-use@zcode-plugins-official";
@@ -162,9 +164,7 @@ export function BrowserSettingsSection({
       const result = await platform.importChromeBrowserData();
 
       setLastImportResult(result);
-      toast(formatImportSummary(result, intl.formatMessage), {
-        durationMs: 5000,
-      });
+      toast(formatImportSummary(result, intl.formatMessage), { durationMs: 5000 });
     } catch (error) {
       logger.error("[browser-settings] 导入 Chrome 数据失败", {
         error: error instanceof Error ? error.message : String(error),
@@ -182,7 +182,7 @@ export function BrowserSettingsSection({
 
       try {
         const result = await platform.clearEmbeddedBrowserData(mode);
-
+        if (result.success && mode === "all") clearBrowserRecentVisits();
         toast(
           intl.formatMessage({
             id: result.success
@@ -215,15 +215,12 @@ export function BrowserSettingsSection({
       <section className="space-y-3">
         <SettingsGroupCard>
           <SettingsRow
+            searchId="settings.browser.control.title"
             label={intl.formatMessage({ id: "settings.browser.control.title" })}
-            description={intl.formatMessage({
-              id: "settings.browser.control.description",
-            })}
+            description={intl.formatMessage({ id: "settings.browser.control.description" })}
             control={
               <Switch
-                aria-label={intl.formatMessage({
-                  id: "settings.browser.control.title",
-                })}
+                aria-label={intl.formatMessage({ id: "settings.browser.control.title" })}
                 checked={browserUsePlugin?.enabled === true}
                 disabled={pluginUnavailable || pluginTogglePending}
                 onCheckedChange={(checked) => void handleBrowserEnabledChange(checked)}
@@ -240,10 +237,9 @@ export function BrowserSettingsSection({
               Windows App-Bound 导入链路暂未开放，先隐藏入口但保留底层实现和清理能力。*/}
           {!isWindowsDesktop ? (
             <SettingsRow
+              searchId="settings.browser.import.title"
               label={intl.formatMessage({ id: "settings.browser.import.title" })}
-              description={intl.formatMessage({
-                id: "settings.browser.import.description",
-              })}
+              description={intl.formatMessage({ id: "settings.browser.import.description" })}
               control={
                 <BrowserOperationButton
                   operation="import"
@@ -266,6 +262,18 @@ export function BrowserSettingsSection({
         </SettingsGroupCard>
       </section>
 
+      {/* 文件树 HTML 打开方式只在桌面端有内置浏览器时有意义。 */}
+      {isDesktop ? (
+        <section className="space-y-3">
+          <div className="text-ui-base font-medium text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.browser.open.section" })}
+          </div>
+          <SettingsGroupCard>
+            <FileTreeHtmlOpenSetting />
+          </SettingsGroupCard>
+        </section>
+      ) : null}
+
       {/* 证书策略只在桌面端有内置浏览器时可配；改动由 main 在启动时装到 Session，需重启生效。 */}
       {isDesktop ? (
         <section className="space-y-3">
@@ -274,6 +282,7 @@ export function BrowserSettingsSection({
           </div>
           <SettingsGroupCard>
             <SettingsRow
+              searchId="settings.embeddedBrowserAllowInsecureCertificates"
               label={intl.formatMessage({
                 id: "settings.embeddedBrowserAllowInsecureCertificates",
               })}
@@ -307,12 +316,9 @@ export function BrowserSettingsSection({
         ) : null}
         <SettingsGroupCard>
           <SettingsRow
-            label={intl.formatMessage({
-              id: "settings.browser.clearCache.title",
-            })}
-            description={intl.formatMessage({
-              id: "settings.browser.clearCache.description",
-            })}
+            searchId="settings.browser.clearCache.title"
+            label={intl.formatMessage({ id: "settings.browser.clearCache.title" })}
+            description={intl.formatMessage({ id: "settings.browser.clearCache.description" })}
             control={
               <BrowserOperationButton
                 operation="clear-cache"
@@ -320,19 +326,14 @@ export function BrowserSettingsSection({
                 disabled={operationDisabled}
                 onClick={() => void handleClear("cache")}
               >
-                {intl.formatMessage({
-                  id: "settings.browser.clearCache.action",
-                })}
+                {intl.formatMessage({ id: "settings.browser.clearCache.action" })}
               </BrowserOperationButton>
             }
           />
           <SettingsRow
-            label={intl.formatMessage({
-              id: "settings.browser.clearAll.title",
-            })}
-            description={intl.formatMessage({
-              id: "settings.browser.clearAll.description",
-            })}
+            searchId="settings.browser.clearAll.title"
+            label={intl.formatMessage({ id: "settings.browser.clearAll.title" })}
+            description={intl.formatMessage({ id: "settings.browser.clearAll.description" })}
             control={
               <BrowserOperationButton
                 operation="clear-all"
@@ -352,14 +353,10 @@ export function BrowserSettingsSection({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {intl.formatMessage({
-                id: "settings.browser.clearAll.confirmTitle",
-              })}
+              {intl.formatMessage({ id: "settings.browser.clearAll.confirmTitle" })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {intl.formatMessage({
-                id: "settings.browser.clearAll.confirmDescription",
-              })}
+              {intl.formatMessage({ id: "settings.browser.clearAll.confirmDescription" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -377,9 +374,7 @@ export function BrowserSettingsSection({
               {pendingOperation === "clear-all" ? (
                 <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
               ) : null}
-              {intl.formatMessage({
-                id: "settings.browser.clearAll.confirmAction",
-              })}
+              {intl.formatMessage({ id: "settings.browser.clearAll.confirmAction" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -37,6 +37,7 @@ const shouldPrepareMacosWindowBounds = target.os === "darwin";
 // 远端 Source Server 资源也不由桌面包负责。native-search 归档随仓库分发，准备步骤只做本地解包校验。
 const localRuntimeScripts = [
   "prepare:agent-bundle",
+  ...(target.os === "win32" ? ["prepare:windows-runtime-host"] : []),
   ...(shouldPrepareWindowsCuaHelper ? ["prepare:windows-cua-helper"] : []),
   ...(nativeSearchReleasePlan.enabled ? ["prepare:native-search"] : []),
   ...(shouldPrepareWindowsBrowserImportHelper ? ["prepare:browser-import-helper"] : []),

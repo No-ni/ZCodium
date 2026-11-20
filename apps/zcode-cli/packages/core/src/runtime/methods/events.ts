@@ -25,7 +25,6 @@ import { titleFromInput, slugify, projectIdFromDirectory } from "../helpers/inde
 import type { AgentRuntimeInternal } from "../internal.js";
 import { buildPersistedConversationInputIntent } from "./input-intent-persistence.js";
 import { recordToolUsageFromEvent } from "./usage-observability.js";
-import { persistSessionShellEnvironmentSnapshot } from "./session-shell-environment.js";
 import { persistRuntimeModelSelection } from "./turn-model.js";
 import { writeDynamicWorkflowActivationEntryIfActivated } from "./dynamic-workflow-activation.js";
 import {
@@ -303,10 +302,7 @@ async function persistDurableSessionEvent(
         id: `user-input-auto-resolution:${payload.interactionId}`,
         sessionID: event.sessionId,
         type: SESSION_ENTRY_USER_INPUT_AUTO_RESOLUTION,
-        time: {
-          created: payload.autoResolution.startedAt,
-          updated: event.timestamp.getTime(),
-        },
+        time: { created: payload.autoResolution.startedAt, updated: event.timestamp.getTime() },
         data: {
           interactionId: payload.interactionId,
           toolCallId: payload.toolCallId,
@@ -403,10 +399,7 @@ async function persistDurableSessionEvent(
     return;
   }
   if (event.type === SessionEventType.TurnSteerDiscarded) {
-    const payload = event.payload as {
-      pendingInputIds: string[];
-      reason?: string;
-    };
+    const payload = event.payload as { pendingInputIds: string[]; reason?: string };
     // sendQueuedNow 只是在执行权已保留后把项从 queue 投影摘除；此时若把 ledger
     // 标成 cancelled，会制造 remove→后台 user message promotion 之间的崩溃丢失窗口。
     // 保持 admitted，随后由 persistUserPrompt 原子置 promoted；若进程先退出，恢复清扫
@@ -455,10 +448,7 @@ async function persistDurableSessionEvent(
         id: String(event.id),
         sessionID: event.sessionId,
         type: SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
-        time: {
-          created: timestamp,
-          updated: timestamp,
-        },
+        time: { created: timestamp, updated: timestamp },
         // goal verifier 生命周期是恢复 UI 轮次和分割线的业务事实；
         // 只写内存 eventStore 会导致冷启动后 goal iteration/todo 分组丢失。
         data: {
@@ -488,10 +478,7 @@ async function persistDurableSessionEvent(
         verificationId: payload.verificationId,
         goalIteration: payload.goalIteration,
         verification: payload.verification,
-        time: {
-          start: startedAt,
-          end: payload.status === "started" ? undefined : timestamp,
-        },
+        time: { start: startedAt, end: payload.status === "started" ? undefined : timestamp },
       },
       traceContext,
     });
@@ -536,10 +523,7 @@ async function readExistingTimelineTiming(
   for (const message of messages) {
     const part = message.parts.find((candidate) => candidate.id === input.partID);
     if (part?.type !== "timeline") continue;
-    return {
-      messageCreated: message.info.time.created,
-      partStarted: part.time?.start,
-    };
+    return { messageCreated: message.info.time.created, partStarted: part.time?.start };
   }
   return undefined;
 }
@@ -576,6 +560,13 @@ export function isSessionPersisted(this: AgentRuntimeInternal): boolean {
 }
 
 const pendingSessionPersistence = new WeakMap<AgentRuntimeInternal, Promise<void>>();
+
+/** 授权复用已有持久化等待；读取不能使草稿提前成为正式任务。 */
+export function getPendingSessionPersistence(
+  runtime: AgentRuntimeInternal,
+): Promise<void> | undefined {
+  return pendingSessionPersistence.get(runtime);
+}
 
 export async function ensureSessionPersisted(
   this: AgentRuntimeInternal,
@@ -638,7 +629,9 @@ async function persistSession(
       // `getProjectId()` 都按规范化后的路径派生身份，含 `.`/`..` 段的 workspacePath 若直接
       // 取 slug，就会算出第三个 project。这里只规范化**身份派生的输入**，落库的 `directory`
       // 仍保留协议原串（尾斜杠等表示不能被吞掉，见上面的注释）。
-      projectID: projectIdFromDirectory(resolve(persistedWorkspacePath)),
+      projectID: projectIdFromDirectory(
+        resolve(this.config.projectDirectory ?? persistedWorkspacePath),
+      ),
       // Memory workspaceIdentity 是上游提供的不透明隔离键。这里只做类型品牌化，
       // 不能调用会改写字符串的 ID 生成器，否则恢复后的 Memory root 会发生漂移。
       workspaceID: this.config.workspaceIdentity ?? (workspaceIdentity as WorkspaceId | undefined),
@@ -659,9 +652,7 @@ async function persistSession(
       title,
       titleSource: "first_input",
       version: this.appVersion,
-      permission: {
-        mode: this.config.mode ?? "build",
-      },
+      permission: { mode: this.config.mode ?? "build" },
     });
     // 初始模型过去只写进首条 user message，没有写稳定的 session selection。
     // 冷恢复从末尾 assistant 反推时只能得到 provider/model，必选 reasoning 会丢失，
@@ -670,8 +661,6 @@ async function persistSession(
     phase = "session_model_selection";
     const initialSelection = this.getSessionModelSelection();
     if (initialSelection) await persistRuntimeModelSelection(this, initialSelection);
-    phase = "session_shell_snapshot";
-    await persistSessionShellEnvironmentSnapshot(this, traceContext);
     phase = "session_execution_state";
     await this.sessionStore.saveSessionEntry?.(
       buildExecutionStateEntry(this.sessionId, readRuntimeExecutionState(this)),
@@ -693,11 +682,7 @@ async function persistSession(
     await this.appendEvent(
       this.createEvent(
         SessionEventType.SessionTitleUpdated,
-        {
-          previousTitle: "",
-          source: "first_input",
-          title,
-        },
+        { previousTitle: "", source: "first_input", title },
         traceContext,
       ),
       traceContext,

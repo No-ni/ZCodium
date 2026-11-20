@@ -22,10 +22,12 @@ export function resolveDesktopProductionCleanPaths(cwd) {
     // plugin-sandbox（tsup.config.ts 的 outDir）同理：UI 插件沙箱的 preload bundle
     // 走非清空输出，不进清理列表会让旧 guest 脚本残留在安装包里。
     resolve(cwd, "out/plugin-sandbox"),
+    resolve(cwd, "out/extension-host"),
     resolve(cwd, "out/.main-build-ready"),
     resolve(cwd, "out/.host-build-ready"),
     resolve(cwd, "out/.preload-build-ready"),
     resolve(cwd, "out/.scheduler-build-ready"),
+    resolve(cwd, "out/.extension-host-build-ready"),
   ];
 }
 
@@ -44,27 +46,14 @@ export async function cleanDesktopProductionOutput({ cwd }) {
 }
 
 export function createDesktopProductionBuildPlan({ cwd, baseEnv = process.env }) {
-  const env = {
-    ...baseEnv,
-    NODE_ENV: "production",
-  };
+  const env = { ...baseEnv, NODE_ENV: "production" };
 
   return [
     {
       label: "desktop production bundles",
       parallel: [
-        {
-          command: "pnpm",
-          args: ["exec", "tsup"],
-          cwd,
-          env,
-        },
-        {
-          command: "pnpm",
-          args: ["exec", "vite", "build"],
-          cwd,
-          env,
-        },
+        { command: "pnpm", args: ["exec", "tsup"], cwd, env },
+        { command: "pnpm", args: ["exec", "vite", "build"], cwd, env },
       ],
     },
   ];

@@ -1,5 +1,8 @@
 import { resolveConversationWorkspaceRootFromEnv } from "../app/conversation-session-workspace.js";
-import { isConversationSessionDirectoryInUseAcrossProcesses, reclaimConversationSessionDirOnDelete } from "../app/conversation-session-workspace-reclaim.js";
+import {
+  isConversationSessionDirectoryInUseAcrossProcesses,
+  reclaimConversationSessionDirOnDelete,
+} from "../app/conversation-session-workspace-reclaim.js";
 // Session 常驻池的真实事实适配与去激活执行面。
 
 import type { SessionId } from "@zcode/contracts";
@@ -9,9 +12,12 @@ import type {
   SessionDeactivationDecision,
   SessionResidentPoolHost,
 } from "./session-resident-pool.js";
-import type { ZCodeProtocolAgentServerContext } from "./server-types.js";
+import type {
+  ZCodeProtocolAgentServerContext,
+  ZCodeProtocolSessionRecord,
+} from "./server-types.js";
 import { SessionLifecycleController } from "../session-lifecycle/index.js";
-import { activateSessionRuntime } from "./server-operations.js";
+import { activateSessionRuntime, validateSessionActivationWorkspace } from "./server-operations.js";
 import { abortMcpUiToolCallsForSession, clearMcpUiAppToolsForSession } from "./mcp-ui/index.js";
 
 export function getSessionLifecycle(
@@ -24,15 +30,17 @@ export function getSessionLifecycle(
       return Boolean(persisted || context.sessions.has(sessionId));
     },
     hasRuntime: (sessionId) => context.sessions.has(sessionId),
-    activate: async (sessionId) => {
-      const persistedMessages = await context.v4Gateway?.prepareSessionHistory(sessionId);
+    validateActivation: (sessionId, workspace) =>
+      validateSessionActivationWorkspace(context, sessionId, workspace),
+    activate: async (sessionId, workspace) => {
+      const persistedMessages = await context.v4Gateway?.prepareSessionHistory(
+        sessionId,
+        workspace,
+      );
       await activateSessionRuntime(
         context,
-        { sessionId },
-        {
-          reusePersistedMessages: true,
-          persistedMessages,
-        },
+        { sessionId, workspace },
+        { reusePersistedMessages: true, persistedMessages },
       );
     },
     assertCanStop: (sessionId) => {
@@ -41,6 +49,7 @@ export function getSessionLifecycle(
     },
     release: (sessionId, initializationFailed) =>
       releaseSessionRecord(context, sessionId, initializationFailed ? "discard" : "close"),
+    onOperationSettled: (id) => context.sessions.get(id)?.pluginReload?.check(),
     onChange: (snapshot) => {
       context.logger?.info("Session runtime lifecycle changed", {
         event: "zcode_protocol.session.lifecycle_changed",
@@ -129,39 +138,62 @@ async function releaseSessionRecord(
       context.v4Gateway?.disposeSession(sessionId);
     return;
   }
-  const errors: unknown[] = [];
+  record.pluginReload?.dispose();
+  const errors: Error[] = [];
+  const failed = (stage: string, cause: unknown) => {
+    const error = new Error(`${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, {
+      cause,
+    });
+    errors.push(error);
+    context.logger?.warn("Session release stage failed", {
+      event: "zcode_protocol.session.release_stage_failed",
+      sessionId,
+      mode,
+      stage,
+      error: error.message,
+      code: cause && typeof cause === "object" && "code" in cause ? cause.code : undefined,
+    });
+  };
   let projectionReleased: Promise<void> | undefined;
   if (mode === "close") {
     // 先冻结后台唤醒和队列，再暂停目标并取消执行；重启不能在取消后自动续跑。
     try {
       record.app.runtime.beginShutdown();
+    } catch (error) {
+      failed("close_admission", error);
+    }
+    try {
       const target = await record.app.readTarget?.();
       if (target?.status === "active") await record.app.updateTargetStatus?.("paused");
     } catch (error) {
-      errors.push(error);
+      failed("goal_pause", error);
     }
     try {
       record.app.runtime.stopActiveForegroundExecution?.({ reason: "session runtime restarting" });
       record.activeAbortController?.abort(new Error("Session runtime restarting"));
     } catch (error) {
-      errors.push(error);
+      failed("cancel_execution", error);
     }
   }
   try {
     record.unsubscribe?.();
   } catch (error) {
-    errors.push(error);
+    failed("unsubscribe", error);
   }
   // 先摘除旧实例，避免 close 的 await 窗口向半关闭 runtime 发命令。
   // gateway 的删除通知需要 registry 中的 workspace 身份，因此必须在摘除前发出。
   try {
     if (mode === "close")
-      projectionReleased = context.v4Gateway?.releaseSessionProjection(sessionId);
+      projectionReleased = context.v4Gateway
+        ?.releaseSessionProjection(sessionId)
+        .catch((error: unknown) => {
+          failed("projection_release", error);
+        });
     else if (mode === "deactivate") context.v4Gateway?.deactivateSession(sessionId);
     else if (mode !== "discard" && mode !== "shutdown")
       context.v4Gateway?.disposeSession(sessionId, { deleted: mode === "delete" });
   } catch (error) {
-    errors.push(error);
+    failed("projection_release", error);
   }
   context.sessions.delete(sessionId);
   if (mode === "close" || mode === "delete") {
@@ -170,22 +202,25 @@ async function releaseSessionRecord(
       clearMcpUiAppToolsForSession(context, sessionId);
       await record.app.unsubscribeMcpResourcesForUi?.(`${sessionId}|`);
     } catch (error) {
-      errors.push(error);
+      failed("mcp_ui_release", error);
     }
   }
   // 一个清理步骤失败不能跳过 app.close；最终错误仍由生命周期 owner 隔离。
+  let runtimeClosed = false;
   try {
     await record.app.close?.();
+    runtimeClosed = true;
   } catch (error) {
-    errors.push(error);
+    failed("runtime_close", error);
   }
-  if (errors.length === 0) {
+  // 投影的拒绝必须始终被消费；只有真实 runtime close 完成后才能结算其执行队列。
+  await projectionReleased;
+  if (runtimeClosed) {
     try {
-      await projectionReleased;
       await waitForSessionResidencyFinalization(record);
       if (mode === "close") await context.v4Gateway?.finishSessionRelease(sessionId);
     } catch (error) {
-      errors.push(error);
+      failed("execution_finalization", error);
     }
   }
   try {
@@ -199,6 +234,7 @@ async function releaseSessionRecord(
     });
   }
   if (errors.length) throw new AggregateError(errors, "Session runtime release failed");
+  await context.deps?.sessionStore?.unregisterSessionRuntime?.(sessionId as SessionId);
   if (mode === "close" || mode === "delete" || mode === "discard") {
     // 空目录回收只在唯一 lifecycle owner 释放成功后执行；共享执行目录与非空目录始终保留。
     const workspace = record.workspace;
@@ -208,16 +244,32 @@ async function releaseSessionRecord(
       logger: context.logger,
       remoteSessionId: workspace.remoteSessionId,
       sessionId,
-      resolveSharedByOtherSession: () => isConversationSessionDirectoryInUseAcrossProcesses({
-        executionPath: record.executionWorkspacePath,
-        excludeSessionId: sessionId,
-        registrySessions: context.sessions.values(),
-        sessionPathSource: context.deps.sessionStore,
-      }),
+      resolveSharedByOtherSession: () =>
+        isConversationSessionDirectoryInUseAcrossProcesses({
+          executionPath: record.executionWorkspacePath,
+          excludeSessionId: sessionId,
+          registrySessions: context.sessions.values(),
+          sessionPathSource: context.deps.sessionStore,
+        }),
       workspaceIdentity: workspace.workspaceIdentity,
       workspaceKey: workspace.workspaceKey,
     });
   }
+}
+
+/**
+ * 会话是否忙：驻留阻塞工作、待处理交互或排队命令；未加载返回 null。
+ * 彻底删除会话数据与 `session/releaseUnderDirectory` 共用同一判定。
+ */
+export function readSessionBusyState(
+  context: ZCodeProtocolAgentServerContext,
+  sessionId: string,
+): "busy" | "idle" | null {
+  const facts = createSessionResidentPoolHost(context).readResidencyFacts(sessionId);
+  if (!facts) return null;
+  return facts.hasResidencyBlockingWork || facts.hasPendingInteractions || facts.hasQueuedCommands
+    ? "busy"
+    : "idle";
 }
 
 export function createSessionResidentPoolHost(
@@ -225,6 +277,7 @@ export function createSessionResidentPoolHost(
 ): SessionResidentPoolHost {
   return {
     deactivate: (sessionId) => deactivateSessionRecord(context, sessionId),
+    onOperationsReleased: (id) => context.sessions.get(id)?.pluginReload?.check(),
     listSessionIds: () => [...context.sessions.keys()],
     readResidencyFacts: (sessionId) => {
       const record = context.sessions.get(sessionId);
@@ -275,4 +328,84 @@ function deactivationLogContext(
     residentCountBefore: decision.residentCountBefore,
     targetCount: decision.targetCount,
   };
+}
+
+/** 只登记本实例的意图，绝不能在安装工具内部 await 自己这一轮的结束。 */
+export function requestPluginSessionReload(
+  context: ZCodeProtocolAgentServerContext,
+  record: ZCodeProtocolSessionRecord,
+): void {
+  const id = record.app.sessionId;
+  if (context.sessions.get(id) !== record || record.pluginReload) return;
+  const lifecycle = getSessionLifecycle(context);
+  const host = createSessionResidentPoolHost(context);
+  let disposed = false;
+  let checking = false;
+  let revision = 0;
+  let waitingForFinalization = false;
+  const removeWorkListener = record.app.runtime.onResidencyWorkChanged(check);
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    delete record.pluginReload;
+    removeWorkListener();
+  }
+  function idle() {
+    const facts = host.readResidencyFacts(id);
+    return (
+      !disposed &&
+      context.sessions.get(id) === record &&
+      facts?.persisted &&
+      !facts.hasResidencyBlockingWork &&
+      !facts.hasPendingInteractions &&
+      !facts.hasQueuedCommands &&
+      !context.sessionResidentPool?.operationCount(id)
+    );
+  }
+  function check() {
+    revision++;
+    if (checking || disposed) return;
+    checking = true;
+    queueMicrotask(() => {
+      void evaluate()
+        .catch((error) => {
+          // 读取安全事实失败时不冒险中断任务；后续显式重启仍由同一个生命周期处理。
+          dispose();
+          context.logger?.warn("Plugin session reload failed", { sessionId: id, error });
+        })
+        .finally(() => {
+          checking = false;
+          if (!disposed && evaluated !== revision) check();
+        });
+    });
+  }
+  let evaluated = 0;
+  async function evaluate() {
+    evaluated = revision;
+    if (disposed) return;
+    if (record.residencyFinalizationCount && !waitingForFinalization) {
+      waitingForFinalization = true;
+      void waitForSessionResidencyFinalization(record).then(() => {
+        waitingForFinalization = false;
+        check();
+      });
+    }
+    if (!idle()) return;
+    const [goal, admitted] = await Promise.all([
+      record.app.readTarget(),
+      context.deps.sessionStore?.listSessionInputs?.({
+        sessionID: id as SessionId,
+        status: "admitted",
+      }),
+    ]);
+    // DB 读取期间可以有新输入。丢弃过期读结果，并在同一同步片检查租约、取得 restart flight。
+    if (evaluated !== revision || goal?.status === "active" || admitted?.length || !idle()) return;
+    const flight = lifecycle.restartIdle(id);
+    if (flight) {
+      dispose();
+      await flight;
+    }
+  }
+  record.pluginReload = { check, dispose };
+  check();
 }

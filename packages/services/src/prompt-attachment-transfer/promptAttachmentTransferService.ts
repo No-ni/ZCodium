@@ -37,6 +37,8 @@ export function createLocalPromptAttachmentTransferService(): IPromptAttachmentT
       };
     },
     async adopt() {},
+    async reserveForSubmission() {},
+    async releaseSubmissionReservation() {},
     async cancel() {},
     async cleanup() {},
     onDynamicProgress: (operationId) => getEmitter(operationId).event,

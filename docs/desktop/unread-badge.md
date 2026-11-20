@@ -1,6 +1,6 @@
 # Desktop 未读 Badge
 
-## 目标
+本fork保留共同未读集合与跨窗口快照；Windows平台详见 [windows-taskbar-unread-badge.md](windows-taskbar-unread-badge.md)。
 
 Desktop 把 ZCode task 的未读数显示到应用 Dock / launcher badge，口径以 task meta 的 `unreadAt` 为准，也就是“后台完成后还没点开看的 task 数”。
 

@@ -1,3 +1,6 @@
+import { TID_TASK_ROW_WORKTREE_ICON } from "@zcode/shared/test-ids";
+import { GitBranch } from "lucide-react";
+import { formatWorktreeLabel } from "@/managed-worktrees/index.js";
 import type { ProjectTask as ZCodeTaskMeta } from "@/project-sidebar/contract.js";
 import type { IntlInstance } from "@/i18n/IntlProvider.js";
 import { Clock, LoaderIcon, Moon } from "lucide-react";
@@ -104,6 +107,13 @@ export function TaskRowPreview({
               <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
                 <span className={cn("size-1.5 rounded-full", statusDotClassName)} />
               </span>
+            ) : null}
+            {task.worktreeRoot ? (
+              <GitBranch
+                data-testid={TID_TASK_ROW_WORKTREE_ICON}
+                aria-label={formatWorktreeLabel(intl, task.worktreeRoot) ?? undefined}
+                className="size-3.5 shrink-0"
+              />
             ) : null}
             {!hasPendingInteraction && isTaskCron ? (
               // drag overlay 也复用 grouped row 元信息；clock 放时间前面，不能跟未读点互斥。

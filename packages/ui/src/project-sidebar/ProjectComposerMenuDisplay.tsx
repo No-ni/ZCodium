@@ -1,5 +1,5 @@
 import { ChatRemoteFolderSelection } from "@/project-sidebar/ChatRemoteFolderSelection.js";
-import { RemoteIdentityHoverCard } from "@/project-sidebar/RemoteIdentityHoverCard.js";
+import { ProjectIdentityHoverCard } from "@/project-sidebar/ProjectIdentityHoverCard.js";
 import { remoteHostLabel } from "@/project-sidebar/RemoteHostSection.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -176,11 +176,10 @@ export function ProjectComposerMenuDisplay({
                 deviceNames?.get(projectSourceServerId(project) ?? "") ||
                 (remoteHost ? remoteHostLabel(remoteHost) : undefined);
               return (
-                <RemoteIdentityHoverCard
+                <ProjectIdentityHoverCard
                   key={projectKey(project)}
                   host={remoteHost}
                   title={project.name}
-                  projectName={project.name}
                   deviceName={deviceName}
                   paths={project.roots.map((root) => root.rootPath)}
                   anchorToMenu
@@ -235,7 +234,7 @@ export function ProjectComposerMenuDisplay({
                       ) : null}
                     </DropdownMenuCheckboxItem>
                   </span>
-                </RemoteIdentityHoverCard>
+                </ProjectIdentityHoverCard>
               );
             })}
             {visibleProjects.length === 0 && !error ? (
@@ -262,9 +261,7 @@ export function ProjectComposerMenuDisplay({
                 onSelect={() => {
                   // Bugfix: 打开远程弹窗时必须让 DropdownMenu 执行默认关闭流程。
                   // 阻止默认 select 会让父菜单与 modal 同时保持打开，浮层层级调整后父菜单会覆盖弹窗。
-                  logger.info(
-                    `[ProjectComposerMenu] open remote dialog from workspace menu workspace=${workspacePath}`,
-                  );
+                  logger.info("[ProjectComposerMenu] open remote dialog from workspace menu");
                   // 连接流程由 Root 唯一持有；聊天只提供有效性检查与完成结果接缝。
                   addDevice();
                 }}

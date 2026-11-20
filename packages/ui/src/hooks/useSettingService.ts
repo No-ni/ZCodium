@@ -11,17 +11,9 @@ import type { IServiceAccessor, ISettingService } from "@zcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
 
-type SettingsSnapshot = {
-  settings: AppSettings | null;
-  loading: boolean;
-  error: unknown | null;
-};
+type SettingsSnapshot = { settings: AppSettings | null; loading: boolean; error: unknown | null };
 
-const INITIAL_SETTINGS_SNAPSHOT: SettingsSnapshot = {
-  settings: null,
-  loading: true,
-  error: null,
-};
+const INITIAL_SETTINGS_SNAPSHOT: SettingsSnapshot = { settings: null, loading: true, error: null };
 const snapshots = new Map<string, SettingsSnapshot>();
 const inflightRefreshes = new Map<string, Promise<void>>();
 const listenersByKey = new Map<string, Set<(snapshot: SettingsSnapshot) => void>>();
@@ -74,20 +66,12 @@ async function refreshSharedSettings(
     return refreshSharedSettings(cacheKey, getSettings);
   }
 
-  setSettingsSnapshot(cacheKey, {
-    ...getSettingsSnapshot(cacheKey),
-    loading: true,
-    error: null,
-  });
+  setSettingsSnapshot(cacheKey, { ...getSettingsSnapshot(cacheKey), loading: true, error: null });
 
   const refreshPromise = (async () => {
     try {
       const result = await getSettings();
-      setSettingsSnapshot(cacheKey, {
-        settings: result,
-        loading: false,
-        error: null,
-      });
+      setSettingsSnapshot(cacheKey, { settings: result, loading: false, error: null });
     } catch (error) {
       setSettingsSnapshot(cacheKey, {
         // 修复原因：设置读取失败时保留旧快照，避免一次刷新错误把已可用的设置页降级为空状态。
@@ -221,11 +205,14 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
       await refreshSharedSettings(cacheKey, () => settingService.get(), true);
       if (
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
-        patch.toolSearchMode !== undefined
+        patch.toolSearchMode !== undefined ||
+        typeof patch.pluginAutoRecommendationEnabled === "boolean"
       ) {
         // 运行时同步也读取 owner 的最新事实，不能拿界面快照重置另一项已提交的偏好。
         const committedSettings = await settingService.get();
         const preferences = {
+          pluginAutoRecommendationEnabled:
+            committedSettings.pluginAutoRecommendationEnabled === true,
           askUserQuestionAutoResolutionEnabled:
             committedSettings.askUserQuestionAutoResolutionEnabled !== false,
           toolSearchMode: committedSettings.toolSearchMode ?? "off",

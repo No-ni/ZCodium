@@ -4,8 +4,10 @@ import {
   isBrowserClipboardAvailable,
 } from "@zcode/ui";
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@zcode/shared";
+import { resolveLocaleFromLanguageTag, unwrapRemoteWorkspaceBindResult } from "@zcode/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
+import { registerAppControlNavigationHandler } from "#src/app-control-navigation/renderer.js";
 import { createDesktopPluginSandboxPlatform } from "./plugin-sandbox/desktopPluginSandboxPlatform.js";
 
 export function createDesktopPlatform(options: {
@@ -14,6 +16,19 @@ export function createDesktopPlatform(options: {
   return {
     writeClipboardText: isBrowserClipboardAvailable() ? writeBrowserClipboardText : undefined,
     selectFileData: selectBrowserFileData,
+    onAppControlNavigation: (handler) =>
+      registerAppControlNavigationHandler(
+        {
+          subscribe: (listener) => window.zcode.onAppControlNavigationMessage(listener),
+          register: (generation) =>
+            window.zcode.sendAppControlNavigation({ type: "register", generation }),
+          unregister: (generation) =>
+            window.zcode.sendAppControlNavigation({ type: "unregister", generation }),
+          reply: (message) => window.zcode.sendAppControlNavigation({ type: "result", ...message }),
+        },
+        handler,
+        crypto.randomUUID(),
+      ),
     canSelectFilePath: true,
     pluginSandbox: createDesktopPluginSandboxPlatform(),
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
@@ -95,6 +110,9 @@ export function createDesktopPlatform(options: {
     reportRendererHeapSample: (sample) => window.zcode.reportRendererHeapSample(sample),
     reportLocalTtftBatch: (batch) => window.zcode.reportLocalTtftBatch(batch),
     showTaskNotification: (payload) => window.zcode.showTaskNotification(payload),
+    // 扩展的系统通知（§18.1 H8）：只有桌面实现；Web 与手机远控没有这两个方法，Renderer 按 unsupported 处理。
+    showExtensionNotification: (payload) => window.zcode.showExtensionNotification(payload),
+    onExtensionNotificationClick: (handler) => window.zcode.onExtensionNotificationClick(handler),
     syncWindowTabs: (paths) => window.zcode.syncWindowTabs(paths),
     syncWindowUnreadCount: (count) => window.zcode.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.zcode.syncActiveTaskSession(sessionId),
@@ -174,7 +192,7 @@ export function createDesktopPlatform(options: {
     setApplicationLocale: (locale) => window.zcode.setApplicationLocale(locale),
     getSystemLocale: () =>
       window.zcode.getSystemLocale?.() ??
-      Promise.resolve(navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US"),
+      Promise.resolve(resolveLocaleFromLanguageTag(navigator.language)),
     setTitleBarTheme: (theme) => window.zcode.setTitleBarTheme(theme),
   };
 }

@@ -51,7 +51,43 @@ workspace identity、session ID 和文件路径沿用原请求；不增加缓存
 既有桌面专用提示；不扩展手机 RPC allowlist。HTML 仍由执行端 Host 读取，widget state
 仍属于桌面宿主。
 
+## 提示词中的位置
+
+会话输出目录随 session ID 变化，所以不写进 system，只写进环境公告
+（` - Visualization directory for this session: <path>`，见
+`apps/zcode-cli/docs/design/v2/loop/meta-user-context.md`）。App 装配直接复用本仓内置 Visualize 插件的
+有效启用态；禁用或卸载时不向 runtime 提供输出根目录。因此新会话既不注入目录，也不注入
+Desktop 段的整个 `Interactive views`（含控件状态说明），不另发“不可用”的替代提示。
+启用且有目录时保留现有说明；其余 Desktop 上下文保持不变。
+默认启用并保留用户启停选择；加载边界见 [Visualize 加载边界](visualize-cli-loading.md)。
+启停沿用 runtime 装配时机，历史提示不删除，恢复旧会话时仍允许既有环境差量撤销旧目录。
+本变更只控制上下文注入，不改变 skill、文件读取、渲染或状态回传。
+
+```text
+父会话  system（快照，不含目录） + # Environment … Visualization directory: <父目录>
+  │ fork：复制历史与 prompt 快照，并在复制的历史后写入一条环境更新
+  ▼
+子会话  system 字节与父会话相同
+        # Environment update
+         - Visualization directory for this session: <子目录> (was <父目录>)
+```
+
+原因：system 由 prompt 快照冻结，fork 时快照复制给子会话。目录留在 system 的 Desktop 段里时，
+子会话会继续发送父会话的目录，生成文件写进父会话目录。改到环境公告后，system 可以整体冻结，
+目录变化按环境更新宣告。环境更新在 fork 时写入子会话，不等子会话下一次收集输入附件：
+子会话的第一个请求可能是新轮通知，新轮通知不收集附件，模型会按父会话目录写文件。
+基线取子会话的模型视图（最后一次压缩之后）里最近的环境公告；视图里没有环境公告时不写，
+子会话下一次公告发完整块；有公告但没有目录、且 fork 不带目标工作目录时也不写。
+
+fork 到另一个工作目录（受管 worktree，见 `docs/git/worktree.md`）时，本仓保留项目 workspace 身份与执行 cwd 分离：
+目录由 workspace 身份（没有身份时用项目 workspace 路径）与子 session id 决定，不按 cwd 改写身份。
+对话专属输出布局另传子 executionWorkspacePath；fork 与子 runtime 必须使用相同的身份键与输出布局。同一条环境更新
+还写出新的 `Primary working directory`；父会话公告没有目录时，fork 带目标工作目录也写这条更新。
+更新的写法与普通环境公告相同：基线没有完整块时写完整块，Desktop 段写法变化时同时带上新写法。
+
 ## 回归验证
+
+- system 不含会话目录；fork 复制 system 字节后，在子历史追加目录/cwd 环境更新。新工作树使用子 cwd 计算目录；禁用、卸载或全局关闭插件时不注入，默认启用且有目录时注入。
 
 - 路径单测覆盖输出根目录位于工作区内、等于工作区、工作区为文件系统根目录，以及
   本地 / SSH workspace identity；相对路径仍拒绝。

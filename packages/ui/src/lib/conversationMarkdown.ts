@@ -90,6 +90,8 @@ function timelineText(marker: TimelineMarkerPayload): string {
       return "Conversation forked from an earlier conversation.";
     case "forkCreated":
       return "A new conversation was forked here.";
+    case "worktreeCreated":
+      return `Worktree created: ${marker.path} (${marker.sha})${marker.ref ? ` from ${marker.ref}` : ""}\n\n${marker.output}`;
     case "checkpointRestored":
       return "Checkpoint restored.";
   }

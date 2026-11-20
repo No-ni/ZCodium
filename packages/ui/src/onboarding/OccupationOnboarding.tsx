@@ -191,6 +191,7 @@ export function OccupationOnboarding({
     setSaving(true);
     setError(false);
     try {
+      // 卡片是草稿；实际应用才报切换，后续偏好保存失败重试也不重报同值。
       if (mode) setInterfaceMode(mode);
       logger.info("[occupation-onboarding] 保存偏好", { interfaceMode: mode });
       await update({

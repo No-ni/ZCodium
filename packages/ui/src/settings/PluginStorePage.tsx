@@ -1,14 +1,17 @@
+import type { DraftPluginUiOpenRequest } from "@/plugin-ui/contract.js";
 /* eslint-disable max-lines -- 插件商店容器统一编排列表/详情、市场源对话框、卸载确认、试用跳转与技能刷新收尾，集中维护保证交互一致。 */
 import { PluginAddMenu } from "@/conversation-workspace-target/PluginAddMenu.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Settings } from "lucide-react";
+import { ArrowLeft, RefreshCw, Settings } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { usePluginStoreOrder } from "@/hooks/usePluginStoreOrder.js";
-import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
+import { useScopedPluginManagementStore } from "@/store/pluginManagementStore.js";
+import { useMarketPluginUi } from "@/plugin-ui/index.js";
+import { PluginsSection } from "@/settings/PluginsSection.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";
@@ -28,7 +31,8 @@ import type { PluginStoreActions } from "@/settings/PluginStoreCard.js";
 import {
   buildStoreItems,
   canUpdatePluginItem,
-  isPluginUpdatePending,
+  hasInstallableUpdate,
+  isStoreItemInstallBlocked,
   resolveItemDisplayName,
   resolvePluginDisplayName,
   type StorePluginItem,
@@ -43,21 +47,51 @@ import {
 } from "@/settings/pluginStoreTryPrompt.js";
 
 interface PluginStorePageProps {
+  isDesktop?: boolean;
+  isMacDesktop?: boolean;
+  isWindowsDesktop?: boolean;
+  isWebRemoteControl?: boolean;
   workspacePath?: string | null;
   workspaceIdentity?: string;
   onCreateTask?: (request?: CreateTaskRequest) => void;
+  sessionId?: string | null;
+  remoteSessionId?: string | null;
+  embedded?: boolean;
+  paneId?: string;
+  onOpenDraftUi?: (request: DraftPluginUiOpenRequest) => void;
+  onBack?: () => void;
 }
 
-type PluginStoreView = "store" | "detail";
+type PluginStoreView = "store" | "detail" | "manage";
 
 export function PluginStorePage({
+  isDesktop = false,
+  isMacDesktop = false,
+  isWindowsDesktop = false,
+  isWebRemoteControl = false,
   workspacePath,
   workspaceIdentity,
   onCreateTask,
+  sessionId,
+  remoteSessionId,
+  embedded = false,
+  paneId,
+  onOpenDraftUi,
+  onBack,
 }: PluginStorePageProps) {
   const { intl, locale } = useZCodeIntl();
   const { order: storeOrder, refresh: refreshStoreOrder } = usePluginStoreOrder();
   const { pluginManagementService, skillsService } = useServices();
+  const usePluginManagementStore = useScopedPluginManagementStore(pluginManagementService);
+  const pluginUi = useMarketPluginUi({
+    paneId,
+    onOpenDraftUi,
+    workspacePath,
+    workspaceIdentity,
+    sessionId,
+    remoteSessionId,
+  });
+  const [managementScope, setManagementScope] = useState("user");
   const plugins = usePluginManagementStore((state) => state.plugins);
   const pluginDiagnostics = usePluginManagementStore((state) => state.diagnostics);
   const marketplaces = usePluginManagementStore((state) => state.marketplaces);
@@ -82,6 +116,8 @@ export function PluginStorePage({
   const describePlugin = usePluginManagementStore((state) => state.describePlugin);
   const updatePlugin = usePluginManagementStore((state) => state.updatePlugin);
   const restoreBuiltin = usePluginManagementStore((state) => state.restoreBuiltin);
+  const setEnabled = usePluginManagementStore((state) => state.setEnabled);
+  const togglingPluginId = usePluginManagementStore((state) => state.togglingPluginId);
 
   const [view, setView] = useState<PluginStoreView>("store");
   const [detailPluginId, setDetailPluginId] = useState<string | null>(null);
@@ -94,7 +130,9 @@ export function PluginStorePage({
   const rootRef = useRef<HTMLDivElement | null>(null);
   // 返回列表页时恢复进入详情前的滚动位置（设置页 main 容器滚动）。
   const storeScrollTopRef = useRef(0);
-  const [initialNavigationTarget] = useState(() => consumePluginStoreOpenTarget());
+  const [initialNavigationTarget] = useState(() =>
+    embedded ? null : consumePluginStoreOpenTarget(),
+  );
   const initialNavigationTargetRef = useRef(initialNavigationTarget);
   useEffect(() => {
     if (initialNavigationTarget?.intent === "add-marketplace") setAddSourceOpen(true);
@@ -253,12 +291,13 @@ export function PluginStorePage({
 
   const handleInstall = useCallback(
     async (item: StorePluginItem) => {
-      if (item.restorable) {
-        await restoreBuiltin(item.id, pluginManagementService);
-      } else {
-        await installPlugin(item.name, item.marketplace, pluginManagementService, "user");
-      }
-      // 安装/恢复会引入新技能与命令，与启停/卸载一样做一次收尾刷新。
+      // 示例提示词对未安装条目也走这里：不兼容的版本不能装（§4.3），按钮之外的入口同样挡住。
+      if (isStoreItemInstallBlocked(item)) return;
+      const succeeded = item.restorable
+        ? await restoreBuiltin(item.id, pluginManagementService)
+        : await installPlugin(item.name, item.marketplace, pluginManagementService, "user");
+      // 失败或目标已切换时没有可交付的新能力，不能失效草稿运行时。
+      if (!succeeded) return;
       await refreshAfterPluginChange();
     },
     [installPlugin, pluginManagementService, refreshAfterPluginChange, restoreBuiltin],
@@ -288,7 +327,7 @@ export function PluginStorePage({
     }
     const pendingCount = usePluginManagementStore
       .getState()
-      .installedPlugins.filter((item) => isPluginUpdatePending(item.updateStatus)).length;
+      .installedPlugins.filter(hasInstallableUpdate).length;
     if (pendingCount > 0) {
       toast(
         intl.formatMessage(
@@ -339,13 +378,39 @@ export function PluginStorePage({
   const actions: PluginStoreActions = useMemo(
     () => ({
       onOpenDetail: openDetail,
+      // 主导航交给根草稿，侧栏保留所属 pane 的绑定。
+      onOpenUi:
+        embedded || onOpenDraftUi
+          ? (item) =>
+              void pluginUi.open(
+                item.id,
+                item.info?.enabled
+                  ? undefined
+                  : () => setEnabled(item.id, true, pluginManagementService, "workspace"),
+              )
+          : undefined,
+      onSetEnabled: (pluginId, enabled) => {
+        void setEnabled(pluginId, enabled, pluginManagementService, "workspace");
+      },
       onInstall: (item) => void handleInstall(item),
       onUninstall: uninstall.requestUninstall,
       onUpdate: (pluginId) => void handleUpdatePlugin(pluginId),
       activeOperations,
-      togglingPluginId: null,
+      togglingPluginId,
     }),
-    [handleInstall, handleUpdatePlugin, openDetail, activeOperations, uninstall.requestUninstall],
+    [
+      handleInstall,
+      handleUpdatePlugin,
+      openDetail,
+      activeOperations,
+      uninstall.requestUninstall,
+      pluginUi,
+      pluginManagementService,
+      setEnabled,
+      togglingPluginId,
+      embedded,
+      onOpenDraftUi,
+    ],
   );
 
   if (!workspacePath) {
@@ -383,6 +448,15 @@ export function PluginStorePage({
           </p>
           {/* 顶栏动作：刷新 / 市场源管理（齿轮）/ 新建市场源。 */}
           <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="plugin-store-manage-open"
+              onClick={() => setView("manage")}
+            >
+              {intl.formatMessage({ id: "settings.plugins.store.manageInstalled" })}
+            </Button>
             <ControlHintTooltip
               title={
                 refreshing
@@ -435,16 +509,65 @@ export function PluginStorePage({
         </div>
       ) : null}
 
+      {/* 来源错误可能带连续长路径；允许断行，避免窄屏内容被错误文本撑宽。 */}
       {error && !addSourceOpen ? (
         <div
-          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-ui-base text-destructive"
+          className="break-words rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-ui-base text-destructive"
           data-testid="plugin-store-error"
         >
           {error}
         </div>
       ) : null}
 
-      {view === "detail" && detailItem ? (
+      {view === "manage" ? (
+        <div data-testid="plugin-store-manage" className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              data-testid="plugin-store-manage-back"
+              aria-label={intl.formatMessage({ id: "project.back" })}
+              onClick={backToStore}
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </Button>
+            <h1 className="text-ui-xl font-semibold">
+              {intl.formatMessage({ id: "settings.plugins.store.manageInstalled" })}
+            </h1>
+          </div>
+          <PluginsSection
+            mode="market"
+            isDesktop={isDesktop}
+            isMacDesktop={isMacDesktop}
+            isWindowsDesktop={isWindowsDesktop}
+            workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            isWebRemoteControl={isWebRemoteControl}
+            initialScopeKey={managementScope}
+            onScopeChange={setManagementScope}
+            onCreateTask={onCreateTask}
+            onOpenPluginStore={(_scope, intent) => {
+              backToStore();
+              if (intent === "add-marketplace") setAddSourceOpen(true);
+            }}
+            onOpenUi={
+              embedded || onOpenDraftUi
+                ? (item, target, enable) => {
+                    if (
+                      (target?.workspaceIdentity?.trim() || target?.workspacePath) !==
+                      (workspaceIdentity?.trim() || workspacePath)
+                    ) {
+                      toast(intl.formatMessage({ id: "settings.plugins.store.ui.needsSession" }));
+                      return;
+                    }
+                    void pluginUi.open(item.id, enable);
+                  }
+                : undefined
+            }
+          />
+        </div>
+      ) : view === "detail" && detailItem ? (
         <PluginStoreDetailView
           item={detailItem}
           actions={actions}
@@ -536,9 +659,7 @@ export function PluginStorePage({
         pluginName={
           uninstall.pendingPlugin
             ? resolvePluginDisplayName(
-                itemById.get(uninstall.pendingPlugin.id) ?? {
-                  name: uninstall.pendingPlugin.name,
-                },
+                itemById.get(uninstall.pendingPlugin.id) ?? { name: uninstall.pendingPlugin.name },
                 locale,
               )
             : ""

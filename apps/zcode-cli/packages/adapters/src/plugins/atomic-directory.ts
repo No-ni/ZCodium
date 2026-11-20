@@ -1,12 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { access, cp, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import {
   appendPluginSourceCleanupError,
   cleanupPluginSourceBestEffort,
   isAtomicStagingName,
+  renamePluginDirectory,
 } from "./helpers.js";
+import {
+  type AtomicTransactionRecordV2,
+  type AtomicTransactionRecord,
+  atomicProcessOwnerId,
+  getAtomicRecoveryPaths,
+  isAtomicTransactionOwnerAlive,
+  authorityContainsTransactionSync,
+  containsTransaction,
+  parseAtomicTransaction,
+} from "./atomic-transaction-facts.js";
 
 export interface ActivateDirectoryAtomicallyInput {
   authorityPath?: string;
@@ -26,41 +37,40 @@ export interface AtomicDirectoryActivation {
   transactionId: string;
 }
 
-interface AtomicTransactionRecordV1 {
-  stageName: string;
-  version: 1;
-}
-
-interface AtomicTransactionRecordV2 {
-  authorityPath?: string;
-  hadTarget: boolean;
-  mode: "coordinated" | "standalone";
-  ownerId: string;
-  ownerPid: number;
-  stageName: string;
-  transactionId: string;
-  version: 2;
-}
-
-type AtomicTransactionRecord = AtomicTransactionRecordV1 | AtomicTransactionRecordV2;
-
-const atomicProcessOwnerId = randomUUID();
 const activeAtomicReservations = new Set<string>();
+
 const activeAtomicTargets = new Map<
   string,
   Pick<AtomicTransactionRecordV2, "authorityPath" | "hadTarget" | "mode" | "transactionId">
 >();
 
-function getAtomicRecoveryPaths(targetPath: string): {
-  backupPath: string;
-  transactionPath: string;
-} {
-  const parent = dirname(targetPath);
-  const name = basename(targetPath);
-  return {
-    backupPath: join(parent, `.${name}.backup`),
-    transactionPath: join(parent, `.${name}.transaction.json`),
-  };
+/** 读取 standalone 原子文件的完整一代；恢复清理由现有写入口负责，读者不抢占事务。 */
+export async function readStandaloneAtomicFile(targetPath: string): Promise<string> {
+  const { backupPath, transactionPath } = getAtomicRecoveryPaths(targetPath);
+  let preferBackup = false;
+  try {
+    const transaction = JSON.parse(
+      await readFile(transactionPath, "utf8"),
+    ) as Partial<AtomicTransactionRecordV2>;
+    preferBackup =
+      transaction.version === 2 &&
+      transaction.mode === "standalone" &&
+      typeof transaction.ownerId === "string" &&
+      Number.isSafeInteger(transaction.ownerPid) &&
+      (transaction.ownerPid ?? 0) > 0 &&
+      isAtomicTransactionOwnerAlive(transaction as AtomicTransactionRecordV2);
+  } catch {
+    // 没有事务标记时优先读取 target；崩溃留下的 backup 仍可作为缺失回退。
+  }
+  const first = preferBackup ? backupPath : targetPath;
+  const second = preferBackup ? targetPath : backupPath;
+  try {
+    return await readFile(first, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    // writer 可以在选定路径之后完成 promote/finalize；只在缺失时读取另一完整文件。
+    return await readFile(second, "utf8");
+  }
 }
 
 export function recoverAtomicTargetSync(targetPath: string): string {
@@ -72,24 +82,7 @@ export function recoverAtomicTargetSync(targetPath: string): string {
 
   let transaction: AtomicTransactionRecord | undefined;
   try {
-    const parsed = JSON.parse(
-      readFileSync(transactionPath, "utf8"),
-    ) as Partial<AtomicTransactionRecord>;
-    if (parsed.version === 1 && typeof parsed.stageName === "string") {
-      transaction = { stageName: parsed.stageName, version: 1 };
-    } else if (
-      parsed.version === 2 &&
-      typeof parsed.stageName === "string" &&
-      typeof parsed.transactionId === "string" &&
-      typeof parsed.ownerId === "string" &&
-      Number.isSafeInteger(parsed.ownerPid) &&
-      (parsed.ownerPid ?? 0) > 0 &&
-      typeof parsed.hadTarget === "boolean" &&
-      (parsed.mode === "coordinated" || parsed.mode === "standalone") &&
-      (parsed.authorityPath === undefined || typeof parsed.authorityPath === "string")
-    ) {
-      transaction = parsed as AtomicTransactionRecordV2;
-    }
+    transaction = parseAtomicTransaction(JSON.parse(readFileSync(transactionPath, "utf8")));
   } catch {
     transaction = undefined;
   }
@@ -152,39 +145,6 @@ function resolveLiveAtomicReadPath(
   if (existsSync(backupPath)) return backupPath;
   if (transaction.hadTarget && existsSync(targetPath)) return targetPath;
   return backupPath;
-}
-
-function isAtomicTransactionOwnerAlive(transaction: AtomicTransactionRecordV2): boolean {
-  if (transaction.ownerPid === process.pid) {
-    return transaction.ownerId === atomicProcessOwnerId;
-  }
-  try {
-    process.kill(transaction.ownerPid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-function authorityContainsTransactionSync(authorityPath: string, transactionId: string): boolean {
-  let value: unknown;
-  try {
-    // 磁盘 marker 只可核验提交状态，不能把任意 authorityPath 递归派发为恢复/删除目标。
-    value = JSON.parse(readFileSync(authorityPath, "utf8")) as unknown;
-  } catch {
-    return false;
-  }
-  const pending: unknown[] = [value];
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current || typeof current !== "object") continue;
-    if (!Array.isArray(current) && "cacheTransactionId" in current) {
-      const record = current as { cacheTransactionId?: unknown };
-      if (record.cacheTransactionId === transactionId) return true;
-    }
-    pending.push(...(Array.isArray(current) ? current : Object.values(current)));
-  }
-  return false;
 }
 
 async function writeAtomicTransaction(
@@ -282,16 +242,16 @@ export async function activateDirectoryAtomically(
     });
     transactionWritten = true;
     if (hadTarget) {
-      await rename(input.targetPath, backupPath);
+      await renamePluginDirectory(input.targetPath, backupPath);
       targetMoved = true;
     }
     try {
-      await rename(stagedPath, input.targetPath);
+      await renamePluginDirectory(stagedPath, input.targetPath);
       committed = true;
     } catch (error) {
       if (targetMoved && !(await pathExists(input.targetPath))) {
         try {
-          await rename(backupPath, input.targetPath);
+          await renamePluginDirectory(backupPath, input.targetPath);
           targetMoved = false;
         } catch (rollbackError) {
           throw appendPluginSourceCleanupError(error, rollbackError);
@@ -335,7 +295,7 @@ export async function activateDirectoryAtomically(
         try {
           // 依赖 closure 的后续插件或 installed state 写入失败时，撤销已激活目录。
           await rm(input.targetPath, { force: true, recursive: true });
-          if (targetMoved) await rename(backupPath, input.targetPath);
+          if (targetMoved) await renamePluginDirectory(backupPath, input.targetPath);
           await cleanupPluginSourceBestEffort(async () => {
             await rm(transactionPath, { force: true });
           });
@@ -438,4 +398,44 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   const error = new Error("Plugin operation cancelled");
   error.name = "AbortError";
   throw error;
+}
+
+/**
+ * 发现读取完整版本；不接管仍活跃的安装事务。
+ * 已死亡事务的残留在返回前恢复成 target：discovery 的路径会被会话长期持有，
+ * 若直接返回 backup，后续 describe/安装触发的恢复会把它改名为 target，会话里的 Skill/Hook 路径随即 ENOENT。
+ */
+export async function resolveAtomicReadPath(targetPath: string): Promise<string> {
+  const { backupPath, transactionPath } = getAtomicRecoveryPaths(targetPath);
+  let transaction: AtomicTransactionRecord | undefined;
+  try {
+    transaction = parseAtomicTransaction(JSON.parse(await readFile(transactionPath, "utf8")));
+  } catch {
+    transaction = undefined;
+  }
+  const live =
+    activeAtomicTargets.get(resolve(targetPath)) ??
+    (transaction?.version === 2 && isAtomicTransactionOwnerAlive(transaction)
+      ? transaction
+      : undefined);
+  if (live) {
+    let committed = false;
+    if (live.mode === "coordinated" && live.authorityPath) {
+      try {
+        committed = containsTransaction(
+          JSON.parse(await readStandaloneAtomicFile(live.authorityPath)),
+          live.transactionId,
+        );
+      } catch {
+        committed = false;
+      }
+    }
+    if (committed) return targetPath;
+    if (await pathExists(backupPath)) return backupPath;
+    return live.hadTarget && (await pathExists(targetPath)) ? targetPath : backupPath;
+  }
+  // 常态无残留，不进入恢复；只有崩溃残留才走与 describe/activation 相同的同步恢复。
+  if (!transaction && !(await pathExists(backupPath))) return targetPath;
+  // 恢复内部会再检查一次活跃事务：异步检查之后才启动的 writer 不会被抢走 backup。
+  return recoverAtomicTargetSync(targetPath);
 }

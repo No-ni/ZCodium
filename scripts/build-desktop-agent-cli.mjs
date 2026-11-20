@@ -17,10 +17,7 @@ const useBootstrapWithRemoteBuild = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === 
 // 官方开源电脑操作：dev/prebuild 的 CUA 插件 runtime 必须与 Agent bundle 同源暂存。
 // ZCODE_CUA_DEV_MODE 只作为 staging helper 的输入，不进入最终 product/runtime 环境；
 // 开源占位 producer 不提供原生能力时，helper 自己返回空集，不会伪造出可用 Helper。
-const cuaPluginRuntimeStagingEnv = {
-  ...process.env,
-  ZCODE_CUA_DEV_MODE: "1",
-};
+const cuaPluginRuntimeStagingEnv = { ...process.env, ZCODE_CUA_DEV_MODE: "1" };
 const officePluginAssets = BUILTIN_PLUGIN_ASSETS.filter(
   ({ runtimeBuildScript }) => runtimeBuildScript === BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
 );
@@ -114,11 +111,8 @@ async function verifyRequiredDevPluginRuntimeArtifacts() {
  *
  * dev 只跑宿主平台，所以 platformKey 直接取 process；打包链的跨平台 target 由它自己解析。
  */
-function stageDevAgentBundle() {
-  stageAgentBundle({
-    repoRoot,
-    platformKey: `${process.platform}-${process.arch}`,
-  });
+async function stageDevAgentBundle() {
+  await stageAgentBundle({ repoRoot, platformKey: `${process.platform}-${process.arch}` });
 }
 
 async function runBootstrapWithRemoteBuild(pnpmRunEnv) {
@@ -161,7 +155,7 @@ async function main() {
   if (useBootstrapWithRemoteBuild) {
     await runBootstrapWithRemoteBuild(pnpmRunEnv);
     await buildOfficeDevPluginRuntimes();
-    stageDevAgentBundle();
+    await stageDevAgentBundle();
     stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
     return;
   }
@@ -169,10 +163,7 @@ async function main() {
   if (!useTurboBuild) {
     // 根workspace保证CLI对共享包的依赖可解析；两条路径复用同一有序构建清单。
     for (const filter of defaultBuildFilters) {
-      runCommand("pnpm", ["--filter", filter, "build"], {
-        env: pnpmRunEnv,
-        stdio: "inherit",
-      });
+      runCommand("pnpm", ["--filter", filter, "build"], { env: pnpmRunEnv, stdio: "inherit" });
     }
     await buildOfficeDevPluginRuntimes();
     await verifyRequiredDevPluginRuntimeArtifacts();
@@ -180,7 +171,7 @@ async function main() {
       env: pnpmRunEnv,
       stdio: "inherit",
     });
-    stageDevAgentBundle();
+    await stageDevAgentBundle();
     stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
     return;
   }
@@ -200,7 +191,7 @@ async function main() {
     { env: pnpmRunEnv, stdio: "inherit" },
   );
   await verifyRequiredDevPluginRuntimeArtifacts();
-  stageDevAgentBundle();
+  await stageDevAgentBundle();
   stageDevCuaPluginRuntime({ env: cuaPluginRuntimeStagingEnv });
 }
 

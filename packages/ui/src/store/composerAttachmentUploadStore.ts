@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import type { IPromptAttachmentTransferService } from "@zcode/services";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import type { ChatComposerAttachment } from "@/lib/chatAttachments.js";
 
@@ -31,12 +32,25 @@ export interface ComposerAttachmentUploadItem extends ChatComposerAttachment {
   runtimeRebuildRetryCount: number;
   staged: boolean;
   adopted: boolean;
+  /** 原发送冻结的交接 owner；仅在内存保留，不能被 runtime 重传路径接管。 */
+  submissionTransfer?: IPromptAttachmentTransferService;
+  handoffPending?: boolean;
   showComplete: boolean;
   localZeroCopy: boolean;
 }
 
 interface ComposerAttachmentUploadStoreState {
   scopes: Record<string, ComposerAttachmentUploadItem[]>;
+  handoffs: Record<string, ComposerAttachmentHandoff>;
+}
+
+export interface ComposerAttachmentHandoff {
+  owner: symbol;
+  /** 接纳后的展示落点；附件引用和交接闭包仍只在原 scope。 */
+  displayScopeKey?: string;
+  phase: "pending" | "failed";
+  /** 只重试本地交接，不携带另一份正文或重新 dispatch。 */
+  retry(): Promise<void>;
 }
 
 /**
@@ -44,7 +58,7 @@ interface ComposerAttachmentUploadStoreState {
  * 上传控制器仍由发起该 operation 的 hook 闭包持有，relay/main 不保存业务状态。
  */
 export const useComposerAttachmentUploadStore = create<ComposerAttachmentUploadStoreState>()(
-  () => ({ scopes: {} }),
+  () => ({ scopes: {}, handoffs: {} }),
 );
 
 declare global {
@@ -67,6 +81,21 @@ export function exposeComposerAttachmentScopeKeyForE2E(scopeKey: string): void {
 
 export function readComposerAttachmentScope(scopeKey: string): ComposerAttachmentUploadItem[] {
   return useComposerAttachmentUploadStore.getState().scopes[scopeKey] ?? [];
+}
+
+export function setComposerAttachmentHandoff(
+  scopeKey: string,
+  handoff: ComposerAttachmentHandoff | undefined,
+  owner: symbol,
+): void {
+  useComposerAttachmentUploadStore.setState((state) => {
+    const current = state.handoffs[scopeKey];
+    // 迟到完成不能清理同一 scope 的新一次交接。
+    if (current && current.owner !== owner) return state;
+    if (handoff) return { handoffs: { ...state.handoffs, [scopeKey]: handoff } };
+    const { [scopeKey]: _removed, ...remaining } = state.handoffs;
+    return { handoffs: remaining };
+  });
 }
 
 export function updateComposerAttachmentScope(

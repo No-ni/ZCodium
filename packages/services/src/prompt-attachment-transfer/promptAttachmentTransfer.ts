@@ -36,6 +36,10 @@ export interface PromptAttachmentStageResult {
  */
 export interface IPromptAttachmentTransferService {
   stage(params: PromptAttachmentStageParams): Promise<PromptAttachmentStageResult>;
+  /** 发送前保留可能被 CLI 接纳的暂存引用，未知结果时 cleanup/dispose 不删除。 */
+  reserveForSubmission(operationId: string): Promise<void>;
+  /** 仅明确未接纳时释放预留，恢复 composer 所有权。 */
+  releaseSubmissionReservation(operationId: string): Promise<void>;
   adopt(operationId: string): Promise<void>;
   cancel(operationId: string): Promise<void>;
   cleanup(operationId: string): Promise<void>;

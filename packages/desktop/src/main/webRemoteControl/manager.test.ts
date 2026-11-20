@@ -243,6 +243,12 @@ describe("createWebRemoteControlManager multi-window relay identity", () => {
       },
     };
     const credentialService: ICredentialService = {
+      async inspectStore() {
+        return { status: "healthy" };
+      },
+      async recoverStore() {
+        return { status: "changed" };
+      },
       async load(key) {
         return credentials.get(key) ?? null;
       },

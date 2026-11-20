@@ -11,6 +11,7 @@ import { createGenerateTextOptions } from "./runner-options.js";
 import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
 import {
   normalizeReasoning,
+  orderGeneratedContent,
   normalizeSources,
   normalizeToolCalls,
   normalizeToolResults,
@@ -43,9 +44,15 @@ import type {
   AiSdkModelTextRequest,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { nextUnrecognizedCodeStreak, retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
+import {
+  nextUnrecognizedCodeStreak,
+  retryAllowedByFailurePolicy,
+} from "./workflow-model-failure-policy.js";
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-failure-status.js";
-import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
+import {
+  repairReasoningHistoryAfterSignatureRejection,
+  thinkingSignatureRejectionEvidence,
+} from "./reasoning-history-normalization.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
   retryAttemptLoopContinues,
@@ -94,10 +101,7 @@ export async function runGenerateText(input: {
     const startedAt = Date.now();
     let resolved = input.resolved;
     let statusContext = createAttemptStatusContext(
-      {
-        ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)),
-      },
+      { ...baseStatusContext, maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)) },
       attempt,
     );
     let options: ReturnType<typeof createGenerateTextOptions> | undefined;
@@ -132,9 +136,7 @@ export async function runGenerateText(input: {
           timestamp: new Date().toISOString(),
           type: "model_request_failed",
         },
-        {
-          ...statusPublishOptions(input),
-        },
+        { ...statusPublishOptions(input) },
       );
       throw toAdapterError(admitError, admitFailure, statusContext, attempt, {
         errorPhase: "connect",
@@ -144,11 +146,7 @@ export async function runGenerateText(input: {
     try {
       attemptRequest.abortSignal?.throwIfAborted();
       resolved = input.resolveModel();
-      options = createGenerateTextOptions({
-        env: input.env,
-        request: attemptRequest,
-        resolved,
-      });
+      options = createGenerateTextOptions({ env: input.env, request: attemptRequest, resolved });
       requestHeaders = sanitizeModelNetworkHeaders(options.headers);
       requestHeaderCount = Object.keys(requestHeaders).length;
       await publishModelStatus(
@@ -294,8 +292,13 @@ export async function runGenerateText(input: {
         statusPublishOptions(input, admission),
       );
 
+      // 结构化输出的 text 是序列化结果，不对应模型块，不编号。
+      const textBlocks = input.request.responseJsonSchema
+        ? undefined
+        : orderGeneratedContent(result, { text, reasoning, toolCalls });
       return {
         text,
+        ...(textBlocks ? { textBlocks } : {}),
         finishReason: result.finishReason,
         usage,
         reasoning,
@@ -303,13 +306,17 @@ export async function runGenerateText(input: {
         toolResults,
         sources,
         providerMetadata: result.providerMetadata as Record<string, unknown> | undefined,
+        // 修复后的重试成功：core 在产出的 assistant 上记标记，之后的请求不再发被拒的块。
+        ...(signatureRepairAttempted ? { signedReasoningReset: true } : {}),
       };
     } catch (error) {
       const completedAt = Date.now();
       const failure = classifyModelFailure(error, input.request.abortSignal);
       // 供应商未知错误码的恢复复用当前预算，不恢复官方账号重试路径。
       unrecognizedCodeStreak = nextUnrecognizedCodeStreak(
-        unrecognizedCodeStreak, failure, inspectProviderFailure(error).providerErrorCode,
+        unrecognizedCodeStreak,
+        failure,
+        inspectProviderFailure(error).providerErrorCode,
       );
       const responseHeaders = sanitizeModelNetworkHeaders(
         getResponseHeaders(unwrapRetryError(error)),
@@ -325,10 +332,7 @@ export async function runGenerateText(input: {
         // 回退 attempt 复用 requestId，也不能改写 canonical history。
         signatureRepairAttempted = true;
         requestMessages = repairedMessages;
-        statusContext = {
-          ...statusContext,
-          maxAttempts: statusMaxAttempts(1),
-        };
+        statusContext = { ...statusContext, maxAttempts: statusMaxAttempts(1) };
       }
       const canRetryWithFailurePolicy =
         retryBudgetAllows(retryBudget, retryBudgetAttempt, input.retry.maxAttempts) &&
@@ -359,9 +363,7 @@ export async function runGenerateText(input: {
           type: "model_request_failed",
           ...(error instanceof AiSdkModelAdapterError && error.usage ? { usage: error.usage } : {}),
         },
-        {
-          ...statusPublishOptions(input, admission),
-        },
+        { ...statusPublishOptions(input, admission) },
       );
 
       if (!canRetry) {
@@ -387,16 +389,15 @@ export async function runGenerateText(input: {
           nextAttempt: attempt + 1,
           requestId: statusContext.requestId,
           status: "waiting",
+          // 记下 provider 原文和 prefix 不一致响应头：写明哪一块、因为什么被拒，排查前缀变化时用。
+          ...thinkingSignatureRejectionEvidence(error, responseHeaders),
         });
         await publishRetryScheduledStatus(
           input,
           statusContext,
           attempt,
           0,
-          {
-            ...failure,
-            retryReason: ModelRetryReason.ReasoningSignatureRepair,
-          },
+          { ...failure, retryReason: ModelRetryReason.ReasoningSignatureRepair },
           requestHeaders,
           responseHeaders,
           admission,
@@ -534,11 +535,7 @@ function waitForGenerateTextOrAbort<T>(
 }
 
 function statusPublishOptions(
-  input: {
-    logger?: Logger;
-    request: AiSdkModelTextRequest;
-    statusSink?: ModelStatusSink;
-  },
+  input: { logger?: Logger; request: AiSdkModelTextRequest; statusSink?: ModelStatusSink },
   admission?: AttemptAdmission,
 ) {
   return {
@@ -551,11 +548,7 @@ function statusPublishOptions(
 }
 
 async function publishRetryScheduledStatus(
-  input: {
-    logger?: Logger;
-    request: AiSdkModelTextRequest;
-    statusSink?: ModelStatusSink;
-  },
+  input: { logger?: Logger; request: AiSdkModelTextRequest; statusSink?: ModelStatusSink },
   statusContext: ReturnType<typeof createStatusContext>,
   attempt: number,
   delayMs: number,

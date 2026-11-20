@@ -67,6 +67,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 
 interface CodeBlockContextType {
   code: string;
+  renderingMermaid: boolean;
   mermaidPreviewAvailable: boolean;
   openMermaidPreview: () => void;
   toggleWrapLongLines: () => void;
@@ -141,6 +142,7 @@ function useDocumentVisibilityRevision(enabled: boolean): number {
 // Context
 const CodeBlockContext = createContext<CodeBlockContextType>({
   code: "",
+  renderingMermaid: false,
   mermaidPreviewAvailable: false,
   openMermaidPreview: () => {},
   toggleWrapLongLines: () => {},
@@ -182,6 +184,7 @@ export const CodeBlockHeader = ({
   showWrapButton = true,
   ...props
 }: CodeBlockHeaderProps) => {
+  const { renderingMermaid } = useContext(CodeBlockContext);
   const languageLabel = language?.trim() || "text";
   const descriptor = resolveFileDisplayDescriptor(
     resolveCodeBlockDisplayFile(languageLabel, displayFile),
@@ -197,11 +200,13 @@ export const CodeBlockHeader = ({
     >
       {children ?? (
         <>
-          <CodeBlockTitle className="min-w-0">
-            <FileDisplayIcon src={descriptor.fileIconSrc} size={16} className="shrink-0" />
-            <CodeBlockFilename className="truncate lowercase">{languageLabel}</CodeBlockFilename>
-          </CodeBlockTitle>
-          <CodeBlockActions>
+          {renderingMermaid ? null : (
+            <CodeBlockTitle className="min-w-0">
+              <FileDisplayIcon src={descriptor.fileIconSrc} size={16} className="shrink-0" />
+              <CodeBlockFilename className="truncate lowercase">{languageLabel}</CodeBlockFilename>
+            </CodeBlockTitle>
+          )}
+          <CodeBlockActions className="ml-auto">
             {isMermaidLanguage(languageLabel) ? (
               <CodeBlockMermaidPreviewButton />
             ) : showWrapButton ? (
@@ -315,17 +320,33 @@ export const CodeBlock = ({
   const contextValue = useMemo(
     () => ({
       code,
+      renderingMermaid: shouldRenderMermaid,
       mermaidPreviewAvailable: Boolean(mermaidPreviewSvg),
       openMermaidPreview,
       toggleWrapLongLines,
       wrapLongLines: isWrapped,
     }),
-    [code, isWrapped, mermaidPreviewSvg, openMermaidPreview, toggleWrapLongLines],
+    [
+      code,
+      isWrapped,
+      mermaidPreviewSvg,
+      openMermaidPreview,
+      shouldRenderMermaid,
+      toggleWrapLongLines,
+    ],
   );
 
   return (
     <CodeBlockContext.Provider value={contextValue}>
-      <CodeBlockContainer className={className} language={language} {...props}>
+      <CodeBlockContainer
+        className={cn(
+          className,
+          // Mermaid 直接融入消息背景，不能继承普通代码块的底板。
+          shouldRenderMermaid && "rounded-none border-0 bg-transparent",
+        )}
+        language={language}
+        {...props}
+      >
         {children}
         <div className={cn("p-2 pt-0 pb-3", contentClassName)}>
           {shouldRenderMermaid ? (

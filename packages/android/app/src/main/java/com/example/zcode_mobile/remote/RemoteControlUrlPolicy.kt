@@ -38,8 +38,12 @@ object RemoteControlUrlPolicy {
         return isAllowedRemoteUrl(uri)
     }
 
-    private fun buildDefaultRemoteUrl(uri: Uri): String {
-        val base = Uri.parse(BuildConfig.REMOTE_CONTROL_DEFAULT_URL).buildUpon()
+    private fun buildDefaultRemoteUrl(uri: Uri): String? {
+        val configured = BuildConfig.REMOTE_CONTROL_DEFAULT_URL.trim()
+        if (configured.isEmpty()) return null
+        val configuredUri = runCatching { Uri.parse(configured) }.getOrNull() ?: return null
+        if (configuredUri.scheme != "https" || !isAllowedRemoteUrl(configuredUri)) return null
+        val base = configuredUri.buildUpon()
         uri.encodedQuery?.let { base.encodedQuery(it) }
         uri.encodedFragment?.let { base.encodedFragment(it) }
         return base.build().toString()
@@ -50,7 +54,11 @@ object RemoteControlUrlPolicy {
         val host = uri.host?.lowercase().orEmpty()
         val path = uri.path.orEmpty()
 
-        if (scheme == "https" && host == "zcode.z.ai" && path.startsWith("/remote")) {
+        if (host.isEmpty() || uri.userInfo != null || (path != "/remote" && !path.startsWith("/remote/"))) {
+            return false
+        }
+        // 用户显式输入的 HTTPS 地址属于自己的远控服务，外壳不依赖官方域名。
+        if (scheme == "https") {
             return true
         }
 
@@ -59,13 +67,7 @@ object RemoteControlUrlPolicy {
         }
 
         // Bugfix: 开发机真机调试时二维码会指向局域网 Vite 地址。
-        // 生产包仍只允许 zcode.z.ai，debug 包才放开测试域、本机和局域网 http/https，避免远控壳变成任意浏览器。
-        if (!path.startsWith("/remote")) {
-            return false
-        }
-        if (host == "zcode.z.ai") {
-            return scheme == "https"
-        }
+        // debug 包额外放开本机和局域网 HTTP；仍只用于 /remote 路径。
         return (scheme == "http" || scheme == "https") && isDebugHost(host)
     }
 

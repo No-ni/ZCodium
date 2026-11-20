@@ -101,8 +101,6 @@ type SessionFacade = Pick<
   | "updateTargetStatus"
 >;
 
-const DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS = 6_000;
-
 interface SessionResourceCloseInput {
   beginShutdown: () => void;
   closeBrowserSession: () => Promise<void>;
@@ -111,7 +109,6 @@ interface SessionResourceCloseInput {
   closeNodeReplBrowserBroker?: () => Promise<void> | void;
   closeSessionStore?: () => void;
   logger: Logger;
-  timeoutMs?: number | null;
 }
 
 interface CreateSessionFacadeDeps {
@@ -169,9 +166,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
   };
 
   const readTargetWithInterruptedRunRecovery = async () => {
-    const target = await deps.sessionStore.readTarget({
-      sessionID: deps.sessionId,
-    });
+    const target = await deps.sessionStore.readTarget({ sessionID: deps.sessionId });
     if (
       !deps.runtime.getActiveTurnInfo() &&
       target?.activeInputId &&
@@ -180,9 +175,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
     ) {
       // 上次 app/agent 退出可能留下未清空的 active_run_started_at。
       // 这里不能用当前时间结算，否则离线时间会被算进 goal 运行时长；store 会用 last_seen 收口。
-      return await deps.sessionStore.recoverInterruptedTargetRun({
-        sessionID: deps.sessionId,
-      });
+      return await deps.sessionStore.recoverInterruptedTargetRun({ sessionID: deps.sessionId });
     }
     return target;
   };
@@ -200,19 +193,13 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
     const visibleObjective = action === "set" ? (input.objective ?? "").trim() : undefined;
     const visibleGoalQuery =
       action === "set" ? input.displayText?.trim() || visibleObjective : undefined;
-    // /goal 不走普通 prompt 提交流程，但它会先把 session 持久化。
-    // 必须在首次持久化前走统一用户执行边界，否则 runtime/bash_shell_selection
-    // 会因为当时 selection 为空而缺失，冷恢复时退回 legacy shell fallback。
-    await deps.prepareUserExecutionBoundary({
-      traceContext: deps.traceContext,
-    });
+    // /goal 不走普通 prompt 提交流程，同样先走统一用户执行边界：读取 shell 设置并完成 resume 准备。
+    await deps.prepareUserExecutionBoundary({ traceContext: deps.traceContext });
     await deps.runtime.ensureSessionPersistedForExternalActivity(
       visibleObjective ?? `/goal ${input.status ?? "clear"}`,
       { traceContext: deps.traceContext },
     );
-    const previousTarget = await deps.sessionStore.readTarget({
-      sessionID: deps.sessionId,
-    });
+    const previousTarget = await deps.sessionStore.readTarget({ sessionID: deps.sessionId });
     const target =
       action === "set"
         ? await deps.sessionStore.setTarget({
@@ -229,9 +216,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
           : null;
 
     if (action === "cleared") {
-      const cleared = await deps.sessionStore.clearTarget({
-        sessionID: deps.sessionId,
-      });
+      const cleared = await deps.sessionStore.clearTarget({ sessionID: deps.sessionId });
       if (cleared) {
         await deps.runtime.recordGoalStateChangeReminder({
           text: goalStateChangeReminderText("cleared"),
@@ -288,50 +273,48 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
 
   return {
     close: async () => {
-      closePromise ??= closeSessionResourceWithinDeadline(
-        "session_shutdown",
-        async () => {
-          // 关闭入口先阻止新调度并取消在飞 Memory Extraction，再等待取消链路收口。
-          const errors: unknown[] = [];
-          deps.runtime.beginShutdown();
-          const owners: Array<[string, (() => Promise<void>) | undefined]> = [
-            ["runtime_work", () => deps.runtime.closeOwnedWork()],
-            ["dynamic_workflow", deps.closeDynamicWorkflowRuns],
-            ["script_workflow", deps.closeScriptWorkflowRuns],
-          ];
-          // deadline 只限制外部等待；真实 drain 未完成前，依赖资源必须继续由此链持有。
-          const closed = await Promise.allSettled(
-            owners.flatMap(([, close]) => (close ? [Promise.resolve().then(close)] : [])),
-          );
-          for (const result of closed) if (result.status === "rejected") errors.push(result.reason);
-          const closableSessionStore =
-            deps.ownsSessionStore && isClosableSessionStore(deps.sessionStore)
-              ? deps.sessionStore
-              : undefined;
-          try {
-            await closeSessionResources({
-              beginShutdown: () => deps.runtime.beginShutdown(),
-              closeBrowserSession: () => deps.runtime.closeBrowserSession(),
-              closeExecution:
-                deps.ownsExecutionPort && deps.executionPort.close
-                  ? () => deps.executionPort.close?.()
-                  : undefined,
-              closeMcp: deps.ownsMcpPort && deps.mcpPort ? () => deps.mcpPort?.close() : undefined,
-              closeNodeReplBrowserBroker: deps.closeNodeReplBrowserBroker,
-              closeSessionStore: closableSessionStore
-                ? () => closableSessionStore.close()
+      // close 的结果必须代表真实完成；调用方等待超时不能让生命周期永久误判 faulted。
+      // 先登记 Promise 再执行 shutdown 回调，保证同步重入也只关闭一次。
+      closePromise ??= Promise.resolve().then(async () => {
+        // 关闭入口先阻止新调度并取消在飞 Memory Extraction，再等待取消链路收口。
+        const errors: unknown[] = [];
+        deps.runtime.beginShutdown();
+        const owners: Array<[string, (() => Promise<void>) | undefined]> = [
+          ["runtime_work", () => deps.runtime.closeOwnedWork()],
+          ["dynamic_workflow", deps.closeDynamicWorkflowRuns],
+          ["script_workflow", deps.closeScriptWorkflowRuns],
+        ];
+        // 所属工作实际收口后才释放依赖资源；进程退出预算由外层进程 owner 负责。
+        const closed = await closeNamedResources(owners, deps.logger);
+        for (const result of closed) if (result.status === "rejected") errors.push(result.reason);
+        const closableSessionStore =
+          deps.ownsSessionStore && isClosableSessionStore(deps.sessionStore)
+            ? deps.sessionStore
+            : undefined;
+        try {
+          await closeSessionResources({
+            beginShutdown: () => deps.runtime.beginShutdown(),
+            closeBrowserSession: () => deps.runtime.closeBrowserSession(),
+            closeExecution:
+              deps.ownsExecutionPort && deps.executionPort.close
+                ? () => deps.executionPort.close?.()
                 : undefined,
-              logger: deps.logger,
-              timeoutMs: null,
-            });
-          } catch (error) {
-            errors.push(error);
-          }
-          if (errors.length) throw new AggregateError(errors, "Session shutdown failed");
-        },
-        DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS,
-        deps.logger,
-      );
+            closeMcp: deps.ownsMcpPort && deps.mcpPort ? () => deps.mcpPort?.close() : undefined,
+            closeNodeReplBrowserBroker: deps.closeNodeReplBrowserBroker,
+            closeSessionStore: closableSessionStore
+              ? () => closableSessionStore.close()
+              : undefined,
+            logger: deps.logger,
+          });
+        } catch (error) {
+          errors.push(error);
+        }
+        if (errors.length)
+          throw new AggregateError(
+            errors,
+            `Session shutdown failed: ${errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ")}`,
+          );
+      });
       return await closePromise;
     },
     getMode: () => deps.runtime.getMode(),
@@ -613,7 +596,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         } catch (error) {
           deps.logger.warn("Project mode preference write failed", {
             ...traceContextToLogContext(deps.traceContext),
-            error: error instanceof Error ? error.message : String(error),
+            error: "operation_failed",
             event: "local_setting.permission_mode.write_failed",
             mode,
             module: "bootstrap",
@@ -630,11 +613,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         previousMode,
         status: "completed",
       });
-      return {
-        mode: deps.runtime.getMode(),
-        previousMode,
-        traceId: deps.traceContext.traceId,
-      };
+      return { mode: deps.runtime.getMode(), previousMode, traceId: deps.traceContext.traceId };
     },
     setModel: async (modelId, options) => {
       // 配置命令已提交完整 Selection；转成字符串会丢档位。先整体校验再一次
@@ -666,6 +645,8 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       } else {
         deps.runtime.setSessionModelSelection(sessionSelection);
       }
+      // 换模型后下一个请求的 context 组成随之变化（context-composition.md §3.4）。
+      deps.runtime.markContextCompositionChanged();
       // transient 切换不产出 modelChange 聊天通知：应用/还原成对出现会刷出两条无意义通知。
       if (!options?.transient) {
         deps.runtime.recordPendingModelChange({
@@ -684,11 +665,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         previousModel,
         status: "completed",
       });
-      return {
-        model,
-        previousModel,
-        traceId: deps.traceContext.traceId,
-      };
+      return { model, previousModel, traceId: deps.traceContext.traceId };
     },
     setThoughtLevel: async (level) => {
       const registryState = currentRegistrySelection();
@@ -708,10 +685,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         const thoughtLevel = requireRegistryThoughtLevel(registrySelection, level);
         const nextSelection = {
           ...currentSelection,
-          options: {
-            ...currentSelection.options,
-            reasoningLevel: thoughtLevel,
-          },
+          options: { ...currentSelection.options, reasoningLevel: thoughtLevel },
         };
         if (deps.cliDefaultSelection) deps.cliDefaultSelection.set(nextSelection);
         else deps.runtime.setSessionModelSelection(nextSelection);
@@ -724,11 +698,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
           status: "completed",
           thoughtLevel,
         });
-        return {
-          previousThoughtLevel,
-          thoughtLevel,
-          traceId: deps.traceContext.traceId,
-        };
+        return { previousThoughtLevel, thoughtLevel, traceId: deps.traceContext.traceId };
       }
       throw new Error("当前 Session Model 不属于 Provider Registry");
     },
@@ -758,6 +728,46 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
   };
 }
 
+/** 慢关闭只提供诊断；不能用超时结果替代资源的真实完成。 */
+async function closeNamedResources(
+  resources: Array<[string, (() => Promise<void> | void) | undefined]>,
+  logger: Logger,
+): Promise<PromiseSettledResult<void>[]> {
+  const pending = new Set(resources.filter(([, close]) => close).map(([name]) => name));
+  const slow = setTimeout(() => {
+    if (pending.size)
+      logger.warn("Session resources are still closing", {
+        event: "session.resource_close.slow",
+        pendingResources: [...pending],
+        elapsedMs: 30_000,
+      });
+  }, 30_000);
+  slow.unref();
+  try {
+    return await Promise.allSettled(
+      resources.flatMap(([name, close]) =>
+        close
+          ? [
+              Promise.resolve()
+                .then(close)
+                .catch((cause: unknown) => {
+                  logger.warn("Session resource close failed", {
+                    event: "session.resource_close.failed",
+                    resource: name,
+                    error: "resource_close_failed",
+                  });
+                  throw new Error(`${name}: resource_close_failed`, { cause });
+                })
+                .finally(() => pending.delete(name)),
+            ]
+          : [],
+      ),
+    );
+  } finally {
+    clearTimeout(slow);
+  }
+}
+
 async function closeSessionResources(input: SessionResourceCloseInput): Promise<void> {
   const errors: unknown[] = [];
   try {
@@ -766,7 +776,7 @@ async function closeSessionResources(input: SessionResourceCloseInput): Promise<
   } catch (error) {
     errors.push(error);
     input.logger.warn("Failed to begin runtime shutdown", {
-      error: error instanceof Error ? error.message : String(error),
+      error: "operation_failed",
       event: "session.shutdown_admission.failed",
     });
   }
@@ -780,24 +790,7 @@ async function closeSessionResources(input: SessionResourceCloseInput): Promise<
 
   // 独立资源并行释放；外部超时不能让仍在收尾的借用者碰到已关闭的 store。
   const completion = (async () => {
-    const results = await Promise.allSettled(
-      resources.flatMap(([name, close]) =>
-        close
-          ? [
-              Promise.resolve()
-                .then(close)
-                .catch((error: unknown) => {
-                  input.logger.warn("Session resource close failed", {
-                    event: "session.resource_close.failed",
-                    resource: name,
-                    error: error instanceof Error ? error.message : String(error),
-                  });
-                  throw error;
-                }),
-            ]
-          : [],
-      ),
-    );
+    const results = await closeNamedResources(resources, input.logger);
     for (const result of results) if (result.status === "rejected") errors.push(result.reason);
     try {
       input.closeSessionStore?.();
@@ -807,49 +800,7 @@ async function closeSessionResources(input: SessionResourceCloseInput): Promise<
     if (errors.length)
       throw new AggregateError(errors, "Session resources could not be safely released");
   })();
-  if (input.timeoutMs === null) return completion;
-  return closeSessionResourceWithinDeadline(
-    "session_resources",
-    () => completion,
-    Math.max(1, Math.trunc(input.timeoutMs ?? DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS)),
-    input.logger,
-  );
-}
-
-async function closeSessionResourceWithinDeadline(
-  name: string,
-  close: () => Promise<void> | void,
-  timeoutMs: number,
-  logger: Logger,
-): Promise<void> {
-  let timer: NodeJS.Timeout | undefined;
-  const closePromise = Promise.resolve().then(close);
-  const outcome = await Promise.race([
-    closePromise.then(
-      () => ({ type: "completed" as const }),
-      (error: unknown) => ({ type: "failed" as const, error }),
-    ),
-    new Promise<{ type: "timed_out" }>((resolve) => {
-      timer = setTimeout(() => resolve({ type: "timed_out" }), timeoutMs);
-    }),
-  ]);
-  if (timer) clearTimeout(timer);
-
-  if (outcome.type === "completed") return;
-  if (outcome.type === "timed_out") {
-    logger.warn("Session resource close timed out", {
-      event: "session.resource_close.timed_out",
-      resource: name,
-      timeoutMs,
-    });
-    throw new Error(`Session resource close timed out: ${name}`);
-  }
-  logger.warn("Session resource close failed", {
-    error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
-    event: "session.resource_close.failed",
-    resource: name,
-  });
-  throw outcome.error;
+  return completion;
 }
 
 async function persistSessionModelSelection(deps: CreateSessionFacadeDeps): Promise<void> {
@@ -876,7 +827,7 @@ async function persistSessionModelSelection(deps: CreateSessionFacadeDeps): Prom
   } catch (error) {
     const logContext = {
       ...traceContextToLogContext(deps.traceContext),
-      error: error instanceof Error ? error.message : String(error),
+      error: "operation_failed",
       modelId: selection.modelId,
       module: "bootstrap",
       providerId: selection.providerId,

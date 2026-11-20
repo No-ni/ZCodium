@@ -97,7 +97,13 @@ async function normalizeFetchRequest(
     body,
     headers: request.headers,
     method,
-    signal: request.signal,
+    // 临时 Request 的 controller 可被 GC，不能把其从属 signal 留作取消来源。
+    signal:
+      init?.signal !== undefined
+        ? init.signal
+        : input instanceof Request
+          ? input.signal
+          : undefined,
     url: new URL(request.url),
   };
 }
@@ -121,7 +127,6 @@ function fetchWithAgent(
 
     const cleanupAll = (): void => {
       signal?.removeEventListener("abort", onAbort);
-      clientRequest?.off("error", onRequestError);
       clientRequest?.off("close", onRequestClose);
       responseMessage?.off("close", cleanupAll);
       responseMessage?.off("error", onResponseError);
@@ -156,7 +161,7 @@ function fetchWithAgent(
 
     clientRequest = transport.request(
       {
-        agent: createRequestAgent(request.url, options),
+        agent: createRequestAgent(request.url, { ...options, signal }),
         headers: headersToOutgoing(request.headers),
         hostname: request.url.hostname,
         method: request.method,
@@ -183,7 +188,9 @@ function fetchWithAgent(
       },
     );
 
-    clientRequest.once("error", onRequestError);
+    // 响应读完后 MCP 会立即取消代理连接，底层 socket 与 TLS 可在请求 close 后各转发一次错误。
+    // 监听随请求对象回收，不能提前移除或只监听一次，否则单次 MCP 失败会带崩 Agent。
+    clientRequest.on("error", onRequestError);
     clientRequest.once("close", onRequestClose);
     clientRequest.end(request.body);
   });
@@ -201,11 +208,13 @@ function abortReason(signal: AbortSignal | undefined): Error {
 
 function createRequestAgent(
   url: URL,
-  options: { ca?: Buffer; proxyUrl?: string },
+  options: { ca?: Buffer; proxyUrl?: string; signal?: AbortSignal },
 ): http.Agent | https.Agent | ProxyAgent {
   if (options.proxyUrl) {
     return new ProxyAgent({
       ca: options.ca,
+      // CONNECT 返回前 socket 尚未归属 ClientRequest，取消必须抵达建连层。
+      signal: options.signal,
       getProxyForUrl: () => options.proxyUrl ?? "",
       httpsAgent: options.ca ? new https.Agent({ ca: options.ca }) : undefined,
     }) as unknown as http.Agent;

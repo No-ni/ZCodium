@@ -17,10 +17,7 @@ import {
   V4InputAdmissionRejectedError,
 } from "../input-admission.js";
 import { inputIntentMetadata } from "../input-intent.js";
-import {
-  startPromptTurn,
-  turnBackgroundAttributionOf,
-} from "../prompt-turn.js";
+import { startPromptTurn, turnBackgroundAttributionOf } from "../prompt-turn.js";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
@@ -60,7 +57,10 @@ async function sendText(
   }
   // 官方加速 Provider 仅用于旧数据识别；新输入不可重新激活账号凭据链。
   if (isHighspeedProviderId(rawPayload.modelSelection?.providerId)) {
-    throw new V4InputAdmissionRejectedError("fault.command.inputRejected", "Official acceleration is unavailable");
+    throw new V4InputAdmissionRejectedError(
+      "fault.command.inputRejected",
+      "Official acceleration is unavailable",
+    );
   }
   const payload: CommandPayloadMap["sendText"] = rawPayload;
   // canonical intent 必须和 admission 看同一份净荷，否则 transcript 会留下没有凭据的加速标记。
@@ -75,6 +75,11 @@ async function sendText(
     });
   const routingMode = host.getInputRoutingMode?.(envelope.sessionId ?? "") ?? null;
   const forceStartNow = payload.requestedDelivery === "startNow";
+  // 队首被 composer 编辑态冻结时 Core 可能完全空闲；不强制入队会 startNow 越过冻结项。
+  const queueHeadEditLocked =
+    !forceStartNow &&
+    routingMode === "enqueue" &&
+    host.isQueueHeadEditLocked?.(record.app.sessionId) === true;
   const foregroundPromotionLeaseId = forceStartNow ? `send-now:${envelope.commandId}` : undefined;
   let foregroundPromotionLeaseAcquired = false;
   const releaseForegroundPromotionLease = () => {
@@ -162,6 +167,7 @@ async function sendText(
       // promotion lease 本身属于 Core busy authority；若不声明 requireIdle，
       // 抢占完成后的 startNow 会先落 deferred queue，待 lease 释放后再被自动 drain。
       ...(forceStartNow ? { requireIdle: true } : {}),
+      ...(queueHeadEditLocked ? { requireQueue: true } : {}),
     });
   } catch (error) {
     throw error;
@@ -169,17 +175,9 @@ async function sendText(
     releaseForegroundPromotionLease();
   }
   if (started.admission.kind === "queued") {
-    return {
-      type: "inputAccepted",
-      delivery: "queue",
-      inputId: envelope.commandId,
-    };
+    return { type: "inputAccepted", delivery: "queue", inputId: envelope.commandId };
   }
-  return {
-    type: "inputAccepted",
-    delivery: "startNow",
-    inputId: envelope.commandId,
-  };
+  return { type: "inputAccepted", delivery: "startNow", inputId: envelope.commandId };
 }
 
 /** stop：精确取消投影中看到的 runtime 前台执行，并把 active goal 收口为 paused。 */

@@ -6,7 +6,7 @@ import type {
 import { Fragment } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Badge } from "@/components/ui/badge.js";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { ContentPartView, EmptyState, summarizeRecords } from "@/ModelTrajectoryPaneDetails.js";
 import { ExpandableTrajectoryMessage } from "@/ModelTrajectoryExpandableMessage.js";
 import { ModelTrajectoryErrorBlock } from "@/ModelTrajectoryErrorBlock.js";
@@ -17,10 +17,10 @@ import {
 } from "@/ModelTrajectoryFormat.js";
 import { trajectoryRoleTextClass } from "@/ModelTrajectoryRoleStyles.js";
 import { TrajectorySectionTitle } from "@/ModelTrajectorySectionTitle.js";
+import { SourceTitle, type IntlShape } from "./ModelTrajectorySourceTitle.js";
+export { type IntlShape } from "./ModelTrajectorySourceTitle.js";
 
 export { EmptyState, summarizeRecords } from "@/ModelTrajectoryPaneDetails.js";
-
-export type IntlShape = ReturnType<typeof useZCodeIntl>["intl"];
 
 export function CallCard({
   record,
@@ -113,58 +113,6 @@ export function CallCard({
   );
 }
 
-function SourceTitle({ record, intl }: { record: ZCodeModelTrajectoryRecord; intl: IntlShape }) {
-  const callSource: NonNullable<ZCodeModelTrajectoryRecord["callSource"]> = record.callSource ?? {
-    kind: "main",
-  };
-  const labelId = sourceLabelId(callSource);
-
-  return (
-    <span
-      data-trajectory-source-title=""
-      // E2E 曾把英文展示文案当成功能合同，切换到中文后误报轨迹投影失败；稳定属性保留原始语义，文案继续独立国际化。
-      data-trajectory-source-kind={callSource.kind}
-      data-trajectory-query-source={callSource.querySource}
-      className="min-w-0 shrink truncate text-ui-sm font-medium text-foreground"
-      title={callSource.querySource ? `querySource: ${callSource.querySource}` : undefined}
-    >
-      {intl.formatMessage({ id: labelId })}
-    </span>
-  );
-}
-
-function sourceLabelId(callSource: NonNullable<ZCodeModelTrajectoryRecord["callSource"]>): string {
-  switch (callSource.querySource) {
-    case "main_turn":
-      return "modelTrajectory.source.main";
-    case "session_title":
-      return "modelTrajectory.source.sessionTitle";
-    case "compact":
-      return "modelTrajectory.source.compact";
-    case "prompt_enhance":
-      return "modelTrajectory.source.promptEnhance";
-    case "target_completion_verification":
-      return "modelTrajectory.source.targetCompletion";
-    case "subagent":
-      return "modelTrajectory.source.subagent";
-    default:
-      break;
-  }
-
-  switch (callSource.kind) {
-    case "main":
-      return "modelTrajectory.source.main";
-    case "subagent":
-      return "modelTrajectory.source.subagent";
-    case "compact":
-      return "modelTrajectory.source.compact";
-    case "sidecar":
-      return "modelTrajectory.source.sidecar";
-    case "unknown":
-      return "modelTrajectory.source.unknown";
-  }
-}
-
 function MessageBlock({
   message,
   callStartedAt,
@@ -180,6 +128,8 @@ function MessageBlock({
   expansionKey?: string;
   intl: IntlShape;
 }) {
+  // 调用时间按界面语言格式化（不跟系统语言）
+  const { locale } = useZCodeIntl();
   // 只有已知角色才有 i18n key，未知角色直接展示原始 role，避免触发缺失 key。
   const knownRole = ["system", "user", "assistant", "tool"].includes(message.role);
   const roleLabel = knownRole
@@ -198,7 +148,7 @@ function MessageBlock({
         callDurationLabel={
           typeof callDurationMs === "number" ? formatTrajectoryDuration(callDurationMs) : "—"
         }
-        callDatetimeLabel={formatTrajectoryDateTime(callStartedAt)}
+        callDatetimeLabel={formatTrajectoryDateTime(callStartedAt, locale)}
         callDatetimeTitle={callStartedAt}
         isAlt={isAlt}
         expansionKey={expansionKey}
@@ -353,6 +303,8 @@ function ResponseMessageRow({
   expansionKey?: string;
   intl: IntlShape;
 }) {
+  // 调用时间按界面语言格式化（不跟系统语言）
+  const { locale } = useZCodeIntl();
   return (
     <ExpandableTrajectoryMessage
       message={message}
@@ -362,7 +314,7 @@ function ResponseMessageRow({
       callDurationLabel={
         typeof callDurationMs === "number" ? formatTrajectoryDuration(callDurationMs) : "—"
       }
-      callDatetimeLabel={formatTrajectoryDateTime(callStartedAt)}
+      callDatetimeLabel={formatTrajectoryDateTime(callStartedAt, locale)}
       callDatetimeTitle={callStartedAt}
       isAlt={isAlt}
       expansionKey={expansionKey}
@@ -378,17 +330,22 @@ function CallMetadata({
   record: ZCodeModelTrajectoryRecord;
   usage?: ZCodeModelTrajectoryUsage;
 }) {
+  // token 数与时间按界面语言格式化（不跟系统语言）
+  const { locale } = useZCodeIntl();
   const items: Array<{ text: string; title?: string }> = [];
   if (typeof usage?.inputTokens === "number") {
-    items.push({ text: `IN ${usage.inputTokens.toLocaleString()}` });
+    items.push({ text: `IN ${usage.inputTokens.toLocaleString(locale)}` });
   }
   if (typeof usage?.outputTokens === "number") {
-    items.push({ text: `OUT ${usage.outputTokens.toLocaleString()}` });
+    items.push({ text: `OUT ${usage.outputTokens.toLocaleString(locale)}` });
   }
   if (typeof record.durationMs === "number") {
     items.push({ text: formatTrajectoryDuration(record.durationMs) });
   }
-  items.push({ text: formatTrajectoryClockTime(record.startedAt), title: record.startedAt });
+  items.push({
+    text: formatTrajectoryClockTime(record.startedAt, locale),
+    title: record.startedAt,
+  });
 
   return (
     <span

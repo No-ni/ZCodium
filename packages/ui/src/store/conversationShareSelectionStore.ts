@@ -37,6 +37,8 @@ export interface ConversationShareSelectionDraft {
   availableRowIds: readonly number[];
   excludedRowIds: readonly number[];
   productTurnIdByRowId: Readonly<Record<number, string>>;
+  /** 用户选择的分享有效时长；null 表示使用服务端默认值。与权限一样跨轮保留。 */
+  ttlMs: number | null;
 }
 
 export interface ConversationShareDockState {
@@ -61,6 +63,7 @@ export interface ConversationShareSelectionState {
   cancelSelectionEdit: (taskId: string) => void;
   drafts: Record<string, ConversationShareSelectionDraft>;
   dockStates: Record<string, ConversationShareDockState>;
+  setTtlMs: (taskId: string, ttlMs: number | null) => void;
   syncAvailableTurns: (
     taskId: string,
     turns: readonly { rowId: number; productTurnId: string }[],
@@ -75,6 +78,7 @@ const EMPTY_DRAFT: ConversationShareSelectionDraft = Object.freeze({
   availableRowIds: Object.freeze([]),
   excludedRowIds: Object.freeze([]),
   productTurnIdByRowId: Object.freeze({}),
+  ttlMs: null,
 });
 
 export const DEFAULT_CONVERSATION_SHARE_DOCK_STATE: ConversationShareDockState = Object.freeze({
@@ -152,6 +156,10 @@ export const useConversationShareSelectionStore = create<ConversationShareSelect
     ),
     drafts: {},
     dockStates: {},
+    setTtlMs: (taskId, ttlMs) =>
+      set((state) => ({
+        drafts: { ...state.drafts, [taskId]: { ...(state.drafts[taskId] ?? EMPTY_DRAFT), ttlMs } },
+      })),
     syncAvailableTurns: (taskId, turns) =>
       set((state) => {
         const current = getConversationShareDraft(state, taskId);
@@ -168,24 +176,15 @@ export const useConversationShareSelectionStore = create<ConversationShareSelect
           productTurnIdByRowId,
         };
         // 披露确认由 ConfirmationDock 本地拥有并按 key 重挂载重置，selection store 不再写第二份披露字段。
-        return {
-          drafts: { ...state.drafts, [taskId]: nextDraft },
-        };
+        return { drafts: { ...state.drafts, [taskId]: nextDraft } };
       }),
     updateDockState: (taskId, patch) =>
       set((state) => ({
         dockStates: {
           ...state.dockStates,
-          [taskId]: {
-            ...getConversationShareDockState(state, taskId),
-            ...patch,
-          },
+          [taskId]: { ...getConversationShareDockState(state, taskId), ...patch },
         },
       })),
-    resetForTests: () =>
-      set({
-        drafts: {},
-        dockStates: {},
-      }),
+    resetForTests: () => set({ drafts: {}, dockStates: {} }),
   }),
 );

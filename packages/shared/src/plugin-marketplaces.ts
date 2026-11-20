@@ -9,7 +9,6 @@ export const CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "claude-plugins-official";
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
   "browser-use@zcode-plugins-official",
-  "visualize@zcode-plugins-official",
   "documents@zcode-plugins-official",
   "pdf@zcode-plugins-official",
   "presentations@zcode-plugins-official",

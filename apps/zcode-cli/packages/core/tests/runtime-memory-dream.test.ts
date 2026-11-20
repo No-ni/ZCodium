@@ -15,9 +15,7 @@ import {
 } from "@zcode/contracts";
 
 import { createTestAgentRuntime } from "./test-agent-runtime.js";
-import {
-  selectProjectDreamSessions,
-} from "../src/runtime/helpers/project-memory-dream.js";
+import { selectProjectDreamSessions } from "../src/runtime/helpers/project-memory-dream.js";
 import { createToolRegistry } from "../src/tool/registry.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
@@ -25,11 +23,9 @@ import { createTestModelFactory } from "./test-runtime-model.js";
 
 const WORKSPACE_PATH = "/workspace/project";
 const NOW = Date.parse("2026-07-16T12:00:00.000Z");
-const MEMORY_UPDATE_FIXTURE = (await readFile(
-  new URL("./fixtures/memory/memory-update.md", import.meta.url),
-  "utf8",
-)).trimEnd();
-
+const MEMORY_UPDATE_FIXTURE = (
+  await readFile(new URL("./fixtures/memory/memory-update.md", import.meta.url), "utf8")
+).trimEnd();
 
 describe("Dream session selection", () => {
   it("keeps Main-equivalent sessions from the current workspace and leaves recency to transcript mtime", () => {
@@ -76,11 +72,7 @@ describe("Project memory update consumption", () => {
     runtime = createTestAgentRuntime(
       createSessionId("same-turn-memory-update"),
       {
-        memory: {
-          cliStorageRoot: "/storage/cli",
-          enabled: true,
-          use: true,
-        },
+        memory: { cliStorageRoot: "/storage/cli", enabled: true, use: true },
         mode: "yolo",
         workingDirectory: WORKSPACE_PATH,
       },
@@ -121,6 +113,137 @@ describe("Project memory update consumption", () => {
       "Background memory consolidation updated your memory directory: consolidated 1 memory file",
     );
     expect((runtime as any).pendingMemoryUpdate).toBeUndefined();
+  });
+
+  it("is not auto-triggered and uses newer transcript mtimes when explicitly invoked", async () => {
+    const cliStorageRoot = await temporaryDirectory();
+    const modelIoDir = join(cliStorageRoot, "rollout");
+    const memoryRoot = resolveProjectMemoryRoot({ cliStorageRoot, workspacePath: WORKSPACE_PATH });
+    const factPath = join(memoryRoot, "release-tagging-policy.md");
+    const indexPath = join(memoryRoot, "MEMORY.md");
+    const pastSessions = Array.from({ length: 6 }, (_, index) =>
+      session(`past-${index + 1}`, NOW - index),
+    );
+    const transcriptFiles = Object.fromEntries(
+      pastSessions.map((pastSession) => [
+        join(modelIoDir, `model-io-${pastSession.id}.jsonl`),
+        "{}\n",
+      ]),
+    );
+    const transcriptMtimes = Object.fromEntries(
+      pastSessions.map((pastSession, index) => [
+        join(modelIoDir, `model-io-${pastSession.id}.jsonl`),
+        index < 5 ? NOW : 0,
+      ]),
+    );
+    const fileSystemPort = new MemoryFileSystem(transcriptFiles, transcriptMtimes);
+    const dreamResponseSeen = deferred<void>();
+    const mainRequests: ModelRequest["messages"][] = [];
+    const mainRequestTexts: string[] = [];
+    let dreamTurn = 0;
+    const dreamContexts: ModelInvocationContext[] = [];
+    const runtime = createTestAgentRuntime(
+      createSessionId("current-dream"),
+      {
+        memory: { cliStorageRoot, enabled: true, use: true },
+        mode: "yolo",
+        modelSelection: {
+          modelId: createModelId("claude-opus-4-8-cc"),
+          providerId: createModelProviderId("anthropic"),
+        },
+        workingDirectory: WORKSPACE_PATH,
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        fileSystemPort,
+        modelFactory: createTestModelFactory({
+          properties: { supportsMidConversationSystem: true },
+          async generateText(request, observation) {
+            const text = providerMessagesToText(request.messages);
+            if (!text.includes("# Dream: Memory Consolidation")) {
+              mainRequests.push(request.messages);
+              mainRequestTexts.push(text);
+              return textResult(observation.model, `main ${mainRequestTexts.length}`);
+            }
+            dreamTurn += 1;
+            dreamContexts.push(observation.invocationContext!);
+            if (dreamTurn === 1) {
+              for (const pastSession of pastSessions.slice(0, 5)) {
+                expect(text).toContain(String(pastSession.id));
+              }
+              expect(text).not.toContain(String(pastSessions[5]!.id));
+              return {
+                ...textResult(observation.model, ""),
+                finishReason: "tool_calls",
+                toolCalls: [
+                  {
+                    id: "write-fact",
+                    name: "Write",
+                    input: { file_path: factPath, content: "fact" },
+                  },
+                  {
+                    id: "write-index",
+                    name: "Write",
+                    input: { file_path: indexPath, content: "- [Fact](release-tagging-policy.md)" },
+                  },
+                ],
+              };
+            }
+            dreamResponseSeen.resolve();
+            return textResult(observation.model, "Dream complete");
+          },
+        }),
+        modelIoDir,
+        now: () => new Date(NOW),
+        sessionStore: createMemorySessionStore(pastSessions),
+        toolRegistry: createToolRegistry(),
+      },
+    );
+    const recallState = (runtime as any).memoryRecallState;
+    recallState.manifest = [{ filePath: "/old-memory.md", filename: "old-memory.md", mtimeMs: 1 }];
+    recallState.selectorMessages = [{ role: "user", content: "old manifest" }];
+    recallState.recalledContentCharacters = 123;
+
+    await runtime.executeTurn("start");
+    expect(dreamTurn).toBe(0);
+    await runProjectMemoryDream(runtime as never, {
+      traceContext: createRootTraceContext({
+        sessionId: createSessionId("current-dream"),
+        turnId: createTurnId("explicit-dream-handler"),
+      }),
+    });
+    await dreamResponseSeen.promise;
+    await waitFor(() => (runtime as any).pendingMemoryUpdate !== undefined);
+    expect(dreamContexts).toHaveLength(2);
+    for (const context of dreamContexts) {
+      expect(context).toMatchObject({
+        modelRequestSessionType: "main",
+        metadata: { querySource: "project_memory_dream", skipTranscript: true },
+      });
+    }
+
+    expect(fileSystemPort.files[factPath]).toBe("fact");
+    expect(fileSystemPort.files[indexPath]).toContain("[Fact]");
+    expect(recallState.manifest).toBeUndefined();
+    expect(recallState.selectorMessages).toBeUndefined();
+    expect(recallState.recalledContentCharacters).toBe(123);
+
+    await runtime.executeTurn("next");
+    const expectedUpdate = MEMORY_UPDATE_FIXTURE.replaceAll("<MEMORY_ROOT>", memoryRoot);
+    // 同一条 MCS system 里，轮首的 token 预算提醒排在 memory_update 之前。
+    const expectedSystem = `<total_tokens>15000000 tokens left</total_tokens>\n\n${expectedUpdate}`;
+    const nextRequest = mainRequests[1] ?? [];
+    const updateIndex = nextRequest.findIndex(
+      (message) => message.role === "system" && message.content === expectedSystem,
+    );
+    expect(updateIndex).toBe(nextRequest.length - 1);
+    expect(nextRequest[updateIndex]).toEqual({ role: "system", content: expectedSystem });
+    expect((runtime as any).pendingMemoryUpdate).toBeUndefined();
+
+    await runtime.executeTurn("again");
+    // memory_update 是输入附件，写入历史后留在前缀里，不再重复产出。
+    expect(mainRequestTexts[2]?.match(/Background memory consolidation updated/g)).toHaveLength(1);
+    expect(dreamTurn).toBe(2);
   });
 
   it("keeps a memory update for the next request when persisting it fails", async () => {

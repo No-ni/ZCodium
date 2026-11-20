@@ -3,6 +3,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// 自有远控地址仅由构建者显式配置；缺省为空，不回落官方服务。
+val remoteControlDefaultUrl = providers.gradleProperty("zcodiumRemoteUrl").orElse("").get()
+require(remoteControlDefaultUrl.isEmpty() || java.net.URI(remoteControlDefaultUrl).let {
+    it.scheme == "https" && !it.host.isNullOrEmpty() &&
+        (it.path == "/remote" || it.path.startsWith("/remote/")) && it.userInfo == null
+}) { "zcodiumRemoteUrl must be an HTTPS /remote URL" }
+
 android {
     namespace = "com.example.zcode_mobile"
     buildToolsVersion = "36.1.0"
@@ -21,13 +28,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"https://zcode.z.ai/remote\"")
+        buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"$remoteControlDefaultUrl\"")
     }
 
     buildTypes {
         debug {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
-            buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"https://zcode.z.ai/remote\"")
         }
         release {
             isMinifyEnabled = false

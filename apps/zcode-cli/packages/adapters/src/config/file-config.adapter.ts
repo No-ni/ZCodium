@@ -1,12 +1,6 @@
 // File Config Adapter - Load and patch JSON configuration files
 
-import {
-  existsSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -85,12 +79,7 @@ export function loadFileConfig(filePath?: string, options: FileConfigOptions = {
       );
 
   if (!existsSync(resolvedPath)) {
-    return {
-      config: {},
-      diagnostics: [],
-      path: resolvedPath,
-      loaded: false,
-    };
+    return { config: {}, diagnostics: [], path: resolvedPath, loaded: false };
   }
 
   try {
@@ -164,10 +153,7 @@ function migratePluginConfigInFile(value: unknown): Record<string, unknown> | un
   return changed ? { ...value, plugins: nextPlugins } : undefined;
 }
 
-function persistPluginConfigMigration(
-  filePath: string,
-  value: Record<string, unknown>,
-): void {
+function persistPluginConfigMigration(filePath: string, value: Record<string, unknown>): void {
   const tempPath = `${filePath}.migrate.${process.pid}.${Date.now()}.tmp`;
   try {
     writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, {
@@ -231,10 +217,7 @@ export async function updateUiLocaleInFileConfig(
     const next = patchUiLocale(parsed, locale);
 
     await atomicWriteJson(resolvedPath, next);
-    return {
-      locale,
-      path: resolvedPath,
-    };
+    return { locale, path: resolvedPath };
   });
 }
 
@@ -252,11 +235,7 @@ export async function updatePluginEnabledInFileConfig(
     const next = patchPluginEnabled(parsed, pluginId, enabled);
 
     await atomicWriteJson(resolvedPath, next);
-    return {
-      enabled,
-      path: resolvedPath,
-      pluginId,
-    };
+    return { enabled, path: resolvedPath, pluginId };
   });
 }
 
@@ -315,13 +294,39 @@ export async function updatePluginOptionsInFileConfig(
     const next = patchPluginOptions(parsed, pluginId, options, clearOptionKeys);
 
     await atomicWriteJson(resolvedPath, next);
-    return {
-      clearedOptionKeys: clearOptionKeys,
-      options,
-      path: resolvedPath,
-      pluginId,
-    };
+    return { clearedOptionKeys: clearOptionKeys, options, path: resolvedPath, pluginId };
   });
+}
+
+/**
+ * 读取单个配置文件里某个插件的原始选项（不合并其它层）。
+ *
+ * 敏感选项迁移要知道「这个 scope 的 config.json 里有哪些旧明文值」；合并后的有效配置分不出
+ * 值来自哪一层，所以这里直接读目标文件。文件不存在时返回空对象。
+ */
+export async function readPluginOptionsFromFileConfig(
+  filePath: string,
+  pluginId: string,
+): Promise<Record<string, string | number | boolean>> {
+  const parsed = await readJsonConfigFileOrEmpty(resolvePath(filePath));
+  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+  const options = isRecord(plugins.options) ? plugins.options : {};
+  const canonicalPluginId = canonicalizePluginId(pluginId);
+  const aliases = pluginIdAliases(canonicalPluginId);
+  const legacyPluginId = aliases.length > 1 ? aliases[1] : undefined;
+  const pluginOptions = isRecord(options[canonicalPluginId])
+    ? options[canonicalPluginId]
+    : legacyPluginId && isRecord(options[legacyPluginId])
+      ? options[legacyPluginId]
+      : {};
+  return Object.fromEntries(
+    Object.entries(pluginOptions).filter(
+      (entry): entry is [string, string | number | boolean] =>
+        typeof entry[1] === "string" ||
+        typeof entry[1] === "number" ||
+        typeof entry[1] === "boolean",
+    ),
+  );
 }
 
 /**
@@ -344,12 +349,7 @@ export async function removePluginFromFileConfig(
     if (removedEnabled || removedOptions) {
       await atomicWriteJson(resolvedPath, next);
     }
-    return {
-      path: resolvedPath,
-      pluginId,
-      removedEnabled,
-      removedOptions,
-    };
+    return { path: resolvedPath, pluginId, removedEnabled, removedOptions };
   });
 }
 
@@ -380,10 +380,7 @@ export async function removePluginEnabledFromFileConfig(
     for (const id of aliases) delete nextEnabled[id];
     await atomicWriteJson(resolvedPath, {
       ...parsed,
-      plugins: {
-        ...plugins,
-        enabledPlugins: nextEnabled,
-      },
+      plugins: { ...plugins, enabledPlugins: nextEnabled },
     });
     return { path: resolvedPath, pluginId, removedEnabled: true };
   });
@@ -446,10 +443,7 @@ export async function removeSuppressedBuiltinInFileConfig(
     if (nextSuppressedBuiltins.length === current.length) {
       return { path: resolvedPath, pluginId, suppressed: false };
     }
-    const next = {
-      ...parsed,
-      plugins: { ...plugins, suppressedBuiltins: nextSuppressedBuiltins },
-    };
+    const next = { ...parsed, plugins: { ...plugins, suppressedBuiltins: nextSuppressedBuiltins } };
     await atomicWriteJson(resolvedPath, next);
     return { path: resolvedPath, pluginId, suppressed: false };
   });
@@ -523,13 +517,7 @@ async function readJsonConfigFileOrEmpty(filePath: string): Promise<Record<strin
 function patchUiLocale(parsed: Record<string, unknown>, locale: UiLocale): Record<string, unknown> {
   const currentUi = isRecord(parsed.ui) ? parsed.ui : {};
 
-  return {
-    ...parsed,
-    ui: {
-      ...currentUi,
-      locale,
-    },
-  };
+  return { ...parsed, ui: { ...currentUi, locale } };
 }
 
 function patchPluginEnabled(
@@ -547,10 +535,7 @@ function patchPluginEnabled(
     ...parsed,
     plugins: {
       ...plugins,
-      enabledPlugins: {
-        ...nextEnabledPlugins,
-        [canonicalPluginId]: enabled,
-      },
+      enabledPlugins: { ...nextEnabledPlugins, [canonicalPluginId]: enabled },
     },
   };
 }
@@ -588,10 +573,7 @@ function patchPluginOptions(
         // 已存 secret。这里按 option key 合并，避免整对象替换把同 scope 的密钥静默清空。
         // 显式清除走 clearOptionKeys，先删除指定键，再合并本次输入；不会连带删除启用状态
         // 或同插件的其他配置。
-        [canonicalPluginId]: {
-          ...retainedPluginOptions,
-          ...options,
-        },
+        [canonicalPluginId]: { ...retainedPluginOptions, ...options },
       },
     },
   };
@@ -617,14 +599,7 @@ function patchPluginRemoved(
   for (const id of aliases) delete nextOptions[id];
 
   return {
-    next: {
-      ...parsed,
-      plugins: {
-        ...plugins,
-        enabledPlugins: nextEnabled,
-        options: nextOptions,
-      },
-    },
+    next: { ...parsed, plugins: { ...plugins, enabledPlugins: nextEnabled, options: nextOptions } },
     removedEnabled,
     removedOptions,
   };

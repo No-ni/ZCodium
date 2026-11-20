@@ -47,6 +47,8 @@ export class WorkspaceHookReviewController {
   private readonly store: Promise<WorkspaceHookTrustStoreMutationPort>;
   private readonly now: () => number;
   private readonly createId: () => string;
+  private readonly resolveTargetTrustIdentity: (workspaceIdentity: string) => Promise<string>;
+  private readonly workspaceKey?: string;
   private readonly registry = new WorkspaceHookReviewFlowRegistry();
   /** flow → 监管 promise。WeakMap 使 flow 被回收后自动移除，不额外持有引用。 */
   private readonly supervisedFlows = new WeakMap<WorkspaceHookReviewFlow, Promise<void>>();
@@ -65,6 +67,19 @@ export class WorkspaceHookReviewController {
     this.store = options.store;
     this.now = options.now ?? Date.now;
     this.createId = options.createId ?? (() => crypto.randomUUID());
+    // 修复原因（D23）：snapshot.workspaceIdentity 是 Trust identity，受管 worktree 中已归一为源仓库
+    // 路径；而 Settings/Banner 发来的 target 带的是 workspaceKey（worktree 路径），直接比较会把
+    // worktree 中每次 requestReview/revoke 判成 snapshot_mismatch。target 先经同一 resolver 解析。
+    // 调用点都在读取 snapshot 之前 await，读 snapshot 与比较之间不留出替换窗口。
+    this.resolveTargetTrustIdentity =
+      options.resolveTargetTrustIdentity ??
+      ((workspaceIdentity) => Promise.resolve(workspaceIdentity));
+    this.workspaceKey = options.workspaceKey;
+  }
+
+  /** 对外字段使用的 workspace 标识：会话 workspaceKey，不是 Trust identity（D23）。 */
+  private externalWorkspaceIdentity(snapshot: WorkspaceHookBundleSnapshot): string {
+    return this.workspaceKey ?? snapshot.workspaceIdentity;
   }
 
   /**
@@ -101,15 +116,13 @@ export class WorkspaceHookReviewController {
     workspaceIdentity: string;
     bundleDigest: string;
   }): Promise<WorkspaceHookReviewCommandResult> {
+    const targetIdentity = await this.resolveTargetTrustIdentity(target.workspaceIdentity);
     const snapshot = this.admission.getCurrentSnapshot();
     if (
-      target.workspaceIdentity !== snapshot.workspaceIdentity ||
+      targetIdentity !== snapshot.workspaceIdentity ||
       target.bundleDigest !== snapshot.bundleDigest
     ) {
-      return {
-        accepted: false,
-        reasonCode: "workspace_hooks_snapshot_mismatch" as const,
-      };
+      return { accepted: false, reasonCode: "workspace_hooks_snapshot_mismatch" as const };
     }
     const evaluation = this.coordinator.evaluateSnapshot({ snapshot });
     // 旧实现只把 configuredEnabled=true 的 pending 当成可审核项，导致
@@ -119,16 +132,10 @@ export class WorkspaceHookReviewController {
     const hasPending = evaluation.items.some((item) => item.admissionClass === "pending");
     if (!hasPending) {
       if (evaluation.items.some((item) => item.trustState === "blocked_policy")) {
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_blocked_by_policy" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_blocked_by_policy" as const };
       }
       if (evaluation.storeStatus === "corrupt") {
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_trust_store_corrupt" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_trust_store_corrupt" as const };
       }
       // 无待审项:安全 no-op
       return { accepted: true, reviewItemIds: [] };
@@ -150,11 +157,9 @@ export class WorkspaceHookReviewController {
       }
       const flow = this.registry.getCurrentFlow(this.sessionId);
       if (!flow) {
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_review_superseded" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_review_superseded" as const };
       }
+      const targetIdentity = await this.resolveTargetTrustIdentity(target.workspaceIdentity);
       const snapshot = this.admission.getCurrentSnapshot();
       // request 绑定打开时的 immutable snapshot bundle。今天
       // replaceSnapshot 只有 toggle 一个合法调用方（经 refreshPendingFlow supersede 旧
@@ -162,14 +167,11 @@ export class WorkspaceHookReviewController {
       // 个调用方且绕过 refreshPendingFlow，tombstone 缺失会让授权落到新 bundle 上。
       // 与 revokeCurrent 对齐显式校验，消除隐式依赖。
       if (
-        target.workspaceIdentity !== snapshot.workspaceIdentity ||
+        targetIdentity !== snapshot.workspaceIdentity ||
         target.bundleDigest !== snapshot.bundleDigest
       ) {
         this.diagnostics.responseRejected("workspace_hooks_snapshot_mismatch");
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_snapshot_mismatch" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_snapshot_mismatch" as const };
       }
       // grant 前显式检查 persistent Trust 的 policy 资格：applyDecision 内
       // assertPersistentTrustMutationAllowed 抛出的策略拒绝若落入下方 catch-all，
@@ -177,10 +179,7 @@ export class WorkspaceHookReviewController {
       // 用户看到的是错误诊断；与 revoke 路径对齐：前置检查 + 精确 reasonCode。
       if (!this.coordinator.canMutatePersistentTrust(snapshot.workspaceIdentity)) {
         this.diagnostics.responseRejected("workspace_hooks_blocked_by_policy");
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_blocked_by_policy" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_blocked_by_policy" as const };
       }
       let applied: { grantedRecordCount?: number };
       try {
@@ -188,10 +187,7 @@ export class WorkspaceHookReviewController {
       } catch {
         // 原始错误可能含路径或内容；本地诊断只记录固定失败阶段。
         this.diagnostics.trustStoreFailure();
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_trust_store_corrupt" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_trust_store_corrupt" as const };
       }
       this.diagnostics.decisionAccepted(target, decision, {
         ...(applied.grantedRecordCount === undefined
@@ -224,10 +220,7 @@ export class WorkspaceHookReviewController {
       await this.refreshPendingFlow(snapshot);
       return resolved.accepted
         ? resolved
-        : {
-            accepted: true as const,
-            reviewItemIds: [...validation.reviewItemIds],
-          };
+        : { accepted: true as const, reviewItemIds: [...validation.reviewItemIds] };
     });
   }
 
@@ -235,11 +228,7 @@ export class WorkspaceHookReviewController {
     target: WorkspaceHookReviewTarget,
     reviewItemId: string,
     enabled: boolean,
-  ): Promise<
-    WorkspaceHookReviewCommandResult & {
-      request?: WorkspaceHookReviewRequestPayload;
-    }
-  > {
+  ): Promise<WorkspaceHookReviewCommandResult & { request?: WorkspaceHookReviewRequestPayload }> {
     return this.enqueueMutation(async () => {
       const validation = this.registry.validate(target, {
         action: "trust_selected",
@@ -249,10 +238,7 @@ export class WorkspaceHookReviewController {
       const currentSnapshot = this.admission.getCurrentSnapshot();
       const entry = currentSnapshot.hooks.find((item) => item.reviewItemId === reviewItemId);
       if (!entry?.editable) {
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_snapshot_mismatch" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_snapshot_mismatch" as const };
       }
       let writeCommitted = false;
       let nextSnapshot: WorkspaceHookBundleSnapshot;
@@ -278,10 +264,7 @@ export class WorkspaceHookReviewController {
             ? ((error as WorkspaceHookMutationError).code as WorkspaceHookReasonCode)
             : ("workspace_hooks_config_write_failed" as const);
           this.diagnostics.toggleFailure(mutationCode);
-          return {
-            accepted: false,
-            reasonCode: mutationCode as WorkspaceHookReasonCode,
-          };
+          return { accepted: false, reasonCode: mutationCode as WorkspaceHookReasonCode };
         }
         this.diagnostics.toggleFailure("workspace_hooks_config_rebuild_failed");
         this.registry.fail(target, "workspace_hooks_config_rebuild_failed");
@@ -293,10 +276,7 @@ export class WorkspaceHookReviewController {
             reasonCode: "workspace_hooks_config_rebuild_failed",
           },
         });
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_config_rebuild_failed" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_config_rebuild_failed" as const };
       }
 
       const nextFlow = await this.refreshPendingFlow(nextSnapshot);
@@ -340,17 +320,15 @@ export class WorkspaceHookReviewController {
 
   revokeCurrent(target: WorkspaceHookTrustRevokeTarget): Promise<WorkspaceHookReviewCommandResult> {
     return this.enqueueMutation(async () => {
+      const targetIdentity = await this.resolveTargetTrustIdentity(target.workspaceIdentity);
       const snapshot = this.admission.getCurrentSnapshot();
       if (
         target.sessionId !== this.sessionId ||
         target.remoteSessionId !== this.host.remoteSessionId ||
-        target.workspaceIdentity !== snapshot.workspaceIdentity ||
+        targetIdentity !== snapshot.workspaceIdentity ||
         target.bundleDigest !== snapshot.bundleDigest
       ) {
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_snapshot_mismatch" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_snapshot_mismatch" as const };
       }
       const digests = [...new Set(target.hookDeclarationDigests)];
       const entries = snapshot.hooks.filter((entry) =>
@@ -360,10 +338,7 @@ export class WorkspaceHookReviewController {
         digests.length === 0 ||
         new Set(entries.map((entry) => entry.hookDeclarationDigest)).size !== digests.length
       ) {
-        return {
-          accepted: false,
-          reasonCode: "workspace_hooks_snapshot_mismatch" as const,
-        };
+        return { accepted: false, reasonCode: "workspace_hooks_snapshot_mismatch" as const };
       }
       const result = await applyWorkspaceHookRevoke({
         coordinator: this.coordinator,
@@ -421,10 +396,7 @@ export class WorkspaceHookReviewController {
       this.registry.closeWithoutDecision(toWorkspaceHookReviewTarget(replacement));
       await this.host.emit({
         type: SessionEventType.WorkspaceHookReviewSettled,
-        payload: {
-          interactionId: replacement.interactionId,
-          state: "resolved",
-        },
+        payload: { interactionId: replacement.interactionId, state: "resolved" },
       });
     }
     return nextFlow;
@@ -441,9 +413,7 @@ export class WorkspaceHookReviewController {
   private async openReviewFlowForNewPendingItems(
     snapshot: WorkspaceHookBundleSnapshot,
   ): Promise<WorkspaceHookReviewFlow | undefined> {
-    const evaluation = this.coordinator.evaluateSnapshot({
-      snapshot,
-    });
+    const evaluation = this.coordinator.evaluateSnapshot({ snapshot });
     const hasPending = evaluation.items.some((item) => item.admissionClass === "pending");
     if (!hasPending) return undefined;
     const flow = await this.openOrReuseFlow(snapshot, evaluation);
@@ -488,6 +458,7 @@ export class WorkspaceHookReviewController {
     return buildWorkspaceHookReviewRequest({
       snapshot,
       evaluation,
+      workspaceKey: this.externalWorkspaceIdentity(snapshot),
       ...flow,
       sessionId: this.sessionId,
       host: this.host,
@@ -508,9 +479,7 @@ export class WorkspaceHookReviewController {
       ...(this.appVersion ? { appVersion: this.appVersion } : {}),
     });
     const file = await (await this.store).grant(records);
-    this.coordinator.replacePersistentTrustRecords(file.records, {
-      status: "ok",
-    });
+    this.coordinator.replacePersistentTrustRecords(file.records, { status: "ok" });
     return { grantedRecordCount: records.length };
   }
 
@@ -542,7 +511,7 @@ export class WorkspaceHookReviewController {
       payload: {
         pendingCount,
         bundleDigest: snapshot.bundleDigest,
-        ...(snapshot.workspaceIdentity ? { workspaceIdentity: snapshot.workspaceIdentity } : {}),
+        workspaceIdentity: this.externalWorkspaceIdentity(snapshot),
       },
     });
   }

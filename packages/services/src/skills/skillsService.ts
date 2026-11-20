@@ -212,7 +212,7 @@ async function filterNestedScanRoots(paths: string[]): Promise<string[]> {
 async function dedupeScanRootsByRealpath(paths: string[]): Promise<string[]> {
   const seen = new Set<string>();
   const result: string[] = [];
-  for (const path of await filterNestedScanRoots(paths)) {
+  for (const path of paths) {
     let canonical = normalizeScanRootPath(path);
     if (await exists(path)) {
       canonical = normalizeScanRootPath(await realpath(path).catch(() => path));
@@ -318,13 +318,7 @@ function readFrontmatter(content: string): ParsedFrontmatter {
   if (hasYamlUnsafeLooseInlineField(frontmatterParts.metadataText)) {
     // 历史中文 description 常写成未加引号的 `触发场景: ...`。
     // `: ` 在 YAML plain scalar 中会被当成映射分隔符，严格解析只会报错；这里直接采用宽松读取结果，避免全量并发测试里反复进入失败解析路径。
-    return {
-      hasFrontmatter: true,
-      ...looseFields,
-      body,
-      keys: looseKeys,
-      parseOk: false,
-    };
+    return { hasFrontmatter: true, ...looseFields, body, keys: looseKeys, parseOk: false };
   }
   let parsed: unknown;
   try {
@@ -332,22 +326,10 @@ function readFrontmatter(content: string): ParsedFrontmatter {
   } catch {
     // 历史 skill 里存在 closing --- 前混入正文的非严格 YAML。
     // YAML 解析失败时回退到宽松字段读取，避免中文 description 等已存在 metadata 丢失。
-    return {
-      hasFrontmatter: true,
-      ...looseFields,
-      body,
-      keys: looseKeys,
-      parseOk: false,
-    };
+    return { hasFrontmatter: true, ...looseFields, body, keys: looseKeys, parseOk: false };
   }
   if (!isObjectRecord(parsed)) {
-    return {
-      hasFrontmatter: true,
-      ...looseFields,
-      body,
-      keys: looseKeys,
-      parseOk: false,
-    };
+    return { hasFrontmatter: true, ...looseFields, body, keys: looseKeys, parseOk: false };
   }
 
   return {
@@ -851,12 +833,7 @@ async function resolvePluginSkillRootDescriptors(): Promise<SkillRootDescriptor[
     // 之前只扫描内置官方 cache/手动目录，漏掉 marketplace installed_plugins.json 中的
     // Claude 官方和自建市场插件，导致插件详情页只有技能数量、没有技能名。
     for (const rootPath of resolvePluginSkillRoots({ manifest, rootPath: candidate.rootPath })) {
-      descriptors.push({
-        scope: "plugin",
-        rootPath,
-        pluginName: manifest.name,
-        pluginId,
-      });
+      descriptors.push({ scope: "plugin", rootPath, pluginName: manifest.name, pluginId });
     }
   }
 
@@ -877,21 +854,22 @@ async function discoverSkills(params: {
   if (params.includeUserSkills) {
     // 用户级技能是全局资源，`.zcodium/skills` 里只要存在一个技能就截断
     // `.agents/skills` 会导致外部 Agent 的全局技能在导入后从设置页消失。
-    roots.push({
-      scope: "user" as const,
-      rootPath: getUserZcodeSkillRoot(),
-    });
-    roots.push({
-      scope: "user" as const,
-      rootPath: getUserAgentsSkillRoot(),
-    });
+    roots.push({ scope: "user" as const, rootPath: getUserZcodeSkillRoot() });
+    roots.push({ scope: "user" as const, rootPath: getUserAgentsSkillRoot() });
   }
   roots.push(...(await resolvePluginSkillRootDescriptors()));
 
   const diagnostics: SkillDiagnostic[] = [];
   const skills: SkillSummary[] = [];
   const seenSkillPaths = new Set<string>();
-  const scanRootPaths = await dedupeScanRootsByRealpath(roots.map((root) => root.rootPath));
+  // 插件的父、子声明都是独立入口，不能按递归覆盖关系裁掉父入口。
+  const standaloneRoots = await filterNestedScanRoots(
+    roots.filter((root) => root.scope !== "plugin").map((root) => root.rootPath),
+  );
+  const scanRootPaths = await dedupeScanRootsByRealpath([
+    ...standaloneRoots,
+    ...roots.filter((root) => root.scope === "plugin").map((root) => root.rootPath),
+  ]);
   const rootByPath = new Map(roots.map((root) => [root.rootPath, root]));
   const userZcodeSkillRoot = params.includeUserSkills ? getUserZcodeSkillRoot() : undefined;
   // Bug 原因：桌面扫描先读用户 ZCode 技能建立 Agents 重名集合，主遍历又读取同一正文生成摘要。
@@ -911,7 +889,11 @@ async function discoverSkills(params: {
       continue;
     }
 
-    const skillPaths = await collectSkillMarkdownPaths(root.rootPath, diagnostics);
+    const skillPaths = await collectSkillMarkdownPaths(
+      root.rootPath,
+      diagnostics,
+      root.scope === "plugin",
+    );
     for (const skillPath of skillPaths) {
       const isUserZcodeRoot = root.rootPath === userZcodeSkillRoot;
       if (
@@ -1035,11 +1017,13 @@ async function discoverSkills(params: {
 async function collectSkillMarkdownPaths(
   rootPath: string,
   diagnostics: SkillDiagnostic[],
+  stopAtSkill = false,
 ): Promise<string[]> {
   // 复用共享的有界遍历：支持分组目录，但排除 node_modules 等内容目录、限制深度、对软链按 realpath 去重，
   // 避免 Windows junction / 巨型依赖目录把单次扫描放大到数十秒。
   const discovered = new Set<string>();
   for await (const skillPath of walkSkillMarkdownPaths(rootPath, {
+    stopAtSkill,
     onError: (path, error) => {
       diagnostics.push({
         code: "skill_scan_failed",
@@ -1090,11 +1074,7 @@ export function createSkillsService(options?: SkillsServiceOptions): ISkillsServ
         provider,
       });
       const enabledByPath = await readSkillEnabledMap();
-      return {
-        skills: attachEnabledState(discovered, enabledByPath),
-        capability,
-        diagnostics,
-      };
+      return { skills: attachEnabledState(discovered, enabledByPath), capability, diagnostics };
     },
 
     async setEnabled(params: {
@@ -1276,10 +1256,7 @@ export function createSkillsService(options?: SkillsServiceOptions): ISkillsServ
       }
       // 删除 `<真实父目录>/<叶子名>`：父目录已是真实路径，不会经由祖先软链穿越；
       // 叶子仍是原目录项，是软链就只删链接、是普通目录就整目录删除。
-      await rm(join(canonicalParent, skillLeafName), {
-        recursive: true,
-        force: true,
-      });
+      await rm(join(canonicalParent, skillLeafName), { recursive: true, force: true });
     },
   };
 }

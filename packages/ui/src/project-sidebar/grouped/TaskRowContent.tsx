@@ -1,5 +1,8 @@
+import { TID_TASK_ROW_WORKTREE_ICON } from "@zcode/shared/test-ids";
+import { GitBranch } from "lucide-react";
+import { formatWorktreeLabel } from "@/managed-worktrees/index.js";
 import { ContextMenuTrigger } from "@/components/ui/context-menu.js";
-import { TooltipTrigger } from "@/components/ui/tooltip.js";
+import { TaskRowIdentityHoverCard } from "@/task-row-hover/index.js";
 import { TID_TASK_ITEM, testId } from "@zcode/shared/test-ids";
 import type { ProjectTask as ZCodeTaskMeta } from "@/project-sidebar/contract.js";
 import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
@@ -18,6 +21,8 @@ import {
 
 interface TaskRowContentProps {
   tooltipsDisabled?: boolean;
+  workspaceLabel: string;
+  remoteSessionId?: string;
   rowRef: (element: HTMLDivElement | null) => void;
   draggable: {
     attributes: DraggableAttributes;
@@ -61,6 +66,8 @@ interface TaskRowContentProps {
  */
 export function TaskRowContent({
   tooltipsDisabled,
+  workspaceLabel,
+  remoteSessionId,
   rowRef,
   draggable,
   onSelect,
@@ -149,6 +156,13 @@ export function TaskRowContent({
                   <span className={cn("size-1.5 rounded-full", statusDotClassName)} />
                 </span>
               ) : null}
+              {task.worktreeRoot ? (
+                <GitBranch
+                  data-testid={TID_TASK_ROW_WORKTREE_ICON}
+                  aria-label={formatWorktreeLabel(intl, task.worktreeRoot) ?? undefined}
+                  className="size-3.5 shrink-0"
+                />
+              ) : null}
               {!hasPendingInteraction && isTaskCron ? (
                 // 可交互 grouped row 之前漏渲染 clock，导致 Projects 分组里的定时任务没有 icon。
                 // 这里和普通 task list 一样放在时间前面，同时不再被未读/运行状态顶掉。
@@ -204,5 +218,14 @@ export function TaskRowContent({
   );
   // Bug 原因：asChild 包住普通展示函数会丢弃 Radix 注入的事件/ref；直接包住原 DOM。
   const trigger = <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>;
-  return tooltipsDisabled ? trigger : <TooltipTrigger asChild>{trigger}</TooltipTrigger>;
+  return (
+    <TaskRowIdentityHoverCard
+      task={task}
+      workspaceLabel={workspaceLabel}
+      remoteSessionId={remoteSessionId}
+      disabled={tooltipsDisabled}
+    >
+      {trigger}
+    </TaskRowIdentityHoverCard>
+  );
 }

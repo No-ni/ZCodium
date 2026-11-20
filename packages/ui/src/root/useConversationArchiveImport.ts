@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CONVERSATION_ARCHIVE_LIMITS, type IPlatformService } from "@zcode/shared";
+import { CONVERSATION_ARCHIVE_LIMITS, type IPlatformService, type Locale } from "@zcode/shared";
 import type { ImportConversationShareInput } from "@zcode/services";
 type IntlShape = ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -12,7 +12,7 @@ import { logger } from "@/logger.js";
 
 interface Options {
   platform: IPlatformService;
-  locale: "zh-CN" | "en-US";
+  locale: Locale;
   intl: IntlShape;
   tabs: WindowTabState[];
   activeWorkspacePath?: string | null;

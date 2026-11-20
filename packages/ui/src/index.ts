@@ -97,4 +97,8 @@ export {
 
 export { selectBrowserFileData } from "./lib/browserFilePicker.js";
 export { writeBrowserClipboardText, isBrowserClipboardAvailable } from "./lib/browserClipboard.js";
-export { ensurePendingTaskDraft } from "@/v4/composer/composerDraftStore.js";
+export {
+  ensurePendingTaskDraft,
+  readPendingTaskDraft,
+  readComposerWorkspaceScope,
+} from "@/v4/composer/composerDraftStore.js";

@@ -156,7 +156,7 @@ function baseParams(overrides: Partial<HookParams> = {}): HookParams {
     ...overrides,
   };
 }
-function render(overrides: Partial<HookParams> = {}) {
+function Render(overrides: Partial<HookParams> = {}) {
   fixture.cursor = 0;
   fixture.effects = [];
   return useGlobalTaskList(baseParams(overrides));
@@ -201,19 +201,19 @@ afterEach(() => {
 describe("useGlobalTaskList disabled gate", () => {
   it("loads, then keeps the last trusted list when disabled without querying or erroring", async () => {
     fixture.registry.list.mockResolvedValue({ items: [item("t1")], total: 1, hasMore: false });
-    render();
+    Render();
     await commit();
     expect(fixture.registry.subscribe).toHaveBeenCalledTimes(1);
     expect(listCalls()).toHaveLength(1);
-    expect(render().items).toHaveLength(1);
+    expect(Render().items).toHaveLength(1);
 
-    const disabled = render({ enabled: false, workspaceTabs: [tabA, tabB] });
+    const disabled = Render({ enabled: false, workspaceTabs: [tabA, tabB] });
     await commit();
     expect(disabled.loading).toBe(false);
     expect(fixture.registry.subscribe).toHaveBeenCalledTimes(1);
     expect(listCalls()).toHaveLength(1);
     expect(fixture.errors).toEqual([]);
-    const kept = render({ enabled: false, workspaceTabs: [tabA, tabB] });
+    const kept = Render({ enabled: false, workspaceTabs: [tabA, tabB] });
     // 禁用不清空：保留最后可信列表，只停 loading。
     expect(kept.items).toHaveLength(1);
     expect(kept.total).toBe(1);
@@ -228,16 +228,16 @@ describe("useGlobalTaskList disabled gate", () => {
   });
 
   it("ignores task revision, source generation and refresh traffic while mounted disabled", async () => {
-    render({ enabled: false });
+    Render({ enabled: false });
     await commit();
     expect(fixture.registry.subscribe).not.toHaveBeenCalled();
     expect(listCalls()).toHaveLength(0);
     expect(fixture.errors).toEqual([]);
-    expect(render({ enabled: false }).loading).toBe(false);
+    expect(Render({ enabled: false }).loading).toBe(false);
 
     fixture.revision = 5;
     fixture.taskListVersions.set("/synth/a", 3);
-    render({ enabled: false });
+    Render({ enabled: false });
     await commit();
     expect(listCalls()).toHaveLength(0);
     expect(fixture.errors).toEqual([]);
@@ -247,7 +247,7 @@ describe("useGlobalTaskList disabled gate", () => {
       ...tabA,
       remoteSessionId: "sess-2",
     };
-    const view = render({ enabled: false, workspaceTabs: [remoteTab] });
+    const view = Render({ enabled: false, workspaceTabs: [remoteTab] });
     await commit();
     expect(listCalls()).toHaveLength(0);
     expect(fixture.errors).toEqual([]);
@@ -259,19 +259,19 @@ describe("useGlobalTaskList disabled gate", () => {
 
   it("still clears when the workspace scope is empty", async () => {
     fixture.registry.list.mockResolvedValue({ items: [item("t1")], total: 1, hasMore: true });
-    render();
+    Render();
     await commit();
-    expect(render().items).toHaveLength(1);
-    render({ workspaceTabs: [] });
+    expect(Render().items).toHaveLength(1);
+    Render({ workspaceTabs: [] });
     await commit();
-    const cleared = render({ workspaceTabs: [] });
+    const cleared = Render({ workspaceTabs: [] });
     expect(cleared.items).toEqual([]);
     expect(cleared.total).toBe(0);
     expect(cleared.hasMore).toBe(false);
     expect(cleared.loading).toBe(false);
-    render({ enabled: false, workspaceTabs: [] });
+    Render({ enabled: false, workspaceTabs: [] });
     await commit();
-    const clearedDisabled = render({ enabled: false, workspaceTabs: [] });
+    const clearedDisabled = Render({ enabled: false, workspaceTabs: [] });
     expect(clearedDisabled.items).toEqual([]);
     expect(clearedDisabled.loading).toBe(false);
   });
@@ -285,7 +285,7 @@ describe("useGlobalTaskList disabled gate", () => {
         hasMore: boolean;
       }>();
       fixture.registry.list.mockReturnValue(pending.promise);
-      render();
+      Render();
       await commit();
       unmount();
       const snapshot = JSON.stringify(fixture.values);
@@ -307,15 +307,15 @@ describe("useGlobalTaskList disabled gate", () => {
       hasMore: boolean;
     }>();
     fixture.registry.list.mockReturnValueOnce(first.promise);
-    render();
+    Render();
     await commit();
-    render({ enabled: false });
+    Render({ enabled: false });
     await commit();
     expect(fixture.errors).toEqual([]);
     first.resolve({ items: [item("stale")], total: 1, hasMore: false });
     for (let index = 0; index < 8; index += 1) await Promise.resolve();
     // 禁用期间迟到成功不得写入；重新启用必须复用原入口读取当前事实。
-    expect(render({ enabled: false }).items).toEqual([]);
+    expect(Render({ enabled: false }).items).toEqual([]);
     const second = Promise.withResolvers<{
       items: WindowHostControllerTaskListItem[];
       total: number;
@@ -324,7 +324,7 @@ describe("useGlobalTaskList disabled gate", () => {
     fixture.registry.list.mockReturnValueOnce(second.promise);
     fixture.revision = 9;
     fixture.taskListVersions.set("/synth/a", 4);
-    render();
+    Render();
     await commit();
     expect(listCalls()).toHaveLength(2);
     const last = listCalls()[1]![1];
@@ -332,20 +332,20 @@ describe("useGlobalTaskList disabled gate", () => {
     expect(last.taskListVersionSignature).toContain("4");
     second.resolve({ items: [item("current")], total: 1, hasMore: false });
     for (let index = 0; index < 8; index += 1) await Promise.resolve();
-    expect(render().items.map((row) => row.taskId)).toEqual(["current"]);
+    expect(Render().items.map((row) => row.taskId)).toEqual(["current"]);
   });
 
   it("reports a genuinely missing Controller channel only while enabled", async () => {
     fixture.controller = null;
-    render();
+    Render();
     await commit();
     expect(fixture.errors).toHaveLength(1);
     expect(String(fixture.errors[0]![0])).toContain("channel unavailable");
     expect(listCalls()).toHaveLength(0);
-    expect(render().loading).toBe(false);
+    expect(Render().loading).toBe(false);
 
     fixture.errors = [];
-    render({ enabled: false });
+    Render({ enabled: false });
     await commit();
     expect(fixture.errors).toEqual([]);
   });
@@ -362,17 +362,17 @@ describe("useGlobalTaskList disabled gate", () => {
       hasMore: boolean;
     }>();
     fixture.registry.list.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
-    render();
+    Render();
     await commit();
-    render({ searchQuery: "alpha" });
+    Render({ searchQuery: "alpha" });
     await commit();
     expect(listCalls()).toHaveLength(2);
     expect(listCalls()[1]![2].search).toBe("alpha");
     stale.resolve({ items: [item("stale")], total: 1, hasMore: false });
     for (let index = 0; index < 8; index += 1) await Promise.resolve();
-    expect(render({ searchQuery: "alpha" }).items).toEqual([]);
+    expect(Render({ searchQuery: "alpha" }).items).toEqual([]);
     fresh.resolve({ items: [item("fresh")], total: 1, hasMore: false });
     for (let index = 0; index < 8; index += 1) await Promise.resolve();
-    expect(render({ searchQuery: "alpha" }).items.map((row) => row.taskId)).toEqual(["fresh"]);
+    expect(Render({ searchQuery: "alpha" }).items.map((row) => row.taskId)).toEqual(["fresh"]);
   });
 });

@@ -6,6 +6,7 @@ interface CreateMcpAdapterForPoolInput {
   config: McpServerConfig;
   serverName: string;
   workingDirectory?: string;
+  workspaceKey?: string;
 }
 
 export interface McpConnectionContext {

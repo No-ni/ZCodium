@@ -33,3 +33,5 @@ export {
   resolveSettingsScopeBlock,
   type SettingsScopeBlock,
 } from "@/settings-scope/ui/SettingsScopeBlockedNotice.js";
+
+export { CredentialStoreRecovery } from "@/settings-scope/ui/CredentialStoreRecovery.js";

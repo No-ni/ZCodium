@@ -10,10 +10,12 @@ type DesktopBrowserPlatformBridge = Pick<
   | "onBrowserViewCloseTab"
   | "onBrowserViewSuspend"
   | "onBrowserViewRestore"
+  | "browserViewLoadUrl"
   | "browserViewAttachGuest"
   | "browserViewDetachGuest"
   | "browserViewCloseTab"
   | "browserViewReportResidency"
+  | "browserViewPromoteDraftTabs"
   | "browserViewSuspendReady"
   | "browserViewEnsureResident"
   | "browserViewRestoreTabs"
@@ -29,6 +31,8 @@ type DesktopBrowserPlatformBridge = Pick<
   | "getPathForFile"
   | "saveFile"
   | "printPageToPdf"
+  | "microphone"
+  | "captureBrowserGuestPage"
 >;
 
 // Rebase 集成：browser bridge 若继续内联在 renderer 入口，会让入口越过 max-lines 门禁。
@@ -59,8 +63,22 @@ export const desktopBrowserPlatformBridge = {
     window.zcode.saveFile?.(payload) ?? Promise.resolve({ success: false, error: "not_supported" }),
   // 条件定义而非兜底返回失败：UI 靠方法是否存在做能力检测，旧 preload 下必须保持 undefined
   printPageToPdf: window.zcode.printPageToPdf ? () => window.zcode.printPageToPdf!() : undefined,
+  // 与 printPageToPdf 一样按 preload 是否提供决定能力是否存在，UI 据此决定是否显示语音输入。
+  microphone:
+    window.zcode.ensureMicrophoneAccess &&
+    window.zcode.resetMicrophoneAccess &&
+    window.zcode.openMicrophoneSettings
+      ? {
+          ensureAccess: () => window.zcode.ensureMicrophoneAccess!(),
+          resetAccess: () => window.zcode.resetMicrophoneAccess!(),
+          openSettings: (target) => window.zcode.openMicrophoneSettings!(target),
+        }
+      : undefined,
   onBrowserViewDownloadStarted: (handler) =>
     window.zcode.onBrowserViewDownloadStarted?.(handler) ?? (() => {}),
+  captureBrowserGuestPage: window.zcode.captureBrowserGuestPage
+    ? (payload) => window.zcode.captureBrowserGuestPage!(payload)
+    : undefined,
   onBrowserViewReady: (handler) => window.zcode.onBrowserViewReady?.(handler) ?? (() => {}),
   onBrowserViewOperation: (handler) => window.zcode.onBrowserViewOperation?.(handler) ?? (() => {}),
   onBrowserViewViewportChanged: (handler) =>
@@ -70,6 +88,7 @@ export const desktopBrowserPlatformBridge = {
   onBrowserViewCloseTab: (handler) => window.zcode.onBrowserViewCloseTab?.(handler) ?? (() => {}),
   onBrowserViewSuspend: (handler) => window.zcode.onBrowserViewSuspend?.(handler) ?? (() => {}),
   onBrowserViewRestore: (handler) => window.zcode.onBrowserViewRestore?.(handler) ?? (() => {}),
+  browserViewLoadUrl: (payload) => window.zcode.browserViewLoadUrl!(payload),
   browserViewAttachGuest: (payload) =>
     window.zcode.browserViewAttachGuest?.(payload) ??
     Promise.resolve({ ok: false, reason: "not-found", recoveryRequested: false }),
@@ -79,6 +98,8 @@ export const desktopBrowserPlatformBridge = {
     window.zcode.browserViewCloseTab?.(payload) ?? Promise.resolve(),
   browserViewReportResidency: (payload) =>
     window.zcode.browserViewReportResidency?.(payload) ?? Promise.resolve(),
+  browserViewPromoteDraftTabs: (payload) =>
+    window.zcode.browserViewPromoteDraftTabs?.(payload) ?? Promise.resolve([]),
   browserViewSuspendReady: (payload) =>
     window.zcode.browserViewSuspendReady?.(payload) ?? Promise.resolve(),
   browserViewEnsureResident: (payload) =>

@@ -86,6 +86,8 @@ export const SessionEventType = {
   SessionCreated: "session_created",
   SessionResumed: "session_resumed",
   SessionForked: "session_forked",
+  // 受管 worktree 创建结果（docs/git/worktree.md §6.6.4）；投影为 worktreeCreated 时间线标记。
+  WorktreeCreated: "worktree_created",
   SessionCompacted: "session_compacted",
   SessionTitleUpdated: "session_title_updated",
   SessionModeChanged: "session_mode_changed",
@@ -97,6 +99,8 @@ export const SessionEventType = {
   TurnSteerDeliveryChanged: "turn_steer_delivery_changed",
   // sendQueuedNow 原子提升：reservation/promoting/rollback 均进入事件流，投影不本地猜测。
   TurnSteerDispatchChanged: "turn_steer_dispatch_changed",
+  // composer 编辑态冻结排队项：锁只活在 CLI 进程内，投影据此停住自动续跑并隐藏操作。
+  TurnSteerEditLockChanged: "turn_steer_edit_lock_changed",
   TurnSteerDrained: "turn_steer_drained",
   TurnSteerRejected: "turn_steer_rejected",
   TurnSteerDiscarded: "turn_steer_discarded",
@@ -148,6 +152,8 @@ export const SessionEventType = {
   // workflow_completed，script-workflow-runtime.ts）是另一套日志，同名会真的混淆。
   DynamicWorkflowRunProgress: "dynamic_workflow_run_progress",
   PermissionRequested: "permission_requested",
+  PluginInstallRequested: "plugin_install_requested",
+  PluginInstallResolved: "plugin_install_resolved",
   PermissionResolved: "permission_resolved",
   PermissionDenied: "permission_denied",
   // 插件 UI 订阅的 MCP 资源变化。只进 live 投影（v4Gateway.ingest，seq 0），不落盘、不进冷恢复。
@@ -224,6 +230,14 @@ export interface SubagentSpawnedPayload {
   childSessionId?: SessionId;
   /** 首次子会话快照前记录的执行 cwd；父会话之后 cd 不会改变这份事实。 */
   childExecutionWorkspacePath?: string;
+}
+
+/** 与 WorktreeCreationFact 同形；事件层不依赖 session-store 端口类型。 */
+export interface WorktreeCreatedPayload {
+  path: string;
+  sha: string;
+  ref: string | null;
+  output: string;
 }
 
 export interface SessionCompactedPayload {
@@ -317,12 +331,7 @@ export type WorkflowNotificationMeta =
       reachedAt?: number;
     }
   /** run 级停滞：每个 stall 段一条，不是终态。 */
-  | {
-      kind: "stall";
-      sinceMs: number;
-      reason?: string;
-      cap?: number;
-    };
+  | { kind: "stall"; sinceMs: number; reason?: string; cap?: number };
 
 /**
  * 主代理闲着、run 还欠着决定时的提醒：每个 run 一条，带发出那一刻开着的问题数、等着的留白数与
@@ -356,6 +365,17 @@ export interface BackgroundResultOriginMeta {
   workflowBlocked?: WorkflowBlockedMeta;
   /** 只在 backgroundSource === "subagent" 的单条通知轮上在场；合并轮不带。 */
   subagentResult?: SubagentResultMeta;
+  /**
+   * 后台 Agent 无进展提醒（不是结果）。App 的 schema 会剥掉它，界面按普通后台结果轮显示标题；
+   * CLI 用它把提醒排除在「消费了后台 Agent 结果」的埋点之外。
+   */
+  subagentStall?: {
+    noProgressForMs: number;
+    /** 生成提醒时 Agent 的最后进展时间；出队时已有新进展就丢弃（内容已不成立）。 */
+    lastProgressAt?: number;
+    /** 生成提醒时的执行；同一 agentId 经 SendMessage 恢复成新执行后，旧提醒丢弃。 */
+    executionId?: string;
+  };
 }
 
 /**
@@ -574,6 +594,20 @@ export interface TurnSteerDispatchChangedPayload {
   reservationId?: string;
   state: "queued" | "reserved" | "promoting";
   targetTurnId: TurnId;
+}
+
+/** editorId = 单个窗口/标签页的编辑器实例；clientId 同设备多窗口共享，不能单独作为归属。 */
+export interface PendingInputEditLock {
+  editorId: string;
+  clientId: string;
+  inputOrigin?: "desktop" | "mobile";
+}
+
+export interface TurnSteerEditLockChangedPayload {
+  pendingInputId: string;
+  targetTurnId: TurnId;
+  /** 缺省 = 已释放。 */
+  editLock?: PendingInputEditLock;
 }
 
 export interface QueueAutoDrainChangedPayload {
@@ -1006,9 +1040,7 @@ export interface BackgroundTaskPayloadBase {
   terminalId?: string;
 }
 
-export type BackgroundTaskStartedPayload = BackgroundTaskPayloadBase & {
-  status: "running";
-};
+export type BackgroundTaskStartedPayload = BackgroundTaskPayloadBase & { status: "running" };
 
 export type BackgroundTaskUpdatedPayload = BackgroundTaskPayloadBase;
 
@@ -1110,11 +1142,7 @@ export type UserInputAutoResolutionState =
       visibleAt: number;
       deadlineAt: number;
     }
-  | {
-      state: "snoozed";
-      startedAt: number;
-      snoozedAt: number;
-    };
+  | { state: "snoozed"; startedAt: number; snoozedAt: number };
 
 export interface UserInputAutoResolutionUpdatedPayload {
   interactionId: string;
@@ -1269,11 +1297,7 @@ export function createSessionEvent<T>(
   type: SessionEventType,
   sessionId: SessionId,
   payload: T,
-  options?: {
-    turnId?: TurnId;
-    traceId?: TraceId;
-    sequenceNumber?: number;
-  },
+  options?: { turnId?: TurnId; traceId?: TraceId; sequenceNumber?: number },
 ): SessionEvent {
   return {
     id: crypto.randomUUID() as EventId,
@@ -1314,6 +1338,7 @@ export type SessionEventPayload =
   | SessionResumedPayload
   | SessionForkedPayload
   | SubagentSpawnedPayload
+  | WorktreeCreatedPayload
   | SessionCompactedPayload
   | SessionTitleUpdatedPayload
   | SessionModeChangedPayload
@@ -1322,6 +1347,7 @@ export type SessionEventPayload =
   | TurnSteerQueuedPayload
   | TurnSteerDeliveryChangedPayload
   | TurnSteerDispatchChangedPayload
+  | TurnSteerEditLockChangedPayload
   | TurnSteerDrainedPayload
   | TurnSteerReorderedPayload
   | QueueAutoDrainChangedPayload

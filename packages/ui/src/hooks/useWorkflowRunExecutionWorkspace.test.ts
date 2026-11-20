@@ -123,8 +123,8 @@ describe("workflow query hooks keep run execution metadata with the matching res
       hasMore: false,
     });
     const query = { ...options, artifactId: "artifact", version: 1, enabled: true };
-    const read = (input: typeof query) =>
-      kind === "bytes" ? useWorkflowRunArtifactBytes(input) : useWorkflowRunArtifactData(input);
+    // 每个参数化场景固定一个 hook；不要用匿名普通函数在内部条件调用 Hook。
+    const read = kind === "bytes" ? useWorkflowRunArtifactBytes : useWorkflowRunArtifactData;
     render(() => read(query));
     await effects();
     const old = render(() => read(query));
@@ -227,8 +227,7 @@ describe("workflow query hooks keep run execution metadata with the matching res
       executionWorkspacePath: root,
       truncated: true,
     });
-    const read = (input: typeof options & { enabled?: boolean }) =>
-      kind === "artifacts" ? useWorkflowRunArtifacts(input) : useWorkflowRunWorkspace(input);
+    const read = kind === "artifacts" ? useWorkflowRunArtifacts : useWorkflowRunWorkspace;
     render(() => read(options));
     await effects();
     expect(render(() => read(options)).executionWorkspacePath).toBe(root);

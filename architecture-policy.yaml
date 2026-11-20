@@ -1,226 +1,337 @@
 version: 1
-
-# 存量模块先标记为 legacy；新模块或完成迁移的模块设置 managed: true。
 modules:
   - id: rpc
-    roots: [packages/rpc/src]
+    roots:
+      - packages/rpc/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: shared
-    roots: [packages/shared/src]
+    roots:
+      - packages/shared/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: provider
-    roots: [packages/provider/src]
+    roots:
+      - packages/provider/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: provider-node
-    roots: [packages/provider-node/src]
+    roots:
+      - packages/provider-node/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: services
-    roots: [packages/services/src]
+    roots:
+      - packages/services/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: session
-    roots: [packages/services/src/session]
+    roots:
+      - packages/services/src/session
     managed: false
-    requires: [shared, sqlite-migrations]
+    requires:
+      - shared
+      - sqlite-migrations
     publicEntrypoints:
-      [
-        packages/services/src/session/contract.ts,
-        packages/services/src/session/taskIndexRepo.ts,
-        packages/services/src/session/automationRepo.ts,
-        packages/services/src/session/tasksDatabase/migrations.ts,
-        packages/services/src/session/tasksDatabase/prepared.ts,
-        packages/services/src/session/sourceServerWorkspaceAliasRepo.ts,
-      ]
+      - packages/services/src/session/contract.ts
+      - packages/services/src/session/taskIndexRepo.ts
+      - packages/services/src/session/automationRepo.ts
+      - packages/services/src/session/tasksDatabase/migrations.ts
+      - packages/services/src/session/tasksDatabase/prepared.ts
+      - packages/services/src/session/sourceServerWorkspaceAliasRepo.ts
+      - packages/services/src/session/offPeakTaskRepo.ts
     owner: conversation
   - id: storage
-    roots: [packages/services/src/storage]
+    roots:
+      - packages/services/src/storage
     managed: true
-    requires: [shared, rpc, services]
-    publicEntrypoints: [packages/services/src/storage/contract.ts]
-    layers: { domain: domain, app: app, adapters: adapters }
-    layerOrder: [domain, app, adapters]
+    requires:
+      - shared
+      - rpc
+      - services
+    publicEntrypoints:
+      - packages/services/src/storage/contract.ts
+    layers:
+      domain: domain
+      app: app
+      adapters: adapters
+    layerOrder:
+      - domain
+      - app
+      - adapters
     owner: desktop-settings
   - id: client
-    roots: [packages/client/src]
+    roots:
+      - packages/client/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: server
-    roots: [packages/server/src]
+    roots:
+      - packages/server/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: zcode-server-cli
-    roots: [packages/zcode-server-cli/src]
+    roots:
+      - packages/zcode-server-cli/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: ui
-    roots: [packages/ui/src]
+    roots:
+      - packages/ui/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: web
-    roots: [packages/web/src]
+    roots:
+      - packages/web/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: desktop
-    roots: [packages/desktop/src]
+    roots:
+      - packages/desktop/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: formal-proof
-    roots: [packages/formal-proof/src]
+    roots:
+      - packages/formal-proof/src
     managed: false
+    requires: []
+    publicEntrypoints: []
   - id: zcode-cua
-    roots: [packages/zcode-cua]
+    roots:
+      - packages/zcode-cua
     managed: false
+    requires: []
   - id: relay
-    roots: [packages/relay/src]
+    roots:
+      - packages/relay/src
     managed: false
+    requires: []
   - id: zcode-cli
-    roots: [apps/zcode-cli]
+    roots:
+      - apps/zcode-cli
     managed: false
-    requires: [shared, sqlite-migrations]
-
+    requires:
+      - shared
+      - sqlite-migrations
+    publicEntrypoints: []
   - id: side-pane-full-view
-    roots: [packages/ui/src/side-pane-full-view]
+    roots:
+      - packages/ui/src/side-pane-full-view
     managed: true
-    requires: [shared, ui]
+    requires:
+      - shared
+      - ui
     publicEntrypoints:
-      [
-        packages/ui/src/side-pane-full-view/contract.ts,
-        packages/ui/src/side-pane-full-view/index.ts,
-      ]
-    layers: { domain: domain, app: app, adapters: adapters, ui: components }
-    layerOrder: [domain, app, adapters, ui]
+      - packages/ui/src/side-pane-full-view/contract.ts
+      - packages/ui/src/side-pane-full-view/index.ts
+    layers:
+      domain: domain
+      app: app
+      adapters: adapters
+      ui: components
+    layerOrder:
+      - domain
+      - app
+      - adapters
+      - ui
     owner: conversation
-
   - id: source-server-protocol
-    roots: [packages/shared/src/source-server]
+    roots:
+      - packages/shared/src/source-server
     managed: true
-    requires: [shared]
+    requires:
+      - shared
     publicEntrypoints:
-      [packages/shared/src/source-server/contract.ts, packages/shared/src/source-server/index.ts]
-    layers: { domain: "." }
+      - packages/shared/src/source-server/contract.ts
+      - packages/shared/src/source-server/index.ts
+    layers:
+      domain: .
     owner: remote-workspace
-
   - id: window-project-directory
-    roots: [packages/services/src/window-project-directory]
+    roots:
+      - packages/services/src/window-project-directory
     managed: true
-    requires: [shared, rpc, services, project, remote-projects]
+    requires:
+      - shared
+      - rpc
+      - services
+      - project
+      - remote-projects
     publicEntrypoints:
-      [
-        packages/services/src/window-project-directory/contract.ts,
-        packages/services/src/window-project-directory/index.ts,
-      ]
-    layers: { domain: domain, app: app }
-    layerOrder: [domain, app]
+      - packages/services/src/window-project-directory/contract.ts
+      - packages/services/src/window-project-directory/index.ts
+    layers:
+      domain: domain
+      app: app
+      adapters: .
+    layerOrder:
+      - domain
+      - app
     owner: remote-workspace
-
   - id: source-server-workspace
-    roots: [packages/services/src/source-server-workspace]
+    roots:
+      - packages/services/src/source-server-workspace
     managed: true
-    requires: [shared, sqlite-migrations, services, rpc, session]
+    requires:
+      - shared
+      - sqlite-migrations
+      - services
+      - rpc
+      - session
     publicEntrypoints:
-      [
-        packages/services/src/source-server-workspace/contract.ts,
-        packages/services/src/source-server-workspace/inspection-contract.ts,
-        packages/services/src/source-server-workspace/index.ts,
-        packages/services/src/source-server-workspace/node.ts,
-      ]
-    layers: { domain: domain, app: app, adapters: adapters }
-    layerOrder: [domain, app, adapters]
+      - packages/services/src/source-server-workspace/contract.ts
+      - packages/services/src/source-server-workspace/inspection-contract.ts
+      - packages/services/src/source-server-workspace/index.ts
+      - packages/services/src/source-server-workspace/node.ts
+    layers:
+      domain: domain
+      app: app
+      adapters: adapters
+    layerOrder:
+      - domain
+      - app
+      - adapters
     owner: remote-workspace
-
   - id: sqlite-migrations
-    roots: [packages/shared/src/sqlite-migrations]
+    roots:
+      - packages/shared/src/sqlite-migrations
     managed: true
     requires: []
     publicEntrypoints:
-      [
-        packages/shared/src/sqlite-migrations/contract.ts,
-        packages/shared/src/sqlite-migrations/index.ts,
-      ]
-    layers: { domain: domain, adapters: adapters }
-    layerOrder: [domain, adapters]
+      - packages/shared/src/sqlite-migrations/contract.ts
+      - packages/shared/src/sqlite-migrations/index.ts
+    layers:
+      domain: domain
+      adapters: adapters
+    layerOrder:
+      - domain
+      - adapters
     owner: conversation
-
   - id: gen-ui-protocol
-    roots: [packages/shared/src/gen-ui]
+    roots:
+      - packages/shared/src/gen-ui
     managed: true
     requires: []
-    publicEntrypoints: [packages/shared/src/gen-ui/index.ts, packages/shared/src/gen-ui/contract.ts]
-    layers: { domain: "." }
+    publicEntrypoints:
+      - packages/shared/src/gen-ui/index.ts
+      - packages/shared/src/gen-ui/contract.ts
+    layers:
+      domain: .
     owner: conversation
   - id: gen-ui-service
-    roots: [packages/services/src/gen-ui]
+    roots:
+      - packages/services/src/gen-ui
     managed: true
-    requires: [services, shared, rpc, gen-ui-protocol, mcp-apps-protocol]
+    requires:
+      - services
+      - shared
+      - rpc
+      - gen-ui-protocol
+      - mcp-apps-protocol
     publicEntrypoints:
-      [
-        packages/services/src/gen-ui/index.ts,
-        packages/services/src/gen-ui/contract.ts,
-        packages/services/src/gen-ui/node.ts,
-      ]
-    layers: { domain: domain, app: app, adapters: adapters }
-    layerOrder: [domain, app, adapters]
-    owner: conversation
-
-  - id: gen-ui
-    roots: [packages/ui/src/gen-ui]
-    managed: true
-    requires: [ui, services, gen-ui-service, gen-ui-protocol, mcp-apps-protocol, plugin-ui]
-    publicEntrypoints:
-      [
-        packages/ui/src/gen-ui/index.ts,
-        packages/ui/src/gen-ui/contract.ts,
-        packages/ui/src/gen-ui/host.ts,
-      ]
-    layers: { domain: domain, app: app, adapters: adapters, ui: components }
-    layerOrder: [domain, app, adapters, ui]
-    owner: conversation
-
-  # Office 独立插件包沿固定官方边界登记；公共构建调度不引入宿主业务状态。
-  - id: office-runtime
-    roots: [apps/zcode-cli/packages/office-runtime]
-    managed: true
-    requires: []
-    publicEntrypoints:
-      [
-        apps/zcode-cli/packages/office-runtime/index.ts,
-        apps/zcode-cli/packages/office-runtime/contract.ts,
-      ]
-    layers: { app: "." }
-    owner: plugin
-
-  # 插件 UI（MCP Apps 沙箱）：模块边界见各模块 CONTRACT.md。
-  - id: mcp-apps-protocol
-    roots: [packages/shared/src/mcp-apps]
-    managed: true
-    requires: []
-    publicEntrypoints:
-      [
-        packages/shared/src/mcp-apps/index.ts,
-        packages/shared/src/mcp-apps/contract.ts,
-        packages/shared/src/mcp-apps/hostContract.ts,
-      ]
+      - packages/services/src/gen-ui/index.ts
+      - packages/services/src/gen-ui/contract.ts
+      - packages/services/src/gen-ui/node.ts
     layers:
-      domain: "."
+      domain: domain
+      app: app
+      adapters: adapters
+    layerOrder:
+      - domain
+      - app
+      - adapters
+    owner: conversation
+  - id: gen-ui
+    roots:
+      - packages/ui/src/gen-ui
+    managed: true
+    requires:
+      - ui
+      - services
+      - gen-ui-service
+      - gen-ui-protocol
+      - mcp-apps-protocol
+      - plugin-ui
+    publicEntrypoints:
+      - packages/ui/src/gen-ui/index.ts
+      - packages/ui/src/gen-ui/contract.ts
+      - packages/ui/src/gen-ui/host.ts
+    layers:
+      domain: domain
+      app: app
+      adapters: adapters
+      ui: components
+    layerOrder:
+      - domain
+      - app
+      - adapters
+      - ui
+    owner: conversation
+  - id: office-runtime
+    roots:
+      - apps/zcode-cli/packages/office-runtime
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - apps/zcode-cli/packages/office-runtime/index.ts
+      - apps/zcode-cli/packages/office-runtime/contract.ts
+    layers:
+      app: .
+    owner: plugin
+  - id: mcp-apps-protocol
+    roots:
+      - packages/shared/src/mcp-apps
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/shared/src/mcp-apps/index.ts
+      - packages/shared/src/mcp-apps/contract.ts
+      - packages/shared/src/mcp-apps/hostContract.ts
+    layers:
+      domain: .
     owner: plugin
   - id: mcp-ui
-    roots: [apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui]
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui
+      - apps/zcode-cli/packages/core/src/runtime/methods/sample-model.ts
     managed: true
-    requires: [zcode-cli, shared, mcp-apps-protocol]
+    requires:
+      - zcode-cli
+      - shared
+      - mcp-apps-protocol
     publicEntrypoints:
-      [
-        apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/index.ts,
-        apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/contract.ts,
-      ]
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/contract.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/sample-model.ts
     layers:
-      app: "."
+      app: .
     owner: plugin
   - id: plugin-ui-bridge
-    roots: [packages/services/src/plugin-ui-bridge]
+    roots:
+      - packages/services/src/plugin-ui-bridge
     managed: true
-    requires: [services, shared, mcp-apps-protocol]
+    requires:
+      - services
+      - shared
+      - mcp-apps-protocol
     publicEntrypoints:
-      [
-        packages/services/src/plugin-ui-bridge/index.ts,
-        packages/services/src/plugin-ui-bridge/contract.ts,
-        packages/services/src/plugin-ui-bridge/appToolsContract.ts,
-        packages/services/src/plugin-ui-bridge/samplingContract.ts,
-      ]
+      - packages/services/src/plugin-ui-bridge/index.ts
+      - packages/services/src/plugin-ui-bridge/contract.ts
+      - packages/services/src/plugin-ui-bridge/appToolsContract.ts
+      - packages/services/src/plugin-ui-bridge/samplingContract.ts
     layers:
-      app: "."
+      app: .
     owner: plugin
   - id: plugin-sandbox
     roots:
@@ -229,73 +340,99 @@ modules:
       - packages/desktop/src/preload/pluginSandbox
       - packages/desktop/src/renderer/src/plugin-sandbox
     managed: true
-    requires: [desktop, shared, mcp-apps-protocol, gen-ui-protocol]
-    publicEntrypoints: [
-        packages/desktop/src/host/pluginSandbox/index.ts,
-        packages/desktop/src/host/pluginSandbox/contract.ts,
-        packages/desktop/src/preload/pluginSandbox/hostBridge.ts,
-        packages/desktop/src/main/pluginSandbox/index.ts,
-        packages/desktop/src/main/pluginSandbox/contract.ts,
-        # 页面兼容接口由宿主及其契约测试维护。
-        packages/desktop/src/renderer/src/plugin-sandbox/aliasRuntime.ts,
-        packages/desktop/src/renderer/src/plugin-sandbox/aliasApi.ts,
-      ]
+    requires:
+      - desktop
+      - shared
+      - mcp-apps-protocol
+      - gen-ui-protocol
+    publicEntrypoints:
+      - packages/desktop/src/host/pluginSandbox/index.ts
+      - packages/desktop/src/host/pluginSandbox/contract.ts
+      - packages/desktop/src/preload/pluginSandbox/hostBridge.ts
+      - packages/desktop/src/main/pluginSandbox/index.ts
+      - packages/desktop/src/main/pluginSandbox/contract.ts
+      - packages/desktop/src/renderer/src/plugin-sandbox/aliasRuntime.ts
+      - packages/desktop/src/renderer/src/plugin-sandbox/aliasApi.ts
     layers:
-      adapters: "."
+      adapters: .
     owner: plugin
   - id: plugin-ui
-    roots: [packages/ui/src/plugin-ui]
+    roots:
+      - packages/ui/src/plugin-ui
     managed: true
-    requires: [ui, shared, services, mcp-apps-protocol, plugin-ui-bridge, plugin-sandbox]
+    requires:
+      - ui
+      - shared
+      - services
+      - mcp-apps-protocol
+      - plugin-ui-bridge
+      - plugin-sandbox
     publicEntrypoints:
-      [
-        packages/ui/src/plugin-ui/index.ts,
-        packages/ui/src/plugin-ui/contract.ts,
-        packages/ui/src/plugin-ui/hostPrimitives.ts,
-      ]
+      - packages/ui/src/plugin-ui/index.ts
+      - packages/ui/src/plugin-ui/contract.ts
+      - packages/ui/src/plugin-ui/hostPrimitives.ts
     layers:
       domain: domain
       app: app
       adapters: adapters
       ui: components
-    layerOrder: [domain, app, adapters, ui]
+    layerOrder:
+      - domain
+      - app
+      - adapters
+      - ui
     owner: plugin
-
   - id: project-storage
-    roots: ["packages/services/src/project-storage"]
+    roots:
+      - packages/services/src/project-storage
+      - packages/services/src/session/tasksDatabase
     managed: true
-    requires: ["shared", "sqlite-migrations", "services", "session"]
+    requires:
+      - shared
+      - sqlite-migrations
+      - services
+      - session
+      - task-groups
     publicEntrypoints:
-      [
-        "packages/services/src/project-storage/index.ts",
-        "packages/services/src/project-storage/contract.ts",
-        "packages/services/src/project-storage/startup.ts",
-        "packages/services/src/project-storage/startup-entry.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/services/src/project-storage/index.ts
+      - packages/services/src/project-storage/contract.ts
+      - packages/services/src/project-storage/startup.ts
+      - packages/services/src/project-storage/startup-entry.ts
+      - packages/services/src/session/tasksDatabase/migrations.ts
+      - packages/services/src/session/tasksDatabase/prepared.ts
+    layers:
+      adapters: .
     owner: conversation
   - id: project
-    roots: ["packages/services/src/project"]
+    roots:
+      - packages/services/src/project
     managed: true
-    requires: ["project-storage", "services", "shared"]
+    requires:
+      - project-storage
+      - services
+      - shared
     publicEntrypoints:
-      ["packages/services/src/project/index.ts", "packages/services/src/project/contract.ts"]
-    layers: { adapters: "." }
+      - packages/services/src/project/index.ts
+      - packages/services/src/project/contract.ts
+    layers:
+      adapters: .
     owner: conversation
   - id: task-facts
-    roots: ["packages/services/src/task-facts"]
+    roots:
+      - packages/services/src/task-facts
     managed: true
-    requires: ["shared"]
+    requires:
+      - shared
     publicEntrypoints:
-      [
-        "packages/services/src/task-facts/index.ts",
-        "packages/services/src/task-facts/contract.ts",
-        "packages/services/src/task-facts/repairSubagentTaskIndex.ts",
-      ]
-    layers: { app: "." }
+      - packages/services/src/task-facts/index.ts
+      - packages/services/src/task-facts/contract.ts
+      - packages/services/src/task-facts/repairSubagentTaskIndex.ts
+    layers:
+      app: .
     owner: conversation
   - id: project-sidebar
-    roots: ["packages/ui/src/project-sidebar"]
+    roots:
+      - packages/ui/src/project-sidebar
     managed: true
     requires:
       - conversation-workspace-target
@@ -306,164 +443,206 @@ modules:
       - source-server-ui
       - ui
       - web-remote-control-ui
+      - resource-manager
+      - managed-worktree-ui
+      - task-row-hover
+      - extension-slots
     publicEntrypoints:
-      [
-        "packages/ui/src/project-sidebar/index.tsx",
-        "packages/ui/src/project-sidebar/contract.ts",
-        "packages/ui/src/project-sidebar/remote-project-connection.ts",
-        "packages/ui/src/project-sidebar/useSavedWorkflowProjectOptions.ts",
-        "packages/ui/src/project-sidebar/RemoteProjectMenu.tsx",
-        "packages/ui/src/project-sidebar/WorkspaceDragOverlay.tsx",
-        "packages/ui/src/project-sidebar/useRemoteProjectConnectionPresentation.ts",
-        "packages/ui/src/project-sidebar/OfflineRemoteProjectRows.tsx",
-        "packages/ui/src/project-sidebar/RemoteConversationDisconnected.tsx",
-      ]
-    layers: { contract: "contract.ts", ui: "." }
+      - packages/ui/src/project-sidebar/index.tsx
+      - packages/ui/src/project-sidebar/contract.ts
+      - packages/ui/src/project-sidebar/remote-project-connection.ts
+      - packages/ui/src/project-sidebar/useSavedWorkflowProjectOptions.ts
+      - packages/ui/src/project-sidebar/RemoteProjectMenu.tsx
+      - packages/ui/src/project-sidebar/WorkspaceDragOverlay.tsx
+      - packages/ui/src/project-sidebar/useRemoteProjectConnectionPresentation.ts
+      - packages/ui/src/project-sidebar/OfflineRemoteProjectRows.tsx
+      - packages/ui/src/project-sidebar/RemoteConversationDisconnected.tsx
+    layers:
+      contract: contract.ts
+      ui: .
     owner: conversation
   - id: remote-projects
-    roots: ["packages/services/src/remote-projects"]
+    roots:
+      - packages/services/src/remote-projects
     managed: true
-    requires: ["services", "shared", "project-storage"]
+    requires:
+      - services
+      - shared
+      - project-storage
     publicEntrypoints:
-      [
-        "packages/services/src/remote-projects/index.ts",
-        "packages/services/src/remote-projects/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/services/src/remote-projects/index.ts
+      - packages/services/src/remote-projects/contract.ts
+    layers:
+      adapters: .
     owner: conversation
   - id: startup-storage
-    roots: ["packages/services/src/startup-storage"]
+    roots:
+      - packages/services/src/startup-storage
     managed: true
-    requires: ["sqlite-migrations"]
+    requires:
+      - sqlite-migrations
     publicEntrypoints:
-      [
-        "packages/services/src/startup-storage/index.ts",
-        "packages/services/src/startup-storage/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/services/src/startup-storage/index.ts
+      - packages/services/src/startup-storage/contract.ts
+    layers:
+      adapters: .
     owner: persistence
   - id: workspace-config-catalog
-    roots: ["packages/ui/src/workspace-config-catalog"]
+    roots:
+      - packages/ui/src/workspace-config-catalog
     managed: true
-    requires: ["services", "shared", "ui"]
+    requires:
+      - services
+      - shared
+      - ui
     publicEntrypoints:
-      [
-        "packages/ui/src/workspace-config-catalog/index.ts",
-        "packages/ui/src/workspace-config-catalog/contract.ts",
-      ]
-    layers: { contract: "contract.ts", app: "catalog.ts", ui: "." }
+      - packages/ui/src/workspace-config-catalog/index.ts
+      - packages/ui/src/workspace-config-catalog/contract.ts
+    layers:
+      contract: contract.ts
+      app: catalog.ts
+      ui: .
     owner: configuration
   - id: project-catalog
-    roots: ["packages/services/src/project-catalog"]
+    roots:
+      - packages/services/src/project-catalog
     managed: true
-    requires: ["project", "remote-projects"]
+    requires:
+      - project
+      - remote-projects
     publicEntrypoints:
-      [
-        "packages/services/src/project-catalog/index.ts",
-        "packages/services/src/project-catalog/contract.ts",
-      ]
-    layers: { contract: "contract.ts", domain: "selection-id.ts", app: "." }
+      - packages/services/src/project-catalog/index.ts
+      - packages/services/src/project-catalog/contract.ts
+    layers:
+      contract: contract.ts
+      domain: selection-id.ts
+      app: .
     owner: conversation
   - id: bot-project-runtime
-    roots: ["packages/services/src/bot-project-runtime"]
+    roots:
+      - packages/services/src/bot-project-runtime
     managed: true
-    requires: ["services", "shared", "remote-projects"]
+    requires:
+      - services
+      - shared
+      - remote-projects
     publicEntrypoints:
-      [
-        "packages/services/src/bot-project-runtime/index.ts",
-        "packages/services/src/bot-project-runtime/contract.ts",
-      ]
-    layers: { contract: "contract.ts", app: "." }
+      - packages/services/src/bot-project-runtime/index.ts
+      - packages/services/src/bot-project-runtime/contract.ts
+    layers:
+      contract: contract.ts
+      app: .
     owner: conversation
   - id: project-workspace-navigation
-    roots: ["packages/services/src/project-workspace-navigation"]
+    roots:
+      - packages/services/src/project-workspace-navigation
     managed: true
-    requires: ["project", "project-catalog", "remote-projects", "shared"]
+    requires:
+      - project
+      - project-catalog
+      - remote-projects
+      - shared
     publicEntrypoints:
-      [
-        "packages/services/src/project-workspace-navigation/index.ts",
-        "packages/services/src/project-workspace-navigation/contract.ts",
-      ]
-    layers: { contract: "contract.ts", app: "." }
+      - packages/services/src/project-workspace-navigation/index.ts
+      - packages/services/src/project-workspace-navigation/contract.ts
+    layers:
+      contract: contract.ts
+      app: .
     owner: conversation
   - id: conversation-workspace-target
-    roots: ["packages/ui/src/conversation-workspace-target"]
+    roots:
+      - packages/ui/src/conversation-workspace-target
     managed: true
-    requires: ["shared", "ui"]
+    requires:
+      - shared
+      - ui
     publicEntrypoints:
-      [
-        "packages/ui/src/conversation-workspace-target/index.ts",
-        "packages/ui/src/conversation-workspace-target/contract.ts",
-        "packages/ui/src/conversation-workspace-target/purpose.ts",
-        "packages/ui/src/conversation-workspace-target/sourceIdentity.ts",
-        "packages/ui/src/conversation-workspace-target/workbenchTarget.ts",
-        "packages/ui/src/conversation-workspace-target/usePluginCreator.ts",
-        "packages/ui/src/conversation-workspace-target/PluginAddMenu.tsx",
-      ]
-    layers: { contract: "contract.ts", app: "." }
+      - packages/ui/src/conversation-workspace-target/index.ts
+      - packages/ui/src/conversation-workspace-target/contract.ts
+      - packages/ui/src/conversation-workspace-target/purpose.ts
+      - packages/ui/src/conversation-workspace-target/sourceIdentity.ts
+      - packages/ui/src/conversation-workspace-target/workbenchTarget.ts
+      - packages/ui/src/conversation-workspace-target/usePluginCreator.ts
+      - packages/ui/src/conversation-workspace-target/PluginAddMenu.tsx
+    layers:
+      contract: contract.ts
+      app: .
     owner: conversation
   - id: remote-connection-flow
-    roots: ["packages/ui/src/remote-connection-flow"]
+    roots:
+      - packages/ui/src/remote-connection-flow
     managed: true
     requires:
       - shared
       - source-server-ui
       - ui
     publicEntrypoints:
-      [
-        "packages/ui/src/remote-connection-flow/index.ts",
-        "packages/ui/src/remote-connection-flow/contract.ts",
-        "packages/ui/src/remote-connection-flow/ui/RemoteConnectionProgress.tsx",
-      ]
-    layers: { app: ".", ui: "ui" }
-    layerOrder: ["app", "ui"]
+      - packages/ui/src/remote-connection-flow/index.ts
+      - packages/ui/src/remote-connection-flow/contract.ts
+      - packages/ui/src/remote-connection-flow/ui/RemoteConnectionProgress.tsx
+    layers:
+      app: .
+      ui: ui
+    layerOrder:
+      - app
+      - ui
     owner: remote
   - id: project-workflow
-    roots: ["packages/ui/src/project-workflow"]
+    roots:
+      - packages/ui/src/project-workflow
     managed: true
-    requires: ["shared", "ui", "project-sidebar"]
+    requires:
+      - shared
+      - ui
+      - project-sidebar
     publicEntrypoints:
-      [
-        "packages/ui/src/project-workflow/contract.ts",
-        "packages/ui/src/project-workflow/useWorkflowRunSave.ts",
-        "packages/ui/src/project-workflow/WorkflowRunSaveControls.tsx",
-        "packages/ui/src/project-workflow/WorkflowRunPaneSaveSlots.tsx",
-      ]
-    layers: { app: "." }
+      - packages/ui/src/project-workflow/contract.ts
+      - packages/ui/src/project-workflow/useWorkflowRunSave.ts
+      - packages/ui/src/project-workflow/WorkflowRunSaveControls.tsx
+      - packages/ui/src/project-workflow/WorkflowRunPaneSaveSlots.tsx
+    layers:
+      app: .
     owner: conversation
   - id: host-database-startup
-    roots: ["packages/desktop/src/host/database-startup"]
+    roots:
+      - packages/desktop/src/host/database-startup
     managed: true
-    requires: ["project-storage", "shared", "desktop"]
+    requires:
+      - project-storage
+      - shared
+      - desktop
     publicEntrypoints:
-      [
-        "packages/desktop/src/host/database-startup/contract.ts",
-        "packages/desktop/src/host/database-startup/tasksStorageWorker.ts",
-        "packages/desktop/src/host/database-startup/hostDatabaseStartup.ts",
-        "packages/desktop/src/host/database-startup/storagePreparationProcesses.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/desktop/src/host/database-startup/contract.ts
+      - packages/desktop/src/host/database-startup/tasksStorageWorker.ts
+      - packages/desktop/src/host/database-startup/hostDatabaseStartup.ts
+      - packages/desktop/src/host/database-startup/storagePreparationProcesses.ts
+    layers:
+      adapters: .
     owner: persistence
   - id: cli-subagent-config
     roots:
-      [
-        "apps/zcode-cli/packages/bootstrap/src/runtime-subagents",
-        "apps/zcode-cli/packages/bootstrap/tests/runtime-subagents",
-      ]
+      - apps/zcode-cli/packages/bootstrap/src/runtime-subagents
+      - apps/zcode-cli/packages/bootstrap/tests/runtime-subagents
     managed: true
-    requires: ["shared"]
+    requires:
+      - shared
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/bootstrap/src/runtime-subagents/index.ts",
-        "apps/zcode-cli/packages/bootstrap/src/runtime-subagents/contract.ts",
-      ]
-    layers: { domain: "." }
+      - apps/zcode-cli/packages/bootstrap/src/runtime-subagents/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/runtime-subagents/contract.ts
+    layers:
+      domain: .
     owner: agent
   - id: cli-session-execution
     roots:
       - apps/zcode-cli/packages/bootstrap/src/session-execution
       - apps/zcode-cli/packages/bootstrap/tests/session-execution
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/canonical-intent-replay.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/interaction-response-race.ts
+      - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/permission-full-access.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/permission-full-access.ts
+      - apps/zcode-cli/packages/core/tests/permission-full-access.test.ts
+      - apps/zcode-cli/packages/bootstrap/tests/draft-permission-full-access.test.ts
     managed: true
     requires:
       - shared
@@ -472,22 +651,31 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/session-execution/index.ts
       - apps/zcode-cli/packages/bootstrap/src/session-execution/contract.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/canonical-intent-replay.ts
-    layers: { app: "." }
+      - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
+    layers:
+      app: .
     owner: conversation
   - id: mobile-ui
-    roots: ["packages/ui/src/components/mobile-ui"]
+    roots:
+      - packages/ui/src/components/mobile-ui
     managed: true
-    requires: ["ui"]
+    requires:
+      - ui
     publicEntrypoints:
-      [
-        "packages/ui/src/components/mobile-ui/index.ts",
-        "packages/ui/src/components/mobile-ui/contract.ts",
-        "packages/ui/src/components/mobile-ui/DevicePlatformIcon.tsx",
-        "packages/ui/src/components/mobile-ui/ZCodeAppLogo.tsx",
-        "packages/ui/src/components/mobile-ui/bottom-sheet.tsx",
-      ]
-    layers: { contract: "contract.ts", ui: "." }
-    layerOrder: ["contract", "domain", "app", "adapters", "ui"]
+      - packages/ui/src/components/mobile-ui/index.ts
+      - packages/ui/src/components/mobile-ui/contract.ts
+      - packages/ui/src/components/mobile-ui/DevicePlatformIcon.tsx
+      - packages/ui/src/components/mobile-ui/ZCodeAppLogo.tsx
+      - packages/ui/src/components/mobile-ui/bottom-sheet.tsx
+    layers:
+      contract: contract.ts
+      ui: .
+    layerOrder:
+      - contract
+      - domain
+      - app
+      - adapters
+      - ui
     owner: remote
   - id: web-remote-control-ui
     roots:
@@ -504,24 +692,32 @@ modules:
       - packages/ui/src/web-remote-control/contract.ts
       - packages/ui/src/web-remote-control/WebRemoteControlDeviceHeader.tsx
       - packages/ui/src/hooks/useWebRemoteControlStatus.ts
-    layers: { contract: "contract.ts", domain: "domain", app: "app", ui: "." }
-    layerOrder: ["contract", "domain", "app", "adapters", "ui"]
+      - packages/ui/src/web-remote-control/app/useWebRemoteControlAuthSync.ts
+    layers:
+      contract: contract.ts
+      domain: domain
+      app: app
+      ui: .
+    layerOrder:
+      - contract
+      - domain
+      - app
+      - adapters
+      - ui
     owner: remote
   - id: cli-arguments
     roots:
-      [
-        "apps/zcode-cli/packages/cli/src/argument-parsing",
-        "apps/zcode-cli/packages/cli/src/arguments.ts",
-        "apps/zcode-cli/packages/cli/tests/argument-parsing",
-      ]
+      - apps/zcode-cli/packages/cli/src/argument-parsing
+      - apps/zcode-cli/packages/cli/src/arguments.ts
+      - apps/zcode-cli/packages/cli/tests/argument-parsing
     managed: true
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/cli/src/arguments.ts",
-        "apps/zcode-cli/packages/cli/src/argument-parsing/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - apps/zcode-cli/packages/cli/src/arguments.ts
+      - apps/zcode-cli/packages/cli/src/argument-parsing/contract.ts
+    layers:
+      adapters: .
     owner: agent
+    requires: []
   - id: workflow-tool-entrypoints
     roots:
       - apps/zcode-cli/packages/core/src/tool/workflow-entrypoints
@@ -541,242 +737,255 @@ modules:
       - apps/zcode-cli/packages/core/src/tool/workflow-entrypoints/contract.ts
       - apps/zcode-cli/packages/core/src/tool/handlers/workflow.ts
       - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow-approval.ts
-    layers: { app: "." }
+    layers:
+      app: .
     owner: agent
   - id: tool-result-settlement
     roots:
-      [
-        "apps/zcode-cli/packages/core/src/runtime/tool-result-settlement",
-        "apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts",
-        "apps/zcode-cli/packages/core/tests/tool-result-settlement",
-      ]
+      - apps/zcode-cli/packages/core/src/runtime/tool-result-settlement
+      - apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts
+      - apps/zcode-cli/packages/core/tests/tool-result-settlement
     managed: true
-    requires: ["zcode-cli"]
+    requires:
+      - zcode-cli
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts",
-        "apps/zcode-cli/packages/core/src/runtime/tool-result-settlement/contract.ts",
-      ]
-    layers: { app: "." }
+      - apps/zcode-cli/packages/core/src/runtime/methods/tool-result-settlement.ts
+      - apps/zcode-cli/packages/core/src/runtime/tool-result-settlement/contract.ts
+    layers:
+      app: .
     owner: agent
   - id: remote-input-prediction
     roots:
-      [
-        "packages/shared/src/zcode-protocol-v4/input-prediction",
-        "packages/services/src/zcode-agent/inputPredictionSwitch.ts",
-        "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts",
-        "apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts",
-      ]
+      - packages/shared/src/zcode-protocol-v4/input-prediction
+      - packages/services/src/zcode-agent/inputPredictionSwitch.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts
     managed: true
-    requires: ["shared", "zcode-cli"]
+    requires:
+      - shared
+      - zcode-cli
     publicEntrypoints:
-      [
-        "packages/shared/src/zcode-protocol-v4/input-prediction/contract.ts",
-        "packages/services/src/zcode-agent/inputPredictionSwitch.ts",
-        "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts",
-        "apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts",
-      ]
-    layers: { app: "." }
+      - packages/shared/src/zcode-protocol-v4/input-prediction/contract.ts
+      - packages/services/src/zcode-agent/inputPredictionSwitch.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-handler.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts
+    layers:
+      app: .
     owner: remote
   - id: remote-resident-rows-range
-    roots: ["packages/services/src/zcode-agent/resident-rows-range"]
+    roots:
+      - packages/services/src/zcode-agent/resident-rows-range
     managed: true
-    requires: ["shared", "services"]
-    publicEntrypoints: ["packages/services/src/zcode-agent/resident-rows-range/contract.ts"]
-    layers: { app: "." }
+    requires:
+      - shared
+      - services
+    publicEntrypoints:
+      - packages/services/src/zcode-agent/resident-rows-range/contract.ts
+    layers:
+      app: .
     owner: remote
   - id: tool-discovery
     roots:
-      [
-        "apps/zcode-cli/packages/core/src/tool/search",
-        "apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts",
-        "apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts",
-        "apps/zcode-cli/packages/contracts/src/tools/tool-search.ts",
-        "apps/zcode-cli/packages/core/tests/tool-discovery",
-      ]
+      - apps/zcode-cli/packages/core/src/tool/search
+      - apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts
+      - apps/zcode-cli/packages/contracts/src/tools/tool-search.ts
+      - apps/zcode-cli/packages/core/tests/tool-discovery
     managed: true
-    requires: ["zcode-cli"]
+    requires:
+      - zcode-cli
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/core/src/tool/search/contract.ts",
-        "apps/zcode-cli/packages/core/src/tool/search/exposure.ts",
-        "apps/zcode-cli/packages/core/src/tool/search/history.ts",
-        "apps/zcode-cli/packages/core/src/tool/search/search.ts",
-        "apps/zcode-cli/packages/core/src/tool/search/description.ts",
-        "apps/zcode-cli/packages/core/src/tool/search/local-projection.ts",
-        "apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts",
-        "apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts",
-        "apps/zcode-cli/packages/contracts/src/tools/tool-search.ts",
-      ]
-    layers: { app: "." }
+      - apps/zcode-cli/packages/core/src/tool/search/contract.ts
+      - apps/zcode-cli/packages/core/src/tool/search/exposure.ts
+      - apps/zcode-cli/packages/core/src/tool/search/history.ts
+      - apps/zcode-cli/packages/core/src/tool/search/search.ts
+      - apps/zcode-cli/packages/core/src/tool/search/description.ts
+      - apps/zcode-cli/packages/core/src/tool/search/local-projection.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/tool-search.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/deferred-tool-call.ts
+      - apps/zcode-cli/packages/contracts/src/tools/tool-search.ts
+    layers:
+      app: .
     owner: agent
   - id: node-repl-call-ledger
     roots:
-      [
-        "apps/zcode-cli/packages/node-repl-host/src/call-ledger",
-        "apps/zcode-cli/packages/node-repl-host/test/call-ledger",
-      ]
+      - apps/zcode-cli/packages/node-repl-host/src/call-ledger
+      - apps/zcode-cli/packages/node-repl-host/test/call-ledger
     managed: true
-    requires: ["zcode-cli"]
-    publicEntrypoints: ["apps/zcode-cli/packages/node-repl-host/src/call-ledger/contract.ts"]
-    layers: { adapters: "." }
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/node-repl-host/src/call-ledger/contract.ts
+    layers:
+      adapters: .
     owner: agent
   - id: provider-tool-rounds
     roots:
-      [
-        "apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds",
-        "apps/zcode-cli/packages/core/tests/provider-tool-rounds",
-      ]
+      - apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds
+      - apps/zcode-cli/packages/core/tests/provider-tool-rounds
     managed: true
-    requires: ["zcode-cli"]
-    publicEntrypoints: ["apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds/contract.ts"]
-    layers: { app: "." }
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds/contract.ts
+    layers:
+      app: .
     owner: agent
   - id: provider-builtin-tool-compat
     roots:
-      [
-        "apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat",
-        "apps/zcode-cli/packages/adapters/tests/provider-builtin-tool-compat",
-      ]
+      - apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat
+      - apps/zcode-cli/packages/adapters/tests/provider-builtin-tool-compat
     managed: true
     publicEntrypoints:
-      ["apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat/contract.ts"]
-    layers: { adapters: "." }
+      - apps/zcode-cli/packages/adapters/src/model/provider-builtin-tool-compat/contract.ts
+    layers:
+      adapters: .
     owner: agent
+    requires: []
   - id: conversation-quote-context
     roots:
-      [
-        "apps/zcode-cli/packages/core/src/runtime/conversation-quote-context",
-        "apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts",
-        "apps/zcode-cli/packages/core/tests/conversation-quote-context",
-      ]
+      - apps/zcode-cli/packages/core/src/runtime/conversation-quote-context
+      - apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts
+      - apps/zcode-cli/packages/core/tests/conversation-quote-context
     managed: true
-    requires: ["zcode-cli"]
+    requires:
+      - zcode-cli
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/core/src/runtime/conversation-quote-context/contract.ts",
-        "apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts",
-      ]
-    layers: { domain: "." }
+      - apps/zcode-cli/packages/core/src/runtime/conversation-quote-context/contract.ts
+      - apps/zcode-cli/packages/core/src/runtime/helpers/conversation-quotes.ts
+    layers:
+      domain: .
     owner: agent
   - id: tool-search-comparison
     roots:
-      [
-        "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract",
-        "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts",
-        "apps/zcode-cli/tools/prompt-trajectory/tests/tool-search-comparison",
-      ]
+      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract
+      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts
+      - apps/zcode-cli/tools/prompt-trajectory/tests/tool-search-comparison
     managed: true
-    requires: ["zcode-cli"]
+    requires:
+      - zcode-cli
     publicEntrypoints:
-      [
-        "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/contract.ts",
-        "apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts",
-      ]
-    layers: { domain: "." }
+      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/contract.ts
+      - apps/zcode-cli/tools/prompt-trajectory/src/tool-search-comparison.ts
+    layers:
+      domain: .
     owner: agent
   - id: channel-reply-tool
     roots:
-      [
-        "apps/zcode-cli/packages/core/src/tool/channel-reply",
-        "apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts",
-        "apps/zcode-cli/packages/core/tests/channel-reply",
-      ]
+      - apps/zcode-cli/packages/core/src/tool/channel-reply
+      - apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts
+      - apps/zcode-cli/packages/core/tests/channel-reply
     managed: true
-    requires: ["shared", "zcode-cli"]
+    requires:
+      - shared
+      - zcode-cli
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts",
-        "apps/zcode-cli/packages/core/src/tool/channel-reply/contract.ts",
-      ]
-    layers: { app: "." }
+      - apps/zcode-cli/packages/core/src/tool/handlers/reply-to-channel.ts
+      - apps/zcode-cli/packages/core/src/tool/channel-reply/contract.ts
+    layers:
+      app: .
     owner: agent
   - id: task-groups
-    roots: ["packages/services/src/task-groups"]
+    roots:
+      - packages/services/src/task-groups
     managed: true
-    requires: ["services", "session", "shared"]
+    requires:
+      - services
+      - session
+      - shared
     publicEntrypoints:
-      [
-        "packages/services/src/task-groups/index.ts",
-        "packages/services/src/task-groups/contract.ts",
-        "packages/services/src/task-groups/migration-v6.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/services/src/task-groups/index.ts
+      - packages/services/src/task-groups/contract.ts
+      - packages/services/src/task-groups/migration-v6.ts
+    layers:
+      adapters: .
     owner: conversation
   - id: conversation-share-interaction
-    roots: ["packages/ui/src/conversation-share-interaction"]
+    roots:
+      - packages/ui/src/conversation-share-interaction
     managed: true
-    requires: ["services", "shared", "ui"]
+    requires:
+      - services
+      - shared
+      - ui
     publicEntrypoints:
-      [
-        "packages/ui/src/conversation-share-interaction/index.ts",
-        "packages/ui/src/conversation-share-interaction/contract.ts",
-        "packages/ui/src/conversation-share-interaction/ConversationSharePopover.tsx",
-        "packages/ui/src/conversation-share-interaction/ConversationSharePreflightStatus.tsx",
-        "packages/ui/src/conversation-share-interaction/conversationSharePopoverActions.ts",
-        "packages/ui/src/conversation-share-interaction/conversationSharePreflightRequest.ts",
-        "packages/ui/src/conversation-share-interaction/conversationSharePreflightResponse.ts",
-      ]
-    layers: { contract: "contract.ts", ui: "." }
+      - packages/ui/src/conversation-share-interaction/index.ts
+      - packages/ui/src/conversation-share-interaction/contract.ts
+      - packages/ui/src/conversation-share-interaction/ConversationSharePopover.tsx
+      - packages/ui/src/conversation-share-interaction/ConversationSharePreflightStatus.tsx
+      - packages/ui/src/conversation-share-interaction/conversationSharePopoverActions.ts
+      - packages/ui/src/conversation-share-interaction/conversationSharePreflightRequest.ts
+      - packages/ui/src/conversation-share-interaction/conversationSharePreflightResponse.ts
+      - packages/ui/src/conversation-share-interaction/ConversationShareExpiryPicker.tsx
+      - packages/ui/src/conversation-share-interaction/SettingsShareManagement.tsx
+    layers:
+      contract: contract.ts
+      ui: .
     owner: conversation
   - id: workspace-plugin-preview
-    roots: ["packages/ui/src/workspace-plugin-preview"]
+    roots:
+      - packages/ui/src/workspace-plugin-preview
     managed: true
-    requires: ["shared", "ui"]
+    requires:
+      - shared
+      - ui
     publicEntrypoints:
-      [
-        "packages/ui/src/workspace-plugin-preview/index.ts",
-        "packages/ui/src/workspace-plugin-preview/contract.ts",
-      ]
-    layers: { ui: "." }
+      - packages/ui/src/workspace-plugin-preview/index.ts
+      - packages/ui/src/workspace-plugin-preview/contract.ts
+    layers:
+      ui: .
     owner: plugin
   - id: embedded-browser-permission
     roots:
-      [
-        "packages/desktop/src/main/embedded-browser-permission-contract",
-        "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts",
-        "packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts",
-        "packages/desktop/src/main/embeddedBrowserSitePermissions.ts",
-        "packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts",
-      ]
+      - packages/desktop/src/main/embedded-browser-permission-contract
+      - packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts
+      - packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts
+      - packages/desktop/src/main/embeddedBrowserSitePermissions.ts
+      - packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts
     managed: true
-    requires: ["desktop", "shared"]
+    requires:
+      - desktop
+      - shared
     publicEntrypoints:
-      [
-        "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts",
-        "packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts",
-        "packages/desktop/src/main/embeddedBrowserSitePermissions.ts",
-        "packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts",
-        "packages/desktop/src/main/embedded-browser-permission-contract/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts
+      - packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts
+      - packages/desktop/src/main/embeddedBrowserSitePermissions.ts
+      - packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts
+      - packages/desktop/src/main/embedded-browser-permission-contract/contract.ts
+    layers:
+      adapters: .
     owner: desktop
   - id: data-sync-service
-    roots: ["packages/services/src/data-sync"]
+    roots:
+      - packages/services/src/data-sync
     managed: true
-    requires: ["services", "shared"]
+    requires:
+      - services
+      - shared
     publicEntrypoints:
-      [
-        "packages/services/src/data-sync/index.ts",
-        "packages/services/src/data-sync/contract.ts",
-        "packages/services/src/data-sync/node.ts",
-      ]
-    layers: { app: "." }
+      - packages/services/src/data-sync/index.ts
+      - packages/services/src/data-sync/contract.ts
+      - packages/services/src/data-sync/node.ts
+    layers:
+      app: .
     owner: remote
   - id: provider-provisioning-status
-    roots: ["packages/services/src/provider-provisioning-status"]
+    roots:
+      - packages/services/src/provider-provisioning-status
     managed: true
-    requires: ["services", "shared"]
+    requires:
+      - services
+      - shared
     publicEntrypoints:
-      [
-        "packages/services/src/provider-provisioning-status/index.ts",
-        "packages/services/src/provider-provisioning-status/contract.ts",
-        "packages/services/src/provider-provisioning-status/node.ts",
-      ]
-    layers: { app: "." }
+      - packages/services/src/provider-provisioning-status/index.ts
+      - packages/services/src/provider-provisioning-status/contract.ts
+      - packages/services/src/provider-provisioning-status/node.ts
+    layers:
+      app: .
     owner: remote
   - id: data-sync
-    roots: ["packages/ui/src/data-sync"]
+    roots:
+      - packages/ui/src/data-sync
     managed: true
     requires:
       - conversation-workspace-target
@@ -785,12 +994,22 @@ modules:
       - source-server-ui
       - ui
     publicEntrypoints:
-      ["packages/ui/src/data-sync/index.ts", "packages/ui/src/data-sync/contract.ts"]
-    layers: { contract: "contract.ts", domain: "domain", app: "app", ui: "." }
-    layerOrder: ["contract", "domain", "app", "ui"]
+      - packages/ui/src/data-sync/index.ts
+      - packages/ui/src/data-sync/contract.ts
+    layers:
+      contract: contract.ts
+      domain: domain
+      app: app
+      ui: .
+    layerOrder:
+      - contract
+      - domain
+      - app
+      - ui
     owner: remote
   - id: settings-scope
-    roots: ["packages/ui/src/settings-scope"]
+    roots:
+      - packages/ui/src/settings-scope
     managed: true
     requires:
       - conversation-workspace-target
@@ -800,49 +1019,86 @@ modules:
       - ui
       - workspace-config-catalog
     publicEntrypoints:
-      ["packages/ui/src/settings-scope/index.ts", "packages/ui/src/settings-scope/contract.ts"]
-    layers: { contract: "contract.ts", domain: "domain", app: "app", ui: "." }
-    layerOrder: ["contract", "domain", "app", "ui"]
+      - packages/ui/src/settings-scope/index.ts
+      - packages/ui/src/settings-scope/contract.ts
+    layers:
+      contract: contract.ts
+      domain: domain
+      app: app
+      ui: .
+    layerOrder:
+      - contract
+      - domain
+      - app
+      - ui
     owner: remote
   - id: local-ttft-contract
-    roots: ["packages/shared/src/local-ttft"]
+    roots:
+      - packages/shared/src/local-ttft
     managed: true
-    publicEntrypoints: ["packages/shared/src/local-ttft/contract.ts"]
-    layers: { contract: "." }
+    publicEntrypoints:
+      - packages/shared/src/local-ttft/contract.ts
+    layers:
+      contract: .
+    requires: []
   - id: local-ttft-desktop
-    roots: ["packages/desktop/src/renderer/src/local-ttft"]
+    roots:
+      - packages/desktop/src/renderer/src/local-ttft
     managed: true
-    requires: ["shared", "ui"]
-    publicEntrypoints: ["packages/desktop/src/renderer/src/local-ttft/contract.ts"]
-    layers: { ui: "." }
+    requires:
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/desktop/src/renderer/src/local-ttft/contract.ts
+    layers:
+      ui: .
   - id: local-ttft-cli
-    roots: ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft"]
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft
     managed: true
-    requires: ["shared", "zcode-cli"]
+    requires:
+      - shared
+      - zcode-cli
     publicEntrypoints:
-      ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft/contract.ts"]
-    layers: { adapters: "." }
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft/contract.ts
+    layers:
+      adapters: .
+  - id: local-generation-cli
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-generation
+    managed: true
+    requires:
+      - shared
+      - extension-host-protocol
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-generation/contract.ts
+    layers:
+      adapters: .
+    owner: plugin
   - id: zcode-site-panel
-    roots: ["apps/zcode-cli/packages/zcode-site-plugin/src"]
+    roots:
+      - apps/zcode-cli/packages/zcode-site-plugin/src
     managed: true
-    requires: ["shared"]
+    requires:
+      - shared
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/zcode-site-plugin/src/index.ts",
-        "apps/zcode-cli/packages/zcode-site-plugin/src/contract.ts",
-      ]
-    layers: { app: "." }
+      - apps/zcode-cli/packages/zcode-site-plugin/src/index.ts
+      - apps/zcode-cli/packages/zcode-site-plugin/src/contract.ts
+    layers:
+      app: .
     owner: plugin
   - id: file-open-apps
-    roots: ["packages/desktop/src/main/file-open-apps"]
+    roots:
+      - packages/desktop/src/main/file-open-apps
     managed: true
-    requires: ["shared"]
+    requires:
+      - shared
     publicEntrypoints:
-      [
-        "packages/desktop/src/main/file-open-apps/index.ts",
-        "packages/desktop/src/main/file-open-apps/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - packages/desktop/src/main/file-open-apps/index.ts
+      - packages/desktop/src/main/file-open-apps/contract.ts
+    layers:
+      adapters: .
     owner: desktop
   - id: ui-file-menu
     roots:
@@ -851,98 +1107,126 @@ modules:
       - packages/ui/src/OpenSplitButtonDropdownActions.tsx
       - packages/ui/src/OpenSplitButtonTrigger.tsx
     managed: true
-    requires: ["shared", "ui"]
+    requires:
+      - shared
+      - ui
     publicEntrypoints:
       - packages/ui/src/file-menu/index.ts
       - packages/ui/src/file-menu/contract.ts
       - packages/ui/src/OpenSplitButton.types.ts
       - packages/ui/src/OpenSplitButtonDropdownActions.tsx
       - packages/ui/src/OpenSplitButtonTrigger.tsx
-    layers: { ui: "." }
+    layers:
+      ui: .
     owner: file-preview
   - id: web-platform
-    roots: ["packages/web/src/platform"]
+    roots:
+      - packages/web/src/platform
     managed: true
-    requires: ["shared", "ui", "web"]
+    requires:
+      - shared
+      - ui
+      - web
     publicEntrypoints:
-      ["packages/web/src/platform/index.ts", "packages/web/src/platform/contract.ts"]
-    layers: { adapters: "." }
+      - packages/web/src/platform/index.ts
+      - packages/web/src/platform/contract.ts
+    layers:
+      adapters: .
     owner: web
   - id: image-preview-editor
-    roots: ["packages/ui/src/image-preview-editor"]
+    roots:
+      - packages/ui/src/image-preview-editor
+      - packages/ui/src/hooks/useImageFilePreview.ts
+      - packages/ui/src/lib/copyPreviewImage.ts
+      - packages/ui/src/lib/imagePreviewDownload.ts
+      - packages/ui/src/v4/ConversationImageFileMention.tsx
     managed: true
-    requires: ["ui"]
+    requires:
+      - ui
+      - shared
+      - ui-file-menu
     publicEntrypoints:
-      [
-        "packages/ui/src/image-preview-editor/index.ts",
-        "packages/ui/src/image-preview-editor/contract.ts",
-      ]
-    layers: { ui: "." }
+      - packages/ui/src/image-preview-editor/index.ts
+      - packages/ui/src/image-preview-editor/contract.ts
+      - packages/ui/src/hooks/useImageFilePreview.ts
+      - packages/ui/src/lib/copyPreviewImage.ts
+      - packages/ui/src/lib/imagePreviewDownload.ts
+      - packages/ui/src/v4/ConversationImageFileMention.tsx
+    layers:
+      ui: .
     owner: conversation
   - id: protocol-session-data
-    roots: ["packages/shared/src/zcode-protocol-v4/session-data"]
+    roots:
+      - packages/shared/src/zcode-protocol-v4/session-data
     managed: true
     publicEntrypoints:
-      [
-        "packages/shared/src/zcode-protocol-v4/session-data/index.ts",
-        "packages/shared/src/zcode-protocol-v4/session-data/contract.ts",
-      ]
-    layers: { domain: "." }
+      - packages/shared/src/zcode-protocol-v4/session-data/index.ts
+      - packages/shared/src/zcode-protocol-v4/session-data/contract.ts
+    layers:
+      domain: .
+    requires: []
   - id: cli-session-data-files
-    roots: ["apps/zcode-cli/packages/adapters/src/storage/session-data-files"]
+    roots:
+      - apps/zcode-cli/packages/adapters/src/storage/session-data-files
     managed: true
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/adapters/src/storage/session-data-files/index.ts",
-        "apps/zcode-cli/packages/adapters/src/storage/session-data-files/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - apps/zcode-cli/packages/adapters/src/storage/session-data-files/index.ts
+      - apps/zcode-cli/packages/adapters/src/storage/session-data-files/contract.ts
+    layers:
+      adapters: .
+    requires: []
   - id: cli-session-data
-    roots: ["apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data"]
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data
     managed: true
-    requires: ["shared", "zcode-cli"]
+    requires:
+      - shared
+      - zcode-cli
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/index.ts",
-        "apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/contract.ts",
-      ]
-    layers: { app: "." }
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data/contract.ts
+    layers:
+      app: .
   - id: provider-regression
-    roots: ["apps/zcode-cli/tools/provider-regression"]
+    roots:
+      - apps/zcode-cli/tools/provider-regression
     managed: true
-    requires: ["zcode-cli", "provider", "provider-node", "shared"]
+    requires:
+      - zcode-cli
+      - provider
+      - provider-node
+      - shared
     publicEntrypoints:
-      [
-        "apps/zcode-cli/tools/provider-regression/index.ts",
-        "apps/zcode-cli/tools/provider-regression/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - apps/zcode-cli/tools/provider-regression/index.ts
+      - apps/zcode-cli/tools/provider-regression/contract.ts
+    layers:
+      adapters: .
     owner: agent
   - id: session-lifecycle
     roots:
-      [
-        "apps/zcode-cli/packages/bootstrap/src/session-lifecycle",
-        "apps/zcode-cli/packages/bootstrap/tests/session-lifecycle",
-      ]
+      - apps/zcode-cli/packages/bootstrap/src/session-lifecycle
+      - apps/zcode-cli/packages/bootstrap/tests/session-lifecycle
     managed: true
-    requires: ["shared"]
+    requires:
+      - shared
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/bootstrap/src/session-lifecycle/index.ts",
-        "apps/zcode-cli/packages/bootstrap/src/session-lifecycle/contract.ts",
-      ]
-    layers: { app: "." }
+      - apps/zcode-cli/packages/bootstrap/src/session-lifecycle/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/session-lifecycle/contract.ts
+    layers:
+      app: .
     owner: agent-runtime
   - id: workspace-mcp-trust
-    roots: ["apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust"]
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust
     managed: true
-    requires: ["zcode-cli", "shared"]
+    requires:
+      - zcode-cli
+      - shared
     publicEntrypoints:
-      [
-        "apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/index.ts",
-        "apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/contract.ts",
-      ]
-    layers: { adapters: "." }
+      - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/contract.ts
+    layers:
+      adapters: .
     owner: cli
   - id: desktop-source-connection
     roots:
@@ -1161,6 +1445,8 @@ modules:
       - packages/ui/src/v4/conversationTurnRenderUnitTypes.ts
       - packages/ui/src/v4/buildTaskListResultFromSessions.ts
       - packages/ui/src/v4/conversationFileSummaryActions.ts
+      - packages/ui/src/ToolCallBlocks/renderers/exploreSummary.ts
+      - packages/ui/src/v4/conversationAssistantSummaryItems.ts
       - packages/ui/src/v4/conversationRowsPartition.ts
       - packages/ui/src/v4/conversationTurnNavigatorPosition.ts
       - packages/ui/src/v4/conversationTurnNavigatorTypes.ts
@@ -1169,12 +1455,20 @@ modules:
       - packages/ui/src/v4/conversationTimelineFindCache.ts
       - packages/ui/src/v4/conversationTimelineFindTypes.ts
       - packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactHeader.tsx
+      - packages/ui/src/ModelTrajectorySourceTitle.tsx
+      - packages/ui/src/v4/ConversationQueueOrder.ts
+      - packages/ui/src/v4/conversationAssistantWorkPredicates.ts
+      - packages/ui/src/v4/useWorkspaceHookReviewInteraction.ts
+      - packages/ui/src/v4/v4InteractionRequestFacts.ts
+      - packages/ui/src/v4/v4InteractionDialogProps.ts
     managed: true
     requires:
+      - session-tool-presentation
       - plugin-ui
       - shared
       - ui
       - ui-file-menu
+      - services
     publicEntrypoints:
       - packages/ui/src/v4/render-parts-contract/contract.ts
       - packages/ui/src/app-shell/WorkflowRunPhasePills.tsx
@@ -1182,12 +1476,20 @@ modules:
       - packages/ui/src/v4/conversationTurnRenderUnitTypes.ts
       - packages/ui/src/v4/buildTaskListResultFromSessions.ts
       - packages/ui/src/v4/conversationFileSummaryActions.ts
+      - packages/ui/src/ToolCallBlocks/renderers/exploreSummary.ts
+      - packages/ui/src/v4/conversationAssistantSummaryItems.ts
       - packages/ui/src/v4/conversationRowsPartition.ts
       - packages/ui/src/v4/conversationTurnNavigatorPosition.ts
       - packages/ui/src/v4/conversationTurnNavigatorTypes.ts
       - packages/ui/src/v4/conversationTurnRenderPartition.ts
       - packages/ui/src/v4/workbenchPointerDragDrop.ts
       - packages/ui/src/app-shell/workflow-artifacts/WorkflowArtifactHeader.tsx
+      - packages/ui/src/ModelTrajectorySourceTitle.tsx
+      - packages/ui/src/v4/ConversationQueueOrder.ts
+      - packages/ui/src/v4/conversationAssistantWorkPredicates.ts
+      - packages/ui/src/v4/useWorkspaceHookReviewInteraction.ts
+      - packages/ui/src/v4/v4InteractionRequestFacts.ts
+      - packages/ui/src/v4/v4InteractionDialogProps.ts
     layers:
       app: .
     owner: conversation
@@ -1231,12 +1533,14 @@ modules:
   - id: local-ttft-renderer
     roots:
       - packages/ui/src/v4/diagnostics/local-ttft
+      - packages/ui/src/v4/telemetry/local-ttft
     managed: true
     requires:
       - shared
       - ui
     publicEntrypoints:
       - packages/ui/src/v4/diagnostics/local-ttft/contract.ts
+      - packages/ui/src/v4/telemetry/local-ttft/contract.ts
     layers:
       ui: .
     owner: diagnostics
@@ -1263,14 +1567,17 @@ modules:
     roots:
       - packages/ui/src/settings/plugin-store-display-contract
       - packages/ui/src/settings/pluginStoreActions.ts
-      - packages/ui/src/settings/PluginStorePaidPlanBadge.tsx
+      - packages/ui/src/settings/pluginStoreUpdate.ts
     managed: true
     requires:
       - ui
+      - services
+      - shared
+      - extension-host-protocol
     publicEntrypoints:
       - packages/ui/src/settings/plugin-store-display-contract/contract.ts
       - packages/ui/src/settings/pluginStoreActions.ts
-      - packages/ui/src/settings/PluginStorePaidPlanBadge.tsx
+      - packages/ui/src/settings/pluginStoreUpdate.ts
     layers:
       ui: .
     owner: plugins
@@ -1279,6 +1586,7 @@ modules:
       - packages/ui/src/v4/pending-command-recovery-contract
       - packages/ui/src/v4/pendingCommandRegistryTypes.ts
       - packages/ui/src/v4/pendingCommandRegistryHelpers.ts
+      - packages/ui/src/v4/pendingCommandResolutions.ts
       - packages/ui/src/v4/pendingCommandComposer.ts
     managed: true
     requires:
@@ -1288,6 +1596,7 @@ modules:
       - packages/ui/src/v4/pending-command-recovery-contract/contract.ts
       - packages/ui/src/v4/pendingCommandRegistryTypes.ts
       - packages/ui/src/v4/pendingCommandRegistryHelpers.ts
+      - packages/ui/src/v4/pendingCommandResolutions.ts
       - packages/ui/src/v4/pendingCommandComposer.ts
     layers:
       app: .
@@ -1296,27 +1605,28 @@ modules:
     roots:
       - packages/ui/src/store/state-contracts
     managed: true
-    requires: [shared, services]
+    requires:
+      - shared
+      - services
     publicEntrypoints:
       - packages/ui/src/store/state-contracts/contract.ts
     layers:
       domain: .
     owner: agent-config
-
-  # 首次修改官方继承代码后登记；复用现有输出样式服务合同与持久化 owner。
   - id: output-style
-    roots: [packages/services/src/output-style]
+    roots:
+      - packages/services/src/output-style
     managed: true
-    requires: [services, shared]
+    requires:
+      - services
+      - shared
     publicEntrypoints:
-      [
-        packages/services/src/output-style/index.ts,
-        packages/services/src/output-style/contract.ts,
-        packages/services/src/output-style/outputStyle.ts,
-      ]
-    layers: { adapters: "." }
+      - packages/services/src/output-style/index.ts
+      - packages/services/src/output-style/contract.ts
+      - packages/services/src/output-style/outputStyle.ts
+    layers:
+      adapters: .
     owner: desktop-settings
-  # 开发文档未迁移的静态数据和地图所有者；UI/Vite实际入口由下方受管模块接管。
   - id: dev-docs-legacy
     roots:
       - apps/dev-docs
@@ -1327,7 +1637,7 @@ modules:
       - apps/dev-docs/src/capability-map/CapabilityMapView.tsx
       - apps/dev-docs/src/feature-boundary-graph/FeatureBoundaryGraphView.tsx
     owner: developer-tools
-  # stream-animate：由 architecture:adopt 登记
+    requires: []
   - id: stream-animate
     roots:
       - packages/stream-animate/src
@@ -1348,7 +1658,6 @@ modules:
       - domain
       - adapters
       - ui
-  # e2e-report：由 architecture:adopt 登记
   - id: e2e-report
     roots:
       - packages/e2e-report/src
@@ -1370,7 +1679,6 @@ modules:
       - domain
       - adapters
       - ui
-  # dev-docs-view：由 architecture:adopt 登记
   - id: dev-docs-view
     roots:
       - apps/dev-docs/src/docs-view
@@ -1393,7 +1701,6 @@ modules:
       - domain
       - adapters
       - ui
-  # dev-docs-vite-adapters：由 architecture:adopt 登记
   - id: dev-docs-vite-adapters
     roots:
       - apps/dev-docs/vite-adapters
@@ -1412,7 +1719,6 @@ modules:
     layerOrder:
       - contract
       - adapters
-
   - id: model-request-compression
     roots:
       - apps/zcode-cli/packages/adapters/src/model/request-compression
@@ -1425,25 +1731,1027 @@ modules:
     layers:
       adapters: .
     owner: model-provider
+  - id: windows-runtime-host
+    roots:
+      - packages/services/src/windows-runtime-host
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/services/src/windows-runtime-host/index.ts
+      - packages/services/src/windows-runtime-host/contract.ts
+    layers:
+      adapters: .
+    owner: runtime
+  - id: session-control
+    roots:
+      - packages/session-control/src
+      - packages/session-control/vitest.config.ts
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/session-control/src/contract.ts
+      - packages/session-control/src/application/cli/index.ts
+      - packages/session-control/src/application/app/index.ts
+      - packages/session-control/src/testing/index.ts
+    layers:
+      contract: contract
+      domain: domain
+      app: application
+    owner: conversation
+  - id: app-control-protocol
+    roots:
+      - packages/shared/src/app-control
+    managed: true
+    requires:
+      - session-control
+    publicEntrypoints:
+      - packages/shared/src/app-control/index.ts
+      - packages/shared/src/app-control/contract.ts
+    layers:
+      contract: .
+    owner: conversation
+  - id: app-control
+    roots:
+      - packages/services/src/app-control
+    managed: true
+    requires:
+      - session-control
+      - shared
+      - services
+      - session
+      - project
+      - project-storage
+      - provider
+      - remote-projects
+    publicEntrypoints:
+      - packages/services/src/app-control/index.ts
+      - packages/services/src/app-control/contract.ts
+      - packages/services/src/app-control/discovery-directory.ts
+    layers:
+      adapters: .
+    owner: conversation
+  - id: cli-session-control-tools
+    roots:
+      - apps/zcode-cli/packages/core/src/tool/session-control
+    managed: true
+    requires:
+      - session-control
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/tool/session-control/contract.ts
+      - apps/zcode-cli/packages/core/src/tool/session-control/index.ts
+    layers:
+      app: .
+    owner: agent
+  - id: cli-session-control-bootstrap
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/session-control
+    managed: true
+    requires:
+      - session-control
+      - app-control-protocol
+      - shared
+      - zcode-cli
+      - cli-session-control-tools
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/session-control/contract.ts
+      - apps/zcode-cli/packages/bootstrap/src/session-control/index.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-session-control-runtime
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/cli-session-control
+      - apps/zcode-cli/packages/bootstrap/tests/cli-session-control/vitest.config.ts
+    managed: true
+    requires:
+      - session-control
+      - zcode-cli
+      - cli-active-transcript
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/cli-session-control/contract.ts
+      - apps/zcode-cli/packages/bootstrap/src/cli-session-control/index.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-active-transcript
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/active-transcript
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/active-transcript/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/active-transcript/contract.ts
+    layers:
+      adapters: .
+    owner: conversation
+  - id: cli-session-fork-commit
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/session-fork-commit
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/session-fork-commit/index.ts
+      - apps/zcode-cli/packages/core/src/runtime/session-fork-commit/contract.ts
+    layers:
+      app: .
+    owner: conversation
+  - id: cli-conversation-materialization
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization/contract.ts
+    layers:
+      adapters: .
+    owner: conversation
+  - id: app-control-navigation
+    roots:
+      - packages/desktop/src/app-control-navigation
+    managed: true
+    requires:
+      - app-control
+      - shared
+      - desktop
+      - services
+    publicEntrypoints:
+      - packages/desktop/src/app-control-navigation/contract.ts
+      - packages/desktop/src/app-control-navigation/index.ts
+      - packages/desktop/src/app-control-navigation/host.ts
+      - packages/desktop/src/app-control-navigation/main.ts
+      - packages/desktop/src/app-control-navigation/renderer.ts
+    layers:
+      adapters: .
+    owner: conversation
+  - id: design-runtime
+    roots:
+      - packages/design-runtime/src
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/design-runtime/src/index.ts
+      - packages/design-runtime/src/contract.ts
+    layers:
+      app: .
+    owner: browser
+  - id: agent-crash-diagnostic
+    roots:
+      - packages/shared/src/agent-crash-diagnostic
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/shared/src/agent-crash-diagnostic/index.ts
+      - packages/shared/src/agent-crash-diagnostic/contract.ts
+    layers:
+      app: .
+    owner: desktop
+  - id: context-composition
+    roots:
+      - packages/shared/src/zcode-protocol-v4/context-composition
+      - apps/zcode-cli/packages/core/src/runtime/context-composition
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition
+      - packages/services/src/zcode-agent/contextCompositionClient.ts
+      - apps/zcode-cli/packages/core/tests/context-composition
+      - apps/zcode-cli/packages/bootstrap/tests/context-composition
+    managed: true
+    requires:
+      - rpc
+      - services
+      - shared
+      - tool-discovery
+      - zcode-cli
+    publicEntrypoints:
+      - packages/shared/src/zcode-protocol-v4/context-composition/contract.ts
+      - apps/zcode-cli/packages/core/src/runtime/context-composition/index.ts
+      - apps/zcode-cli/packages/core/src/runtime/context-composition/state.ts
+      - apps/zcode-cli/packages/core/src/runtime/context-composition/query.ts
+      - apps/zcode-cli/packages/core/src/runtime/context-composition/classifier.ts
+      - apps/zcode-cli/packages/core/src/runtime/context-composition/items.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition/tracker.ts
+      - packages/services/src/zcode-agent/contextCompositionClient.ts
+    layers:
+      app: .
+    owner: agent
+  - id: plugin-host-queries
+    roots:
+      - packages/shared/src/zcode-protocol/plugin-host-queries
+      - apps/zcode-cli/packages/adapters/src/config/plugin-secrets.adapter.ts
+      - apps/zcode-cli/packages/bootstrap/src/plugin-secrets.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-user-options.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-mention-items.ts
+      - packages/services/src/zcode-agent/pluginHostQueriesClient.ts
+    managed: true
+    requires:
+      - services
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - packages/shared/src/zcode-protocol/plugin-host-queries/contract.ts
+      - apps/zcode-cli/packages/adapters/src/config/plugin-secrets.adapter.ts
+      - apps/zcode-cli/packages/bootstrap/src/plugin-secrets.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-user-options.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-mention-items.ts
+      - packages/services/src/zcode-agent/pluginHostQueriesClient.ts
+    layers:
+      app: .
+    owner: plugin
+  - id: agent-plugin-discovery
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/plugin-discovery
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-discovery-port.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-install-interaction.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/plugin-discovery.port.ts
+      - apps/zcode-cli/packages/contracts/src/tools/plugin-discovery.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/plugin-discovery.ts
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+      - plugin-install-interaction
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/plugin-discovery/contract.ts
+      - apps/zcode-cli/packages/bootstrap/src/plugin-discovery/subscription.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-discovery-port.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/plugin-discovery.port.ts
+      - apps/zcode-cli/packages/contracts/src/tools/plugin-discovery.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/plugin-discovery.ts
+    layers:
+      app: .
+    owner: plugin
+  - id: plugin-install-interaction
+    roots:
+      - packages/shared/src/plugin-discovery
+      - packages/shared/src/plugin-store-visibility.ts
+      - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
+      - packages/ui/src/v4/PluginInstallCard.tsx
+      - packages/ui/src/settings/PluginAutoRecommendationSetting.tsx
+    managed: true
+    requires:
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/shared/src/plugin-discovery/contract.ts
+      - packages/shared/src/plugin-store-visibility.ts
+      - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
+      - packages/ui/src/v4/PluginInstallCard.tsx
+      - packages/ui/src/settings/PluginAutoRecommendationSetting.tsx
+    layers:
+      app: .
+    owner: plugin
+  - id: window-topic-resource-relay
+    roots:
+      - packages/desktop/src/host/topic-resource-relay
+      - packages/desktop/src/host/windowTopicResourceRelay.ts
+      - packages/desktop/test/topic-resource-relay
+    managed: true
+    requires:
+      - services
+      - shared
+    publicEntrypoints:
+      - packages/desktop/src/host/topic-resource-relay/contract.ts
+      - packages/desktop/src/host/windowTopicResourceRelay.ts
+    layers:
+      adapters: .
+    owner: desktop
+  - id: topic-resource-tool
+    roots:
+      - apps/zcode-cli/packages/core/src/tool/topic-resource
+      - apps/zcode-cli/packages/core/src/tool/handlers/read-topic-resource.ts
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/tool/handlers/read-topic-resource.ts
+      - apps/zcode-cli/packages/core/src/tool/topic-resource/contract.ts
+    layers:
+      app: .
+    owner: agent
+  - id: bot-topic-history-attachment
+    roots:
+      - packages/services/src/bots/topic-history-attachment
+      - packages/services/src/bots/topicHistoryAttachment.ts
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/services/src/bots/topicHistoryAttachment.ts
+      - packages/services/src/bots/topic-history-attachment/contract.ts
+    layers:
+      app: .
+    owner: conversation
+  - id: composer-toolbar-layout
+    roots:
+      - packages/ui/src/composer-toolbar-layout
+      - packages/ui/src/prompt-editor/useComposerToolbarFit.ts
+      - packages/ui/test/composer-toolbar-layout
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/ui/src/prompt-editor/useComposerToolbarFit.ts
+      - packages/ui/src/composer-toolbar-layout/contract.ts
+    layers:
+      ui: .
+    owner: conversation
+  - id: request-security-edition
+    roots:
+      - packages/shared/src/request-security-edition
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/shared/src/request-security-edition/index.ts
+      - packages/shared/src/request-security-edition/policy.ts
+      - packages/shared/src/request-security-edition/verification-policy.ts
+      - packages/shared/src/request-security-edition/contract.ts
+    layers:
+      adapters: .
+    owner: request-security
+  - id: conversation-user-input-presentation
+    roots:
+      - packages/ui/src/conversation-user-input-presentation
+      - packages/ui/src/v4/ConversationUserInputBubble.tsx
+    managed: true
+    requires:
+      - ui
+      - shared
+      - image-preview-editor
+    publicEntrypoints:
+      - packages/ui/src/conversation-user-input-presentation/contract.ts
+      - packages/ui/src/v4/ConversationUserInputBubble.tsx
+    layers:
+      ui: .
+    owner: conversation
+  - id: cli-plugin-startup-budget
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget/contract.ts
+    layers:
+      app: .
+    owner: plugin
+  - id: composer-edit-mode
+    roots:
+      - packages/ui/src/composer-edit-mode
+    managed: true
+    requires:
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/composer-edit-mode/index.ts
+      - packages/ui/src/composer-edit-mode/contract.ts
+    layers:
+      contract: contract.ts
+      ui: .
+    owner: conversation
+  - id: managed-worktree-shared
+    roots:
+      - packages/shared/src/managed-worktree
+      - packages/shared/src/zcode-protocol-v4/worktree-command.ts
+    managed: true
+    requires: [shared]
+    publicEntrypoints:
+      - packages/shared/src/managed-worktree/index.ts
+      - packages/shared/src/managed-worktree/contract.ts
+      - packages/shared/src/zcode-protocol-v4/worktree-command.ts
+    layers:
+      app: .
+    owner: desktop
+  - id: managed-worktree-repo
+    roots:
+      - packages/services/src/git/managed-worktree
+    managed: true
+    requires:
+      - managed-worktree-shared
+      - services
+      - shared
+    publicEntrypoints:
+      - packages/services/src/git/managed-worktree/index.ts
+      - packages/services/src/git/managed-worktree/contract.ts
+    layers:
+      adapters: .
+    owner: desktop
+  - id: managed-worktree-tasks
+    roots:
+      - packages/services/src/managed-worktree-tasks
+    managed: true
+    requires:
+      - managed-worktree-repo
+      - managed-worktree-shared
+      - project-storage
+      - rpc
+      - services
+      - shared
+    publicEntrypoints:
+      - packages/services/src/managed-worktree-tasks/index.ts
+      - packages/services/src/managed-worktree-tasks/contract.ts
+    layers:
+      app: .
+    owner: desktop
+  - id: managed-worktree-ui
+    roots:
+      - packages/ui/src/managed-worktrees
+    managed: true
+    requires:
+      - services
+      - shared
+      - ui
+      - conversation-user-input-presentation
+    publicEntrypoints:
+      - packages/ui/src/managed-worktrees/index.ts
+      - packages/ui/src/managed-worktrees/contract.ts
+    layers:
+      contract: contract.ts
+      ui: .
+    owner: desktop
+  - id: session-tool-presentation
+    roots:
+      - packages/ui/src/ToolCallBlocks/session
+    managed: true
+    requires:
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/ToolCallBlocks/session/contract.ts
+    layers:
+      ui: .
+    owner: conversation
+  - id: extension-host-protocol
+    roots:
+      - packages/shared/src/extension-host
+    managed: true
+    requires:
+      - context-composition
+      - plugin-host-queries
+      - session-control
+      - shared
+    publicEntrypoints:
+      - packages/shared/src/extension-host/index.ts
+      - packages/shared/src/extension-host/contract.ts
+    layers:
+      domain: .
+    owner: plugin
+  - id: extensions-service
+    roots:
+      - packages/services/src/extensions
+    managed: true
+    requires:
+      - extension-host-protocol
+      - mcp-apps-protocol
+      - plugin-ui-bridge
+      - plugin-host-queries
+      - app-control
+      - session-control
+      - project
+      - rpc
+      - services
+      - shared
+    publicEntrypoints:
+      - packages/services/src/extensions/index.ts
+      - packages/services/src/extensions/contract.ts
+      - packages/services/src/extensions/node.ts
+    layers:
+      app: .
+    owner: plugin
+  - id: extension-host
+    roots:
+      - packages/desktop/src/extension-host
+      - packages/desktop/src/main/extensionHostSupervisor.ts
+      - packages/desktop/src/main/extensionHostEnvironment.ts
+      - packages/desktop/src/main/extensionHostLogEntries.ts
+    managed: true
+    requires:
+      - extension-host-protocol
+      - mcp-apps-protocol
+      - rpc
+      - desktop
+    publicEntrypoints:
+      - packages/desktop/src/extension-host/index.ts
+      - packages/desktop/src/extension-host/contract.ts
+      - packages/desktop/src/main/extensionHostSupervisor.ts
+    layers:
+      adapters: .
+    owner: plugin
+  - id: extension-slots
+    roots:
+      - packages/ui/src/extension-slots
+    managed: true
+    requires:
+      - extension-host-protocol
+      - mcp-apps-protocol
+      - plugin-ui
+      - services
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/extension-slots/index.ts
+      - packages/ui/src/extension-slots/contract.ts
+    layers:
+      domain: domain
+      app: app
+      adapters: adapters
+      ui: components
+    layerOrder:
+      - domain
+      - app
+      - adapters
+      - ui
+    owner: plugin
+  - id: browser-local-preview
+    roots:
+      - packages/desktop/src/main/browser-local-preview
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/desktop/src/main/browser-local-preview/index.ts
+      - packages/desktop/src/main/browser-local-preview/contract.ts
+    layers:
+      adapters: .
+    owner: desktop
+  - id: plugin-api
+    roots:
+      - packages/plugin-api/src
+      - packages/plugin-api/scripts
+      - packages/plugin-api/tsup.config.ts
+    managed: true
+    requires:
+      - extension-host-protocol
+      - shared
+    publicEntrypoints:
+      - packages/plugin-api/src/contract.ts
+      - packages/plugin-api/src/manifest.ts
+      - packages/plugin-api/src/sessions.ts
+      - packages/plugin-api/src/protocol-v4.ts
+    layers:
+      contract: .
+    owner: plugin
+  - id: selection-comment
+    roots:
+      - packages/ui/src/selection-comment
+      - packages/ui/src/lib/conversationSelectionParse.ts
+    managed: true
+    requires:
+      - ui
+      - shared
+    publicEntrypoints:
+      - packages/ui/src/selection-comment/index.ts
+      - packages/ui/src/selection-comment/contract.ts
+      - packages/ui/src/lib/conversationSelectionParse.ts
+    layers:
+      ui: .
+    owner: conversation
+  - id: credential-security
+    roots:
+      - packages/shared/src/credential-security
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/shared/src/credential-security/module.ts
+      - packages/shared/src/credential-security/contract.ts
+    layers:
+      adapters: .
+    owner: authentication
+  - id: resource-manager
+    roots:
+      - packages/ui/src/resource-manager
+      - packages/services/src/process/processResourceSampler.ts
+      - packages/services/src/process/processResourceTable.ts
+      - packages/services/src/process/processResourceProcReader.ts
+    managed: true
+    requires:
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/resource-manager/ResourceManagerApp.tsx
+      - packages/ui/src/resource-manager/contract.ts
+      - packages/ui/src/resource-manager/resourceUsageView.ts
+      - packages/services/src/process/processResourceSampler.ts
+    layers:
+      contract: contract.ts
+      adapters: ../../../services/src/process
+      ui: ../resource-manager
+    layerOrder:
+      - contract
+      - adapters
+      - ui
+    owner: desktop
+  - id: settings-search
+    roots:
+      - packages/ui/src/settings-search
+    managed: true
+    requires:
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/settings-search/index.ts
+      - packages/ui/src/settings-search/contract.ts
+    layers:
+      ui: .
+    owner: settings
+  - id: task-row-hover
+    roots:
+      - packages/ui/src/task-row-hover
+    managed: true
+    requires:
+      - managed-worktree-ui
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/task-row-hover/index.ts
+      - packages/ui/src/task-row-hover/contract.ts
+    layers:
+      ui: .
+    owner: conversation
+  - id: cli-memory-diagnostics
+    roots:
+      - apps/zcode-cli/packages/adapters/src/memory-diagnostics
+      - apps/zcode-cli/packages/adapters/tests/memory-diagnostics
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/memory-diagnostics/index.ts
+      - apps/zcode-cli/packages/adapters/src/memory-diagnostics/contract.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/resource-sampler.ts
+      - packages/services/src/feedback/feedbackLogArchive.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: fork-localization
+    roots:
+      - packages/ui/src/i18n/fork-messages
+      - packages/ui/src/i18n/localeMessages.ts
+      - packages/ui/src/i18n/locales/ja-JP.ts
+      - packages/ui/src/i18n/locales/ko-KR.ts
+      - packages/ui/src/i18n/locales/ru-RU.ts
+    managed: true
+    requires:
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/i18n/fork-messages/module.ts
+      - packages/ui/src/i18n/fork-messages/contract.ts
+      - packages/ui/src/i18n/localeMessages.ts
+    layers:
+      app: .
+    owner: settings
+  - id: credential-store
+    roots:
+      - packages/services/src/credential
+    managed: true
+    requires:
+      - shared
+      - credential-security
+      - services
+    publicEntrypoints:
+      - packages/services/src/credential/module.ts
+      - packages/services/src/credential/contract.ts
+      - packages/services/src/credential/credential.ts
+      - packages/services/src/credential/credentialService.ts
+      - packages/services/src/credential/providers/credentialCipherProvider.ts
+    layers:
+      adapters: .
+    owner: desktop-settings
+  - id: browser-design-ui
+    roots:
+      - packages/ui/src/browser-use/design-ui-contract
+      - packages/ui/src/browser-use/useBrowserDesignMode.ts
+      - packages/ui/src/browser-use/browserDesignModeHelpers.ts
+      - packages/ui/src/browser-use/useBrowserDesignChips.ts
+      - packages/ui/src/browser-use/useBrowserDesignPlugin.ts
+      - packages/ui/src/browser-use/BrowserDesignInspector.tsx
+      - packages/ui/src/browser-use/BrowserDesignInspectorFields.tsx
+      - packages/ui/src/EmbeddedBrowserStates.tsx
+      - packages/ui/src/browser-use/browserDesignTarget.ts
+      - packages/ui/src/browser-use/useBrowserDesignEvents.ts
+    managed: true
+    requires:
+      - ui
+      - shared
+      - services
+      - design-runtime
+      - settings-scope
+    publicEntrypoints:
+      - packages/ui/src/browser-use/design-ui-contract/contract.ts
+      - packages/ui/src/browser-use/useBrowserDesignMode.ts
+      - packages/ui/src/browser-use/browserDesignModeHelpers.ts
+      - packages/ui/src/browser-use/useBrowserDesignChips.ts
+      - packages/ui/src/browser-use/useBrowserDesignPlugin.ts
+      - packages/ui/src/browser-use/BrowserDesignInspector.tsx
+      - packages/ui/src/browser-use/BrowserDesignInspectorFields.tsx
+      - packages/ui/src/EmbeddedBrowserStates.tsx
+      - packages/ui/src/browser-use/browserDesignTarget.ts
+      - packages/ui/src/browser-use/useBrowserDesignEvents.ts
+    layers:
+      app: .
+    owner: browser
+  - id: memory-settings-ui
+    roots:
+      - packages/ui/src/settings/memory-catalog-contract
+      - packages/ui/src/settings/MemoryCatalogSettings.tsx
+    managed: true
+    requires:
+      - ui
+      - shared
+      - services
+      - settings-scope
+      - provider
+    publicEntrypoints:
+      - packages/ui/src/settings/memory-catalog-contract/contract.ts
+      - packages/ui/src/settings/MemoryCatalogSettings.tsx
+    layers:
+      app: .
+    owner: settings
+  - id: desktop-certificate-verifier
+    roots:
+      - packages/desktop/src/main/certificate-verifier-contract
+      - packages/desktop/src/main/desktopCertificateVerifier.ts
+    managed: true
+    requires:
+      - desktop
+      - shared
+    publicEntrypoints:
+      - packages/desktop/src/main/certificate-verifier-contract/contract.ts
+      - packages/desktop/src/main/desktopCertificateVerifier.ts
+    layers:
+      app: .
+    owner: desktop
+  - id: terminal-environment
+    roots:
+      - packages/services/src/terminal/environment-contract
+      - packages/services/src/terminal/terminalEnvironment.ts
+    managed: true
+    requires:
+      - services
+      - shared
+    publicEntrypoints:
+      - packages/services/src/terminal/environment-contract/contract.ts
+      - packages/services/src/terminal/terminalEnvironment.ts
+    layers:
+      app: .
+    owner: terminal
+  - id: bot-channel-types
+    roots:
+      - packages/services/src/bots/channel-types-contract
+      - packages/services/src/bots/telegramChannelRuntimeTypes.ts
+    managed: true
+    requires:
+      - services
+      - shared
+      - credential-store
+    publicEntrypoints:
+      - packages/services/src/bots/channel-types-contract/contract.ts
+      - packages/services/src/bots/telegramChannelRuntimeTypes.ts
+    layers:
+      app: .
+    owner: bots
+  - id: zcode-protocol-client-errors
+    roots:
+      - packages/services/src/zcode-agent/client-errors-contract
+      - packages/services/src/zcode-agent/zcodeProtocolClientErrors.ts
+    managed: true
+    requires:
+      - services
+      - shared
+      - rpc
+    publicEntrypoints:
+      - packages/services/src/zcode-agent/client-errors-contract/contract.ts
+      - packages/services/src/zcode-agent/zcodeProtocolClientErrors.ts
+    layers:
+      app: .
+    owner: session
+  - id: cli-plugin-material-support
+    roots:
+      - apps/zcode-cli/packages/adapters/src/plugins/material-support-contract
+      - apps/zcode-cli/packages/adapters/src/plugins/plugin-material-cache.ts
+      - apps/zcode-cli/packages/adapters/src/plugins/atomic-transaction-facts.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/plugins/material-support-contract/contract.ts
+      - apps/zcode-cli/packages/adapters/src/plugins/plugin-material-cache.ts
+      - apps/zcode-cli/packages/adapters/src/plugins/atomic-transaction-facts.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-workspace-trust-adapter
+    roots:
+      - apps/zcode-cli/packages/adapters/src/config/trust-adapter-contract
+      - apps/zcode-cli/packages/adapters/src/config/workspace-trust-identity.ts
+    managed: true
+    requires:
+      - zcode-cli
+      - managed-worktree-shared
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/config/trust-adapter-contract/contract.ts
+      - apps/zcode-cli/packages/adapters/src/config/workspace-trust-identity.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-session-repository-support
+    roots:
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/support-contract
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/message-copy-batches.ts
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/session-deletion.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/support-contract/contract.ts
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/message-copy-batches.ts
+      - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/session-deletion.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-protocol-credential-adapter
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/credential-adapter-contract
+      - apps/zcode-cli/packages/bootstrap/src/protocol-credential-cipher.ts
+    managed: true
+    requires:
+      - zcode-cli
+      - shared
+      - credential-security
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/credential-adapter-contract/contract.ts
+      - apps/zcode-cli/packages/bootstrap/src/protocol-credential-cipher.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-plugin-install-report
+    roots:
+      - apps/zcode-cli/packages/cli/src/plugin-report-contract
+      - apps/zcode-cli/packages/cli/src/plugin-install-report.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/cli/src/plugin-report-contract/contract.ts
+      - apps/zcode-cli/packages/cli/src/plugin-install-report.ts
+    layers:
+      adapters: .
+    owner: agent
+  - id: cli-session-input-intent
+    roots:
+      - apps/zcode-cli/packages/contracts/src/interfaces/input-intent-contract
+      - apps/zcode-cli/packages/contracts/src/interfaces/session-input-intent.ts
+    managed: true
+    requires:
+      - zcode-cli
+      - gen-ui-protocol
+    publicEntrypoints:
+      - apps/zcode-cli/packages/contracts/src/interfaces/input-intent-contract/contract.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/session-input-intent.ts
+    layers:
+      domain: .
+    owner: agent
+  - id: cli-runtime-context-support
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-support-contract
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-announcement-inputs.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-compact-restatement.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-model-result.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/project-memory-index.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-session-announcement.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-instruction-announcement.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-support-contract/contract.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-announcement-inputs.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-compact-restatement.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-model-result.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/project-memory-index.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-session-announcement.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/context-instruction-announcement.ts
+    layers:
+      app: .
+    owner: agent
+  - id: cli-turn-input-preparation
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/methods/input-preparation-contract
+      - apps/zcode-cli/packages/core/src/runtime/methods/turn-input-attachments.ts
+    managed: true
+    requires:
+      - zcode-cli
+      - turn-tool-visibility
+      - tool-discovery
+      - project-memory-runtime
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/methods/input-preparation-contract/contract.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/turn-input-attachments.ts
+    layers:
+      app: .
+    owner: agent
+  - id: cli-background-notification-history
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/methods/notification-history-contract
+      - apps/zcode-cli/packages/core/src/runtime/methods/background-notification-history.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/methods/notification-history-contract/contract.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/background-notification-history.ts
+    layers:
+      app: .
+    owner: agent
+  - id: cli-tui-projection
+    roots:
+      - apps/zcode-cli/packages/tui/src/projection-contract
+      - apps/zcode-cli/packages/tui/src/app-projection-state.ts
+      - apps/zcode-cli/packages/tui/src/app-runtime-bindings.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/tui/src/projection-contract/contract.ts
+      - apps/zcode-cli/packages/tui/src/app-projection-state.ts
+      - apps/zcode-cli/packages/tui/src/app-runtime-bindings.ts
+    layers:
+      app: .
+    owner: agent
+  - id: command-results-protocol
+    roots:
+      - packages/shared/src/zcode-protocol-v4/command-results-contract
+      - packages/shared/src/zcode-protocol-v4/command-results.ts
+    managed: true
+    requires:
+      - shared
+      - local-ttft-contract
+    publicEntrypoints:
+      - packages/shared/src/zcode-protocol-v4/command-results-contract/contract.ts
+      - packages/shared/src/zcode-protocol-v4/command-results.ts
+    layers:
+      domain: .
+    owner: conversation
+  - id: cli-config-diagnostics
+    roots:
+      - apps/zcode-cli/packages/adapters/src/config/diagnostics-contract
+      - apps/zcode-cli/packages/adapters/src/config/config-diagnostics.ts
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/config/diagnostics-contract/contract.ts
+      - apps/zcode-cli/packages/adapters/src/config/config-diagnostics.ts
+    layers:
+      adapters: .
+    owner: config
+  - id: ui-local-prompt-catalog
+    roots:
+      - packages/ui/src/local-prompt-catalog
+      - packages/ui/src/v4/officeSuggestedPrompts.ts
+    managed: true
+    requires:
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/v4/officeSuggestedPrompts.ts
+      - packages/ui/src/local-prompt-catalog/contract.ts
+    layers:
+      ui: .
+    owner: conversation
 
 global:
   acceptedUpstreamCommits:
     - commit: a60ba6a7e5a06742270ca605f5d2cc2766afa7e1
       previousHead: 4ea453673168542c0e3ebf051308fe85d780e2c9
       reason: 原样同步官方 v3.17.1；仅同路径与双快照内容及模式完全相同的新增源码按存量准入，本仓适配继续要求受管模块
+    - commit: fec975905a2abd4c07e35c40d51fa097a2258ec9
+      previousHead: 03f5d4e56c581b11ac59c85fbec3ed0583496f66
+      reason: 官方 3.18.2 真实合并；仅路径、模式、字节均匹配的双 Git 快照源文件按继承准入，本仓适配不豁免
   maxFileLines: 400
   maxContractLines: 300
   maxPublicMethods: 12
   forbidCycles: true
   forbidDeepImports: true
   managedOnly: true
-
 exceptions:
   - id: gen-ui-tweak-runtime-size
     rule: max-file-lines
-    paths: [packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js]
-    reason: Keep parameter binding and registration lifecycle together; runtime-manifest.json and tests verify file integrity.
+    paths:
+      - packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js
+    reason: Keep parameter binding and registration lifecycle together;
+      runtime-manifest.json and tests verify file integrity.
   - id: gen-ui-tweak-runtime-lint
     rule: disable-count
-    paths: [packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js]
-    reason: Allow the control-character validation regex and the single-file parameter-control runtime.
+    paths:
+      - packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js
+    reason: Allow the control-character validation regex and the single-file
+      parameter-control runtime.

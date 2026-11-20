@@ -90,10 +90,10 @@ function result(branchName: string): GitRefreshResult {
 function service(refresh: IGitService["refresh"]): IGitService {
   return { refresh } as IGitService;
 }
-function useService(gitService: IGitService) {
+function setService(gitService: IGitService) {
   fixture.services = { gitService } as IServiceAccessor;
 }
-function render(input = options) {
+function Render(input = options) {
   fixture.cursor = 0;
   fixture.effects = [];
   return useGitRepository(input);
@@ -108,8 +108,8 @@ async function commit() {
   await flush();
 }
 async function mount(git: IGitService) {
-  useService(git);
-  render();
+  setService(git);
+  Render();
   await commit();
 }
 beforeEach(() => {
@@ -144,11 +144,11 @@ describe("Git repository service generation", () => {
       if (completion === "success") first.resolve(result("obsolete"));
       else first.reject(new Error("obsolete setup"));
       await flush();
-      expect(render()).toMatchObject({ loading: true, error: null, summary: { branchName: null } });
+      expect(Render()).toMatchObject({ loading: true, error: null, summary: { branchName: null } });
       expect(logger.warn).not.toHaveBeenCalled();
       second.resolve(result("current"));
       await flush();
-      expect(render()).toMatchObject({
+      expect(Render()).toMatchObject({
         loading: false,
         error: null,
         summary: { branchName: "current" },
@@ -159,11 +159,11 @@ describe("Git repository service generation", () => {
   it("accepts an in-flight extended superset after closing the same-source pane without rereading", async () => {
     const pending = Promise.withResolvers<GitRefreshResult>();
     const refresh = vi.fn<IGitService["refresh"]>().mockReturnValue(pending.promise);
-    useService(service(refresh));
-    render({ ...options, includeExtendedData: true });
+    setService(service(refresh));
+    Render({ ...options, includeExtendedData: true });
     await commit();
-    expect(render({ ...options, includeExtendedData: true }).loading).toBe(true);
-    render({ ...options, includeExtendedData: false });
+    expect(Render({ ...options, includeExtendedData: true }).loading).toBe(true);
+    Render({ ...options, includeExtendedData: false });
     await commit();
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledWith({
@@ -173,7 +173,7 @@ describe("Git repository service generation", () => {
     });
     pending.resolve(result("extended"));
     await flush();
-    expect(render({ ...options, includeExtendedData: false })).toMatchObject({
+    expect(Render({ ...options, includeExtendedData: false })).toMatchObject({
       loading: false,
       error: null,
       summary: { branchName: "extended" },
@@ -185,10 +185,10 @@ describe("Git repository service generation", () => {
     async (completion) => {
       const pending = Promise.withResolvers<GitRefreshResult>();
       const refresh = vi.fn<IGitService["refresh"]>().mockReturnValue(pending.promise);
-      useService(service(refresh));
-      render({ ...options, includeExtendedData: true });
+      setService(service(refresh));
+      Render({ ...options, includeExtendedData: true });
       await commit();
-      render({ ...options, includeExtendedData: false });
+      Render({ ...options, includeExtendedData: false });
       await commit();
       for (const slot of fixture.slots) (slot as EffectSlot | null)?.cleanup?.();
       const before = JSON.stringify(fixture.slots);
@@ -204,17 +204,17 @@ describe("Git repository service generation", () => {
     const pending = Promise.withResolvers<GitRefreshResult>();
     const a = vi.fn<IGitService["refresh"]>().mockReturnValue(pending.promise);
     const b = vi.fn<IGitService["refresh"]>().mockResolvedValue(result("B"));
-    useService(service(a));
-    render({ ...options, includeExtendedData: true });
+    setService(service(a));
+    Render({ ...options, includeExtendedData: true });
     await commit();
-    render({ ...options, includeExtendedData: false });
+    Render({ ...options, includeExtendedData: false });
     await commit();
-    useService(service(b));
-    render({ ...options, includeExtendedData: false });
+    setService(service(b));
+    Render({ ...options, includeExtendedData: false });
     await commit();
     pending.resolve(result("late-A"));
     await flush();
-    expect(render()).toMatchObject({ loading: false, error: null, summary: { branchName: "B" } });
+    expect(Render()).toMatchObject({ loading: false, error: null, summary: { branchName: "B" } });
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).toHaveBeenCalledTimes(1);
   });
@@ -222,10 +222,10 @@ describe("Git repository service generation", () => {
     const refresh = vi.fn<IGitService["refresh"]>().mockResolvedValue(result("A"));
     const git = service(refresh);
     await mount(git);
-    useService(git);
-    render({ ...options, activeTaskId: "other-task" });
+    setService(git);
+    Render({ ...options, activeTaskId: "other-task" });
     await commit();
-    render({ ...options, activeTaskId: "other-task" });
+    Render({ ...options, activeTaskId: "other-task" });
     await commit();
     expect(refresh).toHaveBeenCalledTimes(1);
   });
@@ -235,35 +235,35 @@ describe("Git repository service generation", () => {
     fixture.remoteSessionId = "next-session";
     const next = { ...options, remoteSessionId: "next-session" };
     refresh.mockResolvedValue(result("B"));
-    expect(render(next).summary.branchName).toBeNull();
+    expect(Render(next).summary.branchName).toBeNull();
     await commit();
     expect(refresh).toHaveBeenCalledTimes(2);
-    expect(render(next).summary.branchName).toBe("B");
+    expect(Render(next).summary.branchName).toBe("B");
   });
   it("reads B once after settled A at the same scope and refresh token", async () => {
     const a = vi.fn<IGitService["refresh"]>().mockResolvedValue(result("A"));
     const pending = Promise.withResolvers<GitRefreshResult>();
     const b = vi.fn<IGitService["refresh"]>().mockReturnValue(pending.promise);
     await mount(service(a));
-    expect(render().summary.branchName).toBe("A");
-    useService(service(b));
-    render();
+    expect(Render().summary.branchName).toBe("A");
+    setService(service(b));
+    Render();
     await commit();
     expect(b).toHaveBeenCalledTimes(1);
-    expect(render().summary.branchName).toBeNull();
+    expect(Render().summary.branchName).toBeNull();
     pending.resolve(result("B"));
     await flush();
-    expect(render()).toMatchObject({ loading: false, error: null, summary: { branchName: "B" } });
+    expect(Render()).toMatchObject({ loading: false, error: null, summary: { branchName: "B" } });
     expect(a).toHaveBeenCalledTimes(1);
   });
   it("hides A watcher paths before B's replacement effect runs", async () => {
     await mount(service(vi.fn<IGitService["refresh"]>().mockResolvedValue(result("A"))));
-    useService(service(vi.fn<IGitService["refresh"]>().mockResolvedValue(result("B"))));
-    const firstB = render();
+    setService(service(vi.fn<IGitService["refresh"]>().mockResolvedValue(result("B"))));
+    const firstB = Render();
     expect(firstB.summary.branchName).toBeNull();
     expect(firstB.summary.autoRefreshWatchPaths).toEqual([]);
     await commit();
-    expect(render().summary.autoRefreshWatchPaths).toEqual(
+    expect(Render().summary.autoRefreshWatchPaths).toEqual(
       result("B").summary.autoRefreshWatchPaths,
     );
   });
@@ -275,18 +275,18 @@ describe("Git repository service generation", () => {
       const a = vi.fn<IGitService["refresh"]>().mockReturnValue(aPending.promise);
       const b = vi.fn<IGitService["refresh"]>().mockReturnValue(bPending.promise);
       await mount(service(a));
-      useService(service(b));
-      render();
+      setService(service(b));
+      Render();
       await commit();
       expect(b).toHaveBeenCalledTimes(1);
       if (completion === "success") aPending.resolve(result("late-A"));
       else aPending.reject(new Error("old attachment closed"));
       await flush();
-      expect(render()).toMatchObject({ loading: true, error: null, summary: { branchName: null } });
+      expect(Render()).toMatchObject({ loading: true, error: null, summary: { branchName: null } });
       expect(logger.warn).not.toHaveBeenCalled();
       bPending.resolve(result("B"));
       await flush();
-      expect(render()).toMatchObject({ loading: false, error: null, summary: { branchName: "B" } });
+      expect(Render()).toMatchObject({ loading: false, error: null, summary: { branchName: "B" } });
     },
   );
 });

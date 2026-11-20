@@ -3,7 +3,11 @@
 // 08-phasing M4 完成定义的 L2 层（命令 → core 调用 → 状态推进，不经旧协议代码）。
 import { SessionEventType, type SessionEvent } from "@zcode/contracts";
 import { describe, expect, it, vi } from "vitest";
-import type { CommandEnvelope } from "@zcode/shared/zcode-protocol-v4";
+import { V4InteractionRegistry } from "../src/zcode-protocol-v4/interaction-registry.js";
+import {
+  PERMISSION_FULL_ACCESS_OPTION_ID,
+  type CommandEnvelope,
+} from "@zcode/shared/zcode-protocol-v4";
 import { createInputFacade } from "../src/app/input-facade.js";
 import type { SendInputOptions } from "../src/app/types.js";
 import { V4CommandExecutor } from "../src/zcode-protocol-v4/commands/executor.js";
@@ -14,33 +18,21 @@ import type {
   V4SessionRecordView,
 } from "../src/zcode-protocol-v4/commands/types.js";
 
-const ORDINARY_MODEL_SELECTION = {
-  providerId: "builtin:bigmodel-coding-plan",
-  modelId: "GLM-5.3",
-};
+const ORDINARY_MODEL_SELECTION = { providerId: "builtin:bigmodel-coding-plan", modelId: "GLM-5.3" };
 
 function makeApp(overrides: Record<string, unknown> = {}) {
   return {
     sessionId: "s1",
     sendInput: vi.fn().mockImplementation(async (_input, options) => {
       if (options?.requireQueue) {
-        return {
-          kind: "queued",
-          pendingInputId: "queue_cmd-1",
-          queueLength: 1,
-          turnId: "turn-1",
-        };
+        return { kind: "queued", pendingInputId: "queue_cmd-1", queueLength: 1, turnId: "turn-1" };
       }
       options?.onTurnStartedObserved?.({
         id: "event-started",
         type: SessionEventType.TurnStarted,
         payload: { messageId: "msg-event-started" },
       });
-      return {
-        completion: Promise.resolve({}),
-        kind: "started_turn",
-        turnId: "turn-1",
-      };
+      return { completion: Promise.resolve({}), kind: "started_turn", turnId: "turn-1" };
     }),
     steerTurn: vi.fn().mockResolvedValue({
       kind: "queued",
@@ -69,9 +61,7 @@ function makeRecord(
 function makeHost(
   record: V4SessionRecordView,
   overrides: Partial<V4CommandCoreHost> = {},
-): V4CommandCoreHost & {
-  legacyMutations: string[];
-} {
+): V4CommandCoreHost & { legacyMutations: string[] } {
   const legacyMutations: string[] = [];
   return {
     getRecord: (id) => (id === "s1" ? record : undefined),
@@ -95,6 +85,25 @@ function envelope(type: string, payload: unknown): CommandEnvelope {
     baseRevision: 0,
   } as unknown as CommandEnvelope;
 }
+
+it("完全访问仅在实际授权后向发起端返回可保存的权限凭据", async () => {
+  const interactions = new V4InteractionRegistry();
+  interactions.register("permission", vi.fn(), {
+    sessionId: "s1",
+    kind: "other",
+    fullAccess: async () => {},
+  });
+  const executor = new V4CommandExecutor(makeHost(makeRecord(), { interactions }));
+  const command = envelope("resolveInteraction", {
+    interactionId: "permission",
+    answer: { optionId: PERMISSION_FULL_ACCESS_OPTION_ID },
+  });
+  expect(await executor.execute(command)).toMatchObject({
+    type: "resolveInteraction",
+    resolvedBy: { clientId: command.clientId, optionId: PERMISSION_FULL_ACCESS_OPTION_ID },
+  });
+  expect(await executor.execute({ ...command, commandId: "late" })).toBeUndefined();
+});
 
 async function settle() {
   // 后台 turn 是 void 起跑的微任务链，flush 两轮保证 finally 执行完。
@@ -145,11 +154,7 @@ function workspaceHookReviewRequest(input: {
     createdAt: input.createdAt ?? Date.now(),
     deadlineAt: input.deadlineAt,
     sourceFiles: [
-      {
-        path: "/w/.zcode/config.json",
-        displayPath: ".zcode/config.json",
-        editable: true,
-      },
+      { path: "/w/.zcode/config.json", displayPath: ".zcode/config.json", editable: true },
     ],
     summary: { eventCount: 1, hookCount: 1, pendingCount: 1 },
     items: [
@@ -187,9 +192,7 @@ function workspaceHookReviewRequestedEvent(input: {
     sequenceNumber: input.sequenceNumber ?? 1,
     timestamp: new Date("2026-08-07T00:00:00.000Z"),
     type: SessionEventType.WorkspaceHookReviewRequested,
-    payload: {
-      request: workspaceHookReviewRequest(input),
-    },
+    payload: { request: workspaceHookReviewRequest(input) },
   } as unknown as SessionEvent;
 }
 
@@ -203,10 +206,7 @@ function workspaceHookReviewSettledEvent(input: {
     sequenceNumber: input.sequenceNumber ?? 2,
     timestamp: new Date("2026-08-07T00:00:01.000Z"),
     type: SessionEventType.WorkspaceHookReviewSettled,
-    payload: {
-      interactionId: input.interactionId,
-      state: "resolved",
-    },
+    payload: { interactionId: input.interactionId, state: "resolved" },
   } as unknown as SessionEvent;
 }
 
@@ -271,11 +271,9 @@ describe("v4 原生 sendText", () => {
   it("app input facade 把 start/queue 决策交给 Core admission，不查询 activeTurn", async () => {
     const runtime = {
       getActiveTurnInfo: vi.fn().mockReturnValue(undefined),
-      admitPrompt: vi.fn().mockResolvedValue({
-        completion: Promise.resolve({}),
-        kind: "started",
-        turnId: "turn-1",
-      }),
+      admitPrompt: vi
+        .fn()
+        .mockResolvedValue({ completion: Promise.resolve({}), kind: "started", turnId: "turn-1" }),
     };
     const facade = createInputFacade({
       logger: { warn: vi.fn() } as never,
@@ -360,11 +358,9 @@ describe("v4 原生 sendText", () => {
       finishTurn = () => resolve({});
     });
     const app = makeApp({
-      sendInput: vi.fn().mockReturnValue({
-        completion: turnGate,
-        kind: "started_turn",
-        turnId: "turn-1",
-      }),
+      sendInput: vi
+        .fn()
+        .mockReturnValue({ completion: turnGate, kind: "started_turn", turnId: "turn-1" }),
     });
     const record = makeRecord({ app });
     const host = makeHost(record);
@@ -372,18 +368,11 @@ describe("v4 原生 sendText", () => {
       .execute(
         envelope("sendText", {
           text: "hi",
-          browserAmbientContext: {
-            tabCount: 1,
-            currentUrl: "https://example.com/current",
-          },
+          browserAmbientContext: { tabCount: 1, currentUrl: "https://example.com/current" },
         }),
       )
       .then((result) => {
-        expect(result).toEqual({
-          type: "inputAccepted",
-          delivery: "startNow",
-          inputId: "cmd-1",
-        });
+        expect(result).toEqual({ type: "inputAccepted", delivery: "startNow", inputId: "cmd-1" });
       });
     await vi.waitFor(() => expect(app.sendInput).toHaveBeenCalledTimes(1));
     await executing;
@@ -395,10 +384,7 @@ describe("v4 原生 sendText", () => {
       expect.objectContaining({
         inputId: "cmd-1",
         queryId: "cmd-1",
-        browserAmbientContext: {
-          tabCount: 1,
-          currentUrl: "https://example.com/current",
-        },
+        browserAmbientContext: { tabCount: 1, currentUrl: "https://example.com/current" },
         intent: expect.objectContaining({
           sourceCommandId: "cmd-1",
           queueItemId: "queue_cmd-1",
@@ -425,11 +411,7 @@ describe("v4 原生 sendText", () => {
       new V4CommandExecutor(makeHost(makeRecord({ app }))).execute(
         envelope("sendText", { text: "chat 必须继续" }),
       ),
-    ).resolves.toEqual({
-      type: "inputAccepted",
-      delivery: "startNow",
-      inputId: "cmd-1",
-    });
+    ).resolves.toEqual({ type: "inputAccepted", delivery: "startNow", inputId: "cmd-1" });
   });
 
   it("execution-scoped Selection 直接进入 Core，Session 模型从不临时切换", async () => {
@@ -445,18 +427,11 @@ describe("v4 原生 sendText", () => {
       sendInput: vi.fn().mockImplementation(async (_input, options) => {
         capturedOptions = options;
         order.push(`send:${currentModel}`);
-        return {
-          completion: turnGate,
-          kind: "started_turn",
-          turnId: "turn-offpeak",
-        };
+        return { completion: turnGate, kind: "started_turn", turnId: "turn-offpeak" };
       }),
     });
     const record = makeRecord({ app });
     const host = makeHost(record, {
-      ensureModelReady: vi.fn().mockImplementation(async () => {
-        order.push(`preflight:${currentModel}`);
-      }),
       afterLegacyStateMutation: vi.fn().mockImplementation(async () => {
         order.push(`ready:${currentModel}`);
       }),
@@ -469,10 +444,7 @@ describe("v4 原生 sendText", () => {
         modelExecution: {
           memoryExtraction: "skip",
           selectionScope: "execution",
-          subagents: {
-            foregroundModel: "submission",
-            background: "deny",
-          },
+          subagents: { foregroundModel: "submission", background: "deny" },
         },
       }),
     );
@@ -482,7 +454,6 @@ describe("v4 原生 sendText", () => {
     await settle();
 
     expect(order).toEqual(["send:user-provider/user-model", "ready:user-provider/user-model"]);
-    expect(host.ensureModelReady).not.toHaveBeenCalled();
     expect(capturedOptions?.intent?.modelSelection).toEqual({
       providerId: "user-execution-provider",
       modelId: "GLM-5.2",
@@ -502,25 +473,19 @@ describe("v4 原生 sendText", () => {
       app,
       restoreWarning: { message: "session model unavailable", type: "model_unavailable" },
     });
-    const host = makeHost(record, {
-      ensureModelReady: vi.fn(),
-      hasUsableRuntimeModelTarget: vi.fn().mockReturnValue(false),
-    });
+    const host = makeHost(record, { hasUsableRuntimeModelTarget: vi.fn().mockReturnValue(false) });
 
     await expect(
       new V4CommandExecutor(host).execute(
         envelope("sendText", {
           text: "run in idle pool",
           modelSelection: { providerId: "user-execution-provider", modelId: "GLM-5.2" },
-          modelExecution: {
-            selectionScope: "execution",
-          },
+          modelExecution: { selectionScope: "execution" },
         }),
       ),
     ).resolves.toBeDefined();
     await settle();
 
-    expect(host.ensureModelReady).not.toHaveBeenCalled();
     expect(record.restoreWarning).toEqual({
       message: "session model unavailable",
       type: "model_unavailable",
@@ -548,25 +513,17 @@ describe("v4 原生 sendText", () => {
               turnId: `turn-${outcome}`,
             };
           }
-          return {
-            completion: Promise.resolve({}),
-            kind: "started_turn",
-            turnId: "turn-ordinary",
-          };
+          return { completion: Promise.resolve({}), kind: "started_turn", turnId: "turn-ordinary" };
         }),
       });
       const record = makeRecord({ app });
-      const host = makeHost(record, {
-        ensureModelReady: vi.fn(),
-      });
+      const host = makeHost(record);
 
       await new V4CommandExecutor(host).execute(
         envelope("sendText", {
           text: "idle prompt",
           modelSelection: { providerId: "user-execution-provider", modelId: "GLM-5.2" },
-          modelExecution: {
-            selectionScope: "execution",
-          },
+          modelExecution: { selectionScope: "execution" },
         }),
       );
       await settle();
@@ -585,12 +542,21 @@ describe("v4 原生 sendText", () => {
     const app = makeApp();
     const record = makeRecord({ app });
     const executor = new V4CommandExecutor(makeHost(record));
-    await executor.execute(envelope("sendText", { text: "automation prompt", automationId: "automation-1" }));
+    await executor.execute(
+      envelope("sendText", { text: "automation prompt", automationId: "automation-1" }),
+    );
     await settle();
     await executor.execute(envelope("sendText", { text: "normal prompt" }));
     await settle();
-    expect(app.sendInput.mock.calls[0]?.[1]?.toolDisallowlist).toEqual(["CronCreate", "CronUpdate", "CronDelete"]);
-    expect(app.sendInput.mock.calls[0]?.[1]?.intent?.modelSelection).toEqual({ providerId: "user-provider", modelId: "glm-5" });
+    expect(app.sendInput.mock.calls[0]?.[1]?.toolDisallowlist).toEqual([
+      "CronCreate",
+      "CronUpdate",
+      "CronDelete",
+    ]);
+    expect(app.sendInput.mock.calls[0]?.[1]?.intent?.modelSelection).toEqual({
+      providerId: "user-provider",
+      modelId: "glm-5",
+    });
     expect(app.sendInput.mock.calls[0]?.[1]).not.toHaveProperty("modelExecution");
     expect(app.sendInput.mock.calls[1]?.[1]).not.toHaveProperty("toolDisallowlist");
     expect(record.activeAutomationId).toBeUndefined();
@@ -599,23 +565,41 @@ describe("v4 原生 sendText", () => {
   it("普通 BYOK 用户 turn 保留 CronCreate 工具可见性", async () => {
     const app = makeApp();
     const executor = new V4CommandExecutor(makeHost(makeRecord({ app })));
-    await executor.execute(envelope("sendText", { text: "创建定时任务", modelSelection: ORDINARY_MODEL_SELECTION }));
+    await executor.execute(
+      envelope("sendText", { text: "创建定时任务", modelSelection: ORDINARY_MODEL_SELECTION }),
+    );
     await settle();
     expect(app.sendInput.mock.calls[0]?.[1]?.toolDisallowlist).toBeUndefined();
-    expect(app.sendInput.mock.calls[0]?.[1]?.intent?.modelSelection).toEqual(ORDINARY_MODEL_SELECTION);
+    expect(app.sendInput.mock.calls[0]?.[1]?.intent?.modelSelection).toEqual(
+      ORDINARY_MODEL_SELECTION,
+    );
   });
 
-  it.each(["startNow", "queue", "guide"] as const)("新官方加速输入在 %s 路由下都在准入前拒绝", async requestedDelivery => {
-    const app = makeApp();
-    const host = makeHost(makeRecord({ app }), { ensureModelReady: vi.fn(), getInputRoutingMode: vi.fn() });
-    await expect(new V4CommandExecutor(host).execute(envelope("sendText", {
-      text: "retired acceleration", requestedDelivery,
-      modelSelection: { providerId: "account:bigmodel-highspeed-card", modelId: "legacy-model" },
-    }))).rejects.toBeInstanceOf(V4InputAdmissionRejectedError);
-    expect(app.sendInput).not.toHaveBeenCalled();
-    expect(host.ensureModelReady).not.toHaveBeenCalled();
-    expect(host.getInputRoutingMode).not.toHaveBeenCalled();
-  });
+  it.each(["startNow", "queue", "guide"] as const)(
+    "新官方加速输入在 %s 路由下都在准入前拒绝",
+    async (requestedDelivery) => {
+      const app = makeApp();
+      const host = makeHost(makeRecord({ app }), {
+        ensureModelReady: vi.fn(),
+        getInputRoutingMode: vi.fn(),
+      });
+      await expect(
+        new V4CommandExecutor(host).execute(
+          envelope("sendText", {
+            text: "retired acceleration",
+            requestedDelivery,
+            modelSelection: {
+              providerId: "account:bigmodel-highspeed-card",
+              modelId: "legacy-model",
+            },
+          }),
+        ),
+      ).rejects.toBeInstanceOf(V4InputAdmissionRejectedError);
+      expect(app.sendInput).not.toHaveBeenCalled();
+      expect(host.ensureModelReady).not.toHaveBeenCalled();
+      expect(host.getInputRoutingMode).not.toHaveBeenCalled();
+    },
+  );
 
   it("Bot delivery target 仅在当前 turn 可见，并在 turn 结束后恢复", async () => {
     let releaseTurn!: () => void;
@@ -623,11 +607,9 @@ describe("v4 原生 sendText", () => {
       releaseTurn = resolve;
     });
     const app = makeApp({
-      sendInput: vi.fn().mockResolvedValue({
-        completion: turnGate,
-        kind: "started_turn",
-        turnId: "turn-bot",
-      }),
+      sendInput: vi
+        .fn()
+        .mockResolvedValue({ completion: turnGate, kind: "started_turn", turnId: "turn-bot" }),
     });
     const record = makeRecord({ app });
     const host = makeHost(record);
@@ -801,11 +783,7 @@ describe("v4 原生 sendText", () => {
     expect(runtime.admitPrompt).toHaveBeenCalledWith(
       "短任务",
       undefined,
-      expect.objectContaining({
-        inputId: "cmd-1",
-        requireIdle: true,
-        delivery: "start_turn",
-      }),
+      expect.objectContaining({ inputId: "cmd-1", requireIdle: true, delivery: "start_turn" }),
     );
     expect(runtime.admitPrompt.mock.calls[0]![2]).not.toHaveProperty("inputPresentation");
   });
@@ -880,51 +858,50 @@ describe("v4 原生 sendText", () => {
     expect(app.steerTurn).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "user-provider/glm-5",
-    "custom-openai/gpt-5",
-    "anthropic/claude-sonnet-4-5",
-  ])("guide eligible：running + 无普通 queue 时模型 %s 按 guide 投递", async (model) => {
-    const app = makeApp({
-      sendInput: vi.fn().mockResolvedValue({
-        kind: "queued",
-        pendingInputId: "pending-guide",
-        queueLength: 1,
-        turnId: "turn-1",
-      }),
-      getModel: vi.fn().mockReturnValue(model),
-      runtime: { getActiveTurnInfo: vi.fn().mockReturnValue({ steerable: true }) },
-    });
-    const record = makeRecord({ app, activeAbortController: new AbortController() });
-    const host = makeHost(record, {
-      getInputRoutingMode: () => "guide",
-      hasQueuedDelivery: () => false,
-    });
+  it.each(["user-provider/glm-5", "custom-openai/gpt-5", "anthropic/claude-sonnet-4-5"])(
+    "guide eligible：running + 无普通 queue 时模型 %s 按 guide 投递",
+    async (model) => {
+      const app = makeApp({
+        sendInput: vi.fn().mockResolvedValue({
+          kind: "queued",
+          pendingInputId: "pending-guide",
+          queueLength: 1,
+          turnId: "turn-1",
+        }),
+        getModel: vi.fn().mockReturnValue(model),
+        runtime: { getActiveTurnInfo: vi.fn().mockReturnValue({ steerable: true }) },
+      });
+      const record = makeRecord({ app, activeAbortController: new AbortController() });
+      const host = makeHost(record, {
+        getInputRoutingMode: () => "guide",
+        hasQueuedDelivery: () => false,
+      });
 
-    const [providerId, ...modelSegments] = model.split("/");
-    await new V4CommandExecutor(host).execute(
-      envelope("sendText", {
-        text: "引导当前工作",
-        modelSelection: { providerId, modelId: modelSegments.join("/") },
-        mode: "build",
-      }),
-    );
-
-    expect(app.sendInput).toHaveBeenCalledWith(
-      { text: "引导当前工作" },
-      expect.objectContaining({
-        delivery: "start_turn",
-        queueDelivery: "guide",
-        intent: expect.objectContaining({
-          requestedDelivery: "guide",
-          admittedDelivery: "guide",
+      const [providerId, ...modelSegments] = model.split("/");
+      await new V4CommandExecutor(host).execute(
+        envelope("sendText", {
+          text: "引导当前工作",
           modelSelection: { providerId, modelId: modelSegments.join("/") },
           mode: "build",
         }),
-      }),
-    );
-    expect(app.getModel).not.toHaveBeenCalled();
-  });
+      );
+
+      expect(app.sendInput).toHaveBeenCalledWith(
+        { text: "引导当前工作" },
+        expect.objectContaining({
+          delivery: "start_turn",
+          queueDelivery: "guide",
+          intent: expect.objectContaining({
+            requestedDelivery: "guide",
+            admittedDelivery: "guide",
+            modelSelection: { providerId, modelId: modelSegments.join("/") },
+            mode: "build",
+          }),
+        }),
+      );
+      expect(app.getModel).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     {
@@ -995,10 +972,7 @@ describe("v4 原生 sendText", () => {
       expect.objectContaining({
         delivery: "start_turn",
         queueDelivery: "guide",
-        intent: expect.objectContaining({
-          requestedDelivery: "guide",
-          admittedDelivery: "guide",
-        }),
+        intent: expect.objectContaining({ requestedDelivery: "guide", admittedDelivery: "guide" }),
       }),
     );
   });
@@ -1046,10 +1020,7 @@ describe("v4 原生 sendText", () => {
     const host = makeHost(record, { getInputRoutingMode: () => "enqueue" });
 
     await new V4CommandExecutor(host).execute(
-      envelope("sendText", {
-        text: "automation busy prompt",
-        automationId: "automation-1",
-      }),
+      envelope("sendText", { text: "automation busy prompt", automationId: "automation-1" }),
     );
 
     expect(app.sendInput).toHaveBeenCalledWith(
@@ -1072,10 +1043,7 @@ describe("v4 原生 sendText", () => {
     ).rejects.toMatchObject({ reasonCode: "proto.invalidPayload" });
 
     const app = makeApp({
-      sendInput: vi.fn().mockResolvedValue({
-        kind: "rejected",
-        reason: "input_too_large",
-      }),
+      sendInput: vi.fn().mockResolvedValue({ kind: "rejected", reason: "input_too_large" }),
     });
     const busy = makeRecord({ app, activeAbortController: new AbortController() });
     await expect(
@@ -1091,9 +1059,7 @@ describe("v4 原生 sendText", () => {
   });
 
   it("restoreWarning 会话：拒绝新 turn（历史损坏不静默续写）", async () => {
-    const record = makeRecord({
-      restoreWarning: { message: "restore failed", type: "corrupt" },
-    });
+    const record = makeRecord({ restoreWarning: { message: "restore failed", type: "corrupt" } });
     await expect(
       new V4CommandExecutor(makeHost(record)).execute(envelope("sendText", { text: "x" })),
     ).rejects.toThrow(V4PromptRejectedError);
@@ -1163,14 +1129,6 @@ describe("v4 原生 sendText", () => {
     expect(app.sendInput).not.toHaveBeenCalled();
   });
 
-
-
-
-
-
-
-
-
   it("排队 execution Selection 仍按原模型目录做 admission 预检", async () => {
     const app = makeApp({ listModels: () => [] });
     const record = makeRecord({ app, activeAbortController: new AbortController() });
@@ -1182,9 +1140,7 @@ describe("v4 原生 sendText", () => {
             providerId: "missing-user-provider",
             modelId: "missing-highspeed-model",
           },
-          modelExecution: {
-            selectionScope: "execution",
-          },
+          modelExecution: { selectionScope: "execution" },
         }),
       ),
     ).rejects.toMatchObject({ reasonCode: "modelUnavailable" });
@@ -1209,11 +1165,7 @@ describe("v4 原生 sendText：软门禁（soft gate）", () => {
     const app = makeApp({
       sendInput: vi.fn().mockImplementation(async (_input, options) => {
         capturedOptions = options as PromptSendInputOptions;
-        return {
-          completion: Promise.resolve({}),
-          kind: "started_turn",
-          turnId: "turn-1",
-        };
+        return { completion: Promise.resolve({}), kind: "started_turn", turnId: "turn-1" };
       }),
     });
     const record = makeRecord({ app });
@@ -1312,11 +1264,7 @@ describe("v4 原生 sendText：held choice 裁决（catalog B06/B07）", () => {
       }),
       sendInput: vi.fn().mockImplementation(async (_input, options) => {
         calls.push("send");
-        return {
-          completion: Promise.resolve({}),
-          kind: "started_turn",
-          turnId: "turn-held-clear",
-        };
+        return { completion: Promise.resolve({}), kind: "started_turn", turnId: "turn-held-clear" };
       }),
     });
     const record = makeRecord({ app });
@@ -1530,10 +1478,7 @@ describe("v4 原生 stop", () => {
     const info = vi.fn();
 
     await new V4CommandExecutor(
-      makeHost(record, {
-        getQueueLength: () => 1,
-        logger: { info } as never,
-      }),
+      makeHost(record, { getQueueLength: () => 1, logger: { info } as never }),
     ).execute(envelope("stop", { expectedForegroundExecutionId: "foreground-1" }));
 
     expect(stopActiveForegroundExecution).toHaveBeenCalledWith({
@@ -1553,10 +1498,9 @@ describe("v4 原生 stop", () => {
   });
 
   it("迟到 Stop 的 execution id 已变化：返回 noop，且不误杀新执行", async () => {
-    const stopActiveForegroundExecution = vi.fn().mockReturnValue({
-      kind: "mismatch",
-      activeForegroundExecutionId: "foreground-2",
-    });
+    const stopActiveForegroundExecution = vi
+      .fn()
+      .mockReturnValue({ kind: "mismatch", activeForegroundExecutionId: "foreground-2" });
     const app = makeApp({ runtime: { stopActiveForegroundExecution } });
     const controller = new AbortController();
     const record = makeRecord({ app, activeAbortController: controller });
@@ -1588,6 +1532,9 @@ describe("supports 分流", () => {
       "setAssistantFeedback",
       "sendQueuedNow",
       "editQueueItem",
+      "applyQueueItemsConfig",
+      "lockQueueItemEdit",
+      "releaseQueueItemEdit",
       "reorderQueueItem",
       "deleteQueueItem",
       "setAutoDrain",

@@ -32,6 +32,8 @@ import {
 import {
   activateDirectoryAtomically,
   recoverAtomicTargetSync,
+  readStandaloneAtomicFile,
+  resolveAtomicReadPath,
   writeFileAtomically,
   type AtomicDirectoryActivation,
 } from "./atomic-directory.js";
@@ -784,6 +786,16 @@ export function resolveInstalledPluginRoot(
   return recoverAtomicTargetSync(root);
 }
 
+export async function resolveInstalledPluginRootAsync(
+  storageRoot: string,
+  record: InstalledPluginRecord,
+): Promise<string> {
+  const root =
+    record.installPath ||
+    getPluginCacheDir(storageRoot, record.marketplace, record.name, record.version);
+  return resolveAtomicReadPath(root);
+}
+
 export async function installMarketplacePlugin(input: {
   marketplace: string;
   name: string;
@@ -920,12 +932,12 @@ export async function validateMarketplacePlugin(input: {
       storageRoot: input.storageRoot,
     });
     diagnostics.push(
-      ...validatePluginRoot({
+      ...(await validatePluginRoot({
         entry: plugin,
         marketplace: input.marketplace,
         rootPath: resolved.path,
         storageRoot: input.storageRoot,
-      }),
+      })),
     );
   } catch (error) {
     diagnostics.push(toValidationDiagnostic(error, `${input.name}@${input.marketplace}`));
@@ -960,7 +972,7 @@ export async function describeMarketplacePlugin(input: {
   if (installedRecord) {
     const rootPath = resolveInstalledPluginRoot(input.storageRoot, installedRecord);
     if (directoryExists(rootPath)) {
-      const read = readComponentsAtRoot({
+      const read = await readComponentsAtRoot({
         diagnostics,
         marketplace: input.marketplace,
         rootPath,
@@ -1020,7 +1032,7 @@ export async function describeMarketplacePlugin(input: {
       marketplace: input.marketplace,
       storageRoot: input.storageRoot,
     });
-    const read = readComponentsAtRoot({
+    const read = await readComponentsAtRoot({
       diagnostics,
       entry,
       marketplace: input.marketplace,
@@ -1040,12 +1052,12 @@ export async function describeMarketplacePlugin(input: {
 }
 
 /** 读插件根目录的 manifest（失败按 null 降级），再交给纯枚举器列出组件名称+描述。 */
-function readComponentsAtRoot(input: {
+async function readComponentsAtRoot(input: {
   diagnostics: PluginValidationDiagnostic[];
   entry?: PluginMarketplaceEntry;
   marketplace: string;
   rootPath: string;
-}): { components: PluginComponentGroup[]; metadata?: PluginManifestDisplayMetadata } {
+}): Promise<{ components: PluginComponentGroup[]; metadata?: PluginManifestDisplayMetadata }> {
   let loadedManifest: { manifest: PluginManifest; manifestPath?: string } | null = null;
   try {
     loadedManifest = readPluginManifestFromRoot(
@@ -1066,10 +1078,11 @@ function readComponentsAtRoot(input: {
         source: "cache" as const,
       }
     : undefined;
-  const components = enumeratePluginComponents(input.rootPath, loadedManifest?.manifest ?? null, {
-    diagnostics: input.diagnostics as PluginDiagnostic[],
-    ...(loaded ? { loaded } : {}),
-  });
+  const components = await enumeratePluginComponents(
+    input.rootPath,
+    loadedManifest?.manifest ?? null,
+    { diagnostics: input.diagnostics as PluginDiagnostic[], ...(loaded ? { loaded } : {}) },
+  );
   const metadata = loadedManifest ? toManifestDisplayMetadata(loadedManifest.manifest) : undefined;
   return { components, ...(metadata ? { metadata } : {}) };
 }
@@ -1170,12 +1183,12 @@ export async function validateMarketplaceSource(input: {
           storageRoot: input.storageRoot,
         });
         diagnostics.push(
-          ...validatePluginRoot({
+          ...(await validatePluginRoot({
             entry,
             marketplace: loaded.manifest.name,
             rootPath: resolved.path,
             storageRoot: input.storageRoot,
-          }),
+          })),
         );
       } catch (error) {
         diagnostics.push(toValidationDiagnostic(error, `${entry.name}@${loaded.manifest.name}`));
@@ -1222,7 +1235,7 @@ export async function validateLocalPluginPath(input: {
     ? resolved
     : resolveManifestRootFromFile(resolved);
   if (findMarketplaceManifestPath(rootPath)) {
-    return validateMarketplaceSource({
+    return await validateMarketplaceSource({
       signal: input.signal,
       source: { source: "directory", path: rootPath },
       storageRoot: input.storageRoot,
@@ -1255,7 +1268,7 @@ export async function validateLocalPluginPath(input: {
   }
   // 本地目录没有 marketplace 条目：用 manifest 自己的 name 合成一个 strict 条目，
   // 让 validatePluginRoot 走与已安装插件完全相同的 manifest/MCP 校验。
-  return validatePluginRoot({
+  return await validatePluginRoot({
     entry: { name: name || basename(rootPath), raw: {} },
     marketplace: "inline",
     rootPath,
@@ -1708,11 +1721,9 @@ function createManifestFromMarketplaceEntry(
   delete raw.examplePrompts;
   delete raw.examplePrompts_i18n;
   delete raw.requiresPaidPlan;
-  return {
-    ...raw,
-    name: entry.name,
-    version: entry.version ?? DEFAULT_VERSION,
-  };
+  // 扩展摘要也是目录层的信息（docs/plugins/plugin-publishing.md §4.2），不是清单的 extension 键。
+  delete raw.extensionSummary;
+  return { ...raw, name: entry.name, version: entry.version ?? DEFAULT_VERSION };
 }
 
 async function loadMarketplaceFromSource(
@@ -2103,10 +2114,7 @@ function normalizeInstalledPluginsState(value: unknown): InstalledPluginsState {
     };
   }
   const plugins = Array.isArray(rawPlugins) ? rawPlugins : [];
-  return {
-    version: 1,
-    plugins: plugins.filter(isInstalledPluginRecord),
-  };
+  return { version: 1, plugins: plugins.filter(isInstalledPluginRecord) };
 }
 
 function normalizeInstalledPluginRecordFromMap(
@@ -2159,11 +2167,7 @@ function parseMarketplaceManifest(value: unknown): PluginMarketplaceManifest | n
           isRecord(plugin) ? { name: pluginName, ...plugin } : { name: pluginName },
         )
       : [];
-  return normalizeMarketplaceManifest({
-    ...value,
-    name,
-    plugins: pluginEntries,
-  });
+  return normalizeMarketplaceManifest({ ...value, name, plugins: pluginEntries });
 }
 
 function normalizeMarketplaceManifest(
@@ -2300,6 +2304,29 @@ export function parseEntryStoreListing(
   return Object.keys(listing).length > 0 ? listing : undefined;
 }
 
+/** 目录条目的扩展摘要（docs/plugins/plugin-publishing.md §4.2）。CLI 只透传，不判断兼容。 */
+export interface PluginExtensionSummary {
+  engines: { zcode: string };
+  grants: string[];
+}
+
+/**
+ * 从目录条目读扩展摘要：只认 engines.zcode 是非空字符串的条目，grants 只留字符串，其余键丢掉。
+ * 协议字段是 strict 的，丢掉未知键才不会让 App 解析失败。范围格式不检查，由 App 判断。
+ */
+export function parseEntryExtensionSummary(
+  entry: Record<string, unknown>,
+): PluginExtensionSummary | undefined {
+  const summary = entry.extensionSummary;
+  if (!isRecord(summary) || !isRecord(summary.engines)) return undefined;
+  const range = summary.engines.zcode;
+  if (typeof range !== "string" || range.trim().length === 0) return undefined;
+  const grants = Array.isArray(summary.grants)
+    ? summary.grants.filter((grant): grant is string => typeof grant === "string")
+    : [];
+  return { engines: { zcode: range }, grants };
+}
+
 /** author 字段兼容 string 与 {name,url}（plugin.json 与目录条目共用此规则）。 */
 export function normalizeAuthorValue(value: unknown): { name?: string; url?: string } | undefined {
   if (typeof value === "string") {
@@ -2310,10 +2337,7 @@ export function normalizeAuthorValue(value: unknown): { name?: string; url?: str
   const name = typeof value.name === "string" ? value.name.trim() : "";
   const url = typeof value.url === "string" ? value.url.trim() : "";
   if (!name && !url) return undefined;
-  return {
-    ...(name ? { name } : {}),
-    ...(url ? { url } : {}),
-  };
+  return { ...(name ? { name } : {}), ...(url ? { url } : {}) };
 }
 
 function normalizeDependencyRef(value: unknown): string | null {
@@ -2389,19 +2413,17 @@ function readPluginManifestFromRoot(
   }
   if (entry.strict === false) {
     const rawManifest = createManifestFromMarketplaceEntry(entry);
-    return {
-      manifest: rawManifest as unknown as PluginManifest,
-    };
+    return { manifest: rawManifest as unknown as PluginManifest };
   }
   return null;
 }
 
-function validatePluginRoot(input: {
+async function validatePluginRoot(input: {
   entry: PluginMarketplaceEntry;
   marketplace: string;
   rootPath: string;
   storageRoot: string;
-}): PluginValidationDiagnostic[] {
+}): Promise<PluginValidationDiagnostic[]> {
   const diagnostics: PluginValidationDiagnostic[] = [];
   const pluginId = `${input.entry.name}@${input.marketplace}`;
   let loadedManifest: { manifest: PluginManifest; manifestPath?: string } | null = null;
@@ -2446,7 +2468,7 @@ function validatePluginRoot(input: {
     pluginId,
     source: "cache",
   });
-  pushMcpValidationDiagnostics({
+  await pushMcpValidationDiagnostics({
     diagnostics,
     manifest: loadedManifest.manifest,
     manifestPath,
@@ -2498,7 +2520,7 @@ function pushManifestCompatibilityDiagnostics(input: {
   }
 }
 
-function pushMcpValidationDiagnostics(input: {
+async function pushMcpValidationDiagnostics(input: {
   diagnostics: PluginValidationDiagnostic[];
   manifest: PluginManifest;
   manifestPath: string;
@@ -2506,7 +2528,7 @@ function pushMcpValidationDiagnostics(input: {
   pluginId: string;
   rootPath: string;
   storageRoot: string;
-}): void {
+}): Promise<void> {
   const diagnostics = input.diagnostics as PluginDiagnostic[];
   const loaded = {
     id: input.pluginId,
@@ -2516,7 +2538,7 @@ function pushMcpValidationDiagnostics(input: {
     rootPath: input.rootPath,
     source: "cache" as const,
   };
-  const definitions = loadPluginMcpServerDefinitions({ diagnostics, loaded });
+  const definitions = await loadPluginMcpServerDefinitions({ diagnostics, loaded });
   resolvePluginMcpServers({
     dataPath: join(input.storageRoot, "data", sanitizePluginId(input.pluginId)),
     definitions,
@@ -2833,7 +2855,7 @@ function getPluginCacheDir(
 }
 
 export function getPluginDataDir(storageRoot: string, pluginId: string): string {
-  // 与 NodePluginAdapter.discoverPluginsSync 的 dataPath 解析保持一致：<storageRoot>/data/<sanitized-id>。
+  // 与 NodePluginAdapter.discoverPlugins 的 dataPath 解析保持一致：<storageRoot>/data/<sanitized-id>。
   return join(storageRoot, "data", sanitizePluginId(pluginId));
 }
 
@@ -2865,10 +2887,7 @@ function parsePluginId(pluginId: string): { marketplace: string; name: string } 
   if (at <= 0 || at === pluginId.length - 1) {
     throw new Error(`Plugin id must use <name>@<marketplace>: ${pluginId}`);
   }
-  return {
-    name: pluginId.slice(0, at),
-    marketplace: pluginId.slice(at + 1),
-  };
+  return { name: pluginId.slice(0, at), marketplace: pluginId.slice(at + 1) };
 }
 
 function qualifyDependency(dependency: string, marketplace: string): string {
@@ -2912,4 +2931,16 @@ function tryParseUrl(input: string): URL | null {
   } catch {
     return null;
   }
+}
+
+export async function listInstalledPluginRecordsAsync(
+  storageRoot: string,
+): Promise<InstalledPluginRecord[]> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readStandaloneAtomicFile(join(storageRoot, INSTALLED_PLUGINS_FILE)));
+  } catch {
+    parsed = undefined;
+  }
+  return normalizeInstalledPluginsState(parsed).plugins;
 }

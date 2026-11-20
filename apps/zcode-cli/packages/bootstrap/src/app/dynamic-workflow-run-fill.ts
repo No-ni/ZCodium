@@ -32,7 +32,10 @@ import {
 import { compileProgram } from "./dynamic-workflow-run-compile.js";
 import { formatModelPickerValue } from "@zcode/shared/model-selection";
 import { mapFillDiagnostics } from "./dynamic-workflow-run-holes.js";
-import type { RunRegistryEntry } from "./dynamic-workflow-run-observation.js";
+import {
+  isRunLiveInThisProcess,
+  type RunRegistryEntry,
+} from "./dynamic-workflow-run-observation.js";
 import type { DynamicWorkflowRunServiceDeps } from "./dynamic-workflow-run-service.js";
 
 export interface DynamicWorkflowRunFillContext {
@@ -88,8 +91,8 @@ async function fillOnce(
     return refuse("run_not_found", `No run with id ${runId}.`);
   }
   // 在飞判定看**本进程注册表**：journal 说 running 而这里没有它，是别的进程（或死进程）的 run，
-  // 本 service 够不着它的引擎。停下的 run 指向 ResumeWorkflowRun。
-  if (entry === undefined || entry.terminal !== undefined || entry.control === undefined) {
+  // 本 service 够不着它的引擎。停下的 run 指向 ResumeWorkflowRun——resume 会重新到达留白、再问一次。
+  if (!isRunLiveInThisProcess(entry)) {
     const status = entry?.terminal?.status ?? record?.status;
     const hint =
       status === "stopped"
