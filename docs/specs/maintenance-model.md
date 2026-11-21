@@ -540,3 +540,114 @@ scheduler 陈旧增量产物，`tsc -b --force` 重建声明后通过。CLI 独�
 notice/inventory 已重新生成。基础和 strict 许可标识检查均失败：4 个 CUA 平台包和 6 个 UBJS 包未获当前门禁放行；材料清单仍 20 项待核验，其中新六项 UBJS 精确版本材料缺口，严格材料验收未完成，不擅自改 allowlist。此次不发行。
 
 所有验证数据、HOME/TEMP/缓存/日志与子进程目标限定本工作树，固定 Node 24.14.0/Corepack pnpm 10.33.2。未执行完整 Electron/Windows Shell、macOS/钥匙串、手机/真实远端/Provider/IM/Android、完整语料、发行安装或 GitHub Checks。未推送、打安装包、触发 Actions、安装或访问真实用户 `.zcodium`。已做 native-context 迁移的旧数据库仍按原回退规格 fail-closed，不删 ledger 或擅自恢复丢失数据。
+
+## 官方 3.18.2 发行前继续收口（2026-11-21）
+
+详见 [发行前收口记录](official-3.18.2-release-readiness.md)。修复 5 个过期验收入口，
+清理全量格式失败，并将超限 QA 工具按纯计算及路径校验 adapter 拆分。当前根/CLI
+typecheck、根 Lint（729 warnings / 0 errors）、根 fmt:check、changed 架构均通过；
+CLI 独立 Lint 仍 88 个存量行数错误。工程组合 76/76，根架构聚合 79 通过/1 平台跳过，
+有重叠，不相加为全量验收。真实 Agent/Desktop 生产 JS bundle 通过；不是安装包验收。
+
+核验 CUA 0.28.2 和 UBJS 0.31.0-3 原始 MPL Exhibit A、完整条款、对应源码归档及
+CUA 兼容构建变换，按精确版本/许可表达式及原文字节哈希登记复核，未放宽通用许可分类。
+基础许可检查通过；严格材料仍有 14 项未关闭。原五份改动保持，未恢复官方依赖或原生压缩。
+
+本机原生 Host 因缺 CMake 失败；Chrome/Edge 的项目内程序副本均在调试协议初始化
+失败，三项 UI 场景没有完成，未借真实用户 HOME/profile 绕过。没有 Actions、push、
+安装或打 exe/dmg 包。完整设备/远端/Provider 与严格材料验收仍未完成，当前不能宣称可上线。
+
+用户最终明确选择「保留本地，暂不推送或构建」；本轮修复继续未提交，HEAD 与空暂存区
+已复核。原五份文件与开工哈希一致，声明新鲜度及 2212 个实装包基础许可检查最终通过
+（`release318-LXFF9V`）；严格材料仍有 14 项缺口。本轮项目内程序副本、下载片段与
+核验源码归档已清理，保留证据日志。固定 Node freshness 和差异空白检查通过，不把
+本地保留决定或已有确定性检查当作发行完成。
+
+### 持续正式上线目标的本地进展（2026-11-21）
+
+用户明确要求持续达标后再切换主线；前述不推送、不构建授权边界保持。正式门槛与逐步
+证据见发行前收口记录，尚未执行主线切换。Hono WS 精确补丁 1.3.2 材料及真实连接清理
+回归已核验，strict 当前仍有 13 项缺口，旧版本缺口保留在历史核验字段。
+
+SDK 纳管及无状态协议值、DTO、端口、schema、事件投影按职责拆分后，类型、Lint 0/0、
+changed 架构 0 violations 与 160 项回归通过；没有改行数阈值、刷新 baseline、扩大包公开
+exports 或改变 session/Host owner。实际 Ajv 校验另发现重复 tool_reference oneOf 分支，
+先复现合法单块/混合块拒绝，修复后 12 项回归通过；Ajv 复用锁定版本，仅登记测试依赖。
+
+项目内 Headless Shell 已执行 7 项桌面/手机宽度组件交互，不能代替真实 Electron/手机。
+CLI 全量 Lint 最新仍 82 个行数错误/133 warnings，根 Lint 729 warnings/0 errors；最终
+types、格式、工程审计及包验收须与冻结源码匹配。原五份改动继续保留为未提交状态。
+
+随后核验 boolbase 2.0.0 完整 ISC 原文，通过精确 JS/d.ts default 兼容 patch 保留现有
+css-select/nth-check 的函数身份；实际 CJS/ESM/browser bundle 消费回归通过，1.0.0
+缺口完整保留为历史。`release318-yRPmTO` 基础许可与 2212 包声明新鲜度通过，strict
+实查剩 12 项。根/CLI 类型、根格式/Lint、全量架构与 schema 门禁通过；CLI Lint 仍
+82 errors/133 warnings。审核 tasks scope 快照只补齐既有 0007 迁移的 task_purge 与两个
+触发器，其他 SQL 字节不变，没有改旧 checksum 或操作真实数据库。
+
+后续按单一 owner 拆分 CDP 分派、session goal 辅助、用量纯投影、canonical facts
+与工作流宿主选项。保留原 SQL/函数/声明 AST、公开类型路径、Runtime/投影/引擎状态
+所有权与 continuous/replayable 顺序；没有机械继承/mixin 拆分 ProductProjection。
+最新 CLI Lint 77 errors/132 warnings（`release318-A10Dsq`），存量行数仍阻断上线。
+
+修复用量及相邻通知/目标/标题出口的异常原文与 toString 二次异常；八个相邻出口
+24/24（先红后绿）及 Runtime 四项时序/回退场景通过。存储启动清理以显式失败标识
+保留 falsy 原异常优先级，9 项 stdio/SQLite 回归通过。canonical 25 项、工作流宿主
+31 项回归及各自类型/Lint/全量架构通过，范围与初始失败详见发行前收口记录；不累加
+组合或选择性测试为全量设备验收。
+
+strict 实查仍有 12 项材料缺口。QuickJS 3.7.0 虽有完整 MIT 原文，但实际默认工厂
+拒绝现有 PAC 代理的无参数调用，因此未升级或关闭 2.2.0 缺口。根 729 个告警已分类，
+其中 21 条 Hooks 调用规则与 454 条依赖诊断仍须逐项复核，不能因 exit 0 判定无风险。
+用户暂不推送/构建的边界保持；完整平台、原生 Host、安装与真实远端/Provider 尚未
+验收，主线切换须等全部冻结标准真实满足。原五份文件和原 stash 保全，所有变更本地
+未提交，不恢复 origin/main 撤回功能或官方依赖。
+
+本阶段最终根/CLI typecheck、根 Lint（729 warnings/0 errors）、格式和 changed 架构
+均通过（`release318-zK2Kgr`），全量架构通过；原五份哈希、HEAD、分支、空暂存区和
+stash 再次保全。临时 QuickJS 候选程序只在项目树内核验与清理。上述源码门禁未关闭
+77 项 CLI 行数错误、告警复核、12 项材料或实际平台/安装验收，持续目标保持 active。
+
+继续复核 React 告警，恢复工作流卡初始已联接再解除联接的实际浏览器路径报告 Hook
+顺序错误；首次 1 通过/1 失败，未把可继续渲染的路径写成全部崩溃。原语句与 memo/
+callback deps 不改，早返回移至所有 Hook 之后，两项浏览器候选回归通过，各覆盖
+1280/390 和 Zai light/dark、反复联接、完成更新、旧输出、点击/Enter/Space；无 React
+错误或外部请求（`release318-SYBXZB`）。该文件退出精确告警豁免，恢复错误级门禁。
+
+根/CLI typecheck、桌面 E2E types、专项 Hooks 0 诊断、四项 Lint 规则回归、全量与
+changed 架构通过；根 Lint 最新 726 warnings/0 errors，Hook 调用告警实查 18 条。
+此证据使用真实组件与合成 renderer context，没有 CLI/Host/Provider 或实体手机；
+保持 browser manual-review pending，不作为桌面转正或安装验收。其余 service scope
+与 drag overlay 告警继续保留 owner/身份边界核验，CLI 77 项错误、12 项材料及完整
+运行/平台门槛未关闭，分支与五份原文件保全，详细初始失败与类型夹具环境见发行记录。
+
+## 目标调整：官方主线上的自定义回归审查（2026-11-21）
+
+用户将目标修改为「保持官方主线一致，默认官方代码正确，重点检查自己的自定义
+改动有没有引入 bug」。[当前审查标准与结果](official-3.18.2-release-readiness.md)
+取代上方早期发行标准；不再把官方行数、继承 warning 或未进行的安装构建作为自动
+阻断，也不把源码回归改写为完整设备验收。推送/构建暂不授权的约束继续有效。
+
+在线 ls-remote 再确认官方 main 为 3.18.2 固定 commit，真实 merge 保持祖先关系。
+按完整文件差异索引审查品牌/数据根/更新源、去云/遥测/平台资源、Provider/压缩、
+本地插件、身份路由、共享 CLI、输入/附件、浏览器权限及未读；范围包含前面已经完成
+的 SDK/纯计算拆分、依赖适配和 Hook 修复。索引不等于每个文件都有运行覆盖。
+
+本轮实际关闭两处 merge 回归：恢复既有 ReplyToChannel/channel.reply 精确预批，
+项目 deny/ask 仍优先且默认发送接线继续停用；终态落库只写 Runtime 已确认持久化的
+会话，初始化失败不以不存在的行覆盖原始错误。相关 Core 60/60 通过。身份/输入/
+附件/投影 81/81、Provider/凭据/压缩 39/39、边界 59/59、浏览器/未读/总结模型/
+扩展 23/23 通过。Visualize 主/子/配置/协议 18 通过、1 个 Windows 不适用场景 skip；
+同组其他七文件 54/54。服务 Hook 4/4 与恢复卡 2/2 的真实组件证据仍保留其作用域限制。
+
+根/CLI typecheck、根 Lint 719 warnings/0 errors、changed 架构、浏览器夹具类型与
+规则回归通过。额外 CLI 测试基座的严格类型检查失败如实登记，没有修改继承基座或
+扩大接口；几处旧快照/搬迁/官方 headers 参数断言按当前接口纠正。原五份改动不
+纳入本轮提交。全部验证只用项目内合成数据；仍不推送、构建安装包或改远端默认分支。
+
+收尾的额外夹具类型复查仅剩与官方相同的四份旧基座诊断，两个本轮相关测试文件
+无自身诊断；三个协议配置场景在移除退役 headers 参数后 3/3。格式复核通过。
+本轮修复作为本地提交归入 main；旧 main 保存为 `codex/main-before-official-3.18.2`，
+该引用保留已撤回功能的历史，仅供恢复，不合并回当前主线。原五份改动继续未提交。
+
+最终独立 CLI Lint 77 errors/132 warnings，错误均为既有 max-lines，保持真实失败记录。

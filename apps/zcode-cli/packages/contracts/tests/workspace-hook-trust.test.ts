@@ -19,7 +19,7 @@ function canonicalEntry() {
     matcherIndex: 0,
     hookIndex: 0,
     sourceFileIndex: 0,
-    sourceRelativePath: ".zcode/config.json",
+    sourceRelativePath: ".zcodium/config.json",
     matcher: "startup",
     type: "command",
     command: "./scripts/start.sh",
@@ -136,10 +136,11 @@ describe("workspace hook trust contracts", () => {
       discoveredAt: "2026-08-06T00:00:00.000Z",
       sourceFiles: [
         {
-          canonicalPath: "/workspace/.zcode/config.json",
+          canonicalPath: "/workspace/.zcodium/config.json",
           baseDir: "/workspace",
           discoveryOrder: 0,
-          configFileKind: ".zcode/config.json",
+          // fork 已收口配置身份；夹具不能恢复官方数据根来绕过严格 schema。
+          configFileKind: ".zcodium/config.json",
           explicitProjectConfig: false,
           editable: true,
           hooksRoot: { enabled: true, timeoutMs: 30_000, maxOutputBytes: 32_768 },

@@ -12,10 +12,7 @@ export async function recordGoalStateChangeReminder(
 ): Promise<void> {
   const traceContext = input.traceContext ?? this.rootTraceContext;
   const activeTurn = this.activeTurn;
-  if (
-    activeTurn?.kind === "regular" &&
-    activeTurn.goalStateChangeReminderDeferralOpen
-  ) {
+  if (activeTurn?.kind === "regular" && activeTurn.goalStateChangeReminderDeferralOpen) {
     // Stop 会先暂停 goal、再 abort 正在执行的工具。此处若立即写 history，
     // reminder 会落在 tool_use 与 cancelled tool_result 之间，导致下一次请求违反 provider grammar。
     activeTurn.pendingGoalStateChangeReminder = { text: input.text };
@@ -48,12 +45,13 @@ export async function closeGoalStateChangeReminderDeferral(
   activeTurn.pendingGoalStateChangeReminder = undefined;
   try {
     await materializeGoalStateChangeReminder.call(this, pending.text, traceContext);
-  } catch (error) {
+  } catch {
     // 权威 target 已先落库；reminder 持久化失败不能阻止 Stop turn 发出 terminal event。
     // 保持单次物化，不在 turn 收尾引入 retry、cursor 或额外持久化状态机。
+    // 异常原文和不可信 toString 不进入日志，避免故障处理再次阻断 terminal 收尾。
     this.logger?.warn("Failed to materialize pending goal state reminder", {
       ...traceContextToLogContext(traceContext),
-      errorMessage: error instanceof Error ? error.message : String(error),
+      reason: "notice_persistence_failed",
       event: "target.reminder.materialize.failed",
       module: "core.runtime",
       status: "failed",

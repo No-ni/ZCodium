@@ -124,6 +124,7 @@ modules:
     requires:
       - shared
       - sqlite-migrations
+      - agent-protocol-values
     publicEntrypoints: []
   - id: side-pane-full-view
     roots:
@@ -307,9 +308,10 @@ modules:
       - apps/zcode-cli/packages/core/src/runtime/methods/sample-model.ts
     managed: true
     requires:
-      - zcode-cli
-      - shared
+      - agent-contracts
       - mcp-apps-protocol
+      - shared
+      - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/index.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/contract.ts
@@ -645,6 +647,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/tests/draft-permission-full-access.test.ts
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -652,6 +655,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/session-execution/contract.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/canonical-intent-replay.ts
       - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/permission-full-access.ts
     layers:
       app: .
     owner: conversation
@@ -729,6 +733,7 @@ modules:
       - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow-approval.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/tool/handlers/amend-workflow.ts
@@ -762,6 +767,7 @@ modules:
       - apps/zcode-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -793,6 +799,8 @@ modules:
       - apps/zcode-cli/packages/core/tests/tool-discovery
     managed: true
     requires:
+      - agent-contracts
+      - agent-protocol-values
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/tool/search/contract.ts
@@ -813,6 +821,7 @@ modules:
       - apps/zcode-cli/packages/node-repl-host/test/call-ledger
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/node-repl-host/src/call-ledger/contract.ts
@@ -825,6 +834,7 @@ modules:
       - apps/zcode-cli/packages/core/tests/provider-tool-rounds
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/runtime/provider-tool-rounds/contract.ts
@@ -849,6 +859,7 @@ modules:
       - apps/zcode-cli/packages/core/tests/conversation-quote-context
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/runtime/conversation-quote-context/contract.ts
@@ -877,6 +888,7 @@ modules:
       - apps/zcode-cli/packages/core/tests/channel-reply
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -1057,6 +1069,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-ttft
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -1068,8 +1081,9 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-generation
     managed: true
     requires:
-      - shared
+      - agent-contracts
       - extension-host-protocol
+      - shared
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/local-generation/contract.ts
@@ -1180,6 +1194,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-data
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -1192,10 +1207,11 @@ modules:
       - apps/zcode-cli/tools/provider-regression
     managed: true
     requires:
-      - zcode-cli
+      - agent-contracts
       - provider
       - provider-node
       - shared
+      - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/tools/provider-regression/index.ts
       - apps/zcode-cli/tools/provider-regression/contract.ts
@@ -1220,8 +1236,9 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust
     managed: true
     requires:
-      - zcode-cli
+      - agent-contracts
       - shared
+      - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/index.ts
       - apps/zcode-cli/packages/bootstrap/src/workspace-mcp-trust/contract.ts
@@ -1266,6 +1283,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/provider-endpoint-routing.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/provider-endpoint-routing-contract/contract.ts
@@ -1282,6 +1300,7 @@ modules:
       - apps/zcode-cli/packages/core/src/runtime/helpers/project-memory-recall.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/runtime/project-memory-contract/contract.ts
@@ -1296,6 +1315,7 @@ modules:
       - apps/zcode-cli/packages/core/src/runtime/methods/turn-tool-visibility.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/runtime/turn-tool-visibility-contract/contract.ts
@@ -1724,6 +1744,7 @@ modules:
       - apps/zcode-cli/packages/adapters/src/model/request-compression
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/adapters/src/model/request-compression/contract.ts
@@ -1795,6 +1816,7 @@ modules:
       - apps/zcode-cli/packages/core/src/tool/session-control
     managed: true
     requires:
+      - agent-contracts
       - session-control
       - zcode-cli
     publicEntrypoints:
@@ -1825,9 +1847,10 @@ modules:
       - apps/zcode-cli/packages/bootstrap/tests/cli-session-control/vitest.config.ts
     managed: true
     requires:
+      - agent-contracts
+      - cli-active-transcript
       - session-control
       - zcode-cli
-      - cli-active-transcript
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/cli-session-control/contract.ts
       - apps/zcode-cli/packages/bootstrap/src/cli-session-control/index.ts
@@ -1839,6 +1862,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/active-transcript
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -1852,6 +1876,7 @@ modules:
       - apps/zcode-cli/packages/core/src/runtime/session-fork-commit
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -1865,6 +1890,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -1923,6 +1949,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/tests/context-composition
     managed: true
     requires:
+      - agent-contracts
       - rpc
       - services
       - shared
@@ -1951,6 +1978,7 @@ modules:
       - packages/services/src/zcode-agent/pluginHostQueriesClient.ts
     managed: true
     requires:
+      - agent-contracts
       - services
       - shared
       - zcode-cli
@@ -1974,9 +2002,11 @@ modules:
       - apps/zcode-cli/packages/core/src/tool/handlers/plugin-discovery.ts
     managed: true
     requires:
+      - agent-contracts
+      - agent-protocol-values
+      - plugin-install-interaction
       - shared
       - zcode-cli
-      - plugin-install-interaction
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/plugin-discovery/contract.ts
       - apps/zcode-cli/packages/bootstrap/src/plugin-discovery/subscription.ts
@@ -2007,27 +2037,13 @@ modules:
     layers:
       app: .
     owner: plugin
-  - id: window-topic-resource-relay
-    roots:
-      - packages/desktop/src/host/topic-resource-relay
-      - packages/desktop/src/host/windowTopicResourceRelay.ts
-      - packages/desktop/test/topic-resource-relay
-    managed: true
-    requires:
-      - services
-      - shared
-    publicEntrypoints:
-      - packages/desktop/src/host/topic-resource-relay/contract.ts
-      - packages/desktop/src/host/windowTopicResourceRelay.ts
-    layers:
-      adapters: .
-    owner: desktop
   - id: topic-resource-tool
     roots:
       - apps/zcode-cli/packages/core/src/tool/topic-resource
       - apps/zcode-cli/packages/core/src/tool/handlers/read-topic-resource.ts
     managed: true
     requires:
+      - agent-contracts
       - shared
       - zcode-cli
     publicEntrypoints:
@@ -2062,20 +2078,6 @@ modules:
     layers:
       ui: .
     owner: conversation
-  - id: request-security-edition
-    roots:
-      - packages/shared/src/request-security-edition
-    managed: true
-    requires:
-      - shared
-    publicEntrypoints:
-      - packages/shared/src/request-security-edition/index.ts
-      - packages/shared/src/request-security-edition/policy.ts
-      - packages/shared/src/request-security-edition/verification-policy.ts
-      - packages/shared/src/request-security-edition/contract.ts
-    layers:
-      adapters: .
-    owner: request-security
   - id: conversation-user-input-presentation
     roots:
       - packages/ui/src/conversation-user-input-presentation
@@ -2096,6 +2098,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/plugin-startup-budget/index.ts
@@ -2570,6 +2573,7 @@ modules:
       - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/session-deletion.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/adapters/src/storage/session-store/repositories/support-contract/contract.ts
@@ -2612,8 +2616,10 @@ modules:
       - apps/zcode-cli/packages/contracts/src/interfaces/session-input-intent.ts
     managed: true
     requires:
-      - zcode-cli
+      - agent-contracts
       - gen-ui-protocol
+      - shared
+      - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/contracts/src/interfaces/input-intent-contract/contract.ts
       - apps/zcode-cli/packages/contracts/src/interfaces/session-input-intent.ts
@@ -2631,6 +2637,7 @@ modules:
       - apps/zcode-cli/packages/core/src/runtime/methods/context-instruction-announcement.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/runtime/methods/context-support-contract/contract.ts
@@ -2679,6 +2686,7 @@ modules:
       - apps/zcode-cli/packages/tui/src/app-runtime-bindings.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/tui/src/projection-contract/contract.ts
@@ -2707,6 +2715,7 @@ modules:
       - apps/zcode-cli/packages/adapters/src/config/config-diagnostics.ts
     managed: true
     requires:
+      - agent-contracts
       - zcode-cli
     publicEntrypoints:
       - apps/zcode-cli/packages/adapters/src/config/diagnostics-contract/contract.ts
@@ -2727,6 +2736,118 @@ modules:
     layers:
       ui: .
     owner: conversation
+  # agent-protocol-values：由 architecture:adopt 登记
+  - id: agent-protocol-values
+    roots:
+      - apps/zcode-cli/packages/contracts/src/protocol-values
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - apps/zcode-cli/packages/contracts/src/protocol-values/contract.ts
+      - apps/zcode-cli/packages/contracts/src/protocol-values/model-contract.ts
+      - apps/zcode-cli/packages/contracts/src/protocol-values/workflow-contract.ts
+    layers:
+      contract: .
+    owner: agent-contracts
+  - id: agent-contracts
+    roots:
+      - apps/zcode-cli/packages/contracts/src
+    managed: true
+    requires:
+      - agent-plugin-discovery
+      - agent-protocol-values
+      - cli-session-execution
+      - cli-session-input-intent
+      - mcp-apps-protocol
+      - shared
+      - tool-discovery
+    publicEntrypoints:
+      - apps/zcode-cli/packages/contracts/src/index.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/browser-control.port.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/index.ts
+      - apps/zcode-cli/packages/contracts/src/events/index.ts
+      - apps/zcode-cli/packages/contracts/src/compact/index.ts
+      - apps/zcode-cli/packages/contracts/src/rewind/index.ts
+      - apps/zcode-cli/packages/contracts/src/model/index.ts
+      - apps/zcode-cli/packages/contracts/src/errors/index.ts
+      - apps/zcode-cli/packages/contracts/src/capabilities/index.ts
+      - apps/zcode-cli/packages/contracts/src/config/index.ts
+      - apps/zcode-cli/packages/contracts/src/hooks/index.ts
+      - apps/zcode-cli/packages/contracts/src/skills/index.ts
+      - apps/zcode-cli/packages/contracts/src/commands/index.ts
+      - apps/zcode-cli/packages/contracts/src/plugins/index.ts
+      - apps/zcode-cli/packages/contracts/src/workflow/index.ts
+      - apps/zcode-cli/packages/contracts/src/tools/index.ts
+      - apps/zcode-cli/packages/contracts/src/tools/node-repl.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/mcp.port.ts
+      - apps/zcode-cli/packages/contracts/src/tools/websearch.ts
+      - apps/zcode-cli/packages/contracts/src/contract.ts
+    layers:
+      contract: .
+    owner: agent-contracts
+  # managed-cdp-browser：由 architecture:adopt 登记
+  - id: managed-cdp-browser
+    roots:
+      - apps/zcode-cli/packages/adapters/src/browser
+    managed: true
+    requires:
+      - agent-contracts
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/browser/index.ts
+      - apps/zcode-cli/packages/adapters/src/browser/contract.ts
+    layers:
+      adapters: .
+    owner: browser
+  - id: cli-session-goal-support
+    roots:
+      - apps/zcode-cli/packages/adapters/src/storage/session-goal-support
+    managed: true
+    requires:
+      - agent-contracts
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/storage/session-goal-support/index.ts
+      - apps/zcode-cli/packages/adapters/src/storage/session-goal-support/contract.ts
+    layers:
+      adapters: .
+    owner: conversation
+  - id: cli-usage-projection
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/usage-projection
+    managed: true
+    requires:
+      - agent-contracts
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/usage-projection/index.ts
+      - apps/zcode-cli/packages/core/src/runtime/usage-projection/contract.ts
+    layers:
+      domain: .
+    owner: conversation
+  - id: cli-conversation-facts
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/conversation-facts
+    managed: true
+    requires:
+      - agent-contracts
+      - shared
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/conversation-facts/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/conversation-facts/contract.ts
+    layers:
+      domain: .
+    owner: conversation
+  # cli-workflow-harness-options：由 architecture:adopt 登记
+  - id: cli-workflow-harness-options
+    roots:
+      - apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness-options
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness-options/index.ts
+      - apps/zcode-cli/packages/dynamic-workflow-runtime/src/harness-options/contract.ts
+    layers:
+      app: .
+    owner: workflow
 
 global:
   acceptedUpstreamCommits:
@@ -2747,11 +2868,9 @@ exceptions:
     rule: max-file-lines
     paths:
       - packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js
-    reason: Keep parameter binding and registration lifecycle together;
-      runtime-manifest.json and tests verify file integrity.
+    reason: Keep parameter binding and registration lifecycle together; runtime-manifest.json and tests verify file integrity.
   - id: gen-ui-tweak-runtime-lint
     rule: disable-count
     paths:
       - packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js
-    reason: Allow the control-character validation regex and the single-file
-      parameter-control runtime.
+    reason: Allow the control-character validation regex and the single-file parameter-control runtime.

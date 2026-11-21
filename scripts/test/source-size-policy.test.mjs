@@ -77,8 +77,9 @@ for (const configPath of [".oxlintrc.json", "apps/zcode-cli/oxlint.config.json"]
 
 test("无测试后缀的精确夹具例外不覆盖相邻生产入口", async () => {
   const lint = await fixture(".oxlintrc.json");
+  // 原因：上游按业务场景搬迁了精确夹具；测试必须使用现行路径，不能新增旧路径豁免。
   for (const file of [
-    "packages/web/test/e2e/manual-review/pending/remote-large-rpc.mjs",
+    "packages/web/test/e2e/remote-control/transport/manual-review/pending/remote-large-rpc.mjs",
     "packages/desktop/test/e2e/helpers/project-sidebar.ts",
     "packages/desktop/scripts/mcp-apps-host-fixture/managed-renderer.tsx",
   ])

@@ -86,11 +86,13 @@ for (const modelId of newIds) {
   });
 }
 
-test("MiMo 2.6 matching preserves model suffix boundaries and the API-specific scope", () => {
+test("MiMo 2.6 matching follows the official baseline and preserves the API-specific scope", () => {
   for (const modelId of [
     "vendor/MIMO-v2.6-pro-20261001",
     "mimo-v2.6-flash[1m]",
     "mimo-v2.6-pro:extended",
+    "mimo-v2.6-profile",
+    "mimo-v2.6-flashlight",
   ]) {
     const model = resolveModel(modelId);
     assert.equal(model.properties.inputFormat.supportsAudio, true);
@@ -108,7 +110,7 @@ test("MiMo 2.6 matching preserves model suffix boundaries and the API-specific s
     );
   }
   const generic = resolveModel("unknown-fixture-model");
-  for (const modelId of ["mimo-v2.6-profile", "mimo-v2.6-flashlight", "mimo-v2.60-pro"]) {
+  for (const modelId of ["mimo-v2.60-pro", "unknown-fixture-model"]) {
     assert.deepEqual(resolveModel(modelId).toJSON(), generic.toJSON());
   }
   const responses = resolveModel(newIds[0], "openai-responses");
@@ -129,6 +131,7 @@ test("MiMo 2.6 matching preserves model suffix boundaries and the API-specific s
 test("old MiMo 2.5 models retain their identities, modalities and public reasoning levels", () => {
   for (const modelId of apiIds.slice(2)) {
     const model = resolveModel(modelId, "anthropic-messages", templates[0][2], templates[0][0]);
+    assert.equal(model.enabled, false);
     assert.equal(model.properties.contextWindow, 1000000);
     for (const format of ["supportsImage", "supportsVideo", "supportsAudio"]) {
       assert.equal(model.properties.inputFormat[format], modelId === "mimo-v2.5");
@@ -141,7 +144,7 @@ test("old MiMo 2.5 models retain their identities, modalities and public reasoni
 test("API key MiMo instances are executable without account facts; missing keys remain invalid", () => {
   const resolution = resolveProviders(templates.map(([id]) => personalProvider(id)));
   assert.deepEqual(resolution.issues, []);
-  for (const [id, , baseUrl, modelIds] of templates) {
+  for (const [id, , baseUrl] of templates) {
     const entry = resolution.registryProviders.find((candidate) => candidate.providerId === id);
     assert.ok(entry, id);
     assert.equal(entry.config.access.type, "api-key");
@@ -149,9 +152,26 @@ test("API key MiMo instances are executable without account facts; missing keys 
     assert.equal(entry.config.api.baseUrl, baseUrl);
     assert.deepEqual(
       entry.models.map((model) => model.modelId),
-      modelIds,
+      newIds,
     );
   }
+  // 官方默认关闭旧 2.5，但个人显式开启仍须保留原模型，不能借目录升级丢失用户选择。
+  const legacy = resolveProviders(
+    [personalProvider(templates[0][0])],
+    provider.parsePersonalModelConfigRules({
+      manualProviderModelRules: [],
+      providerModelRules: apiIds.slice(2).map((modelId) => ({
+        providerId: templates[0][0],
+        modelId,
+        config: { enabled: true },
+      })),
+    }),
+  );
+  assert.deepEqual(legacy.issues, []);
+  assert.deepEqual(
+    legacy.registryProviders[0].models.map((model) => model.modelId),
+    apiIds,
+  );
   const noKey = resolveProviders([
     personalProvider(templates[1][0], "no-key", {
       access: { type: "api-key" },

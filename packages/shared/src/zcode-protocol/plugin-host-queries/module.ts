@@ -7,7 +7,7 @@
  */
 export const pluginHostQueriesModule = {
   id: "plugin-host-queries",
-  requires: ["services", "shared", "zcode-cli"],
+  requires: ["agent-contracts", "services", "shared", "zcode-cli"],
   provides: ["plugin-host-queries"],
   publicEntrypoints: [
     "contract.ts",

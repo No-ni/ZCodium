@@ -95,6 +95,8 @@ export async function prepareProtocolStartupStorage(options: {
   // 路径通知发送失败时也要消费已创建的等待 promise，避免未处理拒绝。
   void acknowledgement.catch(() => {});
   let store: SqliteSessionStore | undefined;
+  // throw 可携带 falsy 值，不能用异常的真假判断主流程是否失败。
+  let failed = false;
   let failure: unknown;
   const write = (frame: unknown) =>
     new Promise<void>((resolve, reject) => {
@@ -115,6 +117,7 @@ export async function prepareProtocolStartupStorage(options: {
     }
     await write({ method: "startup/storagePrepared", params: {} });
   } catch (error) {
+    failed = true;
     failure = error;
     try {
       await write({
@@ -134,14 +137,18 @@ export async function prepareProtocolStartupStorage(options: {
     } catch {
       /* 原始存储异常优先于失败通知的 IO 异常。 */
     }
-    throw error;
   } finally {
     clearTimeout(timer!);
     lines.close();
-    try {
-      store?.close();
-    } catch (error) {
-      if (!failure) throw error;
+  }
+  // 先完成原清理，再传播原始结果；finally 抛错会覆盖存储/传输的最初失败。
+  try {
+    store?.close();
+  } catch (error) {
+    if (!failed) {
+      failed = true;
+      failure = error;
     }
   }
+  if (failed) throw failure;
 }

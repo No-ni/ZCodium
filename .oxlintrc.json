@@ -11,15 +11,10 @@
       "rules": { "react/rules-of-hooks": "error", "react/exhaustive-deps": "warn" }
     },
     {
-      // 首次扫描的 20 条存量调用位置诊断仍告警；逐文件修复后删除例外，不扩大到目录。
+      // 首次扫描的存量调用位置诊断仍告警；逐文件修复后删除例外，不扩大到目录。
       // 依赖诊断与其他规则不降级，详见 docs/testing/react-hooks-lint.md。
       "files": [
         "**/packages/desktop/test/e2e/helpers/web-remote-visibility-browser.ts",
-        "**/packages/ui/src/ToolCallBlocks/renderers/resume-workflow-run.tsx",
-        "**/packages/ui/src/hooks/useOnboardingRecordService.ts",
-        "**/packages/ui/src/hooks/useZCodeAgentService.ts",
-        "**/packages/ui/src/hooks/useZCodeSessionService.ts",
-        "**/packages/ui/src/hooks/useZCodeTaskService.ts",
         "**/packages/ui/src/project-sidebar/grouped/task-row.tsx"
       ],
       "plugins": ["unicorn", "typescript", "oxc", "react"],

@@ -4,7 +4,7 @@
  */
 export const localTtftCliModule = {
   id: "local-ttft-cli",
-  requires: ["shared", "zcode-cli"],
+  requires: ["agent-contracts", "shared", "zcode-cli"],
   provides: ["local-ttft-cli"],
   publicEntrypoints: ["contract.ts"],
 } as const;

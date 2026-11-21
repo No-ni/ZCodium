@@ -95,10 +95,11 @@ function maybeStartSessionTitleGenerationFromSeed(
     .call(this, input, options.messageID, options.traceContext, {
       goalSummaryTargetID: options.goalSummaryTargetID,
     })
-    .catch(async (error) => {
+    .catch(async () => {
+      // 原始异常不能进入日志；不调用 toString，保证 goal 标题回退继续执行。
       this.logger?.warn("Session title generation failed", {
         ...traceContextToLogContext(options.traceContext),
-        errorMessage: error instanceof Error ? error.message : String(error),
+        reason: "title_generation_failed",
         event: "session_title_generation.failed",
         module: "core.runtime",
         status: "failed",
@@ -112,10 +113,10 @@ function maybeStartSessionTitleGenerationFromSeed(
         });
       }
     });
-  void this.trackResidencyBlockingWork(generation).catch((error) => {
+  void this.trackResidencyBlockingWork(generation).catch(() => {
     this.logger?.warn("Session title fallback persistence failed", {
       ...traceContextToLogContext(options.traceContext),
-      errorMessage: error instanceof Error ? error.message : String(error),
+      reason: "storage_write_failed",
       event: "session_title_generation.fallback_failed",
       module: "core.runtime",
       status: "failed",

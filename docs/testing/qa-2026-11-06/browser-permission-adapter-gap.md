@@ -12,14 +12,14 @@
 
 接口已在 [IPlatformService](../../../packages/shared/src/platform.ts) 第 1057–1079 行与 [client globals](../../../packages/client/src/globals.d.ts) 第 175–193 行声明。
 
-| 接口 | Main 已有 channel / 操作 | renderer/preload 应有委托 |
-| --- | --- | --- |
-| `getEmbeddedBrowserSitePermissions()` | `GetEmbeddedBrowserSitePermissions` | 无载荷 `invoke`，返回实际快照 Promise |
-| `setEmbeddedBrowserSitePermission(request)` | `SetEmbeddedBrowserSitePermission` | 原样传 `origin/permission/state` 并返回实际 Promise |
-| `clearEmbeddedBrowserSitePermissions()` | `ClearEmbeddedBrowserSitePermissions` | 无载荷 `invoke`，不新增清理入口 |
-| `resetEmbeddedBrowserSitePermission({ origin })` | `ResetEmbeddedBrowserSitePermission` | 精确单站点载荷 `invoke` |
-| `onEmbeddedBrowserPermissionPrompt(handler)` | `EmbeddedBrowserPermissionPrompt` | `on` 转交事件；disposer 移除同一函数 |
-| `resolveEmbeddedBrowserPermissionPrompt(request)` | `EmbeddedBrowserPermissionResolve` | `send`，不使用 `invoke`；Main listener 保留宿主 sender 校验 |
+| 接口                                              | Main 已有 channel / 操作              | renderer/preload 应有委托                                   |
+| ------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------- |
+| `getEmbeddedBrowserSitePermissions()`             | `GetEmbeddedBrowserSitePermissions`   | 无载荷 `invoke`，返回实际快照 Promise                       |
+| `setEmbeddedBrowserSitePermission(request)`       | `SetEmbeddedBrowserSitePermission`    | 原样传 `origin/permission/state` 并返回实际 Promise         |
+| `clearEmbeddedBrowserSitePermissions()`           | `ClearEmbeddedBrowserSitePermissions` | 无载荷 `invoke`，不新增清理入口                             |
+| `resetEmbeddedBrowserSitePermission({ origin })`  | `ResetEmbeddedBrowserSitePermission`  | 精确单站点载荷 `invoke`                                     |
+| `onEmbeddedBrowserPermissionPrompt(handler)`      | `EmbeddedBrowserPermissionPrompt`     | `on` 转交事件；disposer 移除同一函数                        |
+| `resolveEmbeddedBrowserPermissionPrompt(request)` | `EmbeddedBrowserPermissionResolve`    | `send`，不使用 `invoke`；Main listener 保留宿主 sender 校验 |
 
 可证源码链：
 
@@ -47,33 +47,33 @@
 
 补线前冻结时 SHA256（小写，保留原现场）：
 
-| 文件 | SHA256 |
-| --- | --- |
+| 文件                              | SHA256                                                             |
+| --------------------------------- | ------------------------------------------------------------------ |
 | `desktopBrowserPlatformBridge.ts` | `067875616aa888213bd33e7d71d700aa75e7a5d2a64ee8761bb34eb6adfe67ff` |
-| `desktopPlatform.ts` | `1f637e8e004822eeb196938b1caaebc4c5efd1178afc82372913154d5143bde8` |
-| 宿主 `preload/index.ts` | `8f61b3b7afa4e32267bd2efa99b36b69d7b75cf5ef2591201330b2c1eff9fcf0` |
-| `useBrowserSitePermissions.ts` | `75d84af4d726b95d0d7cd166b1977514dc56d1644122b5857724cfc349ff0faa` |
-| BPF01 pending | `b525750563933090f1a103f13935a6524fdf1f5219326af9d5ab7bb73844d9b3` |
+| `desktopPlatform.ts`              | `1f637e8e004822eeb196938b1caaebc4c5efd1178afc82372913154d5143bde8` |
+| 宿主 `preload/index.ts`           | `8f61b3b7afa4e32267bd2efa99b36b69d7b75cf5ef2591201330b2c1eff9fcf0` |
+| `useBrowserSitePermissions.ts`    | `75d84af4d726b95d0d7cd166b1977514dc56d1644122b5857724cfc349ff0faa` |
+| BPF01 pending                     | `b525750563933090f1a103f13935a6524fdf1f5219326af9d5ab7bb73844d9b3` |
 
 ## 补线与源守卫实际结果
 
 安全环境沿用已审 `run-fix-validation.mjs`：固定 Node `24.18.0`、corepack pnpm `10.33.2`，HOME/TEMP/data/cache 均在本树 `.run-logs/qa-2026-11-06/validation`，禁用 cache 网络和包管理器自动管理；新增 alias 均先确认没有旧日志，不覆盖原 final 证据。
 
-| 验证 | 实际结果 | 证据 |
-| --- | --- | --- |
-| `architecture-check`，修改前基线 | exit 0；violations/baseline/new 均 0 | [log](logs/fix-20261107/validation-architecture-check.log)、[JSON](logs/fix-20261107/validation-architecture-check.json) |
-| `architecture-context embedded-browser-permission` | exit 0，读取 Main 现有 managed adapters 契约；改动文件仍属于存量 desktop，未新增 packages 源文件或更改模块覆盖 | [log](logs/fix-20261107/validation-architecture-context.log)、[JSON](logs/fix-20261107/validation-architecture-context.json) |
-| 实际源守卫红阶段，`21:56:40.710Z`–`21:56:41.288Z` | exit 1；9 实际 = 2 PASS / 7 FAIL / 0 SKIP；六个实际 preload 方法均缺属性，另只读能力委托缺失 | [log](logs/fix-20261107/validation-tests-browser-permission-adapter-red-20261107.log)、[JSON](logs/fix-20261107/validation-tests-browser-permission-adapter-red-20261107.json) |
-| 同组绿阶段，`21:57:35.715Z`–`21:57:36.448Z` | exit 0；9 PASS / 0 FAIL / 0 SKIP | [log](logs/fix-20261107/validation-tests-browser-permission-adapter-green-20261107.log)、[JSON](logs/fix-20261107/validation-tests-browser-permission-adapter-green-20261107.json) |
+| 验证                                               | 实际结果                                                                                                       | 证据                                                                                                                                                                               |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `architecture-check`，修改前基线                   | exit 0；violations/baseline/new 均 0                                                                           | [log](logs/fix-20261107/validation-architecture-check.log)、[JSON](logs/fix-20261107/validation-architecture-check.json)                                                           |
+| `architecture-context embedded-browser-permission` | exit 0，读取 Main 现有 managed adapters 契约；改动文件仍属于存量 desktop，未新增 packages 源文件或更改模块覆盖 | [log](logs/fix-20261107/validation-architecture-context.log)、[JSON](logs/fix-20261107/validation-architecture-context.json)                                                       |
+| 实际源守卫红阶段，`21:56:40.710Z`–`21:56:41.288Z`  | exit 1；9 实际 = 2 PASS / 7 FAIL / 0 SKIP；六个实际 preload 方法均缺属性，另只读能力委托缺失                   | [log](logs/fix-20261107/validation-tests-browser-permission-adapter-red-20261107.log)、[JSON](logs/fix-20261107/validation-tests-browser-permission-adapter-red-20261107.json)     |
+| 同组绿阶段，`21:57:35.715Z`–`21:57:36.448Z`        | exit 0；9 PASS / 0 FAIL / 0 SKIP                                                                               | [log](logs/fix-20261107/validation-tests-browser-permission-adapter-green-20261107.log)、[JSON](logs/fix-20261107/validation-tests-browser-permission-adapter-green-20261107.json) |
 
 两阶段都是 `node --test --test-concurrency=1 scripts/ci/embedded-browser-permission-adapter.test.mjs scripts/ci/embedded-browser-permission-startup.test.mjs`；新增守卫为 8 唯一 test，既有 startup 为 1 test。直接 AST 抽取实际 adapter 对象和实际 preload 属性，在 VM 中只替换 `window.zcode` 与 Electron IPC 副作用；未加载 Electron、启动子应用、读取真实 profile 或发网络请求。四数据调用保持实际 Promise 和拒绝、prompt 只转交载荷且移除同一 listener、resolve 使用原 `send` channel、旧能力保持 undefined 均已通过。定向 `git diff --check` exit 0。
 
 补线后源码已冻结，SHA256：
 
-| 文件 | SHA256 |
-| --- | --- |
-| `desktopBrowserPlatformBridge.ts` | `d0067d39cc80c01f7de33f1db5a3f8af9524415f03332bd1cf9ec3fd345f008a` |
-| 宿主 `preload/index.ts` | `6ee5ab8482a193f18e263aaf102f29d9f195c4fc2a26f4f3009c52fff0da7ad4` |
+| 文件                                           | SHA256                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| `desktopBrowserPlatformBridge.ts`              | `d0067d39cc80c01f7de33f1db5a3f8af9524415f03332bd1cf9ec3fd345f008a` |
+| 宿主 `preload/index.ts`                        | `6ee5ab8482a193f18e263aaf102f29d9f195c4fc2a26f4f3009c52fff0da7ad4` |
 | `embedded-browser-permission-adapter.test.mjs` | `91d200e62363a7643e40267a58795c2a34c667ea2ebe47b6bb0f55ae511323f8` |
 
 最终 typecheck/Lint/architecture 与 fresh UI 由根任务统一执行，该源守卫阶段不预记 PASS。源守卫不替代真实产品气泡/站点设置；多窗口、设备、屏幕、macOS 权限与重启持久化未在本补线中执行。

@@ -49,15 +49,24 @@ function expectedCalls(platform, helperAvailable, agentBytecode) {
   if (platform === "darwin" && helperAvailable) {
     calls.push({
       command: node,
-      args: [resolve(repoRoot, "scripts/build-cua-helper-app.mjs"), "--allow-unsigned-launcher-local-dev"],
+      args: [
+        resolve(repoRoot, "scripts/build-cua-helper-app.mjs"),
+        "--allow-unsigned-launcher-local-dev",
+      ],
     });
   }
   const pnpm = platform === "win32" ? "pnpm.cmd" : "pnpm";
   calls.push({ command: pnpm, args: ["--filter", "@zcode/desktop", "pre-dev"] });
   const agentNode = platform === "win32" ? "node" : node;
-  calls.push({ command: agentNode, args: [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")] });
+  calls.push({
+    command: agentNode,
+    args: [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")],
+  });
   if (agentBytecode) {
-    calls.push({ command: agentNode, args: [resolve(repoRoot, "scripts/build-desktop-agent-bytecode.mjs")] });
+    calls.push({
+      command: agentNode,
+      args: [resolve(repoRoot, "scripts/build-desktop-agent-bytecode.mjs")],
+    });
   }
   calls.push({ command: pnpm, args: ["--filter", "@zcode/desktop", "dev:runtime"] });
   return calls;
@@ -80,7 +89,12 @@ test("任一准备阶段拒绝后停止调度并保留失败出口", async () =>
   for (const platform of ["darwin", "win32"]) {
     const expected = expectedCalls(platform, true, true);
     for (let failAt = 0; failAt < expected.length; failAt++) {
-      const result = await executeDispatch({ platform, helperAvailable: true, agentBytecode: true, failAt });
+      const result = await executeDispatch({
+        platform,
+        helperAvailable: true,
+        agentBytecode: true,
+        failAt,
+      });
       assert.deepEqual(result.calls, expected.slice(0, failAt + 1));
       assert.deepEqual(result.errors, ["synthetic stage failure"]);
       assert.deepEqual(result.exits, [1]);

@@ -2,20 +2,20 @@
 
 本计划先于外置 pending 测试代码落盘。测试当前 ZCodium fork 的真实菜单动作与设置保存；原产品与正式 E2E 文件不修改。执行文件为 `manual-review/pending/qa-local-menu-actions-20261106.test.ts`。主测试进程负责串行新建隔离 profile、构建当前源码并执行；本计划的静态审查或导入成功不代表 UI 验收通过。
 
-| ID | 验收动作 | 状态所有者与恢复 | 明确边界 |
-| --- | --- | --- | --- |
-| QLA01 | 底部偏好 → 语言：英文/中文/系统；检查菜单选中及实际显示 | `localePreference` 设置；最后恢复英文基准，suite 收尾恢复原偏好 | 使用真实 submenu/radio，不直接调用测试 action 写偏好 |
-| QLA02 | 底部偏好 → 主题：浅色/深色/系统；检查 radio、文档主题与本地偏好 | UI store/localStorage；finally 恢复原值 | 主题选项文案按当前 `Light theme`/`Dark theme` |
-| QLA03 | 底部偏好 → 界面模式：办公/编码，检查菜单及持久化 | UI store/localStorage；finally 恢复原值 | 不发送任务、不触发 office 工作流 |
-| QLA04 | 底部偏好 → 界面缩放：实际大小、放大、缩小与复原；读 main zoom | Main window webContents；通过真实菜单恢复初始 level | 不修改系统显示设置或窗口外 UI |
-| QLA05 | 帮助 → 文档/社区/报告问题/功能请求，每项捕获准确目标 | Main `shell.openExternal` 完整 mock；finally restore | 只断言 fork URL，不打开浏览器，不创建 issue/消息，不真实联网 |
-| QLA06 | 帮助 → 当前 About ZCodium、版本、截图与关闭；无自有更新源时更新项隐藏 | Main 的独立 About BrowserWindow | 不注入 update state、不检查/下载更新；无源前置不满足则明确拒绝该断言 |
-| QLA07 | 记忆总开关即时保存；已加载 catalog 时 scope 菜单/刷新 | shared settings 即时保存，scope 仅 viewer 局部选中；finally restore | 不创建记忆、不选模型、不触发模型请求；空 catalog 无 scope 时记为 LIMITED |
-| QLA08 | 常规设置中的归档开关关闭时仍可选 3/7/14/30 天；选 30 天再开关并验证保存 | shared settings；恢复 days 后恢复 enabled | 全合成空 profile，无真实用户任务；不执行删除/全量归档 |
-| QLA09 | Browser 控制开关已就绪时切换并恢复；Windows 导入入口隐藏 | 本轮 builtin plugin enabled config | 不导入 Chrome 用户数据、不清缓存、不更改证书策略、不导航公网；插件不可用记 BLOCKED |
-| QLA10 | Computer Use 总开关及 composer 显隐开关切换并恢复 | 本轮 builtin plugin enabled config 与隐藏标记 | 限 Windows；不触发 Helper、TCC、摄像头/屏幕权限、系统设置、电脑工具；插件不可用如实失败或 BLOCKED |
-| QLA11 | Hooks loading/connecting 收敛后检查空态或列表；新建草稿填写后取消 | `HookForm` 局部状态；取消不保存 | 不保存或执行命令；比较本轮 config 内容指纹，避免把过渡截图判成 bug |
-| QLA12 | 插件商店当前空态/本地卡状态；新增市场源对话框风险 gate、输入隔离目录后取消 | Add dialog 局部状态；取消无配置写入 | 不要求 public 卡；不刷新网络/下载/提交市场源/调用 native picker |
+| ID    | 验收动作                                                                   | 状态所有者与恢复                                                    | 明确边界                                                                                          |
+| ----- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| QLA01 | 底部偏好 → 语言：英文/中文/系统；检查菜单选中及实际显示                    | `localePreference` 设置；最后恢复英文基准，suite 收尾恢复原偏好     | 使用真实 submenu/radio，不直接调用测试 action 写偏好                                              |
+| QLA02 | 底部偏好 → 主题：浅色/深色/系统；检查 radio、文档主题与本地偏好            | UI store/localStorage；finally 恢复原值                             | 主题选项文案按当前 `Light theme`/`Dark theme`                                                     |
+| QLA03 | 底部偏好 → 界面模式：办公/编码，检查菜单及持久化                           | UI store/localStorage；finally 恢复原值                             | 不发送任务、不触发 office 工作流                                                                  |
+| QLA04 | 底部偏好 → 界面缩放：实际大小、放大、缩小与复原；读 main zoom              | Main window webContents；通过真实菜单恢复初始 level                 | 不修改系统显示设置或窗口外 UI                                                                     |
+| QLA05 | 帮助 → 文档/社区/报告问题/功能请求，每项捕获准确目标                       | Main `shell.openExternal` 完整 mock；finally restore                | 只断言 fork URL，不打开浏览器，不创建 issue/消息，不真实联网                                      |
+| QLA06 | 帮助 → 当前 About ZCodium、版本、截图与关闭；无自有更新源时更新项隐藏      | Main 的独立 About BrowserWindow                                     | 不注入 update state、不检查/下载更新；无源前置不满足则明确拒绝该断言                              |
+| QLA07 | 记忆总开关即时保存；已加载 catalog 时 scope 菜单/刷新                      | shared settings 即时保存，scope 仅 viewer 局部选中；finally restore | 不创建记忆、不选模型、不触发模型请求；空 catalog 无 scope 时记为 LIMITED                          |
+| QLA08 | 常规设置中的归档开关关闭时仍可选 3/7/14/30 天；选 30 天再开关并验证保存    | shared settings；恢复 days 后恢复 enabled                           | 全合成空 profile，无真实用户任务；不执行删除/全量归档                                             |
+| QLA09 | Browser 控制开关已就绪时切换并恢复；Windows 导入入口隐藏                   | 本轮 builtin plugin enabled config                                  | 不导入 Chrome 用户数据、不清缓存、不更改证书策略、不导航公网；插件不可用记 BLOCKED                |
+| QLA10 | Computer Use 总开关及 composer 显隐开关切换并恢复                          | 本轮 builtin plugin enabled config 与隐藏标记                       | 限 Windows；不触发 Helper、TCC、摄像头/屏幕权限、系统设置、电脑工具；插件不可用如实失败或 BLOCKED |
+| QLA11 | Hooks loading/connecting 收敛后检查空态或列表；新建草稿填写后取消          | `HookForm` 局部状态；取消不保存                                     | 不保存或执行命令；比较本轮 config 内容指纹，避免把过渡截图判成 bug                                |
+| QLA12 | 插件商店当前空态/本地卡状态；新增市场源对话框风险 gate、输入隔离目录后取消 | Add dialog 局部状态；取消无配置写入                                 | 不要求 public 卡；不刷新网络/下载/提交市场源/调用 native picker                                   |
 
 ## 路径、网络与证据
 
@@ -38,6 +38,7 @@
 菜单/控制 testid 与文字来自当前 `WorkspaceSidebarFooter.tsx`、`WorkspaceHelpMenuButton.tsx`、`MemorySettingsSection.tsx`、`TaskAutoArchiveSettings`、`BrowserSettingsSection.tsx`、`ComputerUseSection.tsx`、`HooksSection.tsx`、`HookForm.tsx` 与 `PluginAddMenu.tsx`。设置即时保存不能按旧“保存按钮”合同验收；公开市场自动拉取和旧官方帮助合同均不纳入本轮验收。
 
 已执行 target-only TypeScript program（本 spec 与依赖 diagnostics 均为 0）和真实本地 tsx import，注册 12 项但未执行 hooks/tests/UI；[证据](logs/e2e-preflight-local-menu-static.json)。主测试进程运行前，套件从当前隔离 artifact 根读取同 worker 的最新成功 bootstrap after JSON，并核对其 DB 与 env 指定本轮 HOME 完全一致；不从 glob 返回的路径决定测试写入目标。
+
 # menu-final 补测修正
 
 2026-11-06 worker 0-0 的12项均未执行：beforeAll在切语言后检查退出菜单时调用旧WDIO元素的isDisplayed而stale。外置QA改成单次renderer DOM可见性/菜单状态快照，不再向旧handle询问可见性；真正点击仍用新WDIO handle并只对原生stale重查。beforeAll失败也保存当前PNG/状态。此修正不改变产品菜单、settings或bootstrap；待root串行重跑验证。

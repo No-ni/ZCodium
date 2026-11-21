@@ -10,13 +10,13 @@
 
 ## 结果与统计口径
 
-| 测试层级 | 唯一用例 | 最新实际结果 |
-| --- | ---: | --- |
-| 确定性源码、schema、mock与隔离文件测试 | 133 | **131通过、2稳定失败、0跳过**；两失败均独立复现，为BUG-002/003 |
-| Desktop E2E全部实际记录 | 188 | **151通过、31原始失败、6跳过** |
-| 其中：正式canonical目录 | 109 | 83通过、26原始失败、0跳过 |
-| 其中：仓内manual-review/pending | 2 | 2通过、0失败、0跳过 |
-| 其中：本轮docs外置pending | 77 | 66通过、5原始失败、6跳过 |
+| 测试层级                               | 唯一用例 | 最新实际结果                                                   |
+| -------------------------------------- | -------: | -------------------------------------------------------------- |
+| 确定性源码、schema、mock与隔离文件测试 |      133 | **131通过、2稳定失败、0跳过**；两失败均独立复现，为BUG-002/003 |
+| Desktop E2E全部实际记录                |      188 | **151通过、31原始失败、6跳过**                                 |
+| 其中：正式canonical目录                |      109 | 83通过、26原始失败、0跳过                                      |
+| 其中：仓内manual-review/pending        |        2 | 2通过、0失败、0跳过                                            |
+| 其中：本轮docs外置pending              |       77 | 66通过、5原始失败、6跳过                                       |
 
 确定性测试共138次尝试（首次133＋复跑5），不重复增加唯一用例。E2E共 **250次记录：174通过、70原始失败、6跳过**，其中244次非skip记录；188个身份中183个至少有一次非skip记录。这不代表183个功能完整验收。统计包含取消core批次重复VP30的一次真实通过；排除此尝试，已完成批次为249次记录：173通过、70失败、6跳过。
 
@@ -26,16 +26,16 @@
 
 ## 优先修复与复验
 
-| 优先级 | 编号 | 确认问题与证据边界 |
-| --- | --- | --- |
-| P1 | [BUG-005](bug-report.md#bug-005) | 内置浏览器权限策略未接线，两个独立新run的未授权geolocation query均返回granted；未请求真实位置或设备 |
-| P1 | [BUG-004](bug-report.md#bug-004) | Desktop旧项目迁移未传旧设置，合成profile中的项目入口未生成；未证明用户项目文件或会话内容丢失 |
-| P1 | [BUG-001](bug-report.md#bug-001) | macOS开发入口读取未声明变量；精确darwin条件VM复现，macOS真机未验 |
-| P2 | [BUG-006](bug-report.md#bug-006) | 工具栏测量副本缺布局骨架，压缩算法提前返回；人工240px帧与源码probe确认，普通真窄窗仍待验 |
-| P2 | [BUG-007](bug-report.md#bug-007) | 浮窗压缩标记与模型CSS读取owner不一致；真实560px空输入DOM与PNG确认 |
-| P2 | [BUG-008](bug-report.md#bug-008) | 命令中心两个设置命令选择值冲突、同时aria-selected；键盘执行后续尚未抵达 |
-| P2／门禁 | [BUG-002 / VAL-001](bug-report.md#bug-002) | 遥测审计扫描到旧引导fixture的空reportTelemetryEvent方法；不构成实际遥测导出证据 |
-| P2／门禁 | [BUG-003 / VAL-002](bug-report.md#bug-003) | 工作流审计期待对象遗漏必需offeredMode字段，遮挡后续分支；未确认官方购买或配置网络回归 |
+| 优先级   | 编号                                       | 确认问题与证据边界                                                                                  |
+| -------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| P1       | [BUG-005](bug-report.md#bug-005)           | 内置浏览器权限策略未接线，两个独立新run的未授权geolocation query均返回granted；未请求真实位置或设备 |
+| P1       | [BUG-004](bug-report.md#bug-004)           | Desktop旧项目迁移未传旧设置，合成profile中的项目入口未生成；未证明用户项目文件或会话内容丢失        |
+| P1       | [BUG-001](bug-report.md#bug-001)           | macOS开发入口读取未声明变量；精确darwin条件VM复现，macOS真机未验                                    |
+| P2       | [BUG-006](bug-report.md#bug-006)           | 工具栏测量副本缺布局骨架，压缩算法提前返回；人工240px帧与源码probe确认，普通真窄窗仍待验            |
+| P2       | [BUG-007](bug-report.md#bug-007)           | 浮窗压缩标记与模型CSS读取owner不一致；真实560px空输入DOM与PNG确认                                   |
+| P2       | [BUG-008](bug-report.md#bug-008)           | 命令中心两个设置命令选择值冲突、同时aria-selected；键盘执行后续尚未抵达                             |
+| P2／门禁 | [BUG-002 / VAL-001](bug-report.md#bug-002) | 遥测审计扫描到旧引导fixture的空reportTelemetryEvent方法；不构成实际遥测导出证据                     |
+| P2／门禁 | [BUG-003 / VAL-002](bug-report.md#bug-003) | 工作流审计期待对象遗漏必需offeredMode字段，遮挡后续分支；未确认官方购买或配置网络回归               |
 
 先处理敏感权限、迁移和支持平台启动三个P1，再处理布局、选择状态及两个测试契约。每项Bug已附前置条件、复现步骤、预期与实际、源码/运行证据、确认程度和修复验收。修复前更新对应spec并补回归，保持本fork的遥测、官方云依赖和数据目录边界。
 
@@ -47,13 +47,13 @@
 
 87是功能组数量，原子菜单和动作总数未独立枚举。84组有部分通过证据，浏览器权限组另有真实失败证据；NOT-RUN两组是Git diff（GIT-02）与Source Server生命周期（SET-13）。终端组已有tab/合同partial，PTY动作仍受阻。BLOCKED为10组且包含上述2组，集合不能相加；其它partial组仍有未完成的增删改、持久化、失败恢复或平台动作。
 
-| 最近批次 | 完整实际结果 | 主要证据与边界 |
-| --- | --- | --- |
-| settings-final | 23/23通过，exit0 | 18个设置入口、四组中英文/深浅主题导航；[NDJSON](runtime/qa-menu-20261106-settings-final/evidence/test-results.ndjson)，不替代每页全部业务操作 |
-| archive-actions-final | 2/2通过，exit0 | 合成归档行恢复、单删取消/确认、双库状态和冷重启不复活；[结果](runtime/qa-menu-20261106-archive-actions-final/evidence/test-results.ndjson) |
-| local-supplement-retry | 15条：9通过、5原始失败、1跳过，exit1 | 会话Find、完整Markdown复制/拒绝恢复、文件shadow预览、长文本滚动、开关/目录取消及51项目分页排序；[结果](runtime/qa-menu-20261106-local-supplement-retry/evidence/test-results.ndjson) |
-| local-final-targeted | 6条：3通过、3原始失败，exit1 | 任务范围查询/Recent、已有AstrBot名称Escape取消/路径复制、记忆scope/search/refresh通过；[结果](runtime/qa-menu-20261106-local-final-targeted/evidence/test-results.ndjson) |
-| copy-history-final | **3条：2通过、1原始失败，exit1** | RFC01完整助手正文复制与反馈恢复、HIST01六角色/复制/折叠/自定义展开通过；HIST02在关闭搜索后等目标行挂载超时；[结果](runtime/qa-menu-20261106-copy-history-final/evidence/test-results.ndjson)、[summary](runtime/qa-menu-20261106-copy-history-final/evidence/summary.json) |
+| 最近批次               | 完整实际结果                         | 主要证据与边界                                                                                                                                                                                                                                                             |
+| ---------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| settings-final         | 23/23通过，exit0                     | 18个设置入口、四组中英文/深浅主题导航；[NDJSON](runtime/qa-menu-20261106-settings-final/evidence/test-results.ndjson)，不替代每页全部业务操作                                                                                                                              |
+| archive-actions-final  | 2/2通过，exit0                       | 合成归档行恢复、单删取消/确认、双库状态和冷重启不复活；[结果](runtime/qa-menu-20261106-archive-actions-final/evidence/test-results.ndjson)                                                                                                                                 |
+| local-supplement-retry | 15条：9通过、5原始失败、1跳过，exit1 | 会话Find、完整Markdown复制/拒绝恢复、文件shadow预览、长文本滚动、开关/目录取消及51项目分页排序；[结果](runtime/qa-menu-20261106-local-supplement-retry/evidence/test-results.ndjson)                                                                                       |
+| local-final-targeted   | 6条：3通过、3原始失败，exit1         | 任务范围查询/Recent、已有AstrBot名称Escape取消/路径复制、记忆scope/search/refresh通过；[结果](runtime/qa-menu-20261106-local-final-targeted/evidence/test-results.ndjson)                                                                                                  |
+| copy-history-final     | **3条：2通过、1原始失败，exit1**     | RFC01完整助手正文复制与反馈恢复、HIST01六角色/复制/折叠/自定义展开通过；HIST02在关闭搜索后等目标行挂载超时；[结果](runtime/qa-menu-20261106-copy-history-final/evidence/test-results.ndjson)、[summary](runtime/qa-menu-20261106-copy-history-final/evidence/summary.json) |
 
 RFC01使用真实hover/click和受控clipboard捕获，3930字符精确等于有限合成响应，Check出现后恢复Copy，main/title各一次且动作无新增请求。前两轮QA定位失败保留；本次实际候选摘要确认用户copy与助手轮尾copy同容器，不能将本次数量反写为旧现场已测数量。见 [复制复验计划](test-plan-runtime-copy-find.md)。
 
@@ -63,14 +63,14 @@ HIST01先滚动真实timeline owner至顶部并等待首条挂载，再完成原
 
 <a id="final-validation"></a>
 
-| 必需检查 | 最终结果 | 证据 |
-| --- | --- | --- |
-| Desktop E2E类型检查 | 固定嵌套工具后复跑退出0 | [输出](logs/validation-desktop-e2e-typecheck-final-pinned.log)、[版本/命令/退出码](logs/validation-desktop-e2e-typecheck-final-pinned.json) |
-| 根typecheck | 退出0 | [输出](logs/validation-typecheck-final.log)、[记录](logs/validation-typecheck-final.json) |
-| 原始根lint | **退出1：76 errors、38388 warnings；扫描16053文件** | [完整输出](logs/validation-lint-final.log)、[独立错误路径归因](logs/validation-lint-final-attribution.json) |
-| architecture:check --changed | 退出0、violations=0 | [输出](logs/validation-architecture-final.log)、[记录](logs/validation-architecture-final.json) |
-| 外置QA noEmit | 退出0 | [输出](logs/validation-qa-typecheck-final.log)、[记录](logs/validation-qa-typecheck-final.json) |
-| 源码补充Lint，仅排除本轮runtime/** | 退出0；5731文件、0 errors、3 warnings | [输出](logs/validation-lint-final-source.log)、[实际参数/范围](logs/validation-lint-final-source.json) |
+| 必需检查                             | 最终结果                                            | 证据                                                                                                                                        |
+| ------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop E2E类型检查                  | 固定嵌套工具后复跑退出0                             | [输出](logs/validation-desktop-e2e-typecheck-final-pinned.log)、[版本/命令/退出码](logs/validation-desktop-e2e-typecheck-final-pinned.json) |
+| 根typecheck                          | 退出0                                               | [输出](logs/validation-typecheck-final.log)、[记录](logs/validation-typecheck-final.json)                                                   |
+| 原始根lint                           | **退出1：76 errors、38388 warnings；扫描16053文件** | [完整输出](logs/validation-lint-final.log)、[独立错误路径归因](logs/validation-lint-final-attribution.json)                                 |
+| architecture:check --changed         | 退出0、violations=0                                 | [输出](logs/validation-architecture-final.log)、[记录](logs/validation-architecture-final.json)                                             |
+| 外置QA noEmit                        | 退出0                                               | [输出](logs/validation-qa-typecheck-final.log)、[记录](logs/validation-qa-typecheck-final.json)                                             |
+| 源码补充Lint，仅排除本轮runtime/\*\* | 退出0；5731文件、0 errors、3 warnings               | [输出](logs/validation-lint-final-source.log)、[实际参数/范围](logs/validation-lint-final-source.json)                                      |
 
 早期门禁通过仅为当时截点，不替代最后QA源的检查。首轮最终Desktop E2E类型检查退出0，但嵌套裸pnpm实际调用Codex回退Node24.22.1/pnpm11.25.0，不纳入本轮指定工具结果，原日志保留。运行器经路径/缓存审查后使用工作树内shim，嵌套实测为pnpm10.33.2/Node24.18.0，再复跑类型检查退出0；没有修改package.json或安装新工具。见 [工具链审计](logs/validation-pinned-toolchain-path-audit.json)。
 

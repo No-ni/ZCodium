@@ -204,8 +204,8 @@ const CONTRACTS = [
   ],
   [
     "packages/ui/src/v4/ConversationRowView.tsx",
-    "fileReferenceRootResolved={context.fileReferenceRootResolved}",
-    "行内消息编辑器从行渲染上下文拿到同一个来源事实",
+    "imagePreviewContext={context}",
+    "行内编辑已移入 Composer；正式消息预览仍拿到原行渲染上下文",
   ],
   [
     "packages/ui/src/git-action-menu/currentSessionFileScope.ts",
@@ -358,7 +358,7 @@ test("裸 CLI/TUI 的 resumeFromStore 包装器必须先重建会话目录（协
     .join("\n");
   assert.match(
     code,
-    /await ensureConversationSessionDirForBareResume\(\{[\s\S]*?sessionStore,\s*\}\);/u,
+    /await ensureConversationSessionDirForBareResume\(\{[\s\S]*?store:\s*sessionStore\s*\}\);/u,
     "裸 CLI/TUI 恢复（zcode --resume/--continue，与桌面同库）没有协议路径的 ensure 分支，" +
       "path 指向的会话目录被回收/手工删除后 cwd 不存在，首个 Bash 即 ENOENT——接线删掉即回归",
   );

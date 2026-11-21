@@ -104,3 +104,30 @@ Hooks 检查不覆盖 CLI React 源码与基础组件目录，但包含辅助脚
   分别有 3 条和 8 条调用规则诊断；运行时风险取决于分支在同一组件实例内是否切换。
 
 本轮只接入检查和登记问题，未修改业务依赖，未把静态诊断认定为已经复现的产品 bug。
+
+## 2026-11-21 恢复工作流卡收口
+
+`resume-workflow-run.tsx` 的联接分支实际浏览器回归首次为 1 通过/1 失败：初始已联接
+再解除联接时，React 报告 useContext 后新增 useMemo 的调用顺序错误；初始未联接的
+场景通过，未将此证据写成两个方向都崩溃。原三个 memo/callback 及其依赖保持，联接
+卡早返回移到全部 Hook 之后，状态/步数/输出和宿主回调仍由原 owner 提供。
+
+修复后两项浏览器回归通过（`release318-SYBXZB`），各覆盖 Zai light/dark 与
+1280/390 宽度、反复联接、完成更新、旧输出和点击/Enter/Space。页面无 React 错误
+或外部请求；代表截图已视觉复核。scope 为真实组件与合成 renderer context，不代表
+完整 Electron/Host/Provider 或实体手机。该文件已从精确 warn 例外移除，回到
+rules-of-hooks error；工程回归验证在修复文件路径注入条件 Hook 仍会失败。
+
+当时其他六个精确例外及依赖诊断仍待审，未将本项收口称为全仓 Hooks 验收完成。
+
+## 2026-11-21 自定义差异审查中的服务 Hook
+
+Agent/Session/Task 统一通过原 workspace services 链选择参数，缺路径显式读取当前
+Context；Onboarding 的可选 Context Hook 固定在 try 外。4 项真实浏览器回归通过
+（`release318-GYco6Z`），覆盖同组件作用域往返、同路径不同远端 identity、断连
+拒绝/重注册、provider 缺失与 getter 抛错后恢复。四个服务文件移除精确 warn 例外，
+规则回归同时覆盖它们。Task 的 snapshot proxy/缓存/owner 未修改。
+
+Agent/Session 与恢复工作流卡的原调用结构继承自官方，修复不归因为 fork 引入。
+用户已将范围改为自定义差异，继续验证这些已完成修复自身的回归，不为清除官方
+告警继续改写未受定制影响的代码。剩余两个精确例外和继承诊断保持可见。

@@ -88,8 +88,9 @@ export function useProjectUnreadSignals(
       // （切换任务、新开会话）说明结果早被看到，记录直接作废。旧实现无条件补写，
       // 会让早已离开的任务在下次失焦/回窗口时被点亮成自动清除覆盖不到的未读。
       // 见 foregroundCompletionPlan.ts 与 docs/ui/task-unread-state.md。
-      const plan = planForegroundCompletionFlush(foregroundCompletions, (target) =>
-        isDesktopViewing(target) || isRemoteViewing(target),
+      const plan = planForegroundCompletionFlush(
+        foregroundCompletions,
+        (target) => isDesktopViewing(target) || isRemoteViewing(target),
       );
       for (const key of plan.drop) foregroundCompletions.delete(key);
       for (const [key, entry] of plan.flush) {

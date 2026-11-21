@@ -2,9 +2,9 @@
 
 最后local-final-targeted已于2026-11-06T20:15:28.484Z完整结束、exit1，6actual=3PASS/3FAIL。RLM05任务查询/真实键盘清空后Recent、FLG04已有Bot名称Escape取消/合成路径复制、FLG05 owned memory scope/search/refresh已通过，均不再重跑。本计划仅两个pending spec、三个顺序目标，root统一串行运行；本作者不运行UI/build、不改产品或主报告。
 
-| 源与目标 | 上次真实失败及本次最小QA修改 | 保留范围 |
-| --- | --- | --- |
-| qa-runtime-copy-find-20261106.test.ts：RFC01 | whole-turn包含user与assistant两个copy动作；以唯一正文marker对应的assistant rowId关联实际轮尾button，assert前捕获所有candidate testid/kind/visible/assistantIds | 完整正文、受控writeText、勾选出现/恢复、main/title有限loopback200及前后request数量；不读系统clipboard |
+| 源与目标                                                 | 上次真实失败及本次最小QA修改                                                                                                                                                                | 保留范围                                                                                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| qa-runtime-copy-find-20261106.test.ts：RFC01             | whole-turn包含user与assistant两个copy动作；以唯一正文marker对应的assistant rowId关联实际轮尾button，assert前捕获所有candidate testid/kind/visible/assistantIds                              | 完整正文、受控writeText、勾选出现/恢复、main/title有限loopback200及前后request数量；不读系统clipboard                                                        |
 | qa-historical-trajectory-20261106.test.ts：HIST01→HIST02 | 首个snapshot只读挂载record1–8，首record0独有system/tool-result已出虚拟窗；真实timeline父owner scrollTo0，等待index0的两role实际挂载/展开，再执行原六角色断言，snapshot新增scrollTop/indices | 当前累计messages、80条、双marker1/42、long55/foreign过滤、完整system复制/折叠/自定义角色、虚拟override跨卸载、双导航/无命中/长正文/33MiB尾读全部原断言和超时 |
 
 HIST仍要求HIST01成功后HIST02执行，不修复或伪造前置。只读[首条窗口归因](logs/feature-inventory-historical-initial-viewport.json)区分逻辑全量六角色和DOM挂载子集，初始scroll原因未证明，不登记产品Bug。上一HIST01真正PASS仍保留；新UI结果只按实际NDJSON回填。

@@ -40,8 +40,10 @@ async function safe(candidate: string): Promise<string> {
     throw new Error("B4UI outside worktree");
   for (let cursor = target; ; cursor = dirname(cursor)) {
     try {
-      if ((await lstat(cursor)).isSymbolicLink() ||
-          (await realpath(cursor)).toLowerCase() !== cursor.toLowerCase())
+      if (
+        (await lstat(cursor)).isSymbolicLink() ||
+        (await realpath(cursor)).toLowerCase() !== cursor.toLowerCase()
+      )
         throw new Error("B4UI reparse/redirected ancestor");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -53,18 +55,31 @@ async function safe(candidate: string): Promise<string> {
 
 async function audit(targets: string[]) {
   for (const target of targets) await safe(target);
-  const guard = await readFile(await safe(join(ROOT, "docs/testing/qa-2026-11-06/qa-reparse-children.ps1")), "utf8");
-  await exec("C:\\Program Files\\PowerShell\\7\\pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", guard + `
+  const guard = await readFile(
+    await safe(join(ROOT, "docs/testing/qa-2026-11-06/qa-reparse-children.ps1")),
+    "utf8",
+  );
+  await exec(
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      guard +
+        `
     $ErrorActionPreference='Stop';$paths=ConvertFrom-Json $env:B4UI_AUDIT_PATHS;
     foreach($target in $paths){$cursor=[IO.Path]::GetFullPath($target);
       while($cursor){if(Test-Path -LiteralPath $cursor){if((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'B4UI reparse ancestor'}};$cursor=[IO.Path]::GetDirectoryName($cursor)}
       if(Test-Path -LiteralPath $target -PathType Container){$queue=[Collections.Generic.Queue[string]]::new();$queue.Enqueue($target);
         while($queue.Count){foreach($item in Get-QaAuditChildren $queue.Dequeue()){if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'B4UI reparse descendant'};if($item.PSIsContainer){$queue.Enqueue($item.FullName)}}}}
-    }`], {
-    env: { ...process.env, B4UI_AUDIT_PATHS: JSON.stringify(targets), QA_REPARSE_WORKTREE: ROOT },
-    windowsHide: true,
-    timeout: 30_000,
-  });
+    }`,
+    ],
+    {
+      env: { ...process.env, B4UI_AUDIT_PATHS: JSON.stringify(targets), QA_REPARSE_WORKTREE: ROOT },
+      windowsHide: true,
+      timeout: 30_000,
+    },
+  );
 }
 
 function readState() {
@@ -85,27 +100,44 @@ function readState() {
 }
 
 async function readMainIdentity() {
-  return browser.electron.execute((electron, expectedHome, expectedRun) => ({
-    pid: process.pid,
-    userDataDir: electron.app.getPath("userData"),
-    homeMatches: process.env.HOME === expectedHome && process.env.USERPROFILE === expectedHome,
-    dataMatches: process.env.ZCODE_DESKTOP_HOME_DIR === expectedHome && process.env.ZCODE_DATA_BASE_DIR === expectedHome,
-    runMatches: process.env.ZCODE_E2E_RUN_ID === expectedRun && process.argv.includes("--zcode-e2e-run-id=" + expectedRun),
-  }), HOME, RUN);
+  return browser.electron.execute(
+    (electron, expectedHome, expectedRun) => ({
+      pid: process.pid,
+      userDataDir: electron.app.getPath("userData"),
+      homeMatches: process.env.HOME === expectedHome && process.env.USERPROFILE === expectedHome,
+      dataMatches:
+        process.env.ZCODE_DESKTOP_HOME_DIR === expectedHome &&
+        process.env.ZCODE_DATA_BASE_DIR === expectedHome,
+      runMatches:
+        process.env.ZCODE_E2E_RUN_ID === expectedRun &&
+        process.argv.includes("--zcode-e2e-run-id=" + expectedRun),
+    }),
+    HOME,
+    RUN,
+  );
 }
 
 async function readSidebar() {
   // raw JS 避免 tsx keepNames 辅助函数被序列化后成为 browser 闭包依赖。
-  return browser.execute(String.raw`
+  return browser.execute(
+    String.raw`
     const selector=arguments[0],rowSelector=arguments[1];
     return Array.from(document.querySelectorAll(selector)).map(section=>{
       const row=document.querySelector(rowSelector);
       return {projectId:section.getAttribute('data-project-id'),name:section.getAttribute('data-project-name'),
         rowVisible:!!row && row.getClientRects().length>0 && getComputedStyle(row).visibility!=='hidden',
         rowText:row?row.innerText:null};
-    });`, projectSectionSelector(DEFAULT_WORKSPACE), projectRowSelector(DEFAULT_WORKSPACE)) as Promise<{
-      projectId: string | null; name: string | null; rowVisible: boolean; rowText: string | null;
-    }[]>;
+    });`,
+    projectSectionSelector(DEFAULT_WORKSPACE),
+    projectRowSelector(DEFAULT_WORKSPACE),
+  ) as Promise<
+    {
+      projectId: string | null;
+      name: string | null;
+      rowVisible: boolean;
+      rowText: string | null;
+    }[]
+  >;
 }
 
 async function evidence(label: string, details: unknown, screenshot = true) {
@@ -113,8 +145,21 @@ async function evidence(label: string, details: unknown, screenshot = true) {
   const stem = join(ARTIFACTS, EVIDENCE + "-" + label);
   const file = await open(await safe(stem + ".json"), "wx");
   try {
-    await file.writeFile(JSON.stringify({ capturedAt: new Date().toISOString(), phase, runId: RUN,
-      sourceHashes, node: process.version, details }, null, 2), "utf8");
+    await file.writeFile(
+      JSON.stringify(
+        {
+          capturedAt: new Date().toISOString(),
+          phase,
+          runId: RUN,
+          sourceHashes,
+          node: process.version,
+          details,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
   } finally {
     await file.close();
   }
@@ -129,8 +174,12 @@ async function assertSidebar(state: ReturnType<typeof readState>) {
   await $(projectRowSelector(DEFAULT_WORKSPACE)).waitForDisplayed({ timeout: 30_000 });
   const rows = await readSidebar();
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toEqual({ projectId: state.projects[0]!.project_id,
-    name: "ZCodeProject", rowVisible: true, rowText: expect.stringContaining("ZCodeProject") });
+  expect(rows[0]).toEqual({
+    projectId: state.projects[0]!.project_id,
+    name: "ZCodeProject",
+    rowVisible: true,
+    rowText: expect.stringContaining("ZCodeProject"),
+  });
   return rows;
 }
 
@@ -138,19 +187,46 @@ describe("BUG004 Desktop 首次旧项目迁移", () => {
   before(async () => {
     if (process.platform !== "win32" || process.env.ZCODE_E2E_RUN_ID !== RUN)
       throw new Error("B4UI requires its reviewed Windows run");
-    for (const name of ["ZCODE_E2E_HOME_DIR", "ZCODE_DESKTOP_HOME_DIR", "ZCODE_DATA_BASE_DIR", "HOME", "USERPROFILE"])
+    for (const name of [
+      "ZCODE_E2E_HOME_DIR",
+      "ZCODE_DESKTOP_HOME_DIR",
+      "ZCODE_DATA_BASE_DIR",
+      "HOME",
+      "USERPROFILE",
+    ])
       if (process.env[name] !== HOME) throw new Error("B4UI mismatched isolated HOME");
-    if (process.env.ZCODE_E2E_ARTIFACT_DIR !== ARTIFACTS || Object.keys(process.env).some(name => name.startsWith("QA_BOOTSTRAP_")) ||
-        process.argv.some(arg => arg.includes("qa-project-bootstrap")))
+    if (
+      process.env.ZCODE_E2E_ARTIFACT_DIR !== ARTIFACTS ||
+      Object.keys(process.env).some((name) => name.startsWith("QA_BOOTSTRAP_")) ||
+      process.argv.some((arg) => arg.includes("qa-project-bootstrap"))
+    )
       throw new Error("B4UI rejects project bootstrap or mismatched evidence root");
-    for (const name of ["TEMP", "TMP", "APPDATA", "LOCALAPPDATA", "XDG_CACHE_HOME", "COREPACK_HOME", "TSX_CACHE_DIR", "npm_config_cache", "npm_config_store_dir", "NODE_COMPILE_CACHE"])
+    for (const name of [
+      "TEMP",
+      "TMP",
+      "APPDATA",
+      "LOCALAPPDATA",
+      "XDG_CACHE_HOME",
+      "COREPACK_HOME",
+      "TSX_CACHE_DIR",
+      "npm_config_cache",
+      "npm_config_store_dir",
+      "NODE_COMPILE_CACHE",
+    ])
       await safe(process.env[name] ?? "");
     await audit([HOME, ARTIFACTS]);
     await mkdir(ARTIFACTS, { recursive: true });
-    for (const path of ["packages/desktop/wdio.conf.ts", "packages/desktop/test/e2e/helpers/e2e-before-session.ts",
-      "packages/desktop/src/host/database-startup/tasksStorageWorker.ts", "packages/services/src/project-storage/startup.ts",
-      "packages/services/src/project-storage/index.ts", "docs/testing/qa-2026-11-06/manual-review/pending/qa-bug004-desktop-migration-20261107.test.ts"]) {
-      sourceHashes[path] = createHash("sha256").update(await readFile(await safe(join(ROOT, path)))).digest("hex");
+    for (const path of [
+      "packages/desktop/wdio.conf.ts",
+      "packages/desktop/test/e2e/helpers/e2e-before-session.ts",
+      "packages/desktop/src/host/database-startup/tasksStorageWorker.ts",
+      "packages/services/src/project-storage/startup.ts",
+      "packages/services/src/project-storage/index.ts",
+      "docs/testing/qa-2026-11-06/manual-review/pending/qa-bug004-desktop-migration-20261107.test.ts",
+    ]) {
+      sourceHashes[path] = createHash("sha256")
+        .update(await readFile(await safe(join(ROOT, path))))
+        .digest("hex");
     }
   });
 
@@ -163,25 +239,53 @@ describe("BUG004 Desktop 首次旧项目迁移", () => {
     await audit([firstMain.userDataDir, HOME, ARTIFACTS]);
     first = readState();
     expect(first.projects).toHaveLength(1);
-    expect(first.projects[0]).toMatchObject({ host_id: "local", name: "ZCodeProject", position: 0, deleted: 0 });
-    expect(first.roots).toEqual([{ project_id: first.projects[0]!.project_id, root_path: DEFAULT_WORKSPACE, position: 0, is_primary: 1 }]);
-    expect(first.projectLedger.map(row => row.id)).toEqual(["0005_projects", "0006_default_workspace_tasks", "0007_initial_workspace_order", "0008_remote_entry_deleted_cache", "0009_session_creation_commands"]);
-    expect(first.projectLedger.find(row => row.id === "0005_projects")?.checksum).toBe(CHECKSUM);
+    expect(first.projects[0]).toMatchObject({
+      host_id: "local",
+      name: "ZCodeProject",
+      position: 0,
+      deleted: 0,
+    });
+    expect(first.roots).toEqual([
+      {
+        project_id: first.projects[0]!.project_id,
+        root_path: DEFAULT_WORKSPACE,
+        position: 0,
+        is_primary: 1,
+      },
+    ]);
+    expect(first.projectLedger.map((row) => row.id)).toEqual([
+      "0005_projects",
+      "0006_default_workspace_tasks",
+      "0007_initial_workspace_order",
+      "0008_remote_entry_deleted_cache",
+      "0009_session_creation_commands",
+    ]);
+    expect(first.projectLedger.find((row) => row.id === "0005_projects")?.checksum).toBe(CHECKSUM);
     expect(first.foreignKeyErrors).toEqual([]);
     const sidebar = await assertSidebar(first);
-    await evidence("first-start", { main: firstMain, state: first, sidebar,
-      persistedSettingsSha256: createHash("sha256").update(await readFile(await safe(SETTINGS))).digest("hex"),
-      fixtureOwner: "wdio.beforeSession/resetE2EHome/seedE2EStartupState; no test-side project seeding" });
+    await evidence("first-start", {
+      main: firstMain,
+      state: first,
+      sidebar,
+      persistedSettingsSha256: createHash("sha256")
+        .update(await readFile(await safe(SETTINGS)))
+        .digest("hex"),
+      fixtureOwner:
+        "wdio.beforeSession/resetE2EHome/seedE2EStartupState; no test-side project seeding",
+    });
     firstPassed = true;
   });
 
   it("B4UI02：完整冷重开保留项目 ID、roots、顺序和账本", async function () {
     this.timeout(90_000);
-    if (!firstPassed || !first || !firstMain) throw new Error("B4UI02 blocked by incomplete first-start assertion");
+    if (!firstPassed || !first || !firstMain)
+      throw new Error("B4UI02 blocked by incomplete first-start assertion");
     phase = "cold-restart";
     const userData = await reloadElectronSessionPreservingBrowserProfile(browser, {
       // 保留原自然退出上限；本候选不把强制杀进程成功冒充正常退出持久化。
-      cleanupTimedOutProcessTreePids: () => { throw new Error("B4UI natural process exit barrier failed; no forced cleanup"); },
+      cleanupTimedOutProcessTreePids: () => {
+        throw new Error("B4UI natural process exit barrier failed; no forced cleanup");
+      },
       afterElectronProcessExit: async () => {
         await evidence("old-process-exited", { state: readState() }, false);
       },
@@ -203,7 +307,12 @@ describe("BUG004 Desktop 首次旧项目迁移", () => {
   afterEach(async function () {
     if (this.currentTest?.state !== "failed") return;
     let state: unknown;
-    try { await safe(DATABASE); state = readState(); } catch { state = { unavailable: true }; }
+    try {
+      await safe(DATABASE);
+      state = readState();
+    } catch {
+      state = { unavailable: true };
+    }
     await evidence("failure-" + Date.now(), { state, failedCase: this.currentTest.title });
   });
 });

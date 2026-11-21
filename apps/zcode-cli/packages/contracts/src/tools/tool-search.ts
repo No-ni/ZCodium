@@ -1,6 +1,13 @@
+import { ToolReferenceContentSchema } from "../protocol-values/contract.js";
+export { ToolReferenceContentSchema } from "../protocol-values/contract.js";
+export type {
+  ModelToolReferenceContentBlock,
+  ToolSearchCapability,
+  ModelRequestCapabilities,
+} from "../protocol-values/contract.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import type { JsonSchema } from "../model/index.js";
+import type { JsonSchema } from "../protocol-values/model-contract.js";
 
 export const TOOL_SEARCH_NAME = "ToolSearch";
 export const LOCAL_TOOL_SEARCH_NAME = "LocalToolSearch";
@@ -62,11 +69,6 @@ export const ToolSearchAnnouncementSchema = z
     message: "Readded tool names must be included in addedNames",
   });
 export type ToolSearchAnnouncement = z.infer<typeof ToolSearchAnnouncementSchema>;
-
-export const ToolReferenceContentSchema = z
-  .object({ type: z.literal("tool_reference"), toolName: z.string().min(1) })
-  .strict();
-export type ModelToolReferenceContentBlock = z.infer<typeof ToolReferenceContentSchema>;
 export const PersistedToolSearchContentSchema = z
   .array(
     z.union([
@@ -105,17 +107,6 @@ export const ToolSearchInputJsonSchema: JsonSchema = {
   required: ["query", "max_results"],
 };
 export const ToolSearchOutputJsonSchema = zodToJsonSchema(ToolSearchOutputSchema) as JsonSchema;
-export interface ToolSearchCapability {
-  readonly protocolSupported: boolean;
-  readonly defaultEnabled: boolean;
-}
-export interface ModelRequestCapabilities {
-  readonly toolSearch?: ToolSearchCapability;
-  /** 协议会合并相邻 user 文本时，将紧随 tool result 的提醒并入其内容。 */
-  readonly foldRemindersIntoToolResults?: boolean;
-  /** 保留本仓 Provider 的空白/仅思考回复投影约束，所有装饰器共用此能力契约。 */
-  readonly dropReasoningOnlyOrBlankAssistants?: boolean;
-}
 export interface ToolSearchCandidate {
   readonly name: string;
   readonly aliases?: readonly string[];

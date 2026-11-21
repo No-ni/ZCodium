@@ -4,7 +4,7 @@
  */
 export const providerRegressionModule = {
   id: "provider-regression",
-  requires: ["zcode-cli", "provider", "provider-node", "shared"],
+  requires: ["agent-contracts", "provider", "provider-node", "shared", "zcode-cli"],
   provides: ["provider-regression"],
   publicEntrypoints: ["index.ts", "contract.ts"],
 } as const;

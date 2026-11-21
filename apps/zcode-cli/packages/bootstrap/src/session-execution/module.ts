@@ -4,7 +4,7 @@
  */
 export const cliSessionExecutionModule = {
   id: "cli-session-execution",
-  requires: ["shared", "zcode-cli"],
+  requires: ["agent-contracts", "shared", "zcode-cli"],
   provides: ["cli-session-execution"],
   publicEntrypoints: [
     "index.ts",

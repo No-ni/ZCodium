@@ -5,7 +5,8 @@ import { ServiceChannels } from "@zcode/shared";
  * rawJS仅依赖当前renderer globals与传入的既有channel，不读取/写入产品持久化。
  */
 export async function installLocalQaRpcProbe() {
-  await browser.execute(`
+  await browser.execute(
+    `
     const channel=arguments[0];
     if(window.__remoteProjectHandoffRpc)throw new Error("QA refuses to replace an existing RPC adapter");
     const original=MessagePort.prototype.postMessage;
@@ -27,6 +28,11 @@ export async function installLocalQaRpcProbe() {
       Reflect.apply(original,this,options===undefined?[message]:[message,options]);
     }});
     window.__remoteProjectHandoffRpc=probe;window.dispatchEvent(new Event("focus"));
-  `, ServiceChannels.RemoteProjects);
-  await browser.waitUntil(()=>browser.execute(()=>Boolean(window.__remoteProjectHandoffRpc?.ready)),{timeout:30_000,timeoutMsg:"QA did not capture the existing Window Host port"});
+  `,
+    ServiceChannels.RemoteProjects,
+  );
+  await browser.waitUntil(
+    () => browser.execute(() => Boolean(window.__remoteProjectHandoffRpc?.ready)),
+    { timeout: 30_000, timeoutMsg: "QA did not capture the existing Window Host port" },
+  );
 }

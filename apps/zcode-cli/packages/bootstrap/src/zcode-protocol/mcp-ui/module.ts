@@ -5,7 +5,7 @@
  */
 export const mcpUiModule = {
   id: "mcp-ui",
-  requires: ["zcode-cli", "shared", "mcp-apps-protocol"],
+  requires: ["agent-contracts", "mcp-apps-protocol", "shared", "zcode-cli"],
   provides: ["mcp-ui-handlers"],
   publicEntrypoints: ["index.ts", "contract.ts"],
 } as const;

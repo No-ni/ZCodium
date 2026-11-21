@@ -1,0 +1,11 @@
+{
+  "name": "uniffi-bindgen-react-native",
+  "version": "0.31.0-3",
+  "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+  "archiveUrl": "https://registry.npmjs.org/uniffi-bindgen-react-native/-/uniffi-bindgen-react-native-0.31.0-3.tgz",
+  "integrity": "sha512-br7giBJRr/j00rdMXhOZGMGuDWMAVUcxC9O3lco0KRqzEAxUz00+gegPW5tKamvKbrnj7NB682XUCYrcagtxFA==",
+  "archiveSha256": "fc26ac2ac4d3a7010b988d5b8621a33a26881be0413d9c73088f2231ca086640",
+  "files": 698,
+  "onlySource": true,
+  "licenseSha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d"
+}

@@ -2,9 +2,9 @@
 // Permission Broker Port - async client permission boundary
 // ============================================================
 
-import type { PermissionDecision } from "../events/session.events.js";
-import type { ModelToolSideEffectScope } from "../model/index.js";
-import type { CollaborationMode, RiskLevel } from "./session.port.js";
+import type { PermissionDecision } from "../protocol-values/contract.js";
+import type { ModelToolSideEffectScope } from "../protocol-values/model-contract.js";
+import type { CollaborationMode, RiskLevel } from "../protocol-values/contract.js";
 import type { InteractionRequestOrigin, SessionId, ToolCallId, TraceId, TurnId } from "./shared.js";
 
 export type PermissionRuleBehavior = "allow" | "deny" | "ask";

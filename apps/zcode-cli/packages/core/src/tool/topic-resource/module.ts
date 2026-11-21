@@ -4,7 +4,7 @@
  */
 export const topicResourceToolModule = {
   id: "topic-resource-tool",
-  requires: ["shared", "zcode-cli"],
+  requires: ["agent-contracts", "shared", "zcode-cli"],
   provides: ["topic-resource-tool"],
   publicEntrypoints: ["../handlers/read-topic-resource.ts", "contract.ts"],
 } as const;

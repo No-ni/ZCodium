@@ -29,6 +29,7 @@ pnpm 调用不能插入单独 `--`。本轮实际安装的 WDIO CLI/yargs parser
 1. 验证 HOME、USERPROFILE、TEMP/TMP/TMPDIR、APPDATA、LOCALAPPDATA、Corepack/pnpm/npm/XDG 缓存、应用 HOME 和 artifact 全为当前工作树绝对路径。检查祖先链接、真实路径重定向；Windows 用只读 PowerShell 检查所有重解析点与目录后代。
 
    启动 wrapper 清空 inherited NODE_OPTIONS。WDIO 自己会注入工作树 `tsx/dist/loader.mjs` 的确切 file URL，local-runner 合并时可能重复两次；hook 只允许这同一 loader 1–2 次及至多一个 `--enable-source-maps`，核对 loader 祖先真实路径/reparse。任意其他选项、其他 importer、第三次注入均拒绝。该安全兼容通过 8 项纯分支求值测试，[证据](logs/e2e-preflight-bootstrap-node-options.json)；没有放开任意预加载。
+
 2. 在已选择的 renderer 保存 `qa-project-bootstrap-onload.png`；通过现有职业引导 helper 跳过流程，并等待 `waitForWorkspaceApp(DEFAULT_WORKSPACE)`。保存 before 截图与只读 SQLite/settings/UI 摘要。
 3. 若项目行缺失，真实 hover `project-section`，点击 `virtual-project-add`，输入 `virtual-project-name=ZCodeProject`。复用 `selectNativeProjectDirectories([DEFAULT_WORKSPACE])`，只 mock 原生 `dialog.showOpenDialog` 的用户选择；保留 renderer → preload → main 与项目 owner 的真实路径。
 4. 点击 `virtual-project-save`；核对 `project-folder-trust-path` 只有本轮 DEFAULT_WORKSPACE，再点击 `project-folder-trust-confirm`。等待项目行出现及编辑器退出。

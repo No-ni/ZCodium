@@ -11,13 +11,23 @@ const paths = {
   preload: "packages/desktop/src/preload/index.ts",
   channels: "packages/shared/src/channels.ts",
 };
-const parsed = Object.fromEntries(await Promise.all(Object.entries(paths).map(async ([name, path]) => [
-  name,
-  ts.createSourceFile(path, await readFile(resolve(root, path), "utf8"), ts.ScriptTarget.Latest, true),
-])));
+const parsed = Object.fromEntries(
+  await Promise.all(
+    Object.entries(paths).map(async ([name, path]) => [
+      name,
+      ts.createSourceFile(
+        path,
+        await readFile(resolve(root, path), "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+      ),
+    ]),
+  ),
+);
 
 function variableInitializer(source, name) {
-  const declarations = source.statements.filter(ts.isVariableStatement)
+  const declarations = source.statements
+    .filter(ts.isVariableStatement)
     .flatMap((statement) => Array.from(statement.declarationList.declarations))
     .filter((declaration) => declaration.name.getText(source) === name);
   assert.equal(declarations.length, 1, `实际源码必须只有一个 ${name} 定义`);
@@ -34,25 +44,38 @@ function evaluate(expression, context) {
 
 function createAdapter(zcode) {
   // 执行现有对象本身；仅替换平台副作用，不能复制委托逻辑掩盖缺能力。
-  return evaluate(variableInitializer(parsed.adapter, "desktopBrowserPlatformBridge").getText(parsed.adapter), {
-    window: { zcode },
-    Promise,
-  });
+  return evaluate(
+    variableInitializer(parsed.adapter, "desktopBrowserPlatformBridge").getText(parsed.adapter),
+    {
+      window: { zcode },
+      Promise,
+    },
+  );
 }
 
 function createPreloadMethod(name, ipcRenderer) {
   const objects = [];
   function visit(node) {
-    if (ts.isCallExpression(node) && node.expression.getText(parsed.preload) === "contextBridge.exposeInMainWorld"
-      && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === "zcode"
-      && ts.isObjectLiteralExpression(node.arguments[1])) objects.push(node.arguments[1]);
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.getText(parsed.preload) === "contextBridge.exposeInMainWorld" &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      node.arguments[0].text === "zcode" &&
+      ts.isObjectLiteralExpression(node.arguments[1])
+    )
+      objects.push(node.arguments[1]);
     ts.forEachChild(node, visit);
   }
   visit(parsed.preload);
   assert.equal(objects.length, 1, "宿主 preload 必须沿用唯一 zcode 平台桥");
-  const methods = objects[0].properties.filter((property) => property.name?.getText(parsed.preload) === name);
+  const methods = objects[0].properties.filter(
+    (property) => property.name?.getText(parsed.preload) === name,
+  );
   assert.equal(methods.length, 1, `实际宿主 preload 缺少唯一权限方法 ${name}`);
-  const PlatformChannels = evaluate(variableInitializer(parsed.channels, "PlatformChannels").getText(parsed.channels), {});
+  const PlatformChannels = evaluate(
+    variableInitializer(parsed.channels, "PlatformChannels").getText(parsed.channels),
+    {},
+  );
   return evaluate(`{ ${methods[0].getText(parsed.preload)} }`, { ipcRenderer, PlatformChannels });
 }
 
@@ -67,11 +90,17 @@ const origin = "http://127.0.0.1:43123";
 const snapshot = Object.freeze({ [origin]: Object.freeze({ geolocation: "allow" }) });
 const dataOperations = [
   ["getEmbeddedBrowserSitePermissions", "zcode:get-embedded-browser-site-permissions", []],
-  ["setEmbeddedBrowserSitePermission", "zcode:set-embedded-browser-site-permission", [
-    Object.freeze({ origin, permission: "geolocation", state: "allow" }),
-  ]],
+  [
+    "setEmbeddedBrowserSitePermission",
+    "zcode:set-embedded-browser-site-permission",
+    [Object.freeze({ origin, permission: "geolocation", state: "allow" })],
+  ],
   ["clearEmbeddedBrowserSitePermissions", "zcode:clear-embedded-browser-site-permissions", []],
-  ["resetEmbeddedBrowserSitePermission", "zcode:reset-embedded-browser-site-permission", [Object.freeze({ origin })]],
+  [
+    "resetEmbeddedBrowserSitePermission",
+    "zcode:reset-embedded-browser-site-permission",
+    [Object.freeze({ origin })],
+  ],
 ];
 
 for (const [name, channel, args] of dataOperations) {
@@ -79,7 +108,10 @@ for (const [name, channel, args] of dataOperations) {
     const calls = [];
     const result = Promise.resolve(snapshot);
     const execute = wire(name, {
-      invoke: (...input) => { calls.push(input); return result; },
+      invoke: (...input) => {
+        calls.push(input);
+        return result;
+      },
     });
     const returned = execute(...args);
     assert.equal(returned, result, "adapter 与 preload 不得缓存或重建授权 Promise");
@@ -87,11 +119,15 @@ for (const [name, channel, args] of dataOperations) {
     assert.equal(calls.length, 1);
     assert.equal(calls[0][0], channel);
     assert.equal(calls[0].length, args.length + 1);
-    for (let index = 0; index < args.length; index++) assert.equal(calls[0][index + 1], args[index]);
+    for (let index = 0; index < args.length; index++)
+      assert.equal(calls[0][index + 1], args[index]);
 
     const failure = new Error("synthetic permission IPC rejection");
     const reject = wire(name, { invoke: () => Promise.reject(failure) });
-    await assert.rejects(() => reject(...args), (error) => error === failure);
+    await assert.rejects(
+      () => reject(...args),
+      (error) => error === failure,
+    );
   });
 }
 
@@ -106,7 +142,13 @@ test("权限 prompt 从实际 preload 进入 adapter 订阅，并注销同一 li
   const dispose = subscribe((event) => events.push(event));
   assert.equal(calls.length, 1);
   assert.equal(calls[0].channel, "zcode:embedded-browser-permission-prompt");
-  const event = Object.freeze({ requestId: "synthetic-request", kind: "permission", origin, permission: "notifications", guestWebContentsId: 42 });
+  const event = Object.freeze({
+    requestId: "synthetic-request",
+    kind: "permission",
+    origin,
+    permission: "notifications",
+    guestWebContentsId: 42,
+  });
   calls[0].listener(Object.freeze({ sender: "synthetic-main" }), event);
   assert.deepEqual(events, [event], "只转交权限载荷，不暴露 Electron event");
   assert.equal(typeof dispose, "function");
@@ -122,7 +164,10 @@ test("权限 resolve 沿实际 adapter/preload send 回传原请求，不改成 
     send: (...args) => calls.push(args),
     invoke: () => assert.fail("Main resolve 使用 listener，不能调用 invoke"),
   });
-  const request = Object.freeze({ requestId: "synthetic-request", resolution: Object.freeze({ action: "dismiss" }) });
+  const request = Object.freeze({
+    requestId: "synthetic-request",
+    resolution: Object.freeze({ action: "dismiss" }),
+  });
   execute(request);
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "zcode:embedded-browser-permission-resolve");
@@ -130,7 +175,11 @@ test("权限 resolve 沿实际 adapter/preload send 回传原请求，不改成 
   assert.equal(calls[0][1], request);
 });
 
-const names = [...dataOperations.map(([name]) => name), "onEmbeddedBrowserPermissionPrompt", "resolveEmbeddedBrowserPermissionPrompt"];
+const names = [
+  ...dataOperations.map(([name]) => name),
+  "onEmbeddedBrowserPermissionPrompt",
+  "resolveEmbeddedBrowserPermissionPrompt",
+];
 
 test("旧 preload 缺六能力时实际 adapter 保持 undefined，不伪造支持或成功", () => {
   const adapter = createAdapter({});

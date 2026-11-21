@@ -62,7 +62,7 @@
     "architecture:report": "node scripts/architecture/architecture-check.mjs report",
     "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
-    "test:architecture": "node --test scripts/test/architecture-governance.test.mjs scripts/test/architecture-governance-review.test.mjs scripts/test/architecture-upstream-admission.test.mjs scripts/test/source-size-policy.test.mjs scripts/test/react-hooks-lint.test.mjs scripts/test/architecture-default-branch.test.mjs scripts/test/pre-push-worktree.test.mjs scripts/test/retired-app-unit-evidence.test.mjs scripts/test/session-control-boundary.test.mjs scripts/test/format-upstream-snapshot.test.mjs",
+    "test:architecture": "node --test scripts/test/architecture-governance.test.mjs scripts/test/architecture-governance-review.test.mjs scripts/test/architecture-upstream-admission.test.mjs scripts/test/source-size-policy.test.mjs scripts/test/react-hooks-lint.test.mjs scripts/test/architecture-default-branch.test.mjs scripts/test/pre-push-worktree.test.mjs scripts/test/retired-app-unit-evidence.test.mjs scripts/test/session-control-boundary.test.mjs scripts/test/format-upstream-snapshot.test.mjs scripts/test/license-identifiers.test.mjs scripts/test/qa-diagnostic-tools.test.mjs scripts/test/boolbase-consumer-compat.test.mjs",
     "architecture:adopt": "node scripts/architecture/architecture-check.mjs adopt",
     "docs:stale-phrases:check": "node scripts/check-stale-doc-phrases.mjs",
     "db:schema:check": "node --test scripts/test/sqlite-schema-contract.test.mjs scripts/ci/sqlite-schema-contract.test.mjs scripts/ci/sqlite-schema-baseline.test.mjs scripts/ci/sqlite-schema-baseline-entry.test.mjs",
@@ -88,6 +88,7 @@
     "concurrently": "^9.1.2",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "conventional-changelog-writer": "^8.4.0",
+    "css-select": "5.2.2",
     "dotenv": "^17.4.2",
     "husky": "^9.1.7",
     "istanbul-lib-instrument": "6.0.3",
@@ -116,7 +117,8 @@
       "@electron/rebuild>node-abi": "4.37.0",
       "electron-to-chromium": "1.5.452",
       "react": "19.2.7",
-      "react-dom": "19.2.7"
+      "react-dom": "19.2.7",
+      "boolbase": "2.0.0"
     },
     "patchedDependencies": {
       "@radix-ui/react-collapsible@1.1.12": "patches/@radix-ui__react-collapsible@1.1.12.patch",
@@ -126,7 +128,8 @@
       "@ai-sdk/anthropic@3.0.81": "patches/@ai-sdk__anthropic@3.0.81.patch",
       "@aiden0z/pptx-renderer@1.2.4": "patches/@aiden0z__pptx-renderer@1.2.4.patch",
       "@extend-ai/react-xlsx@0.16.0": "patches/@extend-ai__react-xlsx@0.16.0.patch",
-      "@radix-ui/react-menu@2.1.16": "patches/@radix-ui__react-menu@2.1.16.patch"
+      "@radix-ui/react-menu@2.1.16": "patches/@radix-ui__react-menu@2.1.16.patch",
+      "boolbase@2.0.0": "patches/boolbase@2.0.0.patch"
     }
   }
 }

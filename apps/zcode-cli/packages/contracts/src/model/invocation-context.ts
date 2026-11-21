@@ -3,11 +3,10 @@ import type { ModelApiCallObservation } from "../model/observation.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import type {
   ModelRequestAdmission,
-  ModelRequestSessionType,
-  ModelRetryBudget,
   ModelStatusSink,
   ModelStreamRecoveryStatus,
-} from "./index.js";
+} from "./network-status.js";
+import type { ModelRequestSessionType, ModelRetryBudget } from "../protocol-values/contract.js";
 
 /**
  * Runtime 与 Adapter 之间的调用级执行信息。

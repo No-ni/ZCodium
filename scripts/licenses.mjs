@@ -17,6 +17,8 @@ import {
   isAllowedLicenseIdentifier,
   isReviewedLegacyLicense,
   legacyLicenseIdentifier,
+  readRuntimeLicenseReview,
+  isReviewedRuntimeLicense,
 } from "./license-identifiers.mjs";
 import { readFile } from "node:fs/promises";
 import {
@@ -127,9 +129,11 @@ function weakAllowReason(r) {
 }
 
 if (command === "check") {
+  const { packages: runtimeReviews } = await readRuntimeLicenseReview(ROOT);
   const bad = [];
   for (const r of installed.values()) {
     if (r.bucket === "green" || isReviewedLegacyLicense(r)) continue;
+    if (isReviewedRuntimeLicense(r, runtimeReviews)) continue;
     // 已登记 WEAK_ALLOW 复核结论的构建依赖允许 missing/unresolved 桶：这类包的 license 字段
     // 常缺失或写成 SEE LICENSE IN <file>，无法自动归入 yellow；人工复核记录本身就是放行结论。
     if (!r.isProd && weakAllowReason(r)) continue;

@@ -19,12 +19,15 @@ import { createRegistryBackedTestApp } from "./helpers/registry-backed-test-app.
 
 const VISUALIZE_PLUGIN_ID = "visualize@zcode-plugins-official";
 const VISUALIZE_SKILL = "visualize:visualize";
-const logger = {
+const logger: Logger = {
+  child() {
+    return this;
+  },
   debug() {},
   info() {},
   warn() {},
   error() {},
-} as unknown as Logger;
+};
 
 describe("visualize protocol-only skill discovery", () => {
   let root: string;
@@ -170,11 +173,11 @@ describe("visualize protocol-only skill discovery", () => {
   });
 
   it.each([
-    { name: "default disabled", plugins: {}, expected: false },
+    { name: "default enabled", plugins: {}, expected: true },
     {
       name: "legacy enabled",
       plugins: { enabledPlugins: { [VISUALIZE_PLUGIN_ID]: true } },
-      expected: false,
+      expected: true,
     },
     {
       name: "explicitly enabled",
@@ -197,17 +200,27 @@ describe("visualize protocol-only skill discovery", () => {
   ])("gates model context on the resolved plugin state: $name", async ({ plugins, expected }) => {
     const configPath = join(root, "config.json");
     await writeFile(configPath, JSON.stringify({ plugins }));
+    const workspace = join(root, "workspace");
+    await mkdir(workspace);
     const sessionStore = await createSqliteSessionStore({ dbPath: ":memory:" });
     const requests: string[] = [];
     let app: ZCodeApp | undefined;
     try {
       app = await createRegistryBackedTestApp({
         env: { ...env, ZCODE_GEN_UI_OUTPUT_ROOT: join(root, "visualizations") },
+        // 生成目录在 workspace 外；合成日志端口不建立需要额外关闭的文件写者。
+        loggerFactory: {
+          createLogger: () => logger,
+          setLevel() {},
+          withContext() {
+            return logger;
+          },
+        },
         includeVisualize: true,
         userConfigPath: configPath,
         sessionStore,
         runtimeConfig: {
-          workingDirectory: root,
+          workingDirectory: workspace,
           presentationSurface: "zcode_desktop",
           mcp: { enabled: false },
         },
@@ -264,16 +277,16 @@ describe("visualize protocol-only skill discovery", () => {
     });
   });
 
-  it.each([false, true])(
+  it.each([undefined, false, true])(
     "keeps protocol draft discovery consistent with enabled=%s",
     async (enabled) => {
-      if (enabled) {
-        await mkdir(join(root, ".zcode"));
+      if (typeof enabled === "boolean") {
+        await mkdir(join(root, ".zcodium"));
         await writeFile(
-          join(root, ".zcode", "config.json"),
+          join(root, ".zcodium", "config.json"),
           JSON.stringify({
             plugins: {
-              enabledPlugins: { [VISUALIZE_PLUGIN_ID]: true },
+              enabledPlugins: { [VISUALIZE_PLUGIN_ID]: enabled },
             },
           }),
         );
@@ -284,14 +297,14 @@ describe("visualize protocol-only skill discovery", () => {
         sessions: new Map(),
       } as unknown as ZCodeProtocolAgentServerContext;
       const workspace = { workspacePath: root, workspaceKey: root };
-      await createWorkspaceZCodeApp(context, workspace, {
-        providerRuntimeHeadersPort: {} as ZCodeAppOptions["providerRuntimeHeadersPort"],
-      });
+      await createWorkspaceZCodeApp(context, workspace, {});
       expect(createZCodeApp).toHaveBeenCalledWith(
         expect.objectContaining({ includeVisualize: true }),
       );
       const catalog = await getSkillReferenceCatalog(context, { workspace });
-      expect(catalog.skills.some((skill) => skill.pluginName === "visualize")).toBe(enabled);
+      expect(catalog.skills.some((skill) => skill.pluginName === "visualize")).toBe(
+        enabled !== false,
+      );
     },
   );
 });

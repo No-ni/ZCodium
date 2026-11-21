@@ -1,6 +1,7 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { collectNpmNotices, hashBytes } from "./third-party-npm.mjs";
+import { readRuntimeLicenseReview } from "./license-identifiers.mjs";
 import {
   noticesFileName,
   readNativeSearchNotices,
@@ -47,6 +48,16 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     return sha256;
   }
   for (const record of overrides) if (record.file) await readInput(record.file);
+  const { review: runtimeReview } = await readRuntimeLicenseReview(root);
+  await readInput("third-party/cua-driver/review.json");
+  addText(
+    await readInput("third-party/cua-driver/NOTICE.md"),
+    "CUA runtime distribution",
+    "ZCodium CUA-NOTICES.md shipped beside the runtime",
+  );
+  for (const material of runtimeReview.materials) {
+    addText(await readInput(material.file), "CUA / UBJS precise-version review", material.source);
+  }
   const packageInventory = packages.map(({ notices, ...item }) => ({
     ...item,
     notices: notices.map(({ member, bytes }) => ({
@@ -137,6 +148,9 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       (item) =>
         `- ${item.id} (${item.license ?? "not established"}): ${item.roots.join(", ")}. License reference: ${item.source ?? "not established"}. Original import revision: ${item.importRevision ?? "not recorded"}.${item.reviewRequired ? ` Review required: ${item.reviewRequired}` : ""}`,
     ),
+    "## Reviewed CUA and UBJS runtime source",
+    "MPL Exhibit A source notices, full license terms and exact-version source/build references are retained below. This review does not close the unrelated source evidence limitations above or certify per-installer linked dependencies.",
+    ...runtimeReview.packages.map((item) => `- ${item.id} — ${item.license}: ${item.reason}`),
     "Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.",
     "## Embedded native and WASM components",
     ...embedded.map(
@@ -176,6 +190,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     exceptions: overrides.filter((item) => item.acceptedMissingNotice || item.evidenceKind),
     embedded,
     runtimes,
+    runtimeReview,
     reviewRequired: [
       // 修复：复制源码的缺口此前只写在 README，重生成清单后严格门禁也无法阻断。
       ...copied

@@ -291,21 +291,22 @@ function record(index: number, sessionId = taskId): HistoricalRecord {
         ? `prefix\n${LONG}\nsuffix`
         : `user ${index}`;
   // 本轮QA：main历史按累计消息数投影增量；等长独立单条input会隐藏42的第二命中。
-  const messages: HistoricalMessage[] = index === 0
-    ? [
-        {
-          role: "system",
-          content: `QA_HIST_SYSTEM\n${"synthetic line\n".repeat(80)}QA_HIST_SYSTEM_END`,
-        },
-        { role: "user", content: user },
-        {
-          role: "tool",
-          content: "QA_HIST_TOOL_RESULT",
-          toolCallId: "qa-hist-call-0",
-          toolName: "qa_synthetic_tool",
-        },
-      ]
-    : [...record(index - 1, sessionId).request.messages, { role: "user", content: user }];
+  const messages: HistoricalMessage[] =
+    index === 0
+      ? [
+          {
+            role: "system",
+            content: `QA_HIST_SYSTEM\n${"synthetic line\n".repeat(80)}QA_HIST_SYSTEM_END`,
+          },
+          { role: "user", content: user },
+          {
+            role: "tool",
+            content: "QA_HIST_TOOL_RESULT",
+            toolCallId: "qa-hist-call-0",
+            toolName: "qa_synthetic_tool",
+          },
+        ]
+      : [...record(index - 1, sessionId).request.messages, { role: "user", content: user }];
   return {
     type: "model_io",
     sessionId,
@@ -380,7 +381,8 @@ async function openViewer() {
     owner.scrollTo({top:0});
   `);
   await browser.waitUntil(
-    () => browser.execute(String.raw`
+    () =>
+      browser.execute(String.raw`
       const timeline=document.querySelector('[data-trajectory-timeline=""]');
       const first=timeline?.querySelector('[data-trajectory-virtual-row=""][data-index="0"]');
       return Boolean(first?.querySelector('[data-trajectory-expandable-role="system"][data-state="open"]')&&first.querySelector('[data-trajectory-expandable-role="tool-result"][data-state="open"]'));

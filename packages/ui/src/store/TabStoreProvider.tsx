@@ -51,18 +51,20 @@ export function TabStoreProvider({ children }: { children: ReactNode }) {
  *   const tabs = useTabStore(s => s.tabs);
  *   const addTab = useTabStore(s => s.addTab);
  */
-export function useTabStore<T>(selector: (state: TabStoreState) => T): T {
+export function useTabStore<T>(
+  selector: (state: TabStoreState) => T,
+  options?: { required?: boolean },
+): T {
   const store = useContext(TabStoreContext);
-  if (!store) {
+  if (!store && options?.required !== false) {
     throw new Error("useTabStore 必须在 TabStoreProvider 内使用");
   }
-  return useStore(store, selector);
+  return useStore(store ?? fallbackTabStore, selector);
 }
 
 /** 供可独立渲染的展示组件读取；无 Root provider 时回退为空 tab 状态。 */
 export function useOptionalTabStore<T>(selector: (state: TabStoreState) => T): T {
-  const store = useContext(TabStoreContext);
-  return useStore(store ?? fallbackTabStore, selector);
+  return useTabStore(selector, { required: false });
 }
 
 /**

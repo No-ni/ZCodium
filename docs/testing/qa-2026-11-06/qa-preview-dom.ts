@@ -15,5 +15,9 @@ export async function readQaPreviewLines() {
       for(const host of root.querySelectorAll('*'))if(host.shadowRoot){roots.push(host.shadowRoot);shadows++;}
     }
     return {container:true,shadowRoots:shadows,lines};
-  `) as Promise<{container:boolean;shadowRoots:number;lines:Array<{line:string|null;raw:string;normalized:string}>}>;
+  `) as Promise<{
+    container: boolean;
+    shadowRoots: number;
+    lines: Array<{ line: string | null; raw: string; normalized: string }>;
+  }>;
 }

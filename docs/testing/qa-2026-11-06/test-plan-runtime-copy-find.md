@@ -28,11 +28,11 @@ HIST最终源码链与剩余动作的完整边界见[只读归因](logs/feature-
 
 现有 `conversation-session/manual-review/pending/conversation-session-chat-find-refocus.test.ts` 的会话子链是prepareV4ConversationE2E、真实composer发送 `E2E_CHAT_FIND_REFOCUS_SETUP 请返回查找回归长正文。`、等待assistant marker与正式session完成。它使用现有有限replay `conversation-session-chat-find-refocus.json` 中 `chat-find-refocus-long-body`：fast-text/synthetic、纯正文、唯一 `E2E_CHAT_FIND_REFOCUS_NEEDLE`，没有tools或额外Bash动作。公开归档的readonly header不用作该前置。
 
-| ID | 真实动作 | 验收与证据 |
-| --- | --- | --- |
-| RFC01 | 真实composer首发完成后唯一marker正文→same PANE/turn section→轮尾实际v4-copy-rowId，hover/focus可见后click | mock navigator.clipboard.writeText捕获唯一正文，精确等于现有fixture响应；Check→Copy恢复。write与writeText均完整拦截；无真实clipboard写/读；记录rowId、turnId、长度/sha、请求fixtureId、DPR、PNG/JSON。 |
-| RFC02 | 同一runtime task真实Ctrl+F输入唯一marker，再反复next/previous/Enter/ShiftEnter | 计数1/1；先滚离视口再每次导航让同一命中回到中间范围，保存scroll/rect/中心差/DPR；关闭后重开按当前合同查询为空，重新输入再次定位。范围只有conversation，不切changes/Git。 |
-| RMC03 | 同一完成runtime任务的任务菜单 Copy as Markdown，正常复制两次、受控拒绝、恢复重试 | write优先与writeText fallback均mock；write只消费唯一ClipboardItem的text/plain。正文中首发PROMPT与已有fixture全文各恰一次，User/Assistant段落存在；不复制产品formatter作为预期。记录method、attempt/count、长度/SHA与即时成功/失败toast，拒绝时无新增clip且pending释放，恢复后完整正文不变。 |
+| ID    | 真实动作                                                                                                  | 验收与证据                                                                                                                                                                                                                                                                                  |
+| ----- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RFC01 | 真实composer首发完成后唯一marker正文→same PANE/turn section→轮尾实际v4-copy-rowId，hover/focus可见后click | mock navigator.clipboard.writeText捕获唯一正文，精确等于现有fixture响应；Check→Copy恢复。write与writeText均完整拦截；无真实clipboard写/读；记录rowId、turnId、长度/sha、请求fixtureId、DPR、PNG/JSON。                                                                                      |
+| RFC02 | 同一runtime task真实Ctrl+F输入唯一marker，再反复next/previous/Enter/ShiftEnter                            | 计数1/1；先滚离视口再每次导航让同一命中回到中间范围，保存scroll/rect/中心差/DPR；关闭后重开按当前合同查询为空，重新输入再次定位。范围只有conversation，不切changes/Git。                                                                                                                    |
+| RMC03 | 同一完成runtime任务的任务菜单 Copy as Markdown，正常复制两次、受控拒绝、恢复重试                          | write优先与writeText fallback均mock；write只消费唯一ClipboardItem的text/plain。正文中首发PROMPT与已有fixture全文各恰一次，User/Assistant段落存在；不复制产品formatter作为预期。记录method、attempt/count、长度/SHA与即时成功/失败toast，拒绝时无新增clip且pending释放，恢复后完整正文不变。 |
 
 三项共用一个真实已完成runtime任务，不额外发送prompt。只允许 common、上述已有有限replay main 与本次专用 `qa-runtime-copy-find-title.json` 三份精确路径；准备门禁要求 main/title 各恰一条且 complete/200/loopback/精确 fixtureId，动作前背景已完成。未匹配fixture或重试不能当成功。运行前精确审查三份 JSON 树内真实路径；mode必须replay且实际runtime BaseURL为http127.0.0.1、artifact位于本树，不接受capture/真实key/未知fixture路径。不是对真实Provider质量或网络服务的测试。
 

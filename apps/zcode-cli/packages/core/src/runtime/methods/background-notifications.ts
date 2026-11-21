@@ -74,10 +74,11 @@ export function enqueueBackgroundTaskNotification(
   });
   if (admission) {
     rememberBackgroundNotificationAdmission(this, String(commandId), admission);
-    void this.trackResidencyBlockingWork(admission).catch((error) => {
+    void this.trackResidencyBlockingWork(admission).catch(() => {
+      // 存储异常可能含原文，toString 也可能再抛错；故障日志只保留固定技术原因。
       this.logger?.warn("Failed to admit background notification to ledger", {
         ...traceContextToLogContext(notification.traceContext),
-        errorMessage: error instanceof Error ? error.message : String(error),
+        reason: "storage_write_failed",
         event: "session_input.admit_failed",
         module: "core.runtime",
         status: "failed",
@@ -235,11 +236,11 @@ export async function persistBackgroundTaskNotificationBatch(
         sessionID: this.sessionId,
         promotedMessageID: messageID,
       })
-      .catch((error) => {
+      .catch(() => {
         this.logger?.warn("Failed to mark background notification promoted", {
           ...traceContextToLogContext(command.traceContext),
           commandId: command.id,
-          errorMessage: error instanceof Error ? error.message : String(error),
+          reason: "storage_write_failed",
           event: "session_input.promote_mark_failed",
           module: "core.runtime",
           status: "failed",
@@ -303,11 +304,11 @@ function settleDroppedBackgroundNotification(
     });
   })();
   const tracked = runtime.trackResidencyBlockingWork?.(work) ?? work;
-  void tracked.catch((error: unknown) => {
+  void tracked.catch(() => {
     runtime.logger?.warn("Failed to settle dropped background notification", {
       ...traceContextToLogContext(command.traceContext),
       commandId,
-      errorMessage: error instanceof Error ? error.message : String(error),
+      failureReason: "storage_write_failed",
       event: "session_input.settle_failed",
       module: "core.runtime",
       reason,

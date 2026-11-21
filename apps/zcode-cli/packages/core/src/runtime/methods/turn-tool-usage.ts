@@ -44,11 +44,12 @@ export async function recordToolUsageFromResult(
       errorType,
       errorMessage: result.error?.message,
     });
-  } catch (error) {
+  } catch {
     // 结果路径的 SQLite Usage 写入没有旁路保护，磁盘/锁异常会阻断后续
     // Tool Result 持久化与模型续跑；观测失败绝不能改变 Agent 业务语义。
     runtime.logger?.warn("Usage tool fact write failed", {
-      errorMessage: error instanceof Error ? error.message : String(error),
+      // 不格式化未知异常，避免泄漏存储原文或让 toString 故障反向阻断主流程。
+      reason: "storage_write_failed",
       event: "usage.tool.write.failed",
       module: "core.runtime",
       status: "failed",

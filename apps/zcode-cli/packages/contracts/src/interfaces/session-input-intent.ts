@@ -1,5 +1,5 @@
 import type { GenUiModelContext } from "@zcode/shared/gen-ui";
-import type { ModelSelection } from "../model/model.js";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 
 export type TurnSteerCommandKind = "sendText" | "sendGoalCommand" | "compact";
 

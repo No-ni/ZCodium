@@ -10,10 +10,10 @@
 
 ## 既有owner与accepted场景
 
-| ID | 前置与真实动作 | 已有合同与验收 | 排除 |
-| --- | --- | --- | --- |
-| QAR01 | 退出屏障后只向本run双库播种3个独占合成归档任务；真实进入Archives、查询owned prefix、明确展开own group，再点第一行取消归档 | ArchiveGroupCard默认closed且关闭不挂载行；useArchiveManagement冻结完整候选身份、mutateProjectTask单owner。目标行消失，Host archived=0/cli_deleted=0、CLI session仍存在，其它2个保持归档；保持scope完整 | 不重复主题布局/排序/批量group restore；不发prompt |
-| QAR02 | 用第二个own archived row点击删除→Escape取消；核库与行不变、busy释放；再次点击并确认，只删第二个；正式helper冷重启后再从真实菜单进入Archives并展开own group | 取消在confirm return前不执行mutate；确认仅1个候选，Host cli_deleted与CLI time_deleted持久。删除行不复活，第三个archived/未删保留，第一恢复仍未删 | 不重复已PASS的filter bulk-delete；不操作真实/远端/running会话，不物理删除CLI历史 |
+| ID    | 前置与真实动作                                                                                                                                             | 已有合同与验收                                                                                                                                                                                         | 排除                                                                             |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| QAR01 | 退出屏障后只向本run双库播种3个独占合成归档任务；真实进入Archives、查询owned prefix、明确展开own group，再点第一行取消归档                                  | ArchiveGroupCard默认closed且关闭不挂载行；useArchiveManagement冻结完整候选身份、mutateProjectTask单owner。目标行消失，Host archived=0/cli_deleted=0、CLI session仍存在，其它2个保持归档；保持scope完整 | 不重复主题布局/排序/批量group restore；不发prompt                                |
+| QAR02 | 用第二个own archived row点击删除→Escape取消；核库与行不变、busy释放；再次点击并确认，只删第二个；正式helper冷重启后再从真实菜单进入Archives并展开own group | 取消在confirm return前不执行mutate；确认仅1个候选，Host cli_deleted与CLI time_deleted持久。删除行不复活，第三个archived/未删保留，第一恢复仍未删                                                       | 不重复已PASS的filter bulk-delete；不操作真实/远端/running会话，不物理删除CLI历史 |
 
 ## 写入与生命周期边界
 

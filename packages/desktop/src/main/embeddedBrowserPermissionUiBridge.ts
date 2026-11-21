@@ -19,7 +19,9 @@ import type {
  * - 20s 无响应按 dismiss/cancel 结算（面板不可见或 agent 后台场景自然拒绝）。
  */
 export interface EmbeddedBrowserPermissionUiBridge {
-  promptPermission(request: EmbeddedBrowserPermissionPromptRequest): Promise<EmbeddedBrowserPermissionPromptAction>;
+  promptPermission(
+    request: EmbeddedBrowserPermissionPromptRequest,
+  ): Promise<EmbeddedBrowserPermissionPromptAction>;
   devicePicker(input: {
     origin: string;
     permission: string;
@@ -102,17 +104,24 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
 }): EmbeddedBrowserPermissionUiBridge {
   const { logger } = deps;
   const timeoutMs = deps.promptTimeoutMs ?? 20_000;
-  const pending = new Map<string, { hostWebContentsId: number; resolve(resolution: unknown): void }>();
+  const pending = new Map<
+    string,
+    { hostWebContentsId: number; resolve(resolution: unknown): void }
+  >();
   let resolveListenerRegistered = false;
 
   const getPromptHost = (hostWebContentsId: number | undefined) =>
     hostWebContentsId !== undefined
       ? webContents.fromId(hostWebContentsId)
-      : (BrowserWindow.getFocusedWindow()?.webContents ?? BrowserWindow.getAllWindows()[0]?.webContents);
+      : (BrowserWindow.getFocusedWindow()?.webContents ??
+        BrowserWindow.getAllWindows()[0]?.webContents);
 
   const sendPrompt = (
     hostWebContentsId: number | undefined,
-    event: { requestId: string; kind: "permission" | "screen-share" | "device" } & Record<string, unknown>,
+    event: { requestId: string; kind: "permission" | "screen-share" | "device" } & Record<
+      string,
+      unknown
+    >,
   ): boolean => {
     const host = getPromptHost(hostWebContentsId);
     if (!host || host.isDestroyed()) {
@@ -126,7 +135,10 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
   /** 建一个待决请求：renderer 决策经 resolver 回来，超时按 fallback 结算。 */
   const openPendingPrompt = <T>(
     hostWebContentsId: number | undefined,
-    event: { requestId: string; kind: "permission" | "screen-share" | "device" } & Record<string, unknown>,
+    event: { requestId: string; kind: "permission" | "screen-share" | "device" } & Record<
+      string,
+      unknown
+    >,
     settle: (resolution: unknown) => T,
     fallbackValue: T,
   ): Promise<T> => {
@@ -150,7 +162,10 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
         });
         finish(fallbackValue);
       }, timeoutMs);
-      pending.set(requestId, { hostWebContentsId: host.id, resolve: (resolution) => finish(settle(resolution)) });
+      pending.set(requestId, {
+        hostWebContentsId: host.id,
+        resolve: (resolution) => finish(settle(resolution)),
+      });
       if (!sendPrompt(host.id, event)) finish(fallbackValue);
     });
   };
@@ -272,16 +287,12 @@ export function createEmbeddedBrowserPermissionUiBridge(deps: {
   };
 }
 
-
 /**
  * Electron 41 在「页面请求了 video 但回调未提供流」时会从 callback 内部同步抛
  * TypeError（用户取消共享的正常路径）；直接在 promise 链里调用会被外层 catch 误记为
  * 源获取失败并二次回调。此处隔离后不再向外传播。
  */
-function invokeDisplayMediaCallback(
-  callback: (result: unknown) => void,
-  result: unknown,
-): void {
+function invokeDisplayMediaCallback(callback: (result: unknown) => void, result: unknown): void {
   try {
     callback(result);
   } catch {

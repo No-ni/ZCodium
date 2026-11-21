@@ -1,5 +1,5 @@
 import type { MessageId, PartId, ToolCallId } from "../interfaces/shared.js";
-import type { ModelToolSideEffectScope } from "../model/index.js";
+import type { ModelToolSideEffectScope } from "../protocol-values/model-contract.js";
 
 export type StreamingToolExecutionTiming = "end_of_stream" | "during_stream";
 

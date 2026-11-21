@@ -22,13 +22,13 @@
 
 状态：**READY（仅静态，UI待root新run）**。2026-11-06T19:41:05.440Z合并准入实际执行noEmit与Mocha describe栈注册，5spec共40个fullTitle中选15、排除25、diagnostics 0、accepted=true。表中只写编号文字，避免正则中的竖线破坏GFM列。[完整静态证据](logs/feature-inventory-local-panel-retry-preflight.json)与[可审参数JSON](logs/feature-inventory-local-panel-retry-parameters.json)均已落盘。
 
-| spec | 精确选取 | 当前状态 |
-| --- | --- | --- |
-| `qa-historical-trajectory-20261106.test.ts` | HIST01、HIST02，顺序2it | SHA `44857be6e3dbfe5e9c9afc4372dd67ceb43046bc496ce4d94e5d7ab89037ba8c`；[真实codec roundtrip](logs/feature-inventory-historical-codec-31596-1793991760745.json)502bytes/rows与ID一致exit0；[静态](logs/feature-inventory-historical-static.json)noEmit0/15rawparse0/lint0/fullTitle2。viewer待重跑 |
-| `qa-runtime-copy-find-20261106.test.ts` | RFC01、RFC02、RMC03，顺序3it | 最终SHA `e5066f5ccf1fe6686ad4c69903fb53d654ebe4c2c00ccdfec9adef7a4461d50e`；strict finite exact3静态READY，第二请求仍需本次runtime真实request summary验证，未知请求继续拒绝 |
-| `qa-final-local-gaps-20261106.test.ts` | FLG01–07，7it | 最终SHA `673cb61cee52884b4028003aac2daadfd30198393c0b9a97dd1e16ec4f46b933`；setup拥有[计划](test-plan-final-local-gaps.md)，公开最多51项目分页已root授权 |
-| `qa-residual-local-menus-20261106.test.ts` | RLM05、RLM06，2it | 最终SHA `eaebe0c7aaf09d13946e99827db1960a1808ac1dacfbca496dcf71c75100c152`；仅近期任务和合成文件正文；排除BUG008的04/07及已PASS的08–13 |
-| `qa-short-local-menus-20261106.test.ts` | 仅SLM15，1it | 最终SHA `5cff511dc4b82153fb71ff9d6e2bac8c229ec18cef4b171bac5bcb39174ad4af`；只修preview DOM owner误读，实际owner为@pierre/diffs open shadowRoot，不称Monaco |
+| spec                                        | 精确选取                     | 当前状态                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `qa-historical-trajectory-20261106.test.ts` | HIST01、HIST02，顺序2it      | SHA `44857be6e3dbfe5e9c9afc4372dd67ceb43046bc496ce4d94e5d7ab89037ba8c`；[真实codec roundtrip](logs/feature-inventory-historical-codec-31596-1793991760745.json)502bytes/rows与ID一致exit0；[静态](logs/feature-inventory-historical-static.json)noEmit0/15rawparse0/lint0/fullTitle2。viewer待重跑 |
+| `qa-runtime-copy-find-20261106.test.ts`     | RFC01、RFC02、RMC03，顺序3it | 最终SHA `e5066f5ccf1fe6686ad4c69903fb53d654ebe4c2c00ccdfec9adef7a4461d50e`；strict finite exact3静态READY，第二请求仍需本次runtime真实request summary验证，未知请求继续拒绝                                                                                                                        |
+| `qa-final-local-gaps-20261106.test.ts`      | FLG01–07，7it                | 最终SHA `673cb61cee52884b4028003aac2daadfd30198393c0b9a97dd1e16ec4f46b933`；setup拥有[计划](test-plan-final-local-gaps.md)，公开最多51项目分页已root授权                                                                                                                                           |
+| `qa-residual-local-menus-20261106.test.ts`  | RLM05、RLM06，2it            | 最终SHA `eaebe0c7aaf09d13946e99827db1960a1808ac1dacfbca496dcf71c75100c152`；仅近期任务和合成文件正文；排除BUG008的04/07及已PASS的08–13                                                                                                                                                             |
+| `qa-short-local-menus-20261106.test.ts`     | 仅SLM15，1it                 | 最终SHA `5cff511dc4b82153fb71ff9d6e2bac8c229ec18cef4b171bac5bcb39174ad4af`；只修preview DOM owner误读，实际owner为@pierre/diffs open shadowRoot，不称Monaco                                                                                                                                        |
 
 最终5spec按完整fullTitle与各source实际数量核验为RFC3/HIST2/RLM2/FLG7/SLM1。组合grep：
 

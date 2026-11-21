@@ -13,18 +13,33 @@ interface ObservationContext {
 export async function observeSpfv002(context: Mocha.Context, paths: ObservationContext) {
   const test = context.currentTest;
   const canonicalSuffix = "/packages/desktop/test/e2e/ui-shell/side-pane-full-view.test.ts";
-  if (!test?.title.startsWith("SPFV-E2E-002 ") || !test.file?.replaceAll("\\", "/").endsWith(canonicalSuffix)) return;
+  if (
+    !test?.title.startsWith("SPFV-E2E-002 ") ||
+    !test.file?.replaceAll("\\", "/").endsWith(canonicalSuffix)
+  )
+    return;
   const artifacts = resolve(paths.artifacts);
-  const worker = (process.env.WDIO_WORKER_ID || String(process.pid)).replace(/[^a-zA-Z0-9_-]/gu, "_");
+  const worker = (process.env.WDIO_WORKER_ID || String(process.pid)).replace(
+    /[^a-zA-Z0-9_-]/gu,
+    "_",
+  );
   const counter = ++observationCounter;
-  const stem = join(artifacts, `qa-spfv-observe-${worker}-${String(counter).padStart(3, "0")}-${process.pid}-${Date.now()}`);
+  const stem = join(
+    artifacts,
+    `qa-spfv-observe-${worker}-${String(counter).padStart(3, "0")}-${process.pid}-${Date.now()}`,
+  );
   const capturedAt = new Date().toISOString();
   const evidence: Record<string, unknown> = {
     evidenceKind: "read-only actual SPFV-E2E-002 afterEach DOM and PNG; synthetic E2E only",
     capturedAt,
     worker,
     counter,
-    test: { title: test.title, file: test.file, state: test.state, assertionError: test.err?.message ?? null },
+    test: {
+      title: test.title,
+      file: test.file,
+      state: test.state,
+      assertionError: test.err?.message ?? null,
+    },
     ...paths,
   };
   try {
@@ -97,8 +112,8 @@ export async function observeSpfv002(context: Mocha.Context, paths: ObservationC
     evidence.screenshot = screenshot;
   } catch (error) {
     evidence.observationError = error instanceof Error ? error.message : String(error);
-    await writeFile(stem + ".json", JSON.stringify(evidence, null, 2) + "\n", {flag: "wx"});
+    await writeFile(stem + ".json", JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
     throw error;
   }
-  await writeFile(stem + ".json", JSON.stringify(evidence, null, 2) + "\n", {flag: "wx"});
+  await writeFile(stem + ".json", JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
 }

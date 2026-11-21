@@ -1,4 +1,4 @@
-import type { SessionEvent } from "../events/session.events.js";
+import type { SessionEvent } from "../events/index.js";
 import type {
   PluginActivationStatus,
   SearchPluginsInput,

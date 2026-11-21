@@ -36,6 +36,7 @@ sequenceDiagram
 ```
 
 回归验收使用工作树内合成旧配置/数据库运行真实 Worker 模块：保存的本地项目与顺序首次生成、重复路径去重、conversation/recent-only/task-only 不生成项目；历史任务事实/组织态及未触及表哈希保留；重开 ledger/项目 ID/顺序/任务归属不变；已记账空项目库不自动补写。随后 Desktop UI 使用相同启动链验证项目侧栏，无真实用户数据迁移或手机/远端执行范围变化。
+
 - CLI 保留历史 0001–0023 SQL/id/appVersion；touchedTables 单独适配，不采用官方新增 Source/数据库 identity 项。`runSqliteSessionMigrationsAsync` 调用通用 runner，原同步函数只对已完成账本进行只读验收；空内存测试也改用异步启动，不在生产 sync constructor 写入迁移。`openStartup` 在打开连接前异步建立所选父目录并复核 signal；sync constructor 不创建父目录，只打开及验收已准备库。公开 `openStartupSqliteSessionStore` 必须返回 Promise 并只转发给 `SqliteSessionStore.openStartup`，同时透传可取消迁移选项，不能因名字像启动工厂却调用同步 constructor；Source 的首次建库、重开及预先取消经公开入口验收。取消在 runner COMMIT 前回滚，COMMIT 后保持 committed facts 但不继续发布 ready；Host 在投影维护的 await 边界同样复核 signal。
 - 区域外历史回归 fixture 同样通过真实异步 startup 准备初始库；`local-automation-backend` 不再用同步 `runTasksDatabaseMigrations` 创建库。同步验收函数的专门拒绝/ready 测试保留，不能改回第二个迁移 owner。
 - 备份默认目录只从调用者提供的数据库路径派生相邻 `backup`，允许显式传入优先级目录；本轮回归全部显式绑定项目内 sandbox。内存库可无目录（没有磁盘备份目标）但有真实旧行且需要迁移时必须明确配置目录。公共 Node-only 入口为 `@zcode/shared/sqlite-migrations`，沿当前 package export 与架构 requires 使用，不从 `@zcode/shared` 根引入 Node SQLite 到 UI。

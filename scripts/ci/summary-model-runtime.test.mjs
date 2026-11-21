@@ -75,7 +75,8 @@ function titleRuntime(resolvePreference) {
     },
     createEvent: (type, payload) => ({ type, payload }),
     appendEvent: async () => {},
-    createModelStatusSink: () => () => {},
+    // 当前 title sidecar 用 using 释放状态 sink；替身必须实现同一释放契约。
+    createModelStatusSink: () => ({ [Symbol.dispose]() {} }),
     extractToolCallsFromResult: (result) => result.toolCalls ?? [],
   };
   return { runtime, requests, selections };

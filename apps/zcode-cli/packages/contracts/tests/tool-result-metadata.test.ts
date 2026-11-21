@@ -496,6 +496,8 @@ describe("create_workflow display field set (skew tripwire)", () => {
       "causalityGraph",
       "diagnostics",
       "errorCount",
+      // fill 的 producer 与 shared strict 镜像已同步；旧断言漏记该既有字段。
+      "fill",
       "kind",
       "ok",
       "truncated",

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-21",
+  "scope": "Exact CUA 0.28.2 and UBJS 0.31.0-3 licenses; unrelated materials and final installer linkage remain separately reviewed.",
+  "materials": [
+    {
+      "file": "third-party/upstream/c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9.txt",
+      "sha256": "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9",
+      "source": "https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md"
+    },
+    {
+      "file": "third-party/upstream/7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0.txt",
+      "sha256": "7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0",
+      "source": "Pinned UBRN MPL Exhibit A and SPDX v3.27.0 full MPL-2.0 terms"
+    },
+    {
+      "file": "third-party/upstream/db02ec1345edbf6090f0093ddae3bd41d624d2984af58bcdce3a66cfcad373dc.txt",
+      "sha256": "db02ec1345edbf6090f0093ddae3bd41d624d2984af58bcdce3a66cfcad373dc",
+      "source": "https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/libs/cua-driver/scripts/build-node-runtime.mjs"
+    },
+    {
+      "file": "third-party/upstream/66a466cc022b4bf4a41f678e4d31d9b82098cc55cc364d6e9295366dfd02cef2.txt",
+      "sha256": "66a466cc022b4bf4a41f678e4d31d9b82098cc55cc364d6e9295366dfd02cef2",
+      "source": "@trycua/cua-driver-win32-x64-msvc@0.28.2/node-runtime-NOTICE.md"
+    },
+    {
+      "file": "third-party/upstream/c02be8530d2a5d35894fb83de5102bc860688d01c12daacafeace1613bacb8c6.txt",
+      "sha256": "c02be8530d2a5d35894fb83de5102bc860688d01c12daacafeace1613bacb8c6",
+      "source": "https://registry.npmjs.org/uniffi-bindgen-react-native/-/uniffi-bindgen-react-native-0.31.0-3.tgz"
+    },
+    {
+      "file": "third-party/upstream/2ae9c984b412fb8a590969a096645e3988255c40e7adc70b80fbc610eeb49b4c.txt",
+      "sha256": "2ae9c984b412fb8a590969a096645e3988255c40e7adc70b80fbc610eeb49b4c",
+      "source": "Versioned npm metadata; @ubjs/core gitHead 49bc59194d183a05855ed4104c18eb92fb465e02; @ubjs/node gitHead dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449"
+    }
+  ],
+  "packages": [
+    {
+      "id": "@trycua/cua-driver-darwin-arm64@0.28.2",
+      "license": "MIT AND MPL-2.0",
+      "reason": "The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations."
+    },
+    {
+      "id": "@trycua/cua-driver-darwin-x64@0.28.2",
+      "license": "MIT AND MPL-2.0",
+      "reason": "The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations."
+    },
+    {
+      "id": "@trycua/cua-driver-win32-arm64-msvc@0.28.2",
+      "license": "MIT AND MPL-2.0",
+      "reason": "The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations."
+    },
+    {
+      "id": "@trycua/cua-driver-win32-x64-msvc@0.28.2",
+      "license": "MIT AND MPL-2.0",
+      "reason": "The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations."
+    },
+    {
+      "id": "@ubjs/core@0.31.0-3",
+      "license": "MPL-2.0",
+      "reason": "The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive."
+    },
+    {
+      "id": "@ubjs/node@0.31.0-3",
+      "license": "MPL-2.0",
+      "reason": "The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive."
+    },
+    {
+      "id": "@ubjs/node-darwin-arm64@0.31.0-3",
+      "license": "MPL-2.0",
+      "reason": "The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive."
+    },
+    {
+      "id": "@ubjs/node-darwin-x64@0.31.0-3",
+      "license": "MPL-2.0",
+      "reason": "The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive."
+    },
+    {
+      "id": "@ubjs/node-win32-arm64-msvc@0.31.0-3",
+      "license": "MPL-2.0",
+      "reason": "The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive."
+    },
+    {
+      "id": "@ubjs/node-win32-x64-msvc@0.31.0-3",
+      "license": "MPL-2.0",
+      "reason": "The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive."
+    }
+  ]
+}

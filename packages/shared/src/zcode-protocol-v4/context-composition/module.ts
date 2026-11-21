@@ -6,7 +6,7 @@
  */
 export const contextCompositionModule = {
   id: "context-composition",
-  requires: ["rpc", "services", "shared", "tool-discovery", "zcode-cli"],
+  requires: ["agent-contracts", "rpc", "services", "shared", "tool-discovery", "zcode-cli"],
   provides: ["context-composition"],
   publicEntrypoints: [
     "contract.ts",

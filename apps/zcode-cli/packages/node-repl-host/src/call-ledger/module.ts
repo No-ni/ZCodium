@@ -4,7 +4,7 @@
  */
 export const nodeReplCallLedgerModule = {
   id: "node-repl-call-ledger",
-  requires: ["zcode-cli"],
+  requires: ["agent-contracts", "zcode-cli"],
   provides: ["node-repl-call-ledger"],
   publicEntrypoints: ["contract.ts"],
 } as const;

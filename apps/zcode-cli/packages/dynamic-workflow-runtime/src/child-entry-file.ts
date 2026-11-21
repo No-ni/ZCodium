@@ -1,3 +1,5 @@
+import type { HarnessWarning } from "./harness-options/contract.js";
+export type { HarnessWarning } from "./harness-options/contract.js";
 /**
  * 沙箱入口文件的落盘。
  *
@@ -15,19 +17,10 @@
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-/** harness 向调用方报告的非致命状况；bootstrap 落成 warn 日志。 */
-export interface HarnessWarning {
-  kind: "entry_file_fallback";
-  /** 本想写入的项目目录（`<cwd>/.zcodium/workflow-runs`）。 */
-  projectDir: string;
-  /** 实际回落到的目录。 */
-  fallbackDir: string;
-  /** 项目目录写入失败的错误文本。 */
-  error: string;
-}
+import { tmpdir } from "node:os";
+
+import { join } from "node:path";
 
 export interface WriteChildEntryFileInput {
   cwd: string;

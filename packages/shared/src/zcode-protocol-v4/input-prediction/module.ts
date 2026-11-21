@@ -5,7 +5,7 @@
  */
 export const remoteInputPredictionModule = {
   id: "remote-input-prediction",
-  requires: ["shared", "zcode-cli"],
+  requires: ["agent-contracts", "shared", "zcode-cli"],
   provides: ["remote-input-prediction"],
   publicEntrypoints: [
     "contract.ts",

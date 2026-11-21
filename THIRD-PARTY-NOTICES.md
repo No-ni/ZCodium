@@ -170,7 +170,7 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @hono/node-server@1.19.14 — MIT
 
-- @hono/node-ws@1.3.0 — MIT
+- @hono/node-ws@1.3.2 — MIT
 
 - @iconify/types@2.0.0 — MIT
 
@@ -818,7 +818,7 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - body-parser@2.2.2 — MIT
 
-- boolbase@1.0.0 — ISC
+- boolbase@2.0.0 — ISC
 
 - border-beam@1.0.1 — MIT
 
@@ -2310,31 +2310,15 @@ Some publishers provide only a license identifier or a short README license sect
 
 - quickjs-wasi@2.2.0: https://registry.npmjs.org/quickjs-wasi/2.2.0
 
-- @hono/node-ws@1.3.0: https://registry.npmjs.org/@hono%2fnode-ws/1.3.0
-
 - strict-event-emitter@0.5.1: https://registry.npmjs.org/strict-event-emitter/0.5.1
 
 - lazy-val@1.0.5: https://registry.npmjs.org/lazy-val/1.0.5
-
-- boolbase@1.0.0: https://registry.npmjs.org/boolbase/1.0.0
 
 - @open-draft/deferred-promise@2.2.0: https://registry.npmjs.org/@open-draft%2fdeferred-promise/2.2.0
 
 - is-node-process@1.2.0: https://registry.npmjs.org/is-node-process/1.2.0
 
 - ansi-to-react@6.2.6: https://registry.npmjs.org/ansi-to-react/6.2.6
-
-- @ubjs/core@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/49bc59194d183a05855ed4104c18eb92fb465e02/LICENSE
-
-- @ubjs/node@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-darwin-arm64@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-darwin-x64@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-win32-arm64-msvc@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-win32-x64-msvc@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
 
 The original import revisions of copied components are not recorded in the current checkout. Pinned license references below do not establish the original copy revision. They cover upstream-derived portions only; local adaptations do not change the upstream terms.
 
@@ -2380,6 +2364,30 @@ The original import revisions of copied components are not recorded in the curre
 
 - taste-skill (MIT): apps/zcode-cli/packages/design-plugin/skills/design/design-resources/skills/taste-skill, apps/zcode-cli/packages/design-plugin/skills/design/design-resources/design-skeletons/html-ppt-taste-brutalist, apps/zcode-cli/packages/design-plugin/skills/design/design-resources/design-skeletons/web-prototype-taste-brutalist, apps/zcode-cli/packages/design-plugin/skills/design/design-resources/design-skeletons/web-prototype-taste-editorial, apps/zcode-cli/packages/design-plugin/skills/design/design-resources/design-skeletons/web-prototype-taste-soft. License reference: https://raw.githubusercontent.com/Leonxlnx/taste-skill/3c7017d636c3a4aad378433ea6d0cfa6c921da4a/LICENSE. Original import revision: not recorded.
 
+## Reviewed CUA and UBJS runtime source
+
+MPL Exhibit A source notices, full license terms and exact-version source/build references are retained below. This review does not close the unrelated source evidence limitations above or certify per-installer linked dependencies.
+
+- @trycua/cua-driver-darwin-arm64@0.28.2 — MIT AND MPL-2.0: The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations.
+
+- @trycua/cua-driver-darwin-x64@0.28.2 — MIT AND MPL-2.0: The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations.
+
+- @trycua/cua-driver-win32-arm64-msvc@0.28.2 — MIT AND MPL-2.0: The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations.
+
+- @trycua/cua-driver-win32-x64-msvc@0.28.2 — MIT AND MPL-2.0: The MIT SDK and MPL compatibility runtime retain original notices, full terms, corresponding UBRN 0.31.0-3 source and the exact CUA 0.28.2 build transformations.
+
+- @ubjs/core@0.31.0-3 — MPL-2.0: The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive.
+
+- @ubjs/node@0.31.0-3 — MPL-2.0: The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive.
+
+- @ubjs/node-darwin-arm64@0.31.0-3 — MPL-2.0: The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive.
+
+- @ubjs/node-darwin-x64@0.31.0-3 — MPL-2.0: The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive.
+
+- @ubjs/node-win32-arm64-msvc@0.31.0-3 — MPL-2.0: The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive.
+
+- @ubjs/node-win32-x64-msvc@0.31.0-3 — MPL-2.0: The original MPL Exhibit A notice and full MPL-2.0 terms are preserved. Exact-version publisher source is available at its pinned revision and versioned source archive.
+
 Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.
 
 ## Embedded native and WASM components
@@ -2408,7 +2416,1197 @@ Electron/Chromium target-specific notices are shipped separately under Resources
 
 - @radix-ui/react-menu@2.1.16: modified by ZCode; the changes are recorded in patches/@radix-ui__react-menu@2.1.16.patch in the source repository.
 
+- boolbase@2.0.0: modified by ZCode; the changes are recorded in patches/boolbase@2.0.0.patch in the source repository.
+
 ## License and NOTICE texts
+
+### Notice 0da29876c11f0737d9abde529eb675eac74565ef0ba100f4b42e99612404a065
+
+- CUA runtime distribution: ZCodium CUA-NOTICES.md shipped beside the runtime
+
+
+
+````text
+# CUA runtime distribution
+
+ZCodium distributes the npm packages `@trycua/cua-driver` and the
+selected `@trycua/cua-driver-<platform>` native package, version **0.28.2**,
+together with `@ubjs/core` and `@ubjs/node`, version **0.31.0-3**.
+No proprietary ZCode binaries are included in this runtime.
+
+CUA SDK source, including the compatibility runtime build transformations:
+https://github.com/trycua/cua/tree/fc188250b4ca8549b8e61f937fdb1fb560770e86/libs/cua-driver
+Release tag: `cua-driver-rs-v0.28.2`.
+
+The native `cua_driver_node_runtime.node` is derived from
+uniffi-bindgen-react-native. Its publisher's `node-runtime-NOTICE.md` is
+preserved beside the binary. Corresponding ubjs source (the npm publisher's
+gitHead for @ubjs/core 0.31.0-3):
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/49bc59194d183a05855ed4104c18eb92fb465e02
+
+## CUA — MIT
+
+License source:
+https://github.com/trycua/cua/blob/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+```text
+MIT License
+
+Copyright (c) 2025 Cua AI, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+## ubjs / compatibility Node runtime — MPL-2.0
+
+Copyright the uniffi-bindgen-react-native contributors. The original notice
+at the source revision above reads:
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/
+
+Corresponding @ubjs/node / N-API source (publisher gitHead for 0.31.0-3):
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449
+
+CUA compatibility build: the exact pinned UBRN source package and the transformations in
+https://github.com/trycua/cua/blob/fc188250b4ca8549b8e61f937fdb1fb560770e86/libs/cua-driver/scripts/build-node-runtime.mjs
+
+The source package is available without charge at
+https://registry.npmjs.org/uniffi-bindgen-react-native/-/uniffi-bindgen-react-native-0.31.0-3.tgz
+SHA-256: fc26ac2ac4d3a7010b988d5b8621a33a26881be0413d9c73088f2231ca086640
+
+MPL-2.0 terms: https://www.mozilla.org/MPL/2.0/
+The linked source remains available under MPL-2.0. ZCodium redistributes the publisher's native binaries without further modification.
+The CUA publisher's compatibility changes are documented by its pinned build script above. Packaging may
+remove JavaScript source maps and sourceMappingURL comments; runtime behavior
+and the original copyright and license notices are retained.
+
+## Full MPL-2.0 terms
+
+```text
+ Mozilla Public License Version 2.0
+==================================
+
+1. Definitions
+--------------
+
+1.1. "Contributor"
+means each individual or legal entity that creates, contributes to
+the creation of, or owns Covered Software.
+
+1.2. "Contributor Version"
+means the combination of the Contributions of others (if any) used
+by a Contributor and that particular Contributor's Contribution.
+
+1.3. "Contribution"
+means Covered Software of a particular Contributor.
+
+1.4. "Covered Software"
+means Source Code Form to which the initial Contributor has attached
+the notice in Exhibit A, the Executable Form of such Source Code
+Form, and Modifications of such Source Code Form, in each case
+including portions thereof.
+
+1.5. "Incompatible With Secondary Licenses"
+means
+
+(a) that the initial Contributor has attached the notice described
+in Exhibit B to the Covered Software; or
+
+(b) that the Covered Software was made available under the terms of
+version 1.1 or earlier of the License, but not also under the
+terms of a Secondary License.
+
+1.6. "Executable Form"
+means any form of the work other than Source Code Form.
+
+1.7. "Larger Work"
+means a work that combines Covered Software with other material, in
+a separate file or files, that is not Covered Software.
+
+1.8. "License"
+means this document.
+
+1.9. "Licensable"
+means having the right to grant, to the maximum extent possible,
+whether at the time of the initial grant or subsequently, any and
+all of the rights conveyed by this License.
+
+1.10. "Modifications"
+means any of the following:
+
+(a) any file in Source Code Form that results from an addition to,
+deletion from, or modification of the contents of Covered
+Software; or
+
+(b) any new file in Source Code Form that contains any Covered
+Software.
+
+1.11. "Patent Claims" of a Contributor
+means any patent claim(s), including without limitation, method,
+process, and apparatus claims, in any patent Licensable by such
+Contributor that would be infringed, but for the grant of the
+License, by the making, using, selling, offering for sale, having
+made, import, or transfer of either its Contributions or its
+Contributor Version.
+
+1.12. "Secondary License"
+means either the GNU General Public License, Version 2.0, the GNU
+Lesser General Public License, Version 2.1, the GNU Affero General
+Public License, Version 3.0, or any later versions of those
+licenses.
+
+1.13. "Source Code Form"
+means the form of the work preferred for making modifications.
+
+1.14. "You" (or "Your")
+means an individual or a legal entity exercising rights under this
+License. For legal entities, "You" includes any entity that
+controls, is controlled by, or is under common control with You. For
+purposes of this definition, "control" means (a) the power, direct
+or indirect, to cause the direction or management of such entity,
+whether by contract or otherwise, or (b) ownership of more than
+fifty percent (50%) of the outstanding shares or beneficial
+ownership of such entity.
+
+2. License Grants and Conditions
+--------------------------------
+
+2.1. Grants
+
+Each Contributor hereby grants You a world-wide, royalty-free,
+non-exclusive license:
+
+(a) under intellectual property rights (other than patent or trademark)
+Licensable by such Contributor to use, reproduce, make available,
+modify, display, perform, distribute, and otherwise exploit its
+Contributions, either on an unmodified basis, with Modifications, or
+as part of a Larger Work; and
+
+(b) under Patent Claims of such Contributor to make, use, sell, offer
+for sale, have made, import, and otherwise transfer either its
+Contributions or its Contributor Version.
+
+2.2. Effective Date
+
+The licenses granted in Section 2.1 with respect to any Contribution
+become effective for each Contribution on the date the Contributor first
+distributes such Contribution.
+
+2.3. Limitations on Grant Scope
+
+The licenses granted in this Section 2 are the only rights granted under
+this License. No additional rights or licenses will be implied from the
+distribution or licensing of Covered Software under this License.
+Notwithstanding Section 2.1(b) above, no patent license is granted by a
+Contributor:
+
+(a) for any code that a Contributor has removed from Covered Software;
+or
+
+(b) for infringements caused by: (i) Your and any other third party's
+modifications of Covered Software, or (ii) the combination of its
+Contributions with other software (except as part of its Contributor
+Version); or
+
+(c) under Patent Claims infringed by Covered Software in the absence of
+its Contributions.
+
+This License does not grant any rights in the trademarks, service marks,
+or logos of any Contributor (except as may be necessary to comply with
+the notice requirements in Section 3.4).
+
+2.4. Subsequent Licenses
+
+No Contributor makes additional grants as a result of Your choice to
+distribute the Covered Software under a subsequent version of this
+License (see Section 10.2) or under the terms of a Secondary License (if
+permitted under the terms of Section 3.3).
+
+2.5. Representation
+
+Each Contributor represents that the Contributor believes its
+Contributions are its original creation(s) or it has sufficient rights
+to grant the rights to its Contributions conveyed by this License.
+
+2.6. Fair Use
+
+This License is not intended to limit any rights You have under
+applicable copyright doctrines of fair use, fair dealing, or other
+equivalents.
+
+2.7. Conditions
+
+Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted
+in Section 2.1.
+
+3. Responsibilities
+-------------------
+
+3.1. Distribution of Source Form
+
+All distribution of Covered Software in Source Code Form, including any
+Modifications that You create or to which You contribute, must be under
+the terms of this License. You must inform recipients that the Source
+Code Form of the Covered Software is governed by the terms of this
+License, and how they can obtain a copy of this License. You may not
+attempt to alter or restrict the recipients' rights in the Source Code
+Form.
+
+3.2. Distribution of Executable Form
+
+If You distribute Covered Software in Executable Form then:
+
+(a) such Covered Software must also be made available in Source Code
+Form, as described in Section 3.1, and You must inform recipients of
+the Executable Form how they can obtain a copy of such Source Code
+Form by reasonable means in a timely manner, at a charge no more
+than the cost of distribution to the recipient; and
+
+(b) You may distribute such Executable Form under the terms of this
+License, or sublicense it under different terms, provided that the
+license for the Executable Form does not attempt to limit or alter
+the recipients' rights in the Source Code Form under this License.
+
+3.3. Distribution of a Larger Work
+
+You may create and distribute a Larger Work under terms of Your choice,
+provided that You also comply with the requirements of this License for
+the Covered Software. If the Larger Work is a combination of Covered
+Software with a work governed by one or more Secondary Licenses, and the
+Covered Software is not Incompatible With Secondary Licenses, this
+License permits You to additionally distribute such Covered Software
+under the terms of such Secondary License(s), so that the recipient of
+the Larger Work may, at their option, further distribute the Covered
+Software under the terms of either this License or such Secondary
+License(s).
+
+3.4. Notices
+
+You may not remove or alter the substance of any license notices
+(including copyright notices, patent notices, disclaimers of warranty,
+or limitations of liability) contained within the Source Code Form of
+the Covered Software, except that You may alter any license notices to
+the extent required to remedy known factual inaccuracies.
+
+3.5. Application of Additional Terms
+
+You may choose to offer, and to charge a fee for, warranty, support,
+indemnity or liability obligations to one or more recipients of Covered
+Software. However, You may do so only on Your own behalf, and not on
+behalf of any Contributor. You must make it absolutely clear that any
+such warranty, support, indemnity, or liability obligation is offered by
+You alone, and You hereby agree to indemnify every Contributor for any
+liability incurred by such Contributor as a result of warranty, support,
+indemnity or liability terms You offer. You may include additional
+disclaimers of warranty and limitations of liability specific to any
+jurisdiction.
+
+4. Inability to Comply Due to Statute or Regulation
+---------------------------------------------------
+
+If it is impossible for You to comply with any of the terms of this
+License with respect to some or all of the Covered Software due to
+statute, judicial order, or regulation then You must: (a) comply with
+the terms of this License to the maximum extent possible; and (b)
+describe the limitations and the code they affect. Such description must
+be placed in a text file included with all distributions of the Covered
+Software under this License. Except to the extent prohibited by statute
+or regulation, such description must be sufficiently detailed for a
+recipient of ordinary skill to be able to understand it.
+
+5. Termination
+--------------
+
+5.1. The rights granted under this License will terminate automatically
+if You fail to comply with any of its terms. However, if You become
+compliant, then the rights granted under this License from a particular
+Contributor are reinstated (a) provisionally, unless and until such
+Contributor explicitly and finally terminates Your grants, and (b) on an
+ongoing basis, if such Contributor fails to notify You of the
+non-compliance by some reasonable means prior to 60 days after You have
+come back into compliance. Moreover, Your grants from a particular
+Contributor are reinstated on an ongoing basis if such Contributor
+notifies You of the non-compliance by some reasonable means, this is the
+first time You have received notice of non-compliance with this License
+from such Contributor, and You become compliant prior to 30 days after
+Your receipt of the notice.
+
+5.2. If You initiate litigation against any entity by asserting a patent
+infringement claim (excluding declaratory judgment actions,
+counter-claims, and cross-claims) alleging that a Contributor Version
+directly or indirectly infringes any patent, then the rights granted to
+You by any and all Contributors for the Covered Software under Section
+2.1 of this License shall terminate.
+
+5.3. In the event of termination under Sections 5.1 or 5.2 above, all
+end user license agreements (excluding distributors and resellers) which
+have been validly granted by You or Your distributors under this License
+prior to termination shall survive termination.
+
+************************************************************************
+* *
+* 6. Disclaimer of Warranty *
+* ------------------------- *
+* *
+* Covered Software is provided under this License on an "as is" *
+* basis, without warranty of any kind, either expressed, implied, or *
+* statutory, including, without limitation, warranties that the *
+* Covered Software is free of defects, merchantable, fit for a *
+* particular purpose or non-infringing. The entire risk as to the *
+* quality and performance of the Covered Software is with You. *
+* Should any Covered Software prove defective in any respect, You *
+* (not any Contributor) assume the cost of any necessary servicing, *
+* repair, or correction. This disclaimer of warranty constitutes an *
+* essential part of this License. No use of any Covered Software is *
+* authorized under this License except under this disclaimer. *
+* *
+************************************************************************
+
+************************************************************************
+* *
+* 7. Limitation of Liability *
+* -------------------------- *
+* *
+* Under no circumstances and under no legal theory, whether tort *
+* (including negligence), contract, or otherwise, shall any *
+* Contributor, or anyone who distributes Covered Software as *
+* permitted above, be liable to You for any direct, indirect, *
+* special, incidental, or consequential damages of any character *
+* including, without limitation, damages for lost profits, loss of *
+* goodwill, work stoppage, computer failure or malfunction, or any *
+* and all other commercial damages or losses, even if such party *
+* shall have been informed of the possibility of such damages. This *
+* limitation of liability shall not apply to liability for death or *
+* personal injury resulting from such party's negligence to the *
+* extent applicable law prohibits such limitation. Some *
+* jurisdictions do not allow the exclusion or limitation of *
+* incidental or consequential damages, so this exclusion and *
+* limitation may not apply to You. *
+* *
+************************************************************************
+
+8. Litigation
+-------------
+
+Any litigation relating to this License may be brought only in the
+courts of a jurisdiction where the defendant maintains its principal
+place of business and such litigation shall be governed by laws of that
+jurisdiction, without reference to its conflict-of-law provisions.
+Nothing in this Section shall prevent a party's ability to bring
+cross-claims or counter-claims.
+
+9. Miscellaneous
+----------------
+
+This License represents the complete agreement concerning the subject
+matter hereof. If any provision of this License is held to be
+unenforceable, such provision shall be reformed only to the extent
+necessary to make it enforceable. Any law or regulation which provides
+that the language of a contract shall be construed against the drafter
+shall not be used to construe this License against a Contributor.
+
+10. Versions of the License
+---------------------------
+
+10.1. New Versions
+
+Mozilla Foundation is the license steward. Except as provided in Section
+10.3, no one other than the license steward has the right to modify or
+publish new versions of this License. Each version will be given a
+distinguishing version number.
+
+10.2. Effect of New Versions
+
+You may distribute the Covered Software under the terms of the version
+of the License under which You originally received the Covered Software,
+or under the terms of any subsequent version published by the license
+steward.
+
+10.3. Modified Versions
+
+If you create software not governed by this License, and you want to
+create a new license for such software, you may create and use a
+modified version of this License if you rename the license and remove
+any references to the name of the license steward (except to note that
+such modified license differs from this License).
+
+10.4. Distributing Source Code Form that is Incompatible With Secondary
+Licenses
+
+If You choose to distribute Source Code Form that is Incompatible With
+Secondary Licenses under the terms of this version of the License, the
+notice described in Exhibit B of this License must be attached.
+
+Exhibit A - Source Code Form License Notice
+-------------------------------------------
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+If it is not possible or desirable to put the notice in a particular
+file, then You may include the notice in a location (such as a LICENSE
+file in a relevant directory) where a recipient would be likely to look
+for such a notice.
+
+You may add additional accurate notices of copyright ownership.
+
+Exhibit B - "Incompatible With Secondary Licenses" Notice
+---------------------------------------------------------
+
+This Source Code Form is "Incompatible With Secondary Licenses", as
+defined by the Mozilla Public License, v. 2.0.
+
+```
+
+````
+
+### Notice c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9
+
+- CUA / UBJS precise-version review: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+- @trycua/cua-driver-darwin-arm64@0.28.2: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+- @trycua/cua-driver-darwin-x64@0.28.2: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+- @trycua/cua-driver-win32-arm64-msvc@0.28.2: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+- @trycua/cua-driver-win32-x64-msvc@0.28.2: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+- @trycua/cua-driver@0.28.2: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
+
+
+
+````text
+MIT License
+
+Copyright (c) 2025 Cua AI, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0
+
+- CUA / UBJS precise-version review: Pinned UBRN MPL Exhibit A and SPDX v3.27.0 full MPL-2.0 terms
+
+- @ubjs/core@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/49bc59194d183a05855ed4104c18eb92fb465e02/LICENSE
+
+- @ubjs/node-darwin-arm64@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
+
+- @ubjs/node-darwin-x64@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
+
+- @ubjs/node-win32-arm64-msvc@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
+
+- @ubjs/node-win32-x64-msvc@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
+
+- @ubjs/node@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
+
+
+
+````text
+Upstream LICENSE reference (verbatim):
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/
+
+MPL-2.0 standard terms from SPDX license-list-data v3.27.0 (not an upstream copyright notice):
+
+Mozilla Public License Version 2.0
+==================================
+
+1. Definitions
+--------------
+
+1.1. "Contributor"
+    means each individual or legal entity that creates, contributes to
+    the creation of, or owns Covered Software.
+
+1.2. "Contributor Version"
+    means the combination of the Contributions of others (if any) used
+    by a Contributor and that particular Contributor's Contribution.
+
+1.3. "Contribution"
+    means Covered Software of a particular Contributor.
+
+1.4. "Covered Software"
+    means Source Code Form to which the initial Contributor has attached
+    the notice in Exhibit A, the Executable Form of such Source Code
+    Form, and Modifications of such Source Code Form, in each case
+    including portions thereof.
+
+1.5. "Incompatible With Secondary Licenses"
+    means
+
+    (a) that the initial Contributor has attached the notice described
+        in Exhibit B to the Covered Software; or
+
+    (b) that the Covered Software was made available under the terms of
+        version 1.1 or earlier of the License, but not also under the
+        terms of a Secondary License.
+
+1.6. "Executable Form"
+    means any form of the work other than Source Code Form.
+
+1.7. "Larger Work"
+    means a work that combines Covered Software with other material, in 
+    a separate file or files, that is not Covered Software.
+
+1.8. "License"
+    means this document.
+
+1.9. "Licensable"
+    means having the right to grant, to the maximum extent possible,
+    whether at the time of the initial grant or subsequently, any and
+    all of the rights conveyed by this License.
+
+1.10. "Modifications"
+    means any of the following:
+
+    (a) any file in Source Code Form that results from an addition to,
+        deletion from, or modification of the contents of Covered
+        Software; or
+
+    (b) any new file in Source Code Form that contains any Covered
+        Software.
+
+1.11. "Patent Claims" of a Contributor
+    means any patent claim(s), including without limitation, method,
+    process, and apparatus claims, in any patent Licensable by such
+    Contributor that would be infringed, but for the grant of the
+    License, by the making, using, selling, offering for sale, having
+    made, import, or transfer of either its Contributions or its
+    Contributor Version.
+
+1.12. "Secondary License"
+    means either the GNU General Public License, Version 2.0, the GNU
+    Lesser General Public License, Version 2.1, the GNU Affero General
+    Public License, Version 3.0, or any later versions of those
+    licenses.
+
+1.13. "Source Code Form"
+    means the form of the work preferred for making modifications.
+
+1.14. "You" (or "Your")
+    means an individual or a legal entity exercising rights under this
+    License. For legal entities, "You" includes any entity that
+    controls, is controlled by, or is under common control with You. For
+    purposes of this definition, "control" means (a) the power, direct
+    or indirect, to cause the direction or management of such entity,
+    whether by contract or otherwise, or (b) ownership of more than
+    fifty percent (50%) of the outstanding shares or beneficial
+    ownership of such entity.
+
+2. License Grants and Conditions
+--------------------------------
+
+2.1. Grants
+
+Each Contributor hereby grants You a world-wide, royalty-free,
+non-exclusive license:
+
+(a) under intellectual property rights (other than patent or trademark)
+    Licensable by such Contributor to use, reproduce, make available,
+    modify, display, perform, distribute, and otherwise exploit its
+    Contributions, either on an unmodified basis, with Modifications, or
+    as part of a Larger Work; and
+
+(b) under Patent Claims of such Contributor to make, use, sell, offer
+    for sale, have made, import, and otherwise transfer either its
+    Contributions or its Contributor Version.
+
+2.2. Effective Date
+
+The licenses granted in Section 2.1 with respect to any Contribution
+become effective for each Contribution on the date the Contributor first
+distributes such Contribution.
+
+2.3. Limitations on Grant Scope
+
+The licenses granted in this Section 2 are the only rights granted under
+this License. No additional rights or licenses will be implied from the
+distribution or licensing of Covered Software under this License.
+Notwithstanding Section 2.1(b) above, no patent license is granted by a
+Contributor:
+
+(a) for any code that a Contributor has removed from Covered Software;
+    or
+
+(b) for infringements caused by: (i) Your and any other third party's
+    modifications of Covered Software, or (ii) the combination of its
+    Contributions with other software (except as part of its Contributor
+    Version); or
+
+(c) under Patent Claims infringed by Covered Software in the absence of
+    its Contributions.
+
+This License does not grant any rights in the trademarks, service marks,
+or logos of any Contributor (except as may be necessary to comply with
+the notice requirements in Section 3.4).
+
+2.4. Subsequent Licenses
+
+No Contributor makes additional grants as a result of Your choice to
+distribute the Covered Software under a subsequent version of this
+License (see Section 10.2) or under the terms of a Secondary License (if
+permitted under the terms of Section 3.3).
+
+2.5. Representation
+
+Each Contributor represents that the Contributor believes its
+Contributions are its original creation(s) or it has sufficient rights
+to grant the rights to its Contributions conveyed by this License.
+
+2.6. Fair Use
+
+This License is not intended to limit any rights You have under
+applicable copyright doctrines of fair use, fair dealing, or other
+equivalents.
+
+2.7. Conditions
+
+Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted
+in Section 2.1.
+
+3. Responsibilities
+-------------------
+
+3.1. Distribution of Source Form
+
+All distribution of Covered Software in Source Code Form, including any
+Modifications that You create or to which You contribute, must be under
+the terms of this License. You must inform recipients that the Source
+Code Form of the Covered Software is governed by the terms of this
+License, and how they can obtain a copy of this License. You may not
+attempt to alter or restrict the recipients' rights in the Source Code
+Form.
+
+3.2. Distribution of Executable Form
+
+If You distribute Covered Software in Executable Form then:
+
+(a) such Covered Software must also be made available in Source Code
+    Form, as described in Section 3.1, and You must inform recipients of
+    the Executable Form how they can obtain a copy of such Source Code
+    Form by reasonable means in a timely manner, at a charge no more
+    than the cost of distribution to the recipient; and
+
+(b) You may distribute such Executable Form under the terms of this
+    License, or sublicense it under different terms, provided that the
+    license for the Executable Form does not attempt to limit or alter
+    the recipients' rights in the Source Code Form under this License.
+
+3.3. Distribution of a Larger Work
+
+You may create and distribute a Larger Work under terms of Your choice,
+provided that You also comply with the requirements of this License for
+the Covered Software. If the Larger Work is a combination of Covered
+Software with a work governed by one or more Secondary Licenses, and the
+Covered Software is not Incompatible With Secondary Licenses, this
+License permits You to additionally distribute such Covered Software
+under the terms of such Secondary License(s), so that the recipient of
+the Larger Work may, at their option, further distribute the Covered
+Software under the terms of either this License or such Secondary
+License(s).
+
+3.4. Notices
+
+You may not remove or alter the substance of any license notices
+(including copyright notices, patent notices, disclaimers of warranty,
+or limitations of liability) contained within the Source Code Form of
+the Covered Software, except that You may alter any license notices to
+the extent required to remedy known factual inaccuracies.
+
+3.5. Application of Additional Terms
+
+You may choose to offer, and to charge a fee for, warranty, support,
+indemnity or liability obligations to one or more recipients of Covered
+Software. However, You may do so only on Your own behalf, and not on
+behalf of any Contributor. You must make it absolutely clear that any
+such warranty, support, indemnity, or liability obligation is offered by
+You alone, and You hereby agree to indemnify every Contributor for any
+liability incurred by such Contributor as a result of warranty, support,
+indemnity or liability terms You offer. You may include additional
+disclaimers of warranty and limitations of liability specific to any
+jurisdiction.
+
+4. Inability to Comply Due to Statute or Regulation
+---------------------------------------------------
+
+If it is impossible for You to comply with any of the terms of this
+License with respect to some or all of the Covered Software due to
+statute, judicial order, or regulation then You must: (a) comply with
+the terms of this License to the maximum extent possible; and (b)
+describe the limitations and the code they affect. Such description must
+be placed in a text file included with all distributions of the Covered
+Software under this License. Except to the extent prohibited by statute
+or regulation, such description must be sufficiently detailed for a
+recipient of ordinary skill to be able to understand it.
+
+5. Termination
+--------------
+
+5.1. The rights granted under this License will terminate automatically
+if You fail to comply with any of its terms. However, if You become
+compliant, then the rights granted under this License from a particular
+Contributor are reinstated (a) provisionally, unless and until such
+Contributor explicitly and finally terminates Your grants, and (b) on an
+ongoing basis, if such Contributor fails to notify You of the
+non-compliance by some reasonable means prior to 60 days after You have
+come back into compliance. Moreover, Your grants from a particular
+Contributor are reinstated on an ongoing basis if such Contributor
+notifies You of the non-compliance by some reasonable means, this is the
+first time You have received notice of non-compliance with this License
+from such Contributor, and You become compliant prior to 30 days after
+Your receipt of the notice.
+
+5.2. If You initiate litigation against any entity by asserting a patent
+infringement claim (excluding declaratory judgment actions,
+counter-claims, and cross-claims) alleging that a Contributor Version
+directly or indirectly infringes any patent, then the rights granted to
+You by any and all Contributors for the Covered Software under Section
+2.1 of this License shall terminate.
+
+5.3. In the event of termination under Sections 5.1 or 5.2 above, all
+end user license agreements (excluding distributors and resellers) which
+have been validly granted by You or Your distributors under this License
+prior to termination shall survive termination.
+
+************************************************************************
+*                                                                      *
+*  6. Disclaimer of Warranty                                           *
+*  -------------------------                                           *
+*                                                                      *
+*  Covered Software is provided under this License on an "as is"       *
+*  basis, without warranty of any kind, either expressed, implied, or  *
+*  statutory, including, without limitation, warranties that the       *
+*  Covered Software is free of defects, merchantable, fit for a        *
+*  particular purpose or non-infringing. The entire risk as to the     *
+*  quality and performance of the Covered Software is with You.        *
+*  Should any Covered Software prove defective in any respect, You     *
+*  (not any Contributor) assume the cost of any necessary servicing,   *
+*  repair, or correction. This disclaimer of warranty constitutes an   *
+*  essential part of this License. No use of any Covered Software is   *
+*  authorized under this License except under this disclaimer.         *
+*                                                                      *
+************************************************************************
+
+************************************************************************
+*                                                                      *
+*  7. Limitation of Liability                                          *
+*  --------------------------                                          *
+*                                                                      *
+*  Under no circumstances and under no legal theory, whether tort      *
+*  (including negligence), contract, or otherwise, shall any           *
+*  Contributor, or anyone who distributes Covered Software as          *
+*  permitted above, be liable to You for any direct, indirect,         *
+*  special, incidental, or consequential damages of any character      *
+*  including, without limitation, damages for lost profits, loss of    *
+*  goodwill, work stoppage, computer failure or malfunction, or any    *
+*  and all other commercial damages or losses, even if such party      *
+*  shall have been informed of the possibility of such damages. This   *
+*  limitation of liability shall not apply to liability for death or   *
+*  personal injury resulting from such party's negligence to the       *
+*  extent applicable law prohibits such limitation. Some               *
+*  jurisdictions do not allow the exclusion or limitation of           *
+*  incidental or consequential damages, so this exclusion and          *
+*  limitation may not apply to You.                                    *
+*                                                                      *
+************************************************************************
+
+8. Litigation
+-------------
+
+Any litigation relating to this License may be brought only in the
+courts of a jurisdiction where the defendant maintains its principal
+place of business and such litigation shall be governed by laws of that
+jurisdiction, without reference to its conflict-of-law provisions.
+Nothing in this Section shall prevent a party's ability to bring
+cross-claims or counter-claims.
+
+9. Miscellaneous
+----------------
+
+This License represents the complete agreement concerning the subject
+matter hereof. If any provision of this License is held to be
+unenforceable, such provision shall be reformed only to the extent
+necessary to make it enforceable. Any law or regulation which provides
+that the language of a contract shall be construed against the drafter
+shall not be used to construe this License against a Contributor.
+
+10. Versions of the License
+---------------------------
+
+10.1. New Versions
+
+Mozilla Foundation is the license steward. Except as provided in Section
+10.3, no one other than the license steward has the right to modify or
+publish new versions of this License. Each version will be given a
+distinguishing version number.
+
+10.2. Effect of New Versions
+
+You may distribute the Covered Software under the terms of the version
+of the License under which You originally received the Covered Software,
+or under the terms of any subsequent version published by the license
+steward.
+
+10.3. Modified Versions
+
+If you create software not governed by this License, and you want to
+create a new license for such software, you may create and use a
+modified version of this License if you rename the license and remove
+any references to the name of the license steward (except to note that
+such modified license differs from this License).
+
+10.4. Distributing Source Code Form that is Incompatible With Secondary
+Licenses
+
+If You choose to distribute Source Code Form that is Incompatible With
+Secondary Licenses under the terms of this version of the License, the
+notice described in Exhibit B of this License must be attached.
+
+Exhibit A - Source Code Form License Notice
+-------------------------------------------
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+If it is not possible or desirable to put the notice in a particular
+file, then You may include the notice in a location (such as a LICENSE
+file in a relevant directory) where a recipient would be likely to look
+for such a notice.
+
+You may add additional accurate notices of copyright ownership.
+
+Exhibit B - "Incompatible With Secondary Licenses" Notice
+---------------------------------------------------------
+
+  This Source Code Form is "Incompatible With Secondary Licenses", as
+  defined by the Mozilla Public License, v. 2.0.
+
+````
+
+### Notice db02ec1345edbf6090f0093ddae3bd41d624d2984af58bcdce3a66cfcad373dc
+
+- CUA / UBJS precise-version review: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/libs/cua-driver/scripts/build-node-runtime.mjs
+
+
+
+````text
+#!/usr/bin/env node
+
+/**
+ * Build the pinned UBRN N-API runtime with a copy-based RustBuffer boundary.
+ *
+ * Electron 20+ rejects external ArrayBuffers. UBRN 0.31.0-3 uses them as a
+ * zero-copy optimization for every RustBuffer argument and return. The
+ * generated SDK already copies RustBuffer contents while lowering/lifting, so
+ * this compatibility build keeps the same values and ownership while using
+ * JavaScript-owned Uint8Arrays at the N-API boundary.
+ *
+ * The patched source remains MPL-2.0 and comes from the exact, pinned
+ * uniffi-bindgen-react-native development dependency.
+ */
+import { spawnSync } from "node:child_process"
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
+import { basename, dirname, join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url))
+const driverRoot = resolve(scriptDirectory, "..")
+const typescriptRoot = join(driverRoot, "typescript")
+const upstreamRoot = join(
+  typescriptRoot,
+  "node_modules",
+  "uniffi-bindgen-react-native",
+)
+const outputIndex = process.argv.indexOf("--output")
+if (outputIndex < 0 || !process.argv[outputIndex + 1]) {
+  throw new Error("usage: build-node-runtime.mjs --output <path> [--target <triple>]")
+}
+const output = resolve(process.argv[outputIndex + 1])
+const targetIndex = process.argv.indexOf("--target")
+const target = targetIndex < 0 ? undefined : process.argv[targetIndex + 1]
+if (targetIndex >= 0 && !target) throw new Error("missing --target value")
+
+function cargoEnvironment() {
+  const environment = { ...process.env }
+  const buildsWindowsMsvc = target
+    ? target.endsWith("-pc-windows-msvc")
+    : process.platform === "win32"
+  if (!buildsWindowsMsvc) return environment
+
+  // Native npm packages must load on a clean Windows installation. The
+  // upstream N-API runtime includes C++ objects, so MSVC's default dynamic
+  // CRT linkage otherwise leaves VCRUNTIME140.dll as an undeclared system
+  // prerequisite before any Cua code can run.
+  environment.RUSTFLAGS = [
+    environment.RUSTFLAGS?.trim(),
+    "-C target-feature=+crt-static",
+  ].filter(Boolean).join(" ")
+  return environment
+}
+
+const manifest = JSON.parse(readFileSync(join(typescriptRoot, "package.json"), "utf8"))
+const expectedVersion = manifest.devDependencies?.["uniffi-bindgen-react-native"]
+const upstreamManifestPath = join(upstreamRoot, "package.json")
+if (!existsSync(upstreamManifestPath)) {
+  throw new Error("missing pinned UBRN source; run npm ci in libs/cua-driver/typescript")
+}
+const actualVersion = JSON.parse(readFileSync(upstreamManifestPath, "utf8")).version
+if (actualVersion !== expectedVersion) {
+  throw new Error(`UBRN source mismatch: expected ${expectedVersion}, found ${actualVersion}`)
+}
+
+function replaceOnce(source, needle, replacement, description) {
+  const matches = source.split(needle).length - 1
+  if (matches !== 1) throw new Error(`expected one ${description}, found ${matches}`)
+  return source.replace(needle, replacement)
+}
+
+function patchRegister(source) {
+  const allocStart = source.indexOf(
+    "    let alloc_module = Arc::clone(&module);\n    let alloc_fn =",
+  )
+  const allocEndNeedle = '    result.set_named_property("rustbuffer_alloc", alloc_fn)?;'
+  const allocEnd = source.indexOf(allocEndNeedle, allocStart)
+  if (allocStart < 0 || allocEnd < 0) throw new Error("UBRN alloc block changed")
+  source = `${source.slice(0, allocStart)}    let alloc_fn = env.create_function_from_closure("rustbuffer_alloc", move |ctx| {
+        let size_arg: i32 = ctx.get(0)?;
+        if size_arg < 0 {
+            return Err(napi::Error::from_reason(
+                "rustbuffer_alloc size must be non-negative".to_string(),
+            ));
+        }
+        let len = usize::try_from(size_arg).map_err(|_| {
+            napi::Error::from_reason("RustBuffer size exceeds addressable memory".to_string())
+        })?;
+        let typedarray = unsafe {
+            napi_utils::create_uint8array(ctx.env.raw(), std::ptr::null(), len)?
+        };
+        unsafe { JsUnknown::from_raw(ctx.env.raw(), typedarray) }
+    })?;
+${source.slice(allocEnd)}`
+
+  const freeStart = source.indexOf("    let free_module = Arc::clone(&module);")
+  const freeEndNeedle = '    result.set_named_property("rustbuffer_free", free_fn)?;'
+  const freeEnd = source.indexOf(freeEndNeedle, freeStart)
+  if (freeStart < 0 || freeEnd < 0) throw new Error("UBRN free block changed")
+  return `${source.slice(0, freeStart)}    let free_fn = env.create_function_from_closure("rustbuffer_free", move |ctx| {
+        // Copy-mode buffers are JavaScript-owned. RustBuffer arguments are
+        // separately allocated by rustbuffer_from_bytes inside call dispatch.
+        ctx.env.get_undefined().map(|u| u.into_unknown())
+    })?;
+${source.slice(freeEnd)}`
+}
+
+function patchCall(source) {
+  source = replaceOnce(
+    source,
+    "rust_buffer_to_js_uint8array_handoff(env, *rb, capacity_symbol)",
+    "rust_buffer_to_js_uint8array_copy(env, *rb, module.rb_ops().free_ptr)",
+    "RustBuffer return dispatch",
+  )
+  source = replaceOnce(
+    source,
+    "fn rust_buffer_to_js_uint8array_handoff(\n    env: &napi::Env,\n    rb: RustBufferC,\n    capacity_symbol: &CapacitySymbol,\n)",
+    "fn rust_buffer_to_js_uint8array_copy(\n    env: &napi::Env,\n    rb: RustBufferC,\n    free_ptr: *const c_void,\n)",
+    "RustBuffer return function",
+  )
+  const bodyStart = source.indexOf(
+    "    // Empty RustBuffer (capacity == 0 or null data): no allocation to alias,",
+  )
+  const bodyEndNeedle = "    Ok(unsafe { JsUnknown::from_raw(raw_env, typedarray)? })\n}"
+  const bodyEnd = source.indexOf(bodyEndNeedle, bodyStart)
+  if (bodyStart < 0 || bodyEnd < 0) throw new Error("UBRN RustBuffer return body changed")
+  const replacement = `    // Electron disallows external ArrayBuffers. Copy into a V8-owned
+    // Uint8Array, then release the Rust allocation before returning to JS.
+    let typedarray = unsafe { napi_utils::create_uint8array(raw_env, rb.data, len) };
+    unsafe { napi_utils::free_rustbuffer(rb, free_ptr) };
+    let typedarray = typedarray?;
+    Ok(unsafe { JsUnknown::from_raw(raw_env, typedarray)? })
+}`
+  return `${source.slice(0, bodyStart)}${replacement}${source.slice(bodyEnd + bodyEndNeedle.length)}`
+}
+
+const temporaryRoot = mkdtempSync(join(tmpdir(), "cua-driver-node-runtime-"))
+try {
+  const runtimeRoot = join(temporaryRoot, "runtime")
+  cpSync(join(upstreamRoot, "runtimes", "core"), join(runtimeRoot, "core"), {
+    recursive: true,
+  })
+  cpSync(join(upstreamRoot, "runtimes", "napi"), join(runtimeRoot, "napi"), {
+    recursive: true,
+  })
+  const registerPath = join(runtimeRoot, "napi", "src", "register", "mod.rs")
+  writeFileSync(registerPath, patchRegister(readFileSync(registerPath, "utf8")))
+  const callPath = join(runtimeRoot, "napi", "src", "call", "mod.rs")
+  writeFileSync(callPath, patchCall(readFileSync(callPath, "utf8")))
+
+  const args = ["build", "--release", "--manifest-path", join(runtimeRoot, "napi", "Cargo.toml")]
+  if (target) args.push("--target", target)
+  const result = spawnSync("cargo", args, {
+    env: cargoEnvironment(),
+    stdio: "inherit",
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0) throw new Error(`cargo exited with status ${result.status}`)
+
+  const targetDirectory = target
+    ? join(runtimeRoot, "napi", "target", target, "release")
+    : join(runtimeRoot, "napi", "target", "release")
+  const candidates = [
+    "libuniffi_runtime_napi.dylib",
+    "libuniffi_runtime_napi.so",
+    "uniffi_runtime_napi.dll",
+  ]
+  const built = candidates.map((name) => join(targetDirectory, name)).find(existsSync)
+  if (!built) throw new Error(`missing built N-API runtime under ${targetDirectory}`)
+  mkdirSync(dirname(output), { recursive: true })
+  copyFileSync(built, output)
+  console.log(`built ${basename(output)} from UBRN ${actualVersion}`)
+} finally {
+  rmSync(temporaryRoot, { recursive: true, force: true })
+}
+
+````
+
+### Notice 66a466cc022b4bf4a41f678e4d31d9b82098cc55cc364d6e9295366dfd02cef2
+
+- CUA / UBJS precise-version review: @trycua/cua-driver-win32-x64-msvc@0.28.2/node-runtime-NOTICE.md
+
+- @trycua/cua-driver-darwin-arm64@0.28.2: node-runtime-NOTICE.md
+
+- @trycua/cua-driver-darwin-x64@0.28.2: node-runtime-NOTICE.md
+
+- @trycua/cua-driver-win32-arm64-msvc@0.28.2: node-runtime-NOTICE.md
+
+- @trycua/cua-driver-win32-x64-msvc@0.28.2: node-runtime-NOTICE.md
+
+
+
+````text
+# Cua Driver Node runtime notice
+
+`cua_driver_node_runtime.node` is a compatibility build derived from the N-API
+runtime in `uniffi-bindgen-react-native` 0.31.0-3, copyright its contributors
+and licensed under the Mozilla Public License 2.0.
+
+The corresponding source is the pinned npm development dependency plus the
+deterministic transformations in `scripts/build-node-runtime.mjs`. The source
+and build script are available in the Cua repository at the release tag that
+matches this package.
+
+<https://www.mozilla.org/MPL/2.0/>
+
+````
+
+### Notice c02be8530d2a5d35894fb83de5102bc860688d01c12daacafeace1613bacb8c6
+
+- CUA / UBJS precise-version review: https://registry.npmjs.org/uniffi-bindgen-react-native/-/uniffi-bindgen-react-native-0.31.0-3.tgz
+
+
+
+````text
+{
+  "name": "uniffi-bindgen-react-native",
+  "version": "0.31.0-3",
+  "sourceRevision": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+  "archiveUrl": "https://registry.npmjs.org/uniffi-bindgen-react-native/-/uniffi-bindgen-react-native-0.31.0-3.tgz",
+  "integrity": "sha512-br7giBJRr/j00rdMXhOZGMGuDWMAVUcxC9O3lco0KRqzEAxUz00+gegPW5tKamvKbrnj7NB682XUCYrcagtxFA==",
+  "archiveSha256": "fc26ac2ac4d3a7010b988d5b8621a33a26881be0413d9c73088f2231ca086640",
+  "files": 698,
+  "onlySource": true,
+  "licenseSha256": "d1cc4c0ada218e8a336dc8c3d8bb7d5b1c8dedfa31f5b25c9ea1759d21b8b62d"
+}
+
+````
+
+### Notice 2ae9c984b412fb8a590969a096645e3988255c40e7adc70b80fbc610eeb49b4c
+
+- CUA / UBJS precise-version review: Versioned npm metadata; @ubjs/core gitHead 49bc59194d183a05855ed4104c18eb92fb465e02; @ubjs/node gitHead dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449
+
+
+
+````text
+[
+  {
+    "name": "@ubjs/core",
+    "version": "0.31.0-3",
+    "license": "MPL-2.0",
+    "gitHead": "49bc59194d183a05855ed4104c18eb92fb465e02",
+    "repository": {
+      "url": "git+https://github.com/jhugman/uniffi-bindgen-react-native.git",
+      "type": "git",
+      "directory": "typescript"
+    },
+    "integrity": "sha512-39XrJgUZ2VVb561sSnkXPhczNoeBsNiSRArecsV0JE7CJq69ajFkcn9/tBAUS2NpgHkLIDU+z6Ks2+1wXnboxg==",
+    "tarball": "https://registry.npmjs.org/@ubjs/core/-/core-0.31.0-3.tgz"
+  },
+  {
+    "name": "@ubjs/node",
+    "version": "0.31.0-3",
+    "license": "MPL-2.0",
+    "gitHead": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    "repository": {
+      "url": "git+https://github.com/jhugman/uniffi-bindgen-react-native.git",
+      "type": "git",
+      "directory": "runtimes/napi"
+    },
+    "integrity": "sha512-qNMpi2LICNwxGXZyRF8fSDBSpbezyZbEsydrbiMPJOmtOWr4tmZIEl7jkWGHVGShoBvHfFo4eHp5B4UVP928Cg==",
+    "tarball": "https://registry.npmjs.org/@ubjs/node/-/node-0.31.0-3.tgz"
+  }
+]
+
+````
 
 ### Notice b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529
 
@@ -3610,6 +4808,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 - @hono/node-server@1.19.14: LICENSE
 
+- @hono/node-ws@1.3.2: LICENSE
+
+- @hono/node-ws@1.3.2: https://registry.npmjs.org/@hono/node-ws/-/node-ws-1.3.2.tgz#package/LICENSE
+
 
 
 ````text
@@ -3641,7 +4843,7 @@ SOFTWARE.
 
 - @hono/node-server@1.19.14: README.md (license section)
 
-- @hono/node-ws@1.3.0: README.md (license section)
+- @hono/node-ws@1.3.2: README.md (license section)
 
 - @sec-ant/readable-stream@0.4.1: README.md (license section)
 
@@ -3711,43 +4913,6 @@ SOFTWARE.
 ## License
 
 MIT
-
-````
-
-### Notice c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817
-
-- @hono/node-ws@1.3.0: https://registry.npmjs.org/@hono%2fnode-ws/1.3.0
-
-
-
-````text
-@hono/node-ws@1.3.0
-Publisher-declared license: MIT
-Evidence: https://registry.npmjs.org/@hono%2fnode-ws/1.3.0
-The published package/upstream snapshot did not supply a separate copyright notice.
-No copyright holder or year has been inferred from the npm author field.
-The following is the standard license text, not a claim that an upstream LICENSE file was published.
-
-MIT License
-
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 ````
 
@@ -12489,65 +13654,6 @@ SOFTWARE.
 
 ````
 
-### Notice 66a466cc022b4bf4a41f678e4d31d9b82098cc55cc364d6e9295366dfd02cef2
-
-- @trycua/cua-driver-darwin-arm64@0.28.2: node-runtime-NOTICE.md
-
-- @trycua/cua-driver-darwin-x64@0.28.2: node-runtime-NOTICE.md
-
-- @trycua/cua-driver-win32-arm64-msvc@0.28.2: node-runtime-NOTICE.md
-
-- @trycua/cua-driver-win32-x64-msvc@0.28.2: node-runtime-NOTICE.md
-
-
-
-````text
-# Cua Driver Node runtime notice
-
-`cua_driver_node_runtime.node` is a compatibility build derived from the N-API
-runtime in `uniffi-bindgen-react-native` 0.31.0-3, copyright its contributors
-and licensed under the Mozilla Public License 2.0.
-
-The corresponding source is the pinned npm development dependency plus the
-deterministic transformations in `scripts/build-node-runtime.mjs`. The source
-and build script are available in the Cua repository at the release tag that
-matches this package.
-
-<https://www.mozilla.org/MPL/2.0/>
-
-````
-
-### Notice c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9
-
-- @trycua/cua-driver@0.28.2: https://raw.githubusercontent.com/trycua/cua/fc188250b4ca8549b8e61f937fdb1fb560770e86/LICENSE.md
-
-
-
-````text
-MIT License
-
-Copyright (c) 2025 Cua AI, Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-````
-
 ### Notice c2a4cfb69592431f4b3a179c114909bb76a979d5748c19ca595c94133c623b12
 
 - @ts-morph/common@0.27.0: LICENSE
@@ -12713,407 +13819,6 @@ SOFTWARE.
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE
-
-````
-
-### Notice 7848532b58a405ea1e359fc0c1cbdf39a33285340dbd1a8e52f485fc9e077bd0
-
-- @ubjs/core@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/49bc59194d183a05855ed4104c18eb92fb465e02/LICENSE
-
-- @ubjs/node-darwin-arm64@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-darwin-x64@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-win32-arm64-msvc@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node-win32-x64-msvc@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-- @ubjs/node@0.31.0-3: https://raw.githubusercontent.com/jhugman/uniffi-bindgen-react-native/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449/LICENSE
-
-
-
-````text
-Upstream LICENSE reference (verbatim):
-
-This Source Code Form is subject to the terms of the Mozilla Public
-License, v. 2.0. If a copy of the MPL was not distributed with this
-file, You can obtain one at http://mozilla.org/MPL/2.0/
-
-MPL-2.0 standard terms from SPDX license-list-data v3.27.0 (not an upstream copyright notice):
-
-Mozilla Public License Version 2.0
-==================================
-
-1. Definitions
---------------
-
-1.1. "Contributor"
-    means each individual or legal entity that creates, contributes to
-    the creation of, or owns Covered Software.
-
-1.2. "Contributor Version"
-    means the combination of the Contributions of others (if any) used
-    by a Contributor and that particular Contributor's Contribution.
-
-1.3. "Contribution"
-    means Covered Software of a particular Contributor.
-
-1.4. "Covered Software"
-    means Source Code Form to which the initial Contributor has attached
-    the notice in Exhibit A, the Executable Form of such Source Code
-    Form, and Modifications of such Source Code Form, in each case
-    including portions thereof.
-
-1.5. "Incompatible With Secondary Licenses"
-    means
-
-    (a) that the initial Contributor has attached the notice described
-        in Exhibit B to the Covered Software; or
-
-    (b) that the Covered Software was made available under the terms of
-        version 1.1 or earlier of the License, but not also under the
-        terms of a Secondary License.
-
-1.6. "Executable Form"
-    means any form of the work other than Source Code Form.
-
-1.7. "Larger Work"
-    means a work that combines Covered Software with other material, in 
-    a separate file or files, that is not Covered Software.
-
-1.8. "License"
-    means this document.
-
-1.9. "Licensable"
-    means having the right to grant, to the maximum extent possible,
-    whether at the time of the initial grant or subsequently, any and
-    all of the rights conveyed by this License.
-
-1.10. "Modifications"
-    means any of the following:
-
-    (a) any file in Source Code Form that results from an addition to,
-        deletion from, or modification of the contents of Covered
-        Software; or
-
-    (b) any new file in Source Code Form that contains any Covered
-        Software.
-
-1.11. "Patent Claims" of a Contributor
-    means any patent claim(s), including without limitation, method,
-    process, and apparatus claims, in any patent Licensable by such
-    Contributor that would be infringed, but for the grant of the
-    License, by the making, using, selling, offering for sale, having
-    made, import, or transfer of either its Contributions or its
-    Contributor Version.
-
-1.12. "Secondary License"
-    means either the GNU General Public License, Version 2.0, the GNU
-    Lesser General Public License, Version 2.1, the GNU Affero General
-    Public License, Version 3.0, or any later versions of those
-    licenses.
-
-1.13. "Source Code Form"
-    means the form of the work preferred for making modifications.
-
-1.14. "You" (or "Your")
-    means an individual or a legal entity exercising rights under this
-    License. For legal entities, "You" includes any entity that
-    controls, is controlled by, or is under common control with You. For
-    purposes of this definition, "control" means (a) the power, direct
-    or indirect, to cause the direction or management of such entity,
-    whether by contract or otherwise, or (b) ownership of more than
-    fifty percent (50%) of the outstanding shares or beneficial
-    ownership of such entity.
-
-2. License Grants and Conditions
---------------------------------
-
-2.1. Grants
-
-Each Contributor hereby grants You a world-wide, royalty-free,
-non-exclusive license:
-
-(a) under intellectual property rights (other than patent or trademark)
-    Licensable by such Contributor to use, reproduce, make available,
-    modify, display, perform, distribute, and otherwise exploit its
-    Contributions, either on an unmodified basis, with Modifications, or
-    as part of a Larger Work; and
-
-(b) under Patent Claims of such Contributor to make, use, sell, offer
-    for sale, have made, import, and otherwise transfer either its
-    Contributions or its Contributor Version.
-
-2.2. Effective Date
-
-The licenses granted in Section 2.1 with respect to any Contribution
-become effective for each Contribution on the date the Contributor first
-distributes such Contribution.
-
-2.3. Limitations on Grant Scope
-
-The licenses granted in this Section 2 are the only rights granted under
-this License. No additional rights or licenses will be implied from the
-distribution or licensing of Covered Software under this License.
-Notwithstanding Section 2.1(b) above, no patent license is granted by a
-Contributor:
-
-(a) for any code that a Contributor has removed from Covered Software;
-    or
-
-(b) for infringements caused by: (i) Your and any other third party's
-    modifications of Covered Software, or (ii) the combination of its
-    Contributions with other software (except as part of its Contributor
-    Version); or
-
-(c) under Patent Claims infringed by Covered Software in the absence of
-    its Contributions.
-
-This License does not grant any rights in the trademarks, service marks,
-or logos of any Contributor (except as may be necessary to comply with
-the notice requirements in Section 3.4).
-
-2.4. Subsequent Licenses
-
-No Contributor makes additional grants as a result of Your choice to
-distribute the Covered Software under a subsequent version of this
-License (see Section 10.2) or under the terms of a Secondary License (if
-permitted under the terms of Section 3.3).
-
-2.5. Representation
-
-Each Contributor represents that the Contributor believes its
-Contributions are its original creation(s) or it has sufficient rights
-to grant the rights to its Contributions conveyed by this License.
-
-2.6. Fair Use
-
-This License is not intended to limit any rights You have under
-applicable copyright doctrines of fair use, fair dealing, or other
-equivalents.
-
-2.7. Conditions
-
-Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted
-in Section 2.1.
-
-3. Responsibilities
--------------------
-
-3.1. Distribution of Source Form
-
-All distribution of Covered Software in Source Code Form, including any
-Modifications that You create or to which You contribute, must be under
-the terms of this License. You must inform recipients that the Source
-Code Form of the Covered Software is governed by the terms of this
-License, and how they can obtain a copy of this License. You may not
-attempt to alter or restrict the recipients' rights in the Source Code
-Form.
-
-3.2. Distribution of Executable Form
-
-If You distribute Covered Software in Executable Form then:
-
-(a) such Covered Software must also be made available in Source Code
-    Form, as described in Section 3.1, and You must inform recipients of
-    the Executable Form how they can obtain a copy of such Source Code
-    Form by reasonable means in a timely manner, at a charge no more
-    than the cost of distribution to the recipient; and
-
-(b) You may distribute such Executable Form under the terms of this
-    License, or sublicense it under different terms, provided that the
-    license for the Executable Form does not attempt to limit or alter
-    the recipients' rights in the Source Code Form under this License.
-
-3.3. Distribution of a Larger Work
-
-You may create and distribute a Larger Work under terms of Your choice,
-provided that You also comply with the requirements of this License for
-the Covered Software. If the Larger Work is a combination of Covered
-Software with a work governed by one or more Secondary Licenses, and the
-Covered Software is not Incompatible With Secondary Licenses, this
-License permits You to additionally distribute such Covered Software
-under the terms of such Secondary License(s), so that the recipient of
-the Larger Work may, at their option, further distribute the Covered
-Software under the terms of either this License or such Secondary
-License(s).
-
-3.4. Notices
-
-You may not remove or alter the substance of any license notices
-(including copyright notices, patent notices, disclaimers of warranty,
-or limitations of liability) contained within the Source Code Form of
-the Covered Software, except that You may alter any license notices to
-the extent required to remedy known factual inaccuracies.
-
-3.5. Application of Additional Terms
-
-You may choose to offer, and to charge a fee for, warranty, support,
-indemnity or liability obligations to one or more recipients of Covered
-Software. However, You may do so only on Your own behalf, and not on
-behalf of any Contributor. You must make it absolutely clear that any
-such warranty, support, indemnity, or liability obligation is offered by
-You alone, and You hereby agree to indemnify every Contributor for any
-liability incurred by such Contributor as a result of warranty, support,
-indemnity or liability terms You offer. You may include additional
-disclaimers of warranty and limitations of liability specific to any
-jurisdiction.
-
-4. Inability to Comply Due to Statute or Regulation
----------------------------------------------------
-
-If it is impossible for You to comply with any of the terms of this
-License with respect to some or all of the Covered Software due to
-statute, judicial order, or regulation then You must: (a) comply with
-the terms of this License to the maximum extent possible; and (b)
-describe the limitations and the code they affect. Such description must
-be placed in a text file included with all distributions of the Covered
-Software under this License. Except to the extent prohibited by statute
-or regulation, such description must be sufficiently detailed for a
-recipient of ordinary skill to be able to understand it.
-
-5. Termination
---------------
-
-5.1. The rights granted under this License will terminate automatically
-if You fail to comply with any of its terms. However, if You become
-compliant, then the rights granted under this License from a particular
-Contributor are reinstated (a) provisionally, unless and until such
-Contributor explicitly and finally terminates Your grants, and (b) on an
-ongoing basis, if such Contributor fails to notify You of the
-non-compliance by some reasonable means prior to 60 days after You have
-come back into compliance. Moreover, Your grants from a particular
-Contributor are reinstated on an ongoing basis if such Contributor
-notifies You of the non-compliance by some reasonable means, this is the
-first time You have received notice of non-compliance with this License
-from such Contributor, and You become compliant prior to 30 days after
-Your receipt of the notice.
-
-5.2. If You initiate litigation against any entity by asserting a patent
-infringement claim (excluding declaratory judgment actions,
-counter-claims, and cross-claims) alleging that a Contributor Version
-directly or indirectly infringes any patent, then the rights granted to
-You by any and all Contributors for the Covered Software under Section
-2.1 of this License shall terminate.
-
-5.3. In the event of termination under Sections 5.1 or 5.2 above, all
-end user license agreements (excluding distributors and resellers) which
-have been validly granted by You or Your distributors under this License
-prior to termination shall survive termination.
-
-************************************************************************
-*                                                                      *
-*  6. Disclaimer of Warranty                                           *
-*  -------------------------                                           *
-*                                                                      *
-*  Covered Software is provided under this License on an "as is"       *
-*  basis, without warranty of any kind, either expressed, implied, or  *
-*  statutory, including, without limitation, warranties that the       *
-*  Covered Software is free of defects, merchantable, fit for a        *
-*  particular purpose or non-infringing. The entire risk as to the     *
-*  quality and performance of the Covered Software is with You.        *
-*  Should any Covered Software prove defective in any respect, You     *
-*  (not any Contributor) assume the cost of any necessary servicing,   *
-*  repair, or correction. This disclaimer of warranty constitutes an   *
-*  essential part of this License. No use of any Covered Software is   *
-*  authorized under this License except under this disclaimer.         *
-*                                                                      *
-************************************************************************
-
-************************************************************************
-*                                                                      *
-*  7. Limitation of Liability                                          *
-*  --------------------------                                          *
-*                                                                      *
-*  Under no circumstances and under no legal theory, whether tort      *
-*  (including negligence), contract, or otherwise, shall any           *
-*  Contributor, or anyone who distributes Covered Software as          *
-*  permitted above, be liable to You for any direct, indirect,         *
-*  special, incidental, or consequential damages of any character      *
-*  including, without limitation, damages for lost profits, loss of    *
-*  goodwill, work stoppage, computer failure or malfunction, or any    *
-*  and all other commercial damages or losses, even if such party      *
-*  shall have been informed of the possibility of such damages. This   *
-*  limitation of liability shall not apply to liability for death or   *
-*  personal injury resulting from such party's negligence to the       *
-*  extent applicable law prohibits such limitation. Some               *
-*  jurisdictions do not allow the exclusion or limitation of           *
-*  incidental or consequential damages, so this exclusion and          *
-*  limitation may not apply to You.                                    *
-*                                                                      *
-************************************************************************
-
-8. Litigation
--------------
-
-Any litigation relating to this License may be brought only in the
-courts of a jurisdiction where the defendant maintains its principal
-place of business and such litigation shall be governed by laws of that
-jurisdiction, without reference to its conflict-of-law provisions.
-Nothing in this Section shall prevent a party's ability to bring
-cross-claims or counter-claims.
-
-9. Miscellaneous
-----------------
-
-This License represents the complete agreement concerning the subject
-matter hereof. If any provision of this License is held to be
-unenforceable, such provision shall be reformed only to the extent
-necessary to make it enforceable. Any law or regulation which provides
-that the language of a contract shall be construed against the drafter
-shall not be used to construe this License against a Contributor.
-
-10. Versions of the License
----------------------------
-
-10.1. New Versions
-
-Mozilla Foundation is the license steward. Except as provided in Section
-10.3, no one other than the license steward has the right to modify or
-publish new versions of this License. Each version will be given a
-distinguishing version number.
-
-10.2. Effect of New Versions
-
-You may distribute the Covered Software under the terms of the version
-of the License under which You originally received the Covered Software,
-or under the terms of any subsequent version published by the license
-steward.
-
-10.3. Modified Versions
-
-If you create software not governed by this License, and you want to
-create a new license for such software, you may create and use a
-modified version of this License if you rename the license and remove
-any references to the name of the license steward (except to note that
-such modified license differs from this License).
-
-10.4. Distributing Source Code Form that is Incompatible With Secondary
-Licenses
-
-If You choose to distribute Source Code Form that is Incompatible With
-Secondary Licenses under the terms of this version of the License, the
-notice described in Exhibit B of this License must be attached.
-
-Exhibit A - Source Code Form License Notice
--------------------------------------------
-
-  This Source Code Form is subject to the terms of the Mozilla Public
-  License, v. 2.0. If a copy of the MPL was not distributed with this
-  file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
-If it is not possible or desirable to put the notice in a particular
-file, then You may include the notice in a location (such as a LICENSE
-file in a relevant directory) where a recipient would be likely to look
-for such a notice.
-
-You may add additional accurate notices of copyright ownership.
-
-Exhibit B - "Incompatible With Secondary Licenses" Notice
----------------------------------------------------------
-
-  This Source Code Form is "Incompatible With Secondary Licenses", as
-  defined by the Mozilla Public License, v. 2.0.
 
 ````
 
@@ -14963,34 +15668,28 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
-### Notice 2d2349188616c4b64ceeae33e1386bb546b0658864b4f7f8c9785757cb065b5d
+### Notice cdf4d87ae0a6c160227263bf4e39a0a10e30e89ae7256e0f7ac7bde0836552c6
 
-- boolbase@1.0.0: https://registry.npmjs.org/boolbase/1.0.0
+- boolbase@2.0.0: LICENSE
+
+- boolbase@2.0.0: https://registry.npmjs.org/boolbase/-/boolbase-2.0.0.tgz#package/LICENSE
 
 
 
 ````text
-boolbase@1.0.0
-Publisher-declared license: ISC
-Evidence: https://registry.npmjs.org/boolbase/1.0.0
-The published package/upstream snapshot did not supply a separate copyright notice.
-No copyright holder or year has been inferred from the npm author field.
-The following is the standard license text, not a claim that an upstream LICENSE file was published.
-
-ISC License
-
+Copyright (c) 2014-2015, Felix Boehm <me@feedic.com>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
 copyright notice and this permission notice appear in all copies.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ````
 

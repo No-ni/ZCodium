@@ -21,12 +21,21 @@ let evidence: string;
 async function safe(candidate: string): Promise<string> {
   const path = resolve(candidate);
   const rel = relative(ROOT, path);
-  if (!isAbsolute(candidate) || !rel || isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) {
+  if (
+    !isAbsolute(candidate) ||
+    !rel ||
+    isAbsolute(rel) ||
+    rel === ".." ||
+    rel.startsWith(`..${sep}`)
+  ) {
     throw new Error("BUG005 evidence must remain in the current worktree");
   }
   for (let cursor = path; ; cursor = dirname(cursor)) {
     try {
-      if ((await lstat(cursor)).isSymbolicLink() || (await realpath(cursor)).toLowerCase() !== cursor.toLowerCase()) {
+      if (
+        (await lstat(cursor)).isSymbolicLink() ||
+        (await realpath(cursor)).toLowerCase() !== cursor.toLowerCase()
+      ) {
         throw new Error("BUG005 redirected ancestor rejected");
       }
     } catch (error) {
@@ -39,9 +48,14 @@ async function safe(candidate: string): Promise<string> {
 
 async function guestId(): Promise<number> {
   const id = await browser.execute((testId: string) => {
-    const element = Array.from(document.querySelectorAll<HTMLElement & { getWebContentsId?: () => number }>(
-      `[data-testid="${testId}"]`,
-    )).findLast((candidate) => candidate.getBoundingClientRect().width > 0 && candidate.getBoundingClientRect().height > 0);
+    const element = Array.from(
+      document.querySelectorAll<HTMLElement & { getWebContentsId?: () => number }>(
+        `[data-testid="${testId}"]`,
+      ),
+    ).findLast(
+      (candidate) =>
+        candidate.getBoundingClientRect().width > 0 && candidate.getBoundingClientRect().height > 0,
+    );
     return element?.getWebContentsId?.() ?? null;
   }, TID_BROWSER_WEBVIEW);
   if (typeof id !== "number") throw new Error("BUG005 guest is not mounted");
@@ -49,29 +63,42 @@ async function guestId(): Promise<number> {
 }
 
 async function runGuest<T>(script: string): Promise<T> {
-  return browser.electron.execute(async (electron, id: number, code: string) => {
-    const guest = electron.webContents.fromId(id);
-    if (!guest || guest.isDestroyed()) throw new Error("BUG005 guest is unavailable");
-    return guest.executeJavaScript(code);
-  }, await guestId(), script) as Promise<T>;
+  return browser.electron.execute(
+    async (electron, id: number, code: string) => {
+      const guest = electron.webContents.fromId(id);
+      if (!guest || guest.isDestroyed()) throw new Error("BUG005 guest is unavailable");
+      return guest.executeJavaScript(code);
+    },
+    await guestId(),
+    script,
+  ) as Promise<T>;
 }
 
 async function snapshot(name: string) {
   await browser.saveScreenshot(await safe(join(evidence, `${name}.png`)));
-  const state = await runGuest("(async () => ({ geolocation: (await navigator.permissions.query({name:'geolocation'})).state, notifications: (await navigator.permissions.query({name:'notifications'})).state, result: window.__qaPermissionResult ?? null }))()");
-  await writeFile(await safe(join(evidence, `${name}.json`)), JSON.stringify({ state }, null, 2), { flag: "wx" });
+  const state = await runGuest(
+    "(async () => ({ geolocation: (await navigator.permissions.query({name:'geolocation'})).state, notifications: (await navigator.permissions.query({name:'notifications'})).state, result: window.__qaPermissionResult ?? null }))()",
+  );
+  await writeFile(await safe(join(evidence, `${name}.json`)), JSON.stringify({ state }, null, 2), {
+    flag: "wx",
+  });
 }
 
 async function promptVisible(): Promise<boolean> {
   return browser.execute((testId: string) => {
     const root = document.querySelector(`[data-testid="${testId}"]`);
-    return !!root && root.getBoundingClientRect().width > 0 && root.getBoundingClientRect().height > 0;
+    return (
+      !!root && root.getBoundingClientRect().width > 0 && root.getBoundingClientRect().height > 0
+    );
   }, TID_BROWSER_PERMISSION_PROMPTS);
 }
 
 describe("BUG-005 权限启动后的产品拒绝", () => {
   before(async () => {
-    if (process.env.ZCODE_E2E_MANUAL_REVIEW !== "1" || process.env.E2E_PROVIDER_HTTP_MODE !== "replay") {
+    if (
+      process.env.ZCODE_E2E_MANUAL_REVIEW !== "1" ||
+      process.env.E2E_PROVIDER_HTTP_MODE !== "replay"
+    ) {
       throw new Error("BUG005 requires the reviewed isolated pending replay runner");
     }
     await safe(process.env.ZCODE_E2E_HOME_DIR || "");
@@ -84,12 +111,16 @@ describe("BUG-005 权限启动后的产品拒绝", () => {
     });
     await new Promise<void>((accept) => server.listen(0, "127.0.0.1", accept));
     const address = server.address();
-    if (!address || typeof address === "string") throw new Error("BUG005 loopback server is unavailable");
+    if (!address || typeof address === "string")
+      throw new Error("BUG005 loopback server is unavailable");
     origin = `http://127.0.0.1:${address.port}`;
   });
 
   after(async () => {
-    if (server) await new Promise<void>((accept, reject) => server.close((error) => error ? reject(error) : accept()));
+    if (server)
+      await new Promise<void>((accept, reject) =>
+        server.close((error) => (error ? reject(error) : accept())),
+      );
   });
 
   it("BPF01: 未授权默认拒绝；通知产品气泡拒绝后再次询问", async function () {
@@ -98,19 +129,42 @@ describe("BUG-005 权限启动后的产品拒绝", () => {
     await openFirstBrowserTab();
     await (await $(`[data-testid="${TID_BROWSER_ADDRESS_INPUT}"]`)).setValue(origin);
     await browser.keys("Enter");
-    await browser.waitUntil(async () => (await runGuest("document.title")) === "QA_PERMISSION_BUG005", { timeout: 30_000 });
+    await browser.waitUntil(
+      async () => (await runGuest("document.title")) === "QA_PERMISSION_BUG005",
+      { timeout: 30_000 },
+    );
     await clickTestIdByWebDriver(TID_BROWSER_WEBVIEW);
-    expect(await runGuest("(async () => (await navigator.permissions.query({name:'geolocation'})).state)()")).toBe("denied");
-    expect(await runGuest("(async () => (await navigator.permissions.query({name:'notifications'})).state)()")).toBe("denied");
+    expect(
+      await runGuest(
+        "(async () => (await navigator.permissions.query({name:'geolocation'})).state)()",
+      ),
+    ).toBe("denied");
+    expect(
+      await runGuest(
+        "(async () => (await navigator.permissions.query({name:'notifications'})).state)()",
+      ),
+    ).toBe("denied");
     await snapshot("01-default-denied");
     for (const attempt of [1, 2]) {
-      await runGuest("void (window.__qaPermissionResult = null); void Notification.requestPermission().then(value => { window.__qaPermissionResult = value; })");
-      await browser.waitUntil(promptVisible, { timeout: 10_000, timeoutMsg: "BUG005 product permission prompt is missing" });
+      await runGuest(
+        "void (window.__qaPermissionResult = null); void Notification.requestPermission().then(value => { window.__qaPermissionResult = value; })",
+      );
+      await browser.waitUntil(promptVisible, {
+        timeout: 10_000,
+        timeoutMsg: "BUG005 product permission prompt is missing",
+      });
       await snapshot(`0${attempt + 1}-prompt`);
       await clickTestIdByWebDriver(TID_BROWSER_PERMISSION_DENY);
-      await browser.waitUntil(async () => (await runGuest("window.__qaPermissionResult")) === "denied", { timeout: 10_000 });
+      await browser.waitUntil(
+        async () => (await runGuest("window.__qaPermissionResult")) === "denied",
+        { timeout: 10_000 },
+      );
       await browser.waitUntil(async () => !(await promptVisible()), { timeout: 10_000 });
-      expect(await runGuest("(async () => (await navigator.permissions.query({name:'notifications'})).state)()")).toBe("denied");
+      expect(
+        await runGuest(
+          "(async () => (await navigator.permissions.query({name:'notifications'})).state)()",
+        ),
+      ).toBe("denied");
     }
     await snapshot("04-denied-after-second-request");
   });

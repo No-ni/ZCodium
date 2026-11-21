@@ -7,8 +7,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { assertProjectPath, createProjectTestSandbox } from "./project-test-sandbox.mjs";
 
-// 官方 3.17.1 合并的构建/发行契约门：静态断言与隔离的真实配置加载，不装依赖、不跑网络、不打包。
-// 规则出处见 .agents/specs/official-3.17.1-build.md；本文件只验证「构建出来的东西仍是 ZCodium」。
+// 历史路径保留为当前官方基线的构建/发行契约门：隔离加载真实配置，不下载或打包。
+// 规则出处见 docs/specs/official-3.18.2-release-readiness.md；验证产物仍遵守 ZCodium 边界。
 const repoRoot = resolve(import.meta.dirname, "../..");
 
 function read(relativePath) {
@@ -197,7 +197,8 @@ test("Agent bundle staging preserves ZCodium node-repl-host metadata", async () 
   await writeFixture(join(source, ".zcode-plugin/plugin.json"), "retired fixture metadata");
   const { stageAgentBundle } =
     await import("../../packages/desktop/scripts/stage-agent-bundle.mjs");
-  const { stagedBundlePath } = stageAgentBundle({
+  // 原因：凭据资产暂存使入口变为异步；未等待会读到 Promise 上不存在的产物路径。
+  const { stagedBundlePath } = await stageAgentBundle({
     repoRoot: root,
     platformKey: "win32-x64",
     log: () => {},
@@ -231,8 +232,8 @@ test("旧后端下真实 Builder 配置可加载，Windows/mac 均无官方 Help
   }
 });
 
-test("产品与工具链版本对齐官方 3.17.1", () => {
-  assert.equal(rootPackage.version, "3.17.1");
+test("产品与工具链版本对齐官方 3.18.2", () => {
+  assert.equal(rootPackage.version, "3.18.2");
   assert.equal(rootPackage.packageManager, "pnpm@10.33.2");
   assert.equal(desktopPackage.devDependencies.electron, "44.7.0");
   assert.equal(desktopPackage.devDependencies["electron-builder"], "26.17.0");
@@ -252,9 +253,20 @@ test("产品与工具链版本对齐官方 3.17.1", () => {
 test("根 typecheck 入口合法且不减检查", () => {
   // 逐个解析入口目标并确认 tsconfig 真实存在：失效入口会让 typecheck 静默少查一个包。
   const typecheck = rootPackage.scripts.typecheck;
-  const targets = typecheck
-    .split(/\s+/u)
-    .filter((token) => token !== "" && !token.startsWith("-") && token !== "tsc" && token !== "&&");
+  // 原因：当前入口先运行独立 session-control 检查，再运行两个 tsc；不能把 pnpm 当成目录。
+  const [packageCheck, ...compilerChecks] = typecheck.split(/\s*&&\s*/u);
+  assert.equal(packageCheck, "pnpm --filter @zcode/session-control typecheck");
+  const sessionControl = readJson("packages/session-control/package.json");
+  assert.equal(sessionControl.name, "@zcode/session-control");
+  assert.ok(sessionControl.scripts.typecheck);
+  assert.equal(compilerChecks.length, 2);
+  const targets = compilerChecks.flatMap((command) => {
+    assert.match(command, /^tsc (?:-b|-p)\s/u);
+    return command
+      .split(/\s+/u)
+      .slice(2)
+      .filter((token) => !token.startsWith("-"));
+  });
   assert.ok(targets.length >= 17, `typecheck 目标数量不能减少（当前 ${targets.length}）`);
   for (const target of targets) {
     const relative = target.endsWith(".json") ? target : `${target}/tsconfig.json`;
@@ -539,7 +551,7 @@ test("测试态构建 define 不含官方上报端点", () => {
   assert.doesNotMatch(vitestConfig, /zcode\.z\.ai|api\.z\.ai|bigmodel\.cn/);
 });
 
-test("自建遥测与内建 Provider 配置只走显式 opt-in，不逼发布构建填官方凭证", () => {
+test("自建遥测与内建 Provider 配置只走显式 opt-in，不逼发布构建填官方凭证", async () => {
   // 官方 release 门会在没有 OTLP 配置时抛错；本 fork 必须保持未配置即空导出。
   assert.doesNotMatch(
     tsupConfig,
@@ -563,8 +575,17 @@ test("自建遥测与内建 Provider 配置只走显式 opt-in，不逼发布构
     /ZAI_OAUTH|ZAI_BUSINESS|VITE_ZAI_OAUTH|CODING_PLAN_WEBVIEW|REWARDS_WEBVIEW/u,
   );
   assert.doesNotMatch(e2eBuild, /zcode-builtin\.test\.json/u);
-  assert.match(e2eBuild, /"ZCODIUM_UPDATE_ORIGIN"/u);
-  assert.match(e2eBuild, /"ZCODE_AUTO_UPDATE"/u);
+  // 原因：环境清单已按职责拆分；通过原公开入口核验实际清单，不能只匹配宿主文件文本。
+  const { E2E_DESKTOP_BUILD_ENV_NAMES } =
+    await import("../../packages/desktop/scripts/ensure-e2e-desktop-build.mjs");
+  assert.ok(E2E_DESKTOP_BUILD_ENV_NAMES.includes("ZCODIUM_UPDATE_ORIGIN"));
+  assert.ok(E2E_DESKTOP_BUILD_ENV_NAMES.includes("ZCODE_AUTO_UPDATE"));
+  assert.deepEqual(
+    E2E_DESKTOP_BUILD_ENV_NAMES.filter((name) =>
+      /ZAI_OAUTH|ZAI_BUSINESS|VITE_ZAI_OAUTH|CODING_PLAN_WEBVIEW|REWARDS_WEBVIEW/u.test(name),
+    ),
+    [],
+  );
 });
 
 test("开发态 Electron runtime 与 macOS dev 副本身份", () => {

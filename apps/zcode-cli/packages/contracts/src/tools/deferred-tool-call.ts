@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import type { JsonSchema } from "../model/index.js";
+import type { JsonSchema } from "../protocol-values/model-contract.js";
 
 export const DEFERRED_TOOL_CALL_NAME = "DeferredToolCall";
 export const DeferredToolCallInputSchema = z

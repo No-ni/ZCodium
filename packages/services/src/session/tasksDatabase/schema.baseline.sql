@@ -132,6 +132,12 @@ CREATE TABLE task_groups (
         updated_at INTEGER NOT NULL
       );
 
+CREATE TABLE task_purge (
+        workspace_key TEXT NOT NULL, task_id TEXT NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('pending','deleted')),
+        PRIMARY KEY(workspace_key,task_id)
+      );
+
 CREATE TABLE tasks (
         workspace_key TEXT NOT NULL,
         workspace_path TEXT NOT NULL,
@@ -199,3 +205,11 @@ CREATE INDEX idx_tasks_workspace_archived_updated
 CREATE INDEX idx_tasks_workspace_pinned_updated
       ON tasks (workspace_key, pinned, updated_at DESC)
       WHERE deleted = 0;
+
+CREATE TRIGGER task_purge_insert_guard BEFORE INSERT ON tasks
+      WHEN EXISTS(SELECT 1 FROM task_purge WHERE workspace_key=new.workspace_key AND task_id=new.task_id AND state='deleted')
+      BEGIN SELECT RAISE(ABORT, 'task.permanently-deleted'); END;
+
+CREATE TRIGGER task_purge_restore_guard BEFORE UPDATE OF archived ON tasks
+      WHEN new.archived=0 AND EXISTS(SELECT 1 FROM task_purge WHERE workspace_key=new.workspace_key AND task_id=new.task_id)
+      BEGIN SELECT RAISE(ABORT, 'task.permanent-deletion-pending'); END;

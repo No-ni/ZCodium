@@ -4,7 +4,7 @@
  */
 export const cliSessionDataModule = {
   id: "cli-session-data",
-  requires: ["shared", "zcode-cli"],
+  requires: ["agent-contracts", "shared", "zcode-cli"],
   provides: ["cli-session-data"],
   publicEntrypoints: ["index.ts", "contract.ts"],
 } as const;

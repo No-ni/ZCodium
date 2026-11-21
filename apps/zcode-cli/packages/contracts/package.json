@@ -99,6 +99,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "ajv": "8.18.0",
     "vitest": "^4.1.5"
   }
 }

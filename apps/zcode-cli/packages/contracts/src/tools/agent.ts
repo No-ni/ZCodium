@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 import type { ToolCallId, TraceId } from "../interfaces/shared.js";
-import type { ModelUsage } from "../model/index.js";
+import type { ModelUsage } from "../protocol-values/model-contract.js";
 import { toToolJsonSchema } from "./json-schema.js";
 
 export const AgentType = {

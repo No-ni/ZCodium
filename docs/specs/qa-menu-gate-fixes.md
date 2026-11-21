@@ -30,12 +30,12 @@ flowchart LR
 
 先落本规范与9项开发入口回归，再实际执行三文件红测，最后修改三个目标：统一现有Helper变量引用、移除遥测空方法、四组期待补offeredMode；各改动有中文原因/依据注释。未改生产resolver、正式审计扫描或禁用规则。新回归不改变生产模块导出，仅只读AST与实际try/catch的VM执行。
 
-| 批次 | 实际结果 | 证据 |
-| --- | --- | --- |
-| `tests-bug001-003-red-20261107` | exit1，14项=7PASS/7FAIL；4项darwin未声明变量及阶段中断1、workflow旧快照1、遥测旧夹具1失败；Windows四组合与现有IO门禁通过 | [原日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-red-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-red-20261107.json) |
-| `tests-bug001-003-green-20261107` | exit1，13PASS/1FAIL；生产三问题和8组合已通过，新VM阶段拒绝夹具在外realm抛Error导致catch记录对象，未改生产catch | [原日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green-20261107.json) |
-| `tests-bug001-003-green2-20261107` | exit0，14/14，0skip；VM绑定与副作用替身相同Error构造器后，8组合和每阶段拒绝中止均通过，原5项审计也通过 | [最终日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green2-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green2-20261107.json) |
-| `tests-bug001-003-adjacent-20261107` | exit0，31/31，0skip；既有构建与审计边界保持 | [相邻日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-adjacent-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-adjacent-20261107.json) |
+| 批次                                 | 实际结果                                                                                                                 | 证据                                                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests-bug001-003-red-20261107`      | exit1，14项=7PASS/7FAIL；4项darwin未声明变量及阶段中断1、workflow旧快照1、遥测旧夹具1失败；Windows四组合与现有IO门禁通过 | [原日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-red-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-red-20261107.json)             |
+| `tests-bug001-003-green-20261107`    | exit1，13PASS/1FAIL；生产三问题和8组合已通过，新VM阶段拒绝夹具在外realm抛Error导致catch记录对象，未改生产catch           | [原日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green-20261107.json)         |
+| `tests-bug001-003-green2-20261107`   | exit0，14/14，0skip；VM绑定与副作用替身相同Error构造器后，8组合和每阶段拒绝中止均通过，原5项审计也通过                   | [最终日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green2-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-green2-20261107.json)     |
+| `tests-bug001-003-adjacent-20261107` | exit0，31/31，0skip；既有构建与审计边界保持                                                                              | [相邻日志](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-adjacent-20261107.log)、[命令/环境](../testing/qa-2026-11-06/logs/validation-tests-bug001-003-adjacent-20261107.json) |
 
 使用主任务已审查的 `.run-logs/qa-2026-11-06/validation/run-validation.mjs` 串行三文件/两文件批次，实际Node24.18.0、Corepack pnpm10.33.2；该Node不同于mise固定24.14.0，保留此工具链限制。所有批次日志独立保留。相邻构建回归仅在中央project-only-validation合成目录复制现有资产、装载真实配置，不打包、不下载资源。9项VM回归不等于真实macOS启动；旧mobile浏览器夹具没有运行，其完整UI、远端allowlist与原生picker仍待相应隔离回归。
 

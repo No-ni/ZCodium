@@ -108,17 +108,9 @@ describe("provider endpoint routing fetch", () => {
     });
   });
 
-  it("rewrites before proxy and no-proxy selection", async () => {
+  it("keeps the user's original endpoint for proxy and no-proxy selection", async () => {
     let capturedUrl: string | undefined;
     const fetch = createProviderBusinessErrorFetch({
-      endpointRoutingPort: {
-        async resolve() {
-          return {
-            routed: true,
-            url: "https://direct.example.test/v1/messages",
-          };
-        },
-      },
       fetch: async (input) => {
         capturedUrl = input instanceof Request ? input.url : String(input);
         return new Response(null, { status: 204 });
@@ -129,7 +121,10 @@ describe("provider endpoint routing fetch", () => {
       providerKind: "anthropic",
     });
 
-    await expect(fetch(SOURCE_ZAI)).resolves.toMatchObject({ status: 204 });
+    // 官方路由装配已移除：代理选择必须针对用户原地址，不能恢复旧测试的隐式重写。
+    await expect(fetch("https://direct.example.test/v1/messages")).resolves.toMatchObject({
+      status: 204,
+    });
     expect(capturedUrl).toBe("https://direct.example.test/v1/messages");
   });
 

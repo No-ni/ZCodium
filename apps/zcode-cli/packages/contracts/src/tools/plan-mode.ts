@@ -3,7 +3,7 @@
 // ============================================================
 
 import { z } from "zod";
-import type { CollaborationMode } from "../interfaces/session.port.js";
+import type { CollaborationMode } from "../protocol-values/contract.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import { toToolJsonSchema } from "./json-schema.js";
 

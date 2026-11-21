@@ -186,30 +186,36 @@ export function useWorkspaceServicesResolution(
     typeof options === "string" ? options : (options?.scopeResolution ?? "ambient");
   const scopeOptions = typeof options === "object" ? options : undefined;
   const currentContextServices = useServices();
+  // 无作用域入口必须仍读当前 Host；只有显式 forceUnscoped 才可不提供导航 store。
+  const requireTabStore = scopeOptions?.forceUnscoped !== true;
   const resolvedRemoteSessionId = useResolvedRemoteWorkspaceSessionId(
-    workspacePath,
-    preferredRemoteSessionId,
-    workspaceIdentity,
-    remoteTarget,
+    requireTabStore ? workspacePath : undefined,
+    requireTabStore ? preferredRemoteSessionId : undefined,
+    requireTabStore ? workspaceIdentity : undefined,
+    requireTabStore ? remoteTarget : undefined,
     scopeResolution,
+    requireTabStore,
   );
-  const inferredRemoteTarget = useTabStore((state) =>
-    resolveWorkspaceServiceIsRemoteTarget({
-      workspacePath,
-      workspaceIdentity,
-      preferredRemoteSessionId,
-      remoteTarget,
-      scopeResolution,
-      activeWorkspacePath: state.activeWorkspacePath,
-      activeWorkspaceIdentity: state.activeWorkspaceIdentity,
-      activeTab: (() => {
-        const activeTab = state.activeTabId
-          ? state.tabs.find((tab) => tab.id === state.activeTabId)
-          : null;
-        return activeTab && isWorkspaceTab(activeTab) ? activeTab : null;
-      })(),
-      workspaceTabs: state.tabs.filter(isWorkspaceTab),
-    }),
+  const inferredRemoteTarget = useTabStore(
+    (state) =>
+      requireTabStore &&
+      resolveWorkspaceServiceIsRemoteTarget({
+        workspacePath,
+        workspaceIdentity,
+        preferredRemoteSessionId,
+        remoteTarget,
+        scopeResolution,
+        activeWorkspacePath: state.activeWorkspacePath,
+        activeWorkspaceIdentity: state.activeWorkspaceIdentity,
+        activeTab: (() => {
+          const activeTab = state.activeTabId
+            ? state.tabs.find((tab) => tab.id === state.activeTabId)
+            : null;
+          return activeTab && isWorkspaceTab(activeTab) ? activeTab : null;
+        })(),
+        workspaceTabs: state.tabs.filter(isWorkspaceTab),
+      }),
+    { required: requireTabStore },
   );
   const isRemoteTarget = scopeOptions?.forceUnscoped ? false : inferredRemoteTarget;
   const effectiveRemoteSessionId = scopeOptions?.forceUnscoped ? null : resolvedRemoteSessionId;
@@ -260,4 +266,21 @@ export function useWorkspaceServices(
     remoteTarget,
     options,
   ).services;
+}
+
+/** 缺路径沿用当前 Context，有路径沿用 workspace 路由；两者执行同一 Hook 链。 */
+export function useContextOrWorkspaceServices(
+  workspacePath?: string,
+  preferredRemoteSessionId?: string | null,
+  workspaceIdentity?: string | null,
+): IServiceAccessor {
+  const contextServices = useServices();
+  // 条件选择参数而非 Hook，防止同一实例切换路径时破坏订阅顺序。
+  return useWorkspaceServices(
+    workspacePath,
+    preferredRemoteSessionId,
+    workspaceIdentity,
+    undefined,
+    workspacePath ? undefined : { forceUnscoped: true, unscopedServices: contextServices },
+  );
 }

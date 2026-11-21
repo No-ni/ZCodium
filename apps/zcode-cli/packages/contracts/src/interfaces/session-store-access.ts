@@ -1,0 +1,263 @@
+// Session Store Port：为会话输入、消息和投影提供稳定的存储边界。
+// ============================================================
+import type { MessageId, PartId, ProjectId, SessionId } from "./shared.js";
+import type { TodoItem } from "../tools/todo.js";
+import type { SessionGoal, GoalStatus } from "../tools/target.js";
+import type { PermissionRuleset } from "./permission.port.js";
+import type { CollaborationMode } from "../protocol-values/contract.js";
+import type {
+  CreateSessionInput,
+  SessionInfo,
+  UpdateSessionInput,
+  ListSessionsInput,
+  ClaimLegacySessionWorkspaceInput,
+  RepairLegacyRemoteSessionWorkspaceInput,
+  RepairRemoteSessionPathsInput,
+  SessionRevert,
+  FileDiff,
+} from "./session-store-session-info.js";
+import type {
+  ForkChildSessionMetadata,
+  ForkCommitBundle,
+  ForkFromSourceInput,
+  SharedContextImportCommitBundle,
+  MessageCommitBundle,
+  SharedContextImportTransition,
+} from "./session-store-transactions.js";
+import type { MessageInfo } from "./session-store-message-info.js";
+import type { MessagePart, MessageWithParts } from "./session-store-message.js";
+import type {
+  SessionEntryInfo,
+  SessionEntryType,
+  SessionInputDelivery,
+  SessionInputStatus,
+  SessionInputRecord,
+} from "./session-store-entries.js";
+
+export interface LocalSettingStorePort {
+  getProjectPermissionMode(
+    projectID: ProjectId,
+  ): CollaborationMode | null | Promise<CollaborationMode | null>;
+  saveProjectPermissionMode(input: {
+    mode: CollaborationMode;
+    projectID: ProjectId;
+  }): CollaborationMode | Promise<CollaborationMode>;
+}
+
+/** 永久删除只保留身份与附件引用元数据，不备份会话正文。 */
+export interface SessionDeletionReference {
+  sessionId: SessionId;
+  artifactId: string;
+  referrers: Array<{ sessionId: SessionId; title: string }>;
+}
+
+export interface SessionDeletionSnapshot {
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  revision: string;
+  sessionIds: SessionId[];
+  forks: Array<{ sessionId: SessionId; title: string }>;
+  references: SessionDeletionReference[];
+  foreignRuntime: boolean;
+  localRuntimeIds: SessionId[];
+  pendingWork: boolean;
+  deleting: boolean;
+  completed: boolean;
+}
+
+export interface SessionStorePort {
+  inspectSessionDeletion?(sessionID: SessionId): Promise<SessionDeletionSnapshot>;
+  beginSessionDeletion?(
+    sessionID: SessionId,
+    revision: string,
+    operationId: string,
+    retained: Array<{ sessionId: SessionId; artifactId: string }>,
+  ): Promise<void>;
+  completeSessionDeletion?(sessionID: SessionId): Promise<void>;
+  registerSessionRuntime?(sessionID: SessionId): Promise<void>;
+  unregisterSessionRuntime?(sessionID: SessionId): Promise<void>;
+  assertSessionNotDeleting?(sessionID: SessionId): Promise<void>;
+  createSession(input: CreateSessionInput): Promise<SessionInfo>;
+  /** legacy 兼容原语；V4 stable/compact-edit fork 禁止调用，统一走 commitForkBundle。 */
+  createForkedSessionWithMetadata?(
+    input: CreateSessionInput,
+    metadata: ForkChildSessionMetadata,
+  ): Promise<SessionInfo>;
+  /** V4 stable/compact-edit fork 的唯一事务入口。legacy workspace fork 不调用。 */
+  commitForkBundle?(bundle: ForkCommitBundle): Promise<SessionInfo>;
+  /** 在同一写事务内读取轻量快照、同步规划、批量复制并提交 fork。 */
+  commitForkFromSource?(input: ForkFromSourceInput): Promise<SessionInfo>;
+  commitSharedContextImportBundle?(bundle: SharedContextImportCommitBundle): Promise<SessionInfo>;
+  /** 一组消息的唯一事务入口；未实现时调用方逐条写入。 */
+  commitMessageBundle?(bundle: MessageCommitBundle): Promise<void>;
+  transitionSharedContextImport?(input: SharedContextImportTransition): Promise<boolean>;
+  updateSession(input: UpdateSessionInput): Promise<SessionInfo>;
+  /** 只写一次删除时间；正文保留，普通列表永不返回软删除行。 */
+  softDeleteSession?(sessionID: SessionId, timeDeleted?: number): Promise<void>;
+  /** 每个根会话 → 根自身与附属后代（subagent / workflow / 侧边问答，不含 fork）；根不存在为空数组。 */
+  listOwnedSessionTrees?(sessionIDs: SessionId[]): Promise<Map<SessionId, SessionId[]>>;
+  /** 每个目标会话 → part 中仍引用其附件（`zcode-artifact://<目标>/…`）的其他未删除会话；无引用的目标不出现。 */
+  listArtifactReferrers?(sessionIDs: SessionId[]): Promise<Map<SessionId, SessionId[]>>;
+  /** 彻底删除会话及附属后代的全部行；只用于用户确认的「删除数据」，已不存在的会话是空操作。 */
+  purgeSessions?(sessionIDs: SessionId[]): Promise<void>;
+  getSession(sessionID: SessionId): Promise<SessionInfo | null>;
+  listSessions(input?: ListSessionsInput): Promise<SessionInfo[]>;
+  /**
+   * 用 host task-index allowlist 为旧远端 session 补写 workspace identity。
+   * 实现必须同时校验 id、directory 与 workspace_id is null，禁止覆盖已有 identity。
+   */
+  claimLegacySessionWorkspace?(input: ClaimLegacySessionWorkspaceInput): Promise<number>;
+  /**
+   * 修复曾把 remote identity 写入 directory/path 的单条历史 session。
+   * 实现必须校验 session id、NULL workspace_id 及旧目录精确匹配，禁止批量路径迁移。
+   */
+  repairLegacyRemoteSessionWorkspace?(
+    input: RepairLegacyRemoteSessionWorkspaceInput,
+  ): Promise<boolean>;
+  /**
+   * 已有 remote identity 的维护性路径自愈 CAS。
+   * 实现只能更新 directory、path 和单调 time_updated，禁止写回其它 session 元数据。
+   */
+  repairRemoteSessionPaths?(input: RepairRemoteSessionPathsInput): Promise<boolean>;
+  saveMessage(input: MessageInfo, copyFrom?: { sessionID: SessionId; id: string }): Promise<void>;
+  removeMessage(input: { sessionID: SessionId; messageID: MessageId }): Promise<void>;
+  savePart(input: MessagePart, copyFrom?: { sessionID: SessionId; id: string }): Promise<void>;
+  removePart(input: { sessionID: SessionId; messageID: MessageId; partID: PartId }): Promise<void>;
+  messageWithParts(input: {
+    sessionID: SessionId;
+    messageID: MessageId;
+  }): Promise<MessageWithParts | null>;
+  messages(input: { sessionID: SessionId }): Promise<MessageWithParts[]>;
+  saveSessionEntry?(input: SessionEntryInfo): Promise<void>;
+  sessionEntries?(input: {
+    sessionID: SessionId;
+    type?: SessionEntryType | string;
+  }): Promise<SessionEntryInfo[]>;
+  // ── session_input 账本（可选方法，旧宿主可不实现）──
+  /** admission：输入已被接受（排队/待注入），durable 记账。幂等（同 id 重入更新 payload）。 */
+  saveSessionInput?(input: {
+    id: string;
+    sessionID: SessionId;
+    kind: string;
+    delivery: SessionInputDelivery;
+    payload: { text: string; [key: string]: unknown };
+  }): Promise<void>;
+  /** 审批完全访问：execution、固定队列权限和幂等 receipt 同一事务；无 schema migration。 */
+  commitPermissionFullAccess?(input: {
+    sessionID: SessionId;
+    queueItemIds: string[];
+    execution: SessionEntryInfo;
+    receipt: SessionEntryInfo;
+    signal?: AbortSignal;
+  }): Promise<void>;
+  /** queue 编辑/重排的 durable 原子更新；只允许修改 admitted 记录。 */
+  updateSessionInputs?(input: {
+    sessionID: SessionId;
+    updates: Array<{
+      delivery?: SessionInputDelivery;
+      id: string;
+      intent?: import("./session.port.js").TurnInputIntentMetadata;
+      text?: string;
+      queuePosition?: number;
+    }>;
+  }): Promise<void>;
+  /**
+   * promotion（原子性硬要求）：账本置 promoted + user message/parts
+   * 持久化在同一事务——杜绝「queue 已消费但 transcript 无 user message」的孤儿窗口。
+   */
+  promoteSessionInput?(input: {
+    id: string;
+    sessionID: SessionId;
+    message: MessageInfo;
+    parts: MessagePart[];
+  }): Promise<void>;
+  /**
+   * 非原子 promotion 标记：message 持久化已在别处完成的路径（background wake 的
+   * synthetic notice）只补账本状态。新路径应优先用 promoteSessionInput（原子）。
+   */
+  markSessionInputPromoted?(input: {
+    id: string;
+    sessionID: SessionId;
+    promotedMessageID: MessageId;
+  }): Promise<void>;
+  /** 终态收口：cancelled（user_removed 等）/ discarded（session_resumed / user_cleared）。 */
+  settleSessionInput?(input: {
+    id: string;
+    sessionID: SessionId;
+    status: "cancelled" | "discarded" | "failed";
+    reason?: string;
+  }): Promise<void>;
+  listSessionInputs?(input: {
+    sessionID: SessionId;
+    status?: SessionInputStatus;
+  }): Promise<SessionInputRecord[]>;
+  /** global createSession.firstInput 查重：由 queue_<sourceCommandId> 找回真实 session。 */
+  getSessionInputById?(id: string): Promise<SessionInputRecord | null>;
+  readTodos(input: { sessionID: SessionId }): Promise<TodoItem[]>;
+  updateTodos(input: { sessionID: SessionId; todos: TodoItem[] }): Promise<void>;
+  readTarget(input: { sessionID: SessionId }): Promise<SessionGoal | null>;
+  setTarget(input: {
+    objective: string;
+    sessionID: SessionId;
+    status?: GoalStatus;
+    tokenBudget?: number | null;
+  }): Promise<SessionGoal>;
+  cloneTargetForFork?(input: {
+    source: SessionGoal;
+    sessionID: SessionId;
+    status?: GoalStatus;
+  }): Promise<SessionGoal>;
+  createTarget(input: {
+    objective: string;
+    sessionID: SessionId;
+    tokenBudget?: number | null;
+  }): Promise<SessionGoal | null>;
+  updateTargetStatus(input: {
+    sessionID: SessionId;
+    status: GoalStatus;
+  }): Promise<SessionGoal | null>;
+  startTargetRun?(input: {
+    sessionID: SessionId;
+    targetID: string;
+    inputID: string;
+    startedAtMs: number;
+  }): Promise<SessionGoal | null>;
+  heartbeatTargetRun?(input: {
+    sessionID: SessionId;
+    targetID: string;
+    inputID: string;
+    seenAtMs: number;
+  }): Promise<SessionGoal | null>;
+  finishTargetRun?(input: {
+    sessionID: SessionId;
+    targetID: string;
+    inputID: string;
+    endedAtMs: number;
+    status?: GoalStatus;
+    tokensUsedDelta?: number;
+  }): Promise<SessionGoal | null>;
+  recoverInterruptedTargetRun?(input: { sessionID: SessionId }): Promise<SessionGoal | null>;
+  accountTargetUsage(input: {
+    sessionID: SessionId;
+    targetID: string;
+    tokensUsedDelta?: number;
+    timeUsedSecondsDelta?: number;
+  }): Promise<SessionGoal | null>;
+  updateTargetSummaryTitle(input: {
+    sessionID: SessionId;
+    targetID: string;
+    summaryTitle: string;
+  }): Promise<SessionGoal | null>;
+  clearTarget(input: { sessionID: SessionId }): Promise<boolean>;
+  getProjectPermission(projectID: ProjectId): Promise<PermissionRuleset | null>;
+  saveProjectPermission(input: {
+    projectID: ProjectId;
+    permission: PermissionRuleset;
+  }): Promise<PermissionRuleset>;
+  setRevert(input: {
+    sessionID: SessionId;
+    revert: SessionRevert;
+    summary?: { additions: number; deletions: number; files: number; diffs?: FileDiff[] };
+  }): Promise<void>;
+  clearRevert(sessionID: SessionId): Promise<void>;
+}

@@ -190,6 +190,24 @@ export class PermissionService {
       );
     }
 
+    // 合并适配漏掉既有精确豁免，导致授权会话回复重复询问或被 Plan 拒绝。
+    // 恢复官方及本仓 spec 的顺序：项目 deny/ask 优先，Host 仍校验真实会话发送授权。
+    if (
+      context.toolName === "ReplyToChannel" &&
+      capability.permissionName === "channel.reply" &&
+      capability.sideEffectScope === "network" &&
+      capability.riskLevel === "medium" &&
+      !capability.destructive &&
+      !capability.needsApproval
+    ) {
+      return this.allow(
+        context,
+        capability,
+        "tool.channelReply.preapproved",
+        "The originating bot conversation is already authorized",
+      );
+    }
+
     if (planEnabled) {
       const planDecision = this.checkPlanMode(context, capability);
       if (planDecision?.decision === "deny") return planDecision;

@@ -7,9 +7,7 @@ const root = new URL("../../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("前台完成离开补写的判定回归用例可执行", async () => {
-  const { tests } = await runSourceTests([
-    "packages/ui/test/foregroundCompletionPlan.test.ts",
-  ]);
+  const { tests } = await runSourceTests(["packages/ui/test/foregroundCompletionPlan.test.ts"]);
   assert.equal(tests, 4);
 });
 
@@ -17,7 +15,7 @@ test("flushOnLeave 走统一补写计划，并对每条记录复核是否仍在�
   const hook = await read("packages/ui/src/project-sidebar/useProjectUnreadSignals.ts");
   assert.match(
     hook,
-    /const plan = planForegroundCompletionFlush\(foregroundCompletions, \(target\) =>\s*\n\s*isDesktopViewing\(target\) \|\| isRemoteViewing\(target\),/,
+    /const plan = planForegroundCompletionFlush\(\s*foregroundCompletions,\s*\(target\) =>\s*isDesktopViewing\(target\) \|\| isRemoteViewing\(target\),/,
     "补写前必须带上查看状态校验",
   );
   assert.match(

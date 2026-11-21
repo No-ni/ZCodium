@@ -51,7 +51,7 @@
 | shortcuts       | 键盘快捷键        | `settings-shortcuts-section`                                                            |
 | usage           | 使用统计          | AppUsagePanel 的日期范围/热图/模型图；无独特 root testid                                |
 | projects        | 项目              | `project-management`                                                                    |
-| archives        | 归档管理          | `archive-management` / `archive-search` / `archive-group-*`；自动归档控件在常规页      |
+| archives        | 归档管理          | `archive-management` / `archive-search` / `archive-group-*`；自动归档控件在常规页       |
 
 主导航：`task-new-button`、`automations-open`、`plugin-store-sidebar-open`。商店结果为 `plugin-store-root`（`data-view`）、`plugin-store-title` 和 `plugin-store-list`。定时任务已有列表时为 `automations-list`，状态过滤为 `automations-status-filter`；空列表不一定渲染 `automations-list`，需要额外检查空态与页面标题。自动化/工作流 tab 为 `automations-page-tab`。
 

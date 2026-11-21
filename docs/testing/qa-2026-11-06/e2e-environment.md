@@ -108,35 +108,35 @@ WDIO 在加载配置后将 `HOME`/`USERPROFILE` 改为应用 HOME；构建子进
 
 以下路径均相对 `packages/desktop/`，通过 `--spec` 显式选择，避免默认全量误收 fork 已移除的云功能或远端环境用例。
 
-| Spec | 可执行边界与限制 |
-| --- | --- |
-| `test/e2e/smoke.test.ts` | 本地默认工作区与 Composer；清理仅隔离 `.zcodium/v2`。 |
-| `test/e2e/settings/settings-personalization.test.ts` | 本地个性化读写、保存/取消、大小限制与锁故障；实际文件从 `getE2EAppDataPaths().storageRoot` 派生，注释中的 `.zcode` 已过期。 |
-| `test/e2e/settings/shortcut-settings-key-search.test.ts` | 本地组合键搜索、清除、空态与 Escape；无模型发送。 |
-| `test/e2e/settings/shortcut-settings-rebind.test.ts` | 本地快捷键编辑与持久化；从 `appDataDir/setting.json` 读取。 |
-| `test/e2e/settings/settings-window-size-persistence.test.ts` | 原生窗口 resize 触发当前 settings 写入；无模型发送。 |
-| `test/e2e/ui-shell/command-center-focus.test.ts` | 本地 command center / project 对话框焦点和主题/窗口尺寸检查；artifact 在显式目录。 |
-| `test/e2e/ui-shell/general-coding-mode.test.ts` | 本地模式菜单与终端；执行 `printf` 合成回执，依赖当前 PTY shell 支持此命令。 |
-| `test/e2e/ui-shell/side-pane-tabs-responsive-interactions.test.ts` | 本地 tab、响应式和终端；启动带唯一 marker 的 Node 长进程，清理限定其 PID。 |
-| `test/e2e/ui-shell/side-pane-full-view.test.ts` | 本地完整视图、拖拽、最小化和 Composer 草稿；`skipProvider: true`，不发送模型请求。 |
-| `test/e2e/workspace-file-tree-refresh.test.ts` | 文件创建、改名、刷新、watcher 和关闭卸载；fixture 从 `DEFAULT_WORKSPACE` 派生。 |
-| `test/e2e/task-list-archive-confirmation.test.ts` | 真实 runtime 任务创建与归档二次确认；强制 Provider replay。 |
-| `test/e2e/automations-create-manage.test.ts` | 本地表单创建、编辑、暂停、恢复和删除；不主动发送 prompt。仍初始化 Provider 模型候选，必须使用 replay；本轮应在完成后检查无残留自动化。 |
-| `test/e2e/plugins/plugin-management-ui-market.test.ts` | 隔离 HOME 内 directory marketplace、本地 stdio MCP/UI 沙箱；会发送准备 prompt，因此先 fixture audit 并强制 replay。 |
-| `test/e2e/git/git-commit-dialog-ui-flow.test.ts` | `DEFAULT_WORKSPACE` 内合成 Git repo 的 init/config/add/commit/branch 与弹窗键盘流；不 push；准备任务需要 replay。 |
-| `test/e2e/browser-empty-state-deferred-guest.test.ts` | Browser 空态到单 guest；只导航本例 `127.0.0.1` HTTP fixture。 |
-| `test/e2e/resource-manager-storage.test.ts` | 隔离 `.zcodium` 下合成 cli/debug、backup、v2/logs；产品清理动作只作用于本轮夹具，不能以真实用户数据运行。 |
+| Spec                                                               | 可执行边界与限制                                                                                                                       |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/e2e/smoke.test.ts`                                           | 本地默认工作区与 Composer；清理仅隔离 `.zcodium/v2`。                                                                                  |
+| `test/e2e/settings/settings-personalization.test.ts`               | 本地个性化读写、保存/取消、大小限制与锁故障；实际文件从 `getE2EAppDataPaths().storageRoot` 派生，注释中的 `.zcode` 已过期。            |
+| `test/e2e/settings/shortcut-settings-key-search.test.ts`           | 本地组合键搜索、清除、空态与 Escape；无模型发送。                                                                                      |
+| `test/e2e/settings/shortcut-settings-rebind.test.ts`               | 本地快捷键编辑与持久化；从 `appDataDir/setting.json` 读取。                                                                            |
+| `test/e2e/settings/settings-window-size-persistence.test.ts`       | 原生窗口 resize 触发当前 settings 写入；无模型发送。                                                                                   |
+| `test/e2e/ui-shell/command-center-focus.test.ts`                   | 本地 command center / project 对话框焦点和主题/窗口尺寸检查；artifact 在显式目录。                                                     |
+| `test/e2e/ui-shell/general-coding-mode.test.ts`                    | 本地模式菜单与终端；执行 `printf` 合成回执，依赖当前 PTY shell 支持此命令。                                                            |
+| `test/e2e/ui-shell/side-pane-tabs-responsive-interactions.test.ts` | 本地 tab、响应式和终端；启动带唯一 marker 的 Node 长进程，清理限定其 PID。                                                             |
+| `test/e2e/ui-shell/side-pane-full-view.test.ts`                    | 本地完整视图、拖拽、最小化和 Composer 草稿；`skipProvider: true`，不发送模型请求。                                                     |
+| `test/e2e/workspace-file-tree-refresh.test.ts`                     | 文件创建、改名、刷新、watcher 和关闭卸载；fixture 从 `DEFAULT_WORKSPACE` 派生。                                                        |
+| `test/e2e/task-list-archive-confirmation.test.ts`                  | 真实 runtime 任务创建与归档二次确认；强制 Provider replay。                                                                            |
+| `test/e2e/automations-create-manage.test.ts`                       | 本地表单创建、编辑、暂停、恢复和删除；不主动发送 prompt。仍初始化 Provider 模型候选，必须使用 replay；本轮应在完成后检查无残留自动化。 |
+| `test/e2e/plugins/plugin-management-ui-market.test.ts`             | 隔离 HOME 内 directory marketplace、本地 stdio MCP/UI 沙箱；会发送准备 prompt，因此先 fixture audit 并强制 replay。                    |
+| `test/e2e/git/git-commit-dialog-ui-flow.test.ts`                   | `DEFAULT_WORKSPACE` 内合成 Git repo 的 init/config/add/commit/branch 与弹窗键盘流；不 push；准备任务需要 replay。                      |
+| `test/e2e/browser-empty-state-deferred-guest.test.ts`              | Browser 空态到单 guest；只导航本例 `127.0.0.1` HTTP fixture。                                                                          |
+| `test/e2e/resource-manager-storage.test.ts`                        | 隔离 `.zcodium` 下合成 cli/debug、backup、v2/logs；产品清理动作只作用于本轮夹具，不能以真实用户数据运行。                              |
 
 ## 已确认的测试合同漂移
 
-| Spec / 位置 | 证据与报告方式 |
-| --- | --- |
-| `ui-shell/command-center-selection.test.ts:41` | 直写 `HOME/.zcode/v2/tasks-index.sqlite`；当前产品数据根为 `.zcodium`。另要求 HOME basename 以 `.e2e-home-` 或 `zcode-command-center-` 开头。现状前置失败不能证明重名任务 UI 有 bug。 |
-| `settings/settings-language-system-default.test.ts:24,116` | 读写 `homedir()/.zcode/v2/setting.json`，产品实际读取 `.zcodium/v2`。英文准备与最终 settings 断言观察了错误文件，标为 fixture drift。 |
-| `settings/settings-subagent-create-edit-persistence.test.ts:88` | 用户 root 已使用正确 helper，但 workspace profile 断言读 `.zcode/agents`。当前 `packages/services/src/subagents/subagentStorage.ts` 与 CLI 主写 `.zcodium/agents`；workspace 子场景不能作为有效通过/失败证据。 |
-| `help-menu-about.test.ts:95-116,183-199` | 默认预期 Preview、旧 `About ZCode` 菜单、旧 `zcode-logs-*.zip`。当前 fork 为 ZCodium，安全导出实际为 `.zcodium/export-log/zcodium-diagnostics-*/diagnostics.zip`。生产测试虽可设置 flavor，菜单/归档断言仍过期。 |
-| `conversation-session/conversation-session-task-groups.test.ts:500` | 仅 `GRP10` 千行子场景直写 `HOME/.zcode/v2/tasks-index.sqlite`。普通分组菜单通过当前 Host RPC owner 保存；千行子场景须列为 fixture drift，不能归入有效列表性能覆盖。 |
-| `conversation-session/conversation-session-v4-composer-toolbar.test.ts:57` | 自定义 slash fixture 写 `HOME/.zcode/commands`；当前公开 command 主来源为 `.zcodium/commands`。模型/思考/模式菜单子场景不依赖该自定义命令；自定义目录水合场景存在漂移，应独立报告。 |
+| Spec / 位置                                                                | 证据与报告方式                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui-shell/command-center-selection.test.ts:41`                             | 直写 `HOME/.zcode/v2/tasks-index.sqlite`；当前产品数据根为 `.zcodium`。另要求 HOME basename 以 `.e2e-home-` 或 `zcode-command-center-` 开头。现状前置失败不能证明重名任务 UI 有 bug。                            |
+| `settings/settings-language-system-default.test.ts:24,116`                 | 读写 `homedir()/.zcode/v2/setting.json`，产品实际读取 `.zcodium/v2`。英文准备与最终 settings 断言观察了错误文件，标为 fixture drift。                                                                            |
+| `settings/settings-subagent-create-edit-persistence.test.ts:88`            | 用户 root 已使用正确 helper，但 workspace profile 断言读 `.zcode/agents`。当前 `packages/services/src/subagents/subagentStorage.ts` 与 CLI 主写 `.zcodium/agents`；workspace 子场景不能作为有效通过/失败证据。   |
+| `help-menu-about.test.ts:95-116,183-199`                                   | 默认预期 Preview、旧 `About ZCode` 菜单、旧 `zcode-logs-*.zip`。当前 fork 为 ZCodium，安全导出实际为 `.zcodium/export-log/zcodium-diagnostics-*/diagnostics.zip`。生产测试虽可设置 flavor，菜单/归档断言仍过期。 |
+| `conversation-session/conversation-session-task-groups.test.ts:500`        | 仅 `GRP10` 千行子场景直写 `HOME/.zcode/v2/tasks-index.sqlite`。普通分组菜单通过当前 Host RPC owner 保存；千行子场景须列为 fixture drift，不能归入有效列表性能覆盖。                                              |
+| `conversation-session/conversation-session-v4-composer-toolbar.test.ts:57` | 自定义 slash fixture 写 `HOME/.zcode/commands`；当前公开 command 主来源为 `.zcodium/commands`。模型/思考/模式菜单子场景不依赖该自定义命令；自定义目录水合场景存在漂移，应独立报告。                              |
 
 这些是源码审查确认的测试基础设施欠账，未经真实 UI 重现不能写为已确认产品缺陷。保留现有测试原断言与运行证据，不修改生产代码或通过测试绕过 fork 审计边界。
 
@@ -146,23 +146,23 @@ WDIO 在加载配置后将 `HOME`/`USERPROFILE` 改为应用 HOME；构建子进
 
 所有路径相对 `packages/desktop/`，适用于 `corepack pnpm --filter @zcode/desktop test:e2e --shards=1 --spec '<path>'`。不同 grep 过滤器应分别运行，避免其它 spec 被错误地全部 skipped。
 
-| 精确 spec 路径 | 功能代表、初始化写入和必要限制 |
-| --- | --- |
-| `./test/e2e/conversation-session/conversation-session-plus-menu.test.ts` | `+`、Goal、Workflow、Plugin mention、Escape、宽窄视口。只修改草稿；本地内置插件 catalog 与空 Provider 请求证据，不发送 prompt。 |
-| `./test/e2e/conversation-session/conversation-session-project-composer.test.ts` | 虚拟项目新增、目录搜索、选择、改名同步与删除。仅通过 UI 写隔离项目索引/settings；不需要模型发送。 |
-| `./test/e2e/conversation-session/conversation-session-task-groups.test.ts` | 分组/时间线菜单、创建、改名、改色、置顶、归档、恢复、拖拽。普通场景复用本地 Window Host RPC；组内首发需要 replay。使用 `ZCODE_E2E_MOCHA_GREP=^(?!.*GRP10).*$` 排除已确认旧 `.zcode` 数据库夹具；明确记录千行覆盖未执行。 |
-| `./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts` | 模型、思考深度、模式菜单、互斥弹层、模型管理导航、完成态 picker。使用 `ZCODE_E2E_MOCHA_GREP=模型选择器/思考深度/模式切换\|合并模型/思考弹层\|模型管理入口\|completed task 的 picker`；这里竖线为正则 alternation，实际环境变量不加反斜线。before 只在隔离 HOME 创建 slash 文件，所选场景不依赖自定义 slash 水合。建立 completed task 走本例 replay。 |
-| `./test/e2e/conversation-session/conversation-session-first-send.test.ts` | 首发、Composer 清空、session 建立、完成态和同 session 第二轮。在 `DEFAULT_WORKSPACE` 创建只读工具文本夹具；真实 runtime 工具读取这份合成文件，模型请求走 replay。 |
-| `./test/e2e/conversation-session/conversation-session-v4-stop-queue.test.ts` | running 入队、stop 保留队列、暂停提示、发送确认、keep/clear、FIFO 恢复。case-local `controlled-stream` 必须保留，不能改成快速响应；只写隔离 session/queue 持久化。 |
-| `./test/e2e/conversation-session/conversation-session-v4-queue.test.ts` | 队列删除、撤回编辑、图片恢复、重新发送与排序。case-local `controlled-stream`；图片由合成 paste 经本地 attachment RPC 保存，afterEach stop 回收运行态。 |
-| `./test/e2e/conversation-session/conversation-session-v4-attachment.test.ts` | 仅附件首发、图片预览、编辑删除附件、active branch 与请求一致。合成 PNG 通过本地 begin/chunk/commit 写隔离 CLI artifacts；图片预览从本地 artifact 生成 Blob URL。 |
-| `./test/e2e/conversation-session/conversation-session-v4-attachment-layout.test.ts` | Composer/sent/edit 附件布局、文件名省略、context、移除、主题与窄窗口。合成文件走本地 attachment RPC；`https://e2e.example.test/page` 只是 context 文本，不执行导航。 |
-| `./test/e2e/conversation-session/conversation-session-v4-edit.test.ts` | 首发、compact 后编辑、同 session branch cut、旧分支退出。所有会话、compact 结果与新模型回复均使用隔离持久化和本例 replay。 |
-| `./test/e2e/conversation-session/conversation-session-v4-rename.test.ts` | 侧栏右键重命名和标题投影。建立合成任务后仅修改隔离 session 元数据；模型发送使用 replay。 |
-| `./test/e2e/conversation-session/conversation-session-v4-fork.test.ts` | 完成态 assistant Fork、child session、父历史、模型与思考档位继承。创建本例 Personal GLM-5.2 Provider，其 endpoint 来自已启动 replay；冷重启保留隔离 profile。 |
-| `./test/e2e/conversation-session/conversation-session-workspace-file-search-filter.test.ts` | `@` 文件搜索：隐藏目录可搜、build 可搜、node_modules/.env 排除。只在 `DEFAULT_WORKSPACE` 创建 `.github/workflows`、`build`、合成 `node_modules` 与 `.env.*`，按本例 `createdPaths` 删除自己的文件；不发送 prompt。 |
-| `./test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts` | 图片右键另存为、取消、字节一致性和添加文件引用。源/目标均在 `DEFAULT_WORKSPACE/.zcode-e2e/image-actions`；`showSaveDialog` mock 固定同目录 `saved-*`，不使用真实下载目录。显式设置 `E2E_IMAGE_ACTION_SCREENSHOTS=<当前 run artifact>/images` 并验证该路径，防止继承其它输出目录。 |
-| `./test/e2e/browser-tab-close-idempotent.test.ts` | 空 Browser tab 打开、关闭、重复关闭 IPC 成功。只创建本地逻辑 tab，`skipProvider: true`，不导航外站。 |
+| 精确 spec 路径                                                                              | 功能代表、初始化写入和必要限制                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `./test/e2e/conversation-session/conversation-session-plus-menu.test.ts`                    | `+`、Goal、Workflow、Plugin mention、Escape、宽窄视口。只修改草稿；本地内置插件 catalog 与空 Provider 请求证据，不发送 prompt。                                                                                                                                                                                                                      |
+| `./test/e2e/conversation-session/conversation-session-project-composer.test.ts`             | 虚拟项目新增、目录搜索、选择、改名同步与删除。仅通过 UI 写隔离项目索引/settings；不需要模型发送。                                                                                                                                                                                                                                                    |
+| `./test/e2e/conversation-session/conversation-session-task-groups.test.ts`                  | 分组/时间线菜单、创建、改名、改色、置顶、归档、恢复、拖拽。普通场景复用本地 Window Host RPC；组内首发需要 replay。使用 `ZCODE_E2E_MOCHA_GREP=^(?!.*GRP10).*$` 排除已确认旧 `.zcode` 数据库夹具；明确记录千行覆盖未执行。                                                                                                                             |
+| `./test/e2e/conversation-session/conversation-session-v4-composer-toolbar.test.ts`          | 模型、思考深度、模式菜单、互斥弹层、模型管理导航、完成态 picker。使用 `ZCODE_E2E_MOCHA_GREP=模型选择器/思考深度/模式切换\|合并模型/思考弹层\|模型管理入口\|completed task 的 picker`；这里竖线为正则 alternation，实际环境变量不加反斜线。before 只在隔离 HOME 创建 slash 文件，所选场景不依赖自定义 slash 水合。建立 completed task 走本例 replay。 |
+| `./test/e2e/conversation-session/conversation-session-first-send.test.ts`                   | 首发、Composer 清空、session 建立、完成态和同 session 第二轮。在 `DEFAULT_WORKSPACE` 创建只读工具文本夹具；真实 runtime 工具读取这份合成文件，模型请求走 replay。                                                                                                                                                                                    |
+| `./test/e2e/conversation-session/conversation-session-v4-stop-queue.test.ts`                | running 入队、stop 保留队列、暂停提示、发送确认、keep/clear、FIFO 恢复。case-local `controlled-stream` 必须保留，不能改成快速响应；只写隔离 session/queue 持久化。                                                                                                                                                                                   |
+| `./test/e2e/conversation-session/conversation-session-v4-queue.test.ts`                     | 队列删除、撤回编辑、图片恢复、重新发送与排序。case-local `controlled-stream`；图片由合成 paste 经本地 attachment RPC 保存，afterEach stop 回收运行态。                                                                                                                                                                                               |
+| `./test/e2e/conversation-session/conversation-session-v4-attachment.test.ts`                | 仅附件首发、图片预览、编辑删除附件、active branch 与请求一致。合成 PNG 通过本地 begin/chunk/commit 写隔离 CLI artifacts；图片预览从本地 artifact 生成 Blob URL。                                                                                                                                                                                     |
+| `./test/e2e/conversation-session/conversation-session-v4-attachment-layout.test.ts`         | Composer/sent/edit 附件布局、文件名省略、context、移除、主题与窄窗口。合成文件走本地 attachment RPC；`https://e2e.example.test/page` 只是 context 文本，不执行导航。                                                                                                                                                                                 |
+| `./test/e2e/conversation-session/conversation-session-v4-edit.test.ts`                      | 首发、compact 后编辑、同 session branch cut、旧分支退出。所有会话、compact 结果与新模型回复均使用隔离持久化和本例 replay。                                                                                                                                                                                                                           |
+| `./test/e2e/conversation-session/conversation-session-v4-rename.test.ts`                    | 侧栏右键重命名和标题投影。建立合成任务后仅修改隔离 session 元数据；模型发送使用 replay。                                                                                                                                                                                                                                                             |
+| `./test/e2e/conversation-session/conversation-session-v4-fork.test.ts`                      | 完成态 assistant Fork、child session、父历史、模型与思考档位继承。创建本例 Personal GLM-5.2 Provider，其 endpoint 来自已启动 replay；冷重启保留隔离 profile。                                                                                                                                                                                        |
+| `./test/e2e/conversation-session/conversation-session-workspace-file-search-filter.test.ts` | `@` 文件搜索：隐藏目录可搜、build 可搜、node_modules/.env 排除。只在 `DEFAULT_WORKSPACE` 创建 `.github/workflows`、`build`、合成 `node_modules` 与 `.env.*`，按本例 `createdPaths` 删除自己的文件；不发送 prompt。                                                                                                                                   |
+| `./test/e2e/conversation-session/conversation-session-preview-image-actions.test.ts`        | 图片右键另存为、取消、字节一致性和添加文件引用。源/目标均在 `DEFAULT_WORKSPACE/.zcode-e2e/image-actions`；`showSaveDialog` mock 固定同目录 `saved-*`，不使用真实下载目录。显式设置 `E2E_IMAGE_ACTION_SCREENSHOTS=<当前 run artifact>/images` 并验证该路径，防止继承其它输出目录。                                                                    |
+| `./test/e2e/browser-tab-close-idempotent.test.ts`                                           | 空 Browser tab 打开、关闭、重复关闭 IPC 成功。只创建本地逻辑 tab，`skipProvider: true`，不导航外站。                                                                                                                                                                                                                                                 |
 
 可替代的纯本地预览检查为 `./test/e2e/preview-pane-image-copy.test.ts`：显式设置 `E2E_IMAGE_COPY_SCREENSHOTS` 到本 run artifact，生成合成 SVG/PNG，验证原生剪贴板中的图片尺寸。该例会清空并改写当前 OS 剪贴板，必须在根测试进程选择适当时机执行，结果不能替代 Browser 导航验证。
 
@@ -177,10 +177,10 @@ WDIO 在加载配置后将 `HOME`/`USERPROFILE` 改为应用 HOME；构建子进
 
 将源文件 105 行的精确条件放入 Node VM，只提供 `process.platform` 与实际声明名 `hasComputerUseHelperProducer`，得到以下结果：
 
-| 分支求值 | 实际结果 |
-| --- | --- |
+| 分支求值                      | 实际结果                                                |
+| ----------------------------- | ------------------------------------------------------- |
 | synthetic platform = `darwin` | `ReferenceError: hasComputerUseProducer is not defined` |
-| synthetic platform = `win32` | `false` |
+| synthetic platform = `win32`  | `false`                                                 |
 
 这证明了当前源代码的分支缺陷，不是假定已在 macOS 真机测试。没有运行 mac 构建、安装、打包或产品代码修改。源码出现位置证据为 `logs/e2e-preflight-macos-dev-source.txt`，精确条件与 VM 结果为 `logs/e2e-preflight-macos-dev-branch.json`。
 

@@ -45,6 +45,7 @@ async function fixture() {
     tabs: [tab],
   };
   const stores = {
+    "zustand/react/shallow": { useShallow: (selector) => selector },
     "@/store/TabStoreProvider.js": { useTabStore: (select) => select(tabState) },
     "@/store/tabStore.js": { isWorkspaceTab: (value) => value?.type === "workspace" },
     "@/store/remoteWorkspaceSessionStore.js": {

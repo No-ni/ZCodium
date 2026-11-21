@@ -9,6 +9,7 @@ overrides:
   electron-to-chromium: 1.5.452
   react: 19.2.7
   react-dom: 19.2.7
+  boolbase: 2.0.0
 
 patchedDependencies:
   '@ai-sdk/anthropic@3.0.81':
@@ -29,6 +30,9 @@ patchedDependencies:
   '@radix-ui/react-menu@2.1.16':
     hash: 4b05eae73074149ac453ee047d9f48707df7d5c9ddedeab8d514f9b9fa097a6c
     path: patches/@radix-ui__react-menu@2.1.16.patch
+  boolbase@2.0.0:
+    hash: eeea7297ee82771c9653e70457882d46637ffe6a0f0cfe21ba6e8ad9674cff33
+    path: patches/boolbase@2.0.0.patch
   vitest@4.1.7:
     hash: 11fdb66aa985e1d77e68752deeb7c1130ae33c9a4e2968f23aae8adaf8bc9ba0
     path: patches/vitest@4.1.7.patch
@@ -77,6 +81,9 @@ importers:
       conventional-changelog-writer:
         specifier: ^8.4.0
         version: 8.4.0
+      css-select:
+        specifier: 5.2.2
+        version: 5.2.2
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -474,6 +481,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
+      ajv:
+        specifier: 8.18.0
+        version: 8.18.0
       vitest:
         specifier: ^4.1.5
         version: 4.1.7(patch_hash=11fdb66aa985e1d77e68752deeb7c1130ae33c9a4e2968f23aae8adaf8bc9ba0)(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(@vitest/coverage-v8@4.1.7)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.13.3(@types/node@24.12.2)(typescript@6.0.2))(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
@@ -1339,8 +1349,8 @@ importers:
         specifier: ^1.19.11
         version: 1.19.14(hono@4.12.12)
       '@hono/node-ws':
-        specifier: ^1.3.0
-        version: 1.3.0(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)
+        specifier: 1.3.2
+        version: 1.3.2(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)
       '@lydell/node-pty-darwin-arm64':
         specifier: 1.2.0-beta.10
         version: 1.2.0-beta.10
@@ -1877,8 +1887,8 @@ importers:
         specifier: ^1.19.11
         version: 1.19.14(hono@4.12.12)
       '@hono/node-ws':
-        specifier: ^1.3.0
-        version: 1.3.0(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)
+        specifier: 1.3.2
+        version: 1.3.2(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)
       '@napi-rs/keyring':
         specifier: 2.1.2
         version: 2.1.2
@@ -2839,12 +2849,11 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hono/node-ws@1.3.0':
-    resolution: {integrity: sha512-ju25YbbvLuXdqBCmLZLqnNYu1nbHIQjoyUqA8ApZOeL1k4skuiTcw5SW77/5SUYo2Xi2NVBJoVlfQurnKEp03Q==}
+  '@hono/node-ws@1.3.2':
+    resolution: {integrity: sha512-+AmbA68lcspwOTzqTTZlehv0uT5Uc0CPKzTjEOa57LFDz2uyj77Tof1DKu1Eiri2WO1ig4WA1vayExdYDtu5Lg==}
     engines: {node: '>=18.14.1'}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
-      '@hono/node-server': ^1.19.2
+      '@hono/node-server': ^2.1.6
       hono: ^4.6.0
 
   '@humanfs/core@0.19.2':
@@ -7177,8 +7186,9 @@ packages:
     resolution: {integrity: sha512-oP5VkATKlNwcgvxi0vM0p/D3n2C3EReYVX+DNYs5TjZFn/oQt2j+4sVJtSMr18pdRr8wjTcBl6LoV+FUwzPmNA==}
     engines: {node: '>=18'}
 
-  boolbase@1.0.0:
-    resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
+  boolbase@2.0.0:
+    resolution: {integrity: sha512-DkVaaQHymRhpYEYo9x1oo7Q7B0Y6KJUsjm3c9eTyFDby4MHLBTwZ6ZDWBel5zrYxj1WsZgC5oLpiz+93MluXeA==}
+    engines: {node: '>=20.19.0'}
 
   boolean@3.2.0:
     resolution: {integrity: sha512-d0II/GO9uf9lfUHH2BQsjxzRJZBdsjgsBiW4BvhWk/3qoKwQFjIDVN19PfX8F2D/r9PCMTtLWjYVCFrpeYUzsw==}
@@ -14208,7 +14218,7 @@ snapshots:
     dependencies:
       hono: 4.12.12
 
-  '@hono/node-ws@1.3.0(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)':
+  '@hono/node-ws@1.3.2(@hono/node-server@1.19.14(hono@4.12.12))(hono@4.12.12)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.12)
       hono: 4.12.12
@@ -18543,7 +18553,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  boolbase@1.0.0: {}
+  boolbase@2.0.0(patch_hash=eeea7297ee82771c9653e70457882d46637ffe6a0f0cfe21ba6e8ad9674cff33): {}
 
   boolean@3.2.0:
     optional: true
@@ -18774,7 +18784,7 @@ snapshots:
 
   cheerio-select@2.1.0:
     dependencies:
-      boolbase: 1.0.0
+      boolbase: 2.0.0(patch_hash=eeea7297ee82771c9653e70457882d46637ffe6a0f0cfe21ba6e8ad9674cff33)
       css-select: 5.2.2
       css-what: 6.2.2
       domelementtype: 2.3.0
@@ -19138,7 +19148,7 @@ snapshots:
 
   css-select@5.2.2:
     dependencies:
-      boolbase: 1.0.0
+      boolbase: 2.0.0(patch_hash=eeea7297ee82771c9653e70457882d46637ffe6a0f0cfe21ba6e8ad9674cff33)
       css-what: 6.2.2
       domhandler: 5.0.3
       domutils: 3.2.2
@@ -22603,7 +22613,7 @@ snapshots:
 
   nth-check@2.1.1:
     dependencies:
-      boolbase: 1.0.0
+      boolbase: 2.0.0(patch_hash=eeea7297ee82771c9653e70457882d46637ffe6a0f0cfe21ba6e8ad9674cff33)
 
   nypm@0.6.5:
     dependencies:

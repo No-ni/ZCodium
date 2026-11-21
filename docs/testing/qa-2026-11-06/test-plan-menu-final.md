@@ -2,13 +2,13 @@
 
 本计划合并已接受的菜单测试与两个独立复验，复用一次当前源码编译。每个 spec 仍由独立、串行的 WDIO worker 执行并按现有启动流程重置合成 HOME；不合并业务状态，不修改产品或原 canonical 断言。计划数为 5 specs / 43 it，实际结果只按 NDJSON 与 hook 记录统计。
 
-| 文件 | 已接受用例 | 前置与范围 |
-| --- | --- | --- |
-| `qa-local-menu-actions-20261106.test.ts` | QLA01–12，12项 | 已修当前语言文案和真实 submenu 点击；偏好、帮助、关于、记忆、归档、Browser/CUA设置、Hooks、市场源取消 |
-| `qa-residual-local-menus-20261106.test.ts` | RLM-01–13，13项 | 公开合成对话经真实 UI 导入；命令中心、复制、未读、导出、非法文件恢复、MCP/Commands取消、Skills草稿 |
-| `qa-short-local-menus-20261106.test.ts` | SLM01–15，15项 | 原生帮助/开发工具/清除取消、项目排序、复制、引导、Bot取消、文件操作、Review/office、白板隐藏、受限PTY、聊天查找与预览负测；需静态READY才执行 |
-| `ui-shell/side-pane-full-view.test.ts` | SPFV-E2E-001/002，2项 | 001创建Terminal tab，002依赖该tab。原64px断言失败与产品单行合同分开；新raw JS观察器采实际DOM，不修改布局 |
-| `browser-permission/browser-permission-site-settings.test.ts` | 1项独立复验 | 首次站点默认geolocation查询应denied；新隔离session复验首次granted候选。仅query状态；不访问实际位置/摄像头。首条断言失败时后续允许/重置如实未执行 |
+| 文件                                                          | 已接受用例            | 前置与范围                                                                                                                                       |
+| ------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `qa-local-menu-actions-20261106.test.ts`                      | QLA01–12，12项        | 已修当前语言文案和真实 submenu 点击；偏好、帮助、关于、记忆、归档、Browser/CUA设置、Hooks、市场源取消                                            |
+| `qa-residual-local-menus-20261106.test.ts`                    | RLM-01–13，13项       | 公开合成对话经真实 UI 导入；命令中心、复制、未读、导出、非法文件恢复、MCP/Commands取消、Skills草稿                                               |
+| `qa-short-local-menus-20261106.test.ts`                       | SLM01–15，15项        | 原生帮助/开发工具/清除取消、项目排序、复制、引导、Bot取消、文件操作、Review/office、白板隐藏、受限PTY、聊天查找与预览负测；需静态READY才执行     |
+| `ui-shell/side-pane-full-view.test.ts`                        | SPFV-E2E-001/002，2项 | 001创建Terminal tab，002依赖该tab。原64px断言失败与产品单行合同分开；新raw JS观察器采实际DOM，不修改布局                                         |
+| `browser-permission/browser-permission-site-settings.test.ts` | 1项独立复验           | 首次站点默认geolocation查询应denied；新隔离session复验首次granted候选。仅query状态；不访问实际位置/摄像头。首条断言失败时后续允许/重置如实未执行 |
 
 上述路径的前三项位于本目录 `manual-review/pending/`，最后两项位于 `packages/desktop/test/e2e/`。全局 grep 仅匹配前三组编号、SPFV001/002及精确站点权限标题。前三组不发送模型请求；SPFV和权限复验 `skipProvider:true` 也不发送请求，因此保持 pending 默认的唯一 `common.json` replay 兜底，不加载旧fixture池、不切capture。
 

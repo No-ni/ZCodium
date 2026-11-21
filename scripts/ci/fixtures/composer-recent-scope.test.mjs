@@ -10,6 +10,7 @@ import { resolveComposerScope } from "../../../packages/ui/src/v4/composer/compo
 import { initializeNewTaskDraft } from "../../../packages/ui/src/v4/composer/newTaskDraft.ts";
 import { PendingCommandRegistry } from "../../../packages/ui/src/v4/pendingCommandRegistry.ts";
 import { loadComponentCallback } from "./component-callback.mjs";
+import { requiresAcceptedInputProjection } from "../../../packages/ui/src/v4/conversationProjectionStore.ts";
 
 // 全部偏好、导航与权威响应均为内存合成数据；不启动真实 Host/Agent 或访问用户存储。
 const originalWindow = globalThis.window;
@@ -68,10 +69,23 @@ async function fixture(overrides = {}) {
     rootSessionId: undefined,
     selectionSideChat: false,
     lease: null,
+    // dispatch 现在按目标 session 获取单次 lease；本夹具只替换释放/投影副作用。
+    layer: {
+      acquire: () => ({
+        store: {
+          markCommandPending() {},
+          settleCommand() {},
+          expectAcceptedInputProjection() {},
+          waitForEditPresentation: async () => {},
+        },
+        release() {},
+      }),
+    },
     useZCodeSessionStore: {
       getState: () => ({ getWorkspaceState: () => ({ draftProjectId: "project-p" }) }),
     },
     resolveComposerScope,
+    requiresAcceptedInputProjection,
     prepareComposerRecentReceipt,
     acceptComposerRecentReceipt,
     captureComposerRecentSubmission,

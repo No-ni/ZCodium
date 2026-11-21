@@ -10,23 +10,23 @@ local-supplement SLM15 已显示真实预览且截图有首行，旧preview.text
 
 ## 可执行场景与范围
 
-| ID | 实际操作 | 验收 |
-| --- | --- | --- |
-| SLM01 | Electron 实际 application Help menu 的 What's new / 更新日志 | 真实 menu callback 请求 mock shell.openExternal，仅本 fork CHANGELOG URL，无真实联网 |
-| SLM02 | help.toggle-dev-tools 真实开、关 | 当前主窗口 isDevToolsOpened false→true→false，恢复初始状态；不打开外部 URL |
-| SLM03 | Native Clear All Data 对话框 mock Cancel | showMessageBox buttons/defaultId/cancelId准确；返回0；无 relaunch/exit，隔离setting文件与synthetic task数保留；不验确认删除 |
-| SLM04 | 两个真实零root项目的 KeyboardSensor Space/ArrowDown/Space | DOM顺序交换，localStorage order持久化；反向键盘操作恢复。只创建合成项目，不访问外部目录 |
-| SLM05 | 真实UI导入公开 completed 一轮后复制 assistant | 复用 residual 的公开header/user/assistantText格式和Host import事务；精确v4-copy-rowId；捕获唯一writeText，正确assistant marker，勾选态恢复 |
-| SLM06 | Settings sidebar及general引导入口进入→关闭 | onboarding-page及唯一当前step真实出现；Close后原设置页面回归；不进行配置/迁移 |
-| SLM07 | Remote Control总菜单 Manage Bots→新增Bot provider选择前取消 | 只读取本地空配置/状态；不选择provider、不Save、不触发注册/QR/外部账号；配置无新增 |
-| SLM08 | 真实文件树右键复制绝对/相对路径 | Host文件树提供本树中文空格文件；双clipboard拦截；每次正确唯一path，无真实剪贴板 |
-| SLM09 | 同文件 Add to chat，然后Save As取消 | 正式composer产生该文件mention/attachment，不发送；Host读原字节，mock showSaveDialog canceled；源文件hash与任务数保留，无保存文件 |
-| SLM10 | coding launcher Review→Git tab→关闭 | 真实Git面板和source selector出现；不commit/push；关闭后tab消失，composer/task不变。无Git根时只报告入口/空态，不称diff内容通过 |
-| SLM11 | coding打开Review后切office再切回 | office隐藏新Review/Terminal launcher；已有Review tab与当前task保留；恢复原mode。PTY保活仅在SLM13安全门禁通过后补充，不借DOM存在替代PTY运行 |
-| SLM12 | coding真实side pane launcher whiteboard负测 | launcher确实可见，whiteboard项不存在；不人为加launcher或direct store注入，不扩称白板编辑功能通过 |
-| SLM13 | 受限真实Terminal echo/read输出，office切换后第二次echo | 先验证终端实际shell/cwd/env/PSModulePath和profiles；门禁失败标BLOCKED，仅本例停止。输出精确合成marker、文件正文marker、PWD路径留本树；切office后同tab/PTY继续输出，恢复coding并关闭本例tab |
-| SLM14 | 公开导入长assistant正文后的会话查找 | 真实快捷键；同marker三处，next/previous/Enter/ShiftEnter改变active命中并重新居中；当前合同关闭会清空查询，重开确认空查询、重新输入并恢复首处定位。不发送Provider、不创建Git基线 |
-| SLM15 | 本树1300行text preview及当前查找路由边界 | 正式文件树预览、滚动；当前CodeViewer没有局部find UI/路由，真实Ctrl+F仍打开任务conversation/changes查找。保存实际路由与preview保留证据，仅给FILE03预览partial，不称文件内容find通过。不执行commit |
+| ID    | 实际操作                                                     | 验收                                                                                                                                                                                             |
+| ----- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SLM01 | Electron 实际 application Help menu 的 What's new / 更新日志 | 真实 menu callback 请求 mock shell.openExternal，仅本 fork CHANGELOG URL，无真实联网                                                                                                             |
+| SLM02 | help.toggle-dev-tools 真实开、关                             | 当前主窗口 isDevToolsOpened false→true→false，恢复初始状态；不打开外部 URL                                                                                                                       |
+| SLM03 | Native Clear All Data 对话框 mock Cancel                     | showMessageBox buttons/defaultId/cancelId准确；返回0；无 relaunch/exit，隔离setting文件与synthetic task数保留；不验确认删除                                                                      |
+| SLM04 | 两个真实零root项目的 KeyboardSensor Space/ArrowDown/Space    | DOM顺序交换，localStorage order持久化；反向键盘操作恢复。只创建合成项目，不访问外部目录                                                                                                          |
+| SLM05 | 真实UI导入公开 completed 一轮后复制 assistant                | 复用 residual 的公开header/user/assistantText格式和Host import事务；精确v4-copy-rowId；捕获唯一writeText，正确assistant marker，勾选态恢复                                                       |
+| SLM06 | Settings sidebar及general引导入口进入→关闭                   | onboarding-page及唯一当前step真实出现；Close后原设置页面回归；不进行配置/迁移                                                                                                                    |
+| SLM07 | Remote Control总菜单 Manage Bots→新增Bot provider选择前取消  | 只读取本地空配置/状态；不选择provider、不Save、不触发注册/QR/外部账号；配置无新增                                                                                                                |
+| SLM08 | 真实文件树右键复制绝对/相对路径                              | Host文件树提供本树中文空格文件；双clipboard拦截；每次正确唯一path，无真实剪贴板                                                                                                                  |
+| SLM09 | 同文件 Add to chat，然后Save As取消                          | 正式composer产生该文件mention/attachment，不发送；Host读原字节，mock showSaveDialog canceled；源文件hash与任务数保留，无保存文件                                                                 |
+| SLM10 | coding launcher Review→Git tab→关闭                          | 真实Git面板和source selector出现；不commit/push；关闭后tab消失，composer/task不变。无Git根时只报告入口/空态，不称diff内容通过                                                                    |
+| SLM11 | coding打开Review后切office再切回                             | office隐藏新Review/Terminal launcher；已有Review tab与当前task保留；恢复原mode。PTY保活仅在SLM13安全门禁通过后补充，不借DOM存在替代PTY运行                                                       |
+| SLM12 | coding真实side pane launcher whiteboard负测                  | launcher确实可见，whiteboard项不存在；不人为加launcher或direct store注入，不扩称白板编辑功能通过                                                                                                 |
+| SLM13 | 受限真实Terminal echo/read输出，office切换后第二次echo       | 先验证终端实际shell/cwd/env/PSModulePath和profiles；门禁失败标BLOCKED，仅本例停止。输出精确合成marker、文件正文marker、PWD路径留本树；切office后同tab/PTY继续输出，恢复coding并关闭本例tab       |
+| SLM14 | 公开导入长assistant正文后的会话查找                          | 真实快捷键；同marker三处，next/previous/Enter/ShiftEnter改变active命中并重新居中；当前合同关闭会清空查询，重开确认空查询、重新输入并恢复首处定位。不发送Provider、不创建Git基线                  |
+| SLM15 | 本树1300行text preview及当前查找路由边界                     | 正式文件树预览、滚动；当前CodeViewer没有局部find UI/路由，真实Ctrl+F仍打开任务conversation/changes查找。保存实际路由与preview保留证据，仅给FILE03预览partial，不称文件内容find通过。不执行commit |
 
 ## 终端门禁
 
@@ -62,7 +62,7 @@ PS7启动会自动前置当前用户Modules路径及C:\\Program Files\\PowerShel
 
 2026-11-06 18:45:23 UTC 修后静态 READY：all外置QA noEmit 0、SLM15项实际注册、5文件lint 0、65callback keepNames finding 0、5rawJS syntax 0；严格probe纯合成object/string两种输入接受、8种错误shape全部拒绝，未执行Main/Host/PTY。见[当前静态证据](logs/e2e-preflight-short-static.json)。修后suite SHA256 `abb2086e369104e2dd2e0a47405966296ea254e9aa8aefd426ae1a1906f39fbe`，menu-reviewed原loaded SHA `eaca839f6ba0a303d46adac1027745a7f898145d6d87463ddf70214571d2de1c`。真实复测结果另行保存，不覆盖旧5FAIL/3SKIP/7PASS。
 
-2026-11-06 17:40:43 UTC：[suite](manual-review/pending/qa-short-local-menus-20261106.test.ts)实际tsx导入注册15项，全部外置QA TypeScript noEmit 0，4个外置文件定向lint 0 warnings / 0 errors；公开长归档encode/decode 4240 bytes、3rows、0artifact、assistant 28828字符。61个自有execute callback经keepNames编译并只读求值函数本身，没有内部__name闭包；3个raw browser script解析无错误。详见[静态证据](logs/e2e-preflight-short-static.json)。没有执行hook/case/UI/Host导入/PTY，不计UI PASS。
+2026-11-06 17:40:43 UTC：[suite](manual-review/pending/qa-short-local-menus-20261106.test.ts)实际tsx导入注册15项，全部外置QA TypeScript noEmit 0，4个外置文件定向lint 0 warnings / 0 errors；公开长归档encode/decode 4240 bytes、3rows、0artifact、assistant 28828字符。61个自有execute callback经keepNames编译并只读求值函数本身，没有内部\_\_name闭包；3个raw browser script解析无错误。详见[静态证据](logs/e2e-preflight-short-static.json)。没有执行hook/case/UI/Host导入/PTY，不计UI PASS。
 
 suite SHA256：`6abe6c4ba875b0a3197f33ce48db7662d35b654517bbd42406c7a580c51649ac`。两处clipboard/file picker适配器用rawJS避免tsx属性callback命名闭包；[外置RPC adapter](qa-local-rpc-probe.ts)等价复用当前Window Host端口，编解码仍用原callHandoffHost。正式helper/协议不改，纯本轮QA adapter可独立恢复。
 

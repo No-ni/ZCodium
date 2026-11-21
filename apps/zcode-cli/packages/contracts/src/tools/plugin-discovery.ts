@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { toToolJsonSchema } from "./json-schema.js";
+import { toToolJsonSchema } from "../protocol-values/contract.js";
 
 export const SEARCH_PLUGINS_TOOL_NAME = "SearchPlugins";
 export const SUGGEST_PLUGIN_INSTALL_TOOL_NAME = "SuggestPluginInstall";

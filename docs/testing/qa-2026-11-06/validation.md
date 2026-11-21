@@ -6,15 +6,15 @@
 
 全部UI批次已退出，QA测试源冻结后完成最终验证。五项必需门禁为 **4项PASS、原root lint FAIL**；只排除本轮生成runtime的补充lint为PASS，不替代原命令失败。测试确认8项分为6个产品问题与2个确定性门禁问题；重复置顶后的整session超时仍是责任/根因待区分的运行候选，不增加确认问题数。
 
-| 最终命令 | 真实结果 | 证据 |
-| --- | --- | --- |
-| 安全prepare（固定工具链） | exit0；19个TS工程，含外置QA；输出/声明/增量缓存及祖先均在本树 | [记录](logs/validation-prepare-pinned-final.json)、[输出](logs/validation-prepare-pinned-final.log) |
-| `corepack pnpm --dir packages/desktop typecheck:e2e` | exit0；嵌套pnpm10.33.2、Node24.18.0；有Node24.14.0 engine偏差警告 | [记录](logs/validation-desktop-e2e-typecheck-final-pinned.json)、[输出](logs/validation-desktop-e2e-typecheck-final-pinned.log) |
-| `corepack pnpm typecheck` | exit0；当前配置增量检查 | [记录](logs/validation-typecheck-final.json)、[输出](logs/validation-typecheck-final.log) |
-| `corepack pnpm lint` | **exit1**；16,053文件、38,388 warnings、76 errors | [记录](logs/validation-lint-final.json)、[完整输出](logs/validation-lint-final.log)、[独立归因](logs/validation-lint-final-attribution.json) |
-| `corepack pnpm architecture:check --changed` | exit0；violations/baseline/new均0；base=`merge-base upstream origin/main` | [记录](logs/validation-architecture-final.json)、[输出](logs/validation-architecture-final.log) |
-| `corepack pnpm exec tsc -p docs/testing/qa-2026-11-06/tsconfig.qa.json --noEmit` | exit0；全部当前外置QA与observers，无类型诊断 | [记录](logs/validation-qa-typecheck-final.json)、[输出](logs/validation-qa-typecheck-final.log) |
-| 补充：`corepack pnpm lint --ignore-pattern docs/testing/qa-2026-11-06/runtime/**` | exit0；5,731文件、3 warnings、0 errors；仅排除本轮生成runtime | [实际参数/记录](logs/validation-lint-final-source.json)、[完整输出](logs/validation-lint-final-source.log) |
+| 最终命令                                                                          | 真实结果                                                                  | 证据                                                                                                                                         |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 安全prepare（固定工具链）                                                         | exit0；19个TS工程，含外置QA；输出/声明/增量缓存及祖先均在本树             | [记录](logs/validation-prepare-pinned-final.json)、[输出](logs/validation-prepare-pinned-final.log)                                          |
+| `corepack pnpm --dir packages/desktop typecheck:e2e`                              | exit0；嵌套pnpm10.33.2、Node24.18.0；有Node24.14.0 engine偏差警告         | [记录](logs/validation-desktop-e2e-typecheck-final-pinned.json)、[输出](logs/validation-desktop-e2e-typecheck-final-pinned.log)              |
+| `corepack pnpm typecheck`                                                         | exit0；当前配置增量检查                                                   | [记录](logs/validation-typecheck-final.json)、[输出](logs/validation-typecheck-final.log)                                                    |
+| `corepack pnpm lint`                                                              | **exit1**；16,053文件、38,388 warnings、76 errors                         | [记录](logs/validation-lint-final.json)、[完整输出](logs/validation-lint-final.log)、[独立归因](logs/validation-lint-final-attribution.json) |
+| `corepack pnpm architecture:check --changed`                                      | exit0；violations/baseline/new均0；base=`merge-base upstream origin/main` | [记录](logs/validation-architecture-final.json)、[输出](logs/validation-architecture-final.log)                                              |
+| `corepack pnpm exec tsc -p docs/testing/qa-2026-11-06/tsconfig.qa.json --noEmit`  | exit0；全部当前外置QA与observers，无类型诊断                              | [记录](logs/validation-qa-typecheck-final.json)、[输出](logs/validation-qa-typecheck-final.log)                                              |
+| 补充：`corepack pnpm lint --ignore-pattern docs/testing/qa-2026-11-06/runtime/**` | exit0；5,731文件、3 warnings、0 errors；仅排除本轮生成runtime             | [实际参数/记录](logs/validation-lint-final-source.json)、[完整输出](logs/validation-lint-final-source.log)                                   |
 
 原lint的76个error全部为隔离app-home插件缓存副本的`eslint(max-lines)`；Jiti编译缓存还产生大量warning。没有删除缓存、更改生产lint配置或把原失败改写为通过。补充命令实际被CLI接受并仅传入上述一个ignore pattern，保留其它QA源码。3个warning分别为`validation-e2e-counts.mjs:26`、`feature-inventory-update-browser-matrix.cjs:108`、`feature-inventory-matrix-links.cjs:15`的`prefer-string-starts-ends-with`，均在QA统计/链接脚本；源码补充扫描无error。归因解析覆盖全部76条error；它没有宣称结构化重建全部38,388条warning。
 
@@ -22,11 +22,11 @@
 
 最终逐文件重读NDJSON得到 **188唯一case、250尝试**：最新151PASS/31原始FAIL/6SKIP，全部174PASS/70FAIL/6SKIP。[counts033](logs/validation-e2e-counts-033.json)与[独立分层摘要](logs/validation-e2e-final-summary.json)保存实际身份和统计。183个case至少有过一次非skip记录、244个非skip尝试；最新非skip为182（SLM13曾旧前置FAIL后被正确SKIP），这些数字不等于每个功能动作完成。19个有case记录的完整批次共249尝试、173PASS/70FAIL/6SKIP；另保留取消core批次的重复VP30一次真实PASS，不增加唯一case。
 
-| 最新case分层 | 唯一 | PASS | 原始FAIL | SKIP |
-| --- | ---: | ---: | ---: | ---: |
-| 正式canonical（`packages/desktop/test/e2e/`，排除仓内pending） | 109 | 83 | 26 | 0 |
-| 仓内pending | 2 | 2 | 0 | 0 |
-| 外置docs QA | 77 | 66 | 5 | 6 |
+| 最新case分层                                                   | 唯一 | PASS | 原始FAIL | SKIP |
+| -------------------------------------------------------------- | ---: | ---: | -------: | ---: |
+| 正式canonical（`packages/desktop/test/e2e/`，排除仓内pending） |  109 |   83 |       26 |    0 |
+| 仓内pending                                                    |    2 |    2 |        0 |    0 |
+| 外置docs QA                                                    |   77 |   66 |        5 |    6 |
 
 BLOCKED描述功能动作未抵达或无case的hook/安全前置，不能伪造为NDJSON case。原始FAIL包括产品表现、旧QA契约/定位前置和session/环境错误，不能当作产品Bug数。确定性测试仍为133唯一、131PASS/2稳定FAIL；另5次独立复跑为3PASS/2相同FAIL，共138尝试。最终copy-history-final实际3case为RFC01/HIST01 PASS、HIST02 FAIL；HIST02已跨过2/2搜索，止于Escape后row42挂载等待，其后动作未验，未确认为产品Bug。详见[最终主报告](test-report.md)、[Bug分类](bug-report.md)、[保留执行历史](test-execution-history.md)。
 
@@ -44,17 +44,17 @@ BLOCKED描述功能动作未抵达或无case的hook/安全前置，不能伪造�
 
 以下表格及后续按时间记载的分节保留早期真实验证/截点，最终结果以上述表格与counts033为准；不将早期PASS扩认为QA源修改后的最终门禁。[counts032](logs/validation-e2e-counts-032.json)是local-final-targeted之后、最后3条之前的247尝试历史截点，不是当前统计。
 
-| 验证 | 真实结果 | 证据 |
-| --- | --- | --- |
-| `corepack pnpm typecheck` | 退出 0 | [输出](logs/validation-typecheck.log)、[时间与退出码](logs/validation-typecheck.json) |
-| `corepack pnpm lint` | 退出 0；5,664 个文件；0 warnings、0 errors | [输出](logs/validation-lint.log)、[时间与退出码](logs/validation-lint.json) |
-| `corepack pnpm architecture:check --changed` | 退出 0；violations=0、baseline=0、new=0；比较基线 `merge-base upstream origin/main` | [输出](logs/validation-architecture-check.log)、[时间与退出码](logs/validation-architecture-check.json) |
-| 外置 QA spec：`corepack pnpm exec tsc -p docs/testing/qa-2026-11-06/tsconfig.qa.json --noEmit` | 退出 0，无类型诊断；本轮显式包含 docs 内 pending spec | [输出](logs/validation-qa-typecheck.log)、[时间与退出码](logs/validation-qa-typecheck.json) |
-| 菜单、设置、导航与 fork 审计 | 89 个测试；88 通过、1 失败；0 跳过 | [输出](logs/validation-tests-menu.log)、[完整命令](logs/validation-tests-menu.json) |
-| 本地功能、通知、机器人选择与模型汇总 | 44 个测试；43 通过、1 失败；0 跳过 | [输出](logs/validation-tests-local.log)、[完整命令](logs/validation-tests-local.json) |
-| 两项失败的独立复跑 | 5 个测试；3 通过、2 失败；均复现 | [输出](logs/validation-tests-reproduce.log)、[完整命令](logs/validation-tests-reproduce.json) |
-| 外置补充spec及SPFV/reload observers的targeted类型检查 | 退出0，无诊断；只检查类型，未运行UI | [时间/退出码](logs/validation-qa-typecheck-observer.json) |
-| reload只读observer CJS/tsImport装载 | 退出0，两个exports均存在；零browser调用、零进程扫描 | [输出](logs/validation-reload-observer-static.log)、[完整命令](logs/validation-reload-observer-static.json) |
+| 验证                                                                                           | 真实结果                                                                            | 证据                                                                                                        |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `corepack pnpm typecheck`                                                                      | 退出 0                                                                              | [输出](logs/validation-typecheck.log)、[时间与退出码](logs/validation-typecheck.json)                       |
+| `corepack pnpm lint`                                                                           | 退出 0；5,664 个文件；0 warnings、0 errors                                          | [输出](logs/validation-lint.log)、[时间与退出码](logs/validation-lint.json)                                 |
+| `corepack pnpm architecture:check --changed`                                                   | 退出 0；violations=0、baseline=0、new=0；比较基线 `merge-base upstream origin/main` | [输出](logs/validation-architecture-check.log)、[时间与退出码](logs/validation-architecture-check.json)     |
+| 外置 QA spec：`corepack pnpm exec tsc -p docs/testing/qa-2026-11-06/tsconfig.qa.json --noEmit` | 退出 0，无类型诊断；本轮显式包含 docs 内 pending spec                               | [输出](logs/validation-qa-typecheck.log)、[时间与退出码](logs/validation-qa-typecheck.json)                 |
+| 菜单、设置、导航与 fork 审计                                                                   | 89 个测试；88 通过、1 失败；0 跳过                                                  | [输出](logs/validation-tests-menu.log)、[完整命令](logs/validation-tests-menu.json)                         |
+| 本地功能、通知、机器人选择与模型汇总                                                           | 44 个测试；43 通过、1 失败；0 跳过                                                  | [输出](logs/validation-tests-local.log)、[完整命令](logs/validation-tests-local.json)                       |
+| 两项失败的独立复跑                                                                             | 5 个测试；3 通过、2 失败；均复现                                                    | [输出](logs/validation-tests-reproduce.log)、[完整命令](logs/validation-tests-reproduce.json)               |
+| 外置补充spec及SPFV/reload observers的targeted类型检查                                          | 退出0，无诊断；只检查类型，未运行UI                                                 | [时间/退出码](logs/validation-qa-typecheck-observer.json)                                                   |
+| reload只读observer CJS/tsImport装载                                                            | 退出0，两个exports均存在；零browser调用、零进程扫描                                 | [输出](logs/validation-reload-observer-static.log)、[完整命令](logs/validation-reload-observer-static.json) |
 
 独立测试合计 **133 个：131 通过、2 失败、0 跳过**。复跑的 5 个测试已包含在这 133 个中，不重复计数。两项失败均属于测试/夹具与当前契约不一致；本批没有确认产品在运行时重新引入官方遥测、购买或官方配置请求。
 
@@ -64,28 +64,28 @@ Typecheck 实际运行时间为 22:55:51–22:55:55，lint 为 22:55:51–22:55:
 
 ## 针对性覆盖
 
-| 用例文件（仓库根相对路径） | 个数 | 检查内容 |
-| --- | ---: | --- |
-| `scripts/ci/audit-boundaries.test.mjs` | 11 | 官方控制面/OAuth/购买与推送入口删除、用户 Key 额度、fork 帮助链接、内置插件默认启用集合、发行归属、文档插件许可/版本、AstrBot 文档、后台资源采样默认关闭 |
-| `scripts/ci/no-telemetry.test.mjs` | 2 | 无遥测 SDK；源码禁止采集入口。第二项失败见 VAL-001 |
-| `scripts/ci/bundled-help-config.test.mjs` | 3 | 本地帮助配置、协议校验、中英文社区链接、开发态/正式态配置路径、损坏配置、Desktop 提示的 Host 事实与本地关闭 |
-| `scripts/ci/provider-config-menu-entry.test.mjs` | 3 | 中英文键集合、前往 Provider 配置文案、路径派生与文件物化一致 |
-| `scripts/ci/local-preferences.test.mjs` | 1 | 命令中心的新任务、打开项目、设置、技能、MCP 动作与官方登录/退出删除 |
-| `scripts/ci/windows-ui-help-menu-regressions.test.mjs` | 5 | 自有更新源可用性、Renderer/Windows/macOS 原生菜单与托盘一致、帮助动作失败提示/重试/本地化/日志净化 |
-| `scripts/ci/windows-ui-navigation-regressions.test.mjs` | 20 | 前进/后退删除项与别名清理、跨 workspace identity 隔离、自动化/插件导航目标、模型重启锁、未读更新拒绝与回滚、敏感信息不落日志 |
-| `scripts/ci/windows-ui-root-events-regressions.test.mjs` | 13 | 通知定位任务、远程 identity/path 解析、tab/metadata 优先级、本地 fallback、语言及回调变更、事件释放、日志净化 |
-| `scripts/ci/windows-ui-settings-owner-regressions.test.mjs` | 11 | 终端字体/系统 profile/shell、HTTP 代理/no-proxy/CA、自动归档、Windows 托盘、硬件加速与证书设置只写 base Host |
-| `scripts/ci/windows-ui-settings-refresh-regressions.test.mjs` | 11 | 设置保存与旧读取交错、并发写入读取合并、完成时序、CAS 失败刷新、订阅变化、服务缓存隔离、失败时保留可用快照 |
-| `scripts/ci/windows-ui-shortcut-window-regressions.test.mjs` | 9 | 快捷键默认恢复冲突、Windows 物理键别名与 macOS scope、录制动作幂等、IME/重复键/无效键、托盘隐藏窗口重新显示与过期窗口清理 |
-| `scripts/ci/astrbot-bridge-selection.test.mjs` | 10 | 权限/提问/菜单选择的 payload、编号与命令、语言、群聊路由、seq/回放、权限恢复后的任务 stream 与结束状态归属 |
-| `scripts/ci/desktop-workspace-deep-link.test.mjs` | 5 | workspace 深链、旧登录 payload 拒绝、窗口就绪/关闭隔离、确认与重试、IPC/preload 的 OAuth 删除 |
-| `scripts/ci/feedback-boundary.test.mjs` | 3 | Host 不接受旧反馈上传命令，不传播旧端点/设备身份，通知保留执行和权限状态 |
-| `scripts/ci/local-onboarding.test.mjs` | 1 | 本地引导偏好更新/顺序/损坏恢复、删除身份与上传字段、无官方网络 IO |
-| `scripts/ci/local-usage.test.mjs` | 2 | 本地统计依赖、旧套餐 tab intent 清理、统计/Provider/插件设置导航 |
-| `scripts/ci/no-official-purchase.test.mjs` | 3 | 27 个旧购买 RPC 拒绝、本地统计无账号 IO、本地工作流配置。第三项失败见 VAL-002 |
-| `scripts/ci/retired-web-oauth.test.mjs` | 1 | 内存 bundle 检查 Web 登录/token 模块删除、WebSocket/API 配置、本地 referrer 策略 |
-| `scripts/ci/summary-model-selection.test.mjs` | 12 | 汇总模型优先级/失败 fallback、reasoning/text/tool 聚合与不完整流拒绝、摘要模型偏好/清空的 schema 兼容 |
-| `scripts/ci/update-source-ownership.test.mjs` | 7 | 缺失自有更新源时跳过、无官方回退、构建常量注入与 updater cache 的 appId 隔离 |
+| 用例文件（仓库根相对路径）                                    | 个数 | 检查内容                                                                                                                                                 |
+| ------------------------------------------------------------- | ---: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/ci/audit-boundaries.test.mjs`                        |   11 | 官方控制面/OAuth/购买与推送入口删除、用户 Key 额度、fork 帮助链接、内置插件默认启用集合、发行归属、文档插件许可/版本、AstrBot 文档、后台资源采样默认关闭 |
+| `scripts/ci/no-telemetry.test.mjs`                            |    2 | 无遥测 SDK；源码禁止采集入口。第二项失败见 VAL-001                                                                                                       |
+| `scripts/ci/bundled-help-config.test.mjs`                     |    3 | 本地帮助配置、协议校验、中英文社区链接、开发态/正式态配置路径、损坏配置、Desktop 提示的 Host 事实与本地关闭                                              |
+| `scripts/ci/provider-config-menu-entry.test.mjs`              |    3 | 中英文键集合、前往 Provider 配置文案、路径派生与文件物化一致                                                                                             |
+| `scripts/ci/local-preferences.test.mjs`                       |    1 | 命令中心的新任务、打开项目、设置、技能、MCP 动作与官方登录/退出删除                                                                                      |
+| `scripts/ci/windows-ui-help-menu-regressions.test.mjs`        |    5 | 自有更新源可用性、Renderer/Windows/macOS 原生菜单与托盘一致、帮助动作失败提示/重试/本地化/日志净化                                                       |
+| `scripts/ci/windows-ui-navigation-regressions.test.mjs`       |   20 | 前进/后退删除项与别名清理、跨 workspace identity 隔离、自动化/插件导航目标、模型重启锁、未读更新拒绝与回滚、敏感信息不落日志                             |
+| `scripts/ci/windows-ui-root-events-regressions.test.mjs`      |   13 | 通知定位任务、远程 identity/path 解析、tab/metadata 优先级、本地 fallback、语言及回调变更、事件释放、日志净化                                            |
+| `scripts/ci/windows-ui-settings-owner-regressions.test.mjs`   |   11 | 终端字体/系统 profile/shell、HTTP 代理/no-proxy/CA、自动归档、Windows 托盘、硬件加速与证书设置只写 base Host                                             |
+| `scripts/ci/windows-ui-settings-refresh-regressions.test.mjs` |   11 | 设置保存与旧读取交错、并发写入读取合并、完成时序、CAS 失败刷新、订阅变化、服务缓存隔离、失败时保留可用快照                                               |
+| `scripts/ci/windows-ui-shortcut-window-regressions.test.mjs`  |    9 | 快捷键默认恢复冲突、Windows 物理键别名与 macOS scope、录制动作幂等、IME/重复键/无效键、托盘隐藏窗口重新显示与过期窗口清理                                |
+| `scripts/ci/astrbot-bridge-selection.test.mjs`                |   10 | 权限/提问/菜单选择的 payload、编号与命令、语言、群聊路由、seq/回放、权限恢复后的任务 stream 与结束状态归属                                               |
+| `scripts/ci/desktop-workspace-deep-link.test.mjs`             |    5 | workspace 深链、旧登录 payload 拒绝、窗口就绪/关闭隔离、确认与重试、IPC/preload 的 OAuth 删除                                                            |
+| `scripts/ci/feedback-boundary.test.mjs`                       |    3 | Host 不接受旧反馈上传命令，不传播旧端点/设备身份，通知保留执行和权限状态                                                                                 |
+| `scripts/ci/local-onboarding.test.mjs`                        |    1 | 本地引导偏好更新/顺序/损坏恢复、删除身份与上传字段、无官方网络 IO                                                                                        |
+| `scripts/ci/local-usage.test.mjs`                             |    2 | 本地统计依赖、旧套餐 tab intent 清理、统计/Provider/插件设置导航                                                                                         |
+| `scripts/ci/no-official-purchase.test.mjs`                    |    3 | 27 个旧购买 RPC 拒绝、本地统计无账号 IO、本地工作流配置。第三项失败见 VAL-002                                                                            |
+| `scripts/ci/retired-web-oauth.test.mjs`                       |    1 | 内存 bundle 检查 Web 登录/token 模块删除、WebSocket/API 配置、本地 referrer 策略                                                                         |
+| `scripts/ci/summary-model-selection.test.mjs`                 |   12 | 汇总模型优先级/失败 fallback、reasoning/text/tool 聚合与不完整流拒绝、摘要模型偏好/清空的 schema 兼容                                                    |
+| `scripts/ci/update-source-ownership.test.mjs`                 |    7 | 缺失自有更新源时跳过、无官方回退、构建常量注入与 updater cache 的 appId 隔离                                                                             |
 
 这些是源码、schema、受控 callback、模拟服务与隔离本地文件测试。Windows/macOS 原生菜单与窗口行为使用 mock；AstrBot/模型与网络分支使用模拟输入；Web bundle 在内存中构建。**不能用本批结果替代真实 Electron 菜单点击、真实远程服务器、真实模型 API、手机 Web 或 macOS 真机验收。** 主测试报告中的 E2E 与人工交互证据应单独汇总。
 

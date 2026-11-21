@@ -1,5 +1,4 @@
-import { useServices } from "@/hooks/useServices.js";
-import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { useContextOrWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import type { IZCodeTaskService } from "@zcode/services";
 import type { ZCodeTaskSnapshot } from "@zcode/shared";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
@@ -183,11 +182,7 @@ function readPersistedSnapshotEntry(key: string) {
   return { etag: entry.etag, snapshot: entry.snapshot };
 }
 
-function writePersistedSnapshotEntry(
-  key: string,
-  etag: string,
-  snapshot: ZCodeTaskSnapshot,
-): void {
+function writePersistedSnapshotEntry(key: string, etag: string, snapshot: ZCodeTaskSnapshot): void {
   ensurePersistedSnapshotCacheLoaded();
   const serializedSnapshot = JSON.stringify(snapshot);
   const sizeBytes = new TextEncoder().encode(serializedSnapshot).byteLength;
@@ -263,11 +258,7 @@ function createZCodeTaskServiceProxy(service: IZCodeTaskService): IZCodeTaskServ
                 snapshot: fallbackResult.snapshot,
               };
               snapshotCache.set(requestKey, nextEntry);
-              writePersistedSnapshotEntry(
-                requestKey,
-                fallbackResult.etag,
-                fallbackResult.snapshot,
-              );
+              writePersistedSnapshotEntry(requestKey, fallbackResult.etag, fallbackResult.snapshot);
             }
             return fallbackResult.snapshot;
           }
@@ -277,11 +268,7 @@ function createZCodeTaskServiceProxy(service: IZCodeTaskService): IZCodeTaskServ
               snapshot: firstResult.snapshot,
             };
             snapshotCache.set(requestKey, nextEntry);
-            writePersistedSnapshotEntry(
-              requestKey,
-              firstResult.etag,
-              firstResult.snapshot,
-            );
+            writePersistedSnapshotEntry(requestKey, firstResult.etag, firstResult.snapshot);
           } else if (!firstResult.snapshot) {
             snapshotCache.delete(requestKey);
             deletePersistedSnapshotEntry(requestKey);
@@ -306,9 +293,11 @@ export function useZCodeTaskService(
   workspaceIdentity?: string | null,
 ): IZCodeTaskService {
   // ZCode task 服务按 workspace 身份解析，保证所有 task RPC 都落到对应的 host。
-  const services = workspacePath
-    ? useWorkspaceServices(workspacePath, preferredRemoteSessionId, workspaceIdentity)
-    : useServices();
+  const services = useContextOrWorkspaceServices(
+    workspacePath,
+    preferredRemoteSessionId,
+    workspaceIdentity,
+  );
   const rawService = services.zcodeTaskService;
   if (!rawService || typeof rawService !== "object") {
     return rawService;

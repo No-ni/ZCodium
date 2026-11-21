@@ -8,15 +8,15 @@
 
 产品文件只有 `packages/desktop/src/host/database-startup/tasksStorageWorker.ts` 与 `packages/services/src/project-storage/startup.ts`。其他代理的 Browser/UI 修复及原有本地改动保留。
 
-| 验证 | 实际结果 | 证据 |
-| --- | --- | --- |
-| 修前架构检查 | exit 0，0 violations | [日志](logs/validation-bug004-architecture-pre.log)、[结果](logs/validation-bug004-architecture-pre.json) |
-| 真实 Worker 修前回归 | 3 项：2 PASS / 1 FAIL；旧设置保存的两项目实际为空 | [快照](logs/validation-bug004-worker-before-fix.json)、[执行日志](logs/validation-bug004-worker-before.log) |
-| 同脚本修后回归 | 3 项全部 PASS | [快照](logs/validation-bug004-worker-after-fix.json)、[执行日志](logs/validation-bug004-worker-after.log) |
-| 两产品文件及 Worker 回归 lint | 3 文件，0 warnings / 0 errors，exit 0 | [日志](logs/validation-bug004-lint-owned.log) |
-| 新 E2E 静态准入 | 2 条真实 tsx 注册；0 browser 访问；transpile 0 error；1 raw script 语法通过；2 文件 lint 0/0 | [详细结果](logs/validation-bug004-e2e-static.json)、[执行日志](logs/validation-tests-bug004-e2e-static.log)、[lint](logs/validation-bug004-e2e-owned-lint.log) |
-| Desktop UI 首次迁移/完整冷重开 | 2 PASS / 0 FAIL / 0 SKIP，exit 0；root 已串行执行 | [运行汇总](runtime/qa-fix-bug004-desktop-legacy-project/evidence/summary.json)、[逐项结果](runtime/qa-fix-bug004-desktop-legacy-project/evidence/test-results.ndjson)、[计划与验收](test-plan-bug004-desktop-migration.md) |
-| 最终全仓 typecheck/lint/architecture 与 E2E/外置 noEmit | root 统一执行，不以定向 lint 代替 | 待 root 汇总 |
+| 验证                                                    | 实际结果                                                                                     | 证据                                                                                                                                                                                                                       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 修前架构检查                                            | exit 0，0 violations                                                                         | [日志](logs/validation-bug004-architecture-pre.log)、[结果](logs/validation-bug004-architecture-pre.json)                                                                                                                  |
+| 真实 Worker 修前回归                                    | 3 项：2 PASS / 1 FAIL；旧设置保存的两项目实际为空                                            | [快照](logs/validation-bug004-worker-before-fix.json)、[执行日志](logs/validation-bug004-worker-before.log)                                                                                                                |
+| 同脚本修后回归                                          | 3 项全部 PASS                                                                                | [快照](logs/validation-bug004-worker-after-fix.json)、[执行日志](logs/validation-bug004-worker-after.log)                                                                                                                  |
+| 两产品文件及 Worker 回归 lint                           | 3 文件，0 warnings / 0 errors，exit 0                                                        | [日志](logs/validation-bug004-lint-owned.log)                                                                                                                                                                              |
+| 新 E2E 静态准入                                         | 2 条真实 tsx 注册；0 browser 访问；transpile 0 error；1 raw script 语法通过；2 文件 lint 0/0 | [详细结果](logs/validation-bug004-e2e-static.json)、[执行日志](logs/validation-tests-bug004-e2e-static.log)、[lint](logs/validation-bug004-e2e-owned-lint.log)                                                             |
+| Desktop UI 首次迁移/完整冷重开                          | 2 PASS / 0 FAIL / 0 SKIP，exit 0；root 已串行执行                                            | [运行汇总](runtime/qa-fix-bug004-desktop-legacy-project/evidence/summary.json)、[逐项结果](runtime/qa-fix-bug004-desktop-legacy-project/evidence/test-results.ndjson)、[计划与验收](test-plan-bug004-desktop-migration.md) |
+| 最终全仓 typecheck/lint/architecture 与 E2E/外置 noEmit | root 统一执行，不以定向 lint 代替                                                            | 待 root 汇总                                                                                                                                                                                                               |
 
 Worker 脚本 [validation-bug004-worker-regression.mjs](logs/validation-bug004-worker-regression.mjs) 在工作树 `.run-logs/qa-2026-11-06/validation/bug004/` 内创建独占合成 HOME/旧数据库，装载真实 Worker、SettingService、Repo 与 SQLite 迁移，使用 readonly 前后快照。验证多保存项目的顺序/重复路径去重、conversation/recent-only/task-only 排除、旧任务事实和未触及表哈希、固定 checksum、重开幂等、全新安装空集合以及已记账空项目库不被偷偷补写。它不是 Electron UI 或真实用户迁移验收。
 

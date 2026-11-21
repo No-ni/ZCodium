@@ -17,14 +17,21 @@ let observerPromise;
 function loadObserver() {
   if (!observerPromise) {
     const { tsImport } = desktopRequire("tsx/esm/api");
-    observerPromise = tsImport(pathToFileURL(source).href, { parentURL: pathToFileURL(__filename).href, tsconfig: path.join(desktop, "tsconfig.e2e.json") });
+    observerPromise = tsImport(pathToFileURL(source).href, {
+      parentURL: pathToFileURL(__filename).href,
+      tsconfig: path.join(desktop, "tsconfig.e2e.json"),
+    });
   }
   return observerPromise;
 }
 
 exports.beginReloadObservation = async function beginReloadObservation(context, paths) {
   const observer = await loadObserver();
-  return observer.beginReloadObservation(context, { ...paths, observerSourceSha256, facadeSourceSha256 });
+  return observer.beginReloadObservation(context, {
+    ...paths,
+    observerSourceSha256,
+    facadeSourceSha256,
+  });
 };
 exports.finishReloadObservation = async function finishReloadObservation(context) {
   const observer = await loadObserver();

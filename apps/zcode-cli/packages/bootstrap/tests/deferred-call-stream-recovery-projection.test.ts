@@ -44,6 +44,8 @@ it.each([
         ...toolSearchToolEntry.metadata,
         name: TARGET,
         shouldDefer: true,
+        // ToolSearch 模板为 alwaysLoad；目标夹具必须明确覆盖，才能进入真正的 deferred admission。
+        alwaysLoad: false,
         readOnly: false,
         concurrentSafe: false,
       },
@@ -136,8 +138,9 @@ it.each([
           type: SessionEventType.ModelStreaming,
           payload: expect.objectContaining({
             kind: "tool_call",
-            toolName: modelCall.name,
-            input: modelCall.input,
+            // 准入后的内部事件按原 ToolSearch 契约只使用目标名/参数，模型请求另行恢复包装。
+            toolName: TARGET,
+            input: INPUT,
           }),
         }),
       );

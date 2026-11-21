@@ -48,10 +48,11 @@ ugrep 的 BSD-3-Clause 版权、条件和免责声明完整保留。ripgrep 保�
 
 ## 已明确的资料边界
 
-- ARMS 按当前生产依赖图进入声明，部分原始材料仍待补齐；不沿用其他分支已移除它的结论。`@dukelib/sheets-wasm@0.1.21` 已取得 `wasm-v0.1.21` 对应 commit 的原始 LICENSE。
-- 当前有 21 个包未取得对应版本的完整 LICENSE 文件，保留发布方许可标识、可取得的 README 许可段及标准条款，逐项记录在 `npm-overrides.json` 的 `evidenceKind` 字段。`reviewEvidence` 保存本次 npm 归档哈希及可取得的固定上游树证据。标准条款不能冒称上游原始版权声明；它们继续出现在清单的 `reviewRequired`，严格检查失败。其中 6 个是 sharp 预编译的 `@img/sharp-libvips-*`（只由真实 Computer Use 包引入）：发布方只声明 LGPL-3.0-or-later，并在 README 许可段列出 aom、cairo、glib 等约 28 个内置库，各内置库对应版本的原文尚未收集；标准条款取自 SPDX license-list-data v3.27.0（其 LGPL-3.0 文本已内含 GPL-3.0 全文）。
+- 本仓已剥离 ARMS 与官方遥测依赖；声明只按当前锁文件和生产图生成，不恢复已删除模块。
+- 缺少完整原始材料的 npm 包仍按 `npm-overrides.json` 的 `evidenceKind` 逐项记录；当前数量以生成清单为准。`reviewEvidence` 保存发布源码归档哈希和固定上游来源。标准条款不能冒称上游原始版权声明，未关闭项继续进入 `reviewRequired` 并阻断严格检查。
+- CUA 0.28.2 与 UBJS 0.31.0-3 的精确版本复核见 `cua-driver/review.json`。UBJS 的原始 MPL Exhibit A 声明头、完整条款、对应发布源码与 CUA 兼容变换均已核验；MPL 不要求补造 MIT 式版权人姓名。材料字节哈希、版本和许可表达式变化都会重新阻断。复核不解除其他依赖或最终安装包的来源义务。
 - `embedded-components.json` 记录 Canvas 0.1.100 的 Skia 子模块和 quickjs-wasi 2.2.0 的 QuickJS-NG 子模块固定 revision 及完整原文。现已补充固定 Skia DEPS 中的字体、图片、压缩库材料，以及 QuickJS 的 WASI libc、LLVM runtime、Mbed TLS、Project Everest 和 Ada URL parser 材料；`buildEvidence` 保存构建脚本和 SDK submodule 来源，按原文字节校验。Mbed TLS 采用 Apache-2.0 选项，FreeType 采用 FTL 选项。各平台最终二进制、Rust/C++ 运行库及全部嵌套依赖的对应关系仍未完成核验，两项 reviewRequired 保留。
-- 原生来源清单中的 Rust 标准库 revision `6a6eaca656978778f7c1c750ee0c3db87f8bffb2` 尚无原文快照。本次从两个 Windows ripgrep 输入归档的 PE 文件重新提取出相同 revision，但公开 rust-lang/rust 无对应 commit；没有用其他 Rust 版本的材料替代。连同上述 npm 包、复制源码、内嵌组件与链接来源问题，`inventory.json` 的 `reviewRequired` 当前共 25 项。
+- 原生来源清单中的 Rust 标准库 revision `6a6eaca656978778f7c1c750ee0c3db87f8bffb2` 尚无原文快照。两个 Windows ripgrep 输入归档的 PE 文件包含相同 revision，但公开 rust-lang/rust 无对应 commit；没有用其他 Rust 版本的材料替代。npm 包、复制源码、内嵌组件与链接来源的剩余事项统一以 `inventory.json` 的 `reviewRequired` 为准。
 - shadcn、AI Elements、Fig 注册表和 Material Icon Theme 的当前文件及核验许可证均已记录。当前 checkout 没有最初复制 revision，因此 `importRevision` 为 null；固定的许可参考 commit 不冒充最初复制版本。
 - 预编译原生工具的编译器/PCRE2 字符串与构建输入已记录。musl 的精确补丁版本未能从现有二进制恢复，保留上游 COPYRIGHT 参考并明确标记。源码配置和材料清单不等于每个平台最终安装包的完整链接审计。
 

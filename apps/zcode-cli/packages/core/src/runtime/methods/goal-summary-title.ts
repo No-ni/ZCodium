@@ -31,17 +31,18 @@ export function maybeStartGoalSummaryTitleGeneration(
         targetID,
         traceContext,
       }),
-    ).catch((error) => {
-      logGoalSummaryFallbackFailure(this, error, targetID, traceContext);
+    ).catch(() => {
+      logGoalSummaryFallbackFailure(this, targetID, traceContext);
     });
     return false;
   }
   const generation = generateAndPersistGoalSummaryTitle
     .call(this, input, targetID, traceContext)
-    .catch(async (error) => {
+    .catch(async () => {
+      // 不格式化模型或存储异常，既防止泄漏原文，也保证标题回退不会被 toString 阻断。
       this.logger?.warn("Goal summary title generation failed", {
         ...traceContextToLogContext(traceContext),
-        errorMessage: error instanceof Error ? error.message : String(error),
+        reason: "title_generation_failed",
         event: "goal_summary_title_generation.failed",
         module: "core.runtime",
         status: "failed",
@@ -54,21 +55,20 @@ export function maybeStartGoalSummaryTitleGeneration(
         traceContext,
       });
     });
-  void this.trackResidencyBlockingWork(generation).catch((error) => {
-    logGoalSummaryFallbackFailure(this, error, targetID, traceContext);
+  void this.trackResidencyBlockingWork(generation).catch(() => {
+    logGoalSummaryFallbackFailure(this, targetID, traceContext);
   });
   return true;
 }
 
 function logGoalSummaryFallbackFailure(
   runtime: AgentRuntimeInternal,
-  error: unknown,
   targetID: string,
   traceContext: TraceContext,
 ): void {
   runtime.logger?.warn("Goal summary title fallback persistence failed", {
     ...traceContextToLogContext(traceContext),
-    errorMessage: error instanceof Error ? error.message : String(error),
+    reason: "storage_write_failed",
     event: "goal_summary_title_generation.fallback_failed",
     module: "core.runtime",
     status: "failed",
