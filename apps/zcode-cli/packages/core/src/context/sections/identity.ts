@@ -12,14 +12,6 @@ const DEFAULT_AGENT_IDENTITY =
 const OUTPUT_STYLE_AGENT_IDENTITY =
   'You are an interactive agent that helps users according to your "Output Style", which describes how you should respond to user queries.';
 
-const SECURITY_NOTICE =
-  "IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.";
-
-/** 安全 IMPORTANT 行：交互式身份与工作流子代理身份共用，逐字同一份。 */
-export function buildSecurityNotice(): string {
-  return SECURITY_NOTICE;
-}
-
 /**
  * `# Harness` 块：稳定运行时约束，不属于 output style 可替换的 coding instructions，
  * 也是工作流子代理身份（sections/workflow-actor.ts）逐字复用的那一段。
@@ -40,13 +32,15 @@ export function buildHarnessBlock(midConversationSystem = true): string {
   ].join("\n");
 }
 
+// 产品决定（docs/specs/context-system-prompt.md）：默认提示不注入内置安全声明，
+// 也不新增替代文案；身份介绍与 Harness 仍按原契约组装。
 function buildIdentityPrompt(
   outputStyle: OutputStylePromptConfig | undefined,
   midConversationSystem: boolean,
 ): string {
   const intro = outputStyle ? OUTPUT_STYLE_AGENT_IDENTITY : DEFAULT_AGENT_IDENTITY;
 
-  const identityLines = ["", intro, "", SECURITY_NOTICE].join("\n");
+  const identityLines = ["", intro].join("\n");
 
   return [identityLines, "", buildHarnessBlock(midConversationSystem)].join("\n");
 }

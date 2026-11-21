@@ -4,8 +4,84 @@ import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 import { createSettingService } from "../../packages/services/src/setting/settingService.ts";
 import { getAgentUserInstructionsFilePath } from "../../packages/services/src/paths.ts";
-import { USER_INSTRUCTIONS_MAX_BYTES } from "@zcode/shared";
+import {
+  USER_INSTRUCTIONS_MAX_BYTES,
+  appSettingsSchema,
+  appSettingsPatchSchema,
+} from "@zcode/shared";
 import { assertProjectPath, createProjectTestFixture } from "./project-test-sandbox.mjs";
+
+test("grouping switches persist false across reloads and unrelated settings patches", async () => {
+  const root = await createProjectTestFixture("grouping-settings");
+  const settingsFilePath = await assertProjectPath(join(root, "setting.json"));
+  const service = createSettingService({ settingsFilePath });
+  const fields = [
+    "toolGroupingExploreEnabled",
+    "toolGroupingTerminalEnabled",
+    "toolGroupingChangesEnabled",
+  ];
+  await service.update(Object.fromEntries(fields.map((field) => [field, false])));
+  await service.update({ locale: "en-US", terminalFontFamily: "monospace" });
+  const reloaded = createSettingService({ settingsFilePath });
+  for (const field of fields) assert.equal((await reloaded.get())[field], false);
+  await reloaded.update({ toolGroupingTerminalEnabled: true });
+  const saved = await reloaded.get();
+  assert.deepEqual(
+    fields.map((field) => saved[field]),
+    [false, true, false],
+  );
+  for (const field of fields) {
+    assert.equal(appSettingsSchema.safeParse({ [field]: "false" }).success, false);
+    const before = await readFile(settingsFilePath, "utf8");
+    await assert.rejects(reloaded.update({ [field]: "false" }));
+    assert.equal(await readFile(settingsFilePath, "utf8"), before);
+  }
+});
+
+test("unrelated patches preserve custom remote mode and its connection context", async () => {
+  const root = await createProjectTestFixture("remote-mode-settings");
+  const settingsFilePath = await assertProjectPath(join(root, "setting.json"));
+  const service = createSettingService({ settingsFilePath });
+  const remote = {
+    webRemoteControlEndpointMode: "custom",
+    webRemoteControlCustomEndpointUrl: "wss://relay.example.invalid/ws",
+    webRemoteControlDeviceMid: "fixture-mid",
+    webRemoteControlExternalRelayDevice: { deviceSid: "fixture-sid" },
+    webRemoteControlLastEnabledContext: { workspacePath: root, initialTaskId: "fixture-task" },
+  };
+  await service.update(remote);
+  for (const patch of [
+    { terminalFontFamily: "monospace" },
+    { locale: "en-US" },
+    { toolGroupingExploreEnabled: false },
+  ]) {
+    assert.equal(
+      Object.hasOwn(appSettingsPatchSchema.parse(patch), "webRemoteControlEndpointMode"),
+      false,
+    );
+    await service.update(patch);
+    const saved = await createSettingService({ settingsFilePath }).get();
+    for (const [field, value] of Object.entries(remote)) assert.deepEqual(saved[field], value);
+  }
+  await service.update({ webRemoteControlEndpointMode: "lan" });
+  assert.equal((await service.get()).webRemoteControlEndpointMode, "lan");
+  assert.equal(
+    (await service.get()).webRemoteControlCustomEndpointUrl,
+    remote.webRemoteControlCustomEndpointUrl,
+  );
+});
+
+test("full settings provide defaults while empty patches inject no preference", () => {
+  const settings = appSettingsSchema.parse({});
+  for (const field of [
+    "toolGroupingExploreEnabled",
+    "toolGroupingTerminalEnabled",
+    "toolGroupingChangesEnabled",
+  ])
+    assert.equal(settings[field], true);
+  assert.equal(settings.webRemoteControlEndpointMode, "lan");
+  assert.deepEqual(appSettingsPatchSchema.parse({}), {});
+});
 
 test("setting patches preserve each other and a fixed Source root cannot be changed", async () => {
   const root = await createProjectTestFixture("setting-patches");

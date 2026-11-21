@@ -41,7 +41,7 @@ for (const presentationSurface of ["terminal", "zcode_desktop"] as const) {
   it(`${presentationSurface} default system messages omit the built-in notice`, () => {
     const prompt = buildSystemPrompt({ presentationSurface });
     assertNoBuiltinNotice(prompt);
-    assert.ok(prompt.includes("You are an interactive ZCode agent"));
+    assert.ok(prompt.includes("You are an agent working with the user toward their goals"));
   });
 
   for (const keepCodingInstructions of [false, true]) {
@@ -51,7 +51,9 @@ for (const presentationSurface of ["terminal", "zcode_desktop"] as const) {
         outputStyle: { name: "Concise", prompt: OUTPUT_STYLE_PROMPT, keepCodingInstructions },
       });
       assertNoBuiltinNotice(prompt);
-      assert.ok(prompt.includes(OUTPUT_STYLE_PROMPT));
+      // 输出风格正文由 runtime 的 context announcement 投递（runtime-reminders.ts），
+      // 这里只验证身份段切到 output-style 形态且声明仍被移除。
+      assert.ok(prompt.includes('according to your "Output Style"'));
     });
   }
 }
@@ -71,7 +73,7 @@ it("preserves caller-provided custom system prompts without filtering their text
   const customSystemPrompt = `Caller instructions: ${REMOVED_NOTICE_FRAGMENTS[0]}.`;
   const prompt = buildSystemPrompt({ customSystemPrompt });
   assert.ok(prompt.includes(customSystemPrompt));
-  assert.ok(!prompt.includes("You are an interactive ZCode agent"));
+  assert.ok(!prompt.includes("You are an agent working with the user toward their goals"));
 });
 
 it("preserves caller-provided workflow personas without filtering their text", () => {

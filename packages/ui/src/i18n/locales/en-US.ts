@@ -3651,6 +3651,15 @@ const enUS: Record<string, string> = {
     "Show full reasoning inside the message stream. When off, the first reasoning item in each turn remains visible.",
   "settings.messageStreamShowTodos": "Show todos",
   "settings.messageStreamShowTodosDescription": "Show Todo tool cards inside the message stream. ",
+  "settings.toolGroupingExplore": "Group exploration tools",
+  "settings.toolGroupingExploreDescription":
+    "Combine consecutive reads and searches into an Explore section.",
+  "settings.toolGroupingTerminal": "Group terminal commands",
+  "settings.toolGroupingTerminalDescription":
+    "Combine consecutive shell commands that change state into a Terminal section.",
+  "settings.toolGroupingChanges": "Group file changes",
+  "settings.toolGroupingChangesDescription":
+    "Combine consecutive Write, Edit and ApplyPatch calls into a Changes section.",
   "settings.zcodeInteractionBehavior": "Interaction behavior",
   "settings.zcodeInteractionBehaviorDescription":
     "While ZCodium is running, add follow-up actions to the queue or guide them to run after the next tool call.",

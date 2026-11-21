@@ -137,10 +137,8 @@ describe("AI SDK Provider execution", () => {
         "x-api-key": "anthropic-key",
         "anthropic-version": "2023-06-01",
       });
-      expect(endpointRoutingPort.resolve).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.not.objectContaining({ apiKey: expect.any(String) }),
-      );
+      // 本仓已移除官方端点路由；真实请求必须直达上方用户配置的本地端点。
+      expect(endpointRoutingPort.resolve).not.toHaveBeenCalled();
     } finally {
       await closeServer(server);
     }

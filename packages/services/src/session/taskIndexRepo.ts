@@ -1358,17 +1358,29 @@ export class TaskIndexRepo {
     ];
     const args: Array<string | number> = [workspaceKey(params), Date.now() - days * 86400000];
     if (params.provider) appendZCodeAgentIndexedProviderFilter(where, args, params.provider);
-    // Bug 原因：重新运行的会话仍可能保留上轮 completed 终态。活动 owner 的最新观察
-    // 必须在最后一个 await 之后进入同条条件 UPDATE，避免归档期间恢复的任务被隐藏。
-    const activeTaskIds = [...new Set(params.readActiveTaskIds?.() ?? [])];
-    if (activeTaskIds.length > 0) {
-      where.push(`task_id NOT IN (${activeTaskIds.map(() => "?").join(", ")})`);
-      args.push(...activeTaskIds);
+    const db = this.getDatabase();
+    db.exec("BEGIN IMMEDIATE");
+    let rows: TaskIndexRow[];
+    try {
+      // Bug 原因：重新运行的会话仍可能保留上轮 completed 终态。活动 owner 的最新观察
+      // 必须在最后一个 await 之后进入同条条件 UPDATE，避免归档期间恢复的任务被隐藏。
+      const activeTaskIds = [...new Set(params.readActiveTaskIds?.() ?? [])];
+      if (activeTaskIds.length > 0) {
+        where.push(`task_id NOT IN (${activeTaskIds.map(() => "?").join(", ")})`);
+        args.push(...activeTaskIds);
+      }
+      // 修复依据：多个 Window Host 共用索引，单条条件 UPDATE 才不会覆盖期间的 pin/unread/status 变化。
+      rows = db
+        .prepare(`UPDATE tasks SET archived=1 WHERE ${where.join(" AND ")} RETURNING *`)
+        .all(...args) as unknown as TaskIndexRow[];
+      // 原因：自动路径只写归档会留下启用中的定时任务；复用手动归档的暂停函数和同一事务。
+      // 仅处理本次 RETURNING 行，避免重复扫描覆盖用户在归档后重新启用的选择。
+      for (const row of rows) pauseAutomationsForArchivedTask(db, row.workspace_key, row.task_id);
+      db.exec("COMMIT");
+    } catch (error) {
+      if (db.isTransaction) db.exec("ROLLBACK");
+      throw error;
     }
-    // 修复依据：多个 Window Host 共用索引，单条条件 UPDATE 才不会覆盖期间的 pin/unread/status 变化。
-    const rows = this.getDatabase()
-      .prepare(`UPDATE tasks SET archived=1 WHERE ${where.join(" AND ")} RETURNING *`)
-      .all(...args) as unknown as TaskIndexRow[];
     rows.sort(
       (a, b) =>
         (b.cli_updated_at ?? 0) - (a.cli_updated_at ?? 0) ||

@@ -3426,6 +3426,13 @@ const zhCN: Record<string, string> = {
     "在消息流中展示完整的模型思考内容；关闭时每轮仍展示第一次思考。",
   "settings.messageStreamShowTodos": "显示待办",
   "settings.messageStreamShowTodosDescription": "在消息流中展示 Todo 工具卡片。",
+  "settings.toolGroupingExplore": "探索工具分组",
+  "settings.toolGroupingExploreDescription": "将连续的读取和搜索合并到探索分组。",
+  "settings.toolGroupingTerminal": "终端命令分组",
+  "settings.toolGroupingTerminalDescription": "将连续的非只读 Shell 命令合并到终端分组。",
+  "settings.toolGroupingChanges": "文件变更分组",
+  "settings.toolGroupingChangesDescription":
+    "将连续的 Write、Edit 和 ApplyPatch 调用合并到变更分组。",
   "settings.zcodeInteractionBehavior": "交互行为",
   "settings.zcodeInteractionBehaviorDescription":
     "在 ZCodium 运行时将后续操作加入队列，或引导至下一轮工具调用后运行。",

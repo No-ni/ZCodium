@@ -7081,6 +7081,8 @@ XSG02 分组原生滚动链（2026-11-09，pending-review）：`packages/ui/test
 
 ## 归档暂停定时任务（AAP，2026-11-10）
 
+2026-11-22 当前 3.18.2 合并线复查：下方 11-10 的 covered 及安装运行证据仅属于历史版本。当前自动归档实际入口曾遗漏暂停，现已用同一事务恢复。AAP02/AAP05 本轮只有真实 SQLite、Task adapter 与 Controller 源回归（18/18，`.run-logs/project-only-validation/custom-fixes-Hq2WMF/children/`），当前完整桌面/手机归档交互仍为 partial，未重新晋升或变更 CI 准入。分组开关 CF-03/CF-06/CF-08 浏览器候选的英文 1280px / 中文 390px 操作、保存、刷新和生产投影更新通过，证据见 `.run-logs/project-only-validation/custom-fixes-ABgstn/children/custom-grouping-ui-yecFFK/`；只覆盖受控组件和生产表达式，不覆盖完整 Electron/Host。详见 [本轮定制回归](../specs/custom-feature-regressions-2026-11-22.md)。
+
 [用例定义](../conversation-session-case-catalog.md#归档暂停定时任务aap2026-11-10-accepted)。
 
 | ID    | 状态    | 验证入口                                                                                                                                                                 |

@@ -13,6 +13,7 @@
 - 候选必须同时满足：未删除、未归档、未置顶、无未读、状态 completed、最后更新时间严格早于保留期。包含隐藏的历史 provider；归档不删除会话内容、不修改最后更新时间。
 - completed 读取 CLI 持久终态；当前 syncer 观察到的活动会话仍被排除。旧 completed 终态不能作为重新运行会话已结束的证明。本 fork 不启动仅按时间的 project scheduler。
 - “已打开任务”不增加额外排除规则：旧实现也未提供该条件，唯一资格仍是上述持久化事实。
+- 自动归档与手动归档一样，在所属 tasks-index 的同一事务内暂停本次真正归档任务关联的启用中定时任务。暂停不撤销已认领或正在运行的轮次；重复扫描不覆盖用户归档后重新启用的选择。任一暂停失败时，本工作区归档和暂停全部回滚。
 
 ## 所有者与接口
 
@@ -36,7 +37,9 @@ sequenceDiagram
     Trigger->>M: requestScan（单飞合并）
     M->>M: 读取最新设置和范围，检查取消代际
     M->>R: archiveStaleTasks(identity/path)
-    R->>DB: 原子条件 UPDATE RETURNING
+    R->>DB: BEGIN IMMEDIATE + 条件 UPDATE RETURNING
+    DB->>DB: 暂停本次变更任务关联的启用中定时任务
+    DB->>DB: COMMIT（失败则全部 ROLLBACK）
     DB-->>R: 本次真正改变的任务
     R-->>UI: 提交后列表变更
     M-->>UI: 跨窗口广播失效（同数据源，不回环）

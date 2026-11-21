@@ -1413,8 +1413,8 @@ describe("ContextBuilder meta user context", () => {
     );
     expect(section.content).not.toContain("# Agent Identity");
     expect(section.content).toContain("# Harness");
-    expect(section.content).toContain("IMPORTANT:");
-    expect(section.content).toContain("authorized security testing");
+    expect(section.content).not.toContain("IMPORTANT:");
+    expect(section.content).not.toContain("authorized security testing");
     expect(section.content).toContain("Tools run behind a user-selected permission mode");
     expect(section.content).toContain(
       "The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.",
@@ -1490,7 +1490,7 @@ describe("ContextBuilder meta user context", () => {
 
 // ── 工作流子代理身份（docs/dynamic-workflow/authoring.md「The system prompt」）──
 //
-// persona 不再整段替换子代理的系统提示：基座段（CLI prefix、安全行、Harness、memory）保留，
+// persona 不再整段替换子代理的系统提示：基座段（CLI prefix、Harness、memory）保留，
 // 交互式身份换成工作流子代理契约，persona 叠加其上；面向「与用户对话」的三段（desktop、
 // Dynamic Behavior、session guidance）跳过。
 describe("context builder — workflow actor identity", () => {
@@ -1519,18 +1519,16 @@ describe("context builder — workflow actor identity", () => {
     }).build();
     const text = result.systemMessages.map((message) => String(message.content)).join("\n");
 
-    // 开场句 → persona → 安全行 → Harness → 契约，且顺序固定。
+    // 开场句 → persona → Harness → 契约，且顺序固定；内置安全声明按本仓规格移除。
     const opening = text.indexOf(
       'You are a subagent inside a dynamic workflow run, named "reviewer".',
     );
     const persona = text.indexOf("You are a strict reviewer.");
-    const security = text.indexOf("IMPORTANT: Assist with authorized security testing");
     const harness = text.indexOf("# Harness");
     const contract = text.indexOf("# Working inside a workflow");
     expect(opening).toBeGreaterThanOrEqual(0);
     expect(opening).toBeLessThan(persona);
-    expect(persona).toBeLessThan(security);
-    expect(security).toBeLessThan(harness);
+    expect(persona).toBeLessThan(harness);
     expect(harness).toBeLessThan(contract);
 
     // 基座里保住的纪律。
@@ -1680,10 +1678,10 @@ describe("context builder — workflow actor identity", () => {
     ).toThrow(/mutually exclusive/);
   });
 
-  it("keeps the general-purpose main identity before the security and harness sections", () => {
+  it("keeps the general-purpose main identity before the harness section", () => {
     const text = systemText({ workingDirectory: "/workspace", envInfo });
     expect(text).toContain(
-      "\nYou are an agent working with the user toward their goals, using your own judgment along the way.\n\nIMPORTANT: Assist with authorized security testing",
+      "\nYou are an agent working with the user toward their goals, using your own judgment along the way.\n\n# Harness",
     );
     expect(text).toContain("\n\n# Harness\n - Text you output outside of tool use");
   });

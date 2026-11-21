@@ -1480,6 +1480,10 @@ export function SessionPane({
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const messageStreamShowReasoning = sharedSettings?.messageStreamShowReasoning ?? true;
   const messageStreamShowTodos = sharedSettings?.messageStreamShowTodos ?? false;
+  // 原因：只保存开关而未传入行上下文，渲染器始终使用常量；复用设置 owner 的标量投影。
+  const toolGroupingExploreEnabled = sharedSettings?.toolGroupingExploreEnabled !== false;
+  const toolGroupingTerminalEnabled = sharedSettings?.toolGroupingTerminalEnabled !== false;
+  const toolGroupingChangesEnabled = sharedSettings?.toolGroupingChangesEnabled !== false;
   const snapshotSessionId = snapshot?.sessionId ?? null;
   const snapshotFollowupMode = snapshot?.config.followupMode ?? null;
   const snapshotRevision = snapshot?.revision ?? null;
@@ -2417,6 +2421,9 @@ export function SessionPane({
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
       messageStreamShowTodos,
+      toolGroupingExploreEnabled,
+      toolGroupingTerminalEnabled,
+      toolGroupingChangesEnabled,
       onNavigateToRow: handleNavigateToRow,
       onOpenBrowserUrl,
       onOpenAutomationsMain,
@@ -2477,6 +2484,9 @@ export function SessionPane({
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
       messageStreamShowTodos,
+      toolGroupingExploreEnabled,
+      toolGroupingTerminalEnabled,
+      toolGroupingChangesEnabled,
       handleNavigateToRow,
       onOpenBrowserUrl,
       onOpenAutomationsMain,

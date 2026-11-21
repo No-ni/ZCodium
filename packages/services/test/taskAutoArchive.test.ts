@@ -8,6 +8,8 @@ import {
 } from "../../../scripts/ci/project-test-sandbox.mjs";
 import { appSettingsSchema, type ZCodeTaskMeta } from "@zcode/shared";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
+import { AutomationRepo } from "../src/session/automationRepo.js";
+import { projectStorage } from "../src/project-storage/index.js";
 import { prepareTasksIndexStorage } from "../src/project-storage/startup.js";
 import { createTaskAutoArchiveMaintenance } from "../src/session/taskAutoArchiveMaintenance.js";
 import { createObservableSettingService } from "../src/setting/observableSettingService.js";
@@ -28,9 +30,192 @@ function settingsFixture() {
     update: async (patch) => {
       value = appSettingsSchema.parse({ ...value, ...patch });
     },
-  } as ISettingService);
+    updateDataBaseDir: async () => assert.fail("archive must not move the data root"),
+    getUserInstructions: async () => assert.fail("archive must not read personal instructions"),
+    saveUserInstructions: async () => assert.fail("archive must not write personal instructions"),
+  } satisfies ISettingService);
   return service;
 }
+
+test("auto archive atomically pauses linked automations, protects other tasks and does not cancel claimed rounds", async () => {
+  const dir = await createProjectTestFixture("archive-linked-automations");
+  const path = join(dir, "tasks.sqlite");
+  const repo = new TaskIndexRepo(undefined, undefined, path);
+  const automations = new AutomationRepo(path);
+  const scope = { workspacePath: dir };
+  try {
+    await prepareTasksIndexStorage(path, () => {});
+    const readyDb = await repo.getOrganizationDatabase();
+    const journal = readyDb.prepare("SELECT * FROM schema_migration ORDER BY id").all();
+    assert.equal(
+      journal.find((row) => row.id === "0010_remote_task_ownership")?.checksum,
+      "2cdc92772dc930cd037d17a48b95c4c38bbb80701653f92f64a02839fe2b1f75",
+    );
+    assert.deepEqual(
+      (await projectStorage.migrate(readyDb, { backupDirectories: [join(dir, "backup")] })).applied,
+      [],
+    );
+    assert.deepEqual(readyDb.prepare("SELECT * FROM schema_migration ORDER BY id").all(), journal);
+    const entries: Array<{ taskId: string; id: string; workspaceIdentity?: string }> = [];
+    for (const taskId of ["old", "pinned", "unread", "active", "old-other"]) {
+      const workspaceIdentity = taskId === "old-other" ? "other-host" : undefined;
+      const actualId = taskId;
+      await repo.applyCliFacts({
+        lastOutcome: "completed",
+        meta: {
+          ...scope,
+          workspaceIdentity,
+          taskId: actualId,
+          traceId: "fixture",
+          title: taskId,
+          mode: "build",
+          provider: "glm",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      });
+      if (taskId === "pinned" || taskId === "unread")
+        await repo.updateTaskState({
+          ...scope,
+          taskId,
+          patch: taskId === "pinned" ? { pinned: true } : { unreadAt: 2 },
+        });
+      for (let i = 0; i < (taskId === "old" ? 2 : 1); i++) {
+        const automation = await automations.create(
+          {
+            ...scope,
+            workspaceIdentity,
+            title: "fixture",
+            cronExpr: "0 * * * *",
+            prompt: "fixture",
+            recurring: true,
+            targetTaskId: taskId === "old-other" ? "old" : actualId,
+          },
+          { nextRunAt: 123 },
+        );
+        entries.push({ taskId, id: automation.automationId, workspaceIdentity });
+      }
+    }
+    const db = await repo.getOrganizationDatabase();
+    const first = entries[0];
+    assert.ok(first);
+    db.prepare(
+      "UPDATE automations SET running=1, claimed_at=42, dispatch_status='dispatched' WHERE automation_id=?",
+    ).run(first.id);
+    const changed = await repo.archiveStaleTasks({
+      ...scope,
+      olderThanDays: 7,
+      readActiveTaskIds: () => ["active"],
+    });
+    assert.deepEqual(
+      changed.map((row) => row.taskId),
+      ["old"],
+    );
+    assert.ok(changed[0]);
+    assert.equal(changed[0].updatedAt, 1);
+    for (const entry of entries) {
+      const automation = await automations.get(entry.id);
+      assert.equal(automation?.enabled, entry.taskId !== "old");
+      assert.equal(automation?.lifecycleStatus, entry.taskId === "old" ? "paused" : "active");
+      assert.equal(automation?.nextRunAt, 123);
+    }
+    const claimed = db
+      .prepare("SELECT running, claimed_at, dispatch_status FROM automations WHERE automation_id=?")
+      .get(first.id);
+    assert.deepEqual({ ...claimed }, { running: 1, claimed_at: 42, dispatch_status: "dispatched" });
+    await automations.setEnabled(first.id, true);
+    assert.deepEqual(
+      await repo.archiveStaleTasks({
+        ...scope,
+        olderThanDays: 7,
+        readActiveTaskIds: () => ["active"],
+      }),
+      [],
+    );
+    assert.equal((await automations.get(first.id))?.enabled, true);
+  } finally {
+    automations.close();
+    repo.close();
+    await assertProjectPath(dir);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a failed automatic pause rolls back all archives and pauses before any notification", async () => {
+  const dir = await createProjectTestFixture("archive-pause-rollback");
+  const path = join(dir, "tasks.sqlite");
+  const repo = new TaskIndexRepo(undefined, undefined, path);
+  const automations = new AutomationRepo(path);
+  const agent = { disposeAll() {} } as IZCodeAgentService;
+  const syncer = createZCodeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
+  const service = createZCodeTaskServiceAdapter({
+    zcodeAgentService: agent,
+    taskIndexRepo: repo,
+    taskIndexSyncer: syncer,
+  });
+  const scope = { workspacePath: dir };
+  let notifications = 0;
+  const subscription = service.onDynamicWorkspaceEvent(scope)((event) => {
+    if (event.type === "workspace_task_list_changed") notifications++;
+  });
+  try {
+    await prepareTasksIndexStorage(path, () => {});
+    const ids: string[] = [];
+    for (const taskId of ["a", "b"]) {
+      await repo.applyCliFacts({
+        lastOutcome: "completed",
+        meta: {
+          ...scope,
+          taskId,
+          traceId: "fixture",
+          title: taskId,
+          mode: "build",
+          provider: "glm",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      });
+      ids.push(
+        (
+          await automations.create(
+            {
+              ...scope,
+              title: "fixture",
+              cronExpr: "0 * * * *",
+              prompt: "fixture",
+              recurring: true,
+              targetTaskId: taskId,
+            },
+            { nextRunAt: 123 },
+          )
+        ).automationId,
+      );
+    }
+    const db = await repo.getOrganizationDatabase();
+    db.exec(
+      "CREATE TRIGGER reject_fixture_pause BEFORE UPDATE OF enabled ON automations WHEN NEW.enabled=0 AND OLD.target_task_id='b' BEGIN SELECT RAISE(ABORT, 'fixture pause failure'); END;",
+    );
+    await assert.rejects(
+      service.archiveStaleTasks({ ...scope, olderThanDays: 7 }),
+      /fixture pause failure/,
+    );
+    assert.equal(notifications, 0);
+    assert.deepEqual(await repo.listTaskMetas({ ...scope, archived: true }), []);
+    for (const id of ids) assert.equal((await automations.get(id))?.enabled, true);
+    assert.equal(db.isTransaction, false);
+    db.exec("DROP TRIGGER reject_fixture_pause");
+    await service.archiveStaleTasks({ ...scope, olderThanDays: 7 });
+    assert.equal(notifications, 2);
+    for (const id of ids) assert.equal((await automations.get(id))?.lifecycleStatus, "paused");
+  } finally {
+    subscription.dispose();
+    (service as typeof service & { disposeAll(): void }).disposeAll();
+    automations.close();
+    repo.close();
+    await assertProjectPath(dir);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 function deferred() {
   let resolve!: () => void;

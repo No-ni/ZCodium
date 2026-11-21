@@ -56,4 +56,6 @@ App 控制创建与普通创建共用 `reserveCreatedTask` 的创建回执：会
 
 `0010_remote_task_ownership` 与 `0010_task_worktree_root` 是两个独立迁移 ID，合并后按现有顺序保留两者及各自 SQL/checksum；前者修复历史归属，后者增加 worktree 列和索引，不改名或重复执行已有账本记录。
 
+2026-11-22：本仓严格 runner 要求所有 TypeScript apply 回调显式冻结 checksum。`0010_remote_task_ownership` 补齐原历史描述 SHA-256（2cdc92772dc930cd037d17a48b95c4c38bbb80701653f92f64a02839fe2b1f75），不改描述、回调、ID 或已记账值。新库初始化和已有库再次迁移必须成功且后者 applied 为空。
+
 组织库 migration runner（`session/tasksDatabase`）也归本模块，统一维护 tasks-index 迁移账本。归档永久删除增加最小 `task_purge` 准入/完成身份屏障；不保存标题或正文。Host 在事务内复检归档后准入，CLI 确认删除成功后物理清除索引及分组引用，迟到 upsert 被拒绝。

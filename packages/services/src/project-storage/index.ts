@@ -94,6 +94,8 @@ export const projectStorage: ProjectStorageContract = {
         },
         {
           id: "0010_remote_task_ownership",
+          // 原因：本仓严格 runner 拒绝没有固定指纹的 TS 回调；沿用原描述哈希，避免重写历史账本。
+          checksum: "2cdc92772dc930cd037d17a48b95c4c38bbb80701653f92f64a02839fe2b1f75",
           appVersion: "3.17.2",
           touchedTables: ["tasks"],
           sql: REMOTE_TASK_OWNERSHIP_MIGRATION,

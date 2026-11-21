@@ -37,7 +37,12 @@ async function updateCallback({ persisted, snapshot = persisted, failUpdate, syn
 }
 
 test("ToolSearch setting keeps the committed question preference and syncs one snapshot", async () => {
-  const persisted = { askUserQuestionAutoResolutionEnabled: false, toolSearchMode: "local" };
+  // 本仓运行时快照还携带插件推荐偏好；用户显式开启不能被另一项保存重置为默认关闭。
+  const persisted = {
+    askUserQuestionAutoResolutionEnabled: false,
+    toolSearchMode: "local",
+    pluginAutoRecommendationEnabled: true,
+  };
   const { callback, calls } = await updateCallback({ persisted });
   await callback({ toolSearchMode: "local" });
   assert.deepEqual(
@@ -52,7 +57,11 @@ test("ToolSearch setting keeps the committed question preference and syncs one s
 });
 
 test("question preference does not reset the committed ToolSearch mode from a stale UI refresh", async () => {
-  const persisted = { askUserQuestionAutoResolutionEnabled: true, toolSearchMode: "auto" };
+  const persisted = {
+    askUserQuestionAutoResolutionEnabled: true,
+    toolSearchMode: "auto",
+    pluginAutoRecommendationEnabled: false,
+  };
   const { callback, calls } = await updateCallback({
     persisted,
     snapshot: { askUserQuestionAutoResolutionEnabled: false, toolSearchMode: "off" },
@@ -71,7 +80,11 @@ test("failed settings persistence never syncs or broadcasts runtime preferences"
 });
 
 test("runtime sync failure still broadcasts the committed setting and reports failure", async () => {
-  const persisted = { askUserQuestionAutoResolutionEnabled: true, toolSearchMode: "local" };
+  const persisted = {
+    askUserQuestionAutoResolutionEnabled: true,
+    toolSearchMode: "local",
+    pluginAutoRecommendationEnabled: false,
+  };
   const { callback, calls, fail } = await updateCallback({ persisted, syncError: true });
   await assert.rejects(callback({ toolSearchMode: "local" }), (error) => error === fail);
   assert.deepEqual(calls.at(-1), ["broadcast", persisted]);

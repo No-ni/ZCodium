@@ -468,6 +468,10 @@ const appSettingsObjectSchema = z.object({
   messageStreamShowReasoning: z.boolean().default(true),
   messageStreamShowReasoningMigrationInitialized: z.boolean().default(true),
   messageStreamShowTodos: z.boolean().default(false),
+  // 原因：UI 已提交分组偏好，但完整校验会剥离未声明字段；保留显式 false，仅缺省时开启。
+  toolGroupingExploreEnabled: z.boolean().default(true),
+  toolGroupingTerminalEnabled: z.boolean().default(true),
+  toolGroupingChangesEnabled: z.boolean().default(true),
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.default("queue"),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   toolSearchMode: appToolSearchModeSchema.default("off"),
@@ -513,7 +517,7 @@ const appSettingsObjectSchema = z.object({
     .optional(),
   // 手机远控：端点模式。默认 lan（仅同网可达）；custom 时读取用户自备隧道 / relay 地址。
   // patch 侧保持 optional：update() 只覆盖调用方显式提供的字段，不把默认值写回每次补丁。
-  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.optional(),
+  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.default("lan"),
   // 手机远控：用户自备端点地址（custom 模式必填，如 wss://域名/ws）。
   webRemoteControlCustomEndpointUrl: z.string().trim().optional(),
   // 手机远控：本机设备标识（首次开启时生成，写入 QR 的 mid 参数）。
@@ -566,6 +570,9 @@ export const appSettingsPatchSchema = z.object({
   messageStreamShowReasoning: z.boolean().optional(),
   messageStreamShowReasoningMigrationInitialized: z.boolean().optional(),
   messageStreamShowTodos: z.boolean().optional(),
+  toolGroupingExploreEnabled: z.boolean().optional(),
+  toolGroupingTerminalEnabled: z.boolean().optional(),
+  toolGroupingChangesEnabled: z.boolean().optional(),
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
   toolSearchMode: appToolSearchModeSchema.optional(),
@@ -626,8 +633,8 @@ export const appSettingsPatchSchema = z.object({
     })
     .strict()
     .optional(),
-  // 手机远控：端点模式。默认 lan（仅同网可达）；custom 时读取用户自备隧道 / relay 地址。
-  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.default("lan"),
+  // 原因：补丁补入 lan 会覆盖已存 custom；默认值只由完整配置负责，未提交的模式必须保留。
+  webRemoteControlEndpointMode: webRemoteControlEndpointModeSchema.optional(),
   // 手机远控：用户自备端点地址（custom 模式必填，如 wss://域名/ws）。
   webRemoteControlCustomEndpointUrl: z.string().trim().optional(),
   // 手机远控：本机设备标识（首次开启时生成，写入 QR 的 mid 参数）。
