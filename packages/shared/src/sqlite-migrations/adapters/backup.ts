@@ -13,11 +13,11 @@ import { databasePathHash } from "./coordination.js";
 import { journalSettings, migrationChecksum } from "./ledger.js";
 import {
   identifier,
-  insertSnapshot,
+  describeTable,
   schemaHash,
   schemaObjects,
   snapshotTable,
-  type TableSnapshot,
+  type TableLayout,
 } from "./table-snapshot.js";
 
 export const BACKUP_DATABASE_FILE = "tables.sqlite";
@@ -30,22 +30,25 @@ export async function createMigrationBackup(
 ): Promise<string | undefined> {
   let failure: unknown;
   try {
-    const tables: TableSnapshot[] = [];
+    const tables: TableLayout[] = [];
     const names = new Set(
       pending.flatMap((step) => step.touchedTables.map((table) => table.toLowerCase())),
     );
     for (const name of names) {
       options.signal?.throwIfAborted();
-      const table = await snapshotTable(db, name, undefined, options.signal);
+      const table = describeTable(db, name);
       if (table) tables.push(table);
     }
-    if (!tables.some((table) => table.rows > 0)) return undefined;
+    if (
+      !tables.some((table) => db.prepare(`SELECT 1 FROM ${identifier(table.name)} LIMIT 1`).get())
+    )
+      return undefined;
     const { name: journalTable, appliedAt: appliedAtColumn } = journalSettings(options);
-    const journal = await snapshotTable(db, journalTable, undefined, options.signal);
+    const journal = describeTable(db, journalTable);
     if (journal) tables.push(journal);
     const objects = schemaObjects(db);
-    const metadata = migrationBackupSchema.parse({
-      version: 1,
+    const metadataBase = {
+      version: 2,
       owner: "zcodium-sqlite-migrations",
       database: options.database,
       databasePathHash: await databasePathHash(db),
@@ -60,9 +63,7 @@ export async function createMigrationBackup(
       })),
       schemaObjects: objects,
       schemaHash: schemaHash(objects),
-      tables: tables.map(({ values: _values, ...table }) => table),
-    } satisfies MigrationBackup);
-    const encoded = JSON.stringify(metadata);
+    } satisfies Omit<MigrationBackup, "tables">;
     for (const directory of options.backupDirectories) {
       if (!isAbsolute(directory)) throw new MigrationBackupError();
       try {
@@ -74,17 +75,27 @@ export async function createMigrationBackup(
         const reserved = await open(backupFile, "wx", 0o600);
         await reserved.close();
         const backup = new DatabaseSync(backupFile);
+        let encoded: string;
         try {
-          backup.exec("BEGIN");
+          backup.exec("PRAGMA cache_size=-2048; BEGIN");
+          const snapshots: MigrationBackup["tables"] = [];
           for (const table of tables) {
             backup.exec(
               `CREATE TABLE ${identifier(table.name)} (${table.columns.map(identifier).join(",")})`,
             );
-            await insertSnapshot(backup, table, true, options.signal);
+            // 备份前不再持有正文快照；锁内逐行复制与计算摘要，副本独立逐行复验。
+            const snapshot = await snapshotTable(db, table.name, table, options.signal, {
+              version: 2,
+              target: backup,
+            });
             const written = await snapshotTable(backup, table.name, table, options.signal);
-            if (written?.hash !== table.hash || written.rows !== table.rows)
+            if (!snapshot || written?.hash !== snapshot.hash || written.rows !== snapshot.rows)
               throw new MigrationBackupError();
+            snapshots.push(snapshot);
           }
+          encoded = JSON.stringify(
+            migrationBackupSchema.parse({ ...metadataBase, tables: snapshots }),
+          );
           // 根因：仅校验外部 JSON 的 hash 无法识别清单删减/改写；副本保存完整可信清单用于交叉验收。
           backup.exec(
             `CREATE TABLE ${identifier(BACKUP_METADATA_TABLE)} (id INTEGER PRIMARY KEY CHECK(id=1), metadata TEXT NOT NULL)`,

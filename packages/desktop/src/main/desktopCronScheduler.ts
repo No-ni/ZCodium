@@ -120,6 +120,8 @@ export function spawnCronScheduler(deps: CronSchedulerDeps): CronSchedulerHandle
           mode: msg.mode,
           workspacePath: msg.workspacePath,
           workspaceIdentity: msg.workspaceIdentity,
+          // Main 只透传已有事实；丢失该字段会让定时任务看不到创建时授权的附加目录。
+          additionalDirectories: msg.additionalDirectories,
         });
       } catch (error) {
         deps.logger.warn("[cron-scheduler] forward CronRun to host failed:", error);

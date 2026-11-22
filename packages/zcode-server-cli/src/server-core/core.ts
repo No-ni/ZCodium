@@ -6,6 +6,7 @@ import {
   createTopicResourcePeers,
 } from "@zcode/services/node";
 import { join } from "node:path";
+import { createLegacyServerCredentialCipher } from "@zcode/shared/credential-security";
 import { ISourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace";
 import { createNodeSourceWorkspaceInspectionService } from "@zcode/services/source-server-workspace/node";
 import { IZCodeAgentService } from "@zcode/services";
@@ -16,7 +17,11 @@ import { installParentDisconnectHandler } from "./parentDisconnect.js";
 import { resolveCoreServerId } from "./serverIdentity.js";
 import { createTaskActivityTracker } from "./taskActivityTracker.js";
 import { ensureIngressToken } from "../runtime/ingressToken.js";
-import { CORE_HEARTBEAT_INTERVAL_MS } from "../contracts.js";
+import {
+  CORE_HEARTBEAT_INTERVAL_MS,
+  SERVER_CREDENTIAL_FORMAT,
+  SERVER_CREDENTIAL_FORMAT_ENV,
+} from "../contracts.js";
 import { resolveServerLayout } from "../runtime/paths.js";
 
 declare const __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
@@ -56,7 +61,17 @@ export async function runServerCore(generation: number): Promise<void> {
       `当前构建未嵌入 ZCode Built-in Provider Config，且未设置 ${ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV}`,
     );
   }
+  // 旧 Supervisor 仍可回滚候选 Core；交接前沿用 v1，不能抢先写它无法读取的 v2。
+  // 路径取 Source 已解析的 configRoot，避免 createLocalServices 固定根之前误读继承 HOME。
+  const legacyUpdateOwner =
+    process.env[SERVER_CREDENTIAL_FORMAT_ENV] !== String(SERVER_CREDENTIAL_FORMAT);
+  const credentialCipherProvider = legacyUpdateOwner
+    ? await createLegacyServerCredentialCipher({
+        filePath: join(sourceLayout.configRoot, "credentials.json"),
+      })
+    : undefined;
   const services = createLocalServices({
+    credentialCipherProvider,
     zcodeBuiltinProviderConfigFilePath,
     serviceAuthorityMode: "standalone-server",
     sourceServerRoot: sourceLayout.serverRoot,

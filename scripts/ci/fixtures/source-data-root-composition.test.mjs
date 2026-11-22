@@ -178,7 +178,11 @@ test("Core registers inspection with authenticated Source ID and actual layout b
     "packages/zcode-server-cli/src/server-core/core.ts",
     "runServerCore",
     {
-      process: { env: { ZCODE_SERVER_ROOT: sourceRoot } },
+      process: {
+        env: { ZCODE_SERVER_ROOT: sourceRoot, ZCODE_SERVER_CREDENTIAL_FORMAT: "2" },
+      },
+      SERVER_CREDENTIAL_FORMAT_ENV: "ZCODE_SERVER_CREDENTIAL_FORMAT",
+      SERVER_CREDENTIAL_FORMAT: 2,
       ZCODE_APP_VERSION_ENV,
       ZCODE_VERSION,
       createTopicResourcePeers: () => ({

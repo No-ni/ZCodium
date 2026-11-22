@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { migrationBackupSchema, type MigrationBackup, type RestoreOptions } from "../contract.js";
 import { BACKUP_DATABASE_FILE, BACKUP_METADATA_TABLE } from "./backup.js";
 import {
@@ -16,6 +17,7 @@ import {
   contentHash,
   identifier,
   insertSnapshot,
+  readSnapshotRows,
   schemaHash,
   schemaObjects,
   snapshotTable,
@@ -55,6 +57,8 @@ async function restoreExclusive(
     throw new Error("Backup schema hash mismatch");
   const backup = new DatabaseSync(join(path, BACKUP_DATABASE_FILE), { readOnly: true });
   try {
+    // 流式验收与复制必须读同一备份快照，避免批次让出期间副本被另一写者改动。
+    backup.exec("PRAGMA cache_size=-2048; BEGIN");
     const embedded = backup
       .prepare(`SELECT metadata FROM ${identifier(BACKUP_METADATA_TABLE)} WHERE id=1`)
       .get();
@@ -81,7 +85,9 @@ async function restoreExclusive(
       const info = backup.prepare(`PRAGMA table_xinfo(${identifier(table.name)})`).all();
       if (JSON.stringify(info.map((column) => column.name)) !== JSON.stringify(table.columns))
         throw new Error("Backup columns mismatch");
-      const snapshot = await snapshotTable(backup, table.name, table, options.signal);
+      const snapshot = await snapshotTable(backup, table.name, table, options.signal, {
+        version: metadata.version,
+      });
       if (!snapshot || snapshot.hash !== table.hash || snapshot.rows !== table.rows)
         throw new Error("Backup row hash mismatch");
       const originalSchema = metadata.schemaObjects.find(
@@ -101,19 +107,21 @@ async function restoreExclusive(
           if (metadata.databasePathHash !== (await databasePathHash(db)))
             throw new Error("Backup database identity mismatch");
           validateCurrentSchema(db, metadata);
-          await validateCurrentLedger(db, metadata, tables, options.signal);
+          await validateCurrentLedger(db, backup, metadata, tables, options.signal);
           options.signal?.throwIfAborted();
           // 父表删除不能级联丢失未触及的子表；全部写者停用后在同一事务内恢复并检查全库外键。
           for (const table of tables) db.exec(`DELETE FROM ${identifier(table.name)}`);
           for (const table of tables) {
             options.signal?.throwIfAborted();
-            await insertSnapshot(db, table, false, options.signal);
+            await insertSnapshot(backup, db, table, false, options.signal);
           }
           if (!metadata.journalExisted) db.exec(`DROP TABLE ${identifier(metadata.journalTable)}`);
           if (db.prepare("PRAGMA foreign_key_check").all().length)
             throw new Error("Restore foreign key check failed");
           for (const table of tables) {
-            const restored = await snapshotTable(db, table.name, table, options.signal);
+            const restored = await snapshotTable(db, table.name, table, options.signal, {
+              version: metadata.version,
+            });
             if (restored?.hash !== table.hash || restored.rows !== table.rows)
               throw new Error("Restored row hash mismatch");
           }
@@ -160,22 +168,27 @@ function validateCurrentSchema(db: DatabaseSync, metadata: MigrationBackup): voi
 
 async function validateCurrentLedger(
   db: DatabaseSync,
+  backup: DatabaseSync,
   metadata: MigrationBackup,
   tables: readonly TableSnapshot[],
   signal?: AbortSignal,
 ): Promise<void> {
-  const journal = await snapshotTable(db, metadata.journalTable, undefined, signal);
+  const journal = await snapshotTable(db, metadata.journalTable, undefined, signal, {
+    version: metadata.version,
+  });
   if (!journal) throw new Error("Restore migration ledger is missing");
   const original = tables.find((table) => table.name === metadata.journalTable);
   const idPosition = journal.columns.indexOf("id");
   const checksumPosition = journal.columns.indexOf("checksum");
   const versionPosition = journal.columns.indexOf("app_version");
   const appliedAtPosition = journal.columns.indexOf(metadata.appliedAtColumn);
-  const originals = new Map((original?.values ?? []).map((row) => [row[idPosition], row]));
+  const originals = new Map(
+    original ? [...readSnapshotRows(backup, original)].map((row) => [row[idPosition], row]) : [],
+  );
   const pending = new Map(metadata.migrationContracts.map((step) => [step.id, step]));
-  const retained: TableSnapshot["values"] = [];
+  const retained: SQLInputValue[][] = [];
   const seenPending = new Set<string>();
-  for (const row of journal.values) {
+  for (const row of readSnapshotRows(db, journal)) {
     const id = row[idPosition];
     if (typeof id !== "string") throw new Error("Restore migration ledger is invalid");
     if (originals.has(id)) {
@@ -203,7 +216,7 @@ async function validateCurrentLedger(
   if (
     seenPending.size !== pending.size ||
     retained.length !== originals.size ||
-    (original && (await contentHash(retained, signal)) !== original.hash)
+    (original && (await contentHash(retained, signal, metadata.version)) !== original.hash)
   )
     throw new Error("Restore migration ledger changed after backup");
 }

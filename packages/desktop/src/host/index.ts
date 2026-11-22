@@ -427,6 +427,7 @@ interface CronRunDispatchRequest {
   mode?: ZCodeTaskMode;
   workspacePath: string;
   workspaceIdentity?: string;
+  additionalDirectories?: string[];
 }
 
 function resolveAutomationTargetServices(request: {
@@ -624,6 +625,7 @@ async function dispatchCronRun(
       : await zcodeTaskService.createTask({
           workspacePath: request.workspacePath,
           workspaceIdentity: request.workspaceIdentity,
+          additionalDirectories: request.additionalDirectories,
           model: formatModelPickerValue(submissionModelSelection),
           mode: request.mode,
           thoughtLevel: submissionModelSelection.options?.reasoningLevel,
@@ -640,6 +642,7 @@ async function dispatchCronRun(
         taskId: task.taskId,
         workspacePath: request.workspacePath,
         workspaceIdentity: request.workspaceIdentity,
+        additionalDirectories: request.additionalDirectories,
         model: formatModelPickerValue(submissionModelSelection),
         thoughtLevel: submissionModelSelection.options?.reasoningLevel,
         automationId: request.automationId,
@@ -657,6 +660,8 @@ async function dispatchCronRun(
       try {
         await watchCronRunBotDelivery({
           automationId: request.automationId,
+          // 同一任务可承载多次运行，Bot 订阅必须与本次 prompt trace 一致，避免串回推。
+          runId: promptTraceId,
           workspaceKey,
           workspacePath: request.workspacePath,
           ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
@@ -726,6 +731,7 @@ async function dispatchManualAutomationRun(params: {
       mode: params.automation.mode,
       workspacePath: params.automation.workspacePath,
       workspaceIdentity: params.automation.workspaceIdentity,
+      additionalDirectories: params.automation.additionalDirectories,
     });
   } catch (error) {
     logger.warn(

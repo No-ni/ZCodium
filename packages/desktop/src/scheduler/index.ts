@@ -179,6 +179,10 @@ function postDispatchRequest(
     ...(automation.mode ? { mode: automation.mode } : {}),
     workspacePath: automation.workspacePath,
     ...(automation.workspaceIdentity ? { workspaceIdentity: automation.workspaceIdentity } : {}),
+    // 附加目录由创建时的 Repo 事实固化；scheduler 不能在派发时重新按项目猜测。
+    ...(automation.additionalDirectories
+      ? { additionalDirectories: automation.additionalDirectories }
+      : {}),
   };
   parentPort?.postMessage(request);
 }

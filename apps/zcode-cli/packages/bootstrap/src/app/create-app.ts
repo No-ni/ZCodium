@@ -1133,8 +1133,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           // 自定义命令（slash commands）与 skills 的发现根是工作区 `.zcodium`/`.agents`；
           // 用执行 cwd 会让对话会话看不到工作区里已安装的命令。
           workingDirectory: workspaceDirectory,
-          // 根因：发现根与执行根分离；shell 展开仍跟随会话 cwd（含 Bash cd 后的目录）。
-          executionWorkingDirectory: getRuntime().getWorkingDirectory(),
         });
       },
       inputHistoryStore,

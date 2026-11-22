@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import type { MigrationBackup, SqliteSchemaObject } from "../contract.js";
 
-export type TableSnapshot = MigrationBackup["tables"][number] & { values: SQLInputValue[][] };
+export type TableSnapshot = MigrationBackup["tables"][number];
+export type TableLayout = Omit<TableSnapshot, "rows" | "hash">;
 export const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 export function identifier(value: string): string {
@@ -14,33 +15,62 @@ export function identifier(value: string): string {
 export async function contentHash(
   rows: readonly SQLInputValue[][],
   signal?: AbortSignal,
+  version: MigrationBackup["version"] = 1,
 ): Promise<string> {
-  const encoded: string[] = [];
-  for (let index = 0; index < rows.length; index++) {
-    encoded.push(
-      JSON.stringify(rows[index], (_key, value: unknown) => {
+  return (await hashRows(rows, version, signal)).hash;
+}
+
+async function hashRows(
+  rows: Iterable<SQLInputValue[]>,
+  version: MigrationBackup["version"],
+  signal?: AbortSignal,
+  copy?: (row: SQLInputValue[]) => void,
+): Promise<Pick<TableSnapshot, "rows" | "hash">> {
+  // 根因：整表 values 与 encoded 双重驻留会在迁移 SQL 前耗尽 Worker 堆。
+  // 吸收官方单行摘要算法；SQLite 临时文件排序并限制缓存，不用 :memory: 累积正文。
+  const sorter = new DatabaseSync("");
+  try {
+    sorter.exec(
+      "PRAGMA temp_store=FILE; PRAGMA cache_size=-2048; CREATE TABLE rows(sort_key BLOB,encoded TEXT); BEGIN",
+    );
+    const record = sorter.prepare("INSERT INTO rows VALUES (?,?)");
+    let count = 0;
+    for (const row of rows) {
+      signal?.throwIfAborted();
+      copy?.(row);
+      const encoded = JSON.stringify(row, (_key, value: unknown) => {
         if (typeof value === "bigint") return { integer: value.toString() };
         if (value instanceof Uint8Array) return { blob: Buffer.from(value).toString("hex") };
         return value;
-      }),
-    );
-    if (index % 512 === 511) {
-      await yieldToEventLoop();
+      });
+      // 旧 Array.sort 按 UTF-16 码元排序；UTF-8 TEXT 排序会改变补充平面字符顺序。
+      record.run(
+        version === 1
+          ? Buffer.from(encoded, "utf16le").swap16()
+          : createHash("sha256").update(encoded).digest(),
+        version === 1 ? encoded : null,
+      );
+      if (++count % 512 === 0) await yieldToEventLoop();
+    }
+    signal?.throwIfAborted();
+    sorter.exec("COMMIT");
+    const hash = createHash("sha256").update(version === 1 ? "[" : "sqlite-table-v2\0");
+    let index = 0;
+    for (const row of sorter
+      .prepare("SELECT sort_key,encoded FROM rows ORDER BY sort_key")
+      .iterate()) {
+      if (version === 1) {
+        if (index) hash.update(",");
+        hash.update(JSON.stringify(row.encoded));
+      } else hash.update(row.sort_key as Uint8Array);
+      if (++index % 512 === 0) await yieldToEventLoop();
       signal?.throwIfAborted();
     }
+    if (version === 1) hash.update("]");
+    return { rows: count, hash: hash.digest("hex") };
+  } finally {
+    sorter.close();
   }
-  encoded.sort();
-  // 大表不能将所有行一次 JSON.stringify/hash 占住事件循环；沿用排序多集 hash 格式分批写入。
-  const hash = createHash("sha256").update("[");
-  for (let index = 0; index < encoded.length; index++) {
-    hash.update(`${index ? "," : ""}${JSON.stringify(encoded[index])}`);
-    if (index % 512 === 511) {
-      await yieldToEventLoop();
-      signal?.throwIfAborted();
-    }
-  }
-  signal?.throwIfAborted();
-  return hash.update("]").digest("hex");
 }
 
 export function schemaObjects(db: DatabaseSync): SqliteSchemaObject[] {
@@ -61,13 +91,11 @@ export function schemaHash(objects: readonly SqliteSchemaObject[]): string {
   return createHash("sha256").update(JSON.stringify(objects)).digest("hex");
 }
 
-export async function snapshotTable(
+export function describeTable(
   db: DatabaseSync,
   name: string,
-  layout?: MigrationBackup["tables"][number],
-  signal?: AbortSignal,
-): Promise<TableSnapshot | undefined> {
-  signal?.throwIfAborted();
+  layout?: TableLayout,
+): TableLayout | undefined {
   identifier(name);
   // SQLite 表标识符大小写不敏感；精确匹配会漏掉 ITEMS 声明对应的旧 items 行，绕过强制备份。
   const definition = db
@@ -97,38 +125,30 @@ export async function snapshotTable(
         ) ?? null);
   if (!layout && tableInfo?.wr !== 1 && rowidColumn === null)
     throw new Error("Shadowed SQLite rowid requires a dedicated migration backup");
-  const selected = [...columns, ...(rowidColumn ? [rowidColumn] : [])];
-  const statement = db.prepare(
-    `SELECT ${selected.map(identifier).join(",")} FROM ${identifier(name)}`,
-  );
-  statement.setReadBigInts(true);
-  const values: SQLInputValue[][] = [];
-  for (const row of statement.iterate()) {
-    values.push(selected.map((column) => row[column] as SQLInputValue));
-    if (values.length % 512 === 0) {
-      await yieldToEventLoop();
-      signal?.throwIfAborted();
-    }
-  }
   return {
     name,
     schema: String(definition.sql ?? ""),
     columns,
     insertColumns,
     rowidColumn,
-    rows: values.length,
-    hash: await contentHash(values, signal),
-    values,
   };
 }
 
-export async function insertSnapshot(
+export function* readSnapshotRows(
   db: DatabaseSync,
-  table: TableSnapshot,
-  allColumns = false,
-  signal?: AbortSignal,
-): Promise<void> {
-  signal?.throwIfAborted();
+  table: TableLayout,
+): Generator<SQLInputValue[]> {
+  const selected = [...table.columns, ...(table.rowidColumn ? [table.rowidColumn] : [])];
+  const statement = db.prepare(
+    // INTEGER PRIMARY KEY 会让 rowid 的结果字段名变成主键名；显式 alias 保留布局键，避免复制 undefined。
+    `SELECT ${selected.map((column) => `${identifier(column)} AS ${identifier(column)}`).join(",")} FROM ${identifier(table.name)}`,
+  );
+  statement.setReadBigInts(true);
+  for (const row of statement.iterate())
+    yield selected.map((column) => row[column] as SQLInputValue);
+}
+
+function snapshotInsert(db: DatabaseSync, table: TableLayout, allColumns = false) {
   const columns = allColumns ? table.columns : table.insertColumns;
   const selected = [...columns, ...(table.rowidColumn ? [table.rowidColumn] : [])];
   const positions = columns.map((column) => table.columns.indexOf(column));
@@ -136,12 +156,44 @@ export async function insertSnapshot(
   const statement = db.prepare(
     `INSERT INTO ${identifier(table.name)} (${selected.map(identifier).join(",")}) VALUES (${selected.map(() => "?").join(",")})`,
   );
-  for (let index = 0; index < table.values.length; index += 1) {
-    statement.run(...positions.map((position) => table.values[index]![position]!));
-    if (index % 512 === 511) {
-      await yieldToEventLoop();
-      signal?.throwIfAborted();
-    }
+  return (row: SQLInputValue[]) => statement.run(...positions.map((position) => row[position]!));
+}
+
+export async function snapshotTable(
+  db: DatabaseSync,
+  name: string,
+  layout?: TableLayout,
+  signal?: AbortSignal,
+  options: { version?: MigrationBackup["version"]; target?: DatabaseSync } = {},
+): Promise<TableSnapshot | undefined> {
+  signal?.throwIfAborted();
+  const table = describeTable(db, name, layout);
+  if (!table) return undefined;
+  return {
+    ...table,
+    ...(await hashRows(
+      readSnapshotRows(db, table),
+      options.version ?? 2,
+      signal,
+      options.target ? snapshotInsert(options.target, table, true) : undefined,
+    )),
+  };
+}
+
+export async function insertSnapshot(
+  source: DatabaseSync,
+  target: DatabaseSync,
+  table: TableLayout,
+  allColumns = false,
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted();
+  const insert = snapshotInsert(target, table, allColumns);
+  let count = 0;
+  for (const row of readSnapshotRows(source, table)) {
+    insert(row);
+    if (++count % 512 === 0) await yieldToEventLoop();
+    signal?.throwIfAborted();
   }
   signal?.throwIfAborted();
 }

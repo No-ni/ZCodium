@@ -83,7 +83,7 @@ export type SqliteSchemaObject = z.infer<typeof sqliteSchemaObjectSchema>;
 
 export const migrationBackupSchema = z
   .object({
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     owner: z.literal("zcodium-sqlite-migrations"),
     database: z.string().min(1),
     databasePathHash: hashSchema,

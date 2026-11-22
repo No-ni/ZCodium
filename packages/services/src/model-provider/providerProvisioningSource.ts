@@ -30,7 +30,9 @@ export function createProviderProvisioningSource(
         options.personalConfigFilePath,
       );
       return providerProvisioningEnvelopeSchema.parse({
-        schemaVersion: 3,
+        // 合并适配曾写死 3，与公开 schema 的 2 分叉，导致所有个人配置同步在发送前失败。
+        // 版本由唯一协议 owner 提供，Source/Target 不再各自硬编码另一套版本。
+        schemaVersion: providerProvisioningEnvelopeSchema.shape.schemaVersion.value,
         syncId,
         personalConfig: encodeProviderConfigFile(personal).config,
       });

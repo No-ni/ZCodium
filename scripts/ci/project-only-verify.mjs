@@ -34,6 +34,8 @@ const readonlyTests = [
   "scripts/ci/audit-boundaries.test.mjs",
 ];
 const fixtureTests = [
+  "scripts/ci/official-missed-wiring.test.mjs",
+  "scripts/ci/sqlite-streaming-regression.test.mjs",
   "scripts/ci/sqlite-infrastructure-regression.test.mjs",
   "scripts/ci/sqlite-startup-adapters.test.mjs",
   "scripts/ci/sqlite-schema-baseline.test.mjs",
