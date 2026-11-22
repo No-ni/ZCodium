@@ -32,6 +32,8 @@ export class BrowserWindow extends EventEmitter {
 // 构建失败——本用例只验证浏览器访客隔离与对话框 preload，不需要沙箱真实行为，
 // 因此这里只补到「能被解析」的最小形状，不模拟任何语义。
 export const clipboard = { writeImage: async () => {}, readText: async () => "" };
+// Electron 已引入 ClipboardItem；此夹具只验证窗口边界，补齐其导入形状。
+export class ClipboardItem {}
 export const MessageChannelMain = {};
 export const dialog = { showMessageBox: async () => ({ response: 0 }) };
 export const session = { fromPartition: () => ({}) };

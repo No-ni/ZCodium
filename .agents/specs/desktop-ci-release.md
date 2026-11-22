@@ -1,5 +1,29 @@
 # 桌面 CI 与安装包产物
 
+## 当前本地构建目标（2026-11-22）
+
+用户已改为本地构建，停止 GitHub 构建；本轮新增修复先保留本地。保持官方 3.18.2 基线，默认未受本仓定制影响的官方实现正确。先修复已确认的定制、合并适配和验证入口问题，再生成安装包并验证启动；检查失败必须区分产品回归、过时测试契约与工具链/环境失败。
+
+Windows 使用本机原生工具链生成 exe；macOS 必须在可用 Mac 上生成 dmg。缺少原生工具链或 Mac 时如实标注，不恢复云端构建，也不使用跨平台占位产物。构建、缓存与测试数据均放在当前项目；测试不访问真实用户数据。
+
+Windows 本地允许显式使用项目内的 MSVC/Windows SDK 与 Ninja。默认仍由 CMake 查找已安装的 Visual Studio；显式 Ninja 由调用方配置目标编译器及 INCLUDE/LIB，不能传入其不支持的 -A。Release 和静态 CRT 保持，runtime host 输出目录由生成器类型决定；最终 PE 架构校验继续拒绝错误目标。
+
+Windows ZIP 提取通过 .NET 的 ZIP entry API 完成，保留覆盖既有提取文件的行为，不依赖本机 Expand-Archive 模块版本。entry 路径限定在提取目录内；归档摘要和临时二进制校验继续先于最终目标覆盖，提取失败必须作为失败传播。
+
+本轮重点复核 Gemini 工具签名从原生响应、流式事件、历史快照、持久化至下一次请求的完整传递及快照隔离；本地退出测试应通过当前挂载期间的 registerPermissionRequester 登记入口发起审批，不恢复旧 submitPrompt.requestPermission 接口。
+
+```mermaid
+sequenceDiagram
+  participant G as Gemini 原生响应
+  participant A as 模型适配器
+  participant H as 规范历史与持久化
+  participant R as 请求快照
+  G->>A: 工具调用及 thoughtSignature
+  A->>H: providerOptions 和工具调用
+  H->>R: 独立快照，保留签名
+  R->>G: 下一轮工具历史携带原签名
+```
+
 ## 范围与产品规则
 
 - 桌面构建矩阵仅覆盖 Windows x64/arm64、macOS arm64/x64；Windows arm64 在 x64 runner 上交叉打包，其他目标使用 GitHub 托管的原生 runner。

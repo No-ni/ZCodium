@@ -667,3 +667,17 @@ changed 架构通过；根 Lint 最新 726 warnings/0 errors，Hook 调用告警
 推送当前 main 时，按远端实际 SHA 运行的门禁发现手机目录纯投影 `windowDirectoryPresentation.ts` 缺少受管模块登记（此前 changed 检查基线范围未包含该文件）。补齐 `web-window-directory` 的策略、契约及示例，既有函数正文和 MobileApp 调用不改。旧原生上下文备份历史改以本地标签保留；仅清理本地临时分支，不触发构建。
 
 用户随后明确要求构建 macOS/Windows 并更新本机 Windows ZCodium。首次 Actions run `44994037619` 的 Windows 两架构在准备运行时失败；实际 runner 为 `windows-2025-vs2026`，提供 VS 18 / CMake 4.5，脚本却固定 VS 17 2022。移除 runtime host 的固定生成器，native search 默认同样交由 CMake 检测，保留显式 CMAKE_GENERATOR、-A 架构与 PE 验证；不改变产品行为或改回旧 runner。对应计划与发行契约 24/24、根 typecheck、Lint 0 errors/719 既有 warnings 通过。该阶段未生成或安装 Windows 新版；后续构建与本机更新结果须以实际 run/安装结果为准。
+
+## 改为本地 Windows 构建与继续修复（2026-11-22）
+
+用户撤销云端构建目标，并进一步指定先完成 Windows 修复与本地构建。已取消 Actions `44995220083`；不再触发云端构建，本轮新增修复保留本地。官方 3.18.2 基线、ZCodium 身份、提示词定制与审计边界保持。
+
+源码和实际运行重新确认本仓 Gemini 签名在历史工具调用白名单中丢失：适配器收到签名，但 live/canonical 历史没有保留。仅补回 providerOptions 的深复制，续轮、流式、JSON 持久化、冷恢复及快照隔离 8/8、相关历史/顺序/思考历史 69/69 通过。没有恢复已丢失的历史签名，也未修改权限判断。
+
+终端退出测试通过当前挂载期间的审批登记入口发起请求，替换旧提交参数上的请求接口；15/15 通过。另修复旧验证夹具的 Electron ClipboardItem 导入、根脚本公开 services 入口、按连接生成的暴露策略比较、Source launcher 凭据格式依赖注入与追加永久删除迁移的账本快照。生产迁移及旧指纹不改；相关源码回归通过。上一轮因环境缺少沙箱或 UI alias 而失败的会话/连接检查，使用项目内隔离环境及明确的 UI tsconfig 后实际通过。
+
+分组设置浏览器检查覆盖英文桌面和中文手机宽度的保存/重载；工作时长浏览器 8 个变体通过，审计边界 14/14。根 typecheck、Core typecheck、格式、changed 架构通过，根 Lint 0 errors/719 既有 warnings；Windows 架构准入的 3 个 Git/文件占用失败单独串行复跑后 12 通过、1 平台跳过，不修改规则来放行。
+
+本机原先缺少 C++ 工具链。将核对 SHA-256 的 MSVC/Windows SDK 与 CMake/Ninja 放在项目内，使用只读 MSI 表和受限解包，不安装系统 SDK。显式 Ninja 不传 VS 的 -A，并读取单配置构建目录；默认 Visual Studio 选择保持。本机运行时与安装辅助程序已实际编译并通过 x64 PE/源及二进制指纹验证。
+
+首次本地准备又确认 Windows ZIP 提取依赖本机 Archive 模块的不兼容重载。改为稳定的 .NET entry API，保留覆盖并限制 entry 路径，校验与失败传播顺序保持。Windows ZIP 的真实解压、引号/空格、重复提取、验证失败不覆盖及路径越界拒绝通过；构建/发行相关 26/26。此记录阶段完整安装包及本机更新尚未完成，不等同于安装或全量官方验收。

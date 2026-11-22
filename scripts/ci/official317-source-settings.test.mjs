@@ -7,7 +7,8 @@ import {
   exposeWindowHostAttachmentServices,
   resolveWindowHostServiceExposurePolicy,
 } from "../../packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts";
-import { IMcpSyncService } from "@zcode/services";
+// 根脚本没有 services workspace 链接；通过公开入口读描述符，不依赖安装布局。
+import { IMcpSyncService } from "../../packages/services/src/index.ts";
 import { ServiceChannels, ZCODE_COMPATIBILITY_MANIFEST } from "@zcode/shared";
 
 test("settings scope never connects or falls back when the device is offline", async () => {
@@ -135,7 +136,8 @@ test("mobile exposure rejects newly registered device controls and batch configu
   await assert.rejects(scoped.futureBatchImport(), { kind: "feature_disabled" });
   assert.equal(scoped.then, undefined);
   assert.equal(scoped.onFutureEvent, undefined);
-  assert.equal(exposed.exposure, policy);
+  // 暴露策略现在按连接生成；应验证能力集合等价，不能要求同一对象实例。
+  assert.deepEqual(exposed.exposure, policy);
 });
 
 function onlineFixture(disposeFirst = async () => {}) {

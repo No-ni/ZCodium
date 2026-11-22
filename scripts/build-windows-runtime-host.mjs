@@ -12,14 +12,20 @@ export function resolveRuntimeHostBuild(
   arch,
   hostPlatform = process.platform,
   compiler = process.env.ZCODE_WINDOWS_CXX,
+  generator = process.env.CMAKE_GENERATOR,
 ) {
   if (arch !== "x64" && arch !== "arm64")
     throw new Error(`Unsupported runtime host architecture: ${arch}`);
+  // 本地便携 MSVC 使用 Ninja：它不接受 VS 的 -A，且 Release 文件直接位于构建根目录。
+  const singleConfiguration = hostPlatform === "win32" && generator?.trim() === "Ninja";
   return {
+    outputSubdirectory: hostPlatform === "win32" && !singleConfiguration ? "Release" : "",
     configureArgs:
       hostPlatform === "win32"
         ? // 原因：当前 Windows runner 已升级 VS，固定 2022 会找不到编译器；交给 CMake 选择已安装版本。
-          ["-A", arch === "arm64" ? "ARM64" : "x64"]
+          singleConfiguration
+          ? ["-G", "Ninja"]
+          : ["-A", arch === "arm64" ? "ARM64" : "x64"]
         : [
             "-DCMAKE_SYSTEM_NAME=Windows",
             `-DCMAKE_CXX_COMPILER=${compiler || (arch === "arm64" ? "aarch64-w64-mingw32-clang++" : "x86_64-w64-mingw32-g++")}`,
@@ -89,7 +95,7 @@ export async function buildRuntimeHost({ arch, outputDir }) {
       "zcode-runtime-host",
       "zcode-installer-process-helper",
     ]);
-    const releaseDir = join(work, ...(process.platform === "win32" ? ["Release"] : []));
+    const releaseDir = join(work, plan.outputSubdirectory);
     const hostBytes = await readFile(join(releaseDir, "zcode-runtime-host.exe"));
     const helperBytes = await readFile(join(releaseDir, "zcode-installer-process-helper.exe"));
     verifyRuntimeHostPe(hostBytes, arch);

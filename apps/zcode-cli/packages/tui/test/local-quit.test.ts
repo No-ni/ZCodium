@@ -11,7 +11,7 @@ import {
   type PermissionBrokerRequest,
   type PermissionBrokerResult,
 } from "@zcode/contracts";
-import type { TuiOptions, TuiSubmitPrompt } from "../src/types.js";
+import type { TuiOptions, TuiSubmitPrompt, TuiRequestPermission } from "../src/types.js";
 type TuiSubmitPromptOptions = Parameters<TuiSubmitPrompt>[1];
 import { TuiApp } from "../src/app.js";
 
@@ -29,6 +29,7 @@ async function mount(overrides: Partial<TuiOptions> = {}) {
   const exits: number[] = [];
   const submitted: unknown[] = [];
   const sent: unknown[] = [];
+  let permissionRequester: TuiRequestPermission | undefined;
   const ui = await testRender(
     createElement(TuiApp, {
       copySelection: async () => ({ kind: "empty" as const }),
@@ -40,6 +41,13 @@ async function mount(overrides: Partial<TuiOptions> = {}) {
         stderr: process.stderr,
         version: "fixture",
         noColor: true,
+        // 审批入口已改为挂载期登记；测试应复用当前入口，不能调用已删除的提交参数。
+        registerPermissionRequester: (requester) => {
+          permissionRequester = requester;
+          return () => {
+            permissionRequester = undefined;
+          };
+        },
         submitPrompt: async (input) => {
           submitted.push(input);
           return { response: "" };
@@ -61,7 +69,11 @@ async function mount(overrides: Partial<TuiOptions> = {}) {
   await act(async () => {
     await ui.flush();
   });
-  return { ...ui, exits, submitted, sent };
+  const requestPermission: TuiRequestPermission = (request, options) => {
+    assert.ok(permissionRequester, "TUI permission requester must be registered");
+    return permissionRequester(request, options);
+  };
+  return { ...ui, exits, submitted, sent, requestPermission };
 }
 
 type Ui = Awaited<ReturnType<typeof mount>>;
@@ -224,16 +236,18 @@ for (const kind of ["permission", "question", "other"] as const) {
     try {
       await submit(ui, "start");
       await act(async () => {
-        void context!.requestPermission!(request(kind !== "permission"), {
-          signal: independent.signal,
-        }).then(
-          (result) => {
-            outcome = result;
-          },
-          (error: Error) => {
-            outcome = error;
-          },
-        );
+        void ui
+          .requestPermission(request(kind !== "permission"), {
+            signal: independent.signal,
+          })
+          .then(
+            (result) => {
+              outcome = result;
+            },
+            (error: Error) => {
+              outcome = error;
+            },
+          );
         await ui.flush();
       });
       await act(async () => {
@@ -261,10 +275,8 @@ for (const kind of ["permission", "question", "other"] as const) {
 }
 
 test("Other 同批编辑普通路径仍能完成，取消克隆审批后 composer 可用", async () => {
-  let context: TuiSubmitPromptOptions | undefined;
   const ui = await mount({
-    submitPrompt: async (_input, options) => {
-      context = options;
+    submitPrompt: async () => {
       return { response: "" };
     },
   });
@@ -273,7 +285,7 @@ test("Other 同批编辑普通路径仍能完成，取消克隆审批后 compose
   try {
     await submit(ui, "start");
     await act(async () => {
-      void context!.requestPermission!(request(true), { signal: controller.signal }).then(
+      void ui.requestPermission(request(true), { signal: controller.signal }).then(
         (value) => {
           result = value;
         },
@@ -353,14 +365,12 @@ test("streaming 的迟到 rejected 输入不覆盖新草稿，quit 不删除已�
 });
 
 test("附件 composer 不误退，独立审批 quit 不提交该附件", async () => {
-  let context: TuiSubmitPromptOptions | undefined;
   const ui = await mount({
     readClipboardImage: async () => ({
       dataUrl: "data:image/png;base64,ZmFrZQ==",
       mediaType: "image/png",
     }),
-    submitPrompt: async (input, options) => {
-      context = options;
+    submitPrompt: async (input) => {
       ui.submitted.push(input);
       return { response: "" };
     },
@@ -375,7 +385,7 @@ test("附件 composer 不误退，独立审批 quit 不提交该附件", async (
     assert.equal(ui.submitted.length, 1);
     const controller = new AbortController();
     await act(async () => {
-      void context!.requestPermission!(request(), { signal: controller.signal }).catch(() => {});
+      void ui.requestPermission(request(), { signal: controller.signal }).catch(() => {});
       await ui.flush();
     });
     await act(async () => {

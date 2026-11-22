@@ -67,6 +67,11 @@ const hostLedger = [
     "0006_task_group_admissions",
     "0af559d04bb3f1a1dab12d6533d59292d232b09ea3ef3ef6ca3c9373bd663019",
   ],
+  // 当前主线已追加永久删除迁移；原有 ledger 指纹继续逐项保持固定。
+  [
+    "0007_task_permanent_deletion",
+    "d538105c40bab701c4061024c812486a6c57bb3659306436260ab3ea7307c53b",
+  ],
 ];
 const cliChecksums = [
   ["0001_base_session_store", "60e2d6a38ab36f31417c4f92c02690c96c7dcaaa0b6abe1741117d62a55c6462"],
@@ -147,6 +152,10 @@ const cliChecksums = [
   [
     "0024_session_database_identity",
     "3eb41922313d66d492544ac05e0b314d55cdccbfc49f118768c0b4b0121e18b3",
+  ],
+  [
+    "0025_session_permanent_deletion",
+    "608f3ea3aad458679a4b377968413575749f2231c88133765a088564fc20691e",
   ],
 ];
 

@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveRuntimeHostBuild, verifyRuntimeHostPe } from "../build-windows-runtime-host.mjs";
 import { resolveNativeWindowsBuildConfig } from "../native-search-tools-windows.mjs";
+import { writeFile, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import yazl from "yazl";
+import { createProjectTestSandbox, assertProjectPath } from "../ci/project-test-sandbox.mjs";
+import { extractPrebuiltBinary, extractPrebuiltArchive } from "../prebuilt-binary-extract.mjs";
 
 test("Windows builds both supported architectures with the matching MSVC target", () => {
   assert.deepEqual(resolveRuntimeHostBuild("x64", "win32").configureArgs, ["-A", "x64"]);
@@ -29,6 +37,35 @@ test("Windows search producer uses the installed generator and preserves explici
     );
   }
 });
+
+test("显式 Ninja 使用调用方 MSVC 环境，不传入 VS 架构参数且读取单配置输出", () => {
+  for (const arch of ["x64", "arm64"]) {
+    const plan = resolveRuntimeHostBuild(arch, "win32", undefined, "Ninja");
+    assert.deepEqual(plan.configureArgs, ["-G", "Ninja"]);
+    assert.equal(plan.outputSubdirectory, "");
+    assert.equal(
+      resolveRuntimeHostBuild(arch, "win32", undefined, "Visual Studio 18 2026").outputSubdirectory,
+      "Release",
+    );
+    const config = resolveNativeWindowsBuildConfig({
+      platform: "win32",
+      arch,
+      hostPlatform: "win32",
+      hostArch: "x64",
+      env: { CMAKE_GENERATOR: "Ninja" },
+    });
+    assert.deepEqual(config.generatorArchitectureArgs, []);
+    assert.equal(config.generatorArchitecture, arch === "arm64" ? "ARM64" : "x64");
+    const automatic = resolveNativeWindowsBuildConfig({
+      platform: "win32",
+      arch,
+      hostPlatform: "win32",
+      hostArch: "x64",
+      env: {},
+    });
+    assert.deepEqual(automatic.generatorArchitectureArgs, ["-A", automatic.generatorArchitecture]);
+  }
+});
 test("cross builds explicitly select a Windows compiler", () => {
   assert.ok(
     resolveRuntimeHostBuild("x64", "linux").configureArgs.includes("-DCMAKE_SYSTEM_NAME=Windows"),
@@ -49,3 +86,73 @@ test("packaging rejects wrong-architecture and corrupt PE binaries", () => {
   assert.throws(() => verifyRuntimeHostPe(bytes, "arm64"), /architecture/);
   assert.throws(() => verifyRuntimeHostPe(Buffer.from("bad"), "x64"), /PE/);
 });
+
+test(
+  "Windows ZIP 兼容本机 .NET，保留覆盖、带引号路径与目标验证顺序",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const sandbox = await createProjectTestSandbox("windows-zip-regression");
+    const archive = await assertProjectPath(join(sandbox.root, "archive ' with space.zip"));
+    const output = await assertProjectPath(join(sandbox.root, "binary.exe"));
+    const bytes = Buffer.from("fixture binary content");
+    const zip = new yazl.ZipFile();
+    zip.addBuffer(bytes, "nested/binary.exe");
+    zip.end();
+    await pipeline(zip.outputStream, createWriteStream(archive, { flags: "wx" }));
+    await writeFile(output, "original binary");
+    const archiveSha256 = createHash("sha256")
+      .update(await readFile(archive))
+      .digest("hex");
+    await extractPrebuiltBinary({
+      archiveExt: "zip",
+      archivePath: archive,
+      archiveSha256,
+      binaryName: "binary.exe",
+      binaryPath: output,
+      targetPlatform: "win32",
+      validateBinary: async (path) => {
+        assert.equal(await readFile(output, "utf8"), "original binary");
+        assert.deepEqual(await readFile(path), bytes);
+      },
+    });
+    assert.deepEqual(await readFile(output), bytes);
+    await assert.rejects(
+      extractPrebuiltBinary({
+        archiveExt: "zip",
+        archivePath: archive,
+        archiveSha256,
+        binaryName: "binary.exe",
+        binaryPath: output,
+        targetPlatform: "win32",
+        validateBinary: async () => {
+          throw new Error("fixture invalid binary");
+        },
+      }),
+      /fixture invalid binary/,
+    );
+    assert.deepEqual(await readFile(output), bytes);
+    const extractDir = await assertProjectPath(join(sandbox.root, "extract"));
+    extractPrebuiltArchive({ archiveExt: "zip", archivePath: archive, extractDir });
+    await writeFile(join(extractDir, "nested/binary.exe"), "stale extraction");
+    extractPrebuiltArchive({ archiveExt: "zip", archivePath: archive, extractDir });
+    assert.deepEqual(await readFile(join(extractDir, "nested/binary.exe")), bytes);
+    // 恶意 entry 的落点仍在本测试沙箱内，验证边界不会写入项目外目录。
+    const traversalArchive = await assertProjectPath(join(sandbox.root, "traversal.zip"));
+    const traversalZip = new yazl.ZipFile();
+    traversalZip.addBuffer(bytes, "00/binary.exe");
+    traversalZip.end();
+    const chunks = [];
+    for await (const chunk of traversalZip.outputStream) chunks.push(chunk);
+    const traversalBytes = Buffer.from(
+      Buffer.concat(chunks).toString("latin1").replaceAll("00/binary.exe", "../binary.exe"),
+      "latin1",
+    );
+    await writeFile(traversalArchive, traversalBytes);
+    assert.throws(
+      () =>
+        extractPrebuiltArchive({ archiveExt: "zip", archivePath: traversalArchive, extractDir }),
+      /failed with code/,
+    );
+    assert.deepEqual(await readFile(output), bytes);
+  },
+);

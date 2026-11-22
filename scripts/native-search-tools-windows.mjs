@@ -37,12 +37,16 @@ export function resolveNativeWindowsBuildConfig({
       `native Windows search build must run on Windows; host is ${normalizedHostPlatform}-${normalizedHostArch}`,
     );
   }
+  const generator = env.CMAKE_GENERATOR?.trim() || undefined;
+  const generatorArchitecture = normalizedArch === "arm64" ? "ARM64" : "x64";
   return {
     arch: normalizedArch,
     cmake: env.CMAKE?.trim() || "cmake",
     // 原因：固定旧 VS 会让新 runner 失败；缺省由 CMake 检测，显式选择沿标准环境变量保留。
-    generator: env.CMAKE_GENERATOR?.trim() || undefined,
-    generatorArchitecture: normalizedArch === "arm64" ? "ARM64" : "x64",
+    generator,
+    generatorArchitecture,
+    // Ninja 由调用方 MSVC 环境选目标，不支持 Visual Studio 的 -A 参数。
+    generatorArchitectureArgs: generator === "Ninja" ? [] : ["-A", generatorArchitecture],
     hostArch: normalizedHostArch,
     platform: normalizedPlatform,
   };
@@ -107,8 +111,8 @@ export function buildNativeSearchToolsWindows({
         "-B",
         cmakeBuildDir,
         ...(config.generator ? ["-G", config.generator] : []),
-        "-A",
-        config.generatorArchitecture,
+        ...config.generatorArchitectureArgs,
+        "-DCMAKE_BUILD_TYPE=Release",
         `-DZCODE_BUILD_PATH=${toCmakePath(workDir)}`,
         `-DZCODE_UGREP_OUTPUT_DIR=${toCmakePath(cmakeOutputDir)}`,
         `-DZCODE_UGREP_SOURCE_DIR=${toCmakePath(sources.ugrep)}`,

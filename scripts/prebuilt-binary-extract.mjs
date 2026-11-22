@@ -34,7 +34,23 @@ export function extractPrebuiltArchive({
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        `Expand-Archive -LiteralPath '${archivePath.replaceAll("'", "''")}' -DestinationPath '${extractDir.replaceAll("'", "''")}' -Force`,
+        // 原因：本机 Archive 模块调用了不可用的 .NET 重载；直接使用稳定的 entry API，保留覆盖行为。
+        `$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$extractRoot = [System.IO.Path]::GetFullPath('${extractDir.replaceAll("'", "''")}').TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)) + [System.IO.Path]::DirectorySeparatorChar
+$zipArchive = [System.IO.Compression.ZipFile]::OpenRead('${archivePath.replaceAll("'", "''")}')
+try {
+  foreach ($entry in $zipArchive.Entries) {
+    $targetPath = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($extractRoot, $entry.FullName))
+    if ($entry.FullName.Contains(':') -or -not $targetPath.StartsWith($extractRoot, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'ZIP_ENTRY_PATH_REJECTED' }
+    if ([string]::IsNullOrEmpty($entry.Name)) {
+      [System.IO.Directory]::CreateDirectory($targetPath) | Out-Null
+    } else {
+      [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($targetPath)) | Out-Null
+      [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $targetPath, $true)
+    }
+  }
+} finally { $zipArchive.Dispose() }`,
       ]);
       return;
     }

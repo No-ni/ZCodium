@@ -10,6 +10,10 @@ import { tsImport } from "tsx/esm/api";
 
 const { resolveSourceDataRoots, createSourcePersistenceEnv, ZCODE_APP_VERSION_ENV, ZCODE_VERSION } =
   await tsImport("../../../packages/shared/src/node.ts", import.meta.url);
+const { SERVER_CREDENTIAL_FORMAT, SERVER_CREDENTIAL_FORMAT_ENV } = await tsImport(
+  "../../../packages/zcode-server-cli/src/contracts.ts",
+  import.meta.url,
+);
 const { createSourceAgentCommandResolver } = await tsImport(
   "../../../packages/services/src/runtime-tools/sourceAgentCommand.ts",
   import.meta.url,
@@ -285,6 +289,9 @@ test("Core launcher applies selected Source persistence after hostile release wi
         bundledAgentWiring: { KEEP: "release", ZCODE_SERVER_ROOT: "bad", ZCODE_STORAGE_DIR: "bad" },
       },
       createSourcePersistenceEnv,
+      // launch 现在明确传递凭据格式；注入生产常量，避免提取函数脱离真实依赖。
+      SERVER_CREDENTIAL_FORMAT,
+      SERVER_CREDENTIAL_FORMAT_ENV,
       join,
       URL,
       fixtureModuleUrl: "file:///fixture/cli.js",

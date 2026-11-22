@@ -413,6 +413,8 @@ function cloneHistoryToolCall(call: ToolCallInput): ToolCallInput {
     id: call.id,
     name: call.name,
     input: call.input,
+    // 原因：历史白名单漏掉本仓 Gemini 签名；深复制保留续轮所需元数据，并隔离请求快照修改。
+    ...(call.providerOptions ? { providerOptions: structuredClone(call.providerOptions) } : {}),
     ...(call.modelCallWrapper ? { modelCallWrapper: call.modelCallWrapper } : {}),
   };
 }
