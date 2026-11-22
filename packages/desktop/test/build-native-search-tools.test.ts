@@ -775,7 +775,8 @@ describe("native search build", () => {
     expect(x64Config).toMatchObject({
       arch: "x64",
       cmake: "cmake",
-      generator: "Visual Studio 17 2022",
+      // CI 已升级 Visual Studio；默认交给 CMake 发现编译器，不能重新固定旧版本。
+      generator: undefined,
       generatorArchitecture: "x64",
       platform: "win32",
     });
