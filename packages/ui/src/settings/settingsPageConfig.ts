@@ -53,12 +53,7 @@ const BASE_SETTINGS_SECTION_GROUPS: Array<{ id: SettingsSectionGroupId; titleId:
 
 const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
   { id: "general", icon: Settings2, titleId: "settings.systemTitle", groupId: "basics" },
-  {
-    id: "agentBehavior",
-    icon: SlidersHorizontal,
-    titleId: "settings.agentBehaviorTitle",
-    groupId: "agentCapabilities",
-  },
+  // 修复原因：合并时重复插入了同 id 且无翻译的分区；沿用下方官方“行为与工具”入口。
   { id: "appearance", icon: Palette, titleId: "settings.appearanceTitle", groupId: "basics" },
   { id: "modelProvider", icon: Package, titleId: "settings.modelProviderTitle", groupId: "basics" },
   // 个性化（用户自定义指令）是 Agent 能力组的第一项：编辑 ~/.zcodium/AGENTS.md，

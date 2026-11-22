@@ -34,3 +34,7 @@ sequenceDiagram
 4. 首次使用检查从本仓默认库获得已有会话证据，也读取本仓 user config 的自定义库路径；显式环境和未知相对路径规则不变。
 
 完成后须通过相关源码/运行回归、typecheck、Lint、格式和 changed 架构，再本地重建 Windows 安装包并更新验证。macOS 仍须可用 Mac，不能以 Windows 回归等同于 macOS 实机验证。
+
+## 运行界面复核发现的侧栏重复入口
+
+数据根冷恢复截图确认本仓合并时重复加入 `agentBehavior` 设置分区，新增项使用不存在的翻译键 `settings.agentBehaviorTitle`，与官方原有“行为与工具”并存。设置分区 id 必须唯一；保留官方已有 `settings.agentBehavior.title` 的入口和原有内容，只移除重复定义。Web、Windows、macOS 配置中的 id 和分组投影都需保持唯一；完整 Electron 设置页只显示一项，不能显示原始翻译键。

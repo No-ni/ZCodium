@@ -23,6 +23,58 @@ const { createSystemCredentialCipher } = await load(
 );
 const { copyDataDirectory } = await load("packages/services/src/paths.ts");
 
+test("Web 与桌面设置分区及其分组投影保持唯一，行为与工具沿用已翻译入口", async () => {
+  const sandbox = await createProjectTestSandbox("settings-section-unique");
+  const output = await build({
+    entryPoints: [join(projectRoot, "packages/ui/src/settings/settingsPageConfig.ts")],
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "esm",
+    packages: "external",
+    tsconfig: join(projectRoot, "packages/ui/tsconfig.json"),
+    plugins: [
+      {
+        name: "fixture-logger",
+        setup(builder) {
+          builder.onResolve({ filter: /^@\/logger\.js$/ }, () => ({
+            path: "logger",
+            namespace: "fixture",
+          }));
+          builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+            contents: "export const logger={warn(){}};",
+          }));
+        },
+      },
+    ],
+  });
+  const modulePath = await assertProjectPath(join(sandbox.root, "settings-config.mjs"));
+  await writeFile(modulePath, output.outputFiles[0].contents);
+  const api = await import(pathToFileURL(modulePath).href);
+  for (const options of [
+    {},
+    { isDesktop: true, isWindowsDesktop: true },
+    { isDesktop: true, isMacDesktop: true },
+  ]) {
+    const config = api.createSettingsPageConfig(options);
+    const ids = config.settingsSections.map((item) => item.id);
+    assert.equal(new Set(ids).size, ids.length);
+    assert.deepEqual(
+      config.settingsSectionGroups
+        .flatMap((group) => group.sections)
+        .map((item) => item.id)
+        .sort(),
+      [...ids].sort(),
+    );
+    assert.deepEqual(
+      config.settingsSections
+        .filter((item) => item.id === "agentBehavior")
+        .map((item) => item.titleId),
+      ["settings.agentBehavior.title"],
+    );
+  }
+});
+
 test("Main 为复制后的本仓凭据登记密钥，冷恢复可解密且重复登记幂等", async () => {
   const sandbox = await createProjectTestSandbox("fork-credential-root");
   const from = await assertProjectPath(join(sandbox.root, "source"));
