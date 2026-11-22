@@ -10,6 +10,7 @@
 - 不再构建、下载、校验或嵌入 `bundled-remote-assets`，桌面开发态也不读取历史 Linux 资源。SSH/WSL/Linux 容器远程工作区部署明确报缺少运行资源；通用 Server/CLI 的平台实现保留，手机远控继续复用本机 Host，与 Linux 远程工作区独立。
 - `package.json` 版本必须满足 SemVer（可带预发布标识，不接受 build metadata）。手动从标签运行时，该标签必须为 `v<package.json.version>`；标签 push 本身不会启动工作流。
 - 依赖安装使用 frozen lockfile。Node 从 mise.toml、pnpm 从 package.json 读取；同步已有依赖遗漏的锁文件项，不升级业务依赖。
+- Windows 原生 producer 不固定 Visual Studio 2022；默认由 CMake 选择实际已安装的 Visual Studio，显式 CMAKE_GENERATOR 继续按调用方设置生效。x64/ARM64 的 -A 目标、Release、PE 架构验证和原生 runner/交叉验证边界保持。2026-11-22 的 Windows runner 已不提供固定旧版本，构建规则必须兼容其实际工具链。
 - 工具链读取器显式解析 mise.toml 的 tools 表，只接受固定版本，并验证 pnpm 与 packageManager 一致；缺失或不一致时在安装前失败。
 - 构建只使用当前源码与仓库已有资源，不读取 references/，不需要官方账号、服务凭据、私有镜像或签名证书。
 - 本 spec 的构建边界与账号/遥测审计分别维护；当前已清理的官方能力和保留例外查 `docs/specs/maintenance-model.md`，不得依据历史待办恢复。

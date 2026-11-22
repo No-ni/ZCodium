@@ -40,7 +40,8 @@ export function resolveNativeWindowsBuildConfig({
   return {
     arch: normalizedArch,
     cmake: env.CMAKE?.trim() || "cmake",
-    generator: "Visual Studio 17 2022",
+    // 原因：固定旧 VS 会让新 runner 失败；缺省由 CMake 检测，显式选择沿标准环境变量保留。
+    generator: env.CMAKE_GENERATOR?.trim() || undefined,
     generatorArchitecture: normalizedArch === "arm64" ? "ARM64" : "x64",
     hostArch: normalizedHostArch,
     platform: normalizedPlatform,
@@ -105,8 +106,7 @@ export function buildNativeSearchToolsWindows({
         windowsCmakeProject,
         "-B",
         cmakeBuildDir,
-        "-G",
-        config.generator,
+        ...(config.generator ? ["-G", config.generator] : []),
         "-A",
         config.generatorArchitecture,
         `-DZCODE_BUILD_PATH=${toCmakePath(workDir)}`,

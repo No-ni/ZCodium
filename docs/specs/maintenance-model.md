@@ -665,3 +665,5 @@ changed 架构通过；根 Lint 最新 726 warnings/0 errors，Hook 调用告警
 根 typecheck、Core types、相关服务测试 types、changed 架构通过；根 Lint 0 errors / 719 既有 warnings，相关分组标量与 memo 依赖无新增诊断。全部数据、缓存、编译输出和证据留在当前项目。完整 Electron/实体手机/真实 Provider/远端及安装验证未执行；独立 CLI 全量行数债务仍沿前项记录，不纳入本次用户收窄后的缺陷目标。详细失败、通过证据及自定义新增功能/修复归因见 [本轮记录](custom-feature-regressions-2026-11-22.md)。
 
 推送当前 main 时，按远端实际 SHA 运行的门禁发现手机目录纯投影 `windowDirectoryPresentation.ts` 缺少受管模块登记（此前 changed 检查基线范围未包含该文件）。补齐 `web-window-directory` 的策略、契约及示例，既有函数正文和 MobileApp 调用不改。旧原生上下文备份历史改以本地标签保留；仅清理本地临时分支，不触发构建。
+
+用户随后明确要求构建 macOS/Windows 并更新本机 Windows ZCodium。首次 Actions run `44994037619` 的 Windows 两架构在准备运行时失败；实际 runner 为 `windows-2025-vs2026`，提供 VS 18 / CMake 4.5，脚本却固定 VS 17 2022。移除 runtime host 的固定生成器，native search 默认同样交由 CMake 检测，保留显式 CMAKE_GENERATOR、-A 架构与 PE 验证；不改变产品行为或改回旧 runner。对应计划与发行契约 24/24、根 typecheck、Lint 0 errors/719 既有 warnings 通过。该阶段未生成或安装 Windows 新版；后续构建与本机更新结果须以实际 run/安装结果为准。

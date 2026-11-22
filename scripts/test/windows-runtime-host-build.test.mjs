@@ -1,21 +1,33 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveRuntimeHostBuild, verifyRuntimeHostPe } from "../build-windows-runtime-host.mjs";
+import { resolveNativeWindowsBuildConfig } from "../native-search-tools-windows.mjs";
 
 test("Windows builds both supported architectures with the matching MSVC target", () => {
-  assert.deepEqual(resolveRuntimeHostBuild("x64", "win32").configureArgs, [
-    "-G",
-    "Visual Studio 17 2022",
-    "-A",
-    "x64",
-  ]);
-  assert.deepEqual(resolveRuntimeHostBuild("arm64", "win32").configureArgs, [
-    "-G",
-    "Visual Studio 17 2022",
-    "-A",
-    "ARM64",
-  ]);
+  assert.deepEqual(resolveRuntimeHostBuild("x64", "win32").configureArgs, ["-A", "x64"]);
+  assert.deepEqual(resolveRuntimeHostBuild("arm64", "win32").configureArgs, ["-A", "ARM64"]);
   assert.throws(() => resolveRuntimeHostBuild("ia32", "win32"), /architecture/);
+});
+
+test("Windows search producer uses the installed generator and preserves explicit VS selections", () => {
+  for (const arch of ["x64", "arm64"]) {
+    const base = { platform: "win32", hostPlatform: "win32", hostArch: "x64", arch };
+    const automatic = resolveNativeWindowsBuildConfig({ ...base, env: {} });
+    assert.equal(automatic.generator, undefined);
+    assert.equal(automatic.generatorArchitecture, arch === "arm64" ? "ARM64" : "x64");
+    for (const generator of ["Visual Studio 17 2022", "Visual Studio 18 2026"]) {
+      const explicit = resolveNativeWindowsBuildConfig({
+        ...base,
+        env: { CMAKE_GENERATOR: generator },
+      });
+      assert.equal(explicit.generator, generator);
+      assert.equal(explicit.generatorArchitecture, automatic.generatorArchitecture);
+    }
+    assert.equal(
+      resolveNativeWindowsBuildConfig({ ...base, env: { CMAKE_GENERATOR: "  " } }).generator,
+      undefined,
+    );
+  }
 });
 test("cross builds explicitly select a Windows compiler", () => {
   assert.ok(

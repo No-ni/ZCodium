@@ -53,7 +53,7 @@ jobs:
         # 产品版本/工具链、exe+dmg 发行边界、自有更新源、CUA helper 生产链接线都是静态契约，
         # 见 docs/specs/official-3.18.2-release-readiness.md；装好依赖即可运行，不产生任何下载。
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: node --test scripts/ci/official317-build.test.mjs
+        run: node --test scripts/ci/official317-build.test.mjs scripts/test/windows-runtime-host-build.test.mjs
       - name: Build Agent test dependencies
         id: agent-build
         # 根安装采用 hoisted 布局；从子 workspace 启动会丢失根目录的工具路径。

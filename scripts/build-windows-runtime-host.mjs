@@ -18,7 +18,8 @@ export function resolveRuntimeHostBuild(
   return {
     configureArgs:
       hostPlatform === "win32"
-        ? ["-G", "Visual Studio 17 2022", "-A", arch === "arm64" ? "ARM64" : "x64"]
+        ? // 原因：当前 Windows runner 已升级 VS，固定 2022 会找不到编译器；交给 CMake 选择已安装版本。
+          ["-A", arch === "arm64" ? "ARM64" : "x64"]
         : [
             "-DCMAKE_SYSTEM_NAME=Windows",
             `-DCMAKE_CXX_COMPILER=${compiler || (arch === "arm64" ? "aarch64-w64-mingw32-clang++" : "x86_64-w64-mingw32-g++")}`,
