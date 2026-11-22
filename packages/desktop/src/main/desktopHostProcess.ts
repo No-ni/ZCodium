@@ -28,6 +28,8 @@ import {
   LAUNCH_MARKS_QUERY_KEY,
   RUNTIME_ZCODE_DEBUG,
   serializeLaunchMarks,
+  ZCODE_USER_DATA_DIR_NAME,
+  ZCODE_APP_CONFIG_SUBDIR_NAME,
   type RemoteTarget,
 } from "@zcode/shared";
 import type {
@@ -339,7 +341,13 @@ export function spawnHostProcess(
       // 目标布局推导，密钥不离开 Main，也不开放对目标目录的加解密。
       const share = isAbsolute(targetBaseDir)
         ? credentialCipher.shareKeyWithCopiedCredentials(
-            join(targetBaseDir, ".zcode", "v2", "credentials.json"),
+            // 修复原因：本仓复制目标为 .zcodium，沿用官方目录会漏登记目标凭据密钥。
+            join(
+              targetBaseDir,
+              ZCODE_USER_DATA_DIR_NAME,
+              ZCODE_APP_CONFIG_SUBDIR_NAME,
+              "credentials.json",
+            ),
           )
         : Promise.reject(new Error("Data root must be absolute"));
       void share

@@ -5,6 +5,8 @@ import {
   sourceServerMigrationReportSchema,
 } from "@zcode/shared";
 import { SourceServerWorkspaceAliasRepo } from "../session/sourceServerWorkspaceAliasRepo.js";
+import { getDataBaseDir } from "../paths.js";
+import { resolveSourceWorkspaceAliasStoragePaths } from "../session/workspace-alias-contract/contract.js";
 import type { ISourceServerWorkspaceService } from "./sourceServerWorkspace.js";
 
 export function createSourceServerWorkspaceService(
@@ -16,7 +18,8 @@ export function createSourceServerWorkspaceService(
     | "listMigrationReports"
     | "abandonFailedWorkspace"
     | "retryFailedWorkspace"
-  > = new SourceServerWorkspaceAliasRepo(),
+    // 修复原因：本仓数据根为 .zcodium，向官方 Repo 注入对应路径，避免遗漏当前 CLI 会话库。
+  > = new SourceServerWorkspaceAliasRepo(resolveSourceWorkspaceAliasStoragePaths(getDataBaseDir())),
   options: {
     defaultWorkspaceIdentity?: (workspacePath: string) => string;
     onResolved?: (mapping: {

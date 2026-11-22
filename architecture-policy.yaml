@@ -190,6 +190,7 @@ modules:
       - services
       - rpc
       - session
+      - source-workspace-alias-repo
     publicEntrypoints:
       - packages/services/src/source-server-workspace/contract.ts
       - packages/services/src/source-server-workspace/inspection-contract.ts
@@ -2861,6 +2862,43 @@ modules:
     layers:
       app: .
     owner: workflow
+  - id: desktop-locale-bootstrap
+    roots:
+      - packages/desktop/src/main/locale-bootstrap-contract
+      - packages/desktop/src/main/desktopApplicationLocaleBootstrap.ts
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/desktop/src/main/locale-bootstrap-contract/contract.ts
+      - packages/desktop/src/main/desktopApplicationLocaleBootstrap.ts
+    layers:
+      adapters: .
+    owner: desktop
+  - id: onboarding-local-usage
+    roots:
+      - packages/services/src/onboarding/local-usage-contract
+      - packages/services/src/onboarding/localUsageEvidence.ts
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/services/src/onboarding/local-usage-contract/contract.ts
+      - packages/services/src/onboarding/localUsageEvidence.ts
+    layers:
+      adapters: .
+    owner: services
+  - id: source-workspace-alias-repo
+    roots:
+      - packages/services/src/session/workspace-alias-contract
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/services/src/session/workspace-alias-contract/contract.ts
+    layers:
+      adapters: .
+    owner: source-server
 
 global:
   acceptedUpstreamCommits:

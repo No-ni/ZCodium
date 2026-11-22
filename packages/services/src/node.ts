@@ -3,6 +3,7 @@ export {
   type TopicResourcePeers,
 } from "#src/zcode-agent/topicResourcePeers.js";
 import { createRemoteProjectService, IRemoteProjectService } from "#src/remote-projects/index.js";
+import { resolveSourceWorkspaceAliasStoragePaths } from "#src/session/workspace-alias-contract/contract.js";
 export {
   createRemoteProjectConnectionAdmission,
   releaseRemoteProjectProfileHost,
@@ -2430,7 +2431,10 @@ export async function createServerHostServices(options: {
   );
   if (!projectStorageHostId) throw new Error("Invalid Source Server storage identity");
   await migrateApplicationStorage(await createSettingService().get(), projectStorageHostId);
-  const workspaceAliasRepo = new SourceServerWorkspaceAliasRepo();
+  // 修复原因：正式 Source Server 装配也必须传入本仓会话库与备份路径。
+  const workspaceAliasRepo = new SourceServerWorkspaceAliasRepo(
+    resolveSourceWorkspaceAliasStoragePaths(getDataBaseDir()),
+  );
   const workspaceIdentityMapper = new SourceServerWorkspaceIdentityMapper();
   const sourceServerWorkspaceService = createSourceServerWorkspaceService(workspaceAliasRepo, {
     defaultWorkspaceIdentity: (workspacePath) =>

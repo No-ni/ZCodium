@@ -4,6 +4,10 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { tsImport } from "tsx/esm/api";
+const { CREDENTIAL_DECRYPT_ERROR_CODE } = await tsImport(
+  "../../packages/shared/src/oauth.ts",
+  import.meta.url,
+);
 
 const storeModule = await tsImport("./fixtures/local-credential-store.ts", import.meta.url);
 const {
@@ -90,7 +94,8 @@ test("encrypted MCP publication preserves unrelated records and stale invalidati
     env: { ZCODE_CREDENTIAL_SECRET: "fixture-wrong-secret" },
   });
   const wrong = createSharedZCodeCredentialStore({ ...options, cipher: wrongCipher });
-  await assert.rejects(wrong.load("mcp:other:key"), /decrypt failed/);
+  // 修复原因：解密错误已本地化，使用稳定错误码核验拒绝，避免语言变化误报。
+  await assert.rejects(wrong.load("mcp:other:key"), { code: CREDENTIAL_DECRYPT_ERROR_CODE });
 });
 
 test(

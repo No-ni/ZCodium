@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { isLocale, resolvePersistedUiLocale } from "@zcode/shared";
+import {
+  isLocale,
+  resolvePersistedUiLocale,
+  ZCODE_USER_DATA_DIR_NAME,
+  ZCODE_APP_CONFIG_SUBDIR_NAME,
+} from "@zcode/shared";
 import type { Locale } from "@zcode/shared";
 
 /**
@@ -19,7 +24,8 @@ function resolveBootstrapHomeDir(): string {
 export function resolveApplicationLocaleBootstrapSettingsFile(
   homePath: string = resolveBootstrapHomeDir(),
 ): string {
-  return join(homePath, ".zcode", "v2", "setting.json");
+  // 修复原因：语言 bootstrap 与设置服务必须读取同一份本仓设置，不能读官方目录。
+  return join(homePath, ZCODE_USER_DATA_DIR_NAME, ZCODE_APP_CONFIG_SUBDIR_NAME, "setting.json");
 }
 
 export function extractBootstrapApplicationLocale(rawValue: unknown): Locale | undefined {
