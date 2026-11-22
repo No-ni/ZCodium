@@ -82,8 +82,29 @@ sequenceDiagram
 
 SQLite 五文件的内层 65 项通过（`custom-fixes-vJRWlu`）；其中 96 MiB 堆处理 537,919,488 字节、65,664 行正文，完成备份/迁移/重开/恢复，maxRSS 129,300 KiB。接线六项及已有命令发现/交接场景通过（`custom-fixes-VCEags`）；此前 scheduler、Main、Host、命令预执行和 Core 兼容均有真实失败证据。完整调用函数在依赖替身下执行，不能称为真实 scheduler/远端/Provider 或实体手机验收。
 
-根类型、CLI 类型、根格式与 changed 架构通过；根 Lint 0 errors/719 既有 warnings，CLI Lint 实际失败于 77 个既有 max-lines/132 warnings，没有放宽规则。首次根类型的四项 scheduler TS6305 来自声明产物被此前打包清理，固定配置重建声明后通过；不把缓存修复称为产品行为修改。最终变更后的必需门禁、成品大历史启动/冷重启和本机安装结果仍须继续执行并追加。
+根类型、CLI 类型、根格式与 changed 架构通过；根 Lint 0 errors/719 既有 warnings，CLI Lint 实际失败于 77 个既有 max-lines/132 warnings，没有放宽规则。首次根类型的四项 scheduler TS6305 来自声明产物被此前打包清理，固定配置重建声明后通过；不把缓存修复称为产品行为修改。两次代码提交均实际通过完整 `verify:pre-push`，最后一次证据为 `custom-fixes-or6eqX`。
 
 成品 E2E 夹具已在项目内创建真实旧版 CLI schema，保留 `0025_session_permanent_deletion` 待执行，包含 65,664 行、539,561,088 字节 JSON 正文。后续必须观测成品启动控制面的 ready，并复查全文、迁移账本、quick_check 和外键；不再只根据窗口有文字/按钮判断启动成功。真实用户数据不参与自动验证。
 
 916ea2a6 的首次本地生产准备与桌面编译通过（`windows-desktop-build-DauChT`），打包期间发现 Design/Superpowers 分发遗漏，主动中止该候选，不安装它。新增共享清单、Design 本仓 manifest、完整入口/许可及 SEA 校验；新测试先实报两个定义未登记与删除 Design 规则漏检，随后五项资产回归及十四项审计守卫通过（`custom-fixes-LesQsw`）。两项默认关闭，作者署名保留且不新增外部商店/账号/网络来源；已存在的 bundled-skills 动态工作流包与它们分别纳管。后续以补齐资源的固定提交重新完整准备、编译和打包。
+
+## 最终生产构建与本机安装
+
+两个代码提交 `916ea2a6e204a4ace936aa8f1ada17bb71c6afee` 与 `4ceed625f4d0ee944bca9806d1b9bc6f0c34608d` 均推送到自己的 origin。GitHub 直连失败后使用本机现有代理，保留 TLS 校验；构建前在线核对 origin/main 与固定源码提交相同，官方 HEAD/main 仍为 `fec975905a2abd4c07e35c40d51fa097a2258ec9`。无未提交的跟踪文件补丁，不复用上一个候选的准备产物。
+
+`windows-desktop-build-DSzlVL` 从准备起设置 `ZCODE_ENV=production`，Windows x64 完整 prepare/build/package 均返回 0。安装程序约 246.7 MiB，运行依赖缺失数为 0；成品核对 ZCodium 品牌、3.18.2 版本、x64 PE、Main 入口、逐行迁移标记、旧 shell 预执行代码缺席及 Design/Superpowers 完整资源。安装包 SHA-256 为 `7531dbba3f717cd27f371947d08c23792bf764770224408e1f2fb934e032d3f6`，未签名；未生成或嵌入 Linux 安装资源。
+
+成品实际启动 `large-history-electron-2S7XZ1` 的合成旧库：65,664 行、539,561,088 字节 JSON 正文，CLI 保留 `0025_session_permanent_deletion` 待执行，Host 为新建组织库。每次观测原启动控制面的 `ready`、正常业务界面，并在关闭程序后复查逐行原文、行数、该迁移账本、`quick_check=ok` 与外键；全部通过。
+
+| 程序与阶段         | 启动状态 | 执行 / 提交迁移数            | 至界面截图耗时 | 渲染器异常 |
+| ------------------ | -------- | ---------------------------- | -------------- | ---------- |
+| 解包成品旧库升级   | ready    | 7 / 7（包含 CLI 待执行迁移） | 16,017 ms      | 0          |
+| 解包成品冷重启     | ready    | 0 / 0                        | 8,745 ms       | 0          |
+| 正式安装路径启动   | ready    | 0 / 0                        | 4,973 ms       | 0          |
+| 正式安装路径冷重启 | ready    | 0 / 0                        | 4,699 ms       | 0          |
+
+安装以静默 all-users 方式覆盖本机 ZCodium，返回 0。已安装 exe、app.asar、CLI、两个原生辅助程序及内置插件必需输入共 276 项摘要与本轮成品逐一一致；正式路径两次启动使用同一已升级的合成大库，不把它们称为第二次旧库迁移。安装记录及摘要位于 `windows-package-verification-iaD21W/installation-result.json` 和 `installed-resource-verification.json`；四次启动状态、截图及全文检查记录位于大历史夹具的 `seed.json`。
+
+本轮最终安装包、解包目录和中止候选的安装产物及其临时目录已清理，删除前重新校验固定绝对路径、工作树包含关系及全树无重解析点；保留验证日志、摘要和截图，未建立安装包备份。清理记录为 `windows-package-verification-iaD21W/artifact-cleanup.json`。无关草稿 `native-context-rollback.md` 原样保留，SHA-256 为 `9225aa0d33dbff7edeca5ea26702851781736c9dc265f27edc5d078190e4c750`。
+
+上述启动使用项目内 HOME、数据目录、Electron profile、TEMP 与显式受管测试密钥，不访问真实用户数据库或系统凭据条目。此次覆盖安装已完成，但真实用户历史、模型调用、macOS、远端及实体手机仍未自动验收；合成旧库升级不能写成这些环境的全量验证，也不作永久无故障承诺。
