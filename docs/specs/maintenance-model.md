@@ -708,4 +708,6 @@ Windows x64 本地生产安装包最终构建通过，约 245 MiB；本地 main 
 
 SQLite 内层 65 项、接线六项及命令发现、个人同步十项、Source composition 五项通过。根/CLI 类型、格式和架构通过；CLI 77 项既有行数错误与根 719 warnings 仍如实保留。成品大历史旧库已在项目中准备；本阶段未据此声称已完成打包、安装或真实数据验收。
 
+首个修复提交 916ea2a6 已通过完整推送门禁并推送 own origin；其本地准备和生产编译通过，打包中主动发现并收口 Design 0.7.2 / Superpowers 0.1.0 的分发清单遗漏。共享 seed owner 统一保护两个插件入口、hook、许可；Design 补本仓 manifest，SEA 同样复用必需路径并清理退役 Sites descriptor。默认关闭，无新依赖或官方请求；五项资产及十四项审计回归通过。该中止候选未安装，待资源修复提交完成后重新构建与验收。
+
 本机已覆盖至最终修复构建，安装返回 0，exe/app.asar 与最终包摘要相同，登记版本 3.18.2。安装后隔离启动 `installed-window-verification-J0eT2V` 通过、渲染器异常 0。类型复核通过；桌面构建清掉 scheduler 声明后的检查先报告 TS6305，重新生成声明后恢复通过，未更改官方 scheduler 业务或放宽门禁。最终安装包清理再次被执行策略拒绝（固定目录及无重解析点已确认），产物暂留项目内。新增提交保持本地，macOS 仍因用户没有 Mac 保留待办。完整结果及真实未验收范围见 [默认数据根适配验证](fork-data-root-runtime-alignment.md)。

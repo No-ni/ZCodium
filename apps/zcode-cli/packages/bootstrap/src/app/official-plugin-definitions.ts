@@ -96,23 +96,7 @@ export const OFFICIAL_OFFICE_VIEWER_RUNTIME_PATHS = [
 // design 是纯内容型插件（技能 + 设计资源 + SessionStart hook，无 MCP），技能正文按需读取 references/
 // 与 scripts/；hook 只注入一句指针，正文缺失时 hook 静默退出，会话里就再也触发不到技能。
 // 所以这里钉住入口、7 份规则文件、三个随包脚本和 hook，seed 缺任一项都拒绝生成残缺缓存。
-export const OFFICIAL_DESIGN_REQUIRED_SEED_PATHS = [
-  "skills/design/SKILL.md",
-  "skills/design/references/catalog.md",
-  "skills/design/references/check.md",
-  "skills/design/references/create.md",
-  "skills/design/references/design-system.md",
-  "skills/design/references/interact.md",
-  "skills/design/references/output.md",
-  "skills/design/references/redesign.md",
-  "skills/design/scripts/adapt-canvas.mjs",
-  "skills/design/scripts/design-lint.mjs",
-  "skills/design/scripts/design-tokens.mjs",
-  "skills/design/scripts/import-design-system.mjs",
-  "hooks/hooks.json",
-  "hooks/run-hook.cmd",
-  "hooks/design-rules",
-] as const;
+export const OFFICIAL_DESIGN_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["design-plugin"];
 
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
@@ -377,7 +361,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 设计工作流（HTML 设计稿、交互原型、HTML 演示稿）。纯内容型，默认关闭；用户可启用、可停用、不可卸载。
     // 版本与 package.json / 两份 plugin.json / sea-official-plugin-assets.mjs 同步 bump。
     listing: {
-      author: ZAI_AUTHOR,
+      author: { name: ZAI_AUTHOR.name },
       category: "productivity",
       displayName: "Design",
       // 英文名与描述回退到 manifest（displayName / description）；这里只放 zh-CN 覆盖。
@@ -442,7 +426,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 上游 obra/superpowers 为 MIT，内容随插件 vendor 并在 NOTICE.md 署名；
     // 不默认启用：这是一套完整方法论，由用户显式选择进入。
     listing: {
-      author: SUPERPOWERS_AUTHOR,
+      author: { name: SUPERPOWERS_AUTHOR.name },
       category: "developer-tools",
       displayName: "Superpowers",
       description_i18n: {
@@ -450,6 +434,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       },
     },
     name: "superpowers",
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["superpowers-plugin"],
     rootCandidates: [
       "packages/superpowers-plugin",
       "../superpowers-plugin",

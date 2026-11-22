@@ -43,6 +43,8 @@ sequenceDiagram
 - 自定义命令正文中的 shell 块统一复用已经吸收的官方 `expandCustomCommandPrompt` 文本交接，不在解析阶段调用 ExecutionPort。参数文本不再被作为 shell 块预执行；模型后续通过正常 Bash 工具和权限服务执行。发现目录仍按原 workspace/附加目录解析；清理退役的直接执行 helper 与选项。
 - 远端更新候选 Core 在 Supervisor 未声明当前凭据格式时，向 `createLocalServices` 注入现有 `createLegacyServerCredentialCipher`，其文件路径来自 Source layout 的 configRoot。旧 owner 仍持有回滚权时不提前写入 v2；新 owner 声明 format=2 后沿原系统加密入口。既有 v2 被旧 owner 托管时失败关闭，不读取继承 HOME 下的另一套凭据。
 - 相邻真实回归发现个人配置 Source 写死版本 3，而共享的个人配置 envelope schema 为版本 2，任何 read 都被自身 parse 拒绝。Source 版本必须直接取唯一公开 schema，数据仍只包含个人模型配置，不放宽协议接受旧账号 envelope，不恢复官方账号字段。
+- 成品资源复核发现 design 0.7.2 的定义与源码已继承，但本仓共享 seed 清单和 `.zcodium-plugin` manifest 缺席。由共享资产 owner 登记完整技能、规则、脚本和 hook，CLI 定义从同一清单读取；保持官方默认关闭、无 MCP/网络依赖。Desktop/Server 的派生清单与成品缺文件守卫必须覆盖它，并机械检查其它内容型定义是否也漏进分发。
+- 机械交叉检查又检出 Superpowers 0.1.0 也已声明但缺分发。登记其 15 个方法论入口、hook 和 MIT/NOTICE，保留默认关闭。SEA 同样使用共享必需路径并清理退役 Sites descriptor；本次不引入新依赖、网络来源或安装脚本。
 
 ```mermaid
 sequenceDiagram
@@ -83,3 +85,5 @@ SQLite 五文件的内层 65 项通过（`custom-fixes-vJRWlu`）；其中 96 Mi
 根类型、CLI 类型、根格式与 changed 架构通过；根 Lint 0 errors/719 既有 warnings，CLI Lint 实际失败于 77 个既有 max-lines/132 warnings，没有放宽规则。首次根类型的四项 scheduler TS6305 来自声明产物被此前打包清理，固定配置重建声明后通过；不把缓存修复称为产品行为修改。最终变更后的必需门禁、成品大历史启动/冷重启和本机安装结果仍须继续执行并追加。
 
 成品 E2E 夹具已在项目内创建真实旧版 CLI schema，保留 `0025_session_permanent_deletion` 待执行，包含 65,664 行、539,561,088 字节 JSON 正文。后续必须观测成品启动控制面的 ready，并复查全文、迁移账本、quick_check 和外键；不再只根据窗口有文字/按钮判断启动成功。真实用户数据不参与自动验证。
+
+916ea2a6 的首次本地生产准备与桌面编译通过（`windows-desktop-build-DauChT`），打包期间发现 Design/Superpowers 分发遗漏，主动中止该候选，不安装它。新增共享清单、Design 本仓 manifest、完整入口/许可及 SEA 校验；新测试先实报两个定义未登记与删除 Design 规则漏检，随后五项资产回归及十四项审计守卫通过（`custom-fixes-LesQsw`）。两项默认关闭，作者署名保留且不新增外部商店/账号/网络来源；已存在的 bundled-skills 动态工作流包与它们分别纳管。后续以补齐资源的固定提交重新完整准备、编译和打包。

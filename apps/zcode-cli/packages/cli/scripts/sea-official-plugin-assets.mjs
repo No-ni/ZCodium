@@ -1,6 +1,8 @@
 import {
   BUILTIN_OFFICE_PLUGIN_BUILD_SCRIPT,
   BUILTIN_PLUGIN_ASSETS,
+  BUILTIN_PLUGIN_SEED_PATHS,
+  BUILTIN_PLUGIN_TOP_LEVEL_PATHS,
 } from "@zcode/shared/builtin-plugin-assets";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -145,23 +147,7 @@ export const officialSeaPlugins = [
     name: "design",
     packageName: "@zcode/design-plugin",
     requiresRuntime: false,
-    requiredSeedPaths: [
-      "skills/design/SKILL.md",
-      "skills/design/references/catalog.md",
-      "skills/design/references/check.md",
-      "skills/design/references/create.md",
-      "skills/design/references/design-system.md",
-      "skills/design/references/interact.md",
-      "skills/design/references/output.md",
-      "skills/design/references/redesign.md",
-      "skills/design/scripts/adapt-canvas.mjs",
-      "skills/design/scripts/design-lint.mjs",
-      "skills/design/scripts/design-tokens.mjs",
-      "skills/design/scripts/import-design-system.mjs",
-      "hooks/hooks.json",
-      "hooks/run-hook.cmd",
-      "hooks/design-rules",
-    ],
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["design-plugin"],
     rootPath: join("packages", "design-plugin"),
     version: "0.7.2",
   },
@@ -188,11 +174,11 @@ export const officialSeaPlugins = [
   }),
   {
     marketplace: "zcode-plugins-official",
-    name: "zcode-site",
-    packageName: "@zcode/sites-plugin",
+    name: "superpowers",
+    packageName: "@zcode/superpowers-plugin",
     requiresRuntime: false,
-    requiredSeedPaths: ["README.md"],
-    rootPath: join("packages", "sites-plugin"),
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["superpowers-plugin"],
+    rootPath: join("packages", "superpowers-plugin"),
     version: "0.1.0",
   },
 ];
@@ -318,22 +304,7 @@ const shouldSkipDirectory = (name) =>
   name === ".venv" ||
   name === "__pycache__";
 
-const includedTopLevelPaths = new Set([
-  ".mcp.json",
-  ".zcodium-plugin",
-  "README.md",
-  // SEA 资源采集曾只允许 skills/commands，导致 document-skills 的 judge 子代理未进入可执行文件。
-  "agents",
-  "commands",
-  "dist",
-  "docs",
-  "hooks",
-  "output-styles",
-  "package.json",
-  "scripts",
-  "skills",
-  "templates",
-]);
+const includedTopLevelPaths = new Set(BUILTIN_PLUGIN_TOP_LEVEL_PATHS);
 
 const shouldIncludePluginFile = (relativePath) => {
   const segments = relativePath.split(sep);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   BUILTIN_PLUGIN_ASSETS,
@@ -10,6 +11,53 @@ import {
 import { validateBuiltinPluginAssets } from "../builtin-plugin-assets.mjs";
 import { build } from "esbuild";
 import { resolveBuildAliases } from "../../apps/zcode-cli/packages/cli/scripts/build.mjs";
+import { collectSeaOfficialPluginAssets } from "../../apps/zcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
+import { assertProjectPath } from "./project-test-sandbox.mjs";
+import {
+  OFFICIAL_PLUGIN_DEFINITIONS,
+  OFFICIAL_DESIGN_REQUIRED_SEED_PATHS,
+} from "../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts";
+
+test("all local built-in definitions have one shared staging contract", () => {
+  const missing = [];
+  for (const definition of OFFICIAL_PLUGIN_DEFINITIONS) {
+    const root = definition.rootCandidates.find((path) => path.startsWith("packages/"));
+    if (!root) continue;
+    const plugin = BUILTIN_PLUGIN_ASSETS.find((asset) => asset.stagedPath === root);
+    if (!plugin) {
+      missing.push(`${definition.name}: absent from staging`);
+      continue;
+    }
+    const guarded = [
+      ...plugin.requiredSeedPaths,
+      ...(plugin.directory === "node-repl-host"
+        ? cuaRuntimeRequiredPaths(process.platform, process.arch)
+        : []),
+    ];
+    for (const path of definition.requiredSeedPaths ?? [])
+      if (!guarded.includes(path)) missing.push(`${definition.name}: unguarded ${path}`);
+  }
+  assert.deepEqual(missing, []);
+});
+
+test("SEA content includes Design and Superpowers entries with complete licenses", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "zcodium-sea-content-"));
+  await assertProjectPath(directory);
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const stagingDirectory = await assertProjectPath(join(directory, "stage"));
+  const { manifest } = await collectSeaOfficialPluginAssets({
+    root: fileURLToPath(new URL("../../apps/zcode-cli", import.meta.url)),
+    stagingDirectory,
+  });
+  const design = manifest.plugins.find((plugin) => plugin.name === "design");
+  const superpowers = manifest.plugins.find((plugin) => plugin.name === "superpowers");
+  assert.ok(design.files.some((file) => file.path === ".zcodium-plugin/plugin.json"));
+  assert.ok(design.files.some((file) => file.path === "hooks/design-rules"));
+  assert.ok(superpowers.files.some((file) => file.path === "skills/using-superpowers/SKILL.md"));
+  assert.ok(superpowers.files.some((file) => file.path === "LICENSE"));
+  assert.ok(superpowers.files.some((file) => file.path === "NOTICE.md"));
+  assert.ok(!manifest.plugins.some((plugin) => plugin.name === "zcode-site"));
+});
 
 test("CLI bundle resolves the shared asset contract through its production aliases", async () => {
   const result = await build({
@@ -56,6 +104,12 @@ test("staging fails if any required asset is missing, including the shared host 
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, "fixture");
   }
+  // 夹具由 CLI 定义补齐 design 输入；旧分发清单缺它时，删除该输入应暴露漏检而非 ENOENT。
+  for (const path of [".zcodium-plugin/plugin.json", ...OFFICIAL_DESIGN_REQUIRED_SEED_PATHS]) {
+    const file = join(directory, "design-plugin", path);
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, "fixture");
+  }
   await validateBuiltinPluginAssets(directory);
   for (const path of [
     "node-repl-host/dist/mcp/server.js",
@@ -65,6 +119,10 @@ test("staging fails if any required asset is missing, including the shared host 
     // 换上游实现后 pdf 技能的关键脚本名变了（`pdf_qa_checks.py` → `pdf_qa.py`）；
     // 这里必须点一个 seed 清单里真实存在的文件，否则失败信息变成 ENOENT 而不是缺资产。
     "pdf-plugin/skills/pdf/scripts/pdf_qa.py",
+    "design-plugin/skills/design/references/design-system.md",
+    "design-plugin/hooks/design-rules",
+    "superpowers-plugin/skills/using-superpowers/SKILL.md",
+    "superpowers-plugin/LICENSE",
   ]) {
     const file = join(directory, path);
     await rm(file);
