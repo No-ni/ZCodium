@@ -601,7 +601,8 @@ async function writeInstallerProcessHelperDefine(context, archName) {
   if (!existsSync(helperPath)) {
     throw new Error(`Installer process helper missing after pack: ${helperPath}`);
   }
-  mkdirSync(join(desktopPackageRoot, "build", "generated"), { recursive: true });
+  // 修复原因：同步清理已移除 mkdirSync 导入；沿用异步目录 API，避免打包到此处才失败。
+  await mkdir(join(desktopPackageRoot, "build", "generated"), { recursive: true });
   await writeFile(
     join(desktopPackageRoot, "build", "generated", `zcode-process-helper-${archName}.nsh`),
     installerProcessHelperDefineLine(context.appOutDir),

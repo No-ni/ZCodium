@@ -10,6 +10,8 @@ Windows 本地允许显式使用项目内的 MSVC/Windows SDK 与 Ninja。默认
 
 Windows ZIP 提取通过 .NET 的 ZIP entry API 完成，保留覆盖既有提取文件的行为，不依赖本机 Expand-Archive 模块版本。entry 路径限定在提取目录内；归档摘要和临时二进制校验继续先于最终目标覆盖，提取失败必须作为失败传播。
 
+Windows afterPack 在确认安装辅助程序存在后，异步创建生成配置目录并写入目标架构的 NSIS define。目录首次不存在、同架构重复打包和不同架构独立写入均应成功；辅助程序缺失时应在写入配置前失败，不能留下引用无效路径的配置。本地完整打包确认此前同步清理移除了 mkdirSync 导入，却保留调用，导致该步骤抛出 ReferenceError；使用已导入的异步 mkdir 恢复既有契约。
+
 本轮重点复核 Gemini 工具签名从原生响应、流式事件、历史快照、持久化至下一次请求的完整传递及快照隔离；本地退出测试应通过当前挂载期间的 registerPermissionRequester 登记入口发起审批，不恢复旧 submitPrompt.requestPermission 接口。
 
 ```mermaid

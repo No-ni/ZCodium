@@ -681,3 +681,5 @@ changed 架构通过；根 Lint 最新 726 warnings/0 errors，Hook 调用告警
 本机原先缺少 C++ 工具链。将核对 SHA-256 的 MSVC/Windows SDK 与 CMake/Ninja 放在项目内，使用只读 MSI 表和受限解包，不安装系统 SDK。显式 Ninja 不传 VS 的 -A，并读取单配置构建目录；默认 Visual Studio 选择保持。本机运行时与安装辅助程序已实际编译并通过 x64 PE/源及二进制指纹验证。
 
 首次本地准备又确认 Windows ZIP 提取依赖本机 Archive 模块的不兼容重载。改为稳定的 .NET entry API，保留覆盖并限制 entry 路径，校验与失败传播顺序保持。Windows ZIP 的真实解压、引号/空格、重复提取、验证失败不覆盖及路径越界拒绝通过；构建/发行相关 26/26。此记录阶段完整安装包及本机更新尚未完成，不等同于安装或全量官方验收。
+
+完整本地 afterPack 又确认一项同步清理回归：官方构建配置导入 mkdirSync，本仓改为异步解包时移除了该导入，却保留 Windows 安装辅助 define 的调用。改用已经导入的异步 mkdir，保持程序存在检查、架构文件名和 NSIS 路径转义。回归从当前源码提取真实函数及其原始内置导入，在项目隔离目录实际写入；修复前重现 ReferenceError，修复后覆盖首次建目录、重复覆盖、x64/arm64 独立配置与缺失程序拒绝，Windows 相关 7/7 通过。

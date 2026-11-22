@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveRuntimeHostBuild, verifyRuntimeHostPe } from "../build-windows-runtime-host.mjs";
 import { resolveNativeWindowsBuildConfig } from "../native-search-tools-windows.mjs";
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import ts from "typescript";
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import yazl from "yazl";
-import { createProjectTestSandbox, assertProjectPath } from "../ci/project-test-sandbox.mjs";
+import {
+  createProjectTestSandbox,
+  assertProjectPath,
+  projectRoot,
+} from "../ci/project-test-sandbox.mjs";
 import { extractPrebuiltBinary, extractPrebuiltArchive } from "../prebuilt-binary-extract.mjs";
 
 test("Windows builds both supported architectures with the matching MSVC target", () => {
@@ -85,6 +91,62 @@ test("packaging rejects wrong-architecture and corrupt PE binaries", () => {
   verifyRuntimeHostPe(bytes, "x64");
   assert.throws(() => verifyRuntimeHostPe(bytes, "arm64"), /architecture/);
   assert.throws(() => verifyRuntimeHostPe(Buffer.from("bad"), "x64"), /PE/);
+});
+
+test("Windows 安装辅助配置首次创建、重复覆盖与架构隔离，缺失程序时拒绝写入", async () => {
+  const sandbox = await createProjectTestSandbox("windows-installer-define");
+  const source = await readFile(
+    join(projectRoot, "packages/desktop/electron-builder.config.js"),
+    "utf8",
+  );
+  const parsed = ts.createSourceFile(
+    "builder.js",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  // 提取真实函数及其原始内置导入，避免顶层打包副作用；漏导入仍会在实际写文件时失败。
+  const declarations = parsed.statements.filter(
+    (node) =>
+      (ts.isImportDeclaration(node) &&
+        ["node:fs", "node:fs/promises", "node:path"].includes(node.moduleSpecifier.text)) ||
+      (ts.isFunctionDeclaration(node) &&
+        ["installerProcessHelperDefineLine", "writeInstallerProcessHelperDefine"].includes(
+          node.name?.text,
+        )),
+  );
+  const modulePath = await assertProjectPath(join(sandbox.root, "builder-functions.mjs"));
+  await writeFile(
+    modulePath,
+    declarations.map((node) => node.getText(parsed)).join("\n") +
+      `\nconst desktopPackageRoot = ${JSON.stringify(sandbox.root)};\nexport { writeInstallerProcessHelperDefine };\n`,
+  );
+  const { writeInstallerProcessHelperDefine, installerProcessHelperDefineLine } = await import(
+    pathToFileURL(modulePath).href
+  );
+  for (const arch of ["x64", "arm64"]) {
+    const appOutDir = await assertProjectPath(join(sandbox.root, `app $ with space-${arch}`));
+    const helperDir = await assertProjectPath(join(appOutDir, "resources/tools/runtime-host"));
+    await mkdir(helperDir, { recursive: true });
+    await writeFile(join(helperDir, "zcode-installer-process-helper.exe"), "fixture helper");
+    await writeInstallerProcessHelperDefine({ appOutDir }, arch);
+    const definePath = await assertProjectPath(
+      join(sandbox.root, "build/generated", `zcode-process-helper-${arch}.nsh`),
+    );
+    assert.equal(await readFile(definePath, "utf8"), installerProcessHelperDefineLine(appOutDir));
+    await writeFile(definePath, "stale configuration");
+    await writeInstallerProcessHelperDefine({ appOutDir }, arch);
+    assert.equal(await readFile(definePath, "utf8"), installerProcessHelperDefineLine(appOutDir));
+  }
+  await assert.rejects(
+    writeInstallerProcessHelperDefine({ appOutDir: join(sandbox.root, "missing") }, "missing"),
+    /Installer process helper missing/,
+  );
+  await assert.rejects(
+    readFile(join(sandbox.root, "build/generated/zcode-process-helper-missing.nsh")),
+    { code: "ENOENT" },
+  );
 });
 
 test(
