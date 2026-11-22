@@ -663,3 +663,5 @@ changed 架构通过；根 Lint 最新 726 warnings/0 errors，Hook 调用告警
 实际服务/路由/Controller 18 项、设置及同步 11 项、源码提示词 15 项、重编译上下文 10 项、上下文/压缩 58 项、原生 Provider/工具转换 38 项、schema 22 项通过；分组浏览器覆盖英文桌面 1280px 与中文手机 390px。其他定制 158 项初跑 155 通过、3 项旧快照失败，补齐当前插件推荐字段后相关回归通过；另一个旧 Provider 测试只纠正已删除官方路由的预期，没有恢复路由来让测试通过。
 
 根 typecheck、Core types、相关服务测试 types、changed 架构通过；根 Lint 0 errors / 719 既有 warnings，相关分组标量与 memo 依赖无新增诊断。全部数据、缓存、编译输出和证据留在当前项目。完整 Electron/实体手机/真实 Provider/远端及安装验证未执行；独立 CLI 全量行数债务仍沿前项记录，不纳入本次用户收窄后的缺陷目标。详细失败、通过证据及自定义新增功能/修复归因见 [本轮记录](custom-feature-regressions-2026-11-22.md)。
+
+推送当前 main 时，按远端实际 SHA 运行的门禁发现手机目录纯投影 `windowDirectoryPresentation.ts` 缺少受管模块登记（此前 changed 检查基线范围未包含该文件）。补齐 `web-window-directory` 的策略、契约及示例，既有函数正文和 MobileApp 调用不改。旧原生上下文备份历史改以本地标签保留；仅清理本地临时分支，不触发构建。

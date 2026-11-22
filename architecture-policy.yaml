@@ -1538,6 +1538,19 @@ modules:
     layers:
       domain: .
     owner: desktop-settings
+  - id: web-window-directory
+    roots:
+      - packages/web/src/window-directory-contract
+      - packages/web/src/mobile/windowDirectoryPresentation.ts
+    managed: true
+    requires:
+      - shared
+    publicEntrypoints:
+      - packages/web/src/window-directory-contract/contract.ts
+      - packages/web/src/mobile/windowDirectoryPresentation.ts
+    layers:
+      domain: .
+    owner: remote
   - id: cua-test-config
     roots:
       - packages/zcode-cua/test-config-contract
