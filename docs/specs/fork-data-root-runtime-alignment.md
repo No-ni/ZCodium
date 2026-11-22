@@ -38,3 +38,11 @@ sequenceDiagram
 ## 运行界面复核发现的侧栏重复入口
 
 数据根冷恢复截图确认本仓合并时重复加入 `agentBehavior` 设置分区，新增项使用不存在的翻译键 `settings.agentBehaviorTitle`，与官方原有“行为与工具”并存。设置分区 id 必须唯一；保留官方已有 `settings.agentBehavior.title` 的入口和原有内容，只移除重复定义。Web、Windows、macOS 配置中的 id 和分组投影都需保持唯一；完整 Electron 设置页只显示一项，不能显示原始翻译键。
+
+## 最终验证结果（2026-11-22）
+
+- 默认路径和设置唯一性回归 5/5，凭据相邻回归 4/4，审计边界 14/14，Source 数据根隔离回归通过。类型、格式、changed 架构通过；Lint 0 errors/719 既有 warnings。旧 alias 92 项夹具仍依赖退役迁移数组/账本，未计为通过。
+- Windows x64 本地 main `e67ccf66` 生产编译和打包通过。仅 UI 定义相较 `9856af1e7` 改变，运行资源经源码无变化检查后复用该已通过的准备产物；最终包仍核验版本、品牌、PE 架构、原生资源、运行依赖与体积。
+- 完整 Electron 场景 `fork-data-root-electron-2WZgSO` 通过设置服务切换业务根、冷重启读取复制凭据、写入新凭据及同根持久化；两次设置页均只显示一个“行为与工具”，不存在原始翻译键。该场景使用项目内受管测试密钥，不访问真实系统库；OS 来源登记另由实际 Main 分支与注入内存系统条目验证。
+- 本机安装返回 0，exe/app.asar 摘要与最终本地包一致，安装登记版本 3.18.2；隔离启动 `installed-window-verification-J0eT2V` 显示 ZCodium、渲染器异常 0。真实用户数据、真实 Provider、实体远控与 macOS 原生构建不计本轮验收。
+- 新增修复未推送，未创建 Release。用户确认无可用 Mac，macOS 保留待办。安装包未签名；最终产物清理在固定路径和无重解析点检查后仍被执行策略拒绝（blocked by policy），暂留项目内，不另建备份。
