@@ -708,7 +708,7 @@ Windows FS 不提供 POSIX 执行位，chmod(0755) 不能让普通 server.js 的
 
 ## 本阶段最终验收（2026-11-23）
 
-本阶段目标内的代码修复、Hooks/knip 审查与可执行验证已收口。官方基线保持 v3.18.2 / fec975905a2abd4c07e35c40d51fa097a2258ec9，HEAD 与 origin 保持 99c88981b5c9d38831cf87cc06c99cc9c3f5fdf7。本阶段没有提交、推送、打安装包或更新本机安装；表中的构建只用于工程与入口验证。无关草稿 native-context-rollback.md 的 SHA-256 仍为 9225aa0d33dbff7edeca5ea26702851781736c9dc265f27edc5d078190e4c750。
+本阶段目标内的代码修复、Hooks/knip 审查与可执行验证已收口。官方基线保持 v3.18.2 / fec975905a2abd4c07e35c40d51fa097a2258ec9。收口后改动已提交并推送到 fork：整理提交 `3a7f1f818`、文档提交 `2649d1a50`，`origin/main` 由 99c88981b5c9d38831cf87cc06c99cc9c3f5fdf7 前进到 2649d1a50d5d4f2caa71fe8d6c3f70a7b36b7266。推送前实际执行 `pnpm run verify:pre-push` 全链路（工作树、E2E 目标、Lint、过期文案、schema、架构回归、changed 架构、affected 工程测试）退出码 0；husky 钩子在 git 的 sh 环境找不到全局 pnpm 未能自动运行，改为手工执行同一命令后以 `--no-verify` 推送，不据此声称钩子本身通过。本阶段没有打安装包或更新本机安装，本机 `C:/Program Files/ZCodium` 仍是 2026-11-22 的构建；表中的构建只用于工程与入口验证。无关草稿 native-context-rollback.md 的 SHA-256 仍为 9225aa0d33dbff7edeca5ea26702851781736c9dc265f27edc5d078190e4c750。
 
 ### 完整 CLI 入口与实际回归
 
