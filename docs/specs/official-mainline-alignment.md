@@ -708,7 +708,7 @@ Windows FS 不提供 POSIX 执行位，chmod(0755) 不能让普通 server.js 的
 
 ## 本阶段最终验收（2026-11-23）
 
-本阶段目标内的代码修复、Hooks/knip 审查与可执行验证已收口。官方基线保持 v3.18.2 / fec975905a2abd4c07e35c40d51fa097a2258ec9。收口后改动已提交并推送到 fork：整理提交 `3a7f1f818`、文档提交 `2649d1a50`，`origin/main` 由 99c88981b5c9d38831cf87cc06c99cc9c3f5fdf7 前进到 2649d1a50d5d4f2caa71fe8d6c3f70a7b36b7266。推送前实际执行 `pnpm run verify:pre-push` 全链路（工作树、E2E 目标、Lint、过期文案、schema、架构回归、changed 架构、affected 工程测试）退出码 0；husky 钩子在 git 的 sh 环境找不到全局 pnpm 未能自动运行，改为手工执行同一命令后以 `--no-verify` 推送，不据此声称钩子本身通过。本阶段没有打安装包或更新本机安装，本机 `C:/Program Files/ZCodium` 仍是 2026-11-22 的构建；表中的构建只用于工程与入口验证。无关草稿 native-context-rollback.md 的 SHA-256 仍为 9225aa0d33dbff7edeca5ea26702851781736c9dc265f27edc5d078190e4c750。
+本阶段目标内的代码修复、Hooks/knip 审查与可执行验证已收口。官方基线保持 v3.18.2 / fec975905a2abd4c07e35c40d51fa097a2258ec9。收口后改动已提交并推送到 fork：整理提交 `3a7f1f818`、文档提交 `2649d1a50`，`origin/main` 由 99c88981b5c9d38831cf87cc06c99cc9c3f5fdf7 前进到 2649d1a50d5d4f2caa71fe8d6c3f70a7b36b7266。推送前实际执行 `pnpm run verify:pre-push` 全链路（工作树、E2E 目标、Lint、过期文案、schema、架构回归、changed 架构、affected 工程测试）退出码 0；husky 钩子在 git 的 sh 环境找不到全局 pnpm 未能自动运行，改为手工执行同一命令后以 `--no-verify` 推送，不据此声称钩子本身通过。2026-11-23 21:27–21:46 又以该提交在 Windows x64 本机完成正式构建（`ZCODE_ENV=production`、Node 24.14.0、pnpm 10.33.2），产物 `ZCodium-3.18.2-win-x64.exe` 244.2 MiB、SHA-256 `3C63835AB98B3C986BB28D4C2204721E0C15217BB7EC05D028B71E6AD7085495`，静默覆盖安装到 `C:/Program Files/ZCodium`；安装后 `app.asar` 与 `ZCodium.exe` 均与构建产物哈希一致，隔离数据根冷启动与内置 agent CLI 通过，构建产物已在装机后清理。本机无 cmake/MSVC，`prepare:windows-runtime-host` 用 `isRuntimeHostReady` 校验既有 staged 产物摘要一致后复用。真实 Provider 会话、UI 交互与真机仍未验收；表中的构建只用于工程与入口验证。无关草稿 native-context-rollback.md 的 SHA-256 仍为 9225aa0d33dbff7edeca5ea26702851781736c9dc265f27edc5d078190e4c750。
 
 ### 完整 CLI 入口与实际回归
 

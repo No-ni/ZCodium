@@ -761,4 +761,4 @@ SQLite 内层 65 项、接线六项及命令发现、个人同步十项、Source
 
 根 Lint 仍 286 warnings、CLI 154 warnings 与 2 项原样官方行数诊断；本仓两项行数错误已解决。Hooks 242 项源码合同保留提示，源文件违规调用 0，29 项实际 React 挂载回归不等于所有保留项的运行验收。knip 仍 exit 1，unlisted/unresolved 均 0；36 dependency、27 devDependency 与 3206 项源码/公开表面/兼容名称按消费者和合同保留，提示不隐藏，未按静态零引用批删 API。过期 Babel runtime 装包要求的暂留判断已撤销并清理，undici 等实际闭包保持。逐项证据查整理记录及其项目内明细，不宣称扫描清零或永久无遗漏。
 
-官方基线及 HEAD/origin 未变，无关草稿 SHA 保持。本阶段没有提交、推送、打安装包或更新本机安装。用户确认没有 Mac、真实远端和手机；这些设备、WebKit 缺工具链、真实 Provider 与完整产品/发行验收保持明确限制，不把合成环境写成真机验收。
+官方基线未变，无关草稿 SHA 保持。收口后改动已提交并推送到 fork：`3a7f1f818`、`2649d1a50`、`7c6c29d68`，origin/main 为 `7c6c29d68`。随后按用户要求在 Windows x64 本机以该提交完成正式构建（`ZCODE_ENV=production`、Node 24.14.0、pnpm 10.33.2），产物 `ZCodium-3.18.2-win-x64.exe` 244.2 MiB、SHA-256 `3C63835AB98B3C986BB28D4C2204721E0C15217BB7EC05D028B71E6AD7085495`，静默覆盖安装到 `C:/Program Files/ZCodium`，安装后 `app.asar` 与 `ZCodium.exe` 均与构建产物哈希一致，隔离数据根的冷启动与内置 agent CLI 验证通过。本机无 cmake/MSVC，`prepare:windows-runtime-host` 改用 `isRuntimeHostReady` 校验既有 `bundled-tools/win32-x64/runtime-host` 与当前源码摘要一致后复用，没有伪造编译通过。用户确认没有 Mac、真实远端和手机；这些设备、WebKit 缺工具链、真实 Provider 会话、UI 交互与完整产品/发行验收保持明确限制，不把合成环境写成真机验收。
