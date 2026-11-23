@@ -293,7 +293,7 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
     return new Map();
   }
 
-  it("终态才带 artifacts；running 的快照一行都不读", () => {
+  it("终态才带 artifacts；running 的快照一行都不读", async () => {
     const journal = new ArtifactAwareJournalStore();
     makeRun(journal, "run-live", "running");
     putArtifact(journal, "run-live", 1, {
@@ -304,7 +304,7 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
     });
     const listNodes = vi.spyOn(journal, "listNodes");
 
-    const running = snapshotOf("run-live", entryFor(), journal);
+    const running = await snapshotOf("run-live", entryFor(), journal);
     expect(running?.status).toBe("running");
     expect(running && "artifacts" in running).toBe(false);
     expect(running && "reports" in running).toBe(false);
@@ -312,14 +312,14 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
     expect(listNodes).not.toHaveBeenCalled();
 
     journal.updateRunStatus("run-live", "completed", { result: "done" });
-    const settled = snapshotOf("run-live", entryFor(), journal);
+    const settled = await snapshotOf("run-live", entryFor(), journal);
     expect(settled?.artifacts).toHaveLength(1);
     expect(settled?.artifacts?.[0]?.id).toBe("notes");
     // ⚠ 两个 artifact 并列：`output` 是脚本的顶层返回值，`artifacts` 是发布给用户看的产出。
     expect(settled?.output).toBe("done");
   });
 
-  it("errored 与 stopped 的快照一样带 artifacts（半途交付的东西仍在用户面前）", () => {
+  it("errored 与 stopped 的快照一样带 artifacts（半途交付的东西仍在用户面前）", async () => {
     // 快照基类的 status 是后台任务追踪器的通用词汇（errored → failed、stopped → cancelled）；
     // 真实词在 runStatus 上（apps/zcode-cli/packages/dynamic-workflow/docs/execution-engine.md）。
     for (const [status, taskStatus] of [
@@ -335,17 +335,17 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
         failure: { code: status === "stopped" ? "Interrupted" : "DriverError", message: "boom" },
       });
 
-      const snapshot = snapshotOf(runId, entryFor(), journal);
+      const snapshot = await snapshotOf(runId, entryFor(), journal);
       expect(snapshot?.status).toBe(taskStatus);
       expect(snapshot?.runStatus).toBe(status);
       expect(snapshot?.artifacts).toHaveLength(1);
     }
   });
 
-  it("零件时整字段缺席；journal 不带能力时也缺席", () => {
+  it("零件时整字段缺席；journal 不带能力时也缺席", async () => {
     const journal = new ArtifactAwareJournalStore();
     makeRun(journal, "run-none", "completed");
-    const snapshot = snapshotOf("run-none", entryFor(), journal);
+    const snapshot = await snapshotOf("run-none", entryFor(), journal);
     expect(snapshot && "artifacts" in snapshot).toBe(false);
 
     const plain = new InMemoryJournalStore();
@@ -356,13 +356,13 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
       version: 1,
       publishedAt: 1,
     });
-    const plainSnapshot = snapshotOf("run-plain", entryFor(), plain);
+    const plainSnapshot = await snapshotOf("run-plain", entryFor(), plain);
     expect(plainSnapshot && "artifacts" in plainSnapshot).toBe(false);
   });
 
   // 终态快照的读形状（docs/execution-engine.md「Reading the journal」）：report item 只读到
   // 快照的界，总数是 count，标签计数只读元数据——没有一次读把整张节点表连同 item 读出来。
-  it("reads report items only up to the snapshot bound and counts everything else", () => {
+  it("reads report items only up to the snapshot bound and counts everything else", async () => {
     const journal = new ArtifactAwareJournalStore();
     makeRun(journal, "run-share", "running");
     putArtifact(journal, "run-share", 1, {
@@ -377,7 +377,7 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
     journal.updateRunStatus("run-share", "completed");
     const listNodes = vi.spyOn(journal, "listNodes");
 
-    const snapshot = snapshotOf("run-share", entryFor(), journal);
+    const snapshot = await snapshotOf("run-share", entryFor(), journal);
     expect(snapshot?.reports).toHaveLength(2);
     expect(snapshot?.reportCount).toBe(2);
     expect(snapshot?.artifacts?.[0]?.itemCount).toBe(1);
@@ -390,14 +390,14 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
     ]);
   });
 
-  it("carries the first 256 items and the true total when a run reported more", () => {
+  it("carries the first 256 items and the true total when a run reported more", async () => {
     const journal = new ArtifactAwareJournalStore();
     makeRun(journal, "run-many", "running");
     for (let ordinal = 1; ordinal <= 300; ordinal += 1)
       putTaggedReport(journal, "run-many", ordinal);
     journal.updateRunStatus("run-many", "completed");
 
-    const snapshot = snapshotOf("run-many", entryFor(), journal);
+    const snapshot = await snapshotOf("run-many", entryFor(), journal);
     expect(snapshot?.reportCount).toBe(300);
     expect(snapshot?.reports).toHaveLength(256);
     // 报告顺序：前 256 条，一条不跳。
@@ -405,10 +405,10 @@ describe("snapshotOf — 终态快照上的 artifacts", () => {
     expect(snapshot?.reports?.[255]).toEqual({ round: 256 });
   });
 
-  it("leaves reports and reportCount out when the run reported nothing", () => {
+  it("leaves reports and reportCount out when the run reported nothing", async () => {
     const journal = new ArtifactAwareJournalStore();
     makeRun(journal, "run-quiet", "completed");
-    const snapshot = snapshotOf("run-quiet", entryFor(), journal);
+    const snapshot = await snapshotOf("run-quiet", entryFor(), journal);
     expect(snapshot && "reports" in snapshot).toBe(false);
     expect(snapshot && "reportCount" in snapshot).toBe(false);
   });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import {
   CoreErrorType,
   READ_MAX_FILE_SIZE_BYTES,
@@ -1015,7 +1015,7 @@ function createMemoryFileSystem(
       };
     },
     async listDirectory(request) {
-      const prefix = `${request.path.replace(/\/+$/u, "")}/`;
+      const prefix = join(request.path, sep);
       const entries = Array.from(files.keys())
         .filter((path) => path.startsWith(prefix))
         .map((path) => ({

@@ -28,7 +28,8 @@ interface TaskRowContentProps {
     attributes: DraggableAttributes;
     listeners: DraggableSyntheticListeners;
   };
-  onSelect: () => void;
+  onRowClick: (event: MouseEvent<HTMLDivElement>) => void;
+  onRowDoubleClick: (event: MouseEvent<HTMLDivElement>) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onRowMouseEnter: () => void;
   onRowMouseLeave: () => void;
@@ -70,7 +71,8 @@ export function TaskRowContent({
   remoteSessionId,
   rowRef,
   draggable,
-  onSelect,
+  onRowClick,
+  onRowDoubleClick,
   onKeyDown,
   onRowMouseEnter,
   onRowMouseLeave,
@@ -108,7 +110,8 @@ export function TaskRowContent({
       {...draggable.listeners}
       role="button"
       tabIndex={0}
-      onClick={onSelect}
+      onClick={onRowClick}
+      onDoubleClick={onRowDoubleClick}
       onKeyDown={onKeyDown}
       onMouseEnter={onRowMouseEnter}
       onMouseLeave={onRowMouseLeave}

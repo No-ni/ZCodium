@@ -149,6 +149,7 @@ export function HookForm({
     "error" in timeoutParse ? intl.formatMessage({ id: "settings.hooks.timeoutInvalid" }) : null;
   const canSave = Boolean(command.trim() && customJsonValid && !timeoutError);
 
+  // 布尔 shell 不显示在文本框里，也必须随原 Hook 变化，避免保存闭包继续写回旧值。
   const handleSave = useCallback(() => {
     if (!command.trim()) return;
 
@@ -200,6 +201,7 @@ export function HookForm({
     customJson,
     event,
     hook?.enabled,
+    hook?.shell,
     intl,
     matcher,
     onSave,

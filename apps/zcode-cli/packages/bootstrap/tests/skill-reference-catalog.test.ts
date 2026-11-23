@@ -3,7 +3,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it , vi } from "vitest";
+
+// 冷 seed 复制实际内置资产，隔离 Windows 回归实测超过默认 5s；只扩大测试 IO 预算。
+vi.setConfig({ testTimeout: 30_000 });
 import { zcodeSkillsReferenceCatalogResultSchema } from "@zcode/shared";
 import type { SkillLoadOutcome } from "@zcode/contracts";
 import { getSkillReferenceCatalog } from "../src/zcode-protocol/skill-reference-catalog.js";
@@ -17,9 +20,9 @@ const SESSION_CATALOG: SkillLoadOutcome = {
     {
       name: "frozen",
       description: "Frozen session skill",
-      path: "/workspace/.zcode/skills/frozen/SKILL.md",
-      directory: "/workspace/.zcode/skills/frozen",
-      rootPath: "/workspace/.zcode/skills",
+      path: "/workspace/.zcodium/skills/frozen/SKILL.md",
+      directory: "/workspace/.zcodium/skills/frozen",
+      rootPath: "/workspace/.zcodium/skills",
       scope: "project",
       source: "zcode",
       safeToAutoLoad: true,
@@ -53,10 +56,10 @@ describe("skills/referenceCatalog protocol", () => {
       authority: "session",
       skills: [
         {
-          id: "glm:workspace:/workspace/.zcode/skills/frozen/SKILL.md",
+          id: "glm:workspace:/workspace/.zcodium/skills/frozen/SKILL.md",
           name: "frozen",
           description: "Frozen session skill",
-          path: "/workspace/.zcode/skills/frozen/SKILL.md",
+          path: "/workspace/.zcodium/skills/frozen/SKILL.md",
           scope: "workspace",
           enabled: true,
         },
@@ -76,7 +79,7 @@ describe("skills/referenceCatalog protocol", () => {
 
   it("rescans the current workspace catalog for a draft request", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-skill-reference-workspace-"));
-    const skillDirectory = join(root, ".zcode", "skills", "manual-added");
+    const skillDirectory = join(root, ".zcodium", "skills", "manual-added");
     await mkdir(skillDirectory, { recursive: true });
     await writeFile(
       join(skillDirectory, "SKILL.md"),

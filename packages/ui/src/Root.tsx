@@ -267,34 +267,37 @@ function RootInner({
     };
   }, [refreshAppSettings, services.broadcastService, services.zcodeAgentService]);
 
+  // 未加载→空配置时字段仍是 undefined，必须用 readiness 触发首次默认偏好同步。
+  const settingsReady = appSettings != null;
+  const { askUserQuestionAutoResolutionEnabled, toolSearchMode, pluginAutoRecommendationEnabled } =
+    appSettings ?? {};
   useEffect(() => {
-    if (!appSettings) {
+    if (!settingsReady) {
       return;
     }
     void services.zcodeAgentService
       .syncAppRuntimePreferences({
-        askUserQuestionAutoResolutionEnabled:
-          appSettings.askUserQuestionAutoResolutionEnabled !== false,
-        toolSearchMode: appSettings.toolSearchMode ?? "off",
-        pluginAutoRecommendationEnabled: appSettings.pluginAutoRecommendationEnabled === true,
+        askUserQuestionAutoResolutionEnabled: askUserQuestionAutoResolutionEnabled !== false,
+        toolSearchMode: toolSearchMode ?? "off",
+        pluginAutoRecommendationEnabled: pluginAutoRecommendationEnabled === true,
       })
-      .catch((error) => {
-        logger.warn("[settings] 初始化运行时偏好失败", error);
+      .catch(() => {
+        logger.warn("[settings] 初始化运行时偏好失败");
       });
     void services.botsService
       .syncAppRuntimePreferences({
-        askUserQuestionAutoResolutionEnabled:
-          appSettings.askUserQuestionAutoResolutionEnabled !== false,
-        toolSearchMode: appSettings.toolSearchMode ?? "off",
-        pluginAutoRecommendationEnabled: appSettings.pluginAutoRecommendationEnabled === true,
+        askUserQuestionAutoResolutionEnabled: askUserQuestionAutoResolutionEnabled !== false,
+        toolSearchMode: toolSearchMode ?? "off",
+        pluginAutoRecommendationEnabled: pluginAutoRecommendationEnabled === true,
       })
       .catch(() => {
         logger.warn("[settings] 初始化 Bot 运行时偏好失败");
       });
   }, [
-    appSettings?.askUserQuestionAutoResolutionEnabled,
-    appSettings?.toolSearchMode,
-    appSettings?.pluginAutoRecommendationEnabled,
+    settingsReady,
+    askUserQuestionAutoResolutionEnabled,
+    toolSearchMode,
+    pluginAutoRecommendationEnabled,
     services.botsService,
     services.zcodeAgentService,
   ]);

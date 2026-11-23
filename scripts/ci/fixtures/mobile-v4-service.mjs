@@ -40,6 +40,7 @@ export function createMobileV4Fixture({
   const frames = new Emitter();
   const runtime = new Emitter();
   const runtimeLifecycle = new Emitter();
+  const sessionLifecycle = new Emitter();
   const commandAcks = new Map();
   const executions = new Map();
   const sentCommandIds = [];
@@ -145,6 +146,7 @@ export function createMobileV4Fixture({
   };
 
   const base = {
+    onDynamicSessionLifecycle: () => sessionLifecycle.event,
     onAgentRuntimeRestarted: runtime.event,
     onAgentRuntimeLifecycle: runtimeLifecycle.event,
     onDynamicConversationFrame: () => frames.event,
@@ -291,6 +293,7 @@ export function createMobileV4Fixture({
       frames.dispose();
       runtime.dispose();
       runtimeLifecycle.dispose();
+      sessionLifecycle.dispose();
     },
   };
 }

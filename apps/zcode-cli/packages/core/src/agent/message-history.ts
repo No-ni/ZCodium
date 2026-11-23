@@ -40,7 +40,13 @@ export type ToolCallInput = ModelToolCall;
 // 仅模型协议出口和原始调用诊断使用；内部消费者始终读取目标 name/input。
 export function toModelToolCall(call: ToolCallInput): ModelToolCall {
   if (!call.modelCallWrapper) return call;
-  return { ...call, name: call.modelCallWrapper, input: { name: call.name, input: call.input } };
+  // 恢复官方协议投影；展开内部 call 会把 modelCallWrapper 泄漏到 provider 并破坏幂等投影。
+  return {
+    id: call.id,
+    name: call.modelCallWrapper,
+    input: { name: call.name, input: call.input },
+    ...(call.blockIndex !== undefined ? { blockIndex: call.blockIndex } : {}),
+  };
 }
 
 export type ReasoningContentInput = ModelReasoningContentBlock;

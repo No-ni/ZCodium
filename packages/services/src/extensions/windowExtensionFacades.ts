@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import "node:path";
 import { Emitter, type Event } from "@zcode/rpc";
 import {
   executeCommandInputSchema,

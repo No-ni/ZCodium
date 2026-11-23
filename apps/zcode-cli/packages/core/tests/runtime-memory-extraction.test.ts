@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { drainMemoryExtractions } from "../src/runtime/helpers/project-memory-extraction.js";
 import { isHiddenReminderMessage } from "../src/runtime/helpers/conversation.js";
 import { describe, expect, it } from "vitest";
@@ -33,8 +35,8 @@ import {
 } from "./test-runtime-model.js";
 import type { RuntimeModelFactory } from "../src/runtime/types.js";
 
-const CLI_STORAGE_ROOT = "/storage/cli";
-const WORKSPACE_PATH = "/workspace/project";
+const CLI_STORAGE_ROOT = nativeFixturePath("/storage/cli");
+const WORKSPACE_PATH = nativeFixturePath("/workspace/project");
 const EXTRACTION_PROMPT_MARKER = "memory extraction subagent";
 const TEST_MODEL_REF = createTestModelSelection("test/memory-extraction");
 
@@ -140,21 +142,13 @@ describe("AgentRuntime background Memory extraction", () => {
     const extractionResponse = deferred<ModelResult>();
     const extractionRequests: ModelRequest[] = [];
     let extractionContext: ModelInvocationContext | undefined;
-    let headerRefreshCount = 0;
     const runtime = createExtractionRuntime({
       async generateText(request, observation) {
         if (!isExtractionRequest(request)) return textResult(request, "main answer");
         extractionRequests.push(request);
         extractionContext = observation.invocationContext;
-        await observation.invocationContext?.refreshRuntimeHeadersBeforeAttempt?.({
-          abortSignal: request.abortSignal,
-          attempt: 1,
-        });
         extractionStarted.resolve();
         return await extractionResponse.promise;
-      },
-      onRuntimeHeaderRefresh: () => {
-        headerRefreshCount += 1;
       },
     });
 
@@ -177,13 +171,13 @@ describe("AgentRuntime background Memory extraction", () => {
         ),
     );
     expect(request.toolSearchEnabled).toBe(false);
-    expect(headerRefreshCount).toBe(1);
+    expect(extractionContext).not.toHaveProperty("refreshRuntimeHeadersBeforeAttempt");
 
     extractionResponse.resolve(textResult(request, "Nothing to save."));
     await runtime.drainMemoryExtractions();
     expect(extractionContext).toMatchObject({
       modelRequestSessionType: "main",
-      metadata: { querySource: "project_memory_extract", skipTranscript: true },
+      metadata: { querySource: "project_memory_extract" },
     });
   });
 
@@ -571,7 +565,7 @@ describe("AgentRuntime background Memory extraction", () => {
       cliStorageRoot: CLI_STORAGE_ROOT,
       workspacePath: WORKSPACE_PATH,
     });
-    const memoryPath = `${memoryRoot}/fact.md`;
+    const memoryPath = nativeFixturePath(`${memoryRoot}/fact.md`);
     const fileSystemPort = new MemoryFileSystem({ [memoryPath]: "old fact" });
     const toolRegistry = createToolRegistry();
     let extractionTurn = 0;
@@ -625,7 +619,7 @@ describe("AgentRuntime background Memory extraction", () => {
   ])(
     "delivers the Read partial-view notice to the next Extraction request ($label)",
     async ({ midConversationSystem, noticeRole }) => {
-      const longPath = `${WORKSPACE_PATH}/long-notes.md`;
+      const longPath = nativeFixturePath(WORKSPACE_PATH, "long-notes.md");
       const fileSystemPort = new MemoryFileSystem({
         [longPath]: Array.from(
           { length: 1_800 },
@@ -678,7 +672,7 @@ describe("AgentRuntime background Memory extraction", () => {
       cliStorageRoot: CLI_STORAGE_ROOT,
       workspacePath: WORKSPACE_PATH,
     });
-    const memoryPath = `${memoryRoot}/fact.md`;
+    const memoryPath = nativeFixturePath(`${memoryRoot}/fact.md`);
     const fileSystemPort = new MemoryFileSystem({ [memoryPath]: "first" });
     let extractionTurn = 0;
     let followupRequestText = "";

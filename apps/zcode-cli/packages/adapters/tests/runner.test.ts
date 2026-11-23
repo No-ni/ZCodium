@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, stat, truncate, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { APICallError, RetryError } from "ai";
@@ -32,7 +32,7 @@ import {
 import { executeAdapterGenerateText, executeAdapterStreamText } from "./test-adapter-model.js";
 
 describe("AiSdkModelAdapter", () => {
-  it("本地首有效内容日志排除空 start，正文增量只记录一次", async () => {
+  it("没有 transport 首内容观测时不以 SDK 缓冲事件补造 TTFT", async () => {
     const logs: CapturedLog[] = [];
     const runtime = createStreamRuntime(
       stream([
@@ -62,12 +62,9 @@ describe("AiSdkModelAdapter", () => {
         ).toHaveLength(0);
     }
     const milestones = logs.filter((log) => log.context?.event === "ttft.model.first_content");
-    expect(milestones).toHaveLength(1);
-    expect(milestones[0]).toMatchObject({
-      level: "info",
-      context: { queryId: "command", outputKind: "text" },
-    });
-    expect(JSON.stringify(milestones)).not.toContain("private");
+    // SDK 释放事件的时间不等于 transport 首内容时间；真实线协议由 wire 用例验收。
+    expect(milestones).toHaveLength(0);
+    expect(JSON.stringify(logs)).not.toContain("private");
   });
   it("extends SSE idle timeout by 30 seconds for each retry", () => {
     expect(resolveModelStreamIdleTimeoutMs({})).toBe(600_000);
@@ -119,7 +116,7 @@ describe("AiSdkModelAdapter", () => {
     });
   });
 
-  it("refreshes runtime headers before each streamed retry attempt with native WebSearch", async () => {
+  it("retries native WebSearch without calling retired account header refresh", async () => {
     const calls: Array<{ runtimeHeader: string | undefined; hasNativeWebSearch: boolean }> = [];
     const refreshes: number[] = [];
     let adapter: AiSdkModelAdapter;
@@ -161,14 +158,14 @@ describe("AiSdkModelAdapter", () => {
       },
     };
     adapter = new AiSdkModelAdapter({
-      registry: new TestProviderConfigFixture(startPlanRegistryConfig("initial-token")),
+      registry: providerRegistry("anthropic"),
       retry: { baseDelayMs: 0, jitter: false, maxAttempts: 2 },
       runtime,
     });
 
     const streamed: ModelStreamEvent[] = [];
     for await (const event of executeAdapterStreamText(adapter, {
-      providerId: "account:zai-start-plan" as never,
+      providerId: "deepseek" as never,
       modelId: "glm-5.1" as never,
       properties: createTestModelProperties({}, { supportsNativeWebSearch: true }),
       messages: [{ role: "user", content: "Search current docs" }],
@@ -189,15 +186,15 @@ describe("AiSdkModelAdapter", () => {
       streamed.push(event);
     }
 
-    expect(refreshes).toEqual([1, 2]);
+    expect(refreshes).toEqual([]);
     expect(calls).toEqual([
-      { runtimeHeader: "token-1", hasNativeWebSearch: true },
-      { runtimeHeader: "token-2", hasNativeWebSearch: true },
+      { runtimeHeader: undefined, hasNativeWebSearch: true },
+      { runtimeHeader: undefined, hasNativeWebSearch: true },
     ]);
     expect(streamed.some((event) => event.type === "text_delta")).toBe(true);
   });
 
-  it("refreshes runtime headers before each generate retry attempt", async () => {
+  it("retries generate without calling retired account header refresh", async () => {
     const runtimeHeaders: Array<string | undefined> = [];
     const refreshes: number[] = [];
     let adapter: AiSdkModelAdapter;
@@ -219,13 +216,13 @@ describe("AiSdkModelAdapter", () => {
       },
     };
     adapter = new AiSdkModelAdapter({
-      registry: new TestProviderConfigFixture(startPlanRegistryConfig("initial-token")),
+      registry: registry(),
       retry: { baseDelayMs: 0, jitter: false, maxAttempts: 2 },
       runtime,
     });
 
     await executeAdapterGenerateText(adapter, {
-      providerId: "account:bigmodel-start-plan" as never,
+      providerId: "test" as never,
       modelId: "glm-5.1" as never,
       messages: [{ role: "user", content: "Ping" }],
       async refreshRuntimeHeadersBeforeAttempt({ attempt }) {
@@ -242,8 +239,8 @@ describe("AiSdkModelAdapter", () => {
       },
     });
 
-    expect(refreshes).toEqual([1, 2]);
-    expect(runtimeHeaders).toEqual(["token-1", "token-2"]);
+    expect(refreshes).toEqual([]);
+    expect(runtimeHeaders).toEqual([undefined, undefined]);
   });
 
   it("retries a generic empty generateText completion once", async () => {
@@ -874,7 +871,7 @@ describe("AiSdkModelAdapter", () => {
     },
   );
 
-  it("adds request attribution headers to generateText requests", async () => {
+  it("does not add internal request attribution headers to generateText requests", async () => {
     let captured: AiSdkGenerateTextOptions | undefined;
     const runtime: AiSdkModelRuntime = {
       async generateText(options) {
@@ -911,16 +908,11 @@ describe("AiSdkModelAdapter", () => {
       messages: [{ role: "user", content: "Ping" }],
     });
 
-    expect(captured?.headers).toEqual({
-      "x-query-id": "generate",
-      "x-request-id": "model_req_generate",
-      "x-session-id": "generate",
-      "x-zcode-session-type": "main",
-      "x-zcode-trace-id": "trace_generate",
-    });
+    // 业务身份仅用于进程内关联，用户 Provider 不接收本仓内部归属头。
+    expect(captured?.headers).toEqual({});
   });
 
-  it("writes raw AI SDK request and response bodies in development mode", async () => {
+  it("generate 成功不记录原始 SDK 请求和响应", async () => {
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-"));
     const runtime: AiSdkModelRuntime = {
       async generateText(options) {
@@ -979,48 +971,8 @@ describe("AiSdkModelAdapter", () => {
         messages: [{ role: "user", content: "Ping" }],
       });
 
-      const files = await readdir(debugDir);
-      expect(files).toHaveLength(1);
-      expect(files[0]).toBe("model-io-sess_debug.jsonl");
-
-      const content = await readFile(join(debugDir, files[0]!), "utf8");
-      const record = JSON.parse(content.trim()) as {
-        querySource?: string;
-        request: { body: unknown; headers: Record<string, string> };
-        response: { body: unknown; headers: Record<string, string>; reasoningText?: string };
-        sessionId: string;
-        traceId: string;
-        turnId: string;
-      };
-
-      expect(record.traceId).toBe("trace_debug");
-      expect(record.sessionId).toBe("sess_debug");
-      expect(record.turnId).toBe("turn_debug");
-      expect(record.querySource).toBe("session_title");
-      expect(record.request.body).toMatchObject({
-        messages: [{ role: "user", content: "Ping" }],
-        model: "model-a",
-      });
-      expect((record.request as any).bodyMessagesKind).toBe("full");
-      expect((record.request as any).bodyMessageOffset).toBe(0);
-      expect((record.request as any).bodyMessageCount).toBe(1);
-      expect(record.request.headers).toMatchObject({
-        authorization: "[redacted]",
-        "x-coding-plan-api-key": "[redacted]",
-        "x-diagnostic-request": "visible",
-        "x-off-peak-ticket-id": "[redacted]",
-      });
-      expect(record.response.body).toEqual({
-        id: "provider-response",
-        output: [{ content: "debug response" }],
-      });
-      expect(record.response.headers.authorization).toBe("[redacted]");
-      expect(record.response.headers["x-request-id"]).toBe("req_1");
-      expect(record.response.reasoningText).toBe("inspect request\nthen answer\n\nverify result");
-      expect(content).not.toContain("offpeak-jwt-secret");
-      expect(content).not.toContain("coding-plan-secret");
-      expect(content).not.toContain("ticket-secret");
-      expect(content).not.toContain("Bearer secret");
+      // 本仓已退役原文采集，成功和失败均不得产生 ModelIO 文件。
+      expect(await readdir(debugDir)).toEqual([]);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
     }
@@ -1066,7 +1018,7 @@ describe("AiSdkModelAdapter", () => {
     }
   });
 
-  it("reuses normalized native-null tool input in generateText model-io", async () => {
+  it("native-null 工具输入保持规范化且不记录原文", async () => {
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-generate-null-tool-"));
     const logs: CapturedLog[] = [];
     const runtime: AiSdkModelRuntime = {
@@ -1115,28 +1067,22 @@ describe("AiSdkModelAdapter", () => {
         modelId: "model-a" as never,
         messages: [{ role: "user", content: "Read a file" }],
       });
-      const [file] = await readdir(debugDir);
-      const record = JSON.parse(await readFile(join(debugDir, file!), "utf8")) as {
-        response: { toolCalls: unknown; toolResults: unknown };
-      };
-
       expect(result.toolCalls).toEqual([{ id: "call_generate_null", input: {}, name: "Read" }]);
       expect(result.toolResults).toEqual([
         expect.objectContaining({ id: "call_generate_null", input: {}, name: "Read" }),
       ]);
-      expect(record.response.toolCalls).toEqual(result.toolCalls);
-      expect(record.response.toolResults).toEqual(result.toolResults);
       expect(
         logs.filter((entry) => entry.message === "Model tool input JSON normalization failed"),
       ).toHaveLength(1);
-      expect(JSON.stringify(record.response.toolCalls)).not.toContain("wrong.md");
-      expect(JSON.stringify(record.response.toolResults)).not.toMatch(/"input"\s*:\s*null/);
+      expect(JSON.stringify(result.toolCalls)).not.toContain("wrong.md");
+      expect(JSON.stringify(result.toolResults)).not.toMatch(/"input"\s*:\s*null/);
+      expect(await readdir(debugDir)).toEqual([]);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
     }
   });
 
-  it("writes raw AI SDK request and response bodies for streamText in development mode", async () => {
+  it("stream 成功不记录原始 SDK 请求和响应", async () => {
     // 回归用例:桌面/协议端默认走流式,旧实现不写 model-io,这里确保流式也落盘。
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-stream-"));
     const runtime: AiSdkModelRuntime = {
@@ -1211,58 +1157,14 @@ describe("AiSdkModelAdapter", () => {
         // drain stream so aggregate promises resolve
       }
 
-      const files = await readdir(debugDir);
-      expect(files).toHaveLength(1);
-      expect(files[0]).toBe("model-io-sess_stream_debug.jsonl");
-
-      const content = await readFile(join(debugDir, files[0]!), "utf8");
-      const record = JSON.parse(content.trim()) as {
-        request: { body: unknown; headers: Record<string, string> };
-        response: {
-          body: unknown;
-          headers: Record<string, string>;
-          reasoningText?: string;
-          text: string;
-        };
-        sessionId: string;
-        traceId: string;
-        turnId: string;
-      };
-
-      expect(record.traceId).toBe("trace_stream_debug");
-      expect(record.sessionId).toBe("sess_stream_debug");
-      expect(record.turnId).toBe("turn_stream_debug");
-      expect(record.request.body).toMatchObject({
-        messages: [{ role: "user", content: "Ping" }],
-        model: "model-a",
-      });
-      expect((record.request as any).bodyMessagesKind).toBe("full");
-      expect((record.request as any).bodyMessageOffset).toBe(0);
-      expect((record.request as any).bodyMessageCount).toBe(1);
-      expect(record.request.headers).toMatchObject({
-        authorization: "[redacted]",
-        "x-coding-plan-api-key": "[redacted]",
-        "x-diagnostic-request": "visible",
-        "x-off-peak-ticket-id": "[redacted]",
-      });
-      expect(record.response.body).toEqual({
-        id: "provider-response",
-        output: [{ content: "debug response" }],
-      });
-      expect(record.response.text).toBe("debug response");
-      expect(record.response.reasoningText).toBe("inspect stream\n\nverify stream");
-      expect(record.response.headers.authorization).toBe("[redacted]");
-      expect(record.response.headers["x-request-id"]).toBe("req_1");
-      expect(content).not.toContain("offpeak-jwt-secret");
-      expect(content).not.toContain("coding-plan-secret");
-      expect(content).not.toContain("ticket-secret");
-      expect(content).not.toContain("Bearer secret");
+      // 本仓已退役原文采集，成功和失败均不得产生 ModelIO 文件。
+      expect(await readdir(debugDir)).toEqual([]);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
     }
   });
 
-  it("writes request payload into model-io when streamText fails before response metadata", async () => {
+  it("stream 失败不记录请求原文", async () => {
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-stream-fail-"));
     const runtime: AiSdkModelRuntime = {
       async generateText() {
@@ -1305,38 +1207,14 @@ describe("AiSdkModelAdapter", () => {
         }
       }).rejects.toThrow(AiSdkModelAdapterError);
 
-      const files = await readdir(debugDir);
-      expect(files).toEqual(["model-io-sess_stream_failure_debug.jsonl"]);
-
-      const content = await readFile(join(debugDir, files[0]!), "utf8");
-      const record = JSON.parse(content.trim()) as {
-        error: { message: string };
-        request: {
-          body?: {
-            bodySource?: string;
-            messages?: unknown;
-            model?: string;
-            stream?: boolean;
-          };
-        };
-      };
-
-      expect(record.error.message).toBe("Param Incorrect");
-      expect(record.request.body).toMatchObject({
-        bodySource: "ai_sdk_options",
-        messages: [{ role: "user", content: "Ping" }],
-        model: "model-a",
-        stream: true,
-      });
-      expect((record.request as any).bodyMessagesKind).toBe("full");
-      expect((record.request as any).bodyMessageOffset).toBe(0);
-      expect((record.request as any).bodyMessageCount).toBe(1);
+      // 本仓已退役原文采集，成功和失败均不得产生 ModelIO 文件。
+      expect(await readdir(debugDir)).toEqual([]);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
     }
   });
 
-  it("prefers stream result request body when fullStream fails during consumption", async () => {
+  it("消费 stream 失败不提取 SDK 请求原文", async () => {
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-stream-consume-fail-"));
     const runtime: AiSdkModelRuntime = {
       async generateText() {
@@ -1384,23 +1262,8 @@ describe("AiSdkModelAdapter", () => {
         }
       }).rejects.toThrow(AiSdkModelAdapterError);
 
-      const files = await readdir(debugDir);
-      expect(files).toEqual(["model-io-sess_stream_consume_failure_debug.jsonl"]);
-
-      const content = await readFile(join(debugDir, files[0]!), "utf8");
-      const record = JSON.parse(content.trim()) as {
-        request: {
-          body?: {
-            bodySource?: string;
-            rawMarker?: string;
-          };
-        };
-      };
-
-      expect(record.request.body).toMatchObject({
-        rawMarker: "from-ai-sdk-request",
-      });
-      expect(record.request.body?.bodySource).toBeUndefined();
+      // 本仓已退役原文采集，成功和失败均不得产生 ModelIO 文件。
+      expect(await readdir(debugDir)).toEqual([]);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
     }
@@ -1470,456 +1333,17 @@ describe("AiSdkModelAdapter", () => {
     }
   });
 
-  it("keeps failed stream request body messages full across repeated model-io records", async () => {
-    const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-stream-fail-full-"));
-    let callCount = 0;
-    const runtime: AiSdkModelRuntime = {
-      async generateText() {
-        throw new Error("not used");
-      },
-      streamText() {
-        callCount += 1;
-        throw apiError(`Param Incorrect ${callCount}`, {
-          isRetryable: false,
-          statusCode: 400,
-        });
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      debugDir,
-      env: { ZCODE_RUNTIME_ENV: "production" },
-      registry: registry(),
-      runtime,
-    });
-    const runFailedRequest = async (messages: Array<{ role: string; content: string }>) => {
-      await expect(async () => {
-        for await (const _event of executeAdapterStreamText(adapter, {
-          metadata: {
-            sessionId: "sess_stream_failure_full",
-            traceId: "trace_stream_failure_full",
-            turnId: "turn_stream_failure_full",
-          },
-          providerId: "test" as never,
-          modelId: "model-a" as never,
-          messages: messages as never,
-        })) {
-          // drain stream
-        }
-      }).rejects.toThrow(AiSdkModelAdapterError);
-    };
 
-    try {
-      await runFailedRequest([{ role: "user", content: "first" }]);
-      await runFailedRequest([
-        { role: "user", content: "first" },
-        { role: "user", content: "second" },
-      ]);
 
-      const files = await readdir(debugDir);
-      expect(files).toEqual(["model-io-sess_stream_failure_full.jsonl"]);
-      const lines = (await readFile(join(debugDir, files[0]!), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as any);
 
-      expect(lines).toHaveLength(2);
-      expect(lines[1].request.body.messages).toEqual([
-        { role: "user", content: "first" },
-        { role: "user", content: "second" },
-      ]);
-      expect(lines[1].request.bodyMessagesKind).toBe("full");
-      expect(lines[1].request.bodyMessageOffset).toBe(0);
-      expect(lines[1].request.bodyMessageCount).toBe(2);
-    } finally {
-      await rm(debugDir, { recursive: true, force: true });
-    }
-  });
 
-  it("appends model-io records into one session file and stores repeated messages as deltas", async () => {
-    const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-session-"));
-    const runtime: AiSdkModelRuntime = {
-      async generateText(options) {
-        return {
-          text: "ok",
-          finishReason: "stop",
-          request: {
-            body: {
-              messages: options.messages,
-              model: "model-a",
-            },
-          },
-          response: {
-            body: {},
-            headers: {},
-            id: "provider-response",
-            messages: [],
-            modelId: "model-a",
-            timestamp: new Date("2026-05-04T00:00:00.000Z"),
-          },
-          totalUsage: usage(1, 1),
-          usage: usage(1, 1),
-        } as never;
-      },
-      streamText() {
-        throw new Error("not used");
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      debugDir,
-      env: { ZCODE_RUNTIME_ENV: "development" },
-      registry: registry(),
-      runtime,
-    });
 
-    try {
-      await executeAdapterGenerateText(adapter, {
-        metadata: { sessionId: "sess_delta", traceId: "trace_delta", turnId: "turn_delta" },
-        providerId: "test" as never,
-        modelId: "model-a" as never,
-        messages: [{ role: "user", content: "first" }],
-      });
-      await executeAdapterGenerateText(adapter, {
-        metadata: { sessionId: "sess_delta", traceId: "trace_delta", turnId: "turn_delta" },
-        providerId: "test" as never,
-        modelId: "model-a" as never,
-        messages: [
-          { role: "user", content: "first" },
-          { role: "assistant", content: "second" },
-          { role: "user", content: "third" },
-        ],
-      });
 
-      const files = await readdir(debugDir);
-      expect(files).toEqual(["model-io-sess_delta.jsonl"]);
 
-      const lines = (await readFile(join(debugDir, files[0]!), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as any);
-      expect(lines).toHaveLength(2);
-      expect(lines[0].request.messagesKind).toBe("full");
-      expect(lines[0].request.messages).toHaveLength(1);
-      expect(lines[1].request.messagesKind).toBe("delta");
-      expect(lines[1].request.messageOffset).toBe(1);
-      expect(lines[1].request.messageCount).toBe(3);
-      expect(lines[1].request.messages).toEqual([
-        { role: "assistant", content: "second" },
-        { role: "user", content: "third" },
-      ]);
-      expect(lines[1].request.bodyMessagesKind).toBe("delta");
-      expect(lines[1].request.bodyMessageOffset).toBe(1);
-      expect(lines[1].request.bodyMessageCount).toBe(3);
-      expect(lines[1].request.body.messages).toEqual([
-        { role: "assistant", content: "second" },
-        { role: "user", content: "third" },
-      ]);
-    } finally {
-      await rm(debugDir, { recursive: true, force: true });
-    }
-  });
 
-  it("writes a bounded tail baseline when production model-io cache is missing", async () => {
-    const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-tail-"));
-    const filePath = join(debugDir, "model-io-sess_tail.jsonl");
-    const longMessages = Array.from({ length: 70 }, (_, index) => ({
-      role: index % 2 === 0 ? "user" : "assistant",
-      content: `message-${index}`,
-    }));
-    const runtime: AiSdkModelRuntime = {
-      async generateText() {
-        throw new Error("not used");
-      },
-      streamText(options) {
-        return {
-          fullStream: stream([
-            { type: "text-delta", id: "1", text: "ok" },
-            {
-              type: "finish",
-              finishReason: "stop",
-              rawFinishReason: undefined,
-              totalUsage: usage(1, 1),
-            },
-          ]),
-          text: Promise.resolve("ok"),
-          finishReason: Promise.resolve("stop"),
-          totalUsage: Promise.resolve(usage(1, 1)),
-          usage: Promise.resolve(usage(1, 1)),
-          toolCalls: Promise.resolve([]),
-          toolResults: Promise.resolve([]),
-          sources: Promise.resolve([]),
-          providerMetadata: Promise.resolve(undefined),
-          request: Promise.resolve({ body: { messages: options.messages, model: "model-a" } }),
-          response: Promise.resolve({
-            body: { raw: "large body" },
-            headers: {},
-            id: "r",
-            modelId: "m",
-          }),
-        } as never;
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      debugDir,
-      env: { ZCODE_RUNTIME_ENV: "production" },
-      registry: registry(),
-      runtime,
-    });
 
-    try {
-      await writeFile(filePath, '{"type":"model_io","sessionId":"sess_tail"}\n', "utf8");
 
-      for await (const _event of executeAdapterStreamText(adapter, {
-        metadata: { sessionId: "sess_tail" },
-        providerId: "test" as never,
-        modelId: "model-a" as never,
-        messages: longMessages as never,
-      })) {
-        // drain
-      }
 
-      const lines = (await readFile(filePath, "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as any);
-      expect(lines).toHaveLength(2);
-      const record = lines[1];
-      expect(record.request.messagesKind).toBe("tail");
-      expect(record.request.messageOffset).toBe(6);
-      expect(record.request.messageCount).toBe(70);
-      expect(record.request.messages).toHaveLength(64);
-      expect(record.request.sdkMessages).toBeUndefined();
-      expect(record.request.body.messages).toBeUndefined();
-      expect(record.response.body).toBeUndefined();
-    } finally {
-      await rm(debugDir, { recursive: true, force: true });
-    }
-  });
-
-  it("resets an oversized production model-io session file before writing", async () => {
-    const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-reset-"));
-    const filePath = join(debugDir, "model-io-sess_reset.jsonl");
-    const longMessages = Array.from({ length: 70 }, (_, index) => ({
-      role: index % 2 === 0 ? "user" : "assistant",
-      content: `message-${index}`,
-    }));
-    const runtime: AiSdkModelRuntime = {
-      async generateText() {
-        throw new Error("not used");
-      },
-      streamText(options) {
-        return {
-          fullStream: stream([
-            { type: "text-delta", id: "1", text: "ok" },
-            {
-              type: "finish",
-              finishReason: "stop",
-              rawFinishReason: undefined,
-              totalUsage: usage(1, 1),
-            },
-          ]),
-          text: Promise.resolve("ok"),
-          finishReason: Promise.resolve("stop"),
-          totalUsage: Promise.resolve(usage(1, 1)),
-          usage: Promise.resolve(usage(1, 1)),
-          toolCalls: Promise.resolve([]),
-          toolResults: Promise.resolve([]),
-          sources: Promise.resolve([]),
-          providerMetadata: Promise.resolve(undefined),
-          request: Promise.resolve({ body: { messages: options.messages, model: "model-a" } }),
-          response: Promise.resolve({
-            body: { raw: "large body" },
-            headers: {},
-            id: "r",
-            modelId: "m",
-          }),
-        } as never;
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      debugDir,
-      env: { ZCODE_RUNTIME_ENV: "production" },
-      registry: registry(),
-      runtime,
-    });
-
-    try {
-      await writeFile(filePath, "stale", "utf8");
-      await truncate(filePath, 65 * 1024 * 1024);
-
-      for await (const _event of executeAdapterStreamText(adapter, {
-        metadata: { sessionId: "sess_reset" },
-        providerId: "test" as never,
-        modelId: "model-a" as never,
-        messages: longMessages as never,
-      })) {
-        // drain
-      }
-
-      const afterStat = await stat(filePath);
-      expect(afterStat.size).toBeLessThan(1024 * 1024);
-      const lines = (await readFile(filePath, "utf8")).trim().split("\n");
-      expect(lines).toHaveLength(1);
-      const record = JSON.parse(lines[0]!) as any;
-      expect(record.modelIOReset.reason).toBe("session_file_size_limit");
-      expect(record.modelIOReset.previousFileBytes).toBe(65 * 1024 * 1024);
-      expect(record.request.messagesKind).toBe("tail");
-      expect(record.request.messages).toHaveLength(64);
-    } finally {
-      await rm(debugDir, { recursive: true, force: true });
-    }
-  });
-
-  it("caps production model-io session files at 3 and evicts the oldest", async () => {
-    // 生产态(ZCODE_RUNTIME_ENV=production)写 rollout,需限量;这里用显式 debugDir 验证淘汰逻辑。
-    // 每个 session 一个文件,顺序写 5 个 session 后应只剩最新的 3 个。
-    const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-rollout-"));
-    const runtime: AiSdkModelRuntime = {
-      async generateText() {
-        throw new Error("not used");
-      },
-      streamText() {
-        return {
-          fullStream: stream([
-            { type: "text-delta", id: "1", text: "ok" },
-            {
-              type: "finish",
-              finishReason: "stop",
-              rawFinishReason: undefined,
-              totalUsage: usage(1, 1),
-            },
-          ]),
-          text: Promise.resolve("ok"),
-          finishReason: Promise.resolve("stop"),
-          totalUsage: Promise.resolve(usage(1, 1)),
-          usage: Promise.resolve(usage(1, 1)),
-          toolCalls: Promise.resolve([]),
-          toolResults: Promise.resolve([]),
-          sources: Promise.resolve([]),
-          providerMetadata: Promise.resolve(undefined),
-          request: Promise.resolve({ body: {} }),
-          response: Promise.resolve({ body: {}, headers: {}, id: "r", modelId: "m" }),
-        } as never;
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      debugDir,
-      env: { ZCODE_RUNTIME_ENV: "production" },
-      registry: registry(),
-      runtime,
-    });
-
-    try {
-      // 顺序写 5 个 session 文件,淘汰按文件 mtime 保留最近的 session。
-      for (let i = 0; i < 5; i += 1) {
-        for await (const _event of executeAdapterStreamText(adapter, {
-          metadata: { sessionId: `sess_${String(i).padStart(2, "0")}` },
-          providerId: "test" as never,
-          modelId: "model-a" as never,
-          messages: [{ role: "user", content: "Ping" }],
-        })) {
-          // drain
-        }
-      }
-
-      const files = (await readdir(debugDir)).sort();
-      expect(files).toHaveLength(3);
-      // 最旧的 sess_00 / sess_01 应被淘汰,保留 sess_02..sess_04。
-      expect(files.some((f) => f.includes("sess_00"))).toBe(false);
-      expect(files.some((f) => f.includes("sess_01"))).toBe(false);
-      expect(files.some((f) => f.includes("sess_04"))).toBe(true);
-    } finally {
-      await rm(debugDir, { recursive: true, force: true });
-    }
-  });
-
-  it("keeps complete production ModelIO records and all session files when full retention is enabled", async () => {
-    const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-full-retention-"));
-    const runtime: AiSdkModelRuntime = {
-      async generateText() {
-        throw new Error("not used");
-      },
-      streamText(options) {
-        return {
-          fullStream: stream([
-            { type: "text-delta", id: "1", text: "ok" },
-            {
-              type: "finish",
-              finishReason: "stop",
-              rawFinishReason: undefined,
-              totalUsage: usage(1, 1),
-            },
-          ]),
-          text: Promise.resolve("ok"),
-          finishReason: Promise.resolve("stop"),
-          totalUsage: Promise.resolve(usage(1, 1)),
-          usage: Promise.resolve(usage(1, 1)),
-          toolCalls: Promise.resolve([]),
-          toolResults: Promise.resolve([]),
-          sources: Promise.resolve([]),
-          providerMetadata: Promise.resolve(undefined),
-          request: Promise.resolve({
-            body: { messages: options.messages, model: "model-a" },
-          }),
-          response: Promise.resolve({
-            body: { raw: "provider-response" },
-            headers: { authorization: "Bearer secret" },
-            id: "r",
-            modelId: "m",
-          }),
-        } as never;
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      debugDir,
-      env: { ZCODE_RUNTIME_ENV: "production" },
-      modelIoFullRetentionEnabled: true,
-      registry: registry(),
-      runtime,
-    });
-
-    try {
-      const writeSession = async (sessionId: string, messages: unknown[]) => {
-        for await (const _event of executeAdapterStreamText(adapter, {
-          metadata: { sessionId },
-          providerId: "test" as never,
-          modelId: "model-a" as never,
-          messages: messages as never,
-        })) {
-          // drain
-        }
-      };
-
-      await writeSession("sess_full", [{ role: "user", content: "first" }]);
-      await writeSession("sess_full", [
-        { role: "user", content: "first" },
-        { role: "assistant", content: "second" },
-        { role: "user", content: "third" },
-      ]);
-      for (let index = 0; index < 4; index += 1) {
-        await writeSession(`sess_extra_${index}`, [{ role: "user", content: "ping" }]);
-      }
-
-      expect(await readdir(debugDir)).toHaveLength(5);
-      const records = (await readFile(join(debugDir, "model-io-sess_full.jsonl"), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as any);
-      expect(records).toHaveLength(2);
-      expect(records[1].request.messages).toHaveLength(3);
-      expect(records[1].request.messagesKind).toBeUndefined();
-      expect(records[1].request.sdkMessages).toHaveLength(3);
-      expect(records[1].request.body.messages).toHaveLength(3);
-      expect(records[1].response.body).toEqual({ raw: "provider-response" });
-      expect(records[1].response.headers.authorization).toBe("[redacted]");
-
-      const fullSessionPath = join(debugDir, "model-io-sess_full.jsonl");
-      await truncate(fullSessionPath, 65 * 1024 * 1024);
-      await writeSession("sess_full", [{ role: "user", content: "after-limit" }]);
-      expect((await stat(fullSessionPath)).size).toBeGreaterThan(65 * 1024 * 1024);
-    } finally {
-      await rm(debugDir, { recursive: true, force: true });
-    }
-  });
 
   it("does not record model-io in test env (ZCODE_RUNTIME_ENV=test)", async () => {
     // 安全网:测试态不应产生磁盘副作用。
@@ -2061,18 +1485,11 @@ describe("AiSdkModelAdapter", () => {
       requestId: events[3].requestId,
       type: "model_request_completed",
     });
-    expect(captured[0]?.headers).toMatchObject({
-      "x-request-id": "model_req_1",
-      "x-zcode-session-type": "main",
-    });
-    expect(captured[1]?.headers).toMatchObject({
-      "x-request-id": events[3].requestId,
-      "x-zcode-session-type": "main",
-      "x-zcode-trace-id": "trace_retry",
-    });
+    expect(captured[0]?.headers).toEqual({});
+    expect(captured[1]?.headers).toEqual({});
   });
 
-  it("keeps OpenCode Go session header stable across generate retries", async () => {
+  it("does not derive OpenCode Go headers from internal session identity across retries", async () => {
     const captured: AiSdkGenerateTextOptions[] = [];
     let attempts = 0;
     const runtime: AiSdkModelRuntime = {
@@ -2120,10 +1537,10 @@ describe("AiSdkModelAdapter", () => {
     expect(captured).toHaveLength(2);
     expect(
       captured.map((options) => (options.headers as Record<string, string>)["x-opencode-session"]),
-    ).toEqual(["conversation_stable", "conversation_stable"]);
+    ).toEqual([undefined, undefined]);
   });
 
-  it("retries one rejected Anthropic thinking signature and records each request-local attempt", async () => {
+  it("retries one rejected Anthropic thinking signature with request-local attempts", async () => {
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-signature-repair-generate-"));
     const statusEvents: ModelNetworkStatusEvent[] = [];
     const captured: AiSdkGenerateTextOptions[] = [];
@@ -2198,36 +1615,8 @@ describe("AiSdkModelAdapter", () => {
       expect(statusEvents[3]).toMatchObject({ attempt: 2, maxAttempts: 2 });
       expect(statusEvents[3]!.requestId).not.toBe(statusEvents[0]!.requestId);
 
-      const [fileName] = await readdir(debugDir);
-      const records = (await readFile(join(debugDir, fileName!), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as any);
-      expect(records).toHaveLength(2);
-      expect(records[0].request.messages.map((message: any) => message.role)).toEqual([
-        "user",
-        "assistant",
-        "user",
-        "assistant",
-        "user",
-      ]);
-      expect(records[0].request.messages[1].content).toEqual([
-        { type: "text", text: "(no content)" },
-      ]);
-      expect(records[1].request.messages.map((message: any) => message.role)).toEqual([
-        "user",
-        "assistant",
-        "user",
-        "assistant",
-        "user",
-      ]);
-      expect(records[1].request.messages[1].content).toEqual([
-        { type: "text", text: "(no content)" },
-      ]);
-      expect(records[1].request.messages[3].content).toEqual([
-        { type: "reasoning", text: "unsigned" },
-        { type: "text", text: "answer" },
-      ]);
+      // 验证上面捕获的两次实际 SDK 请求，不恢复原文采集来核对重试。
+      expect(await readdir(debugDir)).toEqual([]);
       expect(messages).toEqual(snapshot);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
@@ -3468,13 +2857,7 @@ describe("AiSdkModelAdapter", () => {
       events.push(event);
     }
 
-    expect(captured?.headers).toEqual({
-      "x-query-id": "stream",
-      "x-request-id": "model_req_stream",
-      "x-session-id": "stream",
-      "x-zcode-session-type": "subagent",
-      "x-zcode-trace-id": "trace_stream",
-    });
+    expect(captured?.headers).toEqual({});
     expect(captured?.allowSystemInMessages).toBe(true);
     expect(events).toEqual([
       { type: "text_delta", id: "1", text: "he" },
@@ -3646,15 +3029,8 @@ describe("AiSdkModelAdapter", () => {
       requestId: statusEvents[3].requestId,
       type: "model_request_completed",
     });
-    expect(captured[0]?.headers).toMatchObject({
-      "x-request-id": "model_req_stream_retry",
-      "x-zcode-session-type": "subagent",
-    });
-    expect(captured[1]?.headers).toMatchObject({
-      "x-request-id": statusEvents[3].requestId,
-      "x-zcode-session-type": "subagent",
-      "x-zcode-trace-id": "trace_stream_retry",
-    });
+    expect(captured[0]?.headers).toEqual({});
+    expect(captured[1]?.headers).toEqual({});
     expect(streamEvents).toEqual([
       { type: "start" },
       { type: "text_delta", id: "retry-text", text: "ok" },
@@ -3762,26 +3138,8 @@ describe("AiSdkModelAdapter", () => {
         expect.objectContaining({ signedReasoningReset: true }),
       ]);
 
-      const [fileName] = await readdir(debugDir);
-      const records = (await readFile(join(debugDir, fileName!), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as any);
-      expect(records).toHaveLength(1);
-      expect(records[0].request.messages.map((message: any) => message.role)).toEqual([
-        "user",
-        "assistant",
-        "user",
-        "assistant",
-        "user",
-      ]);
-      expect(records[0].request.messages[1].content).toEqual([
-        { type: "text", text: "(no content)" },
-      ]);
-      expect(records[0].request.messages[3].content).toEqual([
-        { type: "reasoning", text: "unsigned" },
-        { type: "text", text: "answer" },
-      ]);
+      // 签名修复由捕获的 SDK 请求验收；不产生原文诊断文件。
+      expect(await readdir(debugDir)).toEqual([]);
       expect(messages).toEqual(snapshot);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
@@ -5180,7 +4538,7 @@ describe("AiSdkModelAdapter", () => {
       slug: "null",
     },
   ])(
-    "reuses normalized final $name in stream model-io without warning twice",
+    "reuses normalized final $name in stream events without warning twice",
     async ({ aggregateInput, delta, expectedLog, rawInput, slug }) => {
       const debugDir = await mkdtemp(join(tmpdir(), `zcode-model-io-${slug}-tool-`));
       const logs: CapturedLog[] = [];
@@ -5219,7 +4577,7 @@ describe("AiSdkModelAdapter", () => {
             finishReason: Promise.resolve("tool-calls"),
             totalUsage: Promise.resolve(usage(2, 1)),
             usage: Promise.resolve(usage(2, 1)),
-            // 上游 aggregate 保留无效的原始 input；model-io 必须复用 final call 的归一化结果。
+            // SDK aggregate 保留无效原始 input；公开 stream 以 final call 的归一化结果为准。
             toolCalls: Promise.resolve([
               {
                 type: "tool-call",
@@ -5260,13 +4618,14 @@ describe("AiSdkModelAdapter", () => {
       });
 
       try {
-        for await (const _event of executeAdapterStreamText(adapter, {
+        const events: ModelStreamEvent[] = [];
+        for await (const event of executeAdapterStreamText(adapter, {
           metadata: { sessionId: `sess_model_io_${slug}` },
           providerId: "test" as never,
           modelId: "model-a" as never,
           messages: [{ role: "user", content: "Call any tool" }],
         })) {
-          // drain stream so model-io aggregate settles
+          events.push(event);
         }
 
         const normalizationLogs = logs.filter(
@@ -5274,26 +4633,14 @@ describe("AiSdkModelAdapter", () => {
         );
         expect(normalizationLogs).toHaveLength(1);
         expect(normalizationLogs[0]?.context).toEqual(expect.objectContaining(expectedLog));
-        const [fileName] = await readdir(debugDir);
-        const content = await readFile(join(debugDir, fileName!), "utf8");
-        const record = JSON.parse(content.trim()) as {
-          response?: { toolCalls?: unknown[]; toolResults?: unknown[] };
-        };
-        expect(record.response?.toolCalls).toEqual([
-          {
-            id: toolCallId,
-            input: {},
-            name: "AnyTool",
-          },
+        const calls = events.filter((event) => event.type === "tool_call");
+        expect(calls).toEqual([
+          { type: "tool_call", toolCall: expect.objectContaining({ id: toolCallId, input: {}, name: "AnyTool" }) },
         ]);
-        expect(record.response?.toolResults).toEqual([
-          expect.objectContaining({ id: toolCallId, input: {}, name: "AnyTool" }),
-        ]);
-        if (typeof rawInput === "string") {
-          expect(content).not.toContain(rawInput);
-        } else {
-          expect(content).not.toMatch(/"input"\s*:\s*null/);
-        }
+        // 原始 SDK aggregate 不回灌协议，也不落盘。
+        expect(await readdir(debugDir)).toEqual([]);
+        if (typeof rawInput === "string") expect(JSON.stringify(calls)).not.toContain(rawInput);
+        else expect(JSON.stringify(calls)).not.toMatch(/"input"\s*:\s*null/);
       } finally {
         await rm(debugDir, { recursive: true, force: true });
       }
@@ -7066,9 +6413,9 @@ describe("AiSdkModelAdapter", () => {
     });
   });
 
-  it("keeps user stop responsive when model-io aggregate promises never settle after mid-stream abort", async () => {
+  it("keeps user stop responsive when SDK aggregate promises never settle after mid-stream abort", async () => {
     // 回归（v3.2.6/v3.3.0）：流出过 chunk 后 abort，AI SDK 的 request/response 聚合
-    // promise 永不 settle；失败路径的 model-io 记录若无限 await 会把 catch 挂死，
+    // promise 永不 settle；取消路径若无限 await 聚合结果会把 catch 挂死，
     // turn 永不结束，session 后续 send 全部报 "A prompt is already running for this session"。
     const debugDir = await mkdtemp(join(tmpdir(), "zcode-model-io-abort-hang-"));
     const abortController = new AbortController();
@@ -7118,16 +6465,8 @@ describe("AiSdkModelAdapter", () => {
         code: ModelErrorCode.ModelRequestCancelled,
       });
 
-      // 失败记录仍需落盘（request body 走 fallback 快照），只是不允许拖住失败路径。
-      const files = await readdir(debugDir);
-      expect(files).toEqual(["model-io-sess_abort_hang_debug.jsonl"]);
-      const content = await readFile(join(debugDir, files[0]!), "utf8");
-      const record = JSON.parse(content.trim()) as {
-        error: { message: string };
-        request: { body?: { bodySource?: string } };
-      };
-      expect(record.error.message).toBe("user stop");
-      expect(record.request.body).toMatchObject({ bodySource: "ai_sdk_options" });
+      // SDK 聚合 promise 不归取消路径等待，原文采集已退役。
+      expect(await readdir(debugDir)).toEqual([]);
     } finally {
       await rm(debugDir, { recursive: true, force: true });
     }
@@ -7266,15 +6605,16 @@ describe("AiSdkModelAdapter", () => {
         errorAfterFinish: true,
         finishReason: "tool-calls",
         lastChunkType: "finish",
-        rawFinishReason: "tool_use",
         reason: "network_error",
         retryable: false,
         status: "failed",
-        statusMessage: "Network connection failed for the provider request.",
         textDeltaChars: 2,
         toolCallCount: 1,
       },
     });
+    // 保留失败的结构和数值，原始 finish reason 与错误消息不进入本地日志。
+    expect(failureLog?.context).not.toHaveProperty("rawFinishReason");
+    expect(failureLog?.context).not.toHaveProperty("statusMessage");
   });
 });
 

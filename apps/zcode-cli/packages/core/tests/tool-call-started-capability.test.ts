@@ -157,9 +157,9 @@ describe("ToolCallStarted carries the resolved side-effect capability", () => {
   });
 });
 
-describe("MCP execution attribution", () => {
+describe("MCP terminal events without retired telemetry attribution", () => {
   it.each([false, true])(
-    "keeps actual plugin ownership on terminal events (failure=%s)",
+    "keeps one terminal event without top-level collection metadata (failure=%s)",
     async (fails) => {
       const entry = probeEntry({});
       entry.metadata.mcpPresentation = {
@@ -179,7 +179,8 @@ describe("MCP execution attribution", () => {
           event.type === (fails ? SessionEventType.ToolCallError : SessionEventType.ToolCallResult),
       );
       expect(terminal).toHaveLength(1);
-      expect(terminal[0].payload).toMatchObject({ pluginId: "actual@market" });
+      expect(terminal[0].payload).not.toHaveProperty("pluginId");
+      expect(terminal[0].payload).toMatchObject({ toolCallId: "tool_mcp-owner" });
     },
   );
 });

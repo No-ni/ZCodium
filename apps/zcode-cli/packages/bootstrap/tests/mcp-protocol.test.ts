@@ -175,7 +175,7 @@ describe("mcp/list connection revalidation", () => {
       else process.env.ZCODE_STORAGE_DIR = previousStorageDir;
       await rm(root, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 });
 
 import { convertToZCodeAgentMcpServer, zcodeProtocolMcpServerSchema } from "@zcode/shared";

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import {
   createFileSystemError,
   type FileSystemLineEndings,
@@ -767,7 +767,7 @@ describe("Edit tool contract", () => {
       deny: [
         {
           toolName: "Edit",
-          ruleContent: `${tmpDir}/blocked/*`,
+          ruleContent: join(tmpDir, "blocked", "*"),
         },
       ],
     };
@@ -952,7 +952,7 @@ function createMemoryFileSystem(initial: Record<string, string>): MemoryFileSyst
       return { path: request.path, removed };
     },
     async listDirectory(request) {
-      const prefix = `${request.path.replace(/\/+$/u, "")}/`;
+      const prefix = join(request.path, sep);
       const entries = Array.from(files.keys())
         .filter((path) => path.startsWith(prefix))
         .map((path) => ({

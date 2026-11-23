@@ -7,6 +7,8 @@ const CONTEXT_LIMIT_FINISH_REASONS = new Set([
 ]);
 const EMPTY_COMPLETION_RETRY_EXCLUSIONS = new Set([
   ...CONTEXT_LIMIT_FINISH_REASONS, "refusal", "content-filter", "content_filter",
+  // GLM 输出审核的官方终止原因；遗漏它会把确定拒绝当成空响应重试。
+  "sensitive",
 ]);
 
 export function createEmptyContextExceededError(input: {
@@ -24,7 +26,11 @@ export function createEmptyContextExceededError(input: {
   return new AiSdkModelAdapterError(
     ModelErrorCode.ModelContextExceeded,
     "Model request exceeded the provider context window.",
-    { usage: input.usage },
+    {
+      usage: input.usage,
+      // 恢复官方错误上下文；原模型结束原因是产品诊断事实，不向日志透传原文。
+      context: { finishReason: input.finishReason, rawFinishReason: input.rawFinishReason },
+    },
   );
 }
 

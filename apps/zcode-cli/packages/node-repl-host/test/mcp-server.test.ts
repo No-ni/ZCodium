@@ -8,8 +8,6 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ZCODE_MCP_BROWSER_SCREENSHOT_CONTENT_INDICES_META_KEY,
-  ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY,
-  ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY,
   ZCODE_MCP_NODE_REPL_CUA_APP_META_KEY,
 } from "@zcode/contracts";
 import { CUA_APP_ASSOCIATIONS_META_KEY } from "@zcode/zcode-cua/host-display-contract";
@@ -75,40 +73,11 @@ describe("node_repl MCP server", () => {
     });
   });
 
-  it("captures Computer Use credentials before the plugin host restores its environment", async () => {
-    const capturedRuntime = captureComputerUseRuntimeFromEnvironment({
-      ZCODE_CUA_PERMISSION_BROKER_SOCKET: "/tmp/deferred-cua.sock",
-      ZCODE_CUA_PERMISSION_BROKER_TOKEN: "deferred-cua-token",
-    });
-    expect(capturedRuntime).toBeDefined();
-
-    let forwardedBroker: unknown;
-    const deferredRuntime = createNodeReplMcpRuntime({
-      cuaRuntime: capturedRuntime,
-      executeJs: async (input) => {
-        forwardedBroker = input.cuaBroker;
-        return { logs: "", result: "ok" };
-      },
-    });
-    const deferredClient = new Client({ name: "deferred-cua-test", version: "0.1.0" });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await deferredRuntime.server.connect(serverTransport);
-    await deferredClient.connect(clientTransport);
-
-    try {
-      await deferredClient.callTool({
-        name: "js",
-        arguments: { code: "1", title: "验证 Computer Use bridge" },
-        _meta: requestMeta("deferred-cua-session"),
-      });
-      expect(forwardedBroker).toMatchObject({
-        socketPath: expect.any(String),
-        token: expect.any(String),
-      });
-    } finally {
-      await deferredClient.close();
-      deferredRuntime.dispose();
-    }
+  it("does not activate compatible CUA from retired official broker credentials", async () => {
+    expect(await captureComputerUseRuntimeFromEnvironment({
+      ZCODE_CUA_PERMISSION_BROKER_SOCKET: "/fixture/retired.sock",
+      ZCODE_CUA_PERMISSION_BROKER_TOKEN: "fixture-retired-token",
+    })).toBeUndefined();
   });
 
   it("requires user-facing titles in the model schema while preserving legacy runtime input", async () => {
@@ -591,16 +560,16 @@ describe("node_repl MCP server", () => {
   // cell 经 sandbox 通道或冒充结果带进来的同名 key 也必须被丢弃（不写不等于不删）。
   it("never emits the session-capability keys and drops copies the cell writes", () => {
     const forged = {
-      [ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY]: true,
-      [ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY]: true,
+      ["zcode/nodeReplBrowserUse"]: true,
+      ["zcode/nodeReplComputerUse"]: true,
     };
     const failed = toMcpRunResult(
       { logs: "", error: { name: "Error", message: "boom" } },
       ledgerFacts(),
     );
     expect(failed.isError).toBe(true);
-    expect(failed._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY);
-    expect(failed._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
+    expect(failed._meta ?? {}).not.toHaveProperty("zcode/nodeReplBrowserUse");
+    expect(failed._meta ?? {}).not.toHaveProperty("zcode/nodeReplComputerUse");
 
     // 展示事实照常写：目标应用身份来自账本，不受统计剥离影响。
     const withApp = toMcpRunResult(
@@ -612,7 +581,7 @@ describe("node_repl MCP server", () => {
     expect(withApp._meta).toMatchObject({
       [ZCODE_MCP_NODE_REPL_CUA_APP_META_KEY]: { appKey: "win32:msedge" },
     });
-    expect(withApp._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
+    expect(withApp._meta ?? {}).not.toHaveProperty("zcode/nodeReplComputerUse");
 
     // sandbox 通道写入的同名 key、Worker 结果消息里冒充的字段（MR !3207 评审 CR-01）一律不采信。
     for (const run of [
@@ -624,8 +593,8 @@ describe("node_repl MCP server", () => {
       { logs: "", browserUse: true, computerUse: true },
     ]) {
       const result = toMcpRunResult(run as never, ledgerFacts());
-      expect(result._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY);
-      expect(result._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
+      expect(result._meta ?? {}).not.toHaveProperty("zcode/nodeReplBrowserUse");
+      expect(result._meta ?? {}).not.toHaveProperty("zcode/nodeReplComputerUse");
     }
   });
 
@@ -767,8 +736,8 @@ describe("node_repl MCP server", () => {
     await useRuntime.server.connect(serverTransport);
     await useClient.connect(clientTransport);
     const forged = JSON.stringify({
-      [ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY]: true,
-      [ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY]: true,
+      ["zcode/nodeReplBrowserUse"]: true,
+      ["zcode/nodeReplComputerUse"]: true,
     });
     // CUA broker 要求 workspace 信息，缺了会在调用 runtime 之前拒绝。
     const callMeta = {
@@ -798,8 +767,8 @@ describe("node_repl MCP server", () => {
         text: "=> Browser is not connected | Computer Use Helper is not running",
       });
       expect(cuaExecuted).toBe(1);
-      expect(called._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY);
-      expect(called._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
+      expect(called._meta ?? {}).not.toHaveProperty("zcode/nodeReplBrowserUse");
+      expect(called._meta ?? {}).not.toHaveProperty("zcode/nodeReplComputerUse");
 
       // 只做 CUA 引导、只在代码里提到运行时、经 sandbox 通道自己写 key：都没有请求到达 broker。
       const notCalled = await useClient.callTool({
@@ -818,8 +787,8 @@ describe("node_repl MCP server", () => {
       // 前提：cell 正常执行完，sandbox 通道确实生效了。
       expect(notCalled.isError).not.toBe(true);
       expect(notCalled.content).toContainEqual({ type: "text", text: "forged" });
-      expect(notCalled._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_BROWSER_USE_META_KEY);
-      expect(notCalled._meta ?? {}).not.toHaveProperty(ZCODE_MCP_NODE_REPL_COMPUTER_USE_META_KEY);
+      expect(notCalled._meta ?? {}).not.toHaveProperty("zcode/nodeReplBrowserUse");
+      expect(notCalled._meta ?? {}).not.toHaveProperty("zcode/nodeReplComputerUse");
       expect(cuaExecuted).toBe(1);
     } finally {
       await useClient.close();

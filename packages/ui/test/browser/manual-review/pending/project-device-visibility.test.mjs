@@ -24,7 +24,7 @@ before(async () => {
         enforce: "pre",
         load(id) {
           if (id.endsWith("/project-sidebar/ProjectDirectoryProvider.tsx"))
-            return "export const useProjectDirectory=()=>window.__projectDeviceDirectory; export const useOptionalProjectDirectory=useProjectDirectory;";
+            return "export const useProjectDirectory=()=>window.__projectDeviceDirectory; export const useOptionalProjectDirectory=useProjectDirectory; export const useProjectSelectionDirectory=useProjectDirectory; export const useOptionalProjectSelectionDirectory=useProjectDirectory;";
         },
         configureServer(vite) {
           vite.middlewares.use(async (req, res, next) => {
@@ -44,7 +44,7 @@ before(async () => {
     ],
     resolve: { alias: { "@": `${root}packages/ui/src` } },
     optimizeDeps: { entries: [entry.slice(1)] },
-    server: { host: "127.0.0.1", port: 0, hmr: false },
+    server: { host: "127.0.0.1", port: 0, hmr: false, watch: null },
   });
   await server.listen();
   origin = server.resolvedUrls.local[0];
@@ -60,6 +60,18 @@ after(async () => {
 });
 const toggle = (page) =>
   page.getByRole("switch", { name: /隐藏项目行设备名|Hide device names in project rows/ });
+async function loadFixture(page, url) {
+  const failure = Promise.withResolvers();
+  // 页面脚本失败应当立即暴露，不能直到 locator 超时才丢失真正的夹具错误。
+  void failure.promise.catch(() => {});
+  const onError = (error) => failure.reject(error);
+  page.on("pageerror", onError);
+  try {
+    await Promise.race([page.goto(url).then(() => toggle(page).waitFor()), failure.promise]);
+  } finally {
+    page.off("pageerror", onError);
+  }
+}
 const rows = (page) => page.locator('[data-testid="virtual-project-row"]');
 async function deviceCount(page, count) {
   await page.waitForFunction(
@@ -77,12 +89,12 @@ test(
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     try {
-      await page.goto(`${origin}fixture`);
+      await loadFixture(page, `${origin}fixture`);
       await toggle(page).waitFor();
       assert.equal(await toggle(page).getAttribute("aria-checked"), "false");
       await deviceCount(page, 3);
       const second = await context.newPage();
-      await second.goto(`${origin}fixture`);
+      await loadFixture(second, `${origin}fixture`);
       await deviceCount(second, 3);
       await toggle(page).click();
       await deviceCount(page, 0);
@@ -95,6 +107,8 @@ test(
         const row = page.locator(
           `[data-fixture-project="${state}"] [data-testid="virtual-project-row"]`,
         );
+        // 当前 HoverCard 只响应键盘焦点；先进入键盘模态，避免把鼠标点击后的程序 focus 当作键盘。
+        await page.keyboard.press("Tab");
         await row.focus();
         const details = page.getByTestId("remote-identity-details");
         await details.waitFor();
@@ -114,7 +128,7 @@ test(
       await deviceCount(page, 0);
       const mobile = await context.newPage();
       await mobile.setViewportSize({ width: 390, height: 844 });
-      await mobile.goto(`${origin}fixture?mobile=1`);
+      await loadFixture(mobile, `${origin}fixture?mobile=1`);
       await deviceCount(mobile, 3);
       await toggle(second).click();
       await deviceCount(page, 3);
@@ -136,7 +150,7 @@ for (const locale of ["zh-CN", "en-US"])
         const context = await browser.newContext({ viewport: { width, height: 1000 } });
         const page = await context.newPage();
         try {
-          await page.goto(`${origin}fixture?${new URLSearchParams({ locale, theme })}`);
+          await loadFixture(page, `${origin}fixture?${new URLSearchParams({ locale, theme })}`);
           await toggle(page).waitFor();
           await toggle(page).click();
           await deviceCount(page, 0);

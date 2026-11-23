@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { build } from "esbuild";
-import { createRemotePtyBuildPlugin } from "../remote-pty-build.mjs";
+import { createRemotePtyBuildPlugin } from "../../packages/server/buildRemoteValidation.ts";
 import { verifyBundledRemoteAssets } from "../bundle-remote-assets.mjs";
 import { smokeCuaDriverRuntime } from "./cua-driver-smoke.mjs";
 

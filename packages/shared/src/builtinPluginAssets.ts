@@ -296,12 +296,7 @@ export const BUILTIN_PLUGIN_SEED_PATHS = {
     "skills/restore-legacy-sessions/scripts/restore-conversation.mjs",
     "skills/restore-legacy-sessions/scripts/scan-legacy-sessions.mjs",
   ],
-  "zcode-guide-plugin": [
-    "commands/workflow.md",
-    "skills/dynamic-workflows/SKILL.md",
-    "skills/dynamic-workflows/examples.md",
-    "skills/dynamic-workflows/patterns.md",
-  ],
+  "zcode-guide-plugin": ["skills/zcode-configuration-guide/SKILL.md"],
   "zcode-cua-plugin": [
     "docs/computer-use.md",
     "scripts/computer-use-client.mjs",

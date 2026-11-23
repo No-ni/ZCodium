@@ -1,32 +1,17 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { chromium, type Browser } from "playwright-core";
+import "node:fs/promises";
+import "node:path";
+import "playwright-core";
 import { BufferReader, BufferWriter, deserialize, serialize, VSBuffer } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
-import { TID_TASK_ITEM, TID_V4_SESSION_PANE, testId } from "@zcode/shared/test-ids";
-import { clearAppData, DEFAULT_WORKSPACE } from "#e2e/helpers/desktop-app";
-import {
-  buildReadonlyToolPrompt,
-  ensureReadonlyToolFixtureFile,
-} from "#e2e/helpers/conversation-session-readonly-tool";
-import { openMobilePairingPage } from "#e2e/helpers/mobile-pairing";
-import { waitForUpstreamNetworkCapture } from "#e2e/helpers/upstream-capture";
-import {
-  readAppControlToolResult,
-  type AppControlToolEvidence,
-} from "#e2e/helpers/app-control-evidence";
-import { startDraftFromProject } from "#e2e/helpers/project-sidebar";
-import { obtainUnreadPairingUrl, waitMobileTaskView } from "#e2e/helpers/web-remote-unread";
-import {
-  prepareV4ConversationE2E,
-  getV4PaneSnapshot,
-  selectV4TaskById,
-  sendV4Prompt,
-  waitForV4Pane,
-  waitForV4AssistantMessageContaining,
-  waitForV4PermissionDialog,
-  approveV4Permission,
-} from "#e2e/helpers/v4-conversation";
+import "@zcode/shared/test-ids";
+import { DEFAULT_WORKSPACE } from "#e2e/helpers/desktop-app";
+import "#e2e/helpers/conversation-session-readonly-tool";
+import "#e2e/helpers/mobile-pairing";
+import "#e2e/helpers/upstream-capture";
+import { type AppControlToolEvidence } from "#e2e/helpers/app-control-evidence";
+import "#e2e/helpers/project-sidebar";
+import "#e2e/helpers/web-remote-unread";
+import { getV4PaneSnapshot, waitForV4Pane } from "#e2e/helpers/v4-conversation";
 
 const CASE = "E2E_SCT03";
 const artifacts = process.env.ZCODE_E2E_ARTIFACT_DIR!;

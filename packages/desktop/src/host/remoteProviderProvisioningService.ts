@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { ProviderProvisioningResult } from "@zcode/shared";
+import {
+  providerProvisioningErrorCodeSchema,
+  type ProviderProvisioningErrorCode,
+  type ProviderProvisioningResult,
+} from "@zcode/shared";
 import type { IProviderProvisioningTargetService, IServiceAccessor } from "@zcode/services";
 import {
   getProviderProvisioningSource,
@@ -38,18 +42,28 @@ function createRemoteProviderProvisioningExecutor(options: {
     if (!options.source || !options.target) {
       return unsupportedResult(syncId, "Local/Remote Provider Provisioning capability 不可用");
     }
+    let errorCode: ProviderProvisioningErrorCode = "host-execution-failed";
     try {
       await assertAuthorized?.();
+      errorCode = "source-read-failed";
       const envelope = await options.source.read(syncId);
       // 本机文件读取期间 Profile 可能撤权，发送到目标前必须再次核验。
+      errorCode = "host-execution-failed";
       await assertAuthorized?.();
-      return await options.target.apply(envelope);
+      errorCode = "target-call-failed";
+      const { errorCode: remoteErrorCode, ...result } = await options.target.apply(envelope);
+      // 成功结果不携带诊断字段，避免未知错误码使 Main 丢弃本已成功的回包。
+      if (result.status === "applied" || result.status === "already-applied") return result;
+      // 旧目标没有阶段码，任意远端也可能返回自由文本；只能透传本地 allowlist。
+      const parsedCode = providerProvisioningErrorCodeSchema.safeParse(remoteErrorCode);
+      return { ...result, errorCode: parsedCode.success ? parsedCode.data : "target-apply-failed" };
     } catch {
       return {
         syncId,
         status: "failed",
         personalProviderCount: 0,
         errorMessage: "Provider Provisioning 执行失败",
+        errorCode,
         rolledBack: true,
       } satisfies ProviderProvisioningResult;
     }
@@ -79,6 +93,7 @@ function unsupportedResult(syncId: string, errorMessage: string): ProviderProvis
     status: "unsupported",
     personalProviderCount: 0,
     errorMessage,
+    errorCode: "capability-unavailable",
     rolledBack: false,
   };
 }

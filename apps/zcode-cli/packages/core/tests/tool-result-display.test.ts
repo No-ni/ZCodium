@@ -47,7 +47,7 @@ describe("tool result display", () => {
     expect(parseToolResultDisplayPayload(display)).toEqual(display);
   });
 
-  it("carries the official MCP unavailable code from the tool error payload", () => {
+  it("ignores retired official quota hints in historical MCP error payloads", () => {
     const display = createToolResultDisplay(
       "mcp__zcode-official__search_image",
       {
@@ -72,13 +72,12 @@ describe("tool result display", () => {
       kind: "mcp_tool",
       serverName: "zcode-official",
       toolName: "search_image",
-      unavailable: { code: "quota_exceeded" },
     });
     // strict schema 必须接受该字段，否则整条 row 会被拒。
     expect(parseToolResultDisplayPayload(display)).toEqual(display);
   });
 
-  it("carries the coding-plan-required code as well", () => {
+  it("does not generate a purchase hint from the retired coding-plan error", () => {
     const display = createToolResultDisplay(
       "mcp__zcode-official__speech_synthesize",
       {
@@ -88,7 +87,7 @@ describe("tool result display", () => {
       { mcp: { serverName: "zcode-official", toolName: "speech_synthesize", official: true } },
     );
 
-    expect(display).toMatchObject({ unavailable: { code: "coding_plan_required" } });
+    expect(display).not.toHaveProperty("unavailable");
   });
 
   it("ignores the unavailable payload from a non-official MCP server", () => {

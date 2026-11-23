@@ -106,7 +106,7 @@ export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
       sessionId,
       shellDialect: resolvedCommand.cwdDialect,
     });
-    const capturePlan = createCwdCapturePlan(requestWithSources, {
+    const capturePlan = await createCwdCapturePlan(requestWithSources, {
       dialect: resolvedCommand.cwdDialect,
       platform: this.platform,
     });
@@ -139,6 +139,7 @@ export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
       command,
       cwdDialect: command.cwdDialect,
       cwdFilePath: capturePlan.cwdFilePath,
+      cleanupCwdCapture: capturePlan.cleanup,
       spawnOptions: baseOptions,
     };
   }

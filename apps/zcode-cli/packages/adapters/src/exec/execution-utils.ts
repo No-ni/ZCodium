@@ -22,8 +22,9 @@ export function resolveDefaultOutputRootDir(processEnv: NodeJS.ProcessEnv = proc
 }
 
 export function isExpectedChildStdinClosureError(error: Error): boolean {
-  const code = (error as NodeJS.ErrnoException).code;
-  return code === "EPIPE" || code === "ERR_STREAM_DESTROYED";
+  const { code, syscall } = error as NodeJS.ErrnoException;
+  // libuv 在 Windows 管道被 child 关闭时返回 write EOF；与 EPIPE 同为主动停止读取。
+  return code === "EPIPE" || code === "ERR_STREAM_DESTROYED" || (code === "EOF" && syscall === "write");
 }
 
 export function isBashMergedOutputRequest(request: ExecutionRequest): boolean {

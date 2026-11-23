@@ -63,6 +63,23 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
 
     const callerSignal = (signal?: AbortSignal): AbortSignal =>
       signal ? AbortSignal.any([leaseShutdown.signal, signal]) : leaseShutdown.signal;
+    const wait = async <T>(work: Promise<T>, signal = leaseShutdown.signal): Promise<T> => {
+      signal.throwIfAborted();
+      let abort: (() => void) | undefined;
+      try {
+        const value = await Promise.race([
+          work,
+          new Promise<never>((_, reject) => {
+            abort = () => reject(signal.reason);
+            signal.addEventListener("abort", abort, { once: true });
+          }),
+        ]);
+        signal.throwIfAborted();
+        return value;
+      } finally {
+        if (abort) signal.removeEventListener("abort", abort);
+      }
+    };
     const invokeRequest = async <T>(
       serverName: string,
       callOptions: McpCallToolOptions | undefined,
@@ -113,6 +130,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       connectOptions: McpConnectOptions = {},
     ): Promise<McpServerStatus> => {
       assertOpen();
+      connectOptions.signal?.throwIfAborted();
       const key = connectionKey({ config, connectOptions, leaseId, serverName });
       const previous = leased.get(serverName);
       const existing = entries.get(key);
@@ -148,9 +166,16 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
           });
         }
         // 先同步登记全部引用再等待；外部启动由 registry 延后，关闭不会遗漏 pending admission。
-        if (connectOptions.revalidate)
-          await registry.revalidateEntry(entry, config, connectOptions);
-        status = await entry.connecting;
+        // 新连接已执行握手；只有复用 entry 才复查，caller 取消只结束自己的等待。
+        if (connectOptions.revalidate && existing === entry)
+          await wait(registry.revalidateEntry(entry, config, connectOptions), callerSignal(connectOptions.signal));
+        try {
+          status = await wait(entry.connecting, callerSignal(connectOptions.signal));
+        } catch (error) {
+          // 已失败的启动有自己的资源完成边界；取消只抢占仍在进行的共享握手等待。
+          if (entry.admissionFailure) await entry.connecting;
+          throw error;
+        }
       } finally {
         await previousClosing;
       }
@@ -203,6 +228,24 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
     };
 
     return {
+      async waitForAppConnection(serverName) {
+        const entry = leased.get(serverName);
+        if (leaseClosed || !entry || !registry.isCurrent(entry)) return null;
+        const connecting = entry.connecting;
+        try {
+          await wait(connecting);
+          const source = entry.adapter.waitForAppConnection
+            ? await wait(entry.adapter.waitForAppConnection(serverName))
+            : (entry.adapter.appConnectionSnapshot?.(serverName) ?? null);
+          // 握手完成后仍校验 lease 与连接 owner；共享连接不能使已释放的会话恢复访问。
+          return !leaseClosed && leased.get(serverName) === entry && registry.isCurrent(entry) && entry.connecting === connecting
+            ? source
+            : null;
+        } catch (error) {
+          if (leaseClosed || leased.get(serverName) !== entry || !registry.isCurrent(entry)) return null;
+          throw error;
+        }
+      },
       appConnectionSnapshot(serverName) {
         const entry = leased.get(serverName);
         return entry && registry.isCurrent(entry)
@@ -308,7 +351,13 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         connectOptions: McpConnectOptions = {},
       ): Promise<McpConnectionSnapshot> {
         assertOpen();
-        const generation = ++configurationGeneration;
+        // 相同连接键的刷新没有改变配置事实；换代只拒绝真正被替换的旧请求。
+        const sameConnections = leased.size === Object.keys(servers).length &&
+          Object.entries(servers).every(([serverName, config]) => {
+            const entry = leased.get(serverName);
+            return entry && registry.isCurrent(entry) && entry.key === connectionKey({ config, connectOptions, leaseId, serverName });
+          });
+        const generation = sameConnections ? configurationGeneration : ++configurationGeneration;
         configuredServers.clear();
         for (const [serverName, config] of Object.entries(servers)) {
           configuredServers.set(serverName, config);

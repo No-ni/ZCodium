@@ -1,6 +1,13 @@
 packages:
   - "packages/*"
   - "tools/*"
+  - "../../packages/shared"
+  - "../../packages/provider"
+  - "../../packages/provider-node"
+  - "../../packages/model-option-map"
+  - "../../packages/session-control"
+  - "../../packages/formal-proof"
+  - "../../packages/zcode-cua"
 
 supportedArchitectures:
   os:

@@ -1,3 +1,5 @@
+// 生产路径用原生 node:path 解析；合成文件系统的输入与预期使用同一平台语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -16,7 +18,6 @@ import { resolveTimeoutMs } from "../src/tool/executor/timeout.js";
 import type {
   BashInput,
   BashOutput,
-  CommandExecutionSpanWriter,
   ExecutionPort,
   ExecutionRequest,
   ExecutionResult,
@@ -26,14 +27,13 @@ import type {
   ImageProcessorPort,
   ExecutionShellSelection,
   SessionEvent,
-  ToolExecutionSpanWriter,
 } from "@zcode/contracts";
 import { createReadFileStatePathKey } from "../src/tool/read-file-state.js";
 import type { ReadFileStateMap, ToolExecutionContext } from "../src/tool/types.js";
 
 const workspaceRoot = resolve("/work");
 const projectRoot = resolve(workspaceRoot, "project");
-const defaultCommandRoot = resolve("/tmp");
+const defaultCommandRoot = resolve(nativeFixturePath("/tmp"));
 
 describe("Bash cwd policy", () => {
   it("keeps cwd when resolved cwd stays inside workspace", () => {
@@ -41,11 +41,11 @@ describe("Bash cwd policy", () => {
       decideBashCwdPolicy({
         status: "completed",
         exitCode: 0,
-        resolvedCwd: "/repo/subdir",
-        workspaceRoot: "/repo",
+        resolvedCwd: nativeFixturePath("/repo/subdir"),
+        workspaceRoot: nativeFixturePath("/repo"),
         runtimeScope: "main",
       }),
-    ).toEqual({ nextWorkingDirectory: "/repo/subdir" });
+    ).toEqual({ nextWorkingDirectory: nativeFixturePath("/repo/subdir") });
   });
 
   it("resets cwd and returns provider-visible stderr suffix when resolved cwd leaves workspace", () => {
@@ -53,13 +53,13 @@ describe("Bash cwd policy", () => {
       decideBashCwdPolicy({
         status: "completed",
         exitCode: 0,
-        resolvedCwd: "/tmp/outside",
-        workspaceRoot: "/repo",
+        resolvedCwd: nativeFixturePath("/tmp/outside"),
+        workspaceRoot: nativeFixturePath("/repo"),
         runtimeScope: "main",
       }),
     ).toEqual({
-      nextWorkingDirectory: "/repo",
-      stderrSuffix: "Shell cwd was reset to /repo",
+      nextWorkingDirectory: nativeFixturePath("/repo"),
+      stderrSuffix: `Shell cwd was reset to ${nativeFixturePath("/repo")}`,
     });
   });
 
@@ -68,8 +68,8 @@ describe("Bash cwd policy", () => {
       decideBashCwdPolicy({
         status: "completed",
         exitCode: 0,
-        resolvedCwd: "/tmp/outside",
-        workspaceRoot: "/repo",
+        resolvedCwd: nativeFixturePath("/tmp/outside"),
+        workspaceRoot: nativeFixturePath("/repo"),
         runtimeScope: "subagent",
       }),
     ).toEqual({});
@@ -82,6 +82,7 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/private/tmp/repo/subdir",
         workspaceRoot: "/tmp/repo",
+        platform: "darwin",
         runtimeScope: "main",
       }),
     ).toEqual({ nextWorkingDirectory: "/tmp/repo/subdir" });
@@ -156,6 +157,7 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/tmp/repo",
         workspaceRoot: "/private/tmp/repo",
+        platform: "darwin",
         runtimeScope: "main",
       }),
     ).toEqual({ nextWorkingDirectory: "/private/tmp/repo" });
@@ -163,7 +165,7 @@ describe("Bash cwd policy", () => {
       decideBashCwdPolicy({
         status: "completed",
         exitCode: 0,
-        resolvedCwd: "/outside",
+        resolvedCwd: nativeFixturePath("/outside"),
         workspaceRoot: "/private/tmp/repo",
         runtimeScope: "main",
       }),
@@ -239,11 +241,11 @@ describe("Bash cwd policy", () => {
       decideBashCwdPolicy({
         status: "completed",
         exitCode: 0,
-        resolvedCwd: "/repo/..cache",
-        workspaceRoot: "/repo",
+        resolvedCwd: nativeFixturePath("/repo/..cache"),
+        workspaceRoot: nativeFixturePath("/repo"),
         runtimeScope: "main",
       }),
-    ).toEqual({ nextWorkingDirectory: "/repo/..cache" });
+    ).toEqual({ nextWorkingDirectory: nativeFixturePath("/repo/..cache") });
 
     expect(
       decideBashCwdPolicy({
@@ -259,21 +261,14 @@ describe("Bash cwd policy", () => {
 });
 
 describe("bashHandler", () => {
-  it("把非零退出码保留为事实，只有结构化执行错误才标记 Command 失败", async () => {
-    const outcomes: string[] = [];
-    const telemetry = recordingBashTelemetry(outcomes);
+  it("保留非零退出码和结构化启动错误的事实", async () => {
     const nonZeroPort: ExecutionPort = {
       async run() {
         return executionResult({ status: "failed", exitCode: 1 });
       },
     };
-    await bashHandler(
-      { command: "grep missing file.txt" },
-      contextWith(nonZeroPort, { telemetry }),
-    );
-    expect(outcomes).toEqual(["exit:1", "completed"]);
-
-    outcomes.length = 0;
+    const nonZero = await bashHandler({ command: "grep missing file.txt" }, contextWith(nonZeroPort));
+    expect(nonZero).toMatchObject({ exitCode: 1, status: "failed" });
     const spawnErrorPort: ExecutionPort = {
       async run() {
         return executionResult({
@@ -282,8 +277,8 @@ describe("bashHandler", () => {
         });
       },
     };
-    await bashHandler({ command: "missing-command" }, contextWith(spawnErrorPort, { telemetry }));
-    expect(outcomes).toEqual(["failed:spawn"]);
+    const spawnError = await bashHandler({ command: "missing-command" }, contextWith(spawnErrorPort));
+    expect(spawnError).toMatchObject({ status: "spawn_error", stderr: "spawn failed" });
   });
 
   it.each([
@@ -483,7 +478,7 @@ describe("bashHandler", () => {
         },
       },
     });
-    expect((output as any).perf.detail.command.hash).toMatch(/^[a-f0-9]{16}$/u);
+    expect((output as any).perf.detail.command.hash).toBeUndefined();
     expect(JSON.stringify((output as any).perf)).not.toContain("npm test");
   });
 
@@ -607,7 +602,7 @@ describe("bashHandler", () => {
   });
 
   it("resets main Bash cwd to workspace root and exposes the cwd reset stderr when final cwd leaves workspace", async () => {
-    const outsideCwd = resolve("/tmp/zcode-outside");
+    const outsideCwd = resolve(nativeFixturePath("/tmp/zcode-outside"));
     let observedCwd: string | undefined;
     const executionPort: ExecutionPort = {
       async run() {
@@ -641,7 +636,7 @@ describe("bashHandler", () => {
   });
 
   it("preserves existing stderr content when appending cwd reset stderr", async () => {
-    const outsideCwd = resolve("/tmp/zcode-stderr-outside");
+    const outsideCwd = resolve(nativeFixturePath("/tmp/zcode-stderr-outside"));
     const executionPort: ExecutionPort = {
       async run() {
         return executionResult({
@@ -668,7 +663,7 @@ describe("bashHandler", () => {
   });
 
   it("does not leave stray carriage returns when appending cwd reset stderr", async () => {
-    const outsideCwd = resolve("/tmp/zcode-crlf-stderr-outside");
+    const outsideCwd = resolve(nativeFixturePath("/tmp/zcode-crlf-stderr-outside"));
     const executionPort: ExecutionPort = {
       async run() {
         return executionResult({
@@ -697,7 +692,7 @@ describe("bashHandler", () => {
   it("keeps cwd reset stderr even when project cwd env is present", async () => {
     const previousEnv = process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR;
     process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
-    const outsideCwd = resolve("/tmp/zcode-env-outside");
+    const outsideCwd = resolve(nativeFixturePath("/tmp/zcode-env-outside"));
     let observedCwd: string | undefined;
     const executionPort: ExecutionPort = {
       async run() {
@@ -745,7 +740,7 @@ describe("bashHandler", () => {
         return executionResult({
           status: "completed",
           exitCode: 0,
-          resolvedCwd: "/tmp/subagent-outside",
+          resolvedCwd: nativeFixturePath("/tmp/subagent-outside"),
           stdout: "child\n",
         });
       },
@@ -809,7 +804,7 @@ describe("bashHandler", () => {
       executionResult({
         status: "failed",
         exitCode: 1,
-        resolvedCwd: "/tmp/ignored",
+        resolvedCwd: nativeFixturePath("/tmp/ignored"),
       }),
     ],
     [
@@ -817,7 +812,7 @@ describe("bashHandler", () => {
       executionResult({
         status: "timed_out",
         timedOut: true,
-        resolvedCwd: "/tmp/ignored",
+        resolvedCwd: nativeFixturePath("/tmp/ignored"),
       }),
     ],
   ])("does not update cwd for %s Bash results", async (_name, result) => {
@@ -1330,9 +1325,9 @@ describe("bashHandler", () => {
             taskId: "exec_bg",
             status: "running" as const,
             startedAt: new Date(),
-            outputPath: "/tmp/exec_bg-stdout.log",
-            stdoutPersistedOutputPath: "/tmp/exec_bg-stdout.log",
-            stderrPersistedOutputPath: "/tmp/exec_bg-stderr.log",
+            outputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+            stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+            stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stderr.log"),
           },
         };
       },
@@ -1363,9 +1358,9 @@ describe("bashHandler", () => {
     });
     expect(output.status).toBe("backgrounded");
     expect(output.backgroundTaskId).toBe("exec_bg");
-    expect(output.persistedOutputPath).toBe("/tmp/exec_bg-stdout.log");
-    expect(output.stdoutPersistedOutputPath).toBe("/tmp/exec_bg-stdout.log");
-    expect(output.stderrPersistedOutputPath).toBe("/tmp/exec_bg-stderr.log");
+    expect(output.persistedOutputPath).toBe(nativeFixturePath("/tmp/exec_bg-stdout.log"));
+    expect(output.stdoutPersistedOutputPath).toBe(nativeFixturePath("/tmp/exec_bg-stdout.log"));
+    expect(output.stderrPersistedOutputPath).toBe(nativeFixturePath("/tmp/exec_bg-stderr.log"));
     expect(output.interrupted).toBe(false);
     // 显式后台不是超时触发的，不记录超时。
     expect(output.timedOutAfterMs).toBeUndefined();
@@ -1385,7 +1380,7 @@ describe("bashHandler", () => {
               taskId: "exec_bg",
               status: "running" as const,
               startedAt: new Date(),
-              outputPath: "/tmp/exec_bg.output",
+              outputPath: nativeFixturePath("/tmp/exec_bg.output"),
             },
           };
         },
@@ -1412,7 +1407,7 @@ describe("bashHandler", () => {
           taskId: "exec_bg_decimal",
           status: "running" as const,
           startedAt: new Date(),
-          outputPath: "/tmp/exec_bg_decimal.output",
+          outputPath: nativeFixturePath("/tmp/exec_bg_decimal.output"),
         },
       })),
     };
@@ -1481,9 +1476,9 @@ describe("bashHandler", () => {
           status: "failed",
           stdout: "abc",
           stderr: "def",
-          stdoutArtifactPath: "/tmp/stdout.log",
+          stdoutArtifactPath: nativeFixturePath("/tmp/stdout.log"),
           stdoutArtifactBytes: 3,
-          stderrArtifactPath: "/tmp/stderr.log",
+          stderrArtifactPath: nativeFixturePath("/tmp/stderr.log"),
           stderrArtifactBytes: 3,
         });
       },
@@ -1496,9 +1491,9 @@ describe("bashHandler", () => {
       contextWith(executionPort),
     )) as BashOutput;
 
-    expect(output.persistedOutputPath).toBe("/tmp/stdout.log");
-    expect(output.stdoutPersistedOutputPath).toBe("/tmp/stdout.log");
-    expect(output.stderrPersistedOutputPath).toBe("/tmp/stderr.log");
+    expect(output.persistedOutputPath).toBe(nativeFixturePath("/tmp/stdout.log"));
+    expect(output.stdoutPersistedOutputPath).toBe(nativeFixturePath("/tmp/stdout.log"));
+    expect(output.stderrPersistedOutputPath).toBe(nativeFixturePath("/tmp/stderr.log"));
     expect(output.persistedOutputSize).toBe(6);
     expect(output.stdoutPersistedOutputSize).toBe(3);
     expect(output.stderrPersistedOutputSize).toBe(3);
@@ -1511,7 +1506,7 @@ describe("bashHandler", () => {
           status: "completed",
           stdout: "preview",
           stdoutBytes: 80 * 1024 * 1024,
-          stdoutArtifactPath: "/tmp/stdout.log",
+          stdoutArtifactPath: nativeFixturePath("/tmp/stdout.log"),
           stdoutArtifactBytes: 64 * 1024 * 1024,
           stdoutTruncated: true,
         });
@@ -1978,13 +1973,13 @@ describe("bashHandler", () => {
       stderr: "",
       interrupted: false,
       status: "completed",
-      persistedOutputPath: "/tmp/stdout.log",
+      persistedOutputPath: nativeFixturePath("/tmp/stdout.log"),
       stdoutBytes: 20_000,
       stderrBytes: 0,
     } satisfies BashOutput);
 
     expect(persisted).toContain("<persisted-output>");
-    expect(persisted).toContain("Full output saved to: /tmp/stdout.log");
+    expect(persisted).toContain(`Full output saved to: ${nativeFixturePath("/tmp/stdout.log")}`);
     expect(persisted).toContain("Preview (first 2KB):");
     expect(persisted).toContain("</persisted-output>");
   });
@@ -2713,13 +2708,13 @@ describe("bashHandler", () => {
       interrupted: false,
       status: "backgrounded",
       backgroundTaskId: "exec_bg",
-      persistedOutputPath: "/tmp/exec_bg-stdout.log",
-      stdoutPersistedOutputPath: "/tmp/exec_bg-stdout.log",
-      stderrPersistedOutputPath: "/tmp/exec_bg-stderr.log",
+      persistedOutputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+      stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+      stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stderr.log"),
     } satisfies BashOutput);
 
     expect(modelContent).toBe(
-      "Command running in background with ID: exec_bg. Output is being written to: /tmp/exec_bg-stdout.log. You will be notified when it completes. To check interim output, use Read on that file path.",
+      `Command running in background with ID: exec_bg. Output is being written to: ${nativeFixturePath("/tmp/exec_bg-stdout.log")}. You will be notified when it completes. To check interim output, use Read on that file path.`,
     );
   });
 });
@@ -2873,46 +2868,6 @@ function contextWith(
     workspaceRoot: options.workspaceRoot ?? defaultCommandRoot,
     sessionId: "sess_test",
     turnId: "turn_test",
-  };
-}
-
-function recordingBashTelemetry(outcomes: string[]): ToolExecutionSpanWriter {
-  const command: CommandExecutionSpanWriter = {
-    captureCausation: () => undefined,
-    finishBackgrounded() {
-      outcomes.push("backgrounded");
-    },
-    finishCancelled() {
-      outcomes.push("cancelled");
-    },
-    finishCompleted() {
-      outcomes.push("completed");
-    },
-    finishFailed(stage) {
-      outcomes.push(`failed:${stage}`);
-    },
-    markFirstOutput() {},
-    markTerminationRequested() {},
-    run: (execute) => execute(),
-    setExitCode(exitCode) {
-      outcomes.push(`exit:${exitCode}`);
-    },
-    setOutputBytes() {},
-    setSignal() {},
-    setTimedOut() {},
-  };
-  return {
-    captureCausation: () => undefined,
-    finishCancelled() {},
-    finishCompleted() {},
-    finishDenied() {},
-    finishFailed() {},
-    markPermissionRequested() {},
-    run: (execute) => execute(),
-    setOutputBytes() {},
-    setOutputTruncated() {},
-    setPermissionDecision() {},
-    startCommand: () => command,
   };
 }
 

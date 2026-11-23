@@ -12,9 +12,9 @@ import {
 
 describe("Node workflow store", () => {
   it("defaults to the CLI workflows directory", () => {
-    expect(getDefaultWorkflowRoot()).toContain(join(".zcode", "cli", "workflows"));
+    expect(getDefaultWorkflowRoot()).toContain(join(".zcodium", "cli", "workflows"));
     expect(getDefaultWorkflowDefinitionsRoot()).toContain(
-      join(".zcode", "cli", "workflows", "definitions"),
+      join(".zcodium", "cli", "workflows", "definitions"),
     );
   });
 
@@ -84,7 +84,7 @@ describe("Node workflow store", () => {
       });
       const artifact = await store.writeArtifact("wf_test", "artifacts/clarify.md", "# ok\n");
 
-      expect(artifact.relativePath).toBe("artifacts/clarify.md");
+      expect(artifact.relativePath).toBe(join("artifacts", "clarify.md"));
       expect((await store.readRun("wf_test"))?.task).toBe("work");
       expect((await store.readLatestRun({ cwd: "/repo", kind: "expert" }))?.runId).toBe("wf_test");
       expect(await store.readEvents("wf_test")).toHaveLength(1);

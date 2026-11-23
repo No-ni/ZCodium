@@ -92,8 +92,8 @@ test("real Anthropic SDK mock wire retains tool_reference/defer_loading/beta eve
 });
 
 test("unsupported/non-native requests never serialize native references or deferLoading", () => {
-  const transformed = toAiSdkMessages(messages, { providerKind: "google" });
-  assert.ok(!JSON.stringify(transformed).includes('"type":"custom"'));
+  // 非 Native 请求由上层投影去除引用；漏投影必须在 wire 边界明确拒绝，不能默默丢掉历史。
+  assert.throws(() => toAiSdkMessages(messages, { providerKind: "google" }), /Tool references require active Anthropic ToolSearch/);
   const tools = toAiSdkTools(
     [{ name: "FixtureTool", inputSchema: { type: "object" }, deferLoading: true }] as any,
     { providerKind: "anthropic" },

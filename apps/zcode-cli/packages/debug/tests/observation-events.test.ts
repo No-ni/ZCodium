@@ -31,7 +31,9 @@ describe("observation events", () => {
       const eventText = await readUntil(reader, "event: change");
 
       expect(eventText).toContain("结构化日志");
-      expect(eventText).toContain(logDir);
+      // SSE 的 JSON 在 Windows 会转义反斜杠；比较解析后的数据，保持真实路径断言。
+      const payload = JSON.parse(eventText.split("\n").find((line) => line.startsWith("data: "))!.slice(6));
+      expect(payload.changedSources.some((source: {path: string}) => source.path === logDir)).toBe(true);
     } finally {
       await reader.cancel();
     }

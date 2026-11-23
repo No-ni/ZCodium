@@ -146,6 +146,7 @@ describe("notifyHoleReached", () => {
       line: 3,
       before: "start",
       after: "build",
+      reachedAt: 10,
     });
   });
 

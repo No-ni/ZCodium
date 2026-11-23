@@ -30,6 +30,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -143,11 +144,7 @@ import {
 } from "@/v4/composer/followupModeSettings.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModifier.js";
-import {
-  consumeV4ComposerDraftAttachments,
-  registerV4ComposerDraftReader,
-  consumeV4ComposerDraftWorkspaceTransferRequest,
-} from "@/v4/composer/composerDraftWorkspaceTransfer.js";
+import { consumeV4ComposerDraftWorkspaceTransferRequest } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
 import {
   buildScopeKey as buildComposerAttachmentScopeKey,
   useComposerAttachments,
@@ -361,53 +358,6 @@ export interface ComposerRestoreRequest {
   config?: Pick<V4ComposerDraft, "mode" | "planEnabled" | "modelSelection">;
 }
 
-function applyComposerRestoreRequestToComposer({
-  appliedRequestId,
-  currentSessionId,
-  currentWorkspaceKey,
-  hasDraftContent,
-  inputApi,
-  request,
-  requestFocus,
-  restoreSessionOwnedAttachments,
-  restoreDraftConfig,
-  scheduleDraftPersist,
-  updateText,
-}: {
-  appliedRequestId: number | null;
-  currentSessionId: string | null;
-  currentWorkspaceKey: string;
-  hasDraftContent: boolean;
-  inputApi: Pick<LexicalChatInputHandle, "setText"> | null;
-  request: ComposerRestoreRequest | null | undefined;
-  requestFocus: () => void;
-  restoreSessionOwnedAttachments: (attachments: readonly AttachmentRef[]) => boolean;
-  restoreDraftConfig?: (config: NonNullable<ComposerRestoreRequest["config"]>) => void;
-  scheduleDraftPersist: () => void;
-  updateText: (text: string) => void;
-}): number | null {
-  if (!request || request.requestId === appliedRequestId) {
-    return appliedRequestId;
-  }
-  if (
-    request.sessionId !== currentSessionId ||
-    request.workspaceKey !== currentWorkspaceKey ||
-    hasDraftContent ||
-    !inputApi
-  ) {
-    return appliedRequestId;
-  }
-  if (!restoreSessionOwnedAttachments(request.attachments)) {
-    return appliedRequestId;
-  }
-  inputApi.setText(request.text);
-  updateText(request.text);
-  if (request.config) restoreDraftConfig?.(request.config);
-  scheduleDraftPersist();
-  requestFocus();
-  return request.requestId;
-}
-
 function arePromptHistoryEntriesEqual(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
@@ -588,13 +538,9 @@ function ConversationComposerImpl({
   rootDraftScopeKey,
   captureComposerSubmissionDraftTransaction,
   updateComposerContent,
-  stageComposerContent,
-  persistComposerContent,
-  captureComposerContentLifecycleCommit,
   replaceComposerDraft,
   submissionReady = true,
   createSubmissionFromComposer,
-
   contextHeader,
   leadingActionsNode: admissionActionsNode,
   centered = false,
@@ -603,8 +549,6 @@ function ConversationComposerImpl({
   blockingRequestId = null,
   disabled: disabledProp = false,
   modelSelectionPending = false,
-  onRetryInitialization,
-  onRetryError,
   autoFocusEnabled = true,
   workspacePath,
   workspaceIdentity,
@@ -620,7 +564,6 @@ function ConversationComposerImpl({
   onRuntimeRestart,
   onRuntimeLifecycle,
   provider,
-
   onSendText,
   onTextChange,
   onDraftStateChange,
@@ -665,8 +608,6 @@ function ConversationComposerImpl({
   const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
   const [text, setText] = useState("");
   const reloadText = text.trim() === "/reload";
-  const [textPresence, setTextPresence] = useState({ raw: false, trimmed: false });
-  const textPresenceRef = useRef(textPresence);
   const [pendingSubmission, setPendingSubmission] = useState<{ scopeToken: symbol } | null>(null);
   const pending = pendingSubmission?.scopeToken === composerDraftScopeToken;
   const [configPickerState, setConfigPickerState] = useState<{
@@ -740,7 +681,7 @@ function ConversationComposerImpl({
     },
     [],
   );
-  const reportedErrorKeysRef = useRef(new Set<string>());
+
   const primaryModifierPressed = usePrimaryFollowupModifier();
   const appleKeyboardPlatform = isAppleKeyboardPlatform();
   const enterSubmits = true;
@@ -770,6 +711,12 @@ function ConversationComposerImpl({
     disabled,
     listenAddToChatEvents: listenAddToChatEvents && !disabled,
   });
+  const {
+    handleDragOverComposer,
+    handleDragLeaveComposer,
+    handleDropComposer,
+    openAttachmentPicker,
+  } = attachmentsApi;
   // 对齐旧版 useChatComposer：窗口级 dragover 会在指针进入 ChatView 前预先点亮
   // 整个聊天区与桌面草稿标题栏；workspace payload 的文案优先于系统附件。
   const { externalFileDragging, workspaceFileDragging } = usePromptEditorDragState({
@@ -778,15 +725,15 @@ function ConversationComposerImpl({
   });
   const handleConversationDragOver = useCallback(
     (event: DragEvent<HTMLElement>) => {
-      attachmentsApi.handleDragOverComposer(event);
+      handleDragOverComposer(event);
     },
-    [attachmentsApi.handleDragOverComposer],
+    [handleDragOverComposer],
   );
   const handleConversationDragLeave = useCallback(
     (event: DragEvent<HTMLElement>) => {
-      attachmentsApi.handleDragLeaveComposer(event);
+      handleDragLeaveComposer(event);
     },
-    [attachmentsApi.handleDragLeaveComposer],
+    [handleDragLeaveComposer],
   );
   const handleConversationDrop = useCallback(
     (event: DragEvent<HTMLElement>) => {
@@ -794,7 +741,7 @@ function ConversationComposerImpl({
       if (workspaceFilePayload) {
         // 文件树 payload 与 OS File[] 语义不同：只插入 mention，绝不能进入上传队列。
         event.preventDefault();
-        attachmentsApi.handleDropComposer(event);
+        handleDropComposer(event);
         appendWorkspaceFileMentionToComposer({
           inputApiRef,
           currentMarkdown: inputApiRef.current?.getMarkdown() ?? textRef.current,
@@ -811,10 +758,10 @@ function ConversationComposerImpl({
         });
         return;
       }
-      attachmentsApi.handleDropComposer(event);
+      handleDropComposer(event);
     },
     [
-      attachmentsApi.handleDropComposer,
+      handleDropComposer,
       fileReferenceRootResolved,
       fileSearchRootPath,
       updateText,
@@ -990,7 +937,7 @@ function ConversationComposerImpl({
         return;
       }
     },
-    [snapshotDraftOfEditor, updateComposerContent, workspaceIdentity, workspacePath],
+    [snapshotDraftOfEditor, updateComposerContent],
   );
 
   const scheduleDraftPersist = useCallback(() => {
@@ -1086,8 +1033,15 @@ function ConversationComposerImpl({
 
   // 最近一次已把草稿载入 Lexical 的 edit scope；只用于编辑态顶部内容的显示时机。
   const [appliedDraftScopeId, setAppliedDraftScopeId] = useState<string | null>(null);
+  // 正文更新不能再次回填编辑器；只在现有 scope 换代时读取最新草稿和结算身份。
+  const readDraftRestoreInputs = useEffectEvent(() => ({
+    composerDraft,
+    workspaceKey,
+    composerDraftScopeToken,
+  }));
   // scope 切换：先落旧 scope 草稿，再恢复新 scope（editorStateJson 优先，退纯文本）。
   useEffect(() => {
+    const { composerDraft, workspaceKey, composerDraftScopeToken } = readDraftRestoreInputs();
     const previousTarget = draftTargetRef.current;
     const targetChanged =
       previousTarget.scopeId !== draftScopeId ||
@@ -1769,7 +1723,7 @@ function ConversationComposerImpl({
         }
         if (isCurrentSubmissionScope()) setHeldQueueConfirmation(null);
         await settleSubmittedContent();
-      } catch (error) {
+      } catch {
         // 已经接纳的命令不得因本地结算失败恢复为可重复发送正文。
         if (submissionAccepted) {
           logger.warn("[v4-composer] 已接纳输入的本地结算未完成");
@@ -1796,22 +1750,16 @@ function ConversationComposerImpl({
       }
     },
     [
-      recoveryCommand,
-      recoveryAllowed,
       attachmentsApi,
       conversationSelectionReferences,
-      draftConfig,
       draftScopeIdProp,
       createSubmissionFromComposer,
       composerDraftScopeToken,
       captureComposerSubmissionDraftTransaction,
       submissionReady,
       getCodeCommentContexts,
-      modelSelectionView,
       onSendText,
       pendingShareContext,
-      provider,
-
       removeCodeCommentContext,
       removeConversationSelectionReference,
       removePptxElementReference,
@@ -1821,13 +1769,13 @@ function ConversationComposerImpl({
       sessionId,
       snapshotDraftOfEditor,
       updateText,
-      updateComposerContent,
       webElementContexts,
       pptxElementReferences,
       workspaceIdentity,
       workspaceKey,
       workspacePath,
       onSubmissionSettled,
+      draftScopeId,
     ],
   );
   latestSubmitRef.current = submit;
@@ -1839,18 +1787,6 @@ function ConversationComposerImpl({
     // 与发送按钮共用提交事务：草稿冻结、附件门禁、失败恢复与成功结算保持一致。
     void submit();
   }, [editSubmitRequest, submit]);
-
-  const handleUserInputPresenceChange = useCallback(
-    (presence: { raw: boolean; trimmed: boolean }) => {
-      const currentPresence = textPresenceRef.current;
-      if (currentPresence.raw === presence.raw && currentPresence.trimmed === presence.trimmed) {
-        return;
-      }
-      textPresenceRef.current = presence;
-      setTextPresence(presence);
-    },
-    [],
-  );
 
   // Lexical onChange（首字符也稳定回传，见 LexicalChatInput.TextContentPlugin）。
   const handleEditorChange = useCallback(
@@ -2006,10 +1942,10 @@ function ConversationComposerImpl({
     () => ({
       label: intl.formatMessage({ id: "chat.composer.attachment" }),
       menuItemTestId: TID_CHAT_ATTACHMENT_MENU_ITEM,
-      onSelect: () => attachmentsApi.openAttachmentPicker(),
+      onSelect: () => openAttachmentPicker(),
       testId: TID_CHAT_ATTACHMENT_BUTTON,
     }),
-    [intl, attachmentsApi.openAttachmentPicker],
+    [intl, openAttachmentPicker],
   );
 
   // ── 附件预览网格 ──
@@ -2375,6 +2311,7 @@ function ConversationComposerImpl({
     );
   }, [
     attachmentPreviewTitle,
+    videoAttachmentPreviewTitle,
     attachmentsApi,
     clearCodeCommentContexts,
     clearConversationSelectionReferences,
@@ -2394,7 +2331,6 @@ function ConversationComposerImpl({
     removePluginUiContext,
     removePptxElementReference,
     conversationSelectionReferences,
-    pendingShareContext,
     pillWebElementContexts,
     pluginUiContexts,
     pptxElementReferences,
@@ -2469,7 +2405,7 @@ function ConversationComposerImpl({
               onConnectionPendingChange={handleConnectionPendingChange}
               activeConfigPicker={activeConfigPicker}
               onConfigPickerOpenChange={handleConfigPickerOpenChange}
-              onSelectModel={onSelectModel}
+              onSelectModel={handleSelectModel}
               onSelectThought={onSelectThought}
               onSwitchMode={onSwitchMode}
               onRecoverCustomModelSelection={onRecoverCustomModelSelection}
@@ -2521,6 +2457,10 @@ function ConversationComposerImpl({
       composerPhase,
       composerUsage,
       disabled,
+      runtimeBlocked,
+      remoteAvailable,
+      isMobileTextInputViewport,
+      intl,
       modelSelectionPending,
       handleConnectionPendingChange,
       draftConfig,
@@ -2528,7 +2468,6 @@ function ConversationComposerImpl({
       handleStopClick,
       handleSendButtonClick,
       handleConfigPickerOpenChange,
-      mode,
       handleSelectModel,
       modelSelectionReload,
       modelSelectionState,
@@ -2543,8 +2482,6 @@ function ConversationComposerImpl({
       resolvedSendTooltipShortcut,
       resolvedSendTooltipTitle,
       sendTooltipOpen,
-      sendShortcut,
-      sendTooltipTitle,
       sessionId,
       pluginUiSessionId,
       showStopControl,
@@ -2603,9 +2540,6 @@ function ConversationComposerImpl({
       provider,
       remoteSessionId,
       runningSubagentCount,
-      sessionId,
-      workspaceHookAdmission,
-      workspaceMcpAdmission,
       backgroundWorks,
       workspaceIdentity,
       workspacePath,

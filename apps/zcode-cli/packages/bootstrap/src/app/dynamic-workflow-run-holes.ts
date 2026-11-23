@@ -74,7 +74,7 @@ export function openHoleIndexes(
   return indexes.length === 0 ? undefined : indexes;
 }
 
-/** 快照投影要读的两类事件；`listEvents` 读全部、这里再按类型有界过滤（内存 journal 无类型下推）。 */
+/** 快照投影只读留白与启动元数据；两类 journal 都支持类型过滤。 */
 const HOLE_EVENT_TYPES: ReadonlySet<string> = new Set(["hole-reached", "hole-filled", "run-launched"]);
 
 type HoleReachedEvent = Extract<RunEvent, { type: "hole-reached" }>;
@@ -83,7 +83,8 @@ type HoleFilledEvent = Extract<RunEvent, { type: "hole-filled" }>;
 /** 快照投影的事件读：留白事件与首条 `run-launched`（阶段表的冷来源），一次有类型过滤的窄读。 */
 export function readRunHoleEvents(journal: JournalStorePort, runId: string): StoredEvent[] {
   return journal
-    .listEvents(runId, { types: "all", reportItems: "all" })
+    // 先在存储层裁掉报告正文；事后 filter 不能阻止全量报告进入堆。
+    .listEvents(runId, { types: ["hole-reached", "hole-filled", "run-launched"], reportItems: { limit: 0 } })
     .filter((stored) => HOLE_EVENT_TYPES.has(stored.event.type));
 }
 

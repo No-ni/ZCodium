@@ -48,15 +48,9 @@ describe("debug API", () => {
     );
   });
 
-  it("returns a stable disabled status when network capture is not attached", async () => {
+  it("does not expose the retired network capture endpoint", async () => {
     const app = createDebugApp();
     const response = await app.request("/api/network/status");
-    const body = (await response.json()) as { enabled: boolean; running: boolean };
-
-    expect(response.status).toBe(200);
-    expect(body).toMatchObject({
-      enabled: false,
-      running: false,
-    });
+    expect(response.status).toBe(404);
   });
 });

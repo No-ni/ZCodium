@@ -34,6 +34,7 @@ describe("browser-client bundle boundary", () => {
 
     const contractInputs = inputs.filter((path) => /(?:^|\/)contracts\/dist\//u.test(path));
     expect(contractInputs).toEqual([
+      expect.stringMatching(/contracts\/dist\/interfaces\/browser-control-commands\.js$/u),
       expect.stringMatching(/contracts\/dist\/interfaces\/browser-control\.port\.js$/u),
     ]);
   });

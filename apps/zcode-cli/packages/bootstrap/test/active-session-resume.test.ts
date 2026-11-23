@@ -9,11 +9,11 @@ import type {
   ZCodeProtocolAgentServerContext,
   ZCodeProtocolSessionRecord,
 } from "../src/zcode-protocol/server-types.js";
-import type { SessionResidentPool } from "../src/zcode-protocol/session-resident-pool.js";
+import { SessionLifecycleController } from "../src/session-lifecycle/index.js";
 import type { ZCodeSessionPersistence, ZCodeSessionResumeParams } from "@zcode/shared";
 import type { V4InteractionRegistry } from "../src/zcode-protocol-v4/interaction-registry.js";
 
-test("waits for deactivation and reuses the resident session without cold restoration", async () => {
+test("waits for the lifecycle release and reuses the available resident without cold restoration", async () => {
   const sessionId = "active-session-resume";
   const calls = {
     appResume: 0,
@@ -52,13 +52,6 @@ test("waits for deactivation and reuses the resident session without cold restor
 
   const deactivationEntered = Promise.withResolvers<void>();
   const finishDeactivation = Promise.withResolvers<void>();
-  const sessionResidentPool = {
-    waitForDeactivation: async (requestedSessionId: string) => {
-      calls.waitForDeactivation.push(requestedSessionId);
-      deactivationEntered.resolve();
-      await finishDeactivation.promise;
-    },
-  } as unknown as SessionResidentPool;
   const deps = {
     createSessionEventStore: () => {
       calls.createSessionEventStore += 1;
@@ -85,14 +78,29 @@ test("waits for deactivation and reuses the resident session without cold restor
     requestClient: async <T>() => {
       throw new Error("resident resume must not request client data");
     },
-    sessionResidentPool,
     sessions: new Map([[sessionId, resident]]),
     v4Interactions: {} as unknown as V4InteractionRegistry,
   };
   const params: ZCodeSessionResumeParams = { sessionId, workspace: resident.workspace };
 
-  const activation = activateSessionForResume(context, params);
+  // 上游已由 Lifecycle owner 统一串行释放与恢复，旧 resident-pool 替身不再是准入入口。
+  const lifecycle = new SessionLifecycleController({
+    exists: async () => true,
+    hasRuntime: () => context.sessions.has(sessionId),
+    validateActivation: async () => {},
+    activate: async () => assert.fail("available resident does not need cold activation"),
+    assertCanStop: () => {},
+    release: async (requestedSessionId) => {
+      calls.waitForDeactivation.push(requestedSessionId);
+      deactivationEntered.resolve();
+      await finishDeactivation.promise;
+    },
+  });
+  context.sessionLifecycle = lifecycle;
+  const release = lifecycle.dispose(sessionId);
   await deactivationEntered.promise;
+
+  const activation = activateSessionForResume(context, params);
   let settled = false;
   void activation.then(
     () => {
@@ -108,6 +116,7 @@ test("waits for deactivation and reuses the resident session without cold restor
   assert.deepEqual(calls.waitForDeactivation, [sessionId]);
 
   finishDeactivation.resolve();
+  await release;
   const activated = await activation;
 
   assert.strictEqual(activated.record, resident);

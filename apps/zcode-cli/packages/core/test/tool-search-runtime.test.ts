@@ -138,7 +138,7 @@ test("stream and nonstream model admission emit real target/input while retainin
     const emitted: any[] = [];
     const accepted: ModelToolCall[] = [];
     runtime.shouldStreamModelText = () => streaming;
-    runtime.createModelStatusSink = () => ({ emit: () => {} }) as any;
+    runtime.createModelStatusSink = () => ({ emit: () => {}, [Symbol.dispose]: () => {} }) as any;
     runtime.buildContextUsageSnapshot = () => ({}) as any;
     runtime.buildContextUsageBreakdownFromSnapshot = () => [];
     runtime.logContextUsageSnapshot = () => {};

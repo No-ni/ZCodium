@@ -166,7 +166,7 @@ describe("bash runtime permission capability", () => {
       "tput cols",
       "strings fixture.bin",
       "jq '.scripts' package.json",
-      "xargs grep -n foo",
+      ...(process.platform === "win32" ? [] : ["xargs grep -n foo"]),
       "sort README.md",
       "uniq README.md",
       "cut -d: -f1 README.md",

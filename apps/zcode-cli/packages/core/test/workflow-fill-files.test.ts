@@ -6,13 +6,13 @@ import {
   realpath,
   writeFile,
   utimes,
-  symlink,
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
+import { createProjectTestSymlink } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 import {
   pruneWorkflowFillFiles,
   resolveWorkflowFillFilePath,
@@ -98,7 +98,7 @@ describe("workflow fill files — actual disk IO", () => {
       const configuredRoot = path.join(root, "configured-root");
       const aliasRoot = path.join(root, "root-alias");
       await mkdir(configuredRoot);
-      await symlink(configuredRoot, aliasRoot, "dir");
+      await createProjectTestSymlink(configuredRoot, aliasRoot, "dir");
       const file = await writeWorkflowFillFile({
         root: aliasRoot,
         ...scope,
@@ -112,14 +112,14 @@ describe("workflow fill files — actual disk IO", () => {
       );
 
       const outsideAlias = path.join(root, "outside-link.dwf.ts");
-      await symlink(file, outsideAlias);
+      await createProjectTestSymlink(file, outsideAlias);
       await assert.rejects(
         resolveWorkflowFillFilePath(outsideAlias, root, { root: aliasRoot, ...scope }),
         /symlink/,
       );
 
       const insideAlias = path.join(path.dirname(file), "same-scope-link.dwf.ts");
-      await symlink(file, insideAlias);
+      await createProjectTestSymlink(file, insideAlias);
       await assert.rejects(
         resolveWorkflowFillFilePath(insideAlias, root, { root: aliasRoot, ...scope }),
         /symlink/,
@@ -144,7 +144,7 @@ describe("workflow fill files — actual disk IO", () => {
       const own = await writeWorkflowFillFile({ root, ...scope, holeName: "own", source });
       assert.ok(own);
       const link = path.join(path.dirname(own), "linked.dwf.ts");
-      await symlink(file, link);
+      await createProjectTestSymlink(file, link);
       await assert.rejects(
         resolveWorkflowFillFilePath(link, root, { root, ...scope }),
         /scope|symlink/,
@@ -160,7 +160,7 @@ describe("workflow fill files — actual disk IO", () => {
       await writeFile(note, "keep");
       await utimes(note, 1, 1);
       const link = path.join(path.dirname(old), "keep-link.dwf.ts");
-      await symlink(note, link);
+      await createProjectTestSymlink(note, link);
       assert.equal(await pruneWorkflowFillFiles(root, { now: 10000, retentionMs: 5000 }), 1);
       assert.equal(await readFile(note, "utf8"), "keep");
       assert.equal(await readFile(link, "utf8"), "keep");

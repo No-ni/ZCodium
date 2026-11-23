@@ -185,15 +185,6 @@ export function createScriptWorkflowAgentRuntime(input: {
       ...(childBrowserControlPort === undefined
         ? {}
         : { browserControlPort: childBrowserControlPort }),
-      ...(input.browserControlPort === undefined
-        ? {}
-        : {
-            browserControlPort:
-              input.browserControlPort.forChildSession?.({
-                childSessionId: input.childSessionId,
-                parentSessionId: input.deps.sessionId,
-              }) ?? input.browserControlPort,
-          }),
       ...(input.workflowSubmitPort ? { workflowSubmitPort: input.workflowSubmitPort } : {}),
       ...(input.workflowSubmitPort && input.workflowSubmitSchema
         ? { workflowSubmitSchema: input.workflowSubmitSchema }

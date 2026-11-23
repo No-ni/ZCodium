@@ -311,6 +311,8 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       </div>
     ),
     [
+      // 与执行分组一致：保持同一 renderer owner，回调替换时更新展开的子块。
+      ToolCallBlock,
       childToolCalls,
       context.onOpenBrowserUrl,
       context.onOpenCodeViewer,

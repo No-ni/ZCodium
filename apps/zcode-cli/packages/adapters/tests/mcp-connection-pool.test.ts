@@ -6,7 +6,7 @@ import type {
 } from "@zcode/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createMcpConnectionPool } from "../src/mcp/pool.js";
-import { createMcpTelemetryTracker } from "../src/mcp/telemetry.js";
+import { createMcpProcessTracker } from "../src/mcp/process-tracker.js";
 
 describe("MCP connection pool isolation", () => {
   it("closing a lease cancels its resource request without cancelling another session", async () => {
@@ -67,8 +67,7 @@ describe("MCP connection pool isolation", () => {
 
   it("reports one startup count snapshot for a session lease", async () => {
     const events: unknown[] = [];
-    const telemetry = createMcpTelemetryTracker({
-      idSalt: "device-a",
+    const telemetry = createMcpProcessTracker({
       onEvent: (event) => events.push(event),
     });
     const pool = createMcpConnectionPool({
@@ -79,7 +78,7 @@ describe("MCP connection pool isolation", () => {
           serverName === "pending" ? "connecting" : "connected",
         ),
       idleGraceMs: 0,
-      telemetry,
+      processTracker: telemetry,
     });
     const session = pool.acquireLease({ leaseId: "session-a", sessionId: "session-a" });
 
@@ -111,8 +110,7 @@ describe("MCP connection pool isolation", () => {
   it("reports a built-in plugin MCP process with the built-in telemetry source", async () => {
     let connectionId: string | undefined;
     const events: Array<{ kind: string; mcpId?: string; mcpSource?: string }> = [];
-    const telemetry = createMcpTelemetryTracker({
-      idSalt: "device-a",
+    const telemetry = createMcpProcessTracker({
       onEvent: (event) => events.push(event),
       randomId: () => "mcp-instance-1",
     });
@@ -122,7 +120,7 @@ describe("MCP connection pool isolation", () => {
         return createFakeAdapter(serverName);
       },
       idleGraceMs: 0,
-      telemetry,
+      processTracker: telemetry,
     });
     const session = pool.acquireLease({ leaseId: "session-a", sessionId: "session-a" });
 
@@ -136,7 +134,7 @@ describe("MCP connection pool isolation", () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         kind: "process_start",
-        mcpId: "builtin:browser-use:browser",
+        mcpId: "mcp-instance-1",
         mcpSource: "builtin",
       }),
     );
@@ -147,14 +145,13 @@ describe("MCP connection pool isolation", () => {
 
   it("reports a zero startup snapshot for a session without configured MCP servers", async () => {
     const events: unknown[] = [];
-    const telemetry = createMcpTelemetryTracker({
-      idSalt: "device-a",
+    const telemetry = createMcpProcessTracker({
       onEvent: (event) => events.push(event),
     });
     const pool = createMcpConnectionPool({
       createAdapter: ({ serverName }) => createFakeAdapter(serverName),
       idleGraceMs: 0,
-      telemetry,
+      processTracker: telemetry,
     });
     const session = pool.acquireLease({ leaseId: "session-a", sessionId: "session-a" });
 
@@ -219,8 +216,7 @@ describe("MCP connection pool isolation", () => {
     let instanceSequence = 0;
     let connectionId: string | undefined;
     const events: Array<{ kind: string; mcpInstanceId?: string }> = [];
-    const telemetry = createMcpTelemetryTracker({
-      idSalt: "device-a",
+    const telemetry = createMcpProcessTracker({
       onEvent: (event) => events.push(event),
       randomId: () => `mcp-instance-${++instanceSequence}`,
     });
@@ -236,7 +232,7 @@ describe("MCP connection pool isolation", () => {
     const pool = createMcpConnectionPool({
       createAdapter,
       idleGraceMs: 60_000,
-      telemetry,
+      processTracker: telemetry,
     });
     const config: McpServerConfig = {
       command: "node",
@@ -261,13 +257,13 @@ describe("MCP connection pool isolation", () => {
 
     expect(createAdapter).toHaveBeenCalledOnce();
     expect(restarted).toEqual({
-      mcpId: expect.stringMatching(/^custom:[a-f0-9]{12}$/),
-      mcpInstanceId: "mcp-instance-2",
+      mcpId: "mcp-instance-1",
+      mcpInstanceId: "mcp-instance-3",
     });
     expect(events.map((event) => [event.kind, event.mcpInstanceId])).toEqual([
-      ["process_start", "mcp-instance-1"],
-      ["process_crash", "mcp-instance-1"],
       ["process_start", "mcp-instance-2"],
+      ["process_crash", "mcp-instance-2"],
+      ["process_start", "mcp-instance-3"],
     ]);
 
     await sessionB.close();
@@ -464,7 +460,7 @@ describe("MCP connection pool session workspace key", () => {
     expect(createAdapter).toHaveBeenCalledWith(
       expect.objectContaining({
         connectionContext: expect.objectContaining({
-          workspaceKey: "/data/.zcode/worktrees/3f2a/repo",
+          workspaceKey: "/projects/repo",
         }),
         workingDirectory: "/data/.zcode/worktrees/3f2a/repo",
         workspaceKey: "/projects/repo",

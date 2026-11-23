@@ -37,7 +37,7 @@ describe("node_repl MCP bundle boundary", () => {
     // 检查依赖边界而非固定包体积，允许 REPL 自身增加实现文件。
     expect(coreInputs.find((path) => !path.startsWith(`${coreRoot}repl/`))).toBeUndefined();
     expect(
-      inputs.find((path) => /(?:^|\/)(?:dynamic-workflow|typescript)\//u.test(path)),
+      inputs.find((path) => /(?:^|\/)dynamic-workflow\//u.test(path) || /\/node_modules\/typescript\//u.test(path)),
     ).toBeUndefined();
 
     const contractRoot = `${normalizePath(resolve(packageRoot, "../contracts/dist"))}/`;
@@ -45,7 +45,21 @@ describe("node_repl MCP bundle boundary", () => {
       .filter((path) => path.startsWith(contractRoot))
       .map((path) => path.slice(contractRoot.length));
     expect(contractInputs.sort()).toEqual([
+      "interfaces/mcp-connection.js",
+      "interfaces/mcp-resources.js",
+      "interfaces/mcp-tool-contract.js",
       "interfaces/mcp.port.js",
+      "protocol-values/contract.js",
+      "protocol-values/dynamic-workflow-run-event-payload.js",
+      "protocol-values/model-capabilities.js",
+      "protocol-values/model-content-order.js",
+      "protocol-values/model-identifiers.js",
+      "protocol-values/model-message-schemas.js",
+      "protocol-values/model-network-schema.js",
+      "protocol-values/model-usage.js",
+      "protocol-values/session-history-values.js",
+      "protocol-values/session-policy-values.js",
+      "protocol-values/tool-json-schema.js",
       "tools/json-schema.js",
       "tools/node-repl.js",
     ]);
@@ -53,9 +67,10 @@ describe("node_repl MCP bundle boundary", () => {
     const sharedRoot = `${normalizePath(resolve(packageRoot, "../../../../packages/shared/src"))}/`;
     const sharedInputs = inputs.filter((path) => path.startsWith(sharedRoot));
     expect(sharedInputs.length).toBeGreaterThan(0);
-    // 同一个总入口即使只取常量，也会初始化其它领域的 schema；Worker 会重复承担这份开销。
+    // 安全诊断仅依赖原净化器与它的白名单；Worker 不应从总入口重复加载其它领域。
+    const diagnosticFiles = new Set(["diagnosticPrivacy.ts", "diagnostics.ts", "diagnosticLogCatalog.ts", "processResourceTelemetry.ts"]);
     expect(
-      sharedInputs.find((path) => !path.startsWith(`${sharedRoot}browser-use/`)),
+      sharedInputs.find((path) => !path.startsWith(`${sharedRoot}browser-use/`) && !diagnosticFiles.has(path.slice(sharedRoot.length))),
     ).toBeUndefined();
   });
 });

@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -16,8 +18,8 @@ describe("project Memory retrieval branch", () => {
   });
 
   it("loads and seeds MEMORY.md only for the default-index branch", async () => {
-    const memoryRoot = "/storage/memories/projects/project-0123456789abcdef/memory";
-    const indexPath = `${memoryRoot}/MEMORY.md`;
+    const memoryRoot = nativeFixturePath("/storage/memories/projects/project-0123456789abcdef/memory");
+    const indexPath = nativeFixturePath(`${memoryRoot}/MEMORY.md`);
     const content = "- [Database policy](database-policy.md) — use the real database";
     const defaultFileSystem = new MemoryFileSystem({ [indexPath]: content });
     const defaultReadFileState = new Map();
@@ -57,8 +59,8 @@ describe("project Memory retrieval branch", () => {
     { content: "---\ninternal: hidden\n---\n", name: "frontmatter-only" },
     { content: "<!-- hidden top-level comment -->\n", name: "top-level-comment-only" },
   ])("does not seed read state for $name MEMORY.md", async ({ content }) => {
-    const memoryRoot = "/storage/memories/projects/project-0123456789abcdef/memory";
-    const indexPath = `${memoryRoot}/MEMORY.md`;
+    const memoryRoot = nativeFixturePath("/storage/memories/projects/project-0123456789abcdef/memory");
+    const indexPath = nativeFixturePath(`${memoryRoot}/MEMORY.md`);
     const fileSystem = new MemoryFileSystem({ [indexPath]: content });
     const readFileState = new Map();
     const runtime = {

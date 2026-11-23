@@ -47,13 +47,13 @@ const PARENT_SESSION_ID = "sess_worktree_fork_parent";
 type Booted = Awaited<ReturnType<typeof bootServer>>;
 
 /** 父会话直接落 sqlite（项目主目录），冷订阅即可得到可 fork 的 assistant 行，不依赖模型。 */
-async function seedParentSession(dbPath: string, directory: string) {
+async function seedParentSession(dbPath: string, directory: string, projectID = projectIdFromDirectory(directory)) {
   const store = await createSqliteSessionStore({ dbPath });
   const sessionID = PARENT_SESSION_ID as SessionId;
   try {
     await store.createSession({
       id: sessionID,
-      projectID: projectIdFromDirectory(directory),
+      projectID,
       slug: "worktree-fork-parent",
       directory,
       path: directory,
@@ -542,29 +542,11 @@ describe(
       const dashed = join(root, "projects", "my-project");
       await mkdir(spaced, { recursive: true });
       await mkdir(dashed, { recursive: true });
-      expect(projectIdFromDirectory(spaced)).toBe(projectIdFromDirectory(dashed));
+      expect(projectIdFromDirectory(spaced)).not.toBe(projectIdFromDirectory(dashed));
       const dbPath = join(root, "slug-collision.db");
-      const live = await bootServer(dbPath, paths.dataBaseDir);
-      let sessionId = "";
-      try {
-        const ack = commandAckSchema.parse(
-          await requestResult(
-            live.server,
-            command("create-spaced", "createSession", {
-              workspaceId: spaced,
-              firstInput: { text: "另一个项目", modelSelection: MODEL },
-            }),
-          ),
-        );
-        if (ack.result?.type !== "createSession") throw new Error("Expected createSession result");
-        sessionId = ack.result.sessionId;
-        await waitFor(async () => {
-          const messages = await live.store.messages({ sessionID: sessionId as SessionId });
-          return messages.some((message) => message.info.role === "user");
-        });
-      } finally {
-        await live.close();
-      }
+      // 显式注入与目标相同的旧/错误 ID；归属门禁仍必须校验目录，不能靠新 hash 绕过回归。
+      await seedParentSession(dbPath, spaced, projectIdFromDirectory(dashed));
+      const sessionId = PARENT_SESSION_ID;
 
       const cold = await bootServer(dbPath, paths.dataBaseDir);
       try {
@@ -643,7 +625,7 @@ describe(
       }
     });
 
-    it("createSession.cwd 指向普通目录：项目身份回退为 cwd；远程 workspace 结构化拒绝", async () => {
+    it("createSession.cwd 指向普通目录：执行目录与 workspace 身份分离；远程 workspace 结构化拒绝", async () => {
       const booted = await bootServer(join(root, "fallback.db"), paths.dataBaseDir);
       try {
         const ack = commandAckSchema.parse(
@@ -657,8 +639,9 @@ describe(
         );
         expect(ack.status).toBe("accepted");
         expect(booted.apps.at(-1)!.app.runtime.getProjectId()).toBe(
-          projectIdFromDirectory(paths.plain),
+          projectIdFromDirectory(paths.source),
         );
+        expect(booted.apps.at(-1)!.app.runtime.getExecutionWorkspacePath()).toBe(paths.plain);
 
         const remote = commandAckSchema.parse(
           await requestResult(

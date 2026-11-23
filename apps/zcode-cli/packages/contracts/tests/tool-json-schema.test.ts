@@ -20,7 +20,7 @@ const EXPECTED_INPUT_SCHEMAS = {
   WebSearch:
     '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"description":"The search query to use","type":"string","minLength":2},"allowed_domains":{"description":"Only include search results from these domains","type":"array","items":{"type":"string"}},"blocked_domains":{"description":"Never include search results from these domains","type":"array","items":{"type":"string"}}},"required":["query"],"additionalProperties":false}',
   ToolSearch:
-    '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"description":"Query to find deferred tools. Use \\"select:<tool_name>\\" for direct selection, or keywords to search. Regular expressions are not supported.","type":"string"},"max_results":{"description":"Maximum number of results to return (default: 5)","default":5,"type":"number"}},"required":["query","max_results"],"additionalProperties":false}',
+    "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Find tools by keywords, or use \\\"select:<name>[,<name>...]\\\" for exact selection. Regular expressions are not supported.\"},\"max_results\":{\"type\":\"integer\",\"exclusiveMinimum\":0,\"default\":5,\"description\":\"Maximum keyword matches to return (default: 5)\"}},\"required\":[\"query\",\"max_results\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}",
 };
 
 describe("tool JSON schema key order", () => {

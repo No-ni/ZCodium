@@ -8,7 +8,7 @@ import { WORKFLOW_MODE_SCOPE_ERROR } from "../src/workflow-mode.js";
 /**
  * `--workflow-mode` 在 headless / resume / stdio 各入口上的取值与隔离
  * （docs/dynamic-workflow/launch.md「The standalone CLI: `--workflow-mode`」）。
- * staging 的布尔 `--enable-workflow` 已由 `--workflow-mode` 取代，这里同时钉住它的退役。
+ * 保留官方布尔 `--enable-workflow` 兼容入口，显式模式使用 `--workflow-mode`。
  */
 
 function harness(argv: string[]) {
@@ -178,19 +178,19 @@ for (const argv of [["app-server", "--stdio"], ["agent-server", "--stdio"], ["do
   });
 }
 
-test("the retired --enable-workflow flag is an unknown option", async () => {
+test("the compatible --enable-workflow flag is accepted", async () => {
   const h = harness(["--enable-workflow", "-p", "hello"]);
-  assert.notEqual(await run(h.ctx, h.deps), 0);
-  assert.match(h.stderr(), /enable-workflow/);
-  assert.equal(h.appOptions.length, 0);
+  assert.equal(await run(h.ctx, h.deps), 0, h.stderr());
+  assert.equal(h.appOptions.length, 1);
+  assertPair(h.appOptions[0], "disabled");
 });
 
 for (const locale of ["en-US", "zh-CN"]) {
-  test(`help documents --workflow-mode and not the retired flag: ${locale}`, async () => {
+  test(`help documents workflow mode and the compatible flag: ${locale}`, async () => {
     const h = harness(["--help", "--locale", locale]);
     assert.equal(await run(h.ctx, h.deps), 0, h.stderr());
     assert.match(h.stdout(), /--workflow-mode <mode>.*disabled.*onDemand.*alwaysOn/);
-    assert.doesNotMatch(h.stdout(), /--enable-workflow/);
+    assert.match(h.stdout(), /--enable-workflow/);
     assert.equal(h.appOptions.length, 0);
   });
 }

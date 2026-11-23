@@ -18,7 +18,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { tmpdir, userInfo } from "node:os";
+import { tmpdir } from "node:os";
 import {
   resolveE2EChromedriverExecutable,
   startE2EChromedriverServer,

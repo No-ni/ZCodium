@@ -160,20 +160,21 @@ describe("desktop tsup chunk isolation", () => {
     ).toThrow("must use HTTPS in production");
   });
 
-  it("release/current 与 Tag 构建缺少 Agent OTLP 配置时应失败，普通开发构建保持 Noop", () => {
+  it("release/current 与 Tag 未配置自建 Agent OTLP 时保持关闭", () => {
+    // 本仓发行不依赖遥测凭证；显式自建配置的严格校验由相邻用例保留。
     expect(resolveBuildPackagedAgentTelemetryEnv({})).toEqual({});
-    expect(() =>
+    expect(
       resolveBuildPackagedAgentTelemetryEnv({
         CI: "true",
         CI_COMMIT_BRANCH: "release/current",
       }),
-    ).toThrow("required for release builds");
-    expect(() =>
+    ).toEqual({});
+    expect(
       resolveBuildPackagedAgentTelemetryEnv({
         CI: "true",
         CI_COMMIT_TAG: "v3.6.0",
       }),
-    ).toThrow("required for release builds");
+    ).toEqual({});
   });
 
   it("安装包身份与后端环境作为两个编译期常量注入每个 bundle", () => {
@@ -182,14 +183,14 @@ describe("desktop tsup chunk isolation", () => {
       const defines = getDefines(entry);
       expect(defines).toHaveProperty("__ZCODE_ENV__");
       expect(defines).toHaveProperty("__ZCODE_PRODUCT_FLAVOR__");
-      expect(["\"production\"", "\"preview\""]).toContain(defines.__ZCODE_PRODUCT_FLAVOR__);
+      expect(['"production"', '"preview"']).toContain(defines.__ZCODE_PRODUCT_FLAVOR__);
     }
   });
 
-  it("Agent OTLP 部署默认值只应编译进 Main bundle", () => {
-    expect(getDefines("main")).toHaveProperty("__ZCODE_PACKAGED_AGENT_TELEMETRY_ENV__");
-    expect(getDefines("host")).not.toHaveProperty("__ZCODE_PACKAGED_AGENT_TELEMETRY_ENV__");
-    expect(getDefines("preload")).not.toHaveProperty("__ZCODE_PACKAGED_AGENT_TELEMETRY_ENV__");
+  it("Agent OTLP 默认值不应编译进任一 bundle", () => {
+    for (const entry of ["main", "host", "preload"]) {
+      expect(getDefines(entry)).not.toHaveProperty("__ZCODE_PACKAGED_AGENT_TELEMETRY_ENV__");
+    }
   });
 
   it("所有 tsup 子构建都应关闭 esbuild legal comments 输出", () => {

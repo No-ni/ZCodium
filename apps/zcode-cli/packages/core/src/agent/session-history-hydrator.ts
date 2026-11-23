@@ -3,7 +3,6 @@ import { attachGenUiContext, normalizeGenUiInput } from "./message-history.js";
 import {
   hydrateCompactDiscovery,
   hydrateToolSearchAnnouncement,
-  hydrateToolSearchContent,
 } from "./tool-search-hydration.js";
 import { parseToolSearchHiddenNames } from "../tool/search/history.js";
 import { parseAgentListingDelta } from "./agent-listing-metadata.js";
@@ -232,12 +231,8 @@ export async function hydrateMessageHistoryFromSession(input: {
               ? [
                   {
                     kind: "provider_tool",
-                    call: {
-                      id: part.callID,
-                      input: part.state.input,
-                      name: part.tool,
-                      blockIndex: part.blockIndex,
-                    },
+                    // 服务端调用复用同一 part 解析入口，保留实时请求里的 providerOptions。
+                    call: toolCallInputFromPart(part),
                     result: providerToolResultFromPart(part),
                   },
                 ]
@@ -355,8 +350,9 @@ async function addToolResultsFromParts(
               attachmentBlocks,
             )
           : undefined;
+      // 上游调用点只取新字段，漏接本仓已有的旧字段恢复；沿用成功 search 的严格解析，避免普通工具伪造 discovery。
       const content =
-        hydrateToolSearchContent(part.state.metadata?.modelContent, input.logger) ??
+        restoredToolSearchContent(part) ??
         projectedMediaContent ??
         part.state.output;
       input.history.addToolResult(part.callID, toolName, content, true, false, modelCallWrapper);

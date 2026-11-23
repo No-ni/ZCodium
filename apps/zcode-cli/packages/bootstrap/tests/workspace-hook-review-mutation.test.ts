@@ -21,8 +21,8 @@ function makeWorkspace(): { workspace: string; configPath: string } {
   const workspace = mkdtempSync(join(tmpdir(), "workspace-hook-review-mutation-"));
   roots.push(workspace);
   mkdirSync(join(workspace, ".git"));
-  const configPath = join(workspace, ".zcode", "config.json");
-  mkdirSync(join(workspace, ".zcode"));
+  const configPath = join(workspace, ".zcodium", "config.json");
+  mkdirSync(join(workspace, ".zcodium"));
   writeFileSync(
     configPath,
     `${JSON.stringify(
@@ -158,8 +158,8 @@ describe("real workspace Hook review mutation port", () => {
     const rejection = await second.catch((error: unknown) => error);
     const message = rejection instanceof Error ? rejection.message : String(rejection);
     expect(message).not.toContain(configPath);
-    // 摘要保留可诊断性：截断到 12 字符，但不出现全长（64 字符）digest。
-    expect(message).toMatch(/expected [0-9a-f]{12}, got [0-9a-f]{12}/u);
+    // 失败出口使用固定原因；配置指纹不进入错误文本，避免间接导出配置事实。
+    expect(message).toBe("Workspace Hook bundle changed after review");
     expect(message).not.toMatch(/[0-9a-f]{64}/u);
 
     expect(

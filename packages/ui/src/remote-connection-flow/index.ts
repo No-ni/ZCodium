@@ -1,6 +1,6 @@
 import { buildRemoteFlowFormSnapshot } from "./flowViewSettingsStep.js";
 import type { RemoteConnectionOpenPreference } from "@/app-shell/types.js";
-import { useCallback, useEffect, useEffectEvent, useMemo } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef } from "react";
 import { type ConnectionProfile, type RemoteTarget } from "@zcode/shared";
 import { getRemoteWizardStepCopy } from "@/lib/remoteConnectionWizard.js";
 import { isRemoteConnectionFlowActive } from "@/lib/remoteConnectionDialogState.js";
@@ -40,7 +40,21 @@ export type { RemoteConnectionFlowOptions } from "@/remote-connection-flow/contr
 
 export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
   const state = useRemoteConnectionFlowState(options, (nextOpen) => applyOpenState(nextOpen));
-  const getContext = (): RemoteFlowContext => ({
+  const {
+    onFlowActiveChange,
+    onFlowRequestIdChange,
+    onFlowTargetChange,
+    activeRequestIdRef,
+    setConnectingRequestId,
+    selectingDirectoryRef,
+    setSelectingDirectory,
+    consumedOpenIntentIdRef,
+    consumedKindPreferenceRef,
+  } = state;
+  // Context 只投影 flowState；稳定 getter 避免事件回调冻结上一轮渲染的表单与服务。
+  const currentContextRef = useRef<RemoteFlowContext>(null!);
+  const getContext = useCallback(() => currentContextRef.current, []);
+  const renderContext = (): RemoteFlowContext => ({
     ...state,
     handleCancelSession,
     resetFeedback,
@@ -78,25 +92,25 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
   const backgroundActive = state.minimizedRef.current;
   useEffect(() => {
     // 后台完成消费后即使 loading/open 都未改变，也必须释放 Root 的入口门禁。
-    state.onFlowActiveChange?.(state.flowActive || backgroundActive);
-  }, [state.flowActive, backgroundActive, state.onFlowActiveChange]);
+    onFlowActiveChange?.(state.flowActive || backgroundActive);
+  }, [state.flowActive, backgroundActive, onFlowActiveChange]);
 
   const updateConnectingRequestId = useCallback(
     (requestId: string | null) => {
-      state.activeRequestIdRef.current = requestId;
-      state.setConnectingRequestId(requestId);
-      state.onFlowRequestIdChange?.(requestId);
+      activeRequestIdRef.current = requestId;
+      setConnectingRequestId(requestId);
+      onFlowRequestIdChange?.(requestId);
     },
-    [state.onFlowRequestIdChange],
+    [activeRequestIdRef, setConnectingRequestId, onFlowRequestIdChange],
   );
 
   const updatePendingRemoteTarget = useCallback(
     (target: RemoteTarget | null) => {
       return runUpdatePendingRemoteTarget(getContext(), target);
     },
-    [state.onFlowTargetChange, state.setWslDistro, state.setWslUser],
+    [getContext],
   );
-  useEffect(() => () => state.onFlowTargetChange?.(null), [state.onFlowTargetChange]);
+  useEffect(() => () => onFlowTargetChange?.(null), [onFlowTargetChange]);
 
   const applyOpenState = (nextOpen: boolean) => {
     state.onOpenChange?.(nextOpen);
@@ -120,43 +134,32 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
   };
 
   const resetDirectorySelectionState = useCallback(() => {
-    state.selectingDirectoryRef.current = false;
-    state.setSelectingDirectory(false);
-  }, []);
+    selectingDirectoryRef.current = false;
+    setSelectingDirectory(false);
+  }, [selectingDirectoryRef, setSelectingDirectory]);
 
   const handleCancelSession = useCallback(
     async (sessionId: string) => {
       return runHandleCancelSession(getContext(), sessionId);
     },
-    [state.onCancelSession],
+    [getContext],
   );
 
   const closeDialog = useCallback(
     (options?: { preserveSession?: boolean; keepOpen?: boolean }) => {
       return runCloseDialog(getContext(), options);
     },
-    [
-      state.addingDevice,
-      state.cancelPendingRemoteConnection,
-      state.connectedSessionId,
-      state.connectingRequestId,
-      state.currentStep,
-      handleCancelSession,
-      state.loading,
-      resetDirectorySelectionState,
-      updateConnectingRequestId,
-      updatePendingRemoteTarget,
-    ],
+    [getContext],
   );
 
   const confirmRemoteFlowDiscard = useCallback(async () => {
     return runConfirmRemoteFlowDiscard(getContext());
-  }, [state.confirmDialog, state.connectedSessionId, state.currentStep, state.intl, state.loading]);
+  }, [getContext]);
 
   const withConfirmedDiscard = async (discard: () => void | Promise<void>) => {
     return runWithConfirmedDiscard(getContext(), discard);
   };
-  const handleCloseRequest = (beforeClose?: () => void) =>
+  const handleCloseRequest = () =>
     withConfirmedDiscard(() => {
       const background = state.minimizedRef.current;
       closeDialog();
@@ -182,34 +185,21 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
 
   const handleCancelConnection = useCallback(() => {
     return runHandleCancelConnection(getContext());
-  }, [
-    state.cancelPendingRemoteConnection,
-    closeDialog,
-    state.completion,
-    state.onCancelled,
-    updateConnectingRequestId,
-  ]);
+  }, [getContext]);
 
   const handleStartPendingRemoteConnection = useCallback(() => {
     return runHandleStartPendingRemoteConnection(getContext());
-  }, [handleConnect, state.pendingRemoteTarget, startRemoteConnection]);
+  }, [getContext]);
 
   const handleBackToConnection = useCallback(async () => {
     return runHandleBackToConnection(getContext());
-  }, [state.connectedSessionId, state.onCancelSession, updateConnectingRequestId]);
+  }, [getContext]);
 
   const handleSelectDirectory = useCallback(
     async (path: string) => {
       return runHandleSelectDirectory(getContext(), path);
     },
-    [
-      state.connectedSessionId,
-      state.localWorkspacePath,
-      state.onSelectProject,
-      resetDirectorySelectionState,
-      updateConnectingRequestId,
-      updatePendingRemoteTarget,
-    ],
+    [getContext],
   );
 
   const acceptInitialFailure = (
@@ -233,18 +223,26 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
   const acceptOpenIntent = useEffectEvent(() => {
     return runAcceptOpenIntent(getContext());
   });
+  const hasActiveConnectionPhase = isRemoteConnectionFlowActive(state.flowSnapshot);
   useEffect(() => {
     if (
       !state.open ||
       state.openIntentId === undefined ||
-      state.consumedOpenIntentIdRef.current === state.openIntentId
+      consumedOpenIntentIdRef.current === state.openIntentId
     )
       return;
-    state.consumedOpenIntentIdRef.current = state.openIntentId;
+    consumedOpenIntentIdRef.current = state.openIntentId;
     // Root 用 flowActive 拒绝新增意图；显式替换已有 openIntentId 仍需撤销等待中的完成动作。
-    if (isRemoteConnectionFlowActive(state.flowSnapshot) || state.identityLoading) return;
+    if (hasActiveConnectionPhase || state.identityLoading) return;
     acceptOpenIntent();
-  }, [state.open, state.openIntentId, state.flowActive]);
+  }, [
+    state.open,
+    state.openIntentId,
+    state.flowActive,
+    hasActiveConnectionPhase,
+    state.identityLoading,
+    consumedOpenIntentIdRef,
+  ]);
 
   const applyKindPreference = useEffectEvent(() => {
     if (!state.preferredKind || !state.availableKinds.includes(state.preferredKind)) return;
@@ -264,8 +262,8 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
     )
       return;
     const key = `${state.preferredKind}:${state.preferredWslDistro ?? ""}`;
-    if (state.consumedKindPreferenceRef.current === key) return;
-    state.consumedKindPreferenceRef.current = key;
+    if (consumedKindPreferenceRef.current === key) return;
+    consumedKindPreferenceRef.current = key;
     applyKindPreference();
   }, [
     state.open,
@@ -275,13 +273,15 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
     state.preferredProfileId,
     state.preferredSourceServerId,
     state.openIntentId,
+    consumedKindPreferenceRef,
   ]);
 
   const applyPreferredTarget = useEffectEvent((target: RemoteTarget) => {
     return runApplyPreferredTarget(getContext(), target);
   });
+  const applyFlowEffect5 = useEffectEvent(() => runFlowEffect5(getContext()));
   useEffect(() => {
-    return runFlowEffect5(getContext());
+    return applyFlowEffect5();
   }, [
     state.open,
     state.preferredTarget,
@@ -303,8 +303,9 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
     });
   });
 
+  const applyFlowEffect6 = useEffectEvent(() => runFlowEffect6(getContext()));
   useEffect(() => {
-    return runFlowEffect6(getContext());
+    return applyFlowEffect6();
   }, [
     state.connectedSessionId,
     state.loading,
@@ -315,8 +316,9 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
     state.sourceManagementSnapshot,
   ]);
 
+  const applyFlowEffect7 = useEffectEvent(() => runFlowEffect7(getContext()));
   useEffect(() => {
-    return runFlowEffect7(getContext());
+    return applyFlowEffect7();
   }, [
     state.connectedSessionId,
     state.loading,
@@ -394,5 +396,6 @@ export function useRemoteConnectionFlow(options: RemoteConnectionFlowOptions) {
     return runHandleRetryConnection(getContext());
   };
 
-  return buildRemoteFlowView(getContext());
+  currentContextRef.current = renderContext();
+  return buildRemoteFlowView(currentContextRef.current);
 }

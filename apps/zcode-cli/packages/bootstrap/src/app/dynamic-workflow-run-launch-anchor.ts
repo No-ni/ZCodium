@@ -105,7 +105,8 @@ export function readRunModelBindings(
   runId: string,
 ): Record<string, string> | undefined {
   let bindings: Record<string, string> | undefined;
-  for (const stored of journal.listEvents(runId, { types: "all", reportItems: "all" })) {
+  // 绑定只来自这两类 durable 事件；读取报告正文会让冷恢复把全量大报告搬进 JS 堆。
+  for (const stored of journal.listEvents(runId, { types: ["run-launched", "hole-filled"], reportItems: { limit: 0 } })) {
     if (
       (stored.event.type === "run-launched" || stored.event.type === "hole-filled") &&
       stored.event.modelBindings !== undefined

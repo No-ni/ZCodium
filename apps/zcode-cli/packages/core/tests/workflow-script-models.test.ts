@@ -266,9 +266,9 @@ describe("CreateWorkflow — models the script names", () => {
     expect(output.ok).toBe(false);
     expect(submits).toHaveLength(0);
     expect(output.diagnostics.map((d) => d.code)).toEqual([MODEL_UNRESOLVED_CODE]);
-    expect(output.response).toContain(":L1:C");
+    expect(output.response).toContain("L1:C");
     expect(output.response).toContain("gemini-3");
-    expect(output.response).toContain("NOTE: The workflow was NOT executed.");
+    expect(output.response).toContain("NOTE: The workflow was NOT executed");
   });
 
   it("a bound script submits the table as structured selections and names it in the response", async () => {

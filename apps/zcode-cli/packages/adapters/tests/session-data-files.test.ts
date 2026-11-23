@@ -80,7 +80,7 @@ describe("node session data files", () => {
       "session-data.storage-link-rejected",
     );
     await expect(files.removeSession("sess_a")).rejects.toThrow(
-      "session-data.storage-link-rejected",
+      "session-data.symlink-root",
     );
     expect((await stat(join(outside, "sess_a", "precious.txt"))).size).toBe(50);
     expect((await stat(join(cli, "exec", "sess_a", "keep.txt"))).size).toBe(7);

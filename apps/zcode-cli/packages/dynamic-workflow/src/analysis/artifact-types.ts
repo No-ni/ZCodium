@@ -115,8 +115,7 @@ export function computeArtifactTypes(workflow: WorkflowProgram, table: SiteTable
   // the awaited return type (`Node<T>` -> `T`, default `T = string`).
   for (const site of table.asks) {
     const typeArg = site.call.typeArguments?.[0];
-    const type =
-      typeArg !== undefined ? checker.getTypeFromTypeNode(typeArg) : awaitedOf(site.call);
+    const type = typeArg !== undefined ? checker.getTypeFromTypeNode(typeArg) : awaitedOf(site.call);
     set(site.id, type);
   }
 

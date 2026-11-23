@@ -309,7 +309,7 @@ describe("resumed subagent recomputes its mode from the parent", () => {
     after: { mode?: "build"; planEnabled?: boolean };
   }) {
     const sessionId = createSessionId(
-      `resume-mode-${input.agentType}-${input.firstMode}-${JSON.stringify(input.after)}`,
+      `resume-mode-${crypto.randomUUID()}`,
     );
     const executedCommands: string[] = [];
     const requests: PermissionBrokerRequest[] = [];

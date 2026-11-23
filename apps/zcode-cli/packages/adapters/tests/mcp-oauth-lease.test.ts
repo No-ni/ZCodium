@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSharedZCodeCredentialStore } from "../src/auth/shared-credentials.js";
 import {
@@ -68,13 +68,21 @@ async function writeForeignLease(leasePath: string, pid: number): Promise<void> 
 }
 
 describe("MCP OAuth authorization lease", () => {
+  it("acquires a lease in a fresh credentials directory without creating credentials", async () => {
+    const dir = dirname(await createCredentialsPath());
+    const credentialsFilePath = join(dir, "new-credentials", "credentials.json");
+    const lease = await tryAcquireAuthorizationLease({ credentialsFilePath, keyPrefix: KEY_PREFIX });
+    expect(lease).toBeDefined();
+    await lease!.release();
+    expect(await readdir(dirname(credentialsFilePath))).toEqual([]);
+  });
   it("uses a lease path whose basename is legal on Windows", async () => {
     const credentialsPath = await createCredentialsPath();
     const leasePath = resolveAuthorizationLeasePath(credentialsPath, KEY_PREFIX);
 
     // credential key prefix 形如 `mcp:oauth:<hash>`；冒号在 Windows 文件名中非法，
     // 直接拼进锁路径会让整个授权流程在 Windows 上失败。
-    expect(leasePath).not.toContain(":");
+    expect(basename(leasePath)).not.toContain(":");
     expect(leasePath.endsWith(".authz")).toBe(true);
   });
 

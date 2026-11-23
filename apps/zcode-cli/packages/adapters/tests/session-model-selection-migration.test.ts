@@ -137,7 +137,9 @@ describe("旧 Session 当前选择的单次迁移", () => {
 
   it("重复打开幂等，新保存的选择不被后续启动覆盖", async () => {
     oldMessage();
-    await Promise.all([migrate({ sessionID }), migrate({ sessionID })]);
+    // 夹具只持有一个 store；重复打开必须先关闭前一个，不能并发覆盖句柄造成 Windows 锁泄漏。
+    await migrate({ sessionID });
+    await migrate({ sessionID });
     expect(await read()).toEqual(current);
     expect(
       db

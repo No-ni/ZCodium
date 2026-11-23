@@ -43,6 +43,7 @@ export type CompactAttemptOutcome = "skipped" | "compacted" | "failed";
 export type AutoCompactOutcome = CompactAttemptOutcome | "rapid_refill_blocked";
 
 export interface AutoCompactLoopContext {
+  requestTools?: readonly ModelToolContract[];
   getAgentListingTools?: () => readonly { name: string }[];
   compactReason: CompactReason;
   modelStepIndex: number;

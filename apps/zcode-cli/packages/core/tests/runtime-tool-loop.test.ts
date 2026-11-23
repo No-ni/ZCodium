@@ -1,3 +1,5 @@
+// 生产路径用原生 node:path 解析；合成文件系统的输入与预期使用同一平台语义。
+import { relative as relativeFixturePath, resolve as nativeFixturePath } from "node:path";
 import { withoutAgentListingMessages } from "./test-agent-listing.js";
 import { describe, expect, it, vi } from "vitest";
 import { createTestModelSelection } from "./test-model-selection.js";
@@ -151,7 +153,7 @@ describe("AgentRuntime tool loop", () => {
         async waitForBackgroundTask(taskId: string) {
           return {
             completedAt: new Date(),
-            outputPath: "/tmp/zcode-bash-output.log",
+            outputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
             result: {
               cancelled: false,
               completedAt: new Date(),
@@ -165,7 +167,7 @@ describe("AgentRuntime tool loop", () => {
                 truncated: false,
               },
               stdout: {
-                artifactPath: "/tmp/zcode-bash-output.log",
+                artifactPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
                 bytes: 4,
                 text: "done",
                 truncated: false,
@@ -195,7 +197,7 @@ describe("AgentRuntime tool loop", () => {
       } as any,
       {
         backgroundTaskId: "exec_direct_wait",
-        persistedOutputPath: "/tmp/zcode-bash-output.log",
+        persistedOutputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
         status: "backgrounded",
       },
       {
@@ -225,7 +227,7 @@ describe("AgentRuntime tool loop", () => {
     expect(notifications[0].text).not.toContain("Use Read on the output file");
     expect(runtimeTaskRegistry.get("exec_direct_wait")).toMatchObject({
       isBackgrounded: true,
-      outputFile: "/tmp/zcode-bash-output.log",
+      outputFile: nativeFixturePath("/tmp/zcode-bash-output.log"),
       status: "completed",
       taskId: "exec_direct_wait",
       type: "local_bash",
@@ -329,7 +331,7 @@ describe("AgentRuntime tool loop", () => {
               name: "Review workflow",
               response: "Workflow completed: wf_notify",
               runId: taskId,
-              scriptPath: "/tmp/review.workflow.js",
+              scriptPath: nativeFixturePath("/tmp/review.workflow.js"),
               status: "completed",
               traceId: "trace_workflow_notify",
             },
@@ -488,7 +490,7 @@ describe("AgentRuntime tool loop", () => {
         async waitForBackgroundTask(taskId: string) {
           return {
             completedAt,
-            outputPath: "/tmp/zcode-bash-output.log",
+            outputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
             result: {
               cancelled: false,
               completedAt,
@@ -502,7 +504,7 @@ describe("AgentRuntime tool loop", () => {
                 truncated: false,
               },
               stdout: {
-                artifactPath: "/tmp/zcode-bash-output.log",
+                artifactPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
                 bytes: 4,
                 text: "done",
                 truncated: false,
@@ -532,7 +534,7 @@ describe("AgentRuntime tool loop", () => {
       } as any,
       {
         backgroundTaskId: "exec_notify_before_event",
-        persistedOutputPath: "/tmp/zcode-bash-output.log",
+        persistedOutputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
         status: "backgrounded",
       },
       {
@@ -668,7 +670,7 @@ describe("AgentRuntime tool loop", () => {
       } as any,
       {
         backgroundTaskId: "exec_lost",
-        persistedOutputPath: "/tmp/zcode-bash-lost.log",
+        persistedOutputPath: nativeFixturePath("/tmp/zcode-bash-lost.log"),
         status: "backgrounded",
       },
       {
@@ -707,7 +709,7 @@ describe("AgentRuntime tool loop", () => {
     const notifications: any[] = [];
     const completedSnapshot = {
       completedAt,
-      outputPath: "/tmp/zcode-bash-output.log",
+      outputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
       result: {
         cancelled: false,
         completedAt,
@@ -721,7 +723,7 @@ describe("AgentRuntime tool loop", () => {
           truncated: false,
         },
         stdout: {
-          artifactPath: "/tmp/zcode-bash-output.log",
+          artifactPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
           bytes: 5,
           text: "ready",
           truncated: false,
@@ -742,7 +744,7 @@ describe("AgentRuntime tool loop", () => {
       executionPort: {
         async getBackgroundTask(taskId: string) {
           return {
-            outputPath: "/tmp/zcode-bash-output.log",
+            outputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
             startedAt,
             status: "running" as const,
             stdoutBytes: 5,
@@ -771,7 +773,7 @@ describe("AgentRuntime tool loop", () => {
       } as any,
       {
         backgroundTaskId: "exec_direct_wait_updates",
-        persistedOutputPath: "/tmp/zcode-bash-output.log",
+        persistedOutputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
         status: "backgrounded",
       },
       {
@@ -808,7 +810,7 @@ describe("AgentRuntime tool loop", () => {
         async waitForBackgroundTask(taskId: string) {
           return {
             completedAt: new Date(),
-            outputPath: "/tmp/zcode-bash-output.log",
+            outputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
             result: {
               cancelled: true,
               completedAt: new Date(),
@@ -821,7 +823,7 @@ describe("AgentRuntime tool loop", () => {
                 truncated: false,
               },
               stdout: {
-                artifactPath: "/tmp/zcode-bash-output.log",
+                artifactPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
                 bytes: 0,
                 text: "",
                 truncated: false,
@@ -850,7 +852,7 @@ describe("AgentRuntime tool loop", () => {
       } as any,
       {
         backgroundTaskId: "exec_stopped_notification",
-        persistedOutputPath: "/tmp/zcode-bash-output.log",
+        persistedOutputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
         status: "backgrounded",
       },
       {
@@ -887,7 +889,7 @@ describe("AgentRuntime tool loop", () => {
         async waitForBackgroundTask(taskId: string) {
           return {
             completedAt: new Date(),
-            outputPath: "/tmp/zcode-bash-output.log",
+            outputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
             result: {
               cancelled: false,
               completedAt: new Date(),
@@ -901,7 +903,7 @@ describe("AgentRuntime tool loop", () => {
                 truncated: false,
               },
               stdout: {
-                artifactPath: "/tmp/zcode-bash-output.log",
+                artifactPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
                 bytes: 4,
                 text: "done",
                 truncated: false,
@@ -928,7 +930,7 @@ describe("AgentRuntime tool loop", () => {
     } as any;
     const output = {
       backgroundTaskId: "exec_direct_wait_retry",
-      persistedOutputPath: "/tmp/zcode-bash-output.log",
+      persistedOutputPath: nativeFixturePath("/tmp/zcode-bash-output.log"),
       status: "backgrounded",
     };
     const traceContext = {
@@ -968,7 +970,7 @@ describe("AgentRuntime tool loop", () => {
             taskId: "child_bash_bg",
             status: "running",
             startedAt,
-            outputPath: "/tmp/child-bash.log",
+            outputPath: nativeFixturePath("/tmp/child-bash.log"),
           },
         };
       },
@@ -977,7 +979,7 @@ describe("AgentRuntime tool loop", () => {
           taskId,
           status: "running",
           startedAt,
-          outputPath: "/tmp/child-bash.log",
+          outputPath: nativeFixturePath("/tmp/child-bash.log"),
         };
       },
       async waitForBackgroundTask(taskId) {
@@ -987,7 +989,7 @@ describe("AgentRuntime tool loop", () => {
           status: "completed",
           startedAt,
           completedAt,
-          outputPath: "/tmp/child-bash.log",
+          outputPath: nativeFixturePath("/tmp/child-bash.log"),
           result: {
             status: "completed",
             exitCode: 0,
@@ -1008,7 +1010,7 @@ describe("AgentRuntime tool loop", () => {
       {
         mode: "yolo",
         taskType: "subagent_child",
-        workingDirectory: "/tmp/zcode-sealed-subagent-bg-bash",
+        workingDirectory: nativeFixturePath("/tmp/zcode-sealed-subagent-bg-bash"),
       },
       {
         eventStore,
@@ -1087,7 +1089,7 @@ describe("AgentRuntime tool loop", () => {
             taskId: "child_default_bash_bg",
             status: "running",
             startedAt,
-            outputPath: "/tmp/child-default-bash.log",
+            outputPath: nativeFixturePath("/tmp/child-default-bash.log"),
           },
         };
       },
@@ -1096,7 +1098,7 @@ describe("AgentRuntime tool loop", () => {
           taskId,
           status: "running",
           startedAt,
-          outputPath: "/tmp/child-default-bash.log",
+          outputPath: nativeFixturePath("/tmp/child-default-bash.log"),
         };
       },
       async waitForBackgroundTask(taskId) {
@@ -1106,7 +1108,7 @@ describe("AgentRuntime tool loop", () => {
           status: "completed",
           startedAt,
           completedAt,
-          outputPath: "/tmp/child-default-bash.log",
+          outputPath: nativeFixturePath("/tmp/child-default-bash.log"),
           result: {
             status: "completed",
             exitCode: 0,
@@ -1126,7 +1128,7 @@ describe("AgentRuntime tool loop", () => {
       parentSessionId,
       {
         mode: "yolo",
-        workingDirectory: "/tmp/zcode-default-child-runtime-seal",
+        workingDirectory: nativeFixturePath("/tmp/zcode-default-child-runtime-seal"),
       },
       {
         eventStore,
@@ -1179,8 +1181,8 @@ describe("AgentRuntime tool loop", () => {
         turnId: childTurnId,
       },
       turnId: childTurnId,
-      workingDirectory: "/tmp/zcode-default-child-runtime-seal",
-      workspaceRoot: "/tmp/zcode-default-child-runtime-seal",
+      workingDirectory: nativeFixturePath("/tmp/zcode-default-child-runtime-seal"),
+      workspaceRoot: nativeFixturePath("/tmp/zcode-default-child-runtime-seal"),
     });
 
     expect(output).toMatchObject({
@@ -1239,7 +1241,7 @@ describe("AgentRuntime tool loop", () => {
           mode: "yolo",
           taskType: "subagent_child",
           subagents: { backgroundBashMaxMs: 10 },
-          workingDirectory: "/tmp/zcode-subagent-bash-timeout",
+          workingDirectory: nativeFixturePath("/tmp/zcode-subagent-bash-timeout"),
         },
         {
           eventStore,
@@ -1295,7 +1297,7 @@ describe("AgentRuntime tool loop", () => {
       {
         mode: "yolo",
         taskType: "subagent_child",
-        workingDirectory: "/tmp/zcode-child-cancel",
+        workingDirectory: nativeFixturePath("/tmp/zcode-child-cancel"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -1555,9 +1557,9 @@ describe("AgentRuntime tool loop", () => {
             taskId: "exec_bg",
             status: "running",
             startedAt,
-            outputPath: "/tmp/exec_bg-stdout.log",
-            stdoutPersistedOutputPath: "/tmp/exec_bg-stdout.log",
-            stderrPersistedOutputPath: "/tmp/exec_bg-stderr.log",
+            outputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+            stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+            stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stderr.log"),
           },
         };
       },
@@ -1567,9 +1569,9 @@ describe("AgentRuntime tool loop", () => {
           status: "completed",
           startedAt,
           completedAt,
-          outputPath: "/tmp/exec_bg-stdout.log",
-          stdoutPersistedOutputPath: "/tmp/exec_bg-stdout.log",
-          stderrPersistedOutputPath: "/tmp/exec_bg-stderr.log",
+          outputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+          stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
+          stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg-stderr.log"),
           result: {
             status: "completed",
             exitCode: 0,
@@ -1577,13 +1579,13 @@ describe("AgentRuntime tool loop", () => {
               text: "",
               bytes: 12,
               truncated: true,
-              artifactPath: "/tmp/exec_bg-stdout.log",
+              artifactPath: nativeFixturePath("/tmp/exec_bg-stdout.log"),
             },
             stderr: {
               text: "",
               bytes: 0,
               truncated: false,
-              artifactPath: "/tmp/exec_bg-stderr.log",
+              artifactPath: nativeFixturePath("/tmp/exec_bg-stderr.log"),
             },
             durationMs: 1,
             timedOut: false,
@@ -1597,7 +1599,7 @@ describe("AgentRuntime tool loop", () => {
     const sessionStore = new RecordingSessionStore();
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/tmp/zcode-bg-notify" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/tmp/zcode-bg-notify") },
       {
         eventStore,
         executionPort,
@@ -1660,7 +1662,7 @@ describe("AgentRuntime tool loop", () => {
     expect(notification?.content).toContain("must NOT be treated as approval or consent.");
     expect(notification?.content).toContain("<task-id>exec_bg</task-id>");
     expect(notification?.content).toContain("<status>completed</status>");
-    expect(notification?.content).toContain("<output-file>/tmp/exec_bg-stdout.log</output-file>");
+    expect(notification?.content).toContain(`<output-file>${nativeFixturePath("/tmp/exec_bg-stdout.log")}</output-file>`);
     expect(notification?.content).not.toContain("<stdout-file>");
     expect(notification?.content).not.toContain("<stderr-file>");
     expect(notification?.content).toContain(
@@ -1690,7 +1692,7 @@ describe("AgentRuntime tool loop", () => {
     let modelCallCount = 0;
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/tmp/zcode-bg-shutdown" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/tmp/zcode-bg-shutdown") },
       {
         eventStore: createTestSessionEventStore(),
         modelFactory: createTestModelFactory({
@@ -1739,9 +1741,9 @@ describe("AgentRuntime tool loop", () => {
             taskId: "exec_bg_idle",
             status: "running",
             startedAt,
-            outputPath: "/tmp/exec_bg_idle-stdout.log",
-            stdoutPersistedOutputPath: "/tmp/exec_bg_idle-stdout.log",
-            stderrPersistedOutputPath: "/tmp/exec_bg_idle-stderr.log",
+            outputPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
+            stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
+            stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg_idle-stderr.log"),
           },
         };
       },
@@ -1751,9 +1753,9 @@ describe("AgentRuntime tool loop", () => {
             taskId,
             status: "running",
             startedAt,
-            outputPath: "/tmp/exec_bg_idle-stdout.log",
-            stdoutPersistedOutputPath: "/tmp/exec_bg_idle-stdout.log",
-            stderrPersistedOutputPath: "/tmp/exec_bg_idle-stderr.log",
+            outputPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
+            stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
+            stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg_idle-stderr.log"),
           };
         }
         return {
@@ -1761,9 +1763,9 @@ describe("AgentRuntime tool loop", () => {
           status: "completed",
           startedAt,
           completedAt,
-          outputPath: "/tmp/exec_bg_idle-stdout.log",
-          stdoutPersistedOutputPath: "/tmp/exec_bg_idle-stdout.log",
-          stderrPersistedOutputPath: "/tmp/exec_bg_idle-stderr.log",
+          outputPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
+          stdoutPersistedOutputPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
+          stderrPersistedOutputPath: nativeFixturePath("/tmp/exec_bg_idle-stderr.log"),
           result: {
             status: "completed",
             exitCode: 0,
@@ -1771,13 +1773,13 @@ describe("AgentRuntime tool loop", () => {
               text: "",
               bytes: 12,
               truncated: true,
-              artifactPath: "/tmp/exec_bg_idle-stdout.log",
+              artifactPath: nativeFixturePath("/tmp/exec_bg_idle-stdout.log"),
             },
             stderr: {
               text: "",
               bytes: 0,
               truncated: false,
-              artifactPath: "/tmp/exec_bg_idle-stderr.log",
+              artifactPath: nativeFixturePath("/tmp/exec_bg_idle-stderr.log"),
             },
             durationMs: 1,
             timedOut: false,
@@ -1790,7 +1792,7 @@ describe("AgentRuntime tool loop", () => {
     };
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/tmp/zcode-bg-idle-wake" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/tmp/zcode-bg-idle-wake") },
       {
         eventStore,
         executionPort,
@@ -1856,7 +1858,7 @@ describe("AgentRuntime tool loop", () => {
     expect(notification?.content).toContain("<task-id>exec_bg_idle</task-id>");
     expect(notification?.content).toContain("<status>completed</status>");
     expect(notification?.content).toContain(
-      "<output-file>/tmp/exec_bg_idle-stdout.log</output-file>",
+      `<output-file>${nativeFixturePath("/tmp/exec_bg_idle-stdout.log")}</output-file>`,
     );
   });
 
@@ -1903,7 +1905,7 @@ describe("AgentRuntime tool loop", () => {
     });
     runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/tmp/zcode-active-loop-bg" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/tmp/zcode-active-loop-bg") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -2590,8 +2592,8 @@ describe("AgentRuntime tool loop", () => {
   it("persists successful foreground Bash cwd across tool calls", async () => {
     const sessionId = createSessionId("runtime-bash-cwd-persistence");
     const eventStore = createTestSessionEventStore();
-    const initialCwd = "/tmp/zcode-runtime-initial";
-    const nextCwd = "/tmp/zcode-runtime-initial/next";
+    const initialCwd = nativeFixturePath("/tmp/zcode-runtime-initial");
+    const nextCwd = nativeFixturePath("/tmp/zcode-runtime-initial/next");
     const requests: Parameters<ExecutionPort["run"]>[0][] = [];
     const rootObservations: string[] = [];
     const registry = createToolRegistry();
@@ -2718,8 +2720,8 @@ describe("AgentRuntime tool loop", () => {
   it("resets Bash cwd to workspace root after a successful command leaves the workspace", async () => {
     const sessionId = createSessionId("runtime-bash-cwd-reset-reminder");
     const eventStore = createTestSessionEventStore();
-    const workspaceRoot = "/tmp/zcode-bash-root";
-    const outsideCwd = "/tmp/zcode-bash-outside";
+    const workspaceRoot = nativeFixturePath("/tmp/zcode-bash-root");
+    const outsideCwd = nativeFixturePath("/tmp/zcode-bash-outside");
     const requests: Parameters<ExecutionPort["run"]>[0][] = [];
     let secondRequestMessages: Array<{ content?: unknown }> = [];
     const now = new Date();
@@ -2815,8 +2817,8 @@ describe("AgentRuntime tool loop", () => {
     const sessionId = createSessionId("runtime-bash-cwd-stable-message-root");
     const eventStore = createTestSessionEventStore();
     const sessionStore = new RecordingSessionStore();
-    const initialCwd = "/tmp/zcode-runtime-root";
-    const nextCwd = "/tmp/zcode-runtime-root/subdir";
+    const initialCwd = nativeFixturePath("/tmp/zcode-runtime-root");
+    const nextCwd = nativeFixturePath("/tmp/zcode-runtime-root/subdir");
     const now = new Date();
     const executionPort: ExecutionPort = {
       async run() {
@@ -2898,7 +2900,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-synthetic-notice-default-runtime-metadata",
+        workingDirectory: nativeFixturePath("/tmp/zcode-synthetic-notice-default-runtime-metadata"),
       },
       { sessionStore },
     );
@@ -2969,92 +2971,7 @@ describe("AgentRuntime tool loop", () => {
 
     expect(toolNames).toContain("AskUserQuestion");
   });
-
-  it("refreshes provider runtime headers before every model request in a tool loop", async () => {
-    const sessionId = createSessionId("runtime-provider-runtime-headers-per-request");
-    const eventStore = createTestSessionEventStore();
-    const registry = createToolRegistry();
-    registry.register({
-      inputSchema: {},
-      metadata: {
-        concurrentSafe: true,
-        destructive: false,
-        name: "ReadMarker",
-        needsApproval: false,
-        readOnly: true,
-        riskLevel: "low",
-        sideEffectScope: "none",
-      },
-      handler: async () => "marker-ok",
-    });
-    const refreshes: string[] = [];
-    let modelCallCount = 0;
-    const runtime = createTestAgentRuntime(
-      sessionId,
-      {
-        mode: "yolo",
-        modelSelection: createTestModelSelection({
-          providerId: "account:zai-individual-coding-plan",
-          modelId: "glm-5.1",
-        }),
-      },
-      {
-        eventStore,
-        toolRegistry: registry,
-        providerRuntimeHeadersPort: {
-          shouldRefreshBeforeModelRequest: ({ providerId }) =>
-            providerId === "account:zai-individual-coding-plan",
-          async refreshBeforeModelRequest(input) {
-            refreshes.push(`${input.providerId}:${input.reason}`);
-            return {
-              headersApplied: true,
-            };
-          },
-        },
-        modelFactory: createTestModelFactory({
-          async generateText(request: any, observation) {
-            await observation.invocationContext?.refreshRuntimeHeadersBeforeAttempt?.({
-              attempt: 1,
-              abortSignal: request.abortSignal,
-              providerId: String(observation.model.providerId),
-              modelId: String(observation.model.modelId),
-              traceContext: observation.invocationContext?.traceContext,
-            });
-            modelCallCount++;
-            if (modelCallCount === 1) {
-              return {
-                finishReason: "tool-calls",
-                providerMetadata: undefined,
-                text: "",
-                toolCalls: [
-                  {
-                    id: "tool-read-marker",
-                    name: "ReadMarker",
-                    input: {},
-                  },
-                ],
-                usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-              };
-            }
-            return {
-              finishReason: "stop",
-              providerMetadata: undefined,
-              text: "done",
-              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            };
-          },
-        } as never),
-      },
-    );
-
-    await runtime.executeTurn("read marker then answer");
-
-    expect(modelCallCount).toBe(2);
-    expect(refreshes).toEqual([
-      "account:zai-individual-coding-plan:model-request",
-      "account:zai-individual-coding-plan:model-request",
-    ]);
-  });
+  // 官方账号 runtime headers 已退役；普通用户 API 请求回归保留。
 
   it("continues an active target when idle and accounts usage", async () => {
     const sessionId = createSessionId("runtime-target-continue");
@@ -3065,7 +2982,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3199,7 +3116,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-loop" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3274,7 +3191,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-loop-prompt" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop-prompt") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3356,7 +3273,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-loop-error" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop-error") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3423,7 +3340,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-loop-plain" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop-plain") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3470,7 +3387,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-runtime-target-loop-manual",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop-manual"),
       },
       {
         eventStore,
@@ -3535,7 +3452,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-runtime-target-loop-manual-queues",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop-manual-queues"),
       },
       {
         eventStore,
@@ -3614,7 +3531,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-runtime-target-loop-queued-pause",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-loop-queued-pause"),
       },
       {
         eventStore,
@@ -3686,7 +3603,7 @@ describe("AgentRuntime tool loop", () => {
       agentType: "local_bash",
       description: "npm run test",
       isBackgrounded: true,
-      outputFile: "/tmp/bg-goal-running.log",
+      outputFile: nativeFixturePath("/tmp/bg-goal-running.log"),
       startedAt: new Date(0),
       status: "running",
       taskId: "bg_goal_running",
@@ -3709,7 +3626,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-bg-defer" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-bg-defer") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3753,7 +3670,7 @@ describe("AgentRuntime tool loop", () => {
       agentType: "local_bash",
       description: "sleep 999",
       isBackgrounded: true,
-      outputFile: "/tmp/bash-registry-only.log",
+      outputFile: nativeFixturePath("/tmp/bash-registry-only.log"),
       startedAt: new Date(0),
       status: "running",
       taskId: "bash_registry_only_running",
@@ -3763,7 +3680,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-registry-only-bash" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-registry-only-bash") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3820,7 +3737,7 @@ describe("AgentRuntime tool loop", () => {
       completedAt: new Date(1),
       description: "npm run stale",
       isBackgrounded: true,
-      outputFile: "/tmp/bg-goal-stale.log",
+      outputFile: nativeFixturePath("/tmp/bg-goal-stale.log"),
       startedAt: new Date(0),
       status: "completed",
       taskId: "bg_goal_stale_projection",
@@ -3830,7 +3747,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-registry-stale" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-registry-stale") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3891,7 +3808,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-bg-continue" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-bg-continue") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -3937,7 +3854,7 @@ describe("AgentRuntime tool loop", () => {
     const modelInputs: string[] = [];
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-gate" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-gate") },
       {
         eventStore,
         hookRunner: {
@@ -4025,7 +3942,7 @@ describe("AgentRuntime tool loop", () => {
       {
         maxOutputTokens: 131_072,
         mode: "build",
-        workingDirectory: "/tmp/zcode-runtime-target-verifier-queue",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-verifier-queue"),
       },
       {
         eventStore,
@@ -4166,7 +4083,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-notification-order" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-notification-order") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4268,7 +4185,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-runtime-target-notification-clear",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-notification-clear"),
       },
       {
         eventStore,
@@ -4326,7 +4243,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-notification-loop" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-notification-loop") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4418,7 +4335,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-notification-yield" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-notification-yield") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4525,7 +4442,7 @@ describe("AgentRuntime tool loop", () => {
       {
         mode: "build",
         targetCompletionVerification: { enabled: false },
-        workingDirectory: "/tmp/zcode-runtime-target-notification-disabled",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-notification-disabled"),
       },
       {
         eventStore,
@@ -4581,7 +4498,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-notification-no-goal" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-notification-no-goal") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4625,7 +4542,7 @@ describe("AgentRuntime tool loop", () => {
       agentType: "local_bash",
       description: "npm run long",
       isBackgrounded: true,
-      outputFile: "/tmp/bg-still-running.log",
+      outputFile: nativeFixturePath("/tmp/bg-still-running.log"),
       startedAt: new Date(0),
       status: "running",
       taskId: "bg_still_running",
@@ -4648,7 +4565,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-bg-still-running" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-bg-still-running") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4703,7 +4620,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-prompt-yield" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-prompt-yield") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4772,7 +4689,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4838,7 +4755,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-stop-order" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-stop-order") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -4965,7 +4882,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-goal-pause-before-scheduling" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-goal-pause-before-scheduling") },
       {
         eventStore: baseEventStore,
         modelFactory: createTestModelFactory({
@@ -5097,7 +5014,7 @@ describe("AgentRuntime tool loop", () => {
       },
       handler: async () => ({
         content: "export const value = 2;\n",
-        filePath: "/tmp/zcode-goal-pause-checkpoint/src/checkpoint.ts",
+        filePath: nativeFixturePath("/tmp/zcode-goal-pause-checkpoint/src/checkpoint.ts"),
         originalFile: "export const value = 1;\n",
         structuredPatch: [
           {
@@ -5127,7 +5044,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/tmp/zcode-goal-pause-checkpoint" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/tmp/zcode-goal-pause-checkpoint") },
       {
         artifactStore,
         eventStore: baseEventStore,
@@ -5219,7 +5136,7 @@ describe("AgentRuntime tool loop", () => {
 
   it("keeps the Read truncation notice when Stop interrupts the checkpoint, live and after resume", async () => {
     const sessionId = createSessionId("runtime-read-notice-during-tool-checkpoint");
-    const workingDirectory = "/tmp/zcode-read-notice-checkpoint";
+    const workingDirectory = nativeFixturePath("/tmp/zcode-read-notice-checkpoint");
     const sessionStore = new RecordingSessionStore();
     const eventStore = createTestSessionEventStore();
     const checkpointStarted = deferred();
@@ -5248,7 +5165,7 @@ describe("AgentRuntime tool loop", () => {
       },
       handler: async () => ({
         content: "export const value = 2;\n",
-        filePath: `${workingDirectory}/src/checkpoint.ts`,
+        filePath: nativeFixturePath(`${workingDirectory}/src/checkpoint.ts`),
         originalFile: "export const value = 1;\n",
         structuredPatch: [
           {
@@ -5277,7 +5194,7 @@ describe("AgentRuntime tool loop", () => {
       formatBatchNotice: formatReadBatchNotice,
       handler: async () => ({
         type: "text",
-        filePath: `${workingDirectory}/big.txt`,
+        filePath: nativeFixturePath(`${workingDirectory}/big.txt`),
         content: "first line",
         numLines: 1,
         startLine: 1,
@@ -5400,7 +5317,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-goal-pause-during-terminal" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-goal-pause-during-terminal") },
       {
         eventStore: baseEventStore,
         modelFactory: createTestModelFactory({
@@ -5514,7 +5431,7 @@ describe("AgentRuntime tool loop", () => {
     let modelCallCount = 0;
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-goal-pause-order" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-goal-pause-order") },
       {
         eventStore: baseEventStore,
         modelFactory: createTestModelFactory({
@@ -5626,7 +5543,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "plan", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "plan", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -5663,7 +5580,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -5727,7 +5644,7 @@ describe("AgentRuntime tool loop", () => {
           mode: "yolo",
           taskType,
           maxTurns: 30,
-          workingDirectory: "/tmp/silent-reminder-test",
+          workingDirectory: nativeFixturePath("/tmp/silent-reminder-test"),
         },
         {
           eventStore: createTestSessionEventStore(),
@@ -5806,7 +5723,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-todo-current-turn-context",
+        workingDirectory: nativeFixturePath("/tmp/zcode-todo-current-turn-context"),
       },
       {
         eventStore,
@@ -5863,7 +5780,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-todo-reminder-cadence" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-todo-reminder-cadence") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -5935,7 +5852,7 @@ describe("AgentRuntime tool loop", () => {
       {
         mode: "build",
         toolAllowlist: ["Read"],
-        workingDirectory: "/tmp/zcode-todo-reminder-tool-unavailable",
+        workingDirectory: nativeFixturePath("/tmp/zcode-todo-reminder-tool-unavailable"),
       },
       {
         eventStore,
@@ -5994,7 +5911,7 @@ describe("AgentRuntime tool loop", () => {
           name: "Learning",
           prompt: "Explain tradeoffs while solving the task.",
         },
-        workingDirectory: "/tmp/zcode-output-style-in-memory-history",
+        workingDirectory: nativeFixturePath("/tmp/zcode-output-style-in-memory-history"),
       },
       {
         eventStore,
@@ -6057,7 +5974,7 @@ describe("AgentRuntime tool loop", () => {
           name: "Learning",
           prompt: "Explain tradeoffs while solving the task.",
         },
-        workingDirectory: "/tmp/zcode-output-style-single-per-turn",
+        workingDirectory: nativeFixturePath("/tmp/zcode-output-style-single-per-turn"),
       },
       {
         eventStore,
@@ -6102,7 +6019,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-todo-reminder-resume-marker",
+        workingDirectory: nativeFixturePath("/tmp/zcode-todo-reminder-resume-marker"),
       },
       {
         eventStore,
@@ -6129,7 +6046,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-todo-reminder-resume-marker",
+        workingDirectory: nativeFixturePath("/tmp/zcode-todo-reminder-resume-marker"),
       },
       {
         eventStore,
@@ -6173,7 +6090,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -6276,7 +6193,7 @@ describe("AgentRuntime tool loop", () => {
     let modelCallCount = 0;
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore: createTestSessionEventStore(),
         modelFactory: createTestModelFactory({
@@ -6345,7 +6262,7 @@ describe("AgentRuntime tool loop", () => {
       {
         mode: "build",
         modelSelection: createTestModelSelection(requestModel),
-        workingDirectory: "/tmp/zcode-runtime-target",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target"),
       },
       {
         eventStore,
@@ -6415,7 +6332,7 @@ describe("AgentRuntime tool loop", () => {
           modelId: "gpt-5" as never,
           providerId: providerId as never,
         },
-        workingDirectory: "/tmp/zcode-runtime-target",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target"),
       },
       {
         eventStore,
@@ -6493,7 +6410,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/tmp/zcode-runtime-target",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target"),
       },
       {
         eventStore,
@@ -6578,7 +6495,7 @@ describe("AgentRuntime tool loop", () => {
       {
         mode: "build",
         targetCompletionVerification: { enabled: false },
-        workingDirectory: "/tmp/zcode-runtime-target",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target"),
       },
       {
         eventStore,
@@ -6639,7 +6556,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -6683,7 +6600,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -6751,7 +6668,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -6860,7 +6777,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -6952,7 +6869,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-runtime-target-replace-race" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-runtime-target-replace-race") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -9107,7 +9024,7 @@ describe("AgentRuntime tool loop", () => {
           input,
           // 与 App 发送 guide 的路径相同（input-facade 标为 user_steer）。
           inputPresentation: "user_steer",
-          intent: { genUiContext: [{ path: "/workspace/gen-ui/widget.html", state }] },
+          intent: { genUiContext: [{ path: nativeFixturePath("/workspace/gen-ui/widget.html"), state }] },
         });
 
       registry.register({
@@ -9215,7 +9132,7 @@ describe("AgentRuntime tool loop", () => {
       await runtime.executeTurn("mk:send-now", undefined, {
         inputPresentation: "user_steer",
         intent: {
-          genUiContext: [{ path: "/workspace/gen-ui/widget.html", state: "mk:send-now-state" }],
+          genUiContext: [{ path: nativeFixturePath("/workspace/gen-ui/widget.html"), state: "mk:send-now-state" }],
         },
       } as never);
       // 接在 text-only 回复之后，MCS 下也没有 system 锚点，降级为 user reminder，状态跟在它之后。
@@ -10160,7 +10077,7 @@ describe("AgentRuntime tool loop", () => {
     const createRuntime = () =>
       createTestAgentRuntime(
         sessionId,
-        { mode: "build", workingDirectory: "/tmp/zcode-edit-lock-resume" },
+        { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-edit-lock-resume") },
         {
           eventStore,
           sessionStore,
@@ -10404,7 +10321,7 @@ describe("AgentRuntime tool loop", () => {
 
     const firstRuntime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-steer-recover" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-steer-recover") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -10447,7 +10364,7 @@ describe("AgentRuntime tool loop", () => {
     let capturedMessages: any[] = [];
     const secondRuntime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-steer-recover" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-steer-recover") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -10493,7 +10410,7 @@ describe("AgentRuntime tool loop", () => {
 
     const firstRuntime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-todo-resume-context" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-todo-resume-context") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -10533,7 +10450,7 @@ describe("AgentRuntime tool loop", () => {
     let capturedMessages: any[] = [];
     const secondRuntime = createTestAgentRuntime(
       sessionId,
-      { mode: "build", workingDirectory: "/tmp/zcode-todo-resume-context" },
+      { mode: "build", workingDirectory: nativeFixturePath("/tmp/zcode-todo-resume-context") },
       {
         eventStore,
         modelFactory: createTestModelFactory({
@@ -12328,7 +12245,7 @@ describe("AgentRuntime tool loop", () => {
       },
       handler: async () => ({
         content: "export const value = 2;\n",
-        filePath: "/work/src/demo.ts",
+        filePath: nativeFixturePath("/work/src/demo.ts"),
         originalFile: "export const value = 1;\n",
         structuredPatch: [
           {
@@ -12345,7 +12262,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -12420,7 +12337,7 @@ describe("AgentRuntime tool loop", () => {
         {
           beforeContent: "export const value = 1;\n",
           existedBefore: true,
-          path: "/work/src/demo.ts",
+          path: nativeFixturePath("/work/src/demo.ts"),
         },
       ],
       kind: "workspace_file_before_change",
@@ -12527,7 +12444,7 @@ describe("AgentRuntime tool loop", () => {
       },
       handler: async (input: any) => ({
         content: input.after,
-        filePath: "/work/src/demo.ts",
+        filePath: nativeFixturePath("/work/src/demo.ts"),
         originalFile: input.before,
         structuredPatch: [
           {
@@ -12544,7 +12461,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -12605,7 +12522,7 @@ describe("AgentRuntime tool loop", () => {
         deletions: 1,
         items: [
           {
-            path: "/work/src/demo.ts",
+            path: nativeFixturePath("/work/src/demo.ts"),
             additions: 2,
             deletions: 1,
             writeCount: 2,
@@ -12638,10 +12555,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/child.ts", "child\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/child.ts"), "child\n");
         return {
           content: "child\n",
-          filePath: "/work/src/child.ts",
+          filePath: nativeFixturePath("/work/src/child.ts"),
           originalFile: null,
           structuredPatch: [
             {
@@ -12659,7 +12576,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", taskType: "subagent_child", workingDirectory: "/work" },
+      { mode: "yolo", taskType: "subagent_child", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -12704,7 +12621,7 @@ describe("AgentRuntime tool loop", () => {
           {
             additions: 1,
             deletions: 0,
-            path: "/work/src/child.ts",
+            path: nativeFixturePath("/work/src/child.ts"),
             writeCount: 1,
           },
         ],
@@ -12730,7 +12647,7 @@ describe("AgentRuntime tool loop", () => {
     const resumedEventStore = createTestSessionEventStore();
     const resumedRuntime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", taskType: "subagent_child", workingDirectory: "/work" },
+      { mode: "yolo", taskType: "subagent_child", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore: resumedEventStore,
@@ -12755,7 +12672,7 @@ describe("AgentRuntime tool loop", () => {
         {
           action: "delete",
           operationCount: 1,
-          path: "/work/src/child.ts",
+          path: nativeFixturePath("/work/src/child.ts"),
         },
       ],
       unsafeFiles: [],
@@ -12764,7 +12681,7 @@ describe("AgentRuntime tool loop", () => {
       targetTurnId: finalModelComplete?.turnId,
     });
     expect(applied.applied).toBe(true);
-    expect(fileSystemPort.files.has("/work/src/child.ts")).toBe(false);
+    expect(fileSystemPort.files.has(nativeFixturePath("/work/src/child.ts"))).toBe(false);
     expect(sessionStore.sessionEntryRecords.get(sessionId)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -12782,7 +12699,7 @@ describe("AgentRuntime tool loop", () => {
     const reopenedEventStore = createTestSessionEventStore();
     const reopenedRuntime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", taskType: "subagent_child", workingDirectory: "/work" },
+      { mode: "yolo", taskType: "subagent_child", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore: reopenedEventStore,
@@ -12814,7 +12731,7 @@ describe("AgentRuntime tool loop", () => {
     const artifactStore = new RecordingArtifactStore();
     const sessionStore = new RecordingSessionStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/demo.ts": "export const value = 1;\n",
+      [nativeFixturePath("/work/src/demo.ts")]: "export const value = 1;\n",
     });
     let modelCallCount = 0;
 
@@ -12830,10 +12747,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/demo.ts", "export const value = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/demo.ts"), "export const value = 2;\n");
         return {
           content: "export const value = 2;\n",
-          filePath: "/work/src/demo.ts",
+          filePath: nativeFixturePath("/work/src/demo.ts"),
           originalFile: "export const value = 1;\n",
           structuredPatch: [
             {
@@ -12851,7 +12768,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -12891,14 +12808,14 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await runtime.executeTurn("write then rewind");
-    expect(fileSystemPort.files.get("/work/src/demo.ts")).toBe("export const value = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/demo.ts"))).toBe("export const value = 2;\n");
 
     const rewind = await runtime.executeTurn("/rewind latest");
     const events = await eventStore.getEvents(sessionId);
     const rewindEvent = events.find((event) => event.type === SessionEventType.RewindTriggered);
 
     expect(rewind.response).toContain("Rewound workspace to checkpoint");
-    expect(fileSystemPort.files.get("/work/src/demo.ts")).toBe("export const value = 1;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/demo.ts"))).toBe("export const value = 1;\n");
     expect(rewindEvent?.payload).toMatchObject({
       scope: RewindScope.Workspace,
       strategy: "active_chain",
@@ -12919,8 +12836,8 @@ describe("AgentRuntime tool loop", () => {
     const artifactStore = new RecordingArtifactStore();
     const sessionStore = new RecordingSessionStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/a.ts": "a1\n",
-      "/work/src/b.ts": "b1\n",
+      [nativeFixturePath("/work/src/a.ts")]: "a1\n",
+      [nativeFixturePath("/work/src/b.ts")]: "b1\n",
     });
     let modelCallCount = 0;
 
@@ -12939,7 +12856,7 @@ describe("AgentRuntime tool loop", () => {
         fileSystemPort.files.set(input.path, input.after);
         return {
           content: input.after,
-          filePath: input.path.replace("/work/", ""),
+          filePath: relativeFixturePath(nativeFixturePath("/work"), input.path),
           originalFile: input.before,
           structuredPatch: [
             {
@@ -12957,7 +12874,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -12976,7 +12893,7 @@ describe("AgentRuntime tool loop", () => {
                   {
                     id: "write-a",
                     name: "WriteLike",
-                    input: { path: "/work/src/a.ts", before: "a1\n", after: "a2\n" },
+                    input: { path: nativeFixturePath("/work/src/a.ts"), before: "a1\n", after: "a2\n" },
                   },
                 ],
                 usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
@@ -12991,7 +12908,7 @@ describe("AgentRuntime tool loop", () => {
                   {
                     id: "write-b",
                     name: "WriteLike",
-                    input: { path: "/work/src/b.ts", before: "b1\n", after: "b2\n" },
+                    input: { path: nativeFixturePath("/work/src/b.ts"), before: "b1\n", after: "b2\n" },
                   },
                 ],
                 usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
@@ -13013,8 +12930,8 @@ describe("AgentRuntime tool loop", () => {
       .filter((message) => message.info.role === "assistant")
       .map((message) => message.info.id as MessageId);
     expect(assistants.length).toBeGreaterThanOrEqual(2);
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("a2\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("b2\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("a2\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("b2\n");
 
     const preview = await runtime.previewWorkspaceFileRewind({
       targetMessageIds: assistants.slice(0, 2),
@@ -13024,15 +12941,15 @@ describe("AgentRuntime tool loop", () => {
     });
 
     expect(preview.safeFiles.map((file) => file.path).sort()).toEqual([
-      "/work/src/a.ts",
-      "/work/src/b.ts",
+      nativeFixturePath("/work/src/a.ts"),
+      nativeFixturePath("/work/src/b.ts"),
     ]);
     expect(applied.applied).toBe(true);
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("a1\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("b1\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("a1\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("b1\n");
 
-    fileSystemPort.files.set("/work/src/a.ts", "a2\n");
-    fileSystemPort.files.set("/work/src/b.ts", "b2\n");
+    fileSystemPort.files.set(nativeFixturePath("/work/src/a.ts"), "a2\n");
+    fileSystemPort.files.set(nativeFixturePath("/work/src/b.ts"), "b2\n");
     const rejected = await runtime.applyWorkspaceFileRewind({
       targetMessageIds: assistants.slice(0, 2),
       commitAfterApply: async () => {
@@ -13047,8 +12964,8 @@ describe("AgentRuntime tool loop", () => {
         expect.objectContaining({ message: "conversation admission rejected" }),
       ]),
     );
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("a2\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("b2\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("a2\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("b2\n");
   });
 
   // Bugfix 回归：message 目标 fork 曾恢复目标回合自身 checkpoint 的 beforeContent，
@@ -13154,7 +13071,7 @@ describe("AgentRuntime tool loop", () => {
 
   it("persists tool→final assistant raw segment and explicit no-goal fork boundary", async () => {
     const sessionId = createSessionId("runtime-stable-boundary-tool-final");
-    const fixture = createForkFixture({ "/work/a.ts": "a1" });
+    const fixture = createForkFixture({ [nativeFixturePath("/work/a.ts")]: "a1" });
     const runtime = createTestAgentRuntime(
       sessionId,
       { mode: "yolo" },
@@ -13169,7 +13086,7 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "write then finish", [
-      { id: "write-stable", path: "/work/a.ts", before: "a1", after: "a2" },
+      { id: "write-stable", path: nativeFixturePath("/work/a.ts"), before: "a1", after: "a2" },
     ]);
     const messages = await fixture.sessionStore.messages({ sessionID: sessionId });
     const boundary = messages.filter((message) => message.info.role === "assistant").at(-1)!;
@@ -13313,7 +13230,7 @@ describe("AgentRuntime tool loop", () => {
     const fixture = createForkFixture({});
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore: fixture.artifactStore,
         eventStore,
@@ -13325,15 +13242,15 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "create the handoff file", [
-      { id: "w1", path: "/work/tmp/handoff.md", before: null, after: "handoff\n" },
+      { id: "w1", path: nativeFixturePath("/work/tmp/handoff.md"), before: null, after: "handoff\n" },
     ]);
-    expect(fixture.fileSystemPort.files.get("/work/tmp/handoff.md")).toBe("handoff\n");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/tmp/handoff.md"))).toBe("handoff\n");
 
     const targetMessageId = await fixture.lastAssistantMessageId(sessionId);
     const fork = await runtime.forkWorkspaceFromCheckpoint({ targetMessageId });
 
     expect(fork.restoredFiles).toEqual([]);
-    expect(fixture.fileSystemPort.files.get("/work/tmp/handoff.md")).toBe("handoff\n");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/tmp/handoff.md"))).toBe("handoff\n");
     const forkNotice = (
       await fixture.sessionStore.messages({ sessionID: fork.forkedSessionId })
     ).find((message) => message.info.source === "fork");
@@ -13346,10 +13263,10 @@ describe("AgentRuntime tool loop", () => {
   it("restores only post-fork-point changes when forking at an earlier message", async () => {
     const sessionId = createSessionId("runtime-fork-undoes-later-changes");
     const eventStore = createTestSessionEventStore();
-    const fixture = createForkFixture({ "/work/a.ts": "a1" });
+    const fixture = createForkFixture({ [nativeFixturePath("/work/a.ts")]: "a1" });
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore: fixture.artifactStore,
         eventStore,
@@ -13361,25 +13278,25 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "edit a", [
-      { id: "w1", path: "/work/a.ts", before: "a1", after: "a2" },
+      { id: "w1", path: nativeFixturePath("/work/a.ts"), before: "a1", after: "a2" },
     ]);
     const targetMessageId = await fixture.lastAssistantMessageId(sessionId);
     await fixture.runTurn(runtime, "edit a again and create b", [
-      { id: "w2", path: "/work/a.ts", before: "a2", after: "a3" },
-      { id: "w3", path: "/work/b.ts", before: null, after: "b1" },
+      { id: "w2", path: nativeFixturePath("/work/a.ts"), before: "a2", after: "a3" },
+      { id: "w3", path: nativeFixturePath("/work/b.ts"), before: null, after: "b1" },
     ]);
-    expect(fixture.fileSystemPort.files.get("/work/a.ts")).toBe("a3");
-    expect(fixture.fileSystemPort.files.get("/work/b.ts")).toBe("b1");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/a.ts"))).toBe("a3");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/b.ts"))).toBe("b1");
 
     const fork = await runtime.forkWorkspaceFromCheckpoint({ targetMessageId });
 
     // 目标回合自己的变更（a1→a2）必须保留；fork 点之后的变更（a2→a3、新建 b）被撤销。
-    expect(fixture.fileSystemPort.files.get("/work/a.ts")).toBe("a2");
-    expect(fixture.fileSystemPort.files.has("/work/b.ts")).toBe(false);
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/a.ts"))).toBe("a2");
+    expect(fixture.fileSystemPort.files.has(nativeFixturePath("/work/b.ts"))).toBe(false);
     expect(fork.restoredFiles).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ action: "restore", path: "/work/a.ts" }),
-        expect.objectContaining({ action: "delete", path: "/work/b.ts" }),
+        expect.objectContaining({ action: "restore", path: nativeFixturePath("/work/a.ts") }),
+        expect.objectContaining({ action: "delete", path: nativeFixturePath("/work/b.ts") }),
       ]),
     );
     expect(fork.restoredFiles).toHaveLength(2);
@@ -13400,7 +13317,7 @@ describe("AgentRuntime tool loop", () => {
   it("PV4-08 running stable fork 只复制对话前缀，不回滚 shared workspace", async () => {
     const sessionId = createSessionId("runtime-stable-conversation-fork");
     const eventStore = createTestSessionEventStore();
-    const fixture = createForkFixture({ "/work/a.ts": "a1" });
+    const fixture = createForkFixture({ [nativeFixturePath("/work/a.ts")]: "a1" });
     const runtime = createTestAgentRuntime(
       sessionId,
       { mode: "yolo" },
@@ -13415,14 +13332,14 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "first", [
-      { id: "w1", path: "/work/a.ts", before: "a1", after: "a2" },
+      { id: "w1", path: nativeFixturePath("/work/a.ts"), before: "a1", after: "a2" },
     ]);
     const targetMessageId = await fixture.lastAssistantMessageId(sessionId);
     const stableMessageIds = (await fixture.sessionStore.messages({ sessionID: sessionId })).map(
       (message) => String(message.info.id),
     );
     await fixture.runTurn(runtime, "second", [
-      { id: "w2", path: "/work/a.ts", before: "a2", after: "a3" },
+      { id: "w2", path: nativeFixturePath("/work/a.ts"), before: "a2", after: "a3" },
     ]);
 
     const fork = await runtime.forkStableConversationAtMessage({
@@ -13437,7 +13354,7 @@ describe("AgentRuntime tool loop", () => {
     });
 
     expect(fork.restoredFiles).toEqual([]);
-    expect(fixture.fileSystemPort.files.get("/work/a.ts")).toBe("a3");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/a.ts"))).toBe("a3");
     const childMessages = await fixture.sessionStore.messages({
       sessionID: fork.forkedSessionId,
     });
@@ -13456,10 +13373,10 @@ describe("AgentRuntime tool loop", () => {
   it("restores the earliest post-fork beforeContent when a file changed repeatedly", async () => {
     const sessionId = createSessionId("runtime-fork-earliest-before-wins");
     const eventStore = createTestSessionEventStore();
-    const fixture = createForkFixture({ "/work/a.ts": "a1" });
+    const fixture = createForkFixture({ [nativeFixturePath("/work/a.ts")]: "a1" });
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore: fixture.artifactStore,
         eventStore,
@@ -13471,31 +13388,31 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "edit one", [
-      { id: "w1", path: "/work/a.ts", before: "a1", after: "a2" },
+      { id: "w1", path: nativeFixturePath("/work/a.ts"), before: "a1", after: "a2" },
     ]);
     const targetMessageId = await fixture.lastAssistantMessageId(sessionId);
     await fixture.runTurn(runtime, "edit two", [
-      { id: "w2", path: "/work/a.ts", before: "a2", after: "a3" },
+      { id: "w2", path: nativeFixturePath("/work/a.ts"), before: "a2", after: "a3" },
     ]);
     await fixture.runTurn(runtime, "edit three", [
-      { id: "w3", path: "/work/a.ts", before: "a3", after: "a4" },
+      { id: "w3", path: nativeFixturePath("/work/a.ts"), before: "a3", after: "a4" },
     ]);
 
     const fork = await runtime.forkWorkspaceFromCheckpoint({ targetMessageId });
 
-    expect(fixture.fileSystemPort.files.get("/work/a.ts")).toBe("a2");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/a.ts"))).toBe("a2");
     expect(fork.restoredFiles).toEqual([
-      expect.objectContaining({ action: "restore", path: "/work/a.ts" }),
+      expect.objectContaining({ action: "restore", path: nativeFixturePath("/work/a.ts") }),
     ]);
   });
 
   it("fails the fork without touching the workspace when a later checkpoint artifact is missing", async () => {
     const sessionId = createSessionId("runtime-fork-missing-artifact");
     const eventStore = createTestSessionEventStore();
-    const fixture = createForkFixture({ "/work/a.ts": "a1" });
+    const fixture = createForkFixture({ [nativeFixturePath("/work/a.ts")]: "a1" });
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore: fixture.artifactStore,
         eventStore,
@@ -13507,11 +13424,11 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "edit a", [
-      { id: "w1", path: "/work/a.ts", before: "a1", after: "a2" },
+      { id: "w1", path: nativeFixturePath("/work/a.ts"), before: "a1", after: "a2" },
     ]);
     const targetMessageId = await fixture.lastAssistantMessageId(sessionId);
     await fixture.runTurn(runtime, "edit a again", [
-      { id: "w2", path: "/work/a.ts", before: "a2", after: "a3" },
+      { id: "w2", path: nativeFixturePath("/work/a.ts"), before: "a2", after: "a3" },
     ]);
 
     const laterCheckpointUri = fixture.artifactStore.requests
@@ -13524,7 +13441,7 @@ describe("AgentRuntime tool loop", () => {
       /missing artifact/,
     );
 
-    expect(fixture.fileSystemPort.files.get("/work/a.ts")).toBe("a3");
+    expect(fixture.fileSystemPort.files.get(nativeFixturePath("/work/a.ts"))).toBe("a3");
     expect(fixture.sessionStore.sessions.size).toBe(sessionCountBefore);
   });
 
@@ -13534,7 +13451,7 @@ describe("AgentRuntime tool loop", () => {
     const fixture = createForkFixture({});
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore: fixture.artifactStore,
         eventStore,
@@ -13546,7 +13463,7 @@ describe("AgentRuntime tool loop", () => {
     );
 
     await fixture.runTurn(runtime, "create c", [
-      { id: "w1", path: "/work/c.ts", before: null, after: "c1" },
+      { id: "w1", path: nativeFixturePath("/work/c.ts"), before: null, after: "c1" },
     ]);
     const checkpoints = await runtime.listWorkspaceCheckpoints();
     expect(checkpoints).toHaveLength(1);
@@ -13557,9 +13474,9 @@ describe("AgentRuntime tool loop", () => {
 
     expect(fork.targetCheckpointId).toBe(checkpoints[0]!.checkpointId);
     expect(fork.restoredFiles).toEqual([
-      expect.objectContaining({ action: "delete", path: "/work/c.ts" }),
+      expect.objectContaining({ action: "delete", path: nativeFixturePath("/work/c.ts") }),
     ]);
-    expect(fixture.fileSystemPort.files.has("/work/c.ts")).toBe(false);
+    expect(fixture.fileSystemPort.files.has(nativeFixturePath("/work/c.ts"))).toBe(false);
     expect(fork.response).toContain("from checkpoint");
   });
 
@@ -13570,8 +13487,8 @@ describe("AgentRuntime tool loop", () => {
     const artifactStore = new RecordingArtifactStore();
     const sessionStore = new RecordingSessionStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/a.ts": "export const a = 1;\n",
-      "/work/src/b.ts": "export const b = 1;\n",
+      [nativeFixturePath("/work/src/a.ts")]: "export const a = 1;\n",
+      [nativeFixturePath("/work/src/b.ts")]: "export const b = 1;\n",
     });
     let modelCallCount = 0;
     let latestModelMessages: any[] = [];
@@ -13588,10 +13505,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/a.ts", "export const a = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/a.ts"), "export const a = 2;\n");
         return {
           content: "export const a = 2;\n",
-          filePath: "/work/src/a.ts",
+          filePath: nativeFixturePath("/work/src/a.ts"),
           originalFile: "export const a = 1;\n",
           structuredPatch: [
             {
@@ -13618,10 +13535,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/b.ts", "export const b = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/b.ts"), "export const b = 2;\n");
         return {
           content: "export const b = 2;\n",
-          filePath: "/work/src/b.ts",
+          filePath: nativeFixturePath("/work/src/b.ts"),
           originalFile: "export const b = 1;\n",
           structuredPatch: [
             {
@@ -13639,7 +13556,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -13681,8 +13598,8 @@ describe("AgentRuntime tool loop", () => {
 
     await runtime.executeTurn("first prompt");
     await runtime.executeTurn("second prompt");
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("export const a = 2;\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("export const b = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("export const a = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("export const b = 2;\n");
 
     const messages = await sessionStore.messages({ sessionID: sessionId });
     const target = messages.find(
@@ -13702,8 +13619,8 @@ describe("AgentRuntime tool loop", () => {
 
     expect(checkpointEvents).toHaveLength(2);
     expect(rewind.response).toContain("Rewound workspace through 2 checkpoints");
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("export const a = 1;\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("export const b = 1;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("export const a = 1;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("export const b = 1;\n");
     expect(allModelText).toContain("after rewind");
     expect(allModelText).not.toContain("rewoundPromptPreview");
     expect(allModelText).not.toMatch(/\nfirst prompt(?:\n|$)/);
@@ -13728,8 +13645,8 @@ describe("AgentRuntime tool loop", () => {
     const artifactStore = new RecordingArtifactStore();
     const sessionStore = new RecordingSessionStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/a.ts": "export const a = 1;\n",
-      "/work/src/b.ts": "export const b = 1;\n",
+      [nativeFixturePath("/work/src/a.ts")]: "export const a = 1;\n",
+      [nativeFixturePath("/work/src/b.ts")]: "export const b = 1;\n",
     });
     let modelCallCount = 0;
 
@@ -13745,10 +13662,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/a.ts", "export const a = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/a.ts"), "export const a = 2;\n");
         return {
           content: "export const a = 2;\n",
-          filePath: "/work/src/a.ts",
+          filePath: nativeFixturePath("/work/src/a.ts"),
           originalFile: "export const a = 1;\n",
           structuredPatch: [
             {
@@ -13775,10 +13692,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/b.ts", "export const b = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/b.ts"), "export const b = 2;\n");
         return {
           content: "export const b = 2;\n",
-          filePath: "/work/src/b.ts",
+          filePath: nativeFixturePath("/work/src/b.ts"),
           originalFile: "export const b = 1;\n",
           structuredPatch: [
             {
@@ -13796,7 +13713,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -13859,8 +13776,8 @@ describe("AgentRuntime tool loop", () => {
     expect(rewind.response).toContain(
       "cannot be restored because its snapshot artifact is unavailable",
     );
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("export const a = 2;\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("export const b = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("export const a = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("export const b = 2;\n");
     expect(rewindEvents).toHaveLength(1);
     expect(rewindEvents[0]?.payload).toMatchObject({
       reason: "checkpoint_snapshot_unavailable",
@@ -13875,7 +13792,7 @@ describe("AgentRuntime tool loop", () => {
     const artifactStore = new RecordingArtifactStore();
     const sessionStore = new RecordingSessionStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/a.ts": "export const a = 1;\n",
+      [nativeFixturePath("/work/src/a.ts")]: "export const a = 1;\n",
     });
     let modelCallCount = 0;
 
@@ -13891,10 +13808,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/a.ts", "export const a = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/a.ts"), "export const a = 2;\n");
         return {
           content: "export const a = 2;\n",
-          filePath: "/work/src/a.ts",
+          filePath: nativeFixturePath("/work/src/a.ts"),
           originalFile: "export const a = 1;\n",
           structuredPatch: [
             {
@@ -13953,7 +13870,7 @@ describe("AgentRuntime tool loop", () => {
     );
 
     expect(rewind.response).toContain("is not a rewindable user prompt");
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("export const a = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("export const a = 2;\n");
     expect(rewindEvents).toHaveLength(0);
   });
 
@@ -13964,8 +13881,8 @@ describe("AgentRuntime tool loop", () => {
     const artifactStore = new RecordingArtifactStore();
     const sessionStore = new RecordingSessionStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/a.ts": "export const a = 1;\n",
-      "/work/src/b.ts": "export const b = 1;\n",
+      [nativeFixturePath("/work/src/a.ts")]: "export const a = 1;\n",
+      [nativeFixturePath("/work/src/b.ts")]: "export const b = 1;\n",
     });
     let modelCallCount = 0;
 
@@ -13981,10 +13898,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/a.ts", "export const a = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/a.ts"), "export const a = 2;\n");
         return {
           content: "export const a = 2;\n",
-          filePath: "/work/src/a.ts",
+          filePath: nativeFixturePath("/work/src/a.ts"),
           originalFile: "export const a = 1;\n",
           structuredPatch: [
             {
@@ -14011,10 +13928,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/b.ts", "export const b = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/b.ts"), "export const b = 2;\n");
         return {
           content: "export const b = 2;\n",
-          filePath: "/work/src/b.ts",
+          filePath: nativeFixturePath("/work/src/b.ts"),
           originalFile: "export const b = 1;\n",
           structuredPatch: [
             {
@@ -14032,7 +13949,7 @@ describe("AgentRuntime tool loop", () => {
 
     const runtime = createTestAgentRuntime(
       sessionId,
-      { mode: "yolo", workingDirectory: "/work" },
+      { mode: "yolo", workingDirectory: nativeFixturePath("/work") },
       {
         artifactStore,
         eventStore,
@@ -14083,8 +14000,8 @@ describe("AgentRuntime tool loop", () => {
     const rewind = await runtime.executeTurn(`/rewind both ${target!.info.id}`);
 
     expect(rewind.response).not.toContain("through 2 checkpoints");
-    expect(fileSystemPort.files.get("/work/src/a.ts")).toBe("export const a = 1;\n");
-    expect(fileSystemPort.files.get("/work/src/b.ts")).toBe("export const b = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/a.ts"))).toBe("export const a = 1;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/b.ts"))).toBe("export const b = 2;\n");
   });
 
   it("rewinds active conversation before a target user message", async () => {
@@ -14161,7 +14078,7 @@ describe("AgentRuntime tool loop", () => {
     const registry = createToolRegistry();
     const artifactStore = new RecordingArtifactStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/demo.ts": "export const value = 1;\n",
+      [nativeFixturePath("/work/src/demo.ts")]: "export const value = 1;\n",
     });
     const sessionStore = new RecordingSessionStore();
     let modelCallCount = 0;
@@ -14191,10 +14108,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/demo.ts", "export const value = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/demo.ts"), "export const value = 2;\n");
         return {
           content: "export const value = 2;\n",
-          filePath: "/work/src/demo.ts",
+          filePath: nativeFixturePath("/work/src/demo.ts"),
           originalFile: "export const value = 1;\n",
           structuredPatch: [
             {
@@ -14214,7 +14131,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "yolo",
-        workingDirectory: "/work",
+        workingDirectory: nativeFixturePath("/work"),
       },
       {
         artifactStore,
@@ -14263,7 +14180,7 @@ describe("AgentRuntime tool loop", () => {
 
     expect(fork.response).toContain("Forked session");
     expect(fork.response).toContain("copied 1 messages");
-    expect(fileSystemPort.files.get("/work/src/demo.ts")).toBe("export const value = 1;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/demo.ts"))).toBe("export const value = 1;\n");
     expect(child).toBeDefined();
     expect(forkEvent?.payload).toMatchObject({
       forkPoint: 1,
@@ -14309,7 +14226,7 @@ describe("AgentRuntime tool loop", () => {
     const registry = createToolRegistry();
     const artifactStore = new RecordingArtifactStore();
     const fileSystemPort = new MemoryFileSystem({
-      "/work/src/demo.ts": "export const value = 1;\n",
+      [nativeFixturePath("/work/src/demo.ts")]: "export const value = 1;\n",
     });
     const sessionStore = new RecordingSessionStore();
     let modelCallCount = 0;
@@ -14326,10 +14243,10 @@ describe("AgentRuntime tool loop", () => {
         sideEffectScope: "workspace",
       },
       handler: async () => {
-        fileSystemPort.files.set("/work/src/demo.ts", "export const value = 2;\n");
+        fileSystemPort.files.set(nativeFixturePath("/work/src/demo.ts"), "export const value = 2;\n");
         return {
           content: "export const value = 2;\n",
-          filePath: "/work/src/demo.ts",
+          filePath: nativeFixturePath("/work/src/demo.ts"),
           originalFile: "export const value = 1;\n",
           structuredPatch: [
             {
@@ -14349,7 +14266,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "yolo",
-        workingDirectory: "/work",
+        workingDirectory: nativeFixturePath("/work"),
       },
       {
         artifactStore,
@@ -14465,7 +14382,7 @@ describe("AgentRuntime tool loop", () => {
     expect(fork.response).toContain("copied 11 messages");
     // Bugfix 回归：fork 历史包含目标回合，工作区必须保留该回合的产出，
     // 不能恢复目标回合自身 checkpoint 的 beforeContent。
-    expect(fileSystemPort.files.get("/work/src/demo.ts")).toBe("export const value = 2;\n");
+    expect(fileSystemPort.files.get(nativeFixturePath("/work/src/demo.ts"))).toBe("export const value = 2;\n");
     expect(fork.targetMessageId).toBe(editedAssistants[0]!.info.id);
     expect(forkEvent?.payload).toMatchObject({
       // 与复制数一致，含 environment、model、date 公告与 token 预算提醒。
@@ -14521,7 +14438,7 @@ describe("AgentRuntime tool loop", () => {
       sessionId,
       {
         mode: "build",
-        workingDirectory: "/work",
+        workingDirectory: nativeFixturePath("/work"),
       },
       {
         eventStore,

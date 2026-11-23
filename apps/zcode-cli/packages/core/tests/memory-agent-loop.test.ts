@@ -610,8 +610,16 @@ function generateOnlyModel(
       return this;
     },
     generateText,
-    streamText() {
-      throw new Error("memory agent loop must not stream");
+    async *streamText(request) {
+      // Memory 已沿用官方流式聚合，替身须保留工具与正文，不能继续拒绝当前入口。
+      const result = await generateText(request);
+      for (const toolCall of result.toolCalls ?? []) yield { type: "tool_call", toolCall };
+      if (result.text) {
+        yield { id: "memory-text", type: "text_start" };
+        yield { id: "memory-text", type: "text_delta", text: result.text };
+        yield { id: "memory-text", type: "text_end" };
+      }
+      yield { type: "finish", finishReason: result.finishReason, usage: result.usage };
     },
   };
 }

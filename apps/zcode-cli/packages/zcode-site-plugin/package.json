@@ -22,7 +22,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@zcode/shared": "workspace:*",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.27.7",
     "lucide-react": "^1.17.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

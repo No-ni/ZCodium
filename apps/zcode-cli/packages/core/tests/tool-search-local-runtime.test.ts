@@ -89,7 +89,7 @@ it.each(["off", "on"] as const)(
         metadata: {
           ...toolSearchToolEntry.metadata,
           name: "Lookup",
-          shouldDefer: true,
+          alwaysLoad: false, shouldDefer: true,
           description: "Lookup value",
         },
         permission: undefined,
@@ -267,10 +267,10 @@ it.each(["off", "on"] as const)(
         const request = requests.at(-1)!;
         const invocation = request.messages
           .flatMap((m) => m.toolCalls ?? [])
-          .find((c) => c.name === "DeferredToolCall");
+          .find((c) => c.name === (mode === "local" ? "DeferredToolCall" : "Lookup"));
         expect(invocation).toMatchObject({
-          name: "DeferredToolCall",
-          input: { name: "Lookup", input: { value: 7 } },
+          name: mode === "local" ? "DeferredToolCall" : "Lookup",
+          input: mode === "local" ? { name: "Lookup", input: { value: 7 } } : { value: 7 },
         });
         const result = request.messages.find(
           (m) =>

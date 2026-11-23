@@ -59,6 +59,8 @@ export async function notifyHoleReached(
   const before = stringField(payload.payload, "before") ?? snapshot.hole?.before;
   const after = stringField(payload.payload, "after") ?? snapshot.hole?.after;
   const draftPath = stringField(payload.payload, "draftPath") ?? snapshot.scriptPath;
+  // 官方到达时间仍供 GUI 投影使用；manifest 字符串限幅不应丢掉这个数字事实。
+  const reachedAt = numberField(payload.payload, "reachedAt") ?? snapshot.hole?.since;
   this.enqueueBackgroundTaskNotification({
     originMeta: {
       backgroundSource: "workflow",
@@ -83,6 +85,7 @@ export async function notifyHoleReached(
         ...(after === undefined
           ? {}
           : { after: after.slice(0, HOLE_MANIFEST_NAME_TYPE_MAX_CHARS) }),
+        ...(reachedAt === undefined ? {} : { reachedAt }),
       },
     },
     // taskId 让通知继承该 run 的 branchGeneration（迟到通知的 fencing）；丢弃后的兜底是快照查询。

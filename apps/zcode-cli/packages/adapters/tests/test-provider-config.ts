@@ -128,7 +128,8 @@ export class TestAiSdkModelAdapter extends ProductionAiSdkModelAdapter {
     if (!fixture) throw new Error("Test Provider Config fixture is required");
     const resolved = fixture.resolveConfig(
       { providerId: options.providerId, modelId: options.modelId },
-      options.accountMode ?? (options.requestDependencies?.requestAuth ? "off-peak" : undefined),
+      // 旧 requestAuth 参数不代表官方账号身份，夹具只使用显式 accountMode。
+      options.accountMode,
     );
     const requestDependencies =
       options.requestDependencies ??

@@ -23,14 +23,14 @@ async function fixture(manifest: unknown) {
   return { root, path };
 }
 
-function rewrite(root: string, sourceManifest: unknown) {
+async function rewrite(root: string, sourceManifest: unknown) {
   // 源 manifest 必须参与两条 seed 路径，不能从被旧客户端改坏的缓存猜入口。
   const input = {
     pluginName: "pdf",
     rootPath: root,
     sourceManifestContents: JSON.stringify(sourceManifest),
   };
-  writeOfficialPluginRuntimeManifest(input);
+  await writeOfficialPluginRuntimeManifest(input);
 }
 
 test("rebuilds Office dist/server.mjs from the source manifest and preserves args/env", async () => {
@@ -50,7 +50,7 @@ test("rebuilds Office dist/server.mjs from the source manifest and preserves arg
       },
     },
   };
-  rewrite(root, source);
+  await rewrite(root, source);
   const result = JSON.parse(await readFile(path, "utf8"));
   assert.deepEqual(result.mcpServers.pdf.args.slice(-3), [
     join(root, "dist", "server.mjs"),
@@ -63,7 +63,7 @@ test("rebuilds Office dist/server.mjs from the source manifest and preserves arg
   assert.equal(result.mcpServers.pdf.env[ZCODE_PLUGIN_ID_ENV_KEY], "pdf@zcode-plugins-official");
   assert.equal(result.version, "0.2.1");
   const first = await stat(path);
-  rewrite(root, source);
+  await rewrite(root, source);
   assert.equal((await stat(path)).mtimeMs, first.mtimeMs, "unchanged bytes must not rewrite cache");
 });
 
@@ -72,7 +72,7 @@ test("HTTP/SSE configs are not converted to stdio", async () => {
   const sse = { type: "sse", url: "https://example.invalid/events" };
   const source = { name: "pdf", mcpServers: { http, sse } };
   const { root, path } = await fixture(source);
-  rewrite(root, source);
+  await rewrite(root, source);
   assert.deepEqual(JSON.parse(await readFile(path, "utf8")).mcpServers, { http, sse });
 });
 
@@ -82,9 +82,9 @@ test("keeps legacy local entrypoints and does not duplicate plugin-host on repea
     mcpServers: { fixture: { command: "node", args: ["${ZCODE_PLUGIN_ROOT}/dist/mcp/server.js"] } },
   });
   const source = JSON.parse(await readFile(path, "utf8"));
-  rewrite(root, source);
+  await rewrite(root, source);
   const first = await readFile(path, "utf8");
-  writeOfficialPluginRuntimeManifest({ pluginName: "pdf", rootPath: root });
+  await writeOfficialPluginRuntimeManifest({ pluginName: "pdf", rootPath: root });
   assert.equal(await readFile(path, "utf8"), first);
   assert.equal(JSON.parse(first).mcpServers.fixture.args.at(-1), join(root, "dist/mcp/server.js"));
 });
@@ -92,13 +92,13 @@ test("keeps legacy local entrypoints and does not duplicate plugin-host on repea
 test("rejects an out-of-plugin stdio entry instead of inventing a server path", async () => {
   const source = { name: "pdf", mcpServers: { pdf: { command: "node", args: ["../escape.mjs"] } } };
   const { root } = await fixture(source);
-  assert.throws(() => rewrite(root, source), /invalid MCP server (?:args|entry)/);
+  await assert.rejects(() => rewrite(root, source), /invalid MCP server (?:args|entry)/);
 });
 
 test("skill-only and invalid manifest behavior remain explicit", async () => {
   const { root, path } = await fixture({ name: "fixture", skills: "skills" });
   const first = await readFile(path, "utf8");
-  writeOfficialPluginRuntimeManifest({ pluginName: "fixture", rootPath: root });
+  await writeOfficialPluginRuntimeManifest({ pluginName: "fixture", rootPath: root });
   assert.equal(await readFile(path, "utf8"), first);
-  assert.throws(() => rewrite(root, { name: "pdf", mcpServers: "invalid" }), /invalid mcpServers/);
+  await assert.rejects(() => rewrite(root, { name: "pdf", mcpServers: "invalid" }), /invalid mcpServers/);
 });

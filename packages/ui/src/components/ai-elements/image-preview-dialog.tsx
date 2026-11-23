@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeftIcon, ArrowRightIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
@@ -67,6 +67,8 @@ export function ImagePreviewDialog({
       onActiveIndexChange?.(next);
     });
   };
+  // 键盘 listener 的生命周期由弹窗拥有；每次按键使用当前索引、回调与编辑 guard。
+  const navigateWithKeyboard = useEffectEvent(navigate);
 
   useEffect(() => {
     if (!open) return;
@@ -94,12 +96,12 @@ export function ImagePreviewDialog({
           event.target.closest("input,textarea,[contenteditable=true]"))
       )
         return;
-      if (event.key === "ArrowLeft") navigate(-1);
-      else if (event.key === "ArrowRight") navigate(1);
+      if (event.key === "ArrowLeft") navigateWithKeyboard(-1);
+      else if (event.key === "ArrowRight") navigateWithKeyboard(1);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIndex, items.length, open]);
+  }, [open]);
 
   const downloadActiveImage = async (): Promise<string | null> => {
     if (!activeItem?.src || activeItemIsVideo || isDownloading) return null;

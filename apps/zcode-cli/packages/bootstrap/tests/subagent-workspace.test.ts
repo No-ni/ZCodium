@@ -5,6 +5,7 @@ import { expect, it, vi } from "vitest";
 import type { SessionId, WorkspaceId } from "@zcode/contracts";
 import { createSqliteSessionStore } from "@zcode/adapters/storage";
 import { createNodeExecutionAdapter } from "../../adapters/src/exec/node-execution-adapter.js";
+import { resolveEffectiveBashShellSelection } from "@zcode/adapters/exec";
 import { createTestAgentRuntime } from "../../core/tests/test-agent-runtime.js";
 import { createTestModelFactory } from "../../core/tests/test-runtime-model.js";
 import { createTestSessionEventStore } from "../../core/tests/test-event-store.js";
@@ -25,6 +26,7 @@ it.each([false, true])(
     let store = await createSqliteSessionStore({ dbPath });
     const parentId = "parent-after-cd" as SessionId;
     const execution = createNodeExecutionAdapter({ outputRootDir: join(root, "outputs") });
+    const shell = resolveEffectiveBashShellSelection({env: process.env, platform: process.platform}).selection;
     const executed = vi.spyOn(execution, "run");
     const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
     let calls = 0;
@@ -38,6 +40,7 @@ it.each([false, true])(
         compact: { enabled: false },
         titleGeneration: { enabled: false },
         modelStreaming: false,
+        bashShellSelection: shell,
       },
       {
         sessionStore: store,
@@ -57,7 +60,10 @@ it.each([false, true])(
                   {
                     id: "cd",
                     name: "Bash",
-                    input: { command: "cd src && pwd", dangerouslyDisableSandbox: true },
+                    input: {
+                      command: shell.dialect === "cmd" ? "cd src && cd" : "cd src && pwd",
+                      dangerouslyDisableSandbox: true,
+                    },
                   },
                 ],
               };
@@ -85,14 +91,16 @@ it.each([false, true])(
     );
     try {
       await runtime.executeTurn("Run cd, then Agent");
-      expect((await executed.mock.results[0]!.value).resolvedCwd).toBe(cwd);
+      const executionResult = await executed.mock.results[0]!.value;
+      expect(executionResult.exitCode).toBe(0);
+      expect(executionResult.resolvedCwd).toBe(cwd);
       const child = (await store.listSessions({ limit: 20 })).find((s) => s.parentID === parentId);
       expect(child).toBeDefined();
       runtime.beginShutdown();
       store.close();
       store = await createSqliteSessionStore({ dbPath });
       expect(await store.getSession(child!.id)).toMatchObject({
-        path: workspacePath,
+        path: cwd,
         directory: workspacePath,
       });
       expect((await store.getSession(child!.id))?.workspaceID).toBe(workspaceIdentity);

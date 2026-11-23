@@ -159,7 +159,7 @@ export function createRunIntrospectionMethods(
           // 脚本点名的模型的间隙副本，同一条论证。
           ...runModelBindingsField(entry.modelBindings),
           // 脚本文件的间隙副本，同一条论证（见 RunRegistryEntry.scriptPath）。
-          ...runScriptPathField(synchronizedRunScriptPath(journal, runId, entry)),
+          ...runScriptPathField(await synchronizedRunScriptPath(journal, runId, entry)),
           // 计数此刻还没有任何权威来源，诚实地为 0；用量的起点却是已知的（修订 run 继承前驱的
           // 累计值，见 RunRegistryEntry.inheritedTokens），报 0 会说「这条 lineage 没花钱」。
           usage: {
@@ -217,7 +217,7 @@ export function createRunIntrospectionMethods(
         })(),
         // 草稿只在已确认同步时可用于修订；与快照共用投影，不能让详情重新暴露写回失败的旧文件。
         // 冷行只有启动路径，补全后不能据此证明磁盘内容已同步。
-        ...runScriptPathField(synchronizedRunScriptPath(journal, runId, entry, stored)),
+        ...runScriptPathField(await synchronizedRunScriptPath(journal, runId, entry, stored)),
         ...runModelBindingsField(
           entry === undefined ? readRunModelBindings(journal, runId) : entry.modelBindings,
         ),

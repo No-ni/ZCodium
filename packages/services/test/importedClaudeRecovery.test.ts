@@ -12,7 +12,7 @@ import { getLegacyTaskSessionSnapshotPath, setDataBaseDir } from "../src/paths.j
 import { parseLegacyTaskSessionFile } from "../src/session/legacyTaskSessionFile.js";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
 import { createZCodeTaskServiceAdapter } from "../src/zcode-agent/zcodeTaskServiceAdapter.js";
-import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import { prepareTasksIndexStorage } from "../src/project-storage/startup-entry.js";
 import {
   assertProjectPath,
   createProjectTestFixture,

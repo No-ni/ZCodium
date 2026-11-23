@@ -44,8 +44,6 @@ describe("main agent tool pool", () => {
     // 无 skillPort 故不含 Skill；WebSearch 是普通 client-side wrapper。
     // 顺序按 builtInTools 注册顺序。
     expect(defaultRuntime.getToolRegistry().list()).toEqual([
-      "ToolSearch",
-      "DeferredToolCall",
       "Read",
       "Bash",
       "WebFetch",

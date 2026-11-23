@@ -1,5 +1,4 @@
-/* OMCP-001/002/007/018/020 —— Plugin loader 对 zcode_official 的严格解析（spec §4.2 / §5.2）。
-   这里只验证"配置进入 runtime 的形状"，信任判定与身份头注入分别在 bootstrap 与 mcp adapter 测试。 */
+/* 历史官方 MCP 声明必须 fail closed；普通 headers/oauth MCP 仍按当前插件契约加载。 */
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,9 +20,9 @@ async function discoverWithMcpServer(server: Record<string, unknown>): Promise<{
 }> {
   const dir = await mkdtemp(join(tmpdir(), "zcode-official-mcp-plugin-"));
   const pluginRoot = join(dir, PLUGIN_NAME);
-  await mkdir(join(pluginRoot, ".zcode-plugin"), { recursive: true });
+  await mkdir(join(pluginRoot, ".zcodium-plugin"), { recursive: true });
   await writeFile(
-    join(pluginRoot, ".zcode-plugin", "plugin.json"),
+    join(pluginRoot, ".zcodium-plugin", "plugin.json"),
     JSON.stringify({ name: PLUGIN_NAME }),
   );
   await writeFile(
@@ -50,8 +49,8 @@ function expectDisabled(outcome: DiscoverOutcome): void {
   );
 }
 
-describe("plugin mcp zcode_official auth parsing", () => {
-  it("OMCP-001: keeps auth and host-generated provenance for a valid http declaration", async () => {
+describe("plugin mcp retired official auth rejection", () => {
+  it("OMCP-001: rejects a former official http declaration", async () => {
     const { cleanup, outcome } = await discoverWithMcpServer({
       auth: { provider: "jwt_token", type: "zcode_official" },
       timeoutMs: 30_000,
@@ -59,21 +58,13 @@ describe("plugin mcp zcode_official auth parsing", () => {
       url: "https://mcp.zcode.example/mcp",
     });
     try {
-      expect(outcome.mcpServers[RUNTIME_NAME]).toMatchObject({
-        auth: { provider: "jwt_token", type: "zcode_official" },
-        official: { mcpKey: MCP_KEY, source: "plugin" },
-        type: "http",
-        url: "https://mcp.zcode.example/mcp",
-      });
-      // provenance 的 pluginId 必须来自宿主装载结果，不是 .mcp.json 能写的值
-      const official = outcome.mcpServers[RUNTIME_NAME]?.official as { pluginId: string };
-      expect(official.pluginId).toContain(PLUGIN_NAME);
+      expectDisabled(outcome);
     } finally {
       await cleanup();
     }
   });
 
-  it("OMCP-002: ignores an official field forged in .mcp.json", async () => {
+  it("OMCP-002: rejects a forged official field in .mcp.json", async () => {
     const { cleanup, outcome } = await discoverWithMcpServer({
       auth: { provider: "jwt_token", type: "zcode_official" },
       official: { mcpKey: "spoofed", pluginId: "zcode-tools@official", source: "plugin" },
@@ -81,12 +72,7 @@ describe("plugin mcp zcode_official auth parsing", () => {
       url: "https://mcp.zcode.example/mcp",
     });
     try {
-      const official = outcome.mcpServers[RUNTIME_NAME]?.official as {
-        mcpKey: string;
-        pluginId: string;
-      };
-      expect(official.mcpKey).toBe(MCP_KEY);
-      expect(official.pluginId).not.toBe("zcode-tools@official");
+      expectDisabled(outcome);
     } finally {
       await cleanup();
     }
@@ -120,27 +106,20 @@ describe("plugin mcp zcode_official auth parsing", () => {
     }
   });
 
-  // phase-2：stdio 放开（身份头改经 tools/call 的 `_meta` 下发），sse 仍拒。
-  it("OMCP-S07: keeps auth and host-generated provenance for a valid stdio declaration", async () => {
+  it("OMCP-S07: rejects a former official stdio declaration", async () => {
     const { cleanup, outcome } = await discoverWithMcpServer({
       auth: { provider: "jwt_token", type: "zcode_official" },
       command: "python3",
       type: "stdio",
     });
     try {
-      expect(outcome.mcpServers[RUNTIME_NAME]).toMatchObject({
-        auth: { provider: "jwt_token", type: "zcode_official" },
-        official: { mcpKey: MCP_KEY, source: "plugin" },
-        type: "stdio",
-      });
-      const official = outcome.mcpServers[RUNTIME_NAME]?.official as { pluginId: string };
-      expect(official.pluginId).toContain(PLUGIN_NAME);
+      expectDisabled(outcome);
     } finally {
       await cleanup();
     }
   });
 
-  it("OMCP-S08: ignores an official field forged in a stdio declaration", async () => {
+  it("OMCP-S08: rejects a forged official field in a stdio declaration", async () => {
     const { cleanup, outcome } = await discoverWithMcpServer({
       auth: { provider: "jwt_token", type: "zcode_official" },
       command: "python3",
@@ -148,12 +127,7 @@ describe("plugin mcp zcode_official auth parsing", () => {
       type: "stdio",
     });
     try {
-      const official = outcome.mcpServers[RUNTIME_NAME]?.official as {
-        mcpKey: string;
-        pluginId: string;
-      };
-      expect(official.mcpKey).toBe(MCP_KEY);
-      expect(official.pluginId).not.toBe("zcode-tools@official");
+      expectDisabled(outcome);
     } finally {
       await cleanup();
     }
@@ -228,9 +202,8 @@ describe("plugin mcp zcode_official auth parsing", () => {
     }
   });
 
-  it("keeps non-reserved static headers alongside official auth", async () => {
+  it("keeps ordinary non-reserved static headers without official auth", async () => {
     const { cleanup, outcome } = await discoverWithMcpServer({
-      auth: { provider: "jwt_token", type: "zcode_official" },
       headers: { "x-trace-hint": "keep-me" },
       type: "http",
       url: "https://mcp.zcode.example/mcp",

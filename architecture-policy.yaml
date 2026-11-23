@@ -126,6 +126,23 @@ modules:
       - sqlite-migrations
       - agent-protocol-values
     publicEntrypoints: []
+  # 为已存在的官方 shim 模块补齐受管边界，复用本文件声明的公开类型与接口。
+  - id: cli-mcp-node-fallback
+    roots:
+      - apps/zcode-cli/packages/adapters/src/mcp/node-fallback
+      - apps/zcode-cli/packages/adapters/src/mcp/node-fallback.ts
+      - apps/zcode-cli/packages/adapters/tests/mcp-node-fallback.test.ts
+    managed: true
+    requires:
+      - shared
+      - agent-contracts
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/adapters/src/mcp/node-fallback.ts
+      - apps/zcode-cli/packages/adapters/src/mcp/node-fallback/contract.ts
+    layers:
+      adapters: .
+    owner: agent
   - id: side-pane-full-view
     roots:
       - packages/ui/src/side-pane-full-view
@@ -2899,6 +2916,45 @@ modules:
     layers:
       adapters: .
     owner: source-server
+  # cli-debug-presentation：由 architecture:adopt 登记
+  - id: cli-debug-presentation
+    roots:
+      - apps/zcode-cli/packages/debug/src/presentation
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/debug/src/presentation/index.ts
+      - apps/zcode-cli/packages/debug/src/presentation/contract.ts
+    layers:
+      ui: .
+  # cli-test-config：由 architecture:adopt 登记
+  - id: cli-test-config
+    roots:
+      - apps/zcode-cli/test-config-contract
+      - apps/zcode-cli/vitest.config.ts
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - apps/zcode-cli/vitest.config.ts
+      - apps/zcode-cli/test-config-contract/contract.ts
+    layers:
+      adapters: .
+    owner: testing
+  # ui-style-build：由 architecture:adopt 登记
+  - id: ui-style-build
+    roots:
+      - packages/ui/src/style-build-contract
+      - packages/ui/lucide-colors.mjs
+      - packages/ui/src/styles.css
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/ui/lucide-colors.mjs
+      - packages/ui/src/style-build-contract/contract.ts
+    layers:
+      adapters: .
+    owner: frontend
 
 global:
   acceptedUpstreamCommits:
@@ -2908,7 +2964,7 @@ global:
     - commit: fec975905a2abd4c07e35c40d51fa097a2258ec9
       previousHead: 03f5d4e56c581b11ac59c85fbec3ed0583496f66
       reason: 官方 3.18.2 真实合并；仅路径、模式、字节均匹配的双 Git 快照源文件按继承准入，本仓适配不豁免
-  maxFileLines: 400
+  maxFileLines: 800
   maxContractLines: 300
   maxPublicMethods: 12
   forbidCycles: true

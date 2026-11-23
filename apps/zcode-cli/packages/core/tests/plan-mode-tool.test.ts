@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   SessionEventType,
@@ -145,7 +147,7 @@ describe("plan mode tools", () => {
     expect(result.modelContent).toContain("User has approved your plan");
     expect(result.modelContent).toContain("## Approved Plan");
     expect(
-      fileSystemPort.files["/workspace/project/.zcode/plans/plan-sess_exit-plan-mode.md"],
+      fileSystemPort.files[nativeFixturePath("/workspace/project/.zcodium/plans/plan-sess_exit-plan-mode.md")],
     ).toBe("\n  1. Update the service boundary\n2. Add tests\n\n");
     expect(mode).toBe("build");
     expect(prePlanMode).toBeUndefined();
@@ -361,7 +363,7 @@ describe("plan mode tools", () => {
       sessionModePort,
       traceContext,
       turnId,
-      workspaceRoot: "/workspace/project",
+      workspaceRoot: nativeFixturePath("/workspace/project"),
     }).execute(
       {
         id: createToolCallId("exit-plan-write-fails"),
@@ -425,7 +427,7 @@ describe("plan mode tools", () => {
       sessionModePort,
       traceContext,
       turnId,
-      workspaceRoot: "/workspace/project",
+      workspaceRoot: nativeFixturePath("/workspace/project"),
     }).execute(
       {
         id: createToolCallId("exit-plan-write-cancelled"),
@@ -473,8 +475,8 @@ function createPlanModeExecutor(input: {
     sessionModePort: input.sessionModePort,
     traceContext: input.traceContext,
     turnId: input.turnId,
-    workingDirectory: input.workingDirectory ?? "/workspace/project",
-    workspaceRoot: input.workspaceRoot ?? "/workspace/project",
+    workingDirectory: input.workingDirectory ?? nativeFixturePath("/workspace/project"),
+    workspaceRoot: input.workspaceRoot ?? nativeFixturePath("/workspace/project"),
   });
 }
 

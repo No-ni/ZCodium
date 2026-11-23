@@ -1,9 +1,9 @@
 import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { lazy, Suspense } from "react";
 import { Spinner } from "@/components/ui/spinner.js";
-import { logger } from "@/logger.js";
+import "@/logger.js";
 import { DataSyncSection } from "@/data-sync/index.js";
-import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
+import "@/conversation-workspace-target/sourceIdentity.js";
 /* oxlint-disable eslint(max-lines) */
 import { ArrowLeft, Rocket, type LucideIcon } from "lucide-react";
 import {
@@ -19,10 +19,8 @@ import type {
   AppToolSearchMode,
   IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
-  Locale,
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
-import type { ModelSelection } from "@zcode/shared/model-selection";
 import { isLocale } from "@zcode/shared";
 import {
   TID_SETTINGS_BACK_BUTTON,
@@ -41,8 +39,6 @@ import {
   clearPendingSettingsPluginOrigin,
   clearPendingSettingsPluginScopeKey,
   consumeInitialSettingsSection,
-  consumePendingSettingsSourceServerId,
-  consumePendingSettingsSourceServerDetails,
   consumePendingSettingsPluginOrigin,
   consumePendingSettingsPluginScopeKey,
   consumePendingSettingsPluginTab,
@@ -153,7 +149,6 @@ import {
   createSettingsPageConfig,
   GeneralSectionContent,
   AgentBehaviorSectionContent,
-  TaskAutoArchiveSettings,
   isSettingsSectionAvailable,
   resolveSettingsSectionForPlatform,
 } from "./settingsPageHelpers.js";
@@ -372,14 +367,13 @@ export function SettingsPage({
   );
   const selectDirectory = useSelectDirectory();
   const localHostServices = useBaseWorkspaceServices();
-  const services = localHostServices;
+
   const { snapshot: sourceManagementSnapshot } = useSourceServerManagementSnapshot(
     localHostServices.sourceServerManagementService,
     { enabled: Boolean(isDesktop) },
   );
   const requestMigrationDialog = () => setActiveSettingsSection("migration");
   // 常规设置属于窗口本机 Host；当前远端 workspace 的 context 会让读写和缓存落到另一台设备。
-  const onboardingRecordService = localHostServices.onboardingRecordService;
   const { settings: sharedSettings, update: updateSharedSettings } = useSettings({
     services: localHostServices,
   });
@@ -539,27 +533,7 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
-  const handleMemoryEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      await (async () => {
-        await updateSharedSettings({ memoryEnabled: enabled });
-        // 手动修改反向回写 record，换号同步不会复活旧值；失败不阻塞开关。
-        await onboardingRecordService
-          ?.updateRecordPreferences({ memoryEnabled: enabled })
-          .catch((cause: unknown) => {
-            logger.warn("[settings] 回写引导记录失败", cause);
-          });
-      })();
-    },
-    [updateSharedSettings],
-  );
-  const handleSummaryModelChange = useCallback(
-    async (selection: ModelSelection | null) => {
-      // RPC 会丢弃 undefined；清空选择必须传 null，由 schema 的 nullish 归一成缺省。
-      await updateSharedSettings({ summaryModelSelection: selection });
-    },
-    [updateSharedSettings],
-  );
+
   const handleHttpProxyChange = useCallback(
     async (proxy: string) => {
       const normalizedProxy = proxy.trim();

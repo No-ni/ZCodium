@@ -108,7 +108,7 @@ describe("Skill integration", () => {
     expect(loaded).toContain("/workspace/.zcode/skills/demo-skill/notes.md");
   });
 
-  it("reports resolved skill metadata through the telemetry callback without changing content", async () => {
+  it("keeps plugin skill content without calling a legacy telemetry callback", async () => {
     const metadata = {
       ...skillOutcome.skills[0]!,
       name: "pptx",
@@ -140,14 +140,7 @@ describe("Skill integration", () => {
       ),
     );
 
-    expect(reported).toEqual([
-      {
-        name: "pptx",
-        qualifiedName: "document-skills:pptx",
-        pluginId: "document-skills@zcode-plugins-official",
-        source: "plugin",
-      },
-    ]);
+    expect(reported).toEqual([]);
     expect(loaded).toContain("Description stays in the skill body.");
   });
 
@@ -186,10 +179,10 @@ describe("Skill integration", () => {
     expect(skillToolEntry.resultBudget.maxModelBytes).toBeGreaterThanOrEqual(ceiling);
   });
 
-  it("上报 remote 来源的实际 skill name", async () => {
+  it("加载 remote 来源正文而不调用旧采集回调", async () => {
     const reported: unknown[] = [];
     const metadata = { ...skillOutcome.skills[0]!, source: "remote" as const };
-    await skillHandler(
+    const loaded = await skillHandler(
       { skill: "requested-alias" },
       contextWithSkillPort(
         {
@@ -210,7 +203,8 @@ describe("Skill integration", () => {
         (value) => reported.push(value),
       ),
     );
-    expect(reported).toEqual([{ name: "demo-skill", source: "remote" }]);
+    expect(reported).toEqual([]);
+    expect(loaded).toContain("body");
   });
 
   it("can omit the Skill tool when the runtime has no SkillPort", () => {
@@ -225,7 +219,7 @@ describe("Skill integration", () => {
 
 function contextWithSkillPort(
   skillPort: SkillPort,
-  recordSkillTelemetryMetadata?: ToolExecutionContext["recordSkillTelemetryMetadata"],
+  recordSkillTelemetryMetadata?: (value: unknown) => void,
 ): ToolExecutionContext {
   return {
     toolCallId: "tool-skill",

@@ -17,7 +17,8 @@ test("image clipboard reader uses the ZCode storage root for native temp files",
     runCommand: async (_file, args) => {
       const scriptLine = args.find((arg) => arg.includes("clipboard.png")) ?? "";
       const match = scriptLine.match(/POSIX file "([^"]+)"/);
-      const imagePath = match?.[1];
+      // mock 还原 AppleScript 字符串转义，双反斜线属于脚本文本而非真实文件路径。
+      const imagePath = match?.[1] ? JSON.parse(`"${match[1]}"`) as string : undefined;
       if (!imagePath) {
         return { exitCode: 1, stdout: Buffer.alloc(0) };
       }
@@ -31,8 +32,8 @@ test("image clipboard reader uses the ZCode storage root for native temp files",
     const image = await readClipboardImage();
     assert.equal(image?.mediaType, "image/png");
     assert.match(
-      imagePaths[0] ?? "",
-      new RegExp(`^${escapeRegExp(join(storageRoot, "clipboard", "zcode-clipboard-"))}`),
+      (imagePaths[0] ?? "").replaceAll("\\", "/"),
+      new RegExp(`^${escapeRegExp(join(storageRoot, "clipboard", "zcode-clipboard-").replaceAll("\\", "/"))}`),
     );
     assert.deepEqual(await readdir(join(storageRoot, "clipboard")), []);
   } finally {

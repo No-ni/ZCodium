@@ -6,6 +6,9 @@ import { createNodeSkillAdapter } from "@zcode/adapters/skills";
 import { createSqliteSessionStore } from "@zcode/adapters/storage";
 import type { Logger } from "@zcode/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// 冷 seed 复制实际内置资产，隔离 Windows 回归实测超过默认 5s；只扩大测试 IO 预算。
+vi.setConfig({ testTimeout: 30_000 });
 import { createWorkflowChildSkillPort } from "../src/app/script-workflow-child-runtime.js";
 import { resolveStartupPlugins } from "../src/app/startup-marks.js";
 import type { ZCodeApp, ZCodeAppOptions } from "../src/app/types.js";
@@ -48,7 +51,7 @@ describe("visualize protocol-only skill discovery", () => {
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "loads skills with a read-only project config directory",
     async () => {
-      const directory = join(root, ".zcode");
+      const directory = join(root, ".zcodium");
       const configPath = join(directory, "config.json");
       const original = JSON.stringify({
         plugins: { enabledPlugins: { [VISUALIZE_PLUGIN_ID]: true } },

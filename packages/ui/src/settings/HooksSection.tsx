@@ -160,6 +160,15 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   const { intl, locale } = useZCodeIntl();
   const confirmDialog = useConfirmDialog();
   const hooksState = useHooksStore();
+  // Zustand 的 action 是无接收者的稳定函数，依赖 action 本身，避免整份状态触发重复订阅。
+  const {
+    initialize: hooksInitialize,
+    addHook: hooksAddHook,
+    updateHook: hooksUpdateHook,
+    deleteHook: hooksDeleteHook,
+    toggleHook: hooksToggleHook,
+    importHook: hooksImportHook,
+  } = hooksState;
   const plugins = usePluginManagementStore((state) => state.plugins);
   const availablePlugins = usePluginManagementStore((state) => state.availablePlugins);
   const installedPlugins = usePluginManagementStore((state) => state.installedPlugins);
@@ -308,7 +317,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
 
   useEffect(() => {
     if (!targetServiceResolution.rpcReady) return;
-    void hooksState.initialize(
+    void hooksInitialize(
       targetWorkspacePath ?? undefined,
       targetWorkspaceIdentity,
       hooksService,
@@ -317,7 +326,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   }, [
     hooksService,
     cacheAuthorityKey,
-    hooksState.initialize,
+    hooksInitialize,
     targetServiceResolution.rpcReady,
     targetWorkspaceIdentity,
     targetWorkspacePath,
@@ -343,7 +352,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   const handleRefresh = useCallback(async () => {
     if (!targetServiceResolution.rpcReady) return;
     await Promise.all([
-      hooksState.initialize(
+      hooksInitialize(
         targetWorkspacePath ?? undefined,
         targetWorkspaceIdentity,
         hooksService,
@@ -361,7 +370,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
   }, [
     hooksService,
     cacheAuthorityKey,
-    hooksState.initialize,
+    hooksInitialize,
     initializePlugins,
     pluginManagementService,
     targetServiceResolution.rpcReady,
@@ -388,7 +397,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
     if (latestReviewScopeTarget.scopeKey !== selectedScopeKey) {
       setSelectedScopeKey(latestReviewScopeTarget.scopeKey);
     }
-  }, [latestReviewScopeTarget, selectedScopeKey]);
+  }, [latestReviewScopeTarget, selectedScopeKey, setSelectedScopeKey]);
 
   const invalidateDraft = useCallback(
     async (reason: string) => {
@@ -406,10 +415,10 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
     async (config: HookConfig) => {
       try {
         if (editingHook) {
-          await hooksState.updateHook(editingHook.id, config, hooksService);
+          await hooksUpdateHook(editingHook.id, config, hooksService);
           await invalidateDraft("hook-updated");
         } else {
-          await hooksState.addHook(config, hooksService);
+          await hooksAddHook(config, hooksService);
           await invalidateDraft("hook-added");
         }
         closeForm();
@@ -417,14 +426,7 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [
-      closeForm,
-      editingHook,
-      hooksService,
-      hooksState.addHook,
-      hooksState.updateHook,
-      invalidateDraft,
-    ],
+    [closeForm, editingHook, hooksService, hooksAddHook, hooksUpdateHook, invalidateDraft],
   );
   const handleCreateHook = useCallback(() => {
     openForm({ hook: null });
@@ -443,39 +445,39 @@ export function HooksSection({ workspacePath, workspaceIdentity }: HooksSectionP
       });
       if (!confirmed) return;
       try {
-        await hooksState.deleteHook(hook.id, hooksService);
+        await hooksDeleteHook(hook.id, hooksService);
         await invalidateDraft("hook-deleted");
         closeForm();
       } catch (error) {
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [closeForm, confirmDialog, hooksService, hooksState.deleteHook, intl, invalidateDraft],
+    [closeForm, confirmDialog, hooksService, hooksDeleteHook, intl, invalidateDraft],
   );
 
   const handleToggle = useCallback(
     async (hook: Hook, enabled: boolean) => {
       try {
-        await hooksState.toggleHook(hook.id, enabled, hooksService);
+        await hooksToggleHook(hook.id, enabled, hooksService);
         await invalidateDraft(enabled ? "hook-enabled" : "hook-disabled");
       } catch (error) {
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [hooksService, hooksState.toggleHook, invalidateDraft],
+    [hooksService, hooksToggleHook, invalidateDraft],
   );
 
   const handleImport = useCallback(
     async (hook: Hook) => {
       try {
-        await hooksState.importHook(hook.id, hooksService);
+        await hooksImportHook(hook.id, hooksService);
         await invalidateDraft("hook-imported");
         toast(intl.formatMessage({ id: "settings.hooks.imported" }));
       } catch (error) {
         toast(error instanceof Error ? error.message : String(error));
       }
     },
-    [hooksService, hooksState.importHook, intl, invalidateDraft],
+    [hooksService, hooksImportHook, intl, invalidateDraft],
   );
 
   if (form && targetServiceResolution.rpcReady) {

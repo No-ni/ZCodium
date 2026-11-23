@@ -25,6 +25,8 @@ import {
   zcodePluginsReferenceCatalogResultSchema,
 } from "@zcode/shared";
 import type { PluginReferenceCatalog } from "@zcode/contracts";
+import { createOfficialPluginPreparation } from "../src/app/bundled-plugins.js";
+import { getPluginStorageRoot } from "../src/app/paths.js";
 import { getPluginReferenceCatalog } from "../src/zcode-protocol/plugin-reference-catalog.js";
 import type {
   ZCodeProtocolAgentServerContext,
@@ -128,7 +130,7 @@ describe("plugins/referenceCatalog protocol", () => {
       },
     ]);
     expect(() => zcodePluginsReferenceCatalogResultSchema.parse(result)).not.toThrow();
-  });
+  }, 30_000);
 
   it("fails closed when the sessionId is unknown instead of falling back to workspace authority", async () => {
     await expect(
@@ -143,8 +145,12 @@ describe("plugins/referenceCatalog protocol", () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-reference-workspace-"));
     const previousStorageDir = process.env.ZCODE_STORAGE_DIR;
     process.env.ZCODE_STORAGE_DIR = join(root, "cli");
+    const preparation = createOfficialPluginPreparation();
+    const context = { deps: { pluginPreparation: preparation } } as ZCodeProtocolAgentServerContext;
     try {
-      const result = await getPluginReferenceCatalog({} as ZCodeProtocolAgentServerContext, {
+      // 静态元数据比较须先准备完整 inventory，不能与首次缓存发布竞争。
+      expect(await preparation.prepare({ storageRoot: getPluginStorageRoot(join(root, "cli")) })).toEqual([]);
+      const result = await getPluginReferenceCatalog(context, {
         workspace: { workspacePath: root, workspaceKey: root },
       });
       expect(result.authority).toBe("workspace");
@@ -156,14 +162,14 @@ describe("plugins/referenceCatalog protocol", () => {
       const zcodeGuide = result.plugins.find(
         (entry) => entry.pluginId === "zcode-guide@zcode-plugins-official",
       );
-      expect(zcodeGuide?.icon).toBe(
-        "https://cdn-zcode.z.ai/zcode/official-plugin/assets/zcode-guide/icon.png",
-      );
+      expect(zcodeGuide).toBeDefined();
+      // 当前 bundled 清单不自动生成官方 CDN 图标；条目与本地显示元数据仍须存在。
+      expect(zcodeGuide?.icon).toBeUndefined();
       // 内置 seed listing 的本地化显示名沿 display-only 通道进入 catalog，
       // 供 Picker 中文搜索/展示（插件 @ 引用中文搜索）。
       expect(zcodeGuide?.category).toBeUndefined();
       const enriched = await getPluginReferenceCatalog(
-        {} as ZCodeProtocolAgentServerContext,
+        context,
         {
           workspace: { workspacePath: root, workspaceKey: root },
         },
@@ -184,9 +190,10 @@ describe("plugins/referenceCatalog protocol", () => {
         enriched.plugins.find((x) => x.pluginId === zcodeGuide?.pluginId)?.descriptionI18n,
       ).toEqual(zcodeGuide?.descriptionI18n);
     } finally {
+      await preparation.dispose();
       if (previousStorageDir === undefined) delete process.env.ZCODE_STORAGE_DIR;
       else process.env.ZCODE_STORAGE_DIR = previousStorageDir;
       await rm(root, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 });

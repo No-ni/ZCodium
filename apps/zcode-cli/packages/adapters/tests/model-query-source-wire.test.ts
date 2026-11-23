@@ -19,8 +19,8 @@ const querySources = [
   "future.source:v2-test",
 ] as const;
 
-describe.each(providerKinds)("%s query source HTTP header", (providerKind) => {
-  it.each([false, true])("side_chat 与请求用途分别透传，streaming=%s", async (streaming) => {
+describe.each(providerKinds)("%s explicit provider headers and private request attribution", (providerKind) => {
+  it.each([false, true])("side_chat 与请求用途不自动写入 HTTP header，streaming=%s", async (streaming) => {
     const { adapter, requests } = createCapture(providerKind);
     const sources = ["main_turn", "compact", "session_title", "project_memory_recall"];
     for (const source of sources) {
@@ -31,10 +31,10 @@ describe.each(providerKinds)("%s query source HTTP header", (providerKind) => {
         request.headers.get("x-zcode-session-type"),
         request.headers.get(QUERY_SOURCE_HEADER),
       ]),
-    ).toEqual(sources.map((source) => ["side_chat", source]));
+    ).toEqual(sources.map(() => [null, "configured_provider"]));
   });
 
-  it.each([false, true])("透传各用途并隔离并发调用，streaming=%s", async (streaming) => {
+  it.each([false, true])("并发用途保持内部归属并保留显式 provider header，streaming=%s", async (streaming) => {
     const { adapter, requests } = createCapture(providerKind);
     await Promise.all(
       querySources.map((querySource) => captureCall(adapter, querySource, streaming)),
@@ -42,18 +42,17 @@ describe.each(providerKinds)("%s query source HTTP header", (providerKind) => {
 
     expect(requests).toHaveLength(querySources.length);
     expect(requests.map((request) => request.headers.get(QUERY_SOURCE_HEADER)).sort()).toEqual(
-      [...querySources].sort(),
+      querySources.map(() => "configured_provider"),
     );
     for (const request of requests) {
-      const source = request.headers.get(QUERY_SOURCE_HEADER);
-      expect(request.headers.get("x-session-id")).toBe(source);
-      expect(request.headers.get("x-zcode-session-type")).toBe("main");
+      expect(request.headers.get("x-session-id")).toBeNull();
+      expect(request.headers.get("x-zcode-session-type")).toBeNull();
       expect(request.headers.get("x-static-marker")).toBe("preserved");
       expect(await request.json()).not.toHaveProperty("querySource");
     }
   });
 
-  it.each([false, true])("缺失或非法来源不能回退到静态 header，streaming=%s", async (streaming) => {
+  it.each([false, true])("缺失或非法内部来源不改写显式 header，streaming=%s", async (streaming) => {
     const { adapter, requests } = createCapture(providerKind);
     const invalidSources = [
       undefined,
@@ -67,7 +66,7 @@ describe.each(providerKinds)("%s query source HTTP header", (providerKind) => {
     for (const querySource of invalidSources) await captureCall(adapter, querySource, streaming);
 
     expect(requests).toHaveLength(invalidSources.length);
-    expect(requests.every((request) => !request.headers.has(QUERY_SOURCE_HEADER))).toBe(true);
+    expect(requests.every((request) => request.headers.get(QUERY_SOURCE_HEADER) === "configured_provider")).toBe(true);
   });
 
   it.each([false, true])("其他归因头保持既有 SDK 合并行为，streaming=%s", async (streaming) => {
@@ -84,23 +83,16 @@ describe.each(providerKinds)("%s query source HTTP header", (providerKind) => {
     expect(requests).toHaveLength(1);
     const started = events.find((event) => event.type === "model_request_started")!;
     expect(started).toBeDefined();
-    // HEAD 实测：SDK 流式与非流式的大小写冲突结果不同，本功能只收口 query-source。
-    const expectedHeaders = streaming
-      ? staticHeaders
-      : {
-          "X-Request-ID": started.requestId,
-          "X-Session-ID": "compact",
-          "X-ZCode-Session-Type": "main",
-          "X-ZCode-Trace-ID": started.traceId,
-        };
+    // 用户显式配置的 API header 按 SDK 合同保留，不注入本仓内部归属覆盖它。
+    const expectedHeaders = staticHeaders;
     for (const [name, value] of Object.entries(expectedHeaders)) {
       expect(requests[0]!.headers.get(name)).toBe(value);
     }
-    expect(requests[0]!.headers.get(QUERY_SOURCE_HEADER)).toBe("compact");
+    expect(requests[0]!.headers.get(QUERY_SOURCE_HEADER)).toBe("configured_provider");
   });
 
   it.each([false, true])(
-    "去掉首尾空白，重试保持来源且 request id 更新，streaming=%s",
+    "重试保留显式 header且不向外发送内部 request id，streaming=%s",
     async (streaming) => {
       const events: ModelNetworkStatusEvent[] = [];
       const { adapter, requests } = createCapture(providerKind, true);
@@ -108,12 +100,10 @@ describe.each(providerKinds)("%s query source HTTP header", (providerKind) => {
 
       expect(requests).toHaveLength(2);
       expect(requests.map((request) => request.headers.get(QUERY_SOURCE_HEADER))).toEqual([
-        "compact",
-        "compact",
+        "configured_provider",
+        "configured_provider",
       ]);
-      expect(requests[0]!.headers.get("x-request-id")).not.toBe(
-        requests[1]!.headers.get("x-request-id"),
-      );
+      expect(requests.every((request) => !request.headers.has("x-request-id"))).toBe(true);
       expect(events.filter((event) => event.type === "model_request_started")).toHaveLength(2);
     },
   );
@@ -142,7 +132,7 @@ function createCapture(
         apiKey: "fake-key",
         baseURL: "https://provider.example.test/v1",
         headers: {
-          "x-zcode-query-source": "stale_provider",
+          "x-zcode-query-source": "configured_provider",
           "x-static-marker": "preserved",
           ...headers,
         },
@@ -174,7 +164,7 @@ async function captureCall(
         typeof querySource === "string" && querySource.trim()
           ? `sess_${querySource.trim().replace(/[^a-zA-Z0-9_.:-]/gu, "_")}`
           : "sess_missing",
-      // Memory 的 transcript 开关不能阻断请求头传播。
+      // Memory 的 transcript 开关与内部来源一样留在运行时边界。
       skipTranscript: true,
     },
     statusSink: {

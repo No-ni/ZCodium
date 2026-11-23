@@ -9,7 +9,7 @@
     "lint": "oxlint src server scripts tests",
     "lint:fix": "oxlint --write src server scripts tests",
     "start": "node dist-server/server/index.js",
-    "test": "vitest run && node --import tsx --test --test-isolation=none test/*.test.ts",
+    "test": "vitest run tests && node --import tsx --test --test-isolation=none test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {

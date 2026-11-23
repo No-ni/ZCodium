@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { EventEmitter } from "node:events";
 
 const terminateMcpStdioProcessTree = vi.hoisted(() => vi.fn(async () => undefined));
 
@@ -25,13 +26,16 @@ describe("ProcessTreeStdioClientTransport Windows fallback", () => {
         { command: process.execPath },
         { windowsJobObjectFactory },
       );
-      Object.assign(transport as unknown as { _process: object }, {
-        _process: {
+      const child = Object.assign(new EventEmitter(), {
           exitCode: null,
-          once: vi.fn(),
           pid: 4321,
           signalCode: null,
-        },
+      });
+      Object.assign(transport as unknown as { _process: object }, { _process: child });
+      // 真实 close flight 等待 pipe 回收；fake 进程必须在树终止后给出同一个 close 边界。
+      terminateMcpStdioProcessTree.mockImplementationOnce(async () => {
+        child.emit("exit", 0, null);
+        child.emit("close", 0, null);
       });
 
       await transport.start();

@@ -65,32 +65,24 @@ describe("subagent initialization source", () => {
         storage = join(root, "cli-storage");
       const configPath = join(root, "config.json");
       const logDir = join(root, "logs");
+      const loggerFactory = createNodeLoggerFactory({ logDir });
       const invalidDocument = {
-        path: join(workspace, ".zcode", "agents", "invalid.md"),
+        path: join(workspace, ".zcodium", "agents", "invalid.md"),
         source: "project" as const,
         content: "This document intentionally lacks frontmatter",
       };
-      const readDiagnostics = async () =>
-        (
-          await Promise.all(
-            (await readdir(logDir)).map((name) => readFile(join(logDir, name), "utf8")),
-          )
-        )
-          .flatMap((text) =>
-            text
-              .trim()
-              .split("\n")
-              .map((line) => JSON.parse(line)),
-          )
-          .filter((entry) => entry.message === "Agent profile diagnostic");
+      const readDiagnostics = async () => {
+        await loggerFactory.flush();
+        const directory = loggerFactory.getLogDir();
+        const files = (await readdir(directory, {withFileTypes: true}))
+          .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"));
+        const contents = await Promise.all(files.map(entry => readFile(join(directory, entry.name), "utf8")));
+        return contents.flatMap(text => text.split("\n").filter(Boolean).map(line => JSON.parse(line)))
+          .filter(entry => entry.args?.[0] === "Agent profile diagnostic" && entry.diagnostic?.errorCategory === "validation");
+      };
       const expectedDiagnostic = {
-        level: "warn",
-        module: "bootstrap.subagents",
-        context: {
-          code: "agent_missing_frontmatter",
-          path: invalidDocument.path,
-          message: `Agent Markdown must include frontmatter: ${invalidDocument.path}`,
-        },
+        level: "WARN",
+        diagnostic: {name: "log", errorCategory: "validation", metrics: {count: 1}},
       };
       const markdown = (prompt: string) =>
         `---\nname: reviewer\ndescription: Review\ntools: Read\n---\n${prompt}`;
@@ -119,7 +111,7 @@ describe("subagent initialization source", () => {
       let creating: ReturnType<typeof createRegistryBackedTestApp> | undefined;
       try {
         await mkdir(join(storage, "agents"), { recursive: true });
-        await mkdir(join(workspace, ".zcode", "agents"), { recursive: true });
+        await mkdir(join(workspace, ".zcodium", "agents"), { recursive: true });
         if (source === "files") await writeFile(invalidDocument.path, invalidDocument.content);
         await writeFile(
           configPath,
@@ -127,7 +119,7 @@ describe("subagent initialization source", () => {
         );
         await writeFile(join(storage, "agents", "reviewer.md"), markdown("DISK_PROFILE"));
         creating = createRegistryBackedTestApp({
-          loggerFactory: createNodeLoggerFactory({ logDir }),
+          loggerFactory,
           env: {
             ZCODE_STORAGE_DIR: storage,
             ZCODE_SESSION_DB_PATH: join(storage, "cli", "db", "db.sqlite"),
@@ -203,6 +195,7 @@ describe("subagent initialization source", () => {
           Array.from({ length: source === "host" ? 0 : 1 }, () => expectedDiagnostic),
         );
         expect(JSON.stringify(diagnostics)).not.toContain(invalidDocument.content);
+        expect(JSON.stringify(diagnostics)).not.toContain(invalidDocument.path);
         // 只替换 subagent 来源；实际 session 数据库仍在环境变量指定的位置。
         expect((await readFile(join(storage, "cli", "db", "db.sqlite"))).length).toBeGreaterThan(0);
       } finally {

@@ -67,7 +67,7 @@ test("parses upload arguments with defaults and overrides", () => {
     ),
     {
       destinationRoot: "/mnt/shared/zcode/deps",
-      distDir: "/tmp/zcode-upload/dist-out",
+      distDir: resolve(cwd, "dist-out"),
       force: true,
       help: false,
       smbUrl: "smb://example/shared",

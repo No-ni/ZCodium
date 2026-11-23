@@ -4,6 +4,9 @@ import { ZCodeProtocolAgentServer } from "../src/zcode-protocol/server.js";
 import { createFakeApp } from "./helpers/fake-zcode-app.js";
 import type { ZCodeApp } from "../src/app/types.js";
 
+// 协议配置读面准备真实 bundled 资产，隔离冷目录实测 6.2s；不改变模型准入预算。
+vi.setConfig({ testTimeout: 30_000 });
+
 async function request(server: ZCodeProtocolAgentServer, method: string, params: unknown) {
   const response = await server.handleMessage({ id: 1, method, params } as ZCodeProtocolMessage);
   if (!response || !("result" in response)) throw new Error(JSON.stringify(response));
@@ -187,7 +190,7 @@ describe("Session 原选择与输入协议", () => {
     await request(server, zcodeProtocolMethods.sessionClose, { sessionId: app.sessionId });
   });
 
-  it("附件 Selection 进入同一个 input intent，执行凭据只进入非持久执行依赖", async () => {
+  it("附件 Selection 进入同一个 input intent，执行设置不改变会话常驻模型", async () => {
     let app!: ReturnType<typeof createFakeApp>;
     let finish!: (value: never) => void;
     const completion = new Promise<never>((resolve) => {
@@ -205,7 +208,7 @@ describe("Session 原选择与输入协议", () => {
       workspace: { workspacePath: "/fixture", workspaceKey: "/fixture" },
     });
     const selection = {
-      providerId: "account:offpeak",
+      providerId: "fixture-provider",
       modelId: "fixture-model",
       options: { reasoningLevel: "high" },
     };
@@ -225,7 +228,6 @@ describe("Session 原选择与输入协议", () => {
       modelExecution: {
         selectionScope: "execution",
         memoryExtraction: "skip",
-        requestAuth: { headers: { "x-ticket": "fixture" } },
       },
     });
     await vi.waitFor(() => expect(sendInput).toHaveBeenCalled());
@@ -242,9 +244,7 @@ describe("Session 原选择与输入协议", () => {
       modelExecution: { selectionScope: "execution", memoryExtraction: "skip" },
     });
     expect(JSON.stringify(options?.intent)).not.toContain("x-ticket");
-    expect(
-      await options?.modelExecution?.requestDependencies?.requestAuth?.source.resolve({} as never),
-    ).toEqual({ headers: { "x-ticket": "fixture" } });
+    expect(options?.modelExecution).not.toHaveProperty("requestDependencies");
     expect(app.runtime.getSessionModelSelection()?.providerId).toBe("glm");
     try {
       const next = await server.handleMessage({

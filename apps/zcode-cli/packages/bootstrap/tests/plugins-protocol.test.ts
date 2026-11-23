@@ -4,9 +4,12 @@ import { dirname, join } from "node:path";
 import type { PluginLoadOutcome } from "@zcode/contracts";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// 协议 handler 只从 workspace 推导 storageRoot，user config 仍解析到 ~/.zcode/cli/config.json
+// 冷 seed 复制实际内置资产，隔离 Windows 回归实测超过默认 5s；只扩大测试 IO 预算。
+vi.setConfig({ testTimeout: 30_000 });
+
+// 协议 handler 只从 workspace 推导 storageRoot，user config 仍解析到 ~/.zcodium/cli/config.json
 // （getDefaultConfigPath 无 env 覆盖）。为隔离 restore/overview 的 user-config 往返，把 node:os
-// 的 homedir 重定向到一次性临时目录；tmpdir 等其余实现保留原值。这样 resolvePath("~/.zcode/cli")
+// 的 homedir 重定向到一次性临时目录；tmpdir 等其余实现保留原值。这样 resolvePath("~/.zcodium/cli")
 // 落到隔离目录，绝不触碰真实 HOME。
 // 回归原因：vi.mock 会提升到普通 const 初始化之前；临时 HOME 也必须通过 vi.hoisted
 // 提前建立，否则 mock factory 读取 FAKE_HOME 时会命中 TDZ，导致整个 suite 无法收集。
@@ -41,6 +44,7 @@ import {
 import { getCliStorageRoot, getPluginStorageRoot } from "../src/app/paths.js";
 import { installZCodeMarketplacePlugin } from "../src/plugins.js";
 import { createOfficialPluginPreparation } from "../src/app/bundled-plugins.js";
+import { OFFICIAL_PLUGIN_DEFINITIONS } from "../src/app/official-plugin-definitions.js";
 import {
   addPluginMarketplace,
   describePlugin,
@@ -68,7 +72,7 @@ describe("plugins protocol contracts", () => {
     async (enabled) => {
       const root = await mkdtemp(join(tmpdir(), "zcode-plugin-user-config-"));
       const pluginRoot = join(root, "extension");
-      const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
+      const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
       const manifestPath = join(pluginRoot, ".claude-plugin", "plugin.json");
       const userConfig = {
         track: { type: "string", default: "auto", options: ["auto", "transform"] },
@@ -123,7 +127,7 @@ describe("plugins protocol contracts", () => {
     { token: { default: [] } },
   ])("isolates invalid known userConfig fields: %j", async (userConfig) => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-invalid-config-"));
-    const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
+    const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
     try {
       for (const name of ["healthy", "invalid"]) {
         await writeTestFile(
@@ -372,7 +376,7 @@ describe("plugins protocol contracts", () => {
     const pluginRoot = join(root, "plugins", "workspace-demo");
     try {
       await writeTestFile(
-        join(root, ".zcode", "config.json"),
+        join(root, ".zcodium", "config.json"),
         JSON.stringify({ plugins: { dirs: [pluginRoot], enabledPlugins: { "workspace-demo@inline": false } } }),
       );
       await writeTestFile(
@@ -405,7 +409,7 @@ describe("plugins protocol contracts", () => {
     // 与 MCP server 的 ${ZCODE_PLUGIN_DATA} 同一个值（<CLI 插件存储根>/data/<插件 id>）。
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-data-path-"));
     const pluginRoot = join(root, "plugins", "data-demo");
-    const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
+    const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
     try {
       await writeTestFile(
         userConfigPath,
@@ -414,7 +418,7 @@ describe("plugins protocol contracts", () => {
         }),
       );
       await writeTestFile(
-        join(pluginRoot, ".zcode-plugin", "plugin.json"),
+        join(pluginRoot, ".zcodium-plugin", "plugin.json"),
         JSON.stringify({ name: "data-demo", version: "1.0.0" }),
       );
 
@@ -424,7 +428,7 @@ describe("plugins protocol contracts", () => {
       });
 
       expect(result.plugins.find((plugin) => plugin.id === "data-demo@inline")?.dataPath).toBe(
-        join(FAKE_HOME, ".zcode", "cli", "plugins", "data", "data-demo@inline"),
+        join(getPluginStorageRoot(getCliStorageRoot(process.env.ZCODE_STORAGE_DIR ?? join(FAKE_HOME, ".zcodium"))), "data", "data-demo@inline"),
       );
       expect(() => zcodePluginsListResultSchema.parse(result)).not.toThrow();
     } finally {
@@ -436,7 +440,7 @@ describe("plugins protocol contracts", () => {
   it("keeps the User projection independent from Workspace enable overrides", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-config-view-"));
     const pluginId = "skill-creator@zcode-plugins-official";
-    const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
+    const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
     try {
       await writeTestFile(
         userConfigPath,
@@ -445,7 +449,7 @@ describe("plugins protocol contracts", () => {
         }),
       );
       await writeTestFile(
-        join(root, ".zcode", "config.json"),
+        join(root, ".zcodium", "config.json"),
         JSON.stringify({
           plugins: { enabledPlugins: { [pluginId]: false } },
         }),
@@ -488,7 +492,7 @@ describe("plugins protocol contracts", () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-option-source-view-"));
     const pluginRoot = join(root, "user-plugin");
     const pluginId = "option-source-view@inline";
-    const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
+    const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
     try {
       await writeTestFile(
         join(pluginRoot, ".claude-plugin", "plugin.json"),
@@ -545,7 +549,7 @@ describe("plugins protocol contracts", () => {
       };
       try {
         await writeTestFile(
-          join(root, ".zcode", "config.json"),
+          join(root, ".zcodium", "config.json"),
           JSON.stringify({ plugins: { enabledPlugins: { [pluginId]: true } } }),
         );
         const params = {
@@ -556,7 +560,7 @@ describe("plugins protocol contracts", () => {
         const installed = baseline.plugins.find((p) => p.id === pluginId)!;
         expect(installed.rootPath).toBeTruthy();
         expect(installed.packageStatus).not.toBe("missing");
-        const markerPath = join(installed.rootPath, ".zcode-plugin-seed.json");
+        const markerPath = join(installed.rootPath, ".zcodium-plugin-seed.json");
         const marker = await readFile(markerPath, "utf8");
         vi.useFakeTimers();
         if (!duringQuery) {
@@ -603,7 +607,7 @@ describe("plugins protocol contracts", () => {
     const pluginId = "missing-fixture@personal-market";
     try {
       await writeTestFile(
-        join(root, ".zcode", "config.json"),
+        join(root, ".zcodium", "config.json"),
         JSON.stringify({
           plugins: { enabledPlugins: { [pluginId]: true } },
         }),
@@ -955,11 +959,11 @@ describe("plugins/overview extension summary", () => {
 // restoreBuiltinPlugin / overview 走真实 bootstrap 路径：storageRoot 由 ZCODE_STORAGE_DIR
 // 锚定（storage.dir 以 "cli" 结尾时 getCliStorageRoot 原样返回，pluginStorageRoot =
 // <storageDir>/plugins）；suppressedBuiltins 必须写到 handler 实际解析的 user config，即
-// ~/.zcode/cli/config.json（文件头部已把 homedir 重定向到 FAKE_HOME，故落在隔离目录）。
+// ~/.zcodium/cli/config.json（文件头部已把 homedir 重定向到 FAKE_HOME，故落在隔离目录）。
 describe("restoreBuiltinPlugin handler", () => {
   const noopContext = {} as unknown as ZCodeProtocolAgentServerContext;
   const builtinId = "skill-creator@zcode-plugins-official";
-  const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
+  const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
   let previousStorageDir: string | undefined;
 
   beforeEach(() => {
@@ -1011,6 +1015,9 @@ describe("restoreBuiltinPlugin handler", () => {
   });
 
   it("restores a suppressed bundled plugin through the locked install handler without deadlocking", async () => {
+    // 此锁回归只准备目标技能，避免无关文档/浏览器资产的冷 IO 消耗 1s 锁断言预算。
+    const definitions = [...OFFICIAL_PLUGIN_DEFINITIONS];
+    OFFICIAL_PLUGIN_DEFINITIONS.splice(0, definitions.length, ...definitions.filter(({ name }) => name === "skill-creator"));
     const root = await mkdtemp(join(tmpdir(), "zcode-bootstrap-install-handler-"));
     const storageDir = join(root, "cli");
     process.env.ZCODE_STORAGE_DIR = storageDir;
@@ -1042,6 +1049,7 @@ describe("restoreBuiltinPlugin handler", () => {
         diagnostics: [],
       });
     } finally {
+      OFFICIAL_PLUGIN_DEFINITIONS.splice(0, OFFICIAL_PLUGIN_DEFINITIONS.length, ...definitions);
       await rm(root, { force: true, recursive: true });
     }
   });

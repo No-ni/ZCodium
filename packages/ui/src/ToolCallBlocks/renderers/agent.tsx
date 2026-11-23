@@ -323,6 +323,9 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
       backgroundAgentInfo,
       childToolCalls,
       context.codePreviewSettings,
+      // 展开块保持挂载时，嵌套 renderer 与自动化动作仍会更新。
+      context.nestedToolRenderer,
+      context.onOpenAutomationsMain,
       context.onLoadFullToolCallFields,
       context.onOpenBrowserUrl,
       context.onOpenCodeViewer,

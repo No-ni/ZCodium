@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -182,61 +182,27 @@ describe("DB109：配置可失效，回滚和再升级的内容读取不可报�
     expect(db.prepare("SELECT * FROM schema_migration ORDER BY id").all()).toEqual(ledger);
   });
 
-  it("真实 restore CLI 导入后可被旧 Reader 打开，再升级不重迁也能读取正文", async () => {
-    store = await createSqliteSessionStore({ dbPath: path });
+  it("退役 restore CLI 明确拒绝，现存正文、两库与迁移账本不变", async () => {
+    seedMessage("before-refused-restore", {model: {providerID: "old-p", modelID: "old-m"}});
+    store = await createSqliteSessionStore({dbPath: path});
     const ledger = db.prepare("SELECT * FROM schema_migration ORDER BY id").all();
-    store.close();
-    store = undefined;
+    store.close(); store = undefined;
     const taskPath = join(root, "tasks.sqlite");
     const tasks = new DatabaseSync(taskPath);
     tasks.exec(TASK_INDEX_SCHEMA);
     tasks.exec("ALTER TABLE tasks ADD COLUMN searchable_text TEXT NOT NULL DEFAULT ''");
     tasks.close();
     const snapshot = join(root, "snapshot.json");
-    await writeFile(
-      snapshot,
-      JSON.stringify({
-        meta: {
-          taskId: sessionID,
-          workspacePath: root,
-          title: "导入任务",
-          model: "historic-model",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-        messages: [
-          { role: "user", content: "导入问题正文", timestamp: 1 },
-          { role: "assistant", content: "导入回答正文", timestamp: 2 },
-        ],
-      }),
-    );
-    const result = await exec(process.execPath, [
-      restoreScript,
-      "--snapshot",
-      snapshot,
-      "--task-index",
-      taskPath,
-      "--cli-db",
-      path,
-    ]);
-    expect(result.stderr).toBe("");
+    await writeFile(snapshot, JSON.stringify({meta: {taskId: sessionID, workspacePath: root}, messages: [{role: "user", content: "未导入正文", timestamp: 1}]}));
     const old = readOld();
-    expect(old.flatMap((message) => message.parts).map((part) => part.text)).toEqual([
-      "导入问题正文",
-      "导入回答正文",
-    ]);
-    store = await createSqliteSessionStore({ dbPath: path });
-    expect(
-      (await readCurrent())
-        .flatMap((message) => message.parts)
-        .map((part) => (part.type === "text" ? part.text : undefined)),
-    ).toEqual(["导入问题正文", "导入回答正文"]);
-    expect(readOld()).toEqual(old);
-    expect(db.prepare("SELECT * FROM schema_migration ORDER BY id").all()).toEqual(ledger);
-    const raw = db.prepare("SELECT data FROM message WHERE id=?").get(`msg_legacy_${sessionID}_0`)!;
-    expect(JSON.parse(String(raw.data))).toMatchObject({
-      model: {},
-      modelSelection: { providerId: "glm", modelId: "historic-model" },
+    const before = await Promise.all([readFile(path), readFile(taskPath), readFile(snapshot)]);
+    await expect(exec(process.execPath, [restoreScript, "--snapshot", snapshot, "--task-index", taskPath, "--cli-db", path])).rejects.toMatchObject({
+      code: 2, stderr: expect.stringContaining("LEGACY_RESTORE_UNAVAILABLE"),
     });
+    expect(await Promise.all([readFile(path), readFile(taskPath), readFile(snapshot)])).toEqual(before);
+    expect(readOld()).toEqual(old);
+    store = await createSqliteSessionStore({dbPath: path});
+    expect((await readCurrent()).flatMap(message => message.parts).filter(part => part.type === "text").map(part => part.text)).toEqual(["正文-before-refused-restore"]);
+    expect(db.prepare("SELECT * FROM schema_migration ORDER BY id").all()).toEqual(ledger);
   });
 });

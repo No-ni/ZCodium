@@ -259,8 +259,8 @@ test("built CLI embeds the compact registry without a runtime Fig dependency", a
   assert.doesNotMatch(bundle, /@withfig\/autocomplete\/build/);
 });
 
-test("request security subpath bundles through its edition entry", async () => {
-  const result = await build({
+test("retired request security subpath remains unavailable instead of restoring the removed module", async () => {
+  await assert.rejects(build({
     stdin: {
       contents: 'import * as security from "@zcode/shared/request-security"; export { security };',
       resolveDir: resolve(import.meta.dirname, ".."),
@@ -271,12 +271,7 @@ test("request security subpath bundles through its edition entry", async () => {
     format: "esm",
     write: false,
     metafile: true,
-  });
-  assert.ok(
-    Object.keys(result.metafile.inputs).some((path) =>
-      path.endsWith("shared/src/request-security-edition/index.ts"),
-    ),
-  );
+  }), /Could not resolve/);
 });
 
 test("CLI leaves system keyring native loading to the runtime", () => {

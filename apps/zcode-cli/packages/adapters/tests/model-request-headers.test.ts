@@ -19,7 +19,7 @@ describe("模型 Header 合并与绑定边界", () => {
     expect(personal.authorization).toBe("old");
   });
 
-  it("绑定后默认值/Provider 修改不影响旧 Model，鉴权只覆盖本次请求", async () => {
+  it("绑定后默认值/Provider 修改不影响旧 Model，退役鉴权端口不覆盖用户配置", async () => {
     const defaults = { "X-Title": "Z Code@electron", "X-ZCode-App-Version": "3.12.0" };
     const requests: Request[] = [];
     const execution = new AiSdkModelExecution(
@@ -85,12 +85,12 @@ describe("模型 Header 合并与绑定边界", () => {
       "3.12.0",
       "3.12.0",
     ]);
-    expect(requests.map((r) => r.headers.get("x-once"))).toEqual(["fresh", "stale", "stale"]);
+    expect(requests.map((r) => r.headers.get("x-once"))).toEqual(["stale", "stale", "stale"]);
     expect(requests.map((r) => r.headers.get("authorization"))).toEqual([
-      "Bearer fresh-key",
+      "Bearer key",
       "Bearer key",
       "Bearer key",
     ]);
-    expect(requests.every((r) => r.headers.get("x-openrouter-title") === "ZCode")).toBe(true);
+    expect(requests.every((r) => r.headers.get("x-openrouter-title") === null)).toBe(true);
   });
 });

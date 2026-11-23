@@ -23,7 +23,7 @@ describe("NodeHttpClientAdapter", () => {
     vi.unstubAllGlobals();
   });
 
-  it("propagates trace ids through a request header", async () => {
+  it("keeps trace ids local without deriving an external request header", async () => {
     const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const adapter = createNodeHttpClientAdapter();
@@ -40,7 +40,7 @@ describe("NodeHttpClientAdapter", () => {
       url: "https://example.com/page",
     });
     expect(init?.headers).toBeInstanceOf(Headers);
-    expect((init?.headers as Headers).get("x-zcode-trace-id")).toBe("trace-http");
+    expect((init?.headers as Headers).get("x-zcode-trace-id")).toBeNull();
   });
 
   it("forwards POST request bodies", async () => {

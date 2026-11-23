@@ -54,6 +54,7 @@ after(async () => {
 for (const width of [390, 1200]) {
   for (const theme of ["light", "dark"]) {
     test(`Lucide transparency ${width}/${theme}`, async () => {
+      const subtleOpacity = theme === "light" ? 0.7 : 0.6;
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
       try {
         const rows = ["var(--color-background)", "var(--color-panel)", "#477e99"]
@@ -141,11 +142,11 @@ for (const width of [390, 1200]) {
         );
         assert.equal(
           await page.locator("#faded svg").evaluate((el) => getComputedStyle(el).filter),
-          "opacity(0.6)",
+          `opacity(${subtleOpacity})`,
         );
         assert.equal(
           await page.locator("#modifier svg").evaluate((el) => getComputedStyle(el).filter),
-          "opacity(0.3)",
+          `opacity(${subtleOpacity / 2})`,
         );
         assert.equal(
           await page.locator("#hidden svg").evaluate((el) => getComputedStyle(el).opacity),
@@ -161,11 +162,16 @@ for (const width of [390, 1200]) {
         };
         const actualFill = await filledPixel();
         await filled.evaluate((el) => el.classList.remove("lucide"));
-        assert.deepEqual(actualFill, await filledPixel(), "fill-current 不应重复淡化");
+        const referenceFill = await filledPixel();
+        // 与上面的描边像素检查使用同一精度：8 位合成允许一个色阶的舍入，二次淡化仍会明显超界。
+        assert.ok(
+          actualFill.every((channel, index) => Math.abs(channel - referenceFill[index]) <= 1),
+          "fill-current 不应重复淡化",
+        );
         await filled.evaluate((el) => el.classList.add("lucide"));
         assert.equal(
           await page.locator("#current svg").evaluate((el) => getComputedStyle(el).filter),
-          "opacity(0.6)",
+          `opacity(${subtleOpacity})`,
         );
         await page.locator("#focus").focus();
         assert.equal(

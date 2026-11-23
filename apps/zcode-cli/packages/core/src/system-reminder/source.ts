@@ -47,7 +47,6 @@ export const SYSTEM_REMINDER_PERSISTED_SOURCES = [
   "selection_side_chat",
   "queued_system_notification",
   "shell_environment_change",
-  "tool_search_announcement",
 ] as const;
 
 export const SYSTEM_REMINDER_PER_REQUEST_SOURCES = [

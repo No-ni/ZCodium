@@ -15,7 +15,7 @@ function useDirectoryState(isDesktop: boolean) {
   const deviceNames = useSourceServerDisplayNames(isDesktop);
   const groups = useTaskGroups(result.factTree);
   const sortedProjects = useMemo(
-    () => selectSortedProjects(result.factTree),
+    () => selectSortedProjects({ projects: result.factTree.projects }),
     [result.factTree.projects],
   );
   const preferences = useProjectSidebarPreferences(
@@ -23,10 +23,11 @@ function useDirectoryState(isDesktop: boolean) {
     result.loading,
     result.availability,
   );
+  const { sort } = preferences;
   const projects = useMemo(() => {
-    const sorted = preferences.sort(sortedProjects);
+    const sorted = sort(sortedProjects);
     return [...sorted.filter((p) => p.pinned), ...sorted.filter((p) => !p.pinned)];
-  }, [sortedProjects, preferences.order]);
+  }, [sortedProjects, sort]);
   // Context 不受消费方 memo 保护；父级更新 children 时，等价目录不能再次广播。
   return useMemo(
     () => ({ ...result, preferences, projects, groups, deviceNames }),

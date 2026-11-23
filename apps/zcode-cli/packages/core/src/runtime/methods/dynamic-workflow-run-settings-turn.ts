@@ -9,7 +9,7 @@ import { createRuntimeCommandId } from "../command-queue.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { boundWorkflowLaunchMeta } from "@zcode/contracts";
 
-/** 本 run 的两项设置的归一形：缺席即默认（会话模型 / 本机上限）。 */
+/** 本 run 的两项设置的归一形：缺席即默认（会话模型 / 默认并发）。 */
 export interface RunSettings {
   subagentModel?: string;
   maxConcurrency?: number;
@@ -98,7 +98,7 @@ function settingsChangeClauses(amend: WorkflowSettingsAmendMeta, inPlace: boolea
   if (bound !== undefined) {
     changes.push(
       bound.to === undefined
-        ? "the limit on subagents at once is removed"
+        ? "the limit on subagents at once is back to the default"
         : inPlace
           ? `at most ${bound.to} of its subagents run at once`
           : `at most ${bound.to} of them run at once`,
@@ -108,7 +108,7 @@ function settingsChangeClauses(amend: WorkflowSettingsAmendMeta, inPlace: boolea
 }
 
 /**
- * 快照上的两项设置。两者都「无则缺席」：没指定过模型 = 会话模型，界不低于天花板 = 没有自己的界，
+ * 快照上的两项设置。两者都「无则缺席」：没指定过模型 = 会话模型，界等于默认并发 = 没有自己的界，
  * 所以缺席就是默认，与 {@link RunSettings} 同一个读法。
  */
 export function runSettingsOfSnapshot(snapshot: DynamicWorkflowRunSnapshot): RunSettings {

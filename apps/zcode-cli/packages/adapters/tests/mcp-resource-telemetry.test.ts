@@ -2,13 +2,13 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import type { ZCodeMcpResourceSample } from "@zcode/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMcpTelemetryTracker } from "../src/mcp/telemetry.js";
+import { createMcpProcessTracker } from "../src/mcp/process-tracker.js";
 import type { ProcessProbe } from "../src/device/process-probe.js";
 
 afterEach(() => vi.useRealTimers());
 
 describe("MCP 五分钟资源采样", () => {
-  it("PRT-013: 一次探针覆盖全部活跃根，按 MCP ID 合并进程树并计算相邻 CPU 差分", async () => {
+  it("PRT-013: 一次探针覆盖全部活跃根，按当前不透明 MCP ID 保留进程树与 CPU 差分", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     const sampleProcessTrees = vi
@@ -44,8 +44,7 @@ describe("MCP 五分钟资源采样", () => {
       treeScope: "process_tree",
     };
     const onResourceSamples = vi.fn();
-    const tracker = createMcpTelemetryTracker({
-      idSalt: "salt",
+    const tracker = createMcpProcessTracker({
       onEvent: vi.fn(),
       onResourceSamples,
       processProbe: probe,
@@ -54,13 +53,15 @@ describe("MCP 五分钟资源采样", () => {
       logicalCpuCount: 4,
       totalMemoryGb: 16,
     });
+    const identities = new Map<number, string>();
     for (const pid of [101, 102]) {
       tracker.registerConnection({
         connectionId: String(pid),
         isolation: "session",
         serverName: "node_repl",
       });
-      tracker.recordProcessStarted({ connectionId: String(pid), pid });
+      const identity = tracker.recordProcessStarted({ connectionId: String(pid), pid });
+      identities.set(pid, identity!.mcpId);
     }
     tracker.registerConnection({ connectionId: "http", isolation: "session", serverName: "http" });
     tracker.start();
@@ -69,10 +70,10 @@ describe("MCP 五分钟资源采样", () => {
     expect(sampleProcessTrees).toHaveBeenCalledExactlyOnceWith([101, 102]);
     expect(onResourceSamples).toHaveBeenLastCalledWith([
       expect.objectContaining({
-        mcpId: "builtin:node_repl",
-        processCount: 3,
-        rssKbTotal: 700,
-        rssKbMaxProcess: 400,
+        mcpId: identities.get(101),
+        processCount: 2,
+        rssKbTotal: 300,
+        rssKbMaxProcess: 200,
         cpuTimeMsDelta: 0,
         intervalMs: 300_000,
         uptimeMinutes: 5,
@@ -81,17 +82,20 @@ describe("MCP 五分钟资源采样", () => {
         logicalCpuCount: 4,
         totalMemoryGb: 16,
       }),
+      expect.objectContaining({ mcpId: identities.get(102), processCount: 1, rssKbTotal: 400, rssKbMaxProcess: 400, cpuTimeMsDelta: 0 }),
     ]);
     await vi.advanceTimersByTimeAsync(300_000);
     expect(onResourceSamples).toHaveBeenLastCalledWith([
       expect.objectContaining({
-        processCount: 3,
-        rssKbTotal: 870,
-        rssKbMaxProcess: 500,
-        cpuTimeMsDelta: 180_000,
+        mcpId: identities.get(101),
+        processCount: 2,
+        rssKbTotal: 370,
+        rssKbMaxProcess: 250,
+        cpuTimeMsDelta: 90_000,
         intervalMs: 300_000,
         uptimeMinutes: 10,
       }),
+      expect.objectContaining({ mcpId: identities.get(102), processCount: 1, rssKbTotal: 500, rssKbMaxProcess: 500, cpuTimeMsDelta: 90_000 }),
     ]);
     tracker.stop();
     await vi.advanceTimersByTimeAsync(300_000);
@@ -110,8 +114,7 @@ describe("MCP 五分钟资源采样", () => {
         }),
     );
     const onResourceSamples = vi.fn();
-    const tracker = createMcpTelemetryTracker({
-      idSalt: "salt",
+    const tracker = createMcpProcessTracker({
       onEvent: vi.fn(),
       onResourceSamples,
       processProbe: {
@@ -151,8 +154,7 @@ describe("MCP 五分钟资源采样", () => {
       .mockResolvedValueOnce(new Map([[101, [{ pid: 101, rssKb: 200, cpuTimeMs: 901000 }]]]))
       .mockResolvedValueOnce(new Map([[101, [{ pid: 101, rssKb: 300 }]]]));
     const onResourceSamples = vi.fn();
-    const tracker = createMcpTelemetryTracker({
-      idSalt: "salt",
+    const tracker = createMcpProcessTracker({
       onEvent: vi.fn(),
       onResourceSamples,
       now: () => now,
@@ -202,8 +204,7 @@ describe("MCP 五分钟资源采样", () => {
       { stdio: ["ignore", "ignore", "ignore", "ipc"] },
     );
     const batches: ZCodeMcpResourceSample[][] = [];
-    const tracker = createMcpTelemetryTracker({
-      idSalt: "runtime-smoke",
+    const tracker = createMcpProcessTracker({
       onEvent: vi.fn(),
       onResourceSamples: (samples) => batches.push(samples),
     });
@@ -233,8 +234,7 @@ describe("MCP 五分钟资源采样", () => {
     }
   });
   it("定时器创建或清理失败不能改变 MCP 生命周期", () => {
-    const tracker = createMcpTelemetryTracker({
-      idSalt: "timer-failure",
+    const tracker = createMcpProcessTracker({
       onEvent: vi.fn(),
       timer: {
         setInterval: () => {
@@ -244,8 +244,7 @@ describe("MCP 五分钟资源采样", () => {
       },
     });
     expect(() => tracker.start()).not.toThrow();
-    const stopping = createMcpTelemetryTracker({
-      idSalt: "timer-failure",
+    const stopping = createMcpProcessTracker({
       onEvent: vi.fn(),
       timer: {
         setInterval: () => ({ unref() {} }),

@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { mkdtemp, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -113,7 +115,7 @@ describe("Dream consolidation lock", () => {
 });
 
 describe("Dream touched paths", () => {
-  const root = "/storage/memory";
+  const root = nativeFixturePath("/storage/memory");
 
   it("records canonical allowed Write/Edit and narrow rm targets in first-seen order", () => {
     const paths = new Set<string>();
@@ -124,8 +126,8 @@ describe("Dream touched paths", () => {
         name: "Write",
         input: { file_path: `${root}/fact.md` },
       },
-      workingDirectory: "/workspace",
-      workspaceRoot: "/workspace",
+      workingDirectory: nativeFixturePath("/workspace"),
+      workspaceRoot: nativeFixturePath("/workspace"),
     });
     collectDreamTouchedPaths(paths, {
       rootDir: root,
@@ -134,11 +136,11 @@ describe("Dream touched paths", () => {
         name: "Bash",
         input: { command: `rm -f ${root}/old.md ${root}/fact.md` },
       },
-      workingDirectory: "/workspace",
-      workspaceRoot: "/workspace",
+      workingDirectory: nativeFixturePath("/workspace"),
+      workspaceRoot: nativeFixturePath("/workspace"),
     });
 
-    expect([...paths]).toEqual([`${root}/fact.md`, `${root}/old.md`]);
+    expect([...paths]).toEqual([nativeFixturePath(root, "fact.md"), nativeFixturePath(root, "old.md")]);
   });
 });
 

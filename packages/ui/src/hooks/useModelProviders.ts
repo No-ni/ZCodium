@@ -1,11 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import type { ProviderSettingsFormProvider } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
-import type {
-  ListProviderModelsInput,
-  ProviderModelCatalogResult,
-  ProviderSettingsView,
-} from "@zcode/services";
+import type { ListProviderModelsInput, ProviderModelCatalogResult } from "@zcode/services";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { useProviderSettingsServiceView } from "@/hooks/useProviderSettingsView.js";
@@ -48,15 +44,8 @@ export function useModelProviders(target: {
       }),
     [effectiveModelProviders, providerSettingsView],
   );
-  const commitProviderSettingsView = useCallback(
-    (view: ProviderSettingsView): void => {
-      // 远端 mutation 的返回值是目标 Environment 已刷新后的权威 View，
-      // 只依赖 onDidChange 会在 attachment 换代/事件丢失时留下删除前的 UI 快照。
-      // 统一在 Hook 边界提交返回 View，仍由 useProviderSettingsServiceView 做 Service/revision 守卫。
-      providerSettingsRead.commit(view);
-    },
-    [providerSettingsRead.commit],
-  );
+  // mutation 的权威回执仍由原 View owner 统一提交，Service/revision 守卫归该 action。
+  const { commit: commitProviderSettingsView } = providerSettingsRead;
   const [refreshing, setRefreshing] = useState(false);
   const latestRefreshTokenRef = useRef(0);
 

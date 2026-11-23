@@ -220,6 +220,10 @@ function ToolCallBlockComponent({
     [
       childToolCalls,
       depth,
+      // 子块保持挂载时也必须使用当前动作和动画选项，避免 memo 留住旧闭包。
+      onOpenWorkflowRun,
+      disableSummaryContentAnimation,
+      animateDiffCountOnMount,
       onLoadFullToolCallFields,
       onOpenAutomationsMain,
       onOpenBrowserUrl,

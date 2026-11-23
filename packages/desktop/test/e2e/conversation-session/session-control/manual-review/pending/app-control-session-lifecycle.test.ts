@@ -1,40 +1,25 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { chromium, type Browser, type Page } from "playwright-core";
+import "node:fs/promises";
+import "node:path";
+import { type Page } from "playwright-core";
 import { ServiceChannels } from "@zcode/shared";
 import type { ProjectTask, ProjectTree } from "@zcode/services";
 import { TID_TASK_ITEM, TID_V4_SESSION_PANE, testId } from "@zcode/shared/test-ids";
-import { clearAppData, DEFAULT_WORKSPACE } from "#e2e/helpers/desktop-app";
-import {
-  buildReadonlyToolPrompt,
-  ensureReadonlyToolFixtureFile,
-} from "#e2e/helpers/conversation-session-readonly-tool";
-import { releaseControlledReplay, waitForControlledReplay } from "#e2e/helpers/controlled-replay";
-import { reloadElectronSessionSafely } from "#e2e/helpers/e2e-electron-reload";
-import { openMobilePairingPage } from "#e2e/helpers/mobile-pairing";
-import { setPluginPresentation } from "#e2e/helpers/plugin-management-lifecycle";
-import { startDraftFromProject } from "#e2e/helpers/project-sidebar";
-import {
-  callHandoffHost,
-  installHandoffRpcProbe,
-  restoreHandoffProbes,
-} from "#e2e/helpers/remote-project-handoff-probe";
+import "#e2e/helpers/desktop-app";
+import "#e2e/helpers/conversation-session-readonly-tool";
+import "#e2e/helpers/controlled-replay";
+import "#e2e/helpers/e2e-electron-reload";
+import "#e2e/helpers/mobile-pairing";
+import "#e2e/helpers/plugin-management-lifecycle";
+import "#e2e/helpers/project-sidebar";
+import { callHandoffHost } from "#e2e/helpers/remote-project-handoff-probe";
 import {
   readAppControlToolResult,
   type AppControlToolEvidence,
 } from "#e2e/helpers/app-control-evidence";
 import { waitForUpstreamNetworkCapture } from "#e2e/helpers/upstream-capture";
-import {
-  obtainUnreadPairingUrl,
-  showMobileTaskHome,
-  waitMobileTaskView,
-} from "#e2e/helpers/web-remote-unread";
+import { showMobileTaskHome } from "#e2e/helpers/web-remote-unread";
 import {
   approveV4Permission,
-  getV4PaneSnapshot,
-  prepareV4ConversationE2E,
-  renameV4Session,
-  selectV4TaskById,
   sendV4Prompt,
   waitForV4AssistantMessageContaining,
   waitForV4Pane,

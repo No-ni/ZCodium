@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { resolve } from "node:path";
 import { createFileSystemError, createSessionId, VIDEO_INPUT_MAX_BYTES } from "@zcode/contracts";
 import { buildProviderRequestMessages } from "../src/runtime/helpers/provider-request-messages.js";
 import {
@@ -49,7 +50,7 @@ describe("prompt attachment provider content order", () => {
   });
 
   it("reads and snapshots a local PDF with a bounded binary read", async () => {
-    const path = "/tmp/project/report.pdf";
+    const path = resolve("/tmp/project/report.pdf");
     const pdfBytes = Buffer.from("%PDF-1.7\\nbody");
     const readBinaryFile = vi.fn(async () => ({
       path,
@@ -172,7 +173,7 @@ describe("prompt attachment provider content order", () => {
       { type: "image", path: "frame.png" },
       { type: "video", path: "clip.mp4" },
     ] as const) {
-      const absolutePath = `/tmp/project/${attachment.path}`;
+      const absolutePath = resolve("/tmp/project", attachment.path);
       const fileSystemPort = {
         async stat() {
           return { path: absolutePath, kind: "file" as const, mtimeMs: 1, sizeBytes: 5 };
@@ -1000,7 +1001,7 @@ describe("prompt attachment provider content order", () => {
   });
 
   it("resolves pasted temporary text files as local references without reading contents", async () => {
-    const path = "/Users/test/.zcode/tmp/paste-attachments/2026-06-30/pasted-text.txt";
+    const path = resolve("synthetic-fs/.zcodium/tmp/paste-attachments/2026-06-30/pasted-text.txt");
     const fileSystemPort = {
       async stat(request) {
         expect(request.path).toBe(path);

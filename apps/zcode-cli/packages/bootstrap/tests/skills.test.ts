@@ -1,13 +1,16 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { inspectZCodeSkill, listZCodeSkills } from "../src/skills.js";
+
+// skills 的真实发现链路包含完整内置插件冷 seed，不能使用纯函数的默认 5s 预算。
+vi.setConfig({ testTimeout: 30_000 });
 
 describe("inspectZCodeSkill", () => {
   it("loads one discovered skill through the configured skill adapter", async () => {
     const dir = await mkdtemp(join(tmpdir(), "zcode-bootstrap-skill-"));
-    const skillDir = join(dir, ".zcode", "skills", "demo");
+    const skillDir = join(dir, ".zcodium", "skills", "demo");
 
     try {
       await mkdir(skillDir, { recursive: true });
@@ -70,7 +73,8 @@ describe("inspectZCodeSkill", () => {
         skipUserConfig: true,
         workingDirectory: dir,
       });
-      const skill = outcome.skills.find((entry) => entry.name === "dynamic-workflows");
+      // 同名插件技能可并列展示；本用例验证不依赖插件的那份系统包，不能取列表的任意首项。
+      const skill = outcome.skills.find((entry) => entry.name === "dynamic-workflows" && entry.source === "bundled");
 
       expect(skill).toMatchObject({ scope: "system", source: "bundled" });
       expect(skill?.pluginName).toBeUndefined();

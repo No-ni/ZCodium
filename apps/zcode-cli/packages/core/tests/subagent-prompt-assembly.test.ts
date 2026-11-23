@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 import { createTestModelSelection } from "./test-model-selection.js";
 import {
   createModelId,
@@ -32,6 +33,7 @@ function createParentContextSourcePort() {
     shell: "zsh",
     osVersion: "Darwin 24.3.0",
     nodeVersion: "24.14.0",
+    isGitRepository: false,
   });
   return {
     async resolveEnvironment(request: { workingDirectory: string }) {
@@ -56,7 +58,9 @@ function createParentContextSourcePort() {
         workingDirectory: request.workingDirectory,
         currentDate: request.currentDate,
         diagnostics: [],
-        envInfo: request.envInfo ?? hostEnvInfo(request.workingDirectory),
+        envInfo: request.envInfo?.cwd === request.workingDirectory
+          ? request.envInfo
+          : hostEnvInfo(request.workingDirectory),
         userInstructions: {
           filePath: "/repo/AGENTS.md",
           fileName: "AGENTS.md",
@@ -548,7 +552,7 @@ describe("subagent provider-visible prompt assembly", () => {
         workspaceRoot: "/repo",
       });
       const fileSystemPort = new MemoryFileSystem({
-        [`${memoryRoot}/MEMORY.md`]: "- [Review style](review-style.md) — keep reviews concise",
+        [join(memoryRoot, "MEMORY.md")]: "- [Review style](review-style.md) — keep reviews concise",
       });
       const parentRequests: any[] = [];
       const childRequests: any[] = [];
@@ -629,7 +633,7 @@ describe("subagent provider-visible prompt assembly", () => {
                       name: "Write",
                       input: {
                         content: "Keep reviews concise.",
-                        file_path: `${memoryRoot}/review-style.md`,
+                        file_path: join(memoryRoot, "review-style.md"),
                       },
                     },
                   ],
@@ -666,7 +670,7 @@ describe("subagent provider-visible prompt assembly", () => {
       expect(childToolNames).not.toContain("Edit");
       expect(childToolNames).not.toContain("Read");
       expect(fileSystemPort.createdDirectories).toContain(memoryRoot);
-      expect(fileSystemPort.files[`${memoryRoot}/review-style.md`]).toBe("Keep reviews concise.");
+      expect(fileSystemPort.files[join(memoryRoot, "review-style.md")]).toBe("Keep reviews concise.");
       expect(
         parentRequests[0].messages
           .map((message: any) => modelMessageContentToText(message.content))

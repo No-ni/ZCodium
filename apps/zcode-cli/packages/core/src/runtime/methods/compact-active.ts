@@ -232,9 +232,10 @@ async function compactActiveConversationImpl(
     turnTraceContext,
     events,
   );
-  // compact 只产 summary，任何目录大小都不允许工具调用；不为摘要初始化额外 MCP。
-  const compactTools: ModelToolContract[] = [];
-  const compactCandidates = compactTools;
+  await this.initializeMcp(turnTraceContext);
+  throwIfTurnAborted(options.abortSignal);
+  // 恢复官方同目录投影：空目录会丢失 ToolSearch 成功提示并破坏主循环的前缀缓存；执行仍被拒绝。
+  const compactCandidates = options.getContinuationTools?.() ?? this.getTools(compactModel);
   const registry = this.getToolRegistry();
 
   while (true) {
@@ -386,7 +387,8 @@ async function compactActiveConversationImpl(
           // content block 提交前仍可丢弃并 HTTP fallback，block end 后则禁止任何重放。
           preserveProviderStreamBoundaries: true,
           traceContext: modelTraceContext,
-          tools: compactTools,
+          tools: prepared.request.tools,
+          toolSearchEnabled: prepared.request.toolSearchEnabled,
         };
 
         try {

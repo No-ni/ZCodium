@@ -30,7 +30,7 @@ import type { ToolEntry, ToolExecutionContext, ToolHandler } from "../src/tool/t
 import { createTestRuntimeModel } from "./test-runtime-model.js";
 
 describe("ToolExecutor trace propagation", () => {
-  it("preserves Skill metadata when the handler fails", async () => {
+  it("preserves a Skill failure event without retired collection metadata", async () => {
     const sessionId = createSessionId("skill-error-metadata");
     const turnId = createTurnId("skill-error-turn");
     const traceContext = createRootTraceContext({ sessionId, turnId });
@@ -49,12 +49,7 @@ describe("ToolExecutor trace propagation", () => {
         sideEffectScope: "session",
       },
       handler: async (_input, context) => {
-        context.recordSkillTelemetryMetadata?.({
-          name: "pptx",
-          qualifiedName: "document-skills:pptx",
-          pluginId: "document-skills@zcode-plugins-official",
-          source: "plugin",
-        });
+        expect(context).not.toHaveProperty("recordSkillTelemetryMetadata");
         throw new Error("post hook failed");
       },
     });
@@ -74,13 +69,8 @@ describe("ToolExecutor trace propagation", () => {
     const errorEvent = events.find((event) => event.type === SessionEventType.ToolCallError);
     expect(errorEvent?.payload).toMatchObject({
       toolCallId,
-      skillMetadata: {
-        name: "pptx",
-        qualifiedName: "document-skills:pptx",
-        pluginId: "document-skills@zcode-plugins-official",
-        source: "plugin",
-      },
     });
+    expect(errorEvent?.payload).not.toHaveProperty("skillMetadata");
   });
 
   it("emits ToolCallError when a model calls a tool missing from the registry", async () => {

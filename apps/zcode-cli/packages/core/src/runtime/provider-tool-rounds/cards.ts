@@ -135,7 +135,11 @@ export async function finishProviderToolCard(
       callID: toolCall.id,
       ...(toolCall.blockIndex !== undefined ? { blockIndex: toolCall.blockIndex } : {}),
       tool: toolCall.name,
-      metadata: { [PROVIDER_EXECUTED_TOOL_PART_METADATA_KEY]: true },
+      // 有序实时回放保留了 providerOptions，part 也必须保存同一协议选项供冷恢复使用。
+      metadata: {
+        [PROVIDER_EXECUTED_TOOL_PART_METADATA_KEY]: true,
+        ...(toolCall.providerOptions ? { providerOptions: toolCall.providerOptions } : {}),
+      },
       state: result.isError
         ? {
             status: "error",

@@ -12,7 +12,7 @@ const metadataUserId = JSON.stringify({
 });
 
 describe("Anthropic request metadata wire shape", () => {
-  it("sends metadata.user_id in generate requests", async () => {
+  it("preserves explicit provider metadata without injecting internal identity in generate requests", async () => {
     const capture = createRequestCapture();
     const options = createOptions(capture.fetch, "generate");
 
@@ -20,12 +20,12 @@ describe("Anthropic request metadata wire shape", () => {
 
     expect(capture.body()).toMatchObject({
       metadata: {
-        user_id: metadataUserId,
+        user_id: "stale-static-user-id",
       },
     });
   });
 
-  it("sends metadata.user_id in stream requests", async () => {
+  it("preserves explicit provider metadata without injecting internal identity in stream requests", async () => {
     const capture = createRequestCapture();
     const result = streamText(createOptions(capture.fetch, "stream"));
 
@@ -33,7 +33,7 @@ describe("Anthropic request metadata wire shape", () => {
 
     expect(capture.body()).toMatchObject({
       metadata: {
-        user_id: metadataUserId,
+        user_id: "stale-static-user-id",
       },
     });
   });

@@ -42,6 +42,7 @@ function fixture() {
         ...toolSearchToolEntry.metadata,
         name,
         description: `unique ${name} capability`,
+        alwaysLoad: false,
         shouldDefer: name !== "Resident",
       },
       aliases: [`alias_${name}`],

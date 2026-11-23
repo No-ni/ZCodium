@@ -1265,10 +1265,10 @@ describe("workflow driver — 结算后释放 actor runtime", () => {
     await flushMicrotasks();
     expect(warns).toHaveLength(1);
     expect(warns[0]?.context).toMatchObject({
-      errorMessage: "browser backend gone",
       event: "dynamic_workflow.actor_runtime.close_failed",
       sessionId: mintActorSessionId(RUN, A1),
     });
+    expect(JSON.stringify(warns)).not.toContain("browser backend gone");
   });
 
   it("真实管线：run 结算后每个 actor runtime 关闭链恰好一次，且 runtime 可被 GC 回收", async () => {

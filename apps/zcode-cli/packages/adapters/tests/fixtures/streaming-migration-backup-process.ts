@@ -28,7 +28,6 @@ try {
     {
       database: "cli",
       backupDirectories: [join(root, "backup")],
-      fallbackBackupDirectories: async () => [],
     },
   );
   assert.ok(result.backupPath);
@@ -39,10 +38,10 @@ try {
   db.close();
   db = new DatabaseSync(path);
   db.exec("PRAGMA cache_size=-2048");
-  await sqliteMigrations.restore(db, result.backupPath);
+  await sqliteMigrations.restore(db, result.backupPath, { database: "cli", writersStopped: true });
   assert.equal(db.prepare("SELECT count(*) AS n FROM part").get()!.n, rowCount);
   assert.equal(db.prepare("SELECT count(*) AS n FROM part WHERE data<>?").get(payload)!.n, 0);
-  assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get()!.n, 0);
+  assert.equal(db.prepare("SELECT name FROM sqlite_schema WHERE name='schema_migration'").get(), undefined);
   console.log(
     JSON.stringify({
       rows: rowCount,

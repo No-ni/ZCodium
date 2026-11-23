@@ -344,7 +344,7 @@ export function mergeProjectTrees(
 }
 
 /** Host position 仅作为控制端首次初始化的种子；实际显示顺序由侧栏偏好覆盖。 */
-export function selectSortedProjects(tree: ProjectTree): VirtualProject[] {
+export function selectSortedProjects(tree: Pick<ProjectTree, "projects">): VirtualProject[] {
   return tree.projects
     .filter((project) => !project.deleted)
     .sort((a, b) => a.position - b.position);

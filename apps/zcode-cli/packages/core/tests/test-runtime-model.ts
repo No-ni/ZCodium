@@ -73,6 +73,8 @@ export function createTestRuntimeModel(input: {
     generateText: input.generateText,
     async *streamText(request) {
       const result = await input.generateText(request);
+      // 当前辅助流程也聚合流式结果，测试模型不能丢弃原 generate 替身返回的工具调用。
+      for (const toolCall of result.toolCalls ?? []) yield { type: "tool_call", toolCall };
       if (result.text) {
         yield { id: "test-text", type: "text_start" };
         yield { id: "test-text", type: "text_delta", text: result.text };

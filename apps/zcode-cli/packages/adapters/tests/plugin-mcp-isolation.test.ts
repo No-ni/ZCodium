@@ -34,9 +34,9 @@ describe.each([
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-isolation-"));
     const pluginRoot = join(root, PLUGIN_NAME);
     try {
-      await mkdir(join(pluginRoot, ".zcode-plugin"), { recursive: true });
+      await mkdir(join(pluginRoot, ".zcodium-plugin"), { recursive: true });
       await writeFile(
-        join(pluginRoot, ".zcode-plugin", "plugin.json"),
+        join(pluginRoot, ".zcodium-plugin", "plugin.json"),
         JSON.stringify({ name: PLUGIN_NAME, mcpServers: SERVERS }),
       );
       const storageRoot = join(root, "storage");

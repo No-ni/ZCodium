@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedModelApiCallObservation } from "@zcode/contracts";
-import { resolveModelRequestSessionType } from "../src/model/runner-status.js";
+import { resolveModelRequestSessionType } from "../src/model/runner-session-type.js";
 
 function modelCall(
   operation: ResolvedModelApiCallObservation["operation"],
@@ -44,9 +44,9 @@ describe("resolveModelRequestSessionType", () => {
     ).toBe("subagent");
   });
 
-  it.each(["agent_step"] as const)("preserves explicit side_chat for %s", (operation) => {
+  it.each(["agent_step"] as const)("rejects retired side_chat as a host type for %s", (operation) => {
     expect(resolveModelRequestSessionType("side_chat", modelCall(operation, "system"))).toBe(
-      "side_chat",
+      "other",
     );
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { closeSessionResources, createSessionFacade } from "../src/app/session-facade.js";
+import { createSessionFacade } from "../src/app/session-facade.js";
 
 describe("session facade shutdown", () => {
   it.each(["runtime_work", "browser_session"] as const)(
@@ -18,6 +18,7 @@ describe("session facade shutdown", () => {
         ownsSessionStore: false,
         ownsExecutionPort: false,
         ownsMcpPort: false,
+      loggerFactory: {},
         logger: { warn },
       } as never);
       let settled = false;
@@ -56,17 +57,18 @@ describe("session facade shutdown", () => {
     const closed: string[] = [];
     const warn = vi.fn();
     let settled = false;
-    const close = closeSessionResources({
-      beginShutdown() {},
-      closeBrowserSession: () => gate.promise,
-      closeExecution: () => {
-        closed.push("execution");
-      },
-      closeSessionStore: () => {
-        closed.push("store");
-      },
+    const facade = createSessionFacade({
+      configResult: {config: {ui: {locale: "en"}}},
+      runtime: {beginShutdown() {}, closeOwnedWork: async () => {}, closeBrowserSession: () => gate.promise},
+      ownsExecutionPort: true,
+      executionPort: {close: () => {closed.push("execution");}},
+      ownsSessionStore: true,
+      sessionStore: {close: () => {closed.push("store");}},
+      ownsMcpPort: false,
+      loggerFactory: {},
       logger: { warn } as never,
-    });
+    } as never);
+    const close = facade.close!();
     void close.then(
       () => {
         settled = true;
@@ -101,6 +103,7 @@ describe("session facade shutdown", () => {
       ownsSessionStore: false,
       ownsExecutionPort: false,
       ownsMcpPort: false,
+      loggerFactory: {},
       logger: { warn: vi.fn() },
     } as never);
     let settled = false;
@@ -147,6 +150,7 @@ describe("session facade shutdown", () => {
       ownsSessionStore: false,
       ownsExecutionPort: false,
       ownsMcpPort: false,
+      loggerFactory: {},
       logger: { warn: vi.fn() },
     } as never);
     await facade.close!();
@@ -157,22 +161,30 @@ describe("session facade shutdown", () => {
     const events: string[] = [];
     const warn = vi.fn();
 
-    await expect(
-      closeSessionResources({
-        beginShutdown: () => events.push("admission_closed"),
-        closeBrowserSession: async () => {
+    const facade = createSessionFacade({
+        configResult: {config: {ui: {locale: "en"}}},
+        runtime: {
+          beginShutdown: () => events.push("admission_closed"),
+          closeOwnedWork: async () => {},
+          closeBrowserSession: async () => {
           throw new Error("browser failed");
         },
-        closeExecution: async () => events.push("execution_closed"),
-        closeMcp: async () => {
-          throw new Error("mcp failed");
         },
-        closeSessionStore: () => events.push("store_closed"),
+        ownsExecutionPort: true,
+        executionPort: {close: async () => events.push("execution_closed")},
+        ownsMcpPort: true,
+        mcpPort: {close: async () => {
+          throw new Error("mcp failed");
+        }},
+        ownsSessionStore: true,
+        sessionStore: {close: () => events.push("store_closed")},
+        loggerFactory: {},
         logger: { warn } as never,
-      }),
-    ).rejects.toBeInstanceOf(AggregateError);
+      } as never);
+    await expect(facade.close!()).rejects.toBeInstanceOf(AggregateError);
 
-    expect(events).toEqual(["admission_closed", "execution_closed", "store_closed"]);
+    // facade 的准入关闭和资源释放前复核均须先发生；重复 beginShutdown 沿用既有幂等契约。
+    expect(events).toEqual(["admission_closed", "admission_closed", "execution_closed", "store_closed"]);
     expect(warn).toHaveBeenCalledWith(
       "Session resource close failed",
       expect.objectContaining({ resource: "mcp" }),

@@ -19,7 +19,7 @@ it.each(["native", "local"] as const)(
       registry.register({
         ...toolSearchToolEntry,
         aliases: undefined,
-        metadata: { ...toolSearchToolEntry.metadata, name, shouldDefer: true },
+        metadata: { ...toolSearchToolEntry.metadata, name, alwaysLoad: false, shouldDefer: true },
       });
     }
     const model = {

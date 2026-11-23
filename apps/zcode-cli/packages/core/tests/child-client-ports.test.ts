@@ -8,7 +8,6 @@ import {
   type PermissionBrokerResult,
 } from "@zcode/contracts";
 import { deriveChildClientPorts } from "../src/runtime/helpers/child-client-ports.js";
-import { createRefreshRuntimeHeadersBeforeModelAttempt } from "../src/runtime/methods/model-runtime-headers.js";
 
 /**
  * docs/zcode-protocol-model-backed-control-requests.md「反向请求的会话路由与终止保证」契约 2。
@@ -21,45 +20,6 @@ describe("deriveChildClientPorts", () => {
   const rootSessionId = createSessionId("root-session");
   const childSessionId = createSessionId("child-session");
   const grandchildSessionId = createSessionId("grandchild-session");
-
-  it("子会话 PAT 恢复通过 core 原端口携带作用域和指纹，仍路由到根会话", async () => {
-    const received: unknown[] = [];
-    const response = {
-      headersApplied: true,
-      requestAuth: { apiKey: "fresh-pat", accountScope: "a".repeat(64) },
-    };
-    const ports = deriveChildClientPorts(
-      {
-        providerRuntimeHeadersPort: {
-          refreshBeforeModelRequest: async (input) => {
-            received.push(input);
-            return response;
-          },
-        },
-      },
-      { agentId: "agent", agentType: "explore", childSessionId, parentSessionId: rootSessionId },
-    );
-    const refresh = createRefreshRuntimeHeadersBeforeModelAttempt(
-      { sessionId: childSessionId, ...ports } as never,
-      {
-        model: { providerId: "account", modelId: "glm" } as never,
-        traceContext: { traceId: createTraceId() },
-      },
-    )!;
-    const recovery = {
-      attempt: 2,
-      expectedAccountScope: "a".repeat(64),
-      rejectedProjectTokenFingerprint: "b".repeat(64),
-    };
-    expect(await refresh(recovery)).toEqual(response);
-    expect(received).toEqual([
-      expect.objectContaining({
-        sessionId: rootSessionId,
-        expectedAccountScope: recovery.expectedAccountScope,
-        rejectedProjectTokenFingerprint: recovery.rejectedProjectTokenFingerprint,
-      }),
-    ]);
-  });
 
   function makeRequest(sessionId = grandchildSessionId): PermissionBrokerRequest {
     return {
@@ -98,58 +58,6 @@ describe("deriveChildClientPorts", () => {
     description: "child agent",
   };
 
-  function headersInput(sessionId: ReturnType<typeof createSessionId>) {
-    return {
-      modelId: "model-a",
-      providerId: "provider-a",
-      reason: "model-request" as const,
-      sessionId,
-      traceContext: { traceId: createTraceId() } as never,
-    };
-  }
-
-  it("provider runtime headers 请求改写成父会话；嵌套两层收敛到根", async () => {
-    const seen: string[] = [];
-    const parentPort = {
-      shouldRefreshBeforeModelRequest: () => true,
-      refreshBeforeModelRequest: async (input: { sessionId: string }) => {
-        seen.push(input.sessionId);
-        return { headersApplied: true };
-      },
-    };
-
-    // root → child
-    const childPorts = deriveChildClientPorts(
-      { providerRuntimeHeadersPort: parentPort },
-      { ...originContext, parentSessionId: rootSessionId },
-    );
-    await childPorts.providerRuntimeHeadersPort!.refreshBeforeModelRequest(
-      headersInput(childSessionId),
-    );
-    expect(seen).toEqual([rootSessionId]);
-    expect(
-      childPorts.providerRuntimeHeadersPort!.shouldRefreshBeforeModelRequest?.({
-        modelId: "model-a",
-        providerId: "provider-a",
-      }),
-    ).toBe(true);
-
-    // child → grandchild：外层（离客户端更近的一层）最后改写，最终值必然是根会话。
-    const grandchildPorts = deriveChildClientPorts(
-      { providerRuntimeHeadersPort: childPorts.providerRuntimeHeadersPort! },
-      {
-        agentId: "agent-2",
-        agentType: "general-purpose",
-        childSessionId: grandchildSessionId,
-        description: "grandchild agent",
-        parentSessionId: childSessionId,
-      },
-    );
-    await grandchildPorts.providerRuntimeHeadersPort!.refreshBeforeModelRequest(
-      headersInput(grandchildSessionId),
-    );
-    expect(seen).toEqual([rootSessionId, rootSessionId]);
-  });
 
   it("父没有端口时不合成空实现（键缺席，不是 undefined 值）", () => {
     const derived = deriveChildClientPorts(

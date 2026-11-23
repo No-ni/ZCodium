@@ -27,12 +27,12 @@ describe("marketplace store listing", () => {
 
   it("parses listing fields and top-level featured from a CDN-shaped manifest", async () => {
     const storageRoot = await makeStorageRoot("zcode-marketplace-listing-");
-    const marketplaceDir = join(storageRoot, "marketplaces", "zcode-plugins-official");
+    const marketplaceDir = join(storageRoot, "marketplaces", "personal-plugins");
     await mkdir(marketplaceDir, { recursive: true });
     await writeFile(
       join(marketplaceDir, "marketplace.json"),
       JSON.stringify({
-        name: "zcode-plugins-official",
+        name: "personal-plugins",
         description: "Official ZCode plugins marketplace",
         featured: ["example-plugin", " ", 42, "another"],
         plugins: [
@@ -75,7 +75,7 @@ describe("marketplace store listing", () => {
       }),
     );
 
-    const manifest = loadMarketplaceManifestSync(storageRoot, "zcode-plugins-official");
+    const manifest = loadMarketplaceManifestSync(storageRoot, "personal-plugins");
     expect(manifest).not.toBeNull();
     // featured 只保留非空字符串，保持顺序。
     expect(manifest?.featured).toEqual(["example-plugin", "another"]);
@@ -160,9 +160,9 @@ describe("marketplace store listing", () => {
   it("returns manifest display metadata from describeMarketplacePlugin for installed plugins", async () => {
     const storageRoot = await makeStorageRoot("zcode-describe-metadata-");
     const pluginRoot = join(storageRoot, "cache", "hello-market", "hello", "1.2.3");
-    await mkdir(join(pluginRoot, ".zcode-plugin"), { recursive: true });
+    await mkdir(join(pluginRoot, ".zcodium-plugin"), { recursive: true });
     await writeFile(
-      join(pluginRoot, ".zcode-plugin", "plugin.json"),
+      join(pluginRoot, ".zcodium-plugin", "plugin.json"),
       JSON.stringify({
         name: "hello",
         version: "1.2.3",

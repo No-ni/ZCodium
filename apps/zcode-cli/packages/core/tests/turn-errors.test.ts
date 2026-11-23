@@ -29,6 +29,7 @@ describe("turn abort outcome", () => {
       };
       await appendEvent.call(
         {
+          sessionPersisted: true,
           eventStore: { append: async () => event },
           sessionStore: { updateSession },
           notifyEventSinks: async () => {

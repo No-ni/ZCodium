@@ -9,17 +9,6 @@ describe("connectivity probe wire contract", () => {
     { providerId: "api-anthropic", kind: "anthropic" },
     { providerId: "api-chat", kind: "openai-compatible" },
     { providerId: "api-responses", kind: "openai" },
-    { providerId: "account:bigmodel-start-plan", kind: "anthropic", accountMode: "start-plan" },
-    {
-      providerId: "account:bigmodel-individual-coding-plan",
-      kind: "anthropic",
-      accountMode: "individual-coding-plan",
-    },
-    {
-      providerId: "account:zai-team-coding-plan",
-      kind: "anthropic",
-      accountMode: "team-coding-plan",
-    },
   ] as const)(
     "preserves roles, text and identity for $providerId",
     async ({ providerId, kind, ...scope }) => {

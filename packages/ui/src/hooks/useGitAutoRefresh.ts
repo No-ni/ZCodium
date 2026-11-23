@@ -81,7 +81,13 @@ export function useGitAutoRefresh({
       stringifyGitAutoRefreshWatchPaths(
         canWatchCurrentWorkspace
           ? buildGitAutoRefreshWatchPaths(
-              gitSummary,
+              {
+                isGitAvailable: gitSummary.isGitAvailable,
+                isRepository: gitSummary.isRepository,
+                repoRoot: gitSummary.repoRoot,
+                workspacePath: gitSummary.workspacePath,
+                autoRefreshWatchPaths: gitSummary.autoRefreshWatchPaths,
+              },
               workspacePlatform ? { platform: workspacePlatform } : null,
             )
           : [],

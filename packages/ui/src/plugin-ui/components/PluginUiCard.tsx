@@ -26,6 +26,7 @@ export interface PluginUiCardProps {
 /** 卡片只注册布局锚点；活 webview 由窗口页面管理器持有。 */
 export function PluginUiCard(props: PluginUiCardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { onWidthChange } = props;
   useLayoutEffect(() => {
     const node = containerRef.current;
     // 侧栏收起仍保留锚点，独立浮层不会继承其裁剪与透明度；同步解绑使页面隐藏，实例继续保活。
@@ -35,15 +36,15 @@ export function PluginUiCard(props: PluginUiCardProps) {
 
   useLayoutEffect(() => {
     const node = containerRef.current;
-    if (!node || !props.onWidthChange || typeof ResizeObserver === "undefined") return;
+    if (!node || !onWidthChange || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
-      if (typeof width === "number") props.onWidthChange?.(width);
+      if (typeof width === "number") onWidthChange(width);
     });
     observer.observe(node);
-    props.onWidthChange(node.clientWidth);
+    onWidthChange(node.clientWidth);
     return () => observer.disconnect();
-  }, [props.onWidthChange]);
+  }, [onWidthChange]);
 
   const showError = props.phase === "error";
   return (

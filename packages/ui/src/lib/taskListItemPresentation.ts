@@ -55,8 +55,9 @@ export function formatTaskRelativeTime(
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
   },
+  now = Date.now(),
 ): string {
-  const diff = Date.now() - timestamp;
+  const diff = now - timestamp;
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return intl.formatMessage({ id: "taskList.justNow" });
   if (minutes < 60) {

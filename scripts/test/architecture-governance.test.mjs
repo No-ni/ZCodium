@@ -14,6 +14,40 @@ import {
   loadPolicy,
   updateBaseline,
 } from "../architecture/index.mjs";
+import { moduleForFile } from "../architecture/policy.mjs";
+
+test("module ownership keeps nested roots when a broad module gains an unrelated longer root", () => {
+  const base = join("packages", "ui");
+  const broad = {
+    id: "ui",
+    roots: [
+      join(base, "src"),
+      join(base, "unrelated-very-long-build-file-name-that-does-not-match.mjs"),
+    ],
+  };
+  const nested = { id: "data-sync", roots: [join(base, "src", "data-sync")] };
+  const policy = { modules: [broad, nested] };
+  assert.equal(
+    moduleForFile(join(base, "src", "data-sync", "ui", "DataSyncDialog.tsx"), policy),
+    nested,
+  );
+  assert.equal(moduleForFile(join(base, "src", "another.tsx"), policy), broad);
+  assert.deepEqual(policy.modules, [broad, nested]);
+});
+
+test("module ownership selects the actual exact file root and rejects unmatched paths", () => {
+  const base = join("packages", "ui"),
+    file = join(base, "lucide-colors.mjs");
+  const broad = {
+    id: "ui",
+    roots: [base, join(base, "unrelated-extra-long-root-that-must-not-affect-file-ownership")],
+  };
+  const exact = { id: "style-build", roots: [file] };
+  const policy = { modules: [broad, exact] };
+  assert.equal(moduleForFile(file, policy), exact);
+  assert.equal(moduleForFile(file + ".backup", policy), broad);
+  assert.equal(moduleForFile(join("packages", "elsewhere", "file.ts"), policy), null);
+});
 
 const execFileAsync = promisify(execFile);
 

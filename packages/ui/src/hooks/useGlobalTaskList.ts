@@ -141,7 +141,7 @@ export function useGlobalTaskList(params: {
   const load = useCallback(
     async (version: WindowControllerTaskListVersion) => {
       const requestSerial = ++requestSerialRef.current;
-      if (params.enabled === false || workspaceScopes.length === 0) {
+      if (disabled || workspaceScopes.length === 0) {
         setItems([]);
         itemsRef.current = [];
         setTotal(0);

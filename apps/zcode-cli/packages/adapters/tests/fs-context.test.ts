@@ -461,12 +461,12 @@ describe("Node file and context adapters", () => {
       });
 
       expect(files.files.map((path) => path.slice(dir.length + 1)).sort()).toEqual([
-        "src/index.test.ts",
-        "src/index.ts",
+        join("src", "index.test.ts"),
+        join("src", "index.ts"),
       ]);
       expect(grepFiles.files.map((path) => path.slice(dir.length + 1)).sort()).toEqual([
-        "src/index.test.ts",
-        "src/index.ts",
+        join("src", "index.test.ts"),
+        join("src", "index.ts"),
       ]);
       expect(grepFiles.numMatches).toBe(2);
       expect(grepContent.entries).toHaveLength(1);
@@ -536,8 +536,8 @@ describe("Node file and context adapters", () => {
 
       expect(counts.numMatches).toBe(2);
       expect(counts.entries.map((entry) => entry.path.slice(dir.length + 1)).sort()).toEqual([
-        "src/app.ts",
-        "src/view.tsx",
+        join("src", "app.ts"),
+        join("src", "view.tsx"),
       ]);
       expect(dashed.numMatches).toBe(1);
       expect(dashed.entries[0]).toMatchObject({
@@ -902,7 +902,7 @@ describe("Node file and context adapters", () => {
     }
   });
 
-  it("falls back to ~/.zcode/AGENTS.md when workspace AGENTS.md is absent", async () => {
+  it("falls back to ~/.zcodium/AGENTS.md when workspace AGENTS.md is absent", async () => {
     const home = await mkdtemp(join(tmpdir(), "zcode-context-home-"));
     const workspace = join(home, "workspace");
     const nestedCwd = join(workspace, "packages", "app");
@@ -913,8 +913,8 @@ describe("Node file and context adapters", () => {
     try {
       await mkdir(nestedCwd, { recursive: true });
       await mkdir(join(workspace, ".git"));
-      await mkdir(join(home, ".zcode"), { recursive: true });
-      await writeFile(join(home, ".zcode", "AGENTS.md"), "default user instructions");
+      await mkdir(join(home, ".zcodium"), { recursive: true });
+      await writeFile(join(home, ".zcodium", "AGENTS.md"), "default user instructions");
 
       const fallbackSnapshot = await adapter.resolveContextSources({
         workingDirectory: nestedCwd,
@@ -923,12 +923,12 @@ describe("Node file and context adapters", () => {
         },
       });
 
-      expect(fallbackSnapshot.userInstructions?.filePath).toBe(join(home, ".zcode", "AGENTS.md"));
+      expect(fallbackSnapshot.userInstructions?.filePath).toBe(join(home, ".zcodium", "AGENTS.md"));
       expect(fallbackSnapshot.userInstructions?.content).toBe("default user instructions");
       expect(fallbackSnapshot.userInstructions?.sources).toEqual([
         expect.objectContaining({
           scope: "user",
-          filePath: join(home, ".zcode", "AGENTS.md"),
+          filePath: join(home, ".zcodium", "AGENTS.md"),
           content: "default user instructions",
         }),
       ]);
@@ -948,7 +948,7 @@ describe("Node file and context adapters", () => {
       expect(projectSnapshot.userInstructions?.sources).toEqual([
         expect.objectContaining({
           scope: "user",
-          filePath: join(home, ".zcode", "AGENTS.md"),
+          filePath: join(home, ".zcodium", "AGENTS.md"),
           content: "default user instructions",
         }),
         expect.objectContaining({
@@ -972,8 +972,8 @@ describe("Node file and context adapters", () => {
     try {
       await mkdir(workspace, { recursive: true });
       await mkdir(join(workspace, ".git"));
-      await mkdir(join(home, ".zcode"), { recursive: true });
-      await writeFile(join(home, ".zcode", "AGENTS.md"), "userprofile instructions");
+      await mkdir(join(home, ".zcodium"), { recursive: true });
+      await writeFile(join(home, ".zcodium", "AGENTS.md"), "userprofile instructions");
 
       const snapshot = await adapter.resolveContextSources({
         workingDirectory: workspace,
@@ -982,7 +982,7 @@ describe("Node file and context adapters", () => {
         },
       });
 
-      expect(snapshot.userInstructions?.filePath).toBe(join(home, ".zcode", "AGENTS.md"));
+      expect(snapshot.userInstructions?.filePath).toBe(join(home, ".zcodium", "AGENTS.md"));
       expect(snapshot.userInstructions?.content).toBe("userprofile instructions");
     } finally {
       await rm(home, { force: true, recursive: true });
@@ -1067,8 +1067,8 @@ describe("Node file and context adapters", () => {
     try {
       await mkdir(workspace, { recursive: true });
       await mkdir(join(workspace, ".git"));
-      await mkdir(join(home, ".zcode"), { recursive: true });
-      await writeFile(join(home, ".zcode", "AGENTS.md"), "default user instructions");
+      await mkdir(join(home, ".zcodium"), { recursive: true });
+      await writeFile(join(home, ".zcodium", "AGENTS.md"), "default user instructions");
 
       const snapshot = await adapter.resolveContextSources({
         workingDirectory: workspace,
@@ -1186,7 +1186,7 @@ describe("Node file and context adapters", () => {
 
       expect(snapshot.envInfo.gitStatus).toBe("dirty");
       expect(statusText).toContain("... (truncated because it exceeds 2k characters.");
-      expect(statusText).toContain('run "git status" using Bash');
+      expect(statusText).toContain(`run "git status" using ${process.platform === "win32" ? "PowerShell" : "Bash"}`);
       expect(statusText).not.toContain("git status truncated after 20 entries");
       expect(statusText.length).toBeGreaterThan(2000);
     } finally {

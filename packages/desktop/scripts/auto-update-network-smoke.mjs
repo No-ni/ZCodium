@@ -25,7 +25,7 @@ async function runFixture() {
     applyDesktopChromiumNetworkPolicies,
     createCustomCaCertificateVerifyProc,
     readCustomCaCertificatesFromPem,
-  } = await import("./src/main/desktopNetworkPolicy.ts");
+  } = await import("#src/main/desktopNetworkPolicy.js");
   app.setPath("userData", FIXTURE_DIR + "/user-data");
   await app.whenReady();
   const { autoUpdater } = pkg;

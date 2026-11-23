@@ -19,8 +19,6 @@ import { createRoot } from "react-dom/client";
 import { installDocumentHiddenMotionPause } from "@zcode/ui/document-hidden-motion-pause";
 import {
   AppErrorBoundary,
-  readPendingTaskDraft,
-  readComposerWorkspaceScope,
   Root,
   ZCodeIntlProvider,
   playTaskNotificationSound,

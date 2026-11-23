@@ -841,6 +841,7 @@ export function UnifiedBrowserView({
     intl,
     isResidencyRestore,
     isDownloadNavigationFailure,
+    isResponsiveMode,
     isSelected,
     platform,
     recentVisitsScopeKey,
@@ -1209,6 +1210,9 @@ export function UnifiedBrowserView({
     node: ElectronWebviewTag;
     listener: (event: ElectronWebviewFaviconEvent) => void;
   } | null>(null);
+  // favicon 监听随 guest 挂载；工作区切换只更新写入目标，不能重建 guest 或写回旧 scope。
+  const recentVisitsScopeKeyRef = useRef(recentVisitsScopeKey);
+  recentVisitsScopeKeyRef.current = recentVisitsScopeKey;
   const handleWebviewRef = useCallback(
     (node: ElectronWebviewTag | null) => {
       const current = faviconListenerRef.current;
@@ -1222,10 +1226,14 @@ export function UnifiedBrowserView({
           onPageMetadataChangeRef.current?.({
             faviconUrl: event.favicons[0] ?? null,
           });
-          updateBrowserVisitMetadata(recentVisitsScopeKey, activeCommittedUrlRef.current, {
-            title: "",
-            faviconUrl: event.favicons[0] ?? null,
-          });
+          updateBrowserVisitMetadata(
+            recentVisitsScopeKeyRef.current,
+            activeCommittedUrlRef.current,
+            {
+              title: "",
+              faviconUrl: event.favicons[0] ?? null,
+            },
+          );
         };
 
         // favicon 是可能只触发一次的 guest 事件；等 useEffect 才接线时，

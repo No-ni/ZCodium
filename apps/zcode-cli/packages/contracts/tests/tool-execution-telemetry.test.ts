@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ToolExecutionTelemetrySchema } from "../src/tools/performance.js";
+import { ToolExecutionPerformanceSchema } from "../src/tools/performance.js";
 
-describe("ToolExecutionTelemetrySchema", () => {
+describe("ToolExecutionPerformanceSchema", () => {
   it("命令 detail 接受真实退出码", () => {
     expect(
-      ToolExecutionTelemetrySchema.parse({
+      ToolExecutionPerformanceSchema.parse({
         detail: {
           kind: "command",
           command: {
@@ -27,7 +27,7 @@ describe("ToolExecutionTelemetrySchema", () => {
 
   it("文件 detail 在类型和运行时 Schema 中都不接受退出码", () => {
     expect(() =>
-      ToolExecutionTelemetrySchema.parse({
+      ToolExecutionPerformanceSchema.parse({
         detail: {
           kind: "filesystem",
           filesystem: {
@@ -41,7 +41,7 @@ describe("ToolExecutionTelemetrySchema", () => {
 
   it("顶层不再接受兼容 exitCode", () => {
     expect(() =>
-      ToolExecutionTelemetrySchema.parse({
+      ToolExecutionPerformanceSchema.parse({
         exitCode: 0,
       }),
     ).toThrow();

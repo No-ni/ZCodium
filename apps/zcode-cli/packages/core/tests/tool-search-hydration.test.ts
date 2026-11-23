@@ -109,7 +109,7 @@ it("reopens ordered content, falls back for damaged/old fields, and excludes aba
     expect(results[2]?.message.content).toBe("legacy");
     expect(results[3]?.message.isError).toBe(true);
     expect([...collectDiscoveredTools(history.toRuntimeEntries())]).toEqual(["WebFetch"]);
-    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).not.toHaveBeenCalled();
     const forkHistory = new MessageHistoryImpl();
     await hydrateMessageHistoryFromSession({
       history: forkHistory,

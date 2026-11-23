@@ -79,6 +79,23 @@ function createModel(input: Parameters<typeof createRawModel>[0]) {
 }
 
 describe("Model", () => {
+  it.each(["start-plan", "individual-coding-plan", "team-coding-plan", "off-peak", "highspeed"] as const)(
+    "fails closed at binding for retired account mode %s", (accountMode) => {
+      const generateText = vi.fn();
+      const streamText = vi.fn();
+      const adapter = new AiSdkModelAdapter({
+        registry: new TestProviderConfigFixture({ providers: { account: { kind: "anthropic", apiKey: "synthetic", baseURL: "https://model.example.test" } } }),
+        runtime: { generateText, streamText },
+      });
+      // 所有旧账号模式在模型绑定时拒绝，不能等到请求阶段才恢复票据流程。
+      expect(() => adapter.createModel({ accountMode, providerId: "account" as never, modelId: "model-a" as never, properties, optionSpecs: { maxOutputTokens: { max: 8000 } } })).toThrowError(
+        expect.objectContaining({ code: ModelErrorCode.ModelRequestAuthMissing }),
+      );
+      expect(generateText).not.toHaveBeenCalled();
+      expect(streamText).not.toHaveBeenCalled();
+    },
+  );
+
   it("applies bound and request options without mutation", async () => {
     const { executor, requests } = createExecutor();
     const base = createModel({
@@ -349,70 +366,7 @@ describe("Model", () => {
     expect(model).not.toHaveProperty("headers");
   });
 
-  it("forwards the Model-bound static account access to each account-auth attempt", async () => {
-    const requestAuth = {
-      apiKey: "attempt-key",
-      headers: { "X-Attempt": "attempt-header" },
-    };
-    const refresh = vi.fn(async () => ({ headersApplied: true, requestAuth }));
-    const receivedHeaders: unknown[] = [];
-    const runtime: AiSdkModelRuntime = {
-      async generateText(options) {
-        receivedHeaders.push(options.headers);
-        return {
-          finishReason: "stop",
-          text: "done",
-          totalUsage: {},
-          usage: {},
-        } as never;
-      },
-      streamText() {
-        throw new Error("not used");
-      },
-    };
-    const registry = new TestProviderConfigFixture({
-      providers: {
-        account: {
-          kind: "custom",
-          createLanguageModel: () =>
-            ({ specificationVersion: "v3", provider: "account", modelId: "a" }) as never,
-        },
-      },
-    });
-    const adapter = new AiSdkModelAdapter({
-      registry,
-      runtime,
-    });
-    const model = adapter.createModel({
-      accountMode: "individual-coding-plan",
-      providerId: "account" as never,
-      modelId: "model-a" as never,
-      optionSpecs: {
-        maxOutputTokens: { max: 8_000 },
-      },
-      properties,
-    });
 
-    await runWithModelInvocationContext({ refreshRuntimeHeadersBeforeAttempt: refresh }, () =>
-      model.generateText({ messages: [{ role: "user", content: "hello" }] }),
-    );
-
-    expect(refresh).toHaveBeenCalledWith(
-      expect.objectContaining({
-        accountAccess: {
-          type: "zhipu-account",
-          accountType: "zai",
-          mode: "individual-coding-plan",
-        },
-        attempt: 1,
-        providerId: "account",
-        modelId: "model-a",
-      }),
-    );
-    expect(receivedHeaders[0]).toMatchObject({
-      "X-Attempt": "attempt-header",
-    });
-  });
 
   it("does not refresh account runtime headers for a model without account access", async () => {
     const refresh = vi.fn(async () => ({
@@ -464,7 +418,7 @@ describe("Model", () => {
     expect(receivedHeaders[0]).toMatchObject({ Authorization: "Bearer personal-key" });
   });
 
-  it("resolves Model-bound request auth before every request without exposing it on ModelRequest", async () => {
+  it("ignores retired Model-bound request auth while keeping static Provider headers", async () => {
     const resolve = vi
       .fn()
       .mockResolvedValueOnce({ headers: { Authorization: "Bearer first" } })
@@ -511,23 +465,16 @@ describe("Model", () => {
     await model.generateText(request);
     await model.generateText(request);
 
-    expect(resolve).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        attempt: 1,
-        providerId: "request",
-        modelId: "model-a",
-      }),
-    );
-    expect(resolve).toHaveBeenCalledTimes(2);
+    // 旧调用方的 requestAuth 不能重新启用官方账号端口。
+    expect(resolve).not.toHaveBeenCalled();
     expect(receivedHeaders).toEqual([
-      expect.objectContaining({ Authorization: "Bearer first", "X-Static": "yes" }),
-      expect.objectContaining({ Authorization: "Bearer second", "X-Static": "yes" }),
+      expect.objectContaining({ "X-Static": "yes" }),
+      expect.objectContaining({ "X-Static": "yes" }),
     ]);
     expect(request).not.toHaveProperty("requestAuth");
   });
 
-  it("resolves Model-bound request auth for streamed requests", async () => {
+  it("ignores retired Model-bound request auth for streamed requests", async () => {
     const resolve = vi.fn().mockResolvedValue({
       headers: { Authorization: "Bearer streamed" },
     });
@@ -579,169 +526,20 @@ describe("Model", () => {
       events.push(event);
     }
 
-    expect(resolve).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attempt: 1,
-        providerId: "request",
-        modelId: "model-a",
-      }),
-    );
+    expect(resolve).not.toHaveBeenCalled();
     expect(receivedHeaders).toEqual([
-      expect.objectContaining({ Authorization: "Bearer streamed", "X-Static": "yes" }),
+      expect.objectContaining({ "X-Static": "yes" }),
     ]);
     expect(events.at(-1)).toMatchObject({ type: "finish", finishReason: "stop" });
   });
 
-  it("fails with a typed error before network when required request auth is unavailable", async () => {
-    const generateText = vi.fn();
-    const streamText = vi.fn();
-    const adapter = new AiSdkModelAdapter({
-      registry: new TestProviderConfigFixture({
-        providers: {
-          request: {
-            kind: "custom",
-            createLanguageModel: () =>
-              ({ specificationVersion: "v3", provider: "request", modelId: "a" }) as never,
-          },
-        },
-      }),
-      runtime: {
-        generateText,
-        streamText,
-      },
-    });
-    const model = adapter.createModel({
-      providerId: "request" as never,
-      modelId: "model-a" as never,
-      optionSpecs: {
-        maxOutputTokens: { max: 8_000 },
-      },
-      properties,
-      requestDependencies: { requestAuth: {} },
-    });
 
-    await expect(
-      model.generateText({ messages: [{ role: "user", content: "hello" }] }),
-    ).rejects.toMatchObject({ code: ModelErrorCode.ModelRequestAuthMissing });
-    await expect(async () => {
-      for await (const _event of model.streamText({
-        messages: [{ role: "user", content: "hello" }],
-      })) {
-        // 请求必须在产生首个网络事件前 fail-closed。
-      }
-    }).rejects.toMatchObject({ code: ModelErrorCode.ModelRequestAuthMissing });
-    expect(generateText).not.toHaveBeenCalled();
-    expect(streamText).not.toHaveBeenCalled();
-  });
 
-  it("applies execution-scoped request auth for highspeed models so the card id reaches the wire", async () => {
-    // 回归（highspeed 401）：加速卡与 off-peak 同为 Coding Plan 派生模式，本轮鉴权
-    // （zcode JWT + Coding Plan 双 JWT + X-Highspeed-Card-ID）经 execution 作用域 requestAuth 下发。
-    // 门禁一旦只认 off-peak，highspeed 的 requestAuth 会被整包丢弃，加速请求缺卡 ID 被网关判 401。
-    const resolve = vi.fn().mockResolvedValue({
-      apiKey: "zcode-jwt",
-      headers: {
-        Authorization: "Bearer zcode-jwt",
-        "X-Bigmodel-Authorization": "Bearer coding-plan-jwt",
-        "Bigmodel-Target-Type": "PERSONAL",
-        "X-Highspeed-Card-ID": "hsc-1",
-      },
-    });
-    const receivedHeaders: unknown[] = [];
-    const runtime: AiSdkModelRuntime = {
-      async generateText(options) {
-        receivedHeaders.push(options.headers);
-        return {
-          finishReason: "stop",
-          text: "done",
-          totalUsage: {},
-          usage: {},
-        } as never;
-      },
-      streamText() {
-        throw new Error("not used");
-      },
-    };
-    const adapter = new AiSdkModelAdapter({
-      registry: new TestProviderConfigFixture({
-        providers: {
-          request: {
-            kind: "custom",
-            headers: { "X-Static": "yes" },
-            createLanguageModel: () =>
-              ({ specificationVersion: "v3", provider: "request", modelId: "a" }) as never,
-          },
-        },
-      }),
-      runtime,
-    });
-    const model = adapter.createModel({
-      providerId: "request" as never,
-      modelId: "model-a" as never,
-      accountMode: "highspeed",
-      optionSpecs: {
-        maxOutputTokens: { max: 8_000 },
-      },
-      properties,
-      requestDependencies: { requestAuth: { source: { resolve } } },
-    });
 
-    await model.generateText({ messages: [{ role: "user", content: "hello" }] });
 
-    expect(resolve).toHaveBeenCalledTimes(1);
-    expect(receivedHeaders[0]).toMatchObject({
-      Authorization: "Bearer zcode-jwt",
-      "X-Bigmodel-Authorization": "Bearer coding-plan-jwt",
-      "Bigmodel-Target-Type": "PERSONAL",
-      "X-Highspeed-Card-ID": "hsc-1",
-      "X-Static": "yes",
-    });
-  });
 
-  it("fails closed before network when highspeed request auth is unavailable", async () => {
-    const generateText = vi.fn();
-    const streamText = vi.fn();
-    const adapter = new AiSdkModelAdapter({
-      registry: new TestProviderConfigFixture({
-        providers: {
-          request: {
-            kind: "custom",
-            createLanguageModel: () =>
-              ({ specificationVersion: "v3", provider: "request", modelId: "a" }) as never,
-          },
-        },
-      }),
-      runtime: {
-        generateText,
-        streamText,
-      },
-    });
-    const model = adapter.createModel({
-      providerId: "request" as never,
-      modelId: "model-a" as never,
-      accountMode: "highspeed",
-      optionSpecs: {
-        maxOutputTokens: { max: 8_000 },
-      },
-      properties,
-      requestDependencies: { requestAuth: {} },
-    });
 
-    await expect(
-      model.generateText({ messages: [{ role: "user", content: "hello" }] }),
-    ).rejects.toMatchObject({ code: ModelErrorCode.ModelRequestAuthMissing });
-    await expect(async () => {
-      for await (const _event of model.streamText({
-        messages: [{ role: "user", content: "hello" }],
-      })) {
-        // 请求必须在产生首个网络事件前 fail-closed。
-      }
-    }).rejects.toMatchObject({ code: ModelErrorCode.ModelRequestAuthMissing });
-    expect(generateText).not.toHaveBeenCalled();
-    expect(streamText).not.toHaveBeenCalled();
-  });
-
-  it("keeps bound provider facts stable while applying request auth", async () => {
+  it("keeps bound provider facts stable while rejecting retired request auth overlays", async () => {
     const firstLanguageModel = {
       specificationVersion: "v3",
       provider: "first",
@@ -780,7 +578,6 @@ describe("Model", () => {
     });
     const adapter = new AiSdkModelAdapter({ registry, runtime });
     const model = adapter.createModel({
-      accountMode: "individual-coding-plan",
       providerId: "account" as never,
       modelId: "model-a" as never,
       optionSpecs: {
@@ -834,10 +631,10 @@ describe("Model", () => {
     expect(receivedHeaders[0]).toEqual(
       expect.objectContaining({
         "X-Provider": "first",
-        "X-Request-Auth": "current",
       }),
     );
     expect(receivedHeaders[1]).toEqual(expect.objectContaining({ "X-Provider": "first" }));
+    expect(receivedHeaders[0]).not.toHaveProperty("X-Request-Auth");
     expect(receivedHeaders[1]).not.toHaveProperty("X-Request-Auth");
     expect(receivedHeaders[2]).toEqual(expect.objectContaining({ "X-Provider": "second" }));
   });

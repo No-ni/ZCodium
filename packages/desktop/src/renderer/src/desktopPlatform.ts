@@ -4,7 +4,7 @@ import {
   isBrowserClipboardAvailable,
 } from "@zcode/ui";
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@zcode/shared";
-import { resolveLocaleFromLanguageTag, unwrapRemoteWorkspaceBindResult } from "@zcode/shared";
+import { resolveLocaleFromLanguageTag } from "@zcode/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 import { registerAppControlNavigationHandler } from "#src/app-control-navigation/renderer.js";

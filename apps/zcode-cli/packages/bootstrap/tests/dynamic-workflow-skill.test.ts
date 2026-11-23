@@ -556,12 +556,12 @@ describe("bundled dynamic-workflows skill", () => {
  * 不会让任何类型报错，门会静默失效。这里把名字钉死在真实文件上。
  */
 describe("gray release gate names stay pinned to the real bundled assets", () => {
-  function bundledRoots(): SkillRoot[] {
+  function bundledRoots(): Promise<SkillRoot[]> {
     return resolveBundledSkillRoots({ cliStorageRoot: join(tmpdir(), "zcode-unused-cli-storage") });
   }
 
-  it("内置技能包解析到真实的 skills 目录，且剔除路径正好落在 dynamic-workflows SKILL.md 上", () => {
-    const roots = bundledRoots();
+  it("内置技能包解析到真实的 skills 目录，且剔除路径正好落在 dynamic-workflows SKILL.md 上", async () => {
+    const roots = await bundledRoots();
     expect(roots).toEqual([
       {
         path: join(PACK_ROOT, "skills"),
@@ -592,7 +592,7 @@ describe("gray release gate names stay pinned to the real bundled assets", () =>
       const adapter = createNodeSkillAdapter({ disabledPaths });
       const outcome = await adapter.discoverSkills({
         workingDirectory: PACK_ROOT,
-        roots: [guidePluginRoot, ...bundledRoots()],
+        roots: [guidePluginRoot, ...(await bundledRoots())],
       });
       return outcome.skills.map((skill) => ({ name: skill.name, source: skill.source }));
     }
@@ -606,7 +606,7 @@ describe("gray release gate names stay pinned to the real bundled assets", () =>
 
     it("灰度关闭时 dynamic-workflows 消失，插件技能仍在", async () => {
       const skills = await discoveredSkills(
-        collectDynamicWorkflowDisabledSkillPaths(bundledRoots()),
+        collectDynamicWorkflowDisabledSkillPaths(await bundledRoots()),
       );
       const names = skills.map((skill) => skill.name);
       expect(names).not.toContain(SKILL_NAME);

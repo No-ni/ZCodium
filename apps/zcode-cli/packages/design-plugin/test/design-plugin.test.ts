@@ -8,8 +8,8 @@ import { describe, expect, it } from "vitest";
 
 // 设计工作流插件 design：入口技能 + 设计资源 + SessionStart 注入。
 // 宿主侧的插件 seed、默认启用与 hook 执行由 bootstrap / build-sea / desktop 的测试覆盖，这里只测插件内容。
-const pluginRoot = fileURLToPath(new URL("../", import.meta.url));
-const skillRoot = join(pluginRoot, "skills", "design");
+const pluginRoot = fileURLToPath(new URL("../", import.meta.url)).replaceAll("\\", "/");
+const skillRoot = join(pluginRoot, "skills", "design").replaceAll("\\", "/");
 
 function read(relative: string): string {
   return readFileSync(join(skillRoot, ...relative.split("/")), "utf8");
@@ -87,7 +87,7 @@ describe("design 官方插件内容与加载", () => {
       "SKILL.md": 4, "references/design-system.md": 5, "references/create.md": 9, "references/redesign.md": 5, "references/output.md": 9,
       "references/check.md": 8, "references/interact.md": 3, "references/catalog.md": 8,
     };
-    const actual = ruleFiles().map((file) => file.slice(skillRoot.length + 1)).sort();
+    const actual = ruleFiles().map((file) => file.slice(skillRoot.length + 1).replaceAll("\\", "/")).sort();
     expect(actual).toEqual(Object.keys(limits).sort());
     let total = 0;
     for (const [file, kb] of Object.entries(limits)) {
@@ -202,8 +202,15 @@ describe("design 官方插件内容与加载", () => {
   // 设计工作流入口的常驻注入：SessionStart hook，POSIX sh，不依赖 Node。
   describe("SessionStart 注入设计工作流", () => {
     const hooksDir = join(pluginRoot, "hooks");
+    // Windows 的 sh 不在 Unix PATH；使用已安装 Git 的固定 shell，并保留项目内 HOME/TEMP。
+    const shell = process.platform === "win32"
+      ? join(dirname(dirname(dirname(execFileSync("git", ["--exec-path"], { encoding: "utf8" }).trim()))), "usr", "bin", "sh.exe")
+      : "sh";
     const runHook = (env: Record<string, string>) =>
-      spawnSync("sh", [join(hooksDir, "run-hook.cmd"), "design-rules"], { encoding: "utf8", timeout: 20000, env: { PATH: "/usr/bin:/bin", ...env } });
+      spawnSync(shell, [join(hooksDir, "run-hook.cmd").replaceAll("\\", "/"), "design-rules"], {
+        encoding: "utf8", timeout: 20000, windowsHide: true,
+        env: { ...process.env, PATH: "/usr/bin:/bin", ...env },
+      });
 
     it("hooks.json 先用 sh 调启动器、失败再直接调（市场安装不恢复可执行位），且出错放行", () => {
       const hooks = JSON.parse(readFileSync(join(hooksDir, "hooks.json"), "utf8"));
@@ -243,10 +250,11 @@ describe("design 官方插件内容与加载", () => {
       const bin = mkdtempSync(join(tmpdir(), "design-cygpath-"));
       writeFileSync(join(bin, "cygpath"), '#!/bin/sh\n[ "$1" = "-m" ] && printf "C:/fake%s\\n" "$2" || printf "%s\\n" "$2"\n');
       chmodSync(join(bin, "cygpath"), 0o755);
-      const run = spawnSync("sh", [join(hooksDir, "run-hook.cmd"), "design-rules"], {
+      const run = spawnSync(shell, [join(hooksDir, "run-hook.cmd").replaceAll("\\", "/"), "design-rules"], {
         encoding: "utf8",
         timeout: 20000,
-        env: { PATH: `${bin}:/usr/bin:/bin`, ZCODE_PLUGIN_ROOT: pluginRoot.replace(/\/$/, "") },
+        windowsHide: true,
+        env: { ...process.env, PATH: `${bin.replaceAll("\\", "/") }:/usr/bin:/bin`, ZCODE_PLUGIN_ROOT: pluginRoot.replace(/\/$/, "") },
       });
       expect(run.status).toBe(0);
       const ctx: string = JSON.parse(run.stdout).hookSpecificOutput.additionalContext;

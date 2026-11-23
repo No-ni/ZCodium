@@ -230,7 +230,8 @@ describe("Agent Runtime Model lifecycle", () => {
     await runtime.executeTurn("ordinary task");
 
     expect(createdModelIds).toEqual(["idle-model", "session-model"]);
-    expect(createdRequestAuthSources).toEqual([requestAuthSource, undefined]);
+    expect(createdRequestAuthSources).toEqual([undefined, undefined]);
+    expect(requestAuthSource.resolve).not.toHaveBeenCalled();
     expect(runtime.getSessionModelSelection()).toMatchObject({
       providerId: "test",
       modelId: "session-model",
@@ -525,7 +526,8 @@ describe("Agent Runtime Model lifecycle", () => {
     await vi.waitFor(() => expect(permissionBroker.requestPermission).toHaveBeenCalledTimes(1));
     expect(modelFactory).toHaveBeenCalledTimes(1);
     expect(modelCalls).toEqual(["idle-model:1"]);
-    expect(requestAuthSources).toEqual([requestAuthSource]);
+    expect(requestAuthSources).toEqual([undefined]);
+    expect(requestAuthSource.resolve).not.toHaveBeenCalled();
 
     approve();
     await executing;
@@ -635,7 +637,8 @@ describe("Agent Runtime Model lifecycle", () => {
     });
 
     expect(createdModelIds).toEqual(["model-a", "model-a", "idle-model"]);
-    expect(createdRequestAuthSources).toEqual([undefined, undefined, requestAuthSource]);
+    expect(createdRequestAuthSources).toEqual([undefined, undefined, undefined]);
+    expect(requestAuthSource.resolve).not.toHaveBeenCalled();
     expect(callsByModel.slice(-3)).toEqual([
       "idle-model:normal",
       "idle-model:compact",

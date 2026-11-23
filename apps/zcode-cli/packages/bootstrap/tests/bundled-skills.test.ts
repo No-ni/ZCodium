@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // 候选目录可控：默认指向真实 monorepo（复现开发态 / 桌面态），用例按需换成临时目录。
 const fakeBaseDirs = vi.hoisted(() => ({ dirs: undefined as string[] | undefined }));
-vi.mock("../src/app/bundled-plugins.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/app/bundled-plugins.js")>();
+vi.mock("../src/app/official-plugin-runtime.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/app/official-plugin-runtime.js")>();
   return {
     ...actual,
     candidateBaseDirs: () => fakeBaseDirs.dirs ?? actual.candidateBaseDirs(),
@@ -116,8 +116,8 @@ describe("resolveBundledSkillRoots", () => {
     await rm(tempRoot, { force: true, recursive: true });
   });
 
-  it("finds the real pack next to the CLI sources and reads it in place", () => {
-    const roots = resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli") });
+  it("finds the real pack next to the CLI sources and reads it in place", async () => {
+    const roots = await resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli") });
     expect(roots).toHaveLength(1);
     const [root] = roots;
     expect(root).toMatchObject({ scope: "system", source: "bundled" });
@@ -149,7 +149,7 @@ describe("resolveBundledSkillRoots", () => {
     fakeBaseDirs.dirs = [stagedRoot];
     const logger = createLogger();
 
-    expect(resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli"), logger })).toEqual([]);
+    expect(await resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli"), logger })).toEqual([]);
     expect(logger.warnings.map((entry) => entry.message)).toEqual([
       "Bundled skill pack unavailable",
     ]);
@@ -164,7 +164,7 @@ describe("resolveBundledSkillRoots", () => {
     }
     fakeBaseDirs.dirs = [join(tempRoot, "nowhere"), stagedRoot];
 
-    expect(resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli") })).toEqual([
+    expect(await resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli") })).toEqual([
       {
         path: join(stagedRoot, "packages", "bundled-skills", "skills"),
         priority: expect.any(Number),
@@ -182,7 +182,7 @@ describe("resolveBundledSkillRoots", () => {
       const cliStorageRoot = join(tempRoot, "cli");
       const expectedPackRoot = join(cliStorageRoot, "bundled-skills", pack.manifest.hash);
 
-      const first = resolveBundledSkillRoots({ cliStorageRoot });
+      const first = await resolveBundledSkillRoots({ cliStorageRoot });
       expect(first).toEqual([
         {
           path: join(expectedPackRoot, "skills"),
@@ -198,7 +198,7 @@ describe("resolveBundledSkillRoots", () => {
       }
 
       // 第二次启动：目录已完整，不重新解压，也不留下临时目录。
-      const second = resolveBundledSkillRoots({ cliStorageRoot });
+      const second = await resolveBundledSkillRoots({ cliStorageRoot });
       expect(second).toEqual(first);
       const siblings = await readdir(join(cliStorageRoot, "bundled-skills"));
       expect(siblings).toEqual([pack.manifest.hash]);
@@ -210,7 +210,12 @@ describe("resolveBundledSkillRoots", () => {
 
       const good = createFakeSeaPack(COMPLETE_PACK);
       installSea(seaModuleFor(good));
-      const goodRoots = resolveBundledSkillRoots({ cliStorageRoot });
+      const goodRoots = await resolveBundledSkillRoots({ cliStorageRoot });
+      // 必须先有真实完整旧包，空数组相等不能证明坏资产回退成功。
+      expect(goodRoots).toEqual([{
+        path: join(cliStorageRoot, "bundled-skills", good.manifest.hash, "skills"),
+        priority: expect.any(Number), scope: "system", source: "bundled",
+      }]);
 
       const corrupt = createFakeSeaPack(
         { ...COMPLETE_PACK, [BUNDLED_SKILL_PACK_REQUIRED_PATHS[0]]: "changed" },
@@ -221,7 +226,7 @@ describe("resolveBundledSkillRoots", () => {
       installSea(seaModuleFor(corrupt));
       const logger = createLogger();
 
-      expect(resolveBundledSkillRoots({ cliStorageRoot, logger })).toEqual(goodRoots);
+      expect(await resolveBundledSkillRoots({ cliStorageRoot, logger })).toEqual(goodRoots);
       expect(logger.warnings.map((entry) => entry.message)).toEqual([
         "Bundled skill pack seed degraded",
       ]);
@@ -230,7 +235,7 @@ describe("resolveBundledSkillRoots", () => {
       expect(siblings.some((name) => name.includes(".tmp-"))).toBe(false);
     });
 
-    it("falls through to the filesystem pack when the binary carries no bundled skill manifest", () => {
+    it("falls through to the filesystem pack when the binary carries no bundled skill manifest", async () => {
       installSea({
         getAsset: () => {
           throw new Error("no such asset");
@@ -240,7 +245,7 @@ describe("resolveBundledSkillRoots", () => {
         },
         isSea: () => true,
       });
-      const roots = resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli") });
+      const roots = await resolveBundledSkillRoots({ cliStorageRoot: join(tempRoot, "cli") });
       expect(roots).toHaveLength(1);
       expect(roots[0]?.path.endsWith(join("bundled-skills", "skills"))).toBe(true);
     });

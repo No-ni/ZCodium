@@ -893,7 +893,7 @@ export function AnimatedSidePanePanel({
         recentlyClosedTabs: intl.formatMessage({ id: "sidePane.recentlyClosedTabs" }),
         noResults: intl.formatMessage({ id: "sidePane.noTabsFound" }),
         closeTab: (title) => intl.formatMessage({ id: "sidePane.closeTab" }, { title }),
-        relativeTime: (timestamp) => formatTaskRelativeTime(timestamp, intl),
+        relativeTime: (timestamp, now) => formatTaskRelativeTime(timestamp, intl, now),
         browserTitle: intl.formatMessage({ id: "browser.title" }),
         reviewTitle: intl.formatMessage({ id: "sidePane.review" }),
         fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),

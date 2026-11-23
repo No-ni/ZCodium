@@ -62,7 +62,7 @@ describe("publishModelStatus", () => {
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
-  it("原始失败只交给进程级观测 sink，不进入 request sink", async () => {
+  it("失败事件保持 fanout，原始错误不进入任一 sink", async () => {
     const failureEvent: ModelNetworkStatusEvent = {
       ...event,
       durationMs: 10,
@@ -89,8 +89,8 @@ describe("publishModelStatus", () => {
 
     expect(requestPublish).toHaveBeenCalledWith(failureEvent);
     expect(requestPublish).not.toHaveBeenCalledWith(failureEvent, rawError);
-    expect(telemetryPublish).not.toHaveBeenCalled();
-    expect(telemetryPublishFailure).toHaveBeenCalledWith(failureEvent, rawError);
+    expect(telemetryPublish).toHaveBeenCalledWith(failureEvent);
+    expect(telemetryPublishFailure).not.toHaveBeenCalled();
   });
 
   it("一个 sink 失败时仍投递另一个 sink，且不污染模型主链路", async () => {

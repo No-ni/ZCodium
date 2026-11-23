@@ -668,6 +668,9 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
           resumeRequest,
           toolDisallowlist,
           forceMcs,
+          toolsearchMode,
+          // 显式 tui 必须复用本次解析结果，否则模式会悄然回落到默认值。
+          workflowMode,
         );
       default:
         ctx.stderr.write(`Unknown command: ${commandName(parsed.positionals)}\n\n`);

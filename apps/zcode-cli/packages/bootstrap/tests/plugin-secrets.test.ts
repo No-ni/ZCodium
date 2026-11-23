@@ -1,11 +1,14 @@
 // 敏感插件选项私有存储（docs/design/v2/plugin-compat.md「Sensitive Option Storage」测试 1–7）。
 // 每个用例都用临时目录：插件存储目录在 <root>/plugins，私有文件因此落在 <root>/plugin-secrets.json；
-// 协议 handler 只认 ~/.zcode，下面把 homedir 重定向到一次性目录，绝不触碰真实 HOME。
+// 用户配置位于 ~/.zcodium；协议存储根单独显式绑定到同一隔离目录。
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
+
+// 配置回归使用真实内置资产 IO，冷目录不能套用纯函数的 5s 预算。
+vi.setConfig({ testTimeout: 30_000 });
 
 const FAKE_HOME = await vi.hoisted(async () => {
   const [{ mkdtemp: makeTemp }, { tmpdir: osTmpdir }, { join: joinPath }] = await Promise.all([
@@ -20,7 +23,7 @@ vi.mock("node:os", async (importOriginal) => {
   return { ...actual, homedir: () => FAKE_HOME };
 });
 
-import { createConfig } from "@zcode/adapters/config";
+import { createConfig, normalizePluginConfigPathForComparison } from "@zcode/adapters/config";
 import type { Logger } from "@zcode/contracts";
 import { zcodePluginsListResultSchema } from "@zcode/shared";
 import { resolveStartupPlugins } from "../src/app/startup-marks.js";
@@ -157,12 +160,12 @@ describe("plugin sensitive option storage", () => {
       });
 
       expect((await readJson(fixture.secretsPath)).workspaces).toEqual({
-        [repositoryRoot]: { [PLUGIN_ID]: { token: "outer-secret" } },
-        [nestedRoot]: { [PLUGIN_ID]: { token: "inner-secret" } },
+        [normalizePluginConfigPathForComparison(repositoryRoot)]: { [PLUGIN_ID]: { token: "outer-secret" } },
+        [normalizePluginConfigPathForComparison(nestedRoot)]: { [PLUGIN_ID]: { token: "inner-secret" } },
       });
       for (const workspaceRoot of [repositoryRoot, nestedRoot]) {
         const workspaceConfig = await readFile(
-          join(workspaceRoot, ".zcode", "config.json"),
+          join(workspaceRoot, ".zcodium", "config.json"),
           "utf8",
         );
         expect(workspaceConfig).not.toMatch(/(outer|inner)-secret/u);
@@ -185,15 +188,17 @@ describe("plugin sensitive option storage", () => {
       const fallback = await resolveZCodePlugins(fixture.userOptions(nestedRoot));
       expect(authorizationHeader(fallback.mcpServers[API_SERVER])).toBe("Bearer outer-secret");
       expect((await readJson(fixture.secretsPath)).workspaces).toEqual({
-        [repositoryRoot]: { [PLUGIN_ID]: { token: "outer-secret" } },
+        [normalizePluginConfigPathForComparison(repositoryRoot)]: { [PLUGIN_ID]: { token: "outer-secret" } },
       });
     });
   });
 
   it("5. keeps plugins/list filtered and returns user values from plugins/readUserOptions", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-secrets-protocol-"));
-    const userConfigPath = join(FAKE_HOME, ".zcode", "cli", "config.json");
-    const secretsPath = join(FAKE_HOME, ".zcode", "cli", SECRETS_FILE);
+    const previousStorageDir = process.env.ZCODE_STORAGE_DIR;
+    process.env.ZCODE_STORAGE_DIR = join(FAKE_HOME, ".zcodium");
+    const userConfigPath = join(FAKE_HOME, ".zcodium", "cli", "config.json");
+    const secretsPath = join(FAKE_HOME, ".zcodium", "cli", SECRETS_FILE);
     const pluginRoot = join(root, PLUGIN_NAME);
     const context = {} as ZCodeProtocolAgentServerContext;
     const workspace = { workspacePath: root, workspaceKey: root };
@@ -226,7 +231,9 @@ describe("plugin sensitive option storage", () => {
         readPluginUserOptions(context, { pluginId: "missing@inline" }),
       ).rejects.toMatchObject({ code: -32602, data: { code: "plugin_not_found" } });
     } finally {
-      await rm(join(FAKE_HOME, ".zcode"), { force: true, recursive: true });
+      if (previousStorageDir === undefined) delete process.env.ZCODE_STORAGE_DIR;
+      else process.env.ZCODE_STORAGE_DIR = previousStorageDir;
+      await rm(join(FAKE_HOME, ".zcodium"), { force: true, recursive: true });
       await rm(root, { force: true, recursive: true });
     }
   });
@@ -252,7 +259,7 @@ describe("plugin sensitive option storage", () => {
         scope: "workspace",
       });
       expect((await readJson(fixture.secretsPath)).workspaces).toEqual({
-        [fixture.root]: { [PLUGIN_ID]: { token: "workspace-secret" } },
+        [normalizePluginConfigPathForComparison(fixture.root)]: { [PLUGIN_ID]: { token: "workspace-secret" } },
       });
       await resetZCodePluginConfig({ ...fixture.userOptions(), pluginId: PLUGIN_ID });
       expect((await readJson(fixture.secretsPath)).user).toEqual({});
@@ -378,7 +385,7 @@ async function withFixture(run: (fixture: Fixture) => Promise<void>): Promise<vo
 
 async function writePluginManifest(pluginRoot: string): Promise<void> {
   await writeTestFile(
-    join(pluginRoot, ".zcode-plugin", "plugin.json"),
+    join(pluginRoot, ".zcodium-plugin", "plugin.json"),
     JSON.stringify({
       name: PLUGIN_NAME,
       userConfig: {

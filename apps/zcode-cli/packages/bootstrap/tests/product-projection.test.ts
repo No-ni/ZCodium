@@ -4146,7 +4146,7 @@ describe("V4 API 重试状态投影", () => {
     };
   }
 
-  it("配置读取重试保留错误类别，桌面与手机使用同一状态", () => {
+  it("用户 API 网络重试保留错误类别，桌面与手机使用同一状态", () => {
     const { log, projection } = runningProjection();
     const deltas = projection.applyEvent(
       log.push(
@@ -4156,13 +4156,12 @@ describe("V4 API 重试状态投影", () => {
           delayMs: 2000,
           nextAttempt: 2,
           reason: "network_error",
-          errorCode: ModelErrorCode.ModelRequestVerificationConfigNetwork,
         }),
         { turnId: "turn-retry-1" },
       ),
     );
     expect(projection.getSnapshot().control.apiRetry?.reasonCode).toBe(
-      "request_verification_config_network",
+      "fault.network.unreachable",
     );
     expect(() => conversationSnapshotSchema.parse(projection.getSnapshot())).not.toThrow();
     for (const profile of [DELIVERY_PROFILES.continuous, DELIVERY_PROFILES.replayable]) {

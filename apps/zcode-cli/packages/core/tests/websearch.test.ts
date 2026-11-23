@@ -342,7 +342,7 @@ describe("provider-visible WebSearch wrapper", () => {
     ).toBe(true);
   });
 
-  it("refreshes provider runtime headers before the WebSearch internal model request", async () => {
+  it("does not attach a retired account header refresh to the WebSearch internal request", async () => {
     const sessionId = createSessionId("runtime-websearch-refresh-runtime-headers");
     const eventStore = createTestSessionEventStore();
     const startPlanModelSelection: ModelSelection = {
@@ -441,10 +441,11 @@ describe("provider-visible WebSearch wrapper", () => {
       ({ observation }) =>
         observation.invocationContext?.metadata?.querySource === "web_search_tool",
     );
+    expect(innerRequest).toBeDefined();
     expect(
       typeof innerRequest?.observation.invocationContext?.refreshRuntimeHeadersBeforeAttempt,
-    ).toBe("function");
-    expect(refreshes).toEqual(["account:zai-start-plan:model-request"]);
+    ).toBe("undefined");
+    expect(refreshes).toEqual([]);
   });
 
   it("formats WebSearch tool results with markdown sources reminder", () => {

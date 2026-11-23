@@ -5,7 +5,7 @@ import { createConversationSharePreflightResponseHandlers } from "../../packages
 import { conversationShareTurnFingerprints } from "../../packages/ui/src/v4/conversationSharePreflightCache.js";
 import { logger } from "../../packages/ui/src/logger.js";
 import type { ConversationRow } from "../../packages/shared/src/zcode-protocol-v4/index.js";
-import type { ConversationSharePreflightResult } from "../../packages/services/src/conversation-share/index.js";
+import type { ConversationSharePreflightResult } from "../../packages/ui/src/conversation-share-interaction/contract.js";
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 function deferred<T>() {

@@ -621,14 +621,6 @@ export function App({
       );
     };
   }, [handleCloseSidePaneTab, isSidePaneCollapsed, isWorkspaceVisible, sidePaneState]);
-  const handleToggleSidePane = useCallback(() => {
-    // 显式关闭先清当前 owner 的完整视图，不等待下一次 effect 才退出浮窗。
-    if (isSidePaneOpen) sidePaneFullView.exit();
-    // 交互说明：toggle panel 只改变右侧容器显隐，不隐式创建或切换任何 tab。
-    // 之前无 tab 时会按 diff/browser 兜底自动开内容，导致用户只是想打开 side pane
-    // 却得到一个新 Browser 或 Review。现在空内容统一交给 Open tab 空态承接。
-    handleToggleSidePaneCollapse();
-  }, [handleToggleSidePaneCollapse]);
   // Side Pane 完整视图只在桌面端提供（docs/ui/side-pane-full-view.md）。
   const supportsSidePaneFullView = Boolean(isDesktop) && !webRemoteControlWorkspaceSwitcher;
   const sidePaneFullView = useSidePaneFullView({
@@ -638,6 +630,15 @@ export function App({
     isSidePaneOpen,
     enabled: supportsSidePaneFullView,
   });
+  const exitSidePaneFullView = sidePaneFullView.exit;
+  const handleToggleSidePane = useCallback(() => {
+    // 关闭必须读取当前打开态与 owner 的出口；初次关闭态的旧闭包会让重开后无法退出完整视图。
+    if (isSidePaneOpen) exitSidePaneFullView();
+    // 交互说明：toggle panel 只改变右侧容器显隐，不隐式创建或切换任何 tab。
+    // 之前无 tab 时会按 diff/browser 兜底自动开内容，导致用户只是想打开 side pane
+    // 却得到一个新 Browser 或 Review。现在空内容统一交给 Open tab 空态承接。
+    handleToggleSidePaneCollapse();
+  }, [exitSidePaneFullView, handleToggleSidePaneCollapse, isSidePaneOpen]);
   // 草稿首发：草稿里打开的面板 tab 与完整视图形态一起交给新任务，发完仍停在原来的浮窗 / 完整视图里
   const handleSidePaneDraftPromotion = useCallback(
     (sessionId: string) => {

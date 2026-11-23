@@ -65,6 +65,8 @@ export function createMcpEntryRegistry(options: McpConnectionPoolOptions) {
           throw new Error("MCP connection was closed before startup");
         return await entry.adapter.connectServer(entry.serverName, config, connectOptions);
       } catch (error) {
+        // 先选定失败再等待资源释放；后来的 caller close 不能覆盖已发生的启动错误。
+        entry.admissionFailure = { error };
         // 同步抛错和异步拒绝都由已登记 entry 回收，不留下不可追踪的 adapter 或失败缓存。
         await closeEntry(entry);
         throw error;

@@ -1,7 +1,7 @@
 import { safeLogArgs } from "@zcode/shared";
 import { createTaskAutoArchiveRemoteTargetResolver } from "./taskAutoArchiveRouting.js";
 import { requestTaskAutoArchiveScan } from "@zcode/services/node";
-import { normalizeRemoteConnectionError, sanitizeRemoteConnectionLog } from "@zcode/shared";
+import "@zcode/shared";
 import { createCredentialCipherBridge } from "@zcode/shared/credential-security";
 import { join } from "node:path";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
@@ -2560,6 +2560,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         environmentKey: msg.environmentKey,
         status: "failed",
         error: "Remote Environment registration 已失效",
+        errorCode: "session-unavailable",
       });
       return;
     }
@@ -2588,6 +2589,8 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           environmentKey: msg.environmentKey,
           status: result.status,
           ...(result.errorMessage ? { error: result.errorMessage } : {}),
+          // 剥离账号适配时遗漏了通用阶段码，Main 因此只能报告笼统的 apply 失败。
+          ...(result.errorCode ? { errorCode: result.errorCode } : {}),
         });
       })
       .catch(() => {
@@ -2597,6 +2600,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           environmentKey: msg.environmentKey,
           status: "failed",
           error: "Provider Provisioning 授权或执行失败",
+          errorCode: "host-execution-failed",
         });
       });
     return;

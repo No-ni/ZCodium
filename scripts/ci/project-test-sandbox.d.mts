@@ -23,3 +23,10 @@ export declare function createProjectTestFixture(
   label: string,
   env?: NodeJS.ProcessEnv,
 ): Promise<string>;
+
+export declare function createProjectTestSymlink(
+  target: string,
+  path: string,
+  type?: "dir" | "file",
+  env?: NodeJS.ProcessEnv,
+): Promise<void>;

@@ -209,13 +209,32 @@ describe("官方 3.17.1 合并的 CLI 边界", () => {
       !("test:browser-headless:linux" in manifest.scripts),
       "不得恢复 Linux docker 测试入口",
     );
-    // 本仓根编排入口保持 corepack 与自有 lint 门槛，不被上游覆盖。
+    // 根目录选择器曾误选 packages，漏检 CLI 自身；保留 Corepack 并验证实际包集合。
     assert.match(manifest.scripts.typecheck as string, /corepack pnpm/);
-    assert.match(manifest.scripts.lint as string, /check-cli-lint\.mjs/);
+    assert.match(manifest.scripts.lint as string, /run-cli-lint\.mjs/);
     // 上游新增的测试/覆盖率入口需要被吸收。
     for (const script of ["test", "pretest", "coverage"]) {
       assert.ok(script in manifest.scripts, `缺少上游脚本 ${script}`);
     }
+  });
+
+  it("CLI typecheck 的实际目录选择包含 core、adapters 和 bootstrap", async () => {
+    const manifest = readJson(join(cliRoot, "package.json"));
+    const filters = [...(manifest.scripts.typecheck as string).matchAll(/--filter "([^"]+)"/g)]
+      .map((match) => match[1]);
+    assert.equal(filters.length, 2);
+    const execute = promisify(execFile);
+    const corepack = join(dirname(process.execPath), "node_modules/corepack/dist/corepack.js");
+    assert.ok(!(manifest.scripts.typecheck as string).includes("--dir ../.."));
+    const result = await execute(process.execPath, [corepack, "pnpm",
+      ...filters.flatMap((filter) => ["--filter", filter]),
+      "list", "--depth", "-1", "--json"], { cwd: cliRoot, env: process.env, windowsHide: true });
+    const selected = JSON.parse(result.stdout) as { name: string; path: string }[];
+    for (const name of ["@zcode/core", "@zcode/adapters", "@zcode/bootstrap"]) {
+      assert.ok(selected.some((entry) => entry.name === name), `CLI 类型检查遗漏 ${name}`);
+    }
+    assert.ok(selected.every((entry) => relative(cliRoot, entry.path).startsWith(`packages${sep}`)
+      || relative(cliRoot, entry.path).startsWith(`tools${sep}`)));
   });
 
   it("turbo 任务保留内置 provider 配置代际与插件构建块", () => {

@@ -214,9 +214,11 @@ export async function* runStreamText(input: {
       textMs?: number;
       outputKind?: "text" | "reasoning" | "tool";
     }): Promise<void> => {
-      if (timeToFirstContentMs === undefined && observation.contentMs !== undefined) {
-        timeToFirstContentMs = observation.contentMs;
-        logModelMilestone(input.logger, "model_first_content", attempt, observation.contentMs);
+      // SDK 可见事件可能等到整个块结束才释放；TTFT 只能取既有 transport 的首次非空内容时间。
+      const firstContentAt = resolved.streamTiming?.firstContentAt;
+      if (timeToFirstContentMs === undefined && firstContentAt !== undefined) {
+        timeToFirstContentMs = firstContentAt - startedAt;
+        logModelMilestone(input.logger, "model_first_content", attempt, timeToFirstContentMs);
       }
       if (timeToFirstTextMs === undefined && observation.textMs !== undefined) {
         timeToFirstTextMs = observation.textMs;
@@ -932,17 +934,7 @@ async function handleStreamChunk(input: {
       providerBusinessFinishError,
     );
   }
-  const contextError = createEmptyContextExceededError({
-    finishReason: input.diagnostics.finishReason,
-    rawFinishReason: input.diagnostics.rawFinishReason,
-    hasAssistantContent:
-      input.diagnostics.textDeltaChars > 0 || input.diagnostics.reasoningDeltaChars > 0,
-    toolCallCount: input.diagnostics.toolCallCount,
-    usage: input.diagnostics.usage,
-  });
-  // finish 是成功提交边界，必须先把明确空超窗沿既有错误链结算，不能先给 Core 发成功。
-  if (contextError)
-    return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, contextError);
+  // 官方在释放 finish 前统一判断空超窗，并识别思考签名；这里的重复字符数判断曾丢掉有效 partial。
   const event = toModelStreamEvent(input.chunk);
   if (event?.type === "error") {
     return handleStreamErrorEvent({ ...input, emittedRetryBoundaryEvent }, event.error);

@@ -477,16 +477,19 @@ describe("MCP OAuth cross-process end-to-end", () => {
   it("completes authorization that outlasts the caller budget (incident timeline replay)", async () => {
     // 现场:2026-08-11 真人授权耗时约 74 秒,而 session 预算只有 15 秒。旧实现 15 秒后
     // 关闭 listener,授权必败;新实现预算只约束 caller 等待,事务继续存活。
-    // 按比例缩放:caller 预算 100ms,「用户」1500ms 后才完成授权。
+    // caller 预算仍为 100ms；用事件屏障保证「用户」只在预算返回后完成授权。
     const stack = await startFakeStack();
     const { credentialStore, credentialsPath } = await createCredentials("cross-process-budget");
     const secret = "cross-process-budget";
+    const authorizationReady = Promise.withResolvers<string>();
+    const releaseAuthorization = Promise.withResolvers<void>();
     const { createMcpAdapter } = await import("../src/mcp/index.js");
     const adapter = createMcpAdapter({
       mcpOAuth: {
         credentialStore,
         openAuthorizationUrl: async ({ authorizationUrl }) => {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+          authorizationReady.resolve(authorizationUrl);
+          await releaseAuthorization.promise;
           const response = await fetch(authorizationUrl, { redirect: "manual" });
           const location = response.headers.get("location");
           if (location) await fetch(location);
@@ -500,9 +503,12 @@ describe("MCP OAuth cross-process end-to-end", () => {
         { type: "http", url: stack.mcpUrl, oauth: { type: "authorization_code", scope: MCP_SCOPE } },
         { oauthAuthorizationTimeoutMs: 100 },
       );
-      // 预算到点只返回快照:connecting + 授权 URL,事务没有被杀。
+      // 预算到点只返回当前快照；发现/DCR 尚未完成时 URL 可以稍后发布，事务不能被杀。
       expect(budgeted.status).toBe("connecting");
-      expect(budgeted.authorization?.authorizationUrl).toContain(stack.asBaseUrl);
+      const authorizationUrl = await authorizationReady.promise;
+      expect(authorizationUrl).toContain(stack.asBaseUrl);
+      expect((await adapter.status()).budget?.authorization?.authorizationUrl).toBe(authorizationUrl);
+      releaseAuthorization.resolve();
 
       let final = budgeted;
       for (let attempt = 0; attempt < 100 && final.status !== "connected"; attempt += 1) {
@@ -515,6 +521,7 @@ describe("MCP OAuth cross-process end-to-end", () => {
       expect(stack.state.authorizationRequests).toHaveLength(1);
       expect(stack.state.tokenExchanges).toHaveLength(1);
     } finally {
+      releaseAuthorization.resolve();
       await adapter.close();
     }
   }, 90_000);

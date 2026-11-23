@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type SourceServerWorkspaceHistoryEntry, type RemoteTarget } from "@zcode/shared";
 import { useCancelPendingRemoteConnection } from "@/hooks/useCancelPendingRemoteConnection.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
@@ -51,6 +51,8 @@ export function useRemoteConnectionFlowState(
   const [discardPending, setDiscardPending] = useState(false);
   const [completionRunning, setCompletionRunning] = useState(false);
   const [blockedCompletion, setBlockedCompletion] = useState<(() => Promise<void>) | null>(null);
+  // completion 的执行代际不因 open 回调换引用而重启；失败时读取当前外层的打开入口。
+  const reopenAfterCompletionFailure = useEffectEvent(() => applyOpenState(true));
   useEffect(() => {
     if (confirmationPending || discardPending || !blockedCompletion) return;
     // 在关闭确认的 owner 处理完选择后重入，避免确认关闭与完成回调抢跑。
@@ -62,7 +64,7 @@ export function useRemoteConnectionFlowState(
         if (entryEpochRef.current !== epoch) return;
         setError(getErrorMessage(cause));
         setCurrentStep("connecting");
-        applyOpenState(true);
+        reopenAfterCompletionFailure();
       })
       .finally(() => {
         if (entryEpochRef.current === epoch) setCompletionRunning(false);

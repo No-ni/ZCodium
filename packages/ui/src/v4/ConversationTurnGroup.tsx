@@ -36,8 +36,6 @@ import {
 } from "@zcode/shared";
 import type {
   ApiRetryState,
-  AttachmentRef,
-  CommandAck,
   ConversationRowTarget,
   WorkflowNotificationMeta,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -397,6 +395,8 @@ function ConversationAssistantWorkItems({
         },
       ),
     [
+      // TODO 偏好此前没进入依赖，只有这项设置变化时会继续复用旧的工作项列表。
+      context.messageStreamShowTodos,
       context.toolGroupingChangesEnabled,
       context.toolGroupingExploreEnabled,
       context.toolGroupingTerminalEnabled,

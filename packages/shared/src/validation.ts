@@ -50,7 +50,7 @@ export const credentialCipherReplySchema = z
 export type CredentialCipherRequest = z.infer<typeof credentialCipherRequestSchema>;
 export type CredentialCipherReply = z.infer<typeof credentialCipherReplySchema>;
 
-import { networkCaptureControlSchema, networkCaptureBatchSchema } from "./networkCapture.js";
+import "./networkCapture.js";
 import { browserCommandSchema } from "./browser-use/commands.js";
 import { browserCommandResultSchema } from "./browser-use/result.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";

@@ -2,7 +2,9 @@
 // Dynamic Workflow Run 的观察面辅助（run service 的只读半身）
 // ============================================================
 // 快照/列表/详情的合成规则。从 dynamic-workflow-run-service.ts 拆出：服务文件承载入口与门，
-// 本文件承载「registry + journal → 对外读面」的纯合成规则（无 I/O、无状态）。
+// 本文件承载「registry + journal → 对外读面」的只读合成；未确认同步的草稿通过异步 IO 核对正文。
+
+import { readFile } from "node:fs/promises";
 
 import type { DwfRunListItem, DwfRunSessionListItem } from "@zcode/adapters/storage";
 import {
@@ -170,7 +172,7 @@ export function isRunLiveInThisProcess(
   return entry !== undefined && entry.terminal === undefined && entry.control !== undefined;
 }
 
-export function snapshotOf(
+export async function snapshotOf(
   taskId: string,
   runs: Map<string, RunRegistryEntry>,
   journal: JournalStorePort,
@@ -181,7 +183,7 @@ export function snapshotOf(
    * 投影好递进来（`waiting` 要读引擎的停驻表，那是 I/O 之外的活状态）；空即整字段缺席。
    */
   holes: readonly DynamicWorkflowRunHole[] = [],
-): DynamicWorkflowRunSnapshot | undefined {
+): Promise<DynamicWorkflowRunSnapshot | undefined> {
   const entry = runs.get(taskId);
   const record = journal.getRun(taskId);
   if (entry === undefined && record === undefined) return undefined;
@@ -243,7 +245,7 @@ export function snapshotOf(
     // 脚本文件：与子代理模型逐条同规（有条目就读条目，只有冷行才扫一次事件头），同样
     // 「记过才在场」。终态通知据它把下一步说成「就地编辑那个文件」，所以快照必须带上它。
     // 补全写回未确认时，旧启动路径不能作为当前有效脚本。
-    ...runScriptPathField(synchronizedRunScriptPath(journal, taskId, entry)),
+    ...runScriptPathField(await synchronizedRunScriptPath(journal, taskId, entry)),
     // 脚本点名的模型：与子代理模型逐条同规。AmendWorkflow 与 GUI「配置」据它让同名的绑定沿用下去。
     ...runModelBindingsField(
       entry === undefined ? readRunModelBindings(journal, taskId) : entry.modelBindings,
@@ -324,21 +326,26 @@ export function runScriptPathField(scriptPath: string | undefined): { scriptPath
 }
 
 /** 快照与详情共用：启动路径不能证明补全后的文件已写回，冷记录因此不推荐旧草稿。 */
-export function synchronizedRunScriptPath(
+export async function synchronizedRunScriptPath(
   journal: JournalStorePort,
   runId: string,
   entry: RunRegistryEntry | undefined,
   events?: readonly StoredEvent[],
-): string | undefined {
-  if (entry !== undefined) return entry.scriptPathStale ? undefined : entry.scriptPath;
-  if (
-    (events ?? journal.listEvents(runId, { types: "all", reportItems: "all" })).some(
-      (stored) => stored.event.type === "hole-filled",
-    )
-  ) {
+): Promise<string | undefined> {
+  if (entry !== undefined && !entry.scriptPathStale) return entry.scriptPath;
+  const path = entry?.scriptPath ?? readRunScriptPath(journal, runId);
+  if (path === undefined) return undefined;
+  if (entry === undefined && !(events ?? journal.listEvents(runId, { types: ["hole-filled"], reportItems: { limit: 0 } })).some(stored => stored.event.type === "hole-filled")) return path;
+  // 补全过程可能未写回草稿，冷读只发布与本次有效脚本一致的文件；不因历史补全永久隐藏有效草稿。
+  const effective = entry?.scriptText ?? journal.getRun(runId)?.scriptText;
+  if (effective === undefined) return undefined;
+  try {
+    const contents = await readFile(path, "utf8");
+    return contents === effective && effective === (entry?.scriptText ?? journal.getRun(runId)?.scriptText)
+      ? path : undefined;
+  } catch {
     return undefined;
   }
-  return readRunScriptPath(journal, runId);
 }
 
 /**

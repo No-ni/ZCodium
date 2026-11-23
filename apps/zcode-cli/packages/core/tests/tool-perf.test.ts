@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCommand,
   classifySafeCommandIdentity,
-  commandHash,
 } from "../src/tool/handlers/tool-perf.js";
 
 describe("tool performance telemetry helpers", () => {
@@ -10,15 +9,6 @@ describe("tool performance telemetry helpers", () => {
     const command = `cat <<'EOF'\n${"x".repeat(20_000)}\nnpm test\nEOF`;
 
     expect(classifyCommand(command)).toBe("other");
-  });
-
-  it("uses a bounded command hash bucket for very large commands", () => {
-    const prefix = `python <<'PY'\n${"p".repeat(6_000)}`;
-    const suffix = `${"s".repeat(6_000)}\nPY`;
-    const left = `${prefix}${"a".repeat(10_000)}${suffix}`;
-    const right = `${prefix}${"b".repeat(10_000)}${suffix}`;
-
-    expect(commandHash(left)).toBe(commandHash(right));
   });
 
   it("只暴露公开 Registry 中的单一可执行文件名", () => {

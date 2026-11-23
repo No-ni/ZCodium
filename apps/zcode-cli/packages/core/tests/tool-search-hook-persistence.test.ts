@@ -31,9 +31,9 @@ it.each([
           `mcp__demo__lookup_${String(i).padStart(4, "0")}_`.padEnd(64, "x"),
         )
       : ["TaskOutput", "TodoRead"];
-    const discoveredNames = large ? names.slice(0, -1) : names;
+    const discoveredNames = names;
     const searchInput = large
-      ? { query: "lookup", max_results: -1 }
+      ? { query: "lookup", max_results: 2_000 }
       : { query: "select:TaskOutput,TodoRead", max_results: 5 };
     const root = await mkdtemp(join(tmpdir(), "zcode-toolsearch-hook-"));
     const dbPath = join(root, "session.sqlite");
@@ -100,7 +100,7 @@ it.each([
             metadata: {
               name,
               description: "lookup information",
-              shouldDefer: true,
+              alwaysLoad: false, shouldDefer: true,
               readOnly: true,
               destructive: false,
               concurrentSafe: true,

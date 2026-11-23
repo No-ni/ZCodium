@@ -333,7 +333,10 @@ describe("sync subagent failure hand-back", () => {
     expect(task).toMatchObject({ status: "failed", error: PROVIDER_FAILURE });
     const outputDir = dirname(task!.outputFile!);
     const metadata = JSON.parse(await readFile(join(outputDir, "metadata.json"), "utf8"));
-    expect(metadata).toMatchObject({ status: "failed", error: PROVIDER_FAILURE });
+    expect(metadata).toMatchObject({ status: "failed", agentId: "agent_failure_artifacts" });
+    expect(metadata).not.toHaveProperty("error");
+    expect(metadata).not.toHaveProperty("prompt");
+    expect(metadata).not.toHaveProperty("config");
     expect(await readFile(task!.outputFile!, "utf8")).toBe(PROVIDER_FAILURE);
     expect(await readFile(join(outputDir, "task.output"), "utf8")).toBe(PROVIDER_FAILURE);
     expect(

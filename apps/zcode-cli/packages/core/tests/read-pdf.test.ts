@@ -1,3 +1,5 @@
+// 生产路径用原生 node:path 解析；合成文件系统的输入与预期使用同一平台语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   CoreErrorType,
@@ -16,7 +18,7 @@ import { readHandler, readToolEntry } from "../src/tool/handlers/read.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 import { createTestRuntimeModel } from "./test-runtime-model.js";
 
-const PDF_PATH = "/tmp/report.pdf";
+const PDF_PATH = nativeFixturePath("/tmp/report.pdf");
 
 describe("Read PDF handling", () => {
   it("returns the page summary followed by ordered prepared page images", async () => {
@@ -354,8 +356,8 @@ function contextWith(
     toolCallId: createToolCallId("read-pdf-context"),
     traceId: "trace-read-pdf" as never,
     turnId: createTurnId("read-pdf-context"),
-    workingDirectory: "/tmp",
-    workspaceRoot: "/tmp",
+    workingDirectory: nativeFixturePath("/tmp"),
+    workspaceRoot: nativeFixturePath("/tmp"),
   };
 }
 

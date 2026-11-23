@@ -1072,7 +1072,7 @@ describe("AgentRuntime session persistence", () => {
     expect(warn).not.toHaveBeenCalledWith("Session persistence failed", expect.anything());
   });
 
-  it("persists the original workspace path instead of the normalized execution directory", async () => {
+  it("persists the original workspace key separately from the execution directory", async () => {
     const sessionId = createSessionId("runtime-persistence-local-workspace-path");
     const store = createRecordingSessionStore();
     const runtime = createTestAgentRuntime(
@@ -1093,7 +1093,7 @@ describe("AgentRuntime session persistence", () => {
     expect(store.createdSessions).toEqual([
       expect.objectContaining({
         directory: "/tmp/zcode-runtime-local-workspace/",
-        path: "/tmp/zcode-runtime-local-workspace/",
+        path: "/tmp/zcode-runtime-local-workspace",
       }),
     ]);
   });
@@ -3727,12 +3727,12 @@ describe("AgentRuntime session persistence", () => {
     expect(modelRequestOperations).toEqual(["agent_step"]);
   });
 
-  it("defers runtime-header-backed session title generation until after the main request", async () => {
+  it("generates a title and main response without a retired account header refresh", async () => {
     const sessionId = createSessionId("runtime-persistence-title-runtime-headers-deferred");
     const store = createRecordingSessionStore();
     const modelRequests: string[] = [];
     const refreshes: string[] = [];
-    const defaultModel = createTestModelSelection("account:zai-start-plan/glm-5.1", {});
+    const defaultModel = createTestModelSelection("fixture/model", {});
     const runtime = createTestAgentRuntime(
       sessionId,
       {
@@ -3789,8 +3789,8 @@ describe("AgentRuntime session persistence", () => {
       return session?.title === "Fix first send";
     });
 
-    expect(modelRequests).toEqual(["agent_step", "session_title_generation"]);
-    expect(refreshes).toEqual(["account:zai-start-plan", "account:zai-start-plan"]);
+    expect(modelRequests.sort()).toEqual(["agent_step", "session_title_generation"]);
+    expect(refreshes).toEqual([]);
   });
 
   it("starts generated title after the first user query even when the main turn is cancelled", async () => {

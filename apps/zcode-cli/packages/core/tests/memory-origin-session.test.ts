@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createSessionId, createTraceId } from "@zcode/contracts";
 
@@ -6,7 +8,7 @@ import { editHandler } from "../src/tool/handlers/edit.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
 
-const MEMORY_ROOT = "/storage/memories/projects/project-0123456789abcdef/memory";
+const MEMORY_ROOT = nativeFixturePath("/storage/memories/projects/project-0123456789abcdef/memory");
 
 describe("Memory file metadata", () => {
   it("adds the fixed node type and creating session to standard Memory frontmatter", () => {
@@ -24,7 +26,7 @@ describe("Memory file metadata", () => {
     expect(
       stampMemoryOriginSessionId({
         content,
-        filePath: `${MEMORY_ROOT}/feedback-agent-sdk-naming.md`,
+        filePath: nativeFixturePath(`${MEMORY_ROOT}/feedback-agent-sdk-naming.md`),
         memoryRoot: MEMORY_ROOT,
         sessionId: "sess_origin",
       }),
@@ -61,7 +63,7 @@ describe("Memory file metadata", () => {
     expect(
       stampMemoryOriginSessionId({
         content,
-        filePath: `${MEMORY_ROOT}/existing-memory.md`,
+        filePath: nativeFixturePath(`${MEMORY_ROOT}/existing-memory.md`),
         memoryRoot: MEMORY_ROOT,
         sessionId: "sess_later",
       }),
@@ -69,7 +71,7 @@ describe("Memory file metadata", () => {
   });
 
   it("adds a missing origin session through the Edit write boundary", async () => {
-    const filePath = `${MEMORY_ROOT}/edited-memory.md`;
+    const filePath = nativeFixturePath(`${MEMORY_ROOT}/edited-memory.md`);
     const original = [
       "---",
       "name: edited-memory",
@@ -89,8 +91,8 @@ describe("Memory file metadata", () => {
       sessionId,
       toolCallId: "edit-memory-origin",
       traceId: createTraceId(),
-      workingDirectory: "/workspace",
-      workspaceRoot: "/workspace",
+      workingDirectory: nativeFixturePath("/workspace"),
+      workspaceRoot: nativeFixturePath("/workspace"),
     };
 
     await editHandler(
@@ -112,7 +114,7 @@ describe("Memory file metadata", () => {
     expect(
       stampMemoryOriginSessionId({
         content: "ordinary project note",
-        filePath: "/workspace/note.md",
+        filePath: nativeFixturePath("/workspace/note.md"),
         memoryRoot: MEMORY_ROOT,
         sessionId: "sess_origin",
       }),
@@ -120,7 +122,7 @@ describe("Memory file metadata", () => {
     expect(
       stampMemoryOriginSessionId({
         content: "- [Fact](fact.md) — index entry",
-        filePath: `${MEMORY_ROOT}/MEMORY.md`,
+        filePath: nativeFixturePath(`${MEMORY_ROOT}/MEMORY.md`),
         memoryRoot: MEMORY_ROOT,
         sessionId: "sess_origin",
       }),

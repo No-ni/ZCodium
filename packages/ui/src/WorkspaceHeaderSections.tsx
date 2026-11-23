@@ -113,7 +113,7 @@ export function WorkspaceHeaderTitleSection({
 }: WorkspaceHeaderTitleSectionProps) {
   const { intl } = useZCodeIntl();
   const platform = usePlatform();
-  const confirmDialog = useConfirmDialog();
+  useConfirmDialog();
   const services = useWorkspaceServices(workspaceAbsPath, remoteSessionId, workspaceIdentity);
   const copyServices = useWorkspaceServices(
     workspaceAbsPath,

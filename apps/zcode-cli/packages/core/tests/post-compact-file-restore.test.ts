@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { resolve } from "node:path";
 import type { ReadTextOutput } from "@zcode/contracts";
 import type { RuntimeMessageEntry } from "../src/agent/message-history.js";
 import {
@@ -275,7 +276,7 @@ describe("post-compact file restore", () => {
 describe("post-compact file restore paths and read state", () => {
   // 修复原因：保留段里 Read 的 file_path 曾不解析就比较，模型用相对路径读过的文件匹配不上，会再补回一份。
   it("resolves preserved Read paths against the working directory before excluding them", async () => {
-    const preservedFile = `${root}/src/relative.ts`;
+    const preservedFile = resolve(root, "src/relative.ts");
     const readFiles = vi.fn(perFile(async (filePath) => textRead(filePath, "current")));
 
     await buildPostCompactFileRestore({

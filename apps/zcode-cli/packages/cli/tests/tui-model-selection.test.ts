@@ -12,7 +12,7 @@ import {
 import { modelSelectionSchema, type ModelSelection, type ZCodeModelOption } from "@zcode/shared";
 import { createCommandCenter, type CommandCenterApp } from "../src/command-center.js";
 import { handleModelCommand } from "../src/command-center/handlers/model.js";
-import { createTuiModelAvailabilityChecker } from "../src/tui-login-state.js";
+import { createTuiModelAvailabilityChecker } from "../src/tui-model-availability.js";
 import { readTuiSessionMetadata } from "../src/tui-prompt-handler-queries.js";
 import { filterModelOptions, toPromptInput } from "../../tui/src/app-input.js";
 import { completeModelCommand } from "../../tui/src/app-keyboard-helpers.js";
@@ -347,7 +347,7 @@ test("fresh metadata follows the registry without requiring Coding Plan credenti
   const hasModels = createTuiModelAvailabilityChecker(f.deps.getApp);
   assert.equal(await hasModels(), true);
   const ready = await readTuiSessionMetadata(f.app);
-  assert.equal(ready.loginRequired, false);
+  assert.equal(ready.loginRequired, undefined);
   assert.equal(ready.modelOptions?.length, 1);
   f.setCatalog([]);
   assert.equal(await hasModels(), false);

@@ -479,7 +479,7 @@ test("includes TUI workspace runtime package assets", async () => {
     const { manifest, assets } = await collectSeaTuiAssets({
       root,
       stagingDirectory: directory,
-      target: "linux-x64",
+      target: hostTarget(),
     });
     const paths = new Set(manifest.files.map((file) => file.path));
 
@@ -586,7 +586,7 @@ test("includes the pinned Playwright runtime required by headless Browser Use", 
     const { assets, manifest } = await collectSeaPlaywrightAssets({
       root,
       stagingDirectory: directory,
-      target: "linux-x64",
+      target: hostTarget(),
     });
     const paths = new Set(manifest.files.map((file) => file.path));
 
@@ -618,7 +618,7 @@ test("keeps the Browser Use SEA release at 0.5.1 with complete runtime assets", 
     await readFile(join(root, browserUsePlugin.rootPath, "package.json"), "utf8"),
   );
   const pluginManifest = JSON.parse(
-    await readFile(join(root, browserUsePlugin.rootPath, ".zcode-plugin", "plugin.json"), "utf8"),
+    await readFile(join(root, browserUsePlugin.rootPath, ".zcodium-plugin", "plugin.json"), "utf8"),
   );
   assert.deepEqual(
     {
@@ -677,21 +677,21 @@ test("includes bundled official plugin assets", async () => {
     assert.equal(restorePlugin?.marketplace, "zcode-plugins-official");
     assert.equal(skillCreatorPlugin?.marketplace, "zcode-plugins-official");
     assert.equal(zcodeGuidePlugin?.marketplace, "zcode-plugins-official");
-    // superpowers 已从内置 SEA 清单移除，断言它不再出现在 manifest 里。
+    // 当前官方基线重新提供 superpowers，随包清单保留它。
     assert.equal(
       manifest.plugins.some((item) => item.name === "superpowers"),
-      false,
+      true,
     );
-    assert.equal(iosPaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(iosPaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(iosPaths.has("commands/ios-dev.md"), true);
     assert.equal(iosPaths.has("skills/ios-dev/SKILL.md"), true);
     assert.equal(iosPaths.has("src/mcp/server.ts"), false);
-    assert.equal(androidPaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(androidPaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(androidPaths.has("commands/android-dev.md"), true);
     assert.equal(androidPaths.has("skills/android-dev/SKILL.md"), true);
     assert.equal(androidPaths.has("skills/android-dev/scripts/setup-windows.ps1"), false);
     assert.equal(androidPaths.has("src/mcp/server.ts"), false);
-    assert.equal(browserUsePaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(browserUsePaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(browserUsePaths.has("skills/control-browser/SKILL.md"), true);
     assert.equal(browserUsePaths.has("skills/web-gui-tester/SKILL.md"), true);
     assert.equal(browserUsePaths.has("docs/api.json"), true);
@@ -711,7 +711,7 @@ test("includes bundled official plugin assets", async () => {
     assert.equal(browserUsePaths.has("scripts/computer-use-client.mjs"), false);
     // CUA 的文档同理：唯一那份属于 computer-use 插件。
     assert.equal(browserUsePaths.has("docs/computer-use.md"), false);
-    assert.equal(documentPaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(documentPaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(documentPaths.has("skills/docx/SKILL.md"), true);
     assert.equal(documentPaths.has("skills/docx-viewer/SKILL.md"), true);
     assert.equal(documentPaths.has("skills/pdf/SKILL.md"), true);
@@ -727,7 +727,7 @@ test("includes bundled official plugin assets", async () => {
       ),
       false,
     );
-    assert.equal(restorePaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(restorePaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(restorePaths.has("commands/restore-legacy-sessions.md"), true);
     assert.equal(restorePaths.has("skills/restore-legacy-sessions/SKILL.md"), true);
     assert.equal(
@@ -739,9 +739,9 @@ test("includes bundled official plugin assets", async () => {
       true,
     );
     assert.equal(restorePaths.has("dist/mcp/server.js"), false);
-    assert.equal(skillCreatorPaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(skillCreatorPaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(skillCreatorPaths.has("skills/skill-creator/SKILL.md"), true);
-    assert.equal(zcodeGuidePaths.has(".zcode-plugin/plugin.json"), true);
+    assert.equal(zcodeGuidePaths.has(".zcodium-plugin/plugin.json"), true);
     assert.equal(zcodeGuidePaths.has("skills/zcode-configuration-guide/SKILL.md"), true);
     assert.equal(zcodeGuidePaths.has("skills/diagnosing-mcp/SKILL.md"), true);
     assert.equal(zcodeGuidePaths.has("skills/diagnosing-skills/SKILL.md"), true);
@@ -756,7 +756,7 @@ test("includes bundled official plugin assets", async () => {
     const designPaths = new Set(designPlugin?.files.map((file) => file.path));
     assert.equal(designPlugin?.marketplace, "zcode-plugins-official");
     for (const path of [
-      ".zcode-plugin/plugin.json",
+      ".zcodium-plugin/plugin.json",
       "skills/design/SKILL.md",
       "skills/design/references/output.md",
       "skills/design/scripts/design-lint.mjs",
@@ -836,11 +836,11 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
 
   try {
     await writeVisualizePluginFixture(root);
-    await writeTestFile(root, "packages/android-emulator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/android-emulator-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/android-emulator-plugin/dist/mcp/server.js", "");
-    await writeTestFile(root, "packages/node-repl-host/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/node-repl-host/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/node-repl-host/dist/mcp/server.js", "");
-    await writeTestFile(root, "packages/browser-use-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/browser-use-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/browser-use-plugin/skills/control-browser/SKILL.md", "");
     await writeTestFile(root, "packages/browser-use-plugin/skills/web-gui-tester/SKILL.md", "");
     await writeTestFile(root, "packages/browser-use-plugin/docs/api.json", "{}");
@@ -850,11 +850,11 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
     await writeTestFile(root, "packages/browser-use-plugin/docs/workflow.md", "");
     await writeTestFile(root, "packages/browser-use-plugin/scripts/browser-client.mjs", "");
     await writeDocumentPluginFixtures(root);
-    await writeTestFile(root, "packages/ios-simulator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/ios-simulator-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/ios-simulator-plugin/dist/mcp/server.js", "");
     await writeTestFile(
       root,
-      "packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json",
+      "packages/restore-legacy-sessions-plugin/.zcodium-plugin/plugin.json",
       "{}",
     );
     await writeTestFile(
@@ -862,22 +862,22 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
       "packages/restore-legacy-sessions-plugin/skills/restore-legacy-sessions/SKILL.md",
       "",
     );
-    await writeTestFile(root, "packages/skill-creator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/skill-creator-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/skill-creator-plugin/skills/skill-creator/SKILL.md", "");
     // 新增官方内容插件后也要提供 fixture，否则采集会先报 manifest 缺失，无法验证免运行时资源。
-    await writeTestFile(root, "packages/plugin-creator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/plugin-creator-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/plugin-creator-plugin/skills/plugin-creator/SKILL.md", "");
     // skill-creator 用作「带可执行 hook 的 skill-only 官方插件」载体（原先由 superpowers 覆盖）。
     // collector 按 officialSeaPlugins 登记 + 伪造目录采集，真实 skill-creator 是否带 hook 无关紧要。
     await writeTestFile(root, "packages/skill-creator-plugin/hooks/hooks.json", "{}");
     await writeTestFile(root, "packages/skill-creator-plugin/hooks/run-hook.cmd", "");
-    await writeTestFile(root, "packages/zcode-guide-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/zcode-guide-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(
       root,
       "packages/zcode-guide-plugin/skills/zcode-configuration-guide/SKILL.md",
       "",
     );
-    await writeTestFile(root, "packages/zcode-site-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/zcode-site-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/zcode-site-plugin/scripts/zcode-site.mjs", "");
     await writeTestFile(root, "packages/zcode-site-plugin/skills/site-deploy/SKILL.md", "");
     await writeTestFile(root, "packages/zcode-site-plugin/scripts/stage.mjs", "");
@@ -887,9 +887,14 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
     await writeTestFile(root, "packages/zcode-site-plugin/dist/ui/panel.html", "");
     // design 是带 hook 的纯内容型插件：requiresRuntime:false，只需 seed 必需文件。
     const designPlugin = officialSeaPlugins.find((plugin) => plugin.name === "design");
-    await writeTestFile(root, "packages/design-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/design-plugin/.zcodium-plugin/plugin.json", "{}");
     for (const seedPath of designPlugin?.requiredSeedPaths ?? [])
       await writeTestFile(root, join("packages/design-plugin", seedPath), "");
+
+    const superpowers = officialSeaPlugins.find((entry) => entry.name === "superpowers");
+    await writeTestFile(root, join(superpowers.rootPath, ".zcodium-plugin/plugin.json"), "{}");
+    for (const seedPath of superpowers.requiredSeedPaths)
+      await writeTestFile(root, join(superpowers.rootPath, seedPath), "");
 
     const { manifest } = await collectSeaOfficialPluginAssets({
       requireRuntime: true,
@@ -978,21 +983,21 @@ test("requires SEA runtime assets for runtime-backed official plugins", async ()
 
   try {
     await writeVisualizePluginFixture(root);
-    await writeTestFile(root, "packages/android-emulator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/android-emulator-plugin/.zcodium-plugin/plugin.json", "{}");
     // 宿主要先齐备，这条测试隔离的是 android-emulator 缺 runtime 这一种情况。
-    await writeTestFile(root, "packages/node-repl-host/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/node-repl-host/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/node-repl-host/dist/mcp/server.js", "");
-    await writeTestFile(root, "packages/browser-use-plugin/.zcode-plugin/plugin.json", "{}");
-    await writeTestFile(root, "packages/documents-plugin/.zcode-plugin/plugin.json", "{}");
-    await writeTestFile(root, "packages/ios-simulator-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/browser-use-plugin/.zcodium-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/documents-plugin/.zcodium-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/ios-simulator-plugin/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/ios-simulator-plugin/dist/mcp/server.js", "");
     await writeTestFile(
       root,
-      "packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json",
+      "packages/restore-legacy-sessions-plugin/.zcodium-plugin/plugin.json",
       "{}",
     );
-    await writeTestFile(root, "packages/skill-creator-plugin/.zcode-plugin/plugin.json", "{}");
-    await writeTestFile(root, "packages/zcode-guide-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/skill-creator-plugin/.zcodium-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/zcode-guide-plugin/.zcodium-plugin/plugin.json", "{}");
 
     await assert.rejects(
       collectSeaOfficialPluginAssets({
@@ -1026,10 +1031,10 @@ test("requires the Browser Use client alongside the SEA MCP runtime", async () =
       "skill-creator-plugin",
       "zcode-guide-plugin",
     ]) {
-      await writeTestFile(root, `packages/${pluginName}/.zcode-plugin/plugin.json`, "{}");
+      await writeTestFile(root, `packages/${pluginName}/.zcodium-plugin/plugin.json`, "{}");
     }
     await writeTestFile(root, "packages/android-emulator-plugin/dist/mcp/server.js", "");
-    await writeTestFile(root, "packages/node-repl-host/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/node-repl-host/.zcodium-plugin/plugin.json", "{}");
     await writeTestFile(root, "packages/node-repl-host/dist/mcp/server.js", "");
     await writeDocumentPluginFixtures(root);
     await writeTestFile(root, "packages/ios-simulator-plugin/dist/mcp/server.js", "");
@@ -1097,7 +1102,7 @@ test("adds the Mach-O segment argument only for macOS targets", () => {
       binaryPath: "/tmp/zcode-linux-x64",
       seaBlob: "/tmp/zcode.sea.blob",
       sentinelFuse: "NODE_SEA_FUSE_test",
-      target: "linux-x64",
+      target: hostTarget(),
     }),
     [
       "/tmp/zcode-linux-x64",
@@ -1300,8 +1305,11 @@ async function writeDocumentPluginFixtures(root) {
     ["presentations", "pptx"],
     ["spreadsheets", "xlsx"],
   ]) {
-    await writeTestFile(root, `packages/${name}-plugin/.zcode-plugin/plugin.json`, "{}");
-    await writeTestFile(root, `packages/${name}-plugin/agents/visual-judge.md`, "");
+    await writeTestFile(root, `packages/${name}-plugin/.zcodium-plugin/plugin.json`, "{}");
+    const plugin = officialSeaPlugins.find((entry) => entry.name === name);
+    assert.ok(plugin);
+    for (const path of [...plugin.requiredSeedPaths, ...plugin.requiredRuntimePaths])
+      await writeTestFile(root, join(plugin.rootPath, path), "");
     await writeTestFile(root, `packages/${name}-plugin/skills/${skill}/SKILL.md`, "");
     // 0.2.0 起文档插件带查看面板：viewer skill 与 office-runtime 构建产物都是必需资产。
     await writeTestFile(root, `packages/${name}-plugin/skills/${skill}-viewer/SKILL.md`, "");
@@ -1309,7 +1317,7 @@ async function writeDocumentPluginFixtures(root) {
       await writeTestFile(root, `packages/${name}-plugin/${runtimePath}`, "");
     }
   }
-  await writeTestFile(root, "packages/image-search-plugin/.zcode-plugin/plugin.json", "{}");
+  await writeTestFile(root, "packages/image-search-plugin/.zcodium-plugin/plugin.json", "{}");
   await writeTestFile(root, "packages/image-search-plugin/.mcp.json", "{}");
 }
 
@@ -1317,7 +1325,7 @@ async function writeVisualizePluginFixture(root) {
   // 官方清单新增静态插件后，运行时缺失用例也必须先准备其内容，避免提前失败。
   const plugin = officialSeaPlugins.find((item) => item.name === "visualize");
   assert.ok(plugin);
-  await writeTestFile(root, "packages/visualize-plugin/.zcode-plugin/plugin.json", "{}");
+  await writeTestFile(root, "packages/visualize-plugin/.zcodium-plugin/plugin.json", "{}");
   for (const path of plugin.requiredSeedPaths) {
     await writeTestFile(root, `packages/visualize-plugin/${path}`, "");
   }

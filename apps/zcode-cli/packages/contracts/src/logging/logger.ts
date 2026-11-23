@@ -95,6 +95,8 @@ export interface LoggerFactory {
   createLogger(category: string): Logger;
   withContext(context: LogContext): Logger;
   setLevel(level: LogLevel): void;
+  /** 异步 writer 在资源关闭后结算已提交写入；同步实现无需提供，不转移 factory 所有权。 */
+  flush?(): Promise<void>;
 }
 
 export interface LogRedactor {

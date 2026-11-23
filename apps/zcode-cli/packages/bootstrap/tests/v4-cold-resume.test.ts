@@ -14,7 +14,7 @@ import { DatabaseSync } from "node:sqlite";
 //   v4 subscribe → snapshot 含历史行（transcript 合成路径）→ sendText 再发一轮成功；
 //   restoreWarning 语义保真（workspace 无可用模型时 sendText 被拒）；
 //   store 无此会话 → fault.subscribe.sessionNotFound。
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
@@ -798,7 +798,8 @@ describe("v4 冷恢复（gateway 单元）", () => {
 
 // ── 集成层（真 sqlite store + ZCodeProtocolAgentServer + binder）─────────────
 
-const WORKSPACE_PATH = "/workspace/cold-resume";
+// 冷恢复会准备工作区上下文；使用本次隔离 TMP 内的路径，不能写固定系统根。
+const WORKSPACE_PATH = join(tmpdir(), "v4-cold-resume-workspace");
 const workspace = { workspacePath: WORKSPACE_PATH, workspaceKey: WORKSPACE_PATH };
 const REMOTE_WORKSPACE_IDENTITY =
   "remote:ssh:example.test:22:coder:/workspace/cold-resume" as WorkspaceId;
@@ -917,6 +918,8 @@ function createColdFakeApp(
   let model = options?.runtimeConfig?.modelSelection
     ? `${options.runtimeConfig.modelSelection.providerId}/${options.runtimeConfig.modelSelection.modelId}`
     : "glm/glm-4.6";
+  // 当前 runtime 独占工具搜索模式；夹具也提供原有 getter/setter 合同。
+  let toolSearchMode = options?.runtimeConfig?.toolSearch?.mode ?? "off";
   let thoughtLevel = options?.runtimeConfig?.modelSelection?.options?.reasoningLevel ?? "medium";
   const providerRegistry = options?.providerRegistry;
   const initialProviderId = options?.runtimeConfig?.modelSelection?.providerId ?? "glm";
@@ -1027,6 +1030,8 @@ function createColdFakeApp(
       };
     },
     runtime: {
+      getToolSearchMode: () => toolSearchMode,
+      setToolSearchMode: (mode: "local" | "off") => { toolSearchMode = mode; },
       beginShutdown: () => undefined,
       // TTL pool 在 resident 未超水位时也要读取权威 idle facts；冷恢复 fake 必须和
       // 生产 runtime 一样显式声明没有前台或后台工作，不能再依赖旧容量分支短路。
@@ -1186,6 +1191,7 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
 
   beforeEach(async () => {
     tempRoot = await mkdtemp(join(tmpdir(), "zcode-v4-cold-resume-"));
+    await mkdir(WORKSPACE_PATH, { recursive: true });
   });
 
   afterEach(async () => {
@@ -1325,7 +1331,19 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
       cwd: WORKSPACE_PATH,
       sessionStore: store,
     });
+    attachDefaultRuntimePreferences(server);
     return { server, store };
+  }
+
+  function attachDefaultRuntimePreferences(server: ZCodeProtocolAgentServer) {
+    // 当前冷启动先向 Host 读取偏好；默认 fake Host 必须应答，受控用例仍可替换此 sink。
+    server.setNotificationSink((message) => {
+      if ("id" in message && "method" in message && message.method === zcodeProtocolMethods.sessionRequestRuntimePreferences) {
+        void server.handleMessage({ id: message.id, result: { nativeSearchEnhancementsEnabled: false, toolSearchMode: "off", memoryEnabled: false, subagentRuntimeConfigEnabled: false } });
+      } else if ("id" in message && "method" in message) {
+        throw new Error(`Unexpected fake Host request: ${message.method}`);
+      }
+    });
   }
 
   it.each(["restart", "ensureReady"] as const)(
@@ -1872,6 +1890,7 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
           return createColdFakeApp(options, []);
         },
       });
+      attachDefaultRuntimePreferences(server);
       const subscribe = requestResult(server, {
         id: "cold",
         method: V4_METHODS.conversationSubscribe,
@@ -1883,7 +1902,7 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
         },
       });
       try {
-        await entered.promise;
+        await Promise.race([entered.promise, subscribe.then(() => { throw new Error("Cold resume finished before creating its runtime"); })]);
         for (const method of [
           zcodeProtocolMethods.sessionLifecycleEnsureReady,
           zcodeProtocolMethods.sessionLifecycleRestart,
@@ -2147,6 +2166,8 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
 
   it("SSH 冷订阅 sessions-index：只迁移 task-index allowlist 证明归属的 3.3.6 历史会话", async () => {
     const dbPath = join(tempRoot, "sessions.db");
+    // 只读远端历史元数据，POSIX 目录必须与 identity 同源；真实数据库仍位于隔离工作树。
+    const remoteWorkspacePath = "/workspace/cold-resume";
     const seedStore = await createSqliteSessionStore({ dbPath });
     const currentSessionId = "sess_current_remote_index" as SessionId;
     const foreignSessionId = "sess_foreign_remote_index" as SessionId;
@@ -2159,8 +2180,8 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
         id: SESSION_ID,
         projectID: "project_remote_index" as ProjectId,
         slug: "remote-index-session",
-        directory: WORKSPACE_PATH,
-        path: WORKSPACE_PATH,
+        directory: remoteWorkspacePath,
+        path: remoteWorkspacePath,
         title: "Remote index session",
         version: "test-version",
         time: { created: 1, updated: 2 },
@@ -2170,8 +2191,8 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
         projectID: "project_current_remote_index" as ProjectId,
         workspaceID: remoteWorkspaceIdentity as WorkspaceId,
         slug: "current-remote-index-session",
-        directory: WORKSPACE_PATH,
-        path: WORKSPACE_PATH,
+        directory: remoteWorkspacePath,
+        path: remoteWorkspacePath,
         title: "Current remote index session",
         version: "test-version",
         time: { created: 3, updated: 4 },
@@ -2180,8 +2201,8 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
         id: unprovenLegacySessionId,
         projectID: "project_unproven_legacy_remote_index" as ProjectId,
         slug: "unproven-legacy-remote-index-session",
-        directory: WORKSPACE_PATH,
-        path: WORKSPACE_PATH,
+        directory: remoteWorkspacePath,
+        path: remoteWorkspacePath,
         title: "Unproven legacy remote index session",
         version: "test-version",
         time: { created: 4, updated: 5 },
@@ -2191,8 +2212,8 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
         projectID: "project_foreign_remote_index" as ProjectId,
         workspaceID: foreignWorkspaceIdentity as WorkspaceId,
         slug: "foreign-remote-index-session",
-        directory: WORKSPACE_PATH,
-        path: WORKSPACE_PATH,
+        directory: remoteWorkspacePath,
+        path: remoteWorkspacePath,
         title: "Foreign remote index session",
         version: "test-version",
         time: { created: 5, updated: 6 },
@@ -2246,7 +2267,7 @@ describe("v4 冷恢复（集成：真 sqlite + server + binder）", () => {
         id: "local-index-after-remote",
         method: V4_METHODS.conversationSubscribe,
         params: {
-          topic: sessionsIndexTopic(WORKSPACE_PATH),
+          topic: sessionsIndexTopic(remoteWorkspacePath),
           connectionId: "conn-local-index-after-remote",
           clientMode: "desktop-continuous",
         },

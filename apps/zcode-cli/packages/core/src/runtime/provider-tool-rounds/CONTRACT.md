@@ -25,6 +25,7 @@ runModelTextRequest：tool_call(providerExecuted) → 收起当前 reasoning/tex
   保留退回前已结算的本地工具调用与结果。
 - 只处理流式路径；非流式（modelStreaming=off，正式入口都不使用）不切轮。
 - 落盘顺序即流顺序，tool part 必须带 `metadata.providerExecuted: true`；冷恢复与实时回放必须得到相同的请求。
+- 服务端调用的 `providerOptions` 属于公开模型协议（例如 Anthropic MCP 的类型与 serverName），与调用一起写入 part.metadata；冷恢复复用既有 tool part 解析入口，不能仅恢复 id/input/name 而丢失回放选项。
 - 同一条持久化 assistant 拆出的 runtime assistant entry 共用 `compactGroupKey`（实时提交与冷恢复都打）：
   compact 按 assistant 开头分组选保留区间、持久化边界按数据库消息算，组数必须一致，否则冷恢复会带回已进入摘要的轮次。
   键就是持久化 assistant 消息 id（实时取自轮次的 `messageId`，冷恢复取 `message.info.id`，两边相同）；

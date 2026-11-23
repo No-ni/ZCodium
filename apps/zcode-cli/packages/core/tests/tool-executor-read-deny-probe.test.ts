@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createRootTraceContext,
@@ -18,10 +20,10 @@ import { createToolRegistry } from "../src/tool/registry.js";
 import type { ReadFileStateMap } from "../src/tool/types.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
 
-const workspace = "/tmp/zcode-read-deny-probe";
-const denied = `${workspace}/secret.env`;
-const asked = `${workspace}/asked.ts`;
-const plain = `${workspace}/plain.ts`;
+const workspace = nativeFixturePath("/tmp/zcode-read-deny-probe");
+const denied = nativeFixturePath(`${workspace}/secret.env`);
+const asked = nativeFixturePath(`${workspace}/asked.ts`);
+const plain = nativeFixturePath(`${workspace}/plain.ts`);
 const sessionRules: PermissionRuleset = {
   version: 1,
   scope: "session",
@@ -203,7 +205,7 @@ describe("compaction restore under a Read deny rule written as a relative path",
       expect(texts[0]).toContain("export const plain = 1;");
       expect(texts.join("\n")).not.toContain("TOKEN=1");
       expect(restore.readFileStateEntries.map((entry) => entry.path)).toEqual([
-        `${workspace}/plain.ts`,
+        nativeFixturePath(`${workspace}/plain.ts`),
       ]);
       // 写回的记录保留原始写法，下一次 compaction 仍按它判定。
       expect(restore.readFileStateEntries.map((entry) => entry.requestedPath)).toEqual([

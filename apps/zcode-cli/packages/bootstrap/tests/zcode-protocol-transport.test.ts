@@ -4,47 +4,6 @@ import { zcodeProtocolMethods, type ZCodeProtocolMessage } from "@zcode/shared";
 import { ZCodeProtocolNdjsonConnection } from "../src/zcode-protocol/transport.js";
 
 describe("ZCodeProtocolNdjsonConnection", () => {
-  it("stdout 背压时丢弃观测批次，业务响应仍可写入", () => {
-    const output = new PassThrough({ highWaterMark: 1 });
-    const connection = new ZCodeProtocolNdjsonConnection({
-      input: new PassThrough(),
-      output,
-      handleMessage: async () => undefined,
-    });
-    output.write("x".repeat(256 * 1024));
-    const before = output.writableLength;
-    connection.send({
-      method: "process/networkRequests",
-      params: { captureId: "one", records: [], dropped: 0 },
-    });
-    expect(output.writableLength).toBe(before);
-    connection.send({ id: 1, result: {} });
-    expect(output.writableLength).toBeGreaterThan(before);
-    output.destroy();
-  });
-  it("网络观测控制不等待挂起业务请求，并保留启停顺序", async () => {
-    const input = new PassThrough();
-    const output = new PassThrough();
-    const controls: unknown[] = [];
-    const connection = new ZCodeProtocolNdjsonConnection({
-      input,
-      output,
-      handleMessage: async (message) => {
-        if ("method" in message && message.method === "process/networkCapture") {
-          controls.push(message.params);
-          return undefined;
-        }
-        return new Promise(() => {});
-      },
-    });
-    connection.start();
-    input.write(frame({ id: "busy", method: "workspace/readState" }));
-    input.write(frame({ method: "process/networkCapture", params: { captureId: "one" } }));
-    input.write(frame({ method: "process/networkCapture", params: { captureId: null } }));
-    await vi.waitFor(() => expect(controls).toEqual([{ captureId: "one" }, { captureId: null }]));
-    input.end();
-    await connection.waitForClose();
-  });
   it("bounds EOF drain even while a handler never settles", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -819,7 +778,7 @@ describe("shared CLI session admission", () => {
 
 describe("workspace presentation admission", () => {
   it.each(["desktop-continuous", "web-remote-replayable"])(
-    "%s: waits for prior policy, then preserves Provider FIFO without waiting for the catalog",
+    "%s: waits for prior policy, then preserves ordinary FIFO without waiting for the catalog",
     async (clientMode) => {
       const input = new PassThrough();
       const output = new PassThrough();
@@ -890,9 +849,9 @@ describe("workspace presentation admission", () => {
               method: zcodeProtocolMethods.workspaceReadPresentation,
               params: { workspace },
             }),
-            frame({ id: "account-1", method: zcodeProtocolMethods.providerUpdateAccountConfig }),
-            frame({ id: "account-2", method: zcodeProtocolMethods.providerUpdateAccountConfig }),
-            frame({ id: "refresh", method: zcodeProtocolMethods.providerRefreshRegistry }),
+            frame({ id: "account-1", method: "workspace/readState" }),
+            frame({ id: "account-2", method: "workspace/readState" }),
+            frame({ id: "refresh", method: "workspace/readState" }),
           ].join(""),
         );
         await new Promise<void>((resolve) => setImmediate(resolve));
@@ -1015,14 +974,14 @@ describe("workspace presentation admission", () => {
       },
     });
     connection.start();
-    input.write(frame({ id: "config", method: zcodeProtocolMethods.providerUpdateAccountConfig }));
+    input.write(frame({ id: "config", method: "workspace/readState" }));
     input.write(frame({ id: "catalog", method: zcodeProtocolMethods.workspaceReadPresentation }));
     await new Promise<void>((resolve) => setImmediate(resolve));
     controller.abort();
     await connection.waitForClose();
     gate.resolve();
     await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(entered).toEqual([zcodeProtocolMethods.providerUpdateAccountConfig]);
+    expect(entered).toEqual(["workspace/readState"]);
     input.destroy();
   });
 

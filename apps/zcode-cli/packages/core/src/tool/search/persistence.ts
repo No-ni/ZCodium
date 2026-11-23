@@ -2,7 +2,7 @@ import {
   ModelCallWrapperSchema,
   PersistedToolSearchContentSchema,
   ToolSearchAnnouncementSchema,
-  TOOL_SEARCH_NAME,
+  isToolSearchName,
   compactBoundaryPayloadSchema,
   type ModelMessageContent,
   type ToolPart,
@@ -20,7 +20,7 @@ export function restoredModelCallWrapper(metadata: Record<string, unknown> | und
 }
 
 export function restoredToolSearchContent(part: ToolPart): ModelMessageContent | undefined {
-  if (part.tool !== TOOL_SEARCH_NAME || part.state.status !== "completed") return undefined;
+  if (!isToolSearchName(part.tool) || part.state.status !== "completed") return undefined;
   // 新版 canonical 与旧本仓字段都只在成功的 ToolSearch 结果上接受严格 schema。
   for (const value of [part.state.metadata?.modelContent, part.state.metadata?.toolSearchContent]) {
     const parsed = PersistedToolSearchContentSchema.safeParse(value);

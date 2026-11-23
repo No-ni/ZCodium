@@ -10,6 +10,9 @@ const { createWorkspaceMcpTrust } = trustModule;
 import { listMcpServers, setWorkspaceMcpTrust } from "../src/zcode-protocol/mcp.js";
 import type { ZCodeProtocolAgentServerContext } from "../src/zcode-protocol/server-types.js";
 
+// MCP 设置读取会准备真实内置插件，冷目录 IO 实测超过纯测试的 5s 默认预算。
+vi.setConfig({ testTimeout: 30_000 });
+
 const isolated = vi.hoisted(() => ({ home: undefined as string | undefined }));
 vi.mock("node:os", async (original) => {
   const actual = await original<typeof import("node:os")>();
@@ -23,9 +26,10 @@ afterEach(async () => {
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), "mcp-settings-switch-"));
   isolated.home = root;
-  await mkdir(join(root, ".zcode/cli"), { recursive: true });
+  // 隔离配置必须使用当前数据根，否则默认插件会干扰连接池状态断言。
+  await mkdir(join(root, ".zcodium", "cli"), { recursive: true });
   await writeFile(
-    join(root, ".zcode/cli/config.json"),
+    join(root, ".zcodium", "cli", "config.json"),
     JSON.stringify({ storage: { dir: join(root, "storage") }, plugins: { enabled: false } }),
   );
   return root;
@@ -106,10 +110,10 @@ it("跨 workspace 状态查询保持现有连接，显式切换后迟到 OAuth �
   });
   async function params(label: string) {
     const workspace = join(root, label);
-    await mkdir(join(workspace, ".zcode"), { recursive: true });
+    await mkdir(join(workspace, ".zcodium"), { recursive: true });
     const config = { type: "stdio" as const, command: label, args: [] };
     await writeFile(
-      join(workspace, ".zcode/config.json"),
+      join(workspace, ".zcodium/config.json"),
       JSON.stringify({ mcp: { servers: { probe: config } } }),
     );
     const authority = createWorkspaceMcpTrust({ workingDirectory: workspace, env: {} });
@@ -157,7 +161,8 @@ it("跨 workspace 状态查询保持现有连接，显式切换后迟到 OAuth �
     expect((await raw.listTools()).map((tool) => tool.name)).toEqual(["B"]);
     gate.resolve();
     await finished.promise;
-    await completions[0];
+    // 已释放 lease 的迟到握手按连接池契约拒绝；拒绝后仍不能发布旧工具。
+    await expect(completions[0]).rejects.toThrow("MCP connection was released or replaced");
     expect((await raw.listTools()).map((tool) => tool.name)).toEqual(["B"]);
     await listMcpServers(context, c);
     expect((await raw.listTools()).map((tool) => tool.name)).toEqual(["C"]);
@@ -247,9 +252,9 @@ it("设置连接清理失败后，同一 workspace 可以重试", async () => {
 it("设置授权只通知相同 workspace 的活跃会话，刷新失败不改写已落盘的授权结果", async () => {
   const root = await setup(),
     workspace = join(root, "workspace");
-  await mkdir(join(workspace, ".zcode"), { recursive: true });
+  await mkdir(join(workspace, ".zcodium"), { recursive: true });
   await writeFile(
-    join(workspace, ".zcode/config.json"),
+    join(workspace, ".zcodium/config.json"),
     JSON.stringify({ mcp: { servers: { probe: { type: "stdio", command: "fake" } } } }),
   );
   const authority = createWorkspaceMcpTrust({

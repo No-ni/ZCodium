@@ -25,7 +25,7 @@ import {
   BROWSER_LOCAL_PREVIEW_PRIVILEGES,
   installBrowserLocalPreview,
 } from "@desktop/main/browser-local-preview/index.js";
-import { installRequestSecurityDiagnostics } from "./request-security-edition/index.js";
+import "./request-security-edition/index.js";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
 // 必须在 desktopEarlyDataBaseDirBootstrap 之后：那个模块用旧根里的 dataBaseDir 调
@@ -96,7 +96,6 @@ import {
   ZCODE_PRODUCT_FLAVOR,
   DEFAULT_LOCALE,
   isLocalResourceMonitoringEnabled,
-  toZhOrEnLocale,
   type UpdateStatePayload,
 } from "@zcode/shared";
 import { logger, flushDesktopLogs } from "./logger.js";
@@ -176,7 +175,6 @@ import {
   listDisposingHostProcesses,
   loadWindow,
   spawnHostProcess,
-  getWindowBrowserBackendIdentity,
 } from "./desktopHostProcess.js";
 import { spawnCronScheduler, type CronSchedulerHandle } from "./desktopCronScheduler.js";
 import { createExtensionHostSupervisor } from "#src/main/extensionHostSupervisor.js";
@@ -299,10 +297,7 @@ const bootstrapApplicationLocale = readBootstrapApplicationLocale();
 let currentApplicationLocale: Locale = bootstrapApplicationLocale ?? DEFAULT_LOCALE;
 // 界面语言是否已确定（持久化设置 / 系统语言 / renderer 推送三者之一）。未确定前，
 // 可选带语言头的请求一律不带 X-Client-Language，不能拿 DEFAULT_LOCALE 冒充用户语言。
-let applicationLocaleResolved = bootstrapApplicationLocale !== undefined;
-function resolveKnownApplicationLocale(): Locale | undefined {
-  return applicationLocaleResolved ? currentApplicationLocale : undefined;
-}
+
 let closeToTrayOnWindows = true;
 // keep-awake：全局开关 keepAwakeWhileRunning。打开后主进程持有
 // powerSaveBlocker("prevent-app-suspension")，阻止系统闲置休眠（防不了合盖/手动睡眠）。
@@ -459,6 +454,7 @@ async function runBrowserCommandOnView(params: {
   requestId: string;
   browserId?: string;
   browserGeneration?: number;
+  controlScopeId?: string;
   sessionId: string;
   turnId?: string;
   workspaceKey?: string;
@@ -469,23 +465,7 @@ async function runBrowserCommandOnView(params: {
   sessionContext?: "live" | "cached";
   command: unknown;
 }): Promise<{ ok: boolean; [k: string]: unknown }> {
-  const browserIdentity = getWindowBrowserBackendIdentity(params.win);
-  // init-local 之外不生成身份；旧窗口/旧代次请求不能先创建 tab 或开始录制再失败。
-  if (
-    !browserIdentity ||
-    params.browserId !== browserIdentity.id ||
-    params.browserGeneration !== browserIdentity.generation
-  ) {
-    return {
-      ok: false,
-      elapsedMs: 0,
-      error: {
-        code: "backend_unavailable",
-        message: "Browser owner identity is unavailable or stale",
-        sideEffect: "none",
-      },
-    };
-  }
+  // 官方 manager 统一持有窗口身份与 scope 关闭屏障，转发层不能丢掉 scope 或另造身份。
   const endDialogAutomation = embeddedBrowserDialogController.beginAutomation(params.win.id);
   const command = params.command as { method?: string; tabId?: unknown } | null;
   const method = command?.method ?? "?";
@@ -518,6 +498,7 @@ async function runBrowserCommandOnView(params: {
     const result = await browserGuestManager.execute(
       {
         requestId: params.requestId,
+        controlScopeId: params.controlScopeId,
         browserId: params.browserId ?? "legacy-iab",
         browserGeneration: params.browserGeneration ?? 0,
         windowId: params.win.id,
@@ -1574,6 +1555,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         label,
         {
           ...initMessage,
+          browserBackendIdentity: browserGuestManager.getBackendIdentity(win.id),
           zcodeBuiltinProviderConfigFilePath: resolveZCodeBuiltinProviderConfigFilePath({
             env: { ...hostProcessLocalEnv, ...process.env },
           }),
@@ -1828,7 +1810,6 @@ app.whenReady().then(async () => {
     if (bootstrapSettings.locale) {
       loadedBootstrapLocale = true;
       currentApplicationLocale = bootstrapSettings.locale;
-      applicationLocaleResolved = true;
     }
     closeToTrayOnWindows = bootstrapSettings.closeToTrayOnWindows ?? true;
     keepAwakeWhileRunning = bootstrapSettings.keepAwakeWhileRunning ?? false;
@@ -1870,7 +1851,6 @@ app.whenReady().then(async () => {
   if (!loadedBootstrapLocale) {
     currentApplicationLocale = resolveSystemApplicationLocale();
   }
-  applicationLocaleResolved = true;
   installFinderOpenFolderWorkflow({
     platform: process.platform,
     locale: currentApplicationLocale,
@@ -2008,7 +1988,6 @@ app.whenReady().then(async () => {
     },
     applyApplicationLocale: async (locale) => {
       currentApplicationLocale = locale;
-      applicationLocaleResolved = true;
       windowsCuaOperationIndicator.refreshContent();
       rebuildMenu();
       for (const win of getApplicationWindowsExcludingCuaIndicator()) {

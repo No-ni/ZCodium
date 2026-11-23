@@ -310,9 +310,9 @@ function compactModelStream(
 function cleanRequest(request: CompactSummaryModelRequest) {
   return {
     messages: request.messages,
-    tools: [],
-    // 压缩请求没有工具；合并残留不能重新开启 Provider 的原生工具搜索。
-    toolSearchEnabled: false,
+    tools: request.tools ?? [],
+    // 摘要与主循环共用既有目录投影；只在真实执行边界拒绝工具调用。
+    toolSearchEnabled: request.toolSearchEnabled,
     abortSignal: request.abortSignal,
     ...(request.maxOutputTokens !== undefined
       ? { options: { maxOutputTokens: request.maxOutputTokens } }

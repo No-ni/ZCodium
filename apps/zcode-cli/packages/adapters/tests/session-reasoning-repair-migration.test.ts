@@ -211,7 +211,11 @@ describe("Todo121：只补 0020 回填后未动过的会话档位", () => {
     const before = db.prepare("SELECT * FROM session_entry").all();
     store = await createSqliteSessionStore({ dbPath: path });
     expect(store.debugMigrationIds()).toContain(REPAIR_ID);
-    expect(db.prepare("SELECT * FROM session_entry").all()).toEqual(before);
+    // 后继 0023 负责坏 JSON 的 fail-closed 修复；0022 的档位修复不能覆盖该契约。
+    const expected = scenario === "bad-json"
+      ? before.map((row) => ({ ...row, data: '{"modelSelection":null}' }))
+      : before;
+    expect(db.prepare("SELECT * FROM session_entry").all()).toEqual(expected);
   });
 
   it("迁移失败整笔回滚，重试可成功", async () => {

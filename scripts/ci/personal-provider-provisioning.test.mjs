@@ -194,6 +194,7 @@ for (const concurrentEdit of [false, true])
     };
     const result = await f.target.apply(await f.source.read("sync-rollback"));
     assert.equal(result.status, concurrentEdit ? "rollback_failed" : "failed");
+    assert.equal(result.errorCode, "target-refresh-failed");
     assert.equal(result.rolledBack, !concurrentEdit);
     assert.equal(
       JSON.parse(await readFile(f.targetPath, "utf8")).config.providerConfigRules.providerRules[0]
@@ -219,20 +220,55 @@ test("missing or concurrently changed source file cannot export a stale snapshot
   await assert.rejects(source.read("sync-missing"), /Personal Provider Config/);
 });
 
-test("unsupported default selection rolls back the whole config and allows a corrected retry", async (t) => {
+for (const invalidDefault of ["missing-model", "obsolete-reasoning"])
+  test(`stale default preference ${invalidDefault} does not block personal synchronization`, async (t) => {
+    const f = await setup(t);
+    await f.configRuntime.personalRepository.update(() => decode(config("Original target")));
+    const envelope = await f.source.read("sync-default");
+    if (invalidDefault === "missing-model")
+      envelope.personalConfig.defaultModelSelection.modelId = "missing-model";
+    else envelope.personalConfig.defaultModelSelection.options.reasoningLevel = "obsolete-level";
+    const result = await f.target.apply(envelope);
+    assert.equal(result.status, "applied", result.errorMessage);
+    assert.equal(result.rolledBack, false);
+    assert.equal(result.errorCode, undefined);
+    const actual = JSON.parse(await readFile(f.targetPath, "utf8")).config;
+    assert.equal(actual.providerConfigRules.providerRules[0].providerName, "Fixture API");
+    assert.deepEqual(actual.defaultModelSelection, envelope.personalConfig.defaultModelSelection);
+    assert.equal(
+      f.runtime.registryService.validateSelection(actual.defaultModelSelection).ok,
+      false,
+    );
+    assert.equal((await f.target.apply(envelope)).status, "already-applied");
+  });
+
+test("personal write failure retains the fixed stage code and restores the original config", async (t) => {
   const f = await setup(t);
   await f.configRuntime.personalRepository.update(() => decode(config("Original target")));
-  const envelope = await f.source.read("sync-default");
-  envelope.personalConfig.defaultModelSelection.modelId = "missing-model";
-  const result = await f.target.apply(envelope);
+  const repository = f.configRuntime.personalRepository;
+  let failed = false;
+  const target = createProviderProvisioningTarget({
+    ...f.targetOptions,
+    personalRepository: {
+      read: () => repository.read(),
+      update: (mutator) => {
+        if (!failed) {
+          failed = true;
+          throw new Error("Synthetic personal write failure");
+        }
+        return repository.update(mutator);
+      },
+    },
+  });
+  const result = await target.apply(await f.source.read("sync-write"));
   assert.equal(result.status, "failed");
+  assert.equal(result.errorCode, "target-write-failed");
   assert.equal(result.rolledBack, true);
   assert.equal(
     JSON.parse(await readFile(f.targetPath, "utf8")).config.providerConfigRules.providerRules[0]
       .providerName,
     "Original target",
   );
-  assert.equal((await f.target.apply(await f.source.read("sync-default"))).status, "applied");
 });
 
 test("legacy receipt cannot falsely acknowledge a personal-only sync", async (t) => {
@@ -277,6 +313,7 @@ test("receipt write failure restores config and does not suppress retry", async 
   const envelope = await f.source.read("sync-receipt");
   const result = await f.target.apply(envelope);
   assert.equal(result.status, "failed");
+  assert.equal(result.errorCode, "target-commit-failed");
   assert.equal(result.rolledBack, true);
   assert.equal(
     JSON.parse(await readFile(f.targetPath, "utf8")).config.providerConfigRules.providerRules[0]

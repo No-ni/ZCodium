@@ -13,6 +13,7 @@ export * from "./compact/index.js";
 
 // Memory paths
 export { resolveProjectMemoryRoot } from "./memory/project-root.js";
+export { projectIdFromDirectory } from "./runtime/helpers/project.js";
 
 // Tool components
 export { ToolScheduler, defaultToolScheduler, READ_ONLY_TOOLS } from "./tool/scheduler.js";

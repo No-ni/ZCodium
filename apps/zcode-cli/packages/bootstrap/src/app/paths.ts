@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
-import { createProjectId, type ProjectId } from "@zcode/contracts";
-import { resolveProjectMemoryRoot } from "@zcode/core";
+import { type ProjectId } from "@zcode/contracts";
+import { resolveProjectMemoryRoot, projectIdFromDirectory as deriveProjectIdFromDirectory } from "@zcode/core";
 
 export function getCliStorageRoot(storageRoot: string): string {
   return basename(storageRoot) === "cli" ? storageRoot : join(storageRoot, "cli");
@@ -28,11 +28,6 @@ export function getProjectMemoryRoot(
 }
 
 export function projectIdFromDirectory(directory: string): ProjectId {
-  return createProjectId(
-    directory
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80) || "default",
-  );
+  // 保留 Bootstrap 的空值历史契约，其余输入与 Core 落盘共享唯一派生 owner。
+  return deriveProjectIdFromDirectory(directory, "default");
 }

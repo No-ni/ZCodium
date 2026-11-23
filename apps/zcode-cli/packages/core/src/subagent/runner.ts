@@ -235,6 +235,9 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
         }),
       );
 
+      try { await writeAgentRunMetadata(registry, lifecycle); }
+      catch (error) { registry.remove(lifecycle.agentId); throw error; }
+
       const taskAbort = createSubagentTaskAbortController(
         abortControllers,
         lifecycle.agentId,
@@ -420,6 +423,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
             recoverable: true,
           });
         }
+        await writeAgentRunMetadata(registry, lifecycle);
         await writeCompletedAgentArtifacts(lifecycle, completed.output);
 
         await emitSubagentEvent(
@@ -493,6 +497,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
           };
         });
         if (!failedClaimed) throw error;
+        await writeAgentRunMetadata(registry, lifecycle);
         await writeAgentOutputFiles(lifecycle, errorMessage);
         await emitSubagentEvent(
           options,
@@ -569,6 +574,9 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
           status: "running",
         }),
       );
+
+      try { await writeAgentRunMetadata(registry, lifecycle); }
+      catch (error) { registry.remove(lifecycle.agentId); throw error; }
 
       const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
       if (startOptions?.signal?.aborted) {
@@ -766,6 +774,7 @@ interface SubagentLifecycle {
   taskOutputFile: string;
   profile: AgentProfile;
   startedAt: number;
+  resumedAt?: number;
   runTraceContext: TraceContext;
   childTraceContext: TraceContext;
 }
@@ -1058,6 +1067,7 @@ function createSubagentLifecycleFromTask(
     taskOutputFile,
     profile,
     startedAt,
+    resumedAt: startedAt,
     runTraceContext,
     childTraceContext,
   };
@@ -1172,6 +1182,15 @@ async function resumeTerminalAgentInBackground(
     }),
   );
 
+  try {
+    await writeAgentRunMetadata(registry, lifecycle);
+    // 状态写入会让出执行；此期间已取消的消息不能再启动 child。
+    sendOptions?.signal?.throwIfAborted();
+  } catch (error) {
+    await rollbackResumedAgent(registry, lifecycle, previousTask);
+    throw error;
+  }
+
   const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
   const readyGate = createSubagentSessionReadyGate();
   void track(
@@ -1221,7 +1240,7 @@ async function resumeTerminalAgentInBackground(
     await readyGate.promise;
   } catch (error) {
     taskAbort.abort(error);
-    registry.register(previousTask);
+    await rollbackResumedAgent(registry, lifecycle, previousTask);
     throw error;
   }
   // terminal 状态属于旧 snapshot，但 resume 输出路径属于新 lifecycle；
@@ -1231,6 +1250,22 @@ async function resumeTerminalAgentInBackground(
     message,
     "resumed_background",
   );
+}
+
+async function rollbackResumedAgent(
+  registry: RuntimeTaskRegistry,
+  lifecycle: SubagentLifecycle,
+  previousTask: RuntimeTaskSnapshot,
+): Promise<void> {
+  let restored = false;
+  registry.update(lifecycle.agentId, (current) => {
+    // 启动失败只撤销自己仍持有的 running；不能覆盖用户停止或后继执行。
+    if (current.executionId !== lifecycle.executionId || isTerminalRuntimeTask(current))
+      return current;
+    restored = true;
+    return previousTask;
+  });
+  if (restored) await writeAgentRunMetadata(registry, previousTask);
 }
 
 function createRuntimeTaskPendingMessage(
@@ -1625,6 +1660,9 @@ function createRuntimeTaskSnapshot(input: {
     parentToolCallId: input.request.parentToolCallId,
     parentSessionId: input.request.sessionId,
     prompt: input.request.prompt,
+    ...(input.lifecycle.resumedAt === undefined
+      ? {}
+      : { resumedAt: new Date(input.lifecycle.resumedAt) }),
     startedAt: input.startedAt,
     status: input.status,
     taskType: "local_agent",
@@ -1668,7 +1706,6 @@ async function finalizeBackgroundCompletion(
   if (!current || current.executionId !== lifecycle.executionId || isTerminalRuntimeTask(current))
     return;
 
-  await writeCompletedAgentArtifacts(lifecycle, completed.output);
   const notification: LocalAgentTaskNotificationInput = {
     agentId: completed.output.agentId,
     description: completed.output.description,
@@ -1701,12 +1738,15 @@ async function finalizeBackgroundCompletion(
     };
   });
   if (!claimed) return;
+  await writeAgentRunMetadata(registry, lifecycle);
+  await writeCompletedAgentArtifacts(lifecycle, completed.output);
   enqueueBackgroundNotification(
     options,
     registry,
     lifecycle.agentId,
     notification,
     lifecycle.runTraceContext,
+    lifecycle.executionId,
   );
   if (task) {
     await emitBackgroundTaskCompletedEvent(options, request, lifecycle.runTraceContext, task);
@@ -1763,7 +1803,6 @@ async function finalizeBackgroundFailure(
   const completedAt = new Date();
   const totalDurationMs = Date.now() - lifecycle.startedAt;
   // 会话 store 已保存业务历史；失败与完成共用结果写入路径，不恢复含 prompt 的 metadata。
-  await writeAgentOutputFiles(lifecycle, errorMessage);
   const notification: LocalAgentTaskNotificationInput = {
     agentId: lifecycle.agentId,
     description: request.description,
@@ -1790,12 +1829,15 @@ async function finalizeBackgroundFailure(
     };
   });
   if (!claimed) return;
+  await writeAgentRunMetadata(registry, lifecycle);
+  await writeAgentOutputFiles(lifecycle, errorMessage);
   enqueueBackgroundNotification(
     options,
     registry,
     lifecycle.agentId,
     notification,
     lifecycle.runTraceContext,
+    lifecycle.executionId,
   );
   if (task) {
     await emitBackgroundTaskCompletedEvent(options, request, lifecycle.runTraceContext, task);
@@ -1886,6 +1928,7 @@ async function finalizeBackgroundStopped(
   let notificationFailed = false;
   let artifactFailure: { error: unknown } | undefined;
   try {
+    await writeAgentRunMetadata(registry, stopped.task);
     await writeStoppedAgentArtifacts(stopped.task);
   } catch (error) {
     // killed 已提交；产物写入失败不能阻断结束事件，否则后续 Stop 被拒后胶囊永久残留。
@@ -1908,6 +1951,7 @@ async function finalizeBackgroundStopped(
       stopped.task.taskId,
       notification,
       stopped.traceContext,
+      stopped.task.executionId,
     );
     // killed 已提交，通知失败不能阻断终态投影，否则胶囊会残留不可停止的 running 行。
     notificationFailed = !enqueued;
@@ -2037,6 +2081,7 @@ function enqueueBackgroundNotification(
   taskId: string,
   notification: LocalAgentTaskNotificationInput,
   traceContext: TraceContext,
+  expectedExecutionId: string | undefined,
 ): boolean {
   if (!options.enqueueParentTaskNotification) {
     options.logger?.warn("Skipped subagent background notification without parent queue", {
@@ -2049,6 +2094,8 @@ function enqueueBackgroundNotification(
   }
 
   const task = registry.get(taskId);
+  // 终态文件 IO 期间可能已恢复同一 agent；旧结果不能消费新执行的通知标志。
+  if (task && task.executionId !== expectedExecutionId) return false;
   if (!task || task.notified) {
     options.logger?.debug("Skipped duplicate subagent background notification", {
       ...traceContextToLogContext(traceContext),
@@ -2119,6 +2166,40 @@ async function emitSubagentEvent(
     traceId: traceContext.traceId,
   });
   await options.emitParentEvent(event, traceContext);
+}
+
+// 剥离 prompt metadata 时误删了冷恢复所需的终态；仅持久化 registry 的最小状态投影。
+// 文件写入串行并复核 execution ID，避免旧完成写入晚于新恢复而覆盖新运行。
+const agentRunMetadataWrites = new WeakMap<RuntimeTaskRegistry, Map<string, Promise<void>>>();
+async function writeAgentRunMetadata(
+  registry: RuntimeTaskRegistry,
+  lifecycle: { agentId: string; executionId?: string },
+): Promise<void> {
+  const writes = agentRunMetadataWrites.get(registry) ?? new Map<string, Promise<void>>();
+  agentRunMetadataWrites.set(registry, writes);
+  const previous = writes.get(lifecycle.agentId);
+  // 前一次 IO 的失败由其调用方处理；不能阻断下一次已授权状态写入。
+  const writing = (previous?.catch(() => {}) ?? Promise.resolve()).then(async () => {
+    const task = registry.get(lifecycle.agentId);
+    if (!task?.outputFile || task.executionId !== lifecycle.executionId) return;
+    const status = task.status === "killed" ? "stopped" : task.status;
+    if (!["running", "completed", "failed", "stopped"].includes(status)) return;
+    const record = {
+      agentId: task.agentId,
+      executionId: task.executionId,
+      status,
+      startedAt: task.startedAt.toISOString(),
+      ...(task.resumedAt ? { resumedAt: task.resumedAt.toISOString() } : {}),
+      ...(task.completedAt ? { completedAt: task.completedAt.toISOString() } : {}),
+    };
+    await writeTextFile(join(dirname(task.outputFile), "metadata.json"), `${JSON.stringify(record)}\n`);
+  });
+  writes.set(lifecycle.agentId, writing);
+  try { await writing; }
+  finally {
+    if (writes.get(lifecycle.agentId) === writing) writes.delete(lifecycle.agentId);
+    if (writes.size === 0) agentRunMetadataWrites.delete(registry);
+  }
 }
 
 async function writeCompletedAgentArtifacts(

@@ -8,6 +8,8 @@ import {
 } from "@zcode/contracts";
 import type { ToolRegistry } from "./registry.js";
 import type { ExecutableToolCall } from "./types.js";
+import { deferredToolCallEntry } from "./handlers/deferred-tool-call.js";
+import { validateInitialModelToolInput } from "./executor/validation.js";
 
 // 调度、stream admission与executor共用解析；失败不进入目标Hook/权限生命周期。
 export function resolveDeferredToolCall<T extends ExecutableToolCall>(
@@ -26,6 +28,9 @@ export function resolveDeferredToolCall<T extends ExecutableToolCall>(
     !search.catalog.some((tool) => tool.name === DEFERRED_TOOL_CALL_NAME)
   )
     return reject("DeferredToolCall is not available for this request.");
+  // 恢复官方首次校验说明，避免仅返回通用错误让模型无法纠正具体参数。
+  const validation = validateInitialModelToolInput(call.input, deferredToolCallEntry);
+  if (validation) return { call, error: validation };
   const parsed = DeferredToolCallInputSchema.safeParse(call.input);
   if (!parsed.success) return reject("Invalid DeferredToolCall input.");
   const { name, input } = parsed.data;

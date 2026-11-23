@@ -2,7 +2,7 @@
 import { resolve } from "node:path";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { INVALID_PARAMS, Server, type Tool } from "@modelcontextprotocol/server";
-import { safeLogArgs } from "@zcode/shared";
+import { safeLogArgs } from "@zcode/shared/diagnostic-privacy";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { JsInputJsonSchema } from "@zcode/contracts/tools/node-repl";
 // 值导入必须走 @zcode/core/repl 这条深路径：barrel 会把 core 的整张图拖进 bundle

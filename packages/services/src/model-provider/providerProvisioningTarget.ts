@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import {
   type PersonalProviderConfigRepository,
@@ -11,6 +10,7 @@ import {
   providerProvisioningResultSchema,
   type ProviderProvisioningEnvelope,
   type ProviderProvisioningResult,
+  type ProviderProvisioningErrorCode,
 } from "@zcode/shared";
 import type { ProviderRuntime } from "./providerRuntime.js";
 import type { IProviderProvisioningTargetService } from "./providerProvisioning.js";
@@ -62,6 +62,7 @@ export function createProviderProvisioningTarget(
           personalConfigExpected: personalUpdate,
         };
 
+        let errorCode: ProviderProvisioningErrorCode = "target-write-failed";
         try {
           // 先登记再写入：原子替换完成后才抛错也必须尝试 CAS 回滚。
           applied.personalConfig = true;
@@ -73,16 +74,11 @@ export function createProviderProvisioningTarget(
             return personalUpdate;
           });
 
+          errorCode = "target-refresh-failed";
           const snapshot =
             await options.providerRuntime.registryService.refresh("provider-provisioning");
-          if (
-            personalUpdate.defaultModelSelection &&
-            !options.providerRuntime.registryService.validateSelection(
-              personalUpdate.defaultModelSelection,
-            ).ok
-          ) {
-            throw new Error("同步后的远端 Registry 不支持本地默认模型");
-          }
+          // 失效默认只是新会话偏好；把它当同步硬条件会让正常 SSH 被旧模型/档位阻断。
+          // 原样保留偏好，由 Host 现有推荐逻辑解析；真实写入/刷新失败仍按事务回滚。
 
           const result = {
             syncId: envelope.syncId,
@@ -91,6 +87,7 @@ export function createProviderProvisioningTarget(
             configRevision: snapshot.sourceRevisions.config,
             rolledBack: false,
           } satisfies ProviderProvisioningResult;
+          errorCode = "target-commit-failed";
           await writeStateFile(options.stateFilePath, appendStateRecord(previousState, result));
           return result;
         } catch (error) {
@@ -103,6 +100,7 @@ export function createProviderProvisioningTarget(
               status: "rollback_failed",
               personalProviderCount: before.personal.providers.keys().length,
               errorMessage: `${formatError(error)}；回滚失败：${formatError(rollbackError)}`,
+              errorCode,
               rolledBack: false,
             } satisfies ProviderProvisioningResult;
           }
@@ -111,6 +109,7 @@ export function createProviderProvisioningTarget(
             status: "failed",
             personalProviderCount: before.personal.providers.keys().length,
             errorMessage: formatError(error),
+            errorCode,
             rolledBack: true,
           } satisfies ProviderProvisioningResult;
         }

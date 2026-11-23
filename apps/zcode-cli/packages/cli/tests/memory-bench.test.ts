@@ -145,7 +145,8 @@ test("normal headless prompt keeps Extraction disabled and does not drain", asyn
 test("memory bench rejects disabled Memory before submitting the main prompt", async () => {
   const h = harness(["-p", "remember this convention", "--memory-bench"], false);
   assert.equal(await run(h.ctx, h.deps), 1);
-  assert.match(h.output().stderr, /Memory.*enabled/i);
+  assert.match(h.output().stderr, /"errorType":"Error"/);
+  assert.doesNotMatch(h.output().stderr, /remember this convention|Memory.*enabled/i);
   assert.deepEqual(h.calls, ["extraction:true", "close", "dispose"]);
 });
 

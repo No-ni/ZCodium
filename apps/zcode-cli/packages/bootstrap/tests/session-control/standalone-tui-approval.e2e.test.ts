@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import { z } from "zod";
+import { createProjectPtyFixture } from "../../../../../../scripts/ci/project-pty-fixture.mjs";
 import { createSqliteSessionStore } from "@zcode/adapters/storage";
 import type { SessionId } from "@zcode/contracts";
 
@@ -23,7 +24,7 @@ const { startScriptedProvider, stopScriptedProvider, writeScriptedCaptureFile } 
 );
 const repoRoot = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const cliEntry = fileURLToPath(new URL("../../../cli/src/main.ts", import.meta.url));
-const tsxLoader = fileURLToPath(import.meta.resolve("tsx"));
+const tsxLoader = import.meta.resolve("tsx");
 
 // 伪终端与终端模拟器借用桌面/界面包已声明的依赖，不给 bootstrap 新增原生依赖。
 type Pty = {
@@ -31,6 +32,7 @@ type Pty = {
   onExit(listener: (event: { exitCode: number }) => void): void;
   write(data: string): void;
   kill(): void;
+  close(): Promise<void>;
 };
 type Terminal = {
   write(data: string, callback?: () => void): void;
@@ -41,9 +43,6 @@ type Terminal = {
     };
   };
   dispose(): void;
-};
-const { spawn } = createRequire(join(repoRoot, "packages/desktop/package.json"))("node-pty") as {
-  spawn(file: string, args: string[], options: Record<string, unknown>): Pty;
 };
 const { Terminal } = createRequire(join(repoRoot, "packages/ui/package.json"))("@xterm/xterm") as {
   Terminal: new (options: Record<string, unknown>) => Terminal;
@@ -86,7 +85,7 @@ it("answers a background session approval from the real TUI keyboard (SCT08)", a
   const database = join(directory, "sessions.sqlite");
   await Promise.all([
     mkdir(workspace),
-    mkdir(join(directory, ".zcode", "cli"), { recursive: true }),
+    mkdir(join(directory, ".zcodium", "cli"), { recursive: true }),
   ]);
   const files: Record<Kind, string> = {
     allow: join(workspace, "sct08-allow.txt"),
@@ -219,7 +218,7 @@ it("answers a background session approval from the real TUI keyboard (SCT08)", a
 
   try {
     await writeConfig(directory, provider.baseURL);
-    pty = spawn(
+    pty = await createProjectPtyFixture(
       process.execPath,
       [
         "--disable-warning=DEP0205",
@@ -231,7 +230,6 @@ it("answers a background session approval from the real TUI keyboard (SCT08)", a
         "yolo",
         "--locale",
         "en-US",
-        "--no-browser",
       ],
       {
         name: "xterm-256color",
@@ -243,6 +241,13 @@ it("answers a background session approval from the real TUI keyboard (SCT08)", a
         env: {
           PATH: process.env.PATH,
           SystemRoot: process.env.SystemRoot,
+          NODE_OPTIONS: process.env.NODE_OPTIONS,
+          TEMP: directory,
+          TMP: directory,
+          TMPDIR: directory,
+          XDG_CACHE_HOME: directory,
+          XDG_CONFIG_HOME: directory,
+          XDG_DATA_HOME: directory,
           TERM: "xterm-256color",
           HOME: directory,
           USERPROFILE: directory,
@@ -333,8 +338,7 @@ it("answers a background session approval from the real TUI keyboard (SCT08)", a
         }
       },
       async () => {
-        pty?.kill();
-        await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+        await pty?.close();
         terminal.dispose();
       },
       async () => {
@@ -366,7 +370,7 @@ it("denies a background session approval immediately in headless mode (SCT08)", 
   const database = join(directory, "sessions.sqlite");
   await Promise.all([
     mkdir(workspace),
-    mkdir(join(directory, ".zcode", "cli"), { recursive: true }),
+    mkdir(join(directory, ".zcodium", "cli"), { recursive: true }),
   ]);
   const file = join(workspace, "sct08-headless.txt");
   const backgroundResult = Promise.withResolvers<string>();
@@ -434,6 +438,13 @@ it("denies a background session approval immediately in headless mode (SCT08)", 
         env: {
           PATH: process.env.PATH,
           SystemRoot: process.env.SystemRoot,
+          NODE_OPTIONS: process.env.NODE_OPTIONS,
+          TEMP: directory,
+          TMP: directory,
+          TMPDIR: directory,
+          XDG_CACHE_HOME: directory,
+          XDG_CONFIG_HOME: directory,
+          XDG_DATA_HOME: directory,
           HOME: directory,
           USERPROFILE: directory,
           APPDATA: directory,
@@ -599,7 +610,7 @@ async function writeConfig(directory: string, baseUrl: string) {
       }),
     ),
     writeFile(
-      join(directory, ".zcode", "cli", "config.json"),
+      join(directory, ".zcodium", "cli", "config.json"),
       JSON.stringify({
         features: { memory: false, mcp: false, subagent: false, skill: false },
         plugins: { enabled: false },

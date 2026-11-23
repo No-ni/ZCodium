@@ -285,3 +285,44 @@ test("retired official Web account and sharing scenarios are not restored", () =
     assert.equal(existsSync(new URL(path, repoRoot)), false, path);
   }
 });
+
+test("desktop runtime closure does not require unused monitoring-era helpers", () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("packages/desktop/package.json", repoRoot), "utf8"),
+  );
+  assert.equal(manifest.dependencies["module-details-from-path"], undefined);
+  assert.equal(manifest.dependencies["@babel/runtime"], undefined);
+  for (const path of [
+    "packages/desktop/electron-builder.config.js",
+    "packages/desktop/scripts/bundle.mjs",
+  ])
+    assert.doesNotMatch(
+      readFileSync(new URL(path, repoRoot), "utf8"),
+      /"module-details-from-path"|"@babel\/runtime(?:\/\*\*)?"/,
+    );
+});
+
+test("CLI workspace contains its same-repository dependencies without expanding test scope", () => {
+  const workspace = readFileSync(new URL("apps/zcode-cli/pnpm-workspace.yaml", repoRoot), "utf8");
+  for (const name of [
+    "shared",
+    "provider",
+    "provider-node",
+    "model-option-map",
+    "session-control",
+    "formal-proof",
+    "zcode-cua",
+  ])
+    assert.ok(workspace.includes(`../../packages/${name}`), name);
+  const manifest = JSON.parse(
+    readFileSync(new URL("apps/zcode-cli/package.json", repoRoot), "utf8"),
+  );
+  assert.ok(manifest.scripts.test.includes("--dir ../.. exec turbo"));
+  assert.ok(manifest.scripts.test.includes("--root-turbo-json=apps/zcode-cli/turbo.json"));
+  assert.ok(manifest.scripts.test.includes("--filter=./apps/zcode-cli/packages/*"));
+  assert.ok(manifest.scripts.test.includes("--filter=./apps/zcode-cli/tools/*"));
+  const office = JSON.parse(
+    readFileSync(new URL("apps/zcode-cli/packages/office-runtime/package.json", repoRoot), "utf8"),
+  );
+  assert.equal(office.devDependencies.vitest, manifest.devDependencies.vitest);
+});

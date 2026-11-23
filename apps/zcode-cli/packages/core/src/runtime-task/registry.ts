@@ -84,6 +84,8 @@ export interface RuntimeTaskSnapshot extends SubagentTaskSnapshot {
   parentSessionId?: SessionId;
   pendingMessages?: RuntimeTaskPendingMessage[];
   prompt?: string;
+  /** 当前子代理 execution 的恢复时间；回滚 snapshot 时一并还原最小状态文件。 */
+  resumedAt?: Date;
   /**
    * workflow run 产物的序列化文本。TaskOutput 的投影只读得到 registry 条目（dwf 从不写
    * outputFile），所以产物必须在终态更新时就存到条目上。

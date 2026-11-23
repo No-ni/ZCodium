@@ -1,9 +1,17 @@
 import { it, expect, afterEach } from "vitest";
 import { LocalTtftRecorder } from "../src/zcode-protocol-v4/local-ttft/contract.js";
+import { createSessionEvent, SessionEventType, type SessionEvent, type SessionId, type TurnId } from "@zcode/contracts";
 // CLI 测试入口只扫描 tests/；在这里执行模块公共合同用例。
 import "../src/zcode-protocol-v4/local-ttft/contract.test.js";
 
 const recorders: LocalTtftRecorder[] = [];
+// 计时旁路跟随现存业务事件，不重新接入已退役的 telemetry fact 归一化接口。
+function businessEvent(recorder: LocalTtftRecorder, sessionId: string, turnId: string, type: SessionEvent["type"], payload: unknown) {
+  recorder.event(sessionId, createSessionEvent(type, sessionId as SessionId, payload, { turnId: turnId as TurnId }));
+}
+function modelEvent(recorder: LocalTtftRecorder, payload: unknown, sessionId = "session", turnId = "turn") {
+  businessEvent(recorder, sessionId, turnId, SessionEventType.ModelNetworkStatus, payload);
+}
 function createRecorder(...args: ConstructorParameters<typeof LocalTtftRecorder>) {
   const recorder = new LocalTtftRecorder(...args);
   recorders.push(recorder);
@@ -61,19 +69,7 @@ it("执行边界沿 TurnStarted 携带原始时钟，前置 hooks 不得算排�
   now = 110;
   recorder.admitted("input");
   now = 250;
-  recorder.fact(
-    {
-      version: 1,
-      eventId: "event",
-      eventSeq: 1,
-      occurredAt: 250,
-      kind: "turn.started",
-      sessionId: "session",
-      sourceCommandId: "input",
-      turnId: "turn",
-    },
-    120,
-  );
+  businessEvent(recorder, "session", "turn", SessionEventType.TurnStarted, { inputId: "input", executionStartedAt: 120 });
   expect(recorder.forSession("session")?.executionAt).toBe(120);
 });
 
@@ -100,10 +96,9 @@ it("不可重试的最终失败不伪装成发生了重试", () => {
     sourceCommandId: "input",
     turnId: "turn",
   };
-  recorder.fact({ ...base, kind: "turn.started" }, 100);
+  businessEvent(recorder, "session", "turn", SessionEventType.TurnStarted, { inputId: "input", executionStartedAt: 100 });
   const request = {
     ...base,
-    kind: "model.request.status" as const,
     querySource: "main_turn",
     requestId: "req",
     providerId: "p",
@@ -112,17 +107,17 @@ it("不可重试的最终失败不伪装成发生了重试", () => {
     attempt: 1,
     maxAttempts: 1,
   };
-  recorder.fact({ ...request, status: "model_request_started" });
-  recorder.fact({
+  modelEvent(recorder, { ...request, type: "model_request_started" });
+  modelEvent(recorder, {
     ...request,
-    status: "model_request_failed",
+    type: "model_request_failed",
     retryable: false,
     reason: "unauthorized",
   });
   expect(recorder.forSession("session")?.excluded).toBeUndefined();
   recorder.output("session", "turn", "text");
   expect(recorder.forSession("session")?.outputAt).toBeUndefined();
-  recorder.fact({ ...base, kind: "turn.terminal", status: "failed" });
+  businessEvent(recorder, "session", "turn", SessionEventType.TurnError, { inputId: "input", error: { type: "unauthorized", message: "fixed fixture error" } });
   expect(recorder.forSession("session")?.terminal).toBe("failed");
 });
 
@@ -149,12 +144,11 @@ it("排队不会抢占执行中输入，重试 attempt 延续原起点并接受�
     sourceCommandId: "input",
     turnId: "turn",
   };
-  recorder.fact({ ...base, kind: "turn.started" }, 110);
+  businessEvent(recorder, "session", "turn", SessionEventType.TurnStarted, { inputId: "input", executionStartedAt: 110 });
   recorder.receive(envelope("queued"), true);
   expect(recorder.forSession("session")?.commandId).toBe("input");
   const request = {
     ...base,
-    kind: "model.request.status" as const,
     querySource: "main_turn",
     requestId: "req1",
     providerId: "p",
@@ -164,23 +158,23 @@ it("排队不会抢占执行中输入，重试 attempt 延续原起点并接受�
     maxAttempts: 2,
   };
   now = 120;
-  recorder.fact({ ...request, status: "model_request_started" });
+  modelEvent(recorder, { ...request, type: "model_request_started" });
   now = 150;
-  recorder.fact({
+  modelEvent(recorder, {
     ...request,
-    status: "model_request_failed",
+    type: "model_request_failed",
     reason: "rate_limit",
     retryable: true,
   });
-  recorder.fact({
+  modelEvent(recorder, {
     ...request,
-    status: "model_retry_scheduled",
+    type: "model_retry_scheduled",
     delayMs: 50,
     nextAttempt: 2,
     reason: "rate_limit",
   });
   now = 200;
-  recorder.fact({ ...request, requestId: "req2", attempt: 2, status: "model_request_started" });
+  modelEvent(recorder, { ...request, requestId: "req2", attempt: 2, type: "model_request_started" });
   now = 250;
   recorder.output("session", "turn", "text");
   expect(recorder.forSession("session")).toMatchObject({
@@ -251,10 +245,9 @@ it("立即引导独立分类，压缩模型不抢记用户输出", async () => {
     turnId,
     sourceCommandId: "main",
   };
-  recorder.fact({ ...base, kind: "turn.started" }, 100);
+  businessEvent(recorder, sessionId, turnId, SessionEventType.TurnStarted, { inputId: "main", executionStartedAt: 100 });
   const request = {
     ...base,
-    kind: "model.request.status" as const,
     requestId: "req",
     providerId: "p",
     modelId: "m",
@@ -262,13 +255,13 @@ it("立即引导独立分类，压缩模型不抢记用户输出", async () => {
     attempt: 1,
     maxAttempts: 2,
   };
-  recorder.fact({ ...request, querySource: "main_turn", status: "model_request_started" });
-  recorder.fact({
+  modelEvent(recorder, { ...request, querySource: "main_turn", type: "model_request_started" }, sessionId, turnId);
+  modelEvent(recorder, {
     ...request,
     requestId: "compact",
     querySource: "compact",
-    status: "model_request_started",
-  });
+    type: "model_request_started",
+  }, sessionId, turnId);
   recorder.output(sessionId, turnId, "text");
   expect(recorder.forSession(sessionId)?.outputAt).toBeUndefined();
   recorder.receive(envelope("guide"), true);
@@ -315,7 +308,7 @@ it("细分预算满仍记录主请求与输出，并明确标记截断", async (
   );
   for (let i = 0; i < 70; i++)
     beginLocalTurnPreparation({ queryId: "bounded", sessionId: "s", turnId: "t" }, "hooks")();
-  recorder.fact({
+  modelEvent(recorder, {
     version: 1,
     eventId: "model",
     eventSeq: 1,
@@ -323,7 +316,6 @@ it("细分预算满仍记录主请求与输出，并明确标记截断", async (
     sessionId: "s",
     sourceCommandId: "bounded",
     turnId: "t",
-    kind: "model.request.status",
     querySource: "main_turn",
     requestId: "request",
     providerId: "p",
@@ -331,8 +323,8 @@ it("细分预算满仍记录主请求与输出，并明确标记截断", async (
     transport: "sse",
     attempt: 1,
     maxAttempts: 1,
-    status: "model_request_started",
-  });
+    type: "model_request_started",
+  }, "s", "t");
   recorder.output("s", "t", "text");
   expect(recorder.forSession("s")?.details).toHaveLength(64);
   expect(recorder.forSession("s")).toMatchObject({ truncated: true, outputKind: "text" });

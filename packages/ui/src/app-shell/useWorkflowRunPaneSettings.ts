@@ -69,9 +69,20 @@ export function useWorkflowRunPaneSettings({
     if (!configurable) setOpen(false);
   }, [configurable, setOpen]);
   const sessionModel = useMemo(() => workflowSessionModelOf(sessionConfig), [sessionConfig]);
+  // 后继与设置共用同一 tab Scope；原依赖漏掉执行根，run 身份不变时会继续沿用旧根。
+  const tabScope = useMemo(
+    () =>
+      workflowRunTabScope({
+        workspacePath: tab.workspacePath,
+        workspaceIdentity: tab.workspaceIdentity,
+        remoteSessionId: tab.remoteSessionId,
+        fileReferenceRootPath: tab.fileReferenceRootPath,
+      }),
+    [tab.workspacePath, tab.workspaceIdentity, tab.remoteSessionId, tab.fileReferenceRootPath],
+  );
   const host = useMemo<WorkflowRunSettingsHost>(
     () => ({
-      ...workflowRunTabScope(tab),
+      ...tabScope,
       ...(sessionModel === undefined ? {} : { sessionModel }),
       // 与 Stop / Resume 同类：不携 baseRevision，workId ≡ runId。
       apply: (change) =>
@@ -83,15 +94,7 @@ export function useWorkflowRunPaneSettings({
           }),
         ),
     }),
-    [
-      sendCommand,
-      sessionModel,
-      tab.parentSessionId,
-      tab.remoteSessionId,
-      tab.runId,
-      tab.workspaceIdentity,
-      tab.workspacePath,
-    ],
+    [sendCommand, sessionModel, tabScope, tab.parentSessionId, tab.runId],
   );
 
   // 跟随：被接受的那一刻新 run 未必已在投影里（run-started 随后才到），所以先记下，等它出现再换 tab。
@@ -110,7 +113,7 @@ export function useWorkflowRunPaneSettings({
     if (follow === undefined || !successorArrived) return;
     setFollow(undefined);
     onOpenWorkflowRun?.({
-      ...workflowRunTabScope(tab),
+      ...tabScope,
       parentSessionId: tab.parentSessionId,
       toolCallId: follow.toolCallId,
       runId: follow.runId,
@@ -121,12 +124,10 @@ export function useWorkflowRunPaneSettings({
     follow,
     onOpenWorkflowRun,
     successorArrived,
+    tabScope,
     tab.parentSessionId,
-    tab.remoteSessionId,
     tab.runId,
     tab.workflowName,
-    tab.workspaceIdentity,
-    tab.workspacePath,
   ]);
 
   return {

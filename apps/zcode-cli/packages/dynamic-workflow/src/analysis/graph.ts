@@ -122,8 +122,7 @@ export function projectSiteGraph(core: AnalysisCore): SiteGraph {
       const b = contextAsks[j];
       if (a === undefined || b === undefined) continue;
       if (!actorsIntersect(a.actors, b.actors)) continue;
-      const [from, to] =
-        (askOrder.get(a.id) ?? 0) <= (askOrder.get(b.id) ?? 0) ? [a.id, b.id] : [b.id, a.id];
+      const [from, to] = (askOrder.get(a.id) ?? 0) <= (askOrder.get(b.id) ?? 0) ? [a.id, b.id] : [b.id, a.id];
       edges.push({ exact: contextExact(a.actors, b.actors), from, kind: "context", to });
     }
   }

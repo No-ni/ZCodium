@@ -81,6 +81,8 @@ test("subagent readiness preserves actual child cwd through foreground, backgrou
       ),
     );
   } finally {
+    // 终态 waiter 不代表后台落盘结束；关闭同一 owner 后才能移除测试目录。
+    await port.close?.();
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -115,6 +117,8 @@ test("legacy subagent readiness without cwd falls back to its launch request", a
     });
     assert.equal(spawnedPath, root);
   } finally {
+    // 终态 waiter 不代表后台落盘结束；关闭同一 owner 后才能移除测试目录。
+    await port.close?.();
     await rm(root, { recursive: true, force: true });
   }
 });

@@ -190,8 +190,10 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterOutputPreparati
       options.signal?.addEventListener("abort", abortHandler, { once: true });
     }
 
+    let cleanupCwdCapture: (() => Promise<void>) | undefined;
     try {
       const prepared = await this.prepareChildSpawn(request);
+      cleanupCwdCapture = prepared.cleanupCwdCapture;
 
       // shell init snapshot 创建是异步的；用户可能在等待期间取消或关闭 adapter。
 
@@ -359,7 +361,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterOutputPreparati
       const status = unexpectedStdinFailure ? "failed" : baseStatus;
       const resolvedCwd =
         status === "completed" && exitState.code === 0
-          ? readCapturedCwd(cwdFilePath, { dialect: cwdDialect })
+          ? await readCapturedCwd(cwdFilePath, { dialect: cwdDialect })
           : undefined;
       const result = this.createResult({
         status,
@@ -401,6 +403,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterOutputPreparati
         finishResourceTelemetry({ error: new Error("Execution ended before child exit") });
       executionSettled = true;
       file?.stopWatching();
+      await cleanupCwdCapture?.();
       if (internalOptions.bashLifecycle) internalOptions.bashLifecycle.onBackgrounded = undefined;
       await file?.close();
       if (timeoutTimer) clearTimeout(timeoutTimer);

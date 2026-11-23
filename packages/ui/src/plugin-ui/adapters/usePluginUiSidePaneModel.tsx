@@ -74,7 +74,8 @@ export function usePluginUiSidePaneModel({
       ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
       sessionId: tab.parentSessionId,
     }),
-    [tab.parentSessionId, tab.workspaceIdentity, tab.workspacePath],
+    // 远端 attachment 换代也更换 feed Scope，不能把旧连接投影带入新连接。
+    [tab.parentSessionId, tab.workspaceIdentity, tab.workspacePath, tab.remoteSessionId],
   );
   usePluginUiResourceDeltaFeed(lease?.store, feedScope);
 

@@ -96,6 +96,8 @@ export function ExecuteGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       </div>
     ),
     [
+      // 子工具 renderer 由当前 context 提供，替换后展开内容不能沿用旧闭包。
+      ToolCallBlock,
       childToolCalls,
       context.onLoadFullToolCallFields,
       context.onOpenAutomationsMain,

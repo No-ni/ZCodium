@@ -77,7 +77,6 @@ export function PluginStorePage({
   embedded = false,
   paneId,
   onOpenDraftUi,
-  onBack,
 }: PluginStorePageProps) {
   const { intl, locale } = useZCodeIntl();
   const { order: storeOrder, refresh: refreshStoreOrder } = usePluginStoreOrder();

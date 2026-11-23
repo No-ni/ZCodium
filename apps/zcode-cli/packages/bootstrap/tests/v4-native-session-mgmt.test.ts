@@ -257,19 +257,6 @@ describe("v4 原生 createSession", () => {
     expect(sendInput).not.toHaveBeenCalled();
   });
 
-  it("创建 draft record 时透传 Off-Peak 工具面 flag（D49：v4 是桌面新会话的实际创建路径）", async () => {
-    const record = makeRecord({ app: makeApp(), persistence: "deferred" });
-    const { host, createSessionRecord } = makeCreateHost(record);
-
-    await new V4CommandExecutor(host).execute(
-      envelope("createSession", { workspaceId: "/w", offPeakToolEnabled: true }, "draft-offpeak"),
-    );
-
-    expect(createSessionRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: "/w", offPeakToolEnabled: true }),
-    );
-  });
-
   it("带 firstInput：经原生 prompt turn 提交（draft 提升 + inputId=commandId 锚点）", async () => {
     const app = makeApp({
       sendInput: vi.fn().mockImplementation(async (_input, options) => {

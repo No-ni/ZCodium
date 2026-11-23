@@ -1,4 +1,4 @@
-import { PersistedToolSearchContentSchema, TOOL_SEARCH_NAME } from "@zcode/contracts";
+import { PersistedToolSearchContentSchema, isToolSearchName } from "@zcode/contracts";
 import {
   COMPLETED_TOOL_PART_METADATA_SCHEMA_VERSION,
   type CompletedToolPartMetadata,
@@ -31,13 +31,14 @@ export function completedToolPartMetadata(
           : {}),
       }
     : undefined;
+  // 写入跟随官方 modelContent 契约；Local 别名也需要恢复，普通或失败工具不允许注入 discovery。
   const toolSearchContent =
-    result.toolName === TOOL_SEARCH_NAME && result.success
+    isToolSearchName(result.toolName) && result.success
       ? PersistedToolSearchContentSchema.safeParse(result.modelContent)
       : undefined;
   return {
     schemaVersion: COMPLETED_TOOL_PART_METADATA_SCHEMA_VERSION,
-    ...(toolSearchContent?.success ? { toolSearchContent: toolSearchContent.data } : {}),
+    ...(toolSearchContent?.success ? { modelContent: toolSearchContent.data } : {}),
     ...(result.display ? { display: result.display } : {}),
     ...(serialization ? { serialization } : {}),
     // resume 需要恢复模型当时真实读到的文件快照；只依赖 tool_result 文本

@@ -302,6 +302,7 @@ export function ExploreToolCallBlock(context: ToolCallBlockRenderContext) {
         </div>
       ) : null,
     [
+      ToolCallBlock,
       childToolCalls,
       context.onLoadFullToolCallFields,
       context.onOpenAutomationsMain,

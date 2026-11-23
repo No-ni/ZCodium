@@ -415,7 +415,8 @@ export function MentionPlugin({
         noticeText: group.noticeText ?? null,
         emptyText: group.emptyText,
       })),
-    [intl, panelGroups, workspacePath, activeTrigger?.trigger],
+    // 会话 cwd 可以独立于候选数组变化，展示根必须随同更新。
+    [intl, panelGroups, workspacePath, activeTrigger?.trigger, fileSearchRootPath],
   );
 
   useEffect(() => {

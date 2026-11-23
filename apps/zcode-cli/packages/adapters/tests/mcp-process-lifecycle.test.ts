@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMcpAdapter } from "../src/mcp/index.js";
 import { terminateMcpStdioProcessTree } from "../src/mcp/process-tree.js";
-import { createMcpTelemetryTracker } from "../src/mcp/telemetry.js";
+import { createMcpProcessTracker } from "../src/mcp/process-tracker.js";
 
 describe("MCP stdio process lifecycle", () => {
   const cleanupPids = new Set<number>();
@@ -325,9 +325,8 @@ describe("MCP stdio process lifecycle", () => {
     async () => {
       const fixture = await createMcpProcessFixture({ crashAfterConnectedMs: 100 });
       const events: Array<{ exitCode?: number | null; kind: string; mcpInstanceId?: string }> = [];
-      const telemetry = createMcpTelemetryTracker({
-        idSalt: "device-a",
-        onEvent: (event) => events.push(event),
+      const telemetry = createMcpProcessTracker({
+          onEvent: (event) => events.push(event),
         randomId: () => "mcp-instance-1",
       });
       telemetry.registerConnection({
@@ -346,7 +345,7 @@ describe("MCP stdio process lifecycle", () => {
           mcpIsolation: "session",
           sessionId: "session-1",
         },
-        telemetry,
+        processTracker: telemetry,
       });
 
       await expect(

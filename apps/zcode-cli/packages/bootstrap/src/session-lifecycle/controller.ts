@@ -94,6 +94,9 @@ export class SessionLifecycleController implements SessionLifecycle {
     const workspace = typeof workspaceOrOnReady === "function" ? undefined : workspaceOrOnReady;
     const onReady = typeof workspaceOrOnReady === "function" ? workspaceOrOnReady : onReadyCallback;
     const entry = this.entry(sessionId);
+    // 恢复回调会先等待已有启动；归属必须先校验，否则冲突请求绕过 run 的准入并互等。
+    const conflict = this.workspaceConflict(entry, workspace);
+    if (conflict) return Promise.reject(conflict);
     if (entry.flight && (onReady || entry.flight.operation === "stop")) {
       return entry.flight.promise.then(() =>
         this.initialize(sessionId, activate, workspace, kind, onReady),

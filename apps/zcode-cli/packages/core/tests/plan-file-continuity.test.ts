@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createRootTraceContext,
@@ -16,11 +18,11 @@ describe("plan file continuity", () => {
   it("resolves approved plan file under workspace root with sanitized session id", () => {
     const path = resolveApprovedPlanFilePath({
       sessionId: "session:with/slashes",
-      workspaceRoot: "/workspace/project",
+      workspaceRoot: nativeFixturePath("/workspace/project"),
     });
 
-    expect(path.replace(/\\/g, "/")).toBe(
-      "/workspace/project/.zcode/plans/plan-session-with-slashes.md",
+    expect(path).toBe(
+      nativeFixturePath("/workspace/project/.zcodium/plans/plan-session-with-slashes.md"),
     );
   });
 
@@ -38,11 +40,11 @@ describe("plan file continuity", () => {
       plan: approvedPlan,
       sessionId,
       traceContext,
-      workspaceRoot: "/workspace/project",
+      workspaceRoot: nativeFixturePath("/workspace/project"),
     });
 
-    expect(result.path.replace(/\\/g, "/")).toBe(
-      "/workspace/project/.zcode/plans/plan-sess_plan-file-write.md",
+    expect(result.path).toBe(
+      nativeFixturePath("/workspace/project/.zcodium/plans/plan-sess_plan-file-write.md"),
     );
     expect(fileSystemPort.files[result.path]).toBe(approvedPlan);
   });
@@ -51,11 +53,11 @@ describe("plan file continuity", () => {
     expect(
       formatPlanFileReference({
         planContent: "1. Keep the approved plan\n2. Verify after compact",
-        planFilePath: "/workspace/project/.zcode/plans/plan-session.md",
+        planFilePath: nativeFixturePath("/workspace/project/.zcodium/plans/plan-session.md"),
       }),
     ).toBe(
       [
-        "A plan file exists from plan mode at: /workspace/project/.zcode/plans/plan-session.md",
+        `A plan file exists from plan mode at: ${nativeFixturePath("/workspace/project/.zcodium/plans/plan-session.md")}`,
         "",
         "Plan contents:",
         "",
@@ -69,14 +71,14 @@ describe("plan file continuity", () => {
   it("returns a model-only plan_file_reference entry when the plan file exists", async () => {
     const sessionId = createSessionId("plan-file-reference");
     const fileSystemPort = new MemoryFileSystem({
-      "/workspace/project/.zcode/plans/plan-sess_plan-file-reference.md":
+      [nativeFixturePath("/workspace/project/.zcodium/plans/plan-sess_plan-file-reference.md")]:
         "1. Preserve plan marker E2E_PLAN_FILE_CONTINUITY",
     });
 
     const entry = await readApprovedPlanFileReferenceEntry({
       fileSystemPort,
       sessionId,
-      workspaceRoot: "/workspace/project",
+      workspaceRoot: nativeFixturePath("/workspace/project"),
     });
 
     expect(entry).toMatchObject({
@@ -94,7 +96,7 @@ describe("plan file continuity", () => {
     const entry = await readApprovedPlanFileReferenceEntry({
       fileSystemPort: new MemoryFileSystem({}),
       sessionId: createSessionId("no-plan-file"),
-      workspaceRoot: "/workspace/project",
+      workspaceRoot: nativeFixturePath("/workspace/project"),
     });
 
     expect(entry).toBeUndefined();

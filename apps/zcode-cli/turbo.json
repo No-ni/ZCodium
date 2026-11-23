@@ -2,9 +2,17 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!.turbo/**"],
-      "outputs": ["dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!.turbo/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": true
     },
     "build:desktop-agent": {
@@ -25,104 +33,155 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/package.json",
-        "$TURBO_ROOT$/.env",
-        "$TURBO_ROOT$/../../packages/shared/package.json",
-        "$TURBO_ROOT$/../../packages/shared/src/**",
+        "$TURBO_ROOT$/apps/zcode-cli/package.json",
+        "$TURBO_ROOT$/apps/zcode-cli/.env",
+        "$TURBO_ROOT$/packages/shared/package.json",
+        "$TURBO_ROOT$/packages/shared/src/**",
         "!dist/**",
         "!.turbo/**",
-        "$TURBO_ROOT$/../../config/provider/zcode-builtin.json",
-        "$TURBO_ROOT$/../../config/provider/zcode-builtin.test.json",
-        "$TURBO_ROOT$/../../scripts/builtin-provider-config.mjs",
-        "$TURBO_ROOT$/../../packages/provider/src/**",
-        "$TURBO_ROOT$/../../packages/provider-node/src/zcode-builtin-release.ts",
-        "$TURBO_ROOT$/../../packages/model-option-map/src/**",
-        "$TURBO_ROOT$/../../.env",
-        "$TURBO_ROOT$/../../.env.production",
-        "$TURBO_ROOT$/../../.env.development",
-        "$TURBO_ROOT$/../../.env.development.local",
-        "$TURBO_ROOT$/../../package.json",
-        "$TURBO_ROOT$/../../pnpm-lock.yaml"
+        "$TURBO_ROOT$/config/provider/zcode-builtin.json",
+        "$TURBO_ROOT$/config/provider/zcode-builtin.test.json",
+        "$TURBO_ROOT$/scripts/builtin-provider-config.mjs",
+        "$TURBO_ROOT$/packages/provider/src/**",
+        "$TURBO_ROOT$/packages/provider-node/src/zcode-builtin-release.ts",
+        "$TURBO_ROOT$/packages/model-option-map/src/**",
+        "$TURBO_ROOT$/.env",
+        "$TURBO_ROOT$/.env.production",
+        "$TURBO_ROOT$/.env.development",
+        "$TURBO_ROOT$/.env.development.local",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/pnpm-lock.yaml"
       ],
-      "outputs": ["dist/**"],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": true,
-      "env": ["ZCODE_ENV", "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE", "NODE_ENV"]
+      "env": [
+        "ZCODE_ENV",
+        "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE",
+        "NODE_ENV"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "test": {
-      "dependsOn": ["build"],
-      "inputs": ["**"],
-      "env": ["ZCODE_CUA_REPO", "VITEST_MAX_WORKERS"],
+      "dependsOn": [
+        "build"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "env": [
+        "ZCODE_CUA_REPO",
+        "VITEST_MAX_WORKERS"
+      ],
       "outputs": []
     },
     "coverage": {
-      "dependsOn": ["build"],
-      "inputs": ["**"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "build"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
     },
     "lint": {},
     "lint:fix": {},
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "clean": {
       "cache": false
     },
     "@zcode/cli#build": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!dist/**",
         "!.turbo/**",
-        "$TURBO_ROOT$/../../config/provider/zcode-builtin.json",
-        "$TURBO_ROOT$/../../config/provider/zcode-builtin.test.json",
-        "$TURBO_ROOT$/../../scripts/builtin-provider-config.mjs",
-        "$TURBO_ROOT$/../../packages/provider/src/**",
-        "$TURBO_ROOT$/../../packages/provider-node/src/zcode-builtin-release.ts",
-        "$TURBO_ROOT$/../../packages/model-option-map/src/**",
-        "$TURBO_ROOT$/../../packages/shared/src/**",
-        "$TURBO_ROOT$/../../.env",
-        "$TURBO_ROOT$/../../.env.production",
-        "$TURBO_ROOT$/../../.env.development",
-        "$TURBO_ROOT$/../../.env.development.local",
-        "$TURBO_ROOT$/../../package.json",
-        "$TURBO_ROOT$/../../pnpm-lock.yaml"
+        "$TURBO_ROOT$/config/provider/zcode-builtin.json",
+        "$TURBO_ROOT$/config/provider/zcode-builtin.test.json",
+        "$TURBO_ROOT$/scripts/builtin-provider-config.mjs",
+        "$TURBO_ROOT$/packages/provider/src/**",
+        "$TURBO_ROOT$/packages/provider-node/src/zcode-builtin-release.ts",
+        "$TURBO_ROOT$/packages/model-option-map/src/**",
+        "$TURBO_ROOT$/packages/shared/src/**",
+        "$TURBO_ROOT$/.env",
+        "$TURBO_ROOT$/.env.production",
+        "$TURBO_ROOT$/.env.development",
+        "$TURBO_ROOT$/.env.development.local",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/pnpm-lock.yaml"
       ],
-      "outputs": ["dist/**"],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": true,
-      "env": ["ZCODE_ENV", "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE", "NODE_ENV"]
+      "env": [
+        "ZCODE_ENV",
+        "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE",
+        "NODE_ENV"
+      ]
     },
     "@zcode/office-runtime#build": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "outputs": [],
       "cache": false
     },
     "@zcode/documents-plugin#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": false
     },
     "@zcode/spreadsheets-plugin#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": false
     },
     "@zcode/presentations-plugin#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": false
     },
     "@zcode/pdf-plugin#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": false
     },
     "@zcode/node-repl-host#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
       "cache": false
     }
   }

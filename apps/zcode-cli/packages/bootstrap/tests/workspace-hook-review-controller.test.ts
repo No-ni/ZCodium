@@ -33,10 +33,10 @@ function snapshot(
     discoveredAt: "2026-08-06T00:00:00.000Z",
     sourceFiles: [
       {
-        canonicalPath: "/workspace/.zcode/config.json",
+        canonicalPath: "/workspace/.zcodium/config.json",
         baseDir: "/workspace",
         discoveryOrder: 0,
-        configFileKind: ".zcode/config.json",
+        configFileKind: ".zcodium/config.json",
         explicitProjectConfig: false,
         editable: true,
         hooksRoot: { enabled: true },
@@ -49,7 +49,7 @@ function snapshot(
         matcherIndex: 0,
         hookIndex: 0,
         sourceFileIndex: 0,
-        sourceRelativePath: ".zcode/config.json",
+        sourceRelativePath: ".zcodium/config.json",
         matcher: "startup",
         type: "command",
         command: "echo project",
@@ -71,7 +71,7 @@ function snapshot(
               matcherIndex: 0,
               hookIndex: 1,
               sourceFileIndex: 0,
-              sourceRelativePath: ".zcode/config.json",
+              sourceRelativePath: ".zcodium/config.json",
               matcher: null,
               type: "command" as const,
               command: "echo disabled-project",
@@ -666,7 +666,7 @@ describe("WorkspaceHookReviewController", () => {
   });
 
   it("D23：worktree target（workspaceKey）经 resolver 归一后与 Trust identity snapshot 匹配，不再误判 mismatch", async () => {
-    const WORKTREE_KEY = "/data/.zcode/worktrees/3f2a/workspace";
+    const WORKTREE_KEY = "/data/.zcodium/worktrees/3f2a/workspace";
     const resolveTargetTrustIdentity = vi.fn(async (identity: string) =>
       identity === WORKTREE_KEY ? WORKSPACE : identity,
     );
@@ -704,7 +704,7 @@ describe("WorkspaceHookReviewController", () => {
   });
 
   it("D23：对外 request 与 AdmissionUpdated 只发会话 workspaceKey，Trust identity 只留在内部", async () => {
-    const WORKTREE_KEY = "/data/.zcode/worktrees/3f2a/workspace";
+    const WORKTREE_KEY = "/data/.zcodium/worktrees/3f2a/workspace";
     const value = fixture({
       workspaceKey: WORKTREE_KEY,
       resolveTargetTrustIdentity: async (identity) =>
@@ -1068,12 +1068,8 @@ describe("WorkspaceHookReviewController", () => {
     );
   });
 
-  it("applyDecision 失败时 telemetry 记录 errorMessage，不再静默丢弃 cause（错误归属）", async () => {
-    // Bug 原因：respond 的裸 catch 把 applyDecision 的全部失败一律报成
-    // trust_store_corrupt，且 trustStoreFailure 不接收 errorMessage，原始 cause
-    // 被彻底丢弃。日志里只剩 reasonCode，无法区分是 store 损坏、coordinator 错误
-    // 还是 resolveWorkspaceHookReviewDigests 对未知 reviewItemId 抛错。
-    // 修法：catch (error) 并把 error.message 透传进 telemetry。
+  it("applyDecision 失败时拒绝授权并发布安全原因码，不记录原始错误", async () => {
+    // 本仓诊断契约禁止原始错误文本；保留失败关闭和事件归属断言，避免恢复含路径或凭据的 cause。
     const value = fixture();
     const { request } = await pendingRequest(value);
     value.store.grant.mockReset();
@@ -1102,13 +1098,12 @@ describe("WorkspaceHookReviewController", () => {
       accepted: false,
       reasonCode: "workspace_hooks_trust_store_corrupt",
     });
-    // telemetry 必须携带 errorMessage，否则排查时无法区分非存储失败。
     const failure = value.telemetry.find(
       (entry) => entry.context?.event === "workspace_hook.trust_store_failure",
     );
     expect(failure).toBeDefined();
-    expect(failure?.context?.errorMessage).toBe(
-      "trust store disk write failed",
-    );
+    expect(failure?.context?.reasonCode).toBe("workspace_hooks_trust_store_corrupt");
+    expect(failure?.context).not.toHaveProperty("errorMessage");
+    expect(JSON.stringify(value.telemetry)).not.toContain("trust store disk write failed");
   });
 });

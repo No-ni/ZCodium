@@ -309,6 +309,12 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         } catch (error) {
           errors.push(error);
         }
+        // close 的完成回执必须包含最后一批异步诊断写入，避免退出丢日志或与目录释放并发。
+        try {
+          await deps.loggerFactory.flush?.();
+        } catch (cause) {
+          errors.push(new Error("local_diagnostic_flush_failed", { cause }));
+        }
         if (errors.length)
           throw new AggregateError(
             errors,
@@ -585,9 +591,16 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       );
     },
     setMode: async (mode: CollaborationMode) => {
+      // 任务独立权限是 CLI 持久事实；遗漏此分支会把单个 group 任务的模式写成项目默认值。
+      const session = await deps.sessionStore.getSession(deps.sessionId);
       const previousMode = deps.runtime.getMode();
       await deps.runtime.setExecutionState({ mode }, deps.traceContext);
-      if (deps.localSettingStore) {
+      if (session?.permission?.scope === "session") {
+        await deps.sessionStore.updateSession({
+          id: deps.sessionId,
+          permission: { version: 1, scope: "session", mode },
+        });
+      } else if (deps.localSettingStore) {
         try {
           await deps.localSettingStore.saveProjectPermissionMode({
             mode: deps.runtime.getMode(),

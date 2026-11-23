@@ -1,5 +1,6 @@
 // zcode-site CLI 测试：用内存里的 Sites API 替身（按 api/openapi.yaml 的状态机）代替 zcode-server 和后面的控制面。
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -386,7 +387,10 @@ test("local and auth errors", async () => {
 
 test("createEndpointFetch talks HTTP over the endpoint socket", async () => {
   const dir = await mkdtemp(join(tmpdir(), "zcode-site-ep-"));
-  const socketPath = join(dir, "endpoint.sock");
+  // Windows listen 的字符串是命名管道，不能传普通磁盘路径；pipe 名只使用本轮目录摘要。
+  const socketPath = process.platform === "win32"
+    ? "\\\\.\\pipe\\zcodium-site-test-" + createHash("sha256").update(dir).digest("hex").slice(0,24)
+    : join(dir, "endpoint.sock");
   const seen = [];
   const server = createServer((req, res) => {
     const chunks = [];

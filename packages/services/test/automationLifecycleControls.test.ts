@@ -8,7 +8,7 @@ import {
 } from "../../../scripts/ci/project-test-sandbox.mjs";
 import { AutomationRepo } from "../src/session/automationRepo.js";
 import { AutomationService } from "../src/session/automationService.js";
-import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import { prepareTasksIndexStorage } from "../src/project-storage/startup-entry.js";
 
 async function fixture(t: TestContext) {
   // 先建系统临时目录再校验已经越过写边界；与其余自动化回归统一由中央沙箱写前拒绝。

@@ -31,7 +31,7 @@ function record(
     grantedAt,
     eventAtGrant: "SessionStart",
     displayCommandAtGrant: "echo trusted",
-    sourcePathAtGrant: ".zcode/config.json",
+    sourcePathAtGrant: ".zcodium/config.json",
     sourceDiscoveryOrderAtGrant: 0,
     matcherAtGrant: "startup",
     matcherIndexAtGrant: 0,
@@ -47,9 +47,9 @@ describe("FileWorkspaceHookTrustStore", () => {
   it("只使用 user config storage.dir，不接受 project/env storage 覆盖", async () => {
     const home = await root();
     const custom = join(home, "trusted-user-storage");
-    await mkdir(join(home, ".zcode", "cli"), { recursive: true });
+    await mkdir(join(home, ".zcodium", "cli"), { recursive: true });
     await writeFile(
-      join(home, ".zcode", "cli", "config.json"),
+      join(home, ".zcodium", "cli", "config.json"),
       JSON.stringify({ storage: { dir: custom } }),
       "utf8",
     );
@@ -67,8 +67,10 @@ describe("FileWorkspaceHookTrustStore", () => {
     const loaded = await store.load();
     expect(loaded.status).toBe("ok");
     expect(loaded.records).toHaveLength(2);
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
-    expect((await stat(join(base, "security"))).mode & 0o777).toBe(0o700);
+    if (process.platform !== "win32") {
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      expect((await stat(join(base, "security"))).mode & 0o777).toBe(0o700);
+    }
     expect((await readdir(join(base, "security"))).filter((name) => name.endsWith(".tmp"))).toEqual(
       [],
     );

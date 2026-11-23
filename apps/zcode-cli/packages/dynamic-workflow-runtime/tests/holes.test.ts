@@ -128,7 +128,7 @@ describe("holes — evaluated at the site", () => {
       { onEvent: hook.onEvent },
     );
     expect(artifactOf(settlement)).toBe(42);
-    expect(hook.results).toEqual([{ ok: true }]);
+    expect(hook.results).toEqual([{ ok: true, commitSequence: expect.any(Number) }]);
     expect(hook.reached).toEqual([
       {
         type: "hole-reached",
@@ -295,7 +295,7 @@ describe("holes — a parked hole is a request in flight", () => {
     // 兄弟可能在留白被到达之前或之后结算；两种次序下留白都只被到达一次、补全一次。
     expect([0, 1]).toContain(openWhileSiblingSettled);
     expect(reachedCount).toBe(1);
-    expect(results).toEqual([{ ok: true }]);
+    expect(results).toEqual([{ ok: true, commitSequence: expect.any(Number) }]);
   });
 
   it("a cancel while parked stops the run and the sandbox goes down with it", async () => {
@@ -394,7 +394,7 @@ describe("holes — recursive: a fill that contains an open hole", () => {
       },
     );
     expect(artifactOf(settlement)).toEqual(["sibling done", "BI"]);
-    expect(results).toEqual([{ ok: true }, { ok: true }]);
+    expect(results).toEqual([{ ok: true, commitSequence: expect.any(Number) }, { ok: true, commitSequence: expect.any(Number) }]);
     expect(reached.map((e) => [e.instance.siteId, e.instance.ordinal, e.name, e.prompt])).toEqual([
       ["hole#1", 1, "outer", "p"],
       [INNER, 1, "inner", "q"],
@@ -438,7 +438,7 @@ describe("holes — recursive: a fill that contains an open hole", () => {
       INNER,
     ]);
     expect(driver.eventsOfType("hole-filled").map((e) => e.siteId)).toEqual(["hole#1", INNER]);
-    expect(results).toEqual([{ ok: true }, { ok: true }]);
+    expect(results).toEqual([{ ok: true, commitSequence: expect.any(Number) }, { ok: true, commitSequence: expect.any(Number) }]);
   });
 
   it("an inner fill that throws rejects the inner site; uncaught, it propagates out of the outer body to the outer awaiter", async () => {

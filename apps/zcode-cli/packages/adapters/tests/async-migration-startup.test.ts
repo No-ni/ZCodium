@@ -5,7 +5,6 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SQLITE_MIGRATIONS } from "../src/storage/session-store/migrations.js";
 import {
-  runSqliteSessionMigrations,
   runSqliteSessionMigrationsAsync,
 } from "../src/storage/session-store/migration-runner.js";
 import type { SqliteMigrationProgress } from "../src/storage/session-store/migration-runner.js";
@@ -156,9 +155,10 @@ describe("Todo144：迁移启动状态与真实 SQLite 锁", () => {
     dirs.push(dir);
     const path = join(dir, "db.sqlite");
     const holder = open(path);
-    await runSqliteSessionMigrations(holder, path);
+    await runSqliteSessionMigrationsAsync(holder, path);
     holder.exec("BEGIN IMMEDIATE");
     const waiter = open(path);
+    waiter.exec("PRAGMA busy_timeout=5000");
     const phases: string[] = [];
     let releaseHolder: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -205,7 +205,7 @@ describe("Todo144：迁移启动状态与真实 SQLite 锁", () => {
     dirs.push(dir);
     const path = join(dir, "db.sqlite");
     const holder = open(path);
-    await runSqliteSessionMigrations(holder, path);
+    await runSqliteSessionMigrationsAsync(holder, path);
     holder.exec("BEGIN IMMEDIATE");
     const waiter = open(path);
     const phases: string[] = [];
@@ -241,7 +241,7 @@ it("openStartup 保留迁移原始错误，即使 close 也失败", async () => 
         },
       },
     ),
-  ).rejects.toBe(original);
+  ).rejects.toMatchObject({ kind: "storage_full", cause: original });
 });
 
 it("SILENTDB-02/04: reports real migration kind and counts only committed SQL as committed", async () => {
@@ -281,7 +281,7 @@ it("SILENTDB-02/04: reports real migration kind and counts only committed SQL as
         if (s.phase === "committing") throw new Error("commit barrier failed");
       },
     }),
-  ).rejects.toThrow("commit barrier failed");
+  ).rejects.toMatchObject({ cause: { message: "commit barrier failed" } });
   expect(failed.find((s) => s.phase === "migrating")?.migration?.kind).toBe("upgrade");
   expect(failed.every((s) => !s.migration?.committedCount)).toBe(true);
   expect(failed.at(-1)?.migration?.lastAppliedMigrationId).toBe(
@@ -295,7 +295,8 @@ it("SILENTDB-03: another writer can finish the observed migrations without this 
   dirs.push(dir);
   const path = join(dir, "db.sqlite");
   const holder = open(path);
-  await runSqliteSessionMigrations(holder, path);
+  await runSqliteSessionMigrationsAsync(holder, path);
+  const committed = holder.prepare("SELECT * FROM schema_migration WHERE id >= '0020'").all();
   holder.exec("DELETE FROM schema_migration WHERE id >= '0020'; BEGIN IMMEDIATE");
   const waiter = open(path);
   const states: SqliteMigrationProgress[] = [];
@@ -305,13 +306,14 @@ it("SILENTDB-03: another writer can finish the observed migrations without this 
       states.push(state);
       if (state.phase === "waiting_for_lock") {
         expect(state.migration?.kind).toBe("upgrade");
+        // 模拟进程外写者：提交原来已完成的冻结迁移账本，不在同库 admission 回调里递归排队。
+        for (const row of committed) holder.prepare("INSERT INTO schema_migration VALUES(?,?,?,?)").run(row.id, row.checksum, row.app_version, row.time_applied);
         holder.exec("COMMIT");
-        await runSqliteSessionMigrations(holder, path);
       }
     },
   });
   expect(states.at(-1)?.migration).toEqual({
-    kind: "upgrade",
+    kind: "none",
     executedCount: 0,
     committedCount: 0,
     lastAppliedMigrationId: SQLITE_MIGRATIONS.map((m) => m.id)
@@ -336,7 +338,7 @@ it("publishes confirmed migration demand when lock contention recurs after prech
   let journalBusy = true;
   let transactionBusy = true;
   vi.spyOn(db, "prepare").mockImplementation((sql) => {
-    if (journalBusy && sql.toLowerCase().includes("pragma journal_mode")) {
+    if (journalBusy && sql.toLowerCase().includes("select type,sql from sqlite_schema")) {
       journalBusy = false;
       throw Object.assign(new Error("busy before precheck"), { errcode: 5 });
     }
@@ -358,19 +360,19 @@ it("publishes confirmed migration demand when lock contention recurs after prech
   expect(waits.map((state) => state.migration?.kind)).toEqual([undefined, "initialize"]);
 });
 
-it("does not send malformed ledger IDs as telemetry or fail an otherwise prepared database", async () => {
+it("rejects malformed ledger IDs without exposing them in startup progress", async () => {
   const db = open();
-  await runSqliteSessionMigrations(db, ":memory:");
+  await runSqliteSessionMigrationsAsync(db, ":memory:");
   db.prepare("INSERT INTO schema_migration VALUES (?, 'external', NULL, 0)").run(
     "private / unexpected ID",
   );
   const states: SqliteMigrationProgress[] = [];
-  await runSqliteSessionMigrationsAsync(db, ":memory:", {
+  await expect(runSqliteSessionMigrationsAsync(db, ":memory:", {
     onProgress: async (state) => {
       states.push(state);
     },
-  });
-  expect(states.at(-1)?.phase).toBe("ready");
+  })).rejects.toMatchObject({ cause: { kind: "schema_incompatible" } });
+  expect(states.at(-1)?.phase).toBe("failed");
   expect(states.at(-1)?.migration?.lastAppliedMigrationId).toBeUndefined();
   expect(JSON.stringify(states)).not.toContain("private / unexpected ID");
 });

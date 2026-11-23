@@ -6,14 +6,15 @@
  * 次生缺陷：这类 spawn 失败在 Node 里是**同步抛错**，绕过引擎，journal 行永远停在 running。
  *
  * 四件事钉住：
- *   1. 入口文件落在 `<cwd>/.zcode/workflow-runs/<runId>.mjs`，同目录有 `.gitignore`，run 结算后文件仍在；
+ *   1. 入口文件落在 `<cwd>/.zcodium/workflow-runs/<runId>.mjs`，同目录有 `.gitignore`，run 结算后文件仍在；
  *   2. **回归护栏**：脚本再大，命令行长度也不变（与 200 KB 的 lowered 体无关）；
- *   3. 项目 `.zcode` 写不进 → 回落 tmpdir + onWarning，run 照常；
+ *   3. 项目 `.zcodium` 写不进 → 回落 tmpdir + onWarning，run 照常；
  *   4. spawn 同步抛错 → 经引擎结算 failed，journal 行 status 是 failed 而不是 running。
  */
 
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { spawn as spawnType } from "node:child_process";
@@ -79,7 +80,7 @@ async function runLowered(
 }
 
 describe("child entry file", () => {
-  it("lands under <cwd>/.zcode/workflow-runs/<runId>.mjs with a .gitignore, and stays after the run settles", async () => {
+  it("lands under <cwd>/.zcodium/workflow-runs/<runId>.mjs with a .gitignore, and stays after the run settles", async () => {
     const cwd = await tempRoot("dwf-entry-cwd-");
 
     const { settlement } = await runLowered("return __host.args.x;", {
@@ -89,7 +90,7 @@ describe("child entry file", () => {
     });
 
     expect(settlement).toEqual({ status: "completed", artifact: 7 });
-    const entryPath = join(cwd, ".zcode", "workflow-runs", "dwfrun-1234.mjs");
+    const entryPath = join(cwd, ZCODE_USER_DATA_DIR_NAME, "workflow-runs", "dwfrun-1234.mjs");
     expect(spawnCalls[0]!.args).toEqual(["--max-old-space-size=256", entryPath]);
     // 保留是裁决：目录兼作每次 run 实际执行体的存档。
     const text = await readFile(entryPath, "utf8");
@@ -97,7 +98,7 @@ describe("child entry file", () => {
     expect(text).toContain('export const payload = {"lowered":"return __host.args.x;","args":{"x":7},"run":{"id":"dwfrun-1234"},"maxOldSpaceSizeMb":256}');
     expect(text).toContain("export const start = ");
     // 只由 harness 写一份 `*`，绝不碰项目自己的 .gitignore。
-    await expect(readFile(join(cwd, ".zcode", "workflow-runs", ".gitignore"), "utf8")).resolves.toBe("*\n");
+    await expect(readFile(join(cwd, ZCODE_USER_DATA_DIR_NAME, "workflow-runs", ".gitignore"), "utf8")).resolves.toBe("*\n");
   });
 
   it("keeps the command line short no matter how large the script is (Windows ENAMETOOLONG guard)", async () => {
@@ -113,10 +114,10 @@ describe("child entry file", () => {
     expect(spawnCalls[0]!.args.every((arg) => arg.length < 32_767)).toBe(true);
   });
 
-  it("falls back to os.tmpdir() and warns when the project .zcode cannot be created", async () => {
+  it("falls back to os.tmpdir() and warns when the project .zcodium cannot be created", async () => {
     const cwd = await tempRoot("dwf-entry-fallback-");
-    // `.zcode` 是个普通文件：mkdir 必然 ENOTDIR/EEXIST，正是「项目里写不进」的一种。
-    await writeFile(join(cwd, ".zcode"), "not a directory", "utf8");
+    // `.zcodium` 是个普通文件：mkdir 必然 ENOTDIR/EEXIST，正是「项目里写不进」的一种。
+    await writeFile(join(cwd, ZCODE_USER_DATA_DIR_NAME), "not a directory", "utf8");
     const warnings: HarnessWarning[] = [];
 
     const { settlement } = await runLowered("return 1;", {
@@ -132,7 +133,7 @@ describe("child entry file", () => {
     expect(warnings).toEqual([
       {
         kind: "entry_file_fallback",
-        projectDir: join(cwd, ".zcode", "workflow-runs"),
+        projectDir: join(cwd, ZCODE_USER_DATA_DIR_NAME, "workflow-runs"),
         fallbackDir: fallbackWorkflowRunsDir(),
         error: expect.stringMatching(/ENOTDIR|EEXIST|ENOENT/),
       },

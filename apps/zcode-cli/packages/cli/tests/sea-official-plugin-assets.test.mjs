@@ -20,10 +20,13 @@ test("rejects an incomplete documents SEA seed", async () => {
     // visualize 排到首位后该测试就一直红在 visualize manifest 缺失上）。
     for (const entry of officialSeaPlugins) {
       if (entry.name === "documents") {
-        await writeTestFile(root, join(entry.rootPath, ".zcode-plugin/plugin.json"), "{}");
+        await writeTestFile(root, join(entry.rootPath, ".zcodium-plugin/plugin.json"), "{}");
+        for (const seedPath of entry.requiredSeedPaths ?? [])
+          if (seedPath !== "agents/visual-judge.md")
+            await writeTestFile(root, join(entry.rootPath, seedPath), "");
         continue;
       }
-      await writeTestFile(root, join(entry.rootPath, ".zcode-plugin/plugin.json"), "{}");
+      await writeTestFile(root, join(entry.rootPath, ".zcodium-plugin/plugin.json"), "{}");
       for (const seedPath of entry.requiredSeedPaths ?? [])
         await writeTestFile(root, join(entry.rootPath, seedPath), "");
     }

@@ -5,7 +5,6 @@ import {
   EXTENSION_LOG_BUFFER_LIMIT,
   extensionHostToMainMessageSchema,
   extensionWindowToMainMessageSchema,
-  truncateExtensionLogMessage,
   type ExtensionHostStatus,
   type ExtensionLogEntry,
   type ExtensionLogLevel,

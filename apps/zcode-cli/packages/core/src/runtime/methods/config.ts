@@ -245,6 +245,14 @@ export async function notifyExternalChildSessionEvent(
     { ...(input.traceContext ?? this.rootTraceContext), sessionId: input.childSessionId },
     input.executionWorkspacePath,
   );
+  if (input.interactionOrigin === undefined) return;
+  // 官方权限镜像接线不能随原始子事件扇出丢失：确认窗只从父投影读取交互，子事件仍只落库一次。
+  const mirrored = mirrorSubagentInteractionEvent(input.event, {
+    ...input.interactionOrigin,
+    parentSessionId: this.sessionId,
+  });
+  if (mirrored === undefined) return;
+  await this.notifyEventSinks(mirrored, { ...traceContext, sessionId: this.sessionId });
 }
 
 /**

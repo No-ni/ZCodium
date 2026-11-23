@@ -3,9 +3,9 @@ import { resolveToolSearchCapability } from "../src/model/tool-search.js";
 
 describe("ToolSearch provider capability", () => {
   it.each([
-    [{ type: "zhipu-coding-plan-api-key" }, true],
-    [{ type: "zhipu-account", mode: "individual-coding-plan" }, true],
-    [{ type: "zhipu-account", mode: "team-coding-plan" }, true],
+    [{ type: "zhipu-coding-plan-api-key" }, false],
+    [{ type: "zhipu-account", mode: "individual-coding-plan" }, false],
+    [{ type: "zhipu-account", mode: "team-coding-plan" }, false],
     [{ type: "api-key" }, false],
     [{ type: "zhipu-account", mode: "start-plan" }, false],
     [{ type: "zhipu-account", mode: "off-peak" }, false],

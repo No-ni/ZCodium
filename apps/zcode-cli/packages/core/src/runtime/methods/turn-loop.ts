@@ -119,6 +119,7 @@ export async function runRegularTurnLoop(
       state.events,
       state.turnAbortSignal,
       {
+        requestTools: tools,
         getAgentListingTools: () => tools,
         compactReason: CompactReason.ContextLimit,
         modelStepIndex: state.modelStepCount,
@@ -157,6 +158,8 @@ export async function runRegularTurnLoop(
       tools,
       registry: this.getToolRegistry(),
       entries: requestEntries,
+      // 本仓改写曾遗漏官方缓存准入，导致实际请求与记录投影失配；标记仍只写请求副本。
+      applyCacheControl: true,
     });
     // 主会话没有可用的 prompt 快照时，按本次请求的前缀记录 system。
     await recordPromptSnapshot(this, {

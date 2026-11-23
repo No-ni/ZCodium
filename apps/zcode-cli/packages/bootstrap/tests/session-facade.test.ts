@@ -391,8 +391,9 @@ describe("session facade model selection", () => {
     const other = level === "debug" ? logger.warn : logger.debug;
     expect(logger[level]).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ event, error: "FOREIGN KEY constraint failed" }),
+      expect.objectContaining({ event, error: "operation_failed" }),
     );
+    expect(JSON.stringify(logger[level].mock.calls)).not.toContain("FOREIGN KEY constraint failed");
     expect(other).not.toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ event: expect.stringMatching(/^session\.model_selection\./) }),

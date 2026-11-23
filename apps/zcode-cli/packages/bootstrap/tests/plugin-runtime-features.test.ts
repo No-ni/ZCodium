@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 import type { PluginLoadOutcome, PluginMetadata } from "@zcode/contracts";
 import { resolvePluginRuntimeFeatures } from "../src/app/plugin-runtime-features.js";
 import { resolveBuiltInNodeReplMcpServers } from "../src/app/built-in-node-repl.js";
@@ -13,7 +14,7 @@ function plugin(id: string, enabled: boolean, rootPath = "/tmp/plugin"): PluginM
     enabled,
     hookDetails: [],
     id,
-    manifestPath: `${rootPath}/.zcode-plugin/plugin.json`,
+    manifestPath: join(rootPath, ".zcodium-plugin", "plugin.json"),
     marketplace,
     mcpServerNames: [],
     name,
@@ -34,7 +35,7 @@ describe("resolvePluginRuntimeFeatures", () => {
       resolvePluginRuntimeFeatures(outcome([plugin("browser-use@zcode-plugins-official", true)])),
     ).toEqual({
       browserUse: true,
-      browserDocumentationRoot: "/tmp/plugin/docs",
+      browserDocumentationRoot: join("/tmp/plugin", "docs"),
     });
   });
 
@@ -60,7 +61,7 @@ describe("resolvePluginRuntimeFeatures", () => {
       enabledServers.node_repl?.type === "stdio"
         ? enabledServers.node_repl.args?.at(-1)
         : undefined,
-    ).toBe("/tmp/host/dist/mcp/server.js");
+    ).toBe(join("/tmp/host", "dist", "mcp", "server.js"));
     expect(enabledServers.browser_use).toBeUndefined();
   });
 

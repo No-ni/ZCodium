@@ -36,7 +36,7 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
       await rm(homeDir, { recursive: true, force: true });
     });
     const { mkdir } = await import("node:fs/promises");
-    const securityDir = join(homeDir, ".zcode", "security");
+    const securityDir = join(homeDir, ".zcodium", "security");
     await mkdir(securityDir, { recursive: true });
     const storePath = join(securityDir, "workspace-hook-trust-v1.json");
     await writeFile(storePath, JSON.stringify({ schemaVersion: 1, records: [] }), "utf8");
@@ -52,10 +52,10 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
       bundleDigest: BUNDLE,
       sourceFiles: [
         {
-          canonicalPath: "/workspace/.zcode/config.json",
+          canonicalPath: "/workspace/.zcodium/config.json",
           baseDir: "/workspace",
           discoveryOrder: 0,
-          configFileKind: ".zcode/config.json",
+          configFileKind: ".zcodium/config.json",
           explicitProjectConfig: false,
           editable: true,
           hooksRoot: { enabled: true },
@@ -68,7 +68,7 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
           matcherIndex: 0,
           hookIndex: 0,
           sourceFileIndex: 0,
-          sourceRelativePath: ".zcode/config.json",
+          sourceRelativePath: ".zcodium/config.json",
           matcher: "startup",
           type: "command",
           command: "echo project",
@@ -89,8 +89,8 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
   it("reloads externally granted trust into the live admission and re-emits state", async () => {
     const { homeDir, storePath } = await tempHome();
     // userConfigPath 指向临时 home 下的空配置：readUserConfig 找不到文件时按空配置处理，
-    // store 路径 = <homeDir>/.zcode/security/workspace-hook-trust-v1.json。
-    const userConfigPath = join(homeDir, ".zcode", "cli", "config.json");
+    // store 路径 = <homeDir>/.zcodium/security/workspace-hook-trust-v1.json。
+    const userConfigPath = join(homeDir, ".zcodium", "cli", "config.json");
 
     const emitted: Array<{ pendingCount: number }> = [];
     const security = createWorkspaceHookRuntimeSecurity({
@@ -127,7 +127,7 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
             bundleDigestAtGrant: BUNDLE,
             eventAtGrant: "SessionStart",
             displayCommandAtGrant: "echo project",
-            sourcePathAtGrant: ".zcode/config.json",
+            sourcePathAtGrant: ".zcodium/config.json",
             sourceDiscoveryOrderAtGrant: 0,
             matcherAtGrant: "startup",
             matcherIndexAtGrant: 0,
@@ -168,7 +168,7 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
       runtimeRoot: { enabled: true },
       sessionId: "sess_test",
       snapshot: snapshot(),
-      userConfigPath: join(homeDir, ".zcode", "cli", "config.json"),
+      userConfigPath: join(homeDir, ".zcodium", "cli", "config.json"),
       workspaceHookTrustEnabled: true,
       workspaceKey,
       workingDirectory: "/workspace",
@@ -187,7 +187,7 @@ describe("createWorkspaceHookRuntimeSecurity reloadTrust", () => {
       runtimeRoot: { enabled: true },
       sessionId: "sess_test",
       snapshot: snapshot(),
-      userConfigPath: join(homeDir, ".zcode", "cli", "config.json"),
+      userConfigPath: join(homeDir, ".zcodium", "cli", "config.json"),
       workspaceHookTrustEnabled: false,
       workingDirectory: "/workspace",
     });

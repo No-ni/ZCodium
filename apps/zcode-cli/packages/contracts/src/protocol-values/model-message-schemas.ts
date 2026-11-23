@@ -139,22 +139,8 @@ export const modelInputMessageJsonSchema = {
         scope: { enum: ["global", "org"] },
       },
     },
-    toolCalls: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["id", "name", "input"],
-        additionalProperties: false,
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          input: {},
-          providerExecuted: { type: "boolean" },
-          providerOptions: { type: "object" },
-          modelCallWrapper: { enum: ["DeferredToolCall"] },
-        },
-      },
-    },
+    // 拆分时额外收窄条目字段会拒绝官方 blockIndex；沿用原 array 合同。
+    toolCalls: { type: "array" },
     toolCallId: { type: "string" },
     toolName: { type: "string" },
     isError: { type: "boolean" },

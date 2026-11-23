@@ -107,7 +107,7 @@ import { WebElementContextAttachmentChip } from "@/v4/composer/WebElementContext
 import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
 import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip.js";
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
-import { BotGroupSourceLabel } from "@/v4/BotGroupSourceLabel.js";
+import "@/v4/BotGroupSourceLabel.js";
 import { splitUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
 import { ConversationTimelineMarkerDivider } from "@/v4/ConversationShareReadonlyTimeline.js";

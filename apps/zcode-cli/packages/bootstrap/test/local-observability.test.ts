@@ -7,8 +7,31 @@ import { ConversationV4Gateway, type V4GatewayHost } from "../src/zcode-protocol
 import { AskUserQuestionInputSchema } from "../../contracts/src/tools/ask-user-question.js";
 import { startProtocolMaintenance } from "../src/zcode-protocol/maintenance.js";
 import type { Logger } from "@zcode/contracts";
-import { LocalTtftRecorder } from "../src/zcode-protocol-v4/local-ttft.js";
+import { LocalTtftRecorder } from "../src/zcode-protocol-v4/local-ttft/contract.js";
 import { createMcpProcessTracker } from "../../adapters/src/mcp/process-tracker.js";
+import { installZCodeProtocolAiSdkWarningLogger } from "../src/zcode-protocol/ai-sdk-warning-logger.js";
+
+test("SDK warning出口只保留固定事件与数量，不传模型、供应商或原始 warning 文本", () => {
+  const target = globalThis as typeof globalThis & {AI_SDK_LOG_WARNINGS?: false | ((value: unknown) => void)};
+  const previous = target.AI_SDK_LOG_WARNINGS;
+  const calls: unknown[] = [];
+  const logger: Logger = {debug() {}, info() {}, error() {}, child() {return logger;},
+    warn(message, context) {calls.push({message, context});}};
+  try {
+    installZCodeProtocolAiSdkWarningLogger(logger);
+    const emit = target.AI_SDK_LOG_WARNINGS;
+    assert.ok(typeof emit === "function");
+    emit({model: "private-model-marker", provider: "https://private.invalid/path",
+      warnings: [{type: "unsupported", feature: "private-feature-marker", message: "private-message-marker",
+        details: "private-details-marker"}]});
+    assert.deepEqual(calls, [{message: "AI SDK model warning", context: {
+      event: "model.sdk.warning", module: "bootstrap.zcode_protocol", status: "completed", count: 1,
+    }}]);
+  } finally {
+    if (previous === undefined) delete target.AI_SDK_LOG_WARNINGS;
+    else target.AI_SDK_LOG_WARNINGS = previous;
+  }
+});
 
 function setupRecorder() {
   let now = 100;

@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmod, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, lstat, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import test from "node:test";
 import { ensureSeaRuntimeTools, type SeaRuntimeModule } from "../src/sea-runtime-tools.js";
+
+const fixturePlatform = process.platform === "win32" ? "win32" : "darwin";
+const fixtureArch = fixturePlatform === "win32" ? "x64" : "arm64";
+const fixtureTarget = fixturePlatform === "win32" ? "win-x64" : "darwin-arm64";
 
 type ToolFixture = {
   binaryName: string;
@@ -33,14 +37,14 @@ test("does nothing outside a SEA runtime", async () => {
 test("extracts target tools into version and hash addressed cache directories", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-sea-runtime-cache-"));
   const fixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: defaultToolFixtures(),
   });
 
   try {
     const runtimeEnv = await ensureSeaRuntimeTools({
-      arch: "arm64",
-      platform: "darwin",
+      arch: fixtureArch,
+      platform: fixturePlatform,
       sea: fixture.sea,
       storageRoot,
     });
@@ -55,14 +59,14 @@ test("extracts target tools into version and hash addressed cache directories", 
           storageRoot,
           "cache",
           "runtime_tools",
-          "darwin-arm64",
+          fixtureTarget,
           tool.id,
           `${tool.version}-${tool.sha256}`,
           tool.binaryName,
         ),
       );
       assert.deepEqual(await readFile(binaryPath), tool.bytes);
-      assert.notEqual((await stat(binaryPath)).mode & 0o111, 0);
+      if (fixturePlatform !== "win32") assert.notEqual((await stat(binaryPath)).mode & 0o111, 0);
     }
   } finally {
     await rm(storageRoot, { force: true, recursive: true });
@@ -72,29 +76,29 @@ test("extracts target tools into version and hash addressed cache directories", 
 test("reuses unchanged tools when another tool changes", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-sea-runtime-reuse-"));
   const firstFixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: defaultToolFixtures(),
   });
   const changedFixtures = defaultToolFixtures().map((tool) =>
     tool.id === "ugrep" ? { ...tool, bytes: Buffer.from("ugrep-next") } : tool,
   );
   const secondFixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: changedFixtures,
   });
 
   try {
     const first = await ensureSeaRuntimeTools({
-      arch: "arm64",
-      platform: "darwin",
+      arch: fixtureArch,
+      platform: fixturePlatform,
       sea: firstFixture.sea,
       storageRoot,
     });
     const firstBfsStat = await stat(assertPath(first.ZCODE_BFS_BINARY));
 
     const second = await ensureSeaRuntimeTools({
-      arch: "arm64",
-      platform: "darwin",
+      arch: fixtureArch,
+      platform: fixturePlatform,
       sea: secondFixture.sea,
       storageRoot,
     });
@@ -111,28 +115,28 @@ test("reuses unchanged tools when another tool changes", async () => {
 test("repairs caches with invalid size, hash, marker, or executable mode", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-sea-runtime-repair-"));
   const fixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: defaultToolFixtures(),
   });
   const options = {
-    arch: "arm64",
-    platform: "darwin" as const,
+    arch: fixtureArch,
+    platform: fixturePlatform,
     sea: fixture.sea,
     storageRoot,
   };
 
   try {
     const first = await ensureSeaRuntimeTools(options);
-    await chmod(assertPath(first.ZCODE_BFS_BINARY), 0o644);
+    if (fixturePlatform !== "win32") await chmod(assertPath(first.ZCODE_BFS_BINARY), 0o644);
     await writeFile(assertPath(first.ZCODE_RG_BINARY), "short");
     await writeFile(
-      join(assertPath(first.ZCODE_UGREP_BINARY), "..", ".zcode-runtime-tool.json"),
+      join(assertPath(first.ZCODE_UGREP_BINARY), "..", ".zcodium-runtime-tool.json"),
       "{}",
     );
 
     const repaired = await ensureSeaRuntimeTools(options);
 
-    assert.notEqual((await stat(assertPath(repaired.ZCODE_BFS_BINARY))).mode & 0o111, 0);
+    if (fixturePlatform !== "win32") assert.notEqual((await stat(assertPath(repaired.ZCODE_BFS_BINARY))).mode & 0o111, 0);
     for (const tool of fixture.tools) {
       assert.deepEqual(await readFile(assertPath(repaired[envVarFor(tool.id)])), tool.bytes);
     }
@@ -151,12 +155,12 @@ test("repairs caches with invalid size, hash, marker, or executable mode", async
 test("concurrent first runs converge without temporary cache residue", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-sea-runtime-race-"));
   const fixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: defaultToolFixtures(),
   });
   const options = {
-    arch: "arm64",
-    platform: "darwin" as const,
+    arch: fixtureArch,
+    platform: fixturePlatform,
     sea: fixture.sea,
     storageRoot,
   };
@@ -167,7 +171,7 @@ test("concurrent first runs converge without temporary cache residue", async () 
     );
 
     for (const result of results.slice(1)) assert.deepEqual(result, results[0]);
-    const runtimeRoot = join(storageRoot, "cache", "runtime_tools", "darwin-arm64");
+    const runtimeRoot = join(storageRoot, "cache", "runtime_tools", fixtureTarget);
     const entries = await collectEntries(runtimeRoot);
     assert.equal(
       entries.some((entry) => entry.includes(".tmp-")),
@@ -178,18 +182,52 @@ test("concurrent first runs converge without temporary cache residue", async () 
   }
 });
 
+
+test("concurrent repairs preserve the published cache and release all owners", async () => {
+  const storageRoot = await mkdtemp(join(tmpdir(), "zcodium-sea-repair-race-"));
+  const fixture = createSeaFixture({ target: fixtureTarget, tools: defaultToolFixtures() });
+  const options = { arch: fixtureArch, platform: fixturePlatform, sea: fixture.sea, storageRoot };
+  try {
+    const first = await ensureSeaRuntimeTools(options);
+    await writeFile(assertPath(first.ZCODE_RG_BINARY), "broken");
+    const results = await Promise.allSettled(Array.from({ length: 8 }, () => ensureSeaRuntimeTools(options)));
+    for (const result of results) {
+      assert.equal(result.status, "fulfilled");
+      if (result.status === "fulfilled") assert.deepEqual(result.value, first);
+    }
+    assert.deepEqual(await readFile(assertPath(first.ZCODE_RG_BINARY)), Buffer.from("ripgrep"));
+    const entries = await collectEntries(join(storageRoot, "cache"));
+    assert.equal(entries.some((entry) => entry.includes(".tmp-") || entry.endsWith(".lock")), false);
+  } finally { await rm(storageRoot, { force: true, recursive: true }); }
+});
+
+test("a non-directory cache target is preserved during repair", async () => {
+  const storageRoot = await mkdtemp(join(tmpdir(), "zcodium-sea-linked-cache-"));
+  const fixture = createSeaFixture({ target: fixtureTarget, tools: defaultToolFixtures() });
+  const options = { arch: fixtureArch, platform: fixturePlatform, sea: fixture.sea, storageRoot };
+  try {
+    const first = await ensureSeaRuntimeTools(options);
+    const cache = dirname(assertPath(first.ZCODE_RG_BINARY));
+    await rm(cache, { recursive: true });
+    await writeFile(cache, "retain");
+    await assert.rejects(ensureSeaRuntimeTools(options));
+    assert.equal((await lstat(cache)).isFile(), true);
+    assert.equal(await readFile(cache, "utf8"), "retain");
+  } finally { await rm(storageRoot, { force: true, recursive: true }); }
+});
+
 test("preserves explicit runtime tool overrides", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-sea-runtime-override-"));
   const fixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: defaultToolFixtures(),
   });
 
   try {
     const runtimeEnv = await ensureSeaRuntimeTools({
-      arch: "arm64",
+      arch: fixtureArch,
       env: { ZCODE_BFS_BINARY: "/custom/bfs" },
-      platform: "darwin",
+      platform: fixturePlatform,
       sea: fixture.sea,
       storageRoot,
     });
@@ -242,7 +280,7 @@ test("extracts Windows SEA tools using the win target and executable name", asyn
 test("rejects corrupt assets and target mismatches", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-sea-runtime-invalid-"));
   const fixture = createSeaFixture({
-    target: "darwin-arm64",
+    target: fixtureTarget,
     tools: defaultToolFixtures(),
   });
   const corruptSea: SeaRuntimeModule = {
@@ -254,8 +292,8 @@ test("rejects corrupt assets and target mismatches", async () => {
   try {
     await assert.rejects(
       ensureSeaRuntimeTools({
-        arch: "arm64",
-        platform: "darwin",
+        arch: fixtureArch,
+        platform: fixturePlatform,
         sea: corruptSea,
         storageRoot,
       }),
@@ -263,8 +301,8 @@ test("rejects corrupt assets and target mismatches", async () => {
     );
     await assert.rejects(
       ensureSeaRuntimeTools({
-        arch: "x64",
-        platform: "darwin",
+        arch: fixtureArch === "x64" ? "arm64" : "x64",
+        platform: fixturePlatform,
         sea: fixture.sea,
         storageRoot,
       }),

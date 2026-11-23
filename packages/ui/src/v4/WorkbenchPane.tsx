@@ -43,7 +43,6 @@ import type {
 } from "@/lib/workspaceSidePane.js";
 import { SessionPane } from "@/v4/SessionPane.js";
 import type { PaneWorkspaceBadge } from "@/v4/ConversationHeader.js";
-import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
 import { type RegisterConversationDropTarget } from "@/v4/composer/conversationDropTarget.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";

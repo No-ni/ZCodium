@@ -150,7 +150,6 @@ describe("BrowserGuestManager destroyed listener ownership", () => {
     const owner = manager();
     const contents = guest(1);
     const viewport = deferred<unknown>();
-    contents.executeJavaScript = vi.fn(() => viewport.promise);
     expect(
       owner.attachGuest("tab:fixture", 1, {
         windowId: 1,
@@ -161,13 +160,21 @@ describe("BrowserGuestManager destroyed listener ownership", () => {
 
     const context = {
       requestId: "list:fixture",
-      browserId: "unclaimed-iab",
-      browserGeneration: 0,
+      browserId: owner.getBackendIdentity(1).id,
+      browserGeneration: owner.getBackendIdentity(1).generation,
       windowId: 1,
       workspaceKey: "workspace:fixture",
       sessionId: "session:fixture",
       clientMode: "desktop-continuous" as const,
     };
+    // 官方控制边界要求先认领用户 tab；夹具使用同一 owner 身份，不绕过 scope 校验。
+    await expect(
+      owner.execute(
+        { ...context, requestId: "claim:fixture" },
+        { method: "claimTab", tabId: "tab:fixture" },
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    contents.executeJavaScript = vi.fn(() => viewport.promise);
     const listing = owner.execute(context, { method: "list" });
     expect(contents.executeJavaScript).toHaveBeenCalledOnce();
     await owner.execute(
@@ -229,11 +236,11 @@ describe("BrowserGuestManager download listener ownership on the shared session"
     });
   }
 
-  function downloadContext(requestId: string) {
+  function downloadContext(owner: BrowserGuestManager, requestId: string) {
     return {
       requestId,
-      browserId: "unclaimed-iab",
-      browserGeneration: 0,
+      browserId: owner.getBackendIdentity(1).id,
+      browserGeneration: owner.getBackendIdentity(1).generation,
       windowId: 1,
       workspaceKey: "workspace:fixture",
       sessionId: "session:fixture",
@@ -303,7 +310,13 @@ describe("BrowserGuestManager download listener ownership on the shared session"
       method: "playwright",
       action: { name: "waitForEvent", event: "download", timeoutMs: 1000 },
     };
-    const waiting = owner.execute(downloadContext("download:wait"), waitCommand);
+    await expect(
+      owner.execute(downloadContext(owner, "download:claim"), {
+        method: "claimTab",
+        tabId: "browser:fixture",
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    const waiting = owner.execute(downloadContext(owner, "download:wait"), waitCommand);
     const item = downloadItem("C:\\fixture\\file.bin");
     session.emit("will-download", {}, item, contents);
     const waited = await waiting;
@@ -315,7 +328,7 @@ describe("BrowserGuestManager download listener ownership on the shared session"
       method: "playwright",
       action: { name: "downloadPath", downloadId, timeoutMs: 1000 },
     };
-    const resolved = await owner.execute(downloadContext("download:path"), pathCommand);
+    const resolved = await owner.execute(downloadContext(owner, "download:path"), pathCommand);
     expect(resolved).toMatchObject({ ok: true, value: "C:\\fixture\\file.bin" });
   });
 

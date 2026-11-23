@@ -998,13 +998,14 @@ describe("session fork history", () => {
       workspacePath: "/workspace",
     };
     const childSessionId = "sess_env_child" as SessionId;
-    // 会话 runtime 自己算目录的方式：worktree 子会话的 workspace 路径就是它的 cwd。
+    // 本仓保留项目身份；worktree 只改变 child 执行目录，不改变输出 bucket 的工作区 key。
     // genUi: false 时没有输出根目录，返回 undefined。
-    const directoryOf = (sessionId: SessionId, workspacePath = "/workspace"): string | undefined =>
+    const directoryOf = (sessionId: SessionId, executionWorkspacePath = "/workspace"): string | undefined =>
       resolveGenUiOutputDirectory({
-        config: { ...config, workspacePath },
+        config,
         sessionId,
-        workspaceRoot: workspacePath,
+        workspaceScopeRoot: config.workspacePath,
+        workspaceRoot: executionWorkspacePath,
       } as never);
     const parentDirectory = directoryOf(SESSION_ID);
     const environment = buildRuntimeReminderMessage(
@@ -1163,8 +1164,9 @@ describe("session fork history", () => {
     const { childSessionId, directoryOf, environmentMessages, parentDirectory } =
       await forkWithEnvironmentHistory({ targetCwd: worktree });
     const childDirectory = directoryOf(childSessionId, worktree);
-    // 目录由 workspace 路径与 session id 决定，worktree 子会话的目录与按父会话路径算出的不同。
-    expect(childDirectory).not.toBe(directoryOf(childSessionId));
+      // 同一个 child 的 bucket 保留工作区身份；child 与 parent 的 session id 仍隔离。
+      expect(childDirectory).toBe(directoryOf(childSessionId));
+      expect(childDirectory).not.toBe(parentDirectory);
     expect(environmentMessages).toHaveLength(2);
     expect(environmentMessages[1]!.parts[0]).toMatchObject({
       text: `# Environment update\n - Primary working directory: ${worktree} (was /workspace)\n - Visualization directory for this session: ${childDirectory} (was ${parentDirectory})`,

@@ -21,14 +21,14 @@ afterEach(async () => {
 });
 
 describe("HttpClientPort through a proxy", () => {
-  it("returns a nonstandard status such as 999 as an ordinary response", async () => {
+  it("rejects an unrepresentable status through the request error contract", async () => {
     const proxy = await answeringProxy(999);
     const adapter = createNodeHttpClientAdapter({ env: { ZCODE_HTTP_PROXY: proxy } });
 
-    const response = await adapter.request({ url: "http://profiles.example/in/someone" });
-
-    expect(response.status).toBe(999);
-    expect(new TextDecoder().decode(response.body)).toBe(BODY);
+    await expect(adapter.request({ url: "http://profiles.example/in/someone" })).rejects.toMatchObject({
+      code: "proxy_error",
+      cause: { code: "ZCODE_UNSUPPORTED_HTTP_STATUS", status: 999 },
+    });
   });
 
   it.each([204, 304])("returns %i with an empty body", async (status) => {

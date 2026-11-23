@@ -95,7 +95,7 @@ test("REPL diagnostics hide private data and closed output still shuts down once
   assert.equal(closed, 1);
 });
 
-test("subagent preserves executable output without private metadata sidecars", async () => {
+test("subagent preserves output and only the minimal cold-recovery metadata", async () => {
   const { mkdtemp, readFile, readdir, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -129,7 +129,13 @@ test("subagent preserves executable output without private metadata sidecars", a
     });
     assert.equal(result.status, "completed");
     const directory = join(root, sessionId, "privacy-agent");
-    assert.deepEqual((await readdir(directory)).sort(), ["output.txt", "task.output"]);
+    assert.deepEqual((await readdir(directory)).sort(), ["metadata.json", "output.txt", "task.output"]);
+    // 冷恢复只需要 registry 状态；不能为了文件数量断言移除它，也不能恢复 prompt/config/error sidecar。
+    const metadata = JSON.parse(await readFile(join(directory, "metadata.json"), "utf8"));
+    assert.equal(metadata.status, "completed");
+    assert.equal(metadata.agentId, "privacy-agent");
+    assert.ok(Object.keys(metadata).every(key => ["agentId", "executionId", "status", "startedAt", "resumedAt", "completedAt"].includes(key)));
+    assert.equal(JSON.stringify(metadata).includes(secret), false);
     assert.equal(await readFile(join(directory, "output.txt"), "utf8"), "business result");
     assert.ok(events.length >= 2);
   } finally {

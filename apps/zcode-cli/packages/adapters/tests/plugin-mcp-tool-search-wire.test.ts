@@ -66,9 +66,9 @@ it.each(["file", "manifest"] as const)(
         default: endpoint,
       };
       const pluginRoot = join(root, PLUGIN_NAME);
-      await mkdir(join(pluginRoot, ".zcode-plugin"), { recursive: true });
+      await mkdir(join(pluginRoot, ".zcodium-plugin"), { recursive: true });
       await writeFile(
-        join(pluginRoot, ".zcode-plugin", "plugin.json"),
+        join(pluginRoot, ".zcodium-plugin", "plugin.json"),
         JSON.stringify({
           name: PLUGIN_NAME,
           ...(source === "manifest" ? { mcpServers: servers } : {}),

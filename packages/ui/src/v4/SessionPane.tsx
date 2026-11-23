@@ -12,15 +12,12 @@ import { completeNewModelSelection } from "@zcode/provider";
 import { useSubagents } from "@/hooks/useSubagents.js";
 import { ToolPresentationCapabilitiesProvider } from "@/ToolCallBlocks/presentationCapabilities.js";
 import { V4_PRIMARY_PANE_ID } from "@/v4/paneLayoutStore.js";
-import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
+import "@/hooks/useConfirmDialog.js";
 import { useSessionRuntimeRestart } from "@/app-shell/useWorkspaceSessionReload.js";
-import { useShallow } from "zustand/react/shallow";
+import "zustand/react/shallow";
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
-import {
-  createRemoteWorkspaceDisconnectedError,
-  getRemoteConnectionFailureCode,
-} from "@/lib/remoteWorkspaceServiceError.js";
-import { buildConversationShareItems } from "@/v4/conversationShareItems.js";
+import "@/lib/remoteWorkspaceServiceError.js";
+import "@/v4/conversationShareItems.js";
 import { BotGroupDeliveryProvider } from "@/v4/BotGroupDeliveryAction.js";
 /* oxlint-disable eslint(max-lines) -- SessionPane 是单 pane 竖切的命令编排收口（订阅/发送/停止/fork/edit/retry/queue/slash 全集），与旧 ChatView 同粒度；HEAD 已超限（693 行计数），拆散命令组会打散 dispatchCommand/snapshotRef 的闭包纪律。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -278,10 +275,7 @@ import {
   hasChatLoadingBlockingInteraction,
 } from "@/v4/chatLoadingVisibility.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
-import {
-  isModelNotInRegistryError,
-  type ChatErrorBannerModelConfigTarget,
-} from "@/ChatErrorBanner.js";
+import { isModelNotInRegistryError } from "@/ChatErrorBanner.js";
 import { isProviderNotReadyError } from "@/lib/chatPrepareError.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
@@ -485,10 +479,6 @@ function isConversationFileDrag(dataTransfer: DataTransfer): boolean {
     types.includes(WORKSPACE_FILE_DRAG_MIME) ||
     Array.from(dataTransfer.items ?? []).some((item) => item.kind === "file")
   );
-}
-
-function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boolean {
-  return status === "accepted" || status === "duplicate";
 }
 
 /**
@@ -1166,12 +1156,14 @@ export function SessionPane({
   const workspaceConfigOptions = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).configOptions,
   );
+  const snapshotConfig = snapshot?.config;
+  const taskConfigSnapshotSessionId = snapshot?.sessionId;
   useEffect(() => {
     if (
       !sessionId ||
-      snapshot?.sessionId !== sessionId ||
-      !snapshot.config.provider.trim() ||
-      !snapshot.config.model.trim() ||
+      taskConfigSnapshotSessionId !== sessionId ||
+      !snapshotConfig?.provider.trim() ||
+      !snapshotConfig.model.trim() ||
       !workspaceConfigOptions?.length
     ) {
       return;
@@ -1184,16 +1176,13 @@ export function SessionPane({
       .setTaskConfigOptions(
         workspacePath,
         sessionId,
-        projectSessionConfigToTaskConfigOptions(workspaceConfigOptions, snapshot.config),
+        projectSessionConfigToTaskConfigOptions(workspaceConfigOptions, snapshotConfig),
         workspaceIdentity,
       );
   }, [
     sessionId,
-    snapshot?.config.mode,
-    snapshot?.config.model,
-    snapshot?.config.provider,
-    snapshot?.config.thought,
-    snapshot?.sessionId,
+    snapshotConfig,
+    taskConfigSnapshotSessionId,
     workspaceConfigOptions,
     workspaceIdentity,
     workspacePath,
@@ -2468,6 +2457,8 @@ export function SessionPane({
       readAttachmentRange: runtimeReady ? attachmentReadRange : undefined,
     }),
     [
+      // 就绪状态独立于 snapshot 引用；否则文件/附件入口会一直停在旧门禁投影。
+      runtimeReady,
       workspacePath,
       fileReferenceRootResolved,
       fileSearchRootPath,
@@ -2531,7 +2522,7 @@ export function SessionPane({
   // ── 草稿态 v4 draft session 预热（m5）──
   // pane 未绑定会话时后台建 phase=draft 会话作预热载体：配置写 CAS 直达、首发复用。
   // 对外绑定语义不变（shell activeTaskId 仍 null），预热会话只是 pane 内部 effective 订阅目标。
-  const { binding: prewarmBinding, waitForSession: waitForDraftSession } = useDraftSessionPrewarm({
+  const { binding: prewarmBinding } = useDraftSessionPrewarm({
     // worktree 草稿不预热：会话要等 worktree 建好后由 Host 创建，cwd 一次确定（§3.2）。
     enabled:
       sessionId === null && draftAgentStartupAllowed && !recoveringDraft && !draftWorktreeEnabled,
@@ -2608,14 +2599,14 @@ export function SessionPane({
     (!snapshot.runtimeInitialization || snapshot.runtimeInitialization.status === "ready"),
   );
   useEffect(() => {
-    if (sessionId === null && effectiveSessionId && pluginUiRuntimeReady && snapshot) {
-      observeDraftPermissionGrant(effectiveSessionId, snapshot.config);
+    if (sessionId === null && effectiveSessionId && pluginUiRuntimeReady && snapshotConfig) {
+      observeDraftPermissionGrant(effectiveSessionId, snapshotConfig);
     }
   }, [
     sessionId,
     effectiveSessionId,
     pluginUiRuntimeReady,
-    snapshot?.config,
+    snapshotConfig,
     observeDraftPermissionGrant,
   ]);
   useLayoutEffect(() => {
@@ -3388,17 +3379,17 @@ export function SessionPane({
       availableSelectionSideSlashCommandNames,
       appSlashCommands,
       appFollowupMode,
-      handleDraftSwitchMode,
       handleOpenSelectionSideConversationWithPrompt,
       intl,
-      lease,
-      resolveInitialDraftConfig,
-      createSubmissionFromComposer,
       sessionId,
       settleCurrentQueueInputs,
       workspaceIdentity,
       workspaceKey,
       workspacePath,
+      baseWorkspaceServices.managedWorktreeService,
+      captureAcceptedModelSelection,
+      draftConfigRef,
+      viewWorktreeCreation,
     ],
   );
 
@@ -4309,7 +4300,7 @@ export function SessionPane({
     [
       provider,
       handleDraftSelectModel,
-      sessionId,
+      modelSelectionView,
       showModelChangeNotice,
       workspaceIdentity,
       workspacePath,
@@ -4431,6 +4422,7 @@ export function SessionPane({
     remoteSessionId,
     workspaceIdentity,
   );
+  const { restart: restartSessionRuntime } = sessionRuntimeRestart;
   const handleRetrySubscribe = useCallback(async () => {
     const runtime = lease?.store.getState().runtimeLifecycle;
     if (
@@ -4438,7 +4430,7 @@ export function SessionPane({
       runtime?.state === "unloaded" ||
       (!runtime && snapshotRef.current?.runtimeInitialization?.status === "failed")
     ) {
-      if (!(await sessionRuntimeRestart.restart())) return;
+      if (!(await restartSessionRuntime())) return;
       // ready 通知已经让原 store 接回订阅；恢复按钮不能再发第二次 connect。
       if (
         runtime &&
@@ -4448,7 +4440,7 @@ export function SessionPane({
         return;
     }
     await lease?.store.retry();
-  }, [lease, sessionRuntimeRestart.restart, snapshotRef]);
+  }, [lease, restartSessionRuntime, snapshotRef]);
 
   // loadOlder 触发（接近顶部自动预取）。store 内部单飞防重入。
   const handleLoadOlder = useCallback(() => {
@@ -4594,23 +4586,24 @@ export function SessionPane({
       ? floatingLatestTurn.summary
       : null;
   const reportFloatingStatus = panePresentation.reportFloatingStatus;
+  const floatingCanStop = timelineSnapshot?.control.canStop === true;
+  const floatingBlockingInteractionId = timelineSnapshot ? blockingInteractionId : null;
   useEffect(() => {
     if (!isFloatingPresentation || !focused) return;
     reportFloatingStatus({
       ownerKey: floatingOwnerKey,
-      running: timelineSnapshot?.control.canStop === true,
-      blockingInteractionId: timelineSnapshot ? blockingInteractionId : null,
+      running: floatingCanStop,
+      blockingInteractionId: floatingBlockingInteractionId,
       latestTurn: floatingSummary,
     });
   }, [
-    blockingInteractionId,
+    floatingBlockingInteractionId,
     floatingOwnerKey,
     floatingSummary,
     focused,
     isFloatingPresentation,
     reportFloatingStatus,
-    timelineSnapshot?.control.canStop,
-    timelineSnapshot !== null,
+    floatingCanStop,
   ]);
   const timelineRows = timelineSnapshot
     ? (state.editPresentation?.rows ?? timelineSnapshot.rows)
@@ -4743,7 +4736,7 @@ export function SessionPane({
     if (next.size === pendingSubagentStopsRef.current.size) return;
     pendingSubagentStopsRef.current = next;
     setPendingSubagentStops(next);
-  }, [sessionId, subagents.running]);
+  }, [sessionId, subagents.running, subagents.revision]);
   const panelPendingSubagentStops = useMemo(
     () =>
       new Set(
@@ -4939,11 +4932,6 @@ export function SessionPane({
   const handleDismissComposerError = useCallback(() => composerBanner?.dismiss(), [composerBanner]);
   // 远端 workspace 的模型目录来自远端 Registry；本机配置保存后由 Provisioning 自动下发，
   // 因此缺模型横幅只切换措辞，配置/升级动作仍统一指向本机。
-  const modelConfigTarget: ChatErrorBannerModelConfigTarget = isRemoteWorkspaceIdentity(
-    workspaceIdentity ?? "",
-  )
-    ? "remote"
-    : "local";
   const handleOpenModelSettings = useCallback(() => {
     setPendingSettingsSectionIntent("modelProvider");
     openSettingsTab();
@@ -5108,26 +5096,23 @@ export function SessionPane({
       updateShareDockState(sessionId, { publishing: false });
     }
   }, [
-    conversationShareService,
-    // 解析根必须进依赖：发布请求带的是它，而服务侧的根一致性校验只在「预检根 ≠ 发布根」时
-    // 才会以 `stale_conversation` 显式失败——用旧根发送会让两侧看起来一致，于是按旧根重新解析
-    // 正文引用（零附件或分享出对话根下的同名文件）。见 spec 已知边界 13。
-    fileSearchRootPath,
-    platform,
-    intl,
-    remoteSessionId,
-    sessionId,
-    shareDraft,
-    sharePreflight,
-    selectedShareProductTurnIds,
-    sharePublishing,
-    shareTitle,
-    snapshot?.logEpoch,
-    snapshot?.revision,
-    updateShareDockState,
-    workspaceIdentity,
-    workspacePath,
-  ]);
+      conversationShareService,
+      fileSearchRootPath,
+      platform,
+      intl,
+      remoteSessionId,
+      sessionId,
+      shareDraft,
+      sharePreflight,
+      selectedShareProductTurnIds,
+      shareTitle,
+      snapshot?.logEpoch,
+      snapshot?.revision,
+      updateShareDockState,
+      workspaceIdentity,
+      workspacePath,
+      locale,
+    ]);
 
   const handleCopyShareRequestId = useCallback(() => {
     const requestId = shareError?.requestId;

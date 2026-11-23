@@ -59,7 +59,7 @@ const DYNAMIC_WORKFLOW_ONLY = [
 describe("session control production tools", () => {
   it.each(["cli", "app"] as const)("advertises the %s surface under shared names", (kind) => {
     const registry = createToolRegistry();
-    registerBuiltInTools(registry, { sessionControlKind: kind });
+    registerBuiltInTools(registry, { sessionControlKind: kind, includeToolSearch: true });
     const model = createTestRuntimeModel({
       generateText: async () => ({ text: "", finishReason: "stop" }),
     });

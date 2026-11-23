@@ -19,7 +19,6 @@ import {
 import type { RuntimeModelTextResult, RunModelTextRequestOptions } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
-import { projectToolReferences } from "../../tool/search/history.js";
 
 export const COMPACT_TOOL_USE_DENIAL_MESSAGE = "Tool use is not allowed during compaction";
 export const COMPACT_TOOL_USE_DENIAL_REASON = "compaction agent should only produce text summary";
@@ -89,7 +88,10 @@ export function buildCompactSummaryRequestMessages(
   } = {},
 ): RunModelTextRequestOptions["messages"] {
   return buildProviderRequestMessages({
-    entries: [...entriesForSummary, { message: { role: "user" as const, content: compactPrompt } }],
+    entries: [
+      ...entriesForSummary,
+      { message: { role: "user" as const, content: compactPrompt } },
+    ],
     applyCacheControl: true,
     skipCacheWrite: true,
     useMidConversationSystem: options.useMidConversationSystem,

@@ -1,9 +1,9 @@
 // packStage / checkStage 测试：在临时目录里搭 stage，检查产物包内容、契约检查和本地启动检查。
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, rename, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { test } from "node:test";
 
 import { checkStage, classifyBinary, packStage } from "../scripts/stage.mjs";
@@ -60,8 +60,17 @@ test("pack writes the stage as a gzip tar and skips local-only files", async () 
   assert.equal(packed.result.files, 5);
   assert.equal(packed.result.linuxBinaries, 1);
 
-  const listing = execFileSync("tar", ["-tvzf", out], { encoding: "utf8" });
-  const names = execFileSync("tar", ["-tzf", out], { encoding: "utf8" }).trim().split("\n").sort();
+  const listing = execFileSync("tar", ["-tvzf", out], { encoding: "utf8", windowsHide: true }).replaceAll("\r\n", "\n");
+  const listedPaths = execFileSync("tar", ["-tzf", out], { encoding: "utf8", windowsHide: true }).trim().split(/\r?\n/);
+  assert.ok(listedPaths.every((path) => !isAbsolute(path) && !path.split(/[\\/]/).includes("..")));
+  // Windows BSD tar 的控制台编码不是 UTF-8；实际解压的文件名才是归档合同。
+  const unpacked = join(dir, "unpacked");
+  await mkdir(unpacked);
+  execFileSync("tar", ["-xzf", out, "-C", unpacked], { windowsHide: true });
+  const names = (await readdir(unpacked, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(unpacked, join(entry.parentPath, entry.name)).replaceAll("\\", "/"))
+    .sort();
   assert.deepEqual(names, [
     "lib/addon.node",
     `public/${"a".repeat(120)}.html`,
@@ -70,7 +79,8 @@ test("pack writes the stage as a gzip tar and skips local-only files", async () 
     "start.sh",
   ]);
   assert.match(listing, /^-rwxr-xr-x.*lib\/addon\.node$/m);
-  assert.match(listing, /^-rwxr-xr-x.*server\.js$/m);
+  // Windows 的 chmod 不提供 POSIX 执行位；普通文件按可表达的宿主权限保留。
+  assert.match(listing, process.platform === "win32" ? /^-rw-r--r--.*server\.js$/m : /^-rwxr-xr-x.*server\.js$/m);
   assert.match(listing, /^-rw-r--r--.*start\.sh$/m);
 });
 
@@ -83,7 +93,10 @@ test("pack lists every contract problem and builds no package", async () => {
     "bin/tool": macho(),
     ".__zcode/x": "",
   });
-  await symlink("missing", join(root, "broken"));
+  // 受限 Node 无法创建链接；验证器可移交已审查、只指向项目内 missing 的链接 fixture。
+  const preparedBrokenLink = process.env.ZCODE_TEST_PREPARED_BROKEN_LINK;
+  if (preparedBrokenLink) await rename(preparedBrokenLink, join(root, "broken"));
+  else await symlink("missing", join(root, "broken"));
   const packed = await packStage(root, { cwd: dir });
   assert.equal(packed.body, undefined);
   const text = packed.problems.join("\n");

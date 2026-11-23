@@ -15,7 +15,7 @@ import {
   DISPATCH_RETRY_BASE_MS,
 } from "../src/session/automationRepo.js";
 import { AutomationService } from "../src/session/automationService.js";
-import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import { prepareTasksIndexStorage } from "../src/project-storage/startup-entry.js";
 
 /**
  * scheduled run 成功结算的幂等边界回归（docs/specs/automation-lifecycle-controls.md

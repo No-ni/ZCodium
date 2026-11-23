@@ -165,16 +165,20 @@ export async function loadPolicy(cwd = process.cwd()) {
 }
 
 export function moduleForFile(file, policy) {
+  // 只能比较目标文件实际匹配的 root；无关的长 root 曾抢走嵌套目录或精确文件的真实 owner。
   const candidates = policy.modules
-    .filter((module) =>
-      module.roots.some((root) => file === root || file.startsWith(`${root}${path.sep}`)),
-    )
-    .sort(
-      (a, b) =>
-        Math.max(...b.roots.map((root) => root.length)) -
-        Math.max(...a.roots.map((root) => root.length)),
-    );
-  return candidates[0] ?? null;
+    .map((module) => ({
+      module,
+      matchedLength: Math.max(
+        -1,
+        ...module.roots
+          .filter((root) => file === root || file.startsWith(`${root}${path.sep}`))
+          .map((root) => root.length),
+      ),
+    }))
+    .filter((candidate) => candidate.matchedLength >= 0)
+    .sort((a, b) => b.matchedLength - a.matchedLength);
+  return candidates[0]?.module ?? null;
 }
 
 export async function discoverFiles(policy) {

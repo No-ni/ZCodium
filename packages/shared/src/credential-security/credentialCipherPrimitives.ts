@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { homedir, platform, userInfo } from "node:os";
-import { join } from "node:path";
+import "node:path";
 import { CREDENTIAL_DECRYPT_ERROR_CODE, CREDENTIAL_DECRYPT_ERROR_PREFIX } from "@zcode/shared";
 import type { CredentialCipher } from "./contract.js";
 

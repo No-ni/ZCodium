@@ -1919,6 +1919,15 @@ class NodeMcpAdapter implements McpPort {
       if (!listeners.size) this.appConnectionListeners.delete(name);
     };
   }
+  async waitForAppConnection(name: string): Promise<{ identity: string; generation: number } | null> {
+    const record = this.records.get(name);
+    if (this.closed || !record) return null;
+    const generation = this.connectionGenerations.get(name) ?? 0;
+    // 官方等待契约被误剥离；复用已有握手，完成后再次验证代际，不能复活已关闭的连接。
+    await record.connecting;
+    return this.isCurrentConnection(name, generation) ? this.appConnectionSnapshot(name) : null;
+  }
+
   appConnectionSnapshot(name: string): { identity: string; generation: number } | null {
     const record = this.records.get(name);
     if (this.closed || !record?.client || record.status.status !== "connected") return null;
@@ -2018,6 +2027,8 @@ function mcpRequestMeta(request: McpCallToolRequest): Record<string, unknown> {
     ...(request.trace?.spanId ? { span_id: request.trace.spanId } : {}),
     ...(request.trace?.parentSpanId ? { parent_span_id: request.trace.parentSpanId } : {}),
     ...(request.trace?.sessionId ? { session_id: request.trace.sessionId } : {}),
+    // 子代理与父会话共用 MCP 状态需要官方已有的根会话键，它是路由契约而非采集字段。
+    ...(request.trace?.rootSessionId ? { root_session_id: request.trace.rootSessionId } : {}),
     ...(request.trace?.turnId ? { turn_id: request.trace.turnId } : {}),
     ...(request.runtimeScope ? { runtime_scope: request.runtimeScope } : {}),
     ...(request.workspacePath ? { workspace_path: request.workspacePath } : {}),

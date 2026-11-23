@@ -1,11 +1,17 @@
 import { DatabaseSync } from "node:sqlite";
-import { expect, it } from "vitest";
+import { rm } from "node:fs/promises";
+import { afterEach, expect, it } from "vitest";
 import {
-  runSqliteSessionMigrations,
   runSqliteSessionMigrationsAsync,
   type SqliteMigrationProgress,
 } from "../src/storage/session-store/migration-runner.js";
 import { runSessionDatabaseIdentityMigration } from "@zcode/shared/sqlite-migrations";
+import { createProjectTestFixture } from "../../../../../scripts/ci/project-test-sandbox.mjs";
+
+const directories: string[] = [];
+afterEach(async () => {
+  for (const directory of directories.splice(0)) await rm(directory, { recursive: true, force: true });
+});
 it("Source 记账失败回滚新表，Agent 与 Source 都拒绝已有 checksum 损坏", async () => {
   const db = new DatabaseSync(":memory:");
   try {
@@ -24,7 +30,7 @@ it("Source 记账失败回滚新表，Agent 与 Source 都拒绝已有 checksum 
     runSessionDatabaseIdentityMigration(db);
     db.exec("UPDATE schema_migration SET checksum='broken'");
     expect(() => runSessionDatabaseIdentityMigration(db)).toThrow(/checksum mismatch/);
-    await expect(runSqliteSessionMigrations(db, ":memory:")).rejects.toThrow(/checksum mismatch/);
+    await expect(runSqliteSessionMigrationsAsync(db, ":memory:")).rejects.toMatchObject({ kind: "checksum_mismatch" });
     // Agent 更早的迁移也在同一事务内回滚，损坏记录不会被覆盖。
     expect(db.prepare("SELECT id, checksum FROM schema_migration").all()).toEqual([
       { id: "0024_session_database_identity", checksum: "broken" },
@@ -39,14 +45,16 @@ it("Agent 正式迁移接管已有 Source identity，不覆盖代际且重复打
   try {
     db.exec(`CREATE TABLE zcode_database_identity (scope TEXT PRIMARY KEY, identity TEXT NOT NULL);
       INSERT INTO zcode_database_identity VALUES ('session', 'existing-generation')`);
-    await runSqliteSessionMigrations(db, ":memory:");
+    const directory = await createProjectTestFixture("identity-migration-backup");
+    directories.push(directory);
+    await runSqliteSessionMigrationsAsync(db, ":memory:", { backupDirectories: [directory] });
     expect(
       db.prepare("SELECT id FROM schema_migration WHERE id='0024_session_database_identity'").get(),
     ).toEqual({
       id: "0024_session_database_identity",
     });
     const ledger = db.prepare("SELECT * FROM schema_migration ORDER BY id").all();
-    await runSqliteSessionMigrations(db, ":memory:");
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     expect(db.prepare("SELECT * FROM schema_migration ORDER BY id").all()).toEqual(ledger);
     expect(db.prepare("SELECT identity FROM zcode_database_identity").get()).toEqual({
       identity: "existing-generation",

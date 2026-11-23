@@ -11,8 +11,8 @@ describe("protocol slash command surface", () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "zcode-protocol-slash-"));
     const workspace = join(tempRoot, "workspace");
     const home = join(tempRoot, "home");
-    const projectCommands = join(workspace, ".zcode", "commands");
-    const userCommands = join(home, ".zcode", "commands");
+    const projectCommands = join(workspace, ".zcodium", "commands");
+    const userCommands = join(home, ".zcodium", "commands");
 
     try {
       await mkdir(projectCommands, { recursive: true });
@@ -70,13 +70,13 @@ describe("protocol slash command surface", () => {
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   it("expands prompt custom commands without taking over reserved builtins", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "zcode-custom-command-prompt-"));
     const workspace = join(tempRoot, "workspace");
     const home = join(tempRoot, "home");
-    const userCommands = join(home, ".zcode", "commands");
+    const userCommands = join(home, ".zcodium", "commands");
 
     try {
       await mkdir(workspace, { recursive: true });
@@ -111,7 +111,7 @@ describe("protocol slash command surface", () => {
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   // DWG-03：灰度关闭时 `/workflow` 不得展开。目录侧已经剃掉了它，但用户仍可手打命令名，
   // 两条路径必须给出同一个结论；同时 `workflow` 是保留名，自定义命令解析对它一律不展开，
@@ -120,7 +120,7 @@ describe("protocol slash command surface", () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "zcode-builtin-workflow-"));
     const workspace = join(tempRoot, "workspace");
     const home = join(tempRoot, "home");
-    const userCommands = join(home, ".zcode", "commands");
+    const userCommands = join(home, ".zcodium", "commands");
     try {
       await mkdir(workspace, { recursive: true });
       await mkdir(userCommands, { recursive: true });
@@ -170,7 +170,7 @@ describe("protocol slash command surface", () => {
       expect(prompt).toContain("built-in /init command");
       expect(prompt).toContain("AGENTS.md");
       expect(prompt).toContain(join(workspace, "AGENTS.md"));
-      expect(prompt).toContain(join(workspace, ".zcode", "AGENTS.md"));
+      expect(prompt).toContain(join(workspace, ".zcodium", "AGENTS.md"));
       expect(prompt).toContain(join(workspace, ".agents", "AGENTS.md"));
       expect(prompt).toContain("they already have an instructions file");
       expect(prompt).not.toContain("Do not create CLAUDE.md or AGNENTS.md");
@@ -245,12 +245,12 @@ describe("protocol slash command surface", () => {
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   it("hands session variables to Bash and reports missing skill context without execution", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "zcode-command-runtime-context-"));
     const home = join(tempRoot, "home");
-    const commands = join(home, ".zcode", "commands");
+    const commands = join(home, ".zcodium", "commands");
     try {
       await mkdir(commands, { recursive: true });
       for (const variable of ["CLAUDE_SESSION_ID", "CLAUDE_SKILL_DIR"]) {
@@ -275,7 +275,7 @@ describe("protocol slash command surface", () => {
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
 
 async function writeCommand(

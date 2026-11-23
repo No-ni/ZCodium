@@ -21,7 +21,7 @@ describe("Goal Verifier bound model options", () => {
     ["disabled", 4_000, false],
     [undefined, 64_000, false],
     ["high", 64_000, true],
-  ] as const)("inherits %s and the %i output limit (retry=%s)", async (level, limit, retry) => {
+  ] as const)("inherits %s and the %i output limit (retired concurrency failure=%s)", async (level, limit, retry) => {
     const root = await mkdtemp(join(tmpdir(), "zcode-verifier-options-"));
     const sessionId = createSessionId("verifier-options");
     const store = await createSqliteSessionStore({ dbPath: join(root, "session.sqlite") });
@@ -92,7 +92,8 @@ describe("Goal Verifier bound model options", () => {
       await store.setTarget({ sessionID: sessionId, objective: "Complete fixture work" });
       await runtime.executeTurn("complete work");
       await runtime.continueActiveTargetIfIdle({ verifyBeforeContinue: true });
-      expect(requests).toHaveLength(retry ? 3 : 2);
+      // 退役 Start Plan 的并发错误不再走账号专用重试，按现有 verifier 失败回执收口。
+      expect(requests).toHaveLength(2);
       for (const request of requests.slice(1)) {
         expect(request).toEqual({ maxOutputTokens: limit, reasoningLevel: level ?? "max" });
       }

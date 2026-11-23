@@ -86,7 +86,6 @@ import {
   zcodeTopicResourceRelayRequestSchema,
   type ZCodeTopicResourceRelayRequest,
   type ProviderProvisioningSourceTrigger,
-  toBearerAuthorization,
   ZCODE_CLIENT_LANGUAGE_ENV,
 } from "@zcode/shared";
 
@@ -319,11 +318,7 @@ export {
   isValidCronExpr,
 } from "./session/automationCron.js";
 
-import {
-  buildServerRemoteWorkspaceIdentity,
-  DEFAULT_APP_TOOL_SEARCH_MODE,
-  remoteHostIdFromWorkspaceIdentity,
-} from "@zcode/shared";
+import { buildServerRemoteWorkspaceIdentity, remoteHostIdFromWorkspaceIdentity } from "@zcode/shared";
 import { SourceServerWorkspaceAliasRepo } from "./session/sourceServerWorkspaceAliasRepo.js";
 import { SourceServerWorkspaceIdentityMapper } from "./source-server-workspace/sourceServerWorkspaceIdentityChannelServer.js";
 import { ServiceCollection } from "./collection.js";

@@ -3,10 +3,10 @@ import { build, type Plugin } from "esbuild";
 import {
   REMOTE_SERVER_NATIVE_EXTERNALS,
   validateRemoteServerBundle,
+  createRemotePtyBuildPlugin,
 } from "./buildRemoteValidation.js";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
 import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
-import { createRemotePtyBuildPlugin } from "../../scripts/remote-pty-build.mjs";
 
 const { version, zcodeCompatibility } = JSON.parse(readFileSync("../../package.json", "utf-8")) as {
   version: string;

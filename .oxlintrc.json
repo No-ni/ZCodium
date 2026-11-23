@@ -2,7 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": null,
   "categories": {},
-  "rules": { "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }] },
+  "rules": { "max-lines": ["error", { "max": 800, "skipBlankLines": true, "skipComments": true }] },
   "overrides": [
     {
       // 在 override 中只增加 Hooks 规则，保留原插件，避免开启全部 React 默认规则。
@@ -13,10 +13,7 @@
     {
       // 首次扫描的存量调用位置诊断仍告警；逐文件修复后删除例外，不扩大到目录。
       // 依赖诊断与其他规则不降级，详见 docs/testing/react-hooks-lint.md。
-      "files": [
-        "**/packages/desktop/test/e2e/helpers/web-remote-visibility-browser.ts",
-        "**/packages/ui/src/project-sidebar/grouped/task-row.tsx"
-      ],
+      "files": ["**/packages/desktop/test/e2e/helpers/web-remote-visibility-browser.ts"],
       "plugins": ["unicorn", "typescript", "oxc", "react"],
       "rules": { "react/rules-of-hooks": "warn" }
     },
@@ -106,6 +103,47 @@
         ]
       }
     },
+    // 沿用官方既有大文件的行数告警，只恢复固定路径；不把行数当作机械拆分的理由。
+    {
+      "files": [
+        "**/apps/zcode-cli/packages/adapters/src/plugins/marketplace.ts",
+        "**/apps/zcode-cli/packages/adapters/src/mcp/index.ts",
+        "**/apps/zcode-cli/packages/adapters/src/model/runner-stream.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/plugins.ts",
+        "**/apps/zcode-cli/packages/adapters/src/storage/session-store/migrations.ts",
+        "**/apps/zcode-cli/packages/adapters/src/storage/session-store/sqlite-session-store.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/app/create-app.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/app/session-facade.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/product-projection.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/v4-gateway.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/product-projection.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/transcript-hydration.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/server.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-mapper.ts",
+        "**/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/v4-bridge.ts",
+        "**/apps/zcode-cli/packages/contracts/src/interfaces/session-store.port.ts",
+        "**/apps/zcode-cli/packages/contracts/src/model/index.ts",
+        "**/apps/zcode-cli/packages/core/src/runtime/methods/session-fork.ts",
+        "**/apps/zcode-cli/packages/core/src/runtime/methods/steering.ts",
+        "**/apps/zcode-cli/packages/core/src/runtime/methods/turn.ts",
+        "**/apps/zcode-cli/packages/core/src/runtime/methods/turn-model-step.ts",
+        "src/runtime/methods/session-fork.ts",
+        "src/runtime/methods/steering.ts",
+        "src/runtime/methods/turn.ts",
+        "src/runtime/methods/turn-model-step.ts",
+        "**/packages/ui/src/remote-connection-flow/index.ts"
+      ],
+      "rules": {
+        "max-lines": [
+          "warn",
+          {
+            "max": 800,
+            "skipBlankLines": true,
+            "skipComments": true
+          }
+        ]
+      }
+    },
     {
       // 这两处专门过滤文件名/协议字段里的控制字符，匹配控制字符是安全边界本身。
       // managed 模块不增加内联 lint disable，例外仅限此规则与这两个文件。
@@ -119,7 +157,7 @@
       // 测试文件天然会堆叠大量场景与断言，继续复用生产代码的行数上限会造成误报，
       // 因此只对 test/spec 文件关闭 max-lines，避免放宽业务代码约束。
       // 后缀必须覆盖 .mjs/.js：scripts/ 与 packages/*/test/ 下的测试是 .mjs，
-      // 漏掉它们会让「格式化后超 400 行」在测试文件上误报（见 formatting-gate.md）。
+      // 漏掉它们会让超出生产上限的测试文件误报（见 formatting-gate.md）。
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",

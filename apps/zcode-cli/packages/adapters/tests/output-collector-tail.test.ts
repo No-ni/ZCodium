@@ -67,7 +67,8 @@ describe("NodeExecutionAdapter — requested tail", () => {
         "process.exitCode = 3;",
       ].join("");
       const result = await adapter.run({
-        command: { mode: "argv", file: process.execPath, args: ["-e", script] },
+        // permission model 的启动告警属于验证宿主，不能追加到用例待验的 stderr 尾部。
+        command: { mode: "argv", file: process.execPath, args: ["--no-warnings", "-e", script] },
         outputLimit: { maxInlineBytes: 0, tailBytes: 7 },
       });
       expect(result.status).toBe("failed");

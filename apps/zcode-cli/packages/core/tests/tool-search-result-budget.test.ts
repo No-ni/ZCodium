@@ -21,9 +21,6 @@ const catalog = Array.from({ length: 2_000 }, (_, i) => ({
 
 it.each([
   { query: "lookup", max_results: 5, count: 5 },
-  { query: "lookup", max_results: -1, count: 1_999 },
-  { query: "lookup", max_results: 0, count: 0 },
-  { query: "lookup", max_results: 1.5, count: 1 },
   { query: "lookup", max_results: 1_000_000, count: 2_000 },
   { query: `select:${catalog.map((tool) => tool.name).join(",")}`, max_results: 1, count: 2_000 },
 ])(
@@ -55,13 +52,20 @@ it.each([
   },
 );
 
+// 现有输入 schema 要求正整数，非法值不应进入搜索和持久化 discovery。
+it.each([-1, 0, 1.5])("rejects invalid max_results=%s", async (max_results) => {
+  const result = await execute({ query: "lookup", max_results });
+  expect(result.success).toBe(false);
+  expect(result.modelContent).not.toEqual(expect.arrayContaining([{ type: "tool_reference", toolName: catalog[0]!.name }]));
+});
+
 it("keeps all references unchanged when a Hook returns a large context", async () => {
   const hookText = "说明".repeat(60_000);
-  const result = await execute({ query: "lookup", max_results: -1 }, hookText);
+  const result = await execute({ query: "lookup", max_results: 2_000 }, hookText);
   expect(result.success).toBe(true);
   // Hook 文本是工具批次后的附件，不占 tool result 预算，也不改变引用块。
   expect(result.modelContent).toEqual(
-    catalog.slice(0, -1).map((tool) => ({ type: "tool_reference", toolName: tool.name })),
+    catalog.map((tool) => ({ type: "tool_reference", toolName: tool.name })),
   );
   expect(result.serialization?.truncated).toBe(false);
   expect(completedToolPartMetadata(result).modelContent).toEqual(result.modelContent);

@@ -1,4 +1,4 @@
-import { safeLogArgs } from "@zcode/shared";
+import { safeLogArgs } from "@zcode/shared/diagnostic-privacy";
 
 const processGuardInstalled = new WeakSet<object>();
 const OUTPUT_CLOSED_ERROR_CODES = new Set([

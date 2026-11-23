@@ -141,10 +141,10 @@ describe("formatTaskNotification（local_workflow）：三终态词", () => {
       status: "failed",
       runStatus: "errored",
       error: "script threw TypeError",
-      scriptPath: ".zcode/workflow-drafts/audit.dwf.ts",
+      scriptPath: ".zcodium/workflow-drafts/audit.dwf.ts",
     });
     expect(text).toContain(
-      'The run\'s script is at .zcode/workflow-drafts/audit.dwf.ts. Edit that file in place, then call AmendWorkflow (run_id="dwfrun-1", path=".zcode/workflow-drafts/audit.dwf.ts") so finished work is reused — do not paste the script inline. ResumeWorkflowRun will refuse this run: replaying the same script would fail the same way.',
+      'The run\'s script is at .zcodium/workflow-drafts/audit.dwf.ts. Edit that file in place, then call AmendWorkflow (run_id="dwfrun-1", path=".zcodium/workflow-drafts/audit.dwf.ts") so finished work is reused — do not paste the script inline. ResumeWorkflowRun will refuse this run: replaying the same script would fail the same way.',
     );
     // 有文件时旧话整句消失：两句并存会让模型以为内联重提交仍是一条平等的路。
     expect(text).not.toContain("Fix the script and submit it with AmendWorkflow");
@@ -168,11 +168,11 @@ describe("formatTaskNotification（local_workflow）：三终态词", () => {
       ...BASE,
       runStatus: "stopped",
       stopReason: "model",
-      scriptPath: ".zcode/workflow-drafts/audit.dwf.ts",
+      scriptPath: ".zcodium/workflow-drafts/audit.dwf.ts",
     });
     expect(text).toContain("You stopped this workflow with TaskStop.");
     expect(text).toContain(
-      "Its script is at .zcode/workflow-drafts/audit.dwf.ts: edit that file and pass `path`.",
+      "Its script is at .zcodium/workflow-drafts/audit.dwf.ts: edit that file and pass `path`.",
     );
   });
 
@@ -187,14 +187,14 @@ describe("formatTaskNotification（local_workflow）：三终态词", () => {
   });
 
   it("scriptPath 只喂给 errored 与 stopped(model) 两支：其余终态的指引一个字不变", () => {
-    const withPath = { ...BASE, scriptPath: ".zcode/workflow-drafts/audit.dwf.ts" };
+    const withPath = { ...BASE, scriptPath: ".zcodium/workflow-drafts/audit.dwf.ts" };
     for (const input of [
       { ...withPath, status: "completed", runStatus: "completed" as const },
       { ...withPath, runStatus: "stopped" as const, stopReason: "user" as const },
       { ...withPath, runStatus: "stopped" as const, stopReason: "interrupted" as const },
     ]) {
       const text = formatTaskNotification(input);
-      expect(text).not.toContain(".zcode/workflow-drafts/audit.dwf.ts");
+      expect(text).not.toContain(".zcodium/workflow-drafts/audit.dwf.ts");
     }
   });
 

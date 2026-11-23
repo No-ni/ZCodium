@@ -6,7 +6,7 @@ import { ServiceProvider } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { WorkspaceSettingsLayer } from "@/root/WorkspaceSettingsLayer.js";
 import type { AppProps } from "@/app-shell/types.js";
-import type { RootProps, WorkspaceSettingsLayerProps } from "@/root/types.js";
+import type { RootProps } from "@/root/types.js";
 import type { IServiceAccessor } from "@zcode/services";
 
 const StableWorkspaceApp = memo(App);

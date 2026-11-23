@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   ShellInitSnapshotManager,
@@ -23,19 +23,19 @@ describe("shell init snapshot", () => {
         env: { HOME: "/home/user" },
         shellPath: "/bin/zsh",
       }),
-    ).toBe("/home/user/.zshrc");
+    ).toBe(join("/home/user", ".zshrc"));
     expect(
       detectShellInitConfigPath({
         env: { HOME: "/home/user" },
         shellPath: "/bin/bash",
       }),
-    ).toBe("/home/user/.bashrc");
+    ).toBe(join("/home/user", ".bashrc"));
     expect(
       detectShellInitConfigPath({
         env: { HOME: "/home/user" },
         shellPath: "/bin/sh",
       }),
-    ).toBe("/home/user/.profile");
+    ).toBe(join("/home/user", ".profile"));
   });
 
   it("detects Git Bash rc file path from USERPROFILE when HOME is unavailable", () => {
@@ -132,7 +132,8 @@ describe("shell init snapshot", () => {
       if (!first) throw new Error("expected ready snapshot");
       expect(second).toEqual(first);
       expect(execFile).toHaveBeenCalledTimes(1);
-      expect(first.path).toMatch(/\/shell-snapshots\/snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
+      expect(dirname(first.path)).toBe(join(rootDir, "shell-snapshots"));
+      expect(basename(first.path)).toMatch(/^snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
       expect(first.path).not.toContain("/session/");
 
       const cleanup = await manager.cleanup();
@@ -228,8 +229,10 @@ describe("shell init snapshot", () => {
       }
       expect(execFile).toHaveBeenCalledTimes(2);
       expect(bash.path).not.toBe(zsh.path);
-      expect(bash.path).toMatch(/\/shell-snapshots\/snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
-      expect(zsh.path).toMatch(/\/shell-snapshots\/snapshot-zsh-\d+-[a-z0-9]{6}\.sh$/u);
+      expect(dirname(bash.path)).toBe(join(rootDir, "shell-snapshots"));
+      expect(basename(bash.path)).toMatch(/^snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
+      expect(dirname(zsh.path)).toBe(join(rootDir, "shell-snapshots"));
+      expect(basename(zsh.path)).toMatch(/^snapshot-zsh-\d+-[a-z0-9]{6}\.sh$/u);
       expect(await readFile(bash.path, "utf8")).toBe("# bash\n");
       expect(await readFile(zsh.path, "utf8")).toBe("# zsh\n");
 
@@ -288,7 +291,8 @@ describe("shell init snapshot", () => {
 
   it("uses host paths in creation scripts and Git Bash paths when sourcing snapshots", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "zcode-shell-init-snapshot-"));
-    const windowsLikeRoot = join(rootDir, "C:\\Users\\me\\ZCode");
+    // 真实 IO 夹具使用工作树内的合法宿主路径；Windows 盘符不作为子目录名。
+    const windowsLikeRoot = join(rootDir, "ZCode path with spaces");
     let creationSnapshotPath = "";
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args[0] === "-lc") return { stdout: "/usr/bin:/bin\n", stderr: "" };
@@ -297,7 +301,7 @@ describe("shell init snapshot", () => {
       const match = script.match(/SNAPSHOT_FILE='([^']+)'/u);
       if (!match) throw new Error("missing snapshot path");
       creationSnapshotPath = match[1];
-      expect(creationSnapshotPath).toContain("C:\\Users\\me\\ZCode");
+      expect(creationSnapshotPath).toContain(windowsLikeRoot);
       await mkdir(dirname(creationSnapshotPath), { recursive: true });
       await writeFile(creationSnapshotPath, "alias ll='ls -l git-bash'\n");
       return { stdout: "", stderr: "" };
@@ -314,9 +318,9 @@ describe("shell init snapshot", () => {
 
       expect(result).toBeDefined();
       if (!result) throw new Error("expected ready snapshot");
-      expect(result.path).toContain("C:\\Users\\me\\ZCode");
+      expect(result.path).toContain(windowsLikeRoot);
       expect(result.path).toBe(creationSnapshotPath);
-      expect(result.shellPath).toContain("C:/Users/me/ZCode");
+      expect(result.shellPath).toContain("ZCode path with spaces");
       expect(result.shellPath).not.toContain("\\");
       expect(execFile).toHaveBeenCalledTimes(2);
 

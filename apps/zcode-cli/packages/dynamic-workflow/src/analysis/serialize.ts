@@ -60,8 +60,7 @@ export function serializeGraph(graph: SiteGraph): string {
 function renderNode(node: SiteNode): string {
   if (node.loc === undefined) return `node ${node.id}`;
   let line = `node ${node.id} "${node.label}" @${node.loc.line}:${node.loc.column}`;
-  if (node.actors !== undefined && node.actors.length > 0)
-    line += ` actors=${node.actors.join(",")}`;
+  if (node.actors !== undefined && node.actors.length > 0) line += ` actors=${node.actors.join(",")}`;
   if (node.within !== undefined) line += ` within=${node.within}`;
   if (node.artifactType !== undefined) line += ` type=${quoteType(node.artifactType)}`;
   return line;
@@ -113,9 +112,7 @@ function compareEdges(a: SiteEdge, b: SiteEdge, position: Map<string, number>): 
 export function serializeActorGraph(graph: ActorGraph): string {
   const position = new Map<string, number>(graph.nodes.map((node, index) => [node.id, index]));
   const rank = (id: string): number => position.get(id) ?? Number.MAX_SAFE_INTEGER;
-  const edges = [...graph.edges].sort(
-    (a, b) => rank(a.from) - rank(b.from) || rank(a.to) - rank(b.to),
-  );
+  const edges = [...graph.edges].sort((a, b) => rank(a.from) - rank(b.from) || rank(a.to) - rank(b.to));
   const lines = [...graph.nodes.map(renderActorNode), ...edges.map(renderActorEdge)];
   return `${lines.join("\n")}\n`;
 }
@@ -324,8 +321,7 @@ export function serializeHandoffGraph(graph: HandoffGraph, lanes: readonly Lane[
     let line = `participant ${participant.id}`;
     const name = nameOf.get(participant.lane);
     if (name !== undefined) line += ` ${quoteType(name)}`;
-    if (participant.member !== undefined)
-      line += ` member=${participant.member.index}/${participant.member.of}`;
+    if (participant.member !== undefined) line += ` member=${participant.member.index}/${participant.member.of}`;
     if (participant.many) line += " many";
     line += ` steps=${participant.steps.join(",")}`;
     lines.push(line);

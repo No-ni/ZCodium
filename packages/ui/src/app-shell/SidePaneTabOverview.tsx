@@ -45,7 +45,7 @@ export function SidePaneTabOverview({
     recentlyClosedTabs: string;
     noResults: string;
     closeTab: (title: string) => string;
-    relativeTime: (timestamp: number) => string;
+    relativeTime: (timestamp: number, now: number) => string;
   };
   onActivateTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
@@ -54,62 +54,92 @@ export function SidePaneTabOverview({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  // 标题 helper 读取所有展示字段；旧依赖只列早期标签，新增标签和语言切换会留在旧 memo 中。
+  const { relativeTime } = labels;
+  const presentationLabels = useMemo<SidePaneTabPresentationLabels>(
+    () => ({
+      fileManagerTitle: labels.fileManagerTitle,
+      browserTitle: labels.browserTitle,
+      reviewTitle: labels.reviewTitle,
+      codeViewerTitle: labels.codeViewerTitle,
+      treemappingTitle: labels.treemappingTitle,
+      whiteboardTitle: labels.whiteboardTitle,
+      modelTrajectoryTitle: labels.modelTrajectoryTitle,
+      developerToolsTitle: labels.developerToolsTitle,
+      extensionLogsTitle: labels.extensionLogsTitle,
+      pluginMarketTitle: labels.pluginMarketTitle,
+      newTabTitle: labels.newTabTitle,
+      browserPermissionsTitle: labels.browserPermissionsTitle,
+      terminalTitle: labels.terminalTitle,
+      subagentTypeLabel: labels.subagentTypeLabel,
+      subagentDirectoryTitle: labels.subagentDirectoryTitle,
+      selectionChatTitle: labels.selectionChatTitle,
+      planTitle: labels.planTitle,
+      workflowRunTitle: labels.workflowRunTitle,
+      workflowDirectoryTitle: labels.workflowDirectoryTitle,
+      workflowActorTitle: labels.workflowActorTitle,
+      workflowScriptTitle: labels.workflowScriptTitle,
+      workflowArtifactTitle: labels.workflowArtifactTitle,
+      locale: labels.locale,
+    }),
+    [
+      labels.fileManagerTitle,
+      labels.browserTitle,
+      labels.reviewTitle,
+      labels.codeViewerTitle,
+      labels.treemappingTitle,
+      labels.whiteboardTitle,
+      labels.modelTrajectoryTitle,
+      labels.developerToolsTitle,
+      labels.extensionLogsTitle,
+      labels.pluginMarketTitle,
+      labels.newTabTitle,
+      labels.browserPermissionsTitle,
+      labels.terminalTitle,
+      labels.subagentTypeLabel,
+      labels.subagentDirectoryTitle,
+      labels.selectionChatTitle,
+      labels.planTitle,
+      labels.workflowRunTitle,
+      labels.workflowDirectoryTitle,
+      labels.workflowActorTitle,
+      labels.workflowScriptTitle,
+      labels.workflowArtifactTitle,
+      labels.locale,
+    ],
+  );
   const queryParts = useMemo(() => normalizeSearchQuery(query), [query]);
   const tabItems = useMemo(
     () =>
       tabs.map((tab) => {
-        const title = getLocalizedSidePaneTabTitle(tab, labels);
+        const title = getLocalizedSidePaneTabTitle(tab, presentationLabels);
         const hint = getSidePaneTabSearchHint(tab);
-        const typeLabel = getSidePaneTabTypeLabel(tab, labels);
+        const typeLabel = getSidePaneTabTypeLabel(tab, presentationLabels);
         return {
           tab,
           title,
           hint,
-          openedAtLabel: labels.relativeTime(tab.openedAt ?? currentTime),
+          openedAtLabel: relativeTime(tab.openedAt ?? currentTime, currentTime),
           searchFields: buildSearchFields(title, hint, typeLabel),
         };
       }),
-    [
-      currentTime,
-      labels.browserTitle,
-      labels.codeViewerTitle,
-      labels.relativeTime,
-      labels.reviewTitle,
-      labels.treemappingTitle,
-      labels.whiteboardTitle,
-      labels.developerToolsTitle,
-      labels.terminalTitle,
-      labels.subagentTypeLabel,
-      tabs,
-    ],
+    [currentTime, presentationLabels, relativeTime, tabs],
   );
   const recentClosedItems = useMemo(
     () =>
       recentClosedTabs.map((item) => {
-        const title = getLocalizedSidePaneTabTitle(item.tab, labels);
+        const title = getLocalizedSidePaneTabTitle(item.tab, presentationLabels);
         const hint = getSidePaneTabSearchHint(item.tab);
-        const typeLabel = getSidePaneTabTypeLabel(item.tab, labels);
+        const typeLabel = getSidePaneTabTypeLabel(item.tab, presentationLabels);
         return {
           item,
           title,
           hint,
-          closedAtLabel: labels.relativeTime(item.closedAt),
+          closedAtLabel: relativeTime(item.closedAt, currentTime),
           searchFields: buildSearchFields(title, hint, typeLabel),
         };
       }),
-    [
-      currentTime,
-      labels.browserTitle,
-      labels.codeViewerTitle,
-      labels.relativeTime,
-      labels.reviewTitle,
-      labels.treemappingTitle,
-      labels.whiteboardTitle,
-      labels.developerToolsTitle,
-      labels.terminalTitle,
-      labels.subagentTypeLabel,
-      recentClosedTabs,
-    ],
+    [currentTime, presentationLabels, relativeTime, recentClosedTabs],
   );
   const filteredTabItems = useMemo(
     () => filterAndRankSearchItems(tabItems, queryParts),

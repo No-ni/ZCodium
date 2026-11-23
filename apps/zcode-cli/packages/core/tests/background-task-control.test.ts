@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
@@ -51,6 +51,144 @@ async function waitForCondition(predicate: () => boolean | Promise<boolean>): Pr
 }
 
 describe("background task control", () => {
+  it("keeps the successor state and notification claim when completion overlaps SendMessage", async () => {
+    const outputRootDir = await mkdtemp(join(tmpdir(), "subagent-state-overlap-"));
+    const agentId = "agent_state_overlap";
+    const sessionId = createSessionId("state-overlap"), turnId = createTurnId("state-overlap");
+    const registry = new InMemoryRuntimeTaskRegistry();
+    const firstSettled = deferred();
+    const firstResult = deferred<{ response: string; traceId: string; events: SessionEvent[] }>();
+    const notifications: string[] = [];
+    let runs = 0, resuming = false;
+    let resumed: ReturnType<NonNullable<ReturnType<typeof createExploreSubagentPort>["sendMessage"]>> | undefined;
+    const port = createExploreSubagentPort({
+      createAgentId: () => agentId, outputRootDir, runtimeTaskRegistry: registry,
+      emitParentEvent: async (event) => {
+        if (event.type === SessionEventType.SubagentStopped && event.payload.status === "completed")
+          firstSettled.resolve();
+      },
+      enqueueParentTaskNotification: (notification) => { notifications.push(notification.text); },
+      async runExploreAgent(request, options) {
+        await request.onSessionReady?.();
+        if (++runs === 1) return firstResult.promise;
+        return new Promise((_, reject) => {
+          options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true });
+        });
+      },
+    });
+    const unsubscribe = registry.subscribe(() => {
+      if (resuming || registry.get(agentId)?.status !== "completed") return;
+      resuming = true;
+      // 在 registry 领取终态后、文件 IO 与通知结算前，实际调用同一恢复入口。
+      resumed = port.sendMessage!({
+        to: agentId, message: "synthetic continuation", parentToolCallId: "overlap-resume",
+        sessionId, turnId, workingDirectory: outputRootDir, workspaceRoot: outputRootDir,
+        trace: { sessionId, turnId, traceId: "overlap-resume" },
+      });
+    });
+    try {
+      await port.start!({
+        agentType: "general-purpose", description: "synthetic", prompt: "synthetic",
+        parentToolCallId: "overlap-start", sessionId, turnId,
+        workingDirectory: outputRootDir, workspaceRoot: outputRootDir,
+        trace: { sessionId, turnId, traceId: "overlap-start" },
+      });
+      const firstExecutionId = registry.get(agentId)!.executionId;
+      firstResult.resolve({ response: "first result", traceId: "overlap-start", events: [] });
+      await firstSettled.promise;
+      expect((await resumed)?.delivery).toBe("resumed_background");
+      const successor = registry.get(agentId)!;
+      expect(successor.status).toBe("running");
+      expect(successor.executionId).not.toBe(firstExecutionId);
+      expect(successor.notified).not.toBe(true);
+      expect(notifications).toEqual([]);
+      expect(JSON.parse(await readFile(join(dirname(successor.outputFile!), "metadata.json"), "utf8")))
+        .toMatchObject({ executionId: successor.executionId, status: "running", resumedAt: successor.resumedAt!.toISOString() });
+    } finally {
+      unsubscribe();
+      await port.close?.();
+      await rm(outputRootDir, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["startup failure", "abort during state IO"] as const)(
+    "restores the terminal state file after SendMessage %s",
+    async (failure) => {
+      const outputRootDir = await mkdtemp(join(tmpdir(), "subagent-resume-state-"));
+      const agentId = "agent_resume_state";
+      const sessionId = createSessionId("resume-state");
+      const turnId = createTurnId("resume-state");
+      const outputFile = join(outputRootDir, sessionId, agentId, "output.txt");
+      const metadataFile = join(dirname(outputFile), "metadata.json");
+      const previous = {
+        agentId, taskId: agentId, agentType: "general-purpose",
+        executionId: "previous-execution", childSessionId: createSessionId("resume-state-child"),
+        type: "local_agent" as const, status: "completed" as const, description: "synthetic",
+        outputFile, startedAt: new Date(10), completedAt: new Date(30),
+        resumedAt: new Date(20), parentSessionId: sessionId,
+      };
+      await mkdir(dirname(outputFile), { recursive: true });
+      const previousMetadata = {
+        agentId, executionId: previous.executionId, status: previous.status,
+        startedAt: previous.startedAt.toISOString(), resumedAt: previous.resumedAt.toISOString(),
+        completedAt: previous.completedAt.toISOString(),
+      };
+      await writeFile(metadataFile, JSON.stringify(previousMetadata));
+      const registry = new InMemoryRuntimeTaskRegistry();
+      registry.register(previous);
+      const controller = new AbortController();
+      const unsubscribe = registry.subscribe(() => {
+        if (failure === "abort during state IO" && registry.get(agentId)?.status === "running")
+          controller.abort(new Error("synthetic cancellation"));
+      });
+      let childrenStarted = 0;
+      const port = createExploreSubagentPort({
+        outputRootDir, runtimeTaskRegistry: registry,
+        async runExploreAgent() { childrenStarted++; throw new Error("synthetic initialization failure"); },
+      });
+      try {
+        await expect(port.sendMessage?.({
+          to: agentId, message: "synthetic", parentToolCallId: "resume-state",
+          sessionId, turnId, workingDirectory: outputRootDir, workspaceRoot: outputRootDir,
+          trace: { sessionId, turnId, traceId: "resume-state" },
+        }, { signal: controller.signal })).rejects.toThrow(
+          failure === "startup failure" ? "synthetic initialization failure" : "synthetic cancellation",
+        );
+        expect(childrenStarted).toBe(failure === "startup failure" ? 1 : 0);
+        expect(registry.get(agentId)).toMatchObject(previous);
+        expect(JSON.parse(await readFile(metadataFile, "utf8"))).toEqual(previousMetadata);
+      } finally {
+        unsubscribe();
+        await port.close?.();
+        await rm(outputRootDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(["run", "start"] as const)("rejects %s before creating a child when the minimal state file cannot be written", async (method) => {
+    const outputRootDir = await mkdtemp(join(tmpdir(), "subagent-state-start-failure-"));
+    const sessionId = createSessionId("state-start-failure"), agentId = "agent_state_start_failure";
+    const blockedPath = join(outputRootDir, sessionId, agentId, "metadata.json");
+    await mkdir(blockedPath, { recursive: true });
+    const registry = new InMemoryRuntimeTaskRegistry();
+    let childrenStarted = 0;
+    const port = createExploreSubagentPort({
+      createAgentId: () => agentId,
+      outputRootDir,
+      runtimeTaskRegistry: registry,
+      async runExploreAgent() { childrenStarted++; throw new Error("child must not start"); },
+    });
+    try {
+      const turnId = createTurnId("state-start-failure");
+      await expect(port[method]({ agentType: "general-purpose", description: "synthetic", prompt: "synthetic", parentToolCallId: "call_state", sessionId, turnId, workingDirectory: outputRootDir, workspaceRoot: outputRootDir, trace: { sessionId, turnId, traceId: "trace_state_start_failure" } })).rejects.toHaveProperty("path", blockedPath);
+      expect(childrenStarted).toBe(0);
+      expect(registry.get(agentId)).toBeUndefined();
+    } finally {
+      await port.close?.();
+      await rm(outputRootDir, { recursive: true, force: true });
+    }
+  });
+
   it("stops running local Bash tasks through the runtime registry dispatcher", async () => {
     const sessionId = createSessionId("background-control-bash");
     const eventStore = createTestSessionEventStore();
@@ -851,6 +989,7 @@ describe("background task control", () => {
           );
         const task = registry.get("agent_stop_artifact_failure")!;
         const blockedPath = join(dirname(task.outputFile!), blockedArtifact);
+        await mkdir(dirname(blockedPath), { recursive: true });
         await rm(blockedPath, { force: true });
         await mkdir(blockedPath);
         await expect(
@@ -2019,15 +2158,15 @@ describe("background task per-tool provider lookup", () => {
       status: "failed",
       runStatus: "errored",
       error: "script threw TypeError",
-      scriptPath: "/tmp/.zcode/workflow-drafts/audit.dwf.ts",
+      scriptPath: "/tmp/.zcodium/workflow-drafts/audit.dwf.ts",
     });
 
     expect(text).toContain(
-      'The run\'s script is at .zcode/workflow-drafts/audit.dwf.ts. Edit that file in place, then call AmendWorkflow (run_id="dwfrun-1", path=".zcode/workflow-drafts/audit.dwf.ts")',
+      'The run\'s script is at .zcodium/workflow-drafts/audit.dwf.ts. Edit that file in place, then call AmendWorkflow (run_id="dwfrun-1", path=".zcodium/workflow-drafts/audit.dwf.ts")'.replaceAll(".zcodium/workflow-drafts/audit.dwf.ts", join(".zcodium", "workflow-drafts", "audit.dwf.ts")),
     );
     expect(text).not.toContain("Fix the script and submit it with AmendWorkflow");
     // 路径只进指引，不进 XML 块：用户面一概不显示它（spec 的「What the user sees」）。
-    expect(text.indexOf(".zcode/workflow-drafts")).toBeGreaterThan(
+    expect(text.indexOf(join(".zcodium", "workflow-drafts"))).toBeGreaterThan(
       text.indexOf("</task-notification>"),
     );
   });
@@ -2048,11 +2187,11 @@ describe("background task per-tool provider lookup", () => {
       status: "cancelled",
       runStatus: "stopped",
       stopReason: "model",
-      scriptPath: "/tmp/.zcode/workflow-drafts/audit.dwf.ts",
+      scriptPath: "/tmp/.zcodium/workflow-drafts/audit.dwf.ts",
     });
 
     expect(text).toContain(
-      "Its script is at .zcode/workflow-drafts/audit.dwf.ts: edit that file and pass `path`.",
+      "Its script is at .zcodium/workflow-drafts/audit.dwf.ts: edit that file and pass `path`.".replaceAll(".zcodium/workflow-drafts/audit.dwf.ts", join(".zcodium", "workflow-drafts", "audit.dwf.ts")),
     );
   });
 

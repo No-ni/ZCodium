@@ -1,4 +1,4 @@
-import { delimiter, join } from "node:path";
+import { delimiter } from "node:path";
 
 function isUtf8Locale(value: string | undefined): boolean {
   return /utf-?8/i.test(value ?? "");

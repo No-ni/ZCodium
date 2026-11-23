@@ -10,6 +10,7 @@ it("real SQLite trigger failure rolls back script/hash and event; nested transac
     // 原 sync 函数按 official-3.16.2 迁移改造已是 ready 只读验收，空内存 fixture 必须走异步启动迁移准备 schema。
     await runSqliteSessionMigrationsAsync(db, ":memory:");
     const journal = createDwfJournalStore(db);
+    const read = { types: "all" as const, reportItems: "all" as const, limit: 10 };
     journal.createRun({
       runId: "run-1",
       scriptText: "old",
@@ -33,19 +34,19 @@ it("real SQLite trigger failure rolls back script/hash and event; nested transac
       /injected append failure/,
     );
     assert.deepEqual(journal.getRun("run-1"), before);
-    assert.deepEqual(journal.listEvents("run-1"), []);
+    assert.deepEqual(journal.listEvents("run-1", read), []);
     db.exec("drop trigger reject_fill; BEGIN");
     const first = journal.commitHoleFill("run-1", "new", "new-hash", event);
     db.exec("COMMIT");
-    assert.equal(journal.listEvents("run-1").length, 1);
-    assert.equal(first.sequence, journal.listEvents("run-1")[0]?.sequence);
+    assert.equal(journal.listEvents("run-1", read).length, 1);
+    assert.equal(first.sequence, journal.listEvents("run-1", read)[0]?.sequence);
     assert.equal(journal.getRun("run-1")?.scriptHash, "new-hash");
     const second = journal.commitHoleFill("run-1", "newer", "newer-hash", {
       ...event,
       siteId: "hole#87654321",
     });
     assert.ok(second.sequence > first.sequence);
-    assert.equal(journal.listEvents("run-1").length, 2);
+    assert.equal(journal.listEvents("run-1", read).length, 2);
   } finally {
     db.close();
   }

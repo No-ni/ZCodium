@@ -3,9 +3,39 @@ import type {
   ConversationTurnDirectoryEntry,
   TurnHeaderRow,
   UserInputRow,
+  ConversationSnapshot,
+  V4ConversationTurnDirectoryParams,
+  V4ConversationTurnDirectoryResult,
 } from "@zcode/shared/zcode-protocol-v4";
 
 const PREVIEW_CHARS = 220;
+
+/** 目录派生与缓存属于同一查询所有者；Publisher 只提供权威快照和水位。 */
+export class ConversationTurnDirectoryQuery {
+  private cache: {
+    rows: WeakRef<readonly ConversationRow[]>;
+    entries: ConversationTurnDirectoryEntry[];
+  } | null = null;
+
+  read(
+    snapshot: ConversationSnapshot,
+    params: V4ConversationTurnDirectoryParams,
+    logEpoch: string,
+  ): V4ConversationTurnDirectoryResult {
+    // rows 引用变化即为 projection 的新分支；弱引用不额外保留历史正文。
+    if (this.cache?.rows.deref() !== snapshot.rows.window) {
+      this.cache = {
+        rows: new WeakRef(snapshot.rows.window),
+        entries: buildConversationTurnDirectory(snapshot.rows.window),
+      };
+    }
+    return {
+      ...sliceTurnDirectory(this.cache.entries, params.beforeRowId, params.limit ?? 200),
+      atSeq: snapshot.seq,
+      atLogEpoch: logEpoch,
+    };
+  }
+}
 function preview(text: string): string {
   const normalized = text
     .trim()

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SessionEventType, type SessionEvent } from "@zcode/contracts";
 import { getZCodeCopy } from "@zcode/i18n";
-import { LoginRequiredPanel } from "../src/app-components.js";
 import { ContentPane, MessageRow } from "../src/app-transcript-components.js";
 import { EmptyTranscriptLogo, ZCODE_LOGO_LINES } from "../src/app-empty-transcript.js";
 import { SHIMMER_SWEEP_PERIOD_MS, shimmerTextSegments } from "../src/app-motion.js";
@@ -93,23 +92,6 @@ test("hides the empty transcript logo when messages are present", () => {
     lines.some((line) => line.includes("User:")),
     false,
   );
-});
-
-test("renders a prominent non-modal login notice", () => {
-  const lines = collectTextLines(LoginRequiredPanel());
-  const textNodes = collectTextNodes(LoginRequiredPanel());
-
-  // 登录提示改为“没有可用模型”，引导用 /model 查看模型或 /login 连接账号。
-  assert.ok(lines.some((line) => line.includes("No available models")));
-  assert.ok(lines.some((line) => line.includes("/model")));
-  assert.ok(textNodes.some((node) => node.style.fg === "#fbbf24"));
-});
-
-test("renders localized Chinese login notice copy", () => {
-  const lines = collectTextLines(LoginRequiredPanel({ copy: ZH_COPY }));
-
-  assert.ok(lines.some((line) => line.includes("没有可用模型")));
-  assert.ok(lines.some((line) => line.includes("输入 /model 查看模型")));
 });
 
 test("clears the transcript when a session reset has no restored messages", () => {

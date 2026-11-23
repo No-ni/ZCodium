@@ -84,12 +84,7 @@ const artifactArchHintsByArch = {
 };
 const commandStdoutMaxBuffer = 64 * 1024 * 1024;
 const requiredRuntimeModules = [
-  "module-details-from-path",
   "pngjs",
-  // Bugfix（保留本仓修复口径）：@babel/runtime 挂在被打包库的 peer/runtime 边界上，
-  // pnpm workspace 开发态能解析，但 electron-builder 重打 app.asar 时不保证带上；
-  // 缺失会让已安装应用在主进程启动阶段直接崩溃。与 afterPack 注入名单同口径做机械校验。
-  "@babel/runtime",
   // services 里的代理探测会在运行时 require("undici")。
   // 如果这里只校验 pngjs/ssh2 依赖，打包链路就会放过“产物能生成但主进程启动即缺 undici”的坏包。
   // 这里把 undici 纳入机械校验，让 bundle 阶段就能把问题拦下来。

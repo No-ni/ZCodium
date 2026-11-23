@@ -34,7 +34,7 @@ const { startScriptedProvider, stopScriptedProvider, writeScriptedCaptureFile } 
   providerModule.href
 );
 const cliEntry = fileURLToPath(new URL("../../../cli/src/main.ts", import.meta.url));
-const tsxLoader = fileURLToPath(import.meta.resolve("tsx"));
+const tsxLoader = import.meta.resolve("tsx");
 const MODEL = "session-control-fixture";
 const ACTOR = "SCT_ACTOR: exercise the standalone session tools";
 const FIRST = "SCT_FIRST: preserve this stable boundary";
@@ -86,7 +86,7 @@ it("runs all eight session tools in a standalone CLI process and reopens its SQL
   const directory = await mkdtemp(join(tmpdir(), "zcode-session-control-e2e-"));
   const workspace = join(directory, "workspace");
   const database = join(directory, "sessions.sqlite");
-  const configDirectory = join(directory, ".zcode", "cli");
+  const configDirectory = join(directory, ".zcodium", "cli");
   await Promise.all([mkdir(workspace), mkdir(configDirectory, { recursive: true })]);
   const firstStarted = Promise.withResolvers<void>();
   const releaseFirst = Promise.withResolvers<void>();
@@ -418,6 +418,13 @@ it("runs all eight session tools in a standalone CLI process and reopens its SQL
         env: {
           PATH: process.env.PATH,
           SystemRoot: process.env.SystemRoot,
+          NODE_OPTIONS: process.env.NODE_OPTIONS,
+          TEMP: directory,
+          TMP: directory,
+          TMPDIR: directory,
+          XDG_CACHE_HOME: directory,
+          XDG_CONFIG_HOME: directory,
+          XDG_DATA_HOME: directory,
           HOME: directory,
           USERPROFILE: directory,
           APPDATA: directory,
@@ -635,7 +642,7 @@ async function writeConfig(directory: string, baseUrl: string) {
       }),
     ),
     writeFile(
-      join(directory, ".zcode", "cli", "config.json"),
+      join(directory, ".zcodium", "cli", "config.json"),
       JSON.stringify({
         features: { memory: false, mcp: false, subagent: false, skill: false },
         plugins: { enabled: false },

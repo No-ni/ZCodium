@@ -159,16 +159,16 @@ export function lowerWorkflow(workflow: WorkflowProgram, table: SiteTable): Lowe
       if (ts.isCallExpression(node)) {
         const emit = siteMap.get(node);
         if (emit !== undefined) return lowerSited(node, emit);
-        // 非站点的 facade 调用只可能是 log（agent/ask/glob/read 必定成站点、已在 siteMap）。
+        // channel/future 与 log 同为无站点 facade；漏改写会在真实 cell 中引用不存在的全局。
         const name = facadeCalleeName(node, checker);
         // ModelRef 只在类型系统存在，按 facade 身份擦成逐字模型名，避免沙箱第二次解析。
         if (name === "model") {
           const arg = node.arguments[0];
           return arg === undefined ? factory.createVoidZero() : visitExpr(arg);
         }
-        if (name === "log") {
+        if (name === "log" || name === "channel" || name === "future") {
           return factory.createCallExpression(
-            hostMember("log"),
+            hostMember(name),
             undefined,
             node.arguments.map(visitExpr),
           );

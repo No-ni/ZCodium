@@ -42,7 +42,7 @@ export { buildSettingsMessageText } from "./dynamic-workflow-run-settings-turn.j
 
 /**
  * GUI「配置」的请求。两项设置守工具的三态：
- * 省略 = 沿用，`null` = 回到默认（会话模型 / 本机上限），值 = 设定。
+ * 省略 = 沿用，`null` = 回到默认（会话模型 / 默认并发），值 = 设定。
  */
 export interface AmendWorkflowRunSettingsInput {
   runId: string;
@@ -136,8 +136,7 @@ export async function amendWorkflowRunSettings(
   // 生效——同一个 runId，不停、不铸后继、不导入缓存。端口答 not_live（已结算，或 pending 但引擎
   // 还没建）就顺着这张表往下走，落成今天那次修订。
   if (boundChanged && !modelChanged && typeof port.retuneConcurrency === "function") {
-    // 弹层的 `null` 原样递到端口：天花板那个数只有端口知道，这里不猜第二遍。缺席只可能来自
-    // 「沿用的界高过本机天花板」（run 是在更大的机器上起的），那时要的也正是回到天花板。
+    // 弹层的 `null` 原样递到端口；默认并发由端口拥有，不在调用方另算。
     const answer = await port.retuneConcurrency({
       runId: input.runId,
       maxConcurrency: input.maxConcurrency ?? null,
@@ -179,9 +178,10 @@ export async function amendWorkflowRunSettings(
   if (boundModels.unbound.length > 0)
     return {
       ok: false,
-      reason: "compile_failed",
+      // 沿用绑定失效与 GUI 选定模型失效共用官方原因码，不伪装成脚本编译错误。
+      reason: "model_unavailable",
       message: boundedCompileDiagnostics(
-        "The workflow names unavailable models:",
+        `The models named in the script of run ${input.runId} cannot be used now:`,
         boundModels.unbound,
       ),
     };
@@ -259,6 +259,8 @@ export async function amendWorkflowRunSettings(
     ...(boundChanged
       ? { maxConcurrency: fromTo(current.maxConcurrency, next.maxConcurrency) }
       : {}),
+    // 官方历史键名保留；这个值是默认并发，不是用户上界。
+    ...(defaultConcurrency === undefined ? {} : { ceiling: defaultConcurrency }),
   };
 
   // (9)(10) 之后的失败只记日志不回滚：新 run 已在飞，可在侧板停下；撤回它反而制造孤儿。
@@ -276,6 +278,8 @@ export async function amendWorkflowRunSettings(
       traceContext,
       undefined,
     );
+    // 后继 run 已接入追踪器，通知中的工具须在设置轮之前可用。
+    await activateDynamicWorkflowTools.call(this, { source: "run_control", traceContext });
     enqueueSettingsTurn.call(this, {
       text: buildSettingsMessageText({
         ...(name === undefined ? {} : { name }),
@@ -339,8 +343,7 @@ function retunedSettings(
 ): AmendWorkflowRunSettingsResult {
   const { answer, name, runId, traceContext } = options;
   const toolCallId = `settings-${randomUUID()}`;
-  // 等于天花板的那一端就是「默认」，于是整端缺席——与修订那条路同一个读法（弹层把步进器推到顶
-  // 发的是 `null`，端口答回来的却永远是绝对值，折算只能在这里做）。
+  // 等于默认并发的端点折成缺席；端口回执仍是绝对数值，保留默认 D 供旧端展示。
   const amend: WorkflowSettingsAmendMeta = {
     maxConcurrency: fromTo(
       answer.previous === answer.defaultConcurrency ? undefined : answer.previous,

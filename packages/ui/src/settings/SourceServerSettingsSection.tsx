@@ -9,6 +9,9 @@ import { ProfileEditor } from "./SourceServerProfileEditor.js";
 import { useSourceServerManagement } from "@/hooks/useSourceServerManagement.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
+import { Switch } from "@/components/ui/switch.js";
+import { SettingsRow } from "./SettingsPageParts.js";
+import { useZCodeStore } from "@/store/StoreProvider.js";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -26,6 +29,8 @@ type PendingConfirmation =
 
 export function SourceServerSettingsSection() {
   const { intl } = useZCodeIntl();
+  const hideProjectDeviceNames = useZCodeStore((state) => state.hideProjectDeviceNames);
+  const setHideProjectDeviceNames = useZCodeStore((state) => state.setHideProjectDeviceNames);
   const { service, state, refresh } = useSourceServerManagement();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -35,12 +40,14 @@ export function SourceServerSettingsSection() {
   const admission = useRef(false);
   const generation = useRef(0);
   useEffect(() => {
-    generation.current++;
+    const ownerGeneration = generation;
+    ownerGeneration.current++;
     admission.current = false;
     setBusy(false);
     setConfirmation(null);
     return () => {
-      generation.current++;
+      // 退休的是本次 effect 的 owner 对象，必须递增其当前代际以撤销在途操作。
+      ownerGeneration.current++;
     };
   }, [service]);
   const run = async <T,>(operation: () => Promise<T>, completed?: (result: T) => void) => {
@@ -67,6 +74,20 @@ export function SourceServerSettingsSection() {
     }
   };
   const text = (id: string) => intl.formatMessage({ id });
+  // 旧远端面板退役时漏掉了本地偏好入口；它由原 store 管理，不依赖远端服务可用性。
+  const devicePreference = (
+    <SettingsRow
+      label={text("settings.source.hideProjectDeviceNames")}
+      description={text("settings.source.hideProjectDeviceNamesDescription")}
+      control={
+        <Switch
+          aria-label={text("settings.source.hideProjectDeviceNames")}
+          checked={hideProjectDeviceNames}
+          onCheckedChange={setHideProjectDeviceNames}
+        />
+      }
+    />
+  );
   const lifecycleDescription =
     confirmation && "runningTasks" in confirmation
       ? [
@@ -84,6 +105,7 @@ export function SourceServerSettingsSection() {
   if (state.status !== "ready" || !service)
     return (
       <div className="space-y-3">
+        {devicePreference}
         <p className="text-ui-sm text-foreground-subtle">
           {text(state.status === "loading" ? "common.loading" : "sourceServer.unavailable")}
         </p>
@@ -94,6 +116,7 @@ export function SourceServerSettingsSection() {
     );
   return (
     <div className="min-w-0 space-y-4">
+      {devicePreference}
       <p className="text-ui-sm text-foreground-subtle">{text("sourceServer.description")}</p>
       <Button variant="secondary" onClick={() => void refresh()} disabled={busy}>
         {text("sourceServer.refresh")}

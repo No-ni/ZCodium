@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
+import { withFileLock } from "@zcode/shared/node";
 import { basename, dirname, join } from "node:path";
 import { getRuntimeToolRuntime, type RuntimeToolId } from "@zcode/shared/runtime-tool-runtime";
 
@@ -134,8 +135,11 @@ async function ensureRuntimeTool(input: {
     await mkdir(dirname(cacheDirectory), {
       recursive: true,
     });
-    if (await isCacheCurrent(cacheDirectory, marker, platform)) return binaryPath;
-    await installCacheDirectory(temporaryDirectory, cacheDirectory, marker, platform);
+    // Windows 对已有损坏目录的 rename 返回 EPERM；发布权必须串行，避免删除并发赢家。
+    await withFileLock(cacheDirectory, async () => {
+      if (await isCacheCurrent(cacheDirectory, marker, platform)) return;
+      await installCacheDirectory(temporaryDirectory, cacheDirectory, marker, platform);
+    });
     return binaryPath;
   } finally {
     await rm(temporaryDirectory, {
@@ -151,13 +155,24 @@ async function installCacheDirectory(
   marker: RuntimeToolMarker,
   platform: NodeJS.Platform,
 ): Promise<void> {
+  const existing = await lstat(cacheDirectory).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (existing && (!existing.isDirectory() || existing.isSymbolicLink())) {
+    throw new Error("SEA runtime cache target must be a regular directory.");
+  }
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       await rename(temporaryDirectory, cacheDirectory);
       return;
     } catch (error) {
       if (await isCacheCurrent(cacheDirectory, marker, platform)) return;
-      if (!isDirectoryReplaceRace(error) || attempt === 1) throw error;
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (attempt === 1 || (!isDirectoryReplaceRace(error) && !(platform === "win32" && code === "EPERM"))) throw error;
+      // 仅移除锁内确认的普通目录；文件、链接和不存在的目标保留原错误。
+      const target = await lstat(cacheDirectory).catch(() => undefined);
+      if (!target?.isDirectory() || target.isSymbolicLink()) throw error;
       await rm(cacheDirectory, {
         force: true,
         recursive: true,
@@ -217,6 +232,8 @@ async function isCacheCurrent(
   platform: NodeJS.Platform,
 ): Promise<boolean> {
   try {
+    const directory = await lstat(cacheDirectory);
+    if (!directory.isDirectory() || directory.isSymbolicLink()) return false;
     const marker = JSON.parse(
       await readFile(join(cacheDirectory, markerFileName), "utf8"),
     ) as RuntimeToolMarker;

@@ -24,7 +24,8 @@ export default plugin(({ matchUtilities, theme, addBase, addUtilities }) => {
         const color = mixed?.[1] ?? value;
         const tone =
           color === "var(--color-foreground-subtle)"
-            ? "0.6"
+            ? // 浅色文本使用 70% 而深色使用 60%；图标与文本必须消费同一主题 alpha。
+              "var(--lucide-subtle-opacity)"
             : color === "var(--color-foreground-subtlest)"
               ? "var(--lucide-subtlest-opacity)"
               : null;

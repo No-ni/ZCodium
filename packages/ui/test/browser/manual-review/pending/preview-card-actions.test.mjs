@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
@@ -12,11 +13,13 @@ import sharp from "sharp";
 const root = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const entry = "/packages/ui/test/browser/manual-review/pending/preview-card-actions.fixture.tsx";
 const artifacts = join(root, "packages/desktop/.e2e-artifacts/preview-card-actions-browser");
-let server, browser, origin;
+let server, browser, origin, cacheDir;
 before(async () => {
   await mkdir(artifacts, { recursive: true });
+  cacheDir = await mkdtemp(join(tmpdir(), "zcodium-preview-card-vite-"));
   server = await createServer({
     root,
+    cacheDir,
     configFile: false,
     plugins: [
       {
@@ -39,12 +42,35 @@ before(async () => {
       tailwindcss(),
     ],
     resolve: { alias: { "@": `${root}packages/ui/src` } },
-    optimizeDeps: { entries: [entry.slice(1)] },
+    // HMR 关闭时不能靠重载恢复换代的依赖；只预打包此夹具使用的依赖。
+    optimizeDeps: {
+      noDiscovery: true,
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "lucide-react",
+        "radix-ui",
+        "class-variance-authority",
+        "clsx",
+        "tailwind-merge",
+        "motion/react",
+        "dayjs",
+        "zod",
+        "@pierre/diffs",
+        "@pierre/diffs/react",
+        "@zcode/ui > shiki",
+        "@zcode/ui > zustand",
+        "zustand/react/shallow",
+      ],
+    },
     server: {
       host: "127.0.0.1",
       port: 0,
       hmr: false,
-      watch: { ignored: ["**/packages/desktop/out/**", "**/.e2e-artifacts/**"] },
+      watch: null,
     },
   });
   await server.listen();
@@ -58,6 +84,7 @@ before(async () => {
 after(async () => {
   await browser?.close();
   await server?.close();
+  if (cacheDir) await rm(cacheDir, { recursive: true, force: true });
 });
 
 const FILE_CARD_TITLE = "项目 简介.docx";
@@ -75,11 +102,22 @@ async function openFixture(theme = "zai-dark") {
   page.setDefaultTimeout(60_000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
-  await page.goto(`${origin}fixture?theme=${theme}&locale=zh-CN`);
+  const pageFailure = new Promise((_, reject) => page.once("pageerror", reject));
   const fileCard = page.locator(`[data-preview-card-title="${FILE_CARD_TITLE}"]`);
   const webCard = page.locator(`[data-preview-card-title="${WEB_CARD_TITLE}"]`);
-  await fileCard.waitFor();
-  await webCard.waitFor();
+  try {
+    await Promise.race([
+      (async () => {
+        await page.goto(`${origin}fixture?theme=${theme}&locale=zh-CN`);
+        await fileCard.waitFor();
+        await webCard.waitFor();
+      })(),
+      pageFailure,
+    ]);
+  } catch (error) {
+    await page.close();
+    throw error;
+  }
   const readEvents = () => page.getByTestId("preview-events").locator("li").allTextContents();
   return { page, errors, fileCard, webCard, readEvents };
 }

@@ -16,7 +16,6 @@ import {
 } from "@zcode/shared/process-diagnostic";
 import {
   classifyAgentProcessExitCause,
-  redactAgentDiagnosticSecrets,
   type AgentProcessExitCause,
 } from "@zcode/shared/agent-crash-diagnostic";
 import {

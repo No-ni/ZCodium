@@ -101,7 +101,6 @@ export async function ensureContextInitialized(
     unreadableInstructionPaths(this, snapshot, memoryIndex, traceContext),
   );
   await ensureGenUiOutputDirectory(this);
-  await ensureGenUiOutputDirectory(this);
   this.contextBuilder = this.createContextBuilderFromSnapshot(snapshot, this.memoryRoot, {
     memoryIndexContent: this.memoryIndexContent,
     model,

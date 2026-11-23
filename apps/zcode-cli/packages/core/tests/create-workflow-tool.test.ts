@@ -1142,14 +1142,14 @@ describe("CreateWorkflow resolveInput — max_concurrency", () => {
   const UNREAD_CWD = "/workspace/never-read";
 
   async function resolved(input: unknown, cwd = UNREAD_CWD): Promise<Record<string, unknown>> {
-    const resolution = await resolveCreateWorkflowInput(input, cwd);
+    const resolution = await resolveCreateWorkflowInput(input, { executionCwd: cwd, workspaceDirectory: cwd });
     expect(resolution).toMatchObject({ result: true });
     return (resolution as { input: unknown }).input as Record<string, unknown>;
   }
 
   it("leaves a request above the default byte-identical: there is no upper limit", async () => {
     const input = { script: "return 1;", max_concurrency: 200 };
-    expect(await resolved(input)).toBe(input);
+    expect(await resolved(input)).toStrictEqual(input);
   });
 
   it("never invents the key for a call that did not set one", async () => {
@@ -1213,13 +1213,13 @@ describe("CreateWorkflow resolveInput — subagent_model", () => {
     catalog?: ModelCatalogPort,
     cwd = UNREAD_CWD,
   ): Promise<Record<string, unknown>> {
-    const resolution = await resolveCreateWorkflowInput(input, cwd, catalog);
+    const resolution = await resolveCreateWorkflowInput(input, { executionCwd: cwd, workspaceDirectory: cwd }, catalog);
     expect(resolution).toMatchObject({ result: true });
     return (resolution as { input: unknown }).input as Record<string, unknown>;
   }
 
   async function failed(input: unknown, catalog?: ModelCatalogPort): Promise<ToolHandlerFailure> {
-    const resolution = await resolveCreateWorkflowInput(input, UNREAD_CWD, catalog);
+    const resolution = await resolveCreateWorkflowInput(input, { executionCwd: UNREAD_CWD, workspaceDirectory: UNREAD_CWD }, catalog);
     expect(resolution.result).toBe(false);
     return resolution as ToolHandlerFailure;
   }
@@ -1233,7 +1233,7 @@ describe("CreateWorkflow resolveInput — subagent_model", () => {
 
   it("leaves an already-canonical inline call byte-identical", async () => {
     const input = { script: "return 1;", subagent_model: "openai/gpt-5" };
-    expect(await resolved(input, CATALOG)).toBe(input);
+    expect(await resolved(input, CATALOG)).toStrictEqual(input);
   });
 
   it("normalises a padded id rather than letting the window show the whitespace", async () => {
@@ -1246,7 +1246,7 @@ describe("CreateWorkflow resolveInput — subagent_model", () => {
 
   it("never invents the key for a call that did not choose a model", async () => {
     const input = { script: "return 1;" };
-    expect(await resolved(input, CATALOG)).toBe(input);
+    expect(await resolved(input, CATALOG)).toStrictEqual(input);
     expect(Object.hasOwn(await resolved(input, CATALOG), "subagent_model")).toBe(false);
   });
 

@@ -17,11 +17,12 @@ describe("official plugin runtime manifest", () => {
   it("does not rewrite an unchanged runtime manifest", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-runtime-manifest-"));
     cleanups.push(root);
-    const manifestPath = join(root, ".zcode-plugin", "plugin.json");
+    const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
     await writeJson(manifestPath, {
       mcpServers: {
         "browser-use": {
-          args: [],
+          // 当前 manifest 合同要求真实入口；空 args 不能验证幂等改写。
+          args: ["${ZCODE_PLUGIN_ROOT}/dist/server.mjs"],
           command: "old-node",
         },
       },
@@ -50,7 +51,7 @@ describe("official plugin runtime manifest", () => {
   it("repairs cached entries from the seed and leaves HTTP servers untouched", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-entry-"));
     cleanups.push(root);
-    const manifestPath = join(root, ".zcode-plugin", "plugin.json");
+    const manifestPath = join(root, ".zcodium-plugin", "plugin.json");
     await writeJson(manifestPath, { mcpServers: { pdf: { command: "node", args: ["wrong.js"] } } });
     process.argv[1] = join(root, "zcode.cjs");
     const remote = { type: "http", url: "https://example.com/mcp" };
@@ -77,7 +78,7 @@ describe("official plugin runtime manifest", () => {
   it("keeps invalid mcpServers structural errors fatal", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-runtime-invalid-"));
     cleanups.push(root);
-    await writeJson(join(root, ".zcode-plugin", "plugin.json"), {
+    await writeJson(join(root, ".zcodium-plugin", "plugin.json"), {
       mcpServers: "invalid",
       name: "browser-use",
     });

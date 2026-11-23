@@ -15,8 +15,10 @@ import { afterEach, expect, test, vi } from "vitest";
 import { run } from "../src/lib/run.js";
 import { androidEnv, checkTool, findTool, javaHome, sdkRoot } from "../src/providers/sdk.js";
 import { preflight } from "../src/providers/preflight.js";
+import { createProjectTestSymlink } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 
 const windows = process.platform === "win32";
+const testEnvironment = { ...process.env };
 const originalCwd = process.cwd();
 let fixtureRoot: string | undefined;
 
@@ -122,7 +124,10 @@ test("an external PATH link into the project is never executed", async () => {
   const { root, workspace, marker } = await fixture();
   const fake = await fakeExecutable(path.join(workspace, "audit-tool"));
   const link = path.join(root, "linked-bin");
-  if (windows) await symlink(workspace, link, "junction");
+  if (windows) {
+    // Node permission 模式禁止原生 symlink；受控 helper 只接受同一项目夹具的两端。
+    await createProjectTestSymlink(workspace, link, "dir", testEnvironment);
+  }
   else {
     await mkdir(link);
     await symlink(fake, path.join(link, "audit-tool"));

@@ -170,7 +170,8 @@ async function streamResponseFor(apiType: ApiType) {
       ? [
           { type: "message_start", message: { ...response, content: [], stop_reason: null } },
           { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
-          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "ok" } },
+          // 标题 sidecar 也使用流式合同；流帧必须与这份 response 的真实正文一致。
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: response.content[0].text } },
           { type: "content_block_stop", index: 0 },
           {
             type: "message_delta",

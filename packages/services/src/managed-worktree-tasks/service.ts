@@ -126,10 +126,19 @@ export function createManagedWorktreeService(
       ),
   });
   const releaseCliSessionsUnder = removal.releaseCliSessionsUnder;
-  const { sendLocal, settleStarted, createWorktree, startSession, run } =
-    createWorktreeCreationFlow({ ports, publish, fail, settle, appendOutput, explicitDirectories });
-  const { unloadFailedSessionsIn, discardWorktree, queryPreviousCommand, resolvePreviousAttempt } =
-    createWorktreeCreationRecovery({ ports, releaseCliSessionsUnder, settleStarted });
+  const { sendLocal, settleStarted, run } = createWorktreeCreationFlow({
+    ports,
+    publish,
+    fail,
+    settle,
+    appendOutput,
+    explicitDirectories,
+  });
+  const { discardWorktree, resolvePreviousAttempt } = createWorktreeCreationRecovery({
+    ports,
+    releaseCliSessionsUnder,
+    settleStarted,
+  });
   const { startNewTaskNow, forkToWorktreeNow } = createWorktreeCreationStarts({
     ports,
     now,

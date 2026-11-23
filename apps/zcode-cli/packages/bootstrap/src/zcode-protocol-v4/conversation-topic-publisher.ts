@@ -1,10 +1,5 @@
-import {
-  buildConversationTurnDirectory,
-  sliceTurnDirectory,
-} from "./conversation-turn-directory.js";
+import { ConversationTurnDirectoryQuery } from "./conversation-turn-directory.js";
 import type {
-  ConversationRow,
-  ConversationTurnDirectoryEntry,
   V4ConversationTurnDirectoryParams,
   V4ConversationTurnDirectoryResult,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -47,7 +42,6 @@ import {
   coalesceConversationDeltas,
   filterConversationDeltasForProfile,
   utf8JsonByteLength,
-  sliceConversationRowRange,
 } from "@zcode/shared/zcode-protocol-v4";
 import { encodeConversationDeltasForLegacy } from "./conversation-workflow-run-deltas.js";
 import {
@@ -417,27 +411,9 @@ export class ConversationTopicPublisher {
    * wire snapshot 只保留 tail window；renderer 扫描可见 rows 会漏掉早期计划，
    * edit/retry 后还可能保留已经被权威 projection 裁掉的旧目录项。
    */
-  private turnDirectoryCache: {
-    rows: WeakRef<readonly ConversationRow[]>;
-    entries: ConversationTurnDirectoryEntry[];
-  } | null = null;
+  private readonly turnDirectory = new ConversationTurnDirectoryQuery();
   getTurnDirectory(params: V4ConversationTurnDirectoryParams): V4ConversationTurnDirectoryResult {
-    const snapshot = this.projection.getSnapshot();
-    if (this.turnDirectoryCache?.rows.deref() !== snapshot.rows.window) {
-      this.turnDirectoryCache = {
-        rows: new WeakRef(snapshot.rows.window),
-        entries: buildConversationTurnDirectory(snapshot.rows.window),
-      };
-    }
-    return {
-      ...sliceTurnDirectory(
-        this.turnDirectoryCache.entries,
-        params.beforeRowId,
-        params.limit ?? 200,
-      ),
-      atSeq: snapshot.seq,
-      atLogEpoch: this.logEpoch,
-    };
+    return this.turnDirectory.read(this.projection.getSnapshot(), params, this.logEpoch);
   }
 
   getPlans(): V4ConversationPlansResult {

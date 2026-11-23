@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { platform } from "node:os";
+import "node:os";
 import { link, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { SystemCredentialCipherOptions } from "./contract.js";

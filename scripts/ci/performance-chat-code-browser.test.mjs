@@ -134,14 +134,17 @@ test(
           alias: { "@": uiSource },
           dedupe: ["react", "react-dom"],
         },
-        server: { host: "127.0.0.1", port: 0, hmr: false },
+        // 本夹具不使用 HMR，避免监听整个项目及本次验证产物。
+        server: { host: "127.0.0.1", port: 0, hmr: false, watch: null },
         logLevel: "error",
       });
       await server.listen();
       const baseUrl = server.resolvedUrls.local[0];
       const origin = new URL(baseUrl);
       browser = await chromium.launch({
-        channel: process.platform === "win32" ? "msedge" : "chrome",
+        ...(process.env.CHROME_EXECUTABLE_PATH
+          ? { executablePath: process.env.CHROME_EXECUTABLE_PATH }
+          : { channel: process.platform === "win32" ? "msedge" : "chrome" }),
         headless: true,
       });
       context = await browser.newContext({ viewport: { width: 390, height: 844 } });

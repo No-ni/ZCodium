@@ -11,7 +11,6 @@ import { EditInlineDiffContent } from "@/ToolCallBlocks/renderers/EditInlineDiff
 import {
   getEditKindLabelMessageId,
   renderDiffCount,
-  renderFileDirectoryPath,
   renderJoinedFileChips,
   renderFileChip,
   resolveToolCallFilePath,
@@ -126,20 +125,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
       rawFileSummaries,
     ],
   );
-  const singleFileSummary = rawFileSummaries.length === 1 ? rawFileSummaries[0] : undefined;
-  const secondaryText = useMemo(
-    () =>
-      singleFileSummary
-        ? renderFileDirectoryPath(
-            singleFileSummary.path,
-            resolveFileDisplayBasePath(singleFileSummary.path, [
-              context.fileReferenceRootPath,
-              context.workspacePath,
-            ]),
-          )
-        : undefined,
-    [context.fileReferenceRootPath, context.workspacePath, singleFileSummary],
-  );
+
   const totalChangeStat = useMemo(
     () =>
       rawFileSummaries.reduce(
@@ -300,6 +286,8 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
         </>
       ),
     [
+      // 展开内容捕获了动画选项；设置变化时必须更新同一摘要，避免保留旧闭包。
+      context.animateDiffCountOnMount,
       context.childToolList,
       context.codePreviewSettings,
       context.displayModel,
@@ -424,10 +412,7 @@ function EditFileSummaryBlock({
       }),
     [displayBasePath, onOpenCodeViewer, openFilePreview, summary],
   );
-  const secondaryText = useMemo(
-    () => renderFileDirectoryPath(summary.path, displayBasePath),
-    [displayBasePath, summary.path],
-  );
+
   const diffCount = useMemo(
     () => renderDiffCount(summary.changeStat, { animateInitial: animateDiffCountOnMount }),
     [animateDiffCountOnMount, summary.changeStat],

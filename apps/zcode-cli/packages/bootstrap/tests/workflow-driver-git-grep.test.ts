@@ -1,3 +1,5 @@
+import {join} from "node:path";
+import {tmpdir} from "node:os";
 /**
  * git.* / files.glob / files.grep world reads（driver 侧）。见 docs/execution-engine.md 的
  * "World-read execution, per op family" 与 "Cap enforcement sits in the driver, with the
@@ -36,7 +38,7 @@ import {
 import { createWorkflowEscalationRegistry } from "../src/app/workflow-escalation-registry.js";
 import { createAgentRuntimeWorkflowDriver } from "../src/app/workflow-driver.js";
 
-const CWD = "/ws";
+const CWD = join(tmpdir(), "workflow-world-read-workspace");
 
 /** 一次被记录下来的 git 调用（argv 与 cwd 都要能断言）。 */
 interface GitCall {
@@ -750,7 +752,7 @@ describe("files.glob world read", () => {
   it("maps the port's mtime-ordered absolute paths to lexicographic workspace-relative", async () => {
     const { driver, globRequests } = makeDriver({
       // 端口按 mtime 降序、绝对/相对混合（真适配器给绝对路径；形状归一是 driver 的事）。
-      glob: ["/ws/src/z.ts", "/ws/a.ts", "src/m.ts"],
+      glob: [join(CWD, "src/z.ts"), join(CWD, "a.ts"), "src/m.ts"],
     });
     await expect(driver.executeWorldRead("glob", ["**/*.ts"])).resolves.toEqual([
       "a.ts",
@@ -768,7 +770,7 @@ describe("files.glob world read", () => {
   it("rejects over-cap file counts with actionable guidance, never a truncated view", async () => {
     // 截断的世界视图会被 journal 记录、被 resume 原样重放，脚本还会拿它去扇出。
     const cap = WORLD_READ_CAPS.globMaxFiles;
-    const tooMany = Array.from({ length: cap + 1 }, (_, i) => `/ws/f${i}.ts`);
+    const tooMany = Array.from({ length: cap + 1 }, (_, i) => join(CWD, `f${i}.ts`));
     const { driver } = makeDriver({ glob: tooMany });
     await expect(driver.executeWorldRead("glob", ["**/*"])).rejects.toMatchObject({
       code: "WorldReadCapExceeded",
@@ -778,7 +780,7 @@ describe("files.glob world read", () => {
 
   it("passes a file count exactly at the cap through", async () => {
     const cap = WORLD_READ_CAPS.globMaxFiles;
-    const exact = Array.from({ length: cap }, (_, i) => `/ws/f${i}.ts`);
+    const exact = Array.from({ length: cap }, (_, i) => join(CWD, `f${i}.ts`));
     const { driver } = makeDriver({ glob: exact });
     const files = (await driver.executeWorldRead("glob", ["**/*"])) as string[];
     expect(files).toHaveLength(cap);
@@ -786,7 +788,7 @@ describe("files.glob world read", () => {
 
   it("rejects when the port reports truncation even under the count cap", async () => {
     // 与 grep 同一条线：端口若因别的原因截断，我们手上就不是完整结果了。
-    const { driver } = makeDriver({ glob: ["/ws/a.ts"], globTruncated: true });
+    const { driver } = makeDriver({ glob: [join(CWD, "a.ts")], globTruncated: true });
     await expect(driver.executeWorldRead("glob", ["*.ts"])).rejects.toMatchObject({
       code: "WorldReadCapExceeded",
     });
@@ -801,10 +803,10 @@ describe("files.grep world read", () => {
   it("maps port entries to workspace-relative {path, line, text}", async () => {
     const { driver, grepRequests } = makeDriver({
       grep: [
-        { path: "/ws/src/a.ts", lineNumber: 12, text: "// TODO: fix" },
+        { path: join(CWD, "src/a.ts"), lineNumber: 12, text: "// TODO: fix" },
         { path: "src/b.ts", lineNumber: 3, text: "// TODO: later" },
         // 端口在别的 outputMode 下会产出没有行号的条目；那不是一条内容命中。
-        { path: "/ws/src/c.ts", count: 4 },
+        { path: join(CWD, "src/c.ts"), count: 4 },
       ],
     });
     await expect(driver.executeWorldRead("grep", ["TODO", "*.ts"])).resolves.toEqual([
@@ -835,7 +837,7 @@ describe("files.grep world read", () => {
     // 截断把一份悄悄残缺的世界视图交给脚本，而脚本接下来会拿它去扇出——扇出才是贵的那一步。
     const cap = WORLD_READ_CAPS.grepMaxMatches;
     const tooMany = Array.from({ length: cap + 1 }, (_, i) => ({
-      path: `/ws/f${i}.ts`,
+      path: join(CWD, `f${i}.ts`),
       lineNumber: 1,
       text: "hit",
     }));
@@ -931,7 +933,7 @@ describe("files.read — workspace containment", () => {
   it("resolves a legitimate nested path against the workspace", async () => {
     const { driver, readPaths } = makeDriver({});
     await expect(driver.executeWorldRead("read", ["sub/nested/a.ts"])).resolves.toBe("body");
-    expect(readPaths).toEqual([`${CWD}/sub/nested/a.ts`]);
+    expect(readPaths).toEqual([join(CWD, "sub/nested/a.ts")]);
   });
 
   it("rejects a path that escapes the workspace with ..", async () => {

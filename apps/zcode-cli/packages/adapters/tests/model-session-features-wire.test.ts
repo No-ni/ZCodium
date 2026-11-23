@@ -3,14 +3,14 @@ import type { ModelRequestSessionFeature } from "@zcode/contracts";
 import { TestAiSdkModelAdapter, TestProviderConfigFixture } from "./test-provider-config.js";
 import { executeAdapterGenerateText, executeAdapterStreamText } from "./test-adapter-model.js";
 
-// 规格：docs/design/v2/model/session-features-header.md。经正式 SDK 发出的 HTTP 请求验证。
+// 经正式 SDK 验证显式 provider header 保留，内部会话身份和功能标签不自动外发。
 const SESSION_FEATURES_HEADER = "x-zcode-session-features";
 const CAPTURE_ERROR = "session features captured";
 afterEach(() => vi.unstubAllGlobals());
 const providerKinds = ["anthropic", "openai", "openai-compatible"] as const;
 
 describe.each(providerKinds)("%s session features HTTP header", (providerKind) => {
-  it.each([false, true])("写出排序后的标签，并隔离并发调用，streaming=%s", async (streaming) => {
+  it.each([false, true])("并发功能标签不注入外部请求，streaming=%s", async (streaming) => {
     const { adapter, requests } = createCapture(providerKind);
     await Promise.all([
       captureCall(adapter, streaming, "sess_both", ["workflow_cmd", "workflow_auto"]),
@@ -19,19 +19,11 @@ describe.each(providerKinds)("%s session features HTTP header", (providerKind) =
     ]);
 
     expect(requests).toHaveLength(3);
-    const bySession = new Map(
-      requests.map((request) => [
+    const headers = requests.map((request) => [
         request.headers.get("x-session-id"),
         request.headers.get(SESSION_FEATURES_HEADER),
-      ]),
-    );
-    expect(bySession).toEqual(
-      new Map([
-        ["both", "workflow_auto,workflow_cmd"],
-        ["auto", "workflow_auto"],
-        ["none", null],
-      ]),
-    );
+      ]);
+    expect(headers).toEqual(Array.from({ length: 3 }, () => [null, "configured_provider"]));
     for (const request of requests) {
       expect(request.headers.get("x-static-marker")).toBe("preserved");
       expect(await request.text()).not.toContain("workflow_auto");
@@ -39,17 +31,17 @@ describe.each(providerKinds)("%s session features HTTP header", (providerKind) =
   });
 
   it.each([false, true])(
-    "重试保持标签，静态同名 header 不回退，streaming=%s",
+    "重试保持显式 header而不覆盖为内部标签，streaming=%s",
     async (streaming) => {
       const { adapter, requests } = createCapture(providerKind, true);
       await captureCall(adapter, streaming, "sess_retry", ["workflow_cmd"]);
       await captureCall(adapter, streaming, "sess_retry_empty", []);
 
       expect(requests.map((request) => request.headers.get(SESSION_FEATURES_HEADER))).toEqual([
-        "workflow_cmd",
-        "workflow_cmd",
-        null,
-        null,
+        "configured_provider",
+        "configured_provider",
+        "configured_provider",
+        "configured_provider",
       ]);
     },
   );
@@ -76,7 +68,7 @@ function createCapture(providerKind: (typeof providerKinds)[number], retry = fal
         apiKey: "fake-key",
         baseURL: "https://provider.example.test/v1",
         headers: {
-          "x-zcode-session-features": "stale_provider",
+          "x-zcode-session-features": "configured_provider",
           "x-static-marker": "preserved",
         },
       },

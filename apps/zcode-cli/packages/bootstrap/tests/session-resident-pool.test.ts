@@ -1201,7 +1201,7 @@ describe("session lifecycle protocol", () => {
     );
   });
 
-  it("settles the inbox after goal pause failure and preserves the failed stage", async () => {
+  it("settles the inbox and faults the lifecycle after goal pause failure", async () => {
     await call(harness, "session/lifecycle/ensureReady");
     const context = (harness.server as unknown as { context: ZCodeProtocolAgentServerContext })
       .context;
@@ -1209,9 +1209,13 @@ describe("session lifecycle protocol", () => {
     record.app.readTarget = vi.fn().mockResolvedValue({ status: "active" });
     record.app.updateTargetStatus = vi.fn().mockRejectedValue(new Error("target write failed"));
     const finish = vi.spyOn(context.v4Gateway!, "finishSessionRelease");
-    await expect(call(harness, "session/lifecycle/stop")).rejects.toThrow("goal_pause");
+    await expect(call(harness, "session/lifecycle/stop")).rejects.toThrow("Session runtime release failed");
+    expect(record.app.updateTargetStatus).toHaveBeenCalledWith("paused");
     expect(finish).toHaveBeenCalledWith(SESSION_ID);
-    expect(await call(harness, "session/lifecycle/getState")).toMatchObject({ state: "faulted" });
+    expect(await call(harness, "session/lifecycle/getState")).toMatchObject({
+      state: "faulted",
+      lastError: { code: "resourceReleaseFailed", operation: "stop" },
+    });
   });
 
   it("queries unloaded without activation, then ensures/restarts/stops while preserving history", async () => {

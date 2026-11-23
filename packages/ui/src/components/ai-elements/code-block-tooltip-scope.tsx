@@ -294,7 +294,16 @@ export function CodeBlockControlHint({
   title: ReactNode;
 }) {
   const scope = useContext(CodeBlockTooltipScopeContext);
-  const originalRef = children.props.ref;
+  // React 事件是独立回调；只跟随各回调身份，避免整个 child props 变化重建全部处理器。
+  const {
+    ref: originalRef,
+    onPointerEnter: childPointerEnter,
+    onPointerLeave: childPointerLeave,
+    onFocus: childFocus,
+    onBlur: childBlur,
+    onPointerDown: childPointerDown,
+    onKeyDown: childKeyDown,
+  } = children.props;
 
   const scopeRef = useCallback(
     (node: HTMLButtonElement | null) => {
@@ -306,47 +315,47 @@ export function CodeBlockControlHint({
 
   const onPointerEnter = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
-      children.props.onPointerEnter?.(event);
+      childPointerEnter?.(event);
       if (!event.defaultPrevented) {
         scope?.pointerEnter(event.currentTarget, title, event.pointerType);
       }
     },
-    [children.props.onPointerEnter, scope, title],
+    [childPointerEnter, scope, title],
   );
   const onPointerLeave = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
-      children.props.onPointerLeave?.(event);
+      childPointerLeave?.(event);
       scope?.pointerLeave(event.currentTarget);
     },
-    [children.props.onPointerLeave, scope],
+    [childPointerLeave, scope],
   );
   const onFocus = useCallback(
     (event: FocusEvent<HTMLButtonElement>) => {
-      children.props.onFocus?.(event);
+      childFocus?.(event);
       if (!event.defaultPrevented) scope?.focus(event.currentTarget, title);
     },
-    [children.props.onFocus, scope, title],
+    [childFocus, scope, title],
   );
   const onBlur = useCallback(
     (event: FocusEvent<HTMLButtonElement>) => {
-      children.props.onBlur?.(event);
+      childBlur?.(event);
       scope?.blur(event.currentTarget);
     },
-    [children.props.onBlur, scope],
+    [childBlur, scope],
   );
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
-      children.props.onPointerDown?.(event);
+      childPointerDown?.(event);
       scope?.pointerDown(event.currentTarget);
     },
-    [children.props.onPointerDown, scope],
+    [childPointerDown, scope],
   );
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
-      children.props.onKeyDown?.(event);
+      childKeyDown?.(event);
       scope?.keyDown(event.key);
     },
-    [children.props.onKeyDown, scope],
+    [childKeyDown, scope],
   );
 
   if (!scope) {

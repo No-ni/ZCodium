@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolve as nativeFixturePath } from "node:path";
 import {
   SessionEventType,
   createSessionEvent,
@@ -32,7 +33,7 @@ describe("subagent tool event projection", () => {
           providerId: createModelProviderId("provider-test"),
           modelId: createModelId("parent-model"),
         },
-        workingDirectory: "/workspace/project",
+        workingDirectory: nativeFixturePath("/workspace/project"),
       },
       {
         eventStore,
@@ -199,7 +200,7 @@ describe("subagent tool event projection", () => {
       {
         eventStore,
         fileSystemPort: new MemoryFileSystem({
-          "/workspace/project/README.md": "ZCode Explore reads this file.\n",
+          [nativeFixturePath("/workspace/project/README.md")]: "ZCode Explore reads this file.\n",
         }),
         modelFactory: createTestModelFactory({
           async generateText(request: any) {

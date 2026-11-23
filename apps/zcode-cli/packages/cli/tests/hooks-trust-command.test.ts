@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {resolve} from "node:path";
 import type { WorkspaceHookTrustCliStatus } from "@zcode/bootstrap";
 import type { RunContext } from "@zcode/shared-types";
 import { run } from "../src/run.js";
@@ -56,7 +57,7 @@ test("hooks trust status emits stable JSON and resolves a local workspace path",
   const code = await run(ctx, {
     cwd: () => "/work",
     inspectWorkspaceHookTrust: async (target) => {
-      assert.equal(target.workspacePath, "/work/repo");
+      assert.equal(target.workspacePath, resolve("/work", "repo"));
       assert.equal(target.workspaceIdentity, undefined);
       return status({ workspacePath: "/work/repo", workspaceIdentity: "/work/repo" });
     },
@@ -81,7 +82,7 @@ test("hooks trust grant binds all-current to the exact bundle digest", async () 
   ]);
   const code = await run(ctx, {
     grantWorkspaceHookTrust: async (input) => {
-      assert.equal(input.workspacePath, "/repo");
+      assert.equal(input.workspacePath, resolve("/repo"));
       assert.equal(input.allCurrent, true);
       assert.equal(input.bundleDigest, bundleDigest);
       return status({ reasonCode: "workspace_hooks_trusted_persistent" });
@@ -102,12 +103,12 @@ test("hooks trust status treats remote identity as identity and inspects the cur
     "--json",
   ]);
   const code = await run(ctx, {
-    cwd: () => "/mounted/repo",
+    cwd: () => resolve("/mounted/repo"),
     inspectWorkspaceHookTrust: async (target) => {
-      assert.equal(target.workspacePath, "/mounted/repo");
+      assert.equal(target.workspacePath, resolve("/mounted/repo"));
       assert.equal(target.workspaceIdentity, "remote:ssh:host:/repo");
       return status({
-        workspacePath: "/mounted/repo",
+        workspacePath: resolve("/mounted/repo"),
         workspaceIdentity: "remote:ssh:host:/repo",
       });
     },

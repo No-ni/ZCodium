@@ -5,14 +5,18 @@ import { join } from "node:path";
 export interface LogEntry {
   event?: string;
   context?: Record<string, unknown>;
+  args?: unknown[];
 }
 
 export async function readLogEntries(logDir: string): Promise<LogEntry[]> {
-  const files = await readdir(logDir);
+  // 本地日志仅在版本目录写 JSONL；不能把目录当成旧格式日志文件读取。
+  const directory = join(logDir, "diagnostics-v1");
+  const files = (await readdir(directory, {withFileTypes: true}))
+    .filter(entry => entry.isFile() && entry.name.endsWith(".jsonl"));
   const entries: LogEntry[] = [];
 
   for (const file of files) {
-    const content = await readFile(join(logDir, file), "utf8");
+    const content = await readFile(join(directory, file.name), "utf8");
     for (const line of content.trim().split("\n")) {
       if (line) entries.push(JSON.parse(line) as LogEntry);
     }

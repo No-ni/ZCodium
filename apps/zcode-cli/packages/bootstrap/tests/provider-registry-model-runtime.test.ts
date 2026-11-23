@@ -155,55 +155,6 @@ describe("ApiProviderModelRuntime", () => {
     });
   });
 
-  it("Off-Peak Provider 绑定调用方提供的请求鉴权 Source", () => {
-    const requestProvider = provider(
-      "request-provider",
-      new ProviderConfig({
-        access: new ZhipuAccountAccessConfig({ accountType: "zai", mode: "off-peak" }),
-        api: new ProviderApiConfig({
-          type: "anthropic-messages",
-          baseUrl: "https://request.example.com",
-        }),
-        builtinModelIds: ["model-a"],
-        personalModelIds: [],
-        visibility: "hidden",
-      }),
-    );
-    const source = { resolve: vi.fn() };
-    const { created, runtime } = captureRuntime(new ProviderRegistry([requestProvider]));
-    runtime.modelFactory({
-      selection: selection("request-provider"),
-      requestDependencies: { requestAuth: { source } },
-    });
-    expect(created[0]?.requestDependencies?.requestAuth?.source).toBe(source);
-  });
-
-  it("Highspeed 卡 Provider 同样绑定执行作用域请求鉴权 Source", () => {
-    // 回归：加速卡的 access.mode 是 "highspeed"，与 Off-Peak 共用免签网关但凭据是本轮动态
-    // 下发的 JWT + 卡 ID header。若这里漏掉 highspeed，source 在创建 Model 时被丢，runner
-    // 会在发送前抛 model_request_auth_missing（本轮加速请求根本发不出去）。
-    const highspeedProvider = provider(
-      "account:bigmodel-highspeed-card",
-      new ProviderConfig({
-        access: new ZhipuAccountAccessConfig({ accountType: "bigmodel", mode: "highspeed" }),
-        api: new ProviderApiConfig({
-          type: "anthropic-messages",
-          baseUrl: "https://highspeed.example.com",
-        }),
-        builtinModelIds: ["model-a"],
-        personalModelIds: [],
-        visibility: "hidden",
-      }),
-    );
-    const source = { resolve: vi.fn() };
-    const { created, runtime } = captureRuntime(new ProviderRegistry([highspeedProvider]));
-    runtime.modelFactory({
-      selection: selection("account:bigmodel-highspeed-card"),
-      requestDependencies: { requestAuth: { source } },
-    });
-    expect(created[0]?.requestDependencies?.requestAuth?.source).toBe(source);
-  });
-
   it("非 Off-Peak / Highspeed 的账号模式不转发执行作用域 Source", () => {
     // 门禁边界：Coding Plan 等静态鉴权模式不消费执行作用域 requestAuth，避免把 source
     // 无条件透传给所有账号 Provider（防止门禁被误放宽成永远转发）。

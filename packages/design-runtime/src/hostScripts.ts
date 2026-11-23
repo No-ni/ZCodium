@@ -16,9 +16,6 @@ import {
   type PageElementStyleSummary,
 } from "./contract.js";
 import { buildElementInspectorExpression } from "./elementInspector.js";
-import { createDesignOverlay } from "./pageOverlay.js";
-import { createDesignBackdrop } from "./pageBackdrop.js";
-import { createDesignPageElements } from "./pageElements.js";
 import { installDesignRuntime } from "./pageRuntime.js";
 import { readDesignPageSignals } from "./pageSignals.js";
 
@@ -36,7 +33,7 @@ export function buildDesignRuntimeInstallScript(bridgeKey: string): string {
     bridgeKey,
     maxCssVariables: DESIGN_PAGE_LIMITS.cssVariables,
   };
-  return `(${installDesignRuntime.toString()})(${JSON.stringify(options)}, ${buildElementInspectorExpression()}, ${readDesignPageSignals.toString()}, ${createDesignOverlay.toString()}, ${createDesignBackdrop.toString()}, ${createDesignPageElements.toString()})`;
+  return `(${installDesignRuntime.toString()})(${JSON.stringify(options)}, ${buildElementInspectorExpression()}, ${readDesignPageSignals.toString()})`;
 }
 
 /** 调一个固定命令；运行时不在（页面刚刷新）时返回 missing。 */

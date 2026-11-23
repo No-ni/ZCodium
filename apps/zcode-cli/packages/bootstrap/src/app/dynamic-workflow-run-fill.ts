@@ -18,7 +18,7 @@
 //      补全——journal 已经是真相，草稿只是把手。
 
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import type { DynamicWorkflowRunFillHoleRequest, FillWorkflowHoleResult } from "@zcode/contracts";
 import {
   analyzeWorkflowScript,
@@ -231,6 +231,14 @@ async function fillOnce(
   const sitePhases =
     analysis.core === undefined ? new Map<string, string>() : collectSitePhases(analysis.core);
 
+  // 官方缺席草稿的创建曾被遗漏；新路径必须随 hole-filled 同一笔提交，冷恢复才能找到它。
+  const minted = entry.scriptPath === undefined
+    ? (await deps.writeWorkflowDraft?.({
+        cwd: entry.cwd,
+        name: entry.name ?? entry.phaseNames?.[0] ?? "workflow",
+        source: spliced.text,
+      }))?.path
+    : undefined;
   // 5. 交给引擎：先原子提交有效脚本与 hole-filled，成功后才换表、广播与放行。
   const filledBy =
     request.parentSessionId === undefined ? {} : { filledBy: String(request.parentSessionId) };
@@ -248,8 +256,20 @@ async function fillOnce(
     },
     ...(holeIndexes.length === 0 ? {} : { holes: holeIndexes }),
     ...filledBy,
+    ...(minted === undefined ? {} : { scriptPath: minted }),
   });
   if (result === undefined || !result.ok) {
+    if (minted !== undefined) {
+      try {
+        // 只清理本次独占新建的草稿，既有用户草稿不属于拒绝清理范围。
+        await rm(minted, { force: true });
+      } catch {
+        deps.logger?.warn?.("Dynamic workflow draft cleanup failed", {
+          event: "dynamic_workflow.fill.minted_draft_orphaned",
+          module: "bootstrap.app",
+        });
+      }
+    }
     const reason = result?.reason;
     deps.logger?.info?.("Dynamic workflow hole fill refused by the engine", {
       event: "dynamic_workflow.fill.refused",
@@ -271,9 +291,10 @@ async function fillOnce(
   entry.scriptText = spliced.text;
   entry.holes = compiled.holes;
   entry.phaseNames = phaseNames;
+  if (minted !== undefined) entry.scriptPath = minted;
   // 草稿是 journal 的派生副本；只有确认写回成功，才把路径作为有效草稿返回。
   entry.scriptPathStale = true;
-  const draftWritten = await rewriteDraft(ctx, entry, runId, spliced.text);
+  const draftWritten = minted !== undefined || await rewriteDraft(ctx, entry, spliced.text);
   entry.scriptPathStale = !draftWritten;
   const scriptPath = draftWritten ? entry.scriptPath : undefined;
   deps.logger?.info?.("Dynamic workflow hole filled", {
@@ -294,25 +315,21 @@ async function fillOnce(
 
 /**
  * 草稿的就地改写：run 有草稿就改写那个文件、路径不变——这是「草稿绝不在模型背后被覆盖」的唯一
- * 例外，模型要的正是这次写入。尽力而为：写不进去只记一条 warn，路径照旧。
+ * 例外，模型要的正是这次写入。写失败保留有效 journal，不推荐尚未更新的草稿。
  */
 async function rewriteDraft(
   ctx: DynamicWorkflowRunFillContext,
   entry: RunRegistryEntry,
-  runId: string,
   text: string,
 ): Promise<boolean> {
   if (entry.scriptPath === undefined) return false;
   try {
     await writeFile(entry.scriptPath, text, "utf8");
     return true;
-  } catch (error) {
+  } catch {
     ctx.deps.logger?.warn?.("Dynamic workflow draft could not be rewritten after a fill", {
-      errorMessage: error instanceof Error ? error.message : String(error),
       event: "dynamic_workflow.fill.draft_rewrite_failed",
       module: "bootstrap.app",
-      runId,
-      scriptPath: entry.scriptPath,
     });
     return false;
   }

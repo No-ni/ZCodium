@@ -54,9 +54,9 @@ describe("workspace hook Settings/Runtime dual builder digest parity (D17 runtim
     const home = makeRoot();
     const workspace = makeRoot();
     await mkdir(join(workspace, ".git"));
-    const userConfigPath = join(home, ".zcode", "cli", "config.json");
+    const userConfigPath = join(home, ".zcodium", "cli", "config.json");
     await writeJson(userConfigPath, { hooks: { enabled: true, timeoutMs: 30_000 } });
-    await writeJson(join(workspace, "zcode.json"), {
+    await writeJson(join(workspace, "zcodium.json"), {
       hooks: {
         enabled: true,
         events: {
@@ -69,7 +69,7 @@ describe("workspace hook Settings/Runtime dual builder digest parity (D17 runtim
         },
       },
     });
-    await writeJson(join(workspace, ".zcode", "config.json"), {
+    await writeJson(join(workspace, ".zcodium", "config.json"), {
       hooks: {
         enabled: true,
         events: {
@@ -135,7 +135,7 @@ describe("workspace hook Settings/Runtime dual builder digest parity (D17 runtim
     // snapshot_mismatch（2026-08-10 UAT 实测）。这里锁住导出值与快照的一致性，
     // 使复用成为结构性约束，而不是两处推导恰好相等的巧合。
     const workspace = makeRoot();
-    await writeJson(join(workspace, ".zcode", "config.json"), {
+    await writeJson(join(workspace, ".zcodium", "config.json"), {
       hooks: {
         enabled: true,
         // 刻意偏离默认值：单层重建会退回 60_000 / 32_768，从而暴露分叉。
@@ -167,7 +167,7 @@ describe("workspace hook Settings/Runtime dual builder digest parity (D17 runtim
   it("explicit path 与 auto-discovery 指向同一文件时只生成一个 source", async () => {
     const workspace = makeRoot();
     await mkdir(join(workspace, ".git"));
-    const configPath = join(workspace, "zcode.json");
+    const configPath = join(workspace, "zcodium.json");
     await writeJson(configPath, {
       hooks: {
         enabled: true,
@@ -207,8 +207,8 @@ describe("workspace hook Settings/Runtime dual builder digest parity (D17 runtim
   it("损坏候选仍占 discoveryOrder，后续 source 的 Runtime/Settings digest 不错位", async () => {
     const workspace = makeRoot();
     await mkdir(join(workspace, ".git"));
-    await writeFile(join(workspace, "zcode.json"), "{broken", "utf8");
-    await writeJson(join(workspace, ".zcode", "config.json"), {
+    await writeFile(join(workspace, "zcodium.json"), "{broken", "utf8");
+    await writeJson(join(workspace, ".zcodium", "config.json"), {
       hooks: {
         enabled: true,
         events: {

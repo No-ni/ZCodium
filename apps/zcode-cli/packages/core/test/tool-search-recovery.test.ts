@@ -9,7 +9,6 @@ import { createToolRegistry } from "../src/tool/registry.js";
 import { toolSearchToolEntry } from "../src/tool/handlers/tool-search.js";
 import { deferredToolCallEntry } from "../src/tool/handlers/deferred-tool-call.js";
 import { completedToolPartMetadata } from "../src/runtime/methods/tool-part-metadata.js";
-import { buildCompactSummaryRequestMessages } from "../src/runtime/methods/compact-active-helpers.js";
 import { runCompactSummaryModelRequest } from "../src/runtime/methods/compact-summary-model-request.js";
 import { compactActiveConversation } from "../src/runtime/methods/compact-active.js";
 import { buildRuntimeProviderRequestMessages } from "../src/runtime/helpers/runtime-provider-request-messages.js";
@@ -97,6 +96,18 @@ function catalog() {
   });
   return registry;
 }
+
+test("cold hydration validates both search names and new or historical discovery metadata", async () => {
+  for (const name of ["ToolSearch", "LocalToolSearch"]) {
+    for (const key of ["modelContent", "toolSearchContent"]) {
+      const message = toolMessage("search", name);
+      (message.parts[0] as any).state.metadata = { [key]: [reference] };
+      const history = createMessageHistory();
+      await hydrateMessageHistoryFromSession({ history, messages: [prompt(), message] });
+      assert.deepEqual([...collectDiscoveredTools(history.toRuntimeEntries())], [NAME]);
+    }
+  }
+});
 
 test("cold hydration restores successful references and every wrapped Gemini call independently", async () => {
   const history = createMessageHistory();
@@ -209,7 +220,7 @@ test("compact summary and announcement metadata hydrate and cannot resurrect una
         id: "summary-boundary",
         messageID: "summary",
         sessionID: "fixture-session",
-        compactBoundary: { boundaryId: "fixture-boundary", preCompactDiscoveredTools: [NAME] },
+        compactBoundary: { boundaryId: "fixture-boundary", preCompactDiscoveredTools: [NAME], trigger: "manual", preCompactTokenCount: 0, summarizedMessageCount: 1, traceId: "fixture-trace" },
       },
     ],
   } as unknown as MessageWithParts;
@@ -262,14 +273,14 @@ test("compact summary and announcement metadata hydrate and cannot resurrect una
 
 test("completed result metadata persists references but errors cannot create discovery", () => {
   const result = { toolName: "ToolSearch", success: true, modelContent: [reference] } as any;
-  assert.deepEqual(completedToolPartMetadata(result).toolSearchContent, [reference]);
+  assert.deepEqual(completedToolPartMetadata(result).modelContent, [reference]);
   assert.equal(
-    completedToolPartMetadata({ ...result, success: false }).toolSearchContent,
+    completedToolPartMetadata({ ...result, success: false }).modelContent,
     undefined,
   );
 });
 
-test("auxiliary and compact projections strip native references on copies, never canonical calls/signatures", async () => {
+test("disabled auxiliary requests strip native references on copies, never canonical calls/signatures", async () => {
   const history = createMessageHistory();
   await hydrateMessageHistoryFromSession({
     history,
@@ -281,7 +292,6 @@ test("auxiliary and compact projections strip native references on copies, never
   });
   const entries = history.toRuntimeEntries();
   for (const messages of [
-    buildCompactSummaryRequestMessages(entries, "summary"),
     buildRuntimeProviderRequestMessages({ config: {} }, { model, entries }).messages,
   ]) {
     assert.ok(!JSON.stringify(messages).includes('"type":"tool_reference"'));
@@ -304,8 +314,9 @@ test("auxiliary and compact projections strip native references on copies, never
   await runCompactSummaryModelRequest({
     model: summaryModel,
     request: {
-      messages: buildCompactSummaryRequestMessages(entries, "summary"),
-      tools: catalog().toContracts(),
+      messages: buildRuntimeProviderRequestMessages({ config: {} }, { model, entries }).messages,
+      tools: [],
+      toolSearchEnabled: false,
       traceContext: { traceId: "fixture" } as any,
     },
   });
@@ -344,7 +355,7 @@ test("microcompact never clears successful discovery references even with custom
   assert.equal(compacted.messages.filter((message) => Array.isArray(message.content)).length, 4);
 });
 
-test("actual compact pipeline persists discovered metadata and always makes a no-tool summary request", async () => {
+test("actual compact pipeline persists discovered metadata and reuses the main tool exposure", async () => {
   const history = createMessageHistory();
   history.addUser("fixture");
   history.addAssistant("", [{ id: "search", name: "ToolSearch", input: {} }]);
@@ -371,6 +382,10 @@ test("actual compact pipeline persists discovered metadata and always makes a no
     readFileState: new Map(),
     messageHistory: history,
     getTools: () => catalog().toContracts(),
+    getToolRegistry: () => catalog(),
+    getMode: () => "build",
+    getPlanEnabled: () => false,
+    runSessionStartHooks: async () => ({ additionalContexts: [] }),
     initializeMcp: async () => {},
     buildCompactTimelinePayload: (_timeline: any, update: any) => ({ ...update }),
     persistCompactTimeline: async () => {},
@@ -378,7 +393,7 @@ test("actual compact pipeline persists discovered metadata and always makes a no
     appendEvent: async (event: any) => {
       events.push(event);
     },
-    createModelStatusSink: () => ({ emit: () => {} }),
+    createModelStatusSink: () => ({ emit: () => {}, [Symbol.dispose]: () => {} }),
     extractToolCallsFromResult: (result: any) => result.toolCalls ?? [],
     persistCompactSummary: async (...args: any[]) => {
       persisted.push(args);
@@ -394,7 +409,7 @@ test("actual compact pipeline persists discovered metadata and always makes a no
   );
   assert.equal(result.outcome, "compacted");
   assert.equal(requests.length, 1);
-  assert.deepEqual(requests[0].tools, []);
+  assert.deepEqual(requests[0].tools.map((tool: any) => tool.name), ["LocalToolSearch", "DeferredToolCall"]);
   assert.equal(requests[0].toolSearchEnabled, false);
   assert.ok(!JSON.stringify(requests[0].messages).includes('"type":"tool_reference"'));
   assert.deepEqual(persisted[0][3].preCompactDiscoveredTools, [NAME]);

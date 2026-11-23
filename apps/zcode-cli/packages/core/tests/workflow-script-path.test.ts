@@ -15,9 +15,9 @@ const CWD = path.resolve(path.sep, "repo");
 
 describe("describeWorkflowScriptPath", () => {
   it("工作目录之下：给工作区相对路径（模型接下来 Edit 用的就是这一种）", () => {
-    const absolute = path.join(CWD, ".zcode", "workflow-drafts", "audit.dwf.ts");
+    const absolute = path.join(CWD, ".zcodium", "workflow-drafts", "audit.dwf.ts");
     expect(describeWorkflowScriptPath(absolute, CWD)).toBe(
-      path.join(".zcode", "workflow-drafts", "audit.dwf.ts"),
+      path.join(".zcodium", "workflow-drafts", "audit.dwf.ts"),
     );
   });
 
@@ -43,13 +43,13 @@ describe("describeWorkflowScriptPath", () => {
 
   it("嵌套更深的工作目录：相对写法从工作目录起算，而不是从仓库根", () => {
     const nested = path.join(CWD, "apps", "cli");
-    const absolute = path.join(nested, ".zcode", "workflow-drafts", "audit.dwf.ts");
+    const absolute = path.join(nested, ".zcodium", "workflow-drafts", "audit.dwf.ts");
     expect(describeWorkflowScriptPath(absolute, nested)).toBe(
-      path.join(".zcode", "workflow-drafts", "audit.dwf.ts"),
+      path.join(".zcodium", "workflow-drafts", "audit.dwf.ts"),
     );
     // 同一个文件、更靠外的工作目录：相对写法随之变长，绝对路径不变——journal 存的是后者。
     expect(describeWorkflowScriptPath(absolute, CWD)).toBe(
-      path.join("apps", "cli", ".zcode", "workflow-drafts", "audit.dwf.ts"),
+      path.join("apps", "cli", ".zcodium", "workflow-drafts", "audit.dwf.ts"),
     );
   });
 

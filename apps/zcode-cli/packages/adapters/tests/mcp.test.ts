@@ -1,4 +1,6 @@
-import { delimiter, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UnauthorizedError } from "@modelcontextprotocol/client";
 import { ZCODE_TOOL_ENV_PASSTHROUGH_ENV_KEY } from "@zcode/shared";
@@ -108,8 +110,23 @@ vi.mock("@modelcontextprotocol/client/stdio", () => ({
   },
 }));
 
-import { createMcpAdapter } from "../src/mcp/index.js";
-import { createMcpTelemetryTracker } from "../src/mcp/telemetry.js";
+import { createMcpAdapter as createRuntimeMcpAdapter, type CreateMcpAdapterOptions } from "../src/mcp/index.js";
+import { createSharedZCodeCredentialStore } from "../src/auth/shared-credentials.js";
+
+// 每个 adapter 使用项目内独立合成凭据；测试不读系统 Keyring，也不跨用例共享授权事务。
+function createMcpAdapter(options: CreateMcpAdapterOptions = {}) {
+  return createRuntimeMcpAdapter({
+    ...options,
+    mcpOAuth: {
+      credentialStore: createSharedZCodeCredentialStore({
+        filePath: join(tmpdir(), `mcp-fixture-${randomUUID()}`, "credentials.json"),
+        env: { ZCODE_CREDENTIAL_SECRET: "synthetic-mcp-secret" },
+      }),
+      ...options.mcpOAuth,
+    },
+  });
+}
+import { createMcpProcessTracker } from "../src/mcp/process-tracker.js";
 
 /**
  * 把 Phase 1 建连做成认证失败，并接管 Phase 2 的 `auth()`：调用 provider 的
@@ -204,9 +221,13 @@ describe("createMcpAdapter", () => {
     const started = Promise.withResolvers<void>();
     const cleanupStarted = Promise.withResolvers<void>();
     const cleaned = Promise.withResolvers<void>();
-    clientConnectMock.mockImplementationOnce(async () => {
+    clientConnectMock.mockImplementationOnce(async (_transport, options?: { signal?: AbortSignal }) => {
       started.resolve();
-      await new Promise(() => {});
+      // 真 SDK 的连接会在 abort 后终止；不能用永不结束的替身制造关闭循环等待。
+      await new Promise((_, reject) => {
+        const signal = options?.signal!;
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
     });
     clientCloseMock.mockImplementationOnce(async () => {
       cleanupStarted.resolve();
@@ -269,8 +290,9 @@ describe("createMcpAdapter", () => {
     const connecting = adapter.connectServer("fixture", config);
     await vi.waitFor(() => expect(clientConnectMock).toHaveBeenCalledOnce());
     const opening = adapter.waitForAppConnection!("fixture");
-    await adapter.connectServer("fixture", config);
+    const replacing = adapter.connectServer("fixture", config);
     gate.resolve();
+    await replacing;
     await connecting;
     expect(await opening).toBeNull();
     expect(adapter.appConnectionSnapshot?.("fixture")).not.toBeNull();
@@ -834,8 +856,7 @@ describe("createMcpAdapter", () => {
     };
     logger.child.mockReturnValue(logger);
     const telemetryEvents: Array<{ kind: string; mcpInstanceId?: string }> = [];
-    const telemetry = createMcpTelemetryTracker({
-      idSalt: "device-a",
+    const telemetry = createMcpProcessTracker({
       onEvent: (event) => telemetryEvents.push(event),
       randomId: () => "mcp-instance-1",
     });
@@ -856,7 +877,7 @@ describe("createMcpAdapter", () => {
         sessionId: "session-1",
       },
       logger,
-      telemetry,
+      processTracker: telemetry,
     });
 
     await adapter.connectServer("node_repl", {
@@ -1060,24 +1081,17 @@ describe("createMcpAdapter", () => {
     });
 
     const options = capturedStdioOptions[0] as { env?: Record<string, string> };
-    expect(options.env).toMatchObject({
-      ALL_PROXY: "http://127.0.0.1:8888",
-      CURL_CA_BUNDLE: "/tmp/root-ca.pem",
-      GIT_SSL_CAINFO: "/tmp/root-ca.pem",
-      HTTPS_PROXY: "http://127.0.0.1:8888",
-      HTTP_PROXY: "http://127.0.0.1:8888",
-      MCP_TOKEN: "secret",
-      NODE_EXTRA_CA_CERTS: "/tmp/root-ca.pem",
-      NO_PROXY: "localhost,127.0.0.1",
-      // MCP 会补齐 Node 目录；本测试使用已含 Node 的 PATH，避免依赖测试机的 /bin。
-      PATH: dirname(process.execPath),
-      REQUESTS_CA_BUNDLE: "/tmp/root-ca.pem",
-      SSL_CERT_FILE: "/tmp/root-ca.pem",
-      all_proxy: "http://127.0.0.1:8888",
-      http_proxy: "http://127.0.0.1:8888",
-      https_proxy: "http://127.0.0.1:8888",
-      no_proxy: "localhost,127.0.0.1",
+    const inherited = options.env!;
+    expect(inherited).toMatchObject({
+      CURL_CA_BUNDLE: "/tmp/root-ca.pem", GIT_SSL_CAINFO: "/tmp/root-ca.pem",
+      MCP_TOKEN: "secret", NODE_EXTRA_CA_CERTS: "/tmp/root-ca.pem",
+      PATH: dirname(process.execPath), REQUESTS_CA_BUNDLE: "/tmp/root-ca.pem", SSL_CERT_FILE: "/tmp/root-ca.pem",
     });
+    // Windows 环境键大小写不敏感，生产入口会折叠重复键；POSIX 仍保留两种工具约定。
+    for (const [name, expected] of Object.entries({ all_proxy: "http://127.0.0.1:8888", http_proxy: "http://127.0.0.1:8888", https_proxy: "http://127.0.0.1:8888", no_proxy: "localhost,127.0.0.1" })) {
+      const values = Object.entries(inherited).filter(([key]) => key.toLowerCase() === name).map(([,value]) => value);
+      expect(values).toEqual(Array(process.platform === "win32" ? 1 : 2).fill(expected));
+    };
   });
 
   it("appends the injected node fallback after the server env", async () => {
@@ -1640,6 +1654,7 @@ describe("createMcpAdapter", () => {
       },
       { timeoutMs: 2_000 },
     );
+    void firstCall.catch(() => undefined);
 
     try {
       for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -1647,6 +1662,7 @@ describe("createMcpAdapter", () => {
         if (status.runtime?.authorization?.authorizationUrl) break;
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
+      expect((await adapter.status()).runtime?.error).toBeUndefined();
       await expect(adapter.status()).resolves.toMatchObject({
         runtime: {
           authorization: {

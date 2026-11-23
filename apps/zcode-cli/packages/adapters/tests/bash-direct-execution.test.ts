@@ -65,8 +65,8 @@ async function fixture(shell: ExecutionShellSelection, code: string, useTmp = fa
       shellOverride: shell,
       command:
         shell.dialect === "cmd"
-          ? '"%PROBE_NODE%" "%PROBE_SCRIPT%"'
-          : '"$PROBE_NODE" "$PROBE_SCRIPT"',
+          ? '"%PROBE_NODE%" --no-warnings "%PROBE_SCRIPT%"'
+          : '"$PROBE_NODE" --no-warnings "$PROBE_SCRIPT"',
     },
     cwd,
     timeoutMs: 10_000,
@@ -242,7 +242,7 @@ const timer = setInterval(() => {
 
   it("rejects generic argv tasks even when the session matches", async () => {
     const { adapter, request } = await fixture(shell, gatedWriter);
-    request.command = { mode: "argv", file: process.execPath, args: ["-e", gatedWriter] };
+    request.command = { mode: "argv", file: process.execPath, args: ["--no-warnings", "-e", gatedWriter] };
     const task = await adapter.start(request);
     expect(await adapter.readBackgroundBashOutput(task.taskId, "probe")).toEqual({
       kind: "unavailable",
@@ -371,7 +371,7 @@ const timer = setInterval(() => {
   it("settles at root exit and allows inherited descendants to write afterward", async () => {
     const code = `const fs = require('node:fs'), {spawn} = require('node:child_process');
 fs.writeSync(1, 'root\\n');
-spawn(process.execPath, ['-e', "const fs=require('node:fs');const t=setInterval(()=>{if(fs.existsSync(process.env.PROBE_RELEASE)){clearInterval(t);fs.writeSync(1,'late-out\\\\n');fs.writeSync(2,'late-err\\\\n');}},10)"], {stdio:['ignore',1,2],detached:true}).unref();`;
+spawn(process.execPath, ['--no-warnings','-e', "const fs=require('node:fs');const t=setInterval(()=>{if(fs.existsSync(process.env.PROBE_RELEASE)){clearInterval(t);fs.writeSync(1,'late-out\\\\n');fs.writeSync(2,'late-err\\\\n');}},10)"], {stdio:['ignore',1,2],detached:true}).unref();`;
     const { adapter, request, path, release } = await fixture(shell, code);
     const launch = await adapter.runBashWithBackgroundLifecycle(request, { mode: "explicit" });
     if (launch.kind !== "backgrounded") throw new Error("Expected background task");
@@ -442,7 +442,7 @@ describe.each(shells)("temporary Bash output $display.name", (shell) => {
         expect(done?.result?.stdout.artifactPath).toBe(actualPath);
       }
       expect(relative(tempParent, actualPath)).toMatch(
-        /^zcode-bash-[^/\\]+[/\\]probe[/\\]direct-stdout\.log$/,
+        /^zcodium-bash-[^/\\]+[/\\]probe[/\\]direct-stdout\.log$/,
       );
       expect(prepare).toHaveBeenCalledTimes(1);
       expect(encoding).toHaveBeenCalledTimes(1);

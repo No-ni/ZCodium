@@ -19,7 +19,7 @@ import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 import { parseWslUncWorkspacePath } from "@/lib/wslUncWorkspace.js";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
-import { ensureTaskNavigationWorkspace } from "@/app-shell/taskNavigationWorkspace.js";
+import "@/app-shell/taskNavigationWorkspace.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
 import {
   resolveComposerScope,
@@ -423,6 +423,7 @@ export function useRootWorkspaceActions({
     },
     [
       projectService,
+      services.taskGroupService,
       intl,
       composerClientNamespace,
       activeWorkspacePath,

@@ -26,7 +26,7 @@ import type {
 import { runJournalStoreContract } from "@zcode/dynamic-workflow/testing";
 import type { DwfRunIntrospectionQueries, DwfRunSessionListItem } from "../src/storage/index.js";
 import { createDwfJournalStore, createSqliteSessionStore } from "../src/storage/index.js";
-import { runSqliteSessionMigrations } from "../src/storage/session-store/migration-runner.js";
+import { runSqliteSessionMigrationsAsync } from "../src/storage/session-store/migration-runner.js";
 
 const openDatabases: DatabaseSync[] = [];
 
@@ -1120,7 +1120,7 @@ describe("SQLite dwf journal store — listRunsByParentSession", () => {
   it("枚举查询的 SQL 取 failure_json 而不取 result_json", async () => {
     const db = new DatabaseSync(":memory:");
     openDatabases.push(db);
-    await runSqliteSessionMigrations(db, ":memory:");
+    await runSqliteSessionMigrationsAsync(db, ":memory:");
     const prepared: string[] = [];
     // prepare 的旁路记录器：只为了看见这条查询真正发出的列清单。
     const recordingDb = new Proxy(db, {

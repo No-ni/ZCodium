@@ -132,7 +132,7 @@ function MemoryDeviceSettings({
         setSaving(false);
       }
     },
-    [device, isLocal, services],
+    [isLocal, services],
   );
   const readError = error instanceof Error ? error.message : error ? String(error) : null;
 

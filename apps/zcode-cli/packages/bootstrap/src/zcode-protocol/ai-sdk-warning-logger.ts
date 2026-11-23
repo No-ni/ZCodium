@@ -1,4 +1,4 @@
-import type { LogContext, Logger } from "@zcode/contracts";
+import type { Logger } from "@zcode/contracts";
 
 interface AiSdkWarningLoggerOptions {
   model?: unknown;
@@ -24,30 +24,11 @@ export function installZCodeProtocolAiSdkWarningLogger(logger: Logger): void {
         event: "model.sdk.warning",
         module: "bootstrap.zcode_protocol",
         status: "completed",
-        model: stringValue(options.model),
-        provider: stringValue(options.provider),
-        warningCount: warnings.length,
-        warnings: warnings.map(summarizeWarning),
+        // 供应商 warning 可能带配置、URL 或原始错误；在出口只留下数量，stdout 继续只承载协议。
+        count: warnings.length,
       });
     } catch {
       // warning 记录不能影响真实模型请求；stdout 纯净性由不调用 console.* 保证。
     }
   };
-}
-
-function summarizeWarning(warning: unknown): LogContext {
-  if (!warning || typeof warning !== "object") {
-    return { value: stringValue(warning) };
-  }
-  const record = warning as Record<string, unknown>;
-  return {
-    type: stringValue(record.type),
-    feature: stringValue(record.feature),
-    message: stringValue(record.message),
-    details: stringValue(record.details),
-  };
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }

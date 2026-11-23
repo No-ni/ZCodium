@@ -1,5 +1,6 @@
+import { createProjectTestSymlink } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, stat, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -80,7 +81,7 @@ test(
       restored = true;
       const resume = async () => {
         journal.updateRunStatus(runId, "stopped", { stopReason: "user" });
-        for (const node of journal.listNodes(runId))
+        for (const node of journal.listNodes(runId, { kinds: "all", withResult: true }))
           journal.putNode({ ...node, status: "running", error: undefined });
         assert.equal((await service.resume(runId)).ok, true);
         await service.waitForTask(runId);
@@ -91,7 +92,7 @@ test(
       await rm(join(root, "2026-10-13"), { recursive: true });
       const outside = join(root, "outside");
       await mkdir(outside);
-      await symlink(outside, join(root, "2026-10-13"));
+      await createProjectTestSymlink(outside, join(root, "2026-10-13"), "dir");
       captured = undefined;
       resumeCalled = false;
       await resume();
@@ -144,7 +145,7 @@ test(
       assert.deepEqual(captured, [cwd]);
       // 模拟终止后的冷续跑；新 app 的目录不同，run 的目录仍由 journal 所有。
       journal.updateRunStatus(runId, "stopped", { stopReason: "user" });
-      for (const node of journal.listNodes(runId)) {
+      for (const node of journal.listNodes(runId, { kinds: "all", withResult: true })) {
         journal.putNode({ ...node, status: "running", error: undefined });
       }
       const resumed = await second.resume(runId);

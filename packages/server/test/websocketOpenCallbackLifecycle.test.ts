@@ -1,9 +1,48 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
-import { WebSocketServer } from "ws";
+import { WebSocket as NodeWebSocket, WebSocketServer } from "ws";
 import { connectViaWebSocket } from "@zcode/client";
 import { ChannelClient, SocketProtocol } from "@zcode/rpc";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { createNodeWebSocket } from "@hono/node-ws";
+
+test("pinned Hono Node adapter serves HTTP and exchanges a real WebSocket message", async () => {
+  const app = new Hono();
+  const { upgradeWebSocket, injectWebSocket, wss } = createNodeWebSocket({ app });
+  app.get("/health", (c) => c.text("ready"));
+  app.get(
+    "/socket",
+    upgradeWebSocket(() => ({
+      onMessage(event, socket) {
+        socket.send(`echo:${String(event.data)}`);
+      },
+    })),
+  );
+  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 0 });
+  injectWebSocket(server);
+  let socket: NodeWebSocket | undefined;
+  try {
+    if (!server.listening) await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(`http://127.0.0.1:${address.port}/health`);
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "ready");
+    socket = new NodeWebSocket(`ws://127.0.0.1:${address.port}/socket`);
+    await once(socket, "open");
+    const message = once(socket, "message");
+    socket.send("synthetic-message");
+    assert.equal(String((await message)[0]), "echo:synthetic-message");
+  } finally {
+    socket?.terminate();
+    for (const client of wss.clients) client.terminate();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
 
 async function loopbackServer() {
   const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });

@@ -475,6 +475,16 @@ function preloadRun(
   });
 }
 
+// SQLite owner 必须等所有使用它的运行关闭；断言失败不能先关库再让 child 结算。
+const storageOwners = new WeakMap<object, Set<Harness["service"]>>();
+async function closeHarnessesFor(owner: object | undefined): Promise<void> {
+  if (!owner) return;
+  const services = storageOwners.get(owner);
+  if (!services) return;
+  await Promise.all([...services].map(service => service.close()));
+  storageOwners.delete(owner);
+}
+
 function makeHarness(options: HarnessOptions = {}): Harness {
   const journal = options.journal ?? new SweepableJournalStore();
   const actorRuntimeInputs: DynamicWorkflowActorRuntimeInput[] = [];
@@ -650,6 +660,12 @@ function makeHarness(options: HarnessOptions = {}): Harness {
         }),
   });
 
+  for (const owner of [journal, options.sessionStore]) {
+    if (!owner) continue;
+    let services = storageOwners.get(owner);
+    if (!services) storageOwners.set(owner, services = new Set());
+    services.add(service);
+  }
   return {
     actorEventStore,
     actorModelRequests,
@@ -4158,11 +4174,13 @@ async function withSqliteJournal(
 ): Promise<void> {
   const tempRoot = await mkdtemp(join(tmpdir(), "zcode-dwf-introspect-"));
   const store = await createSqliteSessionStore({ dbPath: join(tempRoot, "session.sqlite") });
+  let journal: JournalStorePort | undefined;
   try {
-    const journal = resolveDynamicWorkflowJournalStore(store as never);
+    journal = resolveDynamicWorkflowJournalStore(store as never);
     expect(journal).toBeDefined();
     await run(journal as JournalStorePort & DwfRunIntrospectionQueries);
   } finally {
+    await closeHarnessesFor(journal);
     store.close();
     await rm(tempRoot, { force: true, recursive: true });
   }
@@ -8609,7 +8627,7 @@ describe("dynamic workflow run service — 留白（FillWorkflowHole）", () => 
         expect.objectContaining({ inFill: true, line: 1, code: 9011 }),
       ]);
       expect(refused.diagnostics?.[0]?.message).toContain('"GLM-5.3$high"');
-      expect(refused.diagnostics?.[0]?.message).toContain('"GLM-5.3-Flash" = zhipu/GLM-5.3-Flash');
+      expect(refused.diagnostics?.[0]?.message).toContain("was not resolved before approval");
       expect(harness.journal.getRun(runId)?.scriptText).toBe(before);
       expect((await harness.service.getTask(runId))?.holes?.[0]?.state).toBe("waiting");
       expect(harness.runEvents.some((event) => event.eventType === "hole-filled")).toBe(false);
@@ -8622,7 +8640,7 @@ describe("dynamic workflow run service — 留白（FillWorkflowHole）", () => 
       const refused = await fill(harness, runId, judgeBody("GLM-5.3-Flash"));
       if (refused.ok) throw new Error("expected compile_failed");
       expect(refused.diagnostics).toEqual([expect.objectContaining({ inFill: true, code: 9011 })]);
-      expect(refused.diagnostics?.[0]?.message).toContain("without naming any model");
+      expect(refused.diagnostics?.[0]?.message).toContain('"GLM-5.3-Flash" was not resolved before approval');
       expect((await harness.service.getTask(runId))?.holes?.[0]?.state).toBe("waiting");
     });
 
@@ -8717,6 +8735,7 @@ describe("dynamic workflow run service — 留白（FillWorkflowHole）", () => 
         journal,
         writeWorkflowDraft: async (input) => {
           minted.push(input);
+          await writeFile(mintPath, input.source, "utf8");
           return { path: mintPath };
         },
       });
@@ -8737,6 +8756,11 @@ describe("dynamic workflow run service — 留白（FillWorkflowHole）", () => 
       const cold = makeHarness({ journal });
       expect((await cold.service.getTask(draftless))?.scriptPath).toBe(mintPath);
       expect((await cold.service.getRunDetail?.(draftless))?.scriptPath).toBe(mintPath);
+      await writeFile(mintPath, "old draft", "utf8");
+      expect((await cold.service.getTask(draftless))?.scriptPath).toBeUndefined();
+      expect((await cold.service.getRunDetail?.(draftless))?.scriptPath).toBeUndefined();
+      await rm(mintPath);
+      expect((await cold.service.getTask(draftless))?.scriptPath).toBeUndefined();
     });
     await rm(dir, { recursive: true, force: true });
   });

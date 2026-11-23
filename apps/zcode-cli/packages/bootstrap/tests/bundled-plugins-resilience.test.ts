@@ -7,7 +7,11 @@ import { loadMarketplaceManifestSync } from "@zcode/adapters";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE, type Logger } from "@zcode/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// 冷 seed 复制实际内置资产，隔离 Windows 回归实测超过默认 5s；只扩大测试 IO 预算。
+vi.setConfig({ testTimeout: 30_000 });
+
 const faults = vi.hoisted(() => ({
+  candidateBases: undefined as string[] | undefined,
   afterWriteFile: undefined as ((path: string) => void) | undefined,
   failTemporaryRemoveOnce: undefined as string | undefined,
   watchedSourceRoot: undefined as string | undefined,
@@ -32,6 +36,11 @@ const faults = vi.hoisted(() => ({
   seedLockObservedTimeoutsMs: [] as number[],
 }));
 
+vi.mock("../src/app/official-plugin-runtime.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/app/official-plugin-runtime.js")>();
+  return { ...actual, candidateBaseDirs: () => faults.candidateBases ?? actual.candidateBaseDirs() };
+});
+
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return {
@@ -52,7 +61,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       if (
         faults.watchedSourceRoot &&
         path.startsWith(faults.watchedSourceRoot + sep) &&
-        !path.endsWith(join(".zcode-plugin", "plugin.json"))
+        !path.endsWith(join(".zcodium-plugin", "plugin.json"))
       )
         faults.sourcePayloadReads.push(path);
       return actual.readFile(...args);
@@ -79,7 +88,7 @@ vi.mock("../src/app/official-plugin-cache-fs.js", async (importOriginal) => {
       const files = await actual.collectOfficialPluginSourceFiles(...args);
       // 模拟入口检查通过后，目录枚举前 manifest 消失；不能提交残缺版本 marker。
       return faults.omitSeedManifest && args[0] === faults.watchedSourceRoot
-        ? files.filter((file) => file.path !== ".zcode-plugin/plugin.json")
+        ? files.filter((file) => file.path !== ".zcodium-plugin/plugin.json")
         : files;
     },
     async readOfficialPluginFileFacts(paths: readonly string[]) {
@@ -218,6 +227,7 @@ describe("bundled official plugin cache resilience", () => {
   const originalEntrypoint = process.argv[1];
 
   afterEach(async () => {
+    faults.candidateBases = undefined;
     vi.useRealTimers();
     faults.afterWriteFile = undefined;
     faults.failTemporaryRemoveOnce = undefined;
@@ -248,7 +258,7 @@ describe("bundled official plugin cache resilience", () => {
   it.each([false, true])("keeps SEA payload hash validation (corrupt: %s)", async (corrupt) => {
     const storageRoot = await createStorageRoot(cleanups);
     const payloads: Record<string, string> = {
-      ".zcode-plugin/plugin.json": JSON.stringify({ name: "skill-creator", version: "0.1.0" }),
+      ".zcodium-plugin/plugin.json": JSON.stringify({ name: "skill-creator", version: "0.1.0" }),
       "skills/demo/SKILL.md": "# original SEA skill",
     };
     const files = Object.entries(payloads).map(([path, text]) => ({
@@ -285,7 +295,7 @@ describe("bundled official plugin cache resilience", () => {
       if (corrupt)
         await expect(prepared).rejects.toMatchObject({ code: "ZCODE_PLUGIN_SOURCES_CHANGED" });
       else await prepared;
-      const marker = join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX, ".zcode-plugin-seed.json");
+      const marker = join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX, ".zcodium-plugin-seed.json");
       expect(existsSync(marker)).toBe(!corrupt);
       if (!corrupt)
         expect(JSON.parse(await readFile(marker, "utf8")).hash).toMatch(/^[a-f0-9]{64}$/);
@@ -365,7 +375,7 @@ describe("bundled official plugin cache resilience", () => {
     const storageRoot = await createStorageRoot(cleanups);
     await resolveOfficialPluginRoots({ storageRoot });
     const targetRoot = join(storageRoot, BROWSER_CACHE_SUFFIX);
-    await writeFile(join(targetRoot, ".zcode-plugin-seed.json"), "{}");
+    await writeFile(join(targetRoot, ".zcodium-plugin-seed.json"), "{}");
     vi.useFakeTimers();
     const moved = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
@@ -395,7 +405,7 @@ describe("bundled official plugin cache resilience", () => {
       release.resolve();
       await preparation.dispose();
     }
-    expect(existsSync(join(targetRoot, ".zcode-plugin", "plugin.json"))).toBe(true);
+    expect(existsSync(join(targetRoot, ".zcodium-plugin", "plugin.json"))).toBe(true);
     expect(existsSync(`${targetRoot}.seed-lock`)).toBe(false);
     await expectNoSeedBackups(targetRoot);
   }, 15_000);
@@ -405,7 +415,7 @@ describe("bundled official plugin cache resilience", () => {
     const fixture = await createVersionedSource(storageRoot);
     await resolveOfficialPluginRoots({ storageRoot });
     const targetRoot = join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX);
-    const markerPath = join(targetRoot, ".zcode-plugin-seed.json");
+    const markerPath = join(targetRoot, ".zcodium-plugin-seed.json");
     const marker = JSON.parse(await readFile(markerPath, "utf8"));
     await writeFile(markerPath, JSON.stringify({ ...marker, hash: "legacy-content-hash" }));
     await writeFile(fixture.payload, "same version, changed source");
@@ -429,7 +439,7 @@ describe("bundled official plugin cache resilience", () => {
     const mutable = definition as { buildIdentityPath?: string };
     const identityPath = join(fixture.root, "dist", "build-identity.json");
     const targetRoot = join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX);
-    const markerPath = join(targetRoot, ".zcode-plugin-seed.json");
+    const markerPath = join(targetRoot, ".zcodium-plugin-seed.json");
     const cachedPayload = () => readFile(join(targetRoot, "skills", "demo", "SKILL.md"), "utf8");
     mutable.buildIdentityPath = "dist/build-identity.json";
     try {
@@ -476,7 +486,7 @@ describe("bundled official plugin cache resilience", () => {
       await createVersionedSource(storageRoot);
       await resolveOfficialPluginRoots({ storageRoot });
       const targetRoot = join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX);
-      const markerPath = join(targetRoot, ".zcode-plugin-seed.json");
+      const markerPath = join(targetRoot, ".zcodium-plugin-seed.json");
       const marker = JSON.parse(await readFile(markerPath, "utf8"));
       const staleMarker = JSON.stringify({ ...marker, pluginVersion: "0.0.0" });
       await writeFile(markerPath, staleMarker);
@@ -513,7 +523,7 @@ describe("bundled official plugin cache resilience", () => {
     const fixture = await createVersionedSource(storageRoot);
     await resolveOfficialPluginRoots({ storageRoot });
     const targetRoot = join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX);
-    const markerPath = join(targetRoot, ".zcode-plugin-seed.json");
+    const markerPath = join(targetRoot, ".zcodium-plugin-seed.json");
     const marker = JSON.parse(await readFile(markerPath, "utf8"));
     await writeFile(markerPath, JSON.stringify({ ...marker, pluginVersion: "0.0.0" }));
     for (const removeMarker of [false, true]) {
@@ -543,7 +553,7 @@ describe("bundled official plugin cache resilience", () => {
     try {
       definition.version = "0.1.1";
       await writeFile(
-        join(fixture.root, ".zcode-plugin", "plugin.json"),
+        join(fixture.root, ".zcodium-plugin", "plugin.json"),
         JSON.stringify({ name: definition.name, version: definition.version }),
       );
       await writeFile(fixture.payload, "new version");
@@ -583,12 +593,13 @@ describe("bundled official plugin cache resilience", () => {
       code: "ZCODE_PLUGIN_SOURCES_CHANGED",
     });
     expect(
-      existsSync(join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX, ".zcode-plugin-seed.json")),
+      existsSync(join(storageRoot, SKILL_CREATOR_CACHE_SUFFIX, ".zcodium-plugin-seed.json")),
     ).toBe(false);
   });
 
   it("reuses only validated successful preparation and invalidates on cache loss or explicit refresh", async () => {
     const storageRoot = await createStorageRoot(cleanups);
+    await isolateBrowserSource(storageRoot);
     const preparation = createOfficialPluginPreparation();
     try {
       await resolveOfficialPluginRoots({ storageRoot, preparation });
@@ -602,7 +613,7 @@ describe("bundled official plugin cache resilience", () => {
       await resolveOfficialPluginRoots({ storageRoot, preparation });
       expect(faults.seedLockTargets.length).toBeGreaterThan(0);
       faults.seedLockTargets = [];
-      await rm(join(storageRoot, BROWSER_CACHE_SUFFIX, ".zcode-plugin-seed.json"));
+      await rm(join(storageRoot, BROWSER_CACHE_SUFFIX, ".zcodium-plugin-seed.json"));
       await resolveOfficialPluginRoots({ storageRoot, preparation });
       expect(faults.seedLockTargets.length).toBeGreaterThan(0);
       faults.seedLockTargets = [];
@@ -621,10 +632,11 @@ describe("bundled official plugin cache resilience", () => {
     "revalidates a cache hit against its original facts after %s",
     async (mutation) => {
       const storageRoot = await createStorageRoot(cleanups);
+      await isolateBrowserSource(storageRoot);
       const preparation = createOfficialPluginPreparation();
       const targetRoot = join(storageRoot, BROWSER_CACHE_SUFFIX);
-      const markerPath = join(targetRoot, ".zcode-plugin-seed.json");
-      const manifestPath = join(targetRoot, ".zcode-plugin", "plugin.json");
+      const markerPath = join(targetRoot, ".zcodium-plugin-seed.json");
+      const manifestPath = join(targetRoot, ".zcodium-plugin", "plugin.json");
       try {
         await resolveOfficialPluginRoots({ storageRoot, preparation });
         const originalManifest = await readFile(manifestPath, "utf8");
@@ -855,6 +867,11 @@ describe("bundled official plugin cache resilience", () => {
 
   it("keeps session bootstrap alive when an incomplete seed source has no usable fallback cache", async () => {
     const storageRoot = await createStorageRoot(cleanups);
+    // 该故障矩阵只隔离 Browser Use 和正常的文档插件；宿主未构建的 iOS 资产不是本次故障。
+    const definitions = [...OFFICIAL_PLUGIN_DEFINITIONS];
+    OFFICIAL_PLUGIN_DEFINITIONS.splice(0, definitions.length,
+      ...definitions.filter(({name}) => name === "browser-use" || name === "documents"));
+    try {
     // 全新安装：storageRoot 从未 seed 过，也没有任何旧版本缓存可回退。
     const entrypointRoot = join(storageRoot, "fresh-install-entrypoint");
     const incompletePluginRoot = join(entrypointRoot, "packages", "browser-use-plugin");
@@ -905,6 +922,9 @@ describe("bundled official plugin cache resilience", () => {
         pluginId: "browser-use@zcode-plugins-official",
       }),
     );
+    } finally {
+      OFFICIAL_PLUGIN_DEFINITIONS.splice(0, OFFICIAL_PLUGIN_DEFINITIONS.length, ...definitions);
+    }
   });
 
   it("degrades a held seed lock to a usable previous version instead of failing startup", async () => {
@@ -1254,13 +1274,28 @@ async function createStorageRoot(cleanups: string[]): Promise<string> {
   return join(root, "plugins");
 }
 
+async function isolateBrowserSource(storageRoot: string): Promise<void> {
+  // 缓存命中只测这份完整来源；宿主其它未构建的插件不能阻止测试建立成功缓存。
+  const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(item => item.name === "browser-use")!;
+  const base = join(storageRoot, "isolated-source");
+  const target = join(base, "packages", "browser-use-plugin");
+  for (const file of [".zcodium-plugin/plugin.json", ...(definition.requiredSeedPaths ?? [])]) {
+    const source = new URL(`../../browser-use-plugin/${file}`, import.meta.url);
+    const output = join(target, file);
+    await mkdir(dirname(output), {recursive:true});
+    await writeFile(output, await readFile(source));
+  }
+  faults.candidateBases = [base];
+  process.argv[1] = join(base, "zcode.cjs");
+}
+
 async function createVersionedSource(storageRoot: string) {
   const entrypointRoot = join(storageRoot, "versioned-source");
   const root = join(entrypointRoot, "packages", "skill-creator-plugin");
-  await mkdir(join(root, ".zcode-plugin"), { recursive: true });
+  await mkdir(join(root, ".zcodium-plugin"), { recursive: true });
   await mkdir(join(root, "skills", "demo"), { recursive: true });
   await writeFile(
-    join(root, ".zcode-plugin", "plugin.json"),
+    join(root, ".zcodium-plugin", "plugin.json"),
     JSON.stringify({ name: "skill-creator", version: "0.1.0" }),
   );
   const payload = join(root, "skills", "demo", "SKILL.md");

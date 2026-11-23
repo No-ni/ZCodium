@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 import {
   GET_WORKFLOW_RUN_TOOL_NAME,
   GetWorkflowRunOutputSchema,
@@ -244,11 +245,11 @@ describe("GetWorkflowRun handler — running snapshot", () => {
   it("rewrites the run's script file as a workspace-relative path", async () => {
     const detail: DynamicWorkflowRunDetail = {
       ...RUNNING_DETAIL,
-      scriptPath: "/workspace/project/.zcode/workflow-drafts/audit.dwf.ts",
+      scriptPath: "/workspace/project/.zcodium/workflow-drafts/audit.dwf.ts",
     };
     const output = await call("dwfrun-running", stubDetailPort({ "dwfrun-running": detail }));
 
-    expect(output.scriptPath).toBe(".zcode/workflow-drafts/audit.dwf.ts");
+    expect(output.scriptPath).toBe(join(".zcodium", "workflow-drafts", "audit.dwf.ts"));
   });
 
   it("keeps a script file outside the working directory absolute", async () => {

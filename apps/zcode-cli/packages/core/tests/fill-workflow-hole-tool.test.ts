@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join, relative } from "node:path";
+import { createHash } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   FILL_WORKFLOW_HOLE_SOURCE_ERROR,
@@ -39,9 +40,13 @@ import type {
 
 // docs/dynamic-workflow/launch.md「The `FillWorkflowHole` tool」：resolveInput 把 run_id + hole_id 解析成
 // `hole` 事实块（归属、名字、类型、草稿路径）→ 权限服务据它放行本会话的 run / 照常 ask 别的 →
-// handler 先把内联函数体写进 fill 文件、再调 port.fillHole，诊断按「落在哪个文件」锚定。
+// handler 用批准基线调 port.fillHole；拒绝内联编译后保存函数体，诊断按其真实文件锚定。
 
 const BODY = 'const verdict = await agent("judge").ask<string>("judge it");\nreturn verdict;';
+const STORED_SCRIPT = 'type Verdict = string;\nconst v = await hole<Verdict>("决定分组", "decide");\nreturn v;';
+const HOLE_ID = collectSites(createWorkflowProgram(STORED_SCRIPT)).holes[0]!.id;
+const NESTED_STORED_SCRIPT = 'const v = await hole<string>("outer", "outer", async () => { const inner = await hole<string>("内层裁决", "inner"); return inner; });\nreturn v;';
+const OUTER_ID = collectSites(createWorkflowProgram(NESTED_STORED_SCRIPT)).holes.find((hole) => hole.name === "outer")!.id;
 /** 端口在成功时交回的有效脚本：能编译、带一个阶段，好让 display 与 phasesAdded 都有内容。 */
 const EFFECTIVE_SCRIPT = [
   'phase("判定");',
@@ -63,7 +68,7 @@ function sessionOf(name: string): string {
 }
 
 const WAITING_HOLE = {
-  siteId: "hole#1",
+  siteId: HOLE_ID,
   ordinal: 1,
   name: "决定分组",
   type: "Verdict",
@@ -95,6 +100,9 @@ function stubRunPort(options: StubPortOptions = {}): {
   };
   return {
     port: {
+      async getScript() {
+        return options.snapshot?.holes?.some((hole) => hole.name === "内层裁决") ? NESTED_STORED_SCRIPT : STORED_SCRIPT;
+      },
       async getTask(taskId: string) {
         getTaskCalls.push(taskId);
         if (options.snapshot === undefined) return undefined;
@@ -171,6 +179,12 @@ function asFailure(value: unknown): ToolHandlerFailure {
   return failure;
 }
 
+function savedFillPath(output: CreateWorkflowOutput): string {
+  const file = output.response.match(/^The fill is saved at (.+)\. Edit that file in place/m)?.[1];
+  expect(file).toBeDefined();
+  return file!;
+}
+
 function fillFilesIn(dir: string): string[] {
   const { readdirSync } = require("node:fs") as typeof import("node:fs");
   return existsSync(dir)
@@ -183,14 +197,14 @@ function fillFilesIn(dir: string): string[] {
 describe("FillWorkflowHole — validateInput", () => {
   it("wants exactly one of script and path", () => {
     const validate = fillWorkflowHoleToolEntry.validateInput!;
-    expect(validate({ run_id: "r", hole_id: "hole#1", script: BODY }, {})).toEqual({
+    expect(validate({ run_id: "r", hole_id: HOLE_ID, script: BODY }, {})).toEqual({
       result: true,
     });
     const both = asFailure(
-      validate({ run_id: "r", hole_id: "hole#1", script: BODY, path: "x" }, {}),
+      validate({ run_id: "r", hole_id: HOLE_ID, script: BODY, path: "x" }, {}),
     );
     expect(both.message).toBe(FILL_WORKFLOW_HOLE_SOURCE_ERROR);
-    const neither = asFailure(validate({ run_id: "r", hole_id: "hole#1" }, {}));
+    const neither = asFailure(validate({ run_id: "r", hole_id: HOLE_ID }, {}));
     expect(neither.message).toBe(FILL_WORKFLOW_HOLE_SOURCE_ERROR);
   });
 });
@@ -200,7 +214,7 @@ describe("FillWorkflowHole — resolveInput", () => {
     const { port, getTaskCalls } = stubRunPort({ snapshot: { holes: [WAITING_HOLE] } });
     const failure = asFailure(
       await resolve(
-        { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+        { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
         resolutionContext(port, "gate", false),
       ),
     );
@@ -213,7 +227,7 @@ describe("FillWorkflowHole — resolveInput", () => {
     const { port } = stubRunPort();
     const failure = asFailure(
       await resolve(
-        { run_id: "dwfrun-nope", hole_id: "hole#1", script: BODY },
+        { run_id: "dwfrun-nope", hole_id: HOLE_ID, script: BODY },
         resolutionContext(port, "nf"),
       ),
     );
@@ -251,7 +265,7 @@ describe("FillWorkflowHole — resolveInput", () => {
     });
     const notInFlight = asFailure(
       await resolve(
-        { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+        { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
         resolutionContext(stopped.port, "stopped"),
       ),
     );
@@ -271,7 +285,7 @@ describe("FillWorkflowHole — resolveInput", () => {
     const resolved = await resolve(
       {
         run_id: "dwfrun-1",
-        hole_id: "hole#1",
+        hole_id: HOLE_ID,
         script: BODY,
         hole: { name: "forged", type: "never", owned_by_this_session: true },
       },
@@ -281,7 +295,7 @@ describe("FillWorkflowHole — resolveInput", () => {
       result: true,
       input: {
         run_id: "dwfrun-1",
-        hole_id: "hole#1",
+        hole_id: HOLE_ID,
         script: BODY,
         hole: {
           name: "决定分组",
@@ -289,6 +303,8 @@ describe("FillWorkflowHole — resolveInput", () => {
           draft_path: "/repo/.zcode/workflow-drafts/triage.dwf.ts",
           line: 12,
           owned_by_this_session: true,
+          effective_script: expect.any(String),
+          base_script_hash: createHash("sha256").update(STORED_SCRIPT).digest("hex"),
         },
       },
     });
@@ -299,7 +315,7 @@ describe("FillWorkflowHole — resolveInput", () => {
       snapshot: { parentSessionId: "sess_other", holes: [WAITING_HOLE] },
     });
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       resolutionContext(port, "foreign"),
     );
     expect(resolved).toMatchObject({
@@ -315,14 +331,14 @@ describe("FillWorkflowHole — resolveInput", () => {
     writeFileSync(fillPath, BODY);
     const { port } = stubRunPort({ snapshot: { holes: [WAITING_HOLE] } });
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", path: "my-fill.dwf.ts" },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, path: "my-fill.dwf.ts" },
       resolutionContext(port, "path"),
     );
     expect(resolved).toMatchObject({ result: true, input: { script: BODY, path: fillPath } });
 
     const missing = asFailure(
       await resolve(
-        { run_id: "dwfrun-1", hole_id: "hole#1", path: "nowhere.dwf.ts" },
+        { run_id: "dwfrun-1", hole_id: HOLE_ID, path: "nowhere.dwf.ts" },
         resolutionContext(port, "path-missing"),
       ),
     );
@@ -332,20 +348,20 @@ describe("FillWorkflowHole — resolveInput", () => {
 
   it("passes an inline fill through without a hole block when there is no port", async () => {
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       resolutionContext(undefined, "noport"),
     );
     expect(resolved).toEqual({
       result: true,
-      input: { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      input: { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
     });
   });
 });
 
 describe("FillWorkflowHole — handler", () => {
-  it("writes the inline fill to <slug>.<hole-slug>.dwf.ts BEFORE the port compiles, minting -2 on a resubmission", async () => {
+  it("stores a rejected inline fill after compilation, reuses identical bytes and preserves edits", async () => {
     const draftsDir = join(CWD, WORKFLOW_DRAFTS_DIR);
-    const seenAtCall: boolean[] = [];
+    let seenAtCall = 0;
     const { port } = stubRunPort({
       snapshot: {
         parentSessionId: sessionOf("write"),
@@ -353,21 +369,27 @@ describe("FillWorkflowHole — handler", () => {
         holes: [WAITING_HOLE],
       },
       fill: () => {
-        seenAtCall.push(existsSync(join(draftsDir, "triage.决定分组.dwf.ts")));
+        seenAtCall++;
         return { ok: false, reason: "compile_failed", message: "no", diagnostics: [] };
       },
     });
     const context = executionContext(port, "write");
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       resolutionContext(port, "write"),
     );
-    await fillWorkflowHoleToolEntry.handler((resolved as { input: unknown }).input, context);
-    expect(seenAtCall).toEqual([true]);
-    expect(readFileSync(join(draftsDir, "triage.决定分组.dwf.ts"), "utf8")).toBe(BODY);
-
-    await fillWorkflowHoleToolEntry.handler((resolved as { input: unknown }).input, context);
-    expect(fillFilesIn(draftsDir)).toEqual(["triage.决定分组-2.dwf.ts", "triage.决定分组.dwf.ts"]);
+    const rejected = await fillWorkflowHoleToolEntry.handler((resolved as { input: unknown }).input, context) as CreateWorkflowOutput;
+    expect(seenAtCall).toBe(1);
+    const file = savedFillPath(rejected);
+    expect(readFileSync(file, "utf8")).toBe(BODY);
+    expect(relative(CWD, file).startsWith("..")).toBe(true);
+    const repeated = await fillWorkflowHoleToolEntry.handler((resolved as { input: unknown }).input, context) as CreateWorkflowOutput;
+    expect(savedFillPath(repeated)).toBe(file);
+    writeFileSync(file, "user edited bytes");
+    const afterEdit = await fillWorkflowHoleToolEntry.handler((resolved as { input: unknown }).input, context) as CreateWorkflowOutput;
+    expect(savedFillPath(afterEdit)).not.toBe(file);
+    expect(basename(savedFillPath(afterEdit))).toMatch(/-2\.dwf\.ts$/);
+    expect(readFileSync(file, "utf8")).toBe("user edited bytes");
   });
 
   it("on diagnostics leads with the fill file and anchors each line to the file it falls in", async () => {
@@ -401,7 +423,7 @@ describe("FillWorkflowHole — handler", () => {
       },
     });
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       resolutionContext(port, "diag"),
     );
     const output = (await fillWorkflowHoleToolEntry.handler(
@@ -412,13 +434,13 @@ describe("FillWorkflowHole — handler", () => {
     expect(fills).toHaveLength(1);
     expect(fills[0]).toMatchObject({
       runId: "dwfrun-1",
-      holeId: "hole#1",
+      holeId: HOLE_ID,
       body: BODY,
       parentSessionId: sessionOf("diag"),
     });
     expect(output.ok).toBe(false);
     expect(output.diagnostics).toHaveLength(2);
-    const fillFile = join(WORKFLOW_DRAFTS_DIR, "review.决定分组.dwf.ts");
+    const fillFile = savedFillPath(output);
     expect(
       output.response.startsWith(
         `The fill is saved at ${fillFile}. Edit that file in place and resubmit with \`path\`; do not paste it inline again.`,
@@ -439,7 +461,7 @@ describe("FillWorkflowHole — handler", () => {
     const display = createCreateWorkflowDisplay(FILL_WORKFLOW_HOLE_TOOL_NAME, output);
     expect(display?.kind).toBe("create_workflow");
     // 被拒的行也要有名字：反馈行的标题不能退成站点 id。
-    expect(display?.fill).toMatchObject({ siteId: "hole#1", name: "决定分组" });
+    expect(display?.fill).toMatchObject({ siteId: HOLE_ID, name: "决定分组" });
   });
 
   it("refuses fill_unchanged when a path resubmits the bytes of the last rejected attempt, without touching the port", async () => {
@@ -458,19 +480,19 @@ describe("FillWorkflowHole — handler", () => {
       },
     });
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       resolutionContext(port, "unchanged"),
     );
-    await fillWorkflowHoleToolEntry.handler(
+    const rejected = await fillWorkflowHoleToolEntry.handler(
       (resolved as { input: unknown }).input,
       executionContext(port, "unchanged"),
-    );
+    ) as CreateWorkflowOutput;
     expect(fills).toHaveLength(1);
 
-    const fillFile = join(draftsDir, "unchanged.决定分组.dwf.ts");
+    const fillFile = savedFillPath(rejected);
     const again = asFailure(
       await resolve(
-        { run_id: "dwfrun-1", hole_id: "hole#1", path: fillFile },
+        { run_id: "dwfrun-1", hole_id: HOLE_ID, path: fillFile },
         resolutionContext(port, "unchanged"),
       ),
     );
@@ -481,7 +503,7 @@ describe("FillWorkflowHole — handler", () => {
     // 改过一个字节就放行。
     writeFileSync(fillFile, `${BODY}\n`);
     const edited = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", path: fillFile },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, path: fillFile },
       resolutionContext(port, "unchanged"),
     );
     expect(edited).toMatchObject({ result: true });
@@ -501,7 +523,7 @@ describe("FillWorkflowHole — handler", () => {
       },
     });
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", path: fillPath },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, path: fillPath },
       resolutionContext(port, "pathfill"),
     );
     const failure = asFailure(
@@ -530,7 +552,7 @@ describe("FillWorkflowHole — handler", () => {
       },
     });
     const resolved = await resolve(
-      { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       resolutionContext(port, "ok"),
     );
     const output = (await fillWorkflowHoleToolEntry.handler(
@@ -540,7 +562,7 @@ describe("FillWorkflowHole — handler", () => {
     expect(output.ok).toBe(true);
     // 行给自己起名的那一块：名字来自解析出的留白，随输出与 display 走（transcript 不存回填的入参）。
     expect(output.fill).toEqual({
-      siteId: "hole#1",
+      siteId: HOLE_ID,
       name: "决定分组",
       draftPath: join(CWD, WORKFLOW_DRAFTS_DIR, "ok.dwf.ts"),
       line: WAITING_HOLE.line,
@@ -562,7 +584,7 @@ describe("FillWorkflowHole — handler", () => {
 
   it("returns the same capability failure for an absent port and an absent method", async () => {
     const { port } = stubRunPort({ withoutFillHole: true, snapshot: { holes: [WAITING_HOLE] } });
-    const input = { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY };
+    const input = { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY };
     const withoutPort = asFailure(
       await fillWorkflowHoleToolEntry.handler(input, executionContext(undefined, "cap")),
     );
@@ -575,7 +597,7 @@ describe("FillWorkflowHole — handler", () => {
 });
 
 // 审批（docs/dynamic-workflow/launch.md「Approval」）：与 AmendWorkflow 同一条 owner 规则——本会话的 run
-// 免确认，别的会话的 run 开窗；窗的 optionsPolicy 是会话级 always-allow。
+// 免确认，别的会话的 run 开窗；补全不能设置会话级 always-allow。
 interface RunOutcome {
   brokerRequests: PermissionBrokerRequest[];
   permissionRequested: PermissionRequestedPayload[];
@@ -616,7 +638,7 @@ async function runThroughExecutor(options: {
   const result = await executor.execute(
     {
       id: createToolCallId(options.name),
-      input: options.input ?? { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+      input: options.input ?? { run_id: "dwfrun-1", hole_id: HOLE_ID, script: BODY },
       name: FILL_WORKFLOW_HOLE_TOOL_NAME,
     },
     { traceContext },
@@ -656,7 +678,7 @@ describe("FillWorkflowHole — owner rule", () => {
     expect(fills).toHaveLength(0);
   });
 
-  it("asks for another session's run, with the hole facts in the input and the session always-allow option", async () => {
+  it("asks for another session's run with current hole facts and no always-allow option", async () => {
     const name = "fill-foreign";
     const { port, fills } = stubRunPort({
       snapshot: { parentSessionId: "sess_someone-else", holes: [WAITING_HOLE] },
@@ -665,10 +687,10 @@ describe("FillWorkflowHole — owner rule", () => {
     expect(outcome.permissionRequested).toHaveLength(1);
     const payload = outcome.permissionRequested[0]!;
     expect(payload.toolName).toBe(FILL_WORKFLOW_HOLE_TOOL_NAME);
-    expect(payload.optionsPolicy).toBe("session-always-allow");
+    expect(payload.optionsPolicy).toBe("no-always-allow");
     expect(payload.input).toMatchObject({
       run_id: "dwfrun-1",
-      hole_id: "hole#1",
+      hole_id: HOLE_ID,
       hole: { name: "决定分组", type: "Verdict", owned_by_this_session: false },
     });
     // Allow → 补全照常。
@@ -702,7 +724,7 @@ describe("FillWorkflowHole — approval gate for models the body names", () => {
       { run_id: "dwfrun-1", hole_id: holeId, script: body(name) },
       resolutionContext(port, `fill-gate-${name}`),
     );
-    if (!resolved.result) throw new Error("resolveInput refused");
+    if (!resolved.result) return resolved;
     return fillWorkflowHoleToolEntry.prepareApproval!(resolved.input).gate;
   }
 
@@ -710,18 +732,15 @@ describe("FillWorkflowHole — approval gate for models the body names", () => {
     expect(await gateFor("GLM-5.3-Flash", { "GLM-5.3-Flash": "zhipu/GLM-5.3-Flash" })).toBe("ask");
   });
 
-  it("skips the window when the body names a model outside the table, or the run bound none", async () => {
-    expect(await gateFor("GLM-5.3$high", { "GLM-5.3-Flash": "zhipu/GLM-5.3-Flash" })).toBe(
-      "proceed",
-    );
-    expect(await gateFor("GLM-5.3-Flash")).toBe("proceed");
+  it("refuses before opening a window when the body names an unbound model", async () => {
+    expect(await gateFor("GLM-5.3$high", { "GLM-5.3-Flash": "zhipu/GLM-5.3-Flash" })).toMatchObject({ result: false, errorCode: 9011 });
+    expect(await gateFor("GLM-5.3-Flash")).toMatchObject({ result: false, errorCode: 9011 });
   });
 });
 
-// 递归留白（站点 id `hole#1/hole#1`）：早期的 hole_not_waiting 判定按 siteId 逐字比对，`fill_unchanged` 的键
-// 以 `\0` 拼接（id 里的 `/` 不参与切分），fill 文件按留白**名字**铸名（名字在全部留白里唯一）。
+// 递归留白仍用分析器按名字生成的固定 ID；未知的旧层级 ID 必须拒绝，不恢复位置编号。
 describe("FillWorkflowHole — nested hole ids", () => {
-  const NESTED_ID = "hole#1/hole#1";
+  const NESTED_ID = collectSites(createWorkflowProgram(NESTED_STORED_SCRIPT)).holes.find((hole) => hole.name === "内层裁决")!.id;
   const nestedHole = { ...WAITING_HOLE, siteId: NESTED_ID, name: "内层裁决", type: "Inner" };
 
   it("resolves a nested id, refuses a sibling nested id that is not waiting, and names the fill file by the hole name", async () => {
@@ -731,7 +750,7 @@ describe("FillWorkflowHole — nested hole ids", () => {
       snapshot: {
         parentSessionId: sessionOf(name),
         scriptPath: join(draftsDir, "nested.dwf.ts"),
-        holes: [{ ...WAITING_HOLE, state: "filled", filledAt: 1 }, nestedHole],
+        holes: [{ ...WAITING_HOLE, siteId: OUTER_ID, name: "outer", state: "filled", filledAt: 1 }, nestedHole],
       },
       fill: {
         ok: false,
@@ -740,10 +759,10 @@ describe("FillWorkflowHole — nested hole ids", () => {
         diagnostics: [{ line: 1, column: 1, message: "bad", code: 1, inFill: true }],
       },
     });
-    // 外层 hole#1 已补过 → hole_not_waiting；内层 hole#1/hole#1 在等 → 放行，事实块是内层的。
+    // 外层已补过，内层在等；各自用记录的名字 ID 定位，事实块属于内层。
     const outer = asFailure(
       await resolve(
-        { run_id: "dwfrun-1", hole_id: "hole#1", script: BODY },
+        { run_id: "dwfrun-1", hole_id: OUTER_ID, script: BODY },
         resolutionContext(port, name),
       ),
     );
@@ -767,13 +786,13 @@ describe("FillWorkflowHole — nested hole ids", () => {
       },
     });
 
-    // fill 文件按名字铸：`nested.内层裁决.dwf.ts`；端口收到的 holeId 是嵌套 id 原文。
+    // fill 文件按名字与内容摘要铸；端口收到分析器生成的内层 ID 原文。
     const output = (await fillWorkflowHoleToolEntry.handler(
       (resolved as { input: unknown }).input,
       executionContext(port, name),
     )) as CreateWorkflowOutput;
     expect(fills[0]).toMatchObject({ holeId: NESTED_ID, body: BODY });
-    const fillFile = join(draftsDir, "nested.内层裁决.dwf.ts");
+    const fillFile = savedFillPath(output);
     expect(readFileSync(fillFile, "utf8")).toBe(BODY);
     expect(output.response).toContain(`hole ${NESTED_ID} of run dwfrun-1 is still waiting`);
 

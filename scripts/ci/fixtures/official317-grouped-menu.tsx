@@ -4,6 +4,7 @@ import { DndContext } from "@dnd-kit/core";
 import { ZCodeIntlProvider, useZCodeIntl } from "../../../packages/ui/src/i18n/IntlProvider.js";
 import { GroupItem } from "../../../packages/ui/src/project-sidebar/grouped/group-item.js";
 import { TaskRowContent } from "../../../packages/ui/src/project-sidebar/grouped/TaskRowContent.js";
+import { ServiceProvider } from "../../../packages/ui/src/hooks/useServices.js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,6 +20,13 @@ import "../../../packages/ui/src/styles.css";
 const calls: unknown[] = [];
 Object.assign(window, { fixtureCalls: calls });
 const noop = () => {};
+// 菜单夹具的悬停卡只读合成服务，避免将真实 Host 或用户目录带入浏览器验证。
+const services = {
+  systemService: { info: async () => ({ homedir: "/fixture-home" }) },
+  gitService: {
+    getRepositorySummary: async () => ({ isGitAvailable: false, isRepository: false }),
+  },
+};
 function Fixture() {
   const { intl } = useZCodeIntl();
   const [title, setTitle] = useState("Group A");
@@ -39,7 +47,10 @@ function Fixture() {
         },
         listeners: undefined,
       }}
-      onSelect={noop}
+      onRowClick={(event) => {
+        if (event.detail < 2) calls.push({ taskSelected: true });
+      }}
+      onRowDoubleClick={() => calls.push({ taskRenamed: true })}
       onKeyDown={noop}
       onRowMouseEnter={noop}
       onRowMouseLeave={noop}
@@ -47,7 +58,7 @@ function Fixture() {
       onRowFocusCapture={noop}
       onRowBlurCapture={noop}
       groupedTaskDomKey="fixture-row"
-      task={{ taskId: "fixture-task" } as never}
+      task={{ taskId: "fixture-task", workspacePath: "/fixture-workspace" } as never}
       isMobileActive={false}
       isActive={false}
       taskTitle="Fixture task"
@@ -128,8 +139,10 @@ function Fixture() {
 }
 createRoot(document.getElementById("root")!).render(
   <ZCodeIntlProvider initialLocale="en-US">
-    <TooltipProvider>
-      <Fixture />
-    </TooltipProvider>
+    <ServiceProvider services={services as never}>
+      <TooltipProvider>
+        <Fixture />
+      </TooltipProvider>
+    </ServiceProvider>
   </ZCodeIntlProvider>,
 );

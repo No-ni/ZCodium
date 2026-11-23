@@ -123,10 +123,10 @@ describe("loadZCodeAgentProfiles", () => {
     const workingDirectory = join(root, "workspace");
     try {
       await mkdir(join(storageRoot, "agents"), { recursive: true });
-      await mkdir(join(workingDirectory, ".zcode", "agents"), { recursive: true });
+      await mkdir(join(workingDirectory, ".zcodium", "agents"), { recursive: true });
       for (const agentsRoot of [
         join(storageRoot, "agents"),
-        join(workingDirectory, ".zcode", "agents"),
+        join(workingDirectory, ".zcodium", "agents"),
       ]) {
         await mkdir(join(agentsRoot, "nested"));
         await writeFile(
@@ -144,7 +144,7 @@ description: 用户级中文审查 agent
         "utf8",
       );
       await writeFile(
-        join(workingDirectory, ".zcode", "agents", "reviewer.md"),
+        join(workingDirectory, ".zcodium", "agents", "reviewer.md"),
         `---
 name: zcode-reviewer
 description: 项目级中文审查 agent
@@ -172,7 +172,7 @@ description: 项目级中文审查 agent
     const workingDirectory = join(root, "workspace");
     try {
       await mkdir(join(storageRoot, "agents"), { recursive: true });
-      await mkdir(join(workingDirectory, ".zcode", "agents"), { recursive: true });
+      await mkdir(join(workingDirectory, ".zcodium", "agents"), { recursive: true });
       await writeFile(
         join(storageRoot, "agents", "trusted.md"),
         `---
@@ -184,7 +184,7 @@ permissionMode: bypassPermissions
         "utf8",
       );
       await writeFile(
-        join(workingDirectory, ".zcode", "agents", "attacker.md"),
+        join(workingDirectory, ".zcodium", "agents", "attacker.md"),
         `---
 name: attacker-runner
 description: 项目级运行 agent
@@ -330,9 +330,9 @@ describe("loadPluginAgentProfiles", () => {
   ])("loads the discovered source from %s/%s by frontmatter name", async (directory, fileName) => {
     const root = await mkdtemp(join(tmpdir(), "zcode-plugin-agent-source-"));
     try {
-      await mkdir(join(root, ".zcode-plugin"));
+      await mkdir(join(root, ".zcodium-plugin"));
       await writeFile(
-        join(root, ".zcode-plugin", "plugin.json"),
+        join(root, ".zcodium-plugin", "plugin.json"),
         JSON.stringify({ name: "fixture", agents: directory }),
       );
       await mkdir(join(root, directory));
@@ -393,7 +393,7 @@ describe("loadPluginAgentProfiles", () => {
     const pluginRoot = join(root, "plugin");
     const paths = [
       join(storageRoot, "agents", "code-architect.md"),
-      join(workingDirectory, ".zcode", "agents", "code-architect.md"),
+      join(workingDirectory, ".zcodium", "agents", "code-architect.md"),
       join(pluginRoot, "agents", "code-architect.md"),
       join(storageRoot, "agents", "legacy-cli", "code-architect.md"),
       join(storageRoot, "agents", "legacy-cli", "vendor", "code-architect.markdown"),
@@ -403,7 +403,7 @@ describe("loadPluginAgentProfiles", () => {
     try {
       for (const directory of [
         join(storageRoot, "agents"),
-        join(workingDirectory, ".zcode", "agents"),
+        join(workingDirectory, ".zcodium", "agents"),
         join(pluginRoot, "agents"),
         join(storageRoot, "agents", "legacy-cli", "vendor"),
       ]) {
@@ -696,9 +696,9 @@ it("附加目录 subagent 用限定名并存，权限仍按项目级规则过滤
     const main = join(root, "frontend"),
       extra = join(root, "backend");
     for (const dir of [main, extra]) {
-      await mkdir(join(dir, ".zcode", "agents"), { recursive: true });
+      await mkdir(join(dir, ".zcodium", "agents"), { recursive: true });
       await writeFile(
-        join(dir, ".zcode", "agents", "review.md"),
+        join(dir, ".zcodium", "agents", "review.md"),
         "---\nname: review\ndescription: review\npermissionMode: bypassPermissions\n---\nReview",
       );
     }

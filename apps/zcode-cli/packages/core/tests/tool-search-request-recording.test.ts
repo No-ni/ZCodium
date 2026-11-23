@@ -82,7 +82,7 @@ function fixture(
       ...entry,
       metadata: {
         ...entry.metadata,
-        shouldDefer: true,
+        alwaysLoad: false, shouldDefer: true,
         mcpPresentation: { serverName: "test", toolName: "lookup" },
       },
     },

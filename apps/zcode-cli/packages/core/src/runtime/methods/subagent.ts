@@ -278,6 +278,7 @@ export function createDefaultSubagentPort(
           parentSessionId: this.sessionId,
           tabOwner: "parent",
         }) ?? this.browserControlPort;
+      let browserOwnedByRuntime = false;
       try {
         const mirroredToolNameByChildToolCallId = new Map<string, string>();
         let sessionReadyNotified = false;
@@ -453,6 +454,7 @@ export function createDefaultSubagentPort(
 
         // 已完成的 child 仍可能拥有后台 Bash、title/MCP 等工作；父 session 关闭时仍需找到它。
         ownedRuntimes.add(childRuntime);
+        browserOwnedByRuntime = true;
         try {
           const resumesExistingChild = request.resumeFromStore === true;
           let previousSelection: ModelSelection | undefined;
@@ -547,8 +549,9 @@ export function createDefaultSubagentPort(
           if (cancelled || !childRuntime.hasResidencyBlockingWork()) await release;
         }
       } finally {
-        // 父拥有共用 tab；结束时只撤销 child 的会话登记。
-        await childBrowserControlPort
+        // runtime 的资源 flight 已负责 child 登记；重复关闭曾绕过失败句柄并消费 owner 重试。
+        // 只有 runtime 尚未建立时，装配层仍拥有这次 child session。
+        if (!browserOwnedByRuntime) await childBrowserControlPort
           ?.closeSession?.({ sessionId: request.sessionId, traceContext: request.traceContext })
           .catch(() => {
             this.logger?.warn("Subagent browser session cleanup failed", {

@@ -6,6 +6,6 @@ test("WebSocket open 回调关闭、异常与正常连接回归", async (t) => {
   const result = await runSourceTests([
     "packages/server/test/websocketOpenCallbackLifecycle.test.ts",
   ]);
-  assert.equal(result.tests, 3);
+  assert.equal(result.tests, 4);
   t.diagnostic(`${result.tests} real loopback source tests executed`);
 });

@@ -2,7 +2,7 @@
 // Tool Path Normalization Helpers
 // ============================================================
 
-import path, { normalize } from "node:path";
+import path from "node:path";
 import { platform as currentPlatform } from "node:process";
 
 export type ToolPathPlatform = NodeJS.Platform;
@@ -16,8 +16,9 @@ export function normalizeToolPathForComparison(
   filePath: string,
   platform: ToolPathPlatform = currentPlatform,
 ): string {
+  // 显式 POSIX 平台不能沿用 Windows 宿主的 normalize，否则别名比较与跨平台模拟会失配。
   const normalized =
-    platform === "win32" ? normalizeWindowsToolPath(filePath) : normalize(filePath);
+    platform === "win32" ? normalizeWindowsToolPath(filePath) : path.posix.normalize(filePath);
   return normalized.normalize("NFC");
 }
 

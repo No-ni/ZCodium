@@ -51,6 +51,7 @@ const DIRECT_BRANCH_EXPECTED_PROVIDER_TOOL_ORDER = [
   "CreateWorkflow",
   // 修订入口紧随 CreateWorkflow 注册（docs/dynamic-workflow/launch.md「The `AmendWorkflow` tool」）。
   "AmendWorkflow",
+  "FillWorkflowHole",
   "SaveWorkflow",
   "EvalWorkflowSnippet",
   // run 内省与定义清单四个工具都不进 SORTED_PROVIDER_TOOL_NAMES（与 CreateWorkflow 同规），
@@ -61,9 +62,6 @@ const DIRECT_BRANCH_EXPECTED_PROVIDER_TOOL_ORDER = [
   // 升级问答的主代理侧（apps/zcode-cli/packages/dynamic-workflow/docs/execution-engine.md）：同为无 gate 的主会话工具，
   // 紧随 run 工具簇——它读的正是那些 run 上停驻的问题。
   "ResolveWorkflowQuestion",
-  // 留白补全（docs/dynamic-workflow/launch.md「The `FillWorkflowHole` tool」）：alwaysAsk 门的主会话工具，
-  // 按注册序紧随 ResolveWorkflowQuestion。
-  "FillWorkflowHole",
   "ListSavedWorkflows",
   // 模型目录（docs/dynamic-workflow/launch.md）：同样不进 SORTED_PROVIDER_TOOL_NAMES，
   // 所以按注册序排在定义清单之后。
@@ -141,6 +139,7 @@ describe("tool contract declarations", () => {
   it("orders shared provider-visible tool contracts by source name sort before appending local-only tools", () => {
     const directRegistry = createToolRegistry();
     registerBuiltInTools(directRegistry, {
+      includeToolSearch: true,
       includeAgent: true,
       includeSendMessage: true,
       includeSkill: true,
@@ -158,6 +157,7 @@ describe("tool contract declarations", () => {
 
     const embeddedRegistry = createToolRegistry();
     registerBuiltInTools(embeddedRegistry, {
+      includeToolSearch: true,
       embeddedSearchEnabled: true,
       includeAgent: true,
       includeSendMessage: true,

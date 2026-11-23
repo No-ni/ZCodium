@@ -40,7 +40,7 @@ export function executeAdapterStreamText(
 function createAdapterTestModel(adapter: TestAiSdkModelAdapter, request: TestModelTextRequest) {
   const maxOutputTokens = request.maxOutputTokens ?? 32_000;
   return adapter.createModel({
-    ...(request.accountMode || request.refreshRuntimeHeadersBeforeAttempt
+    ...(request.accountMode
       ? {
           accountMode: request.accountMode ?? ("individual-coding-plan" as const),
         }

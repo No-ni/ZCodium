@@ -117,7 +117,6 @@ const EMPTY_PENDING_GUIDES: readonly QueueItem[] = [];
 const ROW_OVERSCAN = 2;
 const COMPOSER_MESSAGE_MASK_FADE_PX = 24;
 const COMPOSER_MESSAGE_MASK_TRANSPARENT_HEIGHT_PX = 96;
-const RUNNING_WORK_DURATION_TICK_MS = 1000;
 const USER_SCROLL_INTENT_TTL_MS = 1200;
 const LAYOUT_SCROLL_GUARD_MS = 250;
 const CONTENT_WIDTH_RESIZE_SETTLE_MS = 120;
@@ -530,7 +529,6 @@ function ConversationTimelineImpl({
   const contentWidthResizeActiveRef = useRef(false);
   const contentWidthResizeSettleTimerRef = useRef<number | null>(null);
   const committingMeasuredLayoutRef = useRef(false);
-  const contentMeasurementPendingRef = useRef(false);
   const isContentWidthChanging = useCallback(() => {
     const currentContentWidth = virtualHistoryRef.current?.clientWidth ?? null;
     const stableContentWidth = stableContentWidthRef.current;

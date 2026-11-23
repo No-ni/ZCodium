@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Check, CloudOff, Package, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { CloudOff, Package, RefreshCw } from "lucide-react";
+import "@/components/ui/button.js";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,6 @@ import { CategoryPanel, OverviewPanel } from "./DataSyncCategoryPanel.js";
 
 // 模型提供商是只读分类，不是 IDataSyncCategoryService：不参与勾选与「推送全部」，单独渲染。
 type ActiveTab = "overview" | "providers" | DataSyncCategoryId;
-type FormatMessage = ReturnType<typeof useZCodeIntl>["intl"]["formatMessage"];
 
 /** 依赖提示的两端列表：只用已就绪分类的最近一次加载结果，推送后刷新完成即随之更新。 */
 function readyDependencyKeys(

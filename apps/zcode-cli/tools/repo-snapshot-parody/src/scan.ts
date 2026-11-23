@@ -6,7 +6,8 @@
  * 这个工具不是来证明"ZCode 其实没传那么多"的。
  */
 
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { lstat, readdir, stat } from "node:fs/promises";
 import { openAsBlob } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -154,6 +155,19 @@ async function looksBinary(absolutePath: string): Promise<boolean> {
 }
 
 async function listGitFiles(workspacePath: string): Promise<string[] | null> {
+  // 指定目录可能位于另一仓库内；git 会向上发现父仓库，不能用父仓库的忽略规则代替本目录扫描。
+  try {
+    const result = await promisify(execFile)("git", ["rev-parse", "--show-toplevel"], {
+      cwd: workspacePath, windowsHide: true,
+    });
+    const discovered = resolve(result.stdout.trim());
+    const selected = resolve(workspacePath);
+    if (process.platform === "win32"
+      ? discovered.toLowerCase() !== selected.toLowerCase()
+      : discovered !== selected) return null;
+  } catch {
+    return null;
+  }
   return new Promise((resolvePromise) => {
     const child = spawn(
       "git",

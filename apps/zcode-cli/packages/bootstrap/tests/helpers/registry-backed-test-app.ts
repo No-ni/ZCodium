@@ -14,6 +14,10 @@ import {
 import { createZCodeApp } from "../../src/app/create-app.js";
 import type { ZCodeApp, ZCodeAppOptions } from "../../src/app/types.js";
 import { createApiKeyProviderConfig } from "../provider-config-fixtures.js";
+import { vi } from "vitest";
+
+// 此基座启动真实 App 并准备内置资产；Windows 冷目录 IO 超过纯测试默认的 5s。
+vi.setConfig({ testTimeout: 30_000 });
 
 const DEFAULT_TEST_MODEL = {
   providerId: "zai",

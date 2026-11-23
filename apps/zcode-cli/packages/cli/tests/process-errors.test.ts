@@ -102,12 +102,13 @@ test("process error boundary observes uncaught exceptions without throwing", () 
   target.emit("uncaughtException", error);
 
   assert.match(stderr.output(), /kind=uncaughtException/);
-  assert.match(stderr.output(), /uncaught boom/);
+  assert.doesNotMatch(stderr.output(), /uncaught boom/);
   const events = stderr.output().split("\n").map(parseZCodeProcessDiagnostic).filter(Boolean);
   assert.equal(events.length, 1);
-  assert.equal(events[0]?.name, "Error");
-  assert.equal(events[0]?.message, "uncaught boom");
-  assert.equal(events[0]?.stack, error.stack);
+  assert.equal(events[0]?.errorType, "Error");
+  assert.equal(Object.hasOwn(events[0]!, "message"), false);
+  assert.equal(Object.hasOwn(events[0]!, "stack"), false);
+  assert.ok(events[0]!.frames.length <= 12);
   assert.equal(events[0]?.kind, "uncaughtException");
   assert.equal(target.listenerCount("uncaughtException"), 1);
   assert.equal(target.listenerCount("unhandledRejection"), 1);
@@ -127,10 +128,11 @@ test("process error boundary observes non-Error promise rejection reasons", () =
   target.emit("unhandledRejection", "rejected value", Promise.resolve());
 
   assert.match(stderr.output(), /kind=unhandledRejection/);
-  assert.match(stderr.output(), /rejected value/);
+  assert.doesNotMatch(stderr.output(), /rejected value/);
   const event = stderr.output().split("\n").map(parseZCodeProcessDiagnostic).find(Boolean);
   assert.equal(event?.kind, "unhandledRejection");
-  assert.equal(event?.message, "rejected value");
+  assert.equal(event?.errorType, "Error");
+  assert.deepEqual(event?.frames, []);
   dispose();
 });
 
@@ -153,8 +155,10 @@ test("fatal diagnostics are bounded and shutdown is requested only once", () => 
   assert.equal(events.length, 1);
   assert.equal(fatalCount, 1);
   assert.equal(events[0]?.origin, "uncaughtException");
-  assert.equal(events[0]?.message.length, 4000);
-  assert.ok((events[0]?.stack?.length ?? 0) <= 16_000);
+  assert.equal(Object.hasOwn(events[0]!, "message"), false);
+  assert.ok(events[0]!.frames.length <= 12);
+  assert.ok(events[0]!.frames.every((frame) => frame.length <= 512));
+  assert.doesNotMatch(stderr.output(), /x{100}/);
   dispose();
 });
 

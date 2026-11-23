@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { build } from "esbuild";
 import { tsImport } from "tsx/esm/api";
-import { createRemotePtyBuildPlugin } from "../remote-pty-build.mjs";
-const { validateRemoteServerBundle } = await tsImport(
+const { validateRemoteServerBundle, createRemotePtyBuildPlugin } = await tsImport(
   "../../packages/server/buildRemoteValidation.ts",
   import.meta.url,
 );

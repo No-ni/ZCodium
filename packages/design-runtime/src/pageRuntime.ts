@@ -1,6 +1,3 @@
-import type { createDesignPageElements } from "./pageElements.js";
-import type { createDesignOverlay } from "./pageOverlay.js";
-import type { createDesignBackdrop } from "./pageBackdrop.js";
 import type {
   DesignCssVariable,
   DesignInteractionMode,
@@ -9,6 +6,9 @@ import type {
   DesignRuntimeCommand,
   DesignRuntimeEvent,
   DesignRuntimeReply,
+  DesignSelectedElement,
+  DesignSourcePath,
+  PageElementRect,
 } from "./contract.js";
 import type { ElementInspector } from "./elementInspector.js";
 
@@ -29,9 +29,6 @@ export function installDesignRuntime(
   options: DesignRuntimeInstallOptions,
   inspector: ElementInspector,
   readSignals: (maxCount: number) => DesignPageSignals,
-  createOverlay: typeof createDesignOverlay,
-  createBackdrop: typeof createDesignBackdrop,
-  createPageElements: typeof createDesignPageElements,
 ): DesignRuntimeReply<DesignPageInfo> {
   const stateKey = "__zcodeDesignRuntime";
   type RuntimeHandle = {
@@ -50,7 +47,49 @@ export function installDesignRuntime(
     window.postMessage({ [options.bridgeKey]: 1, events: [event] }, "*");
   };
 
-  const { host, hoverBox, selectedBoxes, selectedBox, placeBox, visibleRect } = createOverlay();
+  // ---- 浮层：放进 closed shadow root，页面样式影响不到，也不参与命中测试 ----
+  const host = document.createElement("div");
+  host.setAttribute("data-zcode-design-runtime", "");
+  Object.assign(host.style, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    width: "0",
+    height: "0",
+    zIndex: "2147483647",
+    pointerEvents: "none",
+  } satisfies Partial<CSSStyleDeclaration>);
+  const shadow = host.attachShadow({ mode: "closed" });
+  const sheet = document.createElement("style");
+  sheet.textContent = [
+    ".box{position:fixed;box-sizing:border-box;border-radius:4px;pointer-events:none;display:none}",
+    ".hover{border:2px solid #2563eb;background:rgba(37,99,235,.10)}",
+    ".selected{border:2px solid #7c3aed;background:rgba(124,58,237,.08)}",
+    // 多选时的序号：贴在选中框左上角外侧（放不下时放进框里），压在所有框上面，不会被后画的框盖住
+    ".badge{position:fixed;display:none;z-index:2;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;",
+    "border-radius:4px;background:#7c3aed;color:#fff;font:600 11px/18px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;",
+    "text-align:center;white-space:nowrap;pointer-events:none}",
+  ].join("");
+  const createBox = (className: string) => {
+    const box = document.createElement("div");
+    box.className = `box ${className}`;
+    shadow.append(box);
+    return box;
+  };
+  shadow.append(sheet);
+  const hoverBox = createBox("hover");
+  // 选中框按需加：每个选中元素一个框 + 一个序号
+  const selectedBoxes: Array<{ box: HTMLElement; badge: HTMLElement }> = [];
+  const selectedBox = (index: number) => {
+    while (selectedBoxes.length <= index) {
+      const badge = document.createElement("div");
+      badge.className = "badge";
+      shadow.append(badge);
+      selectedBoxes.push({ box: createBox("selected"), badge });
+    }
+    return selectedBoxes[index]!;
+  };
+  document.documentElement.append(host);
 
   let mode: DesignInteractionMode = "off";
   let hovered: Element | null = null;
@@ -81,6 +120,21 @@ export function installDesignRuntime(
     }
   };
 
+  const placeBox = (box: HTMLElement, element: Element | null) => {
+    const rect = element?.isConnected ? element.getBoundingClientRect() : null;
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      box.style.display = "none";
+      return;
+    }
+    Object.assign(box.style, {
+      display: "block",
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+    });
+  };
+
   const slides = () => Array.from(document.querySelectorAll("section.slide"));
   const readCurrentSlide = (list: Element[]) => {
     const middle = window.innerHeight / 2;
@@ -91,6 +145,18 @@ export function installDesignRuntime(
     return index >= 0 ? index : currentSlide;
   };
 
+  const visibleRect = (element: Element | null) => {
+    const rect = element?.isConnected ? element.getBoundingClientRect() : null;
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+    if (
+      rect.bottom < 0 ||
+      rect.right < 0 ||
+      rect.top > window.innerHeight ||
+      rect.left > window.innerWidth
+    )
+      return null;
+    return rect;
+  };
   const layout = () => {
     layoutFrame = 0;
     placeBox(hoverBox, mode === "off" ? null : hovered);
@@ -122,28 +188,191 @@ export function installDesignRuntime(
     if (!layoutFrame) layoutFrame = window.requestAnimationFrame(layout);
   };
 
-  const isOwnElement = (element: Element) => element.hasAttribute("data-zcode-design-runtime");
-  const sourceChildren = (parent: Element) =>
-    Array.from(parent.children).filter((child) => !isOwnElement(child));
-
-  const pageElements = createPageElements(inspector, host, sourceChildren, queryOne);
-  const backdrop = createBackdrop(sourceChildren, isOwnElement);
-  const updateStage = () => backdrop.update();
-
+  // 页面背景：<html>、<body>，以及从 body 一路唯一子元素下来、和 body 一样大的外层容器（设计稿常把整页底色画在这里）。
+  // 点它不选中、悬停也不画框，否则一点空白处就选中整页、盖住想调的元素（11-05 体验反馈）。按住 Option / Alt 仍能选中它改底色。
+  const LAYOUT_TAGS = new Set([
+    "DIV",
+    "MAIN",
+    "SECTION",
+    "ARTICLE",
+    "ASIDE",
+    "HEADER",
+    "FOOTER",
+    "NAV",
+    "FORM",
+  ]);
+  const isLayoutContainer = (element: Element) =>
+    LAYOUT_TAGS.has(element.tagName) &&
+    !Array.from(element.childNodes).some(
+      (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+    );
+  const backdropChain = (): Element[] => {
+    const body = document.body;
+    if (!body) return [document.documentElement];
+    const chain: Element[] = [document.documentElement, body];
+    const bodyRect = body.getBoundingClientRect();
+    let node: Element = body;
+    while (true) {
+      const children = sourceChildren(node);
+      if (children.length !== 1) return chain;
+      const child = children[0]!;
+      // 只穿过布局容器：标题、段落、按钮、图片这类内容，或自己直接带文字的元素，是用户要选的东西，不是背景（!3450 CR-03）
+      if (!isLayoutContainer(child)) return chain;
+      const rect = child.getBoundingClientRect();
+      if (
+        Math.abs(rect.width - bodyRect.width) > 2 ||
+        Math.abs(rect.height - bodyRect.height) > 2
+      ) {
+        return chain;
+      }
+      chain.push(child);
+      node = child;
+    }
+  };
+  // 舞台式页面：页面底色上摆着几块自带底色的画板（常见是并排的手机稿），而直接落在底色上的文字在深色画布上也看得清。
+  // 设计模式里把这层底色在预览里设成透明，画板直接落在宿主的画布上，不再「画布里套一块页面底」（11-05 体验反馈）。
+  // 落地页这类整页就是画板的（深色标题直接压在浅底上）不算，保持原样。只改预览，不动源码。
+  const hasOwnBackground = (element: Element) => {
+    const style = getComputedStyle(element);
+    return (
+      style.backgroundImage !== "none" ||
+      !/^rgba\(.*,\s*0\)$|^transparent$/u.test(style.backgroundColor)
+    );
+  };
+  const isLightColor = (color: string) => {
+    const [r = 0, g = 0, b = 0, a = 1] = (color.match(/[\d.]+/gu) ?? []).map(Number);
+    return a === 0 || (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.55;
+  };
+  const STAGE_SCAN_LIMIT = 3000;
+  const findBoards = (): Element[] => {
+    const boards: Element[] = [];
+    const elements = document.body ? document.body.querySelectorAll("*") : [];
+    for (let index = 0; index < elements.length && index < STAGE_SCAN_LIMIT; index += 1) {
+      const element = elements[index]!;
+      if (isOwnElement(element) || boards.some((board) => board.contains(element))) continue;
+      const rect = element.getBoundingClientRect();
+      if (
+        rect.width >= 160 &&
+        rect.height >= 160 &&
+        rect.width <= window.innerWidth * 0.7 &&
+        hasOwnBackground(element)
+      ) {
+        boards.push(element);
+      }
+    }
+    return boards;
+  };
+  // 不在画板里的文字都要在深色画布上看得清（文字所在元素往上找到画板或有底色的元素之前，都算落在页面底上）
+  const textOnBackdropIsLight = (boards: Element[], chain: Element[]) => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let count = 0; count < STAGE_SCAN_LIMIT; count += 1) {
+      const node = walker.nextNode();
+      if (!node) return true;
+      const parent = node.parentElement;
+      // 没渲染出来的文字（display: none 的说明、<script> 源码）不算
+      if (!parent || !node.textContent?.trim() || parent.getClientRects().length === 0) continue;
+      if (boards.some((board) => board.contains(parent))) continue;
+      // 往上找最近的有底色元素；找到的是背景链里的（马上要设成透明），文字就等于直接压在画布上（!3450 CR-01）
+      let painted: Element | null = parent;
+      while (painted && !chain.includes(painted) && !hasOwnBackground(painted)) {
+        painted = painted.parentElement;
+      }
+      const onBackdrop = !painted || chain.includes(painted);
+      if (onBackdrop && !isLightColor(getComputedStyle(parent).color)) return false;
+    }
+    return true;
+  };
+  let stageBoards: Element[] = [];
+  // 舞台页里的页面背景：html / body / 撑满的外层容器，以及包着画板、自己没有底色的布局容器
+  const isPageBackdrop = (element: Element) =>
+    backdropChain().includes(element) ||
+    (stageBoards.length > 0 &&
+      !stageBoards.some((board) => board.contains(element)) &&
+      stageBoards.some((board) => element.contains(board)) &&
+      !hasOwnBackground(element));
+  // 按页面原始底色判断：先撤掉自己注入的透明样式，否则下一次判断会把上一次的结果当成页面本来的样子（!3450 CR-01）
+  const stageBackdrop = (): Element[] | null => {
+    stageStyle.remove();
+    const chain = backdropChain();
+    const boards = findBoards().filter((board) => !chain.includes(board));
+    // 内容要滚动（超出视口）就不算舞台页：页面底透明后视口边界看不见，超出视口的画板会像被凭空截断（11-05 实机）
+    const root = document.documentElement;
+    const fitsViewport =
+      root.scrollHeight <= window.innerHeight + 1 && root.scrollWidth <= window.innerWidth + 1;
+    stageBoards =
+      fitsViewport && boards.length > 0 && textOnBackdropIsLight(boards, chain) ? boards : [];
+    return stageBoards.length > 0 ? chain : null;
+  };
+  const stageStyle = document.createElement("style");
+  stageStyle.setAttribute("data-zcode-design-runtime", "");
+  const backdropSelector = (element: Element): string => {
+    if (element === document.documentElement) return "html";
+    if (element === document.body) return "body";
+    const parent = element.parentElement!;
+    return `${backdropSelector(parent)} > :nth-child(${Array.from(parent.children).indexOf(element) + 1})`;
+  };
+  let isStage = false;
+  const updateStage = () => {
+    const chain = stageBackdrop();
+    const changed = isStage !== (chain !== null);
+    isStage = chain !== null;
+    stageStyle.textContent = chain
+      ? `${chain.map(backdropSelector).join(",")}{background:transparent!important;box-shadow:none!important}`
+      : "";
+    if (isStage && !stageStyle.isConnected)
+      (document.head ?? document.documentElement).append(stageStyle);
+    if (!isStage) stageStyle.remove();
+    return changed;
+  };
   // resize 后跨过阈值：告诉宿主同步外框与 webview 底色（只影响外观，页面伪造也写不了源码，!3450 CR-02）
   const handleStageResize = () => {
-    if (updateStage()) emit({ type: "stage-changed", stageBackdrop: backdrop.isStage });
+    if (updateStage()) emit({ type: "stage-changed", stageBackdrop: isStage });
   };
   const handleMouseMove = (event: MouseEvent) => {
     if (mode === "off" || isOwnNode(event.target) || !(event.target instanceof Element)) return;
-    hovered = !event.altKey && backdrop.isPageBackdrop(event.target) ? null : event.target;
+    hovered = !event.altKey && isPageBackdrop(event.target) ? null : event.target;
     scheduleLayout();
   };
   // 点到按钮 / 链接里的文字或图标时，选中按钮本身（设计师心里点的是按钮）
   const meaningfulTarget = (target: Element) =>
     target.closest("button,a,[role=button],label,summary") ?? target;
+  const isOwnElement = (element: Element) => element.hasAttribute("data-zcode-design-runtime");
+  const sourceChildren = (parent: Element) =>
+    Array.from(parent.children).filter((child) => !isOwnElement(child));
+  // 元素在源码里的位置：从 <html> 往下每级的标签、序号、兄弟数（运行时自己的节点不算）。
+  // 走不到 <html>（shadow DOM 里的元素）时给一级不可能对上的路径，宿主写回时自然找不到。
+  const sourcePath = (element: Element): DesignSourcePath => {
+    const steps: DesignSourcePath["steps"] = [];
+    let node: Element = element;
+    while (node !== document.documentElement) {
+      const parent = node.parentElement;
+      if (!parent) {
+        steps.unshift({ tag: "#detached", index: -1, siblings: -1 });
+        break;
+      }
+      const children = sourceChildren(parent);
+      steps.unshift({
+        tag: node.tagName.toLowerCase(),
+        index: children.indexOf(node),
+        siblings: children.length,
+      });
+      node = parent;
+    }
+    return { steps, id: element.getAttribute("id"), className: element.getAttribute("class") };
+  };
+  const describe = (element: Element): DesignSelectedElement => {
+    const rect = element.getBoundingClientRect();
+    return {
+      element: inspector.collectElement(element),
+      editable: inspector.readEditableValues(element),
+      kind: inspector.classifyElement(element),
+      source: sourcePath(element),
+      size: { width: Math.round(rect.width), height: Math.round(rect.height) },
+      styleAttribute: element.getAttribute("style"),
+    };
+  };
   const reportSelection = () => {
-    emit({ type: "selection-changed", selections: selected.map(pageElements.describe) });
+    emit({ type: "selection-changed", selections: selected.map(describe) });
     scheduleLayout();
   };
   const setSelected = (next: Element[]) => {
@@ -157,7 +386,7 @@ export function installDesignRuntime(
     event.stopImmediatePropagation();
     const target = meaningfulTarget(event.target);
     // 点到页面背景什么都不变：不选中它，也不清掉已选的（清掉会把输入框里正在描述的元素引用一起撤掉）
-    if (!event.altKey && backdrop.isPageBackdrop(target)) return;
+    if (!event.altKey && isPageBackdrop(target)) return;
     // Shift + 点击：加进 / 移出选中（像 Figma）；普通点击替换选中
     if (event.shiftKey) {
       setSelected(
@@ -288,8 +517,32 @@ export function installDesignRuntime(
       slideCount: list.length,
       currentSlide,
       cssVariables: readCssVariables(signals.cssVariableNames),
-      stageBackdrop: (updateStage(), backdrop.isStage),
+      stageBackdrop: (updateStage(), isStage),
     };
+  };
+
+  const locateForCapture = (selector: string): PageElementRect | null => {
+    const element = queryOne(selector);
+    if (!element) return null;
+    element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    host.style.display = "none";
+    const box = element.getBoundingClientRect();
+    // 标题、段落这类块级文字元素占满整行，文字只在一侧：截文字实际占的范围（四周留一点），
+    // 否则截图大半是空白，输入框里按中间裁的缩略图看起来就是一张白图
+    if (inspector.isTextEditable(element)) {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const text = range.getBoundingClientRect();
+      if (text.width > 0 && text.height > 0 && text.width < box.width * 0.8) {
+        const pad = 8;
+        const left = Math.max(box.left, text.left - pad);
+        const top = Math.max(box.top, text.top - pad);
+        const right = Math.min(box.right, text.right + pad);
+        const bottom = Math.min(box.bottom, text.bottom + pad);
+        return { x: left, y: top, width: right - left, height: bottom - top };
+      }
+    }
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
   };
 
   const observer = new MutationObserver(scheduleLayout);
@@ -298,7 +551,7 @@ export function installDesignRuntime(
     setCssVariables({});
     setVariant(null);
     observer.disconnect();
-    backdrop.dispose();
+    stageStyle.remove();
     window.removeEventListener("resize", handleStageResize);
     if (layoutFrame) window.cancelAnimationFrame(layoutFrame);
     document.removeEventListener("mousemove", handleMouseMove, true);
@@ -351,7 +604,7 @@ export function installDesignRuntime(
         return { ok: true, result: Boolean(target) };
       }
       case "locate-for-capture":
-        return { ok: true, result: pageElements.locateForCapture(command.selector) };
+        return { ok: true, result: locateForCapture(command.selector) };
       case "end-capture":
         host.style.display = "";
         scheduleLayout();

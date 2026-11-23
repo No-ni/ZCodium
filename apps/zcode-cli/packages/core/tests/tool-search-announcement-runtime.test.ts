@@ -71,7 +71,7 @@ function addLateTool(internal: AgentRuntimeInternal) {
   registerReadOnlyTool(registry, LATE_TOOL, "done");
   const entry = registry.get(LATE_TOOL)!;
   registry.register(
-    { ...entry, metadata: { ...entry.metadata, shouldDefer: true } },
+    { ...entry, metadata: { ...entry.metadata, alwaysLoad: false, shouldDefer: true } },
     { silentDuplicateWarning: true },
   );
   internal.invalidateToolCache();

@@ -8,7 +8,6 @@ import {
 import { recordInputLag, reportUiLaunchToInput } from "../src/lib/diagnostics/uiPerformance.js";
 import { recordChatError } from "../src/lib/diagnostics/chatErrors.js";
 import { measureOperation } from "../src/lib/diagnostics/operations.js";
-import { ConversationDiagnostics } from "../src/v4/diagnostics/conversationDiagnostics.js";
 
 test("startup preserves six stages and random diagnostic correlation without business identity", () => {
   clearUiDiagnostics();
@@ -88,50 +87,6 @@ test("technical operation timing preserves returned values and original rejectio
     ["ok", "error"],
   );
   assert.ok(!JSON.stringify(readUiDiagnostics()).includes("private"));
-});
-
-test("local facts preserve first token, turn timing, deduplication and terminal cleanup", () => {
-  clearUiDiagnostics();
-  const observer = new ConversationDiagnostics();
-  const base = { version: 1 as const, sessionId: "private-session", turnId: "private-turn" };
-  observer.handleFact({
-    ...base,
-    kind: "turn.started",
-    eventId: "start",
-    eventSeq: 0,
-    occurredAt: 100,
-  });
-  const chunk = {
-    ...base,
-    kind: "stream.chunk" as const,
-    eventId: "chunk",
-    eventSeq: 1,
-    occurredAt: 160,
-    channel: "text" as const,
-    chunkLength: 7,
-    firstChunk: true,
-  };
-  observer.handleFact(chunk);
-  observer.handleFact(chunk);
-  observer.handleFact({
-    ...base,
-    kind: "turn.terminal",
-    eventId: "terminal",
-    eventSeq: 2,
-    occurredAt: 200,
-    status: "success",
-  });
-  assert.equal(readUiDiagnostics().filter((record) => record.stage === "first_token").length, 1);
-  assert.equal(
-    readUiDiagnostics().find((record) => record.stage === "first_token")?.metrics.durationMs,
-    60,
-  );
-  assert.equal(
-    readUiDiagnostics().find((record) => record.phase === "summary")?.metrics.durationMs,
-    100,
-  );
-  assert.ok(!JSON.stringify(readUiDiagnostics()).includes("private"));
-  observer.dispose();
 });
 
 test("development diagnostic history is bounded and returns copies", () => {

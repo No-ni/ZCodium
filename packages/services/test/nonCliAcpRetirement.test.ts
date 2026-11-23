@@ -19,7 +19,7 @@ import {
 import { createMemoryService } from "../src/memory/memoryService.js";
 import { parseLegacyTaskSessionFile } from "../src/session/legacyTaskSessionFile.js";
 import { createProviderConfigRuntime } from "../src/model-provider/providerConfigRuntime.js";
-import { prepareTasksIndexStorage } from "../src/session/tasksDatabase/startup.js";
+import { prepareTasksIndexStorage } from "../src/project-storage/startup-entry.js";
 import {
   assertProjectPath,
   createProjectTestFixture,

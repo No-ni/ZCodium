@@ -52,16 +52,11 @@ test("TUI console captures real AI SDK warnings while preserving model output an
     assert.equal(result.text, "model response");
     assert.equal(stdout.read(), "");
     assert.equal(stderr.read(), "");
-    assert.match(tui.bufferedOutput, /AI SDK Warning System/);
-    assert.match(tui.bufferedOutput, /sdk-warning-regression/);
-    assert.match(tui.bufferedOutput, /dependency info/);
-    assert.match(tui.bufferedOutput, /dependency debug/);
-    assert.match(tui.bufferedOutput, /dependency log/);
-    assert.match(tui.bufferedOutput, /dependency error/);
     tui.passthrough.write("Error: actionable CLI failure\n");
     assert.equal(stderr.read(), "Error: actionable CLI failure\n");
-    tui.restore({ flush: true });
-    assert.match(stderr.read(), /sdk-warning-regression/);
+    tui.restore();
+    assert.equal(stderr.read(), "Error: actionable CLI failure\n");
+    assert.doesNotMatch(stderr.read(), /sdk-warning-regression|dependency (info|debug|log|error)/);
     assert.doesNotMatch(stderr.read(), /AI SDK Warning System/);
   } finally {
     tui.restore();
@@ -130,7 +125,8 @@ test("console boundary restores the original console once and keeps diagnostics 
   const restore = installStderrConsoleBoundary(stderr.stream);
   try {
     console.info("protocol-safe info");
-    assert.equal(stderr.read(), "protocol-safe info\n");
+    assert.doesNotMatch(stderr.read(), /protocol-safe info/);
+    assert.equal(stderr.read(), "[omitted]\n");
     restore();
     assert.equal(globalThis.console, previousConsole);
     restore();
@@ -151,8 +147,7 @@ test("long-running TUI diagnostics are bounded and write callbacks still complet
       });
     });
     assert.equal(stderr.read(), "");
-    assert.ok(tui.bufferedOutput.length <= 64 * 1024);
-    assert.ok(tui.bufferedOutput.endsWith("latest diagnostic"));
+    assert.equal(Object.hasOwn(tui, "bufferedOutput"), false);
   } finally {
     tui.restore();
   }

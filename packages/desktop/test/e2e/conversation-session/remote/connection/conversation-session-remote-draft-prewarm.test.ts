@@ -1,52 +1,21 @@
-import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { chromium, type Browser, type Page } from "playwright-core";
-import { ServiceChannels, parseRemoteWorkspaceIdentity } from "@zcode/shared";
-import type { ProjectTree } from "@zcode/services";
-import {
-  TID_CHAT_MODEL_SELECT_TRIGGER,
-  TID_CHAT_MODEL_SELECT_GROUP,
-  TID_CHAT_MODEL_SELECT_ITEM,
-  TID_V4_MODEL_CONFIG,
-  testId,
-  TID_V4_COMPOSER_INPUT,
-  TID_V4_COMPOSER_SEND,
-} from "@zcode/shared/test-ids";
-import { waitForUpstreamRequest } from "#e2e/helpers/conversation-session-network";
-import {
-  seedCustomOpenAIChatCompletionsProvider,
-  refreshSeededOpenAIProvidersThroughSettings,
-} from "#e2e/helpers/custom-openai-provider";
-import { clearAppData } from "#e2e/helpers/desktop-app";
-import { reloadElectronSessionPreservingBrowserProfile } from "#e2e/helpers/e2e-electron-reload";
-import { openMobilePairingPage } from "#e2e/helpers/mobile-pairing";
-import { disconnectRemoteSource } from "#e2e/helpers/remote-project-actions";
-import {
-  callHandoffHost,
-  installHandoffRpcProbe,
-  restoreHandoffProbes,
-} from "#e2e/helpers/remote-project-handoff-probe";
-import {
-  prepareSSHLifecycle,
-  connectSSHWorkspaceAndSendFirstTurn,
-  waitForRendererAfterColdRestart,
-  SSH_LIFECYCLE_MODEL_ID,
-  type SSHLifecycleProvider,
-  type SSHLifecycleTask,
-} from "#e2e/helpers/ssh-remote-lifecycle";
-import { prepareSSHConnectionPage, waitForRemoteTab } from "#e2e/helpers/ssh-remote-p0";
-import {
-  getUpstreamProviderModelValues,
-  selectUpstreamProviderModelById,
-  selectUpstreamThoughtLevelValue,
-} from "#e2e/helpers/upstream-provider";
-import {
-  sendV4PromptAndWaitAccepted,
-  waitForV4AssistantMessageContaining,
-  waitForV4ConversationState,
-} from "#e2e/helpers/v4-conversation";
-import { obtainUnreadPairingUrl, showMobileTaskHome } from "#e2e/helpers/web-remote-unread";
-import { openWorkspaceDraftFromSidebar } from "#e2e/helpers/workspace-agent-warmup";
+import "node:fs/promises";
+import "node:path";
+import "playwright-core";
+import "@zcode/shared";
+import "@zcode/shared/test-ids";
+import "#e2e/helpers/conversation-session-network";
+import "#e2e/helpers/custom-openai-provider";
+import "#e2e/helpers/desktop-app";
+import "#e2e/helpers/e2e-electron-reload";
+import "#e2e/helpers/mobile-pairing";
+import "#e2e/helpers/remote-project-actions";
+import "#e2e/helpers/remote-project-handoff-probe";
+import "#e2e/helpers/ssh-remote-lifecycle";
+import "#e2e/helpers/ssh-remote-p0";
+import "#e2e/helpers/upstream-provider";
+import "#e2e/helpers/v4-conversation";
+import "#e2e/helpers/web-remote-unread";
+import "#e2e/helpers/workspace-agent-warmup";
 
 const CASE = "E2E_REMOTE_DRAFT_PREWARM";
 const REPLY = "REMOTE_DRAFT_PREWARM_REPLY";

@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useEffectEvent, type RefObject } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { boxOf, pointOn, selectionIn, trackTopmost } from "#ui/dom.ts";
 import type { ViewerProps } from "#ui/viewers/types.ts";
@@ -22,7 +22,8 @@ export function usePdfInteraction({
   zoomAnchor: RefObject<{ x: number; y: number } | null>;
   stepZoom(direction: 1 | -1): void;
 }) {
-  const actions = { stepZoom };
+  // wheel 累积量属于监听器；缩放 action 换代时读取当前动作，不重置尚未达到阈值的输入。
+  const stepCurrentZoom = useEffectEvent(stepZoom);
   useEffect(() => {
     const container = scrollRef.current!;
     return trackTopmost(
@@ -51,7 +52,7 @@ export function usePdfInteraction({
       accumulated = 0;
       const rect = container.getBoundingClientRect();
       zoomAnchor.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      actions.stepZoom(direction);
+      stepCurrentZoom(direction);
     };
     container.addEventListener("wheel", onWheel, { passive: false });
     return () => container.removeEventListener("wheel", onWheel);

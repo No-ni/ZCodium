@@ -6,6 +6,7 @@
  * Supports the unified ZCode Agent MCP source backed by settings directories.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { convertToZCodeAgentMcpServer } from "@zcode/shared";
 import {
   TID_MCP_OPEN_AUTHORIZATION_BUTTON,
@@ -23,6 +24,10 @@ import type {
   ZCodeMcpServerStatusSnapshot,
   ZCodePluginInfo,
 } from "@zcode/shared";
+
+// 跨 workspace 加载的空态保持引用稳定，不在每次渲染重新派生列表和状态分组。
+const EMPTY_MCP_SERVERS: ZCodeMcpServer[] = [];
+const EMPTY_MCP_STATUS_SNAPSHOTS: Record<string, ZCodeMcpServerStatusSnapshot> = {};
 import {
   isZCodeAgentMcpStatusModeUnsupportedError,
   type IServiceAccessor,
@@ -619,8 +624,10 @@ export function McpSettingsSection({
   // snapshot 投影到 B，更不能让后续 effect 把这些敏感配置发送给 B 的 Agent。
   const mcpStoreMatchesActiveWorkspace =
     Boolean(activeWorkspaceKey) && currentMcpStoreWorkspaceKey === activeWorkspaceKey;
-  const servers = mcpStoreMatchesActiveWorkspace ? storedServers : [];
-  const statusSnapshots = mcpStoreMatchesActiveWorkspace ? storedStatusSnapshots : {};
+  const servers = mcpStoreMatchesActiveWorkspace ? storedServers : EMPTY_MCP_SERVERS;
+  const statusSnapshots = mcpStoreMatchesActiveWorkspace
+    ? storedStatusSnapshots
+    : EMPTY_MCP_STATUS_SNAPSHOTS;
   const isConfigLoaded = useMcpStore((s) => s.isConfigLoaded);
   const ensureLoadedForWorkspace = useMcpStore((s) => s.ensureLoadedForWorkspace);
   const loadMcpFromUserDirectory = useMcpStore((s) => s.loadMcpFromUserDirectory);

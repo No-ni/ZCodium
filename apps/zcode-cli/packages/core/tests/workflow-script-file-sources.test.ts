@@ -252,8 +252,8 @@ describe("CreateWorkflow — inline drafts", () => {
 
   it("falls back to the old note, and to no scriptPath, when the draft cannot be written", async () => {
     const cwd = makeCwd();
-    // `.zcode` 是个普通文件 → 草稿目录建不出来。尽力而为：调用照常完成。
-    writeFileSync(join(cwd, ".zcode"), "not a directory", "utf8");
+    // `.zcodium` 是个普通文件 → 草稿目录建不出来。尽力而为：调用照常完成。
+    writeFileSync(join(cwd, ".zcodium"), "not a directory", "utf8");
     const { port, submits } = stubRunPort();
 
     const broken = await run({
@@ -566,7 +566,7 @@ describe("AmendWorkflow — file sources", () => {
       ).toEqual(["kept.dwf.ts"]);
       const output = outcome.result.output as CreateWorkflowOutput;
       expect(output.response).toContain("started unchanged in the background");
-      expect(output.response).toContain(`${WORKFLOW_DRAFTS_DIR}/kept.dwf.ts`);
+      expect(output.response).toContain(join(WORKFLOW_DRAFTS_DIR, "kept.dwf.ts"));
     });
 
     it("writes a fresh draft when the predecessor's file has been edited since", async () => {
@@ -625,7 +625,7 @@ describe("SaveWorkflow — `script_path`", () => {
     saveSavedWorkflow({ cwd, name: "origin", meta: { description: "old words" }, script: body });
     const draft = draftPath(cwd, "origin.dwf.ts");
     mkdirSync(join(cwd, WORKFLOW_DRAFTS_DIR), { recursive: true });
-    writeFileSync(draft, readFileSync(join(cwd, ".zcode/workflows/origin.dwf.ts"), "utf8"), "utf8");
+    writeFileSync(draft, readFileSync(join(cwd, ".zcodium/workflows/origin.dwf.ts"), "utf8"), "utf8");
 
     const outcome = await run({
       input: {

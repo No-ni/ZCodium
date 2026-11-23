@@ -1,6 +1,6 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { BUILTIN_MODEL_PROVIDER_IDS, encodeCustomModelValue, generateTraceId } from "@zcode/shared";
+import "node:fs/promises";
+import "node:path";
+import { encodeCustomModelValue, generateTraceId } from "@zcode/shared";
 import { createWorkerSelectionIntegration } from "#e2e/helpers/worker-selection-integration";
 import {
   createBotsServiceHarness,

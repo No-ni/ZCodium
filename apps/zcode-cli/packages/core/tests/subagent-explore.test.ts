@@ -1338,7 +1338,7 @@ describe("Explore subagent", () => {
     });
   });
 
-  it("routes Explore provider runtime headers refreshes through the parent session", async () => {
+  it("keeps Explore lifecycle without calling the retired account header port", async () => {
     const sessionId = createSessionId("runtime-explore-provider-headers-parent-route");
     const eventStore = createTestSessionEventStore();
     // 主 runtime 每次调用报自己的 sessionId；子 runtime 拿到的是父 runtime 派生的实例
@@ -1443,12 +1443,7 @@ describe("Explore subagent", () => {
     expect(childRequests).toHaveLength(1);
     expect(childSessionId).not.toBe(sessionId);
     expect(childEvents.length).toBeGreaterThan(0);
-    // 三次刷新（父两次 + 子一次）全部以父会话为路由身份到达端口。
-    expect(refreshes).toEqual([
-      { providerId: "provider-start-plan", boundSessionId: sessionId, routedSessionId: sessionId },
-      { providerId: "provider-start-plan", boundSessionId: sessionId, routedSessionId: sessionId },
-      { providerId: "provider-start-plan", boundSessionId: sessionId, routedSessionId: sessionId },
-    ]);
+    expect(refreshes).toEqual([]);
   });
 
   it("passes the parent HTTP client port into Explore WebFetch calls", async () => {
@@ -3175,12 +3170,13 @@ describe("Explore subagent", () => {
     const metadata = JSON.parse(await readFile(join(agentOutputDir, "metadata.json"), "utf8"));
     expect(metadata).toMatchObject({
       agentId: stoppedPayload.agentId,
-      parentSessionId: sessionId,
-      parentToolUseId: "call_background_explore",
-      profileId: "Explore",
       status: "completed",
+      executionId: expect.any(String),
+      completedAt: expect.any(String),
     });
     expect(metadata).not.toHaveProperty("transcriptFile");
+    expect(metadata).not.toHaveProperty("prompt");
+    expect(metadata).not.toHaveProperty("profileSnapshot");
   });
 
   it("runs foreground subagents in parallel when run_in_background is omitted", async () => {

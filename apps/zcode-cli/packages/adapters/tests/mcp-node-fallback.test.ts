@@ -312,6 +312,7 @@ describe("createMcpNodeFallbackProvider", () => {
       expect.objectContaining({ event: "mcp.node_fallback.ready", hasNpm: true }),
     );
     expect(warn).not.toHaveBeenCalled();
+    expect(JSON.stringify(info.mock.calls)).not.toContain(root);
   });
 
   it("omits the npm root when no bundled npm is found", async () => {
@@ -348,6 +349,8 @@ describe("createMcpNodeFallbackProvider", () => {
       "MCP node fallback unavailable",
       expect.objectContaining({ event: "mcp.node_fallback.unavailable" }),
     );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(blockedStorageRoot);
+    expect(warn.mock.calls[0]?.[1]).not.toHaveProperty("error");
   });
 });
 

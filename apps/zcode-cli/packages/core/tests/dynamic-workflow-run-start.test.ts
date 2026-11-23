@@ -400,7 +400,7 @@ describe("startSavedWorkflowRun — 成功路径", () => {
     const draft = join(cwd, WORKFLOW_DRAFTS_DIR, "reporter.dwf.ts");
     expect(submitCalls[0]!.scriptPath).toBe(draft);
     expect(readFileSync(draft, "utf8")).toBe(
-      readFileSync(join(cwd, ".zcode/workflows/reporter.dwf.ts"), "utf8"),
+      readFileSync(join(cwd, ".zcodium/workflows/reporter.dwf.ts"), "utf8"),
     );
   });
 

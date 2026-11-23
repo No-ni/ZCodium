@@ -77,6 +77,7 @@ export interface PreparedChildSpawn {
   command: ResolvedSpawnCommand;
   cwdDialect: ExecutionShellDialect;
   cwdFilePath?: string;
+  cleanupCwdCapture?: () => Promise<void>;
   spawnOptions: SpawnOptions;
 }
 

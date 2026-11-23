@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
@@ -52,14 +52,12 @@ test("resolves the development ZCode Built-in Config and shared Personal Config"
     dataBaseDir: join(root, "home"),
     entrypoint,
     env: {},
-    appVersion: "test-version",
-    platform: "test-platform",
   });
 
-  assertActiveConfigPath(prepared[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV], join(root, "home"));
+  assert.equal(prepared[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV], await realpath(zcodeBuiltinFilePath));
   assert.equal(
     prepared[ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV],
-    join(root, "home/.zcode/v2/provider_config.json"),
+    join(root, "home/.zcodium/v2/provider_config.json"),
   );
   const activeFilePath = prepared[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV];
 
@@ -68,24 +66,16 @@ test("resolves the development ZCode Built-in Config and shared Personal Config"
     dataBaseDir: join(root, "home"),
     entrypoint,
     env: {},
-    appVersion: "test-version",
-    platform: "test-platform",
   });
-  assert.equal(loginPrepared[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV], activeFilePath);
+  assert.deepEqual(loginPrepared, {});
   const logoutPrepared = await prepareCliProviderRuntimeEnv({
     argv: ["logout"],
     dataBaseDir: join(root, "home"),
     entrypoint,
     env: {},
-    appVersion: "test-version",
-    platform: "test-platform",
   });
-  assert.equal(logoutPrepared[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV], activeFilePath);
-  // 临时目录本身可能经过软链接（macOS 的 /tmp、/var），随包配置报告的是真实路径。
-  assert.equal(
-    prepared.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE,
-    await realpath(zcodeBuiltinFilePath),
-  );
+  assert.deepEqual(logoutPrepared, {});
+  assert.equal(prepared.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE, undefined);
   await assert.rejects(access(join(dirname(activeFilePath!), "zcode-builtin-refresh.json")));
 });
 
@@ -106,13 +96,11 @@ test("materializes the SEA config in the fixed environment resource path, separa
       },
       isSea: () => true,
     },
-    appVersion: "test-version",
-    platform: "test-platform",
   });
 
   const zcodeBuiltinFilePath = prepared[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV];
   assert.ok(zcodeBuiltinFilePath);
-  assertActiveConfigPath(zcodeBuiltinFilePath, root);
+
   assert.deepEqual(
     JSON.parse(await readFile(zcodeBuiltinFilePath, "utf8")),
     JSON.parse(zcodeBuiltinContent),
@@ -120,16 +108,16 @@ test("materializes the SEA config in the fixed environment resource path, separa
   assert.equal(reads, 1);
   const resource = join(
     root,
-    ".zcode",
+    ".zcodium",
     "v2",
     "runtime",
     "provider",
     "bundled",
     "zcode-builtin.json",
   );
-  assert.notEqual(resource, zcodeBuiltinFilePath);
+  assert.equal(resource, zcodeBuiltinFilePath);
   assert.deepEqual(JSON.parse(await readFile(resource, "utf8")), JSON.parse(zcodeBuiltinContent));
-  assert.equal(prepared.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE, resource);
+  assert.equal(prepared.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE, undefined);
   await assert.rejects(access(join(dirname(zcodeBuiltinFilePath), "zcode-builtin-refresh.json")));
 });
 
@@ -158,16 +146,6 @@ async function temporaryDirectory(): Promise<string> {
   return directory;
 }
 
-function assertActiveConfigPath(filePath: string | undefined, dataBaseDir: string): void {
-  assert.ok(filePath);
-  // 不能用斜杠正则误拒绝 Windows；逐层校验仍包含环境、平台、版本和 Endpoint。
-  assert.equal(
-    dirname(dirname(filePath)),
-    join(dataBaseDir, ".zcode", "v2", "runtime", "provider", "test-platform", "test-version"),
-  );
-  assert.match(basename(dirname(filePath)), /^endpoint-[a-f0-9]{32}$/u);
-  assert.equal(basename(filePath), "zcode-builtin.json");
-}
 
 const EMPTY_RELEASE =
   '{"schemaVersion":1,"revision":1,"config":{"providerConfigRules":{"templateRules":[],"providerRules":[]},"modelConfigRules":{"modelRules":[],"modelApiRules":[],"providerSiteRules":[],"templateModelRules":[],"builtinProviderModelRules":[]}}}';

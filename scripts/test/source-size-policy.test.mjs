@@ -23,7 +23,7 @@ async function fixture(configPath) {
     Object.assign(config, rootConfig);
     delete config.extends;
   }
-  // 原因：旧测试仍预期 800 行和生产路径降级；现行根/CLI 契约均为严格 400 行。
+  // 用户确认优先官方基线；规则与准入入口恢复官方 800 行政策，不靠拆分源码消除行数诊断。
   config.ignorePatterns = [];
   const configFile = join(sandbox.root, "oxlint.json");
   await writeFile(configFile, JSON.stringify(config), { flag: "wx" });
@@ -61,17 +61,17 @@ async function fixture(configPath) {
 }
 
 for (const configPath of [".oxlintrc.json", "apps/zcode-cli/oxlint.config.json"]) {
-  test(configPath + "：400/401 边界严格，注释与空行不计数，生产文件不降级", async () => {
+  test(configPath + "：官方 800/801 边界，注释空行不计数，原有大文件仅降级行数诊断", async () => {
     const lint = await fixture(configPath);
     const regular = "packages/example/src/new.ts";
-    assert.deepEqual(await lint(regular, 400, { comments: 30, blanks: 30 }), []);
-    assert.equal((await lint(regular, 401))[0]?.severity, "error");
+    assert.deepEqual(await lint(regular, 800, { comments: 30, blanks: 30 }), []);
+    assert.equal((await lint(regular, 801))[0]?.severity, "error");
     assert.equal(
-      (await lint("apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/v4-gateway.ts", 401))[0]
+      (await lint("apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/v4-gateway.ts", 801))[0]
         ?.severity,
-      "error",
+      "warning",
     );
-    assert.deepEqual(await lint("packages/example/test/new.test.mjs", 401), []);
+    assert.deepEqual(await lint("packages/example/test/new.test.mjs", 801), []);
   });
 }
 
@@ -83,9 +83,9 @@ test("无测试后缀的精确夹具例外不覆盖相邻生产入口", async ()
     "packages/desktop/test/e2e/helpers/project-sidebar.ts",
     "packages/desktop/scripts/mcp-apps-host-fixture/managed-renderer.tsx",
   ])
-    assert.deepEqual(await lint(file, 401), []);
+    assert.deepEqual(await lint(file, 801), []);
   assert.equal(
-    (await lint("packages/desktop/scripts/mcp-apps-host-fixture/production.ts", 401))[0]?.severity,
+    (await lint("packages/desktop/scripts/mcp-apps-host-fixture/production.ts", 801))[0]?.severity,
     "error",
   );
 });

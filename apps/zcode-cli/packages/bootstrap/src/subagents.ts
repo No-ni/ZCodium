@@ -13,6 +13,7 @@ import {
   createPluginAgentStateId,
   parsePluginSubagentModelSelectionOverrides,
   modelSelectionSchema,
+  ZCODE_USER_DATA_DIR_NAME,
   type BuiltInSubagentModelSelectionOverrides,
   type PluginSubagentModelSelectionOverrides,
 } from "@zcode/shared";
@@ -54,14 +55,15 @@ export async function loadZCodeAgentProfiles(
   await migrateSubagentStateFile(join(input.storageRoot, "v2", "agents-state.json"));
   const roots: Array<{ path: string; source: "user" | "project"; namespace?: string }> = [
     { path: join(input.storageRoot, "agents"), source: "user" as const },
-    { path: join(input.workingDirectory, ".zcodium", "agents"), source: "project" as const },
+    { path: join(input.workingDirectory, ZCODE_USER_DATA_DIR_NAME, "agents"), source: "project" as const },
   ];
   for (const directory of new Set(
     (input.additionalDirectories ?? []).map((path) => resolve(path)),
   )) {
     if (directory === resolve(input.workingDirectory)) continue;
     roots.push({
-      path: join(directory, ".zcode", "agents"),
+      // 主目录已使用本仓数据根；附加目录必须复用同一常量，避免漏掉其限定名 agent。
+      path: join(directory, ZCODE_USER_DATA_DIR_NAME, "agents"),
       source: "project",
       namespace: basename(directory),
     });
@@ -103,7 +105,9 @@ export async function loadZCodeAgentProfiles(
   const profiles = parsed.profiles.map(sanitizeProjectAgentProfile);
   for (const diagnostic of parsed.diagnostics)
     input.logger?.warn("Agent profile diagnostic", {
-      ...diagnostic,
+      // 业务诊断返回值供调用者展示；日志使用已有技术分类和数量，不展开路径、正文或原始错误。
+      errorCategory: "validation",
+      count: 1,
       module: "bootstrap.subagents",
     });
   return { ...parsed, profiles, diagnostics: [...diagnostics, ...parsed.diagnostics] };

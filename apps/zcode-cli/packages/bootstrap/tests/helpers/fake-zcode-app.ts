@@ -11,6 +11,8 @@ export function createFakeApp(
   let model = options?.runtimeConfig?.modelSelection
     ? `${options.runtimeConfig.modelSelection.providerId}/${options.runtimeConfig.modelSelection.modelId}`
     : "glm/glm-4.6";
+  // 当前 runtime 独占工具搜索模式；夹具也提供原有 getter/setter 合同。
+  let toolSearchMode = options?.runtimeConfig?.toolSearch?.mode ?? "off";
   let thoughtLevel = options?.runtimeConfig?.modelSelection?.options?.reasoningLevel ?? "medium";
   let bashShellSelection = options?.runtimeConfig?.bashShellSelection;
   let runtimeContextWindow = options?.runtimeConfig?.contextWindow ?? 128_000;
@@ -94,6 +96,8 @@ export function createFakeApp(
       traceId,
     }),
     runtime: {
+      getToolSearchMode: () => toolSearchMode,
+      setToolSearchMode: (mode: "local" | "off") => { toolSearchMode = mode; },
       beginShutdown: () => {},
       acquireForegroundPromotionLease: ({ leaseId }) => {
         if (foregroundPromotionLeaseId && foregroundPromotionLeaseId !== leaseId) {

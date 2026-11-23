@@ -94,13 +94,13 @@ describe("permission lifecycle log compatibility", () => {
           sideEffectScope: "system",
           reason: expect.any(String),
           ruleId: expect.any(String),
-          inputSummary: { type: "object", keys: ["command"] },
         }),
       );
       const evaluated = h.logger.debug.mock.calls.find(
         ([message]) => message === "Tool permission evaluated",
       );
       expect(JSON.stringify(evaluated)).not.toContain("private-input");
+      expect(evaluated?.[1]).not.toHaveProperty("inputSummary");
       if (mode === "plan")
         expect(h.logger.warn).toHaveBeenCalledWith(
           "Tool permission denied",

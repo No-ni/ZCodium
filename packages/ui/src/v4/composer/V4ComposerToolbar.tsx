@@ -132,7 +132,6 @@ function V4ComposerModelControlsImpl({
   usage,
   disabled,
   modelSelectionPending = false,
-  onConnectionPendingChange,
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSelectModel,

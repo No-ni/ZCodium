@@ -83,6 +83,13 @@ test(
             { taskMenu: true },
           ]);
           assert.equal(await header.getAttribute("aria-roledescription"), "draggable");
+          await page.locator('[data-task-item-key="fixture-row"]').dblclick();
+          assert.deepEqual(await page.evaluate(() => window.fixtureCalls), [
+            { title: "Group B" },
+            { taskMenu: true },
+            { taskSelected: true },
+            { taskRenamed: true },
+          ]);
           await page.screenshot({
             path: await assertProjectPath(
               join(fixture.sandbox.root, `menus-${width}-${noTooltip}.png`),

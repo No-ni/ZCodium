@@ -2038,9 +2038,10 @@ async function resolvePersistedDirectorySession(
     // 旧 WSL 记录必须先按原修复规则解释归属，否则新增预检会挡住本来可恢复的数据。
     const legacy = resolveLegacyRemoteSessionWorkspace(context, current);
     const identity = current.workspaceID?.trim() || legacy?.workspaceIdentity;
-    const path = legacy?.workspacePath ?? (current.path || current.directory);
-    const key = identity || path;
     const auxiliary = isAuxiliarySessionKind(current.taskType);
+    // 子会话 path 是创建时的执行 cwd，可在 cd 后不同于工作区；归属校验应读 directory 再验证完整父链。
+    const path = legacy?.workspacePath ?? (auxiliary ? current.directory : (current.path || current.directory));
+    const key = identity || path;
     // 旧 root 曾保存规范化 cwd；只在目标 OS 的绝对路径词法等价时兼容，绝不重写身份 key。
     const samePath = await isSameSessionWorkspacePath(context, path, workspace, current.projectID);
     const sameIdentity =

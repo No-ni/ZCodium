@@ -2,6 +2,7 @@
 
 import process from "node:process";
 import path from "node:path";
+import { access, glob, readFile } from "node:fs/promises";
 import { Project } from "ts-morph";
 
 const ROOT = process.cwd();
@@ -17,20 +18,78 @@ const EXCLUDE_GLOBS = [
 const DEFAULT_GLOBS = [
   "packages/*/src/**/*.{ts,tsx,mts,cts}",
   "packages/*/test/**/*.{ts,tsx,mts,cts}",
+  "packages/*/tests/**/*.{ts,tsx,mts,cts}",
   "apps/*/src/**/*.{ts,tsx,mts,cts}",
   "apps/*/test/**/*.{ts,tsx,mts,cts}",
   "apps/zcode-cli/packages/*/src/**/*.{ts,tsx,mts,cts}",
   "apps/zcode-cli/packages/*/test/**/*.{ts,tsx,mts,cts}",
   "apps/zcode-cli/packages/*/tests/**/*.{ts,tsx,mts,cts}",
+  "apps/zcode-cli/tools/*/{src,test,tests}/**/*.{ts,tsx,mts,cts}",
+  "scripts/**/*.{ts,tsx,mts,cts}",
   "harness/**/*.{ts,tsx,mts,cts}",
   ...EXCLUDE_GLOBS,
 ];
 
-function loadProject(scope) {
+async function sourceReferenceAliases() {
+  const aliases = { "@/*": [path.join(ROOT, "packages/ui/src/*")] };
+  const targets = (value) =>
+    typeof value === "string"
+      ? [value]
+      : value && typeof value === "object"
+        ? Object.values(value).flatMap(targets)
+        : [];
+  for await (const manifestPath of glob(
+    "{packages,apps,apps/zcode-cli/packages,apps/zcode-cli/tools}/*/package.json",
+    { cwd: ROOT },
+  )) {
+    const absolute = path.join(ROOT, manifestPath);
+    const directory = path.dirname(absolute);
+    const manifest = JSON.parse(await readFile(absolute, "utf8"));
+    if (!manifest.name) continue;
+    const entries = manifest.exports ?? { ".": [manifest.types, manifest.main] };
+    for (const [subpath, target] of Object.entries(entries)) {
+      for (const item of targets(target)) {
+        const source = item.replace(/^\.\/dist\//, "./src/");
+        const candidates = [
+          source.replace(/\.d\.ts$/, ".ts").replace(/\.js$/, ".ts"),
+          source.replace(/\.js$/, ".tsx"),
+          source,
+        ];
+        let found;
+        for (const candidate of candidates) {
+          if (!/\.(?:ts|tsx|mts|cts)$/.test(candidate) && !candidate.includes("*")) continue;
+          const resolved = path.resolve(directory, candidate);
+          if (candidate.includes("*")) {
+            found = resolved;
+            break;
+          }
+          try {
+            await access(resolved);
+            found = resolved;
+            break;
+          } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+          }
+        }
+        if (found) {
+          aliases[manifest.name + (subpath === "." ? "" : "/" + subpath.replace(/^\.\//, ""))] = [
+            found,
+          ];
+          break;
+        }
+      }
+    }
+  }
+  return aliases;
+}
+
+async function loadProject(scope) {
   const project = new Project({
     tsConfigFilePath: path.join(ROOT, "tsconfig.base.json"),
     skipAddingFilesFromTsConfig: true,
     skipFileDependencyResolution: false,
+    // 根 tsconfig 没有 UI alias，也会把 CLI 的 dist 声明当成另一组符号；映射回现存公开源码才能追到调用方。
+    compilerOptions: { paths: await sourceReferenceAliases() },
   });
 
   const globs = scope
@@ -349,7 +408,7 @@ function parseArgs(argv) {
   return options;
 }
 
-function main(argv) {
+async function main(argv) {
   if (argv.length === 0 || argv.includes("-h") || argv.includes("--help")) {
     printHelp();
     process.exit(0);
@@ -363,7 +422,7 @@ function main(argv) {
     process.exit(1);
   }
 
-  const { project, addedCount } = loadProject(options.scope);
+  const { project, addedCount } = await loadProject(options.scope);
   if (addedCount === 0) {
     console.error(`警告: scope 内未加载任何源文件 (scope: ${options.scope})`);
   }
@@ -395,4 +454,4 @@ function main(argv) {
   }
 }
 
-main(process.argv.slice(2));
+await main(process.argv.slice(2));

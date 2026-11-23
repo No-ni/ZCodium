@@ -28,7 +28,6 @@ for (const minify of [false, true]) {
       resolve(cliRoot, "src/provider-runtime-env.ts"),
       resolve(cliRoot, "../core/dist/runtime.js"),
       resolve(cliRoot, "../contracts/dist/index.js"),
-      resolve(cliRoot, "../../../../packages/shared/src/index.ts"),
     ]);
 
     try {
@@ -66,7 +65,7 @@ export async function main() {
                 if (!blockedModules.has(path)) return undefined;
                 // 回归要挡住模块求值，而非只看包大小；构建仍保留普通 CLI 所需代码。
                 return {
-                  contents: `throw new Error(${JSON.stringify(forbiddenEvaluation)});\n${await readFile(path, "utf8")}`,
+                  contents: `throw new RangeError(${JSON.stringify(forbiddenEvaluation)});\n${await readFile(path, "utf8")}`,
                   loader: path.endsWith(".ts") ? "ts" : "js",
                 };
               });
@@ -80,7 +79,7 @@ export async function main() {
         [outfile, "__zcode-plugin-host", serverPath, "--prompt", "plugin argument"],
         { env: { ...process.env, NODE_ENV: "untrusted" }, timeout: processTimeoutMs },
       );
-      assert.equal(stderr, "");
+      assert.equal(withoutPermissionWarnings(stderr), "");
       assert.deepEqual(JSON.parse(stdout), {
         args: ["--prompt", "plugin argument"],
         nodeEnvRemoved: true,
@@ -106,7 +105,7 @@ export async function main() {
         [outfile, "__zcode-plugin-host", serverPath, "--permission-broker-socket", brokerSocket],
         { env: authorizedEnv, timeout: processTimeoutMs },
       );
-      assert.equal(authorized.stderr, "");
+      assert.equal(withoutPermissionWarnings(authorized.stderr), "");
       assert.deepEqual(JSON.parse(authorized.stdout), {
         args: ["--permission-broker-socket", brokerSocket],
         nodeEnvRemoved: true,
@@ -120,7 +119,10 @@ export async function main() {
 
       // 非 node_repl 宿主必须在插件 import 前被拒绝，不能因入口提前分流绕过产品鉴权。
       // 旧契约比对 argv 上的 socket 值，身份模式下改为要求宿主标记；拦截时机的要求不变。
-      await writeFile(serverPath, 'throw new Error("UNAUTHORIZED_PLUGIN_IMPORTED");');
+      const importedMarker = join(directory, "unauthorized-import.txt");
+      await writeFile(serverPath, `import { writeFile } from "node:fs/promises";
+await writeFile(${JSON.stringify(importedMarker)}, "imported");
+export async function main() {}`);
       const { ZCODE_CUA_NODE_REPL_HOST: _hostMarker, ...unauthorizedEnv } = authorizedEnv;
       await assert.rejects(
         execFileAsync(
@@ -130,17 +132,23 @@ export async function main() {
         ),
         (error) =>
           error.stdout === "" &&
-          error.stderr.includes("Captured ZCode CUA broker credentials may only launch") &&
+          error.stderr.includes('Plugin host failed: [{"errorType":"Error"') &&
           !error.stderr.includes("UNAUTHORIZED_PLUGIN_IMPORTED"),
       );
+
+      await assert.rejects(readFile(importedMarker), { code: "ENOENT" });
 
       // 证明探针实际生效：普通命令仍进入业务分支，触发被注入的求值错误。
       await assert.rejects(
         execFileAsync(process.execPath, [outfile, "--version"], { timeout: processTimeoutMs }),
-        (error) => error.stderr.includes(forbiddenEvaluation),
+        (error) => error.stderr.includes('"errorType":"RangeError"') && !error.stdout,
       );
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
   });
+}
+
+function withoutPermissionWarnings(stderr) {
+  return stderr.split(/\r?\n/).filter(line => !/^\(node:\d+\) SecurityWarning: The flag --allow-(?:addons|child-process|worker) must be used with extreme caution\. It could invalidate the permission model\.$/.test(line) && !/^\(Use .node --trace-warnings \.\.\.. to show where the warning was created\)$/.test(line)).join("\n");
 }

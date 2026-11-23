@@ -32,6 +32,9 @@ function createRuntime(taskType: SessionTaskType, seen: ModelInvocationContext[]
           // 在 iterator 真正消费时观察上下文，覆盖 stream 创建与消费跨异步边界的情形。
           await Promise.resolve();
           seen.push(getCurrentModelInvocationContext()!);
+          yield { type: "text_start", id: "title" };
+          yield { type: "text_delta", id: "title", text: result.text };
+          yield { type: "text_end", id: "title" };
           yield { type: "finish", finishReason: "stop" };
         },
       }),

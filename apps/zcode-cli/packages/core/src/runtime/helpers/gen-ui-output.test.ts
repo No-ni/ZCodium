@@ -4,6 +4,7 @@ import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createGenUiService } from "../../../../../../../packages/services/src/gen-ui/node.js";
 import { buildDesktopContextSection } from "../../context/sections/desktop.js";
+import { buildEnvironmentAnnouncement } from "../../context/sections/env-info.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { ensureGenUiOutputDirectory, resolveGenUiOutputDirectory } from "./gen-ui-output.js";
 
@@ -92,7 +93,9 @@ describe("Host-owned Gen UI output", () => {
       await ensureGenUiOutputDirectory(runtime);
       const directory = resolveGenUiOutputDirectory(runtime)!;
       expect(directory).toBe(join(executionWorkspacePath, "visualizations"));
-      expect(buildDesktopContextSection(directory).content).toContain(JSON.stringify(directory));
+      // 当前官方 Desktop 段只声明能力，实际目录由同一次环境公告提供。
+      expect(buildDesktopContextSection(true).content).toContain("listed in the environment");
+      expect(buildEnvironmentAnnouncement({ cwd: executionWorkspacePath, platform: process.platform, shell: "fixture", osVersion: "fixture", isGitRepository: false, additionalWorkingDirectories: [], visualizationDirectory: directory, desktopContext: true }, undefined, false)!.content).toContain(directory);
       const path = join(directory, "pelican-bicycle.html");
       await writeFile(path, "<div>Pelican</div>");
       expect(

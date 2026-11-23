@@ -379,6 +379,8 @@ function PluginList({
       plugins,
       setEnabled,
       storeItemById,
+      // scoped store 的代际跟随服务；延迟完成后的错误读取也必须跟随该 owner。
+      usePluginManagementStore,
     ],
   );
   const handleResetPluginConfig = useCallback(
@@ -398,7 +400,15 @@ function PluginList({
       }
       toast(intl.formatMessage({ id: "settings.plugins.scope.restored" }, { plugin: pluginLabel }));
     },
-    [intl, locale, pluginManagementService, plugins, resetPluginConfig, storeItemById],
+    [
+      intl,
+      locale,
+      pluginManagementService,
+      plugins,
+      resetPluginConfig,
+      storeItemById,
+      usePluginManagementStore,
+    ],
   );
   const uninstall = usePluginUninstall({
     store: usePluginManagementStore,
@@ -414,7 +424,7 @@ function PluginList({
       if (usePluginManagementStore.getState().error) return;
       await refreshAfterPluginChange();
     },
-    [pluginManagementService, refreshAfterPluginChange, updatePlugin],
+    [pluginManagementService, refreshAfterPluginChange, updatePlugin, usePluginManagementStore],
   );
   const [updatingAll, setUpdatingAll] = useState(false);
   const updateAllAbortRef = useRef<AbortController | null>(null);
@@ -1093,6 +1103,9 @@ export function PluginsSection({
   }, [commandEditorWorkspaceMissing]);
 
   const selectedTargetKey = target ? workspaceKey(target) : "";
+  const capabilityScopeKey = `${selectedScope.key}\0${selectedTargetKey}`;
+  const capabilityScopeRef = useRef(capabilityScopeKey);
+  capabilityScopeRef.current = capabilityScopeKey;
   // 选中设备离线或 attachment 未就绪时不渲染任何列表：读写一律失败并提示，不显示旧快照。
   const scopeBlocked = resolveSettingsScopeBlock(scope, selectedScope.kind === "user");
   const blockedNotice = scopeBlocked ? (
@@ -1101,35 +1114,40 @@ export function PluginsSection({
 
   const updatePluginCount = useCallback(
     (count: number) => {
+      // 切换 Scope 后旧列表的迟到通知不能污染新设备的计数。
+      if (capabilityScopeRef.current !== capabilityScopeKey) return;
       setCapabilityCounts((current) =>
         current.plugins === count ? current : { ...current, plugins: count },
       );
     },
-    [selectedScope.key, selectedTargetKey],
+    [capabilityScopeKey],
   );
   const updateMcpCount = useCallback(
     (count: number) => {
+      if (capabilityScopeRef.current !== capabilityScopeKey) return;
       setCapabilityCounts((current) =>
         current.mcps === count ? current : { ...current, mcps: count },
       );
     },
-    [selectedScope.key, selectedTargetKey],
+    [capabilityScopeKey],
   );
   const updateSkillCount = useCallback(
     (count: number) => {
+      if (capabilityScopeRef.current !== capabilityScopeKey) return;
       setCapabilityCounts((current) =>
         current.skills === count ? current : { ...current, skills: count },
       );
     },
-    [selectedScope.key, selectedTargetKey],
+    [capabilityScopeKey],
   );
   const updateCommandCount = useCallback(
     (count: number) => {
+      if (capabilityScopeRef.current !== capabilityScopeKey) return;
       setCapabilityCounts((current) =>
         current.commands === count ? current : { ...current, commands: count },
       );
     },
-    [selectedScope.key, selectedTargetKey],
+    [capabilityScopeKey],
   );
   const handleMcpEditorOpenChange = useCallback((open: boolean) => {
     setMcpEditorOpen(open);

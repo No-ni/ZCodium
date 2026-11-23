@@ -206,7 +206,8 @@ export async function autoCompactIfNeeded(
       model: context.model,
       mode: this.config.toolSearch?.mode,
       registry: this.registry,
-      tools: this.getTools(context.model),
+      // 估算必须与本步实际请求共用已过滤目录；重复投影会丢掉 turn denylist。
+      tools: context.requestTools ?? this.getTools(context.model),
       entries: activeEntries,
     }).entries,
     applyCacheControl: false,

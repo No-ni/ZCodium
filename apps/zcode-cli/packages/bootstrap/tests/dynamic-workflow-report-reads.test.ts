@@ -10,7 +10,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createSqliteSessionStore, type DwfRunSessionListItem } from "@zcode/adapters/storage";
+import { createDwfJournalStore, createSqliteSessionStore, type DwfRunSessionListItem } from "@zcode/adapters/storage";
+import { DatabaseSync } from "node:sqlite";
 import {
   ALL_EVENTS,
   InMemoryJournalStore,
@@ -61,6 +62,25 @@ afterEach(async () => {
   await store.close?.();
   await rm(tempRoot, { force: true, recursive: true });
 });
+
+function prepareInOneTransaction(write: () => void): void {
+  // 仅批量准备 fixture，继续使用同一生产 writer；避免 Windows 为每一行单独同步磁盘。
+  const original = journal;
+  const database = new DatabaseSync(store.getDatabasePath());
+  database.exec("PRAGMA foreign_keys = ON");
+  database.exec("BEGIN");
+  try {
+    journal = createDwfJournalStore(database) as SqliteJournal;
+    write();
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  } finally {
+    journal = original;
+    database.close();
+  }
+}
 
 function createRun(runId: string, status: "running" | "completed" = "running"): void {
   journal.createRun({
@@ -299,17 +319,19 @@ describe("a run that reported 65,536 items", () => {
   it("hands 256 + 64 + 64 items to the host across snapshot, artifacts, cold replay, GetWorkflowRun and amend", async () => {
     const runId = "dwfrun-65536";
     const total = 65_536;
-    createRun(runId);
-    started(runId);
-    declareChart(runId);
-    for (let ordinal = 1; ordinal <= total; ordinal += 1) {
-      report(runId, ordinal, { n: ordinal }, ordinal % 2 === 0 ? "perf" : undefined);
-    }
-    journal.updateRunStatus(runId, "completed");
+    prepareInOneTransaction(() => {
+      createRun(runId);
+      started(runId);
+      declareChart(runId);
+      for (let ordinal = 1; ordinal <= total; ordinal += 1) {
+        report(runId, ordinal, { n: ordinal }, ordinal % 2 === 0 ? "perf" : undefined);
+      }
+      journal.updateRunStatus(runId, "completed");
+    });
 
     const counted = countingJournal(journal);
     // 冷行（本进程注册表里没有条目）：终态快照全部从 journal 读。
-    const snapshot = snapshotOf(runId, new Map(), counted.journal);
+    const snapshot = await snapshotOf(runId, new Map(), counted.journal);
     expect(snapshot?.reportCount).toBe(total);
     expect(snapshot?.reports).toHaveLength(256);
     expect(snapshot?.artifacts?.[0]?.itemCount).toBe(total / 2);
@@ -413,7 +435,7 @@ describe("report item size: 1 MiB items stay out of JavaScript except where they
     const MiB = 1024 * 1024;
 
     // 终态快照：前若干条、至多 8 MiB（每条约 1 MB，所以 8 条），总数照实。
-    const snapshot = snapshotOf(runId, new Map(), counted.journal);
+    const snapshot = await snapshotOf(runId, new Map(), counted.journal);
     expect(snapshot?.reportCount).toBe(TOTAL);
     expect(snapshot?.reports).toHaveLength(8);
     expect(counted.bytes()).toBeLessThanOrEqual(8 * MiB);

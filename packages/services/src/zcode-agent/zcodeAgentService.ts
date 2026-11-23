@@ -13,10 +13,7 @@ import {
   executeCredentialCipherRequest,
   type CredentialCipher,
 } from "@zcode/shared/credential-security";
-import {
-  getNetworkErrorCodes,
-  isNetworkFailure,
-} from "#src/providers/api/networkErrorClassifier.js";
+import "#src/providers/api/networkErrorClassifier.js";
 import {
   sessionLifecycleSnapshotSchema,
   type SessionLifecycleSnapshot,
@@ -40,7 +37,6 @@ import {
   supportsPluginDiscoveryUi,
   supportsPluginExtensionSummary,
   ensureGenUiContextSupport,
-  supportsHighspeedCardOwner,
 } from "./independentPlanSupport.js";
 import { supportsResidentRowsRange } from "./resident-rows-range/contract.js";
 import { v4ConversationTurnDirectoryResultSchema } from "@zcode/shared/zcode-protocol-v4";

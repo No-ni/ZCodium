@@ -236,14 +236,16 @@ test("plugins install rejects ambiguous bare names and unknown plugins", async (
     await runPluginsCommand(ambiguous, TEXT, { getPluginsOverview: overview }, ["install", "hello"]),
     1,
   );
-  assert.match(ambiguous.stderr.output(), /ambiguous.*hello@a, hello@b/);
+  assert.match(ambiguous.stderr.output(), /"errorType":"Error"/);
+  assert.doesNotMatch(ambiguous.stderr.output(), /hello@a|hello@b/);
 
   const missing = context([]);
   assert.equal(
     await runPluginsCommand(missing, TEXT, { getPluginsOverview: overview }, ["install", "nope"]),
     1,
   );
-  assert.match(missing.stderr.output(), /Plugin not found in any marketplace: nope/);
+  assert.match(missing.stderr.output(), /"errorType":"Error"/);
+  assert.doesNotMatch(missing.stderr.output(), /Plugin not found in any marketplace: nope/);
 });
 
 test("plugins install surfaces error diagnostics with a non-zero exit", async () => {

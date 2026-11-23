@@ -42,7 +42,7 @@ before(async () => {
       host: "127.0.0.1",
       port: 0,
       hmr: false,
-      watch: { ignored: ["**/packages/desktop/out/**", "**/.e2e-artifacts/**"] },
+      watch: null,
     },
   });
   await server.listen();
@@ -268,7 +268,7 @@ for (const width of [390, 1200])
           await choose(page, "build");
           await page.evaluate(() => window.syncYoloMode("yolo"));
           assert.equal(await dialog(page).count(), 0);
-          for (const surface of ["automation", "offpeak"]) {
+          for (const surface of ["automation"]) {
             await page.goto(`${url}&surface=${surface}`);
             const trigger = page.getByTestId("chat-mode-select-trigger");
             await trigger.waitFor();

@@ -32,7 +32,7 @@ function fixture(
       ...toolSearchToolEntry.metadata,
       name: "DeferredA",
       description: "A",
-      shouldDefer: true,
+      alwaysLoad: false, shouldDefer: true,
     },
     inputSchema: {
       type: "object",
@@ -238,7 +238,7 @@ describe("DeferredToolCall execution", () => {
           metadata: {
             ...toolSearchToolEntry.metadata,
             name: "DeferredA",
-            shouldDefer: true,
+            alwaysLoad: false, shouldDefer: true,
             readOnly: false,
             concurrentSafe: false,
             needsApproval: true,

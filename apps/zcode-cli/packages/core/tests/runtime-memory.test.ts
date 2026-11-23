@@ -1,3 +1,5 @@
+// 合成文件系统与生产 node:path 使用同一平台路径语义。
+import { sep, resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createSessionId, type SessionTaskType } from "@zcode/contracts";
 import { join } from "node:path";
@@ -7,8 +9,8 @@ import { createTestSessionEventStore } from "./test-event-store.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
 import { createTestModelFactory } from "./test-runtime-model.js";
 
-const CLI_STORAGE_ROOT = "/storage/cli";
-const WORKSPACE_PATH = "/workspace/project";
+const CLI_STORAGE_ROOT = nativeFixturePath("/storage/cli");
+const WORKSPACE_PATH = nativeFixturePath("/workspace/project");
 let runtimeSequence = 0;
 
 describe("AgentRuntime project Memory context", () => {
@@ -187,8 +189,8 @@ describe("AgentRuntime project Memory context", () => {
     });
 
     expect(result.providerText).toContain(`\`${rootDir}/\``);
-    expect(rootDir).toContain("/project-");
-    expect(rootDir).not.toContain("/workspace-");
+    expect(rootDir).toContain(`${sep}project-`);
+    expect(rootDir).not.toContain(`${sep}workspace-`);
   });
 
   it("leaves legacy summary/topics and explicit remember producers outside the active path", async () => {

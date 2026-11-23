@@ -1,5 +1,6 @@
+import { createProjectTestSymlink } from "../../../../../scripts/ci/project-test-sandbox.mjs";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -38,7 +39,7 @@ test("subagent resume rebuilds persisted nested cwd and rejects links before exe
       { name: "ConversationSessionWorkspaceUnavailableError" },
     );
     await rm(join(parent, "nested"), { recursive: true });
-    await symlink(outside, join(parent, "nested"), "dir");
+    await createProjectTestSymlink(outside, join(parent, "nested"), "dir");
     await assert.rejects(execution.prepareConversationSubagentSession(input), {
       name: "ConversationSessionWorkspaceUnavailableError",
     });
@@ -126,7 +127,7 @@ test("bare child resume prepares its persisted cwd without a Host marker", async
     });
     assert.equal(await readFile(join(parent, "nested"), "utf8"), "keep file");
     await rm(join(parent, "nested"));
-    await symlink(outside, join(parent, "nested"), "dir");
+    await createProjectTestSymlink(outside, join(parent, "nested"), "dir");
     await assert.rejects(execution.prepareConversationSubagentSession(input), {
       name: "ConversationSessionWorkspaceUnavailableError",
     });
@@ -164,7 +165,7 @@ test("bare main and child resume leave ordinary project cwd missing or linked", 
     await prepareMain();
     await prepareChild();
     await assert.rejects(stat(projectCwd), { code: "ENOENT" });
-    await symlink(outside, join(root, "nested"), "dir");
+    await createProjectTestSymlink(outside, join(root, "nested"), "dir");
     await prepareMain();
     await prepareChild();
     await assert.rejects(stat(join(outside, "deeper")), { code: "ENOENT" });

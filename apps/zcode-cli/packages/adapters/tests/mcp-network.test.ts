@@ -22,7 +22,7 @@ describe("MCP stdio environment", () => {
 
   it("preserves an existing PATH when another executable node is already available", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-mcp-node-path-"));
-    const nodePath = join(root, "node");
+    const nodePath = join(root, process.platform === "win32" ? "node.exe" : "node");
     try {
       await writeFile(nodePath, "#!/bin/sh\nexit 0\n");
       await chmod(nodePath, 0o755);

@@ -44,6 +44,7 @@ import {
   resolveWindowsGitBashShell,
 } from "../src/exec/bash-shell-provider.js";
 import { resolveBashMaxOutputLength } from "../src/exec/bash-output-policy.js";
+import { isExpectedChildStdinClosureError } from "../src/exec/execution-utils.js";
 import { createCwdCapturePlan, normalizeCapturedCwdForHost } from "../src/exec/cwd-capture.js";
 import {
   type BackgroundExecutionSnapshot,
@@ -99,6 +100,11 @@ type BashBackgroundLifecycleCapableAdapter = NodeExecutionAdapter & {
 };
 
 describe("NodeExecutionAdapter", () => {
+  it("only treats write EOF as expected child stdin closure", () => {
+    expect(isExpectedChildStdinClosureError(Object.assign(new Error("closed"), { code: "EOF", syscall: "write" }))).toBe(true);
+    expect(isExpectedChildStdinClosureError(Object.assign(new Error("read failure"), { code: "EOF", syscall: "read" }))).toBe(false);
+    expect(isExpectedChildStdinClosureError(Object.assign(new Error("unknown write failure"), { code: "EIO", syscall: "write" }))).toBe(false);
+  });
   it("auto-backgrounds a foreground command when its timeout elapses", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-exec-auto-background-"));
     const adapter = new NodeExecutionAdapter({
@@ -114,7 +120,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "setTimeout(() => process.stdout.write('late'), 60)"],
+            args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('late'), 60)"],
           },
           timeoutMs: 10,
           outputLimit: {
@@ -153,7 +159,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "setTimeout(() => process.stdout.write('survived'), 80)"],
+            args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('survived'), 80)"],
           },
           timeoutMs: 5,
           trace: {
@@ -188,7 +194,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "setTimeout(() => process.stdout.write('detached'), 70)"],
+            args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('detached'), 70)"],
           },
           timeoutMs: 5,
           trace: {
@@ -222,7 +228,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "setTimeout(() => process.stdout.write('unexpected'), 10_000)"],
+            args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('unexpected'), 10_000)"],
           },
           timeoutMs: 5,
         },
@@ -361,7 +367,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", launcherScript],
+            args: ["--no-warnings", "-e", launcherScript],
           },
         });
 
@@ -404,7 +410,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "setTimeout(() => process.stdout.write('unexpected'), 10_000)"],
+            args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('unexpected'), 10_000)"],
           },
           timeoutMs: 5,
         },
@@ -435,7 +441,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "setTimeout(() => process.stdout.write('unexpected'), 30)"],
+            args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('unexpected'), 30)"],
           },
           timeoutMs: 5,
           trace: {
@@ -502,6 +508,7 @@ describe("NodeExecutionAdapter", () => {
               mode: "argv",
               file: process.execPath,
               args: [
+              "--no-warnings",
                 "-e",
                 `setTimeout(() => process.stdout.write('race-${attempt}'), ${childDelayMs})`,
               ],
@@ -566,6 +573,7 @@ describe("NodeExecutionAdapter", () => {
             mode: "argv",
             file: process.execPath,
             args: [
+              "--no-warnings",
               "-e",
               [
                 "let writes = 0;",
@@ -619,6 +627,7 @@ describe("NodeExecutionAdapter", () => {
             mode: "argv",
             file: process.execPath,
             args: [
+              "--no-warnings",
               "-e",
               "setTimeout(() => { process.stderr.write('boom'); process.exit(7); }, 60)",
             ],
@@ -658,7 +667,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "process.stdout.write('ok')"],
+            args: ["--no-warnings", "-e", "process.stdout.write('ok')"],
           },
           timeoutMs: 1_000,
         },
@@ -686,7 +695,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "process.stdout.write('ok')"],
+            args: ["--no-warnings", "-e", "process.stdout.write('ok')"],
           },
           timeoutMs: 1_000,
           trace: {
@@ -852,7 +861,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", "process.stdout.write('ok')"],
+            args: ["--no-warnings", "-e", "process.stdout.write('ok')"],
           },
           timeoutMs: 1_000,
           outputLimit: {
@@ -892,6 +901,7 @@ describe("NodeExecutionAdapter", () => {
             mode: "argv",
             file: process.execPath,
             args: [
+              "--no-warnings",
               "-e",
               [
                 "let writes = 0;",
@@ -1271,7 +1281,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "process.stdout.write('ok')"],
+          args: ["--no-warnings", "-e", "process.stdout.write('ok')"],
         },
       },
       {
@@ -1291,7 +1301,7 @@ describe("NodeExecutionAdapter", () => {
 
   it("captures final cwd for successful foreground shell commands when requested", async () => {
     const root = await mkdtemp(join(tmpdir(), "zcode-exec-cwd-"));
-    const child = join(root, " child with spaces ");
+    const child = join(root, process.platform === "win32" ? "child with spaces" : " child with spaces ");
     await mkdir(child);
 
     try {
@@ -1299,7 +1309,7 @@ describe("NodeExecutionAdapter", () => {
       const result = await adapter.run({
         command: {
           mode: "shell",
-          command: `cd ${JSON.stringify(child)}`,
+          command: process.platform === "win32" ? `cd /d "${child}"` : `cd ${JSON.stringify(child)}`,
         },
         cwd: root,
         captureCwdAfterSuccess: true,
@@ -1310,6 +1320,27 @@ describe("NodeExecutionAdapter", () => {
       expect(result.resolvedCwd).toBe(await realpath(child));
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform !== "win32")("captures the native Git Bash cwd below the custom MSYS temp mount", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zcode-git-bash-cwd-"));
+    const child = join(root, "nested");
+    await mkdir(child);
+    const shell = resolveEffectiveBashShellSelection({env: process.env, platform: process.platform}).selection;
+    expect(shell.dialect).toBe("git-bash");
+    const adapter = new NodeExecutionAdapter({outputRootDir: join(root, "outputs")});
+    try {
+      const result = await adapter.run({
+        command: {mode: "shell", command: "cd nested && pwd", shellProfile: "posix-bash", shellOverride: shell},
+        cwd: root,
+        captureCwdAfterSuccess: true,
+      });
+      expect(result.exitCode).toBe(0);
+      expect(result.resolvedCwd).toBe(await realpath(child));
+    } finally {
+      await adapter.close();
+      await rm(root, {recursive: true, force: true});
     }
   });
 
@@ -1335,6 +1366,38 @@ describe("NodeExecutionAdapter", () => {
         expect(result.exitCode).toBe(0);
         expect(result.resolvedCwd).toBe(await realpath(child));
       } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== "win32")(
+    "cmd cwd capture preserves multiline commands, literal exclamation and failure exit codes",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "zcodium-cmd-capture-contract-"));
+      const child = join(root, "child with spaces");
+      await mkdir(child);
+      const adapter = new NodeExecutionAdapter();
+      try {
+        const success = await adapter.run({
+          command: { mode: "shell", command: `cd /d "${child}"\r\necho bang!` },
+          cwd: root,
+          captureCwdAfterSuccess: true,
+        });
+        expect(success.status).toBe("completed");
+        expect(success.stdout.text.trim()).toBe("bang!");
+        expect(success.resolvedCwd).toBe(await realpath(child));
+        const failure = await adapter.run({
+          command: { mode: "shell", command: `cd /d "${child}"\r\ncmd /d /c exit 7` },
+          cwd: root,
+          captureCwdAfterSuccess: true,
+        });
+        // 原命令失败时不提交 cwd，包装收尾必须保留真实退出码。
+        expect(failure.status).toBe("failed");
+        expect(failure.exitCode).toBe(7);
+        expect(failure.resolvedCwd).toBeUndefined();
+      } finally {
+        await adapter.close();
         await rm(root, { recursive: true, force: true });
       }
     },
@@ -1524,7 +1587,7 @@ describe("NodeExecutionAdapter", () => {
             backend: {
               kind: "internal-cli",
               command: process.execPath,
-              args: ["-e", shimScript],
+              args: ["--no-warnings", "-e", shimScript],
             },
           },
         });
@@ -2200,8 +2263,8 @@ describe("NodeExecutionAdapter", () => {
     },
   );
 
-  it("creates a cmd-compatible cwd capture wrapper for Windows shell commands", () => {
-    const windowsPlan = createCwdCapturePlan(
+  it("creates a cmd-compatible cwd capture wrapper for Windows shell commands", async () => {
+    const windowsPlan = await createCwdCapturePlan(
       {
         command: {
           mode: "shell",
@@ -2216,14 +2279,20 @@ describe("NodeExecutionAdapter", () => {
     expect(windowsPlan.command).toMatchObject({
       mode: "shell",
     });
-    expect(windowsPlan.command.command).toContain("cd C:\\repo");
-    expect(windowsPlan.command.command).toContain('set "__zcode_status=%ERRORLEVEL%"');
-    expect(windowsPlan.command.command).toContain('if "%__zcode_status%"=="0" cd > "');
-    expect(windowsPlan.command.command).toContain("exit /b %__zcode_status%");
+    if (windowsPlan.command.mode !== "shell") throw new Error("Expected shell wrapper");
+    const scriptPath = windowsPlan.command.command.slice(1, -1);
+    const script = await readFile(scriptPath, "utf8");
+    expect(script).toContain("cd C:\\repo");
+    expect(script).toContain('set "__zcode_status=%ERRORLEVEL%"');
+    expect(script).toContain('if "%__zcode_status%"=="0" cd > "');
+    expect(script).toContain("exit /b %__zcode_status%");
+    await windowsPlan.cleanup?.();
+    await expect(stat(scriptPath)).rejects.toHaveProperty("code", "ENOENT");
+
   });
 
-  it("does not create a cwd capture wrapper for argv commands", () => {
-    const argvPlan = createCwdCapturePlan(
+  it("does not create a cwd capture wrapper for argv commands", async () => {
+    const argvPlan = await createCwdCapturePlan(
       {
         command: {
           mode: "argv",
@@ -2242,8 +2311,8 @@ describe("NodeExecutionAdapter", () => {
     });
   });
 
-  it("preserves shell profile when creating a cwd capture wrapper", () => {
-    const plan = createCwdCapturePlan(
+  it("preserves shell profile when creating a cwd capture wrapper", async () => {
+    const plan = await createCwdCapturePlan(
       {
         command: {
           mode: "shell",
@@ -2263,8 +2332,8 @@ describe("NodeExecutionAdapter", () => {
     }
   });
 
-  it("uses POSIX cwd capture syntax for Windows Git Bash", () => {
-    const plan = createCwdCapturePlan(
+  it("uses POSIX cwd capture syntax for Windows Git Bash", async () => {
+    const plan = await createCwdCapturePlan(
       {
         command: {
           mode: "shell",
@@ -2279,7 +2348,7 @@ describe("NodeExecutionAdapter", () => {
     expect(plan.command.mode).toBe("shell");
     if (plan.command.mode === "shell") {
       expect(plan.command.command).toContain("__zcode_status=$?");
-      expect(plan.command.command).toContain("pwd -P >");
+      expect(plan.command.command).toContain("pwd -P -W >");
       expect(plan.command.command).not.toContain("%ERRORLEVEL%");
     }
   });
@@ -2302,6 +2371,7 @@ describe("NodeExecutionAdapter", () => {
           mode: "argv",
           file: process.execPath,
           args: [
+              "--no-warnings",
             "-e",
             "process.stdout.write('first'); setTimeout(() => process.stdout.write('second'), 30); setTimeout(() => {}, 70)",
           ],
@@ -2338,6 +2408,7 @@ describe("NodeExecutionAdapter", () => {
           mode: "argv",
           file: process.execPath,
           args: [
+              "--no-warnings",
             "-e",
             [
               "process.stdout.write(JSON.stringify({",
@@ -3383,7 +3454,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "process.stderr.write('bad'); process.exit(7)"],
+        args: ["--no-warnings", "-e", "process.stderr.write('bad'); process.exit(7)"],
       },
     });
 
@@ -3399,7 +3470,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "process.stdin.destroy(); setTimeout(() => process.exit(0), 20);"],
+        args: ["--no-warnings", "-e", "process.stdin.destroy(); setTimeout(() => process.exit(0), 20);"],
       },
       stdin: "x".repeat(1024 * 1024),
     });
@@ -3416,7 +3487,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "process.stdin.destroy(); setTimeout(() => process.exit(7), 20);"],
+        args: ["--no-warnings", "-e", "process.stdin.destroy(); setTimeout(() => process.exit(7), 20);"],
       },
       stdin: "x".repeat(1024 * 1024),
     });
@@ -3434,6 +3505,7 @@ describe("NodeExecutionAdapter", () => {
         mode: "argv",
         file: process.execPath,
         args: [
+              "--no-warnings",
           "-e",
           [
             "let bytes = 0;",
@@ -3457,7 +3529,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "setTimeout(() => {}, 5000)"],
+        args: ["--no-warnings", "-e", "setTimeout(() => {}, 5000)"],
       },
       timeoutMs: 50,
     });
@@ -3481,7 +3553,7 @@ describe("NodeExecutionAdapter", () => {
     };
     const originalPrepare = internals.prepareChildSpawn.bind(adapter);
     internals.prepareChildSpawn = async (request: unknown) => {
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       return originalPrepare(request);
     };
 
@@ -3489,9 +3561,9 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "process.exit(0)"],
+        args: ["--no-warnings", "-e", "process.exit(0)"],
       },
-      timeoutMs: 60,
+      timeoutMs: 300,
     });
 
     expect(result.status).toBe("completed");
@@ -3509,7 +3581,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "setTimeout(() => {}, 5000)"],
+          args: ["--no-warnings", "-e", "setTimeout(() => {}, 5000)"],
         },
       },
       {
@@ -3529,7 +3601,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "setTimeout(() => {}, 10_000)"],
+        args: ["--no-warnings", "-e", "setTimeout(() => {}, 10_000)"],
       },
     });
 
@@ -3557,7 +3629,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", script],
+            args: ["--no-warnings", "-e", script],
           },
         },
         {
@@ -3622,7 +3694,7 @@ describe("NodeExecutionAdapter", () => {
             command: {
               mode: "argv",
               file: process.execPath,
-              args: ["-e", wrapperScript],
+              args: ["--no-warnings", "-e", wrapperScript],
             },
           },
           {
@@ -3676,7 +3748,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", wrapperScript],
+            args: ["--no-warnings", "-e", wrapperScript],
           },
         });
         descendantPid = Number(/descendant:(\d+)/u.exec(result.stdout.text)?.[1]);
@@ -3712,7 +3784,7 @@ describe("NodeExecutionAdapter", () => {
           command: {
             mode: "argv",
             file: process.execPath,
-            args: ["-e", wrapperScript],
+            args: ["--no-warnings", "-e", wrapperScript],
           },
         });
         descendantPid = Number(/descendant:(\d+)/u.exec(result.stdout.text)?.[1]);
@@ -4281,7 +4353,7 @@ describe("NodeExecutionAdapter", () => {
               command: "(sleep 0.5; printf late) & printf early",
               shellProfile: "posix-bash",
               shellOverride: {
-                dialect: "posix",
+                dialect: process.platform === "win32" ? "git-bash" : "posix",
                 display: { name: "bash" },
                 path: bashPath,
                 source: "auto-detected",
@@ -4328,7 +4400,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "process.stdout.write('stdout'); process.stderr.write('stderr')"],
+          args: ["--no-warnings", "-e", "process.stdout.write('stdout'); process.stderr.write('stderr')"],
         },
       });
 
@@ -4587,7 +4659,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "process.stdout.write('abcdef')"],
+        args: ["--no-warnings", "-e", "process.stdout.write('abcdef')"],
       },
       outputLimit: {
         maxInlineBytes: 3,
@@ -4608,7 +4680,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "process.stdout.write('abcdef')"],
+          args: ["--no-warnings", "-e", "process.stdout.write('abcdef')"],
         },
         outputLimit: {
           maxInlineBytes: 3,
@@ -4647,7 +4719,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "process.stdout.write('abcdef')"],
+          args: ["--no-warnings", "-e", "process.stdout.write('abcdef')"],
         },
         outputLimit: {
           maxInlineBytes: 3,
@@ -4680,7 +4752,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "process.stdout.write('abcdef')"],
+          args: ["--no-warnings", "-e", "process.stdout.write('abcdef')"],
         },
         outputLimit: {
           maxInlineBytes: 3,
@@ -4708,7 +4780,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "process.stdout.write('x'.repeat(100)); setTimeout(() => {}, 5000)"],
+          args: ["--no-warnings", "-e", "process.stdout.write('x'.repeat(100)); setTimeout(() => {}, 5000)"],
         },
         timeoutMs: 5000,
         outputLimit: {
@@ -4741,6 +4813,7 @@ describe("NodeExecutionAdapter", () => {
             mode: "argv",
             file: process.execPath,
             args: [
+              "--no-warnings",
               "-e",
               "process.stdout.write('a'.repeat(8)); process.stderr.write('b'.repeat(8)); setTimeout(() => {}, 5000)",
             ],
@@ -4783,7 +4856,7 @@ describe("NodeExecutionAdapter", () => {
         command: {
           mode: "argv",
           file: process.execPath,
-          args: ["-e", "setTimeout(() => process.stdout.write('bg'), 25)"],
+          args: ["--no-warnings", "-e", "setTimeout(() => process.stdout.write('bg'), 25)"],
         },
         outputLimit: {
           persistOutput: "always",
@@ -4833,7 +4906,7 @@ describe("NodeExecutionAdapter", () => {
       const started = await adapter.start({
         command: {
           mode: "shell",
-          command: `cd ${JSON.stringify(child)}; printf bg`,
+          command: process.platform === "win32" ? `cd /d "${child}" & <nul set /p "=bg" & exit /b 0` : `cd ${JSON.stringify(child)}; printf bg`,
         },
         cwd: root,
         captureCwdAfterSuccess: true,
@@ -4982,7 +5055,7 @@ describe("NodeExecutionAdapter", () => {
       command: {
         mode: "argv",
         file: process.execPath,
-        args: ["-e", "process.stdout.write('ready'); setTimeout(() => {}, 1000)"],
+        args: ["--no-warnings", "-e", "process.stdout.write('ready'); setTimeout(() => {}, 1000)"],
       },
     });
 

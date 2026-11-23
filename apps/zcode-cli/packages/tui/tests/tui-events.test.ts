@@ -440,15 +440,15 @@ test("submitting compact slash command creates timeline row without a user row",
 test("redacts manual coding plan api keys from local transcript rows", () => {
   assert.equal(
     redactSensitivePromptForTranscript("/login zai-coding-plan-api-key zai-secret-key"),
-    "/login zai-coding-plan-api-key <redacted>",
+    "/login <redacted>",
   );
   assert.equal(
     redactSensitivePromptForTranscript("/login bigmodel-coding-plan-api-key bm-secret-key"),
-    "/login bigmodel-coding-plan-api-key <redacted>",
+    "/login <redacted>",
   );
   assert.equal(
     redactSensitivePromptForTranscript("/login zai-coding-plan-api-key"),
-    "/login zai-coding-plan-api-key",
+    "/login <redacted>",
   );
 });
 

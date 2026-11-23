@@ -1,3 +1,5 @@
+// 生产路径用原生 node:path 解析；合成文件系统的输入与预期使用同一平台语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createTestModelSelection } from "./test-model-selection.js";
 import { createTestModelFormatProperties } from "./test-runtime-model.js";
@@ -433,12 +435,12 @@ describe("runtime compact helpers", () => {
     const continuation = buildCompactSummaryMessage("Summary:\nabc", {
       replStateCleared: true,
       suppressFollowup: true,
-      transcriptPath: "/tmp/session.jsonl",
+      transcriptPath: nativeFixturePath("/tmp/session.jsonl"),
     });
 
     expect(continuation).toContain("ran out of context");
     expect(continuation).toContain("covers the earlier portion");
-    expect(continuation).toContain("read the full transcript at: /tmp/session.jsonl");
+    expect(continuation).toContain(`read the full transcript at: ${nativeFixturePath("/tmp/session.jsonl")}`);
     expect(continuation).toContain(
       "Variables defined in REPL calls before this point are no longer accessible — redefine any you still need.",
     );
@@ -1043,7 +1045,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact MCP tool cache seed agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-mcp-tools",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-mcp-tools"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -1083,7 +1085,7 @@ describe("AgentRuntime manual compact", () => {
           },
         },
         systemPrompt: "You are a compact MCP tool cache test agent.",
-        workingDirectory: "/tmp/unused-before-compact-mcp-resume",
+        workingDirectory: nativeFixturePath("/tmp/unused-before-compact-mcp-resume"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -1135,7 +1137,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact tool threshold test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-tool-threshold",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-tool-threshold"),
       },
       {
         eventStore,
@@ -1635,7 +1637,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a persistence compact test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-resume",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-resume"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -1711,7 +1713,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a persistence compact test agent.",
-        workingDirectory: "/tmp/unused-before-resume",
+        workingDirectory: nativeFixturePath("/tmp/unused-before-resume"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -1746,7 +1748,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact todo test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-todos",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-todos"),
       },
       {
         eventStore,
@@ -1832,19 +1834,19 @@ describe("AgentRuntime manual compact", () => {
 
   it("re-reads recent files from disk after compact and keeps them in the live read state", async () => {
     const sessionId = createSessionId("runtime-compact-read-state-reminder");
-    const workspace = "/tmp/zcode-runtime-compact-read-state";
+    const workspace = nativeFixturePath("/tmp/zcode-runtime-compact-read-state");
     const requests: Array<Array<{ role: string; content: string }>> = [];
     let normalResponseCount = 0;
     const files = {
-      current: `${workspace}/src/current.ts`,
-      range: `${workspace}/src/range.ts`,
-      large: `${workspace}/src/large.ts`,
-      written: `${workspace}/src/written.ts`,
-      unreadable: `${workspace}/src/unreadable.ts`,
-      bashBackfill: `${workspace}/src/bash-backfill.ts`,
-      instructions: `${workspace}/AGENTS.md`,
+      current: nativeFixturePath(`${workspace}/src/current.ts`),
+      range: nativeFixturePath(`${workspace}/src/range.ts`),
+      large: nativeFixturePath(`${workspace}/src/large.ts`),
+      written: nativeFixturePath(`${workspace}/src/written.ts`),
+      unreadable: nativeFixturePath(`${workspace}/src/unreadable.ts`),
+      bashBackfill: nativeFixturePath(`${workspace}/src/bash-backfill.ts`),
+      instructions: nativeFixturePath(`${workspace}/AGENTS.md`),
       plan: resolveApprovedPlanFilePath({ sessionId, workspaceRoot: workspace }),
-      memory: "/Users/dev/.codex/memories/private-note.md",
+      memory: nativeFixturePath("/Users/dev/.codex/memories/private-note.md"),
     };
     // 修复原因：读取失败时曾直接取错误的 code，抛出的不是对象（如 null）时会让整个 compact 失败。
     class NonErrorThrowingFileSystem extends MemoryFileSystem {
@@ -2045,11 +2047,11 @@ describe("AgentRuntime manual compact", () => {
 
   it("skips files denied by read rules and reads ask-rule files without prompting", async () => {
     const sessionId = createSessionId("runtime-compact-read-state-permission");
-    const workspace = "/tmp/zcode-runtime-compact-read-state-permission";
+    const workspace = nativeFixturePath("/tmp/zcode-runtime-compact-read-state-permission");
     const store = createRecordingSessionStore();
     const eventStore = createTestSessionEventStore();
-    const denied = `${workspace}/src/denied.ts`;
-    const asked = `${workspace}/src/asked.ts`;
+    const denied = nativeFixturePath(`${workspace}/src/denied.ts`);
+    const asked = nativeFixturePath(`${workspace}/src/asked.ts`);
     const fileSystemPort = new MemoryFileSystem({
       [denied]: "export const denied = 'secret';\n",
       [asked]: "export const asked = 'visible';\n",
@@ -2129,9 +2131,9 @@ describe("AgentRuntime manual compact", () => {
 
   it("cancels compact when a restore read is aborted and keeps the read state", async () => {
     const sessionId = createSessionId("runtime-compact-read-state-abort");
-    const workspace = "/tmp/zcode-runtime-compact-read-state-abort";
+    const workspace = nativeFixturePath("/tmp/zcode-runtime-compact-read-state-abort");
     const store = createRecordingSessionStore();
-    const file = `${workspace}/src/current.ts`;
+    const file = nativeFixturePath(`${workspace}/src/current.ts`);
     const controller = new AbortController();
     class AbortingFileSystem extends MemoryFileSystem {
       override async readTextFileRange(
@@ -2229,13 +2231,13 @@ describe("AgentRuntime manual compact", () => {
       },
     };
 
-    const filePath = "/tmp/zcode-runtime-compact-read-state-resume/src/current.ts";
+    const filePath = nativeFixturePath("/tmp/zcode-runtime-compact-read-state-resume/src/current.ts");
     const fileSystemPort = new MemoryFileSystem({ [filePath]: "export const persisted = 42;\n" });
     const runtime = createTestAgentRuntime(
       sessionId,
       {
         systemPrompt: "You are a compact persisted read-state reminder test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-read-state-resume",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-read-state-resume"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -2266,7 +2268,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact persisted read-state reminder test agent.",
-        workingDirectory: "/tmp/unused-before-resume",
+        workingDirectory: nativeFixturePath("/tmp/unused-before-resume"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -2292,7 +2294,7 @@ describe("AgentRuntime manual compact", () => {
       .join("\n");
 
     expect(postResumeContext).toContain(
-      `Called the Read tool with the following input: {"file_path":"${filePath}"}`,
+      `Called the Read tool with the following input: ${JSON.stringify({ file_path: filePath })}`,
     );
     expect(postResumeContext).toContain("1\texport const persisted = 42;");
     expect(postResumeContext).not.toContain("Recent file read before compact");
@@ -2306,7 +2308,7 @@ describe("AgentRuntime manual compact", () => {
     const requests: Array<{ messages: Array<{ content: unknown; role: string }> }> = [];
     const planMarker = "E2E_PLAN_FILE_COMPACT_CONTINUITY_MARKER";
     const fileSystemPort = new MemoryFileSystem({
-      "/workspace/project/.zcode/plans/plan-sess_runtime-compact-plan-file-reference.md": `1. Preserve ${planMarker}\n2. Continue after compact`,
+      [nativeFixturePath("/workspace/project/.zcodium/plans/plan-sess_runtime-compact-plan-file-reference.md")]: `1. Preserve ${planMarker}\n2. Continue after compact`,
     });
     const modelImplementation = {
       async generateText(request: {
@@ -2335,7 +2337,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact plan-file reference test agent.",
-        workingDirectory: "/workspace/project",
+        workingDirectory: nativeFixturePath("/workspace/project"),
       },
       {
         eventStore,
@@ -2378,7 +2380,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact plan-file reference test agent.",
-        workingDirectory: "/workspace/unused-before-resume",
+        workingDirectory: nativeFixturePath("/workspace/unused-before-resume"),
       },
       {
         eventStore,
@@ -2413,7 +2415,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact recovery test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-resume-interrupted",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-resume-interrupted"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -2450,8 +2452,8 @@ describe("AgentRuntime manual compact", () => {
       mode: "build",
       agent: "zcode-agent",
       path: {
-        cwd: "/tmp/zcode-runtime-compact-resume-interrupted",
-        root: "/tmp/zcode-runtime-compact-resume-interrupted",
+        cwd: nativeFixturePath("/tmp/zcode-runtime-compact-resume-interrupted"),
+        root: nativeFixturePath("/tmp/zcode-runtime-compact-resume-interrupted"),
       },
       cost: 0,
       tokens: {
@@ -2484,7 +2486,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact recovery test agent.",
-        workingDirectory: "/tmp/unused-before-resume",
+        workingDirectory: nativeFixturePath("/tmp/unused-before-resume"),
       },
       {
         eventStore,
@@ -2534,7 +2536,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact retrying recovery test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-resume-retrying",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-resume-retrying"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -2571,8 +2573,8 @@ describe("AgentRuntime manual compact", () => {
       mode: "build",
       agent: "zcode-agent",
       path: {
-        cwd: "/tmp/zcode-runtime-compact-resume-retrying",
-        root: "/tmp/zcode-runtime-compact-resume-retrying",
+        cwd: nativeFixturePath("/tmp/zcode-runtime-compact-resume-retrying"),
+        root: nativeFixturePath("/tmp/zcode-runtime-compact-resume-retrying"),
       },
       cost: 0,
       tokens: {
@@ -2606,7 +2608,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact retrying recovery test agent.",
-        workingDirectory: "/tmp/unused-before-resume",
+        workingDirectory: nativeFixturePath("/tmp/unused-before-resume"),
       },
       {
         eventStore,
@@ -2653,7 +2655,7 @@ describe("AgentRuntime manual compact", () => {
 
   it("does not anchor post-resume compact timelines to preserved pre-compact messages", async () => {
     const sessionId = createSessionId("runtime-compact-resume-preserved-latest-anchor");
-    const workingDirectory = "/tmp/zcode-runtime-compact-resume-preserved-latest-anchor";
+    const workingDirectory = nativeFixturePath("/tmp/zcode-runtime-compact-resume-preserved-latest-anchor");
     const store = createRecordingSessionStore();
     await store.createSession({
       directory: workingDirectory,
@@ -2814,7 +2816,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact-after-resume test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-after-resume",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-after-resume"),
       },
       {
         eventStore: firstEventStore,
@@ -2836,7 +2838,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact-after-resume test agent.",
-        workingDirectory: "/tmp/unused-before-resume",
+        workingDirectory: nativeFixturePath("/tmp/unused-before-resume"),
       },
       {
         eventStore: resumedEventStore,
@@ -3331,7 +3333,7 @@ describe("AgentRuntime manual compact", () => {
       sessionId,
       {
         systemPrompt: "You are a compact persistence failure test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-persist-fail",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-persist-fail"),
       },
       {
         eventStore,
@@ -3381,13 +3383,13 @@ describe("AgentRuntime manual compact", () => {
     const store = createRecordingSessionStore({
       failTextPartContaining: secondReminderMarker,
     });
-    const firstFile = "/tmp/zcode-runtime-compact-reminder-persist-fail/src/first.ts";
-    const secondFile = "/tmp/zcode-runtime-compact-reminder-persist-fail/src/second.ts";
+    const firstFile = nativeFixturePath("/tmp/zcode-runtime-compact-reminder-persist-fail/src/first.ts");
+    const secondFile = nativeFixturePath("/tmp/zcode-runtime-compact-reminder-persist-fail/src/second.ts");
     const runtime = createTestAgentRuntime(
       sessionId,
       {
         systemPrompt: "You are a compact reminder persistence failure test agent.",
-        workingDirectory: "/tmp/zcode-runtime-compact-reminder-persist-fail",
+        workingDirectory: nativeFixturePath("/tmp/zcode-runtime-compact-reminder-persist-fail"),
       },
       {
         eventStore,
@@ -4849,12 +4851,12 @@ describe("AgentRuntime manual compact", () => {
       },
     };
 
-    const readFilePath = "/tmp/zcode-reactive-compact-resume-tail/src/current.ts";
+    const readFilePath = nativeFixturePath("/tmp/zcode-reactive-compact-resume-tail/src/current.ts");
     const runtime = createTestAgentRuntime(
       sessionId,
       {
         systemPrompt: "You are a reactive compact resume-tail test agent.",
-        workingDirectory: "/tmp/zcode-reactive-compact-resume-tail",
+        workingDirectory: nativeFixturePath("/tmp/zcode-reactive-compact-resume-tail"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -4890,7 +4892,7 @@ describe("AgentRuntime manual compact", () => {
       indexOrder(postCompactContext ?? "", [
         "Reactive resume summary",
         "normal response 2",
-        `Called the Read tool with the following input: {"file_path":"${readFilePath}"}`,
+        `Called the Read tool with the following input: ${JSON.stringify({ file_path: readFilePath })}`,
         "trigger reactive resume overflow",
       ]),
     ).toBe(true);
@@ -4924,7 +4926,7 @@ describe("AgentRuntime manual compact", () => {
       indexOrder(postResumeContext ?? "", [
         "Reactive resume summary",
         "normal response 2",
-        `Called the Read tool with the following input: {"file_path":"${readFilePath}"}`,
+        `Called the Read tool with the following input: ${JSON.stringify({ file_path: readFilePath })}`,
         "trigger reactive resume overflow",
         "continue after reactive compact resume",
       ]),

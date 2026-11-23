@@ -5,7 +5,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { UniqueIdentifier } from "@dnd-kit/core";
 import { isCronTask, isOffPeakTask } from "@zcode/shared";
 import { ContextMenu } from "@/components/ui/context-menu.js";
-import { formatWorktreeLabel } from "@/managed-worktrees/index.js";
+import "@/managed-worktrees/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   deriveTaskLeadingIndicator,
@@ -30,27 +30,7 @@ import { useTaskInteractionAutoResolutionSnooze } from "@/hooks/useTaskInteracti
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
 
-function GroupedTaskRowComponent({
-  task,
-  currentGroupId,
-  groups,
-  remoteSessionId,
-  isActive,
-  isMobileActive,
-  workspaceLabel,
-  onSelectTask,
-  onCloseTask,
-  onOpenFileTree,
-  onMoveTaskToGroup,
-  onMoveTaskToTop,
-  onStartRenameTask,
-  onArchiveTask,
-  onMarkTaskAsUnread,
-  dragId,
-  dragging,
-  dragOverlay,
-  tooltipsDisabled,
-}: {
+type GroupedTaskRowProps = {
   task: ZCodeTaskMeta;
   currentGroupId?: string;
   groups: TaskGroupMenuItem[];
@@ -70,9 +50,19 @@ function GroupedTaskRowComponent({
   dragging?: boolean;
   dragOverlay?: boolean;
   tooltipsDisabled?: boolean;
-}) {
+};
+
+function useGroupedTaskRowPresentation({
+  task,
+  remoteSessionId,
+  isActive,
+  isMobileActive,
+  onOpenFileTree,
+  dragOverlay,
+  dragging,
+}: GroupedTaskRowProps) {
   const { intl } = useZCodeIntl();
-  const presentation = useContext(ProjectTaskListContext);
+  useContext(ProjectTaskListContext);
   const workspaceActionsDisabled = useOptionalTabStore((state) =>
     isWorkspaceReadOnly(state, task.workspacePath, task.workspaceIdentity),
   );
@@ -118,8 +108,6 @@ function GroupedTaskRowComponent({
   // 月亮身份改为持久 meta 标记判断；off-peak store 反查在任务被删除后会丢失
   // 会话溯源，且让每一行多背一个全局 store 订阅。
   const isTaskOffPeak = isOffPeakTask(task);
-  // worktree 标识只读任务的 worktree 根目录（tasks-index worktree_root，docs/git/worktree.md §3.7）。
-  const worktreeLabel = formatWorktreeLabel(intl, task.worktreeRoot);
   const statusDotClassName =
     leadingIndicator === "error"
       ? "bg-destructive"
@@ -165,8 +153,72 @@ function GroupedTaskRowComponent({
     />
   );
 
-  // DragOverlay 高频渲染时只返回纯展示节点，避免隐藏 action tooltip 的 Radix ref 循环和 task 路径 RPC。
-  if (dragOverlay) return taskRow;
+  return {
+    intl,
+    workspaceActionsDisabled,
+    workspaceActionsDisabledReason,
+    snoozeInteractionAutoResolution,
+    workspaceKey,
+    canOpenFileTree,
+    taskAttentionDisplay,
+    leadingIndicator,
+    taskTitle,
+    taskTimeLabel,
+    isTaskCron,
+    isTaskOffPeak,
+    statusDotClassName,
+    hasPendingInteraction,
+    workflowRunLinesNode,
+    taskRow,
+  };
+}
+
+function GroupedTaskRowComponent(props: GroupedTaskRowProps) {
+  const presentation = useGroupedTaskRowPresentation(props);
+  // 预览与交互行具有不同生命周期；不让预览注册真实行的 DND，也不在同一组件内条件调用 Hooks。
+  if (props.dragOverlay) return presentation.taskRow;
+  return <GroupedTaskRowInteractive {...props} presentation={presentation} />;
+}
+
+function GroupedTaskRowInteractive({
+  presentation,
+  task,
+  currentGroupId,
+  groups,
+  remoteSessionId,
+  isActive,
+  isMobileActive,
+  workspaceLabel,
+  onSelectTask,
+  onCloseTask,
+  onOpenFileTree,
+  onMoveTaskToGroup,
+  onMoveTaskToTop,
+  onStartRenameTask,
+  onArchiveTask,
+  onMarkTaskAsUnread,
+  dragId,
+  dragging,
+  dragOverlay,
+  tooltipsDisabled,
+}: GroupedTaskRowProps & { presentation: ReturnType<typeof useGroupedTaskRowPresentation> }) {
+  const {
+    intl,
+    workspaceActionsDisabled,
+    workspaceActionsDisabledReason,
+    snoozeInteractionAutoResolution,
+    workspaceKey,
+    canOpenFileTree,
+    taskAttentionDisplay,
+    leadingIndicator,
+    taskTitle,
+    taskTimeLabel,
+    isTaskCron,
+    isTaskOffPeak,
+    statusDotClassName,
+    hasPendingInteraction,
+    workflowRunLinesNode,
+  } = presentation;
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [taskRowHovered, setTaskRowHovered] = useState(false);
@@ -306,7 +358,8 @@ function GroupedTaskRowComponent({
       remoteSessionId={remoteSessionId}
       rowRef={setTaskRowRef}
       draggable={draggable}
-      onSelect={handleSelect}
+      onRowClick={handleRowClick}
+      onRowDoubleClick={handleRowDoubleClick}
       onKeyDown={handleKeyDown}
       onRowMouseEnter={() => setTaskRowHovered(true)}
       onRowMouseLeave={() => setTaskRowHovered(false)}

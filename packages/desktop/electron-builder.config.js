@@ -112,13 +112,7 @@ const asarCliPath = resolve(
   "asar.js",
 );
 const REQUIRED_ASAR_RUNTIME_MODULES = [
-  "module-details-from-path",
   "pngjs",
-  // Bugfix: @babel/runtime 挂在被打包库的 peer/runtime 边界上，pnpm 安装时可由 peer 解析兜住，
-  // 但 electron-builder 重打 app.asar 不保证把这个 peer 运行时一起带上。
-  // 线上已出现安装包启动即报 Cannot find module '@babel/runtime/helpers/interopRequireDefault'，
-  // 因此显式以 @babel/runtime 作为闭包根注入；本 fork 不含 ARMS 埋点，这条修复只服务运行时可解析性。
-  "@babel/runtime",
   // Bugfix: @zcode/services 的代理连通性探测会动态 require("undici") 取 ProxyAgent。
   // tsup 虽然把 services 代码并进了主/host 产物，但不会把这个运行时 require 的包内联进去，
   // electron-builder 产物又可能漏掉 hoisted 的 undici，最终 mac 安装包启动即报 Cannot find module "undici"。
@@ -262,12 +256,10 @@ const PACKAGING_PRUNE_PATTERNS = [
   //   @babel 生态与 caniuse-lite/browserslist/baseline-browser-mapping 数据包；
   // - node-gyp/node-addon-api 是 CUA 原生模块构建工具链；
   // - cpu-features/nan 是 ssh2 的可选原生加速，缺失时 ssh2 自动降级。
-  // @babel/runtime 可能被在包库运行时 require，紧随整目录排除后重新包含。
   "!node_modules/shadcn/**",
   "!node_modules/@ts-morph/**",
   "!node_modules/ts-morph/**",
   "!node_modules/@babel/**",
-  "node_modules/@babel/runtime/**",
   "!node_modules/caniuse-lite/**",
   "!node_modules/browserslist/**",
   "!node_modules/baseline-browser-mapping/**",

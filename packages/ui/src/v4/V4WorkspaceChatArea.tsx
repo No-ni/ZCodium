@@ -40,7 +40,6 @@ import {
 } from "@/v4/workbenchLayout.js";
 import { WorkbenchLeafPane, type WorkbenchShellBinding } from "@/v4/WorkbenchPane.js";
 import { WorkbenchSplitDivider } from "@/v4/WorkbenchSplitDivider.js";
-import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import type { PrimaryDraftEffectiveSessionBindingEvent } from "@/v4/primaryDraftSessionBinding.js";
 import { type RegisterConversationDropTarget } from "@/v4/composer/conversationDropTarget.js";
 import type {
@@ -357,6 +356,8 @@ export function V4WorkspaceChatArea({
       readOnlyReason,
       allowEscapeStopOutsidePane,
       primaryPaneSessionId,
+      // split pane 接管时 primary 可一直为空，划词路由仍须跟随 shell 活动会话。
+      sessionId,
       activeSelectionSideChatSessionId,
       provider,
       onSessionCreated,

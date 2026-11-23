@@ -13,6 +13,7 @@
     "./runtime-tool-runtime": "./src/runtime-tool-runtime.ts",
     "./node-repl-browser-broker": "./src/browser-use/nodeReplBroker.ts",
     "./process-diagnostic": "./src/process-diagnostic.ts",
+    "./diagnostic-privacy": "./src/diagnosticPrivacy.ts",
     "./agent-crash-diagnostic": "./src/agent-crash-diagnostic/index.ts",
     "./model-selection": "./src/model-selection.ts",
     "./account-provider-state": "./src/account-provider-state.ts",
@@ -35,7 +36,6 @@
     "./managed-worktree": "./src/managed-worktree/index.ts",
     "./gen-ui": "./src/gen-ui/index.ts",
     "./source-server": "./src/source-server/index.ts",
-    "./request-security": "./src/request-security-edition/index.ts",
     "./credential-security": "./src/credential-security/module.ts"
   },
   "scripts": {

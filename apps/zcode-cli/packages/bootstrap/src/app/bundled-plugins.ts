@@ -257,7 +257,8 @@ function preparationSignature(storageRoot: string, source: OfficialPluginSeedSou
 }
 
 function preparationPaths(storageRoot: string, source: OfficialPluginSeedSource): string[] {
-  return ["bundled-marketplace.json", "marketplace.json"]
+  // 本仓已退役 CDN 合并文件；登记不存在的 marketplace.json 会使事实校验永久缺席，漏掉并发改写。
+  return ["bundled-marketplace.json"]
     .map((name) => join(storageRoot, "marketplaces", OFFICIAL_PLUGIN_MARKETPLACE, name))
     .concat(
       source.plugins.flatMap((plugin) =>

@@ -1,8 +1,14 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import * as fs from "node:fs";
+import { describe, expect, it, vi } from "vitest";
 import { createConfig } from "../src/config/index.js";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, existsSync: vi.fn(actual.existsSync) };
+});
 
 async function createWorkspace(options: { git?: boolean } = {}): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "zcode-workspace-hook-phase1-"));
@@ -32,7 +38,7 @@ async function snapshotFor(
   value: unknown,
   options: { projectConfigPath?: string; workspaceIdentity?: string } = {},
 ) {
-  const path = join(root, ".zcode", "config.json");
+  const path = join(root, ".zcodium", "config.json");
   await writeJson(path, value);
   const result = createConfig({
     env: {},
@@ -49,11 +55,11 @@ describe("workspace hook trust phase 1 discovery", () => {
     const root = await createWorkspace();
     try {
       await writeJson(
-        join(root, "zcode.json"),
+        join(root, "zcodium.json"),
         projectHooks({ type: "command", command: "echo ancestor", async: true }),
       );
       await writeJson(
-        join(root, ".zcode", "config.json"),
+        join(root, ".zcodium", "config.json"),
         projectHooks({ type: "process", command: "node", args: ["hook.mjs"] }),
       );
 
@@ -75,8 +81,8 @@ describe("workspace hook trust phase 1 discovery", () => {
       expect(
         snapshot?.sourceFiles.map((source) => [source.configFileKind, source.editable]),
       ).toEqual([
-        ["zcode.json", false],
-        [".zcode/config.json", true],
+        ["zcodium.json", false],
+        [".zcodium/config.json", true],
       ]);
       expect(snapshot?.hooks).toHaveLength(2);
       expect(snapshot?.hooks[0]).toMatchObject({
@@ -197,7 +203,7 @@ describe("workspace hook trust phase 1 discovery", () => {
   it("configured gates 只改变 bundle digest，且 hooks.enabled 缺省遵循 Runtime 语义", async () => {
     const root = await createWorkspace();
     try {
-      const configPath = join(root, ".zcode", "config.json");
+      const configPath = join(root, ".zcodium", "config.json");
       await writeJson(configPath, {
         hooks: {
           events: {
@@ -246,8 +252,8 @@ describe("workspace hook trust phase 1 discovery", () => {
   it("JSON 空白/key 排列不影响 digest，显式 projectConfigPath 进入 provenance", async () => {
     const root = await createWorkspace();
     try {
-      const configPath = join(root, ".zcode", "config.json");
-      await mkdir(join(root, ".zcode"), { recursive: true });
+      const configPath = join(root, ".zcodium", "config.json");
+      await mkdir(join(root, ".zcodium"), { recursive: true });
       await writeFile(
         configPath,
         '{"hooks":{"events":{"SessionStart":[{"hooks":[{"command":"echo stable","type":"command"}]}]},"enabled":true}}',
@@ -287,14 +293,19 @@ describe("workspace hook trust phase 1 discovery", () => {
   it("非 Git workspace 只扫描 cwd，不纳入父目录 project hooks", async () => {
     const parent = await createWorkspace({ git: false });
     const child = join(parent, "child");
+    const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    // 工作树内夹具天然嵌套在本仓 Git 根中；仅遮蔽 Git marker，配置读写仍使用真实文件。
+    const marker = vi.spyOn(fs, "existsSync").mockImplementation((path) =>
+      String(path).endsWith(".git") ? false : actualFs.existsSync(path),
+    );
     try {
       await mkdir(child, { recursive: true });
       await writeJson(
-        join(parent, "zcode.json"),
+        join(parent, "zcodium.json"),
         projectHooks({ type: "command", command: "echo parent" }),
       );
       await writeJson(
-        join(child, ".zcode", "config.json"),
+        join(child, ".zcodium", "config.json"),
         projectHooks({ type: "command", command: "echo child" }),
       );
 
@@ -302,6 +313,7 @@ describe("workspace hook trust phase 1 discovery", () => {
       expect(result.sources.project.workspaceHookSnapshot?.hooks).toHaveLength(1);
       expect(result.sources.project.workspaceHookSnapshot?.hooks[0]?.command).toBe("echo child");
     } finally {
+      marker.mockRestore();
       await rm(parent, { force: true, recursive: true });
     }
   });
@@ -309,7 +321,7 @@ describe("workspace hook trust phase 1 discovery", () => {
   it("无效 project Hook schema fail closed，不创建 snapshot", async () => {
     const root = await createWorkspace();
     try {
-      const configPath = join(root, ".zcode", "config.json");
+      const configPath = join(root, ".zcodium", "config.json");
       await writeJson(configPath, projectHooks({ type: "process", command: "" }));
       const result = createConfig({ env: {}, skipUserConfig: true, workingDirectory: root });
 

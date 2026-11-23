@@ -4,13 +4,12 @@ import type { RuntimeMessageEntry } from "../src/agent/message-history.js";
 import { PermissionService, defaultPermissionConfig } from "../src/permission/service.js";
 import { prepareRuntimeProviderRequest } from "../src/runtime/helpers/runtime-provider-request-messages.js";
 import { createToolExecutor } from "../src/tool/executor.js";
-import { builtInTools, registerBuiltInTools } from "../src/tool/handlers/index.js";
+import { registerBuiltInTools } from "../src/tool/handlers/index.js";
 import { createToolRegistry } from "../src/tool/registry.js";
 import { buildToolSearchAnnouncement } from "../src/tool/search/exposure.js";
 import { createTestRuntimeModel } from "./test-runtime-model.js";
 
 const RESIDENT_NAMES = [
-  "Agent",
   "AskUserQuestion",
   "Bash",
   "Edit",
@@ -19,18 +18,14 @@ const RESIDENT_NAMES = [
   "Read",
   "ReportFindings",
   "Skill",
-  "TodoWrite",
   "ToolSearch",
-  "WebFetch",
-  "WebSearch",
   "Write",
-  // 只在注入 workflowSubmitPort 的 actor 会话注册；fixture 打开了 includeSubmitResult。
-  "submit_result",
 ];
 
 function fixture(embeddedSearchEnabled = false) {
   const registry = createToolRegistry();
   registerBuiltInTools(registry, {
+    includeToolSearch: true,
     includeAgent: true,
     includeSkill: true,
     includeSendMessage: true,
@@ -80,11 +75,8 @@ it.each([false, true])(
       readdedNames: [],
     });
     expect(prepared.toolSearch.catalog.some((tool) => tool.name === "Task")).toBe(false);
-    // 同时检查静态条目和注册时重建的工厂条目，避免分支覆盖丢掉 metadata。
-    for (const entry of [
-      ...builtInTools,
-      ...input.registry.list().map((name) => input.registry.get(name)!),
-    ]) {
+    // 当前分类由注册入口统一投影；核验实际发布的工厂条目，静态基底不是请求目录。
+    for (const entry of input.registry.list().map((name) => input.registry.get(name)!)) {
       if (
         entry.metadata.name !== "DeferredToolCall" &&
         !RESIDENT_NAMES.includes(entry.metadata.name)

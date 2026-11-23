@@ -35,6 +35,8 @@ export interface PoolEntry {
   closeTimer?: ReturnType<typeof setTimeout>;
   connectionContext: McpConnectionContext;
   connecting: Promise<McpServerStatus>;
+  /** Registry 已选定的启动失败；资源回收完成前仍以它作为本次 admission 的结果。 */
+  admissionFailure?: { error: unknown };
   key: string;
   refs: Set<string>;
   /** 同一 entry 的并发存活校验共享一次探测，避免重复 ping / 重复重连。 */

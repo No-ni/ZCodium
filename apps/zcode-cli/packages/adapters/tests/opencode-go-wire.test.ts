@@ -113,8 +113,8 @@ describe("Todo149 OpenCode Go 正式 SDK 请求", () => {
       expect(request.headers.get("authorization")).toBe("Bearer E2E_GO_FAKE_KEY");
       expect(request.headers.get("user-agent")).toContain("ZCode/3.12.1");
       expect(request.headers.get("x-zcode-app-version")).toBe("3.12.1");
-      expect(request.headers.get("x-session-id")).toBe("go-wire-session");
-      expect(request.headers.get("x-opencode-session")).toBe("go-wire-session");
+      expect(request.headers.get("x-session-id")).toBeNull();
+      expect(request.headers.get("x-opencode-session")).toBeNull();
       expect(body.model).toBe(modelId);
       expect(body.enable_thinking).toBeUndefined();
       expect(body.max_completion_tokens).toBeUndefined();

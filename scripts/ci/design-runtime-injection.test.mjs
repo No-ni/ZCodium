@@ -11,20 +11,11 @@ import {
   projectRoot,
 } from "./project-test-sandbox.mjs";
 
-// 和正式 tsc 相同的去类型产物，完整执行宿主生成的脚本，防止 .toString() 工厂遗漏注入。
+// 和正式 tsc 相同的去类型产物，完整执行宿主生成的自包含脚本，验证结构收敛不改变页面行为。
 const sandbox = await createProjectTestSandbox("design-runtime-injection");
 const build = await assertProjectPath(join(sandbox.root, "compiled"));
 await mkdir(build);
-for (const name of [
-  "contract",
-  "elementInspector",
-  "pageRuntime",
-  "pageOverlay",
-  "pageBackdrop",
-  "pageElements",
-  "pageSignals",
-  "hostScripts",
-]) {
+for (const name of ["contract", "elementInspector", "pageRuntime", "pageSignals", "hostScripts"]) {
   const source = await readFile(
     join(projectRoot, "packages/design-runtime/src", `${name}.ts`),
     "utf8",
@@ -93,7 +84,7 @@ function page(html) {
   return { dom, window, document: window.document, messages, shadows, flushLayout, run };
 }
 
-test("serialized factories preserve selection, capture and original CSS with a single runtime", () => {
+test("serialized runtime preserves selection, capture and original CSS with a single owner", () => {
   const f = page(
     '<html style="--accent: red !important"><head></head><body><button id="first" data-rect="10,30,120,40">First</button><button id="second" data-rect="160,30,120,40">Second</button></body></html>',
   );

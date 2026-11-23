@@ -60,17 +60,19 @@ export function useWorkspaceFileSearchFilterEntries(
     }
     let cancelled = false;
     setFiltering(true);
-    void backend.filter(query, options).then((result) => {
-      if (cancelled) {
-        return;
-      }
-      setFiltering(false);
-      if (result === null) {
-        // 过期结果（索引重建或更新的 filter 之后），保持当前 items 不动。
-        return;
-      }
-      setItems(result);
-    });
+    void backend
+      .filter(query, { limit: options.limit, requireQuery: options.requireQuery })
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setFiltering(false);
+        if (result === null) {
+          // 过期结果（索引重建或更新的 filter 之后），保持当前 items 不动。
+          return;
+        }
+        setItems(result);
+      });
     return () => {
       cancelled = true;
     };

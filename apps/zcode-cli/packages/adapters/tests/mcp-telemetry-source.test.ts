@@ -52,10 +52,10 @@ async function discoverPluginMcp(channel: "builtin" | "official-cdn" | "inline")
   const storageRoot = join(root, "storage");
   const marketplace = channel === "inline" ? "inline" : "zcode-plugins-official";
   const pluginId = `${PLUGIN_NAME}@${marketplace}`;
-  await mkdir(join(pluginRoot, ".zcode-plugin"), { recursive: true });
+  await mkdir(join(pluginRoot, ".zcodium-plugin"), { recursive: true });
   await mkdir(storageRoot, { recursive: true });
   await writeFile(
-    join(pluginRoot, ".zcode-plugin", "plugin.json"),
+    join(pluginRoot, ".zcodium-plugin", "plugin.json"),
     JSON.stringify({ name: PLUGIN_NAME }),
   );
   await writeFile(

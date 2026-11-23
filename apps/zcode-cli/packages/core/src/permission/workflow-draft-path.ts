@@ -86,7 +86,8 @@ export function isPreapprovedWorkflowDraftWrite(input: WorkflowDraftWriteInput):
  * 草稿目录挂在**工作区级根**下（与 `writeWorkflowDraft` 的落点同源），而相对 `filePath`
  * 仍按执行 cwd 解析——这两件事在对话会话里不是同一个目录，混用会让免确认失效。
  */
-function isWorkflowDraftPath(input: WorkflowDraftPathInput): boolean {
+// 测试也是有效消费者；先前引用图漏载 Vitest 目录，误收窄了官方公开判定入口。
+export function isWorkflowDraftPath(input: WorkflowDraftPathInput): boolean {
   const path = input.pathModule ?? nodePath;
   // 没有工作目录就没有"哪个项目的草稿目录"可言，宁可不放行：免确认的前提是目标可被定位。
   if (input.workingDirectory.length === 0 || input.filePath.length === 0) return false;

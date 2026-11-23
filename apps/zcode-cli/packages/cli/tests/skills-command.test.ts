@@ -96,7 +96,8 @@ test("reports missing skill inspection errors", async () => {
   });
 
   assert.equal(exitCode, 1);
-  assert.match(ctx.stderr.output(), /Error: Skill not found: missing/);
+  assert.match(ctx.stderr.output(), /"errorType":"Error"/);
+  assert.doesNotMatch(ctx.stderr.output(), /Skill not found: missing/);
   assert.equal(ctx.stdout.output(), "");
 });
 

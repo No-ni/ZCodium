@@ -522,6 +522,7 @@ export const diagnosticMessages: readonly string[] = [
   "ZCode Agent session/send 开始",
   "ZCode Protocol JSON parse failed",
   "ZCode Protocol agent shutdown completed",
+  "ZCode Protocol agent startup completed",
   "ZCode Protocol background compact completed",
   "ZCode Protocol background compact failed",
   "ZCode Protocol background compact started",

@@ -1,3 +1,5 @@
+// 生产路径用原生 node:path 解析；合成文件系统的输入与预期使用同一平台语义。
+import { join, resolve as nativeFixturePath } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createSessionId, SessionEventType } from "@zcode/contracts";
 import type { PermissionDecisionResult } from "../src/permission/service.js";
@@ -9,7 +11,7 @@ import { createTestSessionEventStore } from "./test-event-store.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
 import { createTestModelFactory } from "./test-runtime-model.js";
 
-const MEMORY_ROOT = "/storage/memories/projects/project-0123456789abcdef/memory";
+const MEMORY_ROOT = nativeFixturePath("/storage/memories/projects/project-0123456789abcdef/memory");
 
 describe("project Memory foreground permission", () => {
   it("allows only contained lowercase Markdown Write/Edit after generic policy", () => {
@@ -82,7 +84,7 @@ describe("project Memory foreground permission", () => {
   });
 
   it("applies the same file permission to a custom user root outside the workspace", () => {
-    const userRoot = "/storage/agent-memory/reviewer";
+    const userRoot = nativeFixturePath("/storage/agent-memory/reviewer");
     expect(apply({ file_path: `${userRoot}/preference.md` }, { rootDir: userRoot })).toMatchObject({
       decision: "allow",
       ruleId: "memory.file.markdown",
@@ -93,11 +95,11 @@ describe("project Memory foreground permission", () => {
     const fileSystemPort = new MemoryFileSystem({});
     const workspaceIdentity = "project-boundary";
     const sessionId = createSessionId("memory-permission-write-boundary");
-    const target = `${resolveProjectMemoryRoot({
-      cliStorageRoot: "/storage",
+    const target = join(resolveProjectMemoryRoot({
+      cliStorageRoot: nativeFixturePath("/storage"),
       workspaceIdentity,
-      workspacePath: "/workspace",
-    })}/runtime-boundary.md`;
+      workspacePath: nativeFixturePath("/workspace"),
+    }), "runtime-boundary.md");
     const requestedContent = [
       "---",
       "name: runtime-boundary",
@@ -114,12 +116,12 @@ describe("project Memory foreground permission", () => {
       sessionId,
       {
         memory: {
-          cliStorageRoot: "/storage",
+          cliStorageRoot: nativeFixturePath("/storage"),
           enabled: true,
           use: true,
           workspaceIdentity,
         },
-        workingDirectory: "/workspace",
+        workingDirectory: nativeFixturePath("/workspace"),
       },
       {
         eventStore: createTestSessionEventStore(),
@@ -189,10 +191,10 @@ describe("project Memory foreground permission", () => {
       const sessionId = createSessionId(sessionName);
       const eventStore = createTestSessionEventStore();
       const fileSystemPort = new MemoryFileSystem({});
-      const target = `${resolveProjectMemoryRoot({
-        cliStorageRoot: "/storage",
-        workspacePath: "/workspace",
-      })}/${targetSuffix}`;
+      const target = join(resolveProjectMemoryRoot({
+        cliStorageRoot: nativeFixturePath("/storage"),
+        workspacePath: nativeFixturePath("/workspace"),
+      }), targetSuffix);
       let brokerCallCount = 0;
       let brokerAnswerCount = 0;
       let hookCallCount = 0;
@@ -221,11 +223,11 @@ describe("project Memory foreground permission", () => {
         sessionId,
         {
           memory: {
-            cliStorageRoot: "/storage",
+            cliStorageRoot: nativeFixturePath("/storage"),
             enabled: true,
             use: true,
           },
-          workingDirectory: "/workspace",
+          workingDirectory: nativeFixturePath("/workspace"),
         },
         {
           eventStore,
@@ -261,7 +263,7 @@ describe("project Memory foreground permission", () => {
                     {
                       id: "write-hook-updated-memory",
                       name: "Write",
-                      input: { content: "ordinary write", file_path: "/workspace/ordinary.md" },
+                      input: { content: "ordinary write", file_path: nativeFixturePath("/workspace/ordinary.md") },
                     },
                   ],
                   usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
@@ -316,8 +318,8 @@ function apply(
     executionInput,
     memoryRoot: options.rootDir ?? MEMORY_ROOT,
     toolName: options.toolName ?? "Write",
-    workingDirectory: "/workspace",
-    workspaceRoot: "/workspace",
+    workingDirectory: nativeFixturePath("/workspace"),
+    workspaceRoot: nativeFixturePath("/workspace"),
   });
 }
 

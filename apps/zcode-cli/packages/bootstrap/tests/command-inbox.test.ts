@@ -368,14 +368,14 @@ describe("CommandInbox 幂等（§6.2/§6.3）", () => {
     },
   );
 
-  it("app-control 忽略单次 modelExecution 凭据轮换，仍核验显式模型和执行策略", async () => {
+  it("app-control 重放当前执行设置，仍核验显式模型和执行策略", async () => {
     const inbox = new CommandInbox(makeHost());
     const request = envelope({
       commandId: "app-control-auth-retry",
       payload: {
         text: "hello",
         modelSelection: { providerId: "provider", modelId: "model", options: {} },
-        modelExecution: { selectionScope: "execution", requestAuth: { apiKey: "old" } },
+        modelExecution: { selectionScope: "execution" },
       },
     });
     const first = await inbox.handle(request);
@@ -390,7 +390,6 @@ describe("CommandInbox 幂等（§6.2/§6.3）", () => {
             ...(request.payload as object),
             modelExecution: {
               selectionScope: "execution",
-              requestAuth: { apiKey: "rotated", headers: { authorization: "rotated" } },
             },
           },
         })

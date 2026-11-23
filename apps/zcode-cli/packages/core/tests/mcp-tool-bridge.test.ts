@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createRootTraceContext,
@@ -494,7 +495,8 @@ describe("MCP tool bridge", () => {
     await registry.get("mcp__node_repl__js")?.handler(
       {},
       createToolContext({
-        workingDirectory: "/data/.zcode/worktrees/3f2a/repo",
+        workingDirectory: "/data/.zcodium/worktrees/3f2a/repo",
+        workspaceScopeRoot: "/projects/repo",
         workspaceKey: "/projects/repo",
       }),
     );
@@ -506,13 +508,13 @@ describe("MCP tool bridge", () => {
       1,
       expect.objectContaining({
         workspaceKey: "/projects/repo",
-        workspacePath: "/data/.zcode/worktrees/3f2a/repo",
+        workspacePath: resolve("/projects/repo"),
       }),
       expect.anything(),
     );
     expect(callTool).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ workspaceKey: "/projects/plain" }),
+      expect.objectContaining({ workspaceKey: resolve("/projects/plain") }),
       expect.anything(),
     );
   });
@@ -1569,7 +1571,7 @@ function createToolContext(
   overrides: Partial<
     Pick<
       ToolExecutionContext,
-      "artifactStore" | "imageProcessorPort" | "runtimeScope" | "workingDirectory" | "workspaceKey"
+      "artifactStore" | "imageProcessorPort" | "runtimeScope" | "workingDirectory" | "workspaceScopeRoot" | "workspaceKey"
     >
   > = {},
 ): ToolExecutionContext {
@@ -1580,6 +1582,8 @@ function createToolContext(
     traceId: "trace-test" as never,
     workingDirectory: "/tmp/project",
     workspaceRoot: "/tmp/project",
+    // 当前 MCP bridge 显式需要作用域根，执行 cwd 可独立落在受管 worktree。
+    workspaceScopeRoot: overrides.workspaceScopeRoot ?? overrides.workingDirectory ?? "/tmp/project",
     ...overrides,
   };
 }

@@ -47,14 +47,4 @@ describe("协议无关的会话执行材料与收尾租约", () => {
     else await expect(result).rejects.toBe(failure);
     expect(record.residencyFinalizationCount).toBe(0);
   });
-  it("每次执行使用独立的不可变鉴权材料快照", async () => {
-    const headers = { Authorization: "test-credential" };
-    const context = createModelExecutionContext({ requestAuth: { headers } });
-    headers.Authorization = "changed";
-    const auth = await context.requestDependencies!.requestAuth!.source.resolve({} as never);
-    expect(auth.headers).toEqual({ Authorization: "test-credential" });
-    expect(Object.isFrozen(auth)).toBe(true);
-    expect(Object.isFrozen(auth.headers)).toBe(true);
-    expect(context.selectionScope).toBe("execution");
-  });
 });

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Emitter } from "@zcode/rpc";
 import type { IBroadcastService, VirtualProject } from "@zcode/services";
 import { createZCodeStore } from "@/store/index.js";
 import { StoreContext, useZCodeStore } from "@/store/StoreProvider.js";
@@ -9,7 +8,7 @@ import { ProjectSidebarNode } from "@/project-sidebar/ProjectSidebarNode.js";
 import { ProjectComposerMenu } from "@/project-sidebar/ProjectComposerMenu.js";
 import type { ProjectNodeProps } from "@/project-sidebar/ProjectNodeContent.js";
 import { projectKey } from "@/project-sidebar/view.js";
-import { SourceServerManagementPanel } from "@/settings/SourceServerManagementPanel.js";
+import { SourceServerSettingsSection } from "@/settings/SourceServerSettingsSection.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
@@ -61,19 +60,6 @@ const rows = (["online", "offline", "needs-upgrade"] as const).map((state, i) =>
 });
 const noop = () => {};
 const refresh = async () => {};
-const management = {
-  getSnapshot: async () => ({
-    generation: 1,
-    profiles: [],
-    servers: [],
-    states: [],
-    workspaceHistory: [],
-    failedPathCount: 0,
-    abandonedPathCount: 0,
-    migrationCounts: [],
-  }),
-  onDidChangeState: new Emitter().event,
-};
 // 只替换外部目录与连接数据；设置、store、项目装配、行、详情和菜单使用生产组件。
 Object.assign(window, {
   __projectDeviceDirectory: {
@@ -92,7 +78,6 @@ Object.assign(window, {
 function Fixture() {
   const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
   const hidden = useZCodeStore((state) => state.hideProjectDeviceNames);
-  const setHidden = useZCodeStore((state) => state.setHideProjectDeviceNames);
   return (
     <main className="min-h-screen bg-background p-4 text-foreground">
       <section className="w-64 max-w-full bg-sidebar" aria-label="Projects">
@@ -125,11 +110,7 @@ function Fixture() {
         ))}
       </section>
       <section className="mt-6 max-w-xl" aria-label="Remote settings">
-        <SourceServerManagementPanel
-          management={management as never}
-          hideProjectDeviceNames={hidden}
-          onHideProjectDeviceNamesChange={setHidden}
-        />
+        <SourceServerSettingsSection />
       </section>
       <ProjectComposerMenu
         workspacePath="/work/online"

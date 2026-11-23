@@ -9,7 +9,7 @@ import { createBrowserWindow } from "./desktopWindowChrome.js";
 import type { HostInitMessage, WindowBootstrapOptions } from "./desktopHostProcess.js";
 import type { StartupWorkspaceWarmupTarget } from "./startupWorkspace.js";
 import { handleDarwinWindowCloseRequest } from "./desktopDarwinCloseBehavior.js";
-import { supportsNativeWindowsRoundedCorners } from "./desktopWindowChromeState.js";
+import "./desktopWindowChromeState.js";
 import {
   parseWindowUnreadCount,
   parseWindowUnreadProjection,

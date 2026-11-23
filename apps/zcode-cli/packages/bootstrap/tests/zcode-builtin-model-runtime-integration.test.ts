@@ -8,14 +8,13 @@ import {
   ProviderConfigMap,
   ProviderConfigResolver,
   ProviderRegistry,
-  ZhipuAccountAccessConfig,
   type ProviderId,
 } from "@zcode/provider";
 import {
   NodeZCodeBuiltinProviderConfigSource,
   type ZCodeBuiltinProviderConfigSnapshot,
 } from "@zcode/provider-node";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ApiProviderModelRuntime } from "../src/app/provider-registry-model-runtime.js";
 
 const zcodeBuiltinProviderConfigFilePath = fileURLToPath(
@@ -78,75 +77,7 @@ describe("真实 ZCode Built-in Config 到 Active Model", () => {
     });
   });
 
-  it("Account 约束 Built-in 成员后仍由 Personal Overlay 最后覆盖", () => {
-    const providerId = "account:zai-start-plan";
-    const modelId = "GLM-5.2";
-    const registry = resolveOneBuiltinProvider(providerId, {
-      accountProviders: new ProviderConfigMap([
-        [
-          providerId,
-          new ProviderConfig({
-            builtinModelIds: [modelId],
-            access: new ZhipuAccountAccessConfig({ entitled: true }),
-          }),
-        ],
-      ]),
-      personalProviders: new ProviderConfigMap([
-        [providerId, new ProviderConfig({ visibility: "hidden" })],
-      ]),
-    });
-    const capture = captureRuntime(registry);
 
-    capture.runtime.modelFactory({
-      selection: selectionWithHighestReasoning(registry, providerId, modelId),
-    });
-
-    expect(registry.getProvider(providerId)?.models.map(({ modelId: id }) => id)).toEqual([
-      modelId,
-    ]);
-    expect(capture.created[0]?.providerConfig).toMatchObject({
-      visibility: "hidden",
-      access: {
-        type: "zhipu-account",
-        accountType: "zai",
-        mode: "start-plan",
-      },
-    });
-    expect(capture.created[0]?.modelConfig).toBe(registry.getModel(providerId, modelId)?.config);
-  });
-
-  it("隐藏 Request Auth Provider 仍由普通 Registry 精确创建 Model", () => {
-    const providerId = "account:zai-offpeak-idle-plan";
-    const modelId = "GLM-5.3";
-    const registry = resolveOneBuiltinProvider(providerId, {
-      accountProviders: new ProviderConfigMap([
-        [
-          providerId,
-          new ProviderConfig({
-            access: new ZhipuAccountAccessConfig({ entitled: true }),
-          }),
-        ],
-      ]),
-    });
-    const capture = captureRuntime(registry);
-    const requestAuthSource = { resolve: vi.fn() };
-
-    capture.runtime.modelFactory({
-      selection: selectionWithHighestReasoning(registry, providerId, modelId),
-      requestDependencies: { requestAuth: { source: requestAuthSource } },
-    });
-
-    expect(registry.getView().providers[0]).toMatchObject({
-      providerId,
-      config: {
-        visibility: "hidden",
-        access: { type: "zhipu-account", accountType: "zai", mode: "off-peak" },
-      },
-    });
-    expect(capture.created[0]?.requestDependencies?.requestAuth?.source).toBe(requestAuthSource);
-    expect(capture.created[0]?.providerConfig).toBe(registry.getProvider(providerId)?.config);
-    expect(capture.created[0]?.modelConfig).toBe(registry.getModel(providerId, modelId)?.config);
-  });
 });
 
 function selectionWithHighestReasoning(
@@ -164,7 +95,6 @@ function selectionWithHighestReasoning(
 function resolveOneBuiltinProvider(
   providerId: ProviderId,
   overlays: {
-    accountProviders?: ProviderConfigMap;
     personalProviders?: ProviderConfigMap;
     models?: ModelConfigRules;
   } = {},
@@ -179,7 +109,7 @@ function resolveOneBuiltinProvider(
       ? new ProviderConfigMap([[providerId, provider]])
       : ProviderConfigMap.empty(),
     zcodeBuiltinProviderTemplates: zcodeBuiltin.providerTemplates,
-    accountProviders: overlays.accountProviders ?? ProviderConfigMap.empty(),
+    accountProviders: ProviderConfigMap.empty(),
     personalProviders: overlays.personalProviders ?? ProviderConfigMap.empty(),
     zcodeBuiltinModelRules: zcodeBuiltin.models,
     personalModels: overlays.models ?? ModelConfigRules.empty(),

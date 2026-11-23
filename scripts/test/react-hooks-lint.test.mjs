@@ -56,10 +56,14 @@ export function Example({ enabled }: { enabled: boolean }) {
   const regular = await lint(source);
   assert.equal(regular.code, 1);
   assert.equal(regular.diagnostics.find((item) => item.code === hooksRule)?.severity, "error");
-  const legacy = await lint(source, "packages/ui/src/project-sidebar/grouped/task-row.tsx");
+  const legacy = await lint(
+    source,
+    "packages/desktop/test/e2e/helpers/web-remote-visibility-browser.ts",
+  );
   assert.equal(legacy.code, 0);
   assert.equal(legacy.diagnostics.find((item) => item.code === hooksRule)?.severity, "warning");
   for (const file of [
+    "packages/ui/src/project-sidebar/grouped/task-row.tsx",
     "packages/ui/src/ToolCallBlocks/renderers/resume-workflow-run.tsx",
     "packages/ui/src/hooks/useOnboardingRecordService.ts",
     "packages/ui/src/hooks/useZCodeAgentService.ts",

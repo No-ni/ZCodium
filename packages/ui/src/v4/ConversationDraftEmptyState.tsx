@@ -4,7 +4,7 @@
  * i18n key `chat.empty.greeting.*` 一直保留）；边界时刻自动换档逻辑保真。
  * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
  */
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -158,7 +158,8 @@ export function ConversationDraftEmptyState({
     return () => {
       observer.disconnect();
     };
-  }, [greeting]);
+    // 紧凑模式切换要释放旧测量订阅，返回普通模式时重新建立。
+  }, [greeting, compactForRemoteControl]);
 
   return (
     <div

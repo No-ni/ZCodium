@@ -12,7 +12,8 @@
  * 它的落盘行为不归本切片，本切片只对「写进去的参数」负责。
  */
 
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createProjectSymlinkFixture as symlink } from "../../../../../scripts/ci/project-symlink-fixture.mjs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

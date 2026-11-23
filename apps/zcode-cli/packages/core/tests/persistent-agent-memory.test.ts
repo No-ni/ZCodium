@@ -1,5 +1,7 @@
+// 生产路径用原生 node:path 解析；合成文件系统的输入与预期使用同一平台语义。
+import { resolve as nativeFixturePath } from "node:path";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -32,9 +34,9 @@ describe("persistent custom-agent memory", () => {
     expect(sanitizePersistentAgentMemoryKey("!!!")).toBe("---");
     expect(sanitizePersistentAgentMemoryKey("")).toBe("unknown");
 
-    expect(root("user")).toBe("/storage/agent-memory/reviewer-a-b");
-    expect(root("project")).toBe("/workspace/app/.zcode/agent-memory/reviewer-a-b");
-    expect(root("local")).toBe("/workspace/app/.zcode/agent-memory-local/reviewer-a-b");
+    expect(root("user")).toBe(nativeFixturePath("/storage/agent-memory/reviewer-a-b"));
+    expect(root("project")).toBe(nativeFixturePath("/workspace/app/.zcodium/agent-memory/reviewer-a-b"));
+    expect(root("local")).toBe(nativeFixturePath("/workspace/app/.zcodium/agent-memory-local/reviewer-a-b"));
   });
 
   it.each(["user", "project", "local"] as const)(
@@ -42,7 +44,7 @@ describe("persistent custom-agent memory", () => {
     (scope) => {
       const memoryRoot = root(scope);
       const expected = fixture
-        .replace("<MEMORY_ROOT>", memoryRoot)
+        .replace("<MEMORY_ROOT>/", `${memoryRoot}${sep}`)
         .replace("<SCOPE_GUIDANCE>", scopeGuidance[scope]);
 
       expect(
@@ -86,7 +88,7 @@ describe("persistent custom-agent memory", () => {
       tools: ["Grep"],
     });
     const definitions = { activeAgents: [profile] };
-    const memory = { enabled: true, storageRoot: "/storage", use: true };
+    const memory = { enabled: true, storageRoot: nativeFixturePath("/storage"), use: true };
     const projected = projectPersistentAgentMemoryTools(definitions, memory).activeAgents[0];
 
     expect(projected?.tools).toEqual(["Grep", "Write", "Edit"]);
@@ -123,20 +125,20 @@ describe("persistent custom-agent memory", () => {
     const indexPath = join(memoryRoot, "MEMORY.md");
     const fileSystem = new MemoryFileSystem({ [indexPath]: "first index" });
     const profile = customProfile({ memory: "project", tools: ["Write"] });
-    const memory = { enabled: true, storageRoot: "/storage", use: true };
+    const memory = { enabled: true, storageRoot: nativeFixturePath("/storage"), use: true };
 
     const first = await loadPersistentAgentMemory({
       fileSystemPort: fileSystem,
       memory,
       profile,
-      workspaceRoot: "/workspace/app",
+      workspaceRoot: nativeFixturePath("/workspace/app"),
     });
     fileSystem.files[indexPath] = "second index";
     const second = await loadPersistentAgentMemory({
       fileSystemPort: fileSystem,
       memory,
       profile,
-      workspaceRoot: "/workspace/app",
+      workspaceRoot: nativeFixturePath("/workspace/app"),
     });
 
     expect(first?.prompt).toContain("## MEMORY.md\n\nfirst index");
@@ -148,9 +150,9 @@ describe("persistent custom-agent memory", () => {
     expect(
       await loadPersistentAgentMemory({
         fileSystemPort: disabledFileSystem,
-        memory: { enabled: false, storageRoot: "/storage", use: true },
+        memory: { enabled: false, storageRoot: nativeFixturePath("/storage"), use: true },
         profile,
-        workspaceRoot: "/workspace/app",
+        workspaceRoot: nativeFixturePath("/workspace/app"),
       }),
     ).toBeUndefined();
     expect(disabledFileSystem.createdDirectories.size).toBe(0);
@@ -164,12 +166,12 @@ describe("persistent custom-agent memory", () => {
 
     const loaded = await loadPersistentAgentMemory({
       fileSystemPort: fileSystem,
-      memory: { enabled: true, storageRoot: "/storage", use: true },
+      memory: { enabled: true, storageRoot: nativeFixturePath("/storage"), use: true },
       profile: customProfile({ memory: "user", tools: ["Write"] }),
-      workspaceRoot: "/workspace/app",
+      workspaceRoot: nativeFixturePath("/workspace/app"),
     });
 
-    expect(loaded?.rootDir).toBe("/storage/agent-memory/reviewer-a-b");
+    expect(loaded?.rootDir).toBe(nativeFixturePath("/storage/agent-memory/reviewer-a-b"));
     expect(loaded?.prompt).toContain("# Persistent Agent Memory");
   });
 });
@@ -178,8 +180,8 @@ function root(scope: "user" | "project" | "local"): string {
   return resolvePersistentAgentMemoryRoot({
     agentName: "reviewer/a b",
     scope,
-    storageRoot: "/storage",
-    workspaceRoot: "/workspace/app",
+    storageRoot: nativeFixturePath("/storage"),
+    workspaceRoot: nativeFixturePath("/workspace/app"),
   });
 }
 
