@@ -144,8 +144,8 @@ On POSIX only the exact key `PATH` is used.
 
 ## Observability
 
-- `info` `mcp.node_fallback.ready` once per provider: `binDir`, `hasNpm`.
-- `warn` `mcp.node_fallback.unavailable` once per provider: error message.
+- `info` `mcp.node_fallback.ready` once per provider: `hasNpm` and fixed module/event names.
+- `warn` `mcp.node_fallback.unavailable` once per provider: fixed module/event names. Directory and raw filesystem errors stay out of logs.
 - Bootstrap creates one provider per MCP wiring site (the protocol connection pool, and the
   standalone app adapter). The pool shares it across all session adapters.
 - No per-connection logs.
@@ -164,6 +164,21 @@ On POSIX only the exact key `PATH` is used.
   lockfile, so it does not list the bundled npm yet. The staged tree carries the license files.
 
 ## Tests
+
+Windows 并发准备同一 shim 时，单纯「各写临时文件再 rename」会在另一调用打开目标文件读内容时返回 EPERM。每个 shim 的检查与发布复用共享 `withFileLock`，锁内再次核对内容；不同 shim 仍可独立准备。provider 仍仅持有原有准备 flight，不增加第二套全局缓存，也不把真实权限/写入失败当成功。
+
+```mermaid
+sequenceDiagram
+  participant A as MCP 准备调用
+  participant L as 共享文件锁
+  participant F as shim 文件
+  A->>L: 按 shim 路径获取锁
+  L->>F: 检查当前内容和执行位
+  alt 需要更新
+    L->>F: 写唯一临时文件并原子发布
+  end
+  L-->>A: 释放锁并返回准备结果
+```
 
 - Adapters unit: shim rendering per platform; directory preparation is idempotent, repairs changed
   content and exec bits, and is safe for concurrent calls; env merge appends once, survives a server

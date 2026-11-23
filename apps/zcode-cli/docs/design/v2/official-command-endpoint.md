@@ -1,5 +1,7 @@
 # Official Command Endpoint
 
+> 本文件保留官方命令端点的历史设计。本仓已剥离该官方认证/云端部署功能，相关 Sites 部署装配测试也已退役；不作为当前可用入口。现行边界见仓库根 `docs/specs/maintenance-model.md`。
+
 ## Goal
 
 Let the command-line tools shipped in official plugins (today only `zcode-site` from the ZCode Sites plugin) call the ZCode API with the signed-in user's identity, without the tool ever holding a credential.
