@@ -66,9 +66,11 @@ console.log(`[tsup] ZCODE_ENV=${zcodeEnv} ZCODE_PRODUCT_FLAVOR=${zcodeProductFla
 // 只内联显式列出的包会在新增依赖时再次漏掉（3.18.2 的 zod 就是这样残留 require("zod")，
 // 导致 preload 加载失败、window.zcode 缺失、renderer 顶层抛错、首屏一直停在启动遮罩）。
 const desktopDependencyNames = Object.keys(
-  (JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf8")) as {
-    dependencies?: Record<string, string>;
-  }).dependencies ?? {},
+  (
+    JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    }
+  ).dependencies ?? {},
 );
 const preloadNoExternal = Array.from(new Set(["@zcode/shared", ...desktopDependencyNames]));
 
