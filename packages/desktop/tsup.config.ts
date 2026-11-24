@@ -61,6 +61,17 @@ const { environment: zcodeEnv } = await loadBuiltinProviderConfig();
 const zcodeProductFlavor = resolveDesktopProductFlavor({ ...process.env, ZCODE_ENV: zcodeEnv });
 console.log(`[tsup] ZCODE_ENV=${zcodeEnv} ZCODE_PRODUCT_FLAVOR=${zcodeProductFlavor}`);
 
+// preload 运行在 Electron sandbox 渲染进程里，只能 require("electron")，产物必须完全自包含。
+// tsup 默认把 package.json dependencies 当 external；这里按同一份依赖清单把它们全部内联。
+// 只内联显式列出的包会在新增依赖时再次漏掉（3.18.2 的 zod 就是这样残留 require("zod")，
+// 导致 preload 加载失败、window.zcode 缺失、renderer 顶层抛错、首屏一直停在启动遮罩）。
+const desktopDependencyNames = Object.keys(
+  (JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+  }).dependencies ?? {},
+);
+const preloadNoExternal = Array.from(new Set(["@zcode/shared", ...desktopDependencyNames]));
+
 function parseCsvEnv(value: string | undefined): string[] {
   return (value ?? "")
     .split(",")
@@ -284,7 +295,9 @@ export default defineConfig([
     removeNodeProtocol: false,
     target: "node22",
     external: ["electron"],
-    noExternal: ["@zcode/shared"],
+    // 依赖清单见文件顶部的 preloadNoExternal：preload 只能 require("electron")，
+    // 必须内联全部桌面运行依赖；main/host 仍保持外置，由安装包 node_modules 解析。
+    noExternal: preloadNoExternal,
     outExtension: () => ({ js: ".cjs" }),
     define: createSharedDefines(),
     esbuildOptions(options) {

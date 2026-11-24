@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tsupConfig, {
   resolveBuildPackagedAgentTelemetryEnv,
@@ -76,6 +77,20 @@ describe("desktop tsup chunk isolation", () => {
       expect(getNoExternal(configName)).toContain("@zcode/provider");
       expect(getNoExternal(configName)).toContain("@zcode/provider-node");
     }
+  });
+
+  it("preload 应内联全部桌面依赖，sandbox preload 不能 require 安装包里的 node_modules", () => {
+    // 修复依据：preload 在 sandbox 下只能 require electron；tsup 默认把 package.json dependencies
+    // 外置。只要漏内联其中一个（3.18.2 的 zod），preload 就加载失败，window.zcode 缺失后
+    // renderer 启动即抛错，首屏一直停在启动遮罩。
+    const desktopPackage = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { dependencies?: Record<string, string> };
+    const preloadNoExternal = getNoExternal("preload");
+    for (const dependencyName of Object.keys(desktopPackage.dependencies ?? {})) {
+      expect(preloadNoExternal).toContain(dependencyName);
+    }
+    expect(preloadNoExternal).toContain("zod");
   });
 
   it("生产构建应压缩 main/host/preload 且不生成 sourcemap", () => {
